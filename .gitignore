@@ -1,0 +1,17 @@
+# Go
+appview/bin/
+appview/tmp/
+*.test
+*.out
+
+# Env
+.env
+.env.local
+
+# Editors
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Flutter ignores are in app/.gitignore (created by `flutter create`)

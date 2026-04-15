@@ -1,0 +1,111 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.feed.post",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A post on Craftsky. May be a general post or a craft project post; when the optional 'project' field is present the post is a project post.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["text", "createdAt"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 3000,
+            "maxGraphemes": 300,
+            "description": "The primary text content of the post."
+          },
+          "project": {
+            "type": "ref",
+            "ref": "#projectDetails",
+            "description": "If present, this post is a craft project post."
+          },
+          "images": {
+            "type": "array",
+            "items": { "type": "ref", "ref": "#image" },
+            "maxLength": 4,
+            "description": "Images attached to the post."
+          },
+          "reply": {
+            "type": "ref",
+            "ref": "#replyRef",
+            "description": "If present, this post is a reply to another post."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Client-declared creation timestamp."
+          }
+        }
+      }
+    },
+    "projectDetails": {
+      "type": "object",
+      "description": "Craft project metadata attached to a post.",
+      "properties": {
+        "craftType": {
+          "type": "string",
+          "maxLength": 50,
+          "maxGraphemes": 50,
+          "description": "The type of craft, e.g. knitting, sewing, crochet, embroidery, quilting.",
+          "knownValues": [
+            "knitting",
+            "crochet",
+            "sewing",
+            "embroidery",
+            "quilting",
+            "weaving",
+            "spinning"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Whether the project is in progress or finished.",
+          "knownValues": ["wip", "finished"]
+        },
+        "patternUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Link to the pattern used, e.g. on Ravelry or Etsy."
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "description": "An image blob with alt text.",
+      "required": ["image", "alt"],
+      "properties": {
+        "image": {
+          "type": "blob",
+          "accept": ["image/jpeg", "image/png", "image/webp"],
+          "maxSize": 10485760
+        },
+        "alt": {
+          "type": "string",
+          "maxLength": 1000,
+          "maxGraphemes": 1000,
+          "description": "Alt text describing the image for accessibility."
+        }
+      }
+    },
+    "replyRef": {
+      "type": "object",
+      "description": "Reference to the parent and root posts of a thread.",
+      "required": ["root", "parent"],
+      "properties": {
+        "root": {
+          "type": "ref",
+          "ref": "com.atproto.repo.strongRef",
+          "description": "The root post of the thread."
+        },
+        "parent": {
+          "type": "ref",
+          "ref": "com.atproto.repo.strongRef",
+          "description": "The immediate parent post being replied to."
+        }
+      }
+    }
+  }
+}

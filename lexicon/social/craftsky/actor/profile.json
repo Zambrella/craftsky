@@ -1,0 +1,26 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.actor.profile",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A Craftsky-specific profile extension. Signals that an account is active on Craftsky and stores craft-specific preferences. The base profile (display name, avatar, bio) continues to live in app.bsky.actor.profile. Use a fixed record key of 'self'.",
+      "key": "literal:self",
+      "record": {
+        "type": "object",
+        "properties": {
+          "crafts": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 50,
+              "maxGraphemes": 50
+            },
+            "maxLength": 10,
+            "description": "The crafts this user practices. Free-form but clients may normalize against the knownValues of social.craftsky.feed.post#projectDetails.craftType."
+          }
+        }
+      }
+    }
+  }
+}
