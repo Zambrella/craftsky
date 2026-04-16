@@ -2445,6 +2445,21 @@ Expected: prints `401`.
 Run: `curl -sS -o /dev/null -w "%{http_code}\n" http://localhost:8080/does-not-exist`
 Expected: prints `404`.
 
+- [ ] **Step 6a: `/health` with the DB down returns 503**
+
+This exercises the spec's AC #4 negative half while the server is still running.
+
+```bash
+docker stop craftsky-dev-pg
+# Wait a moment for the server's pool to notice.
+sleep 1
+curl -sS -o /tmp/health-down -w "%{http_code}\n" http://localhost:8080/health
+cat /tmp/health-down
+docker start craftsky-dev-pg
+```
+
+Expected: `curl` prints `503`. `/tmp/health-down` contains `db unreachable`. After the restart, Postgres takes ~1-2 s to become ready again; a follow-up `curl http://localhost:8080/health` should then show 200.
+
 - [ ] **Step 7: Graceful shutdown**
 
 Run:
@@ -2469,6 +2484,47 @@ If any line is missing or they're out of order, review `/tmp/appview.log` — th
 
 Run: `docker stop craftsky-dev-pg`
 (If you used a pre-existing Postgres, skip.)
+
+- [ ] **Step 8a: Prod startup + log-level evidence**
+
+This covers the half of AC #2 that Task 3.10 Step 3 doesn't: verifying prod actually starts cleanly when the env is valid, AND that the dev-only debug line is NOT emitted.
+
+Temporary prod.env (deleted after the check so no secrets linger). The `trap` guards against a Ctrl-C leaving a stale prod.env behind — once real secrets are in play a leftover file could silently override a later `appview prod` invocation.
+```bash
+trap 'rm -f environments/prod.env' EXIT INT TERM
+
+cat > environments/prod.env <<'EOF'
+DATABASE_URL=postgres://craftsky:dev@localhost:5432/craftsky_dev?sslmode=disable
+ALLOWED_ORIGINS=https://craftsky.social
+EOF
+
+# Restart Postgres if it's down from Step 6a or Step 8.
+docker start craftsky-dev-pg >/dev/null 2>&1 || true
+until docker exec craftsky-dev-pg pg_isready -U craftsky >/dev/null 2>&1; do sleep 0.3; done
+
+/tmp/appview prod > /tmp/appview-prod.log 2>&1 &
+APPVIEW_PROD_PID=$!
+for i in {1..50}; do
+  if curl -sS -o /dev/null http://localhost:8080/health 2>/dev/null; then break; fi
+  sleep 0.2
+done
+
+# Assert: "deps initialised" is present, "log level" debug line is ABSENT.
+grep -q '"msg":"deps initialised"' /tmp/appview-prod.log && echo "prod: deps initialised OK"
+if grep -q '"msg":"log level"' /tmp/appview-prod.log; then
+  echo "FAIL: prod emitted the dev-only debug line"
+else
+  echo "prod: debug line absent OK"
+fi
+
+kill -TERM $APPVIEW_PROD_PID
+wait $APPVIEW_PROD_PID
+
+# Clean up the temp prod.env so it isn't left behind.
+rm environments/prod.env
+```
+
+Expected: both echo lines print (the `prod: ...` ones); the `FAIL:` line does NOT print.
 
 - [ ] **Step 9: Final verification suite**
 
@@ -3614,5 +3670,204 @@ Cross-check against the spec's acceptance criteria (spec §"Acceptance Criteria"
 - **AC #12** (Task 4.9 Step 3 passes) — `cli backfill` stub error.
 
 ---
+
+## Chunk 5: Supporting doc updates
+
+**Scope:** Two checked-in docs — `AGENTS.md` and `appview/README.md` — that the spec flagged as needing updates now that chi is out and `cmd/cli/` is in. Both are pure text edits; no tests. This chunk is small (one commit per doc).
+
+The spec's "In-Scope Touch-Ups" section explicitly calls out the AGENTS.md **line 29** (router) edit and the README rewrite. Task 5.1 Step 2 additionally pins AGENTS.md **line 31** to `golang-migrate/v4`; this is an intentional extension because the spec's "Module Dependencies" and "Migration tooling: golang-migrate/v4" sections pin the tool, and leaving AGENTS.md saying "golang-migrate or goose" would contradict what's actually shipping.
+
+### Task 5.1: Update `AGENTS.md`
+
+**Files:**
+- Modify: `AGENTS.md` (at the repo root, not `appview/AGENTS.md`).
+
+- [ ] **Step 1: Drop "chi or" from the Go conventions line**
+
+Read `AGENTS.md` first to locate the line:
+```bash
+grep -n '^- \*\*Go:\*\*' AGENTS.md
+```
+Expected: one match at line 29 (may drift slightly if the file has been edited since the spec was written).
+
+Apply this change to that line:
+- Before: `- **Go:** standard ``gofmt``, ``slog`` for logging, ``sqlc`` for queries (write SQL, not ORMs), ``chi`` or stdlib ``net/http`` for routing, ``pgx`` for Postgres.`
+- After: `- **Go:** standard ``gofmt``, ``slog`` for logging, ``sqlc`` for queries (write SQL, not ORMs), stdlib ``net/http`` for routing (Go 1.22+ method/path routing is enough), ``pgx`` for Postgres.`
+
+- [ ] **Step 2: Pin migration tooling to `golang-migrate`**
+
+On the `## SQL` line (around line 31), replace "`golang-migrate` or `goose`" with "`golang-migrate/v4`":
+- Before: `- **SQL:** migrations in ``appview/migrations/`` via ``golang-migrate`` or ``goose``. Queries in ``appview/queries/`` consumed by ``sqlc``.`
+- After: `- **SQL:** migrations in ``appview/migrations/`` via ``golang-migrate/v4`` (wrapped by ``appview/cmd/cli migrate``). Queries in ``appview/queries/`` consumed by ``sqlc``.`
+
+- [ ] **Step 3: Verify diff**
+
+Run: `git diff AGENTS.md`
+Expected: two lines changed, no whitespace-only noise.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add AGENTS.md
+git commit -m "docs(agents): pin router to stdlib and migrations to golang-migrate/v4"
+```
+
+### Task 5.2: Update `appview/README.md`
+
+**Files:**
+- Modify: `appview/README.md`.
+
+- [ ] **Step 1: Replace the README**
+
+Replace `appview/README.md` entirely with:
+```markdown
+# appview
+
+The Craftsky App View — a Go service that subscribes to the atproto Relay firehose, indexes Craftsky records into Postgres, and serves a JSON/HTTP API to the Flutter client.
+
+Also acts as the **Token Mediating Backend (TMB)** for OAuth with user PDSes.
+
+## Layout
+
+```
+appview/
+├── cmd/
+│   ├── appview/             # server binary (main + NewServer)
+│   └── cli/                 # ops & smoke-test CLI (cobra)
+├── internal/
+│   ├── app/                 # Config, Deps, NewDevDeps/NewProdDeps
+│   ├── auth/                # AuthService interface + mock / not-implemented impls
+│   ├── db/                  # pgxpool connection wrapper
+│   ├── middleware/          # Logging, CORS, Authenticated
+│   ├── routes/              # HTTP route registration
+│   ├── api/                 # HTTP handler factories
+│   ├── firehose/            # Subscriber interface (stub on day one)
+│   ├── index/               # Indexer interface (stub on day one)
+│   └── models/              # reserved for sqlc-generated types
+├── environments/
+│   ├── dev.env              # checked in; no secrets
+│   └── prod.env.example     # template; real prod.env is gitignored
+├── migrations/              # SQL files consumed by golang-migrate/v4
+└── queries/                 # SQL files consumed by sqlc
+```
+
+## Binaries
+
+### `cmd/appview` — the HTTP server
+
+```
+appview dev    # loads environments/dev.env, debug logging, mock auth
+appview prod   # loads environments/prod.env, info logging, (future) real OAuth
+```
+
+### `cmd/cli` — ops and smoke-test CLI
+
+```
+cli ping --env dev              # pings the DB, prints pool stats
+cli migrate up|down|status|redo # wraps golang-migrate/v4
+cli request GET /whoami --env dev  # hits the running server as the dev DID
+cli firehose replay --since 2026-04-01 --env dev  # stub until the subscriber lands
+cli backfill did:plc:abc --env dev                 # stub until the indexer lands
+cli did-resolve alice.bsky.social --env dev       # stub until the identity resolver lands
+```
+
+Exit codes for `cli request`:
+- `0` — 2xx response from the server
+- `1` — 4xx/5xx response
+- `2` — transport error (couldn't reach server)
+
+## Key Dependencies
+
+- [`github.com/bluesky-social/indigo`](https://github.com/bluesky-social/indigo) — atproto SDK (firehose, XRPC, OAuth) — to be adopted once the real subscriber/OAuth land
+- [`pgx/v5`](https://github.com/jackc/pgx) — Postgres driver + pool
+- [`sqlc`](https://sqlc.dev) — SQL → Go codegen — to be adopted once first queries land
+- [`cobra`](https://github.com/spf13/cobra) — CLI framework
+- [`golang-migrate/v4`](https://github.com/golang-migrate/migrate) — migrations, wrapped by `cmd/cli`
+- [`godotenv`](https://github.com/joho/godotenv) — env file loader
+- [`uuid`](https://github.com/google/uuid) — per-request run IDs
+- `slog` — standard library logging
+- `net/http` — standard library router (Go 1.22+ method/path routing is sufficient)
+
+## Development
+
+Run Postgres:
+```
+docker run --rm -d --name craftsky-dev-pg \
+  -p 5432:5432 \
+  -e POSTGRES_USER=craftsky \
+  -e POSTGRES_PASSWORD=dev \
+  -e POSTGRES_DB=craftsky_dev \
+  postgres:16
+```
+
+Run the server:
+```
+go run ./cmd/appview dev
+```
+
+Run the CLI (from `appview/`):
+```
+go run ./cmd/cli ping --env dev
+go run ./cmd/cli request GET /health --env dev
+```
+
+Run tests and formatters:
+```
+go test ./...
+go vet ./...
+gofmt -l .
+```
+
+A future commit will add `make` targets (`make dev`, `make migrate`, `make generate`, `make test`).
+
+## Why Go
+
+See the reference doc's "Tech Stack" section. TL;DR: contributor accessibility, ecosystem maturity, single static binary deploys, alignment with the atproto Go ecosystem (`indigo`).
+```
+
+- [ ] **Step 2: Verify it reads sensibly**
+
+Run: `git diff appview/README.md | head -80`
+Expected: the diff is large (we rewrote most of it). Spot-check that the `Layout` tree still matches the actual filesystem (it should, since we just built what it describes in Chunks 1-4).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add appview/README.md
+git commit -m "docs(appview): update README to reflect stdlib router, cmd/cli, and new layout"
+```
+
+### Chunk 5 acceptance
+
+- [ ] `git log --oneline -2` shows the two doc commits.
+- [ ] `grep -nw 'chi' AGENTS.md appview/README.md` returns nothing (word-boundary match: chi is gone; defends against false positives like "chicken" in some future edit).
+- [ ] `grep -n 'golang-migrate' AGENTS.md appview/README.md` returns hits in both.
+- [ ] The `appview/` filesystem matches the Layout section of `appview/README.md`.
+
+---
+
+## Final acceptance — whole spec AC checklist
+
+At this point, every spec acceptance criterion should be verifiable. Run through them in one sitting (Postgres up; the server can be started as needed per AC):
+
+| AC | Verified by |
+|----|-------------|
+| #1 | Task 3.11 Step 2 — server starts dev, debug line in `/tmp/appview.log` |
+| #2 | Task 3.10 Step 3 (missing-var exit) + Task 3.11 Step 8a (prod valid-start + debug-line-absent) |
+| #3 | Task 3.10 Steps 1–2 |
+| #4 | Task 3.11 Step 3 (200) + Task 3.11 Step 6a (503 with DB down) |
+| #5 | Task 3.11 Step 4 |
+| #6 | Task 3.11 Step 5 |
+| #7 | Task 3.11 Step 7 (ordered shutdown log lines) |
+| #8 | Task 4.3 Step 2 |
+| #9 | Task 4.5 Step 2 and Step 5 |
+| #10 | Task 4.7 Step 3 |
+| #11 | Task 4.9 Step 2 |
+| #12 | Task 4.9 Step 3 |
+| #13 | Chunk 5 acceptance (`go vet` + `gofmt -l`) combined with the per-chunk gates |
+| #14 | Every chunk's `go build ./...` step |
+
+If any AC isn't green, return to the relevant task and debug before declaring the scaffold done.
+
 
 
