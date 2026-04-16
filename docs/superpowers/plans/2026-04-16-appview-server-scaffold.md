@@ -2483,3 +2483,1136 @@ If everything passes, Chunk 3 is done — you have a running server that serves 
 
 ---
 
+## Chunk 4: CLI binary
+
+**Scope:** Everything under `cmd/cli/`. Cobra root with persistent `--env` flag, and the six subcommands: `ping`, `migrate`, `request`, `firehose replay`, `backfill`, `did-resolve` (stub). End of chunk: every acceptance criterion that involves the CLI passes.
+
+**Shared pattern:** Each subcommand's `RunE` calls a helper that:
+1. Reads the resolved `--env` flag value (from the persistent flag).
+2. Calls `app.LoadConfig` and the appropriate `NewDevDeps` / `NewProdDeps`.
+3. Ensures `cleanup()` is deferred.
+4. Calls the subcommand-specific logic with `*app.Deps`.
+
+That helper lives in `cmd/cli/deps.go` (a small file next to the subcommands, NOT a new `internal/` package — it's a private `package main` helper used by the cobra wiring).
+
+### Task 4.1: Cobra root and shared dep loader
+
+**Files:**
+- Create: `appview/cmd/cli/main.go`
+- Create: `appview/cmd/cli/deps.go`
+
+No dedicated unit tests here — cobra wiring and the dep-loader helper are covered by each subcommand's own end-to-end smoke in Tasks 4.3 / 4.4 / 4.6 / 4.9.
+
+- [ ] **Step 1: Create `cmd/cli/main.go`**
+
+Create `appview/cmd/cli/main.go`:
+```go
+// Command cli is the Craftsky App View's companion CLI: ops tasks,
+// smoke tests, and stubs for not-yet-implemented subsystems.
+//
+// Usage:
+//   cli [subcommand] --env <dev|prod> [flags]
+//
+// --env is a persistent flag on the root command; every subcommand
+// inherits it. Default is "dev" so local iteration just works.
+package main
+
+import (
+	"os"
+
+	"github.com/spf13/cobra"
+)
+
+// envFlag is the value of --env for the current invocation, populated
+// by cobra before any subcommand's RunE runs.
+var envFlag string
+
+var rootCmd = &cobra.Command{
+	Use:   "cli",
+	Short: "Craftsky App View ops and smoke-test CLI",
+	Long: `cli is a companion tool to the appview server. It provides:
+  * migrate — apply or inspect database migrations
+  * ping    — check DB connectivity
+  * request — hit the running server as the dev DID
+  * firehose replay, backfill, did-resolve — stubs pending real impls`,
+}
+
+func main() {
+	rootCmd.PersistentFlags().StringVar(&envFlag, "env", "dev", `environment: "dev" or "prod"`)
+	if err := rootCmd.Execute(); err != nil {
+		// Cobra prints "Error: ..." itself; we just ensure non-zero exit.
+		os.Exit(1)
+	}
+}
+```
+
+- [ ] **Step 2: Create the shared dep loader**
+
+Create `appview/cmd/cli/deps.go`:
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"social.craftsky/appview/internal/app"
+)
+
+// loadDeps is the boilerplate every subcommand runs: parse the env flag,
+// load config, build *app.Deps. Returns the deps and a cleanup function
+// the caller must defer. On error, both are nil.
+func loadDeps(ctx context.Context) (*app.Deps, func(), error) {
+	env, err := app.ParseEnv(envFlag)
+	if err != nil {
+		return nil, nil, err
+	}
+	cfg, err := app.LoadConfig(env, fmt.Sprintf("environments/%s.env", env))
+	if err != nil {
+		return nil, nil, fmt.Errorf("load config: %w", err)
+	}
+	switch env {
+	case app.EnvDev:
+		return app.NewDevDeps(ctx, cfg)
+	case app.EnvProd:
+		return app.NewProdDeps(ctx, cfg)
+	default:
+		return nil, nil, fmt.Errorf("unreachable: unknown env %q", env)
+	}
+}
+```
+
+- [ ] **Step 3: Verify build**
+
+Run: `go build ./...`
+Expected: exits 0. (Root-only CLI builds even with no subcommands registered; `cli --help` would print a usage summary but we'll wire actual subcommands next.)
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add cmd/cli/main.go cmd/cli/deps.go
+git commit -m "feat(appview): add cli root cobra command and shared deps loader"
+```
+
+### Task 4.2: `cli ping` subcommand
+
+**Files:**
+- Create: `appview/cmd/cli/ping.go`
+
+- [ ] **Step 1: Create `ping.go`**
+
+Create `appview/cmd/cli/ping.go`:
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/spf13/cobra"
+)
+
+var pingCmd = &cobra.Command{
+	Use:   "ping",
+	Short: "Ping the configured Postgres and print pool stats",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		deps, cleanup, err := loadDeps(ctx)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+
+		if err := deps.DB.Ping(ctx); err != nil {
+			return fmt.Errorf("ping failed: %w", err)
+		}
+		s := deps.DB.Stat()
+		fmt.Printf("ok: db up — acquired=%d idle=%d total=%d max=%d\n",
+			s.AcquiredConns(), s.IdleConns(), s.TotalConns(), s.MaxConns())
+		return nil
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(pingCmd)
+}
+```
+
+Note: `loadDeps` already pings on construction via `db.Connect`, so the second Ping is redundant in the happy path — but it's cheap, and it protects against a situation where the pool was built OK but the DB has since gone down between `Connect` and this call. Keeps the output honest.
+
+- [ ] **Step 2: Verify build**
+
+Run: `go build ./...`
+Expected: exits 0.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add cmd/cli/ping.go
+git commit -m "feat(appview): add cli ping subcommand"
+```
+
+### Task 4.3: Smoke `cli ping`
+
+**Files:** none modified.
+
+- [ ] **Step 1: Build the CLI**
+
+From `appview/`:
+```bash
+go build -o /tmp/cli ./cmd/cli
+```
+
+- [ ] **Step 2: Ping against a running Postgres**
+
+Start Postgres (if not already up — see Task 3.11 Step 1). Then:
+```bash
+/tmp/cli ping --env dev
+```
+Expected: exits 0, prints one line like `ok: db up — acquired=0 idle=1 total=1 max=4`. The exact numbers may differ; `total >= 1` and `max > 0` is what to expect.
+
+- [ ] **Step 3: Ping with DB down**
+
+Stop Postgres (`docker stop craftsky-dev-pg`), then:
+```bash
+/tmp/cli ping --env dev
+```
+Expected: exits non-zero. Stderr contains the load/connect error (e.g. `Error: db connect: ping: ...`).
+
+Restart Postgres for the next tasks: `docker start craftsky-dev-pg` (or re-run the docker run from Task 3.11).
+
+- [ ] **Step 4: Nothing to commit**
+
+Task is verification-only. Proceed.
+
+### Task 4.4: `cli migrate` subcommand
+
+**Files:**
+- Create: `appview/cmd/cli/migrate.go`
+- Create: `appview/cmd/cli/migrate_test.go`
+
+golang-migrate/v4's `migrate.New` wants two URLs: a source URL (`file://...`) and a database URL. We use the file source and the Postgres driver, imported blank.
+
+- [ ] **Step 1: Write failing test for the "empty migrations dir" case**
+
+The empty-dir behaviour is observable in unit tests via a tempdir and an in-memory test setup. But golang-migrate's `file://` source requires a real directory. We create an empty tempdir and point at it.
+
+Create `appview/cmd/cli/migrate_test.go`:
+```go
+package main
+
+import (
+	"testing"
+)
+
+func TestMigrateStatusEmptyDir(t *testing.T) {
+	// The test passes a URL pointing at a closed port, proving that the
+	// empty-dir short-circuit runs BEFORE any DB connection attempt —
+	// which is the AC #9 contract.
+	out, err := runMigrateStatus("postgres://u:p@127.0.0.1:1/x?sslmode=disable&connect_timeout=1", t.TempDir())
+	if err != nil {
+		t.Fatalf("err = %v, want nil for empty migrations dir", err)
+	}
+	want := "no migrations applied (migrations directory is empty)"
+	if out != want {
+		t.Errorf("out = %q, want %q", out, want)
+	}
+}
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `go test ./cmd/cli/...`
+Expected: compile error — `undefined: runMigrateStatus`.
+
+- [ ] **Step 3: Implement `migrate.go`**
+
+Create `appview/cmd/cli/migrate.go`:
+```go
+package main
+
+import (
+	"errors"
+	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/spf13/cobra"
+)
+
+// migrationsDir is the directory used by every subcommand in this family.
+// Relative to the CLI's working directory.
+const migrationsDir = "migrations"
+
+var migrateCmd = &cobra.Command{
+	Use:   "migrate",
+	Short: "Apply, roll back, or inspect database migrations",
+}
+
+// migrateCfg loads only Config (no DB pool). Migrate subcommands use
+// golang-migrate's own postgres driver rather than our pgxpool, so we
+// don't want loadDeps's side effect of opening a second connection.
+// This also means `cli migrate status --env dev` against an empty
+// migrations/ directory exits 0 even when Postgres is unreachable —
+// which is the AC #9 contract.
+func migrateCfg() (string, error) {
+	env, err := parseEnvFlag()
+	if err != nil {
+		return "", err
+	}
+	cfg, err := loadCfgLight(env)
+	if err != nil {
+		return "", err
+	}
+	return cfg.DatabaseURL, nil
+}
+
+var migrateUpCmd = &cobra.Command{
+	Use:   "up",
+	Short: "Apply all unapplied migrations",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if isMigrationsDirEmpty(migrationsDir) {
+			fmt.Println("no migrations applied (migrations directory is empty)")
+			return nil
+		}
+		dbURL, err := migrateCfg()
+		if err != nil {
+			return err
+		}
+		return runMigrateUp(dbURL, migrationsDir)
+	},
+}
+
+var migrateDownCmd = &cobra.Command{
+	Use:   "down [N]",
+	Short: "Roll back N migrations (default 1)",
+	Args:  cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		n := 1
+		if len(args) == 1 {
+			v, err := strconv.Atoi(args[0])
+			if err != nil || v <= 0 {
+				return fmt.Errorf("N must be a positive integer, got %q", args[0])
+			}
+			n = v
+		}
+		if isMigrationsDirEmpty(migrationsDir) {
+			fmt.Println("no migrations applied (migrations directory is empty)")
+			return nil
+		}
+		dbURL, err := migrateCfg()
+		if err != nil {
+			return err
+		}
+		return runMigrateDown(dbURL, migrationsDir, n)
+	},
+}
+
+var migrateStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Print current migration version and dirty flag",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if isMigrationsDirEmpty(migrationsDir) {
+			fmt.Println("no migrations applied (migrations directory is empty)")
+			return nil
+		}
+		dbURL, err := migrateCfg()
+		if err != nil {
+			return err
+		}
+		out, err := runMigrateStatus(dbURL, migrationsDir)
+		if err != nil {
+			return err
+		}
+		fmt.Println(out)
+		return nil
+	},
+}
+
+var migrateRedoCmd = &cobra.Command{
+	Use:   "redo",
+	Short: "Roll back one migration and re-apply it",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if isMigrationsDirEmpty(migrationsDir) {
+			fmt.Println("no migrations applied (migrations directory is empty)")
+			return nil
+		}
+		dbURL, err := migrateCfg()
+		if err != nil {
+			return err
+		}
+		return runMigrateRedo(dbURL, migrationsDir)
+	},
+}
+
+func init() {
+	migrateCmd.AddCommand(migrateUpCmd, migrateDownCmd, migrateStatusCmd, migrateRedoCmd)
+	rootCmd.AddCommand(migrateCmd)
+}
+
+// isMigrationsDirEmpty returns true if dir contains no .sql files.
+// Missing dir → treated as empty (callers get the same "no migrations"
+// message rather than a confusing "no such file" error).
+func isMigrationsDirEmpty(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return true
+	}
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
+			return false
+		}
+	}
+	return true
+}
+
+// fileSourceURL produces the file:// URL golang-migrate expects. It
+// resolves the dir to an absolute path so the URL is well-formed
+// regardless of cwd quirks.
+func fileSourceURL(dir string) (string, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	u := &url.URL{Scheme: "file", Path: abs}
+	return u.String(), nil
+}
+
+// newMigrate is the shared construction step. Callers pass control.
+func newMigrate(databaseURL, dir string) (*migrate.Migrate, error) {
+	src, err := fileSourceURL(dir)
+	if err != nil {
+		return nil, fmt.Errorf("build source url: %w", err)
+	}
+	m, err := migrate.New(src, databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("migrate.New: %w", err)
+	}
+	return m, nil
+}
+
+func runMigrateUp(databaseURL, dir string) error {
+	if isMigrationsDirEmpty(dir) {
+		fmt.Println("no migrations applied (migrations directory is empty)")
+		return nil
+	}
+	m, err := newMigrate(databaseURL, dir)
+	if err != nil {
+		return err
+	}
+	defer m.Close()
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return err
+	}
+	return nil
+}
+
+func runMigrateDown(databaseURL, dir string, n int) error {
+	if isMigrationsDirEmpty(dir) {
+		fmt.Println("no migrations applied (migrations directory is empty)")
+		return nil
+	}
+	m, err := newMigrate(databaseURL, dir)
+	if err != nil {
+		return err
+	}
+	defer m.Close()
+	if err := m.Steps(-n); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return err
+	}
+	return nil
+}
+
+func runMigrateStatus(databaseURL, dir string) (string, error) {
+	if isMigrationsDirEmpty(dir) {
+		return "no migrations applied (migrations directory is empty)", nil
+	}
+	m, err := newMigrate(databaseURL, dir)
+	if err != nil {
+		return "", err
+	}
+	defer m.Close()
+	v, dirty, err := m.Version()
+	if errors.Is(err, migrate.ErrNilVersion) {
+		return "no migrations applied", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("version=%d dirty=%v", v, dirty), nil
+}
+
+func runMigrateRedo(databaseURL, dir string) error {
+	if isMigrationsDirEmpty(dir) {
+		fmt.Println("no migrations applied (migrations directory is empty)")
+		return nil
+	}
+	m, err := newMigrate(databaseURL, dir)
+	if err != nil {
+		return err
+	}
+	defer m.Close()
+	if err := m.Steps(-1); err != nil {
+		return err
+	}
+	if err := m.Steps(1); err != nil {
+		return err
+	}
+	return nil
+}
+```
+
+- [ ] **Step 4: Run to verify test passes**
+
+Run: `go test ./cmd/cli/...`
+Expected: `ok  social.craftsky/appview/cmd/cli`. The test passes because `isMigrationsDirEmpty` short-circuits `runMigrateStatus` before any DB connection is attempted.
+
+- [ ] **Step 5: Full verification**
+
+Run: `go build ./... && go test ./...`
+Expected: both exit 0.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add cmd/cli/migrate.go cmd/cli/migrate_test.go
+git commit -m "feat(appview): add cli migrate up/down/status/redo subcommands"
+```
+
+### Task 4.5: Smoke `cli migrate` against the empty directory
+
+**Files:** none.
+
+- [ ] **Step 1: Rebuild the CLI**
+
+```bash
+go build -o /tmp/cli ./cmd/cli
+```
+
+- [ ] **Step 2: Status against empty migrations/**
+
+Run: `/tmp/cli migrate status --env dev`
+Expected: exits 0, prints `no migrations applied (migrations directory is empty)`.
+
+- [ ] **Step 3: Up and down against empty migrations/**
+
+Run: `/tmp/cli migrate up --env dev && /tmp/cli migrate down --env dev`
+Expected: both exit 0 and print the same `no migrations applied` line. No changes to the DB.
+
+- [ ] **Step 4: Down with a bad N**
+
+Run: `/tmp/cli migrate down 0 --env dev`
+Expected: exits non-zero. Stderr: `Error: N must be a positive integer, got "0"`.
+
+- [ ] **Step 5: Status with DB down**
+
+Stop Postgres (`docker stop craftsky-dev-pg`) and run:
+```bash
+/tmp/cli migrate status --env dev
+```
+Expected: exits 0, prints `no migrations applied (migrations directory is empty)`. This exercises the empty-dir short-circuit running *before* any DB connection — it's why the migrate subcommands don't call `loadDeps`.
+
+Restart Postgres afterwards (`docker start craftsky-dev-pg`).
+
+- [ ] **Step 6: Nothing to commit**
+
+Task is verification-only. Proceed.
+
+### Task 4.6: `cli request` subcommand
+
+**Files:**
+- Create: `appview/cmd/cli/request.go`
+- Create: `appview/cmd/cli/request_test.go`
+
+- [ ] **Step 1: Write failing test for happy path against httptest server**
+
+Create `appview/cmd/cli/request_test.go`:
+```go
+package main
+
+import (
+	"bytes"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+func TestDoRequest_200WritesStatusThenBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer dev" {
+			t.Errorf("Authorization = %q, want %q", got, "Bearer dev")
+		}
+		if got := r.Header.Get("X-Dev-DID"); got != "did:plc:test-caller" {
+			t.Errorf("X-Dev-DID = %q, want %q", got, "did:plc:test-caller")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"hello":"world"}`)
+	}))
+	defer srv.Close()
+
+	var out, errOut bytes.Buffer
+	code, err := doRequest(requestArgs{
+		Method:  "GET",
+		Path:    "/x",
+		BaseURL: srv.URL,
+		DevDID:  "did:plc:test-caller",
+		Out:     &out,
+		ErrOut:  &errOut,
+	})
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+
+	outStr := out.String()
+	if !strings.HasPrefix(outStr, "200 OK\n") {
+		t.Errorf("out should start with '200 OK\\n', got %q", outStr)
+	}
+	if !strings.Contains(outStr, `{"hello":"world"}`) {
+		t.Errorf("out missing body: %q", outStr)
+	}
+	if errOut.Len() != 0 {
+		t.Errorf("errOut should be empty on success, got %q", errOut.String())
+	}
+}
+
+func TestDoRequest_4xxReturnsExit1(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	var out, errOut bytes.Buffer
+	code, err := doRequest(requestArgs{Method: "GET", Path: "/x", BaseURL: srv.URL, Out: &out, ErrOut: &errOut})
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if code != 1 {
+		t.Errorf("exit code = %d, want 1 for 401 response", code)
+	}
+}
+
+func TestDoRequest_TransportErrorReturnsExit2(t *testing.T) {
+	// Port 1 is reserved; connect will fail.
+	var out, errOut bytes.Buffer
+	code, err := doRequest(requestArgs{
+		Method:  "GET",
+		Path:    "/x",
+		BaseURL: "http://127.0.0.1:1",
+		Out:     &out,
+		ErrOut:  &errOut,
+	})
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2 for transport error", code)
+	}
+	if !strings.Contains(errOut.String(), "transport error:") {
+		t.Errorf("errOut should contain 'transport error:', got %q", errOut.String())
+	}
+	if out.Len() != 0 {
+		t.Errorf("out should be empty on transport error, got %q", out.String())
+	}
+}
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `go test ./cmd/cli/...`
+Expected: compile error — `undefined: doRequest`, `undefined: requestArgs`.
+
+- [ ] **Step 3: Replace `cmd/cli/deps.go` with the extended version**
+
+`request.go` needs four new helpers (`parseEnvFlag`, `loadCfgLight`, `resolveBaseURL`, plus a `devEnvMarker` constant) that belong next to `loadDeps`. Do this BEFORE writing `request.go` so the compiler sees the symbols.
+
+Replace `appview/cmd/cli/deps.go` entirely with:
+```go
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"strings"
+
+	"social.craftsky/appview/internal/app"
+)
+
+// loadDeps is the boilerplate a subcommand runs when it genuinely needs
+// a DB pool: parse --env, load config, build *app.Deps.
+// Subcommands that don't need DB access (request, migrate, stubs) use
+// parseEnvFlag + loadCfgLight instead, avoiding a wasted connect.
+func loadDeps(ctx context.Context) (*app.Deps, func(), error) {
+	env, err := app.ParseEnv(envFlag)
+	if err != nil {
+		return nil, nil, err
+	}
+	cfg, err := app.LoadConfig(env, fmt.Sprintf("environments/%s.env", env))
+	if err != nil {
+		return nil, nil, fmt.Errorf("load config: %w", err)
+	}
+	switch env {
+	case app.EnvDev:
+		return app.NewDevDeps(ctx, cfg)
+	case app.EnvProd:
+		return app.NewProdDeps(ctx, cfg)
+	default:
+		return nil, nil, fmt.Errorf("unreachable: unknown env %q", env)
+	}
+}
+
+// devEnvMarker is re-exposed so other cmd/cli files don't need their
+// own internal/app import just to compare against EnvDev.
+var devEnvMarker = app.EnvDev
+
+// parseEnvFlag returns app.Env for the current --env flag value.
+func parseEnvFlag() (app.Env, error) {
+	return app.ParseEnv(envFlag)
+}
+
+// loadCfgLight loads Config without building Deps (no DB connection).
+func loadCfgLight(env app.Env) (app.Config, error) {
+	return app.LoadConfig(env, "environments/"+string(env)+".env")
+}
+
+// resolveBaseURL picks the URL `cli request` should hit.
+//   Dev  → http://localhost:8080
+//   Prod → $APPVIEW_BASE_URL, which must start with https://.
+// A permissive http:// in prod is disallowed to prevent sending dev DIDs
+// or future real tokens over cleartext.
+func resolveBaseURL(env app.Env) (string, error) {
+	if env == app.EnvDev {
+		return "http://localhost:8080", nil
+	}
+	v := os.Getenv("APPVIEW_BASE_URL")
+	if v == "" {
+		return "", errors.New("APPVIEW_BASE_URL must be set to hit prod")
+	}
+	if !strings.HasPrefix(v, "https://") {
+		return "", errors.New("APPVIEW_BASE_URL must use https:// in prod")
+	}
+	return v, nil
+}
+```
+
+- [ ] **Step 4: Create `cmd/cli/request.go`**
+
+Create `appview/cmd/cli/request.go`:
+```go
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/spf13/cobra"
+)
+
+// requestArgs is the testable surface of the request subcommand. Passing
+// the dependencies in as a struct keeps doRequest pure — no reading from
+// cobra flags or environment inside the function.
+type requestArgs struct {
+	Method  string
+	Path    string
+	BaseURL string    // e.g. "http://localhost:8080"
+	DevDID  string    // empty disables the X-Dev-DID header
+	Body    []byte    // nil = no body
+	Headers []string  // extra headers as "Key: Value"
+	Out     io.Writer // stdout in real runs; bytes.Buffer in tests
+	ErrOut  io.Writer // stderr in real runs; bytes.Buffer in tests
+}
+
+// doRequest sends one HTTP request using args and writes the status line
+// + body to args.Out. Returns (exitCode, internalErr). exitCode follows
+// the contract:
+//   0 — 2xx response
+//   1 — 4xx/5xx response
+//   2 — transport error (couldn't reach server)
+// internalErr is non-nil only for bugs (bad args, write failures).
+func doRequest(args requestArgs) (int, error) {
+	body := io.Reader(nil)
+	if args.Body != nil {
+		body = bytes.NewReader(args.Body)
+	}
+
+	req, err := http.NewRequest(args.Method, args.BaseURL+args.Path, body)
+	if err != nil {
+		return 0, fmt.Errorf("build request: %w", err)
+	}
+	if args.DevDID != "" {
+		req.Header.Set("Authorization", "Bearer dev")
+		req.Header.Set("X-Dev-DID", args.DevDID)
+	}
+	for _, h := range args.Headers {
+		k, v, ok := strings.Cut(h, ":")
+		if !ok {
+			return 0, fmt.Errorf("bad header %q (want 'Key: Value')", h)
+		}
+		req.Header.Add(strings.TrimSpace(k), strings.TrimSpace(v))
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		// Transport errors are non-success outcomes; they go to stderr
+		// so scripts piping stdout (`cli request ... | jq`) don't mix
+		// body bytes with error diagnostics.
+		fmt.Fprintf(args.ErrOut, "transport error: %s\n", err)
+		return 2, nil
+	}
+	defer resp.Body.Close()
+
+	// First line: "<code> <text>\n"
+	if _, err := fmt.Fprintf(args.Out, "%d %s\n", resp.StatusCode, http.StatusText(resp.StatusCode)); err != nil {
+		return 0, err
+	}
+	// Body verbatim.
+	if _, err := io.Copy(args.Out, resp.Body); err != nil {
+		return 0, err
+	}
+
+	switch {
+	case resp.StatusCode >= 200 && resp.StatusCode < 300:
+		return 0, nil
+	default:
+		return 1, nil
+	}
+}
+
+var (
+	reqHeaderFlag []string
+	reqBodyFlag   string
+	reqDIDFlag    string
+	reqBaseURLEnv = "APPVIEW_BASE_URL"
+)
+
+var requestCmd = &cobra.Command{
+	Use:   "request METHOD PATH",
+	Short: "Send an HTTP request to the running appview server",
+	Args:  cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Resolve env (we need it for auth defaults) but DON'T call
+		// loadDeps — we don't want a DB connection for a smoke-test
+		// request.
+		env, err := parseEnvFlag()
+		if err != nil {
+			return err
+		}
+		cfg, err := loadCfgLight(env)
+		if err != nil {
+			return err
+		}
+
+		base, err := resolveBaseURL(env)
+		if err != nil {
+			return err
+		}
+
+		did := reqDIDFlag
+		if did == "" && env == devEnvMarker {
+			did = cfg.DevDID
+		}
+
+		var body []byte
+		if reqBodyFlag != "" {
+			body = []byte(reqBodyFlag)
+		}
+
+		code, err := doRequest(requestArgs{
+			Method:  strings.ToUpper(args[0]),
+			Path:    args[1],
+			BaseURL: base,
+			DevDID:  did,
+			Body:    body,
+			Headers: reqHeaderFlag,
+			Out:     os.Stdout,
+			ErrOut:  os.Stderr,
+		})
+		if err != nil {
+			return err
+		}
+		// Cobra's RunE-to-exit-code mapping is binary (nil→0, non-nil→1).
+		// This subcommand needs a tri-state exit: 0 = 2xx, 1 = 4xx/5xx,
+		// 2 = transport error. os.Exit is safe here because requestCmd
+		// holds no resources — no DB pool, no open files. Any deferred
+		// cleanup in this goroutine has already run by the time
+		// doRequest returns.
+		if code != 0 {
+			_ = os.Stdout.Sync()
+			_ = os.Stderr.Sync()
+			os.Exit(code)
+		}
+		return nil
+	},
+}
+
+func init() {
+	requestCmd.Flags().StringArrayVarP(&reqHeaderFlag, "header", "H", nil, "extra header 'Key: Value' (may repeat)")
+	requestCmd.Flags().StringVarP(&reqBodyFlag, "data", "d", "", "request body")
+	requestCmd.Flags().StringVar(&reqDIDFlag, "did", "", "override the dev DID sent in X-Dev-DID (dev env only)")
+	rootCmd.AddCommand(requestCmd)
+}
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `go test ./cmd/cli/...`
+Expected: all tests pass. The transport-error test exercises a real (refused) connection — `http.Client` errors cleanly.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add cmd/cli/request.go cmd/cli/request_test.go cmd/cli/deps.go
+git commit -m "feat(appview): add cli request subcommand with dev-DID auth"
+```
+
+### Task 4.7: Smoke `cli request` against the live server
+
+**Files:** none.
+
+Requires the server running on `:8080` (start it as in Task 3.11 Step 2).
+
+- [ ] **Step 1: Rebuild CLI**
+
+`go build -o /tmp/cli ./cmd/cli`
+
+- [ ] **Step 2: Request /health**
+
+Run: `/tmp/cli request GET /health --env dev`
+Expected first line of stdout: `200 OK`. Body: `{"status":"ok"}`. Exit code 0.
+
+- [ ] **Step 3: Request /whoami with default DID**
+
+Run: `/tmp/cli request GET /whoami --env dev`
+Expected: first line `200 OK`. Body: `{"did":"did:plc:craftsky-dev-user"}` (the dev env's default). Exit 0.
+
+- [ ] **Step 4: Request /whoami overriding the DID**
+
+Run: `/tmp/cli request GET /whoami --did did:plc:alice --env dev`
+Expected: first line `200 OK`. Body: `{"did":"did:plc:alice"}`. Exit 0.
+
+- [ ] **Step 5: Request a missing path**
+
+Run: `/tmp/cli request GET /does-not-exist --env dev`
+Expected: first line `404 Not Found`. Exit code non-zero (1).
+
+- [ ] **Step 6: Request with server down**
+
+Stop the server (`kill $APPVIEW_PID` if it's still running from earlier), then:
+```bash
+/tmp/cli request GET /health --env dev 2>/tmp/cli-err.log
+rc=$?
+cat /tmp/cli-err.log
+echo "exit=$rc"
+```
+Capturing `$?` into `rc` immediately after the CLI invocation is deliberate — `$?` gets clobbered by the next command (`cat`), which is why `echo "exit=$?"` on its own would report `cat`'s exit code, not the CLI's.
+
+Expected: stderr (captured in `/tmp/cli-err.log`) contains `transport error: ...connect: connection refused...`. Stdout is empty. The `echo` line prints `exit=2`.
+
+Restart the server for the remaining tasks if needed.
+
+- [ ] **Step 7: Nothing to commit.**
+
+### Task 4.8: Stub subcommands — `firehose replay`, `backfill`, `did-resolve`
+
+**Files:**
+- Create: `appview/cmd/cli/firehose.go`
+- Create: `appview/cmd/cli/backfill.go`
+- Create: `appview/cmd/cli/did.go`
+
+These three call into the stub `firehose.Subscriber` and `index.Indexer` and surface their "not yet implemented" errors. `did-resolve` has no real backing interface yet, so we keep its "not yet implemented" message inline here.
+
+No dedicated unit tests — each subcommand's behaviour is a single passthrough call to an already-tested stub. Covered by the smoke run in Task 4.9.
+
+- [ ] **Step 1: `firehose.go`**
+
+Create `appview/cmd/cli/firehose.go`:
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/spf13/cobra"
+
+	"social.craftsky/appview/internal/firehose"
+)
+
+var firehoseSinceFlag string
+
+var firehoseCmd = &cobra.Command{
+	Use:   "firehose",
+	Short: "Manage the firehose subscriber",
+}
+
+// Day one: stubs call firehose.NotImplemented directly — no DB pool, no
+// loadDeps. This guarantees AC #11's "firehose: not yet implemented"
+// error surfaces cleanly even if Postgres is down. When the real
+// Subscriber impl lands, swap to `loadDeps(ctx)` → `deps.Firehose`.
+var firehoseReplayCmd = &cobra.Command{
+	Use:   "replay",
+	Short: "Re-index firehose events since --since (stub until real subscriber lands)",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		since := time.Time{}
+		if firehoseSinceFlag != "" {
+			t, err := time.Parse(time.RFC3339, firehoseSinceFlag)
+			if err != nil {
+				// Try date-only as a convenience.
+				t, err = time.Parse("2006-01-02", firehoseSinceFlag)
+				if err != nil {
+					return fmt.Errorf("--since %q: want RFC3339 or YYYY-MM-DD", firehoseSinceFlag)
+				}
+			}
+			since = t
+		}
+		return firehose.NotImplemented{}.Replay(context.Background(), since)
+	},
+}
+
+func init() {
+	firehoseReplayCmd.Flags().StringVar(&firehoseSinceFlag, "since", "", `replay events from this time (RFC3339 or YYYY-MM-DD)`)
+	firehoseCmd.AddCommand(firehoseReplayCmd)
+	rootCmd.AddCommand(firehoseCmd)
+}
+```
+
+- [ ] **Step 2: `backfill.go`**
+
+Create `appview/cmd/cli/backfill.go`:
+```go
+package main
+
+import (
+	"context"
+
+	"github.com/spf13/cobra"
+
+	"social.craftsky/appview/internal/index"
+)
+
+// Same rationale as firehose.go: calls NotImplemented directly so AC #12
+// ("indexer: not yet implemented") surfaces without needing the DB.
+var backfillCmd = &cobra.Command{
+	Use:   "backfill DID",
+	Short: "Re-index all records for a DID (stub until indexer lands)",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return index.NotImplemented{}.Backfill(context.Background(), args[0])
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(backfillCmd)
+}
+```
+
+- [ ] **Step 3: `did.go`**
+
+Create `appview/cmd/cli/did.go`:
+```go
+package main
+
+import (
+	"errors"
+
+	"github.com/spf13/cobra"
+)
+
+var didResolveCmd = &cobra.Command{
+	Use:   "did-resolve HANDLE",
+	Short: "Resolve a handle to a DID (stub until identity resolver lands)",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return errors.New("did-resolve: not yet implemented")
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(didResolveCmd)
+}
+```
+
+- [ ] **Step 4: Build and test**
+
+Run: `go build ./... && go test ./...`
+Expected: both exit 0.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add cmd/cli/firehose.go cmd/cli/backfill.go cmd/cli/did.go
+git commit -m "feat(appview): add cli firehose/backfill/did-resolve stub subcommands"
+```
+
+### Task 4.9: Smoke the stub subcommands
+
+**Files:** none.
+
+- [ ] **Step 1: Rebuild CLI**
+
+`go build -o /tmp/cli ./cmd/cli`
+
+- [ ] **Step 2: `firehose replay`**
+
+Run: `/tmp/cli firehose replay --env dev; echo "exit=$?"`
+Expected: exits non-zero (1), stderr contains `firehose: not yet implemented`, echo prints `exit=1`.
+
+- [ ] **Step 3: `backfill`**
+
+Run: `/tmp/cli backfill did:plc:abc --env dev; echo "exit=$?"`
+Expected: exits non-zero (1), stderr contains `indexer: not yet implemented`, echo prints `exit=1`.
+
+- [ ] **Step 4: `did-resolve`**
+
+Run: `/tmp/cli did-resolve alice.bsky.social --env dev; echo "exit=$?"`
+Expected: exits non-zero (1), stderr contains `did-resolve: not yet implemented`, echo prints `exit=1`.
+
+- [ ] **Step 5: `--since` validation**
+
+Run: `/tmp/cli firehose replay --since not-a-date --env dev`
+Expected: exits non-zero, stderr contains `--since "not-a-date": want RFC3339 or YYYY-MM-DD`.
+
+- [ ] **Step 6: Nothing to commit.**
+
+### Chunk 4 acceptance
+
+Run from `appview/`:
+- [ ] `go vet ./...` — exits 0.
+- [ ] `gofmt -l .` — exits 0, no output.
+- [ ] `go test ./...` — all tests pass.
+- [ ] `go build ./...` — exits 0.
+- [ ] `git log --oneline -30` — Chunks 1 + 2 + 3 + 4 commits visible (~25 commits total).
+
+Cross-check against the spec's acceptance criteria (spec §"Acceptance Criteria"):
+- **AC #5** (Task 4.3 Step 2 passes) — `cli ping` happy path.
+- **AC #9** (Task 4.5 Step 2 passes) — `cli migrate status` on empty dir.
+- **AC #10** (Task 4.7 Step 3 or Step 4 passes) — `cli request GET /whoami` with dev DID round-trip.
+- **AC #11** (Task 4.9 Step 2 passes) — `cli firehose replay` stub error.
+- **AC #12** (Task 4.9 Step 3 passes) — `cli backfill` stub error.
+
+---
+
+
