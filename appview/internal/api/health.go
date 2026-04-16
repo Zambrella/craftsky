@@ -19,6 +19,7 @@ import (
 // The response contract:
 //   - 200 + application/json + {"status":"ok"}
 //   - 503 + text/plain + "db unreachable"
+//
 // The underlying error is logged at Error via logger but not returned
 // to the client.
 func HealthHandler(pool *pgxpool.Pool, logger *slog.Logger) http.Handler {
