@@ -1,0 +1,2 @@
+# Production env file — contains secrets, never commit.
+environments/prod.env
