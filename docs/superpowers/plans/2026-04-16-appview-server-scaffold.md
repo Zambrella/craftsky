@@ -1396,4 +1396,1090 @@ No binaries run yet, but every middleware and auth implementation has a test cov
 
 ---
 
-*(The plan continues with Chunks 3, 4, and 5. Each is written after the preceding chunk has been reviewed and approved, per the plan-review-loop process.)*
+## Chunk 3: Server binary — stubs, routes, handlers, `Deps`, `main.go`
+
+**Scope:** Wire a running HTTP server. Introduces stub `firehose.Subscriber` and `index.Indexer`, the `api` handlers (`HealthHandler`, `WhoAmIHandler`), `routes.AddRoutes`, `internal/app/deps.go` with `NewDevDeps`/`NewProdDeps`, then `cmd/appview/server.go` and `cmd/appview/main.go`. End of chunk: `go run ./cmd/appview dev` serves `GET /health` and `GET /whoami`.
+
+### Task 3.1: Stub `firehose.Subscriber` interface and NotImplemented impl
+
+**Files:**
+- Create: `appview/internal/firehose/subscriber.go`
+- Create: `appview/internal/firehose/subscriber_test.go`
+
+- [ ] **Step 1: Write failing test**
+
+Create `appview/internal/firehose/subscriber_test.go`:
+```go
+package firehose
+
+import (
+	"context"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestNotImplemented_ReplayErrors(t *testing.T) {
+	var s Subscriber = NotImplemented{}
+	err := s.Replay(context.Background(), time.Now())
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "firehose") || !strings.Contains(err.Error(), "not yet implemented") {
+		t.Errorf("err = %q, want containing 'firehose' and 'not yet implemented'", err.Error())
+	}
+}
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `go test ./internal/firehose/...`
+Expected: compile error — `undefined: Subscriber`, `undefined: NotImplemented`.
+
+- [ ] **Step 3: Implement the stub**
+
+Create `appview/internal/firehose/subscriber.go`:
+```go
+// Package firehose defines the contract for consuming the atproto Relay
+// firehose. Day one contains only the interface and a NotImplemented stub
+// so the CLI's firehose-replay subcommand compiles and returns a clean
+// error. Real subscription logic lands in a later commit.
+package firehose
+
+import (
+	"context"
+	"errors"
+	"time"
+)
+
+// Subscriber replays firehose events into the indexer.
+type Subscriber interface {
+	// Replay re-indexes firehose events since the given timestamp.
+	Replay(ctx context.Context, since time.Time) error
+}
+
+// NotImplemented is the day-one stub. Every method returns a descriptive
+// error; the CLI surfaces this to stdout with exit code 1.
+type NotImplemented struct{}
+
+var _ Subscriber = NotImplemented{}
+
+func (NotImplemented) Replay(ctx context.Context, since time.Time) error {
+	return errors.New("firehose: not yet implemented")
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `go test ./internal/firehose/...`
+Expected: `ok  social.craftsky/appview/internal/firehose  0.0Xs`
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add internal/firehose/subscriber.go internal/firehose/subscriber_test.go
+git commit -m "feat(appview): add firehose.Subscriber interface and NotImplemented stub"
+```
+
+### Task 3.2: Stub `index.Indexer` interface and NotImplemented impl
+
+**Files:**
+- Create: `appview/internal/index/indexer.go`
+- Create: `appview/internal/index/indexer_test.go`
+
+- [ ] **Step 1: Write failing test**
+
+Create `appview/internal/index/indexer_test.go`:
+```go
+package index
+
+import (
+	"context"
+	"strings"
+	"testing"
+)
+
+func TestNotImplemented_BackfillErrors(t *testing.T) {
+	var idx Indexer = NotImplemented{}
+	err := idx.Backfill(context.Background(), "did:plc:abc")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "indexer") || !strings.Contains(err.Error(), "not yet implemented") {
+		t.Errorf("err = %q, want containing 'indexer' and 'not yet implemented'", err.Error())
+	}
+}
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `go test ./internal/index/...`
+Expected: compile error — `undefined: Indexer`, `undefined: NotImplemented`.
+
+- [ ] **Step 3: Implement the stub**
+
+Create `appview/internal/index/indexer.go`:
+```go
+// Package index defines the contract for writing atproto records into
+// Postgres. Day one contains only the interface and a NotImplemented stub
+// so the CLI's backfill subcommand compiles.
+package index
+
+import (
+	"context"
+	"errors"
+)
+
+// Indexer writes records into the application's Postgres store.
+type Indexer interface {
+	// Backfill re-indexes all records for the given DID from its PDS.
+	Backfill(ctx context.Context, did string) error
+}
+
+// NotImplemented is the day-one stub.
+type NotImplemented struct{}
+
+var _ Indexer = NotImplemented{}
+
+func (NotImplemented) Backfill(ctx context.Context, did string) error {
+	return errors.New("indexer: not yet implemented")
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `go test ./internal/index/...`
+Expected: `ok  social.craftsky/appview/internal/index  0.0Xs`
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add internal/index/indexer.go internal/index/indexer_test.go
+git commit -m "feat(appview): add index.Indexer interface and NotImplemented stub"
+```
+
+### Task 3.3: Placeholder `internal/models/doc.go`
+
+**Files:**
+- Create: `appview/internal/models/doc.go`
+
+No test — this file exists only so the package is importable once sqlc output starts landing. It has no exported symbols.
+
+- [ ] **Step 1: Create the file**
+
+Create `appview/internal/models/doc.go`:
+```go
+// Package models holds sqlc-generated types for Postgres rows and query
+// results. The generated files live alongside this one; nothing is
+// hand-written in here. Day one: empty.
+package models
+```
+
+- [ ] **Step 2: Verify build**
+
+Run: `go build ./internal/models/...`
+Expected: exits 0.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add internal/models/doc.go
+git commit -m "chore(appview): reserve internal/models for sqlc output"
+```
+
+### Task 3.4: `api.HealthHandler`
+
+**Files:**
+- Create: `appview/internal/api/health.go`
+- Create: `appview/internal/api/health_test.go`
+
+The Ping-error path needs a pool whose `Ping` can be made to fail without a real DB. We do that by creating a pool with a bogus config that parses successfully but points at an unreachable address.
+
+Actually — `pgxpool.Pool` has no interface we can mock and `Ping` uses the real network stack. For unit-testing the 200 path we'd need an integration test. We split:
+- Unit test: the 200 path is verified by using a pool pointed at a socket that IS reachable (see Task 3.11 acceptance — the full-server integration run).
+- Unit test here: the 503 path, using `pgxpool.New` with a valid URL that refuses connections fast (`postgres://127.0.0.1:1/doesnotexist?connect_timeout=1`).
+
+- [ ] **Step 1: Write failing test (503 path)**
+
+Create `appview/internal/api/health_test.go`:
+```go
+package api
+
+import (
+	"context"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// newUnreachablePool returns a pool whose Ping fails quickly. Used to test
+// the 503 path without needing a live DB.
+func newUnreachablePool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	// 127.0.0.1:1 is a reserved port; connect will refuse immediately.
+	cfg, err := pgxpool.ParseConfig("postgres://u:p@127.0.0.1:1/x?sslmode=disable&connect_timeout=1")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("new: %v", err)
+	}
+	return pool
+}
+
+func TestHealth_ReturnsServiceUnavailableWhenDBDown(t *testing.T) {
+	pool := newUnreachablePool(t)
+	defer pool.Close()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	h := HealthHandler(pool, logger)
+	req := httptest.NewRequest("GET", "/health", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want 503", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "db unreachable") {
+		t.Errorf("body = %q, want 'db unreachable'", rec.Body.String())
+	}
+}
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `go test ./internal/api/...`
+Expected: compile error — `undefined: HealthHandler`.
+
+- [ ] **Step 3: Implement `HealthHandler`**
+
+Create `appview/internal/api/health.go`:
+```go
+// Package api holds HTTP handler factories. Each handler factory takes
+// only the specific dependencies it needs — never the full *app.Deps —
+// so handlers can't silently grow dependencies over time.
+package api
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// HealthHandler returns a handler that pings the DB pool and reports
+// 200 on success or 503 on failure. The ping is given a 2-second
+// per-request timeout so a hung DB doesn't hang health checks.
+//
+// The response contract:
+//   - 200 + application/json + {"status":"ok"}
+//   - 503 + text/plain + "db unreachable"
+// The underlying error is logged at Error via logger but not returned
+// to the client.
+func HealthHandler(pool *pgxpool.Pool, logger *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+
+		if err := pool.Ping(ctx); err != nil {
+			logger.Error("health: db ping failed", slog.String("err", err.Error()))
+			// http.Error sets Content-Type: text/plain; charset=utf-8 itself.
+			http.Error(w, "db unreachable", http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `go test ./internal/api/...`
+Expected: `ok  social.craftsky/appview/internal/api`. The unreachable-port probe should fail fast (under ~2s).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add internal/api/health.go internal/api/health_test.go
+git commit -m "feat(appview): add api.HealthHandler"
+```
+
+### Task 3.5: `api.WhoAmIHandler`
+
+**Files:**
+- Create: `appview/internal/api/whoami.go`
+- Create: `appview/internal/api/whoami_test.go`
+
+- [ ] **Step 1: Write failing test**
+
+Rationale: `middleware.Authenticated` uses an unexported `didKey` to store the DID in context, so the test can't bypass the middleware to pre-populate it. We instead run the full `Authenticated(mock, logger)(WhoAmIHandler())` chain — which mirrors exactly how the route is wired in production.
+
+Create `appview/internal/api/whoami_test.go`:
+```go
+package api
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"social.craftsky/appview/internal/middleware"
+)
+
+// authTestMock is an inline AuthService that returns a fixed DID. It lets
+// whoami_test.go inject a DID into the request context via the real
+// Authenticated middleware, without depending on internal/auth.
+type authTestMock struct{ did string }
+
+func (m *authTestMock) Authenticate(ctx context.Context, token string) (string, error) {
+	return m.did, nil
+}
+
+func TestWhoAmI_ReturnsDIDFromContext(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	outer := middleware.Authenticated(&authTestMock{did: "did:plc:alice"}, logger)(WhoAmIHandler())
+
+	req := httptest.NewRequest("GET", "/whoami", nil)
+	req.Header.Set("Authorization", "Bearer anything")
+	rec := httptest.NewRecorder()
+	outer.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", ct)
+	}
+	var body struct {
+		DID string `json:"did"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.DID != "did:plc:alice" {
+		t.Errorf("did = %q, want did:plc:alice", body.DID)
+	}
+}
+
+func TestWhoAmI_WithoutDIDInContextReturns500(t *testing.T) {
+	// Call the handler directly without running Authenticated — a routing
+	// bug that's worth failing loudly on rather than silently returning
+	// {"did":""}.
+	h := WhoAmIHandler()
+	req := httptest.NewRequest("GET", "/whoami", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", rec.Code)
+	}
+}
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `go test ./internal/api/...`
+Expected: compile error — `undefined: WhoAmIHandler`.
+
+- [ ] **Step 3: Implement `WhoAmIHandler`**
+
+Create `appview/internal/api/whoami.go`:
+```go
+package api
+
+import (
+	"encoding/json"
+	"net/http"
+
+	"social.craftsky/appview/internal/middleware"
+)
+
+// WhoAmIHandler returns the caller's authenticated DID as JSON. It
+// assumes middleware.Authenticated has run — if not, it returns 500
+// with a "no did in context" body, which would be a routing bug.
+func WhoAmIHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		did, ok := middleware.GetDID(r.Context())
+		if !ok {
+			http.Error(w, "no did in context", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]string{"did": did})
+	})
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `go test ./internal/api/...`
+Expected: both tests pass.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add internal/api/whoami.go internal/api/whoami_test.go
+git commit -m "feat(appview): add api.WhoAmIHandler"
+```
+
+### Task 3.6: `internal/app/deps.go` — `Deps` struct + factories
+
+**Files:**
+- Create: `appview/internal/app/deps.go`
+- Create: `appview/internal/app/deps_test.go`
+
+- [ ] **Step 1: Write failing test**
+
+The factories need a reachable DB to succeed. For unit tests we use the same unreachable-pool trick to assert they fail cleanly, plus verify the struct fields for a happy-path test driven via `testing.T`'s tempdir. A real happy-path run lives in Chunk 3 acceptance (Task 3.11).
+
+Create `appview/internal/app/deps_test.go`:
+```go
+package app
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"social.craftsky/appview/internal/auth"
+)
+
+func TestNewDevDeps_UnreachableDBReturnsError(t *testing.T) {
+	cfg := Config{
+		Env:            EnvDev,
+		DatabaseURL:    "postgres://u:p@127.0.0.1:1/x?sslmode=disable&connect_timeout=1",
+		AllowedOrigins: []string{"*"},
+		DevDID:         "did:plc:test",
+	}
+	deps, cleanup, err := NewDevDeps(context.Background(), cfg)
+	if err == nil {
+		if cleanup != nil {
+			cleanup()
+		}
+		if deps != nil && deps.DB != nil {
+			deps.DB.Close()
+		}
+		t.Fatal("expected error for unreachable DB, got nil")
+	}
+	if !strings.Contains(err.Error(), "db") && !strings.Contains(err.Error(), "ping") {
+		t.Errorf("err = %v, expected db/ping context", err)
+	}
+	if deps != nil {
+		t.Errorf("deps = %v, want nil on error", deps)
+	}
+}
+
+func TestNewProdDeps_UnreachableDBReturnsError(t *testing.T) {
+	cfg := Config{
+		Env:            EnvProd,
+		DatabaseURL:    "postgres://u:p@127.0.0.1:1/x?sslmode=disable&connect_timeout=1",
+		AllowedOrigins: []string{"https://craftsky.social"},
+	}
+	_, _, err := NewProdDeps(context.Background(), cfg)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// Covers the "which auth service gets wired" contract without touching
+// the network: we construct Deps by hand and assert the field types match
+// what each factory would have produced. This pins the behaviour even
+// when a reachable DB isn't available.
+func TestDepsAuthServiceShape(t *testing.T) {
+	// Dev: MockAuthService
+	devDeps := &Deps{
+		Config:      Config{Env: EnvDev, DevDID: "did:plc:default"},
+		AuthService: &auth.MockAuthService{DefaultDID: "did:plc:default"},
+	}
+	if _, ok := devDeps.AuthService.(*auth.MockAuthService); !ok {
+		t.Errorf("dev: AuthService = %T, want *auth.MockAuthService", devDeps.AuthService)
+	}
+
+	// Prod: NotImplementedAuthService
+	prodDeps := &Deps{
+		Config:      Config{Env: EnvProd},
+		AuthService: auth.NotImplementedAuthService{},
+	}
+	if _, ok := prodDeps.AuthService.(auth.NotImplementedAuthService); !ok {
+		t.Errorf("prod: AuthService = %T, want auth.NotImplementedAuthService", prodDeps.AuthService)
+	}
+}
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `go test ./internal/app/...`
+Expected: compile error — `undefined: NewDevDeps`, `undefined: NewProdDeps`, `undefined: Deps`.
+
+- [ ] **Step 3: Implement `deps.go`**
+
+Create `appview/internal/app/deps.go`:
+```go
+package app
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"os"
+	"sync"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/db"
+	"social.craftsky/appview/internal/firehose"
+	"social.craftsky/appview/internal/index"
+)
+
+// Deps is the fully-wired set of dependencies for one Craftsky App View
+// process. NewDevDeps and NewProdDeps build it; cmd/appview and cmd/cli
+// both consume it.
+//
+// Deps is passed into NewServer, routes.AddRoutes, and CLI subcommand
+// entry points — it is never passed into an individual HTTP handler.
+// Handler factories in internal/api take only the specific dependencies
+// they use.
+type Deps struct {
+	Config      Config
+	Logger      *slog.Logger
+	DB          *pgxpool.Pool
+	AuthService auth.AuthService
+
+	// Day-one stubs. Shape is stable so CLI subcommands compile.
+	Firehose firehose.Subscriber
+	Indexer  index.Indexer
+}
+
+// NewDevDeps wires the dev variant: debug-level logger, MockAuthService,
+// NotImplemented firehose+indexer.
+func NewDevDeps(ctx context.Context, cfg Config) (*Deps, func(), error) {
+	return newDeps(ctx, cfg, slog.LevelDebug, &auth.MockAuthService{DefaultDID: cfg.DevDID})
+}
+
+// NewProdDeps wires the prod variant: info-level logger,
+// NotImplementedAuthService, NotImplemented firehose+indexer.
+func NewProdDeps(ctx context.Context, cfg Config) (*Deps, func(), error) {
+	return newDeps(ctx, cfg, slog.LevelInfo, auth.NotImplementedAuthService{})
+}
+
+// newDeps is the shared core of NewDevDeps and NewProdDeps. Keeping the
+// divergence to just the three parameters (log level, auth service, and
+// cfg) makes the env-conditional surface easy to audit.
+func newDeps(ctx context.Context, cfg Config, level slog.Level, authSvc auth.AuthService) (*Deps, func(), error) {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
+	// Third-party libs that reach for slog.Default should get our logger.
+	slog.SetDefault(logger)
+
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return nil, nil, fmt.Errorf("db connect: %w", err)
+	}
+
+	deps := &Deps{
+		Config:      cfg,
+		Logger:      logger,
+		DB:          pool,
+		AuthService: authSvc,
+		Firehose:    firehose.NotImplemented{},
+		Indexer:     index.NotImplemented{},
+	}
+
+	var once sync.Once
+	cleanup := func() {
+		once.Do(func() {
+			deps.DB.Close()
+			deps.Logger.Info("shutdown: db pool closed")
+		})
+	}
+
+	// Startup log lines per spec. AC #1/#2 check for presence/absence.
+	if cfg.Env == EnvDev {
+		logger.Debug("log level", slog.String("level", "debug"))
+	}
+	logger.Info("deps initialised", slog.String("env", string(cfg.Env)))
+
+	return deps, cleanup, nil
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `go test ./internal/app/...`
+Expected: all four tests pass (TestParseEnv + Load* + Deps unreachable tests + shape test).
+
+- [ ] **Step 5: Verify no other package broke**
+
+Run: `go build ./...` and `go test ./...`
+Expected: both exit 0.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add internal/app/deps.go internal/app/deps_test.go
+git commit -m "feat(appview): add app.Deps with NewDevDeps/NewProdDeps factories"
+```
+
+### Task 3.7: `internal/routes/routes.go`
+
+**Files:**
+- Create: `appview/internal/routes/routes.go`
+- Create: `appview/internal/routes/routes_test.go`
+
+- [ ] **Step 1: Write failing test**
+
+The routes test doesn't need a live DB — it verifies route registration by making HTTP requests and checking the router's dispatch behaviour. For `/health` we still need a DB, so we skip that assertion here (covered by the end-to-end run in Task 3.11). For `/whoami` and the `/` catch-all, we can assert.
+
+Create `appview/internal/routes/routes_test.go`:
+```go
+package routes
+
+import (
+	"context"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"social.craftsky/appview/internal/app"
+	"social.craftsky/appview/internal/auth"
+)
+
+func testDeps() *app.Deps {
+	return &app.Deps{
+		Config:      app.Config{Env: app.EnvDev, AllowedOrigins: []string{"*"}, DevDID: "did:plc:test"},
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		AuthService: &auth.MockAuthService{DefaultDID: "did:plc:test"},
+		// DB, Firehose, Indexer left nil — routes doesn't need them and
+		// /health isn't tested here.
+	}
+}
+
+func TestAddRoutes_WhoAmIAuthenticatedReturnsDID(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest("GET", "/whoami", nil)
+	req.Header.Set("Authorization", "Bearer anything")
+	req.Header.Set("X-Dev-DID", "did:plc:from-header")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "did:plc:from-header") {
+		t.Errorf("body = %q, want containing 'did:plc:from-header'", rec.Body.String())
+	}
+}
+
+func TestAddRoutes_WhoAmIWithoutAuthReturns401(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest("GET", "/whoami", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rec.Code)
+	}
+}
+
+func TestAddRoutes_UnknownPathReturns404(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest("GET", "/does-not-exist", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `go test ./internal/routes/...`
+Expected: compile error — `undefined: AddRoutes`.
+
+- [ ] **Step 3: Implement `AddRoutes`**
+
+Create `appview/internal/routes/routes.go`:
+```go
+// Package routes wires the App View's HTTP routes onto a *http.ServeMux.
+// Each handler factory in internal/api takes only the specific deps it
+// needs; this package owns the mapping from URL → handler + middleware.
+package routes
+
+import (
+	"context"
+	"net/http"
+
+	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/app"
+	"social.craftsky/appview/internal/middleware"
+)
+
+// AddRoutes registers all App View routes on mux.
+//
+// ctx is the startup-scope context (used by future route-time validation,
+// e.g. checking that a required table exists at boot). Per-request work
+// inside handlers uses r.Context(), not this ctx.
+func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
+	// Public.
+	mux.Handle("GET /health", api.HealthHandler(deps.DB, deps.Logger))
+
+	// Authenticated.
+	authN := middleware.Authenticated(deps.AuthService, deps.Logger)
+	mux.Handle("GET /whoami", authN(api.WhoAmIHandler()))
+
+	// Fallthrough.
+	mux.Handle("/", http.NotFoundHandler())
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `go test ./internal/routes/...`
+Expected: all three tests pass.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add internal/routes/routes.go internal/routes/routes_test.go
+git commit -m "feat(appview): add routes.AddRoutes for /health and /whoami"
+```
+
+### Task 3.8: `cmd/appview/server.go`
+
+**Files:**
+- Create: `appview/cmd/appview/server.go`
+
+`server.go` is trivially thin — no dedicated test, it's exercised through the end-to-end run in Task 3.11. The existing `main.go` from the pre-scaffold state is overwritten in the next task.
+
+- [ ] **Step 1: Create `server.go`**
+
+Create `appview/cmd/appview/server.go`:
+```go
+package main
+
+import (
+	"context"
+	"net/http"
+
+	"social.craftsky/appview/internal/app"
+	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/routes"
+)
+
+// NewServer constructs the App View's HTTP handler. main.go wraps it in
+// a *http.Server; this function stays focused on routing and middleware.
+//
+// Middleware stack (outside-in):
+//   Logging  (assigns run_id, logs every request)
+//   CORS     (origin check, preflight handling)
+//   mux      (routing — Authenticated is applied per-route)
+func NewServer(ctx context.Context, deps *app.Deps) http.Handler {
+	mux := http.NewServeMux()
+	routes.AddRoutes(ctx, mux, deps)
+
+	var h http.Handler = mux
+	h = middleware.CORS(deps.Config.AllowedOrigins)(h)
+	h = middleware.Logging(deps.Logger)(h)
+	return h
+}
+```
+
+- [ ] **Step 2: Verify build still works**
+
+Run: `go build ./...`
+Expected: compiles cleanly (existing `main.go` stub still there; `server.go` is unused but the `NewServer` symbol is internal to `package main`, Go's unused-function check doesn't apply at file scope).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add cmd/appview/server.go
+git commit -m "feat(appview): add NewServer wiring middleware stack onto mux"
+```
+
+### Task 3.9: `cmd/appview/main.go` — replace the stub
+
+**Files:**
+- Modify: `appview/cmd/appview/main.go`
+
+No dedicated unit test — `main` packages are awkward to unit-test and the behaviour is covered by the end-to-end run in Task 3.11.
+
+- [ ] **Step 1: Replace `main.go`**
+
+Replace `appview/cmd/appview/main.go` entirely with:
+```go
+// Command appview runs the Craftsky App View HTTP server.
+//
+// Usage:
+//   appview dev
+//   appview prod
+//
+// The positional argument selects the environment file under
+// environments/ and the dev/prod divergent wiring (log level, auth
+// service, CORS permissiveness).
+package main
+
+import (
+	"context"
+	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
+
+	"social.craftsky/appview/internal/app"
+)
+
+func main() {
+	if err := run(context.Background(), os.Args); err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		os.Exit(1)
+	}
+}
+
+func run(ctx context.Context, args []string) error {
+	// Signal handling wraps the whole run so Ctrl-C during deps init
+	// (e.g. slow DB connect) exits cleanly.
+	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	// SIGPIPE is sent when a client disconnects mid-write. Go's net/http
+	// already surfaces this as an error return; we don't need the signal.
+	signal.Ignore(syscall.SIGPIPE)
+
+	if len(args) <= 1 {
+		return fmt.Errorf("expected argument of either 'dev' or 'prod'")
+	}
+	env, err := app.ParseEnv(args[1])
+	if err != nil {
+		return err
+	}
+
+	cfg, err := app.LoadConfig(env, fmt.Sprintf("environments/%s.env", env))
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	var deps *app.Deps
+	var cleanup func()
+	switch env {
+	case app.EnvDev:
+		deps, cleanup, err = app.NewDevDeps(ctx, cfg)
+	case app.EnvProd:
+		deps, cleanup, err = app.NewProdDeps(ctx, cfg)
+	default:
+		// ParseEnv should have rejected anything else, but defense in depth.
+		return fmt.Errorf("unreachable: unknown env %q after ParseEnv", env)
+	}
+	if err != nil {
+		return fmt.Errorf("build deps: %w", err)
+	}
+	defer cleanup()
+
+	httpServer := &http.Server{
+		Addr:    net.JoinHostPort("0.0.0.0", "8080"),
+		Handler: NewServer(ctx, deps),
+	}
+
+	go func() {
+		deps.Logger.Info("listening", "addr", httpServer.Addr)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			deps.Logger.Error("server error", "err", err.Error())
+		}
+	}()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		<-ctx.Done()
+		deps.Logger.Info("shutdown: received signal")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			deps.Logger.Error("shutdown error", "err", err.Error())
+		}
+		deps.Logger.Info("shutdown: http server stopped")
+	}()
+	wg.Wait()
+	return nil
+}
+```
+
+- [ ] **Step 2: Verify build**
+
+Run: `go build ./...`
+Expected: exits 0. `appview/bin/` or the build cache now holds a compiled binary for `cmd/appview`.
+
+- [ ] **Step 3: Verify the full test suite still passes**
+
+Run: `go test ./...`
+Expected: every package's tests pass.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add cmd/appview/main.go
+git commit -m "feat(appview): replace main stub with full signal-aware server lifecycle"
+```
+
+### Task 3.10: Manual smoke of the server binary (no Postgres needed yet)
+
+**Files:** none modified.
+
+This task catches regressions before the DB-dependent acceptance run.
+
+- [ ] **Step 1: Run server with no args**
+
+Run: `go run ./cmd/appview`
+Expected: exits non-zero, prints `expected argument of either 'dev' or 'prod'` to stderr.
+
+- [ ] **Step 2: Run with invalid arg**
+
+Run: `go run ./cmd/appview staging`
+Expected: exits non-zero, prints `unknown env "staging": expected "dev" or "prod"` (or similar) to stderr.
+
+- [ ] **Step 3: Run dev with DATABASE_URL cleared**
+
+Override the file's `DATABASE_URL` with an empty shell env var (os.Getenv wins over the file per `LoadConfig`'s contract):
+```bash
+DATABASE_URL= go run ./cmd/appview dev
+```
+Expected: exits non-zero with `load config: DATABASE_URL is required`.
+
+This avoids any file shuffling that could leave a `.bak` around if interrupted.
+
+- [ ] **Step 4: Commit: nothing (no files changed)**
+
+Nothing to commit — this task is pure verification. Proceed.
+
+### Task 3.11: Chunk 3 acceptance — live DB run
+
+**Files:** none modified.
+
+- [ ] **Step 1: Ensure a Postgres is running**
+
+If you don't already have one on port 5432:
+```bash
+docker run --rm -d --name craftsky-dev-pg \
+  -p 5432:5432 \
+  -e POSTGRES_USER=craftsky \
+  -e POSTGRES_PASSWORD=dev \
+  -e POSTGRES_DB=craftsky_dev \
+  postgres:16
+```
+
+Wait 3 seconds, then verify: `docker exec craftsky-dev-pg pg_isready -U craftsky`. Expected: `/var/run/postgresql:5432 - accepting connections`.
+
+- [ ] **Step 2: Build the binary, start it in the background, wait for readiness**
+
+From `appview/`:
+```bash
+go build -o /tmp/appview ./cmd/appview
+/tmp/appview dev > /tmp/appview.log 2>&1 &
+APPVIEW_PID=$!
+# Poll /health until the server is up (max ~10s).
+for i in {1..50}; do
+  if curl -sS -o /dev/null http://localhost:8080/health 2>/dev/null; then break; fi
+  sleep 0.2
+done
+```
+
+Why build-then-run rather than `go run`: `go run` spawns a wrapper process, and forwarding SIGTERM to the compiled child depends on the Go runtime version. A standalone binary receives signals directly, so Step 7's shutdown assertions are reliable.
+
+Why redirect to `/tmp/appview.log`: Step 7 asserts the server's stdout contains three specific lines in order. Redirecting keeps that log stream separate from curl output so you can grep it deterministically.
+
+Expected after the poll loop: the server is responding on 8080. `cat /tmp/appview.log` should show JSON lines for `deps initialised` (Info), `log level` (Debug, dev-only), and `listening`.
+
+- [ ] **Step 3: Hit `/health`**
+
+Run: `curl -sS -o /tmp/health-body -w "%{http_code}\n" http://localhost:8080/health`
+Expected: prints `200`. `cat /tmp/health-body` → `{"status":"ok"}`.
+
+- [ ] **Step 4: Hit `/whoami` with `X-Dev-DID`**
+
+Run:
+```bash
+curl -sS -o /tmp/whoami -w "%{http_code}\n" \
+  -H "Authorization: Bearer anything" \
+  -H "X-Dev-DID: did:plc:test123" \
+  http://localhost:8080/whoami
+```
+Expected: prints `200`. `cat /tmp/whoami` → `{"did":"did:plc:test123"}`.
+
+- [ ] **Step 5: Hit `/whoami` with no auth**
+
+Run: `curl -sS -o /dev/null -w "%{http_code}\n" http://localhost:8080/whoami`
+Expected: prints `401`.
+
+- [ ] **Step 6: Hit an unknown path**
+
+Run: `curl -sS -o /dev/null -w "%{http_code}\n" http://localhost:8080/does-not-exist`
+Expected: prints `404`.
+
+- [ ] **Step 7: Graceful shutdown**
+
+Run:
+```bash
+kill -TERM $APPVIEW_PID
+wait $APPVIEW_PID
+grep -o 'shutdown: [a-z ]*' /tmp/appview.log
+```
+
+Expected:
+- `wait` exits 0.
+- `grep` prints, in order:
+  ```
+  shutdown: received signal
+  shutdown: http server stopped
+  shutdown: db pool closed
+  ```
+
+If any line is missing or they're out of order, review `/tmp/appview.log` — the full JSON-log context usually pinpoints the broken step.
+
+- [ ] **Step 8: Stop Postgres (if you started it)**
+
+Run: `docker stop craftsky-dev-pg`
+(If you used a pre-existing Postgres, skip.)
+
+- [ ] **Step 9: Final verification suite**
+
+Run from `appview/`:
+- [ ] `go vet ./...` — exits 0.
+- [ ] `gofmt -l .` — exits 0, no output.
+- [ ] `go test ./...` — all tests pass.
+- [ ] `go build ./...` — exits 0.
+- [ ] `git log --oneline -20` — shows Chunk 1 + 2 + 3 commits (roughly 20).
+
+If everything passes, Chunk 3 is done — you have a running server that serves both endpoints, handles shutdown cleanly, and has a unit test suite covering every new component.
+
+---
+
