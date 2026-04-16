@@ -17,7 +17,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -75,26 +74,42 @@ func run(ctx context.Context, args []string) error {
 		Handler: NewServer(ctx, deps),
 	}
 
+	// listenErr receives the result of ListenAndServe. A non-nil,
+	// non-ErrServerClosed error (e.g. port already in use) must unblock
+	// the main goroutine so run() returns the error instead of hanging
+	// on wg.Wait() forever.
+	listenErr := make(chan error, 1)
 	go func() {
 		deps.Logger.Info("listening", "addr", httpServer.Addr)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			deps.Logger.Error("server error", "err", err.Error())
+			listenErr <- err
+			return
 		}
+		listenErr <- nil
 	}()
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		<-ctx.Done()
-		deps.Logger.Info("shutdown: received signal")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := httpServer.Shutdown(shutdownCtx); err != nil {
-			deps.Logger.Error("shutdown error", "err", err.Error())
+	select {
+	case err := <-listenErr:
+		// Listener died before any signal arrived. Usually bind failure.
+		if err != nil {
+			return fmt.Errorf("listen: %w", err)
 		}
-		deps.Logger.Info("shutdown: http server stopped")
-	}()
-	wg.Wait()
+		// err == nil would mean ListenAndServe returned ErrServerClosed
+		// without any signal — unexpected but benign. Fall through.
+		return nil
+	case <-ctx.Done():
+		// Signal path: drain the listener via Shutdown then wait for
+		// the listenErr goroutine to finish.
+	}
+
+	deps.Logger.Info("shutdown: received signal")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		deps.Logger.Error("shutdown error", "err", err.Error())
+	}
+	deps.Logger.Info("shutdown: http server stopped")
+	// Drain the listener goroutine's final send.
+	<-listenErr
 	return nil
 }
