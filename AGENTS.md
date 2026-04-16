@@ -26,9 +26,9 @@ For the product-level "why" and the community-facing feature intent, read the vi
 
 ## Coding Conventions
 
-- **Go:** standard `gofmt`, `slog` for logging, `sqlc` for queries (write SQL, not ORMs), `chi` or stdlib `net/http` for routing, `pgx` for Postgres.
+- **Go:** standard `gofmt`, `slog` for logging, `sqlc` for queries (write SQL, not ORMs), stdlib `net/http` for routing (Go 1.22+ method/path routing is enough), `pgx` for Postgres.
 - **Dart/Flutter:** `dart format`, follow `flutter_lints`. Prefer the `atproto.dart` SDK over hand-rolled XRPC calls. Additional rules that apply to **all `**/*.dart` files** live in [`.claude/rules/flutter.md`](.claude/rules/flutter.md) and [`.claude/rules/riverpod.md`](.claude/rules/riverpod.md) — read and follow both before writing Dart.
-- **SQL:** migrations in `appview/migrations/` via `golang-migrate` or `goose`. Queries in `appview/queries/` consumed by `sqlc`.
+- **SQL:** migrations in `appview/migrations/` via `golang-migrate/v4` (wrapped by `appview/cmd/cli migrate`). Queries in `appview/queries/` consumed by `sqlc`.
 - **Commits:** conventional commits style is fine but not enforced. Keep them focused.
 
 ## Project Skills (`.claude/skills/`)
