@@ -1,0 +1,27 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.feed.like",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A like on a Craftsky post. The subject should be a social.craftsky.feed.post record. Defined as a distinct NSID (rather than reusing app.bsky.feed.like) so the App View can firehose-filter by collection name.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["subject", "createdAt"],
+        "properties": {
+          "subject": {
+            "type": "ref",
+            "ref": "com.atproto.repo.strongRef",
+            "description": "Strong reference to the post being liked."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Client-declared creation timestamp of the like."
+          }
+        }
+      }
+    }
+  }
+}

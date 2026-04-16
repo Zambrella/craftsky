@@ -12,8 +12,9 @@ Lexicons are JSON schemas that define the shape of records stored on user PDSes.
 
 | Lexicon | Purpose |
 |---|---|
-| `social.craftsky.feed.post` | A post — general or a craft project (via optional `project` sub-object with craftType/status/patternUrl) |
+| `social.craftsky.feed.post` | A post — general or a craft project (via optional `project` sub-object). Supports replies, up to 4 images, rich-text facets (reusing `app.bsky.richtext.facet`), and quote embeds. |
 | `social.craftsky.feed.repost` | A repost of a Craftsky post |
+| `social.craftsky.feed.like` | A like on a Craftsky post (distinct NSID for firehose-filter efficiency) |
 | `social.craftsky.actor.profile` | Craftsky-specific profile extension (single record, key `self`); signals active Craftsky users and stores craft preferences |
 
 **Reused from `app.bsky.*` (not redefined here):**
@@ -23,7 +24,9 @@ Lexicons are JSON schemas that define the shape of records stored on user PDSes.
 | `app.bsky.actor.profile` | Base profile (display name, avatar, bio) — unchanged across apps |
 | `app.bsky.graph.follow` | Standard follow semantics |
 | `app.bsky.graph.block` | Standard block semantics |
-| `app.bsky.feed.like` | Generic strongRef + createdAt; fine for liking Craftsky posts |
+| `app.bsky.richtext.facet` | Byte-range rich-text annotations (mentions/links/tags); referenced from `social.craftsky.feed.post.facets` |
+
+Note: comments are not a separate record type — a "comment" is a `social.craftsky.feed.post` with its `reply` field set. Quote posts are regular posts whose `embed` carries a `#quoteEmbed` wrapping a strongRef to the quoted record.
 
 ## References
 

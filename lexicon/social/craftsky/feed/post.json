@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "A post on Craftsky. May be a general post or a craft project post; when the optional 'project' field is present the post is a project post.",
+      "description": "A post on Craftsky. May be a general post or a craft project post; when the optional 'project' field is present the post is a project post. A post with an 'embed' containing a quoteEmbed is a quote post.",
       "key": "tid",
       "record": {
         "type": "object",
@@ -14,7 +14,12 @@
             "type": "string",
             "maxLength": 3000,
             "maxGraphemes": 300,
-            "description": "The primary text content of the post."
+            "description": "The primary text content of the post. Plain text; rich-text annotations live in 'facets'."
+          },
+          "facets": {
+            "type": "array",
+            "items": { "type": "ref", "ref": "app.bsky.richtext.facet" },
+            "description": "Byte-range annotations over 'text' for mentions, links, and tags. Reuses app.bsky.richtext.facet so existing renderers Just Work."
           },
           "project": {
             "type": "ref",
@@ -26,6 +31,11 @@
             "items": { "type": "ref", "ref": "#image" },
             "maxLength": 4,
             "description": "Images attached to the post."
+          },
+          "embed": {
+            "type": "union",
+            "refs": ["#quoteEmbed"],
+            "description": "Optional embedded content. Open union; today only quote embeds are defined."
           },
           "reply": {
             "type": "ref",
@@ -87,6 +97,18 @@
           "maxLength": 1000,
           "maxGraphemes": 1000,
           "description": "Alt text describing the image for accessibility."
+        }
+      }
+    },
+    "quoteEmbed": {
+      "type": "object",
+      "description": "Embed wrapping another record (typically a social.craftsky.feed.post) for a quote post.",
+      "required": ["record"],
+      "properties": {
+        "record": {
+          "type": "ref",
+          "ref": "com.atproto.repo.strongRef",
+          "description": "Strong reference to the quoted record."
         }
       }
     },
