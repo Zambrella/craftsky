@@ -45,3 +45,11 @@ func TestMockAuthService_PrefersDevDIDFromContext(t *testing.T) {
 		t.Errorf("did = %q, want did:plc:override", got)
 	}
 }
+
+func TestNotImplementedAuthService_AlwaysErrors(t *testing.T) {
+	var s AuthService = &NotImplementedAuthService{}
+	_, err := s.Authenticate(context.Background(), "any")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
