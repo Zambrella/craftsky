@@ -202,12 +202,23 @@ func TestParseEnv(t *testing.T) {
 }
 
 // testConfigFile writes a temporary .env-style file and returns its path.
-// It also clears the relevant env vars before the test so LoadConfig's
-// os.Getenv fallback doesn't leak in from the host environment.
+// It UNSETS the relevant env vars before the test — not just sets them to
+// empty. godotenv.Load treats a set-but-empty variable as "present" and
+// skips the file's value, which would be the opposite of what we want in
+// every test here. Unsetting keeps the file as the source of truth, and
+// the t.Cleanup block restores any prior value after the test.
 func testConfigFile(t *testing.T, contents string) string {
 	t.Helper()
 	for _, k := range []string{"DATABASE_URL", "ALLOWED_ORIGINS", "CRAFTSKY_DEV_DID"} {
-		t.Setenv(k, "")
+		prior, had := os.LookupEnv(k)
+		_ = os.Unsetenv(k)
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv(k, prior)
+			} else {
+				_ = os.Unsetenv(k)
+			}
+		})
 	}
 	f, err := os.CreateTemp(t.TempDir(), "test-*.env")
 	if err != nil {
