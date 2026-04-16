@@ -35,46 +35,25 @@
 
 **Scope:** Nothing HTTP yet. Set up the Go module's dependencies, write `internal/app/config.go`, `internal/db/db.go`, and the environment files. Each can be tested in isolation. End of chunk: `go build ./...` passes, `go test ./...` passes, but there's no binary behaviour yet.
 
-### Task 1.1: Add module dependencies
+### Task 1.1: Note on module dependencies (no-op)
 
-**Files:**
-- Modify: `appview/go.mod`
-- Modify: `appview/go.sum` (generated)
+No action for this task. Explanation for the implementer:
 
-- [ ] **Step 1: Confirm we're in the right directory**
+We cannot `go get` the five scaffold dependencies up-front because `go mod tidy` (which `go get` runs implicitly in module mode) strips any dependency that nothing imports. Attempting `go get ...@latest` in a module whose only code is the stub `main.go` ends with an empty `go.mod`.
 
-Run: `pwd && cat go.mod`
-Expected: ends in `/craftsky/appview`; `go.mod` shows `module social.craftsky/appview`. The `go` directive version is whatever the existing file sets — do not change it in this task. No `require` block yet.
+Instead, each downstream task that first imports a package adds it with `go get <pkg>@latest` as its own initial step. The distribution is:
 
-- [ ] **Step 2: Add all five dependencies at once**
+| Task | `go get` |
+|------|----------|
+| 1.3 (Config+LoadConfig) | `github.com/joho/godotenv@latest` |
+| 1.4 (db.Connect) | `github.com/jackc/pgx/v5@latest` |
+| 2.4 (Logging middleware) | `github.com/google/uuid@latest` |
+| 4.1 (cobra root) | `github.com/spf13/cobra@latest` |
+| 4.4 (migrate subcommand) | `github.com/golang-migrate/migrate/v4@latest` |
 
-Run:
-```bash
-go get github.com/jackc/pgx/v5@latest
-go get github.com/spf13/cobra@latest
-go get github.com/joho/godotenv@latest
-go get github.com/golang-migrate/migrate/v4@latest
-go get github.com/google/uuid@latest
-```
+**Go directive heads-up for Task 4.4:** `golang-migrate/v4` requires a newer `go` directive than the repo's current `go 1.23`. `go get` will bump `go.mod`'s `go` directive to whatever migrate/v4 needs (likely `go 1.25.x`). This is expected — Task 4.4's first step calls it out explicitly. Do not revert.
 
-Expected: each command prints a `go: added ... v…` line. `go.mod` now has a `require` block with these five entries (plus transitive `go.sum` entries).
-
-- [ ] **Step 3: Tidy**
-
-Run: `go mod tidy`
-Expected: no output, or it prints some `indirect` trims. `go.mod` and `go.sum` both updated.
-
-- [ ] **Step 4: Verify build still works with just the stub main**
-
-Run: `go build ./...`
-Expected: exits 0 with no output.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add go.mod go.sum
-git commit -m "feat(appview): add module dependencies for scaffold"
-```
+No commit in this task. Proceed to Task 1.2.
 
 ### Task 1.2: `internal/app/config.go` — failing test for ParseEnv
 
@@ -177,6 +156,12 @@ git commit -m "feat(appview): add app.Env and ParseEnv"
 **Files:**
 - Modify: `appview/internal/app/config.go`
 - Modify: `appview/internal/app/config_test.go`
+- Modify: `appview/go.mod`, `appview/go.sum` (via `go get`)
+
+- [ ] **Step 0: Add the godotenv dependency**
+
+Run: `go get github.com/joho/godotenv@latest`
+Expected: `go: added github.com/joho/godotenv v1.x.x`. `go.mod` gains a require entry; `go.sum` gains hashes. The dep will stick because the implementation in Step 3 imports it.
 
 - [ ] **Step 1: Extend test with LoadConfig cases**
 
@@ -458,6 +443,12 @@ git commit -m "feat(appview): add Config struct and LoadConfig"
 **Files:**
 - Create: `appview/internal/db/db.go`
 - Create: `appview/internal/db/db_test.go`
+- Modify: `appview/go.mod`, `appview/go.sum` (via `go get`)
+
+- [ ] **Step 0: Add the pgx/v5 dependency**
+
+Run: `go get github.com/jackc/pgx/v5@latest`
+Expected: `go: added github.com/jackc/pgx/v5 v5.x.x`. The `pgxpool` subpackage comes along for free.
 
 - [ ] **Step 1: Write a failing test for the "bad URL" path**
 
@@ -865,6 +856,12 @@ git commit -m "feat(appview): add NotImplementedAuthService for prod stub"
 **Files:**
 - Create: `appview/internal/middleware/logging.go`
 - Create: `appview/internal/middleware/logging_test.go`
+- Modify: `appview/go.mod`, `appview/go.sum` (via `go get`)
+
+- [ ] **Step 0: Add the uuid dependency**
+
+Run: `go get github.com/google/uuid@latest`
+Expected: `go: added github.com/google/uuid v1.x.x`.
 
 - [ ] **Step 1: Write failing test**
 
@@ -2556,8 +2553,14 @@ That helper lives in `cmd/cli/deps.go` (a small file next to the subcommands, NO
 **Files:**
 - Create: `appview/cmd/cli/main.go`
 - Create: `appview/cmd/cli/deps.go`
+- Modify: `appview/go.mod`, `appview/go.sum` (via `go get`)
 
 No dedicated unit tests here — cobra wiring and the dep-loader helper are covered by each subcommand's own end-to-end smoke in Tasks 4.3 / 4.4 / 4.6 / 4.9.
+
+- [ ] **Step 0: Add the cobra dependency**
+
+Run: `go get github.com/spf13/cobra@latest`
+Expected: `go: added github.com/spf13/cobra v1.x.x`.
 
 - [ ] **Step 1: Create `cmd/cli/main.go`**
 
@@ -2749,8 +2752,16 @@ Task is verification-only. Proceed.
 **Files:**
 - Create: `appview/cmd/cli/migrate.go`
 - Create: `appview/cmd/cli/migrate_test.go`
+- Modify: `appview/go.mod`, `appview/go.sum` (via `go get`)
 
 golang-migrate/v4's `migrate.New` wants two URLs: a source URL (`file://...`) and a database URL. We use the file source and the Postgres driver, imported blank.
+
+- [ ] **Step 0: Add the golang-migrate/v4 dependency**
+
+Run: `go get github.com/golang-migrate/migrate/v4@latest`
+Expected: `go: added github.com/golang-migrate/migrate/v4 v4.x.x`.
+
+**Go directive bump (expected):** `golang-migrate/v4` requires a newer Go than the repo's `go 1.23`. The `go get` will rewrite `go.mod`'s `go` directive to whatever the library needs (likely `go 1.25.x`). This is the correct behaviour — let it stand, don't revert. `go build` / `go test` on the full tree will still succeed because none of the earlier code uses features that require < 1.23; we only ever move forward.
 
 - [ ] **Step 1: Write failing test for the "empty migrations dir" case**
 
