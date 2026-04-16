@@ -22,3 +22,26 @@ func TestDevDIDRoundTrip(t *testing.T) {
 		t.Errorf("did = %q, want did:plc:abc", got)
 	}
 }
+
+func TestMockAuthService_FallsBackToDefaultDID(t *testing.T) {
+	m := &MockAuthService{DefaultDID: "did:plc:default"}
+	got, err := m.Authenticate(context.Background(), "any-token")
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if got != "did:plc:default" {
+		t.Errorf("did = %q, want did:plc:default", got)
+	}
+}
+
+func TestMockAuthService_PrefersDevDIDFromContext(t *testing.T) {
+	m := &MockAuthService{DefaultDID: "did:plc:default"}
+	ctx := WithDevDID(context.Background(), "did:plc:override")
+	got, err := m.Authenticate(ctx, "any-token")
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if got != "did:plc:override" {
+		t.Errorf("did = %q, want did:plc:override", got)
+	}
+}
