@@ -32,28 +32,29 @@ This is deliberately the **minimum viable Tap integration**. No `social.craftsky
 ## 1. Architecture & topology
 
 ```
-wss://bsky.network (Relay)
-          │
-          ▼
+         AT Protocol Relay (https://relay1.us-east.bsky.network)
+                      │
+                      ▼
     ┌──────────┐   SQLite (named volume: tapdata)
-    │   tap    │◄──────── /data/tap.sqlite
-    │container │
+    │   tap    │◄──────── /data/tap.db
+    │container │◄───── HTTP POST /repos/add (tap-bootstrap, one-shot)
     └────┬─────┘
-         │ WebSocket-with-acks (ws://tap:2480/subscribe)
+         │ WebSocket-with-acks (ws://tap:2480/channel)
          ▼
-    ┌────────────┐      ┌──────────────┐
+    ┌────────────┐      ┌──────────────┐◄─── migrate (one-shot)
     │  appview   │─────▶│   postgres   │
     │ container  │  SQL │   (pgdata)   │
     └────────────┘      └──────────────┘
          ▲
-         │ HTTP :8080
+         │ HTTP :8080  (/healthz, future Craftsky API)
          │
      (Flutter app / cli)
 ```
 
 Three containers, each with one job:
 
-- **`tap`** — pinned `ghcr.io/bluesky-social/indigo/tap:<pinned-tag>`. Connects to `wss://bsky.network`, tracks four allowlisted DIDs, filters for `app.bsky.feed.post`, stores cursor and repo metadata in SQLite on the `tapdata` named volume. Exposes its WS on `:2480` inside the compose network only — no host port.
+- **`tap`** — pinned `ghcr.io/bluesky-social/indigo/tap:<pinned-tag>`. Connects to the AT Protocol relay (configured via `TAP_RELAY_URL`), runs in Tap's **Dynamically Configured** network-boundary mode (no `TAP_SIGNAL_COLLECTION`, no `TAP_FULL_NETWORK`), filters records to `app.bsky.feed.post` via `TAP_COLLECTION_FILTERS`. Stores cursor and repo metadata in SQLite on the `tapdata` named volume (`/data` inside the container, per Tap's Docker docs). Exposes its HTTP + WS on `:2480` inside the compose network only — no host port. Health endpoint is `GET /health`; event WebSocket is `/channel`.
+- **`tap-bootstrap`** — one-shot `curlimages/curl` container. After `tap` reports healthy, it POSTs the four allowlisted DIDs to `http://tap:2480/repos/add`, then exits. Tap only accepts DIDs at runtime via this admin endpoint (there is no DID-list env var), so bootstrap is necessary on every compose-up against a fresh `tapdata` volume. Idempotent: adding an already-tracked DID is a no-op.
 - **`postgres`** — `postgres:16`. Named volume `pgdata`. Exposes `:5432` to the host for `just psql`.
 - **`appview`** — built from `./appview/Dockerfile`. Depends on both via healthchecks. Exposes `:8080` to the host.
 
@@ -97,7 +98,8 @@ type Event struct {
     Action     string          // "create" | "update" | "delete"
     Record     json.RawMessage // opaque JSON; nil or empty on Action == "delete"
     Live       bool            // false during backfill, true for steady-state
-    Seq        uint64          // Tap's per-event sequence, used for acking
+    ID         uint64          // Tap's per-event `id` field (from the event envelope), used for acking
+    Rev        string          // repo rev at time of event
 }
 
 type Consumer interface {
@@ -119,8 +121,8 @@ Raw-JSON `Record` keeps the consumer collection-agnostic. Per-collection typing 
 
 1. Dial the WS.
 2. On connect: set `state.Connected = true`, reset `ReconnectAttempt`.
-3. For each frame received: decode → call `indexer.Handle(handleCtx, event)` where `handleCtx` is derived from `ctx` with `context.WithTimeout(ctx, TapAckTimeout)`. On `Handle` success: send ack frame with `event.Seq`. On error or deadline: log with the event's URI/seq, increment a per-event retry counter (in-memory), and do not ack — Tap will redeliver.
-4. **Retry-storm guard.** Keep an LRU-capped map of `seq → retryCount`. If the same seq fails more than `TAP_MAX_RETRIES` times (default 5), log at ERROR with the full event payload and ack anyway to drop it (poison pill). This is an accepted scaffold-level trade-off: we'd rather drop a persistently-broken event than loop forever. A production-quality policy (dead-letter queue, alert) is explicitly deferred and noted in §Risks.
+3. For each frame received: decode the envelope (`{ "id": ..., "type": "record", "record": { ... } }`) or identity frame (`type: "identity"` — dropped at debug, no indexer call). Map the record envelope to `tap.Event`. Call `indexer.Handle(handleCtx, event)` where `handleCtx` is derived from `ctx` with `context.WithTimeout(ctx, TapAckTimeout)`. On `Handle` success: send ack frame (exact frame format to be read from `indigo/cmd/tap` source during implementation — likely `{"ack": <id>}` or similar; the implementation task includes reading the server-side handler). On error or deadline: log with the event's URI and `id`, increment a per-event retry counter (in-memory), and do not ack — Tap will redeliver after `TAP_RETRY_TIMEOUT` (upstream default 60s).
+4. **Retry-storm guard.** Keep an LRU-capped map of `id → retryCount`. If the same id fails more than `TAP_MAX_RETRIES` times (default 5), log at ERROR with the full event payload and ack anyway to drop it (poison pill). This is an accepted scaffold-level trade-off: we'd rather drop a persistently-broken event than loop forever. A production-quality policy (dead-letter queue, alert) is explicitly deferred and noted in §Risks.
 5. On any WS-level error: set `state.Connected = false`, log the error, sleep `min(1s << ReconnectAttempt, TapReconnectMax)`, increment `ReconnectAttempt`, retry.
 6. On `ctx.Done()`: close WS cleanly, return `ctx.Err()`.
 
@@ -189,10 +191,10 @@ Rules:
 
 In `internal/app/config.go`, four new keys (existing `DATABASE_URL`, `ALLOWED_ORIGINS`, `CRAFTSKY_DEV_DID` are scaffold-owned and unchanged):
 
-- `TAP_WS_URL` (required) — e.g. `ws://tap:2480/subscribe`
+- `TAP_WS_URL` (required) — `ws://tap:2480/channel`
 - `TAP_ACK_TIMEOUT` (default `10s`) — per-event `Handle` deadline; on expiry the event is not acked and will be redelivered by Tap
 - `TAP_RECONNECT_MAX` (default `30s`) — cap for exponential reconnect backoff
-- `TAP_MAX_RETRIES` (default `5`) — per-seq retry count before the consumer logs and drops the event (poison-pill guard, see §2 step 4)
+- `TAP_MAX_RETRIES` (default `5`) — per-id retry count before the consumer logs and drops the event (poison-pill guard, see §2 step 4)
 
 Added to `environments/dev.env` and `environments/prod.env.example`.
 
@@ -240,19 +242,36 @@ services:
     image: ghcr.io/bluesky-social/indigo/tap:<pinned-tag>
     restart: unless-stopped
     environment:
-      TAP_RELAY_HOST: wss://bsky.network
-      # Four allowlisted accounts for dev. DIDs are resolved from handles at
-      # implementation time: @bsky.app, @jay.bsky.team, @dougtodd.dev,
-      # @eurosky.social.
-      TAP_TRACKED_DIDS: "<did:plc:...>,<did:plc:...>,<did:plc:...>,<did:plc:...>"
+      TAP_RELAY_URL: https://relay1.us-east.bsky.network
+      TAP_DATABASE_URL: sqlite:///data/tap.db
       TAP_COLLECTION_FILTERS: "app.bsky.feed.post"
+      TAP_LOG_LEVEL: info
+      # Dev: skip cursor replay on restart. Incompatible with TAP_FULL_NETWORK
+      # (we don't use that). Not for prod.
+      TAP_NO_REPLAY: "true"
     volumes:
       - tapdata:/data
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:2480/healthz || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:2480/health || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 10
+
+  tap-bootstrap:
+    # One-shot: once Tap is healthy, POST the four allowlisted DIDs so Tap
+    # starts tracking them. Idempotent (re-adding a tracked DID is a no-op),
+    # so it runs on every `compose up`.
+    image: curlimages/curl:8.9.1
+    depends_on:
+      tap:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        curl -fsS -X POST http://tap:2480/repos/add \
+          -H "Content-Type: application/json" \
+          -d '{"dids":["<did:plc:...>","<did:plc:...>","<did:plc:...>","<did:plc:...>"]}'
 
   appview:
     build:
@@ -266,10 +285,12 @@ services:
         condition: service_completed_successfully
       tap:
         condition: service_healthy
+      tap-bootstrap:
+        condition: service_completed_successfully
     environment:
       APPVIEW_ENV: dev
       DATABASE_URL: postgres://craftsky:dev@postgres:5432/craftsky_dev?sslmode=disable
-      TAP_WS_URL: ws://tap:2480/subscribe
+      TAP_WS_URL: ws://tap:2480/channel
       ALLOWED_ORIGINS: "*"
       CRAFTSKY_DEV_DID: did:plc:craftsky-dev-user
     ports:
@@ -282,10 +303,9 @@ volumes:
 
 **Implementation-time confirmations** (do not block design approval; document what was found when implementing):
 
-1. Exact Tap env var names (`TAP_TRACKED_DIDS`, `TAP_COLLECTION_FILTERS`, healthcheck path). If Tap only accepts a DID allowlist via its admin HTTP API, add a one-shot `tap-bootstrap` init container that POSTs the DID list after Tap is healthy.
-2. Confirm Tap exposes a healthcheck endpoint on `:2480`. If not, replace the healthcheck with a TCP probe on that port.
-3. Pinned tag — pick the latest stable Tap release at the time of implementation; record the version in the compose file comment.
-4. Resolve the four handles to DIDs via `did-resolve` or a one-off lookup; paste into `TAP_TRACKED_DIDS`.
+1. Pinned Tap tag — pick the latest stable Tap release at the time of implementation; record the version in the compose file comment.
+2. Resolve the four handles to DIDs via `com.atproto.identity.resolveHandle` (e.g. `curl https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle?handle=bsky.app`); paste the four `did:plc:...` values into the `tap-bootstrap` `curl` body.
+3. Exact WS ack frame format on `ws://tap:2480/channel`. Upstream README describes acks conceptually but does not document the wire format; implementation reads `indigo/cmd/tap` source (`cmd/tap/ws.go` or similar) to confirm the outgoing ack frame shape. Document what was found in a code comment on `WSConsumer.sendAck`.
 
 ### `appview/Dockerfile`
 
@@ -407,7 +427,7 @@ fmt:
 
 The change lands when all are true:
 
-1. `just dev` (= `docker compose up --build`) brings all three containers to healthy state. `docker compose ps` shows `healthy` for postgres, tap, and appview.
+1. `just dev` (= `docker compose up --build`) brings the long-running services to healthy state and the one-shot services to successful completion. `docker compose ps` shows `healthy` for postgres, tap, and appview; `migrate` and `tap-bootstrap` have exited 0 and are no longer present in `docker compose ps` output (or shown as `exited (0)` depending on compose version).
 2. `curl localhost:8080/healthz` returns HTTP 200 with `tap.connected: true` within 60 seconds of a cold `just dev`.
 3. The compose `migrate` service runs before `appview` starts and exits successfully; `bluesky_posts_sample` is present before the first event arrives. `just migrate up` invoked manually against an already-migrated DB is a no-op (idempotent; no errors, no duplicate schema).
 4. Within 10 minutes of a cold `just dev` — or immediately after any of the four tracked accounts next posts to Bluesky — `just psql` followed by `SELECT count(*) FROM bluesky_posts_sample;` returns a non-zero row count. Row shape matches migration types; `record` column round-trips as valid JSON when `SELECT record FROM bluesky_posts_sample LIMIT 1;` is piped to `jq`. No "relation does not exist" errors appear in appview logs. If backfill alone doesn't produce rows within 10 min, the operator manually posts from `@dougtodd.dev` to force a live event and verifies the row appears within 30 seconds.
