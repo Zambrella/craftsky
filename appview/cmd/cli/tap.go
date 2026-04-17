@@ -56,6 +56,13 @@ func tapStatus(baseURL string, out io.Writer) int {
 		return 2
 	}
 	defer resp.Body.Close()
+	// Non-2xx from /healthz is a transport-level problem (wrong URL,
+	// proxy in the way). Don't let a body that happens to decode into
+	// healthDoc mask the real failure as "disconnected".
+	if resp.StatusCode/100 != 2 {
+		fmt.Fprintf(out, "http %d from %s/healthz\n", resp.StatusCode, baseURL)
+		return 2
+	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Fprintf(out, "read error: %v\n", err)

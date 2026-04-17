@@ -39,6 +39,19 @@ func TestTapStatusExitTransport(t *testing.T) {
 	}
 }
 
+func TestTapStatusExitNon2xx(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"tap":{"connected":false}}`))
+	}))
+	defer srv.Close()
+
+	code := tapStatus(srv.URL, nil)
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2 (non-2xx should be transport error, not disconnected)", code)
+	}
+}
+
 func TestTapStatusExitGarbageBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("not json"))
