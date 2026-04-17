@@ -1,0 +1,92 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: craftsky
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: craftsky_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U craftsky -d craftsky_dev"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  migrate:
+    build:
+      context: ./appview
+      dockerfile: Dockerfile
+    command: ["/app/cli", "migrate", "up"]
+    environment:
+      DATABASE_URL: postgres://craftsky:dev@postgres:5432/craftsky_dev?sslmode=disable
+      APPVIEW_ENV: dev
+      ALLOWED_ORIGINS: "*"
+      CRAFTSKY_DEV_DID: did:plc:craftsky-dev-user
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  tap:
+    image: ghcr.io/bluesky-social/indigo/tap:0.1.10
+    restart: unless-stopped
+    environment:
+      TAP_RELAY_URL: https://relay1.us-east.bsky.network
+      TAP_DATABASE_URL: sqlite:///data/tap.db
+      TAP_COLLECTION_FILTERS: "app.bsky.feed.post"
+      TAP_LOG_LEVEL: info
+      TAP_NO_REPLAY: "true"
+    volumes:
+      - tapdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:2480/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  tap-bootstrap:
+    image: curlimages/curl:8.9.1
+    depends_on:
+      tap:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        curl -fsS -X POST http://tap:2480/repos/add \
+          -H "Content-Type: application/json" \
+          -d '{"dids":["did:plc:z72i7hdynmk6r22z27h6tvur","did:plc:oky5czdrnfjpqslsw2a5iclo","did:plc:jt3cxdyrhjhrkpwzdvonheax","did:plc:ooensn4mr5mhznzypvxelfa3"]}'
+
+  appview:
+    build:
+      context: ./appview
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      tap:
+        condition: service_healthy
+      tap-bootstrap:
+        condition: service_completed_successfully
+    environment:
+      APPVIEW_ENV: dev
+      DATABASE_URL: postgres://craftsky:dev@postgres:5432/craftsky_dev?sslmode=disable
+      TAP_WS_URL: ws://tap:2480/channel
+      TAP_ACK_TIMEOUT: "10s"
+      TAP_RECONNECT_MAX: "30s"
+      TAP_MAX_RETRIES: "5"
+      ALLOWED_ORIGINS: "*"
+      CRAFTSKY_DEV_DID: did:plc:craftsky-dev-user
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:
+  tapdata:
