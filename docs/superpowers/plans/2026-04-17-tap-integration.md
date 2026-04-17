@@ -182,6 +182,8 @@ services:
       APPVIEW_ENV: dev
       ALLOWED_ORIGINS: "*"
       CRAFTSKY_DEV_DID: did:plc:craftsky-dev-user
+      # TAP_WS_URL is required by LoadConfig but unused by `cli migrate`.
+      TAP_WS_URL: ws://tap:2480/channel
     depends_on:
       postgres:
         condition: service_healthy
