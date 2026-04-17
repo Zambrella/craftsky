@@ -377,9 +377,11 @@ tap-status:
 psql:
     docker compose exec postgres psql -U craftsky craftsky_dev
 
-# Run the Go test suite (inside a throwaway appview container so tests reach postgres).
+# Run the Go test suite with the race detector enabled. The container is
+# one-shot (--rm) so it does not leave artifacts behind, and it reaches
+# postgres via the compose network.
 test:
-    docker compose run --rm appview go test ./...
+    docker compose run --rm appview go test -race ./...
 
 # Format and vet Go code on the host.
 fmt:
