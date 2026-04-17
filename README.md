@@ -45,9 +45,32 @@ It's an open, commentable doc covering the "why", the core post types (simple + 
 - **Infrastructure:** Hetzner VPS + Docker Compose + Caddy
 - **Push:** FCM
 
-## Getting Started
+## Getting started
 
-Each subdirectory has its own README with setup instructions:
+Prerequisites:
+
+- Docker (with Docker Compose v2)
+- [`just`](https://just.systems) (`brew install just` on macOS)
+
+Clone and run:
+
+```
+git clone <repo>
+cd craftsky
+just dev
+```
+
+This brings up the full compose stack — `postgres`, `migrate`, `tap`, `tap-bootstrap`, `appview`. On a cold start allow ~60s for the tap sidecar to finish replaying. Then verify:
+
+```
+curl localhost:8080/healthz   # expect {"status":"ok",...} with tap.connected: true
+just tap-status               # prints tap connection state from the CLI
+just psql                     # psql shell; try: SELECT count(*) FROM bluesky_posts_sample;
+```
+
+See [`appview/README.md`](appview/README.md) for the full list of `just` recipes and the host-side test workflow.
+
+Each subdirectory also has its own README:
 
 - [`app/README.md`](app/README.md) — Flutter app setup
 - [`appview/README.md`](appview/README.md) — Go App View setup
