@@ -59,7 +59,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level, authSvc auth.Aut
 		return nil, nil, fmt.Errorf("db connect: %w", err)
 	}
 
-	indexerImpl := index.NotImplemented{}
+	indexerImpl := index.NewBlueskyPostsSample(pool)
 
 	deps := &Deps{
 		Config:      cfg,

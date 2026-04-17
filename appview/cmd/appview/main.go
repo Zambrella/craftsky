@@ -12,7 +12,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -74,6 +76,19 @@ func run(ctx context.Context, args []string) error {
 		Handler: NewServer(ctx, deps),
 	}
 
+	// Start the Tap consumer alongside the HTTP server. It runs until
+	// consumerCtx is cancelled, which happens on signal or if the HTTP
+	// listener dies (we cancel explicitly below in both paths).
+	consumerCtx, consumerCancel := context.WithCancel(ctx)
+	defer consumerCancel()
+	consumerDone := make(chan struct{})
+	go func() {
+		defer close(consumerDone)
+		if err := deps.Consumer.Run(consumerCtx); err != nil && !errors.Is(err, context.Canceled) {
+			deps.Logger.Error("tap consumer exited", slog.Any("err", err))
+		}
+	}()
+
 	// listenErr receives the result of ListenAndServe. A non-nil,
 	// non-ErrServerClosed error (e.g. port already in use) must unblock
 	// the main goroutine so run() returns the error instead of hanging
@@ -109,6 +124,11 @@ func run(ctx context.Context, args []string) error {
 		deps.Logger.Error("shutdown error", "err", err.Error())
 	}
 	deps.Logger.Info("shutdown: http server stopped")
+	// Cancel the consumer explicitly and wait for it to exit, so the
+	// shutdown log lines report in a predictable order.
+	consumerCancel()
+	<-consumerDone
+	deps.Logger.Info("shutdown: tap consumer stopped")
 	// Drain the listener goroutine's final send.
 	<-listenErr
 	return nil
