@@ -146,11 +146,11 @@ File carries a prominent header comment marking both the table and the indexer a
 
 **`internal/app/deps.go`.** `Deps` gains a `Consumer tap.Consumer` field in place of `Firehose firehose.Subscriber`, and `Indexer index.Indexer` is re-typed to match the new interface. `newDeps` constructs `tap.NewWSConsumer(cfg.TapWSURL, indexer)` and `index.NewBlueskyPostsSample(pool)`. The consumer goroutine is **not** started inside `newDeps` — construction stays pure.
 
-**Migrate on start.** `cmd/appview/server.go` runs `migrate up` before constructing `Deps` and starting the consumer. The scaffold's migrate logic (used by `cli migrate`) is factored into an exported function `migrate.Up(ctx, databaseURL, migrationsDir)` that both the server startup and the CLI call. Failure is fatal — the server refuses to start against an out-of-date schema, which is what we want. This is what makes AC #3 and AC #4 achievable together: the sample table exists by the time the first event arrives.
+**Migrations run as a dedicated one-shot compose service, not in the appview binary.** A `migrate` service in `docker-compose.yml` runs `/app/cli migrate up` and exits; `appview` depends on it with `condition: service_completed_successfully`. This keeps the appview binary focused on serving traffic and matches how pre-deploy schema updates work in Kubernetes/CI environments. See §3 for the compose block.
 
-Contributors can still run `just migrate up` manually (idempotent — re-running an up-to-date migration is a no-op), and the `down` and `status` subcommands stay as the on-demand path for debugging.
+Contributors can still invoke `just migrate up` manually (idempotent — re-running an up-to-date migration is a no-op); `down` and `status` subcommands remain the on-demand debugging path.
 
-**`cmd/appview/server.go`** then starts the consumer goroutine alongside the HTTP server:
+**`cmd/appview/server.go`** starts the consumer goroutine alongside the HTTP server:
 
 ```go
 go func() {
@@ -219,6 +219,21 @@ services:
       timeout: 2s
       retries: 15
 
+  migrate:
+    build:
+      context: ./appview
+      dockerfile: Dockerfile
+    command: ["/app/cli", "migrate", "up"]
+    environment:
+      DATABASE_URL: postgres://craftsky:dev@postgres:5432/craftsky_dev?sslmode=disable
+      APPVIEW_ENV: dev
+      ALLOWED_ORIGINS: "*"
+      CRAFTSKY_DEV_DID: did:plc:craftsky-dev-user
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   tap:
     # Tap is under active development. Bump this tag intentionally, not on :latest.
     # See README's "Updating Tap" section for the bump process.
@@ -247,6 +262,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       tap:
         condition: service_healthy
     environment:
@@ -392,14 +409,16 @@ The change lands when all are true:
 
 1. `just dev` (= `docker compose up --build`) brings all three containers to healthy state. `docker compose ps` shows `healthy` for postgres, tap, and appview.
 2. `curl localhost:8080/healthz` returns HTTP 200 with `tap.connected: true` within 60 seconds of a cold `just dev`.
-3. The appview container runs `migrate up` at startup; a fresh `just dev` on an empty database leaves `bluesky_posts_sample` present before the first event arrives. `just migrate up` invoked manually against an already-migrated DB is a no-op (idempotent; no errors, no duplicate schema).
-4. After `just dev` has been up for at least 2 minutes — or after any of the four tracked accounts has posted to Bluesky during that window — `just psql` followed by `SELECT count(*) FROM bluesky_posts_sample;` returns a non-zero row count. Row shape matches migration types; `record` column round-trips as valid JSON when `SELECT record FROM bluesky_posts_sample LIMIT 1;` is piped to `jq`. No "relation does not exist" errors appear in appview logs.
+3. The compose `migrate` service runs before `appview` starts and exits successfully; `bluesky_posts_sample` is present before the first event arrives. `just migrate up` invoked manually against an already-migrated DB is a no-op (idempotent; no errors, no duplicate schema).
+4. Within 10 minutes of a cold `just dev` — or immediately after any of the four tracked accounts next posts to Bluesky — `just psql` followed by `SELECT count(*) FROM bluesky_posts_sample;` returns a non-zero row count. Row shape matches migration types; `record` column round-trips as valid JSON when `SELECT record FROM bluesky_posts_sample LIMIT 1;` is piped to `jq`. No "relation does not exist" errors appear in appview logs. If backfill alone doesn't produce rows within 10 min, the operator manually posts from `@dougtodd.dev` to force a live event and verifies the row appears within 30 seconds.
 5. **Idempotency.** `docker compose stop appview` mid-stream, then `docker compose start appview`. No duplicate-key errors in logs; `count(*)` resumes climbing (not resetting, not stalling).
 6. **Degradation.** `docker compose stop tap`. Within 10 seconds, `curl localhost:8080/healthz` shows `tap.connected: false` and `status: "degraded"`, HTTP 200. Appview logs show reconnect attempts with backoff. `docker compose start tap`. Within 30 seconds `/healthz` flips back to `connected: true`, `status: "ok"`.
 7. `just test` — all tests pass (existing plus the new ones in §Test strategy).
 8. `just fmt` produces no changes; `go vet ./...` is clean.
 9. `just tap-status` inside the container prints connection state and exits 0 when connected.
 10. A cold contributor can clone the repo, install `just` + Docker, run `just dev`, and reach AC #2 using only the README. The README gives them every command they need.
+11. **Delete verification.** After AC #4 rows exist, the operator deletes one post on Bluesky (from `@dougtodd.dev` via the Bluesky client) with a known URI; within 60 seconds the row with that URI is gone from `bluesky_posts_sample`. Confirms the `Action == "delete"` path in `BlueskyPostsSample.Handle`.
+12. **DID-filter verification.** `SELECT DISTINCT did FROM bluesky_posts_sample;` returns only DIDs from the four allowlisted accounts. Any other DID indicates Tap's tracking filter is misconfigured and is a blocker.
 
 ### Test strategy
 
