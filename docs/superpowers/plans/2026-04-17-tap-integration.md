@@ -1079,16 +1079,15 @@ func (f *fakeTap) handler(t *testing.T) http.Handler {
 			}
 		}
 
-		// Read acks until client closes.
+		// Read acks until client closes. Ack shape confirmed against
+		// indigo/cmd/tap types.go: {"type": "ack", "id": <uint>}.
 		for {
 			var ack map[string]any
 			if err := wsjson.Read(ctx, conn, &ack); err != nil {
 				return
 			}
-			// Convention from indigo/cmd/tap: ack carries the event id.
-			// Task 3.2 confirmed the exact field name; update if wrong.
-			if v, ok := ack["ack"]; ok {
-				if id, ok := v.(float64); ok {
+			if ack["type"] == "ack" {
+				if id, ok := ack["id"].(float64); ok {
 					f.acks <- uint64(id)
 				}
 			}
@@ -1343,10 +1342,14 @@ type recordPayload struct {
 
 // ackFrame is sent back to Tap after a successful Handle.
 //
-// Shape confirmed by reading indigo/cmd/tap during Task 3.2.
-// Update here if upstream changes.
+// Shape confirmed by reading indigo/cmd/tap/types.go (types WsResponse,
+// WsResponseAck) and server.go's /channel handler during Task 3.2.
+// Tap's server sends outgoing events as raw bytes over TextMessage frames
+// containing a MarshallableEvt JSON. The client acks with a WsResponse
+// containing {"type": "ack", "id": <id>}.
 type ackFrame struct {
-	Ack uint64 `json:"ack"`
+	Type string `json:"type"` // always "ack"
+	ID   uint64 `json:"id"`
 }
 
 // runOnce handles one WS connection lifecycle.
@@ -1451,7 +1454,7 @@ func (c *WSConsumer) forgetRetry(id uint64) {
 }
 
 func (c *WSConsumer) sendAck(ctx context.Context, conn *websocket.Conn, id uint64) error {
-	return wsjson.Write(ctx, conn, ackFrame{Ack: id})
+	return wsjson.Write(ctx, conn, ackFrame{Type: "ack", ID: id})
 }
 ```
 
