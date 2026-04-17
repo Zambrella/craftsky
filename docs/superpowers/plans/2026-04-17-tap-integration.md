@@ -132,7 +132,7 @@ Pick the latest non-`latest` tag. Record the full image reference (`ghcr.io/blue
 docker pull ghcr.io/bluesky-social/indigo/tap:<tag>
 ```
 
-Expected: successful pull. If the image requires authentication, note that and fall back to building from source via `FROM golang:1.23-alpine AS tap-build / RUN go install github.com/bluesky-social/indigo/cmd/tap@<commit>` (a multi-stage Dockerfile addition). Not expected to be necessary — ghcr.io is typically public for Bluesky's images.
+Expected: successful pull. If the image requires authentication, note that and fall back to building from source via `FROM golang:1.25-alpine AS tap-build / RUN go install github.com/bluesky-social/indigo/cmd/tap@<commit>` (a multi-stage Dockerfile addition). Not expected to be necessary — ghcr.io is typically public for Bluesky's images.
 
 - [ ] **Step 3: Commit**
 
@@ -287,7 +287,7 @@ Create `/Users/douglastodd/Projects/craftsky/appview/Dockerfile`:
 
 ```dockerfile
 # syntax=docker/dockerfile:1.7
-FROM golang:1.23-alpine AS build
+FROM golang:1.25-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
