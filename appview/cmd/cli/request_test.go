@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -25,6 +26,7 @@ func TestDoRequest_200WritesStatusThenBody(t *testing.T) {
 
 	var out, errOut bytes.Buffer
 	code, err := doRequest(requestArgs{
+		Ctx:     context.Background(),
 		Method:  "GET",
 		Path:    "/x",
 		BaseURL: srv.URL,
@@ -58,7 +60,7 @@ func TestDoRequest_4xxReturnsExit1(t *testing.T) {
 	defer srv.Close()
 
 	var out, errOut bytes.Buffer
-	code, err := doRequest(requestArgs{Method: "GET", Path: "/x", BaseURL: srv.URL, Out: &out, ErrOut: &errOut})
+	code, err := doRequest(requestArgs{Ctx: context.Background(), Method: "GET", Path: "/x", BaseURL: srv.URL, Out: &out, ErrOut: &errOut})
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -71,6 +73,7 @@ func TestDoRequest_TransportErrorReturnsExit2(t *testing.T) {
 	// Port 1 is reserved; connect will fail.
 	var out, errOut bytes.Buffer
 	code, err := doRequest(requestArgs{
+		Ctx:     context.Background(),
 		Method:  "GET",
 		Path:    "/x",
 		BaseURL: "http://127.0.0.1:1",

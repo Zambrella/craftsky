@@ -26,6 +26,10 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 			if isOriginAllowed(origin, allowedOrigins) {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 			}
+			// Vary: Origin tells CDNs/proxies that the response depends on the
+			// request's Origin header, so they don't serve a cached ACAO for
+			// origin A to a request from origin B.
+			w.Header().Add("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-Dev-DID")
 			w.Header().Set("Access-Control-Max-Age", "86400")

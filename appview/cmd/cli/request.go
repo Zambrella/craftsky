@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 // the dependencies in as a struct keeps doRequest pure — no reading from
 // cobra flags or environment inside the function.
 type requestArgs struct {
+	Ctx     context.Context // cancellation propagated from cobra / Ctrl-C
 	Method  string
 	Path    string
 	BaseURL string    // e.g. "http://localhost:8080"
@@ -41,7 +43,11 @@ func doRequest(args requestArgs) (int, error) {
 		body = bytes.NewReader(args.Body)
 	}
 
-	req, err := http.NewRequest(args.Method, args.BaseURL+args.Path, body)
+	ctx := args.Ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	req, err := http.NewRequestWithContext(ctx, args.Method, args.BaseURL+args.Path, body)
 	if err != nil {
 		return 0, fmt.Errorf("build request: %w", err)
 	}
@@ -121,6 +127,7 @@ var requestCmd = &cobra.Command{
 		}
 
 		code, err := doRequest(requestArgs{
+			Ctx:     cmd.Context(),
 			Method:  strings.ToUpper(args[0]),
 			Path:    args[1],
 			BaseURL: base,
