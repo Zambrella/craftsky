@@ -20,6 +20,7 @@ import (
 func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	// Public.
 	mux.Handle("GET /health", api.HealthHandler(deps.DB, deps.Logger))
+	mux.Handle("GET /healthz", api.NewHealthHandler(deps.DB, deps.Consumer))
 
 	// Authenticated.
 	authN := middleware.Authenticated(deps.AuthService, deps.Logger)
