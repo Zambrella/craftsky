@@ -2914,11 +2914,11 @@ Open a PR against `main`. Title: `feat(appview): integrate tap service for relay
 
 ## Appendix A — Resolved DIDs and pinned Tap tag
 
-*(filled in during Tasks 1.1 and 1.2 — placeholder below)*
+Resolved 2026-04-17 via `com.atproto.identity.resolveHandle`:
 
-- `@bsky.app` → `did:plc:?`
-- `@jay.bsky.team` → `did:plc:?`
-- `@dougtodd.dev` → `did:plc:?`
-- `@eurosky.social` → `did:plc:?`
+- `@bsky.app` → `did:plc:z72i7hdynmk6r22z27h6tvur`
+- `@jay.bsky.team` → `did:plc:oky5czdrnfjpqslsw2a5iclo`
+- `@dougtodd.dev` → `did:plc:jt3cxdyrhjhrkpwzdvonheax`
+- `@eurosky.social` → `did:plc:ooensn4mr5mhznzypvxelfa3`
 
-Pinned Tap image: `ghcr.io/bluesky-social/indigo/tap:?`
+Pinned Tap image: `ghcr.io/bluesky-social/indigo/tap:0.1.10` (digest `sha256:5e20bfe416d29fcd215ed8bf99f10b2ab825a6de4e5599846dd33967ade2abeb`).
