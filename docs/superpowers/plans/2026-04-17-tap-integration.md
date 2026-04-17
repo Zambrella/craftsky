@@ -173,6 +173,9 @@ services:
     build:
       context: ./appview
       dockerfile: Dockerfile
+    # Override the image's ENTRYPOINT (/app/appview) so `command:` runs
+    # the CLI binary directly instead of being appended as arguments.
+    entrypoint: []
     command: ["/app/cli", "migrate", "up"]
     environment:
       DATABASE_URL: postgres://craftsky:dev@postgres:5432/craftsky_dev?sslmode=disable
