@@ -95,7 +95,7 @@ type Event struct {
     Collection string          // e.g. "app.bsky.feed.post"
     Rkey       string
     Action     string          // "create" | "update" | "delete"
-    Record     json.RawMessage // opaque JSON; indexer decodes per-collection
+    Record     json.RawMessage // opaque JSON; nil or empty on Action == "delete"
     Live       bool            // false during backfill, true for steady-state
     Seq        uint64          // Tap's per-event sequence, used for acking
 }
@@ -119,9 +119,10 @@ Raw-JSON `Record` keeps the consumer collection-agnostic. Per-collection typing 
 
 1. Dial the WS.
 2. On connect: set `state.Connected = true`, reset `ReconnectAttempt`.
-3. For each frame received: decode → `indexer.Handle(ctx, event)` → on success, send ack frame with `event.Seq`; on indexer error, log and continue without acking (Tap will redeliver).
-4. On any WS-level error: set `state.Connected = false`, log the error, sleep `min(1s << ReconnectAttempt, 30s)`, increment `ReconnectAttempt`, retry.
-5. On `ctx.Done()`: close WS cleanly, return `ctx.Err()`.
+3. For each frame received: decode → call `indexer.Handle(handleCtx, event)` where `handleCtx` is derived from `ctx` with `context.WithTimeout(ctx, TapAckTimeout)`. On `Handle` success: send ack frame with `event.Seq`. On error or deadline: log with the event's URI/seq, increment a per-event retry counter (in-memory), and do not ack — Tap will redeliver.
+4. **Retry-storm guard.** Keep an LRU-capped map of `seq → retryCount`. If the same seq fails more than `TAP_MAX_RETRIES` times (default 5), log at ERROR with the full event payload and ack anyway to drop it (poison pill). This is an accepted scaffold-level trade-off: we'd rather drop a persistently-broken event than loop forever. A production-quality policy (dead-letter queue, alert) is explicitly deferred and noted in §Risks.
+5. On any WS-level error: set `state.Connected = false`, log the error, sleep `min(1s << ReconnectAttempt, TapReconnectMax)`, increment `ReconnectAttempt`, retry.
+6. On `ctx.Done()`: close WS cleanly, return `ctx.Err()`.
 
 `State()` returns a snapshot by copying the mutex-guarded struct. Called by the health handler.
 
@@ -145,7 +146,11 @@ File carries a prominent header comment marking both the table and the indexer a
 
 **`internal/app/deps.go`.** `Deps` gains a `Consumer tap.Consumer` field in place of `Firehose firehose.Subscriber`, and `Indexer index.Indexer` is re-typed to match the new interface. `newDeps` constructs `tap.NewWSConsumer(cfg.TapWSURL, indexer)` and `index.NewBlueskyPostsSample(pool)`. The consumer goroutine is **not** started inside `newDeps` — construction stays pure.
 
-**`cmd/appview/server.go`** starts the consumer goroutine alongside the HTTP server:
+**Migrate on start.** `cmd/appview/server.go` runs `migrate up` before constructing `Deps` and starting the consumer. The scaffold's migrate logic (used by `cli migrate`) is factored into an exported function `migrate.Up(ctx, databaseURL, migrationsDir)` that both the server startup and the CLI call. Failure is fatal — the server refuses to start against an out-of-date schema, which is what we want. This is what makes AC #3 and AC #4 achievable together: the sample table exists by the time the first event arrives.
+
+Contributors can still run `just migrate up` manually (idempotent — re-running an up-to-date migration is a no-op), and the `down` and `status` subcommands stay as the on-demand path for debugging.
+
+**`cmd/appview/server.go`** then starts the consumer goroutine alongside the HTTP server:
 
 ```go
 go func() {
@@ -182,11 +187,12 @@ Rules:
 
 ### Config additions
 
-In `internal/app/config.go`, three new keys:
+In `internal/app/config.go`, four new keys (existing `DATABASE_URL`, `ALLOWED_ORIGINS`, `CRAFTSKY_DEV_DID` are scaffold-owned and unchanged):
 
 - `TAP_WS_URL` (required) — e.g. `ws://tap:2480/subscribe`
-- `TAP_ACK_TIMEOUT` (default `10s`) — matches Tap's default ack window
-- `TAP_RECONNECT_MAX` (default `30s`) — cap for exponential backoff
+- `TAP_ACK_TIMEOUT` (default `10s`) — per-event `Handle` deadline; on expiry the event is not acked and will be redelivered by Tap
+- `TAP_RECONNECT_MAX` (default `30s`) — cap for exponential reconnect backoff
+- `TAP_MAX_RETRIES` (default `5`) — per-seq retry count before the consumer logs and drops the event (poison-pill guard, see §2 step 4)
 
 Added to `environments/dev.env` and `environments/prod.env.example`.
 
@@ -327,7 +333,7 @@ Down-migration drops table and index.
   reconnect_attempt: 0
   ```
 
-  Exit codes: 0 when connected, 1 when disconnected, 2 on transport error. Mirrors the existing convention from `cli request`.
+  `last_event_at` is taken verbatim from `/healthz`; the `(8s ago)` relative suffix is computed client-side at print time. Exit-code logic **keys off the JSON body, not the HTTP status**: `/healthz` returns HTTP 200 in both `ok` and `degraded` states, so the CLI decodes the body, reads `tap.connected`, and exits `0` on `true` / `1` on `false`. Exit `2` is reserved for transport errors (couldn't reach the server, unparseable body). Mirrors the existing convention from `cli request`.
 - **Keep** `ping`, `migrate`, `request`, `did-resolve` unchanged.
 
 ### `justfile` (repo root)
@@ -373,9 +379,10 @@ fmt:
 
 ### Documentation updates
 
-- **`appview/README.md`** — remove the `make` section referenced in the scaffold spec (it never existed yet, just a promise); replace with the `just` table. Remove `cli firehose replay` and `cli backfill` from the subcommand list; add `cli tap status`.
-- **`AGENTS.md`** — add a "Dev workflow" line pointing at `just dev`; update the repo layout to mention top-level `docker-compose.yml` and `justfile`.
+- **`appview/README.md`** — update the repo-layout tree (replace the `internal/firehose/` line with `internal/tap/`); remove the `make` section referenced in the scaffold spec (it never existed yet, just a promise) and replace with the `just` table; remove `cli firehose replay` and `cli backfill` from the subcommand list; add `cli tap status`.
+- **`AGENTS.md`** — add a "Dev workflow" line pointing at `just dev`; update the repo layout to mention top-level `docker-compose.yml` and `justfile`; no content change to architectural rules.
 - **`README.md`** (repo root) — add a "Getting started" section with the two-step flow: install `just` and Docker, run `just dev`, wait for healthchecks, open `http://localhost:8080/healthz`.
+- **`docs/superpowers/specs/2026-04-16-appview-server-scaffold-design.md`** — add a `Status: partially superseded` line at the top pointing at this spec; do not rewrite its body. This spec is load-bearing for the parts it changes; the scaffold spec remains load-bearing for everything else (HTTP routing, middleware, `Deps` pattern, auth stubs).
 
 ## 4. Acceptance criteria, tests, risks
 
@@ -385,8 +392,8 @@ The change lands when all are true:
 
 1. `just dev` (= `docker compose up --build`) brings all three containers to healthy state. `docker compose ps` shows `healthy` for postgres, tap, and appview.
 2. `curl localhost:8080/healthz` returns HTTP 200 with `tap.connected: true` within 60 seconds of a cold `just dev`.
-3. `just migrate up` applies the `bluesky_posts_sample` migration cleanly; running it again is a no-op (no errors, no duplicate schema).
-4. After `just dev` has been up for at least 2 minutes — or after any of the four tracked accounts has posted to Bluesky during that window — `just psql` followed by `SELECT count(*) FROM bluesky_posts_sample;` returns a non-zero row count. Row shape matches migration types; `record` column round-trips as valid JSON when `SELECT record FROM bluesky_posts_sample LIMIT 1;` is piped to `jq`.
+3. The appview container runs `migrate up` at startup; a fresh `just dev` on an empty database leaves `bluesky_posts_sample` present before the first event arrives. `just migrate up` invoked manually against an already-migrated DB is a no-op (idempotent; no errors, no duplicate schema).
+4. After `just dev` has been up for at least 2 minutes — or after any of the four tracked accounts has posted to Bluesky during that window — `just psql` followed by `SELECT count(*) FROM bluesky_posts_sample;` returns a non-zero row count. Row shape matches migration types; `record` column round-trips as valid JSON when `SELECT record FROM bluesky_posts_sample LIMIT 1;` is piped to `jq`. No "relation does not exist" errors appear in appview logs.
 5. **Idempotency.** `docker compose stop appview` mid-stream, then `docker compose start appview`. No duplicate-key errors in logs; `count(*)` resumes climbing (not resetting, not stalling).
 6. **Degradation.** `docker compose stop tap`. Within 10 seconds, `curl localhost:8080/healthz` shows `tap.connected: false` and `status: "degraded"`, HTTP 200. Appview logs show reconnect attempts with backoff. `docker compose start tap`. Within 30 seconds `/healthz` flips back to `connected: true`, `status: "ok"`.
 7. `just test` — all tests pass (existing plus the new ones in §Test strategy).
@@ -409,7 +416,7 @@ The change lands when all are true:
   - Delete non-existent URI → no error.
   - Unknown collection → no row, no error.
 - **`internal/api/health_test.go`** — stub `Consumer` returning canned `State()` values; assert JSON response shape and overall `status` transitions (`ok` when both db and tap ok; `degraded` otherwise).
-- **Postgres for tests.** Preferred: `docker compose run --rm appview go test ./...` (uses the same Postgres as dev). Also supported: a developer-supplied `TEST_DATABASE_URL` env var for host-side runs. Both documented in README.
+- **Postgres for tests.** Tests read `TEST_DATABASE_URL` from env; if unset, they fall back to `DATABASE_URL`. The preferred invocation — `docker compose run --rm appview go test ./...` — inherits `DATABASE_URL` from the compose `appview` service, so tests run against the same `craftsky_dev` database the running appview is using. Each test uses a per-test schema (`CREATE SCHEMA test_<uuid>; SET search_path = test_<uuid>`) dropped in a `t.Cleanup` hook, so cross-test interference is bounded. Concurrent `just dev` + `go test` is safe because the live indexer writes to `public`, not to the test schemas. Contributors who want a dedicated test DB can set `TEST_DATABASE_URL` to a separate Postgres; documented in the README.
 - **No Go-based end-to-end test.** The acceptance criteria above are the E2E — running `just dev` against the real Relay proves the whole wire. Recreating that in a test would mean mocking Tap and the Relay, which duplicates effort without testing anything real.
 
 ### Risks
@@ -419,6 +426,7 @@ The change lands when all are true:
 - **Tap env-var naming.** The compose `TAP_TRACKED_DIDS` name is provisional. If upstream uses a different name or requires admin-API bootstrapping, implementation adopts whatever's correct without requiring a design re-review. Flagged explicitly under "Implementation-time confirmations" above.
 - **Backfill volume for four popular accounts.** `@bsky.app` and `@jay.bsky.team` have posted many times; first-run backfill may take several minutes and produce hundreds to low-thousands of rows. That's the intended sanity-test. If it turns out to be genuinely overwhelming, the mitigation is to trim the DID list — a compose-file edit, not a design change.
 - **Log noise in foreground mode.** Interleaved JSON and plain-text logs in `just dev` may be hard to read under load. Mitigated by the per-service log-level defaults (postgres at warn, tap at info). If this becomes a real problem, switching appview's dev handler to `slog.NewTextHandler` is a follow-up, not scope here.
+- **Retry storm when Postgres is unavailable.** If the indexer can't reach Postgres for a sustained period, every event in flight will fail `Handle`, not be acked, and Tap will redeliver. The `TAP_MAX_RETRIES` poison-pill guard (§2 step 4) bounds per-event work, but an outage affecting every event will still produce loud logs and burn WS bandwidth until Postgres recovers. Accepted scaffold-level trade-off. Production-grade handling (circuit breaker, dead-letter queue, paging alert) is deferred — explicitly out of scope for this spec.
 
 ## Appendix — relationship to the scaffold spec
 
