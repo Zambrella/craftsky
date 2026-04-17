@@ -18,7 +18,7 @@ appview/
 │   ├── middleware/          # Logging, CORS, Authenticated
 │   ├── routes/              # HTTP route registration
 │   ├── api/                 # HTTP handler factories
-│   ├── firehose/            # Subscriber interface (stub on day one)
+│   ├── tap/                 # WebSocket-with-acks consumer for the Tap sidecar
 │   ├── index/               # Indexer interface (stub on day one)
 │   └── models/              # reserved for sqlc-generated types
 ├── environments/
@@ -43,8 +43,7 @@ appview prod   # loads environments/prod.env, info logging, (future) real OAuth
 cli ping --env dev              # pings the DB, prints pool stats
 cli migrate up|down|status|redo # wraps golang-migrate/v4
 cli request GET /whoami --env dev  # hits the running server as the dev DID
-cli firehose replay --since 2026-04-01 --env dev  # stub until the subscriber lands
-cli backfill did:plc:abc --env dev                 # stub until the indexer lands
+cli tap status --env dev           # prints tap connection state (exit 0 connected, 1 disconnected, 2 transport)
 cli did-resolve alice.bsky.social --env dev       # stub until the identity resolver lands
 ```
 
@@ -67,35 +66,26 @@ Exit codes for `cli request`:
 
 ## Development
 
-Run Postgres:
+Local development runs through Docker Compose, driven by the `justfile` at the repo root. See the root `README.md` for a getting-started walkthrough; the compose stack (`postgres`, `migrate`, `tap`, `tap-bootstrap`, `appview`) is brought up with:
+
 ```
-docker run --rm -d --name craftsky-dev-pg \
-  -p 5432:5432 \
-  -e POSTGRES_USER=craftsky \
-  -e POSTGRES_PASSWORD=dev \
-  -e POSTGRES_DB=craftsky_dev \
-  postgres:16
+just dev      # foreground
+just dev-d    # detached
+just down     # stop (volumes preserved)
 ```
 
-Run the server:
+Common recipes:
+
 ```
-go run ./cmd/appview dev
+just test         # go test -race ./... on the host against the compose Postgres
+just fmt          # gofmt -w . && go vet ./... on the host
+just ping         # cli ping inside the appview container
+just tap-status   # cli tap status inside the appview container
+just psql         # psql shell against the dev database
+just migrate up   # wraps golang-migrate/v4 via the CLI
 ```
 
-Run the CLI (from `appview/`):
-```
-go run ./cmd/cli ping --env dev
-go run ./cmd/cli request GET /health --env dev
-```
-
-Run tests and formatters:
-```
-go test ./...
-go vet ./...
-gofmt -l .
-```
-
-A future commit will add `make` targets (`make dev`, `make migrate`, `make generate`, `make test`).
+Tests run on the **host** (the appview image has no Go toolchain), so Go must be installed locally and `just dev-d` must already be running — the integration tests connect to the compose Postgres at `localhost:5432` via the `TEST_DATABASE_URL` the recipe sets.
 
 ## Why Go
 
