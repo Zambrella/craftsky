@@ -73,7 +73,7 @@ func (NotImplemented) State() ConnState {
 
 // WSConsumerConfig wires a WSConsumer. All fields are required.
 type WSConsumerConfig struct {
-	URL          string        // ws://tap:2480/channel
+	URL          string // ws://tap:2480/channel
 	Indexer      HandlerIndexer
 	AckTimeout   time.Duration // per-event Handle deadline
 	ReconnectMax time.Duration // cap for exponential reconnect backoff
