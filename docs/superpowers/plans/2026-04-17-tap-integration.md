@@ -435,6 +435,18 @@ If `migrate` fails because there are no migrations in the `migrations/` director
 
 If tap-bootstrap fails with a 4xx/5xx, inspect the error body. Common issue: the `/repos/add` endpoint might require auth if `TAP_ADMIN_PASSWORD` is set — we don't set it, so it should be open.
 
+- [ ] **Step 1a: Verify `cli migrate up` treats no-change as success**
+
+`golang-migrate`'s `Up()` returns `migrate.ErrNoChange` when the DB is already at the latest migration. If the existing `cli migrate up` subcommand (from the scaffold spec) propagates this as an error, AC #3 ("running `just migrate up` again is a no-op") will fail. Read `appview/cmd/cli/migrate.go` and confirm `errors.Is(err, migrate.ErrNoChange)` is treated as success (exit 0). If not, patch it — a one-liner:
+
+```go
+if err != nil && !errors.Is(err, migrate.ErrNoChange) {
+    return err
+}
+```
+
+Commit as `fix(cli): treat ErrNoChange as success in migrate up` if a patch was needed. If the scaffold already handles this, no commit.
+
 - [ ] **Step 2: Tear down**
 
 ```bash
@@ -1290,7 +1302,14 @@ func (c *WSConsumer) Run(ctx context.Context) error {
 
 func (c *WSConsumer) backoff() time.Duration {
 	attempt := c.State().ReconnectAttempt
+	if attempt <= 0 {
+		// recordError should have incremented attempt to >=1 before
+		// backoff() is called, but guard anyway so callers can't panic.
+		return time.Second
+	}
 	// 1s, 2s, 4s, 8s, 16s, 32s... capped at ReconnectMax.
+	// A very large attempt would overflow the shift into negative; the
+	// <= 0 check below catches that and clamps to ReconnectMax.
 	d := time.Second << (attempt - 1)
 	if d <= 0 || d > c.cfg.ReconnectMax {
 		d = c.cfg.ReconnectMax
@@ -1414,7 +1433,10 @@ func (c *WSConsumer) handleWithTimeout(ctx context.Context, ev Event) error {
 func (c *WSConsumer) shouldDrop(id uint64) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.retryCount[id] >= c.cfg.MaxRetries
+	// Drop when we have failed MORE THAN MaxRetries times. With
+	// MaxRetries=5: first 5 failures are ignored (Tap redelivers), the
+	// 6th failure triggers drop+ack.
+	return c.retryCount[id] > c.cfg.MaxRetries
 }
 
 func (c *WSConsumer) forgetRetry(id uint64) {
@@ -1572,11 +1594,12 @@ func TestWSConsumer_PoisonPillIsDroppedAfterMaxRetries(t *testing.T) {
 
 	// This is tricky: without redelivery, we only see "id=99" once.
 	// So the poison-pill path is exercised only if Tap re-sends. We
-	// emulate that by sending the same id 6 times in a row from the
-	// fake server. The 6th failure crosses MaxRetries=5 and should
-	// result in an ack being sent.
+	// emulate that by sending the same id 7 times in a row from the
+	// fake server. With MaxRetries=5, the first 5 failures are ignored
+	// (no ack), the 6th failure triggers the drop-and-ack path. We
+	// send one extra frame as a buffer to avoid relying on exact count.
 	sameFrame := `{"id":99,"type":"record","record":{"live":true,"rev":"r","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`
-	frames := []string{sameFrame, sameFrame, sameFrame, sameFrame, sameFrame, sameFrame}
+	frames := []string{sameFrame, sameFrame, sameFrame, sameFrame, sameFrame, sameFrame, sameFrame}
 	ft := newFakeTap(frames)
 	srv := httptest.NewServer(ft.handler(t))
 	defer srv.Close()
@@ -1618,47 +1641,50 @@ func (alwaysFailIndexer) Handle(ctx context.Context, ev tap.Event) error { retur
 go test ./internal/tap -v
 ```
 
-Expected: all four tests pass. If the poison-pill test fails, the most likely issue is off-by-one on retry counting — the spec says "more than 5 times," so `retryCount[id] >= 5` (on the 6th failure, we drop). Verify and adjust if needed.
+Expected: all four tests pass. If the poison-pill test fails, double-check the retry-count semantics: `shouldDrop` uses `retryCount[id] > MaxRetries`, so with `MaxRetries=5` the 6th failure triggers the drop. The test sends 7 identical frames to guarantee we reach the 6th.
 
-- [ ] **Step 12: Swap `NotImplemented` for `WSConsumer` in `Deps`**
+- [ ] **Step 12: Extract the indexer into a local variable**
 
-Edit `appview/internal/app/deps.go`. In `newDeps`, replace:
+Currently `newDeps` has (from Chunk 2):
 
 ```go
-Consumer: tap.NotImplemented{},
+deps := &Deps{
+    ...
+    Indexer:  index.NotImplemented{},
+    Consumer: tap.NotImplemented{},
+}
 ```
 
-with:
+Before constructing the consumer, pull the indexer out so the consumer can reference it. Edit `appview/internal/app/deps.go` — replace the inline struct literal with:
 
 ```go
-consumer := tap.NewWSConsumer(tap.WSConsumerConfig{
-	URL:          cfg.TapWSURL,
-	Indexer:      &indexWrapper{inner: indexerImpl},   // temp wrapper: see comment below
-	AckTimeout:   cfg.TapAckTimeout,
-	ReconnectMax: cfg.TapReconnectMax,
-	MaxRetries:   cfg.TapMaxRetries,
-	Logger:       logger,
+indexerImpl := index.NotImplemented{}
+
+deps := &Deps{
+    ...
+    Indexer:  indexerImpl,
+    Consumer: tap.NotImplemented{},  // temp, replaced below
+}
+```
+
+- [ ] **Step 13: Swap `NotImplemented` for `WSConsumer`**
+
+Immediately after the struct literal, construct the real consumer:
+
+```go
+deps.Consumer = tap.NewWSConsumer(tap.WSConsumerConfig{
+    URL:          cfg.TapWSURL,
+    Indexer:      indexerImpl,
+    AckTimeout:   cfg.TapAckTimeout,
+    ReconnectMax: cfg.TapReconnectMax,
+    MaxRetries:   cfg.TapMaxRetries,
+    Logger:       logger,
 })
-...
-Consumer: consumer,
 ```
 
-For now `indexerImpl` is still `index.NotImplemented{}`; the real one lands in Chunk 4. We also need a tiny wrapper because `tap.HandlerIndexer` takes `tap.Event` directly and `index.Indexer` takes `tap.Event` via the same signature — they should be identical. Double-check the interfaces match:
+No wrapper type is needed because `index.Indexer` and `tap.HandlerIndexer` have identical signatures — `index.NotImplemented{}` satisfies both. The real `index.BlueskyPostsSample` lands in Chunk 4 and also satisfies both.
 
-```go
-// In internal/tap:     Handle(ctx context.Context, ev Event) error
-// In internal/index:   Handle(ctx context.Context, ev tap.Event) error
-```
-
-Same signature, same type. So no wrapper is needed — pass `indexerImpl` directly:
-
-```go
-Indexer: indexerImpl,
-```
-
-where `indexerImpl := index.NotImplemented{}` is declared just above. Clean up the `indexWrapper` reference.
-
-- [ ] **Step 13: Verify build + tests still green**
+- [ ] **Step 14: Verify build + tests still green**
 
 ```bash
 go build ./...
@@ -1667,7 +1693,7 @@ go test ./...
 
 Expected: everything green. `deps_test.go` assertions should now see `*tap.WSConsumer` instead of `tap.NotImplemented{}`; adjust if needed.
 
-- [ ] **Step 14: Commit**
+- [ ] **Step 15: Commit**
 
 ```bash
 git add -A
@@ -2412,6 +2438,18 @@ func TestTapStatusExitTransport(t *testing.T) {
 	code := tapStatus("http://127.0.0.1:1", nil)
 	if code != 2 {
 		t.Errorf("exit code = %d, want 2", code)
+	}
+}
+
+func TestTapStatusExitGarbageBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("not json"))
+	}))
+	defer srv.Close()
+
+	code := tapStatus(srv.URL, nil)
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2 (parse error)", code)
 	}
 }
 ```
