@@ -1,6 +1,6 @@
 # appview
 
-The Craftsky App View — a Go service that subscribes to the atproto Relay firehose, indexes Craftsky records into Postgres, and serves a JSON/HTTP API to the Flutter client.
+The Craftsky App View — a Go service that consumes the atproto firehose via a [Tap](https://github.com/bluesky-social/indigo/tree/main/cmd/tap) sidecar, indexes Craftsky records into Postgres, and serves a JSON/HTTP API to the Flutter client.
 
 Also acts as the **Token Mediating Backend (TMB)** for OAuth with user PDSes.
 
@@ -19,7 +19,7 @@ appview/
 │   ├── routes/              # HTTP route registration
 │   ├── api/                 # HTTP handler factories
 │   ├── tap/                 # WebSocket-with-acks consumer for the Tap sidecar
-│   ├── index/               # Indexer interface (stub on day one)
+│   ├── index/               # Indexer interface + BlueskyPostsSample (throwaway)
 │   └── models/              # reserved for sqlc-generated types
 ├── environments/
 │   ├── dev.env              # checked in; no secrets
@@ -54,7 +54,8 @@ Exit codes for `cli request`:
 
 ## Key Dependencies
 
-- [`github.com/bluesky-social/indigo`](https://github.com/bluesky-social/indigo) — atproto SDK (firehose, XRPC, OAuth) — to be adopted once the real subscriber/OAuth land
+- [`github.com/bluesky-social/indigo`](https://github.com/bluesky-social/indigo) — source of the Tap sidecar image; indigo Go SDK will be adopted for OAuth (TMB) when that lands
+- [`github.com/coder/websocket`](https://github.com/coder/websocket) — WebSocket client for the Tap `/channel` stream
 - [`pgx/v5`](https://github.com/jackc/pgx) — Postgres driver + pool
 - [`sqlc`](https://sqlc.dev) — SQL → Go codegen — to be adopted once first queries land
 - [`cobra`](https://github.com/spf13/cobra) — CLI framework

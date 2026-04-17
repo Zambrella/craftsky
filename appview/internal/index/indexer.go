@@ -15,7 +15,7 @@ import (
 type Indexer interface {
 	// Handle processes a single Tap event. Returns nil on success;
 	// any non-nil error causes the Tap consumer to skip the ack, so
-	// Tap will redeliver the event after TAP_RETRY_TIMEOUT.
+	// Tap will redeliver the event after its configured retry timeout.
 	Handle(ctx context.Context, ev tap.Event) error
 }
 
