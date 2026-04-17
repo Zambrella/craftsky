@@ -11,8 +11,8 @@ import (
 
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/db"
-	"social.craftsky/appview/internal/firehose"
 	"social.craftsky/appview/internal/index"
+	"social.craftsky/appview/internal/tap"
 )
 
 // Deps is the fully-wired set of dependencies for one Craftsky App View
@@ -30,18 +30,18 @@ type Deps struct {
 	AuthService auth.AuthService
 
 	// Day-one stubs. Shape is stable so CLI subcommands compile.
-	Firehose firehose.Subscriber
+	Consumer tap.Consumer
 	Indexer  index.Indexer
 }
 
 // NewDevDeps wires the dev variant: debug-level logger, MockAuthService,
-// NotImplemented firehose+indexer.
+// NotImplemented consumer+indexer.
 func NewDevDeps(ctx context.Context, cfg Config) (*Deps, func(), error) {
 	return newDeps(ctx, cfg, slog.LevelDebug, &auth.MockAuthService{DefaultDID: cfg.DevDID})
 }
 
 // NewProdDeps wires the prod variant: info-level logger,
-// NotImplementedAuthService, NotImplemented firehose+indexer.
+// NotImplementedAuthService, NotImplemented consumer+indexer.
 func NewProdDeps(ctx context.Context, cfg Config) (*Deps, func(), error) {
 	return newDeps(ctx, cfg, slog.LevelInfo, auth.NotImplementedAuthService{})
 }
@@ -64,7 +64,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level, authSvc auth.Aut
 		Logger:      logger,
 		DB:          pool,
 		AuthService: authSvc,
-		Firehose:    firehose.NotImplemented{},
+		Consumer:    tap.NotImplemented{},
 		Indexer:     index.NotImplemented{},
 	}
 
