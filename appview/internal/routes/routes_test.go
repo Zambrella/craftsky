@@ -18,7 +18,7 @@ func testDeps() *app.Deps {
 		Config:      app.Config{Env: app.EnvDev, AllowedOrigins: []string{"*"}, DevDID: "did:plc:test"},
 		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
 		AuthService: &auth.MockAuthService{DefaultDID: "did:plc:test"},
-		// DB, Firehose, Indexer left nil — routes doesn't need them and
+		// DB, Consumer, Indexer left nil — routes doesn't need them and
 		// /health isn't tested here.
 	}
 }
