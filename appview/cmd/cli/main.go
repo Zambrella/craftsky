@@ -31,6 +31,7 @@ var rootCmd = &cobra.Command{
 
 func main() {
 	rootCmd.PersistentFlags().StringVar(&envFlag, "env", "dev", `environment: "dev" or "prod"`)
+	rootCmd.AddCommand(tapCmd)
 	if err := rootCmd.Execute(); err != nil {
 		// Cobra prints "Error: ..." itself; we just ensure non-zero exit.
 		os.Exit(1)
