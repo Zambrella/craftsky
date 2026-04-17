@@ -59,14 +59,25 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level, authSvc auth.Aut
 		return nil, nil, fmt.Errorf("db connect: %w", err)
 	}
 
+	indexerImpl := index.NotImplemented{}
+
 	deps := &Deps{
 		Config:      cfg,
 		Logger:      logger,
 		DB:          pool,
 		AuthService: authSvc,
-		Consumer:    tap.NotImplemented{},
-		Indexer:     index.NotImplemented{},
+		Indexer:     indexerImpl,
+		Consumer:    tap.NotImplemented{}, // temp, replaced below
 	}
+
+	deps.Consumer = tap.NewWSConsumer(tap.WSConsumerConfig{
+		URL:          cfg.TapWSURL,
+		Indexer:      indexerImpl,
+		AckTimeout:   cfg.TapAckTimeout,
+		ReconnectMax: cfg.TapReconnectMax,
+		MaxRetries:   cfg.TapMaxRetries,
+		Logger:       logger,
+	})
 
 	var once sync.Once
 	cleanup := func() {
