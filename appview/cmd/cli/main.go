@@ -26,11 +26,12 @@ var rootCmd = &cobra.Command{
   * migrate — apply or inspect database migrations
   * ping    — check DB connectivity
   * request — hit the running server as the dev DID
-  * firehose replay, backfill, did-resolve — stubs pending real impls`,
+  * did-resolve — stub pending real impl`,
 }
 
 func main() {
 	rootCmd.PersistentFlags().StringVar(&envFlag, "env", "dev", `environment: "dev" or "prod"`)
+	rootCmd.AddCommand(tapCmd)
 	if err := rootCmd.Execute(); err != nil {
 		// Cobra prints "Error: ..." itself; we just ensure non-zero exit.
 		os.Exit(1)

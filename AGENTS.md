@@ -10,11 +10,17 @@ Read [atproto-craft-social-app-reference.md](atproto-craft-social-app-reference.
 
 For the product-level "why" and the community-facing feature intent, read the vision doc: [Building a Social Network for Textile Crafters](https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit?usp=sharing). It's the source of truth for product principles (no ads ever, data portability, transparent business accounts, chronological feed, no algorithmic ranking) and for the project-post field set. If a technical decision conflicts with this doc, flag it — don't silently diverge.
 
+## Dev Workflow
+
+`just dev` (from the repo root) starts the full compose stack — `postgres`, `migrate`, `tap`, `tap-bootstrap`, `appview`. The appview runs only inside Docker in dev; there is no `go run ./cmd/appview` path. Go tests run on the host with `just test` against the compose Postgres (the appview image has no Go toolchain). See `justfile` for the full recipe list.
+
 ## Repository Layout
 
 - `app/` — Flutter client. Uses [`atproto.dart`](https://github.com/myConsciousness/atproto.dart). Talks to `appview/` via HTTPS + session token, never to the PDS directly.
-- `appview/` — Go App View. Subscribes to the Relay firehose, indexes Craftsky records into Postgres, serves a JSON/HTTP API to the app, mediates OAuth with the PDS (Token Mediating Backend).
+- `appview/` — Go App View. Consumes the atproto firehose via the Tap sidecar (WebSocket-with-acks), indexes Craftsky records into Postgres, serves a JSON/HTTP API to the app, mediates OAuth with the PDS (Token Mediating Backend).
 - `lexicon/` — atproto lexicon JSON schemas under the `social.craftsky.*` namespace (matches the `craftsky.social` domain). Treat these as load-bearing: once records are written to real PDSes with a given schema, migrating is painful.
+- `docker-compose.yml` — full local-dev stack: `postgres` + `migrate` + `tap` + `tap-bootstrap` + `appview`.
+- `justfile` — task-runner recipes (`just dev`, `just test`, `just psql`, `just tap-status`, ...).
 
 ## Architectural Rules
 

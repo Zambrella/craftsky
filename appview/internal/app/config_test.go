@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseEnv(t *testing.T) {
@@ -39,7 +40,8 @@ func TestParseEnv(t *testing.T) {
 // would cause Load to skip the file's value — the opposite of what we want.
 func testConfigFile(t *testing.T, contents string) string {
 	t.Helper()
-	for _, k := range []string{"DATABASE_URL", "ALLOWED_ORIGINS", "CRAFTSKY_DEV_DID"} {
+	for _, k := range []string{"DATABASE_URL", "ALLOWED_ORIGINS", "CRAFTSKY_DEV_DID",
+		"TAP_WS_URL", "TAP_ACK_TIMEOUT", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES"} {
 		// Snapshot for restoration, then unset.
 		prior, had := os.LookupEnv(k)
 		_ = os.Unsetenv(k)
@@ -65,7 +67,7 @@ func testConfigFile(t *testing.T, contents string) string {
 }
 
 func TestLoadConfig_DevValid(t *testing.T) {
-	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\n")
+	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\n")
 	cfg, err := LoadConfig(EnvDev, path)
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
@@ -85,7 +87,7 @@ func TestLoadConfig_DevValid(t *testing.T) {
 }
 
 func TestLoadConfig_ProdValid(t *testing.T) {
-	path := testConfigFile(t, "DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://a.example,https://b.example\n")
+	path := testConfigFile(t, "DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://a.example,https://b.example\nTAP_WS_URL=ws://tap:2480/channel\n")
 	cfg, err := LoadConfig(EnvProd, path)
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
@@ -110,7 +112,7 @@ func TestLoadConfig_MissingDatabaseURL(t *testing.T) {
 }
 
 func TestLoadConfig_MissingDevDIDInDev(t *testing.T) {
-	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\n")
+	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nTAP_WS_URL=ws://tap:2480/channel\n")
 	_, err := LoadConfig(EnvDev, path)
 	if err == nil {
 		t.Fatal("expected error for missing CRAFTSKY_DEV_DID in dev")
@@ -121,7 +123,7 @@ func TestLoadConfig_MissingDevDIDInDev(t *testing.T) {
 }
 
 func TestLoadConfig_OSEnvUsedWhenFileAbsent(t *testing.T) {
-	path := testConfigFile(t, "ALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\n")
+	path := testConfigFile(t, "ALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\n")
 	t.Setenv("DATABASE_URL", "postgres://fromenv")
 	cfg, err := LoadConfig(EnvDev, path)
 	if err != nil {
@@ -133,7 +135,7 @@ func TestLoadConfig_OSEnvUsedWhenFileAbsent(t *testing.T) {
 }
 
 func TestLoadConfig_OSEnvWinsOnConflict(t *testing.T) {
-	path := testConfigFile(t, "DATABASE_URL=postgres://fromfile\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\n")
+	path := testConfigFile(t, "DATABASE_URL=postgres://fromfile\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\n")
 	t.Setenv("DATABASE_URL", "postgres://fromenv")
 	cfg, err := LoadConfig(EnvDev, path)
 	if err != nil {
@@ -145,12 +147,88 @@ func TestLoadConfig_OSEnvWinsOnConflict(t *testing.T) {
 }
 
 func TestLoadConfig_DevDIDIgnoredInProd(t *testing.T) {
-	path := testConfigFile(t, "DATABASE_URL=postgres://p\nALLOWED_ORIGINS=https://a.example\nCRAFTSKY_DEV_DID=did:plc:leaked\n")
+	path := testConfigFile(t, "DATABASE_URL=postgres://p\nALLOWED_ORIGINS=https://a.example\nCRAFTSKY_DEV_DID=did:plc:leaked\nTAP_WS_URL=ws://tap:2480/channel\n")
 	cfg, err := LoadConfig(EnvProd, path)
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
 	if cfg.DevDID != "" {
 		t.Errorf("DevDID = %q, want empty in prod (leaked from .env)", cfg.DevDID)
+	}
+}
+
+func TestLoadConfig_TapFields(t *testing.T) {
+	dir := t.TempDir()
+	envPath := dir + "/test.env"
+	contents := "DATABASE_URL=postgres://x\n" +
+		"ALLOWED_ORIGINS=*\n" +
+		"CRAFTSKY_DEV_DID=did:plc:test\n" +
+		"TAP_WS_URL=ws://tap:2480/channel\n" +
+		"TAP_ACK_TIMEOUT=7s\n" +
+		"TAP_RECONNECT_MAX=45s\n" +
+		"TAP_MAX_RETRIES=3\n"
+	if err := os.WriteFile(envPath, []byte(contents), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Clear env so file wins. godotenv.Load skips keys already set in env
+	// (including to ""), so we unset rather than set-empty.
+	for _, k := range []string{"DATABASE_URL", "ALLOWED_ORIGINS", "CRAFTSKY_DEV_DID",
+		"TAP_WS_URL", "TAP_ACK_TIMEOUT", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES"} {
+		prior, had := os.LookupEnv(k)
+		_ = os.Unsetenv(k)
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv(k, prior)
+			} else {
+				_ = os.Unsetenv(k)
+			}
+		})
+	}
+
+	cfg, err := LoadConfig(EnvDev, envPath)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.TapWSURL != "ws://tap:2480/channel" {
+		t.Errorf("TapWSURL = %q", cfg.TapWSURL)
+	}
+	if cfg.TapAckTimeout != 7*time.Second {
+		t.Errorf("TapAckTimeout = %v", cfg.TapAckTimeout)
+	}
+	if cfg.TapReconnectMax != 45*time.Second {
+		t.Errorf("TapReconnectMax = %v", cfg.TapReconnectMax)
+	}
+	if cfg.TapMaxRetries != 3 {
+		t.Errorf("TapMaxRetries = %d", cfg.TapMaxRetries)
+	}
+}
+
+func TestLoadConfig_TapDefaults(t *testing.T) {
+	dir := t.TempDir()
+	envPath := dir + "/test.env"
+	contents := "DATABASE_URL=postgres://x\n" +
+		"ALLOWED_ORIGINS=*\n" +
+		"CRAFTSKY_DEV_DID=did:plc:test\n" +
+		"TAP_WS_URL=ws://tap:2480/channel\n"
+	if err := os.WriteFile(envPath, []byte(contents), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"TAP_ACK_TIMEOUT", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES"} {
+		t.Setenv(k, "")
+	}
+
+	cfg, err := LoadConfig(EnvDev, envPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TapAckTimeout != 10*time.Second {
+		t.Errorf("default TapAckTimeout = %v", cfg.TapAckTimeout)
+	}
+	if cfg.TapReconnectMax != 30*time.Second {
+		t.Errorf("default TapReconnectMax = %v", cfg.TapReconnectMax)
+	}
+	if cfg.TapMaxRetries != 5 {
+		t.Errorf("default TapMaxRetries = %d", cfg.TapMaxRetries)
 	}
 }

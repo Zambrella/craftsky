@@ -2,17 +2,15 @@ package index
 
 import (
 	"context"
-	"strings"
 	"testing"
+
+	"social.craftsky/appview/internal/tap"
 )
 
-func TestNotImplemented_BackfillErrors(t *testing.T) {
-	var idx Indexer = NotImplemented{}
-	err := idx.Backfill(context.Background(), "did:plc:abc")
+func TestNotImplementedHandleErrors(t *testing.T) {
+	t.Parallel()
+	err := NotImplemented{}.Handle(context.Background(), tap.Event{})
 	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if !strings.Contains(err.Error(), "indexer") || !strings.Contains(err.Error(), "not yet implemented") {
-		t.Errorf("err = %q, want containing 'indexer' and 'not yet implemented'", err.Error())
+		t.Fatal("expected error from NotImplemented.Handle, got nil")
 	}
 }

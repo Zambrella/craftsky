@@ -6,7 +6,9 @@ package app
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -42,6 +44,11 @@ type Config struct {
 	DatabaseURL    string
 	AllowedOrigins []string
 	DevDID         string // populated in dev only; empty in prod
+
+	TapWSURL        string
+	TapAckTimeout   time.Duration
+	TapReconnectMax time.Duration
+	TapMaxRetries   int
 }
 
 // LoadConfig reads environments/<env>.env from envFilePath, layers os.Getenv
@@ -74,12 +81,50 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		}
 	}
 
+	cfg.TapWSURL = os.Getenv("TAP_WS_URL")
+
+	ackTimeout := os.Getenv("TAP_ACK_TIMEOUT")
+	if ackTimeout == "" {
+		cfg.TapAckTimeout = 10 * time.Second
+	} else {
+		d, err := time.ParseDuration(ackTimeout)
+		if err != nil {
+			return Config{}, fmt.Errorf("TAP_ACK_TIMEOUT: %w", err)
+		}
+		cfg.TapAckTimeout = d
+	}
+
+	reconnectMax := os.Getenv("TAP_RECONNECT_MAX")
+	if reconnectMax == "" {
+		cfg.TapReconnectMax = 30 * time.Second
+	} else {
+		d, err := time.ParseDuration(reconnectMax)
+		if err != nil {
+			return Config{}, fmt.Errorf("TAP_RECONNECT_MAX: %w", err)
+		}
+		cfg.TapReconnectMax = d
+	}
+
+	maxRetries := os.Getenv("TAP_MAX_RETRIES")
+	if maxRetries == "" {
+		cfg.TapMaxRetries = 5
+	} else {
+		n, err := strconv.Atoi(maxRetries)
+		if err != nil || n < 0 {
+			return Config{}, fmt.Errorf("TAP_MAX_RETRIES: must be non-negative integer, got %q", maxRetries)
+		}
+		cfg.TapMaxRetries = n
+	}
+
 	// Required everywhere.
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL is required")
 	}
 	if len(cfg.AllowedOrigins) == 0 {
 		return Config{}, fmt.Errorf("ALLOWED_ORIGINS is required (comma-separated list)")
+	}
+	if cfg.TapWSURL == "" {
+		return Config{}, fmt.Errorf("TAP_WS_URL is required")
 	}
 
 	// Required in dev only.

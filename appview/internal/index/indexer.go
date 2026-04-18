@@ -1,24 +1,30 @@
 // Package index defines the contract for writing atproto records into
-// Postgres. Day one contains only the interface and a NotImplemented stub
-// so the CLI's backfill subcommand compiles.
+// Postgres. Implementations are dispatched by the Tap consumer, one event
+// at a time. Implementations MUST be idempotent on (URI, CID) because Tap
+// delivers events at least once.
 package index
 
 import (
 	"context"
 	"errors"
+
+	"social.craftsky/appview/internal/tap"
 )
 
 // Indexer writes records into the application's Postgres store.
 type Indexer interface {
-	// Backfill re-indexes all records for the given DID from its PDS.
-	Backfill(ctx context.Context, did string) error
+	// Handle processes a single Tap event. Returns nil on success;
+	// any non-nil error causes the Tap consumer to skip the ack, so
+	// Tap will redeliver the event after its configured retry timeout.
+	Handle(ctx context.Context, ev tap.Event) error
 }
 
-// NotImplemented is the day-one stub.
+// NotImplemented is a stub indexer that errors on every event.
+// Used during construction before the real indexer is wired in.
 type NotImplemented struct{}
 
 var _ Indexer = NotImplemented{}
 
-func (NotImplemented) Backfill(ctx context.Context, did string) error {
+func (NotImplemented) Handle(ctx context.Context, ev tap.Event) error {
 	return errors.New("indexer: not yet implemented")
 }

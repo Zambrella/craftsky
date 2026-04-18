@@ -1,7 +1,9 @@
 # App View Server Scaffold — Design
 
+**Status:** Partially superseded by [`2026-04-17-tap-integration-design.md`](./2026-04-17-tap-integration-design.md). The `internal/firehose` package, `index.Indexer.Backfill` method, and `cli firehose replay` / `cli backfill` subcommands described here have been removed by the tap-integration spec — the appview now consumes the atproto firehose through a Tap sidecar over a WebSocket-with-acks channel, with no backfill path. Everything else remains load-bearing: HTTP routing via `internal/routes`, the middleware chain, the `Deps` construction pattern, the auth stubs, and the `cli request` / `ping` / `migrate` / `did-resolve` subcommands.
+
 **Date:** 2026-04-16
-**Status:** Approved, ready for implementation planning
+**Original status:** Approved, ready for implementation planning
 **Scope:** `appview/` (Go service)
 
 ## Summary
