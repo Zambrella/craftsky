@@ -1325,6 +1325,7 @@ import (
     "context"
     "errors"
     "testing"
+    "time"
 
     "social.craftsky/appview/internal/auth"
 )
@@ -1336,7 +1337,7 @@ func TestCraftskyAuthService_HappyPath(t *testing.T) {
         `INSERT INTO oauth_sessions (account_did, session_id, data) VALUES ('did:plc:a', 's1', '{}')`); err != nil {
         t.Fatal(err)
     }
-    store := auth.NewCraftskySessionStore(pool, 5*60*1e9) // 5m as time.Duration
+    store := auth.NewCraftskySessionStore(pool, 5*time.Minute)
     token, err := store.Create(context.Background(), "did:plc:a", "s1", "")
     if err != nil { t.Fatal(err) }
     svc := &auth.CraftskyAuthService{Store: store}
@@ -1357,7 +1358,7 @@ func TestCraftskyAuthService_EmptyToken(t *testing.T) {
 
 func TestCraftskyAuthService_RevokedOrUnknownToken(t *testing.T) {
     pool := withAuthSchema(t)
-    store := auth.NewCraftskySessionStore(pool, 5*60*1e9)
+    store := auth.NewCraftskySessionStore(pool, 5*time.Minute)
     svc := &auth.CraftskyAuthService{Store: store}
     _, err := svc.Authenticate(context.Background(), "never-issued")
     if !errors.Is(err, auth.ErrAuthTokenInvalid) {
@@ -1817,6 +1818,7 @@ import (
     "os"
     "strings"
     "testing"
+    "time"
 
     "github.com/bluesky-social/indigo/atproto/auth/oauth"
 
@@ -1835,7 +1837,7 @@ func handlersFixture(t *testing.T, hostname string) *auth.HTTPHandlers {
     }
     store := auth.NewPostgresAuthStore(pool, testStoreConfig())
     oauthApp := oauth.NewClientApp(&cfg, store)
-    craftsky := auth.NewCraftskySessionStore(pool, 5*60*1e9)
+    craftsky := auth.NewCraftskySessionStore(pool, 5*time.Minute)
     logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
     return auth.NewHTTPHandlers(oauthApp, craftsky, pool, logger, true /* devMode */)
 }
@@ -1943,11 +1945,60 @@ Add to `handlers_test.go`:
    Pick **Option B**. Write these tests:
 
 ```go
-func TestLogin_MissingHandle(t *testing.T) { /* POST {} → 400 handle_required */ }
-func TestLogin_InvalidHandoffMode(t *testing.T) { /* POST {"handle":"x","handoff_mode":"wat"} → 400 */ }
-func TestLogin_LoopbackMissingRedirect(t *testing.T) { /* → 400 */ }
-func TestLogin_LoopbackRedirectRejectsNonLoopback(t *testing.T) { /* redirect_uri="https://evil.example/" → 400 */ }
-func TestLogin_LoopbackRedirectRejectsJavaScript(t *testing.T) { /* redirect_uri="javascript:alert(1)" → 400 */ }
+// postLogin is a tiny helper that posts a JSON body to LoginHandler and
+// returns the recorded response. All login tests use it.
+func postLogin(t *testing.T, h *auth.HTTPHandlers, body string) *httptest.ResponseRecorder {
+    t.Helper()
+    rr := httptest.NewRecorder()
+    req := httptest.NewRequest("POST", "/auth/login", strings.NewReader(body))
+    req.Header.Set("Content-Type", "application/json")
+    h.LoginHandler().ServeHTTP(rr, req)
+    return rr
+}
+
+// expectJSONError asserts a JSON error response with the given status
+// and "error" code.
+func expectJSONError(t *testing.T, rr *httptest.ResponseRecorder, status int, code string) {
+    t.Helper()
+    if rr.Code != status {
+        t.Fatalf("status: got %d want %d; body=%s", rr.Code, status, rr.Body.String())
+    }
+    var got map[string]string
+    if err := json.NewDecoder(rr.Body).Decode(&got); err != nil {
+        t.Fatalf("decode: %v; body=%s", err, rr.Body.String())
+    }
+    if got["error"] != code {
+        t.Fatalf("error: got %q want %q", got["error"], code)
+    }
+}
+
+// Full template — the other four tests follow this shape.
+func TestLogin_MissingHandle(t *testing.T) {
+    h := handlersFixture(t, "")
+    rr := postLogin(t, h, `{}`)
+    expectJSONError(t, rr, http.StatusBadRequest, "handle_required")
+}
+
+// The remaining cases — pattern-match TestLogin_MissingHandle above.
+// Each sends a different body and asserts the documented error code.
+func TestLogin_InvalidHandoffMode(t *testing.T) {
+    rr := postLogin(t, handlersFixture(t, ""), `{"handle":"alice.example","handoff_mode":"wat"}`)
+    expectJSONError(t, rr, http.StatusBadRequest, "invalid_handoff_mode")
+}
+func TestLogin_LoopbackMissingRedirect(t *testing.T) {
+    rr := postLogin(t, handlersFixture(t, ""), `{"handle":"alice.example","handoff_mode":"loopback"}`)
+    expectJSONError(t, rr, http.StatusBadRequest, "loopback_redirect_uri_required")
+}
+func TestLogin_LoopbackRedirectRejectsNonLoopback(t *testing.T) {
+    rr := postLogin(t, handlersFixture(t, ""),
+        `{"handle":"alice.example","handoff_mode":"loopback","loopback_redirect_uri":"https://evil.example/"}`)
+    expectJSONError(t, rr, http.StatusBadRequest, "loopback_redirect_uri_invalid")
+}
+func TestLogin_LoopbackRedirectRejectsJavaScript(t *testing.T) {
+    rr := postLogin(t, handlersFixture(t, ""),
+        `{"handle":"alice.example","handoff_mode":"loopback","loopback_redirect_uri":"javascript:alert(1)"}`)
+    expectJSONError(t, rr, http.StatusBadRequest, "loopback_redirect_uri_invalid")
+}
 ```
 
 The happy path is covered by Task 4.3.
@@ -1962,6 +2013,7 @@ package auth
 import (
     "context"
     "encoding/json"
+    "errors"
     "log/slog"
     "net/http"
     "net/url"
@@ -2041,6 +2093,8 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
     })
 }
 
+var errStateMissing = errors.New("authorization URL missing state parameter")
+
 func extractState(authURL string) (string, error) {
     u, err := url.Parse(authURL)
     if err != nil {
@@ -2052,10 +2106,6 @@ func extractState(authURL string) (string, error) {
     }
     return s, nil
 }
-
-var errStateMissing = errStrip("authorization URL missing state parameter")
-type errStrip string
-func (e errStrip) Error() string { return string(e) }
 
 // recordHandoff persists the handoff mode + loopback URI on the
 // oauth_auth_requests row identified by state. Sibling-column variant.
