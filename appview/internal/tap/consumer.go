@@ -223,7 +223,12 @@ func (c *WSConsumer) runOnce(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
 	}
-	defer conn.Close(websocket.StatusNormalClosure, "")
+	// Hard-close on any return. We never have a "normal exit" from the
+	// event loop — every path is an error (read/write failure or ctx
+	// cancel), so there's no place to call Close(StatusNormalClosure, "")
+	// first. CloseNow() skips the close-frame handshake, which is both
+	// faster on cancel and avoids a blocked write when the peer is gone.
+	defer conn.CloseNow()
 	c.setConnected(true)
 	c.logger.Info("tap consumer connected", slog.String("url", c.cfg.URL))
 
