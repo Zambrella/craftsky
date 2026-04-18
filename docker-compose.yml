@@ -7,7 +7,10 @@ services:
       POSTGRES_PASSWORD: dev
       POSTGRES_DB: craftsky_dev
     ports:
-      - "5432:5432"
+      # Host 5433 → container 5432 to avoid clashing with a native
+      # Postgres some contributors run on 5432. Inside the compose
+      # network, services still connect via `postgres:5432`.
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

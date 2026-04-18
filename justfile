@@ -39,7 +39,7 @@ psql:
 # Requires: Go installed locally, and `just dev-d` already running (for
 # the real-Postgres integration tests).
 test:
-    cd appview && TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5432/craftsky_dev?sslmode=disable go test -race ./...
+    cd appview && TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test -race ./...
 
 # Format and vet Go code on the host.
 fmt:

@@ -160,7 +160,10 @@ services:
       POSTGRES_PASSWORD: dev
       POSTGRES_DB: craftsky_dev
     ports:
-      - "5432:5432"
+      # Host 5433 → container 5432 to avoid clashing with a native
+      # Postgres on the host. Inside the compose network, services
+      # still connect via `postgres:5432`.
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -384,10 +387,10 @@ psql:
 
 # Run the Go test suite with the race detector enabled. Tests run on the
 # host (the appview image's final alpine stage has no Go toolchain) and
-# connect to compose Postgres via the host-exposed :5432. Requires:
+# connect to compose Postgres via the host-exposed :5433. Requires:
 # Go installed locally, and `just dev-d` already running.
 test:
-    cd appview && TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5432/craftsky_dev?sslmode=disable go test -race ./...
+    cd appview && TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test -race ./...
 
 # Format and vet Go code on the host.
 fmt:
@@ -1802,7 +1805,7 @@ git commit -m "feat(appview): add bluesky_posts_sample migration (sample table)"
 - Create: `appview/internal/index/bluesky_posts_sample.go`
 - Create: `appview/internal/index/bluesky_posts_sample_test.go`
 
-Note: this task requires a running Postgres. The tests use `os.Getenv("TEST_DATABASE_URL")` falling back to `DATABASE_URL`. When run via `just test` (which invokes `docker compose run --rm appview go test ./...`), `DATABASE_URL` is set by compose. When run on the host, export it manually: `export TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5432/craftsky_dev?sslmode=disable`.
+Note: this task requires a running Postgres. The tests use `os.Getenv("TEST_DATABASE_URL")` falling back to `DATABASE_URL`. When run via `just test` (which invokes `docker compose run --rm appview go test ./...`), `DATABASE_URL` is set by compose. When run on the host, export it manually: `export TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable`.
 
 - [ ] **Step 1: Write the failing test harness**
 
