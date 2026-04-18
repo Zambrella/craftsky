@@ -132,9 +132,9 @@ CREATE INDEX craftsky_sessions_last_seen_idx ON craftsky_sessions (last_seen_at)
 
 - **Token format:** 32 random bytes, base64url-encoded. Returned to the client once at creation. We store only `SHA-256(token)` in `token_hash`; the plaintext token is never persisted.
 - **Lookup:** `SELECT … WHERE token_hash = $1 AND revoked_at IS NULL`.
-- **`last_seen_at`:** updated opportunistically, throttled to at most one write per row per N minutes, so write load is proportional to real activity rather than request rate.
+- **`last_seen_at`:** updated opportunistically, throttled to at most one write per row per `CRAFTSKY_SESSION_LAST_SEEN_THROTTLE` (default `5m`), so write load is proportional to real activity rather than request rate.
 - **`revoked_at`:** soft-delete. Logout sets this. Rows stay for audit; a later spec can add hard-delete after a retention window.
-- **Revocation decoupling:** revoking one `craftsky_sessions` row (one device) does **not** invalidate the OAuth session — other devices keep working. Full logout sets `revoked_at` on all rows for the DID **and** calls `oauth.ClientApp.Logout`, which `ON DELETE CASCADE`s to the remaining `craftsky_sessions` rows for safety.
+- **Revocation decoupling:** revoking one `craftsky_sessions` row (one device) does **not** invalidate the OAuth session — other devices keep working. Full logout (see §3.5) takes a different path: it deletes the OAuth session via `oauth.ClientApp.Logout`, and the FK's `ON DELETE CASCADE` removes the dependent `craftsky_sessions` rows.
 
 ### 2.4 What deliberately is **not** in the schema
 
@@ -190,7 +190,9 @@ The `/oauth/*` paths are the public atproto-spec surface; `/auth/*` paths are Cr
 │             │      │             │     │                  │     │   (AS)   │
 └──────┬──────┘      └──────┬──────┘     └────────┬─────────┘     └────┬─────┘
        │                    │                     │                    │
-       │ 1. POST /auth/login {handle}             │                    │
+       │ 1. POST /auth/login                      │                    │
+       │    {handle, handoff_mode,                │                    │
+       │     loopback_redirect_uri?}              │                    │
        ├───────────────────▶│                     │                    │
        │                    │ 2. StartAuthFlow()                       │
        │                    │    - resolves handle → DID → PDS         │
@@ -269,7 +271,7 @@ indigo handles DPoP signing, nonce rotation (`DPoP-Nonce` header retry on HTTP 4
 ### 3.5 Logout
 
 - `POST /auth/logout`: sets `revoked_at` on the Craftsky session row identified by the Bearer token. OAuth session untouched. Other devices keep working.
-- `POST /auth/logout?all=true`: revokes all Craftsky sessions for the DID **and** calls `oauth.ClientApp.Logout(did, session_id)`. indigo attempts AS-side revocation if the server supports it, then deletes from the store. `ON DELETE CASCADE` on the FK means the remaining `craftsky_sessions` rows for that `(did, session_id)` go with it.
+- `POST /auth/logout?all=true`: calls `oauth.ClientApp.Logout(did, session_id)` first (indigo attempts AS-side revocation if supported, then deletes the `oauth_sessions` row). The `ON DELETE CASCADE` on the FK removes the dependent `craftsky_sessions` rows. Note: this intentionally **drops** those rows rather than marking `revoked_at` — full logout prioritises cleanup over audit. The audit trail via `revoked_at` applies to single-device logout only.
 
 ### 3.6 Error paths worth naming
 
@@ -321,7 +323,7 @@ Nothing else restructures; we expand `auth/`.
 | `environments/dev.env` | Add `OAUTH_*` keys with localhost-mode defaults. |
 | `environments/prod.env.example` | Add `OAUTH_HOSTNAME`, `OAUTH_CLIENT_SECRET_KEY_PATH`, `OAUTH_CLIENT_SECRET_KEY_ID` as required-in-prod. |
 | `justfile` | New recipes: `just oauth-keygen` (generate ES256 dev key), optional helper recipes for exercising the flow locally. |
-| `AGENTS.md` | Confirm rule #2 wording — no change in v1; add a note about the TMB upgrade amendment. |
+| `AGENTS.md` | No rule rewrite in v1. Add a short note (inline near rule #2 or in a footnote) flagging that the TMB upgrade will require amending the wording. |
 | `appview/README.md` | Document the 5 endpoints, env vars, dev key generation. |
 
 The `cmd/cli` CLI gets `login`/`logout` subcommands in a **separate, later spec** — not here.
@@ -350,7 +352,7 @@ All from `indigo`, pulled transitively by the first import:
 
 ### 4.5 Testing posture
 
-- **`store_test.go`:** integration tests against compose Postgres. All 6 `ClientAuthStore` methods, plus lazy cleanup (session expiry, session inactivity, auth-request expiry). Use real `oauth.ClientSessionData` / `oauth.AuthRequestData` values from indigo to ensure the JSONB round-trip is stable across library versions.
+- **`store_test.go`:** integration tests against compose Postgres. All 6 `ClientAuthStore` methods, plus lazy cleanup (session expiry, session inactivity, auth-request expiry). Use real `oauth.ClientSessionData` / `oauth.AuthRequestData` values from indigo to ensure the JSONB round-trip is stable across library versions. **Must include a test that confirms `SaveSession` is called on token refresh and updates `updated_at`** — if it isn't, inactivity cleanup will evict live sessions. If indigo does not call `SaveSession` on refresh, the inactivity semantics in §2.1 need revisiting (drive cleanup from `oauth_sessions.data` contents instead, or ship a different accounting strategy).
 - **`craftsky_session_test.go`:** integration tests for token generation, hash-based lookup, `last_seen_at` throttling, revocation, FK cascade on `oauth_sessions` delete.
 - **`handlers_test.go`:** unit tests for endpoint shape (status codes, error responses, handoff branching) against a mocked `oauth.ClientApp`.
 - **No end-to-end tests against a real PDS.** indigo is the library handling the atproto-facing correctness; the value we add is our store + handlers + Craftsky session layer, all of which are tested directly.
@@ -362,7 +364,7 @@ All from `indigo`, pulled transitively by the first import:
 1. **Prod client-key source.** PEM in env var? File path mounted from a secret volume? KMS-signed assertions later? The spec requires v1 to implement at least one variant; operators/deployment decide which.
 2. **Deep-link URL scheme** for Flutter, **loopback strategy** for CLI. Both belong to client-integration specs.
 3. **Scope string for the Craftsky custom lexicon.** v1 defaults to `atproto transition:generic`; this may change once the atproto ecosystem settles on a non-transitional scope syntax for custom record types. Configurable via `OAUTH_SCOPES`.
-4. **Where `handoff_mode` lives on the auth-request row.** Inside the opaque `data` JSONB (risks indigo re-serializing and dropping unknown fields) or as a sibling column. Decide during implementation; the spec requires both handoff modes to work.
+4. **Where `handoff_mode` lives on the auth-request row.** Inside the opaque `data` JSONB (risks indigo re-serializing and dropping unknown fields) or as a sibling column. **Decision heuristic:** write a unit test that round-trips an `oauth.AuthRequestData` with an extra top-level JSONB field through indigo's serializer; if the extra field survives, inline in `data` is fine. If it does not, add a sibling column. Do this check before committing either direction.
 
 ## 6. Future work
 
