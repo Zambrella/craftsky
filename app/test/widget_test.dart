@@ -34,8 +34,9 @@ void main() {
     appVersion: Version.parse('1.0.0'),
   );
 
-  testWidgets('App boots unauthenticated and lands on WelcomePage',
-      (tester) async {
+  testWidgets('App boots unauthenticated and lands on WelcomePage', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
