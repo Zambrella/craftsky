@@ -148,6 +148,7 @@ Full file contents:
 ```dart
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:ui';
 
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:flutter/foundation.dart';
@@ -216,12 +217,18 @@ void registerErrorHandlers() {
     if (kDebugMode) {
       return ErrorWidget(details.exception);
     }
-    return const ColoredBox(
-      color: Colors.red,
-      child: Center(
-        child: Text(
-          'An error occurred rendering this element',
-          style: TextStyle(color: Colors.white),
+    // Release fallback. `ErrorWidget.builder` is called in situations where
+    // there may be no ambient Directionality (e.g. an error above MaterialApp),
+    // so we inject one rather than rely on the tree.
+    return const Directionality(
+      textDirection: TextDirection.ltr,
+      child: ColoredBox(
+        color: Colors.red,
+        child: Center(
+          child: Text(
+            'An error occurred rendering this element',
+            style: TextStyle(color: Colors.white),
+          ),
         ),
       ),
     );
@@ -230,12 +237,12 @@ void registerErrorHandlers() {
 ```
 
 Notes:
-- The two `// ignore: avoid_print` directives inside the debug-only log sink are the single place in the codebase where `print` is acceptable; everywhere else use `Logger`.
+- The two `// ignore: avoid_print` directives inside the debug-only log sink are the single place in the codebase where `print` is acceptable; everywhere else use `Logger`. The comment reads `// ignore: avoid_print` — this is the intentional sink for the logging package.
 - `registerErrorHandlers` uses its own `Logger` instance — that's fine, all loggers funnel through `Logger.root`.
 
 - [ ] **Step 2: Leave commit for end of chunk 1 once bootstrap + stub App exist**
 
-`main.dart` imports `bootstrap.dart` and `app.dart` (transitively) that don't exist yet — don't try to `flutter analyze` until Task 1.5.
+`main.dart` imports `bootstrap.dart` which imports `app.dart` — neither exists yet. **Do not run `flutter analyze` until after Task 1.5 Step 1** (when `app.dart` is written). Between tasks 1.3–1.5 the file tree is intentionally broken.
 
 ### Task 1.4: Write `bootstrap.dart`
 
@@ -846,6 +853,12 @@ Future<CraftskyDeviceInfo> _resolveDeviceInfo() async {
   }
 }
 
+// Accessor providers return the resolved dependency synchronously. They use
+// `requireValue`, which throws if called before `appDependenciesProvider`
+// reaches `AsyncData`. The `App` widget only mounts the subtree that
+// consumes these accessors (via `_ReadyApp`) once that provider resolves,
+// so the exception path is unreachable in the normal flow.
+
 @Riverpod(keepAlive: true)
 SharedPreferences sharedPreferences(Ref ref) =>
     ref.watch(appDependenciesProvider.select((a) => a.requireValue.sharedPreferences));
@@ -1040,11 +1053,18 @@ class App extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Log init failures once per transition into error, not on every rebuild.
+    ref.listen(appDependenciesProvider, (prev, next) {
+      if (next case AsyncError(:final error, :final stackTrace)) {
+        _log.severe('App dependencies failed to initialize', error, stackTrace);
+      }
+    });
+
     final depsAsync = ref.watch(appDependenciesProvider);
 
     return switch (depsAsync) {
       AsyncData() => const _ReadyApp(),
-      AsyncError(:final error, :final stackTrace) => _ErrorApp(error: error, stackTrace: stackTrace),
+      AsyncError(:final error) => _ErrorApp(error: error),
       _ => const _LoadingApp(),
     };
   }
@@ -1102,14 +1122,12 @@ class _LoadingApp extends StatelessWidget {
 }
 
 class _ErrorApp extends ConsumerWidget {
-  const _ErrorApp({required this.error, required this.stackTrace});
+  const _ErrorApp({required this.error});
 
   final Object error;
-  final StackTrace stackTrace;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    _log.severe('App dependencies failed to initialize', error, stackTrace);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       home: InitializationErrorScreen(
@@ -1285,7 +1303,9 @@ import 'package:flutter/material.dart';
 class ErrorScreen extends StatelessWidget {
   const ErrorScreen({required this.error, super.key});
 
-  final Exception error;
+  /// Type is `Object` rather than `Exception` because `GoRouterState.error`
+  /// is `Object?` in go_router 17 — routing errors are not always exceptions.
+  final Object error;
 
   @override
   Widget build(BuildContext context) {
@@ -1357,10 +1377,8 @@ GoRouter goRouter(Ref ref) {
     navigatorKey: _NavigatorKeys.rootNavigatorKey,
     debugLogDiagnostics: true,
     routes: $appRoutes,
-    errorBuilder: (context, state) {
-      final error = state.error ?? Exception('Unknown routing error');
-      return ErrorScreen(error: error);
-    },
+    errorBuilder: (context, state) =>
+        ErrorScreen(error: state.error ?? 'Unknown routing error'),
   );
 }
 
@@ -1382,6 +1400,8 @@ extension GoRouterExtension on GoRouter {
   }
 }
 ```
+
+This extension has no callers in this scaffold — it's retained per the spec because it's tiny and will be needed for login/logout transitions later. If `custom_lint` or the analyzer flags it as unused, add `// ignore: unused_element` above the extension rather than deleting it.
 
 - [ ] **Step 2: Run build_runner**
 
@@ -1453,31 +1473,57 @@ Expected: no errors. Any remaining lint about unused imports should be cleaned u
 
 - [ ] **Step 1: Replace widget_test.dart**
 
+The preferred approach is to override `appDependenciesProvider` directly with a hand-built `AppDependencies`. This skips native channels entirely (`package_info_plus` and `device_info_plus` both require real platform plugins that are painful to mock in unit tests) and tests exactly what the smoke test should test: that `App` wires up correctly when deps are ready.
+
 ```dart
 import 'package:craftsky_app/app.dart';
+import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/router/home_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:pub_semver/pub_semver.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  setUp(() {
+  late SharedPreferences prefs;
+
+  setUp(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
     SharedPreferences.setMockInitialValues({});
-    PackageInfo.setMockInitialValues(
-      appName: 'craftsky_app',
-      packageName: 'social.craftsky.app',
-      version: '1.0.0',
-      buildNumber: '1',
-      buildSignature: '',
-    );
+    prefs = await SharedPreferences.getInstance();
   });
 
-  testWidgets('App boots and renders HomePage', (tester) async {
-    await tester.pumpWidget(const ProviderScope(child: App()));
+  AppDependencies stubDeps() => AppDependencies(
+        packageInfo: PackageInfo(
+          appName: 'craftsky_app',
+          packageName: 'social.craftsky.app',
+          version: '1.0.0',
+          buildNumber: '1',
+          buildSignature: '',
+        ),
+        deviceInfo: CraftskyDeviceInfo(
+          platform: 'Test',
+          deviceId: 'test',
+          model: 'test',
+          brand: 'test',
+          osVersion: '0',
+        ),
+        sharedPreferences: prefs,
+        appVersion: Version.parse('1.0.0'),
+      );
 
-    // Let the async appDependenciesProvider resolve.
+  testWidgets('App boots and renders HomePage', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDependenciesProvider.overrideWith((ref) async => stubDeps()),
+        ],
+        child: const App(),
+      ),
+    );
+
     await tester.pumpAndSettle();
 
     expect(find.byType(HomePage), findsOneWidget);
@@ -1487,40 +1533,11 @@ void main() {
 ```
 
 Notes:
-- `device_info_plus` has no `setMockInitialValues`-style helper. On the Flutter test platform, `defaultTargetPlatform` returns `android` and the plugin's method channel calls normally throw `MissingPluginException` in unit tests. If the test fails because of a `MissingPluginException` from `device_info_plus`, register a mock handler as a second step (Step 2 below). If it passes without, delete this step — don't carry dead mocking code.
+- `TestWidgetsFlutterBinding.ensureInitialized()` runs first so `SharedPreferences.setMockInitialValues` has a binding to attach to.
+- `PackageInfo` is constructed directly (its constructor is `const` / public). If a future version of `package_info_plus` removes the public constructor, switch to `PackageInfo.setMockInitialValues(...)` before `setUp`.
+- No device-channel mocking needed — the override bypasses the `appDependenciesProvider` body entirely.
 
-- [ ] **Step 2: If needed, mock the `device_info_plus` channel**
-
-Only if Step 1's test fails with a `MissingPluginException`. Add at the top of `setUp`:
-
-```dart
-import 'package:flutter/services.dart';
-import 'package:flutter_test/flutter_test.dart';
-
-// ...
-TestDefaultBinaryMessengerBinding.ensureInitialized()
-    .defaultBinaryMessenger
-    .setMockMethodCallHandler(
-  const MethodChannel('dev.fluttercommunity.plus/device_info'),
-  (call) async {
-    if (call.method == 'getAndroidDeviceInfo') {
-      return <String, dynamic>{
-        'id': 'test',
-        'brand': 'test',
-        'model': 'test',
-        'version': {'release': '14', 'sdkInt': 34, /* other fields */},
-        // … device_info_plus expects a larger map; consult the package source
-        // if the handler returns a cast error and fill missing keys.
-      };
-    }
-    return null;
-  },
-);
-```
-
-If the map schema becomes painful, route around it instead: override `appDependenciesProvider` in the `ProviderScope` to a `Future.value(...)` with a hand-built `AppDependencies` using a stub `CraftskyDeviceInfo`. This is cleaner; reach for it if the channel mock takes more than ~20 lines.
-
-- [ ] **Step 3: Run the test**
+- [ ] **Step 2: Run the test**
 
 Run (from `app/`): `flutter test test/widget_test.dart`
 
