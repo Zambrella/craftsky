@@ -47,6 +47,27 @@ void main() {
       appVersion: Version.parse('1.0.0'),
     );
 
-    // Tests go here.
+    testWidgets('loading state renders CircularProgressIndicator', (tester) async {
+      // Future never completes → appDependenciesProvider stays in AsyncLoading.
+      final completer = Completer<AppDependencies>();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDependenciesProvider.overrideWith((ref) => completer.future),
+          ],
+          child: const App(),
+        ),
+      );
+
+      // CircularProgressIndicator spins forever (AnimationController.repeat);
+      // pumpAndSettle would time out. A single pump is enough — the initial
+      // build is synchronous in pumpWidget.
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(HomePage), findsNothing);
+      expect(find.byType(InitializationErrorScreen), findsNothing);
+    });
   });
 }
