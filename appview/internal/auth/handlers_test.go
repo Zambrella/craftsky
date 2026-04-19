@@ -1,6 +1,7 @@
 package auth_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"log/slog"
@@ -197,5 +198,32 @@ func TestLogout_AllDevices_RevokeAllCleansUpEvenIfOAuthLogoutFails(t *testing.T)
 	}
 	if unrevokedCount != 0 {
 		t.Fatalf("expected 0 unrevoked sessions, got %d", unrevokedCount)
+	}
+}
+
+// TestCallbackTemplate_XSSRegression is a regression test against
+// accidentally swapping html/template for text/template in
+// handlers_render.go. With html/template's contextual escaping in
+// place, a hostile loopback_redirect_uri cannot break out of the JS
+// string literal in the rendered <script> tag. Without it, the regex
+// at /auth/login ingress would be the only line of defence; this test
+// fails loudly the moment the contextual escaping disappears.
+func TestCallbackTemplate_XSSRegression(t *testing.T) {
+	var buf bytes.Buffer
+	hostile := `http://127.0.0.1:1234/x"></script><script>alert(1)//`
+	if err := auth.RenderCallbackForTest(&buf, "tok", hostile); err != nil {
+		t.Fatalf("RenderCallbackForTest: %v", err)
+	}
+	out := buf.String()
+	// The hostile substring must not appear literally — html/template's
+	// JS-string-context escaping should rewrite the special chars.
+	if strings.Contains(out, `</script><script>`) {
+		t.Fatalf("XSS payload survived template rendering — contextual escaping broken!\nrendered:\n%s", out)
+	}
+	if strings.Contains(out, `alert(1)`) {
+		// alert(1) is fine literally inside a JS string — but only as long
+		// as the surrounding quotes are intact. The check above already
+		// catches a broken-out script tag.
+		t.Logf("note: 'alert(1)' literal appears in output — fine if inside a JS string literal. Rendered:\n%s", out)
 	}
 }

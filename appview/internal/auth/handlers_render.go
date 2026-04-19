@@ -45,6 +45,12 @@ type callbackPageData struct {
 // JavaScript-string-context escaping automatically. The template's
 // double layer of safety (this + the regex check at ingress) is
 // intentional: belt-and-braces against a malicious loopback_redirect_uri.
+//
+// SECURITY: do NOT swap "html/template" for "text/template" — the
+// contextual escaping is load-bearing. Without it, a malicious
+// loopback_redirect_uri could break out of the JS string literal even
+// when ingress validation lets it through. The TestCallbackTemplate_*
+// tests in handlers_test.go are regression tests against this swap.
 var callbackTmpl = template.Must(template.New("cb").Parse(`<!doctype html>
 <html><head><title>Craftsky — signed in</title></head><body>
 <p>Signed in. {{if .DeepLinkURL}}Return to the Craftsky app.{{else}}You can close this tab.{{end}}</p>
