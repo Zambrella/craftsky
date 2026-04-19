@@ -7,7 +7,7 @@ class SettingsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // TODO: l10n
+    // TODO(craftsky): l10n
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: const Center(child: SettingsPageBody()),

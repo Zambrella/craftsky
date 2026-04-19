@@ -28,7 +28,7 @@ void main() {
     // between the tap and the assertion.
     final subscription = container.listen<bool>(
       authStatusProvider,
-      (_, __) {},
+      (_, _) {},
     );
     addTearDown(subscription.close);
 
@@ -40,8 +40,9 @@ void main() {
     );
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Dev: toggle auth'));
-    await tester
-        .pumpAndSettle(); // NOTE: pumpAndSettle (not pump) — avoids timersPending assertion with autoDispose providers
+    // NOTE: pumpAndSettle (not pump) — avoids timersPending assertion
+    // with autoDispose providers.
+    await tester.pumpAndSettle();
 
     expect(container.read(authStatusProvider), isTrue);
   });

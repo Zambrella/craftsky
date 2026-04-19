@@ -21,7 +21,7 @@ void main() {
     // Pin the autoDispose provider. See Task 6 review notes.
     final subscription = container.listen<bool>(
       onboardingStatusProvider,
-      (_, __) {},
+      (_, _) {},
     );
     addTearDown(subscription.close);
 

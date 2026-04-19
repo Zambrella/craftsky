@@ -6,7 +6,8 @@ class SearchPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // TODO: l10n — page titles will move to AppLocalizations when real UI lands.
+    // TODO(craftsky): l10n — page titles will move to AppLocalizations
+    // when real UI lands.
     return Scaffold(
       appBar: AppBar(title: const Text('Search')),
       body: const Center(child: Text('Search')),

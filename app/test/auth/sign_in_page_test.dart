@@ -21,9 +21,13 @@ void main() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    // Pin the autoDispose authStatusProvider so it survives the tap→pumpAndSettle
-    // cycle and the post-pump container.read assertion. See Task 6 review notes.
-    final subscription = container.listen<bool>(authStatusProvider, (_, __) {});
+    // Pin the autoDispose authStatusProvider so it survives the
+    // tap→pumpAndSettle cycle and the post-pump container.read assertion.
+    // See Task 6 review notes.
+    final subscription = container.listen<bool>(
+      authStatusProvider,
+      (_, _) {},
+    );
     addTearDown(subscription.close);
 
     await tester.pumpWidget(
