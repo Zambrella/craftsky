@@ -1,4 +1,6 @@
 import 'package:craftsky_app/auth/providers/auth_status_provider.dart';
+import 'package:craftsky_app/theme/brand_text_field.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -27,14 +29,12 @@ class SignInPageBody extends ConsumerWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const TextField(
-          decoration: InputDecoration(
-            labelText: 'Handle',
-            hintText: 'alice.bsky.social',
-          ),
+        const BrandTextField(
+          label: 'Handle',
+          hintText: 'alice.bsky.social',
         ),
         const SizedBox(height: 24),
-        ElevatedButton(
+        ChunkyButton(
           onPressed: () => ref.read(authStatusProvider.notifier).signIn(),
           child: const Text('Continue'),
         ),

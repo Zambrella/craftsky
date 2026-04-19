@@ -1,5 +1,6 @@
 import 'package:craftsky_app/auth/providers/auth_status_provider.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -26,7 +27,7 @@ class WelcomePageBody extends ConsumerWidget {
       children: [
         const Text('Welcome'),
         const SizedBox(height: 24),
-        ElevatedButton(
+        ChunkyButton(
           onPressed: () => const SignInRoute().go(context),
           child: const Text('Sign in'),
         ),

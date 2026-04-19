@@ -1,4 +1,5 @@
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -25,7 +26,7 @@ class OnboardingPageBody extends ConsumerWidget {
       children: [
         const Text('Onboarding'),
         const SizedBox(height: 24),
-        ElevatedButton(
+        ChunkyButton(
           onPressed: () => ref.read(onboardingStatusProvider.notifier).finish(),
           child: const Text('Finish'),
         ),

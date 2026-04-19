@@ -1,5 +1,8 @@
 import 'package:craftsky_app/auth/pages/sign_in_page.dart';
 import 'package:craftsky_app/auth/providers/auth_status_provider.dart';
+import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/brand_text_field.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,12 +12,15 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(home: SignInPage()),
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          home: const SignInPage(),
+        ),
       ),
     );
-    expect(find.byType(TextField), findsOneWidget);
-    expect(find.widgetWithText(ElevatedButton, 'Continue'), findsOneWidget);
+    expect(find.byType(BrandTextField), findsOneWidget);
+    expect(find.widgetWithText(ChunkyButton, 'Continue'), findsOneWidget);
   });
 
   testWidgets('Continue flips authStatusProvider to true', (tester) async {
@@ -33,11 +39,14 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(home: SignInPage()),
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          home: const SignInPage(),
+        ),
       ),
     );
 
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Continue'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Continue'));
     await tester.pumpAndSettle();
 
     expect(container.read(authStatusProvider), isTrue);

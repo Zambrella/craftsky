@@ -4,6 +4,7 @@ import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,7 @@ Future<void> _pumpApp(WidgetTester tester, ProviderContainer container) async {
     UncontrolledProviderScope(
       container: container,
       child: MaterialApp.router(
+        theme: AppTheme.lightThemeData,
         routerConfig: router,
         builder: (context, child) =>
             FormFactorWidget(child: child ?? const SizedBox.shrink()),
