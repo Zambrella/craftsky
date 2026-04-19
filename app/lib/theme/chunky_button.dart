@@ -295,6 +295,7 @@ class _ChunkyBackgroundState extends State<_ChunkyBackground>
       onPointerUp: (_) => _handlePointerUpOrCancel(),
       onPointerCancel: (_) => _handlePointerUpOrCancel(),
       child: Stack(
+        alignment: Alignment.center,
         clipBehavior: Clip.none,
         children: [
           Positioned.fill(
