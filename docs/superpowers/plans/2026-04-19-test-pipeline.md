@@ -135,22 +135,36 @@ DROP TABLE IF EXISTS test_posts;
 
 - [ ] **Step 3: Run the migration against the dev Postgres**
 
-Run: `just dev` (leave running in another terminal if not already), then from repo root:
+If the stack isn't already up:
 ```bash
-docker compose exec appview sh -c 'cd /app && ./appview migrate up'
+just dev-d
 ```
-If the project's migration entrypoint differs, use whatever `just` recipe runs migrations (`just migrate` or similar). Expected: migration 000004 reported as applied.
+
+Then apply migrations:
+```bash
+just migrate up
+```
+
+(The `migrate` recipe runs `docker compose exec appview /app/cli migrate up` under the hood.) Expected: migration 000004 reported as applied.
 
 - [ ] **Step 4: Confirm the table exists**
 
-Run: `just psql -c '\d test_posts'`
+Run: `just psql -c "\d test_posts"`
 Expected: table definition prints with columns `uri`, `cid`, `did`, `text`, `created_at`, `indexed_at` and the `test_posts_created_at_idx` index.
 
 - [ ] **Step 5: Verify the down migration reverses cleanly**
 
-Run: appview migrate down 1 (via the same mechanism as step 3), then `just psql -c '\d test_posts'`.
-Expected: `Did not find any relation named "test_posts"`.
-Then re-apply: migrate up. Confirm table is back.
+```bash
+just migrate down 1
+just psql -c "\d test_posts"
+```
+Expected second command: `Did not find any relation named "test_posts"`.
+
+Then re-apply and confirm the table is back:
+```bash
+just migrate up
+just psql -c "\d test_posts"
+```
 
 - [ ] **Step 6: Commit**
 
@@ -392,23 +406,85 @@ Expected: no output, exit 0.
 
 - [ ] **Step 1: Write the first failing tests**
 
-Look at `appview/internal/index/bluesky_posts_sample_test.go` for the established pattern: it uses a per-test Postgres pool from a test helper. Follow the same pattern. If a shared helper like `db.NewTestPool(t)` already exists, use it; otherwise inspect `bluesky_posts_sample_test.go` and replicate its pool-setup code verbatim into this file (do not refactor existing tests in this plan).
+The test file uses the external test package (`testpipeline_test`) so it matches the existing idiom in `appview/internal/index/bluesky_posts_sample_test.go`. It includes a file-local `withSchema(t)` helper — copied from `bluesky_posts_sample_test.go` but with DDL adapted to the `test_posts` schema — that creates a fresh Postgres schema per test and returns a `search_path`-scoped pool. Dropped in `t.Cleanup`. Every test uses `t.Parallel()` because each gets its own schema.
 
 ```go
-package testpipeline
+package testpipeline_test
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"math/rand/v2"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"social.craftsky/appview/internal/tap"
+	"social.craftsky/appview/internal/testpipeline"
 )
 
+// withSchema creates an isolated schema for one test and returns a pool
+// whose default search_path points at it. Dropped via t.Cleanup.
+// Adapted from appview/internal/index/bluesky_posts_sample_test.go.
+func withSchema(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	url := os.Getenv("TEST_DATABASE_URL")
+	if url == "" {
+		url = os.Getenv("DATABASE_URL")
+	}
+	if url == "" {
+		t.Skip("TEST_DATABASE_URL and DATABASE_URL both unset; skipping real-pg test")
+	}
+
+	ctx := context.Background()
+	bootstrap, err := pgxpool.New(ctx, url)
+	if err != nil {
+		t.Fatalf("bootstrap pool: %v", err)
+	}
+	schemaName := fmt.Sprintf("test_%d", rand.Uint32())
+	if _, err := bootstrap.Exec(ctx, "CREATE SCHEMA "+schemaName); err != nil {
+		t.Fatalf("create schema: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = bootstrap.Exec(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
+		bootstrap.Close()
+	})
+
+	ddl := `
+		CREATE TABLE ` + schemaName + `.test_posts (
+			uri        TEXT PRIMARY KEY,
+			cid        TEXT NOT NULL,
+			did        TEXT NOT NULL,
+			text       TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL,
+			indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+		);
+		CREATE INDEX ON ` + schemaName + `.test_posts (created_at DESC);
+	`
+	if _, err := bootstrap.Exec(ctx, ddl); err != nil {
+		t.Fatalf("create test table: %v", err)
+	}
+
+	cfg, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.ConnConfig.RuntimeParams["search_path"] = schemaName
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	return pool
+}
+
 func TestIndexer_CreateInsertsRow(t *testing.T) {
-	pool := newTestPool(t) // mirror bluesky_posts_sample_test.go
-	ix := NewIndexer(pool)
+	t.Parallel()
+	pool := withSchema(t)
+	ix := testpipeline.NewIndexer(pool)
 
 	rec, _ := json.Marshal(map[string]any{
 		"text":      "hello pipeline",
@@ -449,8 +525,9 @@ func TestIndexer_CreateInsertsRow(t *testing.T) {
 }
 
 func TestIndexer_UpdateReplacesRow(t *testing.T) {
-	pool := newTestPool(t)
-	ix := NewIndexer(pool)
+	t.Parallel()
+	pool := withSchema(t)
+	ix := testpipeline.NewIndexer(pool)
 
 	rec1, _ := json.Marshal(map[string]any{"text": "v1", "createdAt": "2026-04-19T10:00:00Z"})
 	rec2, _ := json.Marshal(map[string]any{"text": "v2", "createdAt": "2026-04-19T10:00:00Z"})
@@ -526,6 +603,8 @@ type Indexer struct {
 // NewIndexer returns an indexer backed by pool.
 func NewIndexer(pool *pgxpool.Pool) *Indexer { return &Indexer{pool: pool} }
 
+const testPostNSID = "social.craftsky.test.post"
+
 // testPostRecord is the decoded shape of a social.craftsky.test.post.
 // Fields not defined in the lexicon are ignored.
 type testPostRecord struct {
@@ -533,17 +612,22 @@ type testPostRecord struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-// Handle upserts on create/update and deletes on delete.
-// Errors on any other Action.
+// Handle upserts on create/update and deletes on delete. Events for any
+// other collection are ignored (the Dispatcher already routes by NSID,
+// so this is belt-and-braces — same idiom as BlueskyPostsSample).
+//
+// createdAt is required because test_posts.created_at is NOT NULL. Empty
+// text is allowed through (the lexicon treats it as valid; the table
+// column is NOT NULL but empty string satisfies it).
 func (i *Indexer) Handle(ctx context.Context, ev tap.Event) error {
+	if ev.Collection != testPostNSID {
+		return nil
+	}
 	switch ev.Action {
 	case "create", "update":
 		var rec testPostRecord
 		if err := json.Unmarshal(ev.Record, &rec); err != nil {
 			return fmt.Errorf("unmarshal test post %s: %w", ev.URI, err)
-		}
-		if rec.Text == "" {
-			return fmt.Errorf("test post %s: empty text", ev.URI)
 		}
 		if rec.CreatedAt.IsZero() {
 			return fmt.Errorf("test post %s: missing createdAt", ev.URI)
@@ -594,8 +678,9 @@ Append to `indexer_test.go`:
 
 ```go
 func TestIndexer_DeleteRemovesRow(t *testing.T) {
-	pool := newTestPool(t)
-	ix := NewIndexer(pool)
+	t.Parallel()
+	pool := withSchema(t)
+	ix := testpipeline.NewIndexer(pool)
 
 	rec, _ := json.Marshal(map[string]any{"text": "bye", "createdAt": "2026-04-19T10:00:00Z"})
 	uri := "at://did:plc:abc/social.craftsky.test.post/3kxbbb"
@@ -627,8 +712,9 @@ func TestIndexer_DeleteRemovesRow(t *testing.T) {
 }
 
 func TestIndexer_DuplicateCreateIsIdempotent(t *testing.T) {
-	pool := newTestPool(t)
-	ix := NewIndexer(pool)
+	t.Parallel()
+	pool := withSchema(t)
+	ix := testpipeline.NewIndexer(pool)
 
 	rec, _ := json.Marshal(map[string]any{"text": "once", "createdAt": "2026-04-19T10:00:00Z"})
 	ev := tap.Event{
@@ -655,8 +741,9 @@ func TestIndexer_DuplicateCreateIsIdempotent(t *testing.T) {
 }
 
 func TestIndexer_MalformedRecordErrors(t *testing.T) {
-	pool := newTestPool(t)
-	ix := NewIndexer(pool)
+	t.Parallel()
+	pool := withSchema(t)
+	ix := testpipeline.NewIndexer(pool)
 
 	ev := tap.Event{
 		URI: "at://did:plc:abc/social.craftsky.test.post/3kxddd",
@@ -715,20 +802,27 @@ git commit -m "feat(testpipeline): handle delete + idempotent create"
 
 - [ ] **Step 1: Write the failing tests**
 
+This file lives in the same external test package as `indexer_test.go` (`testpipeline_test`), so it reuses the `withSchema` helper defined there. Tests use `t.Parallel()` for the same schema-per-test reason.
+
 ```go
-package testpipeline
+package testpipeline_test
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"social.craftsky/appview/internal/tap"
+	"social.craftsky/appview/internal/testpipeline"
 )
 
 func TestHandler_EmptyTableReturnsEmptyArray(t *testing.T) {
-	pool := newTestPool(t)
-	h := NewHandler(pool)
+	t.Parallel()
+	pool := withSchema(t)
+	h := testpipeline.NewHandler(pool)
 
 	req := httptest.NewRequest(http.MethodGet, "/test/feed", nil)
 	rec := httptest.NewRecorder()
@@ -755,9 +849,10 @@ func TestHandler_EmptyTableReturnsEmptyArray(t *testing.T) {
 }
 
 func TestHandler_ReturnsReverseChronological(t *testing.T) {
-	pool := newTestPool(t)
-	ix := NewIndexer(pool)
-	h := NewHandler(pool)
+	t.Parallel()
+	pool := withSchema(t)
+	ix := testpipeline.NewIndexer(pool)
+	h := testpipeline.NewHandler(pool)
 
 	for _, row := range []struct {
 		uri, text, ts string
@@ -791,10 +886,13 @@ func TestHandler_ReturnsReverseChronological(t *testing.T) {
 	}
 }
 
+// All records share createdAt; order among ties is unspecified. This
+// test only checks count, not order — don't "fix" it.
 func TestHandler_LimitRespected(t *testing.T) {
-	pool := newTestPool(t)
-	ix := NewIndexer(pool)
-	h := NewHandler(pool)
+	t.Parallel()
+	pool := withSchema(t)
+	ix := testpipeline.NewIndexer(pool)
+	h := testpipeline.NewHandler(pool)
 
 	for i := 0; i < 5; i++ {
 		rec, _ := json.Marshal(map[string]any{"text": "x", "createdAt": "2026-04-19T10:00:00Z"})
@@ -802,7 +900,9 @@ func TestHandler_LimitRespected(t *testing.T) {
 			fmt.Sprintf("at://did:plc:a/social.craftsky.test.post/%d", i),
 			"bafy", "did:plc:a", "create", rec,
 		)
-		ix.Handle(context.Background(), ev)
+		if err := ix.Handle(context.Background(), ev); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/test/feed?limit=2", nil)
@@ -810,15 +910,33 @@ func TestHandler_LimitRespected(t *testing.T) {
 	h.ServeHTTP(rec, req)
 
 	var body struct{ Posts []any `json:"posts"` }
-	json.Unmarshal(rec.Body.Bytes(), &body)
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
 	if len(body.Posts) != 2 {
 		t.Errorf("got %d want 2", len(body.Posts))
 	}
 }
 
+// Seeds 201 rows so the clamp is actually observable in the response.
+// Without the clamp the handler would return 201; with the clamp it
+// returns 200.
 func TestHandler_LimitClampedTo200(t *testing.T) {
-	pool := newTestPool(t)
-	h := NewHandler(pool)
+	t.Parallel()
+	pool := withSchema(t)
+	ix := testpipeline.NewIndexer(pool)
+	h := testpipeline.NewHandler(pool)
+
+	for i := 0; i < 201; i++ {
+		rec, _ := json.Marshal(map[string]any{"text": "x", "createdAt": "2026-04-19T10:00:00Z"})
+		ev := tapEvent(
+			fmt.Sprintf("at://did:plc:a/social.craftsky.test.post/%d", i),
+			"bafy", "did:plc:a", "create", rec,
+		)
+		if err := ix.Handle(context.Background(), ev); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	req := httptest.NewRequest(http.MethodGet, "/test/feed?limit=999", nil)
 	rec := httptest.NewRecorder()
@@ -827,11 +945,19 @@ func TestHandler_LimitClampedTo200(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: got %d want 200 (limit should clamp, not 400)", rec.Code)
 	}
+	var body struct{ Posts []any `json:"posts"` }
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Posts) != 200 {
+		t.Errorf("got %d posts, want 200 (clamp)", len(body.Posts))
+	}
 }
 
 func TestHandler_InvalidLimitReturns400(t *testing.T) {
-	pool := newTestPool(t)
-	h := NewHandler(pool)
+	t.Parallel()
+	pool := withSchema(t)
+	h := testpipeline.NewHandler(pool)
 
 	for _, q := range []string{"abc", "-1", "0"} {
 		req := httptest.NewRequest(http.MethodGet, "/test/feed?limit="+q, nil)
@@ -854,7 +980,7 @@ func tapEvent(uri, cid, did, action string, record []byte) tap.Event {
 }
 ```
 
-Note: this file imports `fmt` and `social.craftsky/appview/internal/tap` in addition to what's shown; include those in the import block.
+Note: method filtering (POST /test/feed → 405) is delegated to `http.ServeMux`'s method-aware routing (`mux.Handle("GET /test/feed", ...)`), so no in-handler check is tested here.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -1024,7 +1150,9 @@ Add the import: `"social.craftsky/appview/internal/testpipeline"`.
 - [ ] **Step 2: Run existing deps tests — they should still pass**
 
 Run: `just test ./appview/internal/app/...`
-Expected: PASS. If any existing test asserts on `deps.Indexer`'s concrete type being `*BlueskyPostsSample`, the test needs to be updated to assert it's a `*index.Dispatcher`. Look at the existing tests first before making any change — prefer to match whatever assertion pattern is already there.
+Expected: PASS. `deps_test.go` does not assert on `deps.Indexer`'s concrete type (verified during plan review), so no edits to the existing tests are required.
+
+**Dependencies this task relies on (must already be merged):** `index.Dispatcher` and `index.NewDispatcher` from Chunk 2; `testpipeline.NewIndexer` from Chunk 3. Verify with `just test ./appview/internal/index/... ./appview/internal/testpipeline/...` before starting this step.
 
 - [ ] **Step 3: Run the whole test suite**
 
@@ -1059,17 +1187,29 @@ Inside `AddRoutes`, *before* the `Fallthrough` block (the `mux.Handle("/", http.
 
 Add the import: `"social.craftsky/appview/internal/testpipeline"`.
 
-- [ ] **Step 2: Add a route-registration test**
+- [ ] **Step 2: Generalize the `testDeps` helper and add the route-registration test**
 
-Append to `appview/internal/routes/routes_test.go` (or mirror whatever existing test asserts routes are registered — inspect the file first, follow its conventions; do not introduce a new test idiom):
+The existing `testDeps()` helper in `routes_test.go` hard-codes `Env: app.EnvDev`. Generalize it to accept an env, preserving the existing call sites:
+
+```go
+func testDeps() *app.Deps { return testDepsEnv(app.EnvDev) }
+
+func testDepsEnv(env app.Env) *app.Deps {
+	return &app.Deps{
+		Config:      app.Config{Env: env, AllowedOrigins: []string{"*"}, DevDID: "did:plc:test"},
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		AuthService: &auth.MockAuthService{DefaultDID: "did:plc:test"},
+	}
+}
+```
+
+Then add the new test:
 
 ```go
 func TestAddRoutes_TestFeedDevOnly(t *testing.T) {
-	// Minimal fixture; follow whatever pattern existing routes_test.go uses
-	// to build a *app.Deps. If a helper exists, use it.
-	// In dev: route registered.
+	// Dev: route registered.
 	mux := http.NewServeMux()
-	AddRoutes(context.Background(), mux, newDevDepsFixture(t))
+	AddRoutes(context.Background(), mux, testDepsEnv(app.EnvDev))
 	req := httptest.NewRequest(http.MethodGet, "/test/feed", nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -1077,9 +1217,9 @@ func TestAddRoutes_TestFeedDevOnly(t *testing.T) {
 		t.Error("dev: /test/feed should be registered")
 	}
 
-	// In prod: route NOT registered.
+	// Prod: route NOT registered.
 	mux = http.NewServeMux()
-	AddRoutes(context.Background(), mux, newProdDepsFixture(t))
+	AddRoutes(context.Background(), mux, testDepsEnv(app.EnvProd))
 	req = httptest.NewRequest(http.MethodGet, "/test/feed", nil)
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -1089,9 +1229,7 @@ func TestAddRoutes_TestFeedDevOnly(t *testing.T) {
 }
 ```
 
-If `newDevDepsFixture`/`newProdDepsFixture` don't exist, either:
-- (a) Use whatever helper the existing routes_test uses to build deps with a different `cfg.Env`, or
-- (b) Construct a minimal `*app.Deps` inline with `Config: app.Config{Env: app.EnvDev}` and `DB: nil` — the test doesn't hit the handler's DB path because we only check registration.
+The test doesn't hit the handler's DB path — only route registration matters — so the nil `DB` on the fixture is fine. `AddRoutes` calls `auth.NewHTTPHandlers(...)` before the env gate, but the existing tests confirm that constructor tolerates nil OAuth deps at registration time (they only fail if an OAuth handler is invoked).
 
 - [ ] **Step 3: Run tests**
 
@@ -1113,7 +1251,7 @@ git commit -m "feat(routes): register GET /test/feed in dev only"
 - [ ] **Step 1: Write the end-to-end test**
 
 ```go
-package testpipeline
+package testpipeline_test
 
 import (
 	"context"
@@ -1124,17 +1262,20 @@ import (
 
 	"social.craftsky/appview/internal/index"
 	"social.craftsky/appview/internal/tap"
+	"social.craftsky/appview/internal/testpipeline"
 )
 
 // TestPipelineEndToEnd wires the real Dispatcher → Indexer → Postgres →
 // Handler chain, pushes a synthetic Tap event in one end, and asserts the
 // record comes back out of GET /test/feed. If this test fails, the
-// pipeline is broken.
+// indexing half of the pipeline is broken. (The WS consumer → Dispatcher
+// leg is covered by existing tap package tests.)
 func TestPipelineEndToEnd(t *testing.T) {
-	pool := newTestPool(t)
+	t.Parallel()
+	pool := withSchema(t)
 
 	dispatcher := index.NewDispatcher(index.NotImplemented{})
-	dispatcher.Register("social.craftsky.test.post", NewIndexer(pool))
+	dispatcher.Register("social.craftsky.test.post", testpipeline.NewIndexer(pool))
 
 	rec, _ := json.Marshal(map[string]any{
 		"text":      "end-to-end",
@@ -1155,7 +1296,7 @@ func TestPipelineEndToEnd(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/test/feed", nil)
 	w := httptest.NewRecorder()
-	NewHandler(pool).ServeHTTP(w, req)
+	testpipeline.NewHandler(pool).ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status: got %d want 200", w.Code)
@@ -1211,52 +1352,66 @@ Prove the pipeline works against the real compose stack, not just the test harne
 
 ### Task 6.1: Smoke-test against a running stack
 
-- [ ] **Step 1: Start the stack**
+The real firehose → Tap → indexer path is covered by `TestPipelineEndToEnd` using a synthetic `tap.Event`. The *compose stack cannot* exercise a real-firehose loop for `social.craftsky.test.post`: docker-compose.yml has no local PDS, and `TAP_COLLECTION_FILTERS` is set to `app.bsky.feed.post` only. So this manual smoke test validates the HTTP handler + DB read path against the real running process — not the Tap path.
 
-Run: `just dev`
-Wait for `/healthz` to report all deps ready: `curl -sS localhost:8080/healthz` (or whatever port the compose file exposes). Expected: JSON with `"db":"ok"` and `"tap": {"connected": true, ...}`.
+- [ ] **Step 1: Start the stack and confirm health**
 
-- [ ] **Step 2: Seed a test post via atcli or psql**
-
-Option A — if `atcli` is set up against the local dev PDS:
 ```bash
-atcli update social.craftsky.test.post '{"text":"manual smoke test","createdAt":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}'
+just dev-d
+curl -sS localhost:8080/healthz
 ```
-Watch the appview logs for a Tap event for `social.craftsky.test.post`.
+Expected: non-error JSON response. (Exact shape is defined in `appview/internal/api/healthz.go`; failure modes there aren't what we're validating here.)
 
-Option B — if `atcli` is not set up, write directly to Postgres to validate the handler path only (this does NOT exercise Tap; use Option A for the full loop):
+- [ ] **Step 2: Confirm migration 000004 ran**
+
+```bash
+just psql -c "\d test_posts"
+```
+Expected: the `test_posts` table description prints. If it doesn't, run `just migrate up` before continuing.
+
+- [ ] **Step 3: Seed a test row directly via psql**
+
 ```bash
 just psql -c "INSERT INTO test_posts (uri, cid, did, text, created_at) VALUES ('at://did:plc:manual/social.craftsky.test.post/x', 'bafy', 'did:plc:manual', 'manual smoke test', now());"
 ```
 
-- [ ] **Step 3: Hit the endpoint**
+- [ ] **Step 4: Hit the endpoint**
 
-Run:
 ```bash
-curl -sS localhost:8080/test/feed | jq .
+curl -sS localhost:8080/test/feed | python3 -m json.tool
 ```
-Expected: JSON response with at least one post matching what was seeded.
+(`python3 -m json.tool` avoids a `jq` dependency; if `jq` is available, use it.)
+Expected: JSON response with a `posts` array containing the seeded row (`did:plc:manual`, text `"manual smoke test"`).
 
-- [ ] **Step 4: Confirm the route is not registered in prod mode**
+- [ ] **Step 5: Confirm prod gate**
 
-With the stack still running in dev, this is just documentation — the route-registration test in Task 5.2 already proves the prod gate. Make a note in the PR description confirming the manual dev check passed.
+The unit test `TestAddRoutes_TestFeedDevOnly` (Task 5.2) proves the route is only registered when `Env == EnvDev`. No additional manual check; just note in the PR description that the dev check in steps 3–4 passed.
 
-- [ ] **Step 5: Stop the stack**
+- [ ] **Step 6: Stop the stack**
 
-Run: `just stop` (or `docker compose down`).
+```bash
+just down
+```
 
 ### Task 6.2: Open the PR
 
-- [ ] **Step 1: Push the branch**
+- [ ] **Step 1: Verify `gh` is authed**
+
+```bash
+gh auth status
+```
+If not authed, stop and ask the user; don't proceed without auth.
+
+- [ ] **Step 2: Push the branch**
 
 ```bash
 git push -u origin claude/happy-swirles-d1f882
 ```
 
-- [ ] **Step 2: Create the PR**
+- [ ] **Step 3: Create the PR**
 
 ```bash
-gh pr create --title "feat(appview): end-to-end test pipeline via social.craftsky.test.post" --body "$(cat <<'EOF'
+gh pr create --base main --title "feat(appview): end-to-end test pipeline via social.craftsky.test.post" --body "$(cat <<'EOF'
 ## Summary
 
 - Adds a **disposable** `social.craftsky.test.post` lexicon + `test_posts` table + `GET /test/feed` endpoint to validate the firehose → index → Postgres → HTTP read API loop end to end.
@@ -1280,7 +1435,7 @@ EOF
 )"
 ```
 
-- [ ] **Step 3: Verify the PR URL**
+- [ ] **Step 4: Verify the PR URL**
 
 Expected: gh prints the URL. Share it with the user.
 
