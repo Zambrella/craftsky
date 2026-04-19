@@ -54,7 +54,7 @@ class AppShell extends ConsumerWidget {
           children: [
             _ShellNavigationRail(
               selectedIndex: navigationShell.currentIndex,
-              onDestinationSelected: (i) => _goBranch(i),
+              onDestinationSelected: _goBranch,
             ),
             const VerticalDivider(thickness: 1, width: 1),
             Expanded(child: navigationShell),
@@ -67,7 +67,7 @@ class AppShell extends ConsumerWidget {
       body: navigationShell,
       bottomNavigationBar: _ShellNavigationBar(
         selectedIndex: navigationShell.currentIndex,
-        onDestinationSelected: (i) => _goBranch(i),
+        onDestinationSelected: _goBranch,
       ),
     );
   }
