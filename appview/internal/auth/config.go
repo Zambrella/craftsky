@@ -10,7 +10,7 @@ import (
 // BuildClientConfig produces an indigo oauth.ClientConfig.
 //
 //   - hostname == ""               → localhost/public client via NewLocalhostConfig
-//                                    (callback http://127.0.0.1:8080/oauth/callback).
+//     (callback http://127.0.0.1:8080/oauth/callback).
 //   - hostname != "" and key == "" → public client at that hostname (test scenario).
 //   - hostname != "" and key != "" → confidential client via SetClientSecret.
 //
