@@ -46,3 +46,8 @@ test:
 # Format and vet Go code on the host.
 fmt:
     cd appview && gofmt -w . && go vet ./...
+
+# Generate a P-256 private key for OAUTH_CLIENT_SECRET_KEY. Prints to stdout.
+# Paste into your local prod-style .env; never commit.
+oauth-keygen:
+    cd appview && go run ./cmd/cli oauth-keygen
