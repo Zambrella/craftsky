@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/app.dart';
+import 'package:craftsky_app/app_dependencies.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -62,5 +63,6 @@ Future<void> bootstrap(WidgetsBinding widgetsBinding) async {
 
 /// Initialize all `dart_mappable` mappers here as models are added.
 void initializeMappers() {
-  // Empty until app_dependencies adds its mappers (Chunk 2).
+  AppDependenciesMapper.ensureInitialized();
+  CraftskyDeviceInfoMapper.ensureInitialized();
 }
