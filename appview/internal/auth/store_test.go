@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
@@ -345,7 +346,10 @@ func TestStore_SaveSessionUpdatesTimestamp(t *testing.T) {
 	}
 }
 
-// isNotFound is a helper so tests don't need to import errors.
+// isNotFound is a thin alias around errors.Is for the not-found sentinel,
+// kept so the assertion sites read cleanly. The whole point of having
+// ErrOAuthSessionNotFound exported is that callers can errors.Is against it —
+// don't use string comparison.
 func isNotFound(err error) bool {
-	return err != nil && err.Error() == auth.ErrOAuthSessionNotFound.Error()
+	return errors.Is(err, auth.ErrOAuthSessionNotFound)
 }
