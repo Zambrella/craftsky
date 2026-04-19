@@ -59,12 +59,12 @@ func TestDepsAuthServiceShape(t *testing.T) {
 		t.Errorf("dev: AuthService = %T, want *auth.MockAuthService", devDeps.AuthService)
 	}
 
-	// Prod: NotImplementedAuthService
+	// Prod: CraftskyAuthService
 	prodDeps := &Deps{
 		Config:      Config{Env: EnvProd},
-		AuthService: auth.NotImplementedAuthService{},
+		AuthService: &auth.CraftskyAuthService{},
 	}
-	if _, ok := prodDeps.AuthService.(auth.NotImplementedAuthService); !ok {
-		t.Errorf("prod: AuthService = %T, want auth.NotImplementedAuthService", prodDeps.AuthService)
+	if _, ok := prodDeps.AuthService.(*auth.CraftskyAuthService); !ok {
+		t.Errorf("prod: AuthService = %T, want *auth.CraftskyAuthService", prodDeps.AuthService)
 	}
 }

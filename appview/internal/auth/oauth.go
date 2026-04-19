@@ -5,19 +5,30 @@ import (
 	"errors"
 )
 
-// NotImplementedAuthService is the prod AuthService until real atproto
-// OAuth lands. It always returns an error. Wiring /whoami behind
-// Authenticated in prod deliberately produces 401s, exercising the
-// middleware path.
-type NotImplementedAuthService struct{}
+// ErrAuthTokenInvalid is returned by CraftskyAuthService.Authenticate
+// when the presented bearer token is empty, unknown, or revoked.
+// Middleware surfaces it as 401.
+var ErrAuthTokenInvalid = errors.New("invalid craftsky session token")
 
-var _ AuthService = (*NotImplementedAuthService)(nil)
+// CraftskyAuthService is the real AuthService used in production. It
+// resolves a bearer token to (DID, oauth_session_id) by looking it up
+// in the craftsky_sessions table via CraftskySessionStore.
+type CraftskyAuthService struct {
+	Store *CraftskySessionStore
+}
 
-// ErrAuthNotImplemented is returned by NotImplementedAuthService.Authenticate
-// so callers can type-check for it if they care (middleware doesn't — it
-// returns 401 regardless).
-var ErrAuthNotImplemented = errors.New("atproto OAuth not implemented yet")
+var _ AuthService = (*CraftskyAuthService)(nil)
 
-func (NotImplementedAuthService) Authenticate(ctx context.Context, token string) (AuthInfo, error) {
-	return AuthInfo{}, ErrAuthNotImplemented
+func (s *CraftskyAuthService) Authenticate(ctx context.Context, token string) (AuthInfo, error) {
+	if token == "" {
+		return AuthInfo{}, ErrAuthTokenInvalid
+	}
+	info, err := s.Store.Lookup(ctx, token)
+	if errors.Is(err, ErrCraftskySessionNotFound) {
+		return AuthInfo{}, ErrAuthTokenInvalid
+	}
+	if err != nil {
+		return AuthInfo{}, err
+	}
+	return info, nil
 }

@@ -92,9 +92,17 @@ func TestAuthenticated_MockHonoursXDevDID(t *testing.T) {
 	}
 }
 
-func TestAuthenticated_NotImplementedReturns401(t *testing.T) {
+// errorAuthSvc always returns an auth error regardless of token, standing in
+// for any service that rejects every token (e.g. invalid token, revoked, etc.).
+type errorAuthSvc struct{ err error }
+
+func (e *errorAuthSvc) Authenticate(_ context.Context, _ string) (auth.AuthInfo, error) {
+	return auth.AuthInfo{}, e.err
+}
+
+func TestAuthenticated_AlwaysErroringServiceReturns401(t *testing.T) {
 	var seen string
-	h := Authenticated(auth.NotImplementedAuthService{}, discardLogger())(passthroughHandler(&seen))
+	h := Authenticated(&errorAuthSvc{err: auth.ErrAuthTokenInvalid}, discardLogger())(passthroughHandler(&seen))
 	req := httptest.NewRequest("GET", "/whoami", nil)
 	req.Header.Set("Authorization", "Bearer anything")
 	rec := httptest.NewRecorder()
