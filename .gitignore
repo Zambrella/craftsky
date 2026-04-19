@@ -10,6 +10,7 @@ appview/tmp/
 
 # Worktrees
 .worktrees/
+.claude/worktrees/
 
 # Editors
 .vscode/
