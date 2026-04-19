@@ -57,7 +57,10 @@ await tester.pumpWidget(
     child: const App(),
   ),
 );
-await tester.pump(); // one frame — do NOT pumpAndSettle (would hang)
+// CircularProgressIndicator spins forever (AnimationController.repeat);
+// pumpAndSettle would time out. A single pump is enough — the initial
+// build is synchronous in pumpWidget.
+await tester.pump();
 ```
 
 Assertions:
@@ -82,7 +85,7 @@ appDependenciesProvider.overrideWith(
 Assertions:
 - `expect(find.byType(InitializationErrorScreen), findsOneWidget);`
 - `expect(find.text('Initialization Failed'), findsOneWidget);` — localized `initializationFailedTitle`.
-- `expect(find.textContaining('boot failed'), findsOneWidget);` — `error.toString()` rendered.
+- `expect(find.text('Exception: boot failed'), findsOneWidget);` — `error.toString()` rendered verbatim.
 - `expect(find.widgetWithText(ElevatedButton, 'Retry'), findsOneWidget);` — localized `retryButton`.
 
 This proves: the error path renders the right screen with the error text and a retry button. Does not assert on icons or styling — those are not behaviour.
@@ -145,38 +148,47 @@ tearDown(() async {
 Test body:
 
 ```dart
+bool isInitSevere(LogRecord r) =>
+    r.level == Level.SEVERE &&
+    r.message == 'App dependencies failed to initialize';
+
+final overrides = [
+  appDependenciesProvider.overrideWith(
+    (ref) async => throw Exception('boot failed'),
+  ),
+];
+
 await tester.pumpWidget(
   ProviderScope(
-    overrides: [
-      appDependenciesProvider.overrideWith(
-        (ref) async => throw Exception('boot failed'),
-      ),
-    ],
-    child: const App(),
+    overrides: overrides,
+    // A keyed App lets us swap the widget identity on a second pumpWidget
+    // call below, forcing App.build to re-run without re-transitioning the
+    // provider. This is what distinguishes "log on transition" from "log on
+    // every build". The same ProviderScope stays mounted across both pumps
+    // so the error AsyncValue is preserved.
+    child: const App(key: ValueKey('app-1')),
   ),
 );
 await tester.pumpAndSettle();
 
-final severeRecords = records
-    .where((r) => r.level == Level.SEVERE)
-    .where((r) => r.message == 'App dependencies failed to initialize')
-    .toList();
-expect(severeRecords, hasLength(1));
+expect(records.where(isInitSevere), hasLength(1));
 
-// Force several extra rebuilds of App without state changes.
-for (var i = 0; i < 3; i++) {
-  await tester.pump(const Duration(milliseconds: 16));
-}
+// Force App.build to run again with a fresh key. The provider state is
+// unchanged (still AsyncError) so ref.listen MUST NOT refire.
+await tester.pumpWidget(
+  ProviderScope(
+    overrides: overrides,
+    child: const App(key: ValueKey('app-2')),
+  ),
+);
+await tester.pumpAndSettle();
 
-// Count must not grow.
-final againSevere = records
-    .where((r) => r.level == Level.SEVERE)
-    .where((r) => r.message == 'App dependencies failed to initialize')
-    .toList();
-expect(againSevere, hasLength(1));
+expect(records.where(isInitSevere), hasLength(1));
 ```
 
-This proves: the `ref.listen` in `App.build` fires on transition (not on rebuild), matching the comment the scaffold carries. If someone refactors the logging into `App.build` itself, this test fails.
+This proves: the `ref.listen` in `App.build` fires on the `AsyncLoading → AsyncError` transition exactly once, and does not re-fire when `App.build` runs again with the provider already in `AsyncError`. If someone refactors the logging out of `ref.listen` and into the body of `App.build`, the second `pumpAndSettle` produces a second log record and this test fails.
+
+Note: simply pumping empty frames would not actually cause `App.build` to re-run (Riverpod only rebuilds on state change), so that approach wouldn't genuinely test the claim. Swapping the `App` widget's `key` forces Flutter to rebuild the subtree including `App.build` while leaving the `ProviderScope` (and therefore the cached error state) intact.
 
 ## Section 5 — Verification
 
