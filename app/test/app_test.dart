@@ -88,5 +88,41 @@ void main() {
       expect(find.text('Exception: boot failed'), findsOneWidget);
       expect(find.widgetWithText(ElevatedButton, 'Retry'), findsOneWidget);
     });
+
+    testWidgets('retry invalidates the provider and recovers to HomePage', (tester) async {
+      var attempt = 0;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          // Disable Riverpod 3.x auto-retry so this test only advances past
+          // the error state via the explicit Retry-button tap below.
+          // ProviderContainer.defaultRetry schedules a delayed rebuild on
+          // AsyncError, which would race `pumpAndSettle` to AsyncData before
+          // the test gets to see the error state at all.
+          retry: (_, _) => null,
+          overrides: [
+            appDependenciesProvider.overrideWith((ref) async {
+              attempt++;
+              if (attempt == 1) {
+                throw Exception('boot failed');
+              }
+              return stubDeps();
+            }),
+          ],
+          child: const App(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Sanity check: we're in the error state before the retry.
+      expect(find.byType(InitializationErrorScreen), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Retry'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(HomePage), findsOneWidget);
+      expect(find.byType(InitializationErrorScreen), findsNothing);
+      expect(attempt, 2);
+    });
   });
 }
