@@ -42,10 +42,17 @@ class AppTheme {
         filledButtonRadius: 999,
         outlinedButtonRadius: 999,
         textButtonRadius: 999,
-        // Form fields sit almost square — 2px corners per the system.
-        inputDecoratorRadius: 2,
+        // Chunky paper-cutout input: thick ink border, 14px corners, white
+        // fill on paper background. Labels render outside the field per the
+        // design — see `BrandTextField`.
+        inputDecoratorRadius: 14,
         inputDecoratorIsFilled: true,
+        inputDecoratorFillColor: BrandColors.paper3,
         inputDecoratorBorderType: FlexInputBorderType.outline,
+        inputDecoratorBorderWidth: 1.5,
+        inputDecoratorFocusedBorderWidth: 2,
+        inputDecoratorBorderSchemeColor: SchemeColor.onSurface,
+        inputDecoratorUnfocusedBorderIsColored: true,
         // Chips are pills.
         chipRadius: 999,
       ),

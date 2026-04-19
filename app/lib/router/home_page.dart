@@ -1,5 +1,6 @@
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -275,28 +276,29 @@ class TextFieldsSample extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const TextField(
-          decoration: InputDecoration(
-            labelText: 'Pattern name',
-            hintText: 'e.g. Wiksten Haori',
-            prefixIcon: Icon(Icons.search),
-          ),
+        const BrandTextField(
+          label: 'Pattern name',
+          hintText: 'e.g. Wiksten Haori',
+          prefixIcon: Icon(Icons.search),
         ),
-        SizedBox(height: sp.sp3),
-        const TextField(
+        SizedBox(height: sp.sp5),
+        const BrandTextField(
+          label: 'Fabric or yarn',
+          hintText: 'e.g. Merchant & Mills 185 linen, indigo',
+          helperText: 'What did you use? Brand and colour help other makers.',
+        ),
+        SizedBox(height: sp.sp5),
+        const BrandTextField(
+          label: 'Modifications',
+          hintText: 'What did you change?',
           maxLines: 3,
-          decoration: InputDecoration(
-            labelText: 'Modifications',
-            hintText: 'What did you change?',
-          ),
+          minLines: 3,
         ),
-        SizedBox(height: sp.sp3),
-        const TextField(
-          decoration: InputDecoration(
-            labelText: 'Fabric',
-            hintText: 'Merchant & Mills 185 linen, indigo',
-            errorText: 'Image needs to be under 20 MB.',
-          ),
+        SizedBox(height: sp.sp5),
+        const BrandTextField(
+          label: 'Cover image',
+          hintText: 'Paste an image URL',
+          errorText: 'Image needs to be under 20 MB.',
         ),
       ],
     );
