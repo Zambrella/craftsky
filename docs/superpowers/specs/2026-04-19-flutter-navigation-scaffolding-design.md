@@ -44,10 +44,14 @@ StatefulShellRoute (AppShell) — shell-scoped routes:
 **Shell vs root-navigator placement:**
 
 - `SettingsPage` is pushed on the **root navigator** from the profile page. It covers the whole screen and hides the bottom nav / rail — signals "you've left the main app."
-- `UserProfilePage` (`/profile/:handle` — viewing someone else's profile) is pushed on the **root navigator** over the shell, matching Instagram's pattern.
+- `UserProfilePage` (`/profile/:handle` — viewing someone else's profile) is pushed on the **root navigator** over the shell, matching Instagram's pattern. Navigating to one's own handle via `/profile/:handle` intentionally lands on `UserProfilePage` (not the shell profile tab) — no special-casing for the own-handle case.
 - `SavedPage` is a **child of the profile branch** so the bottom nav stays visible — it's content browsing, not a modal flow.
 
-**Route-class convention (go_router typed routes):** root-navigator routes set `static final GlobalKey<NavigatorState> $parentNavigatorKey = _NavigatorKeys.rootNavigatorKey;` so they push over the shell.
+**Initial branch:** Feed is Branch 0 and is the `StatefulShellRoute`'s default branch. Post-auth users land on `/feed`.
+
+**Route-class convention (go_router typed routes):** root-navigator routes (`WelcomeRoute`, `SignInRoute`, `OnboardingRoute`, `SettingsRoute`, `UserProfileRoute`) set `static final GlobalKey<NavigatorState> $parentNavigatorKey = _NavigatorKeys.rootNavigatorKey;` so they push over the shell. Shell-branch routes (`FeedRoute`, `SearchRoute`, `NotificationsRoute`, `ProfileRoute`, `SavedRoute`) do **not** set `$parentNavigatorKey` — they live inside their branch navigator.
+
+**Route constants:** `/feed` is the post-auth home and is referenced by both the redirect logic and the error screen's "Go home" button. Define it (and other repeated literals) once as `RouteLocations.home` / `RouteLocations.welcome` to prevent drift.
 
 ## Redirect Logic
 
@@ -63,7 +67,7 @@ Onboarding route (auth required, bypasses onboarding check): `/onboarding`.
 
 Two stubbed providers drive this:
 
-- `authStatusProvider` — returns `false` initially. A dev-only toggle on the welcome page can flip it to `true` during development so we can navigate through the flow.
+- `authStatusProvider` — returns `false` initially. A dev-only toggle on the welcome page can flip it to `true` during development so we can navigate through the flow. A dev-only "Sign out" button on `SettingsPage` flips it back to `false` so the dev can re-enter the unauthed flow without a hot restart.
 - `onboardingStatusProvider` — returns `false` initially. The onboarding page has a "Finish" button that flips it to `true`.
 
 Both live under their respective feature folders (`auth/providers/`, `onboarding/providers/`) and use the `@riverpod` annotation per [.claude/rules/riverpod.md](.claude/rules/riverpod.md).
