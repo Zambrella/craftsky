@@ -88,6 +88,8 @@ func (d *Dispatcher) Handle(ctx context.Context, ev tap.Event) error
 
 `Handle` looks up `ev.Collection` in `handlers`; on miss, delegates to `fallback`. Downstream errors propagate so Tap skips the ack and redelivers (the existing poison-pill guard in `WSConsumer` eventually drops truly bad events).
 
+The event's operation is read from `ev.Action` (the existing `tap.Event` field), with values `"create"`, `"update"`, `"delete"`. `Register` is expected to be called once during startup wiring, before the consumer starts running; it is not safe for concurrent use and deliberately skips locking.
+
 Wiring, in `deps.go` (or the existing appview bootstrap):
 
 ```go
@@ -116,6 +118,8 @@ appview/internal/testpipeline/
 
 `doc.go` states that the entire package is disposable, references the design doc, and lists the sibling files/migrations that get deleted together.
 
+`queries.sql` is colocated inside the package (rather than under the project's canonical `appview/queries/` directory) because the whole package is disposable and `rm -rf internal/testpipeline/` should remove everything in one stroke. The implementation plan must confirm this colocation works with the existing `sqlc.yaml` config or add a second input path to it.
+
 `indexer.go` implements `index.Indexer`:
 - On create/update: parse `ev.Record` as a test post; `INSERT ... ON CONFLICT (uri) DO UPDATE` setting cid/text/created_at and refreshing indexed_at.
 - On delete: `DELETE FROM test_posts WHERE uri = $1`.
@@ -128,7 +132,7 @@ Deletes are handled from day one — it's a single SQL statement and leaving del
 
 `GET /test/feed`, registered in `appview/internal/routes/`, handler in `internal/testpipeline/handler.go`.
 
-- **Auth:** none. This is a diagnostic — hittable with `curl` from anywhere.
+- **Auth:** none. This is a diagnostic — hittable with `curl` from anywhere *in environments where the route is registered*. The route MUST be gated behind a dev-only environment check (e.g. only registered when `CRAFTSKY_ENV != "production"` or equivalent) so it cannot be accidentally exposed on a production deployment. The plan nails down the exact gating mechanism to match existing appview conventions.
 - **Query params:** `limit` — integer, default 50, clamped to max 200. Invalid values → 400.
 - **No cursor/pagination.** If you need older posts, raise `limit`. A real pagination story belongs on the real feed.
 
@@ -227,4 +231,4 @@ The dispatcher itself stays.
 
 - **Dispatcher fallback noise:** `NotImplemented` errors on every non-test event once the firehose is actually carrying traffic. Acceptable for now because Tap's poison-pill guard caps the damage, but if the log noise becomes a problem before real indexers land, swap the fallback for a silent-drop. Tuning decision, not a blocker.
 - **Lexicon discoverability:** anyone reading `lexicon/` will see `social.craftsky.test.post` next to the real NSIDs. The `test` namespace + the `DISPOSABLE` description on the record should be enough signal, but if it isn't, a README in `lexicon/social/craftsky/test/` is a cheap follow-up.
-- **Tap event shape:** this design assumes `tap.Event` exposes `Collection`, `Op` (create/update/delete), `URI`, `CID`, and a raw `Record` payload. If any of those are missing or named differently, the dispatcher and indexer adapt; no design changes needed.
+- **Tap event shape:** this design uses the existing `tap.Event` fields `Collection`, `Action` (create/update/delete), `URI`, `CID`, and `Record`. Verified to match the current type; if any field name drifts in Tap work downstream, the dispatcher and indexer adapt without design changes.
