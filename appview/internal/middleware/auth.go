@@ -10,6 +10,7 @@ import (
 )
 
 const didKey contextKey = "did"
+const oauthSessionIDKey contextKey = "oauth_session_id"
 
 // GetDID extracts the authenticated DID injected by the Authenticated
 // middleware. Returns ("", false) if no middleware ran or if the request
@@ -18,6 +19,13 @@ const didKey contextKey = "did"
 func GetDID(ctx context.Context) (string, bool) {
 	did, ok := ctx.Value(didKey).(string)
 	return did, ok
+}
+
+// GetOAuthSessionID extracts the OAuth session ID injected by the
+// Authenticated middleware. Returns ("", false) if not present.
+func GetOAuthSessionID(ctx context.Context) (string, bool) {
+	sid, ok := ctx.Value(oauthSessionIDKey).(string)
+	return sid, ok
 }
 
 // Authenticated returns middleware that validates a bearer token via
@@ -63,7 +71,7 @@ func Authenticated(authService auth.AuthService, logger *slog.Logger) func(http.
 				ctx = auth.WithDevDID(ctx, devDID)
 			}
 
-			did, err := authService.Authenticate(ctx, token)
+			info, err := authService.Authenticate(ctx, token)
 			if err != nil {
 				logger.Warn("auth: Authenticate returned error",
 					slog.String("err", err.Error()),
@@ -72,7 +80,10 @@ func Authenticated(authService auth.AuthService, logger *slog.Logger) func(http.
 				return
 			}
 
-			ctx = context.WithValue(ctx, didKey, did)
+			ctx = context.WithValue(ctx, didKey, info.DID)
+			if info.SessionID != "" {
+				ctx = context.WithValue(ctx, oauthSessionIDKey, info.SessionID)
+			}
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

@@ -18,6 +18,6 @@ var _ AuthService = (*NotImplementedAuthService)(nil)
 // returns 401 regardless).
 var ErrAuthNotImplemented = errors.New("atproto OAuth not implemented yet")
 
-func (NotImplementedAuthService) Authenticate(ctx context.Context, token string) (string, error) {
-	return "", ErrAuthNotImplemented
+func (NotImplementedAuthService) Authenticate(ctx context.Context, token string) (AuthInfo, error) {
+	return AuthInfo{}, ErrAuthNotImplemented
 }

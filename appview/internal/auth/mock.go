@@ -11,9 +11,9 @@ type MockAuthService struct {
 
 var _ AuthService = (*MockAuthService)(nil)
 
-func (m *MockAuthService) Authenticate(ctx context.Context, token string) (string, error) {
+func (m *MockAuthService) Authenticate(ctx context.Context, token string) (AuthInfo, error) {
 	if did, ok := DevDIDFromContext(ctx); ok {
-		return did, nil
+		return AuthInfo{DID: did}, nil
 	}
-	return m.DefaultDID, nil
+	return AuthInfo{DID: m.DefaultDID}, nil
 }

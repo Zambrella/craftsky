@@ -29,8 +29,8 @@ func TestMockAuthService_FallsBackToDefaultDID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if got != "did:plc:default" {
-		t.Errorf("did = %q, want did:plc:default", got)
+	if got.DID != "did:plc:default" {
+		t.Errorf("did = %q, want did:plc:default", got.DID)
 	}
 }
 
@@ -41,8 +41,8 @@ func TestMockAuthService_PrefersDevDIDFromContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if got != "did:plc:override" {
-		t.Errorf("did = %q, want did:plc:override", got)
+	if got.DID != "did:plc:override" {
+		t.Errorf("did = %q, want did:plc:override", got.DID)
 	}
 }
 

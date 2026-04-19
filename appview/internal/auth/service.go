@@ -13,9 +13,16 @@ package auth
 
 import "context"
 
-// AuthService validates a bearer token and returns the authenticated DID.
+// AuthInfo carries the authenticated identity and its OAuth session ID.
+// Dev/mock implementations return SessionID = "" and consumers must tolerate that.
+type AuthInfo struct {
+	DID       string
+	SessionID string
+}
+
+// AuthService validates a bearer token and returns the authenticated identity.
 type AuthService interface {
-	Authenticate(ctx context.Context, token string) (did string, err error)
+	Authenticate(ctx context.Context, token string) (AuthInfo, error)
 }
 
 // contextKey is unexported to prevent collisions across packages.

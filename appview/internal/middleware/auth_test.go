@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -103,5 +104,31 @@ func TestAuthenticated_NotImplementedReturns401(t *testing.T) {
 	}
 	if strings.TrimSpace(rec.Body.String()) != "Unauthorized" {
 		t.Errorf("body = %q, want Unauthorized", rec.Body.String())
+	}
+}
+
+// fakeAuthSvc is a minimal AuthService that returns a fixed DID and session ID.
+type fakeAuthSvc struct {
+	did    string
+	sessID string
+}
+
+func (f *fakeAuthSvc) Authenticate(_ context.Context, _ string) (auth.AuthInfo, error) {
+	return auth.AuthInfo{DID: f.did, SessionID: f.sessID}, nil
+}
+
+func TestAuthenticatedInjectsOAuthSessionID(t *testing.T) {
+	svc := &fakeAuthSvc{did: "did:plc:xyz", sessID: "sess-123"}
+	var gotDID, gotSID string
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotDID, _ = GetDID(r.Context())
+		gotSID, _ = GetOAuthSessionID(r.Context())
+	})
+	h := Authenticated(svc, discardLogger())(next)
+	req := httptest.NewRequest("GET", "/x", nil)
+	req.Header.Set("Authorization", "Bearer t")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	if gotDID != "did:plc:xyz" || gotSID != "sess-123" {
+		t.Fatalf("ctx mismatch: did=%q sid=%q", gotDID, gotSID)
 	}
 }
