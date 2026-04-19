@@ -38,7 +38,7 @@ class ErrorScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               ElevatedButton.icon(
-                onPressed: () => const HomeRoute().go(context),
+                onPressed: () => const FeedRoute().go(context),
                 icon: const Icon(Icons.home),
                 label: Text(l10n.goHomeButton),
               ),
