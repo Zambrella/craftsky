@@ -12,6 +12,7 @@ The Flutter app currently has no localization pipeline. All user-facing strings 
 - `ErrorScreen` (from `GoRouter.errorBuilder`) — "Something went wrong", "Go home".
 - `InitializationErrorScreen` (in `app.dart`) — "Initialization Failed", "Retry".
 - `MaterialApp.title` — "Craftsky" in three places.
+- `main.dart`'s release-mode `ErrorWidget.builder` fallback — "An error occurred rendering this element". See the "Decisions" block below for why this one stays unlocalized despite being user-facing.
 
 `pubspec.yaml` has `intl: ^0.20.2` (used by `appDependenciesProvider` for date formatting) but not `flutter_localizations`. `bootstrap.dart` sets `Intl.defaultLocale` from `PlatformDispatcher.instance.locale`. `MaterialApp.router` has no `localizationsDelegates` or `supportedLocales`.
 
@@ -23,7 +24,12 @@ This spec lays the Flutter [i18n](https://docs.flutter.dev/ui/internationalizati
 - **Device locale only.** `MaterialApp` picks from `supportedLocales` using the OS locale. No user-facing picker, no persistence, no `LocaleNotifier`. That plumbing lands with the first translator.
 - **`gen_l10n` with real (non-synthetic) output files.** `synthetic-package: false`, output committed to `lib/l10n/generated/`. Consistent with the rest of the scaffold's codegen (`*.g.dart`, `*.mapper.dart`, `router.g.dart`) — all checked in. Gives IDE "go to definition," avoids the magic `package:flutter_gen/` path.
 - **`nullable-getter: false`.** `AppLocalizations.of(context)` returns non-nullable. Safe because the delegate is registered on every `MaterialApp` in `app.dart`.
-- **Diagnostic strings stay raw English.** Log messages, `bootstrap.dart` output, exception `toString()`, and the `errorBuilder` fallback (`'Unknown routing error'`, shown only when `GoRouterState.error` is null — a bug indicator, not user-facing copy) are not localized.
+- **Diagnostic and above-tree strings stay raw English.** Three categories, for three different reasons:
+  - **Log messages and `bootstrap.dart` output** — developer-facing only.
+  - **Exception `error.toString()`** — exception messages are not translatable text; they're debug state.
+  - **`errorBuilder` fallback `'Unknown routing error'`** — shown only when `GoRouterState.error` is null, which indicates a bug. Not meaningful user copy.
+  - **`main.dart`'s `ErrorWidget.builder` release fallback "An error occurred rendering this element"** — this one is *genuinely* user-facing, but it renders in a `Directionality`-injected subtree that is *above* any `MaterialApp`. `AppLocalizations.of(context)` requires the `Localizations` scope that `MaterialApp` provides, so calling it here would crash. Leaving English is the only correct option; the alternative is a translated `Map` keyed by device locale, which is more plumbing than a last-resort catastrophe message warrants.
+- **Unsupported-locale fallback.** If the device locale isn't in `AppLocalizations.supportedLocales`, Flutter's default `Localizations` resolver picks the first entry — `en` — which is also the template. No explicit `localeResolutionCallback` needed.
 
 ## Out of scope
 
@@ -33,6 +39,7 @@ This spec lays the Flutter [i18n](https://docs.flutter.dev/ui/internationalizati
 - iOS Xcode `Runner` localizations registration (App Store metadata; not needed for render correctness).
 - `use-deferred-loading: true` for web (useful with many locales; premature with one).
 - Localizing `error.toString()` output from exceptions.
+- Replacing the `'Unknown routing error'` fallback with `assert(state.error != null)` in debug (noted for a later pass — out of scope here).
 
 ## Section 1 — Dependencies & configuration
 
@@ -186,16 +193,16 @@ No changes. `Intl.defaultLocale` setup remains (used by `intl` for date/number f
 
 ### Smoke test update
 
-`app/test/widget_test.dart`'s existing assertion `expect(find.text('Craftsky'), findsWidgets)` keeps passing because English resolves to the same literal. Add an affirmative assertion that `Localizations` is wired:
+`app/test/widget_test.dart`'s existing assertion `expect(find.text('Craftsky'), findsWidgets)` keeps passing because English resolves to the same literal. Add one affirmative assertion that actually exercises `AppLocalizations` (the lookup crashes if the delegate isn't in `localizationsDelegates`):
 
 ```dart
 expect(
-  Localizations.localeOf(tester.element(find.byType(HomePage))),
-  isNotNull,
+  AppLocalizations.of(tester.element(find.byType(HomePage))).appTitle,
+  'Craftsky',
 );
 ```
 
-This is one line in the existing test — not a new test file.
+This is one line in the existing test plus the import — not a new test file.
 
 ### Final verification gate
 
