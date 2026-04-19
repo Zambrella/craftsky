@@ -37,13 +37,12 @@ Five concerns, each in its own layer:
 
 ### `lib/main.dart`
 
-Wraps `runApp` in `runZonedGuarded`. Ensures widgets binding, calls `registerErrorHandlers()`, then `await bootstrap(binding)`. Top-level uncaught errors are logged via `dart:developer` `log` (bootstrap hasn't necessarily completed, so we can't assume the app logger is configured yet).
+Wraps `runApp` in `runZonedGuarded`. In order: ensures widgets binding, configures the `logging` package (`Logger.root.level = Level.FINE` and the `onRecord` debug-print listener — done here so error handlers and bootstrap can both log through it), calls `registerErrorHandlers()`, then `await bootstrap(binding)`. Top-level uncaught errors inside `runZonedGuarded` log via `dart:developer` `log` as a last-resort sink.
 
 ### `lib/bootstrap.dart`
 
 Platform and Flutter init that must **never** throw in production. In order:
 
-- Configure the `logging` package: `Logger.root.level = Level.FINE`, `onRecord` listener that prints formatted records when `kDebugMode`.
 - `usePathUrlStrategy()` for web (removes `#` from URLs).
 - Web short-circuit: on `kIsWeb`, skip native-only init and call `runApp` immediately.
 - Set `Intl.defaultLocale` from `PlatformDispatcher.instance.locale`.
@@ -52,21 +51,23 @@ Platform and Flutter init that must **never** throw in production. In order:
 - On Android: `SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge)` + transparent system nav bar overlay.
 - Finally `runApp(ProviderScope(child: const App()))`.
 
-`registerErrorHandlers()` is a top-level function in the same file that wires:
+`registerErrorHandlers()` is a top-level function in `main.dart` that wires:
 
 - `FlutterError.onError` → present + log via `logging`.
 - `PlatformDispatcher.instance.onError` → log and return `true`.
 - `ErrorWidget.builder` → in debug, default `ErrorWidget`; in release, a minimal red fallback with "An error occurred rendering this element".
 
+Because logging is configured in `main` before `registerErrorHandlers()` runs, all handler output reaches the root logger.
+
 ### `lib/app.dart`
 
 `App extends ConsumerWidget`. It watches `appDependenciesProvider` (see Section 2) and returns:
 
-- `AsyncData()` → `MaterialApp.router` with `routerConfig: ref.watch(goRouterProvider)` and the theme from `ref.watch(themeProvider)`, wrapped in `TextScaleFactorClamper` and `FormFactorWidget`.
+- `AsyncData()` → `MaterialApp.router` with `routerConfig: ref.watch(goRouterProvider)` and the theme from `ref.watch(themeModeProvider)`, wrapped in `TextScaleFactorClamper` and `FormFactorWidget`.
 - `AsyncError(:final error)` → `InitializationErrorScreen` with a retry button that calls `ref.invalidate(appDependenciesProvider)`.
 - default → `InitializationLoadingScreen` (centered `CircularProgressIndicator`).
 
-Both error and loading screens are standalone widget classes in `app.dart` for now (simple enough that a separate file per screen would be overkill — move out if they grow).
+`InitializationErrorScreen` and `InitializationLoadingScreen` are **top-level** widget classes in `app.dart` (not private nested classes), alongside `App` itself. Three small classes in one file; move out if any grows.
 
 ## Section 2 — App dependencies provider
 
@@ -115,12 +116,20 @@ Future<AppDependencies> appDependencies(Ref ref) async {
 }
 ```
 
-Accessor providers, each `@Riverpod(keepAlive: true)`, using `.select` on `appDependenciesProvider.requireValue` so downstream code never unwraps `AsyncValue`:
+Accessor providers, each `@Riverpod(keepAlive: true)`. Each one calls `ref.watch(appDependenciesProvider.select((a) => a.requireValue.<field>))` so downstream code never unwraps `AsyncValue`:
 
 - `sharedPreferences(Ref ref)` → `SharedPreferences`
 - `packageInfo(Ref ref)` → `PackageInfo`
 - `deviceInfo(Ref ref)` → `CraftskyDeviceInfo`
 - `appVersion(Ref ref)` → `Version` (from `pub_semver`)
+
+Example:
+
+```dart
+@Riverpod(keepAlive: true)
+SharedPreferences sharedPreferences(Ref ref) =>
+    ref.watch(appDependenciesProvider.select((a) => a.requireValue.sharedPreferences));
+```
 
 `_resolveDeviceInfo()` is a private top-level function that branches on `kIsWeb` + `defaultTargetPlatform` and throws `UnsupportedError` for unsupported platforms. Only Android, iOS, and Web are supported in this scaffold.
 
@@ -157,7 +166,7 @@ GoRouter goRouter(Ref ref) {
     navigatorKey: _NavigatorKeys.rootNavigatorKey,
     debugLogDiagnostics: true,
     routes: $appRoutes,
-    errorBuilder: (context, state) => ErrorRoute(error: state.error!).build(context, state),
+    errorBuilder: (context, state) => ErrorScreen(error: state.error!),
   );
 }
 ```
@@ -181,7 +190,7 @@ class HomeRoute extends GoRouteData with $HomeRoute {
 
 ### `lib/router/error_screen.dart`
 
-`ErrorScreen({required Exception error})` — centered icon, text, and a "Go home" `ElevatedButton` that calls `const HomeRoute().go(context)`. `ErrorRoute extends GoRouteData` — not `@TypedGoRoute`-registered; reached only via `GoRouter.errorBuilder`.
+`ErrorScreen({required Exception error}) extends StatelessWidget` — centered icon, text, and a "Go home" `ElevatedButton` that calls `const HomeRoute().go(context)`. No `GoRouteData` subclass here; `ErrorScreen` is constructed directly from `GoRouter.errorBuilder`.
 
 ### `lib/router/widgets/`
 
@@ -214,25 +223,27 @@ Each implements `copyWith` and `lerp` per the `ThemeExtension` contract.
 
 ```dart
 @Riverpod(keepAlive: true)
-class Theme extends _$Theme {
+class ThemeModeNotifier extends _$ThemeModeNotifier {
   static const _prefsKey = 'theme_mode';
 
   @override
-  Future<ThemeMode> build() async {
+  ThemeMode build() {
     final prefs = ref.watch(sharedPreferencesProvider);
     return _parse(prefs.getString(_prefsKey));
   }
 
-  Future<void> setTheme(ThemeMode mode) async {
+  Future<void> setMode(ThemeMode mode) async {
     final prefs = ref.read(sharedPreferencesProvider);
     await prefs.setString(_prefsKey, mode.name);
     if (!ref.mounted) return;
-    state = AsyncData(mode);
+    state = mode;
   }
 }
 ```
 
-`_parse` returns `ThemeMode.system` for `null` / unknown strings. `App` watches this and passes `themeMode:` to `MaterialApp.router`, defaulting to `system` on `AsyncLoading`/`AsyncError` via a switch expression (per riverpod rule: no `.when()`).
+Named `ThemeModeNotifier` to avoid colliding with Flutter's `Theme` widget (ubiquitous via `Theme.of(context)`); the generated provider is `themeModeNotifierProvider`. `_parse` returns `ThemeMode.system` for `null` / unknown strings.
+
+`build()` is synchronous — `sharedPreferencesProvider` is already resolved by the time any widget watches this (gated by `appDependenciesProvider`), so per the riverpod rule "use `FutureOr<T>` for providers that don't load initially," we avoid the async-loading transition entirely. `App` watches `themeModeNotifierProvider` and passes the value directly to `MaterialApp.router`'s `themeMode:` parameter.
 
 ### `lib/theme/form_factor.dart`
 
@@ -251,7 +262,7 @@ enum FormFactor {
 }
 ```
 
-`FormFactorWidget extends InheritedWidget` with a static `of(BuildContext)` that returns the current `FormFactor`. Resolved once in `App`'s `didChangeDependencies` based on `MediaQuery.of(context).size.width`.
+`FormFactorWidget` is a plain `StatelessWidget` that derives the `FormFactor` from `MediaQuery.sizeOf(context).width` on every build and then provides it down the tree via a private `_FormFactorScope extends InheritedWidget`. `FormFactorWidget.of(BuildContext)` looks up the scope and returns the current `FormFactor`. Computing on every build (rather than caching once) means orientation and window-resize changes propagate correctly. `App` wraps `MaterialApp.router`'s builder (or places `FormFactorWidget` above it) so every route has access.
 
 ### `lib/theme/text_scale_factor_clamper.dart`
 
@@ -307,7 +318,8 @@ Runtime dependencies:
 - `flex_color_scheme: ^8.4.0`
 - `dynamic_color: ^1.8.1`
 - `dart_mappable: ^4.6.1`
-- `atproto: ^0.16.0` (latest stable; imported as a placeholder / to lock the SDK version. Actual calls land with the OAuth BFF feature.)
+
+(`atproto.dart` is intentionally **not** added in this scaffold — it comes with the first feature that needs it, to avoid locking a version we don't yet consume.)
 
 Dev dependencies:
 
@@ -323,12 +335,14 @@ Version pins match squiddies where possible. The agent executing the plan should
 
 ### Smoke test
 
-`test/widget_test.dart` replaced with a minimal test that:
+Replace the default `test/widget_test.dart` with a minimal test that:
 
-- Wraps `const App()` in `ProviderScope` with any overrides needed to bypass native platform channels (or skips via `testWidgets('scaffold boots', ...)` tagged `@Tags(['integration'])` if wrapping is too painful).
-- Pumps and verifies the placeholder `HomePage` renders, or at minimum that `App` constructs without throwing.
+- Calls `SharedPreferences.setMockInitialValues({})` in `setUp`.
+- Uses `PackageInfo.setMockInitialValues(...)` to stub `package_info_plus` (avoids the native channel call).
+- Pumps `ProviderScope(child: const App())` and awaits `tester.pumpAndSettle()`.
+- Asserts that after settling, the `HomePage` placeholder renders (e.g. `expect(find.byType(HomePage), findsOneWidget)`).
 
-This keeps CI green and gives future contributors a working test file to extend.
+`device_info_plus` may need a channel-mock helper as well; if wrapping that grows the test beyond ~30 lines, pull the mocking into a `test/test_helpers.dart`. Keep the entry-level `widget_test.dart` short.
 
 ## Verification
 
