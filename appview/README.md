@@ -121,6 +121,76 @@ In dev (`OAUTH_HOSTNAME` unset) the appview runs as a public client
 against `http://127.0.0.1:8080/oauth/callback` and does not require a
 client secret.
 
+### Running the OAuth flow manually (dev)
+
+There is no `cli login` subcommand yet (tracked as future work in the
+[OAuth spec §6](../docs/superpowers/specs/2026-04-18-appview-oauth-bff-design.md)).
+For now, the flow is driven by `curl` plus a real browser:
+
+**1. Get an authorize URL.** Replace `YOUR_HANDLE` with any atproto
+handle you have credentials for:
+
+```bash
+curl -s -X POST http://localhost:8080/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"handle":"YOUR_HANDLE","handoff_mode":"deep_link"}' | jq -r .auth_url
+```
+
+**2. Open the printed URL in a browser.** Sign in at the PDS, approve
+the requested scopes (`atproto`, `transition:generic`).
+
+**3. The PDS redirects to `/oauth/callback`.** The appview exchanges
+the code for tokens, mints a Craftsky bearer token, and renders an HTML
+page. `window.location.replace("craftsky://...")` will silently fail
+(no app registered for the scheme) — **expected**. Because dev mode is
+on, the page also displays the token in plaintext under
+`<code id="devtok">...</code>`. Copy it.
+
+**4. Use the token:**
+
+```bash
+TOKEN='<paste-here>'
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/whoami | jq .
+# {"did":"did:plc:..."}
+```
+
+**5. Logout (single device):**
+
+```bash
+curl -is -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8080/auth/logout
+```
+
+**Or all devices** (revokes the underlying OAuth session, cascades
+through all bearer tokens for the DID):
+
+```bash
+curl -is -X POST -H "Authorization: Bearer $TOKEN" \
+  'http://localhost:8080/auth/logout?all=true'
+```
+
+### Inspecting OAuth state
+
+```bash
+just psql -c 'SELECT account_did, session_id, updated_at FROM oauth_sessions;'
+just psql -c 'SELECT encode(token_hash, '\''hex'\''), account_did, oauth_session_id, last_seen_at, revoked_at FROM craftsky_sessions;'
+just psql -c "SELECT state, handoff_mode, data->>'request_uri' AS request_uri, age(now(), created_at) AS age FROM oauth_auth_requests;"
+```
+
+### Dev-only auth shortcut
+
+For non-OAuth smoke tests, the dev appview also accepts an
+`X-Dev-DID` header as a fallback when the bearer token doesn't match a
+real Craftsky session. Useful for testing `/whoami`-style endpoints
+without doing OAuth first:
+
+```bash
+curl -s -H 'Authorization: Bearer ignored' \
+       -H 'X-Dev-DID: did:plc:example' http://localhost:8080/whoami
+```
+
+The fallback is **dev-only** and only fires when the bearer token is
+invalid — a real OAuth-issued token always takes precedence.
+
 ## Why Go
 
 See the reference doc's "Tech Stack" section. TL;DR: contributor accessibility, ecosystem maturity, single static binary deploys, alignment with the atproto Go ecosystem (`indigo`).
