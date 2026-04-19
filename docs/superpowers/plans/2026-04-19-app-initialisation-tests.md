@@ -150,9 +150,11 @@ testWidgets('loading state renders CircularProgressIndicator', (tester) async {
   // build is synchronous in pumpWidget.
   await tester.pump();
 
-  // Wrong on purpose — expect these to fail to confirm the test is wired.
-  expect(find.byType(CircularProgressIndicator), findsNothing);
-  expect(find.byType(HomePage), findsOneWidget);
+  // Wrong on purpose: assert a *positively false* statement so the red step
+  // can't pass vacuously. If the fixture is wired correctly, the tree shows
+  // _LoadingApp (a MaterialApp around InitializationLoadingScreen), not
+  // InitializationErrorScreen — so this findsOneWidget call MUST fail.
+  expect(find.byType(InitializationErrorScreen), findsOneWidget);
 });
 ```
 
@@ -160,11 +162,11 @@ testWidgets('loading state renders CircularProgressIndicator', (tester) async {
 
 Run: `flutter test test/app_test.dart`
 
-Expected: the test fails. The first `expect` should fail with something like `Expected: no matching candidates / Actual: _MatcherFound at …/CircularProgressIndicator`. This confirms the `ProviderScope` override is actually producing the loading state and the spinner is in the tree. If it fails for a different reason (e.g. the provider resolved), investigate before proceeding.
+Expected: the test fails with `Expected: exactly one matching candidate / Actual: _MatcherZero matching candidates` against `InitializationErrorScreen`. That confirms the `ProviderScope` override is producing the loading state (no error screen) and the harness is working. If it fails because `InitializationErrorScreen` *was* found, something is wrong with the override and you must stop and investigate — the completer isn't suspending the provider.
 
-- [ ] **Step 3: Flip the assertions to the correct sign**
+- [ ] **Step 3: Replace with the correct assertions**
 
-Replace the two wrong-on-purpose `expect`s with:
+Swap the single wrong-on-purpose `expect` for the three real assertions:
 
 ```dart
   expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -173,7 +175,7 @@ Replace the two wrong-on-purpose `expect`s with:
 });
 ```
 
-Add `import 'package:craftsky_app/app.dart'` is already there; `InitializationErrorScreen` comes from `app.dart` already imported.
+`InitializationErrorScreen` is already importable via `app.dart` from the existing imports.
 
 - [ ] **Step 4: Run test, confirm it passes**
 
@@ -365,14 +367,16 @@ Delete the wrong-on-purpose expect and complete the test:
     expect(records.where(isInitSevere), hasLength(1));
 
     // Force App.build to run again with a fresh ValueKey. The ProviderScope
-    // (and its cached AsyncError for appDependenciesProvider) persists across
-    // the pumpWidget call because the overrides list is identical, so only
-    // the App widget identity changes. Riverpod's WidgetRef.listen has no
-    // fireImmediately flag (by design — see flutter_riverpod 3.x
-    // consumer.dart), so a new registration on an already-errored provider
-    // does NOT fire. If someone refactors the logging out of ref.listen and
-    // into App.build proper, the second pumpAndSettle below would produce a
-    // second SEVERE record and this assertion would fail.
+    // (and its cached AsyncError for appDependenciesProvider) should persist
+    // across this second pumpWidget call because the widget type at the root
+    // position matches and the overrides list instance is identical — Flutter
+    // reuses the Element, and ProviderScope's Element owns the
+    // ProviderContainer. Riverpod's WidgetRef.listen has no fireImmediately
+    // flag (by design — see flutter_riverpod 3.x consumer.dart:496), so a new
+    // registration on an already-errored provider does NOT fire. If someone
+    // refactors the logging out of ref.listen and into App.build proper, the
+    // second pumpAndSettle below would produce a second SEVERE record and
+    // this assertion would fail.
     await tester.pumpWidget(
       ProviderScope(
         overrides: overrides,
@@ -385,6 +389,8 @@ Delete the wrong-on-purpose expect and complete the test:
   },
 );
 ```
+
+**Empirical verification note for the implementer:** the ProviderScope-reuse assumption above is the load-bearing claim of this test. If the second `pumpWidget` creates a *fresh* `ProviderContainer`, the provider will re-execute, re-throw, re-emit a SEVERE record, and the test will fail with `hasLength(2)`. If that happens, the mechanic is wrong for this Flutter/Riverpod version — stop and investigate rather than papering over (e.g. don't just change the assertion to `hasLength(2)` — that wouldn't prove "doesn't refire on rebuild"). Correct workaround is to reuse the same `ProviderScope` identity by wrapping tests in a `StatefulBuilder` that controls only the `App` key. Escalate to the controller if this path is needed.
 
 - [ ] **Step 4: Run, confirm passes**
 
@@ -424,6 +430,18 @@ Expected: `No issues found!`.
 Run: `dart format .`
 
 Expected: no changes (trailing-commas preserve + reasonable layout means the hand-written test file should already be canonical). If format edits the new file, fold those changes into an amend of the last commit.
+
+- [ ] **Step 5: Verify no production code changed**
+
+Run (from repo root): `git diff <base-sha>..HEAD -- 'app/lib/**'`
+
+Expected: empty output. This is a test-only change; any diff against `app/lib/` is a bug.
+
+- [ ] **Step 6: Verify commit count**
+
+Run (from repo root): `git log --oneline <base-sha>..HEAD`
+
+Expected: five new commits — scaffold + four test commits. If more, you either amended wrong or made unrelated changes; if fewer, you batched commits that should have been separate.
 
 ---
 
