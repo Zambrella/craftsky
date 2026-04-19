@@ -397,7 +397,17 @@ cd app && flutter gen-l10n
 
 Expected: exits 0, no unexpected changes to `lib/l10n/generated/*`.
 
-- [ ] **Step 2: Analyze**
+- [ ] **Step 2: Spot-check generated shape**
+
+Quickly grep for the two surfaces `app.dart` depends on:
+
+```bash
+grep -E 'localizationsDelegates|supportedLocales' app/lib/l10n/generated/app_localizations.dart | head
+```
+
+Expected: both `localizationsDelegates` and `supportedLocales` static members declared on `AppLocalizations`. If either is missing, `gen_l10n` produced an unexpected shape — halt and report.
+
+- [ ] **Step 3: Analyze**
 
 ```bash
 cd app && flutter analyze
@@ -405,7 +415,7 @@ cd app && flutter analyze
 
 Expected: `No issues found!`.
 
-- [ ] **Step 3: custom_lint**
+- [ ] **Step 4: custom_lint**
 
 ```bash
 cd app && dart run custom_lint
@@ -413,7 +423,7 @@ cd app && dart run custom_lint
 
 Expected: `No issues found!`. If `custom_lint` flags something in `lib/l10n/generated/`, the `analyzer.exclude` from Task 3 isn't propagating — fix by adding the path to `custom_lint`'s own config (at the plugin's recommended location) and report as a deviation.
 
-- [ ] **Step 4: Test**
+- [ ] **Step 5: Test**
 
 ```bash
 cd app && flutter test
@@ -421,7 +431,7 @@ cd app && flutter test
 
 Expected: `+5: All tests passed!` (4 theme tests + 1 widget test).
 
-- [ ] **Step 5: Web build**
+- [ ] **Step 6: Web build**
 
 ```bash
 cd app && flutter build web
