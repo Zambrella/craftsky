@@ -1,5 +1,6 @@
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -177,39 +178,24 @@ class ButtonsSample extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final sp = theme.extension<SpacingTheme>()!;
-    final shadows = theme.extension<BrandShadowTheme>()!;
 
     return Wrap(
       spacing: sp.sp3,
       runSpacing: sp.sp3,
       children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: shadows.dropSm,
-          ),
-          child: FilledButton(
-            onPressed: () {},
-            child: const Text('Share'),
-          ),
+        ChunkyButton(
+          onPressed: () {},
+          child: const Text('Share'),
         ),
         OutlinedButton(
           onPressed: () {},
           child: const Text('Follow'),
         ),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: shadows.dropSm,
-          ),
-          child: FilledButton(
-            onPressed: () {},
-            style: FilledButton.styleFrom(
-              backgroundColor: theme.colorScheme.secondary,
-              foregroundColor: theme.colorScheme.onSecondary,
-            ),
-            child: const Text('Report'),
-          ),
+        ChunkyButton(
+          onPressed: () {},
+          backgroundColor: theme.colorScheme.secondary,
+          foregroundColor: theme.colorScheme.onSecondary,
+          child: const Text('Report'),
         ),
         TextButton(
           onPressed: () {},
