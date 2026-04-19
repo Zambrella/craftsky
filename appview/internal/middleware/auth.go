@@ -7,25 +7,33 @@ import (
 	"strings"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/ctxkeys"
 )
-
-const didKey contextKey = "did"
-const oauthSessionIDKey contextKey = "oauth_session_id"
 
 // GetDID extracts the authenticated DID injected by the Authenticated
 // middleware. Returns ("", false) if no middleware ran or if the request
 // reached the handler without authentication (which shouldn't happen on
 // routes wired via Authenticated, but GetDID stays safe either way).
 func GetDID(ctx context.Context) (string, bool) {
-	did, ok := ctx.Value(didKey).(string)
-	return did, ok
+	return ctxkeys.GetDID(ctx)
 }
 
 // GetOAuthSessionID extracts the OAuth session ID injected by the
 // Authenticated middleware. Returns ("", false) if not present.
 func GetOAuthSessionID(ctx context.Context) (string, bool) {
-	sid, ok := ctx.Value(oauthSessionIDKey).(string)
-	return sid, ok
+	return ctxkeys.GetOAuthSessionID(ctx)
+}
+
+// WithDID stores did in ctx under the same key the Authenticated middleware uses.
+// Exported for tests that want to skip middleware setup.
+func WithDID(ctx context.Context, did string) context.Context {
+	return ctxkeys.WithDID(ctx, did)
+}
+
+// WithOAuthSessionID stores sid in ctx under the same key the Authenticated middleware uses.
+// Exported for tests.
+func WithOAuthSessionID(ctx context.Context, sid string) context.Context {
+	return ctxkeys.WithOAuthSessionID(ctx, sid)
 }
 
 // Authenticated returns middleware that validates a bearer token via
@@ -80,9 +88,9 @@ func Authenticated(authService auth.AuthService, logger *slog.Logger) func(http.
 				return
 			}
 
-			ctx = context.WithValue(ctx, didKey, info.DID)
+			ctx = ctxkeys.WithDID(ctx, info.DID)
 			if info.SessionID != "" {
-				ctx = context.WithValue(ctx, oauthSessionIDKey, info.SessionID)
+				ctx = ctxkeys.WithOAuthSessionID(ctx, info.SessionID)
 			}
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
