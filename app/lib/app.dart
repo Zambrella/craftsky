@@ -1,4 +1,5 @@
 import 'package:craftsky_app/app_dependencies.dart';
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
@@ -44,11 +45,13 @@ class _ReadyApp extends ConsumerWidget {
     final router = ref.watch(goRouterProvider);
 
     return MaterialApp.router(
-      title: 'Craftsky',
+      onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       theme: AppTheme.lightThemeData,
       darkTheme: AppTheme.darkThemeData,
       themeMode: themeMode,
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       routerConfig: router,
       builder: (context, child) {
         return TextScaleFactorClamper(
@@ -68,6 +71,8 @@ class _LoadingApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: InitializationLoadingScreen(),
     );
   }
@@ -82,6 +87,8 @@ class _ErrorApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: InitializationErrorScreen(
         error: error,
         onRetry: () => ref.invalidate(appDependenciesProvider),
@@ -113,6 +120,7 @@ class InitializationErrorScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Scaffold(
       body: Center(
@@ -128,7 +136,7 @@ class InitializationErrorScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'Initialization Failed',
+                l10n.initializationFailedTitle,
                 style: theme.textTheme.headlineSmall,
               ),
               const SizedBox(height: 8),
@@ -141,7 +149,7 @@ class InitializationErrorScreen extends StatelessWidget {
               ElevatedButton.icon(
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
+                label: Text(l10n.retryButton),
               ),
             ],
           ),

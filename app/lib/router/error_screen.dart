@@ -1,3 +1,4 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:flutter/material.dart';
 
@@ -10,6 +11,7 @@ class ErrorScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Scaffold(
       body: Center(
@@ -25,7 +27,7 @@ class ErrorScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'Something went wrong',
+                l10n.routingErrorTitle,
                 style: theme.textTheme.headlineSmall,
               ),
               const SizedBox(height: 8),
@@ -38,7 +40,7 @@ class ErrorScreen extends StatelessWidget {
               ElevatedButton.icon(
                 onPressed: () => const HomeRoute().go(context),
                 icon: const Icon(Icons.home),
-                label: const Text('Go home'),
+                label: Text(l10n.goHomeButton),
               ),
             ],
           ),

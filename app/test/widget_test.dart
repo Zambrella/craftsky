@@ -47,6 +47,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(HomePage), findsOneWidget);
-    expect(find.text('Craftsky'), findsWidgets);
+    // These two assertions between them prove the AppLocalizations delegate
+    // resolved and that both static and parameterized keys render: the
+    // subtitle is a static string only reachable through `l10n.homeSubtitle`,
+    // and the version label is built via `l10n.homeVersionLabel(version)`.
+    expect(find.text('Scaffold ready'), findsOneWidget);
+    expect(find.text('v1.0.0'), findsOneWidget);
   });
 }

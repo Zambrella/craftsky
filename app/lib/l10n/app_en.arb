@@ -1,0 +1,27 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "Craftsky",
+  "@appTitle": { "description": "The app's title, used in MaterialApp.title and as an AppBar title." },
+
+  "homeSubtitle": "Scaffold ready",
+  "@homeSubtitle": { "description": "Muted subtitle on the placeholder HomePage." },
+
+  "homeVersionLabel": "v{version}",
+  "@homeVersionLabel": {
+    "description": "Renders the running app version below the subtitle on HomePage.",
+    "placeholders": { "version": { "type": "String", "example": "1.0.0" } }
+  },
+
+  "initializationFailedTitle": "Initialization Failed",
+  "@initializationFailedTitle": { "description": "Headline on InitializationErrorScreen when appDependenciesProvider fails." },
+
+  "retryButton": "Retry",
+  "@retryButton": { "description": "Retry-action button label on InitializationErrorScreen." },
+
+  "routingErrorTitle": "Something went wrong",
+  "@routingErrorTitle": { "description": "Headline on ErrorScreen (from GoRouter.errorBuilder)." },
+
+  "goHomeButton": "Go home",
+  "@goHomeButton": { "description": "Button label on routing ErrorScreen returning to HomeRoute." }
+}
