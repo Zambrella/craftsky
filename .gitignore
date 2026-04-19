@@ -8,6 +8,9 @@ appview/tmp/
 .env
 .env.local
 
+# Worktrees
+.worktrees/
+
 # Editors
 .vscode/
 .idea/
