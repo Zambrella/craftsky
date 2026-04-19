@@ -2651,11 +2651,23 @@ Mark the boxes during review as each item is verified.
 
 ## Appendix A: handoff storage decision
 
-*Populated by Task 2.2.*
+**Decision:** Sibling columns. Extra top-level keys did NOT survive indigo's `AuthRequestData` round-trip — its struct has explicit JSON tags and unknown fields are dropped on re-marshal.
 
-- **Decision:** _TBD_
-- **Probe output:**
-- **Implementation branch:** _see Task 2.2 step 2 for the two templates_
+**Probe output (verbatim from `TestProbe_AuthRequestDataPreservesUnknownFields`):**
+
+```
+probe result: {"state":"probe-state","authserver_url":"","scopes":null,"request_uri":"","authserver_token_endpoint":"","pkce_verifier":"","dpop_authserver_nonce":"","dpop_privatekey_multibase":""}
+```
+
+`extra_field` is gone after the round-trip.
+
+**Implication:** Task 3.0 MUST be executed. Migration `000003_oauth_auth_requests_handoff` adds `handoff_mode TEXT NOT NULL DEFAULT 'deep_link'` and `loopback_redirect_uri TEXT` columns to `oauth_auth_requests`.
+
+**Implementation:**
+- `recordHandoff` in Task 3.5 runs `UPDATE oauth_auth_requests SET handoff_mode=$1, loopback_redirect_uri=$2 WHERE state=$3`.
+- `loadHandoff` in Task 3.6 runs `SELECT handoff_mode, loopback_redirect_uri FROM oauth_auth_requests WHERE state=$1`.
+
+The `withAuthSchema` test helper (Task 2.3) must include the two sibling columns in its DDL.
 
 ## Appendix B: smoke-test log
 
