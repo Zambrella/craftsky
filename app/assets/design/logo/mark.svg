@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  
+  <g transform="translate(40 40) rotate(-3) translate(-40 -40)">
+    <rect x="6" y="6" width="68" height="68" rx="10" fill="#F5EFE4" stroke="#161210" stroke-width="2.5"></rect>
+    
+    <text x="40" y="56" text-anchor="middle" font-family="DM Serif Display, Georgia, serif" font-size="42" font-weight="400" fill="#1535D6">CS</text>
+    
+    <circle cx="60" cy="20" r="4" fill="#F03A2E" stroke="#161210" stroke-width="1.5"></circle>
+  </g>
+</svg>
