@@ -39,14 +39,17 @@ type Deps struct {
 	Indexer  index.Indexer
 }
 
-// NewDevDeps wires the dev variant: debug-level logger, MockAuthService,
-// NotImplemented consumer+indexer.
+// NewDevDeps wires the dev variant: debug-level logger, StackedAuthService
+// (real OAuth tokens take precedence; X-Dev-DID header is the fallback so
+// the legacy curl-with-header workflow keeps working), full OAuth subsystem.
 func NewDevDeps(ctx context.Context, cfg Config) (*Deps, func(), error) {
 	deps, cleanup, err := newDeps(ctx, cfg, slog.LevelDebug)
 	if err != nil {
 		return nil, nil, err
 	}
-	deps.AuthService = &auth.MockAuthService{DefaultDID: cfg.DevDID}
+	deps.AuthService = &auth.StackedAuthService{
+		Real: &auth.CraftskyAuthService{Store: deps.CraftskySessionStore},
+	}
 	return deps, cleanup, nil
 }
 

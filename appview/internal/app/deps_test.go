@@ -50,13 +50,13 @@ func TestNewProdDeps_UnreachableDBReturnsError(t *testing.T) {
 // what each factory would have produced. This pins the behaviour even
 // when a reachable DB isn't available.
 func TestDepsAuthServiceShape(t *testing.T) {
-	// Dev: MockAuthService
+	// Dev: StackedAuthService (real CraftskyAuthService primary, X-Dev-DID fallback)
 	devDeps := &Deps{
 		Config:      Config{Env: EnvDev, DevDID: "did:plc:default"},
-		AuthService: &auth.MockAuthService{DefaultDID: "did:plc:default"},
+		AuthService: &auth.StackedAuthService{Real: &auth.CraftskyAuthService{}},
 	}
-	if _, ok := devDeps.AuthService.(*auth.MockAuthService); !ok {
-		t.Errorf("dev: AuthService = %T, want *auth.MockAuthService", devDeps.AuthService)
+	if _, ok := devDeps.AuthService.(*auth.StackedAuthService); !ok {
+		t.Errorf("dev: AuthService = %T, want *auth.StackedAuthService", devDeps.AuthService)
 	}
 
 	// Prod: CraftskyAuthService
