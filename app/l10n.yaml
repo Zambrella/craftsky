@@ -1,0 +1,9 @@
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+output-dir: lib/l10n/generated
+# `synthetic-package` was removed from l10n.yaml after Flutter 3.28; the
+# synthetic `package:flutter_gen` path is gone. `output-dir` above already
+# produces real files. See https://docs.flutter.dev/to/flutter-gen-deprecation.
+nullable-getter: false

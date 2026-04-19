@@ -1,30 +1,57 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
+import 'package:craftsky_app/app.dart';
+import 'package:craftsky_app/app_dependencies.dart';
+import 'package:craftsky_app/router/home_page.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:craftsky_app/main.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:pub_semver/pub_semver.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  late SharedPreferences prefs;
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  setUp(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
+    prefs = await SharedPreferences.getInstance();
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  AppDependencies stubDeps() => AppDependencies(
+    packageInfo: PackageInfo(
+      appName: 'craftsky_app',
+      packageName: 'social.craftsky.app',
+      version: '1.0.0',
+      buildNumber: '1',
+    ),
+    deviceInfo: CraftskyDeviceInfo(
+      platform: 'Test',
+      deviceId: 'test',
+      model: 'test',
+      brand: 'test',
+      osVersion: '0',
+    ),
+    sharedPreferences: prefs,
+    appVersion: Version.parse('1.0.0'),
+  );
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('App boots and renders HomePage', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDependenciesProvider.overrideWith((ref) async => stubDeps()),
+        ],
+        child: const App(),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HomePage), findsOneWidget);
+    // These two assertions between them prove the AppLocalizations delegate
+    // resolved and that both static and parameterized keys render: the
+    // subtitle is a static string only reachable through `l10n.homeSubtitle`,
+    // and the version label is built via `l10n.homeVersionLabel(version)`.
+    expect(find.text('Scaffold ready'), findsOneWidget);
+    expect(find.text('v1.0.0'), findsOneWidget);
   });
 }
