@@ -69,5 +69,24 @@ void main() {
       expect(find.byType(HomePage), findsNothing);
       expect(find.byType(InitializationErrorScreen), findsNothing);
     });
+
+    testWidgets('error state renders InitializationErrorScreen', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDependenciesProvider.overrideWith(
+              (ref) async => throw Exception('boot failed'),
+            ),
+          ],
+          child: const App(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(InitializationErrorScreen), findsOneWidget);
+      expect(find.text('Initialization Failed'), findsOneWidget);
+      expect(find.text('Exception: boot failed'), findsOneWidget);
+      expect(find.widgetWithText(ElevatedButton, 'Retry'), findsOneWidget);
+    });
   });
 }
