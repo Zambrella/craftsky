@@ -47,7 +47,9 @@ void main() {
       appVersion: Version.parse('1.0.0'),
     );
 
-    testWidgets('loading state renders CircularProgressIndicator', (tester) async {
+    testWidgets('loading state renders CircularProgressIndicator', (
+      tester,
+    ) async {
       // Future never completes → appDependenciesProvider stays in AsyncLoading.
       final completer = Completer<AppDependencies>();
 
@@ -70,7 +72,9 @@ void main() {
       expect(find.byType(InitializationErrorScreen), findsNothing);
     });
 
-    testWidgets('error state renders InitializationErrorScreen', (tester) async {
+    testWidgets('error state renders InitializationErrorScreen', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -89,7 +93,9 @@ void main() {
       expect(find.widgetWithText(ElevatedButton, 'Retry'), findsOneWidget);
     });
 
-    testWidgets('retry invalidates the provider and recovers to HomePage', (tester) async {
+    testWidgets('retry invalidates the provider and recovers to HomePage', (
+      tester,
+    ) async {
       var attempt = 0;
 
       await tester.pumpWidget(
@@ -124,5 +130,59 @@ void main() {
       expect(find.byType(InitializationErrorScreen), findsNothing);
       expect(attempt, 2);
     });
+
+    testWidgets(
+      'logs one severe record per transition into error (not per rebuild)',
+      (tester) async {
+        bool isInitSevere(LogRecord r) =>
+            r.level == Level.SEVERE &&
+            r.message == 'App dependencies failed to initialize';
+
+        final overrides = [
+          appDependenciesProvider.overrideWith(
+            (ref) async => throw Exception('boot failed'),
+          ),
+        ];
+
+        await tester.pumpWidget(
+          ProviderScope(
+            // Disable Riverpod 3.x auto-retry — otherwise the default
+            // exponential-backoff retry keeps re-running the failing
+            // builder, and each new AsyncError transition refires the
+            // severe log, defeating this test's whole point.
+            retry: (_, _) => null,
+            overrides: overrides,
+            child: const App(key: ValueKey('app-1')),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(records.where(isInitSevere), hasLength(1));
+
+        // Force App.build to run again with a fresh ValueKey. The
+        // ProviderScope (and its cached AsyncError for
+        // appDependenciesProvider) should persist across this second
+        // pumpWidget call because the widget type at the root position
+        // matches and the overrides list instance is identical — Flutter
+        // reuses the Element, and ProviderScope's Element owns the
+        // ProviderContainer. Riverpod's WidgetRef.listen has no
+        // fireImmediately flag (by design — see flutter_riverpod 3.x
+        // consumer.dart:496), so a new registration on an already-errored
+        // provider does NOT fire. If someone refactors the logging out of
+        // ref.listen and into App.build proper, the second pumpAndSettle
+        // below would produce a second SEVERE record and this assertion
+        // would fail.
+        await tester.pumpWidget(
+          ProviderScope(
+            retry: (_, _) => null,
+            overrides: overrides,
+            child: const App(key: ValueKey('app-2')),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(records.where(isInitSevere), hasLength(1));
+      },
+    );
   });
 }
