@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -29,8 +30,8 @@ func TestMockAuthService_FallsBackToDefaultDID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if got != "did:plc:default" {
-		t.Errorf("did = %q, want did:plc:default", got)
+	if got.DID != "did:plc:default" {
+		t.Errorf("did = %q, want did:plc:default", got.DID)
 	}
 }
 
@@ -41,15 +42,17 @@ func TestMockAuthService_PrefersDevDIDFromContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if got != "did:plc:override" {
-		t.Errorf("did = %q, want did:plc:override", got)
+	if got.DID != "did:plc:override" {
+		t.Errorf("did = %q, want did:plc:override", got.DID)
 	}
 }
 
-func TestNotImplementedAuthService_AlwaysErrors(t *testing.T) {
-	var s AuthService = &NotImplementedAuthService{}
-	_, err := s.Authenticate(context.Background(), "any")
-	if err == nil {
-		t.Fatal("expected error, got nil")
+func TestCraftskyAuthService_EmptyTokenInPackage(t *testing.T) {
+	// CraftskyAuthService with nil Store still rejects the empty token before
+	// touching the store.
+	svc := &CraftskyAuthService{Store: nil}
+	_, err := svc.Authenticate(context.Background(), "")
+	if !errors.Is(err, ErrAuthTokenInvalid) {
+		t.Fatalf("want ErrAuthTokenInvalid, got %v", err)
 	}
 }

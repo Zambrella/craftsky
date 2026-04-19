@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
 )
 
@@ -17,8 +18,8 @@ import (
 // Authenticated middleware, without depending on internal/auth.
 type authTestMock struct{ did string }
 
-func (m *authTestMock) Authenticate(ctx context.Context, token string) (string, error) {
-	return m.did, nil
+func (m *authTestMock) Authenticate(ctx context.Context, token string) (auth.AuthInfo, error) {
+	return auth.AuthInfo{DID: m.did}, nil
 }
 
 func TestWhoAmI_ReturnsDIDFromContext(t *testing.T) {

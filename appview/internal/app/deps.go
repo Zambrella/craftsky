@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/auth"
@@ -29,27 +30,43 @@ type Deps struct {
 	DB          *pgxpool.Pool
 	AuthService auth.AuthService
 
-	// Day-one stubs. Shape is stable so CLI subcommands compile.
+	// OAuth subsystem.
+	OAuthApp             *oauth.ClientApp
+	OAuthStore           *auth.PostgresAuthStore
+	CraftskySessionStore *auth.CraftskySessionStore
+
 	Consumer tap.Consumer
 	Indexer  index.Indexer
 }
 
-// NewDevDeps wires the dev variant: debug-level logger, MockAuthService,
-// NotImplemented consumer+indexer.
+// NewDevDeps wires the dev variant: debug-level logger, StackedAuthService
+// (real OAuth tokens take precedence; X-Dev-DID header is the fallback so
+// the legacy curl-with-header workflow keeps working), full OAuth subsystem.
 func NewDevDeps(ctx context.Context, cfg Config) (*Deps, func(), error) {
-	return newDeps(ctx, cfg, slog.LevelDebug, &auth.MockAuthService{DefaultDID: cfg.DevDID})
+	deps, cleanup, err := newDeps(ctx, cfg, slog.LevelDebug)
+	if err != nil {
+		return nil, nil, err
+	}
+	deps.AuthService = &auth.StackedAuthService{
+		Real: &auth.CraftskyAuthService{Store: deps.CraftskySessionStore},
+	}
+	return deps, cleanup, nil
 }
 
-// NewProdDeps wires the prod variant: info-level logger,
-// NotImplementedAuthService, NotImplemented consumer+indexer.
+// NewProdDeps wires the prod variant: info-level logger, CraftskyAuthService
+// backed by craftsky_sessions, full OAuth subsystem.
 func NewProdDeps(ctx context.Context, cfg Config) (*Deps, func(), error) {
-	return newDeps(ctx, cfg, slog.LevelInfo, auth.NotImplementedAuthService{})
+	deps, cleanup, err := newDeps(ctx, cfg, slog.LevelInfo)
+	if err != nil {
+		return nil, nil, err
+	}
+	deps.AuthService = &auth.CraftskyAuthService{Store: deps.CraftskySessionStore}
+	return deps, cleanup, nil
 }
 
-// newDeps is the shared core of NewDevDeps and NewProdDeps. Keeping the
-// divergence to just the three parameters (log level, auth service, and
-// cfg) makes the env-conditional surface easy to audit.
-func newDeps(ctx context.Context, cfg Config, level slog.Level, authSvc auth.AuthService) (*Deps, func(), error) {
+// newDeps is the shared core of NewDevDeps and NewProdDeps. AuthService is
+// left nil — the caller assigns it based on env.
+func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), error) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 	// Third-party libs that reach for slog.Default should get our logger.
 	slog.SetDefault(logger)
@@ -59,15 +76,36 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level, authSvc auth.Aut
 		return nil, nil, fmt.Errorf("db connect: %w", err)
 	}
 
+	oauthCfg, err := auth.BuildClientConfig(
+		cfg.OAuthHostname,
+		cfg.OAuthClientSecretKey,
+		cfg.OAuthClientKeyID,
+		cfg.OAuthScopes,
+	)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("build oauth client config: %w", err)
+	}
+	oauthStore := auth.NewPostgresAuthStore(pool, auth.StoreConfig{
+		SessionExpiry:     cfg.OAuthSessionExpiry,
+		SessionInactivity: cfg.OAuthSessionInactivity,
+		AuthRequestExpiry: cfg.OAuthAuthRequestExpiry,
+		Logger:            logger,
+	})
+	oauthApp := oauth.NewClientApp(&oauthCfg, oauthStore)
+	craftskyStore := auth.NewCraftskySessionStore(pool, cfg.CraftskySessionLastSeenThrottle)
+
 	indexerImpl := index.NewBlueskyPostsSample(pool)
 
 	deps := &Deps{
-		Config:      cfg,
-		Logger:      logger,
-		DB:          pool,
-		AuthService: authSvc,
-		Indexer:     indexerImpl,
-		Consumer:    tap.NotImplemented{}, // temp, replaced below
+		Config:               cfg,
+		Logger:               logger,
+		DB:                   pool,
+		OAuthApp:             oauthApp,
+		OAuthStore:           oauthStore,
+		CraftskySessionStore: craftskyStore,
+		Indexer:              indexerImpl,
+		Consumer:             tap.NotImplemented{}, // temp, replaced below
 	}
 
 	deps.Consumer = tap.NewWSConsumer(tap.WSConsumerConfig{

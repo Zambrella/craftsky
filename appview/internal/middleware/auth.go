@@ -7,17 +7,33 @@ import (
 	"strings"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/ctxkeys"
 )
-
-const didKey contextKey = "did"
 
 // GetDID extracts the authenticated DID injected by the Authenticated
 // middleware. Returns ("", false) if no middleware ran or if the request
 // reached the handler without authentication (which shouldn't happen on
 // routes wired via Authenticated, but GetDID stays safe either way).
 func GetDID(ctx context.Context) (string, bool) {
-	did, ok := ctx.Value(didKey).(string)
-	return did, ok
+	return ctxkeys.GetDID(ctx)
+}
+
+// GetOAuthSessionID extracts the OAuth session ID injected by the
+// Authenticated middleware. Returns ("", false) if not present.
+func GetOAuthSessionID(ctx context.Context) (string, bool) {
+	return ctxkeys.GetOAuthSessionID(ctx)
+}
+
+// WithDID stores did in ctx under the same key the Authenticated middleware uses.
+// Exported for tests that want to skip middleware setup.
+func WithDID(ctx context.Context, did string) context.Context {
+	return ctxkeys.WithDID(ctx, did)
+}
+
+// WithOAuthSessionID stores sid in ctx under the same key the Authenticated middleware uses.
+// Exported for tests.
+func WithOAuthSessionID(ctx context.Context, sid string) context.Context {
+	return ctxkeys.WithOAuthSessionID(ctx, sid)
 }
 
 // Authenticated returns middleware that validates a bearer token via
@@ -63,7 +79,7 @@ func Authenticated(authService auth.AuthService, logger *slog.Logger) func(http.
 				ctx = auth.WithDevDID(ctx, devDID)
 			}
 
-			did, err := authService.Authenticate(ctx, token)
+			info, err := authService.Authenticate(ctx, token)
 			if err != nil {
 				logger.Warn("auth: Authenticate returned error",
 					slog.String("err", err.Error()),
@@ -72,7 +88,10 @@ func Authenticated(authService auth.AuthService, logger *slog.Logger) func(http.
 				return
 			}
 
-			ctx = context.WithValue(ctx, didKey, did)
+			ctx = ctxkeys.WithDID(ctx, info.DID)
+			if info.SessionID != "" {
+				ctx = ctxkeys.WithOAuthSessionID(ctx, info.SessionID)
+			}
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

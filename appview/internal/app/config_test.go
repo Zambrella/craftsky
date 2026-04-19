@@ -41,7 +41,10 @@ func TestParseEnv(t *testing.T) {
 func testConfigFile(t *testing.T, contents string) string {
 	t.Helper()
 	for _, k := range []string{"DATABASE_URL", "ALLOWED_ORIGINS", "CRAFTSKY_DEV_DID",
-		"TAP_WS_URL", "TAP_ACK_TIMEOUT", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES"} {
+		"TAP_WS_URL", "TAP_ACK_TIMEOUT", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES",
+		"OAUTH_HOSTNAME", "OAUTH_CLIENT_SECRET_KEY", "OAUTH_CLIENT_SECRET_KEY_ID",
+		"OAUTH_SCOPES", "OAUTH_SESSION_EXPIRY", "OAUTH_SESSION_INACTIVITY",
+		"OAUTH_AUTH_REQUEST_EXPIRY", "CRAFTSKY_SESSION_LAST_SEEN_THROTTLE"} {
 		// Snapshot for restoration, then unset.
 		prior, had := os.LookupEnv(k)
 		_ = os.Unsetenv(k)
@@ -230,5 +233,104 @@ func TestLoadConfig_TapDefaults(t *testing.T) {
 	}
 	if cfg.TapMaxRetries != 5 {
 		t.Errorf("default TapMaxRetries = %d", cfg.TapMaxRetries)
+	}
+}
+
+func TestLoadConfig_OAuthDevDefaults(t *testing.T) {
+	// Only required dev vars set; OAUTH_* left at their defaults.
+	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\n")
+	cfg, err := LoadConfig(EnvDev, path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.OAuthHostname != "" {
+		t.Errorf("OAuthHostname = %q, want empty", cfg.OAuthHostname)
+	}
+	want := []string{"atproto", "transition:generic"}
+	if len(cfg.OAuthScopes) != len(want) {
+		t.Errorf("OAuthScopes = %v, want %v", cfg.OAuthScopes, want)
+	} else {
+		for i, s := range want {
+			if cfg.OAuthScopes[i] != s {
+				t.Errorf("OAuthScopes[%d] = %q, want %q", i, cfg.OAuthScopes[i], s)
+			}
+		}
+	}
+	if cfg.OAuthSessionExpiry != 180*24*time.Hour {
+		t.Errorf("OAuthSessionExpiry = %v, want %v", cfg.OAuthSessionExpiry, 180*24*time.Hour)
+	}
+	if cfg.OAuthSessionInactivity != 30*24*time.Hour {
+		t.Errorf("OAuthSessionInactivity = %v, want %v", cfg.OAuthSessionInactivity, 30*24*time.Hour)
+	}
+	if cfg.OAuthAuthRequestExpiry != 30*time.Minute {
+		t.Errorf("OAuthAuthRequestExpiry = %v, want %v", cfg.OAuthAuthRequestExpiry, 30*time.Minute)
+	}
+	if cfg.CraftskySessionLastSeenThrottle != 5*time.Minute {
+		t.Errorf("CraftskySessionLastSeenThrottle = %v, want %v", cfg.CraftskySessionLastSeenThrottle, 5*time.Minute)
+	}
+	if cfg.OAuthClientKeyID != "primary" {
+		t.Errorf("OAuthClientKeyID = %q, want %q", cfg.OAuthClientKeyID, "primary")
+	}
+}
+
+func TestLoadConfig_OAuthRequiredInProd(t *testing.T) {
+	// env = prod, OAUTH_HOSTNAME set, OAUTH_CLIENT_SECRET_KEY unset.
+	path := testConfigFile(t, "DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://a.example\nTAP_WS_URL=ws://tap:2480/channel\n")
+	t.Setenv("OAUTH_HOSTNAME", "https://craftsky.social")
+	_, err := LoadConfig(EnvProd, path)
+	if err == nil {
+		t.Fatal("expected error when OAUTH_CLIENT_SECRET_KEY is unset in prod with OAUTH_HOSTNAME set")
+	}
+	if !strings.Contains(err.Error(), "OAUTH_CLIENT_SECRET_KEY") {
+		t.Errorf("error should mention OAUTH_CLIENT_SECRET_KEY, got: %v", err)
+	}
+}
+
+func TestLoadConfig_OAuthCustomValues(t *testing.T) {
+	// Set all OAUTH_* vars to non-default values and assert each lands on cfg.
+	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\n")
+	t.Setenv("OAUTH_HOSTNAME", "https://craftsky.example")
+	t.Setenv("OAUTH_CLIENT_SECRET_KEY", "zQ3shtest...")
+	t.Setenv("OAUTH_CLIENT_SECRET_KEY_ID", "secondary")
+	t.Setenv("OAUTH_SCOPES", "atproto transition:chat.bsky")
+	t.Setenv("OAUTH_SESSION_EXPIRY", "720h")
+	t.Setenv("OAUTH_SESSION_INACTIVITY", "48h")
+	t.Setenv("OAUTH_AUTH_REQUEST_EXPIRY", "15m")
+	t.Setenv("CRAFTSKY_SESSION_LAST_SEEN_THROTTLE", "2m")
+
+	cfg, err := LoadConfig(EnvDev, path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.OAuthHostname != "https://craftsky.example" {
+		t.Errorf("OAuthHostname = %q", cfg.OAuthHostname)
+	}
+	if cfg.OAuthClientSecretKey != "zQ3shtest..." {
+		t.Errorf("OAuthClientSecretKey = %q", cfg.OAuthClientSecretKey)
+	}
+	if cfg.OAuthClientKeyID != "secondary" {
+		t.Errorf("OAuthClientKeyID = %q", cfg.OAuthClientKeyID)
+	}
+	wantScopes := []string{"atproto", "transition:chat.bsky"}
+	if len(cfg.OAuthScopes) != len(wantScopes) {
+		t.Errorf("OAuthScopes = %v, want %v", cfg.OAuthScopes, wantScopes)
+	} else {
+		for i, s := range wantScopes {
+			if cfg.OAuthScopes[i] != s {
+				t.Errorf("OAuthScopes[%d] = %q, want %q", i, cfg.OAuthScopes[i], s)
+			}
+		}
+	}
+	if cfg.OAuthSessionExpiry != 720*time.Hour {
+		t.Errorf("OAuthSessionExpiry = %v", cfg.OAuthSessionExpiry)
+	}
+	if cfg.OAuthSessionInactivity != 48*time.Hour {
+		t.Errorf("OAuthSessionInactivity = %v", cfg.OAuthSessionInactivity)
+	}
+	if cfg.OAuthAuthRequestExpiry != 15*time.Minute {
+		t.Errorf("OAuthAuthRequestExpiry = %v", cfg.OAuthAuthRequestExpiry)
+	}
+	if cfg.CraftskySessionLastSeenThrottle != 2*time.Minute {
+		t.Errorf("CraftskySessionLastSeenThrottle = %v", cfg.CraftskySessionLastSeenThrottle)
 	}
 }

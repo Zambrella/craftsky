@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -91,9 +92,17 @@ func TestAuthenticated_MockHonoursXDevDID(t *testing.T) {
 	}
 }
 
-func TestAuthenticated_NotImplementedReturns401(t *testing.T) {
+// errorAuthSvc always returns an auth error regardless of token, standing in
+// for any service that rejects every token (e.g. invalid token, revoked, etc.).
+type errorAuthSvc struct{ err error }
+
+func (e *errorAuthSvc) Authenticate(_ context.Context, _ string) (auth.AuthInfo, error) {
+	return auth.AuthInfo{}, e.err
+}
+
+func TestAuthenticated_AlwaysErroringServiceReturns401(t *testing.T) {
 	var seen string
-	h := Authenticated(auth.NotImplementedAuthService{}, discardLogger())(passthroughHandler(&seen))
+	h := Authenticated(&errorAuthSvc{err: auth.ErrAuthTokenInvalid}, discardLogger())(passthroughHandler(&seen))
 	req := httptest.NewRequest("GET", "/whoami", nil)
 	req.Header.Set("Authorization", "Bearer anything")
 	rec := httptest.NewRecorder()
@@ -103,5 +112,31 @@ func TestAuthenticated_NotImplementedReturns401(t *testing.T) {
 	}
 	if strings.TrimSpace(rec.Body.String()) != "Unauthorized" {
 		t.Errorf("body = %q, want Unauthorized", rec.Body.String())
+	}
+}
+
+// fakeAuthSvc is a minimal AuthService that returns a fixed DID and session ID.
+type fakeAuthSvc struct {
+	did    string
+	sessID string
+}
+
+func (f *fakeAuthSvc) Authenticate(_ context.Context, _ string) (auth.AuthInfo, error) {
+	return auth.AuthInfo{DID: f.did, SessionID: f.sessID}, nil
+}
+
+func TestAuthenticatedInjectsOAuthSessionID(t *testing.T) {
+	svc := &fakeAuthSvc{did: "did:plc:xyz", sessID: "sess-123"}
+	var gotDID, gotSID string
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotDID, _ = GetDID(r.Context())
+		gotSID, _ = GetOAuthSessionID(r.Context())
+	})
+	h := Authenticated(svc, discardLogger())(next)
+	req := httptest.NewRequest("GET", "/x", nil)
+	req.Header.Set("Authorization", "Bearer t")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	if gotDID != "did:plc:xyz" || gotSID != "sess-123" {
+		t.Fatalf("ctx mismatch: did=%q sid=%q", gotDID, gotSID)
 	}
 }

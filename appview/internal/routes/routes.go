@@ -9,6 +9,7 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/app"
+	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
 )
 
@@ -22,9 +23,23 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("GET /health", api.HealthHandler(deps.DB, deps.Logger))
 	mux.Handle("GET /healthz", api.NewHealthHandler(deps.DB, deps.Consumer))
 
+	// OAuth discovery endpoints.
+	oauthHandlers := auth.NewHTTPHandlers(
+		deps.OAuthApp,
+		deps.CraftskySessionStore,
+		deps.DB,
+		deps.Logger,
+		deps.Config.Env == app.EnvDev,
+	)
+	mux.Handle("GET /oauth/client-metadata.json", oauthHandlers.ClientMetadataHandler())
+	mux.Handle("GET /oauth/jwks.json", oauthHandlers.JWKSHandler())
+	mux.Handle("POST /auth/login", oauthHandlers.LoginHandler())
+	mux.Handle("GET /oauth/callback", oauthHandlers.CallbackHandler())
+
 	// Authenticated.
 	authN := middleware.Authenticated(deps.AuthService, deps.Logger)
 	mux.Handle("GET /whoami", authN(api.WhoAmIHandler()))
+	mux.Handle("POST /auth/logout", authN(oauthHandlers.LogoutHandler()))
 
 	// Fallthrough.
 	mux.Handle("/", http.NotFoundHandler())

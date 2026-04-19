@@ -2651,20 +2651,52 @@ Mark the boxes during review as each item is verified.
 
 ## Appendix A: handoff storage decision
 
-*Populated by Task 2.2.*
+**Decision:** Sibling columns. Extra top-level keys did NOT survive indigo's `AuthRequestData` round-trip — its struct has explicit JSON tags and unknown fields are dropped on re-marshal.
 
-- **Decision:** _TBD_
-- **Probe output:**
-- **Implementation branch:** _see Task 2.2 step 2 for the two templates_
+**Probe output (verbatim from `TestProbe_AuthRequestDataPreservesUnknownFields`):**
+
+```
+probe result: {"state":"probe-state","authserver_url":"","scopes":null,"request_uri":"","authserver_token_endpoint":"","pkce_verifier":"","dpop_authserver_nonce":"","dpop_privatekey_multibase":""}
+```
+
+`extra_field` is gone after the round-trip.
+
+**Implication:** Task 3.0 MUST be executed. Migration `000003_oauth_auth_requests_handoff` adds `handoff_mode TEXT NOT NULL DEFAULT 'deep_link'` and `loopback_redirect_uri TEXT` columns to `oauth_auth_requests`.
+
+**Implementation:**
+- `recordHandoff` in Task 3.5 runs `UPDATE oauth_auth_requests SET handoff_mode=$1, loopback_redirect_uri=$2 WHERE state=$3`.
+- `loadHandoff` in Task 3.6 runs `SELECT handoff_mode, loopback_redirect_uri FROM oauth_auth_requests WHERE state=$1`.
+
+The `withAuthSchema` test helper (Task 2.3) must include the two sibling columns in its DDL.
 
 ## Appendix B: smoke-test log
 
-*Populated by Task 4.3.*
+- **Date:** 2026-04-19
+- **Stack:** worktree-built compose stack at project name `craftsky` (postgres + tap + appview, all healthy). Compose source bound from `/Users/douglastodd/Projects/craftsky/.worktrees/oauth-bff`. Appview built from the new code on this branch.
+- **Test handle used:** `bsky.app` (resolves to `did:plc:z72i7hdynmk6r22z27h6tvur` via DNS).
 
-- **Date:**
-- **Stack:**
-- **Test handle used:**
-- **Results:**
+### Results
+
+| Step | Result |
+|---|---|
+| 1. Stack healthy (`/healthz` returns 200) | ✅ DB ok, Tap connected |
+| 2. `GET /oauth/client-metadata.json` | ✅ valid JSON; `client_id` is the localhost-mode URL; `dpop_bound_access_tokens=true` |
+| 3. `GET /oauth/jwks.json` | ✅ `{"keys":[]}` (correct for dev/public client) |
+| 4. `POST /auth/login {handle:"", ...}` | ✅ 400 `handle_required` |
+| 5. `POST /auth/login {handle:"x", handoff_mode:"wat"}` | ✅ 400 `invalid_handoff_mode` |
+| 6. `POST /auth/login {... handoff_mode:"loopback"}` (no URI) | ✅ 400 `loopback_redirect_uri_required` |
+| 7. `POST /auth/login {... loopback_redirect_uri:"https://evil.example/"}` | ✅ 400 `loopback_redirect_uri_invalid` |
+| 8. `POST /auth/login {handle:"bsky.app", handoff_mode:"deep_link"}` | ✅ Returns a real `bsky.social` authorize URL with `client_id` and `request_uri` query params |
+| 9. `oauth_auth_requests` row inserted with `handoff_mode='deep_link'`, `data->>'request_uri'` matches the URL | ✅ confirmed via direct SQL |
+| 10. Browser-driven full sign-in flow → callback → `/whoami` round-trip | ⏸ requires interactive human at a browser; deferred to first-merge sanity check |
+| 11. `?all=true` logout exercise | ⏸ same as 10 |
+
+### Bugs found and fixed during smoke testing
+
+- **Migration 000003 was DROPping the `handoff_mode` DEFAULT** after backfill, which broke indigo's `SaveAuthRequestInfo` (only INSERTs `(state, data)`). Fixed by keeping the default permanently. Migration re-applied without rollback (the running DB had the default in place from initial `ADD COLUMN ... DEFAULT 'deep_link'`).
+- **`extractState` couldn't find `state` in the redirect URL** because indigo's `StartAuthFlow` only puts `client_id` and `request_uri` in the returned URL — `state` is in the persisted `AuthRequestData` blob. Renamed to `extractRequestURI`; `recordHandoff` now keys the UPDATE on `data->>'request_uri'`.
+
+Both fixes commit `a7a12da`.
 
 ---
 
