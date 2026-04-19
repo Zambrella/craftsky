@@ -1,0 +1,42 @@
+import 'package:craftsky_app/router/router.dart';
+import 'package:flutter/material.dart';
+
+class ErrorScreen extends StatelessWidget {
+  const ErrorScreen({required this.error, super.key});
+
+  /// Type is `Object` rather than `Exception` because `GoRouterState.error`
+  /// is `Object?` in go_router 17 — routing errors are not always exceptions.
+  final Object error;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.broken_image_outlined, size: 64, color: theme.colorScheme.error),
+              const SizedBox(height: 16),
+              Text('Something went wrong', style: theme.textTheme.headlineSmall),
+              const SizedBox(height: 8),
+              Text(
+                error.toString(),
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () => const HomeRoute().go(context),
+                icon: const Icon(Icons.home),
+                label: const Text('Go home'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

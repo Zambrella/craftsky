@@ -1,4 +1,5 @@
 import 'package:craftsky_app/app_dependencies.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/text_scale_factor_clamper.dart';
@@ -36,14 +37,19 @@ class _ReadyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // NOTE: Riverpod codegen strips the `Notifier` suffix from class-based
+    // notifiers, so the generated provider is `themeModeProvider`, not
+    // `themeModeNotifierProvider`.
     final themeMode = ref.watch(themeModeProvider);
+    final router = ref.watch(goRouterProvider);
 
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'Craftsky',
       theme: AppTheme.lightThemeData,
       darkTheme: AppTheme.darkThemeData,
       themeMode: themeMode,
       debugShowCheckedModeBanner: false,
+      routerConfig: router,
       builder: (context, child) {
         return TextScaleFactorClamper(
           child: FormFactorWidget(
@@ -51,21 +57,6 @@ class _ReadyApp extends ConsumerWidget {
           ),
         );
       },
-      home: const _PlaceholderHome(),
-    );
-  }
-}
-
-class _PlaceholderHome extends StatelessWidget {
-  const _PlaceholderHome();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      body: Center(
-        child: Text('Craftsky scaffold (chunk 2)', style: theme.textTheme.titleLarge),
-      ),
     );
   }
 }
