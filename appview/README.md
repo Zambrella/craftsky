@@ -88,6 +88,39 @@ just migrate up   # wraps golang-migrate/v4 via the CLI
 
 Tests run on the **host** (the appview image has no Go toolchain), so Go must be installed locally and `just dev-d` must already be running — the integration tests connect to the compose Postgres at `localhost:5433` via the `TEST_DATABASE_URL` the recipe sets. (Host port 5433 maps to the container's 5432; this avoids a collision with any native Postgres already bound to 5432.)
 
+## OAuth
+
+The appview acts as a confidential Backend-for-Frontend (BFF) OAuth client
+against users' PDSes, using [indigo's `atproto/auth/oauth`](https://github.com/bluesky-social/indigo/tree/main/atproto/auth/oauth).
+All PDS tokens (access, refresh, DPoP key) stay server-side; clients
+present an opaque Craftsky bearer token on every authenticated request.
+
+See [docs/superpowers/specs/2026-04-18-appview-oauth-bff-design.md](../docs/superpowers/specs/2026-04-18-appview-oauth-bff-design.md)
+for the full design rationale.
+
+### Endpoints
+
+| Method | Path | Audience |
+|---|---|---|
+| GET | `/oauth/client-metadata.json` | Authorization Servers |
+| GET | `/oauth/jwks.json` | Authorization Servers (empty in dev) |
+| GET | `/oauth/callback` | Authorization Server → user browser |
+| POST | `/auth/login` | Craftsky clients (Flutter/CLI) |
+| POST | `/auth/logout` | Craftsky clients (behind `Authenticated`) |
+
+### Dev key generation
+
+```
+just oauth-keygen
+```
+
+Prints a multibase-encoded P-256 private key to stdout. Paste into your
+local prod-style `.env` as `OAUTH_CLIENT_SECRET_KEY`. Never commit.
+
+In dev (`OAUTH_HOSTNAME` unset) the appview runs as a public client
+against `http://127.0.0.1:8080/oauth/callback` and does not require a
+client secret.
+
 ## Why Go
 
 See the reference doc's "Tech Stack" section. TL;DR: contributor accessibility, ecosystem maturity, single static binary deploys, alignment with the atproto Go ecosystem (`indigo`).

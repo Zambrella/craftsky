@@ -26,6 +26,7 @@ For the product-level "why" and the community-facing feature intent, read the vi
 
 1. **Writes go through the PDS, reads come from the App View.** Never have the Flutter app read craft data directly from a PDS in the happy path.
 2. **The Flutter app never holds PDS tokens.** OAuth access/refresh tokens live in the App View's `sessions` table. The app only holds a Craftsky session token.
+   > **Note on the TMB upgrade path:** the current BFF design is consistent with this rule as written. Upgrading to the Token-Mediating Backend pattern (tracked as future work in the OAuth spec) will require amending this rule to distinguish *refresh* tokens (server-only) from short-lived access tokens + DPoP keys (may be handed down to clients).
 3. **Public data on PDS, private data in Postgres.** Posts, follows, blocks, likes → PDS records. Drafts, mutes, push tokens, moderation state → App View Postgres. See the reference doc's "Data Visibility & Privacy" section.
 4. **Lexicon changes need an ADR.** Before modifying anything in `lexicon/`, invoke the project-level `atproto-lexicon` skill (at [`.claude/skills/atproto-lexicon/`](.claude/skills/atproto-lexicon/SKILL.md)) for NSID/type/style/evolution rules, then use `writing-architecture-decision-records` for the decision record itself.
 5. **No generic OAuth libraries.** atproto OAuth requires DPoP, dynamic server discovery, and client metadata. Use `indigo/atproto/auth/oauth` or `haileyok/atproto-oauth-golang`.
