@@ -1,0 +1,214 @@
+// Zed tasks for the Craftsky monorepo.
+//
+// The Flutter app lives under app/. Every Flutter task uses
+// `cwd: "$ZED_WORKTREE_ROOT/app"` because Zed's cwd default for tasks is
+// the current project root (which can differ from the repo root depending on
+// how the workspace is opened); anchoring to $ZED_WORKTREE_ROOT makes tasks
+// work regardless of which directory Zed's file tree starts at.
+//
+// Docs: https://zed.dev/docs/tasks
+[
+  // ---------- Flutter run: per-device ----------
+  {
+    "label": "flutter run — Chrome",
+    "command": "flutter",
+    "args": ["run", "-d", "chrome"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "tags": ["flutter-run"]
+  },
+  {
+    "label": "flutter run — iOS simulator",
+    "command": "flutter",
+    "args": ["run", "-d", "ios"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "tags": ["flutter-run"]
+  },
+  {
+    "label": "flutter run — Android emulator",
+    "command": "flutter",
+    "args": ["run", "-d", "android"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "tags": ["flutter-run"]
+  },
+  {
+    "label": "flutter run — macOS",
+    "command": "flutter",
+    "args": ["run", "-d", "macos"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "tags": ["flutter-run"]
+  },
+  // Interactive device picker — Flutter prompts in the terminal.
+  {
+    "label": "flutter run — pick device",
+    "command": "flutter",
+    "args": ["run"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "tags": ["flutter-run"]
+  },
+
+  // ---------- Codegen ----------
+  {
+    "label": "build_runner: build (delete conflicting)",
+    "command": "dart",
+    "args": ["run", "build_runner", "build", "--delete-conflicting-outputs"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "reveal": "always",
+    "tags": ["codegen"]
+  },
+  {
+    "label": "build_runner: watch",
+    "command": "dart",
+    "args": ["run", "build_runner", "watch", "--delete-conflicting-outputs"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "tags": ["codegen"]
+  },
+  {
+    "label": "flutter gen-l10n",
+    "command": "flutter",
+    "args": ["gen-l10n"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "reveal": "always",
+    "tags": ["codegen"]
+  },
+
+  // ---------- Quality gate ----------
+  {
+    "label": "flutter analyze",
+    "command": "flutter",
+    "args": ["analyze"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "reveal": "always",
+    "tags": ["check"]
+  },
+  {
+    "label": "custom_lint",
+    "command": "dart",
+    "args": ["run", "custom_lint"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "reveal": "always",
+    "tags": ["check"]
+  },
+  {
+    "label": "dart format .",
+    "command": "dart",
+    "args": ["format", "."],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "reveal": "always",
+    "tags": ["check"]
+  },
+
+  // ---------- Tests ----------
+  {
+    "label": "flutter test",
+    "command": "flutter",
+    "args": ["test"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "reveal": "always",
+    "tags": ["test"]
+  },
+  // Run the test file currently open in Zed.
+  {
+    "label": "flutter test — current file",
+    "command": "flutter",
+    "args": ["test", "$ZED_RELATIVE_FILE"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "reveal": "always",
+    "tags": ["test"]
+  },
+
+  // ---------- Builds ----------
+  {
+    "label": "flutter build web",
+    "command": "flutter",
+    "args": ["build", "web"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "reveal": "always",
+    "tags": ["build"]
+  },
+  {
+    "label": "flutter build ios — no codesign",
+    "command": "flutter",
+    "args": ["build", "ios", "--no-codesign"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "reveal": "always",
+    "tags": ["build"]
+  },
+  {
+    "label": "flutter build apk",
+    "command": "flutter",
+    "args": ["build", "apk"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "reveal": "always",
+    "tags": ["build"]
+  },
+
+  // ---------- Housekeeping ----------
+  {
+    "label": "flutter pub get",
+    "command": "flutter",
+    "args": ["pub", "get"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "reveal": "always",
+    "tags": ["housekeeping"]
+  },
+  {
+    "label": "flutter pub upgrade",
+    "command": "flutter",
+    "args": ["pub", "upgrade"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "reveal": "always",
+    "tags": ["housekeeping"]
+  },
+  {
+    "label": "flutter clean",
+    "command": "flutter",
+    "args": ["clean"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "reveal": "always",
+    "tags": ["housekeeping"]
+  },
+  {
+    "label": "flutter doctor",
+    "command": "flutter",
+    "args": ["doctor", "-v"],
+    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "reveal": "always",
+    "tags": ["housekeeping"]
+  },
+
+  // ---------- Backend (just recipes, for the full-stack loop) ----------
+  {
+    "label": "just dev",
+    "command": "just",
+    "args": ["dev"],
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "tags": ["backend"]
+  },
+  {
+    "label": "just test",
+    "command": "just",
+    "args": ["test"],
+    "reveal": "always",
+    "tags": ["backend"]
+  }
+]
