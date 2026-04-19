@@ -318,8 +318,10 @@ class RouteLocations {
   static const welcome = '/welcome';
   static const signIn = '/sign-in';
   static const onboarding = '/onboarding';
-  static const home = '/feed';
   static const feed = '/feed';
+  // Alias: the post-auth home landing. Keep as a const reference to `feed`
+  // so renaming the branch in one place updates both usages.
+  static const home = feed;
   static const search = '/search';
   static const notifications = '/notifications';
   static const profile = '/profile';
@@ -1694,7 +1696,7 @@ Walk the success criteria from the spec:
 5. On Profile, tap "Saved" → `/profile/saved` pushes, bottom nav stays visible.
 6. On Profile, tap "Settings" → `/settings` pushes, bottom nav hidden.
 7. On Profile, tap "Open a user profile" → `/profile/alice.bsky.social` pushes, bottom nav hidden.
-8. On Settings, tap "Sign out (dev)" → pop back to Profile, then observe next nav attempt gets redirected back to `/welcome` (bottom nav hidden during the animation).
+8. On Settings, tap "Sign out (dev)" → the redirect **does not fire automatically** because `goRouterProvider` only `ref.read`s the auth status (by design — no reactive redirect). Pop back to Profile manually, then trigger any navigation (e.g. tap the Feed tab) and observe the redirect kicks in sending you to `/welcome`. If this manual trigger isn't acceptable UX later, a follow-up can add a `ref.listen(authStatusProvider)` inside the router or a shell-level listener — out of scope for this scaffold.
 9. Resize the window (macOS / web) past the `FormFactor.laptop` breakpoint → layout switches from bottom nav to left-rail.
 
 If any step fails, note the specific failing step and fix before proceeding.
