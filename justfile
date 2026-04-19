@@ -29,9 +29,11 @@ ping:
 tap-status:
     docker compose exec appview /app/cli tap status
 
-# Open a psql session against the dev database.
-psql:
-    docker compose exec postgres psql -U craftsky craftsky_dev
+# Open a psql session against the dev database, or run one-off commands.
+#   just psql                 # interactive shell
+#   just psql -c '\d'         # pass -c / other args through to psql
+psql *ARGS:
+    docker compose exec postgres psql -U craftsky craftsky_dev {{ARGS}}
 
 # Run the Go test suite with the race detector enabled. Tests run on the
 # host (the appview image uses a distroless-ish alpine final stage without
