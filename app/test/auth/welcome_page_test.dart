@@ -12,10 +12,15 @@ void main() {
       ),
     );
     expect(find.text('Welcome'), findsWidgets);
-    expect(find.widgetWithText(OutlinedButton, 'Dev: toggle auth'), findsOneWidget);
+    expect(
+      find.widgetWithText(OutlinedButton, 'Dev: toggle auth'),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('tapping the dev toggle flips authStatusProvider to true', (tester) async {
+  testWidgets('tapping the dev toggle flips authStatusProvider to true', (
+    tester,
+  ) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
@@ -35,7 +40,8 @@ void main() {
     );
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Dev: toggle auth'));
-    await tester.pumpAndSettle(); // NOTE: pumpAndSettle (not pump) — avoids timersPending assertion with autoDispose providers
+    await tester
+        .pumpAndSettle(); // NOTE: pumpAndSettle (not pump) — avoids timersPending assertion with autoDispose providers
 
     expect(container.read(authStatusProvider), isTrue);
   });

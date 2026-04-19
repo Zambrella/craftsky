@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('SignInPage renders a handle field and Continue button', (tester) async {
+  testWidgets('SignInPage renders a handle field and Continue button', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const ProviderScope(
         child: MaterialApp(home: SignInPage()),

@@ -12,6 +12,9 @@ void main() {
     );
     expect(find.widgetWithText(OutlinedButton, 'Settings'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Saved'), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, 'Open a user profile'), findsOneWidget);
+    expect(
+      find.widgetWithText(OutlinedButton, 'Open a user profile'),
+      findsOneWidget,
+    );
   });
 }

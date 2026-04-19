@@ -19,7 +19,10 @@ void main() {
     addTearDown(container.dispose);
 
     // Pin the autoDispose provider. See Task 6 review notes.
-    final subscription = container.listen<bool>(onboardingStatusProvider, (_, __) {});
+    final subscription = container.listen<bool>(
+      onboardingStatusProvider,
+      (_, __) {},
+    );
     addTearDown(subscription.close);
 
     await tester.pumpWidget(

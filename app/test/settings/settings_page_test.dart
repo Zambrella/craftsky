@@ -12,10 +12,15 @@ void main() {
       ),
     );
     expect(find.text('Settings'), findsWidgets);
-    expect(find.widgetWithText(OutlinedButton, 'Sign out (dev)'), findsOneWidget);
+    expect(
+      find.widgetWithText(OutlinedButton, 'Sign out (dev)'),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('tapping sign-out button flips authStatusProvider to false', (tester) async {
+  testWidgets('tapping sign-out button flips authStatusProvider to false', (
+    tester,
+  ) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
     container.read(authStatusProvider.notifier).signIn();

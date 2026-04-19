@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
-import 'package:craftsky_app/router/home_page.dart';
+import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -68,7 +68,7 @@ void main() {
       await tester.pump();
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.byType(HomePage), findsNothing);
+      expect(find.byType(WelcomePage), findsNothing);
       expect(find.byType(InitializationErrorScreen), findsNothing);
     });
 
@@ -93,7 +93,7 @@ void main() {
       expect(find.widgetWithText(ElevatedButton, 'Retry'), findsOneWidget);
     });
 
-    testWidgets('retry invalidates the provider and recovers to HomePage', (
+    testWidgets('retry invalidates the provider and recovers to WelcomePage', (
       tester,
     ) async {
       var attempt = 0;
@@ -126,7 +126,7 @@ void main() {
       await tester.tap(find.widgetWithText(ElevatedButton, 'Retry'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(HomePage), findsOneWidget);
+      expect(find.byType(WelcomePage), findsOneWidget);
       expect(find.byType(InitializationErrorScreen), findsNothing);
       expect(attempt, 2);
     });
