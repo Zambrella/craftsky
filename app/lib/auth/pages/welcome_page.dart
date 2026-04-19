@@ -1,8 +1,7 @@
 import 'package:craftsky_app/auth/providers/auth_status_provider.dart';
-import 'package:craftsky_app/router/route_locations.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 class WelcomePage extends ConsumerWidget {
   const WelcomePage({super.key});
@@ -28,12 +27,12 @@ class WelcomePageBody extends ConsumerWidget {
         const Text('Welcome'),
         const SizedBox(height: 24),
         ElevatedButton(
-          onPressed: () => context.go(RouteLocations.signIn),
+          onPressed: () => const SignInRoute().go(context),
           child: const Text('Sign in'),
         ),
         const SizedBox(height: 8),
         TextButton(
-          onPressed: () => context.go(RouteLocations.signIn),
+          onPressed: () => const SignInRoute().go(context),
           child: const Text('Create account on a PDS'),
         ),
         const SizedBox(height: 32),

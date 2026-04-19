@@ -1,7 +1,6 @@
-import 'package:craftsky_app/router/route_locations.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key});
@@ -27,20 +26,18 @@ class ProfilePageBody extends StatelessWidget {
         const Text('Profile'),
         const SizedBox(height: 24),
         OutlinedButton(
-          onPressed: () => context.go(
-            '${RouteLocations.profile}/${RouteLocations.savedChild}',
-          ),
+          onPressed: () => const SavedRoute().go(context),
           child: const Text('Saved'),
         ),
         const SizedBox(height: 8),
         OutlinedButton(
-          onPressed: () => context.go(RouteLocations.settings),
+          onPressed: () => const SettingsRoute().go(context),
           child: const Text('Settings'),
         ),
         const SizedBox(height: 8),
         OutlinedButton(
           onPressed: () =>
-              context.go('${RouteLocations.profile}/alice.bsky.social'),
+              const UserProfileRoute(handle: 'alice.bsky.social').go(context),
           child: const Text('Open a user profile'),
         ),
       ],
