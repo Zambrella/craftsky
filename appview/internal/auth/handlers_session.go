@@ -62,19 +62,21 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 			return
 		}
 
-		state, err := extractState(authURL)
+		requestURI, err := extractRequestURI(authURL)
 		if err != nil {
-			h.Logger.Error("extractState from StartAuthFlow URL", slog.String("err", err.Error()))
+			h.Logger.Error("extractRequestURI from StartAuthFlow URL", slog.String("err", err.Error()))
 			writeJSONError(w, http.StatusInternalServerError, "internal")
 			return
 		}
 		// Race note: StartAuthFlow already inserted the auth-request row.
-		// We update the handoff columns in a follow-up UPDATE. A parallel
-		// callback arriving between INSERT and UPDATE would see the
-		// default handoff_mode='deep_link'. Acceptable for v1.
-		if err := h.recordHandoff(r.Context(), state, req.HandoffMode, req.LoopbackRedirectURI); err != nil {
+		// We update the handoff columns in a follow-up UPDATE keyed by the
+		// request_uri stored in the JSONB blob (indigo doesn't expose state
+		// in the returned URL, only in its persisted AuthRequestData). A
+		// parallel callback arriving between INSERT and UPDATE would see
+		// the default handoff_mode='deep_link'. Acceptable for v1.
+		if err := h.recordHandoff(r.Context(), requestURI, req.HandoffMode, req.LoopbackRedirectURI); err != nil {
 			h.Logger.Error("recordHandoff failed",
-				slog.String("state", state),
+				slog.String("request_uri", requestURI),
 				slog.String("err", err.Error()))
 			// Continue: callback's loadHandoff falls back to deep_link.
 		}
@@ -84,27 +86,36 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 	})
 }
 
-var errStateMissing = errors.New("authorization URL missing state parameter")
+var errRequestURIMissing = errors.New("authorization URL missing request_uri parameter")
 
-func extractState(authURL string) (string, error) {
+// extractRequestURI pulls request_uri out of the redirect URL returned
+// by indigo's StartAuthFlow. indigo does NOT include state in that URL —
+// it's only in the persisted AuthRequestData JSONB blob. We use
+// request_uri as our row-lookup key for the handoff UPDATE.
+func extractRequestURI(authURL string) (string, error) {
 	u, err := url.Parse(authURL)
 	if err != nil {
 		return "", err
 	}
-	s := u.Query().Get("state")
-	if s == "" {
-		return "", errStateMissing
+	r := u.Query().Get("request_uri")
+	if r == "" {
+		return "", errRequestURIMissing
 	}
-	return s, nil
+	return r, nil
 }
 
 // recordHandoff persists the handoff mode + loopback URI on the
-// oauth_auth_requests row identified by state. Sibling-column variant
-// (per Appendix A of the plan).
-func (h *HTTPHandlers) recordHandoff(ctx context.Context, state, mode, loopbackURI string) error {
+// oauth_auth_requests row identified by request_uri (extracted from the
+// redirect URL indigo returns). Sibling-column variant per Appendix A.
+//
+// We match on data->>'request_uri' since indigo persists request_uri
+// inside the opaque JSONB blob, not as a top-level column. The UPDATE is
+// idempotent and affects at most one row (request_uri is a per-flow
+// random string).
+func (h *HTTPHandlers) recordHandoff(ctx context.Context, requestURI, mode, loopbackURI string) error {
 	_, err := h.Pool.Exec(ctx,
-		`UPDATE oauth_auth_requests SET handoff_mode = $1, loopback_redirect_uri = $2 WHERE state = $3`,
-		mode, nullableString(loopbackURI), state)
+		`UPDATE oauth_auth_requests SET handoff_mode = $1, loopback_redirect_uri = $2 WHERE data->>'request_uri' = $3`,
+		mode, nullableString(loopbackURI), requestURI)
 	return err
 }
 
