@@ -4,7 +4,8 @@ enum FormFactor {
   mobile(breakpoint: 600),
   tablet(breakpoint: 900),
   laptop(breakpoint: 1200),
-  desktop(breakpoint: double.infinity);
+  desktop(breakpoint: double.infinity)
+  ;
 
   const FormFactor({required this.breakpoint});
 
@@ -30,7 +31,8 @@ class FormFactorWidget extends StatelessWidget {
   final Widget child;
 
   static FormFactor of(BuildContext context) {
-    final scope = context.dependOnInheritedWidgetOfExactType<_FormFactorScope>();
+    final scope = context
+        .dependOnInheritedWidgetOfExactType<_FormFactorScope>();
     assert(scope != null, 'No FormFactorWidget found in context');
     return scope!.formFactor;
   }
@@ -49,5 +51,6 @@ class _FormFactorScope extends InheritedWidget {
   final FormFactor formFactor;
 
   @override
-  bool updateShouldNotify(_FormFactorScope oldWidget) => formFactor != oldWidget.formFactor;
+  bool updateShouldNotify(_FormFactorScope oldWidget) =>
+      formFactor != oldWidget.formFactor;
 }

@@ -59,10 +59,13 @@ Future<AppDependencies> appDependencies(Ref ref) async {
   final appVersion = Version.parse(packageInfo.version);
 
   final deviceLocale = PlatformDispatcher.instance.locale.toString();
-  await initializeDateFormatting(deviceLocale, null);
-  _log.fine('initialized date formatting for $deviceLocale');
-
-  _log.info('app dependencies ready (version=$appVersion, platform=${deviceInfo.platform})');
+  await initializeDateFormatting(deviceLocale);
+  _log
+    ..fine('initialized date formatting for $deviceLocale')
+    ..info(
+      'app dependencies ready '
+      '(version=$appVersion, platform=${deviceInfo.platform})',
+    );
 
   return AppDependencies(
     packageInfo: packageInfo,
@@ -111,7 +114,9 @@ Future<CraftskyDeviceInfo> _resolveDeviceInfo() async {
     case TargetPlatform.linux:
     case TargetPlatform.macOS:
     case TargetPlatform.windows:
-      throw UnsupportedError('Platform not supported by this scaffold: $defaultTargetPlatform');
+      throw UnsupportedError(
+        'Platform not supported by this scaffold: $defaultTargetPlatform',
+      );
   }
 }
 
@@ -122,12 +127,14 @@ Future<CraftskyDeviceInfo> _resolveDeviceInfo() async {
 // so the exception path is unreachable in the normal flow.
 
 @Riverpod(keepAlive: true)
-SharedPreferences sharedPreferences(Ref ref) =>
-    ref.watch(appDependenciesProvider.select((a) => a.requireValue.sharedPreferences));
+SharedPreferences sharedPreferences(Ref ref) => ref.watch(
+  appDependenciesProvider.select((a) => a.requireValue.sharedPreferences),
+);
 
 @Riverpod(keepAlive: true)
-PackageInfo packageInfo(Ref ref) =>
-    ref.watch(appDependenciesProvider.select((a) => a.requireValue.packageInfo));
+PackageInfo packageInfo(Ref ref) => ref.watch(
+  appDependenciesProvider.select((a) => a.requireValue.packageInfo),
+);
 
 @Riverpod(keepAlive: true)
 CraftskyDeviceInfo deviceInfo(Ref ref) =>

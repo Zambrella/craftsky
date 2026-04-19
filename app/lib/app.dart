@@ -121,7 +121,11 @@ class InitializationErrorScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline, color: theme.colorScheme.error, size: 64),
+              Icon(
+                Icons.error_outline,
+                color: theme.colorScheme.error,
+                size: 64,
+              ),
               const SizedBox(height: 16),
               Text(
                 'Initialization Failed',

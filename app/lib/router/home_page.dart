@@ -18,7 +18,11 @@ class HomePage extends ConsumerWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.palette_outlined, size: 64, color: theme.colorScheme.primary),
+              Icon(
+                Icons.palette_outlined,
+                size: 64,
+                color: theme.colorScheme.primary,
+              ),
               const SizedBox(height: 16),
               Text('Craftsky', style: theme.textTheme.headlineMedium),
               const SizedBox(height: 8),

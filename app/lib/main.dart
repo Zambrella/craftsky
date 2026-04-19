@@ -1,3 +1,9 @@
+// This file is the debug sink for the `logging` package: it configures the
+// root logger to forward records to stdout via `print` when running in debug
+// mode. That is the one legitimate place in the codebase where `print` is
+// used; everywhere else, use `Logger`.
+// ignore_for_file: avoid_print
+
 import 'dart:async';
 import 'dart:developer' as developer;
 
@@ -18,14 +24,13 @@ Future<void> main() async {
       Logger.root.level = Level.FINE;
       Logger.root.onRecord.listen((record) {
         if (kDebugMode) {
-          // ignore: avoid_print
-          print('${record.level.name} | ${record.loggerName}: ${record.message}');
+          print(
+            '${record.level.name} | ${record.loggerName}: ${record.message}',
+          );
           if (record.error != null) {
-            // ignore: avoid_print
             print('  error: ${record.error}');
           }
           if (record.stackTrace != null) {
-            // ignore: avoid_print
             print('  stack: ${record.stackTrace}');
           }
         }
@@ -55,7 +60,11 @@ void registerErrorHandlers() {
 
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
-    log.severe('FlutterError: ${details.exception}', details.exception, details.stack);
+    log.severe(
+      'FlutterError: ${details.exception}',
+      details.exception,
+      details.stack,
+    );
   };
 
   PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
@@ -64,7 +73,11 @@ void registerErrorHandlers() {
   };
 
   ErrorWidget.builder = (FlutterErrorDetails details) {
-    log.warning('Error building widget: ${details.exception}', details.exception, details.stack);
+    log.warning(
+      'Error building widget: ${details.exception}',
+      details.exception,
+      details.stack,
+    );
     if (kDebugMode) {
       return ErrorWidget(details.exception);
     }

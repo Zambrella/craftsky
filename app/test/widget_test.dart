@@ -17,23 +17,22 @@ void main() {
   });
 
   AppDependencies stubDeps() => AppDependencies(
-        packageInfo: PackageInfo(
-          appName: 'craftsky_app',
-          packageName: 'social.craftsky.app',
-          version: '1.0.0',
-          buildNumber: '1',
-          buildSignature: '',
-        ),
-        deviceInfo: CraftskyDeviceInfo(
-          platform: 'Test',
-          deviceId: 'test',
-          model: 'test',
-          brand: 'test',
-          osVersion: '0',
-        ),
-        sharedPreferences: prefs,
-        appVersion: Version.parse('1.0.0'),
-      );
+    packageInfo: PackageInfo(
+      appName: 'craftsky_app',
+      packageName: 'social.craftsky.app',
+      version: '1.0.0',
+      buildNumber: '1',
+    ),
+    deviceInfo: CraftskyDeviceInfo(
+      platform: 'Test',
+      deviceId: 'test',
+      model: 'test',
+      brand: 'test',
+      osVersion: '0',
+    ),
+    sharedPreferences: prefs,
+    appVersion: Version.parse('1.0.0'),
+  );
 
   testWidgets('App boots and renders HomePage', (tester) async {
     await tester.pumpWidget(

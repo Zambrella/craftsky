@@ -18,7 +18,13 @@ class SpacingTheme extends ThemeExtension<SpacingTheme> {
   final double xl;
 
   @override
-  SpacingTheme copyWith({double? xs, double? s, double? m, double? l, double? xl}) {
+  SpacingTheme copyWith({
+    double? xs,
+    double? s,
+    double? m,
+    double? l,
+    double? xl,
+  }) {
     return SpacingTheme(
       xs: xs ?? this.xs,
       s: s ?? this.s,
@@ -114,7 +120,12 @@ class SemanticColorsTheme extends ThemeExtension<SemanticColorsTheme> {
   final Color info;
 
   @override
-  SemanticColorsTheme copyWith({Color? error, Color? warning, Color? success, Color? info}) {
+  SemanticColorsTheme copyWith({
+    Color? error,
+    Color? warning,
+    Color? success,
+    Color? info,
+  }) {
     return SemanticColorsTheme(
       error: error ?? this.error,
       warning: warning ?? this.warning,
@@ -124,7 +135,10 @@ class SemanticColorsTheme extends ThemeExtension<SemanticColorsTheme> {
   }
 
   @override
-  SemanticColorsTheme lerp(ThemeExtension<SemanticColorsTheme>? other, double t) {
+  SemanticColorsTheme lerp(
+    ThemeExtension<SemanticColorsTheme>? other,
+    double t,
+  ) {
     if (other is! SemanticColorsTheme) return this;
     return SemanticColorsTheme(
       error: Color.lerp(error, other.error, t)!,
