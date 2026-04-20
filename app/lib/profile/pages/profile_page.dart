@@ -40,6 +40,11 @@ class ProfilePageBody extends StatelessWidget {
               const UserProfileRoute(handle: 'alice.bsky.social').go(context),
           child: const Text('Open a user profile'),
         ),
+        const SizedBox(height: 8),
+        OutlinedButton(
+          onPressed: () => const PlaygroundRoute().go(context),
+          child: const Text('Design playground'),
+        ),
       ],
     );
   }

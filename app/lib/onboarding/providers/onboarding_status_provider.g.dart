@@ -47,7 +47,7 @@ final class OnboardingStatusProvider
   }
 }
 
-String _$onboardingStatusHash() => r'2fe0df570052e339a52aa92d007423e42a6d7835';
+String _$onboardingStatusHash() => r'06a4dfa2b0d396252a31c26613f83418fdc10d5d';
 
 /// Stubbed onboarding completion status. Real implementation will be backed
 /// by the user's profile record once onboarding actually persists data.

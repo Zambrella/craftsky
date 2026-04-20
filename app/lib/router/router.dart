@@ -1,6 +1,7 @@
 import 'package:craftsky_app/auth/pages/sign_in_page.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/auth_status_provider.dart';
+import 'package:craftsky_app/design_playground/pages/design_playground_page.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
@@ -114,6 +115,14 @@ GoRouter goRouter(Ref ref) {
               path: RouteLocations.savedChild,
               name: 'saved',
             ),
+            TypedGoRoute<SettingsRoute>(
+              path: RouteLocations.settingsChild,
+              name: 'settings',
+            ),
+            TypedGoRoute<PlaygroundRoute>(
+              path: RouteLocations.playgroundChild,
+              name: 'playground',
+            ),
           ],
         ),
       ],
@@ -189,6 +198,35 @@ class SavedRoute extends GoRouteData with $SavedRoute {
   Widget build(BuildContext context, GoRouterState state) => const SavedPage();
 }
 
+/// Declared as a child of [ProfileRoute] so its path becomes
+/// `/profile/settings` and the back arrow pops to `/profile`. The parent
+/// navigator key lifts it onto the root navigator so it covers the shell's
+/// bottom navigation.
+class SettingsRoute extends GoRouteData with $SettingsRoute {
+  const SettingsRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const SettingsPage();
+}
+
+/// Dev-only design playground. Same shape as [SettingsRoute] — nested under
+/// profile for back-button semantics, pushed on the root navigator to cover
+/// the bottom nav.
+class PlaygroundRoute extends GoRouteData with $PlaygroundRoute {
+  const PlaygroundRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const DesignPlaygroundPage();
+}
+
 // --- Root-navigator routes (push over the shell) ---------------------------
 
 @TypedGoRoute<WelcomeRoute>(path: RouteLocations.welcome, name: 'welcome')
@@ -227,18 +265,6 @@ class OnboardingRoute extends GoRouteData with $OnboardingRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const OnboardingPage();
-}
-
-@TypedGoRoute<SettingsRoute>(path: RouteLocations.settings, name: 'settings')
-class SettingsRoute extends GoRouteData with $SettingsRoute {
-  const SettingsRoute();
-
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.rootNavigatorKey;
-
-  @override
-  Widget build(BuildContext context, GoRouterState state) =>
-      const SettingsPage();
 }
 
 @TypedGoRoute<UserProfileRoute>(

@@ -55,7 +55,7 @@ final class AuthStatusProvider extends $NotifierProvider<AuthStatus, bool> {
   }
 }
 
-String _$authStatusHash() => r'79441b197148205066909d30cc032a0057d7227d';
+String _$authStatusHash() => r'3c0cec2f0bcf0def3fd6b3a83f79161acf89b945';
 
 /// Stubbed auth status. Real implementation will be backed by the app-view
 /// session token once atproto OAuth is wired up.

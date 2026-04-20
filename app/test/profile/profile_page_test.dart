@@ -16,5 +16,9 @@ void main() {
       find.widgetWithText(OutlinedButton, 'Open a user profile'),
       findsOneWidget,
     );
+    expect(
+      find.widgetWithText(OutlinedButton, 'Design playground'),
+      findsOneWidget,
+    );
   });
 }

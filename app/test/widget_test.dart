@@ -1,6 +1,7 @@
 import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
+import 'package:craftsky_app/auth/providers/auth_status_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -41,6 +42,9 @@ void main() {
       ProviderScope(
         overrides: [
           appDependenciesProvider.overrideWith((ref) async => stubDeps()),
+          // Tests assert pre-auth landing; override the dev stub (which may
+          // be flipped to `true` locally for manual testing) back to `false`.
+          authStatusProvider.overrideWithValue(false),
         ],
         child: const App(),
       ),

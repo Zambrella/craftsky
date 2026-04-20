@@ -14,5 +14,6 @@ class RouteLocations {
   static const notifications = '/notifications';
   static const profile = '/profile';
   static const savedChild = 'saved';
-  static const settings = '/settings';
+  static const settingsChild = 'settings';
+  static const playgroundChild = 'playground';
 }

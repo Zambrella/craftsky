@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
+import 'package:craftsky_app/auth/providers/auth_status_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -114,6 +115,9 @@ void main() {
               }
               return stubDeps();
             }),
+            // Pin auth to pre-authenticated so the router lands on WelcomePage
+            // regardless of the dev stub's current default.
+            authStatusProvider.overrideWithValue(false),
           ],
           child: const App(),
         ),
