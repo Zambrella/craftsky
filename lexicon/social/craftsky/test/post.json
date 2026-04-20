@@ -1,0 +1,28 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.test.post",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "DISPOSABLE. Throwaway test post used to validate the firehose → index → Postgres → read API pipeline. Delete this NSID and all associated code (appview/internal/testpipeline/, test_posts table, /test/feed route) once the real social.craftsky.feed.post indexer lands. See docs/superpowers/specs/2026-04-19-test-pipeline-design.md.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["text", "createdAt"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 3000,
+            "maxGraphemes": 300,
+            "description": "The post text."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Client-declared creation timestamp."
+          }
+        }
+      }
+    }
+  }
+}
