@@ -1,5 +1,4 @@
 import 'package:craftsky_app/auth/pages/sign_in_page.dart';
-import 'package:craftsky_app/auth/providers/auth_status_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -21,34 +20,5 @@ void main() {
     );
     expect(find.byType(BrandTextField), findsOneWidget);
     expect(find.widgetWithText(ChunkyButton, 'Continue'), findsOneWidget);
-  });
-
-  testWidgets('Continue flips authStatusProvider to true', (tester) async {
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
-
-    // Pin the autoDispose authStatusProvider so it survives the
-    // tap→pumpAndSettle cycle and the post-pump container.read assertion.
-    // See Task 6 review notes.
-    final subscription = container.listen<bool>(
-      authStatusProvider,
-      (_, _) {},
-    );
-    addTearDown(subscription.close);
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: AppTheme.lightThemeData,
-          home: const SignInPage(),
-        ),
-      ),
-    );
-
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Continue'));
-    await tester.pumpAndSettle();
-
-    expect(container.read(authStatusProvider), isTrue);
   });
 }

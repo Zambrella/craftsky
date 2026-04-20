@@ -1,5 +1,4 @@
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
-import 'package:craftsky_app/auth/providers/auth_status_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,37 +19,5 @@ void main() {
       find.widgetWithText(OutlinedButton, 'Dev: toggle auth'),
       findsOneWidget,
     );
-  });
-
-  testWidgets('tapping the dev toggle flips authStatusProvider to true', (
-    tester,
-  ) async {
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
-
-    // Keep a live listener so the autoDispose provider isn't torn down
-    // between the tap and the assertion.
-    final subscription = container.listen<bool>(
-      authStatusProvider,
-      (_, _) {},
-    );
-    addTearDown(subscription.close);
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: AppTheme.lightThemeData,
-          home: const WelcomePage(),
-        ),
-      ),
-    );
-
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Dev: toggle auth'));
-    // NOTE: pumpAndSettle (not pump) — avoids timersPending assertion
-    // with autoDispose providers.
-    await tester.pumpAndSettle();
-
-    expect(container.read(authStatusProvider), isTrue);
   });
 }

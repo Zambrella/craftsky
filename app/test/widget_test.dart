@@ -8,6 +8,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pub_semver/pub_semver.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'fakes/auth_status_fakes.dart';
+
 void main() {
   late SharedPreferences prefs;
 
@@ -42,9 +44,7 @@ void main() {
       ProviderScope(
         overrides: [
           appDependenciesProvider.overrideWith((ref) async => stubDeps()),
-          // Tests assert pre-auth landing; override the dev stub (which may
-          // be flipped to `true` locally for manual testing) back to `false`.
-          authStatusProvider.overrideWithValue(false),
+          authStatusProvider.overrideWith(UnauthenticatedAuthStatus.new),
         ],
         child: const App(),
       ),

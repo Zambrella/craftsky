@@ -12,6 +12,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pub_semver/pub_semver.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'fakes/auth_status_fakes.dart';
+
 void main() {
   group('App initialisation', () {
     late SharedPreferences prefs;
@@ -115,9 +117,7 @@ void main() {
               }
               return stubDeps();
             }),
-            // Pin auth to pre-authenticated so the router lands on WelcomePage
-            // regardless of the dev stub's current default.
-            authStatusProvider.overrideWithValue(false),
+            authStatusProvider.overrideWith(UnauthenticatedAuthStatus.new),
           ],
           child: const App(),
         ),
