@@ -15,7 +15,7 @@ class OnboardingStatus extends _$OnboardingStatus {
       // operand without touching the second. Disabled lint would hide the
       // toggle surface.
       // ignore: avoid_bool_literals_in_conditional_expressions
-      kDebugMode ? false : false;
+      kDebugMode ? true : false;
 
   void finish() => state = true;
 }

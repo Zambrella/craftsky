@@ -10,7 +10,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Future<void> _pumpApp(WidgetTester tester, ProviderContainer container) async {
+import '../fakes/auth_status_fakes.dart';
+
+Future<void> _pumpRouter(
+  WidgetTester tester,
+  ProviderContainer container,
+) async {
   final router = container.read(goRouterProvider);
   await tester.pumpWidget(
     UncontrolledProviderScope(
@@ -29,31 +34,40 @@ Future<void> _pumpApp(WidgetTester tester, ProviderContainer container) async {
 void main() {
   group('router redirect', () {
     testWidgets('unauthenticated user lands on WelcomePage', (tester) async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+      final container = ProviderContainer.test(
+        overrides: [
+          authStatusProvider.overrideWith(UnauthenticatedAuthStatus.new),
+          onboardingStatusProvider.overrideWith(PendingOnboardingStatus.new),
+        ],
+      );
 
-      await _pumpApp(tester, container);
+      await _pumpRouter(tester, container);
 
       expect(find.byType(WelcomePage), findsOneWidget);
     });
 
     testWidgets('authed but not onboarded → OnboardingPage', (tester) async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-      container.read(authStatusProvider.notifier).signIn();
+      final container = ProviderContainer.test(
+        overrides: [
+          authStatusProvider.overrideWith(AuthenticatedAuthStatus.new),
+          onboardingStatusProvider.overrideWith(PendingOnboardingStatus.new),
+        ],
+      );
 
-      await _pumpApp(tester, container);
+      await _pumpRouter(tester, container);
 
       expect(find.byType(OnboardingPage), findsOneWidget);
     });
 
     testWidgets('authed and onboarded → FeedPage', (tester) async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-      container.read(authStatusProvider.notifier).signIn();
-      container.read(onboardingStatusProvider.notifier).finish();
+      final container = ProviderContainer.test(
+        overrides: [
+          authStatusProvider.overrideWith(AuthenticatedAuthStatus.new),
+          onboardingStatusProvider.overrideWith(CompletedOnboardingStatus.new),
+        ],
+      );
 
-      await _pumpApp(tester, container);
+      await _pumpRouter(tester, container);
 
       expect(find.byType(FeedPage), findsOneWidget);
     });

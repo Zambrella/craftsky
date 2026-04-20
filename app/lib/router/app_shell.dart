@@ -1,5 +1,4 @@
 import 'package:craftsky_app/theme/form_factor.dart';
-import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -92,25 +91,27 @@ class _ShellNavigationBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final swatches = Theme.of(context).extension<BrandSwatchTheme>()!;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: swatches.borderHair),
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    // Column sits above the safe-area inset as the Scaffold's
+    // bottomNavigationBar, so the ink rule paints on top of the
+    // NavigationBar's fill rather than being clipped behind it.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(height: 1.5, color: onSurface),
+        NavigationBar(
+          selectedIndex: selectedIndex,
+          onDestinationSelected: onDestinationSelected,
+          destinations: [
+            for (final d in _destinations)
+              NavigationDestination(
+                icon: Icon(d.icon),
+                selectedIcon: Icon(d.selectedIcon),
+                label: d.label,
+              ),
+          ],
         ),
-      ),
-      child: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: onDestinationSelected,
-        destinations: [
-          for (final d in _destinations)
-            NavigationDestination(
-              icon: Icon(d.icon),
-              selectedIcon: Icon(d.selectedIcon),
-              label: d.label,
-            ),
-        ],
-      ),
+      ],
     );
   }
 }

@@ -199,10 +199,9 @@ class AppTheme {
   }
 
   /// AppBar: paper background matching the scaffold, no elevation/tint, and a
-  /// hairline ink divider along the bottom edge so it reads as a rule rather
-  /// than a raised surface.
+  /// chunky ink rule along the bottom edge so it reads as a hand-cut
+  /// paper-cutout boundary rather than a raised Material surface.
   static AppBarTheme _appBarTheme(ThemeData base) {
-    const borderHair = BrandColors.borderHair;
     return AppBarTheme(
       backgroundColor: BrandColors.paper,
       surfaceTintColor: Colors.transparent,
@@ -211,8 +210,8 @@ class AppTheme {
       scrolledUnderElevation: 0,
       centerTitle: true,
       titleTextStyle: base.textTheme.titleLarge,
-      shape: const Border(
-        bottom: BorderSide(color: borderHair),
+      shape: Border(
+        bottom: BorderSide(color: base.colorScheme.onSurface, width: 1.5),
       ),
     );
   }
