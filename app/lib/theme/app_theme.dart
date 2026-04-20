@@ -216,15 +216,19 @@ class AppTheme {
     );
   }
 
-  /// NavigationBar: paper background matching the scaffold, hairline ink rule
-  /// along the top edge (mirroring the AppBar), and primary-coloured indicator
-  /// + label for the selected destination.
+  /// NavigationBar: paper background matching the scaffold, chunky ink rule
+  /// along the top edge (mirroring the AppBar), primary-coloured indicator +
+  /// label for the selected destination, and faded ink for unselected tabs.
+  /// The Material 3 tap-highlight is suppressed — the paper-cutout look
+  /// prefers a clean surface without ripple/tint overlays.
   static NavigationBarThemeData _navigationBarTheme(ThemeData base) {
     final colors = base.colorScheme;
+    const unselected = BrandColors.ink3;
     return NavigationBarThemeData(
       backgroundColor: BrandColors.paper,
       surfaceTintColor: Colors.transparent,
       indicatorColor: colors.primaryContainer,
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
       elevation: 0,
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         const base0 = TextStyle(
@@ -234,13 +238,13 @@ class AppTheme {
         if (states.contains(WidgetState.selected)) {
           return base0.copyWith(color: colors.primary);
         }
-        return base0.copyWith(color: colors.onSurfaceVariant);
+        return base0.copyWith(color: unselected);
       }),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
           return IconThemeData(color: colors.primary);
         }
-        return IconThemeData(color: colors.onSurfaceVariant);
+        return const IconThemeData(color: unselected);
       }),
       // Top hairline rule: the NavigationBar ships as a Material with its own
       // shape, so we wrap with a decoration — but NavigationBarThemeData
