@@ -59,7 +59,11 @@ class AppTheme {
       visualDensity: FlexColorScheme.comfortablePlatformDensity,
       textTheme: _textTheme(ink: BrandColors.ink, ink2: BrandColors.ink2),
     );
-    return base.copyWith(extensions: _extensions(base.colorScheme));
+    return base.copyWith(
+      extensions: _extensions(base.colorScheme),
+      appBarTheme: _appBarTheme(base),
+      navigationBarTheme: _navigationBarTheme(base),
+    );
   }
 
   // Dark mode is intentionally minimal — brand is paper-warm and a proper
@@ -191,6 +195,63 @@ class AppTheme {
         letterSpacing: 0.14 * 12,
         color: ink2,
       ),
+    );
+  }
+
+  /// AppBar: paper background matching the scaffold, no elevation/tint, and a
+  /// chunky ink rule along the bottom edge so it reads as a hand-cut
+  /// paper-cutout boundary rather than a raised Material surface.
+  static AppBarTheme _appBarTheme(ThemeData base) {
+    return AppBarTheme(
+      backgroundColor: BrandColors.paper,
+      surfaceTintColor: Colors.transparent,
+      foregroundColor: base.colorScheme.onSurface,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: true,
+      titleTextStyle: base.textTheme.titleLarge,
+      shape: Border(
+        bottom: BorderSide(color: base.colorScheme.onSurface, width: 1.5),
+      ),
+    );
+  }
+
+  /// NavigationBar: paper background matching the scaffold, chunky ink rule
+  /// along the top edge (mirroring the AppBar), primary-coloured indicator +
+  /// label for the selected destination, and faded ink for unselected tabs.
+  /// The Material 3 tap-highlight is suppressed — the paper-cutout look
+  /// prefers a clean surface without ripple/tint overlays.
+  static NavigationBarThemeData _navigationBarTheme(ThemeData base) {
+    final colors = base.colorScheme;
+    const unselected = BrandColors.ink3;
+    return NavigationBarThemeData(
+      backgroundColor: BrandColors.paper,
+      surfaceTintColor: Colors.transparent,
+      // No pill behind the selected icon — the primary-coloured icon + label
+      // carry the selected state on their own.
+      indicatorColor: Colors.transparent,
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+      elevation: 0,
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        const base0 = TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        );
+        if (states.contains(WidgetState.selected)) {
+          return base0.copyWith(color: colors.primary);
+        }
+        return base0.copyWith(color: unselected);
+      }),
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return IconThemeData(color: colors.primary);
+        }
+        return const IconThemeData(color: unselected);
+      }),
+      // Top hairline rule: the NavigationBar ships as a Material with its own
+      // shape, so we wrap with a decoration — but NavigationBarThemeData
+      // doesn't expose shape. The AppShell adds a Border on the wrapper
+      // Container instead (see app_shell.dart).
     );
   }
 

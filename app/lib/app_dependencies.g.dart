@@ -46,7 +46,7 @@ final class AppDependenciesProvider
   }
 }
 
-String _$appDependenciesHash() => r'fb0ab3446fb744480fff9e191a8f5f78a5fc380d';
+String _$appDependenciesHash() => r'7d2eeaf5ba18965388b508848e769827abcfb456';
 
 @ProviderFor(sharedPreferences)
 final sharedPreferencesProvider = SharedPreferencesProvider._();

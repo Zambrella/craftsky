@@ -1,11 +1,14 @@
 import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
-import 'package:craftsky_app/router/home_page.dart';
+import 'package:craftsky_app/auth/pages/welcome_page.dart';
+import 'package:craftsky_app/auth/providers/auth_status_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pub_semver/pub_semver.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'fakes/auth_status_fakes.dart';
 
 void main() {
   late SharedPreferences prefs;
@@ -34,11 +37,14 @@ void main() {
     appVersion: Version.parse('1.0.0'),
   );
 
-  testWidgets('App boots and renders HomePage', (tester) async {
+  testWidgets('App boots unauthenticated and lands on WelcomePage', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           appDependenciesProvider.overrideWith((ref) async => stubDeps()),
+          authStatusProvider.overrideWith(UnauthenticatedAuthStatus.new),
         ],
         child: const App(),
       ),
@@ -46,12 +52,6 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.byType(HomePage), findsOneWidget);
-    // These two assertions between them prove the AppLocalizations delegate
-    // resolved and that both static and parameterized keys render: the
-    // subtitle is a static string only reachable through `l10n.homeSubtitle`,
-    // and the version label is built via `l10n.homeVersionLabel(version)`.
-    expect(find.text('Scaffold ready'), findsOneWidget);
-    expect(find.text('v1.0.0'), findsOneWidget);
+    expect(find.byType(WelcomePage), findsOneWidget);
   });
 }

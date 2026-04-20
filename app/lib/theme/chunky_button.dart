@@ -278,20 +278,24 @@ class _ChunkyBackgroundState extends State<_ChunkyBackground>
   Widget build(BuildContext context) {
     // Three stacked layers:
     //   1. Shadow — stadium, behind, offset down, never translated.
-    //   2. Surface — stadium, coloured, translated with the foreground.
-    //   3. Foreground child — the label content from ButtonStyleButton,
-    //      translated together with the surface.
+    //   2. Surface — stadium, coloured, translated together with layer 3.
+    //   3. Foreground child — the label content from ButtonStyleButton.
     //
-    // Layers 2+3 share a single animated Transform so they move as one,
-    // while the shadow stays put. A Listener wraps the whole stack to
-    // capture pointer-down immediately (before the button's gesture
-    // recognizer resolves tap-vs-scroll), so very brief taps still trigger
-    // the press animation.
+    // The Stack's intrinsic size comes from the unpositioned foreground
+    // (layer 3). The shadow (layer 1) and surface (layer 2) both use
+    // Positioned.fill so they stretch to match the Stack's final size —
+    // critical when the button is placed in a CrossAxisAlignment.stretch
+    // Column or similar full-width slot.
+    //
+    // A Listener wraps the whole stack to capture pointer-down immediately
+    // (before the button's gesture recognizer resolves tap-vs-scroll), so
+    // very brief taps still trigger the press animation.
     return Listener(
       onPointerDown: _handlePointerDown,
       onPointerUp: (_) => _handlePointerUpOrCancel(),
       onPointerCancel: (_) => _handlePointerUpOrCancel(),
       child: Stack(
+        alignment: Alignment.center,
         clipBehavior: Clip.none,
         children: [
           Positioned.fill(
@@ -305,24 +309,35 @@ class _ChunkyBackgroundState extends State<_ChunkyBackground>
               ),
             ),
           ),
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _press,
+              builder: (context, _) {
+                final t = Curves.easeOut.transform(_press.value);
+                return Transform.translate(
+                  offset: _translationFor(t),
+                  child: DecoratedBox(
+                    decoration: ShapeDecoration(
+                      color: _surfaceColorFor(t),
+                      shape: StadiumBorder(
+                        side: BorderSide(
+                          color: widget.borderColor,
+                          width: widget.borderWidth,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
           AnimatedBuilder(
             animation: _press,
             builder: (context, innerChild) {
               final t = Curves.easeOut.transform(_press.value);
               return Transform.translate(
                 offset: _translationFor(t),
-                child: DecoratedBox(
-                  decoration: ShapeDecoration(
-                    color: _surfaceColorFor(t),
-                    shape: StadiumBorder(
-                      side: BorderSide(
-                        color: widget.borderColor,
-                        width: widget.borderWidth,
-                      ),
-                    ),
-                  ),
-                  child: innerChild,
-                ),
+                child: innerChild,
               );
             },
             child: widget.child,

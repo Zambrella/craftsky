@@ -2,7 +2,8 @@ import 'dart:async';
 
 import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
-import 'package:craftsky_app/router/home_page.dart';
+import 'package:craftsky_app/auth/pages/welcome_page.dart';
+import 'package:craftsky_app/auth/providers/auth_status_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +11,8 @@ import 'package:logging/logging.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pub_semver/pub_semver.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'fakes/auth_status_fakes.dart';
 
 void main() {
   group('App initialisation', () {
@@ -68,7 +71,7 @@ void main() {
       await tester.pump();
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.byType(HomePage), findsNothing);
+      expect(find.byType(WelcomePage), findsNothing);
       expect(find.byType(InitializationErrorScreen), findsNothing);
     });
 
@@ -93,7 +96,7 @@ void main() {
       expect(find.widgetWithText(ElevatedButton, 'Retry'), findsOneWidget);
     });
 
-    testWidgets('retry invalidates the provider and recovers to HomePage', (
+    testWidgets('retry invalidates the provider and recovers to WelcomePage', (
       tester,
     ) async {
       var attempt = 0;
@@ -114,6 +117,7 @@ void main() {
               }
               return stubDeps();
             }),
+            authStatusProvider.overrideWith(UnauthenticatedAuthStatus.new),
           ],
           child: const App(),
         ),
@@ -126,7 +130,7 @@ void main() {
       await tester.tap(find.widgetWithText(ElevatedButton, 'Retry'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(HomePage), findsOneWidget);
+      expect(find.byType(WelcomePage), findsOneWidget);
       expect(find.byType(InitializationErrorScreen), findsNothing);
       expect(attempt, 2);
     });
