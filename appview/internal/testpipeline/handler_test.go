@@ -50,9 +50,9 @@ func TestHandler_ReturnsReverseChronological(t *testing.T) {
 	for _, row := range []struct {
 		uri, text, ts string
 	}{
-		{"at://did:plc:a/social.craftsky.test.post/1", "first",  "2026-04-19T10:00:00Z"},
+		{"at://did:plc:a/social.craftsky.test.post/1", "first", "2026-04-19T10:00:00Z"},
 		{"at://did:plc:a/social.craftsky.test.post/2", "second", "2026-04-19T11:00:00Z"},
-		{"at://did:plc:a/social.craftsky.test.post/3", "third",  "2026-04-19T12:00:00Z"},
+		{"at://did:plc:a/social.craftsky.test.post/3", "third", "2026-04-19T12:00:00Z"},
 	} {
 		rec, _ := json.Marshal(map[string]any{"text": row.text, "createdAt": row.ts})
 		ev := tapEvent(row.uri, "bafy", "did:plc:a", "create", rec)
@@ -70,7 +70,9 @@ func TestHandler_ReturnsReverseChronological(t *testing.T) {
 			Text string `json:"text"`
 		} `json:"posts"`
 	}
-	json.Unmarshal(rec.Body.Bytes(), &body)
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
 	if len(body.Posts) != 3 {
 		t.Fatalf("got %d posts want 3", len(body.Posts))
 	}
@@ -102,7 +104,9 @@ func TestHandler_LimitRespected(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
-	var body struct{ Posts []any `json:"posts"` }
+	var body struct {
+		Posts []any `json:"posts"`
+	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +142,9 @@ func TestHandler_LimitClampedTo200(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: got %d want 200 (limit should clamp, not 400)", rec.Code)
 	}
-	var body struct{ Posts []any `json:"posts"` }
+	var body struct {
+		Posts []any `json:"posts"`
+	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
