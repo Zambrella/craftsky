@@ -227,7 +227,9 @@ class AppTheme {
     return NavigationBarThemeData(
       backgroundColor: BrandColors.paper,
       surfaceTintColor: Colors.transparent,
-      indicatorColor: colors.primaryContainer,
+      // No pill behind the selected icon — the primary-coloured icon + label
+      // carry the selected state on their own.
+      indicatorColor: Colors.transparent,
       overlayColor: const WidgetStatePropertyAll(Colors.transparent),
       elevation: 0,
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
