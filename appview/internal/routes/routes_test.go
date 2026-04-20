@@ -68,28 +68,20 @@ func TestAddRoutes_UnknownPathReturns404(t *testing.T) {
 }
 
 func TestAddRoutes_TestFeedDevOnly(t *testing.T) {
-	// Dev: route registered.
-	mux := http.NewServeMux()
-	AddRoutes(context.Background(), mux, testDepsEnv(app.EnvDev))
+	// Check registration via mux.Handler (which returns the matched
+	// pattern), not ServeHTTP — the handler would panic on the nil DB
+	// in these fixtures, and we only care whether the route exists.
 	req := httptest.NewRequest(http.MethodGet, "/test/feed", nil)
-	rec := httptest.NewRecorder()
-	func() {
-		// Handler panics on nil DB; we only care that it was reached
-		// (i.e. the route is registered, not falling through to 404).
-		defer func() { _ = recover() }()
-		mux.ServeHTTP(rec, req)
-	}()
-	if rec.Code == http.StatusNotFound {
-		t.Error("dev: /test/feed should be registered")
+
+	devMux := http.NewServeMux()
+	AddRoutes(context.Background(), devMux, testDepsEnv(app.EnvDev))
+	if _, pattern := devMux.Handler(req); pattern != "GET /test/feed" {
+		t.Errorf("dev: expected GET /test/feed route, got pattern %q", pattern)
 	}
 
-	// Prod: route NOT registered.
-	mux = http.NewServeMux()
-	AddRoutes(context.Background(), mux, testDepsEnv(app.EnvProd))
-	req = httptest.NewRequest(http.MethodGet, "/test/feed", nil)
-	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	if rec.Code != http.StatusNotFound {
-		t.Errorf("prod: /test/feed should be 404, got %d", rec.Code)
+	prodMux := http.NewServeMux()
+	AddRoutes(context.Background(), prodMux, testDepsEnv(app.EnvProd))
+	if _, pattern := prodMux.Handler(req); pattern == "GET /test/feed" {
+		t.Error("prod: /test/feed should NOT be registered")
 	}
 }
