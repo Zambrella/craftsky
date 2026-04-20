@@ -14,6 +14,7 @@ import (
 	"social.craftsky/appview/internal/db"
 	"social.craftsky/appview/internal/index"
 	"social.craftsky/appview/internal/tap"
+	"social.craftsky/appview/internal/testpipeline"
 )
 
 // Deps is the fully-wired set of dependencies for one Craftsky App View
@@ -95,7 +96,12 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	oauthApp := oauth.NewClientApp(&oauthCfg, oauthStore)
 	craftskyStore := auth.NewCraftskySessionStore(pool, cfg.CraftskySessionLastSeenThrottle)
 
-	indexerImpl := index.NewBlueskyPostsSample(pool)
+	blueskySample := index.NewBlueskyPostsSample(pool)
+	testpipelineIdx := testpipeline.NewIndexer(pool)
+
+	dispatcher := index.NewDispatcher(index.NotImplemented{})
+	dispatcher.Register("app.bsky.feed.post", blueskySample)
+	dispatcher.Register("social.craftsky.test.post", testpipelineIdx)
 
 	deps := &Deps{
 		Config:               cfg,
@@ -104,13 +110,13 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		OAuthApp:             oauthApp,
 		OAuthStore:           oauthStore,
 		CraftskySessionStore: craftskyStore,
-		Indexer:              indexerImpl,
+		Indexer:              dispatcher,
 		Consumer:             tap.NotImplemented{}, // temp, replaced below
 	}
 
 	deps.Consumer = tap.NewWSConsumer(tap.WSConsumerConfig{
 		URL:          cfg.TapWSURL,
-		Indexer:      indexerImpl,
+		Indexer:      dispatcher,
 		AckTimeout:   cfg.TapAckTimeout,
 		ReconnectMax: cfg.TapReconnectMax,
 		MaxRetries:   cfg.TapMaxRetries,
