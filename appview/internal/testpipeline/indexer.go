@@ -63,8 +63,11 @@ func (i *Indexer) Handle(ctx context.Context, ev tap.Event) error {
 		}
 		return nil
 	case "delete":
-		// Implemented in Task 3.4.
-		return fmt.Errorf("delete not yet implemented")
+		if _, err := i.pool.Exec(ctx,
+			`DELETE FROM test_posts WHERE uri = $1`, ev.URI); err != nil {
+			return fmt.Errorf("delete %s: %w", ev.URI, err)
+		}
+		return nil
 	default:
 		return fmt.Errorf("unknown action %q on %s", ev.Action, ev.URI)
 	}

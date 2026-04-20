@@ -155,3 +155,82 @@ func TestIndexer_UpdateReplacesRow(t *testing.T) {
 		t.Errorf("post-update: cid=%s text=%s, want bafy2/v2", cid, text)
 	}
 }
+
+func TestIndexer_DeleteRemovesRow(t *testing.T) {
+	t.Parallel()
+	pool := withSchema(t)
+	ix := testpipeline.NewIndexer(pool)
+
+	rec, _ := json.Marshal(map[string]any{"text": "bye", "createdAt": "2026-04-19T10:00:00Z"})
+	uri := "at://did:plc:abc/social.craftsky.test.post/3kxbbb"
+	create := tap.Event{
+		URI: uri, CID: "bafy1", DID: "did:plc:abc",
+		Collection: "social.craftsky.test.post", Rkey: "3kxbbb",
+		Action: "create", Record: rec,
+	}
+	del := tap.Event{
+		URI: uri, DID: "did:plc:abc",
+		Collection: "social.craftsky.test.post", Rkey: "3kxbbb",
+		Action: "delete",
+	}
+
+	if err := ix.Handle(context.Background(), create); err != nil {
+		t.Fatal(err)
+	}
+	if err := ix.Handle(context.Background(), del); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	var count int
+	pool.QueryRow(context.Background(),
+		`SELECT COUNT(*) FROM test_posts WHERE uri = $1`, uri,
+	).Scan(&count)
+	if count != 0 {
+		t.Errorf("row count after delete: got %d want 0", count)
+	}
+}
+
+func TestIndexer_DuplicateCreateIsIdempotent(t *testing.T) {
+	t.Parallel()
+	pool := withSchema(t)
+	ix := testpipeline.NewIndexer(pool)
+
+	rec, _ := json.Marshal(map[string]any{"text": "once", "createdAt": "2026-04-19T10:00:00Z"})
+	ev := tap.Event{
+		URI: "at://did:plc:abc/social.craftsky.test.post/3kxccc",
+		CID: "bafy1", DID: "did:plc:abc",
+		Collection: "social.craftsky.test.post", Rkey: "3kxccc",
+		Action: "create", Record: rec,
+	}
+
+	if err := ix.Handle(context.Background(), ev); err != nil {
+		t.Fatal(err)
+	}
+	if err := ix.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("second create: %v", err)
+	}
+
+	var count int
+	pool.QueryRow(context.Background(),
+		`SELECT COUNT(*) FROM test_posts WHERE uri = $1`, ev.URI,
+	).Scan(&count)
+	if count != 1 {
+		t.Errorf("duplicate create produced %d rows, want 1", count)
+	}
+}
+
+func TestIndexer_MalformedRecordErrors(t *testing.T) {
+	t.Parallel()
+	pool := withSchema(t)
+	ix := testpipeline.NewIndexer(pool)
+
+	ev := tap.Event{
+		URI: "at://did:plc:abc/social.craftsky.test.post/3kxddd",
+		CID: "bafy1", DID: "did:plc:abc",
+		Collection: "social.craftsky.test.post", Rkey: "3kxddd",
+		Action: "create", Record: []byte(`{"not valid json`),
+	}
+	if err := ix.Handle(context.Background(), ev); err == nil {
+		t.Fatal("expected error on malformed record, got nil")
+	}
+}
