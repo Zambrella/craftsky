@@ -11,6 +11,7 @@ import (
 	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/testpipeline"
 )
 
 // AddRoutes registers all App View routes on mux.
@@ -40,6 +41,12 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	authN := middleware.Authenticated(deps.AuthService, deps.Logger)
 	mux.Handle("GET /whoami", authN(api.WhoAmIHandler()))
 	mux.Handle("POST /auth/logout", authN(oauthHandlers.LogoutHandler()))
+
+	// Disposable test pipeline (GET /test/feed). Dev only — see
+	// docs/superpowers/specs/2026-04-19-test-pipeline-design.md.
+	if deps.Config.Env == app.EnvDev {
+		mux.Handle("GET /test/feed", testpipeline.NewHandler(deps.DB))
+	}
 
 	// Fallthrough.
 	mux.Handle("/", http.NotFoundHandler())
