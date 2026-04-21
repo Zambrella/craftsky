@@ -49,7 +49,6 @@ All paths are relative to repo root.
 **Modified files:**
 
 - `appview/internal/ctxkeys/ctxkeys.go` — add `DeviceIDKey`, `GetDeviceID`, `WithDeviceID`.
-- `appview/internal/middleware/auth.go` — re-export `GetDeviceID`/`WithDeviceID` to mirror the existing DID helpers.
 - `appview/internal/auth/craftsky_session.go` — new method `TouchDeviceID(ctx, token, deviceID)` that updates `last_device_id` opportunistically, throttled by the same window as `last_seen_at`.
 - `appview/internal/auth/craftsky_session_test.go` — test the new method.
 - `appview/internal/routes/routes.go` — reroute `/auth/login`, `/auth/logout`, `/whoami` under `/v1/`. Compose the new device-id middleware over `Authenticated` for authenticated routes.
