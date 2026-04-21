@@ -112,9 +112,16 @@ func (s *CraftskySessionStore) maybeTouchLastSeen(ctx context.Context, hash []by
 // TouchDeviceID updates last_device_id on the craftsky_sessions row
 // identified by token, at most once per lastSeenThrottle interval per
 // token. It is safe to call on every authenticated request; the
-// in-memory throttle bounds write load. Errors are returned to the
-// caller but are generally non-fatal — the middleware fires this
-// off-path.
+// in-memory throttle bounds write load.
+//
+// Within a single throttle window, the first device ID seen is
+// recorded and subsequent calls are silently dropped — even if the
+// device ID changes. The column is best-effort instrumentation, not
+// an authoritative record of every device a session touched.
+//
+// Returns the DB error (if any). Callers should log but not propagate
+// it: the column is non-load-bearing, and request handling should
+// succeed even if the update fails.
 func (s *CraftskySessionStore) TouchDeviceID(ctx context.Context, token, deviceID string) error {
 	hash := sha256.Sum256([]byte(token))
 	key := fmt.Sprintf("%x", hash)
