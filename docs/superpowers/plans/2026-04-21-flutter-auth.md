@@ -55,8 +55,7 @@ app/lib/
 ### Modified files
 
 - `app/pubspec.yaml` — add deps
-- `app/lib/app.dart` — initializeMappers for new models
-- `app/lib/bootstrap.dart` — ref.read(dioProvider) fail-fast (post-runApp)
+- `app/lib/bootstrap.dart` — register new `dart_mappable` mappers (`initializeMappers`)
 - `app/lib/router/router.dart` — redirect uses `authSessionProvider`; new `AuthCompleteRoute`; refresh listenable
 - `app/lib/router/route_locations.dart` — `authComplete = '/auth/complete'`
 - `app/lib/auth/pages/welcome_page.dart` — drop dev toggle
@@ -247,6 +246,8 @@ git commit -m "feat(app): add ApiException sealed class for shared API errors"
 `app/test/shared/api/models/login_response_test.dart`:
 
 ```dart
+import 'dart:convert';
+
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -254,10 +255,17 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   setUpAll(initializeMappers);
 
-  test('LoginResponse round-trips through JSON with camelCase conversion', () {
+  test('parses snake_case JSON from the server', () {
     const json = '{"auth_url":"https://pds.example.com/authorize?request_uri=x"}';
     final parsed = LoginResponseMapper.fromJson(json);
     expect(parsed.authUrl, 'https://pds.example.com/authorize?request_uri=x');
+  });
+
+  test('serialises back to snake_case JSON', () {
+    const original = LoginResponse(authUrl: 'https://pds.example.com/a');
+    final roundTrip = jsonDecode(original.toJson()) as Map<String, dynamic>;
+    expect(roundTrip.keys.single, 'auth_url');
+    expect(roundTrip['auth_url'], 'https://pds.example.com/a');
   });
 }
 ```
@@ -516,6 +524,8 @@ git commit -m "feat(app): add AuthInterceptor that Bearer-injects via a resolver
 ### Task 5: `_ErrorMappingInterceptor` — error mapping (401 sign-out deferred)
 
 Chunk 5 adds the global 401 side effect. Here we only map `DioException` → `ApiException` so the error types land alongside the interceptor itself. The 401 sign-out behaviour is a constructor-injected callback so it can be a no-op in Chunk 1 tests.
+
+**How the unwrap works.** `dio` rethrows the error its interceptor chain produces. We set `DioException.error` to an `ApiException` and let `dio.xxx()` throw the wrapping `DioException`; the thin unwrap helper in `CraftskyApiClient` (Task 6) catches that `DioException` and rethrows the contained `ApiException`. This keeps the interceptor pipeline idiomatic (no `handler.reject` side effects) and keeps every call site of the client dealing in `ApiException`.
 
 **Files:**
 - Create: `app/lib/shared/api/providers/error_mapping_interceptor.dart`
@@ -811,12 +821,17 @@ Expected: FAIL — `craftsky_api_client.dart` not found.
 ```dart
 import 'package:dio/dio.dart';
 
+import 'api_exception.dart';
 import 'models/login_response.dart';
 import 'models/whoami.dart';
 
 /// Thin typed wrapper around the three AppView endpoints this release
 /// needs. All calls assume the attached [Dio] has the auth + error
 /// interceptors installed (see [dioProvider] / Chunk 1 / Chunk 5).
+///
+/// Each method unwraps the `DioException` that `dio` throws and
+/// rethrows the `ApiException` carried in its `.error` field — so
+/// callers only ever deal in `ApiException` subtypes.
 class CraftskyApiClient {
   const CraftskyApiClient(this._dio);
 
@@ -825,24 +840,41 @@ class CraftskyApiClient {
   /// POST /v1/auth/login — starts an OAuth flow for [handle], returns
   /// the authorization URL the caller opens in the system browser.
   /// The app-level handoff is always `deep_link` (mobile-only).
-  Future<LoginResponse> login({required String handle}) async {
-    final res = await _dio.post<Map<String, dynamic>>(
-      '/v1/auth/login',
-      data: {'handle': handle, 'handoff_mode': 'deep_link'},
-    );
-    return LoginResponseMapper.fromMap(res.data!);
-  }
+  Future<LoginResponse> login({required String handle}) => _unwrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/v1/auth/login',
+          data: {'handle': handle, 'handoff_mode': 'deep_link'},
+        );
+        return LoginResponseMapper.fromMap(res.data!);
+      });
 
   /// GET /v1/whoami — resolves the caller's DID + handle. Requires an
   /// authenticated request (Bearer token attached by AuthInterceptor).
-  Future<WhoAmI> whoami() async {
-    final res = await _dio.get<Map<String, dynamic>>('/v1/whoami');
-    return WhoAmIMapper.fromMap(res.data!);
-  }
+  Future<WhoAmI> whoami() => _unwrap(() async {
+        final res = await _dio.get<Map<String, dynamic>>('/v1/whoami');
+        return WhoAmIMapper.fromMap(res.data!);
+      });
 
   /// POST /v1/auth/logout — revokes the current Craftsky session
   /// (single-device). Server responds 204.
-  Future<void> logout() => _dio.post('/v1/auth/logout');
+  Future<void> logout() => _unwrap(() async {
+        await _dio.post<void>('/v1/auth/logout');
+      });
+
+  /// Runs [body], translating any `DioException` whose `.error` is an
+  /// `ApiException` into a direct throw of that `ApiException`. Other
+  /// `DioException`s — theoretically unreachable because
+  /// `ErrorMappingInterceptor` always sets `.error` — surface as
+  /// `ApiServerError` with the underlying message.
+  Future<T> _unwrap<T>(Future<T> Function() body) async {
+    try {
+      return await body();
+    } on DioException catch (e) {
+      final err = e.error;
+      if (err is ApiException) throw err;
+      throw ApiServerError(e.message ?? 'server_error');
+    }
+  }
 }
 ```
 
@@ -867,9 +899,12 @@ git commit -m "feat(app): add CraftskyApiClient with login/whoami/logout methods
 
 The `TokenResolver` is wired with a real provider hook in Chunk 5 (once `inFlightTokenProvider` and `authSessionProvider` exist). For now, we install the providers with a placeholder resolver that always returns null — tests in later chunks will override them.
 
+Until Chunk 5 wires this up, any code that accidentally reads `craftskyApiClientProvider` in production will get an unauthenticated client (no Bearer on outgoing requests). That's acceptable between chunks because **no production caller of the API client exists until Chunk 3**, when `AuthSession` fires `whoami` during background validation.
+
 **Files:**
 - Create: `app/lib/shared/api/providers/dio_provider.dart`
 - Create: `app/lib/shared/api/providers/api_client_provider.dart`
+- Create: `app/test/shared/api/providers/dio_provider_test.dart`
 
 - [ ] **Step 1: Create `dio_provider.dart`** — `app/lib/shared/api/providers/dio_provider.dart`:
 
@@ -944,7 +979,30 @@ cd app && dart run build_runner build --delete-conflicting-outputs
 
 Expected: `dio_provider.g.dart` and `api_client_provider.g.dart` created.
 
-- [ ] **Step 4: Analyzer clean**
+- [ ] **Step 4: Write a smoke test for `dioProvider`** — `app/test/shared/api/providers/dio_provider_test.dart`:
+
+```dart
+import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('dioProvider builds with the debug-default base URL', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final dio = container.read(dioProvider);
+
+    // Debug-mode default per the provider.
+    expect(dio.options.baseUrl, 'http://10.0.2.2:8080');
+    expect(dio.interceptors, hasLength(2));
+  });
+}
+```
+
+Note: this test runs in `kDebugMode == true` (the Flutter test harness is always debug), so the default URL is exercised. Release-mode behaviour (the `StateError` on empty base URL) is intrinsically compile-time-gated and not unit-testable — it's smoke-tested at release-build time via `flutter build --dart-define=` omission failing fast.
+
+- [ ] **Step 5: Analyzer clean**
 
 ```bash
 cd app && dart analyze lib/shared/api
@@ -952,12 +1010,33 @@ cd app && dart analyze lib/shared/api
 
 Expected: `No issues found!`
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Run test**
 
 ```bash
-git add app/lib/shared/api/providers/dio_provider.dart app/lib/shared/api/providers/dio_provider.g.dart app/lib/shared/api/providers/api_client_provider.dart app/lib/shared/api/providers/api_client_provider.g.dart
+cd app && flutter test test/shared/api/providers/dio_provider_test.dart
+```
+
+Expected: PASS.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add app/lib/shared/api/providers/dio_provider.dart app/lib/shared/api/providers/dio_provider.g.dart app/lib/shared/api/providers/api_client_provider.dart app/lib/shared/api/providers/api_client_provider.g.dart app/test/shared/api/providers/dio_provider_test.dart
 git commit -m "feat(app): add dioProvider + craftskyApiClientProvider"
 ```
+
+---
+
+### End-of-chunk gate
+
+- [ ] **Run full analyzer + test suite**
+
+```bash
+cd app && dart analyze lib test
+cd app && flutter test
+```
+
+Expected: `No issues found!` and all tests green. Do not advance to Chunk 2 if either fails.
 
 ---
 
@@ -1373,7 +1452,7 @@ void main() {
 
   test('read returns null on corrupt blob and logs a warning', () async {
     FlutterSecureStorage.setMockInitialValues(
-      {'craftsky.craftsky_session': 'not-valid-json'},
+      {'craftsky_session': 'not-valid-json'},
     );
     final storage = SecureTokenStorage(const FlutterSecureStorage());
 
@@ -1382,7 +1461,7 @@ void main() {
 
   test('read gives back well-formed JSON that matches the blob shape', () async {
     FlutterSecureStorage.setMockInitialValues(
-      {'craftsky.craftsky_session': jsonEncode({'token': 't', 'did': 'd', 'handle': 'h'})},
+      {'craftsky_session': jsonEncode({'token': 't', 'did': 'd', 'handle': 'h'})},
     );
     final storage = SecureTokenStorage(const FlutterSecureStorage());
 
@@ -1433,9 +1512,17 @@ class SecureTokenStorage {
     } on PlatformException catch (e, st) {
       _log.warning('read failed; treating as unsigned-in', e, st);
       return null;
-    } on FormatException catch (e, st) {
+    } catch (e, st) {
+      // FormatException (malformed JSON) or MapperException (missing
+      // required fields from dart_mappable) — both mean the blob on
+      // disk is garbage we can't use. Delete it so subsequent writes
+      // aren't fighting a corrupt value.
       _log.warning('corrupt blob; clearing', e, st);
-      await _fss.delete(key: _key).catchError((_) {});
+      try {
+        await _fss.delete(key: _key);
+      } catch (deleteErr, deleteSt) {
+        _log.warning('delete-after-corrupt also failed', deleteErr, deleteSt);
+      }
       return null;
     }
   }
@@ -1567,7 +1654,9 @@ git commit -m "feat(app): add InFlightTokenProvider"
 
 ---
 
-### Task 13: `PendingAuthProvider`
+### Task 13: `PendingAuth` notifier (`pendingAuthProvider`)
+
+The notifier class name is `PendingAuth`, but the value type is the `PendingAuth` data class from `auth/models/pending_auth.dart`. To avoid the name collision inside the notifier, we import the model with the prefix `model`. The generated provider is `pendingAuthProvider` (from the notifier class name). Callers consume `pendingAuthProvider` (the provider) and see `model.PendingAuth?` values.
 
 **Files:**
 - Create: `app/lib/auth/providers/pending_auth_provider.dart`
@@ -1576,6 +1665,7 @@ git commit -m "feat(app): add InFlightTokenProvider"
 - [ ] **Step 1: Write the failing test** — `app/test/auth/providers/pending_auth_provider_test.dart`:
 
 ```dart
+import 'package:craftsky_app/auth/models/pending_auth.dart' as model;
 import 'package:craftsky_app/auth/providers/pending_auth_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1597,7 +1687,7 @@ void main() {
     container.read(pendingAuthProvider.notifier).start('alice.bsky.social');
     final pending = container.read(pendingAuthProvider);
 
-    expect(pending, isNotNull);
+    expect(pending, isA<model.PendingAuth>());
     expect(pending!.handle, 'alice.bsky.social');
     expect(pending.startedAt.isBefore(before), isFalse);
   });
@@ -1613,6 +1703,16 @@ void main() {
     container.read(pendingAuthProvider.notifier).start('b.bsky.social');
     expect(container.read(pendingAuthProvider)!.handle, 'b.bsky.social');
   });
+
+  test('debugSet directly replaces state (for aging in other tests)', () {
+    final aged = model.PendingAuth(
+      handle: 'x.bsky.social',
+      startedAt: DateTime.now().subtract(const Duration(minutes: 15)),
+    );
+    container.read(pendingAuthProvider.notifier).debugSet(aged);
+
+    expect(container.read(pendingAuthProvider)!.startedAt, aged.startedAt);
+  });
 }
 ```
 
@@ -1627,64 +1727,7 @@ Expected: FAIL.
 - [ ] **Step 3: Implement** — `app/lib/auth/providers/pending_auth_provider.dart`:
 
 ```dart
-import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../models/pending_auth.dart';
-
-part 'pending_auth_provider.g.dart';
-
-/// Tracks the in-flight sign-in attempt. Lets
-/// `AuthController.completeFromDeepLink` reject deep links that
-/// arrive without a prior `signIn()` or later than our 10-minute
-/// staleness window.
-@Riverpod(keepAlive: true)
-class PendingAuthNotifier extends _$PendingAuthNotifier {
-  @override
-  PendingAuth? build() => null;
-
-  void start(String handle) =>
-      state = PendingAuth(handle: handle, startedAt: DateTime.now());
-
-  void clear() => state = null;
-}
-
-// Matches the name used in the spec: `pendingAuthProvider`.
-@Riverpod(keepAlive: true)
-PendingAuth? pendingAuth(Ref ref) => ref.watch(pendingAuthNotifierProvider);
-```
-
-Wait — simpler: the codegen name comes from the notifier class. Rewrite to avoid the alias:
-
-```dart
-import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../models/pending_auth.dart';
-
-part 'pending_auth_provider.g.dart';
-
-/// Tracks the in-flight sign-in attempt. Lets
-/// `AuthController.completeFromDeepLink` reject deep links that
-/// arrive without a prior `signIn()` or later than the 10-minute
-/// staleness window.
-@Riverpod(keepAlive: true)
-class PendingAuth extends _$PendingAuth {
-  @override
-  PendingAuth? build() => null;
-
-  void start(String handle) => state = PendingAuthMapper.fromMap({
-        'handle': handle,
-        'startedAt': DateTime.now().toIso8601String(),
-      });
-
-  void clear() => state = null;
-}
-```
-
-The class-name collision with `PendingAuth` data model makes this awkward. Instead, keep the data class named `PendingAuth` (model) and name the notifier differently. Use:
-
-Final implementation:
-
-```dart
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../models/pending_auth.dart' as model;
@@ -1696,8 +1739,10 @@ part 'pending_auth_provider.g.dart';
 /// arrive without a prior `signIn()` or later than the 10-minute
 /// staleness window.
 ///
-/// Notifier class is `PendingAuth` (distinct from the value type
-/// `model.PendingAuth`); generated provider is `pendingAuthProvider`.
+/// The notifier class is named `PendingAuth` — same identifier as
+/// the data class it holds, imported under the `model` prefix to
+/// dodge the collision inside this file. The generated provider is
+/// `pendingAuthProvider`.
 @Riverpod(keepAlive: true)
 class PendingAuth extends _$PendingAuth {
   @override
@@ -1709,17 +1754,14 @@ class PendingAuth extends _$PendingAuth {
       );
 
   void clear() => state = null;
+
+  /// Direct state setter — used by tests that need to age the
+  /// `startedAt` without real clock manipulation (see
+  /// `auth_controller_test.dart` for the stale-pending scenario).
+  @visibleForTesting
+  void debugSet(model.PendingAuth value) => state = value;
 }
 ```
-
-Update the test's import to match:
-
-```dart
-import 'package:craftsky_app/auth/models/pending_auth.dart' as model;
-import 'package:craftsky_app/auth/providers/pending_auth_provider.dart';
-```
-
-And expectations reference `model.PendingAuth`.
 
 - [ ] **Step 4: Generate**
 
@@ -1733,7 +1775,7 @@ cd app && dart run build_runner build --delete-conflicting-outputs
 cd app && flutter test test/auth/providers/pending_auth_provider_test.dart
 ```
 
-Expected: PASS.
+Expected: PASS, 5 tests.
 
 - [ ] **Step 6: Commit**
 
@@ -1741,6 +1783,19 @@ Expected: PASS.
 git add app/lib/auth/providers/pending_auth_provider.dart app/lib/auth/providers/pending_auth_provider.g.dart app/test/auth/providers/pending_auth_provider_test.dart
 git commit -m "feat(app): add PendingAuth notifier tracking in-flight sign-in attempts"
 ```
+
+---
+
+### End-of-chunk gate
+
+- [ ] **Run full analyzer + test suite**
+
+```bash
+cd app && dart analyze lib test
+cd app && flutter test
+```
+
+Expected: `No issues found!` and all tests green.
 
 ---
 
@@ -1771,8 +1826,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 // --- fakes ----------------------------------------------------------
 
-class _FakeStorage extends SecureTokenStorage {
-  _FakeStorage({StoredSession? initial}) : _value = initial, super.noFss();
+// `implements` (not `extends`) avoids needing to construct a real
+// `FlutterSecureStorage` just to satisfy the superclass — we only
+// need the three methods the production code calls.
+class _FakeStorage implements SecureTokenStorage {
+  _FakeStorage({StoredSession? initial}) : _value = initial;
   StoredSession? _value;
   @override
   Future<StoredSession?> read() async => _value;
@@ -1921,28 +1979,7 @@ void main() {
 }
 ```
 
-We need to add a `noFss` constructor to `SecureTokenStorage` for the test-only fake. Adjust Task 11 first — OR keep the real constructor and pass a fake `FlutterSecureStorage`. Cleanest: override `secureTokenStorageProvider` with a stub subclass using the real parent ctor. The test above uses `SecureTokenStorage.noFss()` which doesn't exist. Instead update the fake to use `MockFlutterSecureStorage` via `FlutterSecureStorage.setMockInitialValues`. Re-write fakes section in this test:
-
-Replace the `_FakeStorage` in the test with:
-
-```dart
-class _FakeStorage implements SecureTokenStorage {
-  _FakeStorage({StoredSession? initial}) : _value = initial;
-  StoredSession? _value;
-  @override
-  Future<StoredSession?> read() async => _value;
-  @override
-  Future<void> write(StoredSession s) async => _value = s;
-  @override
-  Future<void> clear() async => _value = null;
-}
-```
-
-— `implements SecureTokenStorage`, not `extends`, so no constructor dance. That works because all three methods are instance methods.
-
-- [ ] **Step 2: Update the test's `_FakeStorage` to `implements SecureTokenStorage`** (as above).
-
-- [ ] **Step 3: Run tests to verify they fail**
+- [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
 cd app && flutter test test/auth/providers/auth_session_provider_test.dart
@@ -1950,7 +1987,7 @@ cd app && flutter test test/auth/providers/auth_session_provider_test.dart
 
 Expected: FAIL — `authSessionProvider` doesn't exist yet.
 
-- [ ] **Step 4: Implement** — `app/lib/auth/providers/auth_session_provider.dart`:
+- [ ] **Step 3: Implement** — `app/lib/auth/providers/auth_session_provider.dart`:
 
 ```dart
 import 'dart:async';
@@ -2032,13 +2069,13 @@ class AuthSession extends _$AuthSession {
 }
 ```
 
-- [ ] **Step 5: Generate**
+- [ ] **Step 4: Generate**
 
 ```bash
 cd app && dart run build_runner build --delete-conflicting-outputs
 ```
 
-- [ ] **Step 6: Run test to verify it passes**
+- [ ] **Step 5: Run test to verify it passes**
 
 ```bash
 cd app && flutter test test/auth/providers/auth_session_provider_test.dart
@@ -2046,7 +2083,7 @@ cd app && flutter test test/auth/providers/auth_session_provider_test.dart
 
 Expected: PASS, 7 tests.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add app/lib/auth/providers/auth_session_provider.dart app/lib/auth/providers/auth_session_provider.g.dart app/test/auth/providers/auth_session_provider_test.dart
@@ -2066,6 +2103,7 @@ git commit -m "feat(app): add AuthSession w/ optimistic cold start + whoami back
 ```dart
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
+import 'package:craftsky_app/auth/models/pending_auth.dart' as model;
 import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
@@ -2227,12 +2265,14 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    container.read(pendingAuthProvider.notifier).start('a.bsky.social');
-    // Rewind startedAt by 15 minutes.
-    // Since PendingAuth is immutable we re-set state via a test helper;
-    // for simplicity we construct an aged record directly.
-    container.read(authControllerProvider.notifier)
-        .debugSetPendingForTest('a.bsky.social', DateTime.now().subtract(const Duration(minutes: 15)));
+    // Use debugSet (defined on the PendingAuth notifier in Task 13) to
+    // install an aged record directly, without real clock manipulation.
+    container.read(pendingAuthProvider.notifier).debugSet(
+          model.PendingAuth(
+            handle: 'a.bsky.social',
+            startedAt: DateTime.now().subtract(const Duration(minutes: 15)),
+          ),
+        );
 
     await container.read(authControllerProvider.notifier)
         .completeFromDeepLink('tok');
@@ -2326,10 +2366,10 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
 import '../../shared/api/api_exception.dart';
+import '../../shared/api/models/login_response.dart';
 import '../../shared/api/providers/api_client_provider.dart';
 import '../models/auth_error.dart';
 import '../models/auth_state.dart';
-import '../models/pending_auth.dart' as model;
 import '../models/stored_session.dart';
 import 'auth_session_provider.dart';
 import 'in_flight_token_provider.dart';
@@ -2354,6 +2394,10 @@ AuthUrlLauncher launchAuthUrl(Ref ref) {
 
 /// Sign-in / sign-out orchestrator. Exposes `AsyncValue<void>`; pages
 /// listen for `AsyncError(AuthError)` transitions via `ref.listen`.
+///
+/// Tests that need to simulate a stale `PendingAuth` do so via
+/// `pendingAuthProvider.notifier.debugSet(...)` (defined on the
+/// `PendingAuth` notifier in Task 13), not through this controller.
 @Riverpod(keepAlive: true)
 class AuthController extends _$AuthController {
   @override
@@ -2370,7 +2414,9 @@ class AuthController extends _$AuthController {
       try {
         response = await api.login(handle: trimmed);
       } on ApiBadRequest catch (e) {
-        throw e.code == 'handle_required' ? const HandleRequired() : const InvalidHandle();
+        throw e.code == 'handle_required'
+            ? const HandleRequired()
+            : const InvalidHandle();
       } on ApiNetworkError {
         throw const ServerUnavailable();
       } on ApiServerError {
@@ -2383,8 +2429,8 @@ class AuthController extends _$AuthController {
       if (!ref.mounted) return;
       ref.read(pendingAuthProvider.notifier).start(trimmed);
 
-      final launched = await ref
-          .read(launchAuthUrlProvider)(Uri.parse(response.authUrl));
+      final launched =
+          await ref.read(launchAuthUrlProvider)(Uri.parse(response.authUrl));
       if (!launched) {
         if (ref.mounted) ref.read(pendingAuthProvider.notifier).clear();
         throw const BrowserLaunchFailed();
@@ -2446,58 +2492,16 @@ class AuthController extends _$AuthController {
       ref.read(authSessionProvider.notifier).setSignedOut();
     });
   }
-
-  // Test-only: directly replace the pending-auth with an aged record.
-  @visibleForTesting
-  void debugSetPendingForTest(String handle, DateTime startedAt) {
-    // Mutate via the notifier's state directly. PendingAuth is a
-    // keep-alive notifier, so this is safe across the container.
-    // Call sites: see auth_controller_test.dart.
-    final container = ref.container;
-    container.read(pendingAuthProvider.notifier).state =
-        model.PendingAuth(handle: handle, startedAt: startedAt);
-  }
 }
 ```
 
-Note: `ref.container` isn't part of the Riverpod 3 public API for notifier refs. Instead, use a custom test hook: expose a `static` debug-setter on `PendingAuth` notifier or add a `@visibleForTesting` method on it.
-
-- [ ] **Step 4: Replace `debugSetPendingForTest` on the controller with a method on `PendingAuth` notifier**
-
-Edit `app/lib/auth/providers/pending_auth_provider.dart` to add a `@visibleForTesting` method:
-
-```dart
-  @visibleForTesting
-  void debugSet(model.PendingAuth value) => state = value;
-```
-
-Remove the `debugSetPendingForTest` method from `AuthController`.
-
-Update the test to call it:
-
-```dart
-container.read(pendingAuthProvider.notifier).debugSet(
-      model.PendingAuth(handle: 'a.bsky.social', startedAt: DateTime.now().subtract(const Duration(minutes: 15))),
-    );
-```
-
-And replace the prior `container.read(pendingAuthProvider.notifier).start('a.bsky.social');` in the stale-pending test so only `debugSet` is called.
-
-Also add the missing import on the controller:
-
-```dart
-import 'package:flutter/foundation.dart'; // for @visibleForTesting
-```
-
-And remove `import '../models/pending_auth.dart' as model;` from `auth_controller.dart` if no longer used.
-
-- [ ] **Step 5: Generate**
+- [ ] **Step 4: Generate**
 
 ```bash
 cd app && dart run build_runner build --delete-conflicting-outputs
 ```
 
-- [ ] **Step 6: Run test to verify it passes**
+- [ ] **Step 5: Run test to verify it passes**
 
 ```bash
 cd app && flutter test test/auth/providers/auth_controller_test.dart
@@ -2505,10 +2509,10 @@ cd app && flutter test test/auth/providers/auth_controller_test.dart
 
 Expected: PASS, 10 tests.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add app/lib/auth/providers/auth_controller.dart app/lib/auth/providers/auth_controller.g.dart app/lib/auth/providers/pending_auth_provider.dart app/lib/auth/providers/pending_auth_provider.g.dart app/test/auth/providers/auth_controller_test.dart
+git add app/lib/auth/providers/auth_controller.dart app/lib/auth/providers/auth_controller.g.dart app/test/auth/providers/auth_controller_test.dart
 git commit -m "feat(app): add AuthController w/ signIn, completeFromDeepLink, signOut"
 ```
 
@@ -2598,37 +2602,10 @@ part 'onboarding_status_provider.g.dart';
 /// Per-DID onboarding completion flag. Backed by `SharedPreferences`;
 /// survives relaunch but not reinstall on Android (clear-app-data
 /// semantics). First-run for a new DID defaults to `false`.
-@riverpod
-class OnboardingStatus extends _$OnboardingStatus {
-  @override
-  bool build(String did) {
-    final prefs = ref.watch(sharedPreferencesProvider);
-    return prefs.getBool(_keyFor(did)) ?? false;
-  }
-
-  Future<void> finish() async {
-    final prefs = ref.read(sharedPreferencesProvider);
-    await prefs.setBool(_keyFor(state ? _currentDid : _currentDid), true);
-    // ^ The preceding line reads oddly because family params aren't
-    // accessible as fields in generated notifiers; simpler to read
-    // the arg off the generated `did` getter instead:
-  }
-
-  String _keyFor(String did) => 'onboarded_$did';
-
-  String get _currentDid => did; // generated by riverpod_generator
-}
-```
-
-Simplify — remove the accidental complexity:
-
-```dart
-import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../../app_dependencies.dart';
-
-part 'onboarding_status_provider.g.dart';
-
+///
+/// `@riverpod` codegen exposes the family arg as an instance field
+/// (`did`) on the generated notifier base class, so both `build` and
+/// `finish` reference `did` directly.
 @riverpod
 class OnboardingStatus extends _$OnboardingStatus {
   @override
@@ -2647,8 +2624,6 @@ class OnboardingStatus extends _$OnboardingStatus {
   static String _keyFor(String did) => 'onboarded_$did';
 }
 ```
-
-(The generated class exposes the family arg as a field named `did`, so `_keyFor(did)` inside the notifier methods works.)
 
 - [ ] **Step 4: Update `onboarding_page.dart`** — `app/lib/onboarding/pages/onboarding_page.dart`:
 
@@ -2720,6 +2695,19 @@ Expected: PASS.
 git add app/lib/onboarding app/test/onboarding
 git commit -m "refactor(app): key OnboardingStatus by DID via SharedPreferences"
 ```
+
+---
+
+### End-of-chunk gate
+
+- [ ] **Run full analyzer + test suite**
+
+```bash
+cd app && dart analyze lib test
+cd app && flutter test
+```
+
+Expected: `No issues found!` and all tests green. The old widget/router tests that depend on the deleted stub `authStatusProvider` will still fail here — that's fixed in Chunk 4 (Tasks 19–22). If any failures are **not** in `test/fakes/`, `test/router/`, `test/auth/welcome_page_test.dart`, or `test/auth/sign_in_page_test.dart`, stop and diagnose before advancing.
 
 ---
 
@@ -3005,20 +2993,131 @@ class CompletedOnboardingStatus extends OnboardingStatus {
 git rm app/test/fakes/auth_status_fakes.dart
 ```
 
-- [ ] **Step 3: Rewrite the redirect test** — `app/test/router/router_redirect_test.dart` update imports + test cases to use new fakes. Key new test cases:
+- [ ] **Step 3: Rewrite the redirect test** — `app/test/router/router_redirect_test.dart`:
 
 ```dart
-group('redirect with new auth providers', () {
-  testWidgets('SignedOut + /feed → /welcome', ...);
-  testWidgets('SignedOut + /auth/complete → stays (no redirect)', ...);
-  testWidgets('SignedIn + onboarded + /welcome → /feed', ...);
-  testWidgets('SignedIn + !onboarded + /feed → /onboarding', ...);
-  testWidgets('SignedIn + onboarded + /auth/complete → /feed', ...);
-  testWidgets('SignedIn + !onboarded + /auth/complete → /onboarding', ...);
-});
-```
+import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
+import 'package:craftsky_app/auth/pages/welcome_page.dart';
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/feed/pages/feed_page.dart';
+import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
+import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
+import 'package:craftsky_app/router/route_locations.dart';
+import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/form_factor.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
-Leave the concrete test bodies to follow the existing `router_redirect_test.dart` structure (read it first, mimic the setup pattern).
+import '../fakes/auth_session_fakes.dart';
+
+Future<void> _pumpRouter(
+  WidgetTester tester,
+  ProviderContainer container, {
+  String initialLocation = RouteLocations.welcome,
+}) async {
+  final router = container.read(goRouterProvider);
+  // Drive the router to a specific initial location before pumping
+  // the app, so deep-link-style tests can start on /auth/complete.
+  router.go(initialLocation);
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(
+        theme: AppTheme.lightThemeData,
+        routerConfig: router,
+        builder: (context, child) =>
+            FormFactorWidget(child: child ?? const SizedBox.shrink()),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+void main() {
+  group('router redirect', () {
+    testWidgets('SignedOut + /feed → WelcomePage', (tester) async {
+      final container = ProviderContainer.test(
+        overrides: [
+          authSessionProvider.overrideWith(SignedOutAuthSession.new),
+        ],
+      );
+      await _pumpRouter(tester, container, initialLocation: RouteLocations.feed);
+      expect(find.byType(WelcomePage), findsOneWidget);
+    });
+
+    testWidgets('SignedOut + /auth/complete stays on AuthCompletePage',
+        (tester) async {
+      final container = ProviderContainer.test(
+        overrides: [
+          authSessionProvider.overrideWith(SignedOutAuthSession.new),
+        ],
+      );
+      await _pumpRouter(
+        tester,
+        container,
+        initialLocation: '${RouteLocations.authComplete}?token=t',
+      );
+      expect(find.byType(AuthCompletePage), findsOneWidget);
+    });
+
+    testWidgets('SignedIn + not onboarded → OnboardingPage', (tester) async {
+      final container = ProviderContainer.test(
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          onboardingStatusProvider.overrideWith(PendingOnboardingStatus.new),
+        ],
+      );
+      await _pumpRouter(tester, container, initialLocation: RouteLocations.feed);
+      expect(find.byType(OnboardingPage), findsOneWidget);
+    });
+
+    testWidgets('SignedIn + onboarded + /welcome → FeedPage', (tester) async {
+      final container = ProviderContainer.test(
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          onboardingStatusProvider.overrideWith(CompletedOnboardingStatus.new),
+        ],
+      );
+      await _pumpRouter(tester, container);
+      expect(find.byType(FeedPage), findsOneWidget);
+    });
+
+    testWidgets('SignedIn + onboarded + /auth/complete → FeedPage',
+        (tester) async {
+      final container = ProviderContainer.test(
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          onboardingStatusProvider.overrideWith(CompletedOnboardingStatus.new),
+        ],
+      );
+      await _pumpRouter(
+        tester,
+        container,
+        initialLocation: '${RouteLocations.authComplete}?token=t',
+      );
+      expect(find.byType(FeedPage), findsOneWidget);
+    });
+
+    testWidgets('SignedIn + !onboarded + /auth/complete → OnboardingPage',
+        (tester) async {
+      final container = ProviderContainer.test(
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          onboardingStatusProvider.overrideWith(PendingOnboardingStatus.new),
+        ],
+      );
+      await _pumpRouter(
+        tester,
+        container,
+        initialLocation: '${RouteLocations.authComplete}?token=t',
+      );
+      expect(find.byType(OnboardingPage), findsOneWidget);
+    });
+  });
+}
+```
 
 - [ ] **Step 4: Create onboarding refresh helper** — `app/lib/router/onboarding_refresh_listener.dart`:
 
@@ -3595,6 +3694,19 @@ git commit -m "feat(app): register craftsky://auth intent-filter on Android"
 
 ---
 
+### End-of-chunk gate
+
+- [ ] **Run full analyzer + test suite**
+
+```bash
+cd app && dart analyze lib test
+cd app && flutter test
+```
+
+Expected: `No issues found!` and all tests green (all widget + router tests now target the new providers; the stub is deleted).
+
+---
+
 ## Chunk 5: Wire interceptor to real auth providers + final integration
 
 Goal: close the loop between the Dio interceptor (Chunk 1 stub) and the live `authSessionProvider`/`inFlightTokenProvider`, including the central 401 sign-out behaviour.
@@ -3804,38 +3916,9 @@ git commit -m "test(app): cover global 401 sign-out + handoff carve-out"
 
 ---
 
-### Task 27: Bootstrap — fail-fast on missing base URL
+### Task 27: Update `app/README.md` — Deep links + Dev setup
 
-**Files:**
-- Modify: `app/lib/bootstrap.dart`
-
-- [ ] **Step 1: Add a base-URL sanity check** — at the end of `bootstrap` (before `runApp`), inside a `try/catch` so tests don't break, or only outside `kIsWeb`:
-
-```dart
-  // Fail-fast: surface missing --dart-define CRAFTSKY_API_BASE_URL in
-  // release builds at startup, not at the first API call.
-  try {
-    // A read is enough to run the provider's build; we throw away Dio.
-    ProviderContainer().read(dioProvider);
-  } on StateError catch (e, st) {
-    _log.severe('dio provider misconfigured', e, st);
-    rethrow;
-  }
-```
-
-Actually — creating a throwaway `ProviderContainer` is wasteful and doesn't share state with the real app's container. Better: move the check into `App`'s `initState` or rely on the first real read. Simplest is to **do nothing in bootstrap** and let the first `ref.read(dioProvider)` throw with the clear StateError. Revert this task to a no-op except adding a comment.
-
-Instead:
-
-- [ ] **Step 1 (revised):** Do nothing in bootstrap.dart. The `StateError` from `dioProvider` will surface the first time anything reads it (typically the router's `redirect` reading `authSessionProvider` which in turn reads the API client). Flutter's error screen will show the `StateError` message.
-
-- [ ] **Step 2:** Add a note in `app/README.md` covering this behavior (handled by Task 28).
-
-- [ ] **Step 3:** Skip commit for this task (no code change).
-
----
-
-### Task 28: Update `app/README.md` — Deep links + Dev setup
+_(No separate "bootstrap fail-fast" task: `dioProvider`'s `StateError` surfaces on first read, which happens during router build at app start — the failure mode is effectively startup-time already. Document it in the README below.)_
 
 **Files:**
 - Modify: `app/README.md`
@@ -3887,7 +3970,7 @@ git commit -m "docs(app): add Dev setup + Deep links sections"
 
 ---
 
-### Task 29: Final smoke test run — full manual verification
+### Task 28: Final smoke test run — full manual verification
 
 - [ ] **Step 1: Boot docker-compose stack**
 
@@ -3946,4 +4029,4 @@ Create a pull request to main with the full diff. Include the smoke-test checkli
 
 ## Done
 
-After Task 29 passes, the spec's acceptance criteria are met. The branch is ready to merge.
+After Task 28 passes, the spec's acceptance criteria are met. The branch is ready to merge.
