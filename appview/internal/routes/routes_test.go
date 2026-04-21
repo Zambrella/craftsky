@@ -13,11 +13,9 @@ import (
 	"social.craftsky/appview/internal/auth"
 )
 
-func testDeps() *app.Deps { return testDepsEnv(app.EnvDev) }
-
-func testDepsEnv(env app.Env) *app.Deps {
+func testDeps() *app.Deps {
 	return &app.Deps{
-		Config:      app.Config{Env: env, AllowedOrigins: []string{"*"}, DevDID: "did:plc:test"},
+		Config:      app.Config{Env: app.EnvDev, AllowedOrigins: []string{"*"}, DevDID: "did:plc:test"},
 		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
 		AuthService: &auth.MockAuthService{DefaultDID: "did:plc:test"},
 	}
@@ -64,24 +62,5 @@ func TestAddRoutes_UnknownPathReturns404(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", rec.Code)
-	}
-}
-
-func TestAddRoutes_TestFeedDevOnly(t *testing.T) {
-	// Check registration via mux.Handler (which returns the matched
-	// pattern), not ServeHTTP — the handler would panic on the nil DB
-	// in these fixtures, and we only care whether the route exists.
-	req := httptest.NewRequest(http.MethodGet, "/test/feed", nil)
-
-	devMux := http.NewServeMux()
-	AddRoutes(context.Background(), devMux, testDepsEnv(app.EnvDev))
-	if _, pattern := devMux.Handler(req); pattern != "GET /test/feed" {
-		t.Errorf("dev: expected GET /test/feed route, got pattern %q", pattern)
-	}
-
-	prodMux := http.NewServeMux()
-	AddRoutes(context.Background(), prodMux, testDepsEnv(app.EnvProd))
-	if _, pattern := prodMux.Handler(req); pattern == "GET /test/feed" {
-		t.Error("prod: /test/feed should NOT be registered")
 	}
 }

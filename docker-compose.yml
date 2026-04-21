@@ -46,7 +46,7 @@ services:
     environment:
       TAP_RELAY_URL: https://relay1.us-east.bsky.network
       TAP_DATABASE_URL: sqlite:///data/tap.db
-      TAP_COLLECTION_FILTERS: "app.bsky.feed.post,social.craftsky.test.post"
+      TAP_COLLECTION_FILTERS: "app.bsky.feed.post"
       TAP_LOG_LEVEL: info
       TAP_NO_REPLAY: "true"
     volumes:
