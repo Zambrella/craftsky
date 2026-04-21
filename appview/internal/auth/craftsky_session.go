@@ -28,6 +28,7 @@ type CraftskySessionStore struct {
 
 	mu             sync.Mutex
 	lastSeenMemory map[string]time.Time
+	deviceIDMemory map[string]time.Time
 }
 
 func NewCraftskySessionStore(pool *pgxpool.Pool, lastSeenThrottle time.Duration) *CraftskySessionStore {
@@ -35,6 +36,7 @@ func NewCraftskySessionStore(pool *pgxpool.Pool, lastSeenThrottle time.Duration)
 		pool:             pool,
 		lastSeenThrottle: lastSeenThrottle,
 		lastSeenMemory:   make(map[string]time.Time),
+		deviceIDMemory:   make(map[string]time.Time),
 	}
 }
 
@@ -105,6 +107,30 @@ func (s *CraftskySessionStore) maybeTouchLastSeen(ctx context.Context, hash []by
 	s.mu.Unlock()
 	_, _ = s.pool.Exec(ctx,
 		`UPDATE craftsky_sessions SET last_seen_at = now() WHERE token_hash = $1`, hash)
+}
+
+// TouchDeviceID updates last_device_id on the craftsky_sessions row
+// identified by token, at most once per lastSeenThrottle interval per
+// token. It is safe to call on every authenticated request; the
+// in-memory throttle bounds write load. Errors are returned to the
+// caller but are generally non-fatal — the middleware fires this
+// off-path.
+func (s *CraftskySessionStore) TouchDeviceID(ctx context.Context, token, deviceID string) error {
+	hash := sha256.Sum256([]byte(token))
+	key := fmt.Sprintf("%x", hash)
+	s.mu.Lock()
+	last, ok := s.deviceIDMemory[key]
+	now := time.Now()
+	if ok && now.Sub(last) < s.lastSeenThrottle {
+		s.mu.Unlock()
+		return nil
+	}
+	s.deviceIDMemory[key] = now
+	s.mu.Unlock()
+	_, err := s.pool.Exec(ctx,
+		`UPDATE craftsky_sessions SET last_device_id = $1 WHERE token_hash = $2`,
+		deviceID, hash[:])
+	return err
 }
 
 func nullableString(s string) any {

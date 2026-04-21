@@ -245,3 +245,70 @@ func TestCraftskySession_FKCascadeFromOAuthSessionDelete(t *testing.T) {
 		t.Errorf("expected 0 craftsky_sessions rows after FK cascade, got %d", count)
 	}
 }
+
+func TestCraftskySession_TouchDeviceID_PersistsValue(t *testing.T) {
+	pool := withAuthSchema(t)
+	store := auth.NewCraftskySessionStore(pool, 0) // throttle disabled
+	ctx := context.Background()
+
+	_, err := pool.Exec(ctx,
+		`INSERT INTO oauth_sessions (account_did, session_id, data) VALUES ('did:plc:a', 's1', '{}')`)
+	if err != nil {
+		t.Fatalf("seed oauth_sessions: %v", err)
+	}
+	token, err := store.Create(ctx, "did:plc:a", "s1", "")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if err := store.TouchDeviceID(ctx, token, "dev-xyz"); err != nil {
+		t.Fatalf("TouchDeviceID: %v", err)
+	}
+
+	hash := sha256.Sum256([]byte(token))
+	var got *string
+	err = pool.QueryRow(ctx,
+		`SELECT last_device_id FROM craftsky_sessions WHERE token_hash = $1`,
+		hash[:]).Scan(&got)
+	if err != nil {
+		t.Fatalf("SELECT: %v", err)
+	}
+	if got == nil || *got != "dev-xyz" {
+		t.Errorf("last_device_id = %v, want dev-xyz", got)
+	}
+}
+
+func TestCraftskySession_TouchDeviceID_ThrottlesRepeats(t *testing.T) {
+	pool := withAuthSchema(t)
+	store := auth.NewCraftskySessionStore(pool, time.Hour)
+	ctx := context.Background()
+
+	_, err := pool.Exec(ctx,
+		`INSERT INTO oauth_sessions (account_did, session_id, data) VALUES ('did:plc:b', 's2', '{}')`)
+	if err != nil {
+		t.Fatalf("seed oauth_sessions: %v", err)
+	}
+	token, err := store.Create(ctx, "did:plc:b", "s2", "")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if err := store.TouchDeviceID(ctx, token, "dev-first"); err != nil {
+		t.Fatalf("TouchDeviceID 1: %v", err)
+	}
+	if err := store.TouchDeviceID(ctx, token, "dev-second"); err != nil {
+		t.Fatalf("TouchDeviceID 2: %v", err)
+	}
+
+	hash := sha256.Sum256([]byte(token))
+	var got *string
+	err = pool.QueryRow(ctx,
+		`SELECT last_device_id FROM craftsky_sessions WHERE token_hash = $1`,
+		hash[:]).Scan(&got)
+	if err != nil {
+		t.Fatalf("SELECT: %v", err)
+	}
+	if got == nil || *got != "dev-first" {
+		t.Errorf("last_device_id = %v, want dev-first (throttle should have blocked the second write)", got)
+	}
+}
