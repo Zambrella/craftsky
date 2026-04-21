@@ -900,7 +900,7 @@ The spec is implemented when:
    - Settings → Sign out → welcome page. Relaunch → still signed out.
    - Enter an empty handle → `HandleRequired` message.
    - Force a server 502 (e.g., docker-compose down) → `ServerUnavailable` message.
-   - `xcrun simctl openurl` / `adb shell am start` fire a manual deep link → lands on `AuthCompletePage` (which shows `SignInTimedOut` since there's no pending auth, correctly).
+   - `xcrun simctl openurl` / `adb shell am start` fire a manual deep link → lands on `AuthCompletePage` (which shows `NoPendingSignIn` since no sign-in is in progress, correctly).
 2. **Automated tests pass:**
    - `flutter test` green with the new test files.
    - `dart analyze` clean.
