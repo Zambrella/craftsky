@@ -106,7 +106,7 @@ final class SignedIn extends AuthState {
 }
 ```
 
-Exposed as `AsyncValue<AuthState>` via `authSessionProvider` (the notifier class is `AuthSession` — named distinctly from the sealed `AuthState` type to avoid shadowing inside the notifier's `build()`). `AsyncLoading` is used transiently during `signOut` and background re-validation; `build()` emits `AsyncData` synchronously (see §3.1).
+Exposed as `AsyncValue<AuthState>` via `authSessionProvider` (the notifier class is `AuthSession` — named distinctly from the sealed `AuthState` type to avoid shadowing inside the notifier's `build()`). `AsyncLoading` is used transiently on cold start (while secure storage resolves), during `signOut`, and during background re-validation.
 
 ### 2.2 Secure-storage payload
 
@@ -180,34 +180,29 @@ The existing `kDebugMode ? true : false` ternary is removed. First-run is per-DI
 
 ## 3. Providers & state machine
 
-### 3.1 `AuthStateProvider` — optimistic cold start + background validation
+### 3.1 `AuthSession` — optimistic cold start + background validation
 
 ```dart
 @Riverpod(keepAlive: true)
 class AuthSession extends _$AuthSession {
   @override
-  AsyncValue<AuthState> build() {
-    // `ref.read` (not `ref.watch`) is deliberate here: SecureTokenStorage
-    // is a keepAlive singleton; its identity never changes. Storage
-    // writes flow back into AuthSession state explicitly via
-    // setSignedIn / setSignedOut, so we don't want `build` to re-run
-    // when the storage provider's internal state mutates.
-    final storage = ref.read(secureTokenStorageProvider);
-    final stored = storage.readSync(); // synchronous — see §3.2
+  Future<AuthState> build() async {
+    final storage = ref.watch(secureTokenStorageProvider);
+    final stored = await storage.read();
 
     if (stored == null) {
-      return const AsyncData(SignedOut());
+      return const SignedOut();
     }
 
     // Optimistic: emit SignedIn from cached values immediately;
-    // background-validate via /whoami.
+    // background-validate via /whoami. The validation runs unawaited
+    // so `build` resolves without blocking on the network — the
+    // router lands the user on /feed using the cached DID, and the
+    // background call flips to SignedOut if the server rejects the
+    // token (e.g. revoked by another device).
     unawaited(_validateInBackground(stored));
 
-    return AsyncData(SignedIn(
-      did: stored.did,
-      handle: stored.handle,
-      token: stored.token,
-    ));
+    return SignedIn(did: stored.did, handle: stored.handle, token: stored.token);
   }
 
   Future<void> _validateInBackground(StoredSession stored) async {
@@ -247,69 +242,78 @@ class AuthSession extends _$AuthSession {
   // Called by AuthController after a successful sign-in handoff.
   void setSignedIn(SignedIn signedIn) => state = AsyncData(signedIn);
 
-  // Called by AuthController on sign-out.
+  // Called by AuthController on sign-out and by the global
+  // 401-unauthorized interceptor (see §5.3) when a mid-session
+  // request is rejected by the server.
   void setSignedOut() => state = const AsyncData(SignedOut());
 }
 ```
 
 Key properties:
 
-- **Synchronous `build()`** — emits `AsyncData` immediately (no `Future<AuthState>` return). `SecureTokenStorage.readSync` uses a pre-loaded cache (see §3.2). This avoids a startup `AsyncLoading` flicker through the router.
-- **DID mismatch handling.** The background validation compares `who.did` against the stored DID. A mismatch means the token authenticates a different account than we thought (pathological case, but possible if storage is manually corrupted or sessions are swapped); we treat it as stale and sign out.
+- **Async `build()`** — returns `Future<AuthState>`. Initial consumers see one brief `AsyncLoading` state while secure storage resolves (typically sub-10 ms on iOS Keychain / Android Keystore); the router redirect already holds position on `valueOrNull == null`, so this produces no visible flicker. This matches how `appDependenciesProvider` already gates the rest of the app.
+- **DID mismatch handling.** Background validation compares `who.did` against the stored DID. A mismatch means the token authenticates a different account than we thought (pathological case, but possible if storage is manually corrupted or sessions are swapped); we treat it as stale and sign out.
 - **Handle drift handling.** A handle change on the PDS updates the cache. The token is unaffected.
 - **Offline tolerance.** Network failure during validation keeps the user signed in. 401 (definitely invalid) signs them out. Server error (5xx) is treated like network error — we don't sign out on transient server issues.
+- **Mid-session revocation.** Any 401 on an authenticated API call — from background validation, a feed fetch, any future write-proxy call — funnels through `_ErrorMappingInterceptor`'s 401 handler (§5.3), which calls `setSignedOut()` and clears storage. There is no token refresh to attempt (see §3.4); the only path back is through `/welcome` and a fresh sign-in.
 
 ### 3.2 `SecureTokenStorage`
+
+A plain async read/write wrapper around `flutter_secure_storage`. No bootstrap pre-load, no synchronous cache — `AuthSession.build` is async, so a regular `Future<StoredSession?> read()` is enough.
 
 ```dart
 class SecureTokenStorage {
   SecureTokenStorage(this._fss);
   final FlutterSecureStorage _fss;
-  StoredSession? _cache;
 
   static const _key = 'craftsky_session';
 
-  /// Loads the value from secure storage into a synchronous cache.
-  /// Called once during bootstrap, before runApp.
+  /// Reads the current session from secure storage.
   ///
   /// A keystore failure on Android (e.g., device-lock removed, OTA
-  /// corruption) throws `PlatformException` — we catch it and treat
-  /// as "no session" so the app falls back to SignedOut rather than
-  /// crashing on startup. The cause is logged; no user-facing error.
-  Future<void> load() async {
+  /// corruption) throws `PlatformException` — we catch it and return
+  /// null so the app falls back to SignedOut rather than crashing.
+  /// The cause is logged; no user-facing error. Corrupt-blob
+  /// (FormatException) clears the row so subsequent writes don't
+  /// collide.
+  Future<StoredSession?> read() async {
     try {
       final raw = await _fss.read(key: _key);
-      _cache = raw == null ? null : StoredSessionMapper.fromJson(raw);
+      return raw == null ? null : StoredSessionMapper.fromJson(raw);
     } on PlatformException catch (e, st) {
-      _log.warning('SecureTokenStorage.load failed; treating as unsigned-in', e, st);
-      _cache = null;
+      _log.warning('SecureTokenStorage.read failed; treating as unsigned-in', e, st);
+      return null;
     } on FormatException catch (e, st) {
-      // Corrupted blob — clear it so subsequent writes don't collide.
-      _log.warning('SecureTokenStorage.load: corrupt blob; clearing', e, st);
+      _log.warning('SecureTokenStorage.read: corrupt blob; clearing', e, st);
       await _fss.delete(key: _key).catchError((_) {});
-      _cache = null;
+      return null;
     }
   }
 
-  StoredSession? readSync() => _cache;
+  Future<void> write(StoredSession session) =>
+      _fss.write(key: _key, value: session.toJson());
 
-  Future<void> write(StoredSession session) async {
-    await _fss.write(key: _key, value: session.toJson());
-    _cache = session;
-  }
-
-  Future<void> clear() async {
-    await _fss.delete(key: _key);
-    _cache = null;
-  }
+  Future<void> clear() => _fss.delete(key: _key);
 }
 ```
 
-The `load()` → synchronous `readSync()` pattern is necessary because `AuthStateProvider.build()` is synchronous. `bootstrap.dart` `await`s `load()` alongside `AppDependencies` initialization, so by the time `AuthStateProvider` is first read, the cache is populated.
+Exposed via `@Riverpod(keepAlive: true) SecureTokenStorage secureTokenStorage(Ref ref) => ...;` — the `FlutterSecureStorage` instance is constructed inside the provider with platform-default `AndroidOptions` / `IOSOptions`. `bootstrap.dart` requires no special handling: the first `ref.watch(authSessionProvider)` in the router's build resolves the storage read naturally.
 
-Exposed via `@Riverpod(keepAlive: true) SecureTokenStorage secureTokenStorage(Ref ref) => ...;` with the `FlutterSecureStorage` instance constructed inside the provider (platform-default `AndroidOptions` / `IOSOptions`).
+### 3.3 Craftsky token lifecycle
 
-### 3.3 `AuthController` — the state machine
+The opaque Craftsky bearer token has **no client-side refresh mechanism** in v1. It is valid until one of the following happens server-side (see the OAuth BFF spec's `craftsky_sessions` schema):
+
+1. **Explicit single-device logout** (`POST /v1/auth/logout`) sets `revoked_at`; future requests with the token return 401.
+2. **Sign-out-everywhere** (`POST /v1/auth/logout?all=true`) deletes the parent `oauth_sessions` row, cascading all `craftsky_sessions` rows for the DID. Future requests return 401.
+3. **The underlying atproto OAuth refresh token fails** — the user revoked app access at the PDS, or the atproto-spec 180-day refresh-token cap elapsed. Once the AppView can no longer refresh, the `oauth_sessions` row dies and the cascade removes the craftsky token.
+
+From the Flutter client's perspective, all three are indistinguishable: the server returns 401 and we sign out locally. There is nothing to "refresh" or "rotate" — the next sign-in runs the full OAuth flow again to mint a fresh token.
+
+**Implication for the API client.** Any authenticated call can return 401 at any time. The `_ErrorMappingInterceptor` handles this centrally (§5.3) so every feature doesn't implement its own 401 recovery.
+
+**If the server ever introduces token rotation** (e.g. as part of the future TMB upgrade, which hands short-lived access tokens + DPoP material to clients), the `AuthController` grows a `refresh()` method and the interceptor grows refresh-on-401 retry logic. That's genuinely new work; no shim is needed in v1.
+
+### 3.4 `AuthController` — the state machine
 
 ```dart
 @riverpod
@@ -672,8 +676,8 @@ const _devDefaultBaseUrl = 'http://10.0.2.2:8080';
 
 **`_AuthInterceptor`:**
 - On every outgoing request, resolves the current Bearer token in this order:
-  1. `ref.read(inFlightTokenProvider)` — populated by `AuthController.completeFromDeepLink` during the handoff window (see §3.3). Used for the post-deep-link `whoami` call before the session is persisted.
-  2. `ref.read(secureTokenStorageProvider).readSync()` — the persisted token, once `completeFromDeepLink` has written it.
+  1. `ref.read(inFlightTokenProvider)` — populated by `AuthController.completeFromDeepLink` during the handoff window (see §3.4). Used for the post-deep-link `whoami` call before the session is persisted.
+  2. The token field on the current `authSessionProvider` state, if it resolves to `SignedIn`. Reading from state rather than re-reading secure storage on every request avoids redundant async plumbing — `AuthController` is the single writer of both storage and auth state, so they stay in lockstep.
 - Skips injection for the `/v1/auth/login` path (the only anonymous endpoint in v1). Check on `options.path`. This is an exact-match check, kept as a single constant — revisit if more anonymous endpoints land.
 - Sets `Authorization: Bearer <token>` when a token is resolved; omits the header entirely otherwise (server responds 401, the interceptor maps to `ApiUnauthorized`).
 - Safety: `ref.read` inside an interceptor capturing the dio provider's `ref` is safe because `dioProvider` is `keepAlive: true`. The interceptor cannot outlive its provider.
@@ -681,8 +685,8 @@ const _devDefaultBaseUrl = 'http://10.0.2.2:8080';
 **`_ErrorMappingInterceptor`:**
 - Converts `DioException` into `ApiException` subtypes in `onError`.
 - `DioExceptionType.connectionTimeout` / `sendTimeout` / `receiveTimeout` / `connectionError` / `unknown (socket)` → `ApiNetworkError`.
-- `DioExceptionType.badResponse` with `statusCode == 401` → `ApiUnauthorized`.
-- `DioExceptionType.badResponse` with `statusCode` in `[400, 499]` → `ApiBadRequest(code: response.data['error'] as String?)`. The server's error JSON shape is `{"error": "handle_required"}` etc. (see `appview/internal/auth/handlers_session.go:writeJSONError`).
+- `DioExceptionType.badResponse` with `statusCode == 401` → `ApiUnauthorized`. **Global side effect:** unless the request path is `/v1/whoami` AND `inFlightTokenProvider` is non-null (i.e. we're mid-handoff and a fresh-minted token was rejected — a distinct sign-in failure that `AuthController` surfaces as an `AuthError`), the interceptor calls `ref.read(authSessionProvider.notifier).setSignedOut()` and `ref.read(secureTokenStorageProvider).clear()` before propagating `ApiUnauthorized`. The router's refresh listenable picks up the state transition and boots the user to `/welcome`. This is the single entry point for "token got revoked server-side" recovery — feature code does not need to handle 401 individually.
+- `DioExceptionType.badResponse` with `statusCode` in `[400, 499]` (excluding 401, handled above) → `ApiBadRequest(code: response.data['error'] as String?)`. The server's error JSON shape is `{"error": "handle_required"}` etc. (see `appview/internal/auth/handlers_session.go:writeJSONError`).
 - `DioExceptionType.badResponse` with `statusCode >= 500` → `ApiServerError`.
 - Anything else → a generic `ApiServerError` with the original error attached.
 
@@ -748,7 +752,7 @@ app/lib/
 | File | Change |
 |---|---|
 | `app/pubspec.yaml` | Add `dio`, `flutter_secure_storage`, `url_launcher`; add `http_mock_adapter` to dev deps. |
-| `app/lib/bootstrap.dart` | Awaits `secureTokenStorageProvider` (declared in `auth/providers/secure_token_storage.dart`, per §6.1) and calls `load()` on it before `runApp` — parallel to how `appDependenciesProvider` is awaited today. Also reads `dioProvider` once to fail-fast on release-build missing `--dart-define`. |
+| `app/lib/bootstrap.dart` | Reads `dioProvider` once before `runApp` to fail-fast on release builds missing `--dart-define CRAFTSKY_API_BASE_URL`. No secure-storage preload is needed — `authSessionProvider.build` is async and reads storage itself (see §3.1 / §3.2). |
 | `app/lib/app_dependencies.dart` | Unchanged in v1. `SecureTokenStorage` is auth-specific and lives under `auth/providers/`, not alongside generic device/package-info deps. |
 | `app/lib/router/router.dart` | Redirect rewritten per §4.3: `ref.read` throughout, `refreshListenable: ChangeNotifier` driven by `ref.listen` on `authSessionProvider` + the re-attaching onboarding listener. New `AuthCompleteRoute` root-navigator route. Imports updated: old `authStatusProvider` → new `authSessionProvider`; `onboardingStatusProvider` now takes a `did` argument. |
 | `app/lib/router/route_locations.dart` | Add `authComplete = '/auth/complete'` constant. |
@@ -841,14 +845,16 @@ Using `http_mock_adapter`:
 - Bearer injection present on authenticated endpoints; absent on `/v1/auth/login`.
 - Token read from an overridden `secureTokenStorageProvider`.
 - `_ErrorMappingInterceptor` maps all four status-code branches correctly.
+- `_ErrorMappingInterceptor` 401 on an authenticated endpoint (e.g. `/v1/whoami` with no `inFlightToken`) triggers `authSessionProvider.setSignedOut()` and `secureTokenStorage.clear()` before propagating `ApiUnauthorized`.
+- `_ErrorMappingInterceptor` 401 on `/v1/whoami` DURING handoff (`inFlightToken` non-null) does NOT sign the user out — it propagates `ApiUnauthorized` for `AuthController.completeFromDeepLink` to surface as a sign-in failure.
 - `ApiBadRequest.code` extraction survives missing / non-string `error` field (defensive null).
 
 ### 8.2 Provider unit tests — `test/auth/providers/`
 
 Using Riverpod's `ProviderContainer` test harness:
 
-- `AuthStateProvider.build` emits `SignedOut` synchronously when storage cache is null.
-- `AuthStateProvider.build` emits `SignedIn` synchronously when storage cache is populated; background `_validateInBackground` is triggered.
+- `AuthSession.build` resolves to `SignedOut` when storage is empty.
+- `AuthSession.build` resolves to `SignedIn` when storage has a stored session; `_validateInBackground` fires unawaited.
 - Background validation: `ApiUnauthorized` → clear storage, state → `SignedOut`.
 - Background validation: DID mismatch → clear + `SignedOut`.
 - Background validation: handle drift → update storage + state.
@@ -860,7 +866,7 @@ Using Riverpod's `ProviderContainer` test harness:
 - `AuthController.completeFromDeepLink` with no pending auth → `AsyncError(NoPendingSignIn)`.
 - `AuthController.completeFromDeepLink` with stale pending (>10min) → `AsyncError(SignInTimedOut)`, pending cleared.
 - `AuthController.completeFromDeepLink` with `whoami` failure → storage NOT written (in-flight-only pattern), error rethrown, `inFlightTokenProvider` cleared.
-- Kill-during-sign-in simulation: call `completeFromDeepLink` that sets the in-flight token, then simulate shutdown before `whoami` resolves. Assert `SecureTokenStorage` still has `readSync() == null` — no half-written blob. Next cold start → `SignedOut`.
+- Kill-during-sign-in simulation: call `completeFromDeepLink` that sets the in-flight token, then simulate shutdown before `whoami` resolves. Assert `SecureTokenStorage.read()` still returns `null` — no half-written blob. Next cold start → `SignedOut`.
 - `_AuthInterceptor` falls back to `inFlightTokenProvider` when `SecureTokenStorage` is empty.
 - `AuthController.signOut` happy path.
 - `AuthController.signOut` on network failure still clears local state.
@@ -898,6 +904,7 @@ The spec is implemented when:
    - Kill app → relaunch → still signed in.
    - Airplane mode → relaunch → still signed in (optimistic; `whoami` fails quietly in background).
    - Settings → Sign out → welcome page. Relaunch → still signed out.
+   - Mid-session revocation: while signed in, manually `UPDATE craftsky_sessions SET revoked_at = now()` in the dev Postgres. Trigger any authenticated call (e.g. pull-to-refresh). App transitions to `/welcome` cleanly without a crash.
    - Enter an empty handle → `HandleRequired` message.
    - Force a server 502 (e.g., docker-compose down) → `ServerUnavailable` message.
    - `xcrun simctl openurl` / `adb shell am start` fire a manual deep link → lands on `AuthCompletePage` (which shows `NoPendingSignIn` since no sign-in is in progress, correctly).
@@ -919,7 +926,7 @@ The spec is implemented when:
 
 1. **Token-in-URL exposure.** `craftsky://auth/complete?token=...` lands in any process-level logging of incoming intents. **Mitigation:** the `logging` package call-sites in `AuthCompletePage.initState` / `AuthController.completeFromDeepLink` must redact the `token` query parameter — log the URI with the query string replaced by `<redacted>`. Unit-assertable via the `logging` package's `Logger.root.onRecord` stream.
 
-2. **Pending-auth staleness.** A user could kick off sign-in, background the app for hours, then the deep link fires late. The server's `oauth_auth_requests` row (30-min TTL) may be gone; the Craftsky token would still be valid, but the UX is confusing. **Mitigation:** 10-minute client-side window enforced in `completeFromDeepLink` (§3.3). User sees `SignInTimedOut` → "Please sign in again."
+2. **Pending-auth staleness.** A user could kick off sign-in, background the app for hours, then the deep link fires late. The server's `oauth_auth_requests` row (30-min TTL) may be gone; the Craftsky token would still be valid, but the UX is confusing. **Mitigation:** 10-minute client-side window enforced in `completeFromDeepLink` (§3.4). User sees `SignInTimedOut` → "Please sign in again."
 
 3. **Release build with no base URL.** `kDebugMode` is false in release, and the default becomes `''`. The `StateError` throws at first API call, not startup. **Mitigation:** `bootstrap.dart` touches `dioProvider` once before `runApp`, failing fast with a clear error screen.
 
@@ -927,7 +934,7 @@ The spec is implemented when:
 
 5. **`/v1` migration timing.** If the server migration doesn't land before this, the Flutter client's hardcoded `/v1/...` paths 404. **Mitigation:** Cross-reference note in both specs; whoever lands second does the rename (server-side is three route lines; client-side is three path constants). No compat shim — both sides flip together.
 
-6. **DID spoofing via storage corruption.** An attacker with filesystem access could swap the stored `did` for another user's. On relaunch the app optimistically trusts it, shows their profile / feed until `whoami` returns. **Mitigation:** the DID-mismatch check in `_validateInBackground` clears state if the token → DID mapping disagrees. The window is one round-trip on app launch — tolerable for a crafting app. App-layer encryption of the storage blob is future work if the threat model tightens. The in-flight-token pattern in `completeFromDeepLink` (§3.3) closes a related footgun: we never persist a `StoredSession` with an empty DID, so there's no "half-written session" attack surface from an app-kill during the handoff window.
+6. **DID spoofing via storage corruption.** An attacker with filesystem access could swap the stored `did` for another user's. On relaunch the app optimistically trusts it, shows their profile / feed until `whoami` returns. **Mitigation:** the DID-mismatch check in `_validateInBackground` clears state if the token → DID mapping disagrees. The window is one round-trip on app launch — tolerable for a crafting app. App-layer encryption of the storage blob is future work if the threat model tightens. The in-flight-token pattern in `completeFromDeepLink` (§3.4) closes a related footgun: we never persist a `StoredSession` with an empty DID, so there's no "half-written session" attack surface from an app-kill during the handoff window.
 
 ## 11. Future work
 
@@ -941,6 +948,6 @@ Explicitly out of scope for v1. Discoverable here.
 6. **Deferred deep link fallback page.** AppView callback template can render "Download Craftsky — [App Store] [Play Store]" when the OS fails to open `craftsky://`. Small server template change.
 7. **Web platform.** Requires either a webview-based OAuth flow or a different handoff (postMessage / cookie-based session). Its own spec.
 8. **Desktop platform.** Would use the existing `loopback` handoff mode the server already supports (same path the CLI will use). Its own spec.
-9. **Token rotation.** The server currently issues one bearer token per device that lives until explicitly revoked. A short-lived token + refresh pattern is future work tied to the TMB upgrade from the OAuth BFF spec.
+9. **Token rotation / refresh.** The server currently issues one bearer token per device that lives until explicitly revoked or the underlying OAuth session dies (see §3.3). If a short-lived-token + refresh pattern is introduced later (most likely alongside the TMB upgrade in the OAuth BFF spec), `AuthController` grows a `refresh()` method and `_ErrorMappingInterceptor` grows refresh-on-401-then-retry logic. Until then, 401 means "sign in again" — no client-side refresh to add.
 10. **Write-proxy wiring.** Once the `POST /v1/xrpc/com.atproto.repo.createRecord` endpoint exists, add a typed method to `CraftskyApiClient`. Its own spec.
 11. **Integration testing** of the deep-link round-trip via `flutter drive` + simulator URL injection.
