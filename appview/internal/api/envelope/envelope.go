@@ -28,6 +28,8 @@ type Error struct {
 func WriteError(w http.ResponseWriter, status int, code, message, requestID string, fields map[string]string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
+	// Ignore the encode error: the status header is already sent;
+	// an encode failure here cannot be surfaced to the client.
 	_ = json.NewEncoder(w).Encode(Error{
 		Error:     code,
 		Message:   message,

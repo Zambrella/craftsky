@@ -14,6 +14,10 @@ var ErrInvalidCursor = errors.New("invalid cursor")
 // EncodeCursor serialises payload as base64url-encoded JSON. Handlers
 // use it to produce the "cursor" field on paginated responses. The
 // format is deliberately opaque — clients must not inspect it.
+//
+// An empty payload produces an empty string; callers should omit the
+// cursor field from the response entirely in that case rather than
+// serialising "".
 func EncodeCursor(payload map[string]any) (string, error) {
 	if len(payload) == 0 {
 		return "", nil
