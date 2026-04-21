@@ -106,7 +106,7 @@ final class SignedIn extends AuthState {
 }
 ```
 
-Exposed as `AsyncValue<AuthState>` via `AuthStateProvider`. `AsyncLoading` is used transiently during `signOut` and background re-validation; `build()` emits `AsyncData` synchronously (see §3.1).
+Exposed as `AsyncValue<AuthState>` via `authSessionProvider` (the notifier class is `AuthSession` — named distinctly from the sealed `AuthState` type to avoid shadowing inside the notifier's `build()`). `AsyncLoading` is used transiently during `signOut` and background re-validation; `build()` emits `AsyncData` synchronously (see §3.1).
 
 ### 2.2 Secure-storage payload
 
@@ -137,9 +137,24 @@ class PendingAuth with PendingAuthMappable {
 }
 ```
 
-Held in a private `_pendingAuthProvider` (a plain `@riverpod` class exposing `start(handle)` / `clear()`). Used by `completeFromDeepLink` to (a) confirm a sign-in is in progress and (b) reject stale deep links (older than 10 minutes).
+Held in a `pendingAuthProvider` (a plain `@riverpod` class exposing `start(handle)` / `clear()`). Used by `completeFromDeepLink` to (a) confirm a sign-in is in progress and (b) reject stale deep links (older than 10 minutes).
 
-### 2.4 Onboarding state
+### 2.4 In-flight token state
+
+```dart
+@Riverpod(keepAlive: true)
+class InFlightToken extends _$InFlightToken {
+  @override
+  String? build() => null;
+
+  void set(String token) => state = token;
+  void clear() => state = null;
+}
+```
+
+Lives for the narrow window between the deep-link arriving in `completeFromDeepLink` and `whoami` returning. Read by the `dio` Bearer interceptor (see §5.3) as a **fallback** when `SecureTokenStorage` is empty. This decoupling means the deep-link handoff can make a single authenticated call (`whoami`) before we persist anything to secure storage — if the app is killed mid-handoff, cold start sees no stored session and the flow restarts cleanly rather than loading a half-written `did: ''` blob.
+
+### 2.5 Onboarding state
 
 Family-keyed by DID, backed by `SharedPreferences`:
 
@@ -169,7 +184,7 @@ The existing `kDebugMode ? true : false` ternary is removed. First-run is per-DI
 
 ```dart
 @Riverpod(keepAlive: true)
-class AuthState extends _$AuthState {
+class AuthSession extends _$AuthSession {
   @override
   AsyncValue<AuthState> build() {
     final storage = ref.read(secureTokenStorageProvider);
@@ -210,6 +225,7 @@ class AuthState extends _$AuthState {
         if (!ref.mounted) return;
         state = AsyncData(SignedIn(did: who.did, handle: who.handle, token: stored.token));
       }
+      // else: handles match; nothing to do.
     } on ApiUnauthorized {
       await _clearLocalState();
     } on ApiNetworkError {
@@ -250,9 +266,24 @@ class SecureTokenStorage {
 
   /// Loads the value from secure storage into a synchronous cache.
   /// Called once during bootstrap, before runApp.
+  ///
+  /// A keystore failure on Android (e.g., device-lock removed, OTA
+  /// corruption) throws `PlatformException` — we catch it and treat
+  /// as "no session" so the app falls back to SignedOut rather than
+  /// crashing on startup. The cause is logged; no user-facing error.
   Future<void> load() async {
-    final raw = await _fss.read(key: _key);
-    _cache = raw == null ? null : StoredSessionMapper.fromJson(raw);
+    try {
+      final raw = await _fss.read(key: _key);
+      _cache = raw == null ? null : StoredSessionMapper.fromJson(raw);
+    } on PlatformException catch (e, st) {
+      _log.warning('SecureTokenStorage.load failed; treating as unsigned-in', e, st);
+      _cache = null;
+    } on FormatException catch (e, st) {
+      // Corrupted blob — clear it so subsequent writes don't collide.
+      _log.warning('SecureTokenStorage.load: corrupt blob; clearing', e, st);
+      await _fss.delete(key: _key).catchError((_) {});
+      _cache = null;
+    }
   }
 
   StoredSession? readSync() => _cache;
@@ -285,7 +316,7 @@ class AuthController extends _$AuthController {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final trimmed = handle.trim().replaceFirst(RegExp(r'^@'), '');
-      if (trimmed.isEmpty) throw const AuthError.handleRequired();
+      if (trimmed.isEmpty) throw const HandleRequired();
 
       final api = ref.read(apiClientProvider);
       final response = await api.login(handle: trimmed);
@@ -297,7 +328,7 @@ class AuthController extends _$AuthController {
         Uri.parse(response.authUrl),
         mode: LaunchMode.externalApplication,
       );
-      if (!launched) throw const AuthError.browserLaunchFailed();
+      if (!launched) throw const BrowserLaunchFailed();
     });
   }
 
@@ -305,33 +336,35 @@ class AuthController extends _$AuthController {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final pending = ref.read(pendingAuthProvider);
-      if (pending == null) throw const AuthError.noPendingSignIn();
+      if (pending == null) throw const NoPendingSignIn();
       if (DateTime.now().difference(pending.startedAt) > const Duration(minutes: 10)) {
         ref.read(pendingAuthProvider.notifier).clear();
-        throw const AuthError.signInTimedOut();
+        throw const SignInTimedOut();
       }
 
-      // Temporarily write the token so the API client attaches it.
-      final storage = ref.read(secureTokenStorageProvider);
-      await storage.write(StoredSession(token: token, did: '', handle: ''));
-
-      final api = ref.read(apiClientProvider);
+      // Park the token in a dedicated provider so the Dio Bearer
+      // interceptor can attach it for the `whoami` call — WITHOUT
+      // persisting it to SecureTokenStorage yet. If the app is killed
+      // mid-flow, cold start sees no stored session and the flow
+      // restarts cleanly (rather than a half-written `did: ''` blob).
+      ref.read(inFlightTokenProvider.notifier).set(token);
       try {
+        final api = ref.read(apiClientProvider);
         final who = await api.whoami();
         if (!ref.mounted) return;
 
-        await storage.write(
+        // Single write: only persist after we know token → DID resolves.
+        await ref.read(secureTokenStorageProvider).write(
           StoredSession(token: token, did: who.did, handle: who.handle),
         );
         if (!ref.mounted) return;
 
-        ref.read(authStateProvider.notifier).setSignedIn(
+        ref.read(authSessionProvider.notifier).setSignedIn(
           SignedIn(did: who.did, handle: who.handle, token: token),
         );
+      } finally {
+        ref.read(inFlightTokenProvider.notifier).clear();
         ref.read(pendingAuthProvider.notifier).clear();
-      } on ApiException {
-        await storage.clear();
-        rethrow;
       }
     });
   }
@@ -349,7 +382,7 @@ class AuthController extends _$AuthController {
       if (!ref.mounted) return;
       await ref.read(secureTokenStorageProvider).clear();
       if (!ref.mounted) return;
-      ref.read(authStateProvider.notifier).setSignedOut();
+      ref.read(authSessionProvider.notifier).setSignedOut();
     });
   }
 }
@@ -454,13 +487,13 @@ class AuthCompleteRoute extends GoRouteData with $AuthCompleteRoute {
 - Renders a `CircularProgressIndicator` + "Signing in…" text.
 - Uses `ref.listen(authControllerProvider, ...)` with the transition-based `(prev, state)` pattern to detect completion and surface errors via snackbar / retry UI.
 
-**Why a page, not just a `redirect` hook.** The `completeFromDeepLink` call can take several hundred ms (one `whoami` round-trip); surfacing that as a visible "Signing in…" screen is better UX than a blank bounce. Errors have a place to render. And it avoids race-window concerns about the top-level `authStateProvider` redirect interfering before `completeFromDeepLink` has written state.
+**Why a page, not just a `redirect` hook.** The `completeFromDeepLink` call can take several hundred ms (one `whoami` round-trip); surfacing that as a visible "Signing in…" screen is better UX than a blank bounce. Errors have a place to render. And it gives the top-level `authSessionProvider` redirect a single, well-defined location to route away from once the controller flips state.
 
 go_router receives custom-scheme URIs via the same platform channel as HTTPS URIs; matching happens on path + query, so `craftsky://auth/complete?token=xxx` and `https://.../auth/complete?token=xxx` match the same route. This means the migration to HTTPS Universal Links (if/when it happens) is a platform-config change only — no Flutter code churn.
 
 ### 4.3 Router-level redirect & refresh
 
-`goRouter`'s `redirect` uses `ref.read` exclusively; a `ChangeNotifier` owned by the provider is kicked via `ref.listen` when auth or onboarding state changes:
+`goRouter`'s `redirect` uses `ref.read` exclusively; a `ChangeNotifier` owned by the provider is kicked via `ref.listen` when auth state changes. Onboarding refreshes use `ref.listen` on the specific family instance for the currently-signed-in DID:
 
 ```dart
 @riverpod
@@ -468,8 +501,17 @@ GoRouter goRouter(Ref ref) {
   final refresh = ChangeNotifier();
   ref.onDispose(refresh.dispose);
 
-  ref.listen(authStateProvider, (_, __) => refresh.notifyListeners());
-  ref.listen(onboardingStatusProvider, (_, __) => refresh.notifyListeners());
+  ref.listen(authSessionProvider, (_, next) {
+    refresh.notifyListeners();
+
+    // When auth state becomes SignedIn, start listening to that DID's
+    // onboarding status too. Riverpod family providers are only
+    // listenable at a specific instance (onboardingStatusProvider(did)),
+    // not at the family level — so we attach/detach the listener as the
+    // signed-in DID changes. A nullable subscription holds the current
+    // one; `ref.onDispose` cleans it up alongside the ChangeNotifier.
+    _reattachOnboardingListener(ref, next.valueOrNull, refresh);
+  });
 
   return GoRouter(
     initialLocation: RouteLocations.welcome,
@@ -483,20 +525,27 @@ GoRouter goRouter(Ref ref) {
         RouteLocations.signIn,
       ];
 
-      // /auth/complete is always allowed — it's the deep-link handoff.
-      if (loc == RouteLocations.authComplete) return null;
-
-      final auth = ref.read(authStateProvider).valueOrNull;
+      final auth = ref.read(authSessionProvider).valueOrNull;
       if (auth == null) return null; // transient AsyncLoading — hold position
 
       switch (auth) {
         case SignedOut():
+          // While signed-out, /auth/complete is allowed (it's where a
+          // deep link lands before completeFromDeepLink updates state).
+          if (loc == RouteLocations.authComplete) return null;
           return unauthenticatedRoutes.contains(loc)
               ? null
               : RouteLocations.welcome;
 
         case SignedIn(:final did):
+          // Once signed in, /auth/complete has served its purpose —
+          // the top-level redirect is what moves the user onward.
+          // Onboarding state is only keyed by a real DID; no empty-string
+          // keys reach SharedPreferences.
           final isOnboarded = ref.read(onboardingStatusProvider(did));
+          if (loc == RouteLocations.authComplete) {
+            return isOnboarded ? RouteLocations.home : RouteLocations.onboarding;
+          }
           if (!isOnboarded && loc != RouteLocations.onboarding) {
             return RouteLocations.onboarding;
           }
@@ -515,7 +564,8 @@ GoRouter goRouter(Ref ref) {
 ```
 
 Notes:
-- `ref.listen` on `onboardingStatusProvider` (a family) listens to all instances — which is what we want (any instance changing should refresh).
+- `/auth/complete` is allowed-to-stay only when `SignedOut`. Once `AuthController.completeFromDeepLink` flips state to `SignedIn` (or back to `SignedOut` on failure), the refresh fires and the redirect routes the user onward — to `/feed` or `/onboarding` on success; to `/welcome` on failure (the `AuthCompletePage` surfaces the error via snackbar before the redirect catches it). This closes the gap the review flagged.
+- `_reattachOnboardingListener` is a small helper (co-located in the same file) that manages a single `ProviderSubscription` against `onboardingStatusProvider(did)` for whatever DID is currently `SignedIn`, swapping it when the DID changes and disposing it on sign-out. It calls `refresh.notifyListeners()` on any state change. This is the concrete mechanism for "onboarding flips → redirect re-evaluates" — no family-level listen required.
 - The redirect uses `ref.read` throughout, never `ref.watch`. go_router does not auto-re-evaluate on watched providers; the `refreshListenable` pattern is how we drive re-evaluation explicitly.
 - No `GoRouterRefreshStream` or stream-bridge — just a plain `ChangeNotifier` driven by `ref.listen`.
 
@@ -610,9 +660,12 @@ const _devDefaultBaseUrl = 'http://10.0.2.2:8080';
 ### 5.3 Interceptors
 
 **`_AuthInterceptor`:**
-- On every outgoing request, reads the current token from `secureTokenStorageProvider` via `ref.read`.
-- Skips injection for anonymous endpoints (`/v1/auth/login`). Check on `options.path`.
-- Sets `Authorization: Bearer <token>` when present.
+- On every outgoing request, resolves the current Bearer token in this order:
+  1. `ref.read(inFlightTokenProvider)` — populated by `AuthController.completeFromDeepLink` during the handoff window (see §3.3). Used for the post-deep-link `whoami` call before the session is persisted.
+  2. `ref.read(secureTokenStorageProvider).readSync()` — the persisted token, once `completeFromDeepLink` has written it.
+- Skips injection for the `/v1/auth/login` path (the only anonymous endpoint in v1). Check on `options.path`. This is an exact-match check, kept as a single constant — revisit if more anonymous endpoints land.
+- Sets `Authorization: Bearer <token>` when a token is resolved; omits the header entirely otherwise (server responds 401, the interceptor maps to `ApiUnauthorized`).
+- Safety: `ref.read` inside an interceptor capturing the dio provider's `ref` is safe because `dioProvider` is `keepAlive: true`. The interceptor cannot outlive its provider.
 
 **`_ErrorMappingInterceptor`:**
 - Converts `DioException` into `ApiException` subtypes in `onError`.
@@ -671,7 +724,8 @@ app/lib/
 │   │   └── stored_session.dart               # + .mapper.dart
 │   ├── providers/
 │   │   ├── auth_controller.dart              # + .g.dart
-│   │   ├── auth_state_provider.dart          # + .g.dart
+│   │   ├── auth_session_provider.dart        # + .g.dart  (notifier: AuthSession)
+│   │   ├── in_flight_token_provider.dart     # + .g.dart
 │   │   ├── pending_auth_provider.dart        # + .g.dart
 │   │   └── secure_token_storage.dart         # + .g.dart
 │   └── pages/
@@ -683,14 +737,14 @@ app/lib/
 | File | Change |
 |---|---|
 | `app/pubspec.yaml` | Add `dio`, `flutter_secure_storage`, `url_launcher`; add `http_mock_adapter` to dev deps. |
-| `app/lib/app_dependencies.dart` | Add `secureTokenStorage.load()` awaited alongside other async initializations; expose via `SecureTokenStorage secureTokenStorage(Ref ref)` provider (already inside this file or its own provider file, chosen to match existing `sharedPreferences` pattern). |
-| `app/lib/bootstrap.dart` | Awaits `secureTokenStorageProvider`'s `load()` before `runApp` via a new accessor (parallel to `appDependenciesProvider`). Calls `ref.read(dioProvider)` once to fail-fast on release-build missing `--dart-define`. |
-| `app/lib/router/router.dart` | Redirect rewritten per §4.3: `ref.read` throughout, `refreshListenable: ChangeNotifier` driven by two `ref.listen` calls. New `AuthCompleteRoute` root-navigator route. Imports updated: old `authStatusProvider` → new `authStateProvider`; `onboardingStatusProvider` now takes a `did` argument. |
+| `app/lib/bootstrap.dart` | Awaits `secureTokenStorageProvider` (declared in `auth/providers/secure_token_storage.dart`, per §6.1) and calls `load()` on it before `runApp` — parallel to how `appDependenciesProvider` is awaited today. Also reads `dioProvider` once to fail-fast on release-build missing `--dart-define`. |
+| `app/lib/app_dependencies.dart` | Unchanged in v1. `SecureTokenStorage` is auth-specific and lives under `auth/providers/`, not alongside generic device/package-info deps. |
+| `app/lib/router/router.dart` | Redirect rewritten per §4.3: `ref.read` throughout, `refreshListenable: ChangeNotifier` driven by `ref.listen` on `authSessionProvider` + the re-attaching onboarding listener. New `AuthCompleteRoute` root-navigator route. Imports updated: old `authStatusProvider` → new `authSessionProvider`; `onboardingStatusProvider` now takes a `did` argument. |
 | `app/lib/router/route_locations.dart` | Add `authComplete = '/auth/complete'` constant. |
 | `app/lib/auth/pages/welcome_page.dart` | Remove the "Dev: toggle auth" `OutlinedButton`. "Sign in" and "Create account on a PDS" both continue to `SignInRoute` (account creation is a separate future spec). |
 | `app/lib/auth/pages/sign_in_page.dart` | Wire the `BrandTextField` to a controller; "Continue" button calls `ref.read(authControllerProvider.notifier).signIn(handle: text)`. Listen to `authControllerProvider` for loading / error states. |
 | `app/lib/onboarding/providers/onboarding_status_provider.dart` | Rewrite as a family keyed by DID; `build(String did)` reads `SharedPreferences`; `finish()` writes it. Remove `kDebugMode` ternary. |
-| `app/lib/onboarding/pages/onboarding_page.dart` | `finish()` call unchanged in shape; the provider's `did` argument is obtained by watching `authStateProvider` and pattern-matching on `SignedIn`. |
+| `app/lib/onboarding/pages/onboarding_page.dart` | `finish()` call unchanged in shape; the provider's `did` argument is obtained by watching `authSessionProvider` and pattern-matching on `SignedIn`. |
 | `app/lib/settings/pages/settings_page.dart` | Add `SignOutTile` widget class (its own file or inlined as a class per flutter.md rule) that calls `AuthController.signOut` and listens for completion. |
 | `ios/Runner/Info.plist` | Add `CFBundleURLTypes` for scheme `craftsky` (see §7.1). |
 | `android/app/src/main/AndroidManifest.xml` | Add a second `intent-filter` on `MainActivity` for `craftsky://auth` (see §7.2). |
@@ -698,7 +752,8 @@ app/lib/
 
 ### 6.3 Deleted files
 
-- `app/lib/auth/providers/auth_status_provider.dart` (+ `.g.dart`) — replaced by `auth_state_provider.dart`.
+- `app/lib/auth/providers/auth_status_provider.dart` (and its generated `.g.dart`) — replaced by `auth/providers/auth_session_provider.dart`.
+- Any `part '…'` directive referencing `auth_status_provider.g.dart` must be removed from all call sites before re-running `dart run build_runner build --delete-conflicting-outputs` — otherwise the build will fail on a missing `part of` target.
 
 ### 6.4 Dependency additions
 
@@ -793,7 +848,9 @@ Using Riverpod's `ProviderContainer` test harness:
 - `AuthController.completeFromDeepLink` happy path writes storage (twice: token-only then token+did+handle), calls `whoami`, transitions auth state.
 - `AuthController.completeFromDeepLink` with no pending auth → `AsyncError(NoPendingSignIn)`.
 - `AuthController.completeFromDeepLink` with stale pending (>10min) → `AsyncError(SignInTimedOut)`, pending cleared.
-- `AuthController.completeFromDeepLink` with `whoami` failure → storage cleared, error rethrown.
+- `AuthController.completeFromDeepLink` with `whoami` failure → storage NOT written (in-flight-only pattern), error rethrown, `inFlightTokenProvider` cleared.
+- Kill-during-sign-in simulation: call `completeFromDeepLink` that sets the in-flight token, then simulate shutdown before `whoami` resolves. Assert `SecureTokenStorage` still has `readSync() == null` — no half-written blob. Next cold start → `SignedOut`.
+- `_AuthInterceptor` falls back to `inFlightTokenProvider` when `SecureTokenStorage` is empty.
 - `AuthController.signOut` happy path.
 - `AuthController.signOut` on network failure still clears local state.
 - `OnboardingStatus(did).build` reads `SharedPreferences`.
@@ -811,7 +868,9 @@ Using Riverpod's `ProviderContainer` test harness:
 - Redirect: `SignedIn` + `!onboarded` + location `/feed` → redirects to `/onboarding`.
 - Redirect: `SignedIn` + `onboarded` + location `/welcome` → redirects to `/feed`.
 - Redirect: `/auth/complete` is always allowed regardless of auth state.
-- Refresh listenable fires on `authStateProvider` transitions.
+- Refresh listenable fires on `authSessionProvider` transitions.
+- Refresh listenable fires when onboarding flips for the currently-signed-in DID (re-attach-on-DID-change helper).
+- Redirect routes `/auth/complete` to `/feed` when signed-in and onboarded, to `/onboarding` when signed-in but not onboarded, and stays put when signed-out.
 
 ### 8.5 Not in scope
 
@@ -838,6 +897,7 @@ The spec is implemented when:
    - Both `kDebugMode ? true : false` ternaries are removed.
    - `authStatusProvider` file is deleted (not kept as a compatibility shim).
    - No `ref.watch` inside the router redirect.
+   - No `GoRouterRefreshStream` or similar stream-bridge; the refresh mechanism is the `ChangeNotifier` owned by the `goRouter` provider.
    - No `print` / `debugPrint` — all diagnostics go through `logging`.
 4. **Documentation:**
    - `app/README.md` has "Deep links" + "Dev setup" sections.
@@ -855,7 +915,7 @@ The spec is implemented when:
 
 5. **`/v1` migration timing.** If the server migration doesn't land before this, the Flutter client's hardcoded `/v1/...` paths 404. **Mitigation:** Cross-reference note in both specs; whoever lands second does the rename (server-side is three route lines; client-side is three path constants). No compat shim — both sides flip together.
 
-6. **DID spoofing via storage corruption.** An attacker with filesystem access could swap the stored `did` for another user's. On relaunch the app optimistically trusts it, shows their profile / feed until `whoami` returns. **Mitigation:** the DID-mismatch check in `_validateInBackground` clears state if the token → DID mapping disagrees. The window is one round-trip on app launch — tolerable for a crafting app. App-layer encryption of the storage blob is future work if the threat model tightens.
+6. **DID spoofing via storage corruption.** An attacker with filesystem access could swap the stored `did` for another user's. On relaunch the app optimistically trusts it, shows their profile / feed until `whoami` returns. **Mitigation:** the DID-mismatch check in `_validateInBackground` clears state if the token → DID mapping disagrees. The window is one round-trip on app launch — tolerable for a crafting app. App-layer encryption of the storage blob is future work if the threat model tightens. The in-flight-token pattern in `completeFromDeepLink` (§3.3) closes a related footgun: we never persist a `StoredSession` with an empty DID, so there's no "half-written session" attack surface from an app-kill during the handoff window.
 
 ## 11. Future work
 
