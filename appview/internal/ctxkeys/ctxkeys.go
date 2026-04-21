@@ -12,6 +12,7 @@ type contextKey string
 const (
 	DIDKey            contextKey = "did"
 	OAuthSessionIDKey contextKey = "oauth_session_id"
+	DeviceIDKey       contextKey = "device_id"
 )
 
 // GetDID extracts the authenticated DID from ctx.
@@ -36,4 +37,16 @@ func WithDID(ctx context.Context, did string) context.Context {
 // WithOAuthSessionID stores sid in ctx under OAuthSessionIDKey.
 func WithOAuthSessionID(ctx context.Context, sid string) context.Context {
 	return context.WithValue(ctx, OAuthSessionIDKey, sid)
+}
+
+// GetDeviceID extracts the X-Craftsky-Device-Id injected by the
+// DeviceID middleware. Returns ("", false) if not present.
+func GetDeviceID(ctx context.Context) (string, bool) {
+	id, ok := ctx.Value(DeviceIDKey).(string)
+	return id, ok
+}
+
+// WithDeviceID stores id in ctx under DeviceIDKey.
+func WithDeviceID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, DeviceIDKey, id)
 }
