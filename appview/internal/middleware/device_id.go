@@ -48,10 +48,15 @@ func WithDeviceID(ctx context.Context, id string) context.Context {
 // When toucher is non-nil AND the DID + session ID are present in the
 // request context (i.e. Authenticated ran and resolved a real session),
 // the middleware records the device ID on the session row via
-// TouchDeviceID. The call is fire-and-forget: it runs synchronously
-// but errors are logged and swallowed — the column is best-effort
-// instrumentation and must not block the request. Pass nil for
-// toucher on unauthenticated routes (e.g. /v1/auth/login).
+// TouchDeviceID. The call runs synchronously but errors are logged and
+// swallowed — the column is best-effort instrumentation and must not
+// block the request.
+//
+// It is safe to pass the same toucher to every route (including
+// unauthenticated ones like /v1/auth/login): the context guards
+// short-circuit before TouchDeviceID is called when no session is
+// resolved. Pass nil only in tests that want to assert the touch path
+// is unreachable.
 func DeviceID(toucher DeviceIDToucher, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
