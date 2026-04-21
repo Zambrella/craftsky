@@ -1860,6 +1860,15 @@ ProviderContainer _container({
       ],
     );
 
+/// `_validateInBackground` is `unawaited` inside `AuthSession.build`; the chain
+/// performs up to three awaits (whoami → storage.{clear|write} → state =),
+/// each yielding one microtask. Flush the event loop a few times to settle.
+Future<void> _flushBackgroundValidation() async {
+  for (var i = 0; i < 5; i++) {
+    await Future<void>.delayed(Duration.zero);
+  }
+}
+
 void main() {
   setUpAll(initializeMappers);
 
@@ -1900,8 +1909,7 @@ void main() {
 
     // Resolve build: optimistic SignedIn.
     await container.read(authSessionProvider.future);
-    // Wait one microtask for the unawaited background validation.
-    await Future<void>.delayed(Duration.zero);
+    await _flushBackgroundValidation();
 
     expect(container.read(authSessionProvider).value, isA<SignedOut>());
     expect(await storage.read(), isNull);
@@ -1920,7 +1928,7 @@ void main() {
     addTearDown(container.dispose);
 
     await container.read(authSessionProvider.future);
-    await Future<void>.delayed(Duration.zero);
+    await _flushBackgroundValidation();
 
     expect(container.read(authSessionProvider).value, isA<SignedOut>());
     expect(await storage.read(), isNull);
@@ -1939,7 +1947,7 @@ void main() {
     addTearDown(container.dispose);
 
     await container.read(authSessionProvider.future);
-    await Future<void>.delayed(Duration.zero);
+    await _flushBackgroundValidation();
 
     final signed = container.read(authSessionProvider).value as SignedIn;
     expect(signed.handle, 'new.bsky.social');
@@ -1957,7 +1965,7 @@ void main() {
     addTearDown(container.dispose);
 
     await container.read(authSessionProvider.future);
-    await Future<void>.delayed(Duration.zero);
+    await _flushBackgroundValidation();
 
     expect(container.read(authSessionProvider).value, isA<SignedIn>());
     expect(await storage.read(), isNotNull);
@@ -2011,11 +2019,7 @@ part 'auth_session_provider.g.dart';
 class AuthSession extends _$AuthSession {
   @override
   Future<AuthState> build() async {
-    // `ref.watch` (not `ref.read`) would re-run build whenever secure
-    // storage mutates, creating a feedback loop against setSignedIn's
-    // write path. Storage changes propagate explicitly via the
-    // setSignedIn/setSignedOut imperative API.
-    final storage = ref.read(secureTokenStorageProvider);
+    final storage = ref.watch(secureTokenStorageProvider);
     final stored = await storage.read();
     if (stored == null) return const SignedOut();
 
@@ -2752,6 +2756,8 @@ git commit -m "feat(app): add authComplete route constant"
 - [ ] **Step 1: Write the failing widget test** — `app/test/auth/pages/auth_complete_page_test.dart`:
 
 ```dart
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
@@ -2764,7 +2770,7 @@ class _FakeAuthController extends AuthController {
   final Future<void> Function(String token) onComplete;
 
   @override
-  Future<void> build() async {}
+  FutureOr<void> build() => null;
 
   @override
   Future<void> completeFromDeepLink(String token) => onComplete(token);
@@ -3169,7 +3175,7 @@ class OnboardingRefreshListener {
 }
 ```
 
-- [ ] **Step 5: Rewrite router.dart's `goRouter` provider** — the only section that changes. Replace lines 49-84 of `router.dart` with:
+- [ ] **Step 5: Rewrite router.dart's `goRouter` provider** — replace the entire `@riverpod GoRouter goRouter(Ref ref) { ... }` function (the top of `router.dart`, above the `// --- Shell route --` comment) with:
 
 ```dart
 @riverpod
@@ -3440,9 +3446,99 @@ class _SignInPageState extends ConsumerState<SignInPage> {
 
 Note: `BrandTextField` may need a `controller` and `onSubmitted` parameter if it doesn't already have them — inspect `app/lib/theme/brand_text_field.dart` first and add if missing (simple passthrough to the underlying `TextField`).
 
-- [ ] **Step 3: Update the relevant widget tests** — the existing `sign_in_page_test.dart` and `welcome_page_test.dart` will need their overrides swapped from `authStatusProvider` to `authControllerProvider`/`authSessionProvider`. Inspect first, then adapt the tests.
+- [ ] **Step 3: Rewrite `welcome_page_test.dart`** — drop the dev-toggle assertion since that button is removed:
 
-- [ ] **Step 4: Run all tests**
+```dart
+import 'package:craftsky_app/auth/pages/welcome_page.dart';
+import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  testWidgets('WelcomePage renders Welcome + Sign in + Create account', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          home: const WelcomePage(),
+        ),
+      ),
+    );
+    expect(find.text('Welcome'), findsWidgets);
+    expect(find.widgetWithText(ChunkyButton, 'Sign in'), findsOneWidget);
+    expect(find.text('Create account on a PDS'), findsOneWidget);
+  });
+}
+```
+
+- [ ] **Step 4: Rewrite `sign_in_page_test.dart`** — assert the handle-submit dispatches `signIn`:
+
+```dart
+import 'dart:async';
+
+import 'package:craftsky_app/auth/models/auth_error.dart';
+import 'package:craftsky_app/auth/pages/sign_in_page.dart';
+import 'package:craftsky_app/auth/providers/auth_controller.dart';
+import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/brand_text_field.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+class _RecordingAuthController extends AuthController {
+  final List<String> signInCalls = [];
+
+  @override
+  FutureOr<void> build() => null;
+
+  @override
+  Future<void> signIn({required String handle}) async {
+    signInCalls.add(handle);
+  }
+}
+
+void main() {
+  testWidgets('renders a handle field and a Continue button', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(_RecordingAuthController.new),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          home: const SignInPage(),
+        ),
+      ),
+    );
+    expect(find.byType(BrandTextField), findsOneWidget);
+    expect(find.widgetWithText(ChunkyButton, 'Continue'), findsOneWidget);
+  });
+
+  testWidgets('tapping Continue dispatches AuthController.signIn with text', (tester) async {
+    final fake = _RecordingAuthController();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [authControllerProvider.overrideWith(() => fake)],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          home: const SignInPage(),
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(BrandTextField), '  @alice.bsky.social ');
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Continue'));
+    await tester.pump();
+
+    expect(fake.signInCalls, ['  @alice.bsky.social ']);
+    // (Controller trims — that's unit-tested in auth_controller_test.dart.)
+  });
+}
+```
+
+- [ ] **Step 5: Run all tests**
 
 ```bash
 cd app && flutter test test/auth
@@ -3450,7 +3546,7 @@ cd app && flutter test test/auth
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add app/lib/auth/pages app/test/auth
@@ -3526,6 +3622,8 @@ class SettingsPageBody extends ConsumerWidget {
 
 ```dart
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
+import 'dart:async';
+
 import 'package:craftsky_app/settings/widgets/sign_out_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -3534,7 +3632,7 @@ import 'package:flutter_test/flutter_test.dart';
 class _FakeAuthController extends AuthController {
   int signOutCalls = 0;
   @override
-  Future<void> build() async {}
+  FutureOr<void> build() => null;
   @override
   Future<void> signOut() async {
     signOutCalls++;
@@ -3582,11 +3680,14 @@ git commit -m "feat(app): add SignOutTile + wire SettingsPage to AuthController"
 
 - [ ] **Step 1: Confirm no remaining references**
 
+ripgrep's regex engine doesn't support lookaround, so run two narrower searches and visually check the second:
+
 ```bash
-cd app && rg 'authStatusProvider|auth_status_provider|AuthStatus(?!Provider)' lib test
+cd app && rg 'authStatusProvider|auth_status_provider' lib test
+cd app && rg '\bAuthStatus\b' lib test
 ```
 
-Expected: no matches (outside generated files we're about to delete).
+Expected: the first command returns zero matches. The second command should only match lines in `app/lib/auth/providers/auth_status_provider.dart` / `.g.dart` (about to be deleted) and nothing else.
 
 - [ ] **Step 2: Delete**
 
@@ -3716,9 +3817,13 @@ Goal: close the loop between the Dio interceptor (Chunk 1 stub) and the live `au
 **Files:**
 - Modify: `app/lib/shared/api/providers/dio_provider.dart`
 
+_(`auth_interceptor_test.dart` and `error_mapping_interceptor_test.dart` from Chunk 1 continue to pass unchanged — they target the interceptors directly via injected resolver / onUnauthorized callbacks, independent of which providers we wire up here.)_
+
 - [ ] **Step 1: Replace the stub resolver** — update `dio_provider.dart`:
 
 ```dart
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
