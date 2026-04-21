@@ -110,9 +110,10 @@ func (s *CraftskySessionStore) maybeTouchLastSeen(ctx context.Context, hash []by
 }
 
 // TouchDeviceID updates last_device_id on the craftsky_sessions row
-// identified by token, at most once per lastSeenThrottle interval per
-// token. It is safe to call on every authenticated request; the
-// in-memory throttle bounds write load.
+// identified by the authenticated DID + OAuth session ID pair, at
+// most once per lastSeenThrottle interval per session. It is safe to
+// call on every authenticated request; the in-memory throttle bounds
+// write load.
 //
 // Within a single throttle window, the first device ID seen is
 // recorded and subsequent calls are silently dropped — even if the
@@ -122,9 +123,8 @@ func (s *CraftskySessionStore) maybeTouchLastSeen(ctx context.Context, hash []by
 // Returns the DB error (if any). Callers should log but not propagate
 // it: the column is non-load-bearing, and request handling should
 // succeed even if the update fails.
-func (s *CraftskySessionStore) TouchDeviceID(ctx context.Context, token, deviceID string) error {
-	hash := sha256.Sum256([]byte(token))
-	key := fmt.Sprintf("%x", hash)
+func (s *CraftskySessionStore) TouchDeviceID(ctx context.Context, did, oauthSessionID, deviceID string) error {
+	key := did + "|" + oauthSessionID
 	s.mu.Lock()
 	last, ok := s.deviceIDMemory[key]
 	now := time.Now()
@@ -135,8 +135,8 @@ func (s *CraftskySessionStore) TouchDeviceID(ctx context.Context, token, deviceI
 	s.deviceIDMemory[key] = now
 	s.mu.Unlock()
 	_, err := s.pool.Exec(ctx,
-		`UPDATE craftsky_sessions SET last_device_id = $1 WHERE token_hash = $2`,
-		deviceID, hash[:])
+		`UPDATE craftsky_sessions SET last_device_id = $1 WHERE account_did = $2 AND oauth_session_id = $3`,
+		deviceID, did, oauthSessionID)
 	return err
 }
 

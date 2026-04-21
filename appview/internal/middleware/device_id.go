@@ -14,6 +14,14 @@ import (
 // headroom for UUIDs and ULIDs.
 const maxDeviceIDLen = 256
 
+// DeviceIDToucher is satisfied by *auth.CraftskySessionStore. It
+// lets the DeviceID middleware record the device ID against the
+// current session without importing the auth package (which would
+// cycle).
+type DeviceIDToucher interface {
+	TouchDeviceID(ctx context.Context, did, oauthSessionID, deviceID string) error
+}
+
 // GetDeviceID extracts the X-Craftsky-Device-Id injected by DeviceID.
 func GetDeviceID(ctx context.Context) (string, bool) {
 	return ctxkeys.GetDeviceID(ctx)
@@ -35,12 +43,16 @@ func WithDeviceID(ctx context.Context, id string) context.Context {
 //
 // Compose on top of Authenticated on any v1 route that requires auth:
 //
-//	h := Authenticated(svc, log)(DeviceID(log)(handler))
+//	h := Authenticated(svc, log)(DeviceID(store, log)(handler))
 //
-// The middleware does NOT verify that the device ID matches any
-// persisted value; recording it on craftsky_sessions is the handler
-// chain's responsibility.
-func DeviceID(logger *slog.Logger) func(http.Handler) http.Handler {
+// When toucher is non-nil AND the DID + session ID are present in the
+// request context (i.e. Authenticated ran and resolved a real session),
+// the middleware records the device ID on the session row via
+// TouchDeviceID. The call is fire-and-forget: it runs synchronously
+// but errors are logged and swallowed — the column is best-effort
+// instrumentation and must not block the request. Pass nil for
+// toucher on unauthenticated routes (e.g. /v1/auth/login).
+func DeviceID(toucher DeviceIDToucher, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id := r.Header.Get("X-Craftsky-Device-Id")
@@ -56,6 +68,17 @@ func DeviceID(logger *slog.Logger) func(http.Handler) http.Handler {
 				return
 			}
 			ctx := ctxkeys.WithDeviceID(r.Context(), id)
+			if toucher != nil {
+				if did, ok := ctxkeys.GetDID(ctx); ok {
+					if sid, ok := ctxkeys.GetOAuthSessionID(ctx); ok && sid != "" {
+						if err := toucher.TouchDeviceID(ctx, did, sid, id); err != nil {
+							logger.Warn("device-id: TouchDeviceID failed",
+								slog.String("err", err.Error()),
+								slog.String("run_id", GetRunID(ctx)))
+						}
+					}
+				}
+			}
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

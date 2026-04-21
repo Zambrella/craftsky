@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +15,7 @@ func TestDeviceID_AcceptsValidHeaderAndInjectsCtx(t *testing.T) {
 		seen = id
 		w.WriteHeader(http.StatusOK)
 	})
-	h := DeviceID(discardLogger())(next)
+	h := DeviceID(nil, discardLogger())(next)
 
 	req := httptest.NewRequest("GET", "/x", nil)
 	req.Header.Set("X-Craftsky-Device-Id", "2c3f6a1e-0b4d-4cf5-9aa1-f0b4a9c9e1b3")
@@ -33,7 +34,7 @@ func TestDeviceID_MissingHeaderReturns400Envelope(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("next handler should not run")
 	})
-	h := DeviceID(discardLogger())(next)
+	h := DeviceID(nil, discardLogger())(next)
 
 	req := httptest.NewRequest("GET", "/x", nil)
 	rec := httptest.NewRecorder()
@@ -55,7 +56,7 @@ func TestDeviceID_MissingHeaderReturns400Envelope(t *testing.T) {
 }
 
 func TestDeviceID_EmptyHeaderReturns400(t *testing.T) {
-	h := DeviceID(discardLogger())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := DeviceID(nil, discardLogger())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("next handler should not run")
 	}))
 
@@ -70,7 +71,7 @@ func TestDeviceID_EmptyHeaderReturns400(t *testing.T) {
 }
 
 func TestDeviceID_TooLongHeaderReturns400(t *testing.T) {
-	h := DeviceID(discardLogger())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := DeviceID(nil, discardLogger())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("next handler should not run")
 	}))
 
@@ -85,5 +86,58 @@ func TestDeviceID_TooLongHeaderReturns400(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+type fakeToucher struct {
+	calls []struct{ did, sid, devID string }
+}
+
+func (f *fakeToucher) TouchDeviceID(ctx context.Context, did, sid, devID string) error {
+	f.calls = append(f.calls, struct{ did, sid, devID string }{did, sid, devID})
+	return nil
+}
+
+func TestDeviceID_FiresTouchWhenSessionInCtx(t *testing.T) {
+	tt := &fakeToucher{}
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	h := DeviceID(tt, discardLogger())(next)
+
+	req := httptest.NewRequest("GET", "/x", nil)
+	req.Header.Set("X-Craftsky-Device-Id", "dev-abc")
+	ctx := req.Context()
+	ctx = WithDID(ctx, "did:plc:alice")
+	ctx = WithOAuthSessionID(ctx, "sess-1")
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if len(tt.calls) != 1 {
+		t.Fatalf("TouchDeviceID called %d times, want 1", len(tt.calls))
+	}
+	got := tt.calls[0]
+	if got.did != "did:plc:alice" || got.sid != "sess-1" || got.devID != "dev-abc" {
+		t.Errorf("call = %+v, want did=alice sid=sess-1 devID=abc", got)
+	}
+}
+
+func TestDeviceID_SkipsTouchWhenNoSession(t *testing.T) {
+	tt := &fakeToucher{}
+	h := DeviceID(tt, discardLogger())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/x", nil)
+	req.Header.Set("X-Craftsky-Device-Id", "dev-abc")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if len(tt.calls) != 0 {
+		t.Errorf("TouchDeviceID called %d times on unauthed request, want 0", len(tt.calls))
 	}
 }

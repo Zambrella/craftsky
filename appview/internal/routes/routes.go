@@ -30,7 +30,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 
 	// Middleware stacks.
 	authN := middleware.Authenticated(deps.AuthService, deps.Logger)
-	deviceID := middleware.DeviceID(deps.Logger)
+	deviceID := middleware.DeviceID(deps.CraftskySessionStore, deps.Logger)
 
 	// v1 — unauthenticated but device-id required.
 	mux.Handle("POST /v1/auth/login", deviceID(oauthHandlers.LoginHandler()))

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/ctxkeys"
 )
@@ -63,14 +64,14 @@ func Authenticated(authService auth.AuthService, logger *slog.Logger) func(http.
 			if !strings.HasPrefix(authHeader, bearerPrefix) {
 				logger.Warn("auth: missing or malformed Authorization header",
 					slog.String("run_id", GetRunID(r.Context())))
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				envelope.WriteError(w, http.StatusUnauthorized, "unauthorized", "authentication required", GetRunID(r.Context()), nil)
 				return
 			}
 			token := strings.TrimSpace(strings.TrimPrefix(authHeader, bearerPrefix))
 			if token == "" {
 				logger.Warn("auth: empty bearer token",
 					slog.String("run_id", GetRunID(r.Context())))
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				envelope.WriteError(w, http.StatusUnauthorized, "unauthorized", "authentication required", GetRunID(r.Context()), nil)
 				return
 			}
 
@@ -84,7 +85,7 @@ func Authenticated(authService auth.AuthService, logger *slog.Logger) func(http.
 				logger.Warn("auth: Authenticate returned error",
 					slog.String("err", err.Error()),
 					slog.String("run_id", GetRunID(r.Context())))
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				envelope.WriteError(w, http.StatusUnauthorized, "unauthorized", "authentication required", GetRunID(r.Context()), nil)
 				return
 			}
 

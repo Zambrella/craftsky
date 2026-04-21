@@ -256,20 +256,18 @@ func TestCraftskySession_TouchDeviceID_PersistsValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("seed oauth_sessions: %v", err)
 	}
-	token, err := store.Create(ctx, "did:plc:a", "s1", "")
-	if err != nil {
+	if _, err := store.Create(ctx, "did:plc:a", "s1", ""); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
-	if err := store.TouchDeviceID(ctx, token, "dev-xyz"); err != nil {
+	if err := store.TouchDeviceID(ctx, "did:plc:a", "s1", "dev-xyz"); err != nil {
 		t.Fatalf("TouchDeviceID: %v", err)
 	}
 
-	hash := sha256.Sum256([]byte(token))
 	var got *string
 	err = pool.QueryRow(ctx,
-		`SELECT last_device_id FROM craftsky_sessions WHERE token_hash = $1`,
-		hash[:]).Scan(&got)
+		`SELECT last_device_id FROM craftsky_sessions WHERE account_did = $1`,
+		"did:plc:a").Scan(&got)
 	if err != nil {
 		t.Fatalf("SELECT: %v", err)
 	}
@@ -288,23 +286,21 @@ func TestCraftskySession_TouchDeviceID_ThrottlesRepeats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("seed oauth_sessions: %v", err)
 	}
-	token, err := store.Create(ctx, "did:plc:b", "s2", "")
-	if err != nil {
+	if _, err := store.Create(ctx, "did:plc:b", "s2", ""); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
-	if err := store.TouchDeviceID(ctx, token, "dev-first"); err != nil {
+	if err := store.TouchDeviceID(ctx, "did:plc:b", "s2", "dev-first"); err != nil {
 		t.Fatalf("TouchDeviceID 1: %v", err)
 	}
-	if err := store.TouchDeviceID(ctx, token, "dev-second"); err != nil {
+	if err := store.TouchDeviceID(ctx, "did:plc:b", "s2", "dev-second"); err != nil {
 		t.Fatalf("TouchDeviceID 2: %v", err)
 	}
 
-	hash := sha256.Sum256([]byte(token))
 	var got *string
 	err = pool.QueryRow(ctx,
-		`SELECT last_device_id FROM craftsky_sessions WHERE token_hash = $1`,
-		hash[:]).Scan(&got)
+		`SELECT last_device_id FROM craftsky_sessions WHERE account_did = $1`,
+		"did:plc:b").Scan(&got)
 	if err != nil {
 		t.Fatalf("SELECT: %v", err)
 	}
