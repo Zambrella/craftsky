@@ -147,7 +147,7 @@ class InFlightToken extends _$InFlightToken {
   @override
   String? build() => null;
 
-  void set(String token) => state = token;
+  void setToken(String token) => state = token;
   void clear() => state = null;
 }
 ```
@@ -187,6 +187,11 @@ The existing `kDebugMode ? true : false` ternary is removed. First-run is per-DI
 class AuthSession extends _$AuthSession {
   @override
   AsyncValue<AuthState> build() {
+    // `ref.read` (not `ref.watch`) is deliberate here: SecureTokenStorage
+    // is a keepAlive singleton; its identity never changes. Storage
+    // writes flow back into AuthSession state explicitly via
+    // setSignedIn / setSignedOut, so we don't want `build` to re-run
+    // when the storage provider's internal state mutates.
     final storage = ref.read(secureTokenStorageProvider);
     final stored = storage.readSync(); // synchronous — see §3.2
 
@@ -347,7 +352,7 @@ class AuthController extends _$AuthController {
       // persisting it to SecureTokenStorage yet. If the app is killed
       // mid-flow, cold start sees no stored session and the flow
       // restarts cleanly (rather than a half-written `did: ''` blob).
-      ref.read(inFlightTokenProvider.notifier).set(token);
+      ref.read(inFlightTokenProvider.notifier).setToken(token);
       try {
         final api = ref.read(apiClientProvider);
         final who = await api.whoami();
@@ -363,8 +368,14 @@ class AuthController extends _$AuthController {
           SignedIn(did: who.did, handle: who.handle, token: token),
         );
       } finally {
-        ref.read(inFlightTokenProvider.notifier).clear();
-        ref.read(pendingAuthProvider.notifier).clear();
+        // `keepAlive: true` on AuthController's parent providers means
+        // mid-flow disposal is unreachable in normal operation, but the
+        // mounted check is defence-in-depth for test harnesses that
+        // tear containers down mid-call.
+        if (ref.mounted) {
+          ref.read(inFlightTokenProvider.notifier).clear();
+          ref.read(pendingAuthProvider.notifier).clear();
+        }
       }
     });
   }
@@ -443,20 +454,20 @@ Pages consume `authControllerProvider`'s `AsyncValue<void>` via `ref.listen` for
        │                    │                    │ craftsky://…  │
        │◀── deep link ──────────────────────────┤               │
        │                    │                    │               │
-       │ AuthCompleteRoute redirect runs:        │               │
-       │ completeFromDeepLink(token)             │               │
+       │ AuthCompletePage initState → completeFromDeepLink(token) │
        │   ├─ validate pendingAuth freshness (<10min)             │
-       │   ├─ write storage (token only; did/handle empty)        │
-       │   ├─ GET /v1/whoami with Bearer                          │
+       │   ├─ inFlightTokenProvider.set(token)   │               │
+       │   │     (Dio interceptor falls back to this for whoami)  │
        │   │                                                      │
        │ GET /v1/whoami     │                    │               │
        ├───────────────────▶│                    │               │
        │◀── 200 {did, handle} ─┤                 │               │
-       │   ├─ re-write storage (token + did + handle)             │
-       │   ├─ authState.setSignedIn(...)                          │
-       │   └─ pendingAuth.clear()                                 │
+       │   ├─ SINGLE write: storage ← {token, did, handle}        │
+       │   ├─ authSession.setSignedIn(...)                        │
+       │   └─ finally: inFlightToken.clear(), pendingAuth.clear() │
        │                                                          │
-       │ router redirect re-evaluates → /feed (or /onboarding)    │
+       │ router refresh fires → redirect re-evaluates            │
+       │   → /feed (or /onboarding if first-run for this DID)    │
 ```
 
 ### 4.2 Deep-link receipt via `go_router`
@@ -565,7 +576,7 @@ GoRouter goRouter(Ref ref) {
 
 Notes:
 - `/auth/complete` is allowed-to-stay only when `SignedOut`. Once `AuthController.completeFromDeepLink` flips state to `SignedIn` (or back to `SignedOut` on failure), the refresh fires and the redirect routes the user onward — to `/feed` or `/onboarding` on success; to `/welcome` on failure (the `AuthCompletePage` surfaces the error via snackbar before the redirect catches it). This closes the gap the review flagged.
-- `_reattachOnboardingListener` is a small helper (co-located in the same file) that manages a single `ProviderSubscription` against `onboardingStatusProvider(did)` for whatever DID is currently `SignedIn`, swapping it when the DID changes and disposing it on sign-out. It calls `refresh.notifyListeners()` on any state change. This is the concrete mechanism for "onboarding flips → redirect re-evaluates" — no family-level listen required.
+- `_reattachOnboardingListener` is a small helper (co-located in the same file) that manages a single `ProviderSubscription<bool>` against `onboardingStatusProvider(did)` for whatever DID is currently `SignedIn`. The subscription handle is held in a closure-captured `ProviderSubscription<bool>? onboardingSub` variable owned by the `goRouter` provider's build body, next to the `ChangeNotifier`. The helper's contract: on `SignedIn(newDid)` with no existing sub or a different DID, close the old sub (if any) and `ref.listen(onboardingStatusProvider(newDid), (_, __) => refresh.notifyListeners())`; on `SignedOut`, close and null the sub. `ref.onDispose(() => onboardingSub?.close())` tears it down with the rest of the router. This is the concrete mechanism for "onboarding flips → redirect re-evaluates" — no family-level listen required.
 - The redirect uses `ref.read` throughout, never `ref.watch`. go_router does not auto-re-evaluate on watched providers; the `refreshListenable` pattern is how we drive re-evaluation explicitly.
 - No `GoRouterRefreshStream` or stream-bridge — just a plain `ChangeNotifier` driven by `ref.listen`.
 
@@ -845,7 +856,7 @@ Using Riverpod's `ProviderContainer` test harness:
 - `AuthController.signIn` happy path (browser launch mocked via `url_launcher`'s `setMockUrlLauncher`), pending-auth stamped, state transitions `idle → loading → data`.
 - `AuthController.signIn` trims whitespace + leading `@` from handle.
 - `AuthController.signIn` empty handle → `AsyncError(HandleRequired)`.
-- `AuthController.completeFromDeepLink` happy path writes storage (twice: token-only then token+did+handle), calls `whoami`, transitions auth state.
+- `AuthController.completeFromDeepLink` happy path: sets `inFlightTokenProvider`, calls `whoami`, writes storage ONCE with full `{token, did, handle}`, transitions auth state, clears both `inFlightTokenProvider` and `pendingAuthProvider` in the finally block.
 - `AuthController.completeFromDeepLink` with no pending auth → `AsyncError(NoPendingSignIn)`.
 - `AuthController.completeFromDeepLink` with stale pending (>10min) → `AsyncError(SignInTimedOut)`, pending cleared.
 - `AuthController.completeFromDeepLink` with `whoami` failure → storage NOT written (in-flight-only pattern), error rethrown, `inFlightTokenProvider` cleared.
@@ -867,10 +878,11 @@ Using Riverpod's `ProviderContainer` test harness:
 - Redirect: `SignedOut` + location `/feed` → redirects to `/welcome`.
 - Redirect: `SignedIn` + `!onboarded` + location `/feed` → redirects to `/onboarding`.
 - Redirect: `SignedIn` + `onboarded` + location `/welcome` → redirects to `/feed`.
-- Redirect: `/auth/complete` is always allowed regardless of auth state.
+- Redirect: `/auth/complete` + `SignedOut` → no redirect (user stays on spinner while controller works).
+- Redirect: `/auth/complete` + `SignedIn` + onboarded → `/feed`.
+- Redirect: `/auth/complete` + `SignedIn` + not onboarded → `/onboarding`.
 - Refresh listenable fires on `authSessionProvider` transitions.
 - Refresh listenable fires when onboarding flips for the currently-signed-in DID (re-attach-on-DID-change helper).
-- Redirect routes `/auth/complete` to `/feed` when signed-in and onboarded, to `/onboarding` when signed-in but not onboarded, and stays put when signed-out.
 
 ### 8.5 Not in scope
 
