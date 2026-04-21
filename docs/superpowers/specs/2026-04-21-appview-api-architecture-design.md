@@ -64,6 +64,8 @@ What **moves** under `/v1/` as part of this spec:
 
 This is a breaking change to the OAuth BFF surface, but the BFF shipped recently and the Flutter app is still in scaffold — the migration cost is effectively zero. Better to pay it now than to have a mixed-versioning world.
 
+**Cross-spec consistency:** [`2026-04-18-appview-oauth-bff-design.md`](./2026-04-18-appview-oauth-bff-design.md) §3.1 lists these endpoints at their old (unprefixed) paths. The plan that executes this spec must also amend that table, either inline or via a short errata note, so the two specs don't disagree on canonical endpoint paths.
+
 **When do we bump to `/v2/`?** Only on *breaking* changes: removing a field, renaming a route, changing a type, changing error semantics. Additive changes (new optional field in response, new optional query param, new endpoint) stay at the current version. Deprecation window: both `/v1/` and `/v2/` served side-by-side until the oldest Flutter client in the wild is known to be off `/v1/`, then `/v1/` is deleted.
 
 ### 2.2 Resource identifiers
@@ -75,7 +77,7 @@ atproto records are identified by AT-URIs (`at://did:plc:xyz/social.craftsky.fee
 Concretely:
 
 - **Handle-or-DID input:** `GET /v1/profiles/@alice.craftsky.social` and `GET /v1/profiles/@did:plc:xyz` both resolve the same profile. The `@` prefix is part of the path segment; it disambiguates from other path segment styles and matches Bluesky's URL patterns. Handle resolution happens server-side; DID is the canonical form internally.
-- **Post paths:** `GET /v1/posts/{did}/{rkey}` — we don't accept handles here for two reasons: (a) AT-URIs inside post bodies already use DIDs so clients are passing DIDs through, not fresh handle lookups; (b) keeping handle resolution to the top-level profile routes limits the blast radius of handle-resolution latency/errors.
+- **Post paths:** `GET /v1/posts/{did}/{rkey}` — we don't accept handles here for two reasons: (a) AT-URIs inside post bodies already use DIDs so clients are passing DIDs through, not fresh handle lookups; (b) keeping handle resolution to the profile routes (including their sub-resources, like `/v1/profiles/@{handleOrDid}/follows`) limits the blast radius of handle-resolution latency/errors. Profile-sub-resource writes still pay the resolution cost, but that's the natural place for it — the caller is acting on a profile they identified by handle.
 - **Response bodies always use DIDs.** A post object returns `{"author": {"did": "did:plc:xyz", "handle": "alice.craftsky.social", ...}, ...}`. The client stores the DID as the stable reference and uses the handle for display.
 - **`me`** is accepted as a synonym for the authenticated user's DID on endpoints where it makes sense: `GET /v1/profiles/me`, `PATCH /v1/profiles/me`. The `me` form is preferred for self-referential routes because it doesn't embed an identity the client has to look up.
 
@@ -125,14 +127,14 @@ Every other endpoint under `/v1/` requires authentication.
 
 ### 3.3 Schema addition
 
-Add a column to `craftsky_sessions` (from the OAuth BFF spec):
+Add a column to `craftsky_sessions` (from the OAuth BFF spec). The migration is the one described in §7.3 — the SQL is consolidated there to keep the source of truth in one place:
 
 ```sql
 ALTER TABLE craftsky_sessions
   ADD COLUMN last_device_id TEXT;
 ```
 
-Updated opportunistically alongside `last_seen_at` (same throttle window — default 5m). No index in v1; add when the active-sessions UI lands.
+`last_device_id` is updated opportunistically alongside `last_seen_at` (same throttle window — default 5m). No index in v1; add when the active-sessions UI lands.
 
 ## 4. The v1 endpoint surface
 
@@ -164,7 +166,7 @@ Grouped by resource. Each line is an endpoint; response/request body details bel
 - `GET /v1/posts/{did}/{rkey}` — single post (for deep links).
 - `GET /v1/posts/{did}/{rkey}/thread` — the post plus its replies tree, rooted at this post.
 - `POST /v1/posts` — create a `social.craftsky.feed.post`. Body is the post fields; AppView writes to the caller's PDS.
-- `DELETE /v1/posts/{rkey}` — delete your own post. `{did}` is implicit (the authenticated user); using `/{rkey}` alone prevents "delete someone else's post" from even being expressible in the URL.
+- `DELETE /v1/posts/{did}/{rkey}` — delete a post. The AppView returns 403 if `{did}` is not the authenticated user's DID. The URL shape stays symmetric with the other post endpoints (clients construct post URLs from `{did}/{rkey}` consistently) at the cost of making "not yours" a runtime check rather than a URL-expressibility check.
 - `POST /v1/posts/{did}/{rkey}/likes` — like this post. Writes a `social.craftsky.feed.like` record to the caller's PDS. Idempotent — liking an already-liked post returns the existing like.
 - `DELETE /v1/posts/{did}/{rkey}/likes` — unlike. Idempotent.
 
@@ -272,6 +274,7 @@ Cross-cutting concerns get small shared packages:
 
 - `appview/internal/api/envelope/` — error-response builder (`WriteError(w, status, code, message, fields)`), cursor helpers (encode/decode opaque cursors), request-ID generation.
 - `appview/internal/middleware/` — new middleware for `X-Craftsky-Device-Id` validation (rejects missing/malformed with 400; passes value into context for handlers to record on `craftsky_sessions`).
+- `appview/internal/ctxkeys/` — add a `DeviceID` key plus `WithDeviceID(ctx, string) ctx` / `DeviceIDFrom(ctx) (string, bool)` helpers, mirroring the existing auth context-key pattern. Handlers that want the device ID pull it from context via the helper, not by knowing the key.
 
 Existing `Authenticated` middleware is unchanged. The device-id middleware composes on top of it.
 
@@ -293,18 +296,28 @@ New v1 routes are added route-by-route as feature specs land. This spec does **n
 
 ### 7.3 Migration
 
-One migration for the schema addition:
+One migration for the schema addition. At time of writing, the migrations directory is at `000005_drop_test_posts`, so this is `000006`:
 
 ```
-appview/migrations/000003_craftsky_sessions_device_id.up.sql
-appview/migrations/000003_craftsky_sessions_device_id.down.sql
+appview/migrations/000006_craftsky_sessions_device_id.up.sql
+appview/migrations/000006_craftsky_sessions_device_id.down.sql
 ```
 
-Adds the `last_device_id` column.
+```sql
+-- up
+ALTER TABLE craftsky_sessions
+  ADD COLUMN last_device_id TEXT;
+
+-- down
+ALTER TABLE craftsky_sessions
+  DROP COLUMN last_device_id;
+```
+
+Implementer: verify the current highest migration number before committing — if new migrations have landed between this spec and implementation, renumber accordingly.
 
 ### 7.4 AGENTS.md updates
 
-Add a short "API Conventions" section pointing at this spec. Contributors shipping new endpoints should read it before picking a URL shape or error code.
+Add a short "API conventions" subsection inside the existing "Coding Conventions" block, pointing at this spec. Contributors shipping new endpoints should read it before picking a URL shape or error code. Not a new top-level section — it's a coding convention, and grouping it with the others keeps the doc flat.
 
 ### 7.5 Testing posture
 
@@ -318,7 +331,7 @@ Add a short "API Conventions" section pointing at this spec. Contributors shippi
 1. **Success response envelope.** Do successful responses get a `{"data": ...}` wrapper, or are they returned bare? This spec **does not decide** — v1 proceeds with bare bodies (matches what's already built, and REST convention leans bare). If we add a wrapper later it's a breaking change → `/v2/`. Flagged in the roadmap.
 2. **Web client / CORS.** No web client in v1, so CORS stays disallowed. If a web client is ever scoped, CORS policy becomes its own spec. Flagged in the roadmap.
 3. **OpenAPI.** A hand-written OpenAPI doc would let us generate Dart client code and formal API docs. Deferred — probably worth doing around the time the API stabilises. Flagged in the roadmap.
-4. **Per-endpoint body schemas.** Each feature spec defines its own request/response JSON. This spec does not enumerate them. A future "API reference" doc (potentially generated from OpenAPI) would consolidate.
+4. **Per-endpoint body schemas.** Each feature spec defines its own request/response JSON. This spec does not enumerate them. Consolidated API documentation is future work — listed in §9 alongside OpenAPI / typed client generation.
 
 ## 9. Future work
 
