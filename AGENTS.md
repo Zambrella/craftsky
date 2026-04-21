@@ -37,6 +37,7 @@ For the product-level "why" and the community-facing feature intent, read the vi
 - **Dart/Flutter:** `dart format`, follow `flutter_lints`. Prefer the `atproto.dart` SDK over hand-rolled XRPC calls. Additional rules that apply to **all `**/*.dart` files** live in [`.claude/rules/flutter.md`](.claude/rules/flutter.md) and [`.claude/rules/riverpod.md`](.claude/rules/riverpod.md) — read and follow both before writing Dart.
 - **SQL:** migrations in `appview/migrations/` via `golang-migrate/v4` (wrapped by `appview/cmd/cli migrate`). Queries in `appview/queries/` consumed by `sqlc`.
 - **Commits:** conventional commits style is fine but not enforced. Keep them focused.
+- **API:** The HTTP surface between the Flutter app and the AppView is governed by the API architecture spec ([`docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`](docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md)). Before adding or changing any route, read it — it fixes the `/v1/` prefix, auth headers, error envelope (`{error, message, requestId}`), opaque-cursor pagination, and URL conventions.
 
 ## Project Skills (`.claude/skills/`)
 
