@@ -34,6 +34,7 @@ class _FakeCraftskyApi implements CraftskyApiClient {
   _FakeCraftskyApi({
     this.onLogin,
     this.onLogout,
+    // Reserved for future tests that want a non-default whoami.
     // ignore: unused_element_parameter
     this.onWhoami,
   });
