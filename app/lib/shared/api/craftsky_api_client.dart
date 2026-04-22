@@ -22,7 +22,7 @@ class CraftskyApiClient {
   Future<LoginResponse> login({required String handle}) => _unwrap(() async {
     final res = await _dio.post<Map<String, dynamic>>(
       '/v1/auth/login',
-      data: {'handle': handle, 'handoff_mode': 'deep_link'},
+      data: {'handle': handle, 'handoffMode': 'deep_link'},
     );
     return LoginResponseMapper.fromMap(res.data!);
   });

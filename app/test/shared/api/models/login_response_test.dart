@@ -7,17 +7,17 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   setUpAll(initializeMappers);
 
-  test('parses snake_case JSON from the server', () {
+  test('parses camelCase JSON from the server', () {
     const json =
-        '{"auth_url":"https://pds.example.com/authorize?request_uri=x"}';
+        '{"authUrl":"https://pds.example.com/authorize?request_uri=x"}';
     final parsed = LoginResponseMapper.fromJson(json);
     expect(parsed.authUrl, 'https://pds.example.com/authorize?request_uri=x');
   });
 
-  test('serialises back to snake_case JSON', () {
+  test('serialises back to camelCase JSON', () {
     const original = LoginResponse(authUrl: 'https://pds.example.com/a');
     final roundTrip = jsonDecode(original.toJson()) as Map<String, dynamic>;
-    expect(roundTrip.keys.single, 'auth_url');
-    expect(roundTrip['auth_url'], 'https://pds.example.com/a');
+    expect(roundTrip.keys.single, 'authUrl');
+    expect(roundTrip['authUrl'], 'https://pds.example.com/a');
   });
 }
