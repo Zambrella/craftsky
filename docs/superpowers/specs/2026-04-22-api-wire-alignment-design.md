@@ -92,7 +92,7 @@ With the server emitting camelCase:
 - `app/lib/shared/api/models/login_response.dart` drops the `@MappableClass(caseStyle: CaseStyle.snakeCase)` override. Plain `@MappableClass()` is correct once the server emits `authUrl`.
 - `app/lib/shared/api/craftsky_api_client.dart` `login` sends `{handle, handoffMode: 'deep_link'}` (instead of `handoff_mode`).
 - `WhoAmI` model is already camelCase; no change.
-- `ApiBadRequest` in `app/lib/shared/api/api_exception.dart` continues to read `response.data['error']` — already camelCase-equivalent. `requestId` becomes available but is not surfaced in v1 UI.
+- `ApiBadRequest` in `app/lib/shared/api/api_exception.dart` continues to read `response.data['error']` — already camelCase-equivalent. The `requestId` field in the response envelope is **not** wired into `ApiException` in v1 (no subclass gains a `requestId` field; the UI does not surface it). Adding it is a trivial future change when the first support workflow needs it; leaving it unwired now keeps the `ApiException` hierarchy narrow.
 
 ### 1.5 Tests
 
@@ -143,7 +143,7 @@ func WhoAmIHandler(resolver HandleResolver) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         did, ok := middleware.GetDID(r.Context())
         if !ok {
-            envelope.WriteError(w, r, http.StatusInternalServerError, "internal", "no did in context")
+            envelope.WriteError(w, r, http.StatusInternalServerError, "internal_error", "no did in context")
             return
         }
         handle, err := resolver.ResolveHandle(r.Context(), did)
@@ -174,7 +174,7 @@ All failure modes collapse to 502 `identity_unavailable`:
 - **DID exists but has no handle** (deactivated / in-migration state) — same reasoning; no leaked distinction in v1.
 - **Timeout or network error** — same.
 
-A **500 `internal`** is reserved for the routing-bug case where the middleware didn't populate the DID in context. This should be unreachable.
+A **500 `internal_error`** is reserved for the routing-bug case where the middleware didn't populate the DID in context. This should be unreachable. The `internal_error` code is the generic bucket for unreachable-but-must-return states across the surface.
 
 ### 2.4 Client-side
 
@@ -301,6 +301,8 @@ The two-parameter family adds a small type-level safety property: you cannot con
 
 **Bootstrap ordering.** `bootstrap.dart` touches `deviceIdProvider` before `runApp`, alongside the existing `dioProvider` touch. This is **correctness-critical under strict enforcement**: the first `/v1/*` call must not fire before the device-ID future resolves, or the server will 400. Eagerly awaiting the provider in bootstrap guarantees this.
 
+Note this does **not** contradict the Flutter auth spec's §3.2 "bootstrap.dart requires no special handling" remark — that was scoped to `SecureTokenStorage` for the session blob, whose read is deferred into `authSessionProvider.build` and can resolve lazily. The device-ID provider is a new bootstrap-time dependency specific to this spec; the existing secure-storage minimalism for the session blob is unchanged.
+
 ### 3.4 Tests
 
 **Server:**
@@ -358,7 +360,7 @@ Each step has an explicit pass criterion.
 
 1. **Fresh sign-in.** Launch → `/welcome` → enter handle → "Continue" → browser PDS auth → `craftsky://auth/complete?token=...` → lands on `/onboarding` or `/feed`. **Pass:** post-auth screen, no snackbar, no crash.
 
-2. **Server log inspection during step 1.** **Pass:** `POST /v1/auth/login` decodes successfully (no `invalid_body`); `GET /v1/whoami` returns 200; no `missing_device_id` / `invalid_device_id` warnings.
+2. **Server log inspection during step 1.** **Pass:** `POST /v1/auth/login` returns 200 (not 400); `GET /v1/whoami` returns 200 (not 400 or 502). Asserted by inspecting the appview container's request log lines (status + path). If the request log format does not currently include status codes, the smoke test equivalently passes if no `envelope.WriteError` callsite is logged during the sign-in flow — verify the log format at implementation time and adjust the assertion wording.
 
 3. **JSON casing via curl.** `curl -v http://localhost:8080/v1/auth/login -H 'Content-Type: application/json' -H 'X-Craftsky-Device-Id: smoke-test' -d '{"handle":"","handoffMode":"deep_link"}'`. **Pass:** response body is exactly `{"error":"handle_required","message":"...","requestId":"..."}` with all four camelCase keys; `requestId` non-empty; Content-Type `application/json`.
 
@@ -369,7 +371,8 @@ Each step has an explicit pass criterion.
 6. **Device-ID enforcement.**
    - `curl http://localhost:8080/v1/whoami -H 'Authorization: Bearer <token>'` (no device-ID). **Pass:** 400 `missing_device_id`.
    - Same with `-H 'X-Craftsky-Device-Id: '` (empty). **Pass:** 400 `missing_device_id`.
-   - Same with `-H 'X-Craftsky-Device-Id: has spaces'`. **Pass:** 400 `invalid_device_id`.
+   - Same with `-H 'X-Craftsky-Device-Id: has spaces'` (malformed — contains disallowed chars). **Pass:** 400 `invalid_device_id`.
+   - Same with `-H 'X-Craftsky-Device-Id: <129 consecutive a's>'` (malformed — exceeds max length). **Pass:** 400 `invalid_device_id`.
 
 7. **Persistent sign-in.** Kill app. Relaunch. **Pass:** lands on `/feed` or `/onboarding`, not `/welcome`.
 
