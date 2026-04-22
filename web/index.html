@@ -33,7 +33,36 @@
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>
 
-  <header id="hero"><!-- Chunk 2 fills this --></header>
+  <header id="hero" class="hero">
+    <div class="container hero__inner">
+      <div class="hero__text">
+        <span class="eyebrow-chip">Built in the open · on the AT Protocol</span>
+        <h1 class="hero__title">Made with <em>stuff</em>.</h1>
+        <p class="hero__lede">
+          A social feed for textile crafters. Share what you're making. Find the
+          pattern everyone's talking about. Follow your local shop — no algorithm
+          deciding what you see.
+        </p>
+        <div class="hero__ctas">
+          <button
+            type="button"
+            class="btn btn--primary js-open-waiting-list"
+            data-source="hero"
+          >Join the waiting list</button>
+          <a
+            class="btn btn--ghost js-track-spec-click"
+            href="https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit"
+            target="_blank"
+            rel="noopener"
+          >Read the spec</a>
+        </div>
+      </div>
+      <div class="hero__illustration" aria-hidden="true">
+        <!-- Inline SVG added in Task 2.3 -->
+      </div>
+    </div>
+  </header>
+  <hr class="section-rule" />
 
   <main id="main">
     <section id="value-cards"><!-- Chunk 3 --></section>

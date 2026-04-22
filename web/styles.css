@@ -266,3 +266,61 @@ a:hover { color: var(--cobalt-deep); }
   text-transform: uppercase;
   letter-spacing: 0.14em;
 }
+
+/* =========================================================================
+   Hero
+   ========================================================================= */
+
+.hero {
+  background: var(--paper);
+  padding: var(--sp-8) 0 var(--sp-9);
+}
+
+.hero__inner {
+  display: grid;
+  gap: var(--sp-7);
+  align-items: center;
+}
+
+@media (min-width: 820px) {
+  .hero__inner {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.hero__text { display: flex; flex-direction: column; gap: var(--sp-5); }
+
+.hero__title {
+  font-family: var(--font-display);
+  font-size: clamp(64px, 9vw, 128px);
+  font-weight: 400;
+  line-height: 0.95;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+  margin: var(--sp-3) 0 0;
+}
+
+.hero__title em {
+  font-style: italic;
+  color: var(--cobalt);
+}
+
+.hero__lede {
+  max-width: 520px;
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--fg-1);
+}
+
+.hero__ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  margin-top: var(--sp-3);
+}
+
+.hero__illustration {
+  aspect-ratio: 1 / 1;
+  max-width: 460px;
+  justify-self: center;
+}
