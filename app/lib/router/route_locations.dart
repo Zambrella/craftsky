@@ -5,6 +5,7 @@ class RouteLocations {
 
   static const welcome = '/welcome';
   static const signIn = '/sign-in';
+  static const authComplete = '/auth/complete';
   static const onboarding = '/onboarding';
   static const feed = '/feed';
   // Alias: the post-auth home landing. Keep as a const reference to `feed`
