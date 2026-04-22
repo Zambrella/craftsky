@@ -1,4 +1,4 @@
-/// Errors surfaced by [CraftskyApiClient]. Sealed so call sites can
+/// Errors surfaced by the API client. Sealed so call sites can
 /// exhaustively switch.
 sealed class ApiException implements Exception {
   const ApiException(this.message);
