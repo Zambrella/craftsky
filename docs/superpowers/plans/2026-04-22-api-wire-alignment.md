@@ -25,6 +25,8 @@ Before starting any task:
 
 **Branch / worktree strategy.** If a git worktree was created for this plan (via the brainstorming hand-off), work inside it. Otherwise, create a feature branch: `git checkout -b feat/api-wire-alignment`.
 
+**Chunk 6 (smoke test) prerequisites.** Before starting Task 16, `just dev` must be running against a clean `craftsky_sessions` table. Task 16 step 1 has the commands; mentioning it here so anyone parachuting into Chunk 6 doesn't debug a sign-in failure that's really a "stack not up" failure.
+
 ---
 
 ## File Structure
@@ -62,7 +64,9 @@ appview/internal/middleware/device_id.go
 appview/internal/middleware/device_id_test.go
   - new case: malformed-but-nonempty → 400 invalid_device_id
 appview/internal/app/deps.go
-  - construct identity.BaseDirectory; add to Deps; pass into handler factory
+  - construct identity.DefaultDirectory; add HandleResolver (typed as
+    api.HandleResolverFunc interface, so routes_test can inject a stub)
+    to Deps; pass into handler factory
 appview/internal/routes/routes.go
   - WhoAmIHandler now takes a HandleResolver arg
 appview/README.md
@@ -84,7 +88,7 @@ app/lib/auth/providers/auth_controller.dart
   - pre-resolve deviceId before constructing handoff client
 app/lib/bootstrap.dart
   - eagerly resolve deviceIdProvider alongside dioProvider
-app/test/shared/api/session_auth_interceptor_test.dart
+app/test/shared/api/providers/session_auth_interceptor_test.dart
   - assert X-Craftsky-Device-Id attached on both anonymous + authed paths
 app/test/shared/api/craftsky_api_client_test.dart
   - login body uses handoffMode; assertion updates
@@ -345,7 +349,7 @@ git commit -m "feat(appview): emit envelope.Error from /v1/auth/login"
 
 Read lines 130–180. The curl example at line ~136 uses `handoff_mode` and `auth_url`. The SQL example at line ~176 uses the DB column `handoff_mode` which stays snake_case — do not touch SQL.
 
-- [ ] **Step 2: Edit the curl example**
+- [ ] **Step 2: Edit the curl examples**
 
 Change:
 
@@ -358,6 +362,8 @@ to:
 ```
 -d '{"handle":"YOUR_HANDLE","handoffMode":"deep_link"}' | jq -r .authUrl
 ```
+
+If the README also shows a `/whoami` response (grep for `"did":"did:plc`), flip it from `{"did":"did:plc:..."}` to `{"did":"did:plc:...","handle":"..."}` — that matches Task 6's new shape.
 
 Leave the `psql` / SQL example alone — it queries the `oauth_auth_requests.handoff_mode` column, which is a DB-side name.
 
@@ -374,10 +380,12 @@ git commit -m "docs(appview): update README curl examples to camelCase"
 
 This is the main feature of the whole spec: resolve the handle on every whoami call via the indigo identity directory, return 502 `identity_unavailable` on failure.
 
-### Task 4: Construct identity.BaseDirectory in Deps
+### Task 4: Construct HandleResolver + identity.BaseDirectory in Deps
 
 **Files:**
-- Modify: `appview/internal/app/deps.go` (add `IdentityDirectory` field to `Deps`, construct in `newDeps`)
+- Modify: `appview/internal/app/deps.go` (add `HandleResolver` field to `Deps`, construct in `newDeps`)
+
+**Rationale.** Rather than store the raw `identity.Directory` on `Deps` and ask route wiring to wrap it in a resolver, we hoist the whole `HandleResolver` onto `Deps`. Two wins: (1) `routes_test.go` can replace the resolver with a stub without ever touching indigo's real directory, and (2) route wiring becomes a one-liner. (Task 5 creates the resolver type; this task just reserves a field and commits the identity-directory construction so the field is populated.)
 
 - [ ] **Step 1: Read the relevant indigo package**
 
@@ -389,17 +397,25 @@ cd appview && grep -r "identity\.Base\|identity\.Directory" $(go env GOPATH)/pkg
 
 You should find `identity.BaseDirectory` (concrete) satisfying `identity.Directory` (interface). Use `identity.DefaultDirectory()` as the simplest constructor — it returns a `*BaseDirectory` with sensible defaults (in-process cache + HTTP PLC lookups). If `DefaultDirectory` is not available in the vendored version, fall back to `&identity.BaseDirectory{}` with whatever fields the version exposes.
 
-- [ ] **Step 2: Add IdentityDirectory to Deps**
+- [ ] **Step 2: Add HandleResolver to Deps**
+
+**Note to implementer:** Task 5 creates `api.HandleResolver`. If Task 5 hasn't been merged yet when you're working on this plan sequentially, swap the order: do Task 5 first (create the type + its tests in isolation with no Deps wiring), then this task. The plan text keeps the current order because the Deps scaffolding is the smaller diff.
 
 In `appview/internal/app/deps.go`, add to the `Deps` struct (after `CraftskySessionStore`):
 
 ```go
-	// Identity resolution (handle ↔ DID). Shared by handlers that need
-	// to report a user's current handle (e.g. /v1/whoami).
-	IdentityDirectory identity.Directory
+	// Identity resolution for /v1/whoami. Stubbable in tests by
+	// overriding Deps.HandleResolver before wiring routes.
+	HandleResolver api.HandleResolver
 ```
 
-Add the import: `"github.com/bluesky-social/indigo/atproto/identity"`.
+Add imports:
+
+```go
+	"github.com/bluesky-social/indigo/atproto/identity"
+
+	"social.craftsky/appview/internal/api"
+```
 
 - [ ] **Step 3: Initialise it in newDeps**
 
@@ -415,7 +431,7 @@ And populate it in the returned `Deps` literal:
 	deps := &Deps{
 		// ...existing fields...
 		CraftskySessionStore: craftskyStore,
-		IdentityDirectory:    identityDir,
+		HandleResolver:       api.HandleResolver{Directory: identityDir},
 		// ...
 	}
 ```
@@ -426,13 +442,13 @@ And populate it in the returned `Deps` literal:
 cd appview && go build ./...
 ```
 
-Expected: no errors.
+Expected: if Task 5 hasn't landed yet this will fail on `api.HandleResolver` undefined — do Task 5 first and return to this step. Otherwise no errors.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add appview/internal/app/deps.go
-git commit -m "feat(appview): add identity.Directory to Deps"
+git commit -m "feat(appview): add HandleResolver to Deps"
 ```
 
 ### Task 5: Write HandleResolver
@@ -797,6 +813,7 @@ git commit -m "feat(appview): /v1/whoami returns {did, handle}"
 
 **Files:**
 - Modify: `appview/internal/routes/routes.go:39`
+- Modify: `appview/internal/routes/routes_test.go`
 
 - [ ] **Step 1: Update WhoAmIHandler call site**
 
@@ -809,29 +826,74 @@ mux.Handle("GET /v1/whoami", authN(deviceID(api.WhoAmIHandler())))
 to:
 
 ```go
-resolver := api.HandleResolver{Directory: deps.IdentityDirectory}
-mux.Handle("GET /v1/whoami", authN(deviceID(api.WhoAmIHandler(resolver))))
+mux.Handle("GET /v1/whoami", authN(deviceID(api.WhoAmIHandler(deps.HandleResolver))))
 ```
 
-Place the `resolver := ...` line above the middleware stack assignments (near where `authN`, `deviceID` are built) so it's visibly a dep, not a per-route constant.
+- [ ] **Step 2: Stub the resolver in routes_test.go**
 
-- [ ] **Step 2: Compile + test**
+Existing route tests for `/v1/whoami` (such as `TestAddRoutes_V1WhoAmIAuthenticatedReturnsDID`) seed a fake DID via the `X-Dev-DID` header and assert a 200 with the DID in the body. After Task 6 these tests MUST seed a stub handle resolver too — otherwise the real `identity.DefaultDirectory()` makes network calls for a nonexistent DID and the test either hangs or returns 502.
+
+In `routes_test.go`, find where the test builds `*app.Deps` (or a `Deps`-shaped literal). Replace `HandleResolver: api.HandleResolver{Directory: identity.DefaultDirectory()}` (or the equivalent construction) with a stub. The simplest path:
+
+```go
+// Stub resolver so route tests don't depend on the real PLC directory.
+type stubResolver struct{ handle string }
+
+func (s stubResolver) ResolveHandle(ctx context.Context, did string) (string, error) {
+    return s.handle, nil
+}
+```
+
+And in the Deps construction:
+
+```go
+HandleResolver: api.HandleResolver{},  // zero value — will not be called
+```
+
+This works because the test's seeded DID (`"did:plc:from-header"`) has no real PLC entry and the test happens to have been asserting `{did}` only. After Task 6 the handler returns `{did, handle}`; update the assertion:
+
+```go
+// before:
+if got := body["did"]; got != "did:plc:from-header" { ... }
+// after:
+if got := body["did"]; got != "did:plc:from-header" { ... }
+if got := body["handle"]; got != "stub-handle.example" { ... }
+```
+
+Using a **real** stub resolver is cleaner. Change `HandleResolver: api.HandleResolver{}` in the test fixture to go through a function the test injects — but `api.HandleResolver` is a struct, not an interface. Two options:
+
+1. **Add a `HandleResolverFunc` interface to `Deps` instead of the struct.** `Deps.HandleResolver` is typed as `api.HandleResolverFunc` (an interface with the single `ResolveHandle` method — which Task 6 already introduces). Then the test can pass a function-adapter stub. This is the cleaner path; recommend taking it.
+
+2. **Keep the struct; wrap the `identity.Directory` field with a fake.** In the test, implement a `fakeDirectory` (like the one in `handle_resolver_test.go` from Task 5) and set `HandleResolver: api.HandleResolver{Directory: fakeDirectory{identity: &identity.Identity{Handle: syntax.Handle("stub-handle.example")}}}`.
+
+**Pick option 1:** retype `Deps.HandleResolver` as `api.HandleResolverFunc` (the interface). `api.HandleResolver` (the struct) satisfies the interface; Task 4 already populates Deps with a `HandleResolver` struct value which is accepted by the interface field.
+
+Concretely, in `appview/internal/app/deps.go`, change the field type to the interface:
+
+```go
+// before (from Task 4):
+HandleResolver api.HandleResolver
+// after:
+HandleResolver api.HandleResolverFunc
+```
+
+Then in `routes_test.go` add the stub struct as above and set it in the Deps fixture.
+
+- [ ] **Step 3: Compile + test**
 
 ```bash
 just test ./...
 ```
 
-Expected: all tests pass. If `routes_test.go` constructs a `Deps` literal without `IdentityDirectory`, add one in the test fixture:
+Expected: all tests pass. If any other route test touches `/v1/whoami` and still expects a DID-only body, update its assertions the same way.
 
-```go
-IdentityDirectory: identity.DefaultDirectory(),
-```
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add appview/internal/routes/routes.go appview/internal/routes/routes_test.go
-git commit -m "feat(appview): wire HandleResolver into /v1/whoami route"
+git add appview/internal/routes/routes.go \
+        appview/internal/routes/routes_test.go \
+        appview/internal/app/deps.go
+git commit -m "feat(appview): wire HandleResolver into /v1/whoami route; stub in tests"
 ```
 
 ---
@@ -985,15 +1047,19 @@ if !deviceIDPattern.MatchString(id) {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [ ] **Step 4: Prune now-redundant test**
+
+If an existing test named along the lines of `TestDeviceID_TooLongHeaderReturns400` exists and sends a 257-byte header, it now asserts behaviour identical to the new `TestDeviceID_RejectsOverLength` (both → 400 `invalid_device_id` after this task). Delete the old test to avoid redundancy. Keep the new one since it additionally verifies the error code.
+
+- [ ] **Step 5: Run tests**
 
 ```bash
 just test ./internal/middleware/...
 ```
 
-Expected: all device-id tests pass (old ones still pass; new ones pass).
+Expected: all device-id tests pass.
 
-- [ ] **Step 5: Run the full test suite**
+- [ ] **Step 6: Run the full test suite**
 
 ```bash
 just test ./...
@@ -1001,7 +1067,7 @@ just test ./...
 
 Expected: all pass.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add appview/internal/middleware/device_id.go appview/internal/middleware/device_id_test.go
@@ -1059,7 +1125,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _FakeSecureStorage implements FlutterSecureStorage {
-  _FakeSecureStorage([this._map]);
+  _FakeSecureStorage();
   final Map<String, String> _map = <String, String>{};
 
   @override
@@ -1234,55 +1300,81 @@ git commit -m "feat(app): add deviceIdProvider with UUID + secure storage"
 
 **Files:**
 - Modify: `app/lib/shared/api/providers/session_auth_interceptor.dart`
-- Modify: `app/test/shared/api/session_auth_interceptor_test.dart`
+- Modify: `app/test/shared/api/providers/session_auth_interceptor_test.dart`
 
 - [ ] **Step 1: Read the existing test**
 
-Read `app/test/shared/api/session_auth_interceptor_test.dart` entirely to understand the test harness pattern.
+Read `app/test/shared/api/providers/session_auth_interceptor_test.dart` entirely (note the `providers/` subdirectory). The existing tests all use `SessionAuthInterceptor.withReader(() => ...)` — a one-arg constructor. After this task, the interceptor gains a device-id reader; we keep `.withReader` working as a backward-compat alias that injects a fixed dummy device-id, so existing tests keep compiling without modification. New tests use `.withReaders(...)` (plural) to exercise device-id attachment explicitly.
 
 - [ ] **Step 2: Write the failing tests**
 
-Append to the test file:
+Append to `app/test/shared/api/providers/session_auth_interceptor_test.dart` (inside the existing `main()` body, after the existing tests):
 
 ```dart
-// --- Device-ID header attachment ---
+  // --- Device-ID header attachment ---
 
-test('attaches X-Craftsky-Device-Id on anonymous requests', () async {
-  final interceptor = SessionAuthInterceptor.withReaders(
-    readAuth: () => const AsyncData<AuthState>(SignedOut()),
-    readDeviceId: () async => 'device-abc',
-  );
-  final options = RequestOptions(path: '/v1/auth/login');
-  final handler = _CaptureHandler();
-  await interceptor.onRequestAsync(options, handler);
-  expect(handler.captured.headers['X-Craftsky-Device-Id'], 'device-abc');
-  expect(handler.captured.headers.containsKey('Authorization'), isFalse);
-});
+  test('attaches X-Craftsky-Device-Id on anonymous requests', () async {
+    final container = ProviderContainer.test(
+      overrides: [authSessionProvider.overrideWith(_SignedOutFake.new)],
+    );
+    await seed(container);
 
-test('attaches BOTH Authorization and X-Craftsky-Device-Id on authed requests', () async {
-  final interceptor = SessionAuthInterceptor.withReaders(
-    readAuth: () => const AsyncData<AuthState>(
-      SignedIn(did: 'did:plc:x', handle: 'a', token: 'tok'),
-    ),
-    readDeviceId: () async => 'device-abc',
-  );
-  final options = RequestOptions(path: '/v1/whoami');
-  final handler = _CaptureHandler();
-  await interceptor.onRequestAsync(options, handler);
-  expect(handler.captured.headers['Authorization'], 'Bearer tok');
-  expect(handler.captured.headers['X-Craftsky-Device-Id'], 'device-abc');
-});
+    final options = RequestOptions(path: '/v1/auth/login');
+    SessionAuthInterceptor.withReaders(
+      readAuth: () => container.read(authSessionProvider),
+      readDeviceId: () async => 'device-abc',
+    ).onRequest(options, _CapturingHandler());
+
+    // onRequest is `void`-returning but internally awaits; poll until
+    // the handler is notified the chain continued.
+    await _pumpEventLoop();
+
+    expect(options.headers['X-Craftsky-Device-Id'], 'device-abc');
+    expect(options.headers.containsKey('Authorization'), isFalse);
+  });
+
+  test('attaches BOTH Authorization and X-Craftsky-Device-Id on authed requests', () async {
+    final container = ProviderContainer.test(
+      overrides: [
+        authSessionProvider.overrideWith(() => _SignedInFake('tok')),
+      ],
+    );
+    await seed(container);
+
+    final options = RequestOptions(path: '/v1/whoami');
+    SessionAuthInterceptor.withReaders(
+      readAuth: () => container.read(authSessionProvider),
+      readDeviceId: () async => 'device-abc',
+    ).onRequest(options, _CapturingHandler());
+
+    await _pumpEventLoop();
+
+    expect(options.headers['Authorization'], 'Bearer tok');
+    expect(options.headers['X-Craftsky-Device-Id'], 'device-abc');
+  });
 ```
 
-Where `_CaptureHandler` is either an existing test helper in the file or a small local class you add. If the file uses `http_mock_adapter`-based tests instead, adapt these cases to that pattern: fire a real request through a mocked Dio, capture `onRequest` headers via a recording interceptor, assert `X-Craftsky-Device-Id` is present on both anonymous and authed paths.
+Add a tiny helper at the bottom of the file (above `main`'s closing brace or as a top-level function):
+
+```dart
+/// Flushes microtasks so async gaps inside a `void`-returning async
+/// interceptor settle before assertions run.
+Future<void> _pumpEventLoop() async {
+  for (var i = 0; i < 5; i++) {
+    await Future<void>.delayed(Duration.zero);
+  }
+}
+```
+
+The pump-loop idiom is the same one prescribed in `.claude/rules/riverpod.md` for fire-and-forget async work.
 
 - [ ] **Step 3: Run — expect failure**
 
 ```bash
-flutter test test/shared/api/session_auth_interceptor_test.dart
+flutter test test/shared/api/providers/session_auth_interceptor_test.dart
 ```
 
-Expected: compile error on `SessionAuthInterceptor.withReaders` and `onRequestAsync`.
+Expected: compile error on `SessionAuthInterceptor.withReaders` (doesn't exist yet).
 
 - [ ] **Step 4: Extend the interceptor**
 
@@ -1306,7 +1398,15 @@ class SessionAuthInterceptor extends Interceptor {
       : _readAuth = (() => ref.read(authSessionProvider)),
         _readDeviceId = (() => ref.read(deviceIdProvider.future));
 
-  /// Test constructor.
+  /// Back-compat test constructor — injects a fixed dummy device-id
+  /// so the existing 4 tests that only care about the Authorization
+  /// header keep working without a rewrite.
+  SessionAuthInterceptor.withReader(
+    AsyncValue<AuthState> Function() readAuth,
+  )   : _readAuth = readAuth,
+        _readDeviceId = (() async => 'test-device-id');
+
+  /// Full test constructor — both readers explicit.
   SessionAuthInterceptor.withReaders({
     required AsyncValue<AuthState> Function() readAuth,
     required Future<String> Function() readDeviceId,
@@ -1316,14 +1416,16 @@ class SessionAuthInterceptor extends Interceptor {
   final AsyncValue<AuthState> Function() _readAuth;
   final Future<String> Function() _readDeviceId;
 
+  // Dio's base signature is `void onRequest(...)`. We declare `void`
+  // with an `async` body so we can await the device-id future; Dio
+  // continues the chain when we call `handler.next(options)`, not
+  // when our future resolves. Do NOT change the return type to
+  // Future<void> — it's an invalid override.
   @override
-  Future<void> onRequest(
+  void onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    // Device-id is required by the server on authenticated /v1/* routes
-    // and harmless (ignored) on /v1/auth/login. Sending always keeps
-    // the interceptor branch-free at header-attach time.
     final deviceId = await _readDeviceId();
     options.headers['X-Craftsky-Device-Id'] = deviceId;
 
@@ -1338,7 +1440,10 @@ class SessionAuthInterceptor extends Interceptor {
 }
 ```
 
-Note: `dio` interceptors already support `async` `onRequest` — return type becomes `Future<void>`. Dio will await it.
+Two things this shape locks in:
+
+1. `withReader` is preserved for the four existing tests that pass only an auth reader. They inject a fixed `'test-device-id'` automatically and their assertions (about `Authorization` only) stay valid.
+2. `onRequest` stays `void`-returning to satisfy Dio's `Interceptor` base. The async body is legal; Dio continues the chain on `handler.next(options)` regardless of when the method's async work completes.
 
 - [ ] **Step 5: Run tests**
 
@@ -1361,15 +1466,19 @@ Expected: no regressions. The existing `SessionAuthInterceptor` callsites compil
 
 ```bash
 git add app/lib/shared/api/providers/session_auth_interceptor.dart \
-        app/test/shared/api/session_auth_interceptor_test.dart
+        app/test/shared/api/providers/session_auth_interceptor_test.dart
 git commit -m "feat(app): SessionAuthInterceptor attaches X-Craftsky-Device-Id"
 ```
 
-### Task 12: Flip login body to camelCase (handoff_mode → handoffMode)
+### Task 12: Flip login body to camelCase + drop snakeCase override on LoginResponse
 
 **Files:**
 - Modify: `app/lib/shared/api/craftsky_api_client.dart:25`
+- Modify: `app/lib/shared/api/models/login_response.dart:5`
 - Modify: `app/test/shared/api/craftsky_api_client_test.dart`
+- Modify: `app/test/shared/api/models/login_response_test.dart` (if it asserts snake_case)
+
+**Why both files.** The client currently sends `{handoff_mode: ...}` AND decodes `{auth_url: ...}` because `LoginResponse` has `@MappableClass(caseStyle: CaseStyle.snakeCase)`. After Task 1 the server emits `{authUrl: ...}` — if we flip only the send body and leave the decoder on snake_case, `authUrl` arrives but the mapper reads `auth_url`, sees null, decode fails, sign-in breaks. Both flips must land together.
 
 - [ ] **Step 1: Update the failing test**
 
@@ -1419,19 +1528,51 @@ to:
 data: {'handle': handle, 'handoffMode': 'deep_link'},
 ```
 
-- [ ] **Step 4: Run tests**
+- [ ] **Step 4: Drop the snakeCase override on LoginResponse**
 
-```bash
-flutter test test/shared/api/craftsky_api_client_test.dart
+In `app/lib/shared/api/models/login_response.dart`, change:
+
+```dart
+@MappableClass(caseStyle: CaseStyle.snakeCase)
+class LoginResponse with LoginResponseMappable {
 ```
 
-Expected: pass.
+to:
 
-- [ ] **Step 5: Commit**
+```dart
+@MappableClass()
+class LoginResponse with LoginResponseMappable {
+```
+
+Then regenerate:
 
 ```bash
-git add app/lib/shared/api/craftsky_api_client.dart app/test/shared/api/craftsky_api_client_test.dart
-git commit -m "feat(app): send handoffMode (camelCase) on /v1/auth/login"
+dart run build_runner build --delete-conflicting-outputs
+```
+
+The generated `login_response.mapper.dart` should now list the key as `'authUrl'` (not `'auth_url'`).
+
+- [ ] **Step 5: Update LoginResponse model test**
+
+If `app/test/shared/api/models/login_response_test.dart` asserts decode from a snake_case JSON literal (`'{"auth_url": "..."}'`), flip it to camelCase (`'{"authUrl": "..."}'`). Add a case that decodes from camelCase and passes; drop any case asserting snake_case is the wire shape.
+
+- [ ] **Step 6: Run tests**
+
+```bash
+flutter test test/shared/api/
+```
+
+Expected: all pass.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add app/lib/shared/api/craftsky_api_client.dart \
+        app/lib/shared/api/models/login_response.dart \
+        app/lib/shared/api/models/login_response.mapper.dart \
+        app/test/shared/api/craftsky_api_client_test.dart \
+        app/test/shared/api/models/login_response_test.dart
+git commit -m "feat(app): send + decode camelCase on /v1/auth/login"
 ```
 
 ### Task 13: Handoff client carries deviceId
