@@ -665,7 +665,8 @@ import 'models/whoami.dart';
 
 /// Thin typed wrapper around the three AppView endpoints this release
 /// needs. All calls assume the attached [Dio] has the auth + error
-/// interceptors installed (see [dioProvider] / Chunk 1 / Chunk 5).
+/// interceptors installed (see [dioProvider] — assembled across Tasks
+/// 7, 14a, 14b).
 ///
 /// Each method unwraps the `DioException` that `dio` throws and
 /// rethrows the `ApiException` carried in its `.error` field — so
@@ -3732,10 +3733,11 @@ void main() {
   });
 
   testWidgets('tapping Continue dispatches AuthController.signIn with text', (tester) async {
-    final fake = _RecordingAuthController();
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [authControllerProvider.overrideWith(() => fake)],
+        overrides: [
+          authControllerProvider.overrideWith(_RecordingAuthController.new),
+        ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
           home: const SignInPage(),
@@ -3746,6 +3748,8 @@ void main() {
     await tester.tap(find.widgetWithText(ChunkyButton, 'Continue'));
     await tester.pump();
 
+    final fake = tester.container().read(authControllerProvider.notifier)
+        as _RecordingAuthController;
     expect(fake.signInCalls, ['  @alice.bsky.social ']);
     // (Controller trims — that's unit-tested in auth_controller_test.dart.)
   });
@@ -3855,15 +3859,19 @@ class _FakeAuthController extends AuthController {
 
 void main() {
   testWidgets('tapping the tile calls AuthController.signOut', (tester) async {
-    final fake = _FakeAuthController();
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [authControllerProvider.overrideWith(() => fake)],
+        overrides: [
+          authControllerProvider.overrideWith(_FakeAuthController.new),
+        ],
         child: const MaterialApp(home: Material(child: SignOutTile())),
       ),
     );
     await tester.tap(find.byType(SignOutTile));
     await tester.pump();
+
+    final fake = tester.container().read(authControllerProvider.notifier)
+        as _FakeAuthController;
     expect(fake.signOutCalls, 1);
   });
 }
