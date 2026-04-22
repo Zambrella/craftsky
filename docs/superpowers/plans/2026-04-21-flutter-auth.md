@@ -20,15 +20,17 @@
 app/lib/
 ├── shared/api/
 │   ├── api_exception.dart                        # sealed ApiException + 4 subtypes
-│   ├── craftsky_api_client.dart                  # login/whoami/logout wrappers
+│   ├── craftsky_api_client.dart                  # session client: login / whoami / logout
+│   ├── handoff_api_client.dart                   # handoff client: whoami-only
 │   ├── models/
 │   │   ├── login_response.dart                   # + .mapper.dart
 │   │   └── whoami.dart                           # + .mapper.dart
 │   └── providers/
-│       ├── dio_provider.dart                     # + .g.dart — Dio w/ interceptors
-│       ├── api_client_provider.dart              # + .g.dart
-│       ├── auth_interceptor.dart                 # _AuthInterceptor (Bearer injection)
-│       └── error_mapping_interceptor.dart        # _ErrorMappingInterceptor + 401 sign-out
+│       ├── dio_provider.dart                     # + .g.dart — session Dio, _baseOptions()
+│       ├── api_client_provider.dart              # + .g.dart — craftskyApiClient + handoffApiClient(token)
+│       ├── session_auth_interceptor.dart         # reads authSessionProvider, adds Bearer
+│       ├── sign_out_on_401_interceptor.dart      # clears storage + flips SignedOut on 401
+│       └── error_mapping_interceptor.dart        # DioException → ApiException (shared)
 ├── auth/
 │   ├── models/
 │   │   ├── auth_error.dart                       # sealed AuthError + 7 subtypes
@@ -38,7 +40,6 @@ app/lib/
 │   ├── providers/
 │   │   ├── auth_controller.dart                  # + .g.dart — signIn / completeFromDeepLink / signOut
 │   │   ├── auth_session_provider.dart            # + .g.dart — AsyncValue<AuthState>
-│   │   ├── in_flight_token_provider.dart         # + .g.dart
 │   │   ├── pending_auth_provider.dart            # + .g.dart
 │   │   └── secure_token_storage.dart             # + .g.dart — async read/write wrapper
 │   ├── pages/
@@ -371,161 +372,19 @@ git commit -m "feat(app): add LoginResponse / WhoAmI response models"
 
 ---
 
-### Task 4: `_AuthInterceptor` — Bearer injection
+### Task 4: Placeholder — Session auth interceptor moves to Chunk 3
 
-The interceptor resolves the token in this order: `inFlightTokenProvider` (if set, i.e. mid-handoff) → token field on a `SignedIn` auth state. For Chunk 1 we build a version that only wires against the *current* auth/in-flight state using `Ref`; the providers it depends on will be stubbed in tests via overrides. When those providers land in Chunk 2/3 this file stays unchanged.
+_(No work in this task.)_ The `_SessionAuthInterceptor` reads `authSessionProvider`, which doesn't exist until Chunk 3. Rather than building a test-shim resolver in Chunk 1 and rewiring it later, the interceptor and its tests now live in **Task 14a** (after `AuthSession` is built). Chunk 1 is shorter — it stops after `_ErrorMappingInterceptor` (Task 5) and `CraftskyApiClient` (Task 6).
 
-**Files:**
-- Create: `app/lib/shared/api/providers/auth_interceptor.dart`
-- Create: `app/test/shared/api/providers/auth_interceptor_test.dart`
-
-- [ ] **Step 1: Write the failing test**
-
-`app/test/shared/api/providers/auth_interceptor_test.dart`:
-
-```dart
-import 'package:craftsky_app/shared/api/providers/auth_interceptor.dart';
-import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
-// Test-only providers that stand in for inFlightTokenProvider and
-// authSessionProvider from later chunks. The interceptor reads these
-// via the resolver callback injected by the constructor — keeping the
-// production providers out of Chunk 1's dependency graph.
-final fakeInFlightTokenProvider = StateProvider<String?>((_) => null);
-final fakePersistedTokenProvider = StateProvider<String?>((_) => null);
-
-String? _resolve(Ref ref) =>
-    ref.read(fakeInFlightTokenProvider) ??
-    ref.read(fakePersistedTokenProvider);
-
-void main() {
-  group('AuthInterceptor', () {
-    late ProviderContainer container;
-    late RequestOptions options;
-    late _CapturingHandler handler;
-
-    setUp(() {
-      container = ProviderContainer();
-      addTearDown(container.dispose);
-      options = RequestOptions(path: '/v1/whoami');
-      handler = _CapturingHandler();
-    });
-
-    test('adds Authorization header from persisted token', () {
-      container.read(fakePersistedTokenProvider.notifier).state = 'tok-persisted';
-
-      AuthInterceptor(container, _resolve).onRequest(options, handler);
-
-      expect(options.headers['Authorization'], 'Bearer tok-persisted');
-      expect(handler.continued, isTrue);
-    });
-
-    test('prefers in-flight token over persisted token', () {
-      container.read(fakeInFlightTokenProvider.notifier).state = 'tok-handoff';
-      container.read(fakePersistedTokenProvider.notifier).state = 'tok-persisted';
-
-      AuthInterceptor(container, _resolve).onRequest(options, handler);
-
-      expect(options.headers['Authorization'], 'Bearer tok-handoff');
-    });
-
-    test('omits Authorization header when no token is resolved', () {
-      AuthInterceptor(container, _resolve).onRequest(options, handler);
-
-      expect(options.headers.containsKey('Authorization'), isFalse);
-    });
-
-    test('skips Authorization for /v1/auth/login even when a token exists', () {
-      container.read(fakePersistedTokenProvider.notifier).state = 'tok-persisted';
-      options = RequestOptions(path: '/v1/auth/login');
-
-      AuthInterceptor(container, _resolve).onRequest(options, handler);
-
-      expect(options.headers.containsKey('Authorization'), isFalse);
-    });
-  });
-}
-
-class _CapturingHandler extends RequestInterceptorHandler {
-  bool continued = false;
-
-  @override
-  void next(RequestOptions options) {
-    continued = true;
-  }
-}
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-```bash
-cd app && flutter test test/shared/api/providers/auth_interceptor_test.dart
-```
-
-Expected: FAIL.
-
-- [ ] **Step 3: Implement** — `app/lib/shared/api/providers/auth_interceptor.dart`:
-
-```dart
-import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-/// Paths on which the Authorization header should never be attached.
-/// Single constant today; revisit if another anonymous endpoint lands.
-const _anonymousPaths = <String>{'/v1/auth/login'};
-
-/// Resolves the current Bearer token for outgoing requests.
-///
-/// The resolver is injected via constructor so the interceptor can be
-/// tested against test-local providers without depending on the real
-/// auth providers (which are built in later chunks).
-typedef TokenResolver = String? Function(Ref ref);
-
-class AuthInterceptor extends Interceptor {
-  AuthInterceptor(this._ref, this._resolve);
-
-  final Ref _ref;
-  final TokenResolver _resolve;
-
-  @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    if (_anonymousPaths.contains(options.path)) {
-      handler.next(options);
-      return;
-    }
-    final token = _resolve(_ref);
-    if (token != null) {
-      options.headers['Authorization'] = 'Bearer $token';
-    }
-    handler.next(options);
-  }
-}
-```
-
-- [ ] **Step 4: Run test to verify it passes**
-
-```bash
-cd app && flutter test test/shared/api/providers/auth_interceptor_test.dart
-```
-
-Expected: PASS, 4 tests.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add app/lib/shared/api/providers/auth_interceptor.dart app/test/shared/api/providers/auth_interceptor_test.dart
-git commit -m "feat(app): add AuthInterceptor that Bearer-injects via a resolver callback"
-```
+- [ ] **Step 1: Confirm nothing to do, move on to Task 5.** No files created, no commit.
 
 ---
 
-### Task 5: `_ErrorMappingInterceptor` — error mapping (401 sign-out deferred)
+### Task 5: `_ErrorMappingInterceptor` — error mapping
 
-Chunk 5 adds the global 401 side effect. Here we only map `DioException` → `ApiException` so the error types land alongside the interceptor itself. The 401 sign-out behaviour is a constructor-injected callback so it can be a no-op in Chunk 1 tests.
+A stateless interceptor shared by both the session Dio and the handoff Dio. It sets `DioException.error` to the mapped `ApiException`; the unwrap helper in `CraftskyApiClient` / `HandoffApiClient` (Task 6) catches the `DioException` and rethrows the contained `ApiException`. The 401 sign-out behaviour is a separate interceptor (`_SignOutOn401Interceptor`) added only to the session Dio — see Task 14b.
 
-**How the unwrap works.** `dio` rethrows the error its interceptor chain produces. We set `DioException.error` to an `ApiException` and let `dio.xxx()` throw the wrapping `DioException`; the thin unwrap helper in `CraftskyApiClient` (Task 6) catches that `DioException` and rethrows the contained `ApiException`. This keeps the interceptor pipeline idiomatic (no `handler.reject` side effects) and keeps every call site of the client dealing in `ApiException`.
+The `switch` in `_mapDioError` uses merged cases where the result is identical, per the recently added flutter.md guidance against pass-through.
 
 **Files:**
 - Create: `app/lib/shared/api/providers/error_mapping_interceptor.dart`
@@ -555,56 +414,43 @@ DioException _ex({int? status, DioExceptionType type = DioExceptionType.badRespo
 void main() {
   group('ErrorMappingInterceptor', () {
     late _CapturingHandler handler;
-    late int onUnauthorizedCalls;
 
-    setUp(() {
-      handler = _CapturingHandler();
-      onUnauthorizedCalls = 0;
-    });
+    setUp(() => handler = _CapturingHandler());
 
-    ErrorMappingInterceptor build() => ErrorMappingInterceptor(
-          onUnauthorized: (_) => onUnauthorizedCalls++,
-        );
-
-    test('401 → ApiUnauthorized and invokes onUnauthorized', () {
-      build().onError(_ex(status: 401), handler);
-
+    test('401 → ApiUnauthorized', () {
+      ErrorMappingInterceptor().onError(_ex(status: 401), handler);
       expect(handler.error, isA<ApiUnauthorized>());
-      expect(onUnauthorizedCalls, 1);
     });
 
     test('400 with {"error": "handle_required"} → ApiBadRequest(code)', () {
-      build().onError(
+      ErrorMappingInterceptor().onError(
         _ex(status: 400, data: {'error': 'handle_required'}),
         handler,
       );
-
       expect(handler.error, isA<ApiBadRequest>());
       expect((handler.error as ApiBadRequest).code, 'handle_required');
     });
 
     test('400 with no error field → ApiBadRequest(null)', () {
-      build().onError(_ex(status: 400, data: {}), handler);
-
+      ErrorMappingInterceptor().onError(_ex(status: 400, data: {}), handler);
       expect(handler.error, isA<ApiBadRequest>());
       expect((handler.error as ApiBadRequest).code, isNull);
     });
 
     test('500 → ApiServerError', () {
-      build().onError(_ex(status: 500), handler);
-
+      ErrorMappingInterceptor().onError(_ex(status: 500), handler);
       expect(handler.error, isA<ApiServerError>());
     });
 
     test('timeout → ApiNetworkError', () {
-      build().onError(_ex(type: DioExceptionType.connectionTimeout), handler);
-
+      ErrorMappingInterceptor()
+          .onError(_ex(type: DioExceptionType.connectionTimeout), handler);
       expect(handler.error, isA<ApiNetworkError>());
     });
 
     test('connection error → ApiNetworkError', () {
-      build().onError(_ex(type: DioExceptionType.connectionError), handler);
-
+      ErrorMappingInterceptor()
+          .onError(_ex(type: DioExceptionType.connectionError), handler);
       expect(handler.error, isA<ApiNetworkError>());
     });
   });
@@ -635,61 +481,53 @@ import 'package:dio/dio.dart';
 
 import '../api_exception.dart';
 
-/// Called when an authenticated request returns 401. The production
-/// wiring in Chunk 5 signs the user out; tests pass a no-op or a
-/// counting fake.
-typedef OnUnauthorized = void Function(RequestOptions options);
-
+/// Stateless, side-effect-free. Both the session Dio and the handoff
+/// Dio attach this interceptor; the session Dio additionally installs
+/// `_SignOutOn401Interceptor` (see Task 14b).
 class ErrorMappingInterceptor extends Interceptor {
-  ErrorMappingInterceptor({required this.onUnauthorized});
-
-  final OnUnauthorized onUnauthorized;
+  const ErrorMappingInterceptor();
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    final mapped = _mapDioError(err);
-    if (mapped is ApiUnauthorized) {
-      onUnauthorized(err.requestOptions);
-    }
     handler.next(
       DioException(
         requestOptions: err.requestOptions,
         response: err.response,
         type: err.type,
-        error: mapped,
+        error: _mapDioError(err),
         stackTrace: err.stackTrace,
       ),
     );
   }
 
   ApiException _mapDioError(DioException err) {
-    switch (err.type) {
-      case DioExceptionType.connectionTimeout:
-      case DioExceptionType.sendTimeout:
-      case DioExceptionType.receiveTimeout:
-      case DioExceptionType.connectionError:
-        return ApiNetworkError(err.message ?? err.type.name);
-      case DioExceptionType.badResponse:
-        final status = err.response?.statusCode ?? 0;
-        if (status == 401) return const ApiUnauthorized();
-        if (status >= 400 && status < 500) {
-          final data = err.response?.data;
-          final code = data is Map && data['error'] is String
-              ? data['error'] as String
-              : null;
-          return ApiBadRequest(code);
-        }
-        return ApiServerError('http_$status');
-      case DioExceptionType.cancel:
-      case DioExceptionType.badCertificate:
-      case DioExceptionType.unknown:
-        // Treat socket-ish "unknown" as network; pass through anything
-        // else as a server error with the raw message.
-        if (err.error is Exception) {
-          return ApiNetworkError(err.message ?? 'network_error');
-        }
-        return ApiServerError(err.message ?? 'server_error');
+    return switch (err.type) {
+      DioExceptionType.connectionTimeout ||
+      DioExceptionType.sendTimeout ||
+      DioExceptionType.receiveTimeout ||
+      DioExceptionType.connectionError =>
+        ApiNetworkError(err.message ?? err.type.name),
+      DioExceptionType.badResponse => _mapBadResponse(err),
+      DioExceptionType.cancel ||
+      DioExceptionType.badCertificate ||
+      DioExceptionType.unknown =>
+        err.error is Exception
+            ? ApiNetworkError(err.message ?? 'network_error')
+            : ApiServerError(err.message ?? 'server_error'),
+    };
+  }
+
+  ApiException _mapBadResponse(DioException err) {
+    final status = err.response?.statusCode ?? 0;
+    if (status == 401) return const ApiUnauthorized();
+    if (status >= 400 && status < 500) {
+      final data = err.response?.data;
+      final code = data is Map && data['error'] is String
+          ? data['error'] as String
+          : null;
+      return ApiBadRequest(code);
     }
+    return ApiServerError('http_$status');
   }
 }
 ```
@@ -735,7 +573,7 @@ void main() {
 
   Dio buildDio() {
     final dio = Dio(BaseOptions(baseUrl: 'https://appview.example.com'));
-    dio.interceptors.add(ErrorMappingInterceptor(onUnauthorized: (_) {}));
+    dio.interceptors.add(const ErrorMappingInterceptor());
     return dio;
   }
 
@@ -895,11 +733,9 @@ git commit -m "feat(app): add CraftskyApiClient with login/whoami/logout methods
 
 ---
 
-### Task 7: `dioProvider` and `craftskyApiClientProvider`
+### Task 7: `dioProvider` + `craftskyApiClientProvider` (skeleton)
 
-The `TokenResolver` is wired with a real provider hook in Chunk 5 (once `inFlightTokenProvider` and `authSessionProvider` exist). For now, we install the providers with a placeholder resolver that always returns null — tests in later chunks will override them.
-
-Until Chunk 5 wires this up, any code that accidentally reads `craftskyApiClientProvider` in production will get an unauthenticated client (no Bearer on outgoing requests). That's acceptable between chunks because **no production caller of the API client exists until Chunk 3**, when `AuthSession` fires `whoami` during background validation.
+Ship the providers now with just the error-mapping interceptor. Chunk 3 Task 14a adds `_SessionAuthInterceptor`, Task 14b adds `_SignOutOn401Interceptor`, and Task 14c adds `handoffApiClientProvider`.
 
 **Files:**
 - Create: `app/lib/shared/api/providers/dio_provider.dart`
@@ -913,14 +749,14 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import 'auth_interceptor.dart';
 import 'error_mapping_interceptor.dart';
 
 part 'dio_provider.g.dart';
 
 /// Android emulator maps the host machine to 10.0.2.2. iOS simulator
-/// reaches the host directly via localhost. We default to the Android
-/// footgun; iOS devs pass --dart-define=CRAFTSKY_API_BASE_URL=http://localhost:8080.
+/// reaches localhost directly. Android is the more common footgun so
+/// it's the default; iOS devs pass
+/// --dart-define=CRAFTSKY_API_BASE_URL=http://localhost:8080.
 const _devDefaultBaseUrl = 'http://10.0.2.2:8080';
 
 const _baseUrl = String.fromEnvironment(
@@ -928,30 +764,29 @@ const _baseUrl = String.fromEnvironment(
   defaultValue: kDebugMode ? _devDefaultBaseUrl : '',
 );
 
-@Riverpod(keepAlive: true)
-Dio dio(Ref ref) {
+/// Shared base options for both the session Dio (this file) and the
+/// handoff Dio (api_client_provider.dart, family) so HTTP basics stay
+/// in sync.
+BaseOptions baseDioOptions() {
   if (_baseUrl.isEmpty) {
     throw StateError(
       'CRAFTSKY_API_BASE_URL must be set for non-debug builds. '
       'Pass it via --dart-define.',
     );
   }
-
-  final dio = Dio(
-    BaseOptions(
-      baseUrl: _baseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 15),
-      headers: {'Content-Type': 'application/json'},
-    ),
+  return BaseOptions(
+    baseUrl: _baseUrl,
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 15),
+    headers: {'Content-Type': 'application/json'},
   );
+}
 
-  dio.interceptors.addAll([
-    // Resolver returns null until Chunk 5 wires the real auth providers.
-    AuthInterceptor(ref, (_) => null),
-    ErrorMappingInterceptor(onUnauthorized: (_) {}),
-  ]);
-
+@Riverpod(keepAlive: true)
+Dio dio(Ref ref) {
+  final dio = Dio(baseDioOptions());
+  dio.interceptors.add(const ErrorMappingInterceptor());
+  // Task 14a/14b add SessionAuthInterceptor + SignOutOn401Interceptor.
   return dio;
 }
 ```
@@ -969,6 +804,10 @@ part 'api_client_provider.g.dart';
 @Riverpod(keepAlive: true)
 CraftskyApiClient craftskyApiClient(Ref ref) =>
     CraftskyApiClient(ref.watch(dioProvider));
+
+// Task 14c adds handoffApiClient(token) here — a family provider that
+// constructs a short-lived HandoffApiClient with the Bearer token baked
+// into BaseOptions.headers.
 ```
 
 - [ ] **Step 3: Generate provider code**
@@ -988,14 +827,13 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('dioProvider builds with the debug-default base URL', () {
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
+    final container = ProviderContainer.test();
 
     final dio = container.read(dioProvider);
 
-    // Debug-mode default per the provider.
     expect(dio.options.baseUrl, 'http://10.0.2.2:8080');
-    expect(dio.interceptors, hasLength(2));
+    // One interceptor now; Task 14a/14b add two more (total = 3).
+    expect(dio.interceptors, hasLength(1));
   });
 }
 ```
@@ -1022,7 +860,7 @@ Expected: PASS.
 
 ```bash
 git add app/lib/shared/api/providers/dio_provider.dart app/lib/shared/api/providers/dio_provider.g.dart app/lib/shared/api/providers/api_client_provider.dart app/lib/shared/api/providers/api_client_provider.g.dart app/test/shared/api/providers/dio_provider_test.dart
-git commit -m "feat(app): add dioProvider + craftskyApiClientProvider"
+git commit -m "feat(app): add dioProvider + craftskyApiClientProvider (skeleton)"
 ```
 
 ---
@@ -1042,7 +880,7 @@ Expected: `No issues found!` and all tests green. Do not advance to Chunk 2 if e
 
 ## Chunk 2: Auth models + secure storage + small providers
 
-Goal: lay down the data types (`AuthState`, `StoredSession`, `PendingAuth`, `AuthError`) and the thin providers (`SecureTokenStorage`, `InFlightToken`, `PendingAuthProvider`) they depend on. No orchestration yet.
+Goal: lay down the data types (`AuthState`, `StoredSession`, `PendingAuth`, `AuthError`) and the thin providers (`SecureTokenStorage`, `PendingAuth`) they depend on. No orchestration yet.
 
 ### Task 8: `AuthState` sealed class
 
@@ -1563,94 +1401,9 @@ git commit -m "feat(app): add SecureTokenStorage async wrapper around flutter_se
 
 ---
 
-### Task 12: `InFlightTokenProvider`
+### Task 12: _(removed — no `InFlightTokenProvider` in this design)_
 
-**Files:**
-- Create: `app/lib/auth/providers/in_flight_token_provider.dart`
-- Create: `app/test/auth/providers/in_flight_token_provider_test.dart`
-
-- [ ] **Step 1: Write the failing test** — `app/test/auth/providers/in_flight_token_provider_test.dart`:
-
-```dart
-import 'package:craftsky_app/auth/providers/in_flight_token_provider.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
-void main() {
-  late ProviderContainer container;
-
-  setUp(() {
-    container = ProviderContainer();
-    addTearDown(container.dispose);
-  });
-
-  test('starts null', () {
-    expect(container.read(inFlightTokenProvider), isNull);
-  });
-
-  test('setToken updates state', () {
-    container.read(inFlightTokenProvider.notifier).setToken('tok');
-    expect(container.read(inFlightTokenProvider), 'tok');
-  });
-
-  test('clear resets to null', () {
-    container.read(inFlightTokenProvider.notifier).setToken('tok');
-    container.read(inFlightTokenProvider.notifier).clear();
-    expect(container.read(inFlightTokenProvider), isNull);
-  });
-}
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-```bash
-cd app && flutter test test/auth/providers/in_flight_token_provider_test.dart
-```
-
-Expected: FAIL.
-
-- [ ] **Step 3: Implement** — `app/lib/auth/providers/in_flight_token_provider.dart`:
-
-```dart
-import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-part 'in_flight_token_provider.g.dart';
-
-/// Holds the bearer token between the deep-link arriving in
-/// `AuthController.completeFromDeepLink` and the follow-up `whoami`
-/// call resolving. Read by the Dio auth interceptor as a fallback
-/// before secure storage so the whoami call can be authenticated
-/// without persisting a half-written session.
-@Riverpod(keepAlive: true)
-class InFlightToken extends _$InFlightToken {
-  @override
-  String? build() => null;
-
-  void setToken(String token) => state = token;
-  void clear() => state = null;
-}
-```
-
-- [ ] **Step 4: Generate**
-
-```bash
-cd app && dart run build_runner build --delete-conflicting-outputs
-```
-
-- [ ] **Step 5: Run test to verify it passes**
-
-```bash
-cd app && flutter test test/auth/providers/in_flight_token_provider_test.dart
-```
-
-Expected: PASS.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add app/lib/auth/providers/in_flight_token_provider.dart app/lib/auth/providers/in_flight_token_provider.g.dart app/test/auth/providers/in_flight_token_provider_test.dart
-git commit -m "feat(app): add InFlightTokenProvider"
-```
+The handoff token is now carried by a short-lived `HandoffApiClient` constructed in Chunk 3 Task 14c, not by a global provider. No file to create here. Skip directly to Task 13.
 
 ---
 
@@ -1673,10 +1426,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   late ProviderContainer container;
 
-  setUp(() {
-    container = ProviderContainer();
-    addTearDown(container.dispose);
-  });
+  setUp(() => container = ProviderContainer.test());
 
   test('starts null', () {
     expect(container.read(pendingAuthProvider), isNull);
@@ -1799,9 +1549,9 @@ Expected: `No issues found!` and all tests green.
 
 ---
 
-## Chunk 3: `AuthSession`, `AuthController`, `OnboardingStatus` rewrite
+## Chunk 3: `AuthSession` + Dio interceptors + `HandoffApiClient`
 
-Goal: the core state machine. `AuthSession` exposes `AsyncValue<AuthState>` with optimistic cold start + background validation. `AuthController` drives signIn/completeFromDeepLink/signOut. `OnboardingStatus` is rewritten as a family keyed by DID, backed by `SharedPreferences`.
+Goal: the core auth-state provider + the full networking glue around it. `AuthSession` is an `AsyncValue<AuthState>` (optimistic cold start + background validation). With it in place we wire the session Dio's two auth-aware interceptors (`_SessionAuthInterceptor`, `_SignOutOn401Interceptor`) and add the short-lived `HandoffApiClient` used for the one post-deep-link `whoami`. Chunk 4 picks up with `AuthController`.
 
 ### Task 14: `AuthSession` — optimistic cold start + background validation
 
@@ -1853,7 +1603,7 @@ ProviderContainer _container({
   required SecureTokenStorage storage,
   CraftskyApiClient? api,
 }) =>
-    ProviderContainer(
+    ProviderContainer.test(
       overrides: [
         secureTokenStorageProvider.overrideWithValue(storage),
         if (api != null) craftskyApiClientProvider.overrideWithValue(api),
@@ -1874,8 +1624,6 @@ void main() {
 
   test('resolves to SignedOut when storage is empty', () async {
     final container = _container(storage: _FakeStorage());
-    addTearDown(container.dispose);
-
     final state = await container.read(authSessionProvider.future);
     expect(state, isA<SignedOut>());
   });
@@ -1889,8 +1637,6 @@ void main() {
         onWhoami: () async => const WhoAmI(did: 'd', handle: 'h'),
       ),
     );
-    addTearDown(container.dispose);
-
     final state = await container.read(authSessionProvider.future);
     expect(state, isA<SignedIn>());
     final signed = state as SignedIn;
@@ -1905,8 +1651,6 @@ void main() {
       storage: storage,
       api: _FakeApi(onWhoami: () async => throw const ApiUnauthorized()),
     );
-    addTearDown(container.dispose);
-
     // Resolve build: optimistic SignedIn.
     await container.read(authSessionProvider.future);
     await _flushBackgroundValidation();
@@ -1925,8 +1669,6 @@ void main() {
         onWhoami: () async => const WhoAmI(did: 'd-new', handle: 'h'),
       ),
     );
-    addTearDown(container.dispose);
-
     await container.read(authSessionProvider.future);
     await _flushBackgroundValidation();
 
@@ -1944,8 +1686,6 @@ void main() {
         onWhoami: () async => const WhoAmI(did: 'd', handle: 'new.bsky.social'),
       ),
     );
-    addTearDown(container.dispose);
-
     await container.read(authSessionProvider.future);
     await _flushBackgroundValidation();
 
@@ -1962,8 +1702,6 @@ void main() {
       storage: storage,
       api: _FakeApi(onWhoami: () async => throw const ApiNetworkError('offline')),
     );
-    addTearDown(container.dispose);
-
     await container.read(authSessionProvider.future);
     await _flushBackgroundValidation();
 
@@ -1973,8 +1711,6 @@ void main() {
 
   test('setSignedIn/setSignedOut set state imperatively', () async {
     final container = _container(storage: _FakeStorage());
-    addTearDown(container.dispose);
-
     await container.read(authSessionProvider.future);
     container.read(authSessionProvider.notifier).setSignedIn(
           const SignedIn(did: 'd', handle: 'h', token: 't'),
@@ -2096,6 +1832,502 @@ git commit -m "feat(app): add AuthSession w/ optimistic cold start + whoami back
 
 ---
 
+### Task 14a: `_SessionAuthInterceptor` — Bearer injection from authSessionProvider
+
+Now that `authSessionProvider` exists, wire up the session Dio's Bearer injection. The interceptor reads `authSessionProvider` directly via `ref` — no test-shim resolvers, no callback plumbing. Tests control its behaviour by overriding `authSessionProvider` with a `SignedInAuthSession` / `SignedOutAuthSession` fake.
+
+**Files:**
+- Create: `app/lib/shared/api/providers/session_auth_interceptor.dart`
+- Create: `app/test/shared/api/providers/session_auth_interceptor_test.dart`
+- Modify: `app/lib/shared/api/providers/dio_provider.dart` (add the interceptor)
+
+- [ ] **Step 1: Write the failing test** — `app/test/shared/api/providers/session_auth_interceptor_test.dart`:
+
+```dart
+import 'package:craftsky_app/auth/models/auth_state.dart';
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/shared/api/providers/session_auth_interceptor.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+// Fake AuthSession that returns a configured state immediately.
+// Subclass (not implements) per the riverpod.md testing rule.
+class _SignedInFake extends AuthSession {
+  _SignedInFake(this.token);
+  final String token;
+  @override
+  Future<AuthState> build() async => SignedIn(did: 'd', handle: 'h', token: token);
+}
+
+class _SignedOutFake extends AuthSession {
+  @override
+  Future<AuthState> build() async => const SignedOut();
+}
+
+class _CapturingHandler extends RequestInterceptorHandler {
+  bool continued = false;
+  @override
+  void next(RequestOptions options) => continued = true;
+}
+
+void main() {
+  Future<void> _seed(ProviderContainer c) async =>
+      c.read(authSessionProvider.future);
+
+  test('attaches Bearer from SignedIn state', () async {
+    final container = ProviderContainer.test(overrides: [
+      authSessionProvider.overrideWith(() => _SignedInFake('tok-abc')),
+    ]);
+    await _seed(container);
+
+    final options = RequestOptions(path: '/v1/whoami');
+    SessionAuthInterceptor(container).onRequest(options, _CapturingHandler());
+
+    expect(options.headers['Authorization'], 'Bearer tok-abc');
+  });
+
+  test('omits Authorization when SignedOut', () async {
+    final container = ProviderContainer.test(overrides: [
+      authSessionProvider.overrideWith(_SignedOutFake.new),
+    ]);
+    await _seed(container);
+
+    final options = RequestOptions(path: '/v1/whoami');
+    SessionAuthInterceptor(container).onRequest(options, _CapturingHandler());
+
+    expect(options.headers.containsKey('Authorization'), isFalse);
+  });
+
+  test('skips Authorization for /v1/auth/login even when SignedIn', () async {
+    final container = ProviderContainer.test(overrides: [
+      authSessionProvider.overrideWith(() => _SignedInFake('tok-abc')),
+    ]);
+    await _seed(container);
+
+    final options = RequestOptions(path: '/v1/auth/login');
+    SessionAuthInterceptor(container).onRequest(options, _CapturingHandler());
+
+    expect(options.headers.containsKey('Authorization'), isFalse);
+  });
+
+  test('omits header when AuthSession is still loading (no value yet)', () {
+    final container = ProviderContainer.test();
+    final options = RequestOptions(path: '/v1/whoami');
+    SessionAuthInterceptor(container).onRequest(options, _CapturingHandler());
+
+    expect(options.headers.containsKey('Authorization'), isFalse);
+  });
+}
+```
+
+- [ ] **Step 2: Run to verify fail**
+
+```bash
+cd app && flutter test test/shared/api/providers/session_auth_interceptor_test.dart
+```
+
+Expected: FAIL.
+
+- [ ] **Step 3: Implement** — `app/lib/shared/api/providers/session_auth_interceptor.dart`:
+
+```dart
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../auth/models/auth_state.dart';
+import '../../../auth/providers/auth_session_provider.dart';
+
+/// Paths on which the Authorization header should never be attached.
+const _anonymousPaths = <String>{'/v1/auth/login'};
+
+class SessionAuthInterceptor extends Interceptor {
+  SessionAuthInterceptor(this._ref);
+  final Ref _ref;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (_anonymousPaths.contains(options.path)) {
+      handler.next(options);
+      return;
+    }
+    final auth = _ref.read(authSessionProvider).value;
+    if (auth is SignedIn) {
+      options.headers['Authorization'] = 'Bearer ${auth.token}';
+    }
+    handler.next(options);
+  }
+}
+```
+
+- [ ] **Step 4: Wire into `dioProvider`** — edit `app/lib/shared/api/providers/dio_provider.dart`, add the `SessionAuthInterceptor` import and insert it **before** the `ErrorMappingInterceptor`:
+
+```dart
+import 'session_auth_interceptor.dart';
+// ... existing imports ...
+
+@Riverpod(keepAlive: true)
+Dio dio(Ref ref) {
+  final dio = Dio(baseDioOptions());
+  dio.interceptors.addAll([
+    SessionAuthInterceptor(ref),
+    const ErrorMappingInterceptor(),
+    // Task 14b adds SignOutOn401Interceptor below ErrorMapping.
+  ]);
+  return dio;
+}
+```
+
+Also update the `dio_provider_test.dart` interceptor-count assertion from `hasLength(1)` to `hasLength(2)`.
+
+- [ ] **Step 5: Run tests**
+
+```bash
+cd app && flutter test test/shared/api/providers/session_auth_interceptor_test.dart test/shared/api/providers/dio_provider_test.dart
+```
+
+Expected: PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add app/lib/shared/api/providers/session_auth_interceptor.dart app/lib/shared/api/providers/dio_provider.dart app/test/shared/api/providers/session_auth_interceptor_test.dart app/test/shared/api/providers/dio_provider_test.dart
+git commit -m "feat(app): add SessionAuthInterceptor that Bearer-injects from authSessionProvider"
+```
+
+---
+
+### Task 14b: `_SignOutOn401Interceptor` — centralised 401 → sign out
+
+The session Dio gets a second interceptor that flips `authSessionProvider` to `SignedOut` and clears `SecureTokenStorage` on any 401. The handoff Dio (Task 14c) deliberately does NOT install this interceptor — a 401 during handoff is a distinct sign-in failure surfaced as `ApiUnauthorized`.
+
+**Files:**
+- Create: `app/lib/shared/api/providers/sign_out_on_401_interceptor.dart`
+- Create: `app/test/shared/api/providers/sign_out_on_401_interceptor_test.dart`
+- Modify: `app/lib/shared/api/providers/dio_provider.dart` (add the interceptor)
+
+- [ ] **Step 1: Write the failing test** — `app/test/shared/api/providers/sign_out_on_401_interceptor_test.dart`:
+
+```dart
+import 'package:craftsky_app/auth/models/auth_state.dart';
+import 'package:craftsky_app/auth/models/stored_session.dart';
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/shared/api/providers/sign_out_on_401_interceptor.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+class _SignedInFake extends AuthSession {
+  @override
+  Future<AuthState> build() async =>
+      const SignedIn(did: 'd', handle: 'h', token: 't');
+}
+
+class _RecordingStorage implements SecureTokenStorage {
+  int clearCalls = 0;
+  @override
+  Future<StoredSession?> read() async => null;
+  @override
+  Future<void> write(StoredSession s) async {}
+  @override
+  Future<void> clear() async => clearCalls++;
+}
+
+class _CapturingHandler extends ErrorInterceptorHandler {
+  DioException? error;
+  @override
+  void next(DioException err) => error = err;
+}
+
+DioException _401() {
+  final req = RequestOptions(path: '/v1/whoami');
+  return DioException(
+    requestOptions: req,
+    response: Response(requestOptions: req, statusCode: 401),
+    type: DioExceptionType.badResponse,
+  );
+}
+
+void main() {
+  test('401 flips authSessionProvider to SignedOut and clears storage', () async {
+    final storage = _RecordingStorage();
+    final container = ProviderContainer.test(overrides: [
+      authSessionProvider.overrideWith(_SignedInFake.new),
+      secureTokenStorageProvider.overrideWithValue(storage),
+    ]);
+    await container.read(authSessionProvider.future);
+
+    SignOutOn401Interceptor(container).onError(_401(), _CapturingHandler());
+
+    // storage.clear is unawaited inside the interceptor — pump the loop.
+    for (var i = 0; i < 3; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    expect(container.read(authSessionProvider).value, isA<SignedOut>());
+    expect(storage.clearCalls, 1);
+  });
+
+  test('non-401 errors pass through unchanged', () async {
+    final storage = _RecordingStorage();
+    final container = ProviderContainer.test(overrides: [
+      authSessionProvider.overrideWith(_SignedInFake.new),
+      secureTokenStorageProvider.overrideWithValue(storage),
+    ]);
+    await container.read(authSessionProvider.future);
+
+    final req = RequestOptions(path: '/v1/whoami');
+    final err500 = DioException(
+      requestOptions: req,
+      response: Response(requestOptions: req, statusCode: 500),
+      type: DioExceptionType.badResponse,
+    );
+    final handler = _CapturingHandler();
+
+    SignOutOn401Interceptor(container).onError(err500, handler);
+
+    expect(handler.error, same(err500));
+    expect(storage.clearCalls, 0);
+    expect(container.read(authSessionProvider).value, isA<SignedIn>());
+  });
+}
+```
+
+- [ ] **Step 2: Run to verify fail**
+
+```bash
+cd app && flutter test test/shared/api/providers/sign_out_on_401_interceptor_test.dart
+```
+
+Expected: FAIL.
+
+- [ ] **Step 3: Implement** — `app/lib/shared/api/providers/sign_out_on_401_interceptor.dart`:
+
+```dart
+import 'dart:async';
+
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../auth/providers/auth_session_provider.dart';
+import '../../../auth/providers/secure_token_storage.dart';
+
+/// Installed on the session Dio only. On 401 from any authenticated
+/// call, clears secure storage and flips `authSessionProvider` to
+/// `SignedOut`. The router's refresh listenable then boots the user
+/// to `/welcome`. Feature code never sees 401 recovery plumbing.
+class SignOutOn401Interceptor extends Interceptor {
+  SignOutOn401Interceptor(this._ref);
+  final Ref _ref;
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    if (err.response?.statusCode == 401) {
+      unawaited(_ref.read(secureTokenStorageProvider).clear());
+      _ref.read(authSessionProvider.notifier).setSignedOut();
+    }
+    handler.next(err);
+  }
+}
+```
+
+- [ ] **Step 4: Wire into `dioProvider`** — add it to the interceptor list, after `ErrorMappingInterceptor`:
+
+```dart
+dio.interceptors.addAll([
+  SessionAuthInterceptor(ref),
+  const ErrorMappingInterceptor(),
+  SignOutOn401Interceptor(ref),
+]);
+```
+
+Update `dio_provider_test.dart`'s `hasLength(2)` to `hasLength(3)`.
+
+- [ ] **Step 5: Run tests**
+
+```bash
+cd app && flutter test test/shared/api/providers/sign_out_on_401_interceptor_test.dart test/shared/api/providers/dio_provider_test.dart
+```
+
+Expected: PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add app/lib/shared/api/providers/sign_out_on_401_interceptor.dart app/lib/shared/api/providers/dio_provider.dart app/test/shared/api/providers/sign_out_on_401_interceptor_test.dart app/test/shared/api/providers/dio_provider_test.dart
+git commit -m "feat(app): add SignOutOn401Interceptor for central session-expiry recovery"
+```
+
+---
+
+### Task 14c: `HandoffApiClient` + `handoffApiClientProvider(token)` family
+
+A second, short-lived client used once by `AuthController.completeFromDeepLink` to call `/v1/whoami` with the just-minted token. The Bearer header is baked into `BaseOptions.headers` at construction — no provider state, no interceptors beyond error mapping. A 401 here surfaces as `ApiUnauthorized` and does NOT sign the user out (because the `SignOutOn401Interceptor` is not installed on this Dio).
+
+**Files:**
+- Create: `app/lib/shared/api/handoff_api_client.dart`
+- Create: `app/test/shared/api/handoff_api_client_test.dart`
+- Modify: `app/lib/shared/api/providers/api_client_provider.dart` (add the family provider)
+
+- [ ] **Step 1: Write the failing test** — `app/test/shared/api/handoff_api_client_test.dart`:
+
+```dart
+import 'package:craftsky_app/bootstrap.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/handoff_api_client.dart';
+import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http_mock_adapter/http_mock_adapter.dart';
+
+void main() {
+  setUpAll(initializeMappers);
+
+  Dio _buildDio(String token) {
+    final dio = Dio(BaseOptions(
+      baseUrl: 'https://appview.example.com',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    ));
+    dio.interceptors.add(const ErrorMappingInterceptor());
+    return dio;
+  }
+
+  test('whoami sends the baked-in Bearer token and parses the response', () async {
+    final dio = _buildDio('tok-handoff');
+    final adapter = DioAdapter(dio: dio);
+    adapter.onGet(
+      '/v1/whoami',
+      (s) => s.reply(200, {'did': 'did:plc:a', 'handle': 'a.bsky.social'}),
+      headers: {'Authorization': 'Bearer tok-handoff'},
+    );
+
+    final who = await HandoffApiClient(dio).whoami();
+
+    expect(who.did, 'did:plc:a');
+    expect(who.handle, 'a.bsky.social');
+  });
+
+  test('401 surfaces as ApiUnauthorized (no side effects)', () async {
+    final dio = _buildDio('tok-rejected');
+    final adapter = DioAdapter(dio: dio);
+    adapter.onGet('/v1/whoami', (s) => s.reply(401, {}));
+
+    await expectLater(
+      () => HandoffApiClient(dio).whoami(),
+      throwsA(isA<ApiUnauthorized>()),
+    );
+  });
+}
+```
+
+- [ ] **Step 2: Run to verify fail**
+
+```bash
+cd app && flutter test test/shared/api/handoff_api_client_test.dart
+```
+
+Expected: FAIL.
+
+- [ ] **Step 3: Implement** — `app/lib/shared/api/handoff_api_client.dart`:
+
+```dart
+import 'package:dio/dio.dart';
+
+import 'api_exception.dart';
+import 'models/whoami.dart';
+
+/// Minimal, token-scoped API client used for exactly one `whoami` call
+/// during the OAuth handoff. Unlike `CraftskyApiClient`, this doesn't
+/// participate in the session Dio's auth/state wiring — the Bearer
+/// token is baked into `BaseOptions.headers` at construction.
+class HandoffApiClient {
+  const HandoffApiClient(this._dio);
+  final Dio _dio;
+
+  Future<WhoAmI> whoami() async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>('/v1/whoami');
+      return WhoAmIMapper.fromMap(res.data!);
+    } on DioException catch (e) {
+      final err = e.error;
+      if (err is ApiException) throw err;
+      throw ApiServerError(e.message ?? 'server_error');
+    }
+  }
+}
+```
+
+- [ ] **Step 4: Add the family provider** — append to `app/lib/shared/api/providers/api_client_provider.dart`:
+
+```dart
+import 'package:dio/dio.dart';
+
+import '../handoff_api_client.dart';
+import 'error_mapping_interceptor.dart';
+
+// ... existing imports + craftskyApiClientProvider unchanged ...
+
+/// Family-keyed by token: one instance per in-flight handoff. Not
+/// keep-alive — auto-disposes when no one watches it, so the token
+/// doesn't linger.
+@riverpod
+HandoffApiClient handoffApiClient(Ref ref, String token) {
+  final base = baseDioOptions();
+  final dio = Dio(base.copyWith(
+    headers: {
+      ...?base.headers,
+      'Authorization': 'Bearer $token',
+    },
+  ));
+  dio.interceptors.add(const ErrorMappingInterceptor());
+  return HandoffApiClient(dio);
+}
+```
+
+- [ ] **Step 5: Generate**
+
+```bash
+cd app && dart run build_runner build --delete-conflicting-outputs
+```
+
+- [ ] **Step 6: Run tests**
+
+```bash
+cd app && flutter test test/shared/api/handoff_api_client_test.dart
+```
+
+Expected: PASS.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add app/lib/shared/api/handoff_api_client.dart app/lib/shared/api/providers/api_client_provider.dart app/lib/shared/api/providers/api_client_provider.g.dart app/test/shared/api/handoff_api_client_test.dart
+git commit -m "feat(app): add HandoffApiClient + handoffApiClient(token) family"
+```
+
+---
+
+### End-of-chunk gate
+
+- [ ] **Run full analyzer + test suite**
+
+```bash
+cd app && dart analyze lib test
+cd app && flutter test
+```
+
+Expected: `No issues found!` and all tests green. The old widget/router tests that depend on the deleted stub `authStatusProvider` will still fail here — that's fixed in Chunk 5 (Tasks 19–22). If any failures are outside `test/fakes/`, `test/router/`, `test/auth/welcome_page_test.dart`, or `test/auth/sign_in_page_test.dart`, stop and diagnose.
+
+---
+
+## Chunk 4: `AuthController` + `OnboardingStatus` rewrite
+
+Goal: the sign-in / sign-out orchestrator and the per-DID onboarding provider. With Chunk 3's interceptors already wired, these become straightforward — `AuthController` reads `handoffApiClientProvider(token)` for the single post-deep-link `whoami` call and lets the session Dio handle everything else.
+
 ### Task 15: `AuthController` — signIn / completeFromDeepLink / signOut
 
 **Files:**
@@ -2111,17 +2343,19 @@ import 'package:craftsky_app/auth/models/pending_auth.dart' as model;
 import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
-import 'package:craftsky_app/auth/providers/in_flight_token_provider.dart';
 import 'package:craftsky_app/auth/providers/pending_auth_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/craftsky_api_client.dart';
+import 'package:craftsky_app/shared/api/handoff_api_client.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:craftsky_app/shared/api/providers/api_client_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+// --- Fakes (services, not notifiers — per riverpod.md Testing rules) ---
 
 class _FakeStorage implements SecureTokenStorage {
   StoredSession? _v;
@@ -2133,10 +2367,9 @@ class _FakeStorage implements SecureTokenStorage {
   Future<void> clear() async => _v = null;
 }
 
-class _FakeApi implements CraftskyApiClient {
-  _FakeApi({this.onLogin, this.onWhoami, this.onLogout});
+class _FakeCraftskyApi implements CraftskyApiClient {
+  _FakeCraftskyApi({this.onLogin, this.onLogout});
   final Future<LoginResponse> Function(String)? onLogin;
-  final Future<WhoAmI> Function()? onWhoami;
   final Future<void> Function()? onLogout;
 
   @override
@@ -2144,12 +2377,18 @@ class _FakeApi implements CraftskyApiClient {
       onLogin?.call(handle) ?? Future.error(UnimplementedError());
   @override
   Future<WhoAmI> whoami() =>
-      onWhoami?.call() ?? Future.error(UnimplementedError());
+      Future.error(UnimplementedError('session whoami is not used by the controller'));
   @override
   Future<void> logout() => onLogout?.call() ?? Future.value();
 }
 
-// Records calls instead of touching real url_launcher.
+class _FakeHandoffApi implements HandoffApiClient {
+  _FakeHandoffApi(this.onWhoami);
+  final Future<WhoAmI> Function() onWhoami;
+  @override
+  Future<WhoAmI> whoami() => onWhoami();
+}
+
 class _LaunchRecorder {
   final List<Uri> launched = [];
   bool nextResult = true;
@@ -2160,117 +2399,104 @@ class _LaunchRecorder {
 }
 
 ProviderContainer _container({
-  required _FakeStorage storage,
-  required _FakeApi api,
-  required _LaunchRecorder launch,
-}) =>
-    ProviderContainer(
-      overrides: [
-        secureTokenStorageProvider.overrideWithValue(storage),
-        craftskyApiClientProvider.overrideWithValue(api),
-        launchAuthUrlProvider.overrideWithValue(launch.launch),
-      ],
-    );
+  _FakeStorage? storage,
+  _FakeCraftskyApi? api,
+  _FakeHandoffApi? handoff,
+  _LaunchRecorder? launch,
+}) {
+  storage ??= _FakeStorage();
+  api ??= _FakeCraftskyApi();
+  launch ??= _LaunchRecorder();
+  return ProviderContainer.test(
+    overrides: [
+      secureTokenStorageProvider.overrideWithValue(storage),
+      craftskyApiClientProvider.overrideWithValue(api),
+      launchAuthUrlProvider.overrideWithValue(launch.launch),
+      // Override the handoff family for ANY token value — the test
+      // passes a specific token and the override serves that.
+      if (handoff != null)
+        handoffApiClientProvider.overrideWith((ref, token) => handoff),
+    ],
+  );
+}
 
 void main() {
   setUpAll(initializeMappers);
 
   test('signIn trims handle + @ prefix and posts to /login', () async {
     final launch = _LaunchRecorder();
-    final api = _FakeApi(
+    final api = _FakeCraftskyApi(
       onLogin: (h) async {
         expect(h, 'alice.bsky.social');
         return const LoginResponse(authUrl: 'https://pds.example.com/a?b=1');
       },
     );
-    final container = _container(
-      storage: _FakeStorage(),
-      api: api,
-      launch: launch,
-    );
-    addTearDown(container.dispose);
+    final container = _container(api: api, launch: launch);
 
-    await container.read(authControllerProvider.notifier)
+    await container
+        .read(authControllerProvider.notifier)
         .signIn(handle: '  @alice.bsky.social  ');
 
     expect(launch.launched, hasLength(1));
-    expect(launch.launched.single.toString(),
-        'https://pds.example.com/a?b=1');
+    expect(launch.launched.single.toString(), 'https://pds.example.com/a?b=1');
   });
 
   test('signIn with empty handle surfaces HandleRequired', () async {
-    final container = _container(
-      storage: _FakeStorage(),
-      api: _FakeApi(),
-      launch: _LaunchRecorder(),
-    );
-    addTearDown(container.dispose);
-
+    final container = _container();
     await container.read(authControllerProvider.notifier).signIn(handle: '');
-    final err = container.read(authControllerProvider).error;
-    expect(err, isA<HandleRequired>());
+    expect(container.read(authControllerProvider).error, isA<HandleRequired>());
   });
 
   test('signIn maps ApiBadRequest(handle_required) → HandleRequired', () async {
     final container = _container(
-      storage: _FakeStorage(),
-      api: _FakeApi(onLogin: (_) async => throw const ApiBadRequest('handle_required')),
-      launch: _LaunchRecorder(),
+      api: _FakeCraftskyApi(
+        onLogin: (_) async => throw const ApiBadRequest('handle_required'),
+      ),
     );
-    addTearDown(container.dispose);
-
-    await container.read(authControllerProvider.notifier).signIn(handle: 'a.bsky.social');
+    await container
+        .read(authControllerProvider.notifier)
+        .signIn(handle: 'a.bsky.social');
     expect(container.read(authControllerProvider).error, isA<HandleRequired>());
   });
 
   test('signIn maps ApiNetworkError → ServerUnavailable', () async {
     final container = _container(
-      storage: _FakeStorage(),
-      api: _FakeApi(onLogin: (_) async => throw const ApiNetworkError('offline')),
-      launch: _LaunchRecorder(),
+      api: _FakeCraftskyApi(
+        onLogin: (_) async => throw const ApiNetworkError('offline'),
+      ),
     );
-    addTearDown(container.dispose);
-
-    await container.read(authControllerProvider.notifier).signIn(handle: 'a.bsky.social');
+    await container
+        .read(authControllerProvider.notifier)
+        .signIn(handle: 'a.bsky.social');
     expect(container.read(authControllerProvider).error, isA<ServerUnavailable>());
   });
 
   test('signIn surfaces BrowserLaunchFailed when launchUrl returns false', () async {
     final launch = _LaunchRecorder()..nextResult = false;
     final container = _container(
-      storage: _FakeStorage(),
-      api: _FakeApi(onLogin: (_) async => const LoginResponse(authUrl: 'https://x')),
+      api: _FakeCraftskyApi(
+        onLogin: (_) async => const LoginResponse(authUrl: 'https://x'),
+      ),
       launch: launch,
     );
-    addTearDown(container.dispose);
-
-    await container.read(authControllerProvider.notifier).signIn(handle: 'a.bsky.social');
+    await container
+        .read(authControllerProvider.notifier)
+        .signIn(handle: 'a.bsky.social');
     expect(container.read(authControllerProvider).error, isA<BrowserLaunchFailed>());
+    // Pending was started then cleared on browser-launch failure.
+    expect(container.read(pendingAuthProvider), isNull);
   });
 
   test('completeFromDeepLink with no pending surfaces NoPendingSignIn', () async {
-    final container = _container(
-      storage: _FakeStorage(),
-      api: _FakeApi(),
-      launch: _LaunchRecorder(),
-    );
-    addTearDown(container.dispose);
-
-    await container.read(authControllerProvider.notifier)
+    final container = _container();
+    await container
+        .read(authControllerProvider.notifier)
         .completeFromDeepLink('tok');
     expect(container.read(authControllerProvider).error, isA<NoPendingSignIn>());
   });
 
   test('completeFromDeepLink stale pending surfaces SignInTimedOut', () async {
-    final container = _container(
-      storage: _FakeStorage(),
-      api: _FakeApi(),
-      launch: _LaunchRecorder(),
-    );
-    addTearDown(container.dispose);
-
-    // Use debugSet (defined on the PendingAuth notifier in Task 13) to
-    // install an aged record directly, without real clock manipulation.
+    final container = _container();
     container.read(pendingAuthProvider.notifier).debugSet(
           model.PendingAuth(
             handle: 'a.bsky.social',
@@ -2278,27 +2504,27 @@ void main() {
           ),
         );
 
-    await container.read(authControllerProvider.notifier)
+    await container
+        .read(authControllerProvider.notifier)
         .completeFromDeepLink('tok');
     expect(container.read(authControllerProvider).error, isA<SignInTimedOut>());
+    // Pending cleared on timeout.
+    expect(container.read(pendingAuthProvider), isNull);
   });
 
   test('completeFromDeepLink happy path writes storage + flips SignedIn', () async {
     final storage = _FakeStorage();
-    final container = _container(
-      storage: storage,
-      api: _FakeApi(
-        onWhoami: () async => const WhoAmI(did: 'did:plc:a', handle: 'a.bsky.social'),
-      ),
-      launch: _LaunchRecorder(),
+    final handoff = _FakeHandoffApi(
+      () async => const WhoAmI(did: 'did:plc:a', handle: 'a.bsky.social'),
     );
-    addTearDown(container.dispose);
+    final container = _container(storage: storage, handoff: handoff);
 
-    // Seed AuthSession build so setSignedIn lands on ready state.
+    // Seed AuthSession build so setSignedIn lands on a ready state.
     await container.read(authSessionProvider.future);
     container.read(pendingAuthProvider.notifier).start('a.bsky.social');
 
-    await container.read(authControllerProvider.notifier)
+    await container
+        .read(authControllerProvider.notifier)
         .completeFromDeepLink('tok');
 
     final state = container.read(authSessionProvider).value;
@@ -2308,29 +2534,27 @@ void main() {
     final stored = await storage.read();
     expect(stored?.token, 'tok');
     expect(stored?.did, 'did:plc:a');
-
-    expect(container.read(inFlightTokenProvider), isNull);
     expect(container.read(pendingAuthProvider), isNull);
   });
 
-  test('completeFromDeepLink whoami failure clears in-flight + pending, does NOT write storage', () async {
+  test('completeFromDeepLink whoami failure clears pending, leaves storage empty',
+      () async {
     final storage = _FakeStorage();
-    final container = _container(
-      storage: storage,
-      api: _FakeApi(onWhoami: () async => throw const ApiUnauthorized()),
-      launch: _LaunchRecorder(),
+    final handoff = _FakeHandoffApi(
+      () async => throw const ApiUnauthorized(),
     );
-    addTearDown(container.dispose);
+    final container = _container(storage: storage, handoff: handoff);
 
     await container.read(authSessionProvider.future);
     container.read(pendingAuthProvider.notifier).start('a.bsky.social');
 
-    await container.read(authControllerProvider.notifier)
+    await container
+        .read(authControllerProvider.notifier)
         .completeFromDeepLink('tok');
 
     expect(await storage.read(), isNull);
-    expect(container.read(inFlightTokenProvider), isNull);
     expect(container.read(pendingAuthProvider), isNull);
+    expect(container.read(authControllerProvider).error, isA<ApiUnauthorized>());
   });
 
   test('signOut clears storage + flips SignedOut even on server failure', () async {
@@ -2338,10 +2562,10 @@ void main() {
     await storage.write(const StoredSession(token: 't', did: 'd', handle: 'h'));
     final container = _container(
       storage: storage,
-      api: _FakeApi(onLogout: () async => throw const ApiNetworkError('offline')),
-      launch: _LaunchRecorder(),
+      api: _FakeCraftskyApi(
+        onLogout: () async => throw const ApiNetworkError('offline'),
+      ),
     );
-    addTearDown(container.dispose);
 
     await container.read(authSessionProvider.future);
     await container.read(authControllerProvider.notifier).signOut();
@@ -2376,7 +2600,6 @@ import '../models/auth_error.dart';
 import '../models/auth_state.dart';
 import '../models/stored_session.dart';
 import 'auth_session_provider.dart';
-import 'in_flight_token_provider.dart';
 import 'pending_auth_provider.dart';
 import 'secure_token_storage.dart';
 
@@ -2417,17 +2640,13 @@ class AuthController extends _$AuthController {
       final LoginResponse response;
       try {
         response = await api.login(handle: trimmed);
-      } on ApiBadRequest catch (e) {
-        throw e.code == 'handle_required'
-            ? const HandleRequired()
-            : const InvalidHandle();
-      } on ApiNetworkError {
-        throw const ServerUnavailable();
-      } on ApiServerError {
-        throw const ServerUnavailable();
-      } on ApiUnauthorized {
-        // Login is anonymous; a 401 here is defensive-only.
-        throw const ServerUnavailable();
+      } on ApiException catch (e) {
+        throw switch (e) {
+          ApiBadRequest(code: 'handle_required') => const HandleRequired(),
+          ApiBadRequest() => const InvalidHandle(),
+          ApiNetworkError() || ApiServerError() || ApiUnauthorized() =>
+            const ServerUnavailable(),
+        };
       }
 
       if (!ref.mounted) return;
@@ -2453,10 +2672,12 @@ class AuthController extends _$AuthController {
         throw const SignInTimedOut();
       }
 
-      ref.read(inFlightTokenProvider.notifier).setToken(token);
+      // One-shot client; the token is in its BaseOptions.headers. No
+      // global provider state, no need to clear anything on exit
+      // beyond pending-auth.
+      final handoff = ref.read(handoffApiClientProvider(token));
       try {
-        final api = ref.read(craftskyApiClientProvider);
-        final who = await api.whoami();
+        final who = await handoff.whoami();
         if (!ref.mounted) return;
 
         final storage = ref.read(secureTokenStorageProvider);
@@ -2475,7 +2696,6 @@ class AuthController extends _$AuthController {
             );
       } finally {
         if (ref.mounted) {
-          ref.read(inFlightTokenProvider.notifier).clear();
           ref.read(pendingAuthProvider.notifier).clear();
         }
       }
@@ -2538,7 +2758,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-ProviderContainer _container(SharedPreferences prefs) => ProviderContainer(
+ProviderContainer _container(SharedPreferences prefs) => ProviderContainer.test(
       overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
     );
 
@@ -2548,8 +2768,6 @@ void main() {
   test('build returns false when no flag stored for this DID', () async {
     final prefs = await SharedPreferences.getInstance();
     final container = _container(prefs);
-    addTearDown(container.dispose);
-
     expect(container.read(onboardingStatusProvider('did:plc:a')), isFalse);
   });
 
@@ -2557,15 +2775,12 @@ void main() {
     SharedPreferences.setMockInitialValues({'flutter.onboarded_did:plc:a': true});
     final prefs = await SharedPreferences.getInstance();
     final container = _container(prefs);
-    addTearDown(container.dispose);
-
     expect(container.read(onboardingStatusProvider('did:plc:a')), isTrue);
   });
 
   test('finish writes flag and flips state for the DID', () async {
     final prefs = await SharedPreferences.getInstance();
     final container = _container(prefs);
-    addTearDown(container.dispose);
 
     await container.read(onboardingStatusProvider('did:plc:a').notifier).finish();
 
@@ -2576,7 +2791,6 @@ void main() {
   test('finish for one DID does not affect a different DID', () async {
     final prefs = await SharedPreferences.getInstance();
     final container = _container(prefs);
-    addTearDown(container.dispose);
 
     await container.read(onboardingStatusProvider('did:plc:a').notifier).finish();
 
@@ -2711,11 +2925,11 @@ cd app && dart analyze lib test
 cd app && flutter test
 ```
 
-Expected: `No issues found!` and all tests green. The old widget/router tests that depend on the deleted stub `authStatusProvider` will still fail here — that's fixed in Chunk 4 (Tasks 19–22). If any failures are **not** in `test/fakes/`, `test/router/`, `test/auth/welcome_page_test.dart`, or `test/auth/sign_in_page_test.dart`, stop and diagnose before advancing.
+Expected: `No issues found!` and all tests green. The old widget/router tests that depend on the deleted stub `authStatusProvider` will still fail here — that's fixed in Chunk 5 (Tasks 19–22). If any failures are **not** in `test/fakes/`, `test/router/`, `test/auth/welcome_page_test.dart`, or `test/auth/sign_in_page_test.dart`, stop and diagnose before advancing.
 
 ---
 
-## Chunk 4: Router, AuthCompletePage, page rewires, platform config
+## Chunk 5: Router, AuthCompletePage, page rewires, platform config
 
 Goal: swap the old bool-based `authStatusProvider` out of the router, add the `/auth/complete` route, wire `SignInPage` / `SettingsPage` / `WelcomePage` to the new controller, and land the iOS + Android custom-scheme intent filters.
 
@@ -3808,216 +4022,19 @@ Expected: `No issues found!` and all tests green (all widget + router tests now 
 
 ---
 
-## Chunk 5: Wire interceptor to real auth providers + final integration
+## Chunk 6: Final integration + docs + smoke tests
 
-Goal: close the loop between the Dio interceptor (Chunk 1 stub) and the live `authSessionProvider`/`inFlightTokenProvider`, including the central 401 sign-out behaviour.
+_(Most of the wiring that used to live here has moved into Chunk 3 — Tasks 14a, 14b, and 14c install the session Dio interceptors and the handoff client alongside the providers they depend on. This chunk is just docs + manual smoke tests.)_
 
-### Task 25: Real `TokenResolver` in `dioProvider`
+### Task 25: _(removed — interceptor wiring is in Tasks 14a–14c)_
 
-**Files:**
-- Modify: `app/lib/shared/api/providers/dio_provider.dart`
+The session auth interceptor and sign-out-on-401 interceptor are wired into `dioProvider` at the point their dependencies (`authSessionProvider`) first exist. The handoff client is added to `api_client_provider.dart` in Task 14c. No separate "wire it up" task is needed here.
 
-_(`auth_interceptor_test.dart` and `error_mapping_interceptor_test.dart` from Chunk 1 continue to pass unchanged — they target the interceptors directly via injected resolver / onUnauthorized callbacks, independent of which providers we wire up here.)_
-
-- [ ] **Step 1: Replace the stub resolver** — update `dio_provider.dart`:
-
-```dart
-import 'dart:async';
-
-import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../../../auth/models/auth_state.dart';
-import '../../../auth/providers/auth_session_provider.dart';
-import '../../../auth/providers/in_flight_token_provider.dart';
-import '../../../auth/providers/secure_token_storage.dart';
-import 'auth_interceptor.dart';
-import 'error_mapping_interceptor.dart';
-
-part 'dio_provider.g.dart';
-
-const _devDefaultBaseUrl = 'http://10.0.2.2:8080';
-const _baseUrl = String.fromEnvironment(
-  'CRAFTSKY_API_BASE_URL',
-  defaultValue: kDebugMode ? _devDefaultBaseUrl : '',
-);
-
-@Riverpod(keepAlive: true)
-Dio dio(Ref ref) {
-  if (_baseUrl.isEmpty) {
-    throw StateError(
-      'CRAFTSKY_API_BASE_URL must be set for non-debug builds. '
-      'Pass it via --dart-define.',
-    );
-  }
-
-  final dio = Dio(BaseOptions(
-    baseUrl: _baseUrl,
-    connectTimeout: const Duration(seconds: 10),
-    receiveTimeout: const Duration(seconds: 15),
-    headers: {'Content-Type': 'application/json'},
-  ));
-
-  dio.interceptors.addAll([
-    AuthInterceptor(ref, _resolveToken),
-    ErrorMappingInterceptor(
-      onUnauthorized: (options) => _handleUnauthorized(ref, options),
-    ),
-  ]);
-
-  return dio;
-}
-
-String? _resolveToken(Ref ref) {
-  final inFlight = ref.read(inFlightTokenProvider);
-  if (inFlight != null) return inFlight;
-
-  final auth = ref.read(authSessionProvider).value;
-  return switch (auth) {
-    SignedIn(:final token) => token,
-    _ => null,
-  };
-}
-
-void _handleUnauthorized(Ref ref, RequestOptions options) {
-  // Carve-out: a 401 during the handoff `whoami` is a sign-in failure,
-  // not a session-expiry. AuthController surfaces it as an AuthError.
-  if (options.path == '/v1/whoami' &&
-      ref.read(inFlightTokenProvider) != null) {
-    return;
-  }
-  // Fire-and-forget: don't block the error-response pipeline.
-  unawaited(ref.read(secureTokenStorageProvider).clear());
-  ref.read(authSessionProvider.notifier).setSignedOut();
-}
-```
-
-- [ ] **Step 2: Regenerate**
-
-```bash
-cd app && dart run build_runner build --delete-conflicting-outputs
-```
-
-- [ ] **Step 3: Run all tests**
-
-```bash
-cd app && flutter test
-```
-
-Expected: all PASS (existing tests keep working, behaviour is now wired).
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add app/lib/shared/api/providers/dio_provider.dart app/lib/shared/api/providers/dio_provider.g.dart
-git commit -m "feat(app): wire dio token resolver + global 401 sign-out to real auth providers"
-```
+_(Task 26 — the old 401 integration test — is also removed. `_SignOutOn401Interceptor`'s behaviour is covered by `sign_out_on_401_interceptor_test.dart` (Task 14b), and the handoff carve-out is covered by `handoff_api_client_test.dart` (Task 14c). Together they exercise the same paths as the old end-to-end Dio test without spinning up the real session Dio.)_
 
 ---
 
-### Task 26: Integration test — 401 on authenticated call signs user out
-
-**Files:**
-- Create: `app/test/shared/api/providers/dio_unauthorized_test.dart`
-
-- [ ] **Step 1: Write the test**
-
-```dart
-import 'package:craftsky_app/auth/models/auth_state.dart';
-import 'package:craftsky_app/auth/models/stored_session.dart';
-import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
-import 'package:craftsky_app/auth/providers/in_flight_token_provider.dart';
-import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
-import 'package:craftsky_app/bootstrap.dart';
-import 'package:craftsky_app/shared/api/api_exception.dart';
-import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
-import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:http_mock_adapter/http_mock_adapter.dart';
-
-class _FakeStorage implements SecureTokenStorage {
-  StoredSession? _v = const StoredSession(token: 't', did: 'd', handle: 'h');
-  @override
-  Future<StoredSession?> read() async => _v;
-  @override
-  Future<void> write(StoredSession s) async => _v = s;
-  @override
-  Future<void> clear() async => _v = null;
-}
-
-void main() {
-  setUpAll(initializeMappers);
-
-  test('401 on /v1/whoami WITHOUT in-flight token signs user out', () async {
-    final storage = _FakeStorage();
-    final container = ProviderContainer(
-      overrides: [secureTokenStorageProvider.overrideWithValue(storage)],
-    );
-    addTearDown(container.dispose);
-
-    // Resolve build so setSignedOut can mutate state.
-    await container.read(authSessionProvider.future);
-    container.read(authSessionProvider.notifier).setSignedIn(
-          const SignedIn(did: 'd', handle: 'h', token: 't'),
-        );
-
-    final dio = container.read(dioProvider);
-    final adapter = DioAdapter(dio: dio);
-    adapter.onGet('/v1/whoami', (s) => s.reply(401, {}));
-
-    await expectLater(
-      () => dio.get<dynamic>('/v1/whoami'),
-      throwsA(isA<ApiUnauthorized>()),
-    );
-
-    expect(container.read(authSessionProvider).value, isA<SignedOut>());
-    expect(await storage.read(), isNull);
-  });
-
-  test('401 on /v1/whoami WITH in-flight token does NOT sign user out', () async {
-    final storage = _FakeStorage();
-    final container = ProviderContainer(
-      overrides: [secureTokenStorageProvider.overrideWithValue(storage)],
-    );
-    addTearDown(container.dispose);
-
-    await container.read(authSessionProvider.future);
-    container.read(authSessionProvider.notifier).setSignedIn(
-          const SignedIn(did: 'd', handle: 'h', token: 't'),
-        );
-    container.read(inFlightTokenProvider.notifier).setToken('handoff-tok');
-
-    final dio = container.read(dioProvider);
-    final adapter = DioAdapter(dio: dio);
-    adapter.onGet('/v1/whoami', (s) => s.reply(401, {}));
-
-    await expectLater(
-      () => dio.get<dynamic>('/v1/whoami'),
-      throwsA(isA<ApiUnauthorized>()),
-    );
-
-    expect(container.read(authSessionProvider).value, isA<SignedIn>());
-    expect(await storage.read(), isNotNull);
-  });
-}
-```
-
-- [ ] **Step 2: Run**
-
-```bash
-cd app && flutter test test/shared/api/providers/dio_unauthorized_test.dart
-```
-
-Expected: PASS, 2 tests.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add app/test/shared/api/providers/dio_unauthorized_test.dart
-git commit -m "test(app): cover global 401 sign-out + handoff carve-out"
-```
+### Task 26: _(removed — see Task 25 note)_
 
 ---
 
