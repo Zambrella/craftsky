@@ -1,14 +1,14 @@
 import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
-import 'package:craftsky_app/auth/providers/auth_status_provider.dart';
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pub_semver/pub_semver.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'fakes/auth_status_fakes.dart';
+import 'fakes/auth_session_fakes.dart';
 
 void main() {
   late SharedPreferences prefs;
@@ -44,7 +44,7 @@ void main() {
       ProviderScope(
         overrides: [
           appDependenciesProvider.overrideWith((ref) async => stubDeps()),
-          authStatusProvider.overrideWith(UnauthenticatedAuthStatus.new),
+          authSessionProvider.overrideWith(SignedOutAuthSession.new),
         ],
         child: const App(),
       ),
