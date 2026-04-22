@@ -274,7 +274,36 @@
 </section>
   </main>
 
-  <footer id="footer"><!-- Chunk 5 --></footer>
+  <footer id="footer" class="footer">
+  <div class="container footer__grid">
+    <div class="footer__about">
+      <img src="assets/logo.svg" alt="Craftsky" width="80" height="48" />
+      <p class="footer__tagline">Craftsky — a social feed for textile crafters.</p>
+    </div>
+
+    <nav class="footer__nav" aria-label="Footer">
+      <ul>
+        <li><a href="https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit" target="_blank" rel="noopener">Vision doc</a></li>
+        <!-- FIXME: replace #TODO-GITHUB-URL with real repo URL once known -->
+        <li><a href="#TODO-GITHUB-URL" target="_blank" rel="noopener">GitHub</a></li>
+        <li><a href="#TODO-GITHUB-URL/tree/main/lexicon" target="_blank" rel="noopener">Lexicons</a></li>
+        <li><a href="#TODO-GITHUB-URL/blob/main/docs/design/design-system.md" target="_blank" rel="noopener">Design system</a></li>
+      </ul>
+    </nav>
+
+    <div class="footer__atproto">
+      <p>Built on the AT Protocol.</p>
+      <img src="assets/atproto-mark.svg" alt="AT Protocol" width="40" height="20" />
+    </div>
+  </div>
+
+  <div class="footer__strip">
+    <div class="container footer__strip-inner">
+      <span>© <span id="footer-year">2026</span> Craftsky</span>
+      <span class="footer__aside">Made with stuff.</span>
+    </div>
+  </div>
+</footer>
 
   <!-- Modal (Chunk 7) -->
   <dialog id="waiting-list-modal" aria-labelledby="waiting-list-title"></dialog>
