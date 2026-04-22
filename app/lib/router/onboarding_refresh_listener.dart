@@ -33,7 +33,7 @@ class OnboardingRefreshListener {
     if (newDid != null) {
       _sub = ref.listen<bool>(
         onboardingStatusProvider(newDid),
-        (_, __) => onChange(),
+        (_, _) => onChange(),
       );
     }
   }

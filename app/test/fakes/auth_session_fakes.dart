@@ -9,8 +9,6 @@ class SignedOutAuthSession extends AuthSession {
 
 class SignedInAuthSession extends AuthSession {
   SignedInAuthSession({this.did = 'did:plc:test'});
-  @override
-  // ignore: overridden_fields
   final String did;
 
   @override

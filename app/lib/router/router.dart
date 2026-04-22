@@ -17,7 +17,6 @@ import 'package:craftsky_app/router/onboarding_refresh_listener.dart';
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -50,23 +49,30 @@ class _NavigatorKeys {
       _profileKey ??= GlobalKey<NavigatorState>(debugLabel: 'profileNavigator');
 }
 
+/// Plain `ChangeNotifier` subclass so `notifyListeners` is publicly
+/// callable — the go_router refresh-listenable pattern needs to fire
+/// from outside the notifier class.
+class _RouterRefresh extends ChangeNotifier {
+  void fire() => notifyListeners();
+}
+
 @riverpod
 GoRouter goRouter(Ref ref) {
-  final refresh = ChangeNotifier();
+  final refresh = _RouterRefresh();
   final onboardingListener = OnboardingRefreshListener(
     ref: ref,
-    onChange: refresh.notifyListeners,
+    onChange: refresh.fire,
   );
 
-  ref.onDispose(() {
-    onboardingListener.close();
-    refresh.dispose();
-  });
-
-  ref.listen(authSessionProvider, (_, next) {
-    refresh.notifyListeners();
-    onboardingListener.update(next.value);
-  });
+  ref
+    ..onDispose(() {
+      onboardingListener.close();
+      refresh.dispose();
+    })
+    ..listen(authSessionProvider, (_, next) {
+      refresh.fire();
+      onboardingListener.update(next.value);
+    });
 
   return GoRouter(
     initialLocation: RouteLocations.welcome,

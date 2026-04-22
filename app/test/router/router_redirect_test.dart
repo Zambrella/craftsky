@@ -19,10 +19,9 @@ Future<void> _pumpRouter(
   ProviderContainer container, {
   String initialLocation = RouteLocations.welcome,
 }) async {
-  final router = container.read(goRouterProvider);
   // Drive the router to a specific initial location before pumping
   // the app, so deep-link-style tests can start on /auth/complete.
-  router.go(initialLocation);
+  final router = container.read(goRouterProvider)..go(initialLocation);
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
