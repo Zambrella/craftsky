@@ -27,7 +27,7 @@ class SecureTokenStorage {
     } on PlatformException catch (e, st) {
       _log.warning('read failed; treating as unsigned-in', e, st);
       return null;
-    } catch (e, st) {
+    } on Object catch (e, st) {
       // FormatException (malformed JSON) or MapperException (missing
       // required fields from dart_mappable) — both mean the blob on
       // disk is garbage we can't use. Delete it so subsequent writes
@@ -35,7 +35,7 @@ class SecureTokenStorage {
       _log.warning('corrupt blob; clearing', e, st);
       try {
         await _fss.delete(key: _key);
-      } catch (deleteErr, deleteSt) {
+      } on Object catch (deleteErr, deleteSt) {
         _log.warning('delete-after-corrupt also failed', deleteErr, deleteSt);
       }
       return null;
