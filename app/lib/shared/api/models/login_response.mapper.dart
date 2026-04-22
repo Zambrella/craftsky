@@ -26,7 +26,6 @@ class LoginResponseMapper extends ClassMapperBase<LoginResponse> {
   static const Field<LoginResponse, String> _f$authUrl = Field(
     'authUrl',
     _$authUrl,
-    key: r'auth_url',
   );
 
   @override

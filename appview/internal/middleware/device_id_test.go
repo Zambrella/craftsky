@@ -70,25 +70,6 @@ func TestDeviceID_EmptyHeaderReturns400(t *testing.T) {
 	}
 }
 
-func TestDeviceID_TooLongHeaderReturns400(t *testing.T) {
-	h := DeviceID(nil, discardLogger())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Fatal("next handler should not run")
-	}))
-
-	long := make([]byte, 257)
-	for i := range long {
-		long[i] = 'a'
-	}
-	req := httptest.NewRequest("GET", "/x", nil)
-	req.Header.Set("X-Craftsky-Device-Id", string(long))
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400", rec.Code)
-	}
-}
-
 type fakeToucher struct {
 	calls []struct{ did, sid, devID string }
 }
@@ -139,5 +120,55 @@ func TestDeviceID_SkipsTouchWhenNoSession(t *testing.T) {
 
 	if len(tt.calls) != 0 {
 		t.Errorf("TouchDeviceID called %d times on unauthed request, want 0", len(tt.calls))
+	}
+}
+
+func TestDeviceID_MalformedHeaderReturns400InvalidCode(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not run")
+	})
+	h := DeviceID(nil, discardLogger())(next)
+
+	req := httptest.NewRequest("GET", "/x", nil)
+	req.Header.Set("X-Craftsky-Device-Id", "has spaces")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("body not json: %v", err)
+	}
+	if body["error"] != "invalid_device_id" {
+		t.Errorf("error = %v, want invalid_device_id", body["error"])
+	}
+}
+
+func TestDeviceID_RejectsOverLength(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not run")
+	})
+	h := DeviceID(nil, discardLogger())(next)
+
+	long := make([]byte, 129)
+	for i := range long {
+		long[i] = 'a'
+	}
+	req := httptest.NewRequest("GET", "/x", nil)
+	req.Header.Set("X-Craftsky-Device-Id", string(long))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("body not json: %v", err)
+	}
+	if body["error"] != "invalid_device_id" {
+		t.Errorf("error = %v, want invalid_device_id", body["error"])
 	}
 }

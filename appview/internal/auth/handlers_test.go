@@ -14,6 +14,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 
+	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
 )
@@ -82,47 +83,74 @@ func postLogin(t *testing.T, h *auth.HTTPHandlers, body string) *httptest.Respon
 	return rr
 }
 
-// expectJSONError asserts {"error": code} with the given status.
-func expectJSONError(t *testing.T, rr *httptest.ResponseRecorder, status int, code string) {
+// expectEnvelopeError asserts the response body is a canonical
+// envelope.Error with the given status and code, and that the message
+// is non-empty.
+func expectEnvelopeError(t *testing.T, rr *httptest.ResponseRecorder, status int, code string) {
 	t.Helper()
 	if rr.Code != status {
-		t.Fatalf("status: got %d want %d; body=%s", rr.Code, status, rr.Body.String())
+		t.Fatalf("status = %d, want %d; body: %s", rr.Code, status, rr.Body.String())
 	}
-	var got map[string]string
-	if err := json.NewDecoder(rr.Body).Decode(&got); err != nil {
-		t.Fatalf("decode: %v; body=%s", err, rr.Body.String())
+	var env envelope.Error
+	if err := json.Unmarshal(rr.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode envelope: %v; body: %s", err, rr.Body.String())
 	}
-	if got["error"] != code {
-		t.Fatalf("error: got %q want %q", got["error"], code)
+	if env.Error != code {
+		t.Errorf("error = %q, want %q", env.Error, code)
 	}
+	if env.Message == "" {
+		t.Errorf("message is empty")
+	}
+	// requestId may be "" if Logging middleware didn't run in the test
+	// harness; we don't assert presence here.
 }
 
 func TestLogin_MissingHandle(t *testing.T) {
 	h := handlersFixture(t, "")
 	rr := postLogin(t, h, `{}`)
-	expectJSONError(t, rr, http.StatusBadRequest, "handle_required")
+	expectEnvelopeError(t, rr, http.StatusBadRequest, "handle_required")
 }
 
 func TestLogin_InvalidHandoffMode(t *testing.T) {
-	rr := postLogin(t, handlersFixture(t, ""), `{"handle":"alice.example","handoff_mode":"wat"}`)
-	expectJSONError(t, rr, http.StatusBadRequest, "invalid_handoff_mode")
+	rr := postLogin(t, handlersFixture(t, ""), `{"handle":"alice.example","handoffMode":"wat"}`)
+	expectEnvelopeError(t, rr, http.StatusBadRequest, "invalid_handoff_mode")
 }
 
 func TestLogin_LoopbackMissingRedirect(t *testing.T) {
-	rr := postLogin(t, handlersFixture(t, ""), `{"handle":"alice.example","handoff_mode":"loopback"}`)
-	expectJSONError(t, rr, http.StatusBadRequest, "loopback_redirect_uri_required")
+	rr := postLogin(t, handlersFixture(t, ""), `{"handle":"alice.example","handoffMode":"loopback"}`)
+	expectEnvelopeError(t, rr, http.StatusBadRequest, "loopback_redirect_uri_required")
 }
 
 func TestLogin_LoopbackRedirectRejectsNonLoopback(t *testing.T) {
 	rr := postLogin(t, handlersFixture(t, ""),
-		`{"handle":"alice.example","handoff_mode":"loopback","loopback_redirect_uri":"https://evil.example/"}`)
-	expectJSONError(t, rr, http.StatusBadRequest, "loopback_redirect_uri_invalid")
+		`{"handle":"alice.example","handoffMode":"loopback","loopbackRedirectUri":"https://evil.example/"}`)
+	expectEnvelopeError(t, rr, http.StatusBadRequest, "loopback_redirect_uri_invalid")
 }
 
 func TestLogin_LoopbackRedirectRejectsJavaScript(t *testing.T) {
 	rr := postLogin(t, handlersFixture(t, ""),
-		`{"handle":"alice.example","handoff_mode":"loopback","loopback_redirect_uri":"javascript:alert(1)"}`)
-	expectJSONError(t, rr, http.StatusBadRequest, "loopback_redirect_uri_invalid")
+		`{"handle":"alice.example","handoffMode":"loopback","loopbackRedirectUri":"javascript:alert(1)"}`)
+	expectEnvelopeError(t, rr, http.StatusBadRequest, "loopback_redirect_uri_invalid")
+}
+
+func TestLogin_AcceptsCamelCaseBody(t *testing.T) {
+	rr := postLogin(t, handlersFixture(t, ""),
+		`{"handle":"alice.example","handoffMode":"deep_link"}`)
+	if rr.Code != http.StatusBadGateway {
+		// We expect StartAuthFlow to fail because the test fixture has no
+		// real PDS; the important assertion is that the request decoded
+		// and validation PASSED (otherwise we'd get 400 invalid_handoff_mode).
+		t.Fatalf("got %d, want 502 (body decoded, reached StartAuthFlow)", rr.Code)
+	}
+}
+
+func TestLogin_RejectsSnakeCaseBody(t *testing.T) {
+	rr := postLogin(t, handlersFixture(t, ""),
+		`{"handle":"alice.example","handoff_mode":"deep_link"}`)
+	// handoffMode absent -> invalid_handoff_mode 400.
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("got %d, want 400", rr.Code)
+	}
 }
 
 // Helper: seed an oauth session and a craftsky session, return the bearer token.

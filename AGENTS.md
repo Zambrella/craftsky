@@ -38,6 +38,7 @@ For the product-level "why" and the community-facing feature intent, read the vi
 - **SQL:** migrations in `appview/migrations/` via `golang-migrate/v4` (wrapped by `appview/cmd/cli migrate`). Queries in `appview/queries/` consumed by `sqlc`.
 - **Commits:** conventional commits style is fine but not enforced. Keep them focused.
 - **API:** The HTTP surface between the Flutter app and the AppView is governed by the API architecture spec ([`docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`](docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md)). Before adding or changing any route, read it — it fixes the `/v1/` prefix, auth headers, error envelope (`{error, message, requestId}`), opaque-cursor pagination, and URL conventions.
+- **JSON casing:** Every `/v1/*` JSON body uses camelCase keys — requests, responses, and error envelopes alike. `/oauth/*` keeps whatever the atproto OAuth spec dictates; SQL column names stay snake_case (wire JSON is a separate concern from storage). See [`docs/superpowers/specs/2026-04-22-api-wire-alignment-design.md`](docs/superpowers/specs/2026-04-22-api-wire-alignment-design.md) §1.
 
 ## Project Skills (`.claude/skills/`)
 

@@ -7,6 +7,7 @@ import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
+import 'package:craftsky_app/shared/device/device_id_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -65,9 +66,16 @@ Future<void> bootstrap(WidgetsBinding widgetsBinding) async {
   // release build. Building the provider throws StateError before any
   // networking is attempted. We dispose the throwaway container so the
   // check stays cheap; the real app creates its own via ProviderScope.
+  //
+  // Also eagerly resolve deviceIdProvider so the first /v1/* request
+  // has the header. The server enforces X-Craftsky-Device-Id on all
+  // authenticated routes; if the provider hasn't resolved by the time
+  // the session Dio fires its first request, the server 400s. The
+  // eager await here guarantees the future is hot before runApp.
   final probe = ProviderContainer();
   try {
     probe.read(dioProvider);
+    await probe.read(deviceIdProvider.future);
   } finally {
     probe.dispose();
   }

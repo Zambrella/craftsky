@@ -113,7 +113,9 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 			}
 			data.LoopbackURI = loopbackURI
 		default: // deep_link
-			data.DeepLinkURL = "craftsky://auth/complete?token=" + urlEscape(token)
+			// Triple slash — empty host, path "/auth/complete". Matches
+			// the Flutter route at RouteLocations.authComplete ('/auth/complete').
+			data.DeepLinkURL = "craftsky:///auth/complete?token=" + urlEscape(token)
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

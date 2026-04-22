@@ -18,6 +18,9 @@ func TestDoRequest_200WritesStatusThenBody(t *testing.T) {
 		if got := r.Header.Get("X-Dev-DID"); got != "did:plc:test-caller" {
 			t.Errorf("X-Dev-DID = %q, want %q", got, "did:plc:test-caller")
 		}
+		if got := r.Header.Get("X-Craftsky-Device-Id"); got != "cli-dev" {
+			t.Errorf("X-Craftsky-Device-Id = %q, want %q", got, "cli-dev")
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = io.WriteString(w, `{"hello":"world"}`)

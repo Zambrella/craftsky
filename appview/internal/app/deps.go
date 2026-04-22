@@ -8,8 +8,10 @@ import (
 	"sync"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/db"
 	"social.craftsky/appview/internal/index"
@@ -34,6 +36,11 @@ type Deps struct {
 	OAuthApp             *oauth.ClientApp
 	OAuthStore           *auth.PostgresAuthStore
 	CraftskySessionStore *auth.CraftskySessionStore
+
+	// Identity resolution for /v1/whoami. Typed as the interface
+	// (not the concrete struct) so route tests can inject a stub
+	// without constructing an identity.Directory.
+	HandleResolver api.HandleResolver
 
 	Consumer tap.Consumer
 	Indexer  index.Indexer
@@ -95,6 +102,10 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	oauthApp := oauth.NewClientApp(&oauthCfg, oauthStore)
 	craftskyStore := auth.NewCraftskySessionStore(pool, cfg.CraftskySessionLastSeenThrottle)
 
+	// Shared atproto identity directory for DID↔handle lookups.
+	// indigo provides an in-process cache via DefaultDirectory.
+	identityDir := identity.DefaultDirectory()
+
 	blueskySample := index.NewBlueskyPostsSample(pool)
 
 	dispatcher := index.NewDispatcher(index.NotImplemented{})
@@ -107,6 +118,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		OAuthApp:             oauthApp,
 		OAuthStore:           oauthStore,
 		CraftskySessionStore: craftskyStore,
+		HandleResolver:       api.DirectoryHandleResolver{Directory: identityDir},
 		Indexer:              dispatcher,
 		Consumer:             tap.NotImplemented{}, // temp, replaced below
 	}

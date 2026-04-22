@@ -56,16 +56,28 @@ final class CraftskyApiClientProvider
 
 String _$craftskyApiClientHash() => r'0c24d2ad6f99c0784a0bbed6c68b9cd43a8fe8e0';
 
-/// Family-keyed by token: one instance per in-flight handoff. Not
-/// keep-alive — auto-disposes when no one watches it, so the token
-/// doesn't linger.
+/// Family-keyed by (token, deviceId): one instance per in-flight
+/// handoff. Not keep-alive — auto-disposes when no one watches it, so
+/// the token doesn't linger.
+///
+/// The server enforces X-Craftsky-Device-Id on every authenticated
+/// /v1/* call, so the handoff Dio bakes both Authorization and
+/// X-Craftsky-Device-Id into BaseOptions. Callers must pre-resolve
+/// `deviceIdProvider.future` and pass the value explicitly — this
+/// keeps the provider itself synchronous.
 
 @ProviderFor(handoffApiClient)
 final handoffApiClientProvider = HandoffApiClientFamily._();
 
-/// Family-keyed by token: one instance per in-flight handoff. Not
-/// keep-alive — auto-disposes when no one watches it, so the token
-/// doesn't linger.
+/// Family-keyed by (token, deviceId): one instance per in-flight
+/// handoff. Not keep-alive — auto-disposes when no one watches it, so
+/// the token doesn't linger.
+///
+/// The server enforces X-Craftsky-Device-Id on every authenticated
+/// /v1/* call, so the handoff Dio bakes both Authorization and
+/// X-Craftsky-Device-Id into BaseOptions. Callers must pre-resolve
+/// `deviceIdProvider.future` and pass the value explicitly — this
+/// keeps the provider itself synchronous.
 
 final class HandoffApiClientProvider
     extends
@@ -75,12 +87,18 @@ final class HandoffApiClientProvider
           HandoffApiClient
         >
     with $Provider<HandoffApiClient> {
-  /// Family-keyed by token: one instance per in-flight handoff. Not
-  /// keep-alive — auto-disposes when no one watches it, so the token
-  /// doesn't linger.
+  /// Family-keyed by (token, deviceId): one instance per in-flight
+  /// handoff. Not keep-alive — auto-disposes when no one watches it, so
+  /// the token doesn't linger.
+  ///
+  /// The server enforces X-Craftsky-Device-Id on every authenticated
+  /// /v1/* call, so the handoff Dio bakes both Authorization and
+  /// X-Craftsky-Device-Id into BaseOptions. Callers must pre-resolve
+  /// `deviceIdProvider.future` and pass the value explicitly — this
+  /// keeps the provider itself synchronous.
   HandoffApiClientProvider._({
     required HandoffApiClientFamily super.from,
-    required String super.argument,
+    required (String, String) super.argument,
   }) : super(
          retry: null,
          name: r'handoffApiClientProvider',
@@ -96,7 +114,7 @@ final class HandoffApiClientProvider
   String toString() {
     return r'handoffApiClientProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -106,8 +124,8 @@ final class HandoffApiClientProvider
 
   @override
   HandoffApiClient create(Ref ref) {
-    final argument = this.argument as String;
-    return handoffApiClient(ref, argument);
+    final argument = this.argument as (String, String);
+    return handoffApiClient(ref, argument.$1, argument.$2);
   }
 
   /// {@macro riverpod.override_with_value}
@@ -129,14 +147,20 @@ final class HandoffApiClientProvider
   }
 }
 
-String _$handoffApiClientHash() => r'197e37d122f9978021e227262e2823045c66799f';
+String _$handoffApiClientHash() => r'49586d92a3e4bd2e94c83d4110103ea83c95fb57';
 
-/// Family-keyed by token: one instance per in-flight handoff. Not
-/// keep-alive — auto-disposes when no one watches it, so the token
-/// doesn't linger.
+/// Family-keyed by (token, deviceId): one instance per in-flight
+/// handoff. Not keep-alive — auto-disposes when no one watches it, so
+/// the token doesn't linger.
+///
+/// The server enforces X-Craftsky-Device-Id on every authenticated
+/// /v1/* call, so the handoff Dio bakes both Authorization and
+/// X-Craftsky-Device-Id into BaseOptions. Callers must pre-resolve
+/// `deviceIdProvider.future` and pass the value explicitly — this
+/// keeps the provider itself synchronous.
 
 final class HandoffApiClientFamily extends $Family
-    with $FunctionalFamilyOverride<HandoffApiClient, String> {
+    with $FunctionalFamilyOverride<HandoffApiClient, (String, String)> {
   HandoffApiClientFamily._()
     : super(
         retry: null,
@@ -146,12 +170,18 @@ final class HandoffApiClientFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Family-keyed by token: one instance per in-flight handoff. Not
-  /// keep-alive — auto-disposes when no one watches it, so the token
-  /// doesn't linger.
+  /// Family-keyed by (token, deviceId): one instance per in-flight
+  /// handoff. Not keep-alive — auto-disposes when no one watches it, so
+  /// the token doesn't linger.
+  ///
+  /// The server enforces X-Craftsky-Device-Id on every authenticated
+  /// /v1/* call, so the handoff Dio bakes both Authorization and
+  /// X-Craftsky-Device-Id into BaseOptions. Callers must pre-resolve
+  /// `deviceIdProvider.future` and pass the value explicitly — this
+  /// keeps the provider itself synchronous.
 
-  HandoffApiClientProvider call(String token) =>
-      HandoffApiClientProvider._(argument: token, from: this);
+  HandoffApiClientProvider call(String token, String deviceId) =>
+      HandoffApiClientProvider._(argument: (token, deviceId), from: this);
 
   @override
   String toString() => r'handoffApiClientProvider';

@@ -11,21 +11,19 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+
+	"social.craftsky/appview/internal/ctxkeys"
 )
-
-// contextKey is a named type so middleware values can't collide with
-// other packages' context keys.
-type contextKey string
-
-const runIDKey contextKey = "run_id"
 
 // GetRunID extracts the per-request ID injected by the Logging middleware.
 // Returns "" if no middleware ran (e.g. from a test that skipped it).
+//
+// Thin wrapper around ctxkeys.GetRunID so the auth handler package (which
+// cannot import middleware without inducing an import cycle) can still
+// read the run_id via ctxkeys directly while middleware callers keep the
+// familiar middleware.GetRunID spelling.
 func GetRunID(ctx context.Context) string {
-	if id, ok := ctx.Value(runIDKey).(string); ok {
-		return id
-	}
-	return ""
+	return ctxkeys.GetRunID(ctx)
 }
 
 // Logging returns middleware that assigns every request a UUID run_id,
@@ -38,7 +36,7 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			runID := uuid.New().String()
-			ctx := context.WithValue(r.Context(), runIDKey, runID)
+			ctx := ctxkeys.WithRunID(r.Context(), runID)
 			logger.Info("Request received",
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),

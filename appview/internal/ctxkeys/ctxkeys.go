@@ -13,6 +13,7 @@ const (
 	DIDKey            contextKey = "did"
 	OAuthSessionIDKey contextKey = "oauth_session_id"
 	DeviceIDKey       contextKey = "device_id"
+	RunIDKey          contextKey = "run_id"
 )
 
 // GetDID extracts the authenticated DID from ctx.
@@ -49,4 +50,18 @@ func GetDeviceID(ctx context.Context) (string, bool) {
 // WithDeviceID stores id in ctx under DeviceIDKey.
 func WithDeviceID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, DeviceIDKey, id)
+}
+
+// GetRunID extracts the per-request run ID injected by the Logging
+// middleware. Returns "" if not present.
+func GetRunID(ctx context.Context) string {
+	if id, ok := ctx.Value(RunIDKey).(string); ok {
+		return id
+	}
+	return ""
+}
+
+// WithRunID stores runID in ctx under RunIDKey.
+func WithRunID(ctx context.Context, runID string) context.Context {
+	return context.WithValue(ctx, RunIDKey, runID)
 }

@@ -221,6 +221,11 @@ GET /v1/feed/timeline?limit=50&cursor=eyJhZnRlciI6MTcxMzUwMDAwMH0
 
 ## 6. Error envelope
 
+> **Errata (2026-04-22):** This spec's error envelope uses camelCase
+> (`error`, `message`, `requestId`). The project-wide JSON key
+> convention is formally camelCase across the entire `/v1/*` surface —
+> codified in [2026-04-22-api-wire-alignment-design.md](./2026-04-22-api-wire-alignment-design.md) §1.
+
 Every error response (any 4xx or 5xx) uses the same JSON body shape:
 
 ```json

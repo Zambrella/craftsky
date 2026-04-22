@@ -13,6 +13,7 @@ import 'package:craftsky_app/shared/api/handoff_api_client.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:craftsky_app/shared/api/providers/api_client_provider.dart';
+import 'package:craftsky_app/shared/device/device_id_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -86,12 +87,18 @@ ProviderContainer _container({
       secureTokenStorageProvider.overrideWithValue(storage),
       craftskyApiClientProvider.overrideWithValue(api),
       launchAuthUrlProvider.overrideWithValue(launch.launch),
-      // Override the handoff family for ANY token value — the test
-      // passes a specific token and the override serves that.
+      // Override the handoff family for ANY (token, deviceId) — the
+      // test passes a specific token and the override serves that.
+      // riverpod_generator 4.x packs multi-arg families into a single
+      // positional record ((String, String) here), so the override
+      // signature is `(ref, (token, deviceId))`.
       if (handoff != null)
         handoffApiClientProvider.overrideWith(
-          (ref, token) => handoff,
+          (ref, args) => handoff,
         ),
+      // Stub deviceIdProvider so completeFromDeepLink doesn't touch
+      // the real FlutterSecureStorage (unavailable in unit tests).
+      deviceIdProvider.overrideWith((ref) async => 'test-device-id'),
     ],
   );
 }

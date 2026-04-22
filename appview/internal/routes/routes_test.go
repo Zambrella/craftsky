@@ -10,19 +10,31 @@ import (
 	"strings"
 	"testing"
 
+	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/auth"
 )
 
+// stubResolver is a minimal api.HandleResolver used by the routing
+// tests so they don't depend on the real PLC directory.
+type stubResolver struct{ handle string }
+
+func (s stubResolver) ResolveHandle(ctx context.Context, did string) (string, error) {
+	return s.handle, nil
+}
+
+var _ api.HandleResolver = stubResolver{}
+
 func testDeps() *app.Deps {
 	return &app.Deps{
-		Config:      app.Config{Env: app.EnvDev, AllowedOrigins: []string{"*"}, DevDID: "did:plc:test"},
-		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
-		AuthService: &auth.MockAuthService{DefaultDID: "did:plc:test"},
+		Config:         app.Config{Env: app.EnvDev, AllowedOrigins: []string{"*"}, DevDID: "did:plc:test"},
+		Logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
+		AuthService:    &auth.MockAuthService{DefaultDID: "did:plc:test"},
+		HandleResolver: stubResolver{handle: "stub-handle.example"},
 	}
 }
 
-func TestAddRoutes_V1WhoAmIAuthenticatedReturnsDID(t *testing.T) {
+func TestAddRoutes_V1WhoAmIAuthenticatedReturnsDIDAndHandle(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, testDeps())
 
@@ -37,13 +49,17 @@ func TestAddRoutes_V1WhoAmIAuthenticatedReturnsDID(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 	var body struct {
-		DID string `json:"did"`
+		DID    string `json:"did"`
+		Handle string `json:"handle"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("body not valid JSON: %v", err)
 	}
 	if body.DID != "did:plc:from-header" {
 		t.Errorf("body.did = %q, want did:plc:from-header", body.DID)
+	}
+	if body.Handle != "stub-handle.example" {
+		t.Errorf("body.handle = %q, want stub-handle.example", body.Handle)
 	}
 }
 

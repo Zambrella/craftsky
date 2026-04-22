@@ -17,10 +17,10 @@ void main() {
   // `http_mock_adapter`'s default `FullHttpRequestMatcher` matches on
   // method + path + data + query, so POST tests must either pass `data:`
   // on the match OR use `UrlRequestMatcher`. The body the client sends
-  // for login is always `{handle, handoff_mode: 'deep_link'}`.
+  // for login is always `{handle, handoffMode: 'deep_link'}`.
   const kLoginBody = {
     'handle': 'alice.bsky.social',
-    'handoff_mode': 'deep_link',
+    'handoffMode': 'deep_link',
   };
 
   group('CraftskyApiClient.login', () {
@@ -30,7 +30,7 @@ void main() {
         '/v1/auth/login',
         (server) => server.reply(
           200,
-          {'auth_url': 'https://pds.example.com/auth?x=1'},
+          {'authUrl': 'https://pds.example.com/auth?x=1'},
         ),
         data: kLoginBody,
       );
