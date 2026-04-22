@@ -30,7 +30,8 @@ class PendingAuth extends _$PendingAuth {
   /// `auth_controller_test.dart` for the stale-pending scenario).
   /// Kept as a method (not a setter) because the `@visibleForTesting`
   /// intent is easier to see on call sites like `debugSet(...)`.
-  // ignore: use_setters_to_change_properties
   @visibleForTesting
+  // Methods make the test-only intent explicit at call sites.
+  // ignore: use_setters_to_change_properties
   void debugSet(model.PendingAuth value) => state = value;
 }
