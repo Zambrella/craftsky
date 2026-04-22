@@ -320,9 +320,16 @@ a:hover { color: var(--cobalt-deep); }
 }
 
 .hero__illustration {
+  width: 100%;
   aspect-ratio: 1 / 1;
   max-width: 460px;
   justify-self: center;
+}
+
+.hero__illustration svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 /* =========================================================================
