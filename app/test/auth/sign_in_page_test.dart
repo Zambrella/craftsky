@@ -59,8 +59,9 @@ void main() {
       await tester.tap(find.widgetWithText(ChunkyButton, 'Continue'));
       await tester.pump();
 
-      final fake = tester.container().read(authControllerProvider.notifier)
-          as _RecordingAuthController;
+      final fake =
+          tester.container().read(authControllerProvider.notifier)
+              as _RecordingAuthController;
       expect(fake.signInCalls, ['  @alice.bsky.social ']);
       // (Controller trims — that's unit-tested in auth_controller_test.dart.)
     },

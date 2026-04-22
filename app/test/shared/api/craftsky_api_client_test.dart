@@ -35,28 +35,35 @@ void main() {
         data: kLoginBody,
       );
 
-      final res =
-          await CraftskyApiClient(dio).login(handle: 'alice.bsky.social');
+      final res = await CraftskyApiClient(
+        dio,
+      ).login(handle: 'alice.bsky.social');
 
       expect(res.authUrl, 'https://pds.example.com/auth?x=1');
     });
 
-    test('400 with handle_required surfaces as ApiBadRequest(handle_required)',
-        () async {
-      final dio = buildDio();
-      DioAdapter(dio: dio).onPost(
-        '/v1/auth/login',
-        (server) => server.reply(400, {'error': 'handle_required'}),
-        data: kLoginBody,
-      );
+    test(
+      '400 with handle_required surfaces as ApiBadRequest(handle_required)',
+      () async {
+        final dio = buildDio();
+        DioAdapter(dio: dio).onPost(
+          '/v1/auth/login',
+          (server) => server.reply(400, {'error': 'handle_required'}),
+          data: kLoginBody,
+        );
 
-      await expectLater(
-        () => CraftskyApiClient(dio).login(handle: 'alice.bsky.social'),
-        throwsA(
-          isA<ApiBadRequest>().having((e) => e.code, 'code', 'handle_required'),
-        ),
-      );
-    });
+        await expectLater(
+          () => CraftskyApiClient(dio).login(handle: 'alice.bsky.social'),
+          throwsA(
+            isA<ApiBadRequest>().having(
+              (e) => e.code,
+              'code',
+              'handle_required',
+            ),
+          ),
+        );
+      },
+    );
   });
 
   group('CraftskyApiClient.whoami', () {

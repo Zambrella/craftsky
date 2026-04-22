@@ -11,10 +11,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// to `/welcome`. Feature code never sees 401 recovery plumbing.
 class SignOutOn401Interceptor extends Interceptor {
   SignOutOn401Interceptor.fromRef(Ref ref)
-      : _signOut = (() {
-          unawaited(ref.read(secureTokenStorageProvider).clear());
-          ref.read(authSessionProvider.notifier).setSignedOut();
-        });
+    : _signOut = (() {
+        unawaited(ref.read(secureTokenStorageProvider).clear());
+        ref.read(authSessionProvider.notifier).setSignedOut();
+      });
 
   /// Test constructor: accepts a `signOut` callable the test drives
   /// (or closes over its own `ProviderContainer.test()`).

@@ -24,9 +24,9 @@ typedef AuthUrlLauncher = Future<bool> Function(Uri uri);
 @Riverpod(keepAlive: true)
 AuthUrlLauncher launchAuthUrl(Ref ref) {
   return (Uri uri) => url_launcher.launchUrl(
-        uri,
-        mode: url_launcher.LaunchMode.externalApplication,
-      );
+    uri,
+    mode: url_launcher.LaunchMode.externalApplication,
+  );
 }
 
 /// Sign-in / sign-out orchestrator. Exposes `AsyncValue<void>`; pages
@@ -54,16 +54,18 @@ class AuthController extends _$AuthController {
         throw switch (e) {
           ApiBadRequest(code: 'handle_required') => const HandleRequired(),
           ApiBadRequest() => const InvalidHandle(),
-          ApiNetworkError() || ApiServerError() || ApiUnauthorized() =>
-            const ServerUnavailable(),
+          ApiNetworkError() ||
+          ApiServerError() ||
+          ApiUnauthorized() => const ServerUnavailable(),
         };
       }
 
       if (!ref.mounted) return;
       ref.read(pendingAuthProvider.notifier).start(trimmed);
 
-      final launched =
-          await ref.read(launchAuthUrlProvider)(Uri.parse(response.authUrl));
+      final launched = await ref.read(launchAuthUrlProvider)(
+        Uri.parse(response.authUrl),
+      );
       if (!launched) {
         if (ref.mounted) ref.read(pendingAuthProvider.notifier).clear();
         throw const BrowserLaunchFailed();
@@ -101,7 +103,9 @@ class AuthController extends _$AuthController {
         }
         if (!ref.mounted) return;
 
-        ref.read(authSessionProvider.notifier).setSignedIn(
+        ref
+            .read(authSessionProvider.notifier)
+            .setSignedIn(
               SignedIn(did: who.did, handle: who.handle, token: token),
             );
       } finally {

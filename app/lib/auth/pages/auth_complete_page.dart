@@ -32,8 +32,9 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
         child: switch (state) {
           AsyncError(:final error) when error is AuthError =>
             _AuthCompleteError(error: error),
-          AsyncError(:final error) =>
-            _AuthCompleteError(error: GenericAuthError(error)),
+          AsyncError(:final error) => _AuthCompleteError(
+            error: GenericAuthError(error),
+          ),
           _ => const _AuthCompleteLoading(),
         },
       ),

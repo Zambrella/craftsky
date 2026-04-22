@@ -29,8 +29,9 @@ void main() {
     await tester.tap(find.byType(SignOutTile));
     await tester.pump();
 
-    final fake = tester.container().read(authControllerProvider.notifier)
-        as _FakeAuthController;
+    final fake =
+        tester.container().read(authControllerProvider.notifier)
+            as _FakeAuthController;
     expect(fake.signOutCalls, 1);
   });
 }

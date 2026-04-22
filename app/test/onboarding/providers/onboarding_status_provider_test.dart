@@ -4,10 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-ProviderContainer _container(SharedPreferences prefs) =>
-    ProviderContainer.test(
-      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
-    );
+ProviderContainer _container(SharedPreferences prefs) => ProviderContainer.test(
+  overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+);
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));

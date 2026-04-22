@@ -25,8 +25,9 @@ class ErrorMappingInterceptor extends Interceptor {
       DioExceptionType.connectionTimeout ||
       DioExceptionType.sendTimeout ||
       DioExceptionType.receiveTimeout ||
-      DioExceptionType.connectionError =>
-        ApiNetworkError(err.message ?? err.type.name),
+      DioExceptionType.connectionError => ApiNetworkError(
+        err.message ?? err.type.name,
+      ),
       DioExceptionType.badResponse => _mapBadResponse(err),
       DioExceptionType.cancel ||
       DioExceptionType.badCertificate ||

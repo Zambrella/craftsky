@@ -43,13 +43,12 @@ class _FakeApi implements CraftskyApiClient {
 ProviderContainer _container({
   required SecureTokenStorage storage,
   CraftskyApiClient? api,
-}) =>
-    ProviderContainer.test(
-      overrides: [
-        secureTokenStorageProvider.overrideWithValue(storage),
-        if (api != null) craftskyApiClientProvider.overrideWithValue(api),
-      ],
-    );
+}) => ProviderContainer.test(
+  overrides: [
+    secureTokenStorageProvider.overrideWithValue(storage),
+    if (api != null) craftskyApiClientProvider.overrideWithValue(api),
+  ],
+);
 
 /// `_validateInBackground` is `unawaited` inside `AuthSession.build`;
 /// the chain performs up to three awaits (whoami → storage.{clear|write}
@@ -117,8 +116,7 @@ void main() {
     expect(await storage.read(), isNull);
   });
 
-  test('whoami handle drift updates cache + state, keeps SignedIn',
-      () async {
+  test('whoami handle drift updates cache + state, keeps SignedIn', () async {
     final storage = _FakeStorage(
       initial: const StoredSession(
         token: 't',
@@ -140,28 +138,32 @@ void main() {
     expect((await storage.read())!.handle, 'new.bsky.social');
   });
 
-  test('whoami network error keeps cached SignedIn (offline tolerance)',
-      () async {
-    final storage = _FakeStorage(
-      initial: const StoredSession(token: 't', did: 'd', handle: 'h'),
-    );
-    final container = _container(
-      storage: storage,
-      api: _FakeApi(
-        onWhoami: () async => throw const ApiNetworkError('offline'),
-      ),
-    );
-    await container.read(authSessionProvider.future);
-    await _flushBackgroundValidation();
+  test(
+    'whoami network error keeps cached SignedIn (offline tolerance)',
+    () async {
+      final storage = _FakeStorage(
+        initial: const StoredSession(token: 't', did: 'd', handle: 'h'),
+      );
+      final container = _container(
+        storage: storage,
+        api: _FakeApi(
+          onWhoami: () async => throw const ApiNetworkError('offline'),
+        ),
+      );
+      await container.read(authSessionProvider.future);
+      await _flushBackgroundValidation();
 
-    expect(container.read(authSessionProvider).value, isA<SignedIn>());
-    expect(await storage.read(), isNotNull);
-  });
+      expect(container.read(authSessionProvider).value, isA<SignedIn>());
+      expect(await storage.read(), isNotNull);
+    },
+  );
 
   test('setSignedIn/setSignedOut set state imperatively', () async {
     final container = _container(storage: _FakeStorage());
     await container.read(authSessionProvider.future);
-    container.read(authSessionProvider.notifier).setSignedIn(
+    container
+        .read(authSessionProvider.notifier)
+        .setSignedIn(
           const SignedIn(did: 'd', handle: 'h', token: 't'),
         );
     expect(container.read(authSessionProvider).value, isA<SignedIn>());

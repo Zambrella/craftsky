@@ -22,8 +22,9 @@ class _FakeAuthController extends AuthController {
 }
 
 void main() {
-  testWidgets('calls completeFromDeepLink with the token on init',
-      (tester) async {
+  testWidgets('calls completeFromDeepLink with the token on init', (
+    tester,
+  ) async {
     final seen = <String>[];
     await tester.pumpWidget(
       ProviderScope(

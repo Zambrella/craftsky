@@ -8,7 +8,8 @@ void main() {
   setUpAll(initializeMappers);
 
   test('parses snake_case JSON from the server', () {
-    const json = '{"auth_url":"https://pds.example.com/authorize?request_uri=x"}';
+    const json =
+        '{"auth_url":"https://pds.example.com/authorize?request_uri=x"}';
     final parsed = LoginResponseMapper.fromJson(json);
     expect(parsed.authUrl, 'https://pds.example.com/authorize?request_uri=x');
   });

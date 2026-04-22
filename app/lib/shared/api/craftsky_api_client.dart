@@ -20,25 +20,25 @@ class CraftskyApiClient {
   /// the authorization URL the caller opens in the system browser.
   /// The app-level handoff is always `deep_link` (mobile-only).
   Future<LoginResponse> login({required String handle}) => _unwrap(() async {
-        final res = await _dio.post<Map<String, dynamic>>(
-          '/v1/auth/login',
-          data: {'handle': handle, 'handoff_mode': 'deep_link'},
-        );
-        return LoginResponseMapper.fromMap(res.data!);
-      });
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/v1/auth/login',
+      data: {'handle': handle, 'handoff_mode': 'deep_link'},
+    );
+    return LoginResponseMapper.fromMap(res.data!);
+  });
 
   /// GET /v1/whoami — resolves the caller's DID + handle. Requires an
   /// authenticated request (Bearer token attached by AuthInterceptor).
   Future<WhoAmI> whoami() => _unwrap(() async {
-        final res = await _dio.get<Map<String, dynamic>>('/v1/whoami');
-        return WhoAmIMapper.fromMap(res.data!);
-      });
+    final res = await _dio.get<Map<String, dynamic>>('/v1/whoami');
+    return WhoAmIMapper.fromMap(res.data!);
+  });
 
   /// POST /v1/auth/logout — revokes the current Craftsky session
   /// (single-device). Server responds 204.
   Future<void> logout() => _unwrap(() async {
-        await _dio.post<void>('/v1/auth/logout');
-      });
+    await _dio.post<void>('/v1/auth/logout');
+  });
 
   /// Runs [body], translating any `DioException` whose `.error` is an
   /// `ApiException` into a direct throw of that `ApiException`. Other

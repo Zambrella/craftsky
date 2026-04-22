@@ -55,16 +55,18 @@ void main() {
     expect(await storage.read(), isNull);
   });
 
-  test('read gives back well-formed JSON that matches the blob shape',
-      () async {
-    FlutterSecureStorage.setMockInitialValues({
-      'craftsky_session': jsonEncode(
-        {'token': 't', 'did': 'd', 'handle': 'h'},
-      ),
-    });
-    final storage = SecureTokenStorage(const FlutterSecureStorage());
+  test(
+    'read gives back well-formed JSON that matches the blob shape',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({
+        'craftsky_session': jsonEncode(
+          {'token': 't', 'did': 'd', 'handle': 'h'},
+        ),
+      });
+      final storage = SecureTokenStorage(const FlutterSecureStorage());
 
-    final session = await storage.read();
-    expect(session?.token, 't');
-  });
+      final session = await storage.read();
+      expect(session?.token, 't');
+    },
+  );
 }

@@ -39,8 +39,10 @@ void main() {
     });
 
     test('400 with no error field → ApiBadRequest(null)', () {
-      const ErrorMappingInterceptor()
-          .onError(_ex(status: 400, data: <String, dynamic>{}), handler);
+      const ErrorMappingInterceptor().onError(
+        _ex(status: 400, data: <String, dynamic>{}),
+        handler,
+      );
       expect(handler.error, isA<ApiBadRequest>());
       expect((handler.error as ApiBadRequest?)?.code, isNull);
     });
@@ -51,14 +53,18 @@ void main() {
     });
 
     test('timeout → ApiNetworkError', () {
-      const ErrorMappingInterceptor()
-          .onError(_ex(type: DioExceptionType.connectionTimeout), handler);
+      const ErrorMappingInterceptor().onError(
+        _ex(type: DioExceptionType.connectionTimeout),
+        handler,
+      );
       expect(handler.error, isA<ApiNetworkError>());
     });
 
     test('connection error → ApiNetworkError', () {
-      const ErrorMappingInterceptor()
-          .onError(_ex(type: DioExceptionType.connectionError), handler);
+      const ErrorMappingInterceptor().onError(
+        _ex(type: DioExceptionType.connectionError),
+        handler,
+      );
       expect(handler.error, isA<ApiNetworkError>());
     });
   });

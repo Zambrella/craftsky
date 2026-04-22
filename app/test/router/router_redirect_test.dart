@@ -101,8 +101,9 @@ void main() {
         final container = ProviderContainer.test(
           overrides: [
             authSessionProvider.overrideWith(SignedInAuthSession.new),
-            onboardingStatusProvider
-                .overrideWith(CompletedOnboardingStatus.new),
+            onboardingStatusProvider.overrideWith(
+              CompletedOnboardingStatus.new,
+            ),
           ],
         );
         await _pumpRouter(

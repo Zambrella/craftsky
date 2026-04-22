@@ -9,7 +9,7 @@ const _anonymousPaths = <String>{'/v1/auth/login'};
 class SessionAuthInterceptor extends Interceptor {
   /// Production constructor: `SessionAuthInterceptor.fromRef(ref)`.
   SessionAuthInterceptor.fromRef(Ref ref)
-      : _readAuth = (() => ref.read(authSessionProvider));
+    : _readAuth = (() => ref.read(authSessionProvider));
 
   /// Test constructor: accepts any callable that returns the current
   /// `AsyncValue<AuthState>`. Production wiring uses `fromRef`; tests

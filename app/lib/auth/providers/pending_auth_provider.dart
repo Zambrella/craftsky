@@ -19,9 +19,9 @@ class PendingAuth extends _$PendingAuth {
   model.PendingAuth? build() => null;
 
   void start(String handle) => state = model.PendingAuth(
-        handle: handle,
-        startedAt: DateTime.now(),
-      );
+    handle: handle,
+    startedAt: DateTime.now(),
+  );
 
   void clear() => state = null;
 

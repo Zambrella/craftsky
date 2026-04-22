@@ -126,8 +126,7 @@ void main() {
     );
   });
 
-  test('signIn maps ApiBadRequest(handle_required) → HandleRequired',
-      () async {
+  test('signIn maps ApiBadRequest(handle_required) → HandleRequired', () async {
     final container = _container(
       api: _FakeCraftskyApi(
         onLogin: (_) async => throw const ApiBadRequest('handle_required'),
@@ -193,10 +192,11 @@ void main() {
     },
   );
 
-  test('completeFromDeepLink stale pending surfaces SignInTimedOut',
-      () async {
+  test('completeFromDeepLink stale pending surfaces SignInTimedOut', () async {
     final container = _container();
-    container.read(pendingAuthProvider.notifier).debugSet(
+    container
+        .read(pendingAuthProvider.notifier)
+        .debugSet(
           model.PendingAuth(
             handle: 'a.bsky.social',
             startedAt: DateTime.now().subtract(const Duration(minutes: 15)),

@@ -73,11 +73,11 @@ class _SignInPageState extends ConsumerState<SignInPage> {
   }
 
   String _messageFor(Object? error) => switch (error) {
-        HandleRequired() => 'Please enter a handle.',
-        InvalidHandle() => "We couldn't recognise that handle.",
-        ServerUnavailable() => "Couldn't reach the server. Please try again.",
-        BrowserLaunchFailed() =>
-          "Couldn't open the browser. Check that you have one installed.",
-        _ => 'Something went wrong. Please try again.',
-      };
+    HandleRequired() => 'Please enter a handle.',
+    InvalidHandle() => "We couldn't recognise that handle.",
+    ServerUnavailable() => "Couldn't reach the server. Please try again.",
+    BrowserLaunchFailed() =>
+      "Couldn't open the browser. Check that you have one installed.",
+    _ => 'Something went wrong. Please try again.',
+  };
 }

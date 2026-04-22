@@ -98,9 +98,7 @@ GoRouter goRouter(Ref ref) {
         case SignedIn(:final did):
           final onboarded = ref.read(onboardingStatusProvider(did));
           if (loc == RouteLocations.authComplete) {
-            return onboarded
-                ? RouteLocations.home
-                : RouteLocations.onboarding;
+            return onboarded ? RouteLocations.home : RouteLocations.onboarding;
           }
           if (!onboarded && loc != RouteLocations.onboarding) {
             return RouteLocations.onboarding;

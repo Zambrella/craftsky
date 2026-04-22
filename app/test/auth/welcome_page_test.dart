@@ -6,8 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('WelcomePage renders Welcome + Sign in + Create account',
-      (tester) async {
+  testWidgets('WelcomePage renders Welcome + Sign in + Create account', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
