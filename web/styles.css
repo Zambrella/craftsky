@@ -493,3 +493,45 @@ a:hover { color: var(--cobalt-deep); }
 .whos-behind p {
   margin-top: var(--sp-4);
 }
+
+/* =========================================================================
+   How it works
+   ========================================================================= */
+
+.how {
+  padding: var(--sp-8) 0;
+  background: var(--paper-2);
+}
+
+.how__list {
+  list-style: none;
+  padding: 0;
+  margin: var(--sp-6) 0 0;
+  display: grid;
+  gap: var(--sp-6);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 820px) {
+  .how__list { grid-template-columns: repeat(3, 1fr); }
+}
+
+.how__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  color: var(--ink);
+}
+
+.how__icon {
+  color: var(--ink);
+}
+
+.how__heading {
+  font-family: var(--font-ui);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink);
+  margin: 0;
+}
