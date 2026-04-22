@@ -71,9 +71,9 @@
     });
   }
 
-  function track(event, properties) {
+  function track(event, properties, options) {
     if (!window.posthog || typeof window.posthog.capture !== 'function') return;
-    window.posthog.capture(event, properties || {});
+    window.posthog.capture(event, properties || {}, options);
   }
 
   // -----------------------------------------------------------------------
@@ -122,7 +122,8 @@
   if (form) {
     form.addEventListener('submit', function (event) {
       // Until a real provider is set, show the success state optimistically.
-      if (form.action.indexOf('#TODO') !== -1) {
+      const rawAction = form.getAttribute('action') || '';
+      if (rawAction.startsWith('#TODO')) {
         event.preventDefault();
         if (formBody && successBody) {
           formBody.hidden = true;
@@ -138,7 +139,7 @@
 
   document.querySelectorAll('.js-track-spec-click').forEach(function (el) {
     el.addEventListener('click', function () {
-      track('landing_cta_spec_clicked', { source: 'hero' });
+      track('landing_cta_spec_clicked', { source: 'hero' }, { transport: 'sendBeacon' });
     });
   });
 
