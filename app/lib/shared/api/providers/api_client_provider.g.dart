@@ -129,7 +129,7 @@ final class HandoffApiClientProvider
   }
 }
 
-String _$handoffApiClientHash() => r'cf450e64cfddfe1ad61c507f7835476b0320aa2d';
+String _$handoffApiClientHash() => r'197e37d122f9978021e227262e2823045c66799f';
 
 /// Family-keyed by token: one instance per in-flight handoff. Not
 /// keep-alive — auto-disposes when no one watches it, so the token

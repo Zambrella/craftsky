@@ -29,7 +29,14 @@ class _FakeStorage implements SecureTokenStorage {
 }
 
 class _FakeCraftskyApi implements CraftskyApiClient {
-  _FakeCraftskyApi({this.onLogin, this.onLogout, this.onWhoami});
+  // Allow current tests to omit onWhoami (the default in [whoami] covers
+  // the AuthSession background-validation path); future tests can stub it.
+  _FakeCraftskyApi({
+    this.onLogin,
+    this.onLogout,
+    // ignore: unused_element_parameter
+    this.onWhoami,
+  });
   final Future<LoginResponse> Function(String)? onLogin;
   final Future<void> Function()? onLogout;
   final Future<WhoAmI> Function()? onWhoami;

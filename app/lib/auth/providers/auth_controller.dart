@@ -43,7 +43,7 @@ class AuthController extends _$AuthController {
   Future<void> signIn({required String handle}) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      final trimmed = handle.trim().replaceFirst(RegExp(r'^@'), '');
+      final trimmed = handle.trim().replaceFirst(RegExp('^@'), '');
       if (trimmed.isEmpty) throw const HandleRequired();
 
       final api = ref.read(craftskyApiClientProvider);
