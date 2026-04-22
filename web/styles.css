@@ -157,7 +157,7 @@ a:hover { color: var(--cobalt-deep); }
   left: var(--sp-4);
   padding: var(--sp-2) var(--sp-4);
   background: var(--ink);
-  color: #FFFFFF;
+  color: var(--on-brand);
   border-radius: var(--r-2);
   text-decoration: none;
   font-weight: 700;
@@ -170,7 +170,7 @@ a:hover { color: var(--cobalt-deep); }
   outline: 2px solid var(--cobalt);
   outline-offset: 2px;
 }
-.on-cobalt :focus-visible { outline-color: #FFFFFF; }
+.on-cobalt :focus-visible { outline-color: var(--on-brand); }
 
 /* Reduced-motion: disable all transitions on the page */
 @media (prefers-reduced-motion: reduce) {
@@ -214,7 +214,7 @@ a:hover { color: var(--cobalt-deep); }
   padding: var(--sp-3) var(--sp-5);
   min-height: 44px;
   border-radius: var(--r-pill);
-  border: 1.5px solid var(--rule);
+  border: var(--border-w) solid var(--rule);
   font-family: var(--font-ui);
   font-weight: 700;
   font-size: var(--t-body);
@@ -239,7 +239,7 @@ a:hover { color: var(--cobalt-deep); }
 
 .btn--primary {
   background: var(--cobalt);
-  color: #FFFFFF;
+  color: var(--on-brand);
 }
 
 .btn--ghost {
@@ -248,7 +248,7 @@ a:hover { color: var(--cobalt-deep); }
 }
 
 .btn--on-cobalt {
-  background: #FFFFFF;
+  background: var(--on-brand);
   color: var(--cobalt);
 }
 
@@ -258,7 +258,7 @@ a:hover { color: var(--cobalt-deep); }
   padding: 4px var(--sp-3);
   background: var(--butter);
   color: var(--cobalt);
-  border: 1.5px solid var(--rule);
+  border: var(--border-w) solid var(--rule);
   border-radius: var(--r-pill);
   font-family: var(--font-ui);
   font-size: var(--t-eyebrow);
@@ -294,7 +294,7 @@ a:hover { color: var(--cobalt-deep); }
   font-family: var(--font-display);
   font-size: clamp(64px, 9vw, 128px);
   font-weight: 400;
-  line-height: 0.95;
+  line-height: var(--lh-tight);
   letter-spacing: -0.025em;
   color: var(--ink);
   margin: var(--sp-3) 0 0;
@@ -308,7 +308,7 @@ a:hover { color: var(--cobalt-deep); }
 .hero__lede {
   max-width: 520px;
   font-size: 18px;
-  line-height: 1.5;
+  line-height: var(--lh-body);
   color: var(--fg-1);
 }
 
@@ -348,7 +348,7 @@ a:hover { color: var(--cobalt-deep); }
 
 .value-card {
   padding: var(--sp-5);
-  border: 1.5px solid var(--rule);
+  border: var(--border-w) solid var(--rule);
   border-radius: var(--r-3);
   box-shadow: var(--sh-drop);
   display: flex;
@@ -402,7 +402,7 @@ a:hover { color: var(--cobalt-deep); }
   line-height: 1.6;
   background: var(--surface);
   color: var(--fg-1);
-  border: 1.5px solid var(--rule);
+  border: var(--border-w) solid var(--rule);
 }
 .ck-chip--wip { background: var(--butter); }
 
@@ -433,7 +433,7 @@ a:hover { color: var(--cobalt-deep); }
 
 .project-card {
   background: var(--paper-3);
-  border: 1.5px solid var(--rule);
+  border: var(--border-w) solid var(--rule);
   border-radius: var(--r-3);
   box-shadow: var(--sh-drop);
   overflow: hidden;
@@ -550,12 +550,12 @@ a:hover { color: var(--cobalt-deep); }
 }
 
 .faq__item {
-  border-bottom: 1.5px solid var(--rule);
+  border-bottom: var(--border-w) solid var(--rule);
   padding: var(--sp-4) 0;
 }
 
 .faq__item:first-of-type {
-  border-top: 1.5px solid var(--rule);
+  border-top: var(--border-w) solid var(--rule);
 }
 
 .faq__item summary {
@@ -602,7 +602,7 @@ a:hover { color: var(--cobalt-deep); }
 
 .final-cta {
   background: var(--cobalt);
-  color: #FFFFFF;
+  color: var(--on-brand);
   padding: var(--sp-9) 0;
   position: relative;
   overflow: hidden;
@@ -631,15 +631,15 @@ a:hover { color: var(--cobalt-deep); }
   font-family: var(--font-display);
   font-size: clamp(48px, 7vw, 80px);
   font-weight: 400;
-  line-height: 0.95;
-  color: #FFFFFF;
+  line-height: var(--lh-tight);
+  color: var(--on-brand);
   margin: 0;
 }
 
 .final-cta__sub {
   font-size: 18px;
   max-width: 420px;
-  color: #FFFFFF;
+  color: var(--on-brand);
 }
 
 /* =========================================================================
@@ -648,7 +648,7 @@ a:hover { color: var(--cobalt-deep); }
 
 .footer {
   background: var(--paper-2);
-  border-top: 1.5px solid var(--rule);
+  border-top: var(--border-w) solid var(--rule);
   padding: var(--sp-7) 0 0;
 }
 
