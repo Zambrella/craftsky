@@ -8,31 +8,53 @@ part of 'onboarding_status_provider.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Stubbed onboarding completion status. Real implementation will be backed
-/// by the user's profile record once onboarding actually persists data.
+/// Per-DID onboarding completion flag. Backed by `SharedPreferences`;
+/// survives relaunch but not reinstall on Android (clear-app-data
+/// semantics). First-run for a new DID defaults to `false`.
+///
+/// `@riverpod` codegen exposes the family arg as an instance field
+/// (`did`) on the generated notifier base class, so both `build` and
+/// `finish` reference `did` directly.
 
 @ProviderFor(OnboardingStatus)
-final onboardingStatusProvider = OnboardingStatusProvider._();
+final onboardingStatusProvider = OnboardingStatusFamily._();
 
-/// Stubbed onboarding completion status. Real implementation will be backed
-/// by the user's profile record once onboarding actually persists data.
+/// Per-DID onboarding completion flag. Backed by `SharedPreferences`;
+/// survives relaunch but not reinstall on Android (clear-app-data
+/// semantics). First-run for a new DID defaults to `false`.
+///
+/// `@riverpod` codegen exposes the family arg as an instance field
+/// (`did`) on the generated notifier base class, so both `build` and
+/// `finish` reference `did` directly.
 final class OnboardingStatusProvider
     extends $NotifierProvider<OnboardingStatus, bool> {
-  /// Stubbed onboarding completion status. Real implementation will be backed
-  /// by the user's profile record once onboarding actually persists data.
-  OnboardingStatusProvider._()
-    : super(
-        from: null,
-        argument: null,
-        retry: null,
-        name: r'onboardingStatusProvider',
-        isAutoDispose: true,
-        dependencies: null,
-        $allTransitiveDependencies: null,
-      );
+  /// Per-DID onboarding completion flag. Backed by `SharedPreferences`;
+  /// survives relaunch but not reinstall on Android (clear-app-data
+  /// semantics). First-run for a new DID defaults to `false`.
+  ///
+  /// `@riverpod` codegen exposes the family arg as an instance field
+  /// (`did`) on the generated notifier base class, so both `build` and
+  /// `finish` reference `did` directly.
+  OnboardingStatusProvider._({
+    required OnboardingStatusFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'onboardingStatusProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
 
   @override
   String debugGetCreateSourceHash() => _$onboardingStatusHash();
+
+  @override
+  String toString() {
+    return r'onboardingStatusProvider'
+        ''
+        '($argument)';
+  }
 
   @$internal
   @override
@@ -45,15 +67,67 @@ final class OnboardingStatusProvider
       providerOverride: $SyncValueProvider<bool>(value),
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    return other is OnboardingStatusProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
 }
 
-String _$onboardingStatusHash() => r'06a4dfa2b0d396252a31c26613f83418fdc10d5d';
+String _$onboardingStatusHash() => r'b40f1f002a2783d8e90ba7630c1f617f8999ddc4';
 
-/// Stubbed onboarding completion status. Real implementation will be backed
-/// by the user's profile record once onboarding actually persists data.
+/// Per-DID onboarding completion flag. Backed by `SharedPreferences`;
+/// survives relaunch but not reinstall on Android (clear-app-data
+/// semantics). First-run for a new DID defaults to `false`.
+///
+/// `@riverpod` codegen exposes the family arg as an instance field
+/// (`did`) on the generated notifier base class, so both `build` and
+/// `finish` reference `did` directly.
+
+final class OnboardingStatusFamily extends $Family
+    with $ClassFamilyOverride<OnboardingStatus, bool, bool, bool, String> {
+  OnboardingStatusFamily._()
+    : super(
+        retry: null,
+        name: r'onboardingStatusProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// Per-DID onboarding completion flag. Backed by `SharedPreferences`;
+  /// survives relaunch but not reinstall on Android (clear-app-data
+  /// semantics). First-run for a new DID defaults to `false`.
+  ///
+  /// `@riverpod` codegen exposes the family arg as an instance field
+  /// (`did`) on the generated notifier base class, so both `build` and
+  /// `finish` reference `did` directly.
+
+  OnboardingStatusProvider call(String did) =>
+      OnboardingStatusProvider._(argument: did, from: this);
+
+  @override
+  String toString() => r'onboardingStatusProvider';
+}
+
+/// Per-DID onboarding completion flag. Backed by `SharedPreferences`;
+/// survives relaunch but not reinstall on Android (clear-app-data
+/// semantics). First-run for a new DID defaults to `false`.
+///
+/// `@riverpod` codegen exposes the family arg as an instance field
+/// (`did`) on the generated notifier base class, so both `build` and
+/// `finish` reference `did` directly.
 
 abstract class _$OnboardingStatus extends $Notifier<bool> {
-  bool build();
+  late final _$args = ref.$arg as String;
+  String get did => _$args;
+
+  bool build(String did);
   @$mustCallSuper
   @override
   void runBuild() {
@@ -66,6 +140,6 @@ abstract class _$OnboardingStatus extends $Notifier<bool> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    element.handleCreate(ref, () => build(_$args));
   }
 }
