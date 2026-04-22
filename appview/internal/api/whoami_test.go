@@ -3,61 +3,79 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"io"
-	"log/slog"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
 )
 
-// authTestMock is an inline AuthService that returns a fixed DID. It lets
-// whoami_test.go inject a DID into the request context via the real
-// Authenticated middleware, without depending on internal/auth.
-type authTestMock struct{ did string }
-
-func (m *authTestMock) Authenticate(ctx context.Context, token string) (auth.AuthInfo, error) {
-	return auth.AuthInfo{DID: m.did}, nil
+type stubResolver struct {
+	handle string
+	err    error
 }
 
-func TestWhoAmI_ReturnsDIDFromContext(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	outer := middleware.Authenticated(&authTestMock{did: "did:plc:alice"}, logger)(WhoAmIHandler())
+func (s stubResolver) ResolveHandle(ctx context.Context, did string) (string, error) {
+	return s.handle, s.err
+}
 
-	req := httptest.NewRequest("GET", "/whoami", nil)
-	req.Header.Set("Authorization", "Bearer anything")
-	rec := httptest.NewRecorder()
-	outer.ServeHTTP(rec, req)
+func TestWhoAmI_HappyPath(t *testing.T) {
+	h := WhoAmIHandler(stubResolver{handle: "alice.example"})
+	req := httptest.NewRequest(http.MethodGet, "/v1/whoami", nil)
+	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:abc"))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", rr.Code, rr.Body.String())
 	}
-	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
-		t.Errorf("Content-Type = %q, want application/json", ct)
-	}
-	var body struct {
-		DID string `json:"did"`
-	}
-	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+	var body WhoAmIResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body.DID != "did:plc:alice" {
-		t.Errorf("did = %q, want did:plc:alice", body.DID)
+	if body.DID != "did:plc:abc" {
+		t.Errorf("did = %q", body.DID)
+	}
+	if body.Handle != "alice.example" {
+		t.Errorf("handle = %q", body.Handle)
 	}
 }
 
-func TestWhoAmI_WithoutDIDInContextReturns500(t *testing.T) {
-	// Call the handler directly without running Authenticated — a routing
-	// bug that's worth failing loudly on rather than silently returning
-	// {"did":""}.
-	h := WhoAmIHandler()
-	req := httptest.NewRequest("GET", "/whoami", nil)
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
+func TestWhoAmI_DirectoryUnavailable(t *testing.T) {
+	h := WhoAmIHandler(stubResolver{err: errors.New("plc down")})
+	req := httptest.NewRequest(http.MethodGet, "/v1/whoami", nil)
+	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:abc"))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
 
-	if rec.Code != http.StatusInternalServerError {
-		t.Errorf("status = %d, want 500", rec.Code)
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", rr.Code)
+	}
+	var env envelope.Error
+	if err := json.Unmarshal(rr.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if env.Error != "identity_unavailable" {
+		t.Errorf("code = %q", env.Error)
+	}
+}
+
+func TestWhoAmI_NoDIDInContext(t *testing.T) {
+	h := WhoAmIHandler(stubResolver{handle: "unused"})
+	req := httptest.NewRequest(http.MethodGet, "/v1/whoami", nil)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rr.Code)
+	}
+	var env envelope.Error
+	if err := json.Unmarshal(rr.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if env.Error != "internal_error" {
+		t.Errorf("code = %q", env.Error)
 	}
 }
