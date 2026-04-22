@@ -1,4 +1,4 @@
-import 'package:craftsky_app/auth/providers/auth_status_provider.dart';
+import 'package:craftsky_app/settings/widgets/sign_out_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,10 +7,9 @@ class SettingsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // TODO(craftsky): l10n
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: const Center(child: SettingsPageBody()),
+      body: const SettingsPageBody(),
     );
   }
 }
@@ -20,15 +19,9 @@ class SettingsPageBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return const Column(
       children: [
-        const Text('Settings'),
-        const SizedBox(height: 24),
-        OutlinedButton(
-          onPressed: () => ref.read(authStatusProvider.notifier).signOut(),
-          child: const Text('Sign out (dev)'),
-        ),
+        SignOutTile(),
       ],
     );
   }
