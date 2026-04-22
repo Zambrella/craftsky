@@ -324,3 +324,51 @@ a:hover { color: var(--cobalt-deep); }
   max-width: 460px;
   justify-self: center;
 }
+
+/* =========================================================================
+   Value cards
+   ========================================================================= */
+
+.value-cards {
+  padding: var(--sp-7) 0;
+}
+
+.value-cards__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--sp-5);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 820px) {
+  .value-cards__list { grid-template-columns: repeat(3, 1fr); }
+}
+
+.value-card {
+  padding: var(--sp-5);
+  border: 1.5px solid var(--rule);
+  border-radius: var(--r-3);
+  box-shadow: var(--sh-drop);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.value-card--butter { background: var(--butter); }
+.value-card--sky    { background: var(--sky); }
+.value-card--lilac  { background: var(--lilac); }
+
+.value-card__title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1.05;
+  color: var(--ink);
+}
+
+.value-card__body {
+  font-weight: 500;
+  color: var(--ink);
+}
