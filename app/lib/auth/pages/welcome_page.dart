@@ -1,4 +1,3 @@
-import 'package:craftsky_app/auth/providers/auth_status_provider.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +8,6 @@ class WelcomePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // TODO(craftsky): l10n
     return Scaffold(
       appBar: AppBar(title: const Text('Welcome')),
       body: const Center(child: WelcomePageBody()),
@@ -35,11 +33,6 @@ class WelcomePageBody extends ConsumerWidget {
         TextButton(
           onPressed: () => const SignInRoute().go(context),
           child: const Text('Create account on a PDS'),
-        ),
-        const SizedBox(height: 32),
-        OutlinedButton(
-          onPressed: () => ref.read(authStatusProvider.notifier).signIn(),
-          child: const Text('Dev: toggle auth'),
         ),
       ],
     );
