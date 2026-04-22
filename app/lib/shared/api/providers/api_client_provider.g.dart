@@ -55,3 +55,104 @@ final class CraftskyApiClientProvider
 }
 
 String _$craftskyApiClientHash() => r'0c24d2ad6f99c0784a0bbed6c68b9cd43a8fe8e0';
+
+/// Family-keyed by token: one instance per in-flight handoff. Not
+/// keep-alive — auto-disposes when no one watches it, so the token
+/// doesn't linger.
+
+@ProviderFor(handoffApiClient)
+final handoffApiClientProvider = HandoffApiClientFamily._();
+
+/// Family-keyed by token: one instance per in-flight handoff. Not
+/// keep-alive — auto-disposes when no one watches it, so the token
+/// doesn't linger.
+
+final class HandoffApiClientProvider
+    extends
+        $FunctionalProvider<
+          HandoffApiClient,
+          HandoffApiClient,
+          HandoffApiClient
+        >
+    with $Provider<HandoffApiClient> {
+  /// Family-keyed by token: one instance per in-flight handoff. Not
+  /// keep-alive — auto-disposes when no one watches it, so the token
+  /// doesn't linger.
+  HandoffApiClientProvider._({
+    required HandoffApiClientFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'handoffApiClientProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$handoffApiClientHash();
+
+  @override
+  String toString() {
+    return r'handoffApiClientProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $ProviderElement<HandoffApiClient> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  HandoffApiClient create(Ref ref) {
+    final argument = this.argument as String;
+    return handoffApiClient(ref, argument);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(HandoffApiClient value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<HandoffApiClient>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is HandoffApiClientProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$handoffApiClientHash() => r'cf450e64cfddfe1ad61c507f7835476b0320aa2d';
+
+/// Family-keyed by token: one instance per in-flight handoff. Not
+/// keep-alive — auto-disposes when no one watches it, so the token
+/// doesn't linger.
+
+final class HandoffApiClientFamily extends $Family
+    with $FunctionalFamilyOverride<HandoffApiClient, String> {
+  HandoffApiClientFamily._()
+    : super(
+        retry: null,
+        name: r'handoffApiClientProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// Family-keyed by token: one instance per in-flight handoff. Not
+  /// keep-alive — auto-disposes when no one watches it, so the token
+  /// doesn't linger.
+
+  HandoffApiClientProvider call(String token) =>
+      HandoffApiClientProvider._(argument: token, from: this);
+
+  @override
+  String toString() => r'handoffApiClientProvider';
+}
