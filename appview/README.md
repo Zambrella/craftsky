@@ -131,8 +131,9 @@ For now, the flow is driven by `curl` plus a real browser:
 handle you have credentials for:
 
 ```bash
-curl -s -X POST http://localhost:8080/auth/login \
+curl -s -X POST http://localhost:8080/v1/auth/login \
   -H 'Content-Type: application/json' \
+  -H 'X-Craftsky-Device-Id: curl-dev' \
   -d '{"handle":"YOUR_HANDLE","handoffMode":"deep_link"}' | jq -r .authUrl
 ```
 
@@ -150,22 +151,30 @@ on, the page also displays the token in plaintext under
 
 ```bash
 TOKEN='<paste-here>'
-curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/whoami | jq .
+curl -s \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'X-Craftsky-Device-Id: curl-dev' \
+  http://localhost:8080/v1/whoami | jq .
 # {"did":"did:plc:...","handle":"..."}
 ```
 
 **5. Logout (single device):**
 
 ```bash
-curl -is -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8080/auth/logout
+curl -is -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'X-Craftsky-Device-Id: curl-dev' \
+  http://localhost:8080/v1/auth/logout
 ```
 
 **Or all devices** (revokes the underlying OAuth session, cascades
 through all bearer tokens for the DID):
 
 ```bash
-curl -is -X POST -H "Authorization: Bearer $TOKEN" \
-  'http://localhost:8080/auth/logout?all=true'
+curl -is -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'X-Craftsky-Device-Id: curl-dev' \
+  'http://localhost:8080/v1/auth/logout?all=true'
 ```
 
 ### Inspecting OAuth state
@@ -180,16 +189,30 @@ just psql -c "SELECT state, handoff_mode, data->>'request_uri' AS request_uri, a
 
 For non-OAuth smoke tests, the dev appview also accepts an
 `X-Dev-DID` header as a fallback when the bearer token doesn't match a
-real Craftsky session. Useful for testing `/whoami`-style endpoints
-without doing OAuth first:
+real Craftsky session. Useful for testing `/v1/whoami`-style endpoints
+without doing OAuth first. Note: `X-Craftsky-Device-Id` is required on
+every `/v1/*` authenticated call — any value matching `[A-Za-z0-9_-]{1,128}`
+is fine.
 
 ```bash
-curl -s -H 'Authorization: Bearer ignored' \
-       -H 'X-Dev-DID: did:plc:example' http://localhost:8080/whoami
+curl -s \
+  -H 'Authorization: Bearer ignored' \
+  -H 'X-Dev-DID: did:plc:example' \
+  -H 'X-Craftsky-Device-Id: curl-dev' \
+  http://localhost:8080/v1/whoami
 ```
+
+Note `/v1/whoami` does a live PLC-directory lookup for the handle, so a
+made-up DID like `did:plc:example` returns `502 identity_unavailable`.
+Use a real DID (e.g. `did:plc:ewvi7nxzyoun6zhxrhs64oiz` → `atproto.com`)
+to exercise the happy path.
 
 The fallback is **dev-only** and only fires when the bearer token is
 invalid — a real OAuth-issued token always takes precedence.
+
+The `cli request` subcommand sends both `X-Dev-DID` and
+`X-Craftsky-Device-Id: cli-dev` automatically in dev mode, so
+`cli request GET /v1/whoami` Just Works without extra flags.
 
 ## Why Go
 

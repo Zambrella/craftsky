@@ -54,6 +54,9 @@ func doRequest(args requestArgs) (int, error) {
 	if args.DevDID != "" {
 		req.Header.Set("Authorization", "Bearer dev")
 		req.Header.Set("X-Dev-DID", args.DevDID)
+		// The /v1/* surface enforces X-Craftsky-Device-Id. Default a
+		// stable value for dev ergonomics; can be overridden via -H.
+		req.Header.Set("X-Craftsky-Device-Id", "cli-dev")
 	}
 	for _, h := range args.Headers {
 		k, v, ok := strings.Cut(h, ":")
