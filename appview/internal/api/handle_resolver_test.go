@@ -52,6 +52,9 @@ func TestHandleResolver_MalformedDID(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
+	if !errors.Is(err, ErrHandleUnavailable) {
+		t.Errorf("want ErrHandleUnavailable, got %v", err)
+	}
 }
 
 func TestHandleResolver_DirectoryError(t *testing.T) {
@@ -59,6 +62,9 @@ func TestHandleResolver_DirectoryError(t *testing.T) {
 	_, err := r.ResolveHandle(context.Background(), "did:plc:abc")
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, ErrHandleUnavailable) {
+		t.Errorf("want ErrHandleUnavailable, got %v", err)
 	}
 }
 
@@ -69,5 +75,8 @@ func TestHandleResolver_EmptyHandle(t *testing.T) {
 	_, err := r.ResolveHandle(context.Background(), "did:plc:abc")
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, ErrHandleUnavailable) {
+		t.Errorf("want ErrHandleUnavailable, got %v", err)
 	}
 }
