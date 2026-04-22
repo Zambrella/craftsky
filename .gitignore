@@ -19,3 +19,6 @@ appview/tmp/
 .DS_Store
 
 # Flutter ignores are in app/.gitignore (created by `flutter create`)
+
+# Superpowers brainstorming artefacts
+.superpowers/
