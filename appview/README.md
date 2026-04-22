@@ -133,7 +133,7 @@ handle you have credentials for:
 ```bash
 curl -s -X POST http://localhost:8080/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"handle":"YOUR_HANDLE","handoff_mode":"deep_link"}' | jq -r .auth_url
+  -d '{"handle":"YOUR_HANDLE","handoffMode":"deep_link"}' | jq -r .authUrl
 ```
 
 **2. Open the printed URL in a browser.** Sign in at the PDS, approve
@@ -151,7 +151,7 @@ on, the page also displays the token in plaintext under
 ```bash
 TOKEN='<paste-here>'
 curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/whoami | jq .
-# {"did":"did:plc:..."}
+# {"did":"did:plc:...","handle":"..."}
 ```
 
 **5. Logout (single device):**
