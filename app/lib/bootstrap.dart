@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
+import 'package:craftsky_app/shared/api/models/login_response.dart';
+import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -67,4 +69,6 @@ Future<void> bootstrap(WidgetsBinding widgetsBinding) async {
 void initializeMappers() {
   AppDependenciesMapper.ensureInitialized();
   CraftskyDeviceInfoMapper.ensureInitialized();
+  LoginResponseMapper.ensureInitialized();
+  WhoAmIMapper.ensureInitialized();
 }
