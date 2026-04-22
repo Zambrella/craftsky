@@ -39,7 +39,7 @@ web/
     favicon.svg
     og-image.png         (1200×630 placeholder for Open Graph / Twitter)
     logo.svg             (placeholder "CS" wordmark, cobalt on cream)
-    paper-grain.svg      (from docs/design/, reused at ~4% opacity)
+    paper-grain.svg      (copied from app/assets/design/paper-grain.svg; ~4% opacity)
   README.md              (local dev + deploy notes)
 ```
 
@@ -59,7 +59,16 @@ A comment at the top of `styles.css` records the source of truth:
    If the design system changes, re-copy the :root block. */
 ```
 
-Drift is tolerable; this is a marketing page, not a shared component library.
+Drift is tolerable; this is a marketing page, not a shared component library. `web/README.md` includes a one-line diff command to check for drift against `docs/design/colors_and_type.css`.
+
+### 2.2 Content width
+
+The spec uses two content widths, both from the design-system tokens:
+
+- `--content-max` (1200px) — the outer container for hero, value-cards band, final CTA band, and footer.
+- `--feed-max` (680px) — narrow single-column sections: "Why we're building this" (§4.4) and "Who's behind it" (§4.6).
+
+All other sections (project posts §4.3, how it works §4.5, FAQ §4.7) sit inside `--content-max` with their own internal column layout.
 
 ## 3. Deployment
 
@@ -121,7 +130,7 @@ Copy (title + body, both sentence case, British English, design-system voice):
 Two-column on desktop, stacked on mobile.
 
 - **Left:** DM Serif Display heading "Post projects. Find projects." Outfit body, ~120 words, explaining that Craftsky lets you share what you're making and search for what others are making — fabric, pattern, technique, whatever you want to find. British English throughout.
-- **Right:** a mocked-up project card. Paper-3 fill, ink border, 6px hard offset shadow. Placeholder image sitting on a `--clay` swatch (roughly 8px of coloured paper visible around the image). Structured footer with a serif title ("Wiksten Haori"), Outfit 500 metadata row with middle-dot separators ("Sewing · WIP · 2 days"), and two chips (butter "Work in progress", cobalt-outline "Linen").
+- **Right:** a mocked-up project card. Paper-3 fill, ink border, 6px hard offset shadow. Placeholder image sitting on a `--clay` swatch (roughly 8px of coloured paper visible around the image). Structured footer with a serif title ("Wiksten Haori"), Outfit 500 metadata row with middle-dot separators ("Sewing · WIP · 2 days"), and two chips. Both chips reuse existing design-system variants: one butter-filled ("Work in progress", the `--wip`-style chip), one ink-outlined on paper ("Linen", the default `.ck-chip` style). No new chip variants introduced.
 
 The project card is static — no hover, no click. It's illustrative.
 
@@ -131,7 +140,7 @@ Single column, narrow (~680px max).
 
 - DM Serif Display heading: "Why we're building this."
 - Outfit 400 body, ~150 words, in the design-system voice. Draws from the vision doc: chronological feed, no ads ever, data portability, strong search, transparent business accounts.
-- Ends with a sentence pointing to the vision doc: _"The full vision doc is open for comments — [take a look](vision-doc-url)."_
+- Ends with a sentence pointing to the vision doc: _"The full vision doc is open for comments — [take a look](https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit)."_ (Same URL as the hero secondary CTA.)
 
 The exact copy is drafted during implementation and reviewed with Doug before shipping.
 
@@ -187,7 +196,7 @@ Full-width cobalt band with a small amount of paper-grain SVG overlay (~4% opaci
 Three columns on desktop, stacked on mobile. Paper-2 background, thin ink top rule.
 
 - **Left:** logo mark (placeholder cobalt "CS" wordmark) + tagline "Craftsky — a social feed for textile crafters."
-- **Middle:** stacked links — Vision doc, GitHub, Lexicons, Design system.
+- **Middle:** stacked links — Vision doc, GitHub (repo root), Lexicons (GitHub URL for `lexicon/`), Design system (GitHub URL for `docs/design/design-system.md`). All open in a new tab.
 - **Right:** "Built on the AT Protocol." with a small atproto mark (SVG).
 - **Bottom strip:** hairline ink rule, © year, small "Made with stuff" aside (reprising the hero pun).
 
@@ -195,23 +204,23 @@ Three columns on desktop, stacked on mobile. Paper-2 background, thin ink top ru
 
 ### 5.1 Provider choice
 
-A hosted, no-backend email-collection service. The spec does **not** pin down a specific provider — pick one during implementation based on which account Doug already has or is willing to set up.
+A hosted, no-backend email-collection service. The specific provider is picked **at the start of the implementation plan**, not during implementation, because the two embed shapes (`<form action>` POST vs. iframe) lead to different modal markup and different success-state handling (§5.2).
 
 Candidates, ranked by fit:
 
-1. **Buttondown** — indie, privacy-respecting, clean embed, GDPR-friendly. Best voice fit.
-2. **Tally** — free-tier generous, nice form builder.
-3. **ConvertKit** / **Mailchimp** — bigger, works, slightly corporate.
+1. **Buttondown** — indie, privacy-respecting, clean embed, GDPR-friendly. Best voice fit. Supports native `<form>` POST.
+2. **Tally** — free-tier generous, nice form builder. Iframe-first.
+3. **ConvertKit** / **Mailchimp** — bigger, works, slightly corporate. Native `<form>` POST.
 4. **Formspree** — posts raw submissions; email delivery happens elsewhere.
 
-The spec assumes whatever is chosen supports either (a) a `<form action>` POST with a redirect-after-submit, or (b) an iframe embed. Both approaches work with the modal design.
+**Default assumption for the spec:** Buttondown with a native `<form>` POST. If the plan picks an iframe-only provider, §5.2's success-state handling needs to adapt (the success swap happens inside the iframe's own thank-you page rather than in our modal body).
 
 ### 5.2 UX
 
 Clicking either "Join the waiting list" CTA opens a centred modal.
 
 - Overlay: `rgba(22, 18, 16, 0.5)` flat ink, no blur (per design system).
-- Modal container: Paper-3 fill, 1.5px ink border, `--r-4` radius (22px), 10px hard offset shadow (`--sh-drop-lg`), max-width ~520px, padded generously.
+- Modal container: native `<dialog>` element (see §11). Paper-3 fill, 1.5px ink border, `--r-4` radius (22px), 10px hard offset shadow (`--sh-drop-lg`), max-width ~520px, padded generously.
 - DM Serif Display heading: "Join the waiting list."
 - Outfit 400 sub: "We'll email you when there's something to see. Nothing else."
 - Native `<form>` (or iframe) with a single email field, Outfit 500 label "Email", cobalt pill submit button "Sign me up".
@@ -222,12 +231,14 @@ Clicking either "Join the waiting list" CTA opens a centred modal.
 
 A single small vanilla JS helper in `main.js` handling:
 
-- Opening the modal (toggle a class on `<body>`, focus the first input).
-- Closing on ESC, overlay click, or X button.
-- Basic focus trap (cycle focus among focusable elements inside the modal).
+- Opening the modal (`dialog.showModal()`) and closing it (`dialog.close()`).
+- Closing on overlay click (event target === the dialog element).
 - Firing the PostHog events (§6).
+- Closing via the X button inside the dialog.
 
-Estimated ~60 lines of JS total. No dependencies.
+ESC-to-close and focus-trap are provided by `<dialog>` natively.
+
+Estimated ~30 lines of JS total. No dependencies.
 
 ## 6. Analytics
 
@@ -239,7 +250,6 @@ PostHog, loaded via their official snippet at the bottom of `<body>`. Configurat
 - `autocapture: false` — we only want the events we explicitly send.
 - `disable_session_recording: true`.
 - `capture_pageview: false` — we're not tracking page views.
-- `opt_out_capturing_by_default: false` — but respect DNT.
 
 The PostHog project key is a plain constant in `main.js`. It's a public write-only key; committing it is safe.
 
@@ -256,7 +266,7 @@ No other events. No scroll depth, no time-on-page, no UTM capture.
 
 ### 6.3 Do Not Track
 
-If the browser sends the DNT header, skip loading the PostHog snippet entirely. This is conservative and fits the "your data is yours" brand.
+If the browser sends `navigator.doNotTrack === '1'`, skip loading the PostHog snippet entirely. This is simpler and stricter than PostHog's in-library opt-out and fits the "your data is yours" brand.
 
 ## 7. Accessibility
 
@@ -267,11 +277,12 @@ If the browser sends the DNT header, skip loading the PostHog snippet entirely. 
 - Colour contrast: the design-system tokens already pass WCAG AA for the combinations used (ink on paper, white on cobalt, ink on butter/sky/lilac). Verified during implementation with axe / Lighthouse.
 - `prefers-reduced-motion: reduce` honoured. The only motion on the page is the button hover/press translate; the media query disables it.
 - Images have descriptive `alt` text. Decorative SVG (the hero illustration, the paper-grain) is marked `aria-hidden="true"` with an empty `alt`.
-- Modal: `role="dialog"`, `aria-modal="true"`, `aria-labelledby` pointing at the modal heading, focus trap, restores focus to the triggering button on close.
+- Modal: native `<dialog>` element (role + modal semantics built in), `aria-labelledby` pointing at the modal heading. `<dialog>` restores focus to the triggering element on close by default.
 - FAQ `<summary>` elements are keyboard-accessible natively.
 
 ## 8. SEO & social
 
+- `<html lang="en-GB">` — British English is explicit in the voice guidelines.
 - `<title>`: "Craftsky — a social feed for textile crafters."
 - `<meta name="description">`: ~155 chars, first line of the hero sub-copy adapted.
 - `<link rel="canonical" href="https://craftsky.social/">`.
@@ -311,7 +322,11 @@ Mobile hit targets are minimum 44px per the design system.
 
 ## 11. Browser support
 
-Modern evergreen browsers: last 2 versions of Chrome, Safari, Firefox, Edge. Mobile Safari ≥ iOS 15, Chrome Android ≥ last 2 versions. No IE11. No polyfills needed for the features used (`<details>`, `clamp()`, CSS custom properties, `<dialog>` not used — we implement the modal with a plain `<div>` + JS for better support).
+Modern evergreen browsers: last 2 versions of Chrome, Safari, Firefox, Edge. Mobile Safari ≥ iOS 15, Chrome Android ≥ last 2 versions. No IE11.
+
+No polyfills needed for the features used: `<details>`, `clamp()`, CSS custom properties, and `<dialog>` (Safari 15.4+, which matches the iOS 15 floor).
+
+The modal uses the native `<dialog>` element. It provides focus trap, ESC-to-close, and backdrop handling for free, which reduces `main.js` from ~60 lines to ~30. The backdrop is styled via `::backdrop`. Overlay-click-to-close is a few lines of JS (detect clicks on the dialog element itself rather than its content).
 
 ## 12. Acceptance criteria
 
@@ -343,7 +358,20 @@ Not in this spec; revisit later if useful:
 
 ## 14. Open questions (to resolve in the plan)
 
-- Exact waiting-list provider (Buttondown / Tally / other).
-- PostHog project key — Doug to create the project and paste the key into the implementation PR.
-- GitHub repo URL — resolve the actual `github.com/<org>/craftsky` URL for the footer and "Who's behind it" links.
-- Whether to add `.superpowers/` to `.gitignore` — currently not present, and the brainstorming tool writes there. (Low priority; mention in the PR description.)
+- **Waiting-list provider.** Spec assumes Buttondown; plan's first step is to confirm or swap.
+- **PostHog project key.** Doug to create the project and paste the key into the implementation PR.
+- **GitHub repo URL.** Resolve the actual `github.com/<org>/craftsky` URL for the footer and "Who's behind it" links.
+- **`.superpowers/` in `.gitignore`.** The brainstorming tool writes there and it's currently not ignored. Low priority; mention in the PR description.
+
+## 15. Copy drafting
+
+Two sections have sample copy that is indicative, not final:
+
+- §4.4 **Why we're building this** — ~150 words drafted during implementation, drawing from the vision doc.
+- §4.7 **FAQ** — six answers, each ~60–100 words, drafted during implementation.
+
+Both sections must be reviewed by Doug before the page ships. The implementation plan should treat copy drafting as an explicit step (not an in-flight detail), with a review checkpoint before merging the PR.
+
+## 16. Roadmap entry
+
+The landing page is not currently tracked in `docs/roadmap.md`. The implementation PR should add a single line under a new **Web / marketing** heading in the v1 section (or under "Product / community" if that fits better) so it's visible alongside the other v1 workstreams.
