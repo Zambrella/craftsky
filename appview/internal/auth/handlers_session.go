@@ -11,6 +11,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
+	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/ctxkeys"
 )
 
@@ -30,25 +31,35 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req loginRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeJSONError(w, http.StatusBadRequest, "invalid_body")
+			envelope.WriteError(w, http.StatusBadRequest, "invalid_body",
+				"request body could not be decoded",
+				ctxkeys.GetRunID(r.Context()), nil)
 			return
 		}
 		req.Handle = strings.TrimPrefix(strings.TrimSpace(req.Handle), "@")
 		if req.Handle == "" {
-			writeJSONError(w, http.StatusBadRequest, "handle_required")
+			envelope.WriteError(w, http.StatusBadRequest, "handle_required",
+				"handle is required",
+				ctxkeys.GetRunID(r.Context()), nil)
 			return
 		}
 		if req.HandoffMode != "deep_link" && req.HandoffMode != "loopback" {
-			writeJSONError(w, http.StatusBadRequest, "invalid_handoff_mode")
+			envelope.WriteError(w, http.StatusBadRequest, "invalid_handoff_mode",
+				"handoffMode must be deep_link or loopback",
+				ctxkeys.GetRunID(r.Context()), nil)
 			return
 		}
 		if req.HandoffMode == "loopback" {
 			if req.LoopbackRedirectURI == "" {
-				writeJSONError(w, http.StatusBadRequest, "loopback_redirect_uri_required")
+				envelope.WriteError(w, http.StatusBadRequest, "loopback_redirect_uri_required",
+					"loopbackRedirectUri is required when handoffMode is loopback",
+					ctxkeys.GetRunID(r.Context()), nil)
 				return
 			}
 			if !loopbackRedirectPattern.MatchString(req.LoopbackRedirectURI) {
-				writeJSONError(w, http.StatusBadRequest, "loopback_redirect_uri_invalid")
+				envelope.WriteError(w, http.StatusBadRequest, "loopback_redirect_uri_invalid",
+					"loopbackRedirectUri must match http://127.0.0.1:<port>[/path]",
+					ctxkeys.GetRunID(r.Context()), nil)
 				return
 			}
 		}
@@ -58,14 +69,18 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 			h.Logger.Warn("StartAuthFlow failed",
 				slog.String("handle", req.Handle),
 				slog.String("err", err.Error()))
-			writeJSONError(w, http.StatusBadGateway, "authorization_server_unavailable")
+			envelope.WriteError(w, http.StatusBadGateway, "authorization_server_unavailable",
+				"could not reach the authorization server",
+				ctxkeys.GetRunID(r.Context()), nil)
 			return
 		}
 
 		requestURI, err := extractRequestURI(authURL)
 		if err != nil {
 			h.Logger.Error("extractRequestURI from StartAuthFlow URL", slog.String("err", err.Error()))
-			writeJSONError(w, http.StatusInternalServerError, "internal")
+			envelope.WriteError(w, http.StatusInternalServerError, "internal",
+				"internal error",
+				ctxkeys.GetRunID(r.Context()), nil)
 			return
 		}
 		// Race note: StartAuthFlow already inserted the auth-request row.
@@ -195,13 +210,17 @@ func (h *HTTPHandlers) LogoutHandler() http.Handler {
 			// Logout failed, this at least invalidates local tokens.
 			if err := h.CraftskySessions.RevokeAll(r.Context(), did); err != nil {
 				h.Logger.Error("RevokeAll failed", slog.String("did", did), slog.String("err", err.Error()))
-				writeJSONError(w, http.StatusInternalServerError, "internal")
+				envelope.WriteError(w, http.StatusInternalServerError, "internal",
+					"internal error",
+					ctxkeys.GetRunID(r.Context()), nil)
 				return
 			}
 		} else {
 			token := bearerToken(r)
 			if err := h.CraftskySessions.Revoke(r.Context(), token); err != nil {
-				writeJSONError(w, http.StatusInternalServerError, "internal")
+				envelope.WriteError(w, http.StatusInternalServerError, "internal",
+					"internal error",
+					ctxkeys.GetRunID(r.Context()), nil)
 				return
 			}
 		}

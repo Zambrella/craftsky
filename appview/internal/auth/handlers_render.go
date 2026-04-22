@@ -1,18 +1,10 @@
 package auth
 
 import (
-	"encoding/json"
 	"html/template"
 	"net/http"
 	"regexp"
 )
-
-// writeJSONError writes a JSON body `{"error":"<code>"}` with the given status.
-func writeJSONError(w http.ResponseWriter, status int, code string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": code})
-}
 
 // renderErrorHTML shows a minimal HTML error page. Used by the OAuth
 // callback since it's loaded in a browser, not by a programmatic client.
