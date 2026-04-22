@@ -48,6 +48,10 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] `social.craftsky.feed.post`, `.feed.like`, `.feed.repost`, `.actor.profile` defined
 - [ ] Verify lexicons against real Flutter composer requirements before first real PDS writes happen — any missing/wrong field now is painful to fix later
 
+### Web / marketing
+
+- [ ] Landing page at craftsky.social (hero + 8 sections, Cloudflare Pages, anonymous PostHog) — [`2026-04-22-landing-page-design.md`](superpowers/specs/2026-04-22-landing-page-design.md)
+
 ### Ops / infra
 
 - [ ] Production deploy (Hetzner VPS + Docker Compose + Caddy) → own spec
