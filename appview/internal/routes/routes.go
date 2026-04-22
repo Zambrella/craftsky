@@ -36,7 +36,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("POST /v1/auth/login", deviceID(oauthHandlers.LoginHandler()))
 
 	// v1 — authenticated + device-id required.
-	mux.Handle("GET /v1/whoami", authN(deviceID(api.WhoAmIHandler())))
+	mux.Handle("GET /v1/whoami", authN(deviceID(api.WhoAmIHandler(deps.HandleResolver, deps.Logger))))
 	mux.Handle("POST /v1/auth/logout", authN(deviceID(oauthHandlers.LogoutHandler())))
 
 	// Fallthrough.
