@@ -1,6 +1,8 @@
+import 'package:craftsky_app/auth/models/auth_state.dart';
+import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/pages/sign_in_page.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
-import 'package:craftsky_app/auth/providers/auth_status_provider.dart';
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/design_playground/pages/design_playground_page.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
@@ -11,6 +13,7 @@ import 'package:craftsky_app/profile/pages/saved_page.dart';
 import 'package:craftsky_app/profile/pages/user_profile_page.dart';
 import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/router/error_screen.dart';
+import 'package:craftsky_app/router/onboarding_refresh_listener.dart';
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
@@ -46,36 +49,67 @@ class _NavigatorKeys {
       _profileKey ??= GlobalKey<NavigatorState>(debugLabel: 'profileNavigator');
 }
 
+/// Plain `ChangeNotifier` subclass so `notifyListeners` is publicly
+/// callable — the go_router refresh-listenable pattern needs to fire
+/// from outside the notifier class.
+class _RouterRefresh extends ChangeNotifier {
+  void fire() => notifyListeners();
+}
+
 @riverpod
 GoRouter goRouter(Ref ref) {
+  final refresh = _RouterRefresh();
+  final onboardingListener = OnboardingRefreshListener(
+    ref: ref,
+    onChange: refresh.fire,
+  );
+
+  ref
+    ..onDispose(() {
+      onboardingListener.close();
+      refresh.dispose();
+    })
+    ..listen(authSessionProvider, (_, next) {
+      refresh.fire();
+      onboardingListener.update(next.value);
+    });
+
   return GoRouter(
     initialLocation: RouteLocations.welcome,
     navigatorKey: _NavigatorKeys.rootNavigatorKey,
     debugLogDiagnostics: true,
+    refreshListenable: refresh,
     redirect: (context, state) {
-      final isSignedIn = ref.read(authStatusProvider);
-      final isOnboarded = ref.read(onboardingStatusProvider);
-
+      final loc = state.matchedLocation;
       const unauthenticatedRoutes = [
         RouteLocations.welcome,
         RouteLocations.signIn,
       ];
-      const onboardingRoute = RouteLocations.onboarding;
 
-      final loc = state.matchedLocation;
+      final auth = ref.read(authSessionProvider).value;
+      if (auth == null) return null; // transient AsyncLoading
 
-      if (!isSignedIn && !unauthenticatedRoutes.contains(loc)) {
-        return RouteLocations.welcome;
+      switch (auth) {
+        case SignedOut():
+          if (loc == RouteLocations.authComplete) return null;
+          return unauthenticatedRoutes.contains(loc)
+              ? null
+              : RouteLocations.welcome;
+        case SignedIn(:final did):
+          final onboarded = ref.read(onboardingStatusProvider(did));
+          if (loc == RouteLocations.authComplete) {
+            return onboarded ? RouteLocations.home : RouteLocations.onboarding;
+          }
+          if (!onboarded && loc != RouteLocations.onboarding) {
+            return RouteLocations.onboarding;
+          }
+          if (onboarded &&
+              (unauthenticatedRoutes.contains(loc) ||
+                  loc == RouteLocations.onboarding)) {
+            return RouteLocations.home;
+          }
+          return null;
       }
-      if (isSignedIn && !isOnboarded && loc != onboardingRoute) {
-        return onboardingRoute;
-      }
-      if (isSignedIn &&
-          isOnboarded &&
-          (unauthenticatedRoutes.contains(loc) || loc == onboardingRoute)) {
-        return RouteLocations.home;
-      }
-      return null;
     },
     routes: $appRoutes,
     errorBuilder: (context, state) =>
@@ -250,6 +284,23 @@ class SignInRoute extends GoRouteData with $SignInRoute {
 
   @override
   Widget build(BuildContext context, GoRouterState state) => const SignInPage();
+}
+
+@TypedGoRoute<AuthCompleteRoute>(
+  path: RouteLocations.authComplete,
+  name: 'auth-complete',
+)
+class AuthCompleteRoute extends GoRouteData with $AuthCompleteRoute {
+  const AuthCompleteRoute({required this.token});
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
+
+  final String token;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      AuthCompletePage(token: token);
 }
 
 @TypedGoRoute<OnboardingRoute>(

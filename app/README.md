@@ -29,3 +29,37 @@ The `bluesky` package is Bluesky-specific and likely not needed here — Craftsk
 ## Platform IDs
 
 Native bundle IDs are rooted at `social.craftsky` (reverse of `craftsky.social`), e.g. `social.craftsky.craftsky_app` on Android/iOS.
+
+## Dev setup
+
+### Base URL
+
+The app talks to the AppView via `CRAFTSKY_API_BASE_URL`. In debug builds the
+default is `http://10.0.2.2:8080` (Android emulator → host). iOS simulator
+runs need an override:
+
+```bash
+flutter run --dart-define=CRAFTSKY_API_BASE_URL=http://localhost:8080
+```
+
+Release builds **require** `--dart-define`; the app throws on first API call
+if it's missing.
+
+## Deep links
+
+The app registers `craftsky://` as a custom URL scheme. The OAuth flow lands
+on `craftsky://auth/complete?token=…` after the user authenticates at their
+PDS. Smoke tests:
+
+```bash
+# iOS simulator
+xcrun simctl openurl booted 'craftsky://auth/complete?token=testtoken'
+
+# Android emulator (replace the package name if applicationId differs)
+adb shell am start -W -a android.intent.action.VIEW \
+  -d 'craftsky://auth/complete?token=testtoken' \
+  social.craftsky.app
+```
+
+Both should land on the "Signing in…" screen and surface a `NoPendingSignIn`
+error (since no sign-in is in progress — correct behaviour for a bare link).

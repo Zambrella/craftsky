@@ -341,6 +341,92 @@ Stream<Event> eventStream(Ref ref) {
 }
 ```
 
+## Testing
+
+Reference: [Testing your providers](https://riverpod.dev/docs/how_to/testing).
+
+### Container setup
+
+**Use `ProviderContainer.test()` — it auto-disposes at test end.** Create one fresh container per `test(...)` body; never share across tests.
+
+```dart
+test('foo', () {
+  final container = ProviderContainer.test(
+    overrides: [
+      apiClientProvider.overrideWithValue(fakeApi),
+    ],
+  );
+  // no explicit dispose — .test() registers addTearDown for you.
+});
+```
+
+Plain `ProviderContainer()` still works but forces manual `addTearDown(container.dispose)` — don't bother in tests.
+
+### Overriding providers
+
+| Shape | When |
+|---|---|
+| `provider.overrideWith((ref) => ...)` | Default for sync/function providers. |
+| `provider.overrideWithValue(AsyncValue.data(x))` | `FutureProvider` / `StreamProvider` only (restored in 3.0). |
+| `notifierProvider.overrideWith(MyNotifierMock.new)` | Replace an entire notifier implementation. Subclass the real notifier; pass the tear-off. |
+| `notifierProvider.overrideWithBuild((ref) => seed)` | Mock only `build`; preserve the notifier's methods. Prefer this over a full subclass when you just need to seed state. |
+
+**Family providers:** call the family, then override the returned instance — `onboardingStatusProvider('did:plc:a').overrideWith(...)`.
+
+### Mocking notifiers
+
+**Generally don't.** The docs say plainly: *"It is generally discouraged to mock Notifiers."* Instead, mock the repository / service / API client the notifier depends on, and override *that* provider.
+
+If you must replace a notifier:
+- **Subclass, don't `implements`.** Subclasses inherit the full surface; `implements` leaves you manually re-stubbing every method.
+- Use `overrideWith(FakeNotifier.new)` — the class tear-off, not an instance.
+- For the fake's `build()`, match the real signature and the `FutureOr<T> build() => null` idle-provider rule.
+
+### Awaiting async providers
+
+```dart
+// For @riverpod async providers:
+final value = await container.read(myFutureProvider.future);
+
+// Or assert:
+await expectLater(container.read(myFutureProvider.future), completion(42));
+```
+
+For "fire-and-forget" background work started inside a provider's `build` (e.g. an `unawaited(...)` validation), pump the event loop — don't guess at microtask counts:
+
+```dart
+// Flush the event loop until all chained awaits settle.
+for (var i = 0; i < 5; i++) {
+  await Future<void>.delayed(Duration.zero);
+}
+```
+
+### Widget tests
+
+Wrap in `ProviderScope` with overrides; grab the container via `tester.container()` when you need direct access:
+
+```dart
+await tester.pumpWidget(
+  ProviderScope(
+    overrides: [authControllerProvider.overrideWith(FakeAuthController.new)],
+    child: const MyWidget(),
+  ),
+);
+final container = tester.container();
+```
+
+### Key testing rules
+
+| Do | Don't |
+|---|---|
+| `ProviderContainer.test()` | `ProviderContainer()` + manual `addTearDown` |
+| One container per `test(...)` | Share containers across tests |
+| `overrideWith(Notifier.new)` (tear-off) | `overrideWith(() => Notifier())` (allocates before Riverpod init) |
+| `overrideWithBuild` to seed state | Full notifier subclass for a one-liner |
+| Mock the repository/service | Mock the notifier directly |
+| `subclass extends RealNotifier` | `class Fake implements RealNotifier` |
+| `await container.read(p.future)` | `.then(...)` / synchronous reads on async providers |
+
 ## Key Rules
 
 | Do | Don't |
