@@ -372,3 +372,110 @@ a:hover { color: var(--cobalt-deep); }
   font-weight: 500;
   color: var(--ink);
 }
+
+/* =========================================================================
+   Section title helper
+   ========================================================================= */
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: clamp(36px, 5vw, 56px);
+  font-weight: 400;
+  line-height: 1.05;
+  color: var(--ink);
+  margin: 0 0 var(--sp-4);
+}
+
+/* =========================================================================
+   Chips (reused from design system — same names used in app UI kit)
+   ========================================================================= */
+
+.ck-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: var(--r-pill);
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  line-height: 1.6;
+  background: var(--surface);
+  color: var(--fg-1);
+  border: 1.5px solid var(--rule);
+}
+.ck-chip--wip { background: var(--butter); }
+
+/* =========================================================================
+   Project posts
+   ========================================================================= */
+
+.project-posts__grid {
+  display: grid;
+  gap: var(--sp-7);
+  align-items: center;
+}
+
+@media (min-width: 820px) {
+  .project-posts__grid { grid-template-columns: 1fr 1fr; }
+}
+
+.project-posts__copy p {
+  margin-top: var(--sp-4);
+  max-width: 52ch;
+}
+
+.project-posts__card-wrap {
+  margin: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.project-card {
+  background: var(--paper-3);
+  border: 1.5px solid var(--rule);
+  border-radius: var(--r-3);
+  box-shadow: var(--sh-drop);
+  overflow: hidden;
+  max-width: 380px;
+  width: 100%;
+}
+
+.project-card__photo-frame {
+  background: var(--clay);
+  padding: 8px;
+}
+
+.project-card__photo {
+  aspect-ratio: 4 / 5;
+  background: linear-gradient(135deg, #F2CBB3 0%, #E0A884 100%);
+}
+
+.project-card__body {
+  padding: var(--sp-4) var(--sp-5) var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.project-card__title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.project-card__meta {
+  font-weight: 500;
+  color: var(--fg-2);
+  font-size: var(--t-meta);
+}
+
+.project-card__chips {
+  list-style: none;
+  padding: 0;
+  margin: var(--sp-2) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
