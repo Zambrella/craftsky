@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
+import 'package:craftsky_app/auth/models/pending_auth.dart';
+import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:flutter/foundation.dart';
@@ -71,4 +73,6 @@ void initializeMappers() {
   CraftskyDeviceInfoMapper.ensureInitialized();
   LoginResponseMapper.ensureInitialized();
   WhoAmIMapper.ensureInitialized();
+  StoredSessionMapper.ensureInitialized();
+  PendingAuthMapper.ensureInitialized();
 }
