@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -21,8 +23,15 @@ func (s stubResolver) ResolveHandle(ctx context.Context, did string) (string, er
 	return s.handle, s.err
 }
 
+// testLogger returns a slog.Logger that discards output but preserves
+// the structured-log pipeline. Cheap and doesn't pollute test output.
+func testLogger(t *testing.T) *slog.Logger {
+	t.Helper()
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
 func TestWhoAmI_HappyPath(t *testing.T) {
-	h := WhoAmIHandler(stubResolver{handle: "alice.example"})
+	h := WhoAmIHandler(stubResolver{handle: "alice.example"}, testLogger(t))
 	req := httptest.NewRequest(http.MethodGet, "/v1/whoami", nil)
 	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:abc"))
 	rr := httptest.NewRecorder()
@@ -44,7 +53,7 @@ func TestWhoAmI_HappyPath(t *testing.T) {
 }
 
 func TestWhoAmI_DirectoryUnavailable(t *testing.T) {
-	h := WhoAmIHandler(stubResolver{err: errors.New("plc down")})
+	h := WhoAmIHandler(stubResolver{err: errors.New("plc down")}, testLogger(t))
 	req := httptest.NewRequest(http.MethodGet, "/v1/whoami", nil)
 	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:abc"))
 	rr := httptest.NewRecorder()
@@ -63,7 +72,7 @@ func TestWhoAmI_DirectoryUnavailable(t *testing.T) {
 }
 
 func TestWhoAmI_NoDIDInContext(t *testing.T) {
-	h := WhoAmIHandler(stubResolver{handle: "unused"})
+	h := WhoAmIHandler(stubResolver{handle: "unused"}, testLogger(t))
 	req := httptest.NewRequest(http.MethodGet, "/v1/whoami", nil)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)

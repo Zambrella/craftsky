@@ -34,7 +34,7 @@ func (f *fakeDirectory) Purge(context.Context, syntax.AtIdentifier) error {
 }
 
 func TestHandleResolver_HappyPath(t *testing.T) {
-	r := HandleResolver{Directory: &fakeDirectory{
+	r := DirectoryHandleResolver{Directory: &fakeDirectory{
 		identity: &identity.Identity{Handle: syntax.Handle("alice.bsky.social")},
 	}}
 	h, err := r.ResolveHandle(context.Background(), "did:plc:abc")
@@ -47,7 +47,7 @@ func TestHandleResolver_HappyPath(t *testing.T) {
 }
 
 func TestHandleResolver_MalformedDID(t *testing.T) {
-	r := HandleResolver{Directory: &fakeDirectory{}}
+	r := DirectoryHandleResolver{Directory: &fakeDirectory{}}
 	_, err := r.ResolveHandle(context.Background(), "not-a-did")
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -58,7 +58,7 @@ func TestHandleResolver_MalformedDID(t *testing.T) {
 }
 
 func TestHandleResolver_DirectoryError(t *testing.T) {
-	r := HandleResolver{Directory: &fakeDirectory{err: errors.New("network down")}}
+	r := DirectoryHandleResolver{Directory: &fakeDirectory{err: errors.New("network down")}}
 	_, err := r.ResolveHandle(context.Background(), "did:plc:abc")
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -69,7 +69,7 @@ func TestHandleResolver_DirectoryError(t *testing.T) {
 }
 
 func TestHandleResolver_EmptyHandle(t *testing.T) {
-	r := HandleResolver{Directory: &fakeDirectory{
+	r := DirectoryHandleResolver{Directory: &fakeDirectory{
 		identity: &identity.Identity{Handle: syntax.HandleInvalid},
 	}}
 	_, err := r.ResolveHandle(context.Background(), "did:plc:abc")

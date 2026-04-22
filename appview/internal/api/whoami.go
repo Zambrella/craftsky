@@ -1,19 +1,13 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
 )
-
-// HandleResolverFunc is the minimal interface WhoAmIHandler needs.
-// HandleResolver from handle_resolver.go satisfies it; tests stub it.
-type HandleResolverFunc interface {
-	ResolveHandle(ctx context.Context, did string) (string, error)
-}
 
 // WhoAmIHandler returns the caller's DID and current handle.
 //
@@ -25,7 +19,7 @@ type HandleResolverFunc interface {
 //   - DID missing from context → 500 internal_error (routing bug).
 //   - Directory lookup failure (unknown DID, empty handle, network) →
 //     502 identity_unavailable.
-func WhoAmIHandler(resolver HandleResolverFunc) http.Handler {
+func WhoAmIHandler(resolver HandleResolver, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		did, ok := middleware.GetDID(r.Context())
 		if !ok {
@@ -36,8 +30,12 @@ func WhoAmIHandler(resolver HandleResolverFunc) http.Handler {
 		}
 		handle, err := resolver.ResolveHandle(r.Context(), did)
 		if err != nil {
+			logger.Warn("whoami: handle resolution failed",
+				slog.String("did", did),
+				slog.String("err", err.Error()),
+				slog.String("run_id", middleware.GetRunID(r.Context())))
 			envelope.WriteError(w, http.StatusBadGateway,
-				"identity_unavailable", "could not resolve handle for did",
+				"identity_unavailable", "could not resolve handle",
 				middleware.GetRunID(r.Context()), nil)
 			return
 		}

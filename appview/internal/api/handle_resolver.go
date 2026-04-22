@@ -9,14 +9,25 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
-// HandleResolver resolves a DID to its current handle via indigo's
-// identity.Directory. v1 does no caching beyond what the directory
-// provides internally — every /v1/whoami call pays one lookup.
+// HandleResolver resolves a DID string to its current handle. The
+// primary implementation is DirectoryHandleResolver, which wraps
+// indigo's identity.Directory; tests commonly stub the interface
+// directly.
+type HandleResolver interface {
+	ResolveHandle(ctx context.Context, did string) (string, error)
+}
+
+// DirectoryHandleResolver is the indigo-backed implementation of HandleResolver.
+// v1 does no caching beyond what the directory provides internally — every
+// /v1/whoami call pays one lookup.
 //
 // A nil Directory is a programmer error and will panic on use.
-type HandleResolver struct {
+type DirectoryHandleResolver struct {
 	Directory identity.Directory
 }
+
+// Compile-time interface check.
+var _ HandleResolver = DirectoryHandleResolver{}
 
 // ErrHandleUnavailable wraps every failure mode (malformed DID,
 // directory error, empty handle) into a single sentinel. Handlers
@@ -24,7 +35,7 @@ type HandleResolver struct {
 var ErrHandleUnavailable = errors.New("handle unavailable")
 
 // ResolveHandle returns the handle for did.
-func (r HandleResolver) ResolveHandle(ctx context.Context, did string) (string, error) {
+func (r DirectoryHandleResolver) ResolveHandle(ctx context.Context, did string) (string, error) {
 	parsed, err := syntax.ParseDID(did)
 	if err != nil {
 		return "", fmt.Errorf("%w: parse did: %v", ErrHandleUnavailable, err)
