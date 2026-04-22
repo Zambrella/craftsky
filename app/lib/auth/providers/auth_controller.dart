@@ -9,6 +9,7 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/providers/api_client_provider.dart';
+import 'package:craftsky_app/shared/device/device_id_provider.dart';
 import 'package:logging/logging.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
@@ -84,10 +85,17 @@ class AuthController extends _$AuthController {
         throw const SignInTimedOut();
       }
 
-      // One-shot client; the token is in its BaseOptions.headers. No
-      // global provider state, no need to clear anything on exit
-      // beyond pending-auth.
-      final handoff = ref.read(handoffApiClientProvider(token));
+      // Pre-resolve the device-id so the handoff provider stays sync.
+      // The server requires X-Craftsky-Device-Id on every authenticated
+      // call; the handoff Dio bakes it into BaseOptions alongside the
+      // bearer token.
+      final deviceId = await ref.read(deviceIdProvider.future);
+      if (!ref.mounted) return;
+
+      // One-shot client; the token + deviceId are in its
+      // BaseOptions.headers. No global provider state, no need to clear
+      // anything on exit beyond pending-auth.
+      final handoff = ref.read(handoffApiClientProvider(token, deviceId));
       try {
         final who = await handoff.whoami();
         if (!ref.mounted) return;
