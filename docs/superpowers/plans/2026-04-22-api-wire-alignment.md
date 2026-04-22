@@ -397,16 +397,18 @@ cd appview && grep -r "identity\.Base\|identity\.Directory" $(go env GOPATH)/pkg
 
 You should find `identity.BaseDirectory` (concrete) satisfying `identity.Directory` (interface). Use `identity.DefaultDirectory()` as the simplest constructor — it returns a `*BaseDirectory` with sensible defaults (in-process cache + HTTP PLC lookups). If `DefaultDirectory` is not available in the vendored version, fall back to `&identity.BaseDirectory{}` with whatever fields the version exposes.
 
-- [ ] **Step 2: Add HandleResolver to Deps**
+- [ ] **Step 2: Add HandleResolver (interface-typed) to Deps**
 
-**Note to implementer:** Task 5 creates `api.HandleResolver`. If Task 5 hasn't been merged yet when you're working on this plan sequentially, swap the order: do Task 5 first (create the type + its tests in isolation with no Deps wiring), then this task. The plan text keeps the current order because the Deps scaffolding is the smaller diff.
+**Order note.** This task references `api.HandleResolver` (struct) and `api.HandleResolverFunc` (interface) — both created in Task 5 and Task 6. If you're executing the plan sequentially and compile between tasks, you must do Task 5 BEFORE this step (it creates `api.HandleResolver`), and do Task 6 BEFORE this step compiles cleanly (it creates the `HandleResolverFunc` interface). Recommended execution order across Chunk 2: **Task 5 → Task 6 → Task 4 → Task 7.** The plan's narrative order (4 → 5 → 6 → 7) is fine for *reading* since the dependencies are described, but the actual *execution* order should follow the dependency chain.
 
 In `appview/internal/app/deps.go`, add to the `Deps` struct (after `CraftskySessionStore`):
 
 ```go
-	// Identity resolution for /v1/whoami. Stubbable in tests by
-	// overriding Deps.HandleResolver before wiring routes.
-	HandleResolver api.HandleResolver
+	// Identity resolution for /v1/whoami. Typed as the interface
+	// (not the concrete struct) so route tests can inject a stub
+	// via `Deps.HandleResolver = stubResolver{...}` without
+	// constructing an `identity.Directory`.
+	HandleResolver api.HandleResolverFunc
 ```
 
 Add imports:
@@ -831,12 +833,15 @@ mux.Handle("GET /v1/whoami", authN(deviceID(api.WhoAmIHandler(deps.HandleResolve
 
 - [ ] **Step 2: Stub the resolver in routes_test.go**
 
-Existing route tests for `/v1/whoami` (such as `TestAddRoutes_V1WhoAmIAuthenticatedReturnsDID`) seed a fake DID via the `X-Dev-DID` header and assert a 200 with the DID in the body. After Task 6 these tests MUST seed a stub handle resolver too — otherwise the real `identity.DefaultDirectory()` makes network calls for a nonexistent DID and the test either hangs or returns 502.
+`Deps.HandleResolver` is typed as the `api.HandleResolverFunc` interface (set in Task 4), so tests can inject a stub. Existing route tests for `/v1/whoami` (such as `TestAddRoutes_V1WhoAmIAuthenticatedReturnsDID`) seed a fake DID via the `X-Dev-DID` header and currently assert a 200 with the DID in the body. They need two changes:
 
-In `routes_test.go`, find where the test builds `*app.Deps` (or a `Deps`-shaped literal). Replace `HandleResolver: api.HandleResolver{Directory: identity.DefaultDirectory()}` (or the equivalent construction) with a stub. The simplest path:
+1. Inject a stub `HandleResolverFunc` into the Deps fixture so the handler doesn't hit the real PLC directory.
+2. Update the response assertion from `{"did":"..."}` to `{"did":"...","handle":"..."}`.
+
+Add the stub to the test file (near the existing test helpers):
 
 ```go
-// Stub resolver so route tests don't depend on the real PLC directory.
+// stubResolver implements api.HandleResolverFunc for route tests.
 type stubResolver struct{ handle string }
 
 func (s stubResolver) ResolveHandle(ctx context.Context, did string) (string, error) {
@@ -844,40 +849,22 @@ func (s stubResolver) ResolveHandle(ctx context.Context, did string) (string, er
 }
 ```
 
-And in the Deps construction:
+In every Deps construction in the test file, add:
 
 ```go
-HandleResolver: api.HandleResolver{},  // zero value — will not be called
+HandleResolver: stubResolver{handle: "stub-handle.example"},
 ```
 
-This works because the test's seeded DID (`"did:plc:from-header"`) has no real PLC entry and the test happens to have been asserting `{did}` only. After Task 6 the handler returns `{did, handle}`; update the assertion:
+Update the response-body assertion:
 
 ```go
 // before:
 if got := body["did"]; got != "did:plc:from-header" { ... }
-// after:
-if got := body["did"]; got != "did:plc:from-header" { ... }
-if got := body["handle"]; got != "stub-handle.example" { ... }
+// after (add alongside the did check):
+if got := body["handle"]; got != "stub-handle.example" {
+    t.Errorf("handle = %q, want stub-handle.example", got)
+}
 ```
-
-Using a **real** stub resolver is cleaner. Change `HandleResolver: api.HandleResolver{}` in the test fixture to go through a function the test injects — but `api.HandleResolver` is a struct, not an interface. Two options:
-
-1. **Add a `HandleResolverFunc` interface to `Deps` instead of the struct.** `Deps.HandleResolver` is typed as `api.HandleResolverFunc` (an interface with the single `ResolveHandle` method — which Task 6 already introduces). Then the test can pass a function-adapter stub. This is the cleaner path; recommend taking it.
-
-2. **Keep the struct; wrap the `identity.Directory` field with a fake.** In the test, implement a `fakeDirectory` (like the one in `handle_resolver_test.go` from Task 5) and set `HandleResolver: api.HandleResolver{Directory: fakeDirectory{identity: &identity.Identity{Handle: syntax.Handle("stub-handle.example")}}}`.
-
-**Pick option 1:** retype `Deps.HandleResolver` as `api.HandleResolverFunc` (the interface). `api.HandleResolver` (the struct) satisfies the interface; Task 4 already populates Deps with a `HandleResolver` struct value which is accepted by the interface field.
-
-Concretely, in `appview/internal/app/deps.go`, change the field type to the interface:
-
-```go
-// before (from Task 4):
-HandleResolver api.HandleResolver
-// after:
-HandleResolver api.HandleResolverFunc
-```
-
-Then in `routes_test.go` add the stub struct as above and set it in the Deps fixture.
 
 - [ ] **Step 3: Compile + test**
 
@@ -1304,7 +1291,14 @@ git commit -m "feat(app): add deviceIdProvider with UUID + secure storage"
 
 - [ ] **Step 1: Read the existing test**
 
-Read `app/test/shared/api/providers/session_auth_interceptor_test.dart` entirely (note the `providers/` subdirectory). The existing tests all use `SessionAuthInterceptor.withReader(() => ...)` — a one-arg constructor. After this task, the interceptor gains a device-id reader; we keep `.withReader` working as a backward-compat alias that injects a fixed dummy device-id, so existing tests keep compiling without modification. New tests use `.withReaders(...)` (plural) to exercise device-id attachment explicitly.
+Read `app/test/shared/api/providers/session_auth_interceptor_test.dart` entirely (note the `providers/` subdirectory). The existing tests use `SessionAuthInterceptor.withReader(() => ...)` — a one-arg constructor — and assert synchronously on `options.headers` right after `.onRequest(...)`.
+
+**Important behaviour change.** After this task, `onRequest` becomes a `void`-returning method with an `async` body (it awaits the device-id future before mutating headers). The existing tests' synchronous assertions will become **tautologies that pass for the wrong reason** — they'd pass even if the body never ran, because the assertion fires in the same microtask as the `.onRequest(...)` call, before any `await` inside the body has yielded and resumed.
+
+Two things follow:
+
+1. `.withReader(readAuth)` is kept as a back-compat alias that injects a fixed `'test-device-id'` for the device-id reader (so the test constructors compile unchanged).
+2. The four existing tests must be converted to `async` and must `await _pumpEventLoop();` between `.onRequest(...)` and `expect(...)`. Compilation alone is insufficient — without the pump, the tests pass vacuously. Step 5 walks through the conversion.
 
 - [ ] **Step 2: Write the failing tests**
 
@@ -1442,27 +1436,70 @@ class SessionAuthInterceptor extends Interceptor {
 
 Two things this shape locks in:
 
-1. `withReader` is preserved for the four existing tests that pass only an auth reader. They inject a fixed `'test-device-id'` automatically and their assertions (about `Authorization` only) stay valid.
+1. `withReader` is preserved for the four existing tests that pass only an auth reader. Their `.onRequest(...)` calls compile unchanged. **But they run differently now** — see Step 5.
 2. `onRequest` stays `void`-returning to satisfy Dio's `Interceptor` base. The async body is legal; Dio continues the chain on `handler.next(options)` regardless of when the method's async work completes.
 
-- [ ] **Step 5: Run tests**
+- [ ] **Step 5: Convert the four existing tests to await the microtask pump**
 
-```bash
-flutter test test/shared/api/session_auth_interceptor_test.dart
+Because `onRequest` now awaits `_readDeviceId()` before mutating headers, synchronous assertions right after `.onRequest(...)` will pass for the wrong reason — they fire before the async body has yielded. Convert each of the four existing tests from sync to async and pump the event loop:
+
+```dart
+// before:
+test('attaches Bearer from SignedIn state', () async {
+  // ... existing setup ...
+  SessionAuthInterceptor.withReader(
+    () => container.read(authSessionProvider),
+  ).onRequest(options, _CapturingHandler());
+
+  expect(options.headers['Authorization'], 'Bearer tok-abc');
+});
+
+// after:
+test('attaches Bearer from SignedIn state', () async {
+  // ... existing setup ...
+  SessionAuthInterceptor.withReader(
+    () => container.read(authSessionProvider),
+  ).onRequest(options, _CapturingHandler());
+
+  await _pumpEventLoop();
+
+  expect(options.headers['Authorization'], 'Bearer tok-abc');
+});
 ```
 
-Expected: new tests pass. If the existing `_CaptureHandler` didn't exist, match the pattern the existing tests use instead and adapt.
+The `omits Authorization when SignedOut`, `skips Authorization for /v1/auth/login even when SignedIn`, and `omits header when AuthSession is still loading` tests get the same treatment — add `await _pumpEventLoop();` before every `expect(...)` on `options.headers`.
 
-- [ ] **Step 6: Run full app test suite + analyze**
+While you're in the `/v1/auth/login` test, also assert the device-id IS attached (since `withReader` injects `'test-device-id'`):
+
+```dart
+test('skips Authorization for /v1/auth/login even when SignedIn', () async {
+  // ... existing setup ...
+  await _pumpEventLoop();
+  expect(options.headers.containsKey('Authorization'), isFalse);
+  expect(options.headers['X-Craftsky-Device-Id'], 'test-device-id'); // new
+});
+```
+
+The `omits header when AuthSession is still loading` test's body is synchronous today (no `async`); change its signature from `() {` to `() async {` and add the pump.
+
+- [ ] **Step 6: Run tests**
+
+```bash
+flutter test test/shared/api/providers/session_auth_interceptor_test.dart
+```
+
+Expected: all six tests (four converted + two new) pass. If one of the old tests now FAILS (e.g., `Authorization` header missing) with the pump in place, that's a legitimate regression — re-check that `withReader` is still injecting the auth reader correctly.
+
+- [ ] **Step 7: Run full app test suite + analyze**
 
 ```bash
 flutter test
 dart analyze
 ```
 
-Expected: no regressions. The existing `SessionAuthInterceptor` callsites compile because `fromRef` still exists.
+Expected: no regressions.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add app/lib/shared/api/providers/session_auth_interceptor.dart \
