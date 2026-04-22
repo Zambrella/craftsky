@@ -1,6 +1,3 @@
-// Package routes wires the App View's HTTP routes onto a *http.ServeMux.
-// Each handler factory in internal/api takes only the specific deps it
-// needs; this package owns the mapping from URL → handler + middleware.
 package routes
 
 import (
@@ -14,16 +11,12 @@ import (
 )
 
 // AddRoutes registers all App View routes on mux.
-//
-// ctx is the startup-scope context (used by future route-time validation,
-// e.g. checking that a required table exists at boot). Per-request work
-// inside handlers uses r.Context(), not this ctx.
 func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
-	// Public.
+	// Public ops.
 	mux.Handle("GET /health", api.HealthHandler(deps.DB, deps.Logger))
 	mux.Handle("GET /healthz", api.NewHealthHandler(deps.DB, deps.Consumer))
 
-	// OAuth discovery endpoints.
+	// OAuth discovery endpoints (contracts with the AS; not versioned).
 	oauthHandlers := auth.NewHTTPHandlers(
 		deps.OAuthApp,
 		deps.CraftskySessionStore,
@@ -33,13 +26,18 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	)
 	mux.Handle("GET /oauth/client-metadata.json", oauthHandlers.ClientMetadataHandler())
 	mux.Handle("GET /oauth/jwks.json", oauthHandlers.JWKSHandler())
-	mux.Handle("POST /auth/login", oauthHandlers.LoginHandler())
 	mux.Handle("GET /oauth/callback", oauthHandlers.CallbackHandler())
 
-	// Authenticated.
+	// Middleware stacks.
 	authN := middleware.Authenticated(deps.AuthService, deps.Logger)
-	mux.Handle("GET /whoami", authN(api.WhoAmIHandler()))
-	mux.Handle("POST /auth/logout", authN(oauthHandlers.LogoutHandler()))
+	deviceID := middleware.DeviceID(deps.CraftskySessionStore, deps.Logger)
+
+	// v1 — unauthenticated but device-id required.
+	mux.Handle("POST /v1/auth/login", deviceID(oauthHandlers.LoginHandler()))
+
+	// v1 — authenticated + device-id required.
+	mux.Handle("GET /v1/whoami", authN(deviceID(api.WhoAmIHandler())))
+	mux.Handle("POST /v1/auth/logout", authN(deviceID(oauthHandlers.LogoutHandler())))
 
 	// Fallthrough.
 	mux.Handle("/", http.NotFoundHandler())

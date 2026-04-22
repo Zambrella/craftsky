@@ -2,6 +2,7 @@ package routes
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -21,25 +22,79 @@ func testDeps() *app.Deps {
 	}
 }
 
-func TestAddRoutes_WhoAmIAuthenticatedReturnsDID(t *testing.T) {
+func TestAddRoutes_V1WhoAmIAuthenticatedReturnsDID(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, testDeps())
 
-	req := httptest.NewRequest("GET", "/whoami", nil)
+	req := httptest.NewRequest("GET", "/v1/whoami", nil)
 	req.Header.Set("Authorization", "Bearer anything")
 	req.Header.Set("X-Dev-DID", "did:plc:from-header")
+	req.Header.Set("X-Craftsky-Device-Id", "dev-test")
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "did:plc:from-header") {
-		t.Errorf("body = %q, want containing 'did:plc:from-header'", rec.Body.String())
+	var body struct {
+		DID string `json:"did"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("body not valid JSON: %v", err)
+	}
+	if body.DID != "did:plc:from-header" {
+		t.Errorf("body.did = %q, want did:plc:from-header", body.DID)
 	}
 }
 
-func TestAddRoutes_WhoAmIWithoutAuthReturns401(t *testing.T) {
+func TestAddRoutes_V1WhoAmIWithoutAuthReturns401(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest("GET", "/v1/whoami", nil)
+	req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rec.Code)
+	}
+}
+
+func TestAddRoutes_V1WhoAmIWithoutDeviceIDReturns400(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest("GET", "/v1/whoami", nil)
+	req.Header.Set("Authorization", "Bearer anything")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "missing_device_id") {
+		t.Errorf("body = %q, want containing 'missing_device_id'", rec.Body.String())
+	}
+}
+
+func TestAddRoutes_V1LoginWithoutDeviceIDReturns400(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest("POST", "/v1/auth/login", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "missing_device_id") {
+		t.Errorf("body = %q, want containing 'missing_device_id'", rec.Body.String())
+	}
+}
+
+func TestAddRoutes_LegacyUnprefixedWhoAmIReturns404(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, testDeps())
 
@@ -47,8 +102,30 @@ func TestAddRoutes_WhoAmIWithoutAuthReturns401(t *testing.T) {
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("status = %d, want 401", rec.Code)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 (legacy path should be gone)", rec.Code)
+	}
+}
+
+func TestAddRoutes_HealthStaysUnprefixed(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest("GET", "/health", nil)
+	_, pattern := mux.Handler(req)
+	if pattern == "/" || pattern == "" {
+		t.Errorf("pattern = %q; /health must be registered at a top-level path", pattern)
+	}
+}
+
+func TestAddRoutes_OAuthClientMetadataStaysUnprefixed(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest("GET", "/oauth/client-metadata.json", nil)
+	_, pattern := mux.Handler(req)
+	if pattern == "/" || pattern == "" {
+		t.Errorf("pattern = %q; /oauth/client-metadata.json must be registered", pattern)
 	}
 }
 

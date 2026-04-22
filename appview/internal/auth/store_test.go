@@ -67,6 +67,7 @@ func withAuthSchema(t *testing.T) *pgxpool.Pool {
 			account_did       TEXT NOT NULL,
 			oauth_session_id  TEXT NOT NULL,
 			device_label      TEXT,
+			last_device_id    TEXT,
 			created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
 			last_seen_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
 			revoked_at        TIMESTAMPTZ,

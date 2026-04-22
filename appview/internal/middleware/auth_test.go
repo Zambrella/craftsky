@@ -2,11 +2,11 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"social.craftsky/appview/internal/auth"
@@ -110,8 +110,12 @@ func TestAuthenticated_AlwaysErroringServiceReturns401(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", rec.Code)
 	}
-	if strings.TrimSpace(rec.Body.String()) != "Unauthorized" {
-		t.Errorf("body = %q, want Unauthorized", rec.Body.String())
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("body not json: %v", err)
+	}
+	if body["error"] != "unauthorized" {
+		t.Errorf("error = %v, want unauthorized", body["error"])
 	}
 }
 

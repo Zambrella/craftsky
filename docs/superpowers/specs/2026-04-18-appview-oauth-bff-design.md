@@ -172,15 +172,20 @@ The secret-source decision is a deployment/ops concern and is explicitly deferre
 
 ### 3.1 Endpoint surface
 
+> **Errata (2026-04-21):** The Craftsky-internal auth endpoints
+> moved under `/v1/` as part of the API architecture spec
+> ([`2026-04-21-appview-api-architecture-design.md`](./2026-04-21-appview-api-architecture-design.md)).
+> OAuth AS-facing endpoints (`/oauth/*`) are unchanged.
+
 | Method | Path | Audience | Purpose |
 |---|---|---|---|
 | GET | `/oauth/client-metadata.json` | Authorization Server | Serves the client metadata doc. URL must equal `client_id`. |
 | GET | `/oauth/jwks.json` | Authorization Server | Public JWKS (prod/confidential only; empty in dev). |
 | GET | `/oauth/callback` | Authorization Server → user browser | Final leg of auth flow; exchanges code for tokens. |
-| POST | `/auth/login` | Craftsky client (Flutter/CLI) | Starts the OAuth flow for a given handle. Returns the authorization URL. |
-| POST | `/auth/logout` | Craftsky client (Flutter/CLI) | Revokes the Craftsky session; optionally full logout. |
+| POST | `/v1/auth/login` | Craftsky client (Flutter/CLI) | Starts the OAuth flow for a given handle. Returns the authorization URL. |
+| POST | `/v1/auth/logout` | Craftsky client (Flutter/CLI) | Revokes the Craftsky session; optionally full logout. |
 
-The `/oauth/*` paths are the public atproto-spec surface; `/auth/*` paths are Craftsky-internal.
+The `/oauth/*` paths are the public atproto-spec surface; `/v1/auth/*` paths are Craftsky-internal.
 
 ### 3.2 Login flow
 

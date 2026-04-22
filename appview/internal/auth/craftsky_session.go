@@ -28,6 +28,7 @@ type CraftskySessionStore struct {
 
 	mu             sync.Mutex
 	lastSeenMemory map[string]time.Time
+	deviceIDMemory map[string]time.Time
 }
 
 func NewCraftskySessionStore(pool *pgxpool.Pool, lastSeenThrottle time.Duration) *CraftskySessionStore {
@@ -35,6 +36,7 @@ func NewCraftskySessionStore(pool *pgxpool.Pool, lastSeenThrottle time.Duration)
 		pool:             pool,
 		lastSeenThrottle: lastSeenThrottle,
 		lastSeenMemory:   make(map[string]time.Time),
+		deviceIDMemory:   make(map[string]time.Time),
 	}
 }
 
@@ -105,6 +107,37 @@ func (s *CraftskySessionStore) maybeTouchLastSeen(ctx context.Context, hash []by
 	s.mu.Unlock()
 	_, _ = s.pool.Exec(ctx,
 		`UPDATE craftsky_sessions SET last_seen_at = now() WHERE token_hash = $1`, hash)
+}
+
+// TouchDeviceID updates last_device_id on the craftsky_sessions row
+// identified by the authenticated DID + OAuth session ID pair, at
+// most once per lastSeenThrottle interval per session. It is safe to
+// call on every authenticated request; the in-memory throttle bounds
+// write load.
+//
+// Within a single throttle window, the first device ID seen is
+// recorded and subsequent calls are silently dropped — even if the
+// device ID changes. The column is best-effort instrumentation, not
+// an authoritative record of every device a session touched.
+//
+// Returns the DB error (if any). Callers should log but not propagate
+// it: the column is non-load-bearing, and request handling should
+// succeed even if the update fails.
+func (s *CraftskySessionStore) TouchDeviceID(ctx context.Context, did, oauthSessionID, deviceID string) error {
+	key := did + "|" + oauthSessionID
+	s.mu.Lock()
+	last, ok := s.deviceIDMemory[key]
+	now := time.Now()
+	if ok && now.Sub(last) < s.lastSeenThrottle {
+		s.mu.Unlock()
+		return nil
+	}
+	s.deviceIDMemory[key] = now
+	s.mu.Unlock()
+	_, err := s.pool.Exec(ctx,
+		`UPDATE craftsky_sessions SET last_device_id = $1 WHERE account_did = $2 AND oauth_session_id = $3`,
+		deviceID, did, oauthSessionID)
+	return err
 }
 
 func nullableString(s string) any {
