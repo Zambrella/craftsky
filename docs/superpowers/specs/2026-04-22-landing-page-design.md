@@ -39,6 +39,7 @@ web/
     favicon.svg
     og-image.png         (1200×630 placeholder for Open Graph / Twitter)
     logo.svg             (placeholder "CS" wordmark, cobalt on cream)
+    atproto-mark.svg     (small atproto mark for footer; sourced from atproto.com brand assets)
     paper-grain.svg      (copied from app/assets/design/paper-grain.svg; ~4% opacity)
   README.md              (local dev + deploy notes)
 ```
@@ -224,7 +225,7 @@ Clicking either "Join the waiting list" CTA opens a centred modal.
 - DM Serif Display heading: "Join the waiting list."
 - Outfit 400 sub: "We'll email you when there's something to see. Nothing else."
 - Native `<form>` (or iframe) with a single email field, Outfit 500 label "Email", cobalt pill submit button "Sign me up".
-- Small close affordance: X in top-right, ESC key, overlay click. Focus trapped inside modal while open.
+- Close paths: X button in top-right, ESC key, overlay (backdrop) click. Focus trap, ESC handling, and `::backdrop` are provided natively by `<dialog>` — see §5.3 and §11.
 - Success state: form body swaps to a thank-you message ("Thanks. We'll be in touch when there's something worth sharing."). A close button is available.
 
 ### 5.3 JavaScript
