@@ -710,3 +710,84 @@ a:hover { color: var(--cobalt-deep); }
   flex-wrap: wrap;
   gap: var(--sp-3);
 }
+
+/* =========================================================================
+   Modal
+   ========================================================================= */
+
+.modal {
+  max-width: 520px;
+  width: calc(100% - var(--sp-6));
+  padding: var(--sp-6) var(--sp-6) var(--sp-7);
+  background: var(--paper-3);
+  border: var(--border-w) solid var(--rule);
+  border-radius: var(--r-4);
+  box-shadow: var(--sh-drop-lg);
+  position: relative;
+}
+
+.modal::backdrop {
+  background: rgba(22, 18, 16, 0.5);
+}
+
+.modal__close-form {
+  position: absolute;
+  top: var(--sp-3);
+  right: var(--sp-3);
+  margin: 0;
+}
+
+.modal__close {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--ink);
+  padding: 0;
+}
+
+.modal__title {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1.05;
+  margin: 0;
+}
+
+.modal__sub {
+  margin-top: var(--sp-3);
+  color: var(--fg-2);
+}
+
+.modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-top: var(--sp-5);
+}
+
+.modal__label {
+  font-weight: 500;
+  color: var(--fg-1);
+}
+
+.modal__input {
+  padding: var(--sp-3) var(--sp-4);
+  border: var(--border-w) solid var(--rule);
+  border-radius: var(--r-1);
+  font-family: var(--font-ui);
+  font-size: var(--t-body);
+  background: var(--paper-3);
+}
+
+.modal__input:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+.modal__submit {
+  align-self: flex-start;
+}
