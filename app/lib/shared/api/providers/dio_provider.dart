@@ -1,5 +1,6 @@
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/api/providers/session_auth_interceptor.dart';
+import 'package:craftsky_app/shared/api/providers/sign_out_on_401_interceptor.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -41,7 +42,7 @@ Dio dio(Ref ref) {
   dio.interceptors.addAll([
     SessionAuthInterceptor.fromRef(ref),
     const ErrorMappingInterceptor(),
-    // Task 14b adds SignOutOn401Interceptor below ErrorMapping.
+    SignOutOn401Interceptor.fromRef(ref),
   ]);
   return dio;
 }

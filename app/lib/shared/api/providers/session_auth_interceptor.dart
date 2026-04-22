@@ -12,7 +12,7 @@ class SessionAuthInterceptor extends Interceptor {
       : _readAuth = (() => ref.read(authSessionProvider));
 
   /// Test constructor: accepts any callable that returns the current
-  /// `AsyncValue<AuthState>`. Production wiring uses [fromRef]; tests
+  /// `AsyncValue<AuthState>`. Production wiring uses `fromRef`; tests
   /// can inject a fake reader driven by a `ProviderContainer.test()`.
   SessionAuthInterceptor.withReader(this._readAuth);
 
