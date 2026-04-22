@@ -1,7 +1,6 @@
+import 'package:craftsky_app/shared/api/craftsky_api_client.dart';
+import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../craftsky_api_client.dart';
-import 'dio_provider.dart';
 
 part 'api_client_provider.g.dart';
 

@@ -1,8 +1,7 @@
+import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/models/login_response.dart';
+import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:dio/dio.dart';
-
-import 'api_exception.dart';
-import 'models/login_response.dart';
-import 'models/whoami.dart';
 
 /// Thin typed wrapper around the three AppView endpoints this release
 /// needs. All calls assume the attached [Dio] has the auth + error

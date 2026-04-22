@@ -1,8 +1,7 @@
+import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import 'error_mapping_interceptor.dart';
 
 part 'dio_provider.g.dart';
 
