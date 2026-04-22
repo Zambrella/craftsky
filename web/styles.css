@@ -479,3 +479,17 @@ a:hover { color: var(--cobalt-deep); }
   flex-wrap: wrap;
   gap: var(--sp-2);
 }
+
+/* =========================================================================
+   Why / Who's behind — narrow text sections
+   ========================================================================= */
+
+.why,
+.whos-behind {
+  padding: var(--sp-8) 0;
+}
+
+.why p,
+.whos-behind p {
+  margin-top: var(--sp-4);
+}
