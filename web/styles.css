@@ -540,3 +540,58 @@ a:hover { color: var(--cobalt-deep); }
   border-left: 3px solid var(--cobalt);
   padding-left: var(--sp-5);
 }
+
+/* =========================================================================
+   FAQ
+   ========================================================================= */
+
+.faq {
+  padding: var(--sp-8) 0;
+}
+
+.faq__item {
+  border-bottom: 1.5px solid var(--rule);
+  padding: var(--sp-4) 0;
+}
+
+.faq__item:first-of-type {
+  border-top: 1.5px solid var(--rule);
+}
+
+.faq__item summary {
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-3);
+  color: var(--ink);
+}
+
+/* Hide default marker in Chromium/Firefox/Safari */
+.faq__item summary::-webkit-details-marker { display: none; }
+.faq__item summary::marker { content: ''; }
+
+/* Chevron indicator */
+.faq__item summary::after {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border-right: 2px solid var(--ink);
+  border-bottom: 2px solid var(--ink);
+  transform: rotate(45deg);
+  transition: transform var(--dur-fast) var(--ease);
+  flex-shrink: 0;
+}
+
+.faq__item[open] summary::after {
+  transform: rotate(-135deg);
+}
+
+.faq__item p {
+  margin-top: var(--sp-3);
+  max-width: 60ch;
+}
