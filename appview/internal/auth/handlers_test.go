@@ -104,25 +104,45 @@ func TestLogin_MissingHandle(t *testing.T) {
 }
 
 func TestLogin_InvalidHandoffMode(t *testing.T) {
-	rr := postLogin(t, handlersFixture(t, ""), `{"handle":"alice.example","handoff_mode":"wat"}`)
+	rr := postLogin(t, handlersFixture(t, ""), `{"handle":"alice.example","handoffMode":"wat"}`)
 	expectJSONError(t, rr, http.StatusBadRequest, "invalid_handoff_mode")
 }
 
 func TestLogin_LoopbackMissingRedirect(t *testing.T) {
-	rr := postLogin(t, handlersFixture(t, ""), `{"handle":"alice.example","handoff_mode":"loopback"}`)
+	rr := postLogin(t, handlersFixture(t, ""), `{"handle":"alice.example","handoffMode":"loopback"}`)
 	expectJSONError(t, rr, http.StatusBadRequest, "loopback_redirect_uri_required")
 }
 
 func TestLogin_LoopbackRedirectRejectsNonLoopback(t *testing.T) {
 	rr := postLogin(t, handlersFixture(t, ""),
-		`{"handle":"alice.example","handoff_mode":"loopback","loopback_redirect_uri":"https://evil.example/"}`)
+		`{"handle":"alice.example","handoffMode":"loopback","loopbackRedirectUri":"https://evil.example/"}`)
 	expectJSONError(t, rr, http.StatusBadRequest, "loopback_redirect_uri_invalid")
 }
 
 func TestLogin_LoopbackRedirectRejectsJavaScript(t *testing.T) {
 	rr := postLogin(t, handlersFixture(t, ""),
-		`{"handle":"alice.example","handoff_mode":"loopback","loopback_redirect_uri":"javascript:alert(1)"}`)
+		`{"handle":"alice.example","handoffMode":"loopback","loopbackRedirectUri":"javascript:alert(1)"}`)
 	expectJSONError(t, rr, http.StatusBadRequest, "loopback_redirect_uri_invalid")
+}
+
+func TestLogin_AcceptsCamelCaseBody(t *testing.T) {
+	rr := postLogin(t, handlersFixture(t, ""),
+		`{"handle":"alice.example","handoffMode":"deep_link"}`)
+	if rr.Code != http.StatusBadGateway {
+		// We expect StartAuthFlow to fail because the test fixture has no
+		// real PDS; the important assertion is that the request decoded
+		// and validation PASSED (otherwise we'd get 400 invalid_handoff_mode).
+		t.Fatalf("got %d, want 502 (body decoded, reached StartAuthFlow)", rr.Code)
+	}
+}
+
+func TestLogin_RejectsSnakeCaseBody(t *testing.T) {
+	rr := postLogin(t, handlersFixture(t, ""),
+		`{"handle":"alice.example","handoff_mode":"deep_link"}`)
+	// handoffMode absent -> invalid_handoff_mode 400.
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("got %d, want 400", rr.Code)
+	}
 }
 
 // Helper: seed an oauth session and a craftsky session, return the bearer token.

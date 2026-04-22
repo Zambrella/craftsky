@@ -16,12 +16,12 @@ import (
 
 type loginRequest struct {
 	Handle              string `json:"handle"`
-	HandoffMode         string `json:"handoff_mode"` // "deep_link" | "loopback"
-	LoopbackRedirectURI string `json:"loopback_redirect_uri,omitempty"`
+	HandoffMode         string `json:"handoffMode"` // "deep_link" | "loopback"
+	LoopbackRedirectURI string `json:"loopbackRedirectUri,omitempty"`
 }
 
 type loginResponse struct {
-	AuthURL string `json:"auth_url"`
+	AuthURL string `json:"authUrl"`
 }
 
 // LoginHandler starts the OAuth flow and returns the authorization URL.
