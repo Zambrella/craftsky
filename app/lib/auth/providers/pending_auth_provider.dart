@@ -28,6 +28,9 @@ class PendingAuth extends _$PendingAuth {
   /// Direct state setter — used by tests that need to age the
   /// `startedAt` without real clock manipulation (see
   /// `auth_controller_test.dart` for the stale-pending scenario).
+  /// Kept as a method (not a setter) because the `@visibleForTesting`
+  /// intent is easier to see on call sites like `debugSet(...)`.
+  // ignore: use_setters_to_change_properties
   @visibleForTesting
   void debugSet(model.PendingAuth value) => state = value;
 }
