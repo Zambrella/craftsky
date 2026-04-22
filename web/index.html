@@ -58,7 +58,39 @@
         </div>
       </div>
       <div class="hero__illustration" aria-hidden="true">
-        <!-- Inline SVG added in Task 2.3 -->
+        <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" role="presentation">
+          <!-- Filter for hard ink drop shadow -->
+          <defs>
+            <filter id="hero-drop" x="-10%" y="-10%" width="130%" height="130%">
+              <feOffset dx="10" dy="10" in="SourceAlpha" result="off" />
+              <feFlood flood-color="#161210" result="ink" />
+              <feComposite in="ink" in2="off" operator="in" result="shadow" />
+              <feMerge>
+                <feMergeNode in="shadow" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
+          <!-- Cobalt rectangle, tilted left -->
+          <g transform="translate(40 60) rotate(-6 110 140)">
+            <rect x="0" y="0" width="220" height="280" fill="#1535D6" stroke="#161210" stroke-width="3" filter="url(#hero-drop)" />
+          </g>
+
+          <!-- Sky rectangle, tilted right -->
+          <g transform="translate(200 40) rotate(8 90 110)">
+            <rect x="0" y="0" width="180" height="220" fill="#9BC2E6" stroke="#161210" stroke-width="3" filter="url(#hero-drop)" />
+          </g>
+
+          <!-- Clay rectangle, centred, with inset cobalt square -->
+          <g transform="translate(120 200) rotate(-2 90 80)">
+            <rect x="0" y="0" width="180" height="160" fill="#E27B4A" stroke="#161210" stroke-width="3" filter="url(#hero-drop)" />
+            <rect x="70" y="55" width="50" height="50" fill="#1535D6" stroke="#161210" stroke-width="3" transform="rotate(18 95 80)" />
+          </g>
+
+          <!-- Red dot, top right -->
+          <circle cx="340" cy="60" r="20" fill="#F03A2E" stroke="#161210" stroke-width="3" filter="url(#hero-drop)" />
+        </svg>
       </div>
     </div>
   </header>
