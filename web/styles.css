@@ -180,3 +180,89 @@ a:hover { color: var(--cobalt-deep); }
     animation-iteration-count: 1 !important;
   }
 }
+
+/* =========================================================================
+   Layout primitives
+   ========================================================================= */
+
+.container {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 0 var(--sp-5);
+}
+
+.container--narrow {
+  max-width: var(--feed-max);
+}
+
+/* Full-bleed section with centred content */
+.section {
+  padding: var(--sp-8) 0;
+}
+
+.section-rule {
+  border: 0;
+  border-top: 2.5px solid var(--rule);
+  margin: 0;
+}
+
+/* Button atoms — reused in hero, final CTA, modal */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-3) var(--sp-5);
+  min-height: 44px;
+  border-radius: var(--r-pill);
+  border: 1.5px solid var(--rule);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: var(--t-body);
+  text-decoration: none;
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--fg-1);
+  box-shadow: var(--sh-drop-sm);
+  transition: transform var(--dur-fast) var(--ease),
+              box-shadow var(--dur-fast) var(--ease);
+}
+
+.btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 var(--ink);
+}
+
+.btn--primary {
+  background: var(--cobalt);
+  color: #FFFFFF;
+}
+
+.btn--ghost {
+  background: var(--paper-3);
+  color: var(--fg-1);
+}
+
+.btn--on-cobalt {
+  background: #FFFFFF;
+  color: var(--cobalt);
+}
+
+/* Eyebrow chip (hero + any other eyebrow callouts) */
+.eyebrow-chip {
+  display: inline-block;
+  padding: 4px var(--sp-3);
+  background: var(--butter);
+  color: var(--cobalt);
+  border: 1.5px solid var(--rule);
+  border-radius: var(--r-pill);
+  font-family: var(--font-ui);
+  font-size: var(--t-eyebrow);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
