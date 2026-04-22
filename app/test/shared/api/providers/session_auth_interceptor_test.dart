@@ -39,7 +39,9 @@ void main() {
     await seed(container);
 
     final options = RequestOptions(path: '/v1/whoami');
-    SessionAuthInterceptor.withReader(() => container.read(authSessionProvider)).onRequest(options, _CapturingHandler());
+    SessionAuthInterceptor.withReader(
+      () => container.read(authSessionProvider),
+    ).onRequest(options, _CapturingHandler());
 
     expect(options.headers['Authorization'], 'Bearer tok-abc');
   });
@@ -53,7 +55,9 @@ void main() {
     await seed(container);
 
     final options = RequestOptions(path: '/v1/whoami');
-    SessionAuthInterceptor.withReader(() => container.read(authSessionProvider)).onRequest(options, _CapturingHandler());
+    SessionAuthInterceptor.withReader(
+      () => container.read(authSessionProvider),
+    ).onRequest(options, _CapturingHandler());
 
     expect(options.headers.containsKey('Authorization'), isFalse);
   });
@@ -67,7 +71,9 @@ void main() {
     await seed(container);
 
     final options = RequestOptions(path: '/v1/auth/login');
-    SessionAuthInterceptor.withReader(() => container.read(authSessionProvider)).onRequest(options, _CapturingHandler());
+    SessionAuthInterceptor.withReader(
+      () => container.read(authSessionProvider),
+    ).onRequest(options, _CapturingHandler());
 
     expect(options.headers.containsKey('Authorization'), isFalse);
   });
@@ -75,7 +81,9 @@ void main() {
   test('omits header when AuthSession is still loading (no value yet)', () {
     final container = ProviderContainer.test();
     final options = RequestOptions(path: '/v1/whoami');
-    SessionAuthInterceptor.withReader(() => container.read(authSessionProvider)).onRequest(options, _CapturingHandler());
+    SessionAuthInterceptor.withReader(
+      () => container.read(authSessionProvider),
+    ).onRequest(options, _CapturingHandler());
 
     expect(options.headers.containsKey('Authorization'), isFalse);
   });
