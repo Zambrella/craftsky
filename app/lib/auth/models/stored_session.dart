@@ -17,4 +17,11 @@ class StoredSession with StoredSessionMappable {
   final String token;
   final String did;
   final String handle;
+
+  /// Never include the token in string form — the default mappable
+  /// `toString` prints every field, which would land bearer tokens in
+  /// any accidental `_log.fine('$session')` call site.
+  @override
+  String toString() =>
+      'StoredSession(did: $did, handle: $handle, token: <redacted>)';
 }

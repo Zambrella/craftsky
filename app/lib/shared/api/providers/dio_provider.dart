@@ -38,6 +38,14 @@ BaseOptions baseDioOptions() {
 
 @Riverpod(keepAlive: true)
 Dio dio(Ref ref) {
+  // Interceptor ordering matters:
+  //   1. SessionAuthInterceptor — attaches Bearer on outgoing requests.
+  //   2. ErrorMappingInterceptor — converts DioException → ApiException
+  //      in .error, PRESERVING response/statusCode on the replacement.
+  //   3. SignOutOn401Interceptor — reads err.response?.statusCode == 401
+  //      to decide whether to sign out. If (2) ever stops preserving
+  //      response, (3) silently breaks in prod (tests use synthetic
+  //      DioException objects with statusCode already set).
   final dio = Dio(baseDioOptions());
   dio.interceptors.addAll([
     SessionAuthInterceptor.fromRef(ref),
