@@ -535,3 +535,8 @@ a:hover { color: var(--cobalt-deep); }
   color: var(--ink);
   margin: 0;
 }
+
+.whos-behind__accent {
+  border-left: 3px solid var(--cobalt);
+  padding-left: var(--sp-5);
+}
