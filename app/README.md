@@ -48,16 +48,16 @@ if it's missing.
 ## Deep links
 
 The app registers `craftsky://` as a custom URL scheme. The OAuth flow lands
-on `craftsky://auth/complete?token=…` after the user authenticates at their
-PDS. Smoke tests:
+on `craftsky:///auth/complete?token=…` (triple slash — empty host, path
+`/auth/complete`) after the user authenticates at their PDS. Smoke tests:
 
 ```bash
 # iOS simulator
-xcrun simctl openurl booted 'craftsky://auth/complete?token=testtoken'
+xcrun simctl openurl booted 'craftsky:///auth/complete?token=testtoken'
 
 # Android emulator (replace the package name if applicationId differs)
 adb shell am start -W -a android.intent.action.VIEW \
-  -d 'craftsky://auth/complete?token=testtoken' \
+  -d 'craftsky:///auth/complete?token=testtoken' \
   social.craftsky.app
 ```
 
