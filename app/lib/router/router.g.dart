@@ -10,6 +10,7 @@ List<RouteBase> get $appRoutes => [
   $appShellRoute,
   $welcomeRoute,
   $signInRoute,
+  $authCompleteRoute,
   $onboardingRoute,
   $userProfileRoute,
 ];
@@ -279,6 +280,39 @@ mixin $SignInRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
+RouteBase get $authCompleteRoute => GoRouteData.$route(
+  path: '/auth/complete',
+  name: 'auth-complete',
+  parentNavigatorKey: AuthCompleteRoute.$parentNavigatorKey,
+  factory: $AuthCompleteRoute._fromState,
+);
+
+mixin $AuthCompleteRoute on GoRouteData {
+  static AuthCompleteRoute _fromState(GoRouterState state) =>
+      AuthCompleteRoute(token: state.uri.queryParameters['token']!);
+
+  AuthCompleteRoute get _self => this as AuthCompleteRoute;
+
+  @override
+  String get location => GoRouteData.$location(
+    '/auth/complete',
+    queryParams: {'token': _self.token},
+  );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
 RouteBase get $onboardingRoute => GoRouteData.$route(
   path: '/onboarding',
   name: 'onboarding',
@@ -384,4 +418,4 @@ final class GoRouterProvider
   }
 }
 
-String _$goRouterHash() => r'88fe252126512d62d8b839f770b5ce4247df6619';
+String _$goRouterHash() => r'acfc4d3dc415571b1cfdc6de36b1d36f51d44425';
