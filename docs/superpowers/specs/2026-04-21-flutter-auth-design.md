@@ -139,22 +139,7 @@ class PendingAuth with PendingAuthMappable {
 
 Held in a `pendingAuthProvider` (a plain `@riverpod` class exposing `start(handle)` / `clear()`). Used by `completeFromDeepLink` to (a) confirm a sign-in is in progress and (b) reject stale deep links (older than 10 minutes).
 
-### 2.4 In-flight token state
-
-```dart
-@Riverpod(keepAlive: true)
-class InFlightToken extends _$InFlightToken {
-  @override
-  String? build() => null;
-
-  void setToken(String token) => state = token;
-  void clear() => state = null;
-}
-```
-
-Lives for the narrow window between the deep-link arriving in `completeFromDeepLink` and `whoami` returning. Read by the `dio` Bearer interceptor (see §5.3) as a **fallback** when `SecureTokenStorage` is empty. This decoupling means the deep-link handoff can make a single authenticated call (`whoami`) before we persist anything to secure storage — if the app is killed mid-handoff, cold start sees no stored session and the flow restarts cleanly rather than loading a half-written `did: ''` blob.
-
-### 2.5 Onboarding state
+### 2.4 Onboarding state
 
 Family-keyed by DID, backed by `SharedPreferences`:
 
@@ -351,15 +336,14 @@ class AuthController extends _$AuthController {
         throw const SignInTimedOut();
       }
 
-      // Park the token in a dedicated provider so the Dio Bearer
-      // interceptor can attach it for the `whoami` call — WITHOUT
-      // persisting it to SecureTokenStorage yet. If the app is killed
-      // mid-flow, cold start sees no stored session and the flow
-      // restarts cleanly (rather than a half-written `did: ''` blob).
-      ref.read(inFlightTokenProvider.notifier).setToken(token);
+      // Use a dedicated HandoffApiClient that carries the just-minted
+      // token without touching SecureTokenStorage or AuthSession — see
+      // §5 for why this is a separate Dio instance. If the app is
+      // killed mid-flow, cold start sees no stored session and the
+      // flow restarts cleanly rather than loading a half-written blob.
+      final handoff = ref.read(handoffApiClientProvider(token));
       try {
-        final api = ref.read(apiClientProvider);
-        final who = await api.whoami();
+        final who = await handoff.whoami();
         if (!ref.mounted) return;
 
         // Single write: only persist after we know token → DID resolves.
@@ -372,12 +356,7 @@ class AuthController extends _$AuthController {
           SignedIn(did: who.did, handle: who.handle, token: token),
         );
       } finally {
-        // `keepAlive: true` on AuthController's parent providers means
-        // mid-flow disposal is unreachable in normal operation, but the
-        // mounted check is defence-in-depth for test harnesses that
-        // tear containers down mid-call.
         if (ref.mounted) {
-          ref.read(inFlightTokenProvider.notifier).clear();
           ref.read(pendingAuthProvider.notifier).clear();
         }
       }
@@ -460,15 +439,14 @@ Pages consume `authControllerProvider`'s `AsyncValue<void>` via `ref.listen` for
        │                    │                    │               │
        │ AuthCompletePage initState → completeFromDeepLink(token) │
        │   ├─ validate pendingAuth freshness (<10min)             │
-       │   ├─ inFlightTokenProvider.set(token)   │               │
-       │   │     (Dio interceptor falls back to this for whoami)  │
+       │   ├─ build HandoffApiClient(token) — Bearer baked in     │
        │   │                                                      │
        │ GET /v1/whoami     │                    │               │
        ├───────────────────▶│                    │               │
        │◀── 200 {did, handle} ─┤                 │               │
        │   ├─ SINGLE write: storage ← {token, did, handle}        │
        │   ├─ authSession.setSignedIn(...)                        │
-       │   └─ finally: inFlightToken.clear(), pendingAuth.clear() │
+       │   └─ finally: pendingAuth.clear()                        │
        │                                                          │
        │ router refresh fires → redirect re-evaluates            │
        │   → /feed (or /onboarding if first-run for this DID)    │
@@ -586,34 +564,75 @@ Notes:
 
 ## 5. API client
 
-### 5.1 `CraftskyApiClient`
+Two Dio instances, each with a single, narrow job:
+
+- **`dioProvider`** — the **session Dio**. Reads the Bearer token from `authSessionProvider`'s current state. Used for every authenticated call from feature code (`/v1/whoami` background validation, future feed/post calls). Handles mid-session 401 by globally signing the user out.
+- **`handoffApiClientProvider(token)`** — the **handoff Dio**, constructed with a specific token baked into its default headers. Built on demand by `AuthController.completeFromDeepLink`, used for exactly one `whoami` call, disposed immediately. 401 on this Dio does NOT sign the user out — it surfaces as an `ApiUnauthorized` and `AuthController` maps it to an `AuthError`.
+
+Splitting them removes the "is this a handoff request?" branching that would otherwise live inside interceptors. The session Dio never carries a token that isn't in `authSessionProvider`; the handoff Dio never outlives a single call.
+
+### 5.1 `CraftskyApiClient` — session-scoped
 
 ```dart
 class CraftskyApiClient {
-  CraftskyApiClient(this._dio);
+  const CraftskyApiClient(this._dio);
   final Dio _dio;
 
-  Future<LoginResponse> login({required String handle}) async {
-    final res = await _dio.post<Map<String, dynamic>>(
-      '/v1/auth/login',
-      data: {
-        'handle': handle,
-        'handoff_mode': 'deep_link',
-      },
-    );
-    return LoginResponseMapper.fromMap(res.data!);
-  }
+  /// POST /v1/auth/login — anonymous, no Bearer header required.
+  Future<LoginResponse> login({required String handle}) => _unwrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/v1/auth/login',
+          data: {'handle': handle, 'handoff_mode': 'deep_link'},
+        );
+        return LoginResponseMapper.fromMap(res.data!);
+      });
 
-  Future<WhoAmI> whoami() async {
-    final res = await _dio.get<Map<String, dynamic>>('/v1/whoami');
-    return WhoAmIMapper.fromMap(res.data!);
-  }
+  /// GET /v1/whoami — authenticated via the session Dio.
+  Future<WhoAmI> whoami() => _unwrap(() async {
+        final res = await _dio.get<Map<String, dynamic>>('/v1/whoami');
+        return WhoAmIMapper.fromMap(res.data!);
+      });
 
-  Future<void> logout() async {
-    await _dio.post('/v1/auth/logout');
+  /// POST /v1/auth/logout — authenticated via the session Dio.
+  Future<void> logout() => _unwrap(() async {
+        await _dio.post<void>('/v1/auth/logout');
+      });
+
+  /// Translates `DioException` carrying an `ApiException` in `.error`
+  /// into a direct `ApiException` throw. See §5.4.
+  Future<T> _unwrap<T>(Future<T> Function() body) async {
+    try {
+      return await body();
+    } on DioException catch (e) {
+      final err = e.error;
+      if (err is ApiException) throw err;
+      throw ApiServerError(e.message ?? 'server_error');
+    }
   }
 }
 ```
+
+### 5.2 `HandoffApiClient` — token-scoped, single-use
+
+```dart
+class HandoffApiClient {
+  const HandoffApiClient(this._dio);
+  final Dio _dio;
+
+  Future<WhoAmI> whoami() async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>('/v1/whoami');
+      return WhoAmIMapper.fromMap(res.data!);
+    } on DioException catch (e) {
+      final err = e.error;
+      if (err is ApiException) throw err;
+      throw ApiServerError(e.message ?? 'server_error');
+    }
+  }
+}
+```
+
+Only `whoami` is exposed — this client has no other purpose. It does not carry the 401 sign-out behaviour (its own interceptor set leaves 401 alone).
 
 Response shapes (`dart_mappable`):
 
@@ -634,61 +653,140 @@ class WhoAmI with WhoAmIMappable {
 
 The `handoff_mode: "deep_link"` constant is baked in — loopback mode is CLI-only, not an app concern.
 
-### 5.2 `Dio` construction
-
-One keep-alive provider, two interceptors:
+### 5.3 Dio construction — two providers
 
 ```dart
-@Riverpod(keepAlive: true)
-Dio dio(Ref ref) {
-  const baseUrl = String.fromEnvironment(
-    'CRAFTSKY_API_BASE_URL',
-    defaultValue: kDebugMode ? _devDefaultBaseUrl : '',
-  );
-  if (baseUrl.isEmpty) {
+// --- Shared base options / error interceptor -----------------------
+
+const _devDefaultBaseUrl = 'http://10.0.2.2:8080'; // Android-emulator default.
+const _baseUrl = String.fromEnvironment(
+  'CRAFTSKY_API_BASE_URL',
+  defaultValue: kDebugMode ? _devDefaultBaseUrl : '',
+);
+
+BaseOptions _baseOptions() {
+  if (_baseUrl.isEmpty) {
     throw StateError(
       'CRAFTSKY_API_BASE_URL must be set for non-debug builds. '
       'Pass it via --dart-define.',
     );
   }
-
-  final dio = Dio(BaseOptions(
-    baseUrl: baseUrl,
+  return BaseOptions(
+    baseUrl: _baseUrl,
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 15),
     headers: {'Content-Type': 'application/json'},
-  ));
+  );
+}
 
+// --- Session Dio ---------------------------------------------------
+
+@Riverpod(keepAlive: true)
+Dio dio(Ref ref) {
+  final dio = Dio(_baseOptions());
   dio.interceptors.addAll([
-    _AuthInterceptor(ref),
+    _SessionAuthInterceptor(ref),
+    _SignOutOn401Interceptor(ref),
     _ErrorMappingInterceptor(),
   ]);
-
   return dio;
 }
 
-// Android emulator → host machine = 10.0.2.2.
-// iOS simulator → localhost. Android is the more common footgun so it's the default.
-const _devDefaultBaseUrl = 'http://10.0.2.2:8080';
+@Riverpod(keepAlive: true)
+CraftskyApiClient craftskyApiClient(Ref ref) =>
+    CraftskyApiClient(ref.watch(dioProvider));
+
+// --- Handoff Dio (family — one instance per token) -----------------
+
+@riverpod
+HandoffApiClient handoffApiClient(Ref ref, String token) {
+  final dio = Dio(_baseOptions().copyWith(
+    headers: {
+      ..._baseOptions().headers ?? const <String, dynamic>{},
+      'Authorization': 'Bearer $token',
+    },
+  ));
+  dio.interceptors.add(_ErrorMappingInterceptor());
+  return HandoffApiClient(dio);
+}
 ```
 
-### 5.3 Interceptors
+The handoff provider is **not** keep-alive — the `family` parameter (the token) is unique per sign-in, so the instance gets auto-disposed when no one watches it. `AuthController.completeFromDeepLink` reads it exactly once.
 
-**`_AuthInterceptor`:**
-- On every outgoing request, resolves the current Bearer token in this order:
-  1. `ref.read(inFlightTokenProvider)` — populated by `AuthController.completeFromDeepLink` during the handoff window (see §3.4). Used for the post-deep-link `whoami` call before the session is persisted.
-  2. The token field on the current `authSessionProvider` state, if it resolves to `SignedIn`. Reading from state rather than re-reading secure storage on every request avoids redundant async plumbing — `AuthController` is the single writer of both storage and auth state, so they stay in lockstep.
-- Skips injection for the `/v1/auth/login` path (the only anonymous endpoint in v1). Check on `options.path`. This is an exact-match check, kept as a single constant — revisit if more anonymous endpoints land.
-- Sets `Authorization: Bearer <token>` when a token is resolved; omits the header entirely otherwise (server responds 401, the interceptor maps to `ApiUnauthorized`).
-- Safety: `ref.read` inside an interceptor capturing the dio provider's `ref` is safe because `dioProvider` is `keepAlive: true`. The interceptor cannot outlive its provider.
+### 5.4 Interceptors
 
-**`_ErrorMappingInterceptor`:**
-- Converts `DioException` into `ApiException` subtypes in `onError`.
-- `DioExceptionType.connectionTimeout` / `sendTimeout` / `receiveTimeout` / `connectionError` / `unknown (socket)` → `ApiNetworkError`.
-- `DioExceptionType.badResponse` with `statusCode == 401` → `ApiUnauthorized`. **Global side effect:** unless the request path is `/v1/whoami` AND `inFlightTokenProvider` is non-null (i.e. we're mid-handoff and a fresh-minted token was rejected — a distinct sign-in failure that `AuthController` surfaces as an `AuthError`), the interceptor calls `ref.read(authSessionProvider.notifier).setSignedOut()` and `ref.read(secureTokenStorageProvider).clear()` before propagating `ApiUnauthorized`. The router's refresh listenable picks up the state transition and boots the user to `/welcome`. This is the single entry point for "token got revoked server-side" recovery — feature code does not need to handle 401 individually.
-- `DioExceptionType.badResponse` with `statusCode` in `[400, 499]` (excluding 401, handled above) → `ApiBadRequest(code: response.data['error'] as String?)`. The server's error JSON shape is `{"error": "handle_required"}` etc. (see `appview/internal/auth/handlers_session.go:writeJSONError`).
-- `DioExceptionType.badResponse` with `statusCode >= 500` → `ApiServerError`.
-- Anything else → a generic `ApiServerError` with the original error attached.
+**`_SessionAuthInterceptor`** — attaches the Bearer token read from `authSessionProvider`. Tests control its behaviour by overriding `authSessionProvider` (no injected resolver callback needed).
+
+```dart
+const _anonymousPaths = <String>{'/v1/auth/login'};
+
+class _SessionAuthInterceptor extends Interceptor {
+  _SessionAuthInterceptor(this._ref);
+  final Ref _ref;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (_anonymousPaths.contains(options.path)) {
+      handler.next(options);
+      return;
+    }
+    final auth = _ref.read(authSessionProvider).value;
+    if (auth is SignedIn) {
+      options.headers['Authorization'] = 'Bearer ${auth.token}';
+    }
+    handler.next(options);
+  }
+}
+```
+
+**`_SignOutOn401Interceptor`** — on 401 from the session Dio, signs the user out. Because the handoff Dio has its own (simpler) interceptor stack, this one never fires for handoff calls.
+
+```dart
+class _SignOutOn401Interceptor extends Interceptor {
+  _SignOutOn401Interceptor(this._ref);
+  final Ref _ref;
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    final status = err.response?.statusCode;
+    if (status == 401) {
+      // Fire-and-forget storage clear; synchronous state flip.
+      unawaited(_ref.read(secureTokenStorageProvider).clear());
+      _ref.read(authSessionProvider.notifier).setSignedOut();
+    }
+    handler.next(err);
+  }
+}
+```
+
+**`_ErrorMappingInterceptor`** — the same for both Dios. Converts `DioException` → `ApiException`:
+
+- `connectionTimeout` / `sendTimeout` / `receiveTimeout` / `connectionError` (or socket-ish unknowns) → `ApiNetworkError`.
+- `badResponse` with `statusCode == 401` → `ApiUnauthorized`.
+- `badResponse` with `statusCode ∈ [400, 499]` → `ApiBadRequest(code: response.data['error'] as String?)`. Server's error JSON shape: `{"error": "handle_required"}` (see `appview/internal/auth/handlers_session.go:writeJSONError`).
+- `badResponse` with `statusCode >= 500` → `ApiServerError`.
+- Anything else → generic `ApiServerError`.
+
+Exhaustive switch in the mapper uses merged cases where behaviour is identical:
+
+```dart
+ApiException _mapDioError(DioException err) {
+  return switch (err.type) {
+    DioExceptionType.connectionTimeout ||
+    DioExceptionType.sendTimeout ||
+    DioExceptionType.receiveTimeout ||
+    DioExceptionType.connectionError =>
+      ApiNetworkError(err.message ?? err.type.name),
+    DioExceptionType.badResponse => _mapBadResponse(err),
+    DioExceptionType.cancel ||
+    DioExceptionType.badCertificate ||
+    DioExceptionType.unknown =>
+      err.error is Exception
+          ? ApiNetworkError(err.message ?? 'network_error')
+          : ApiServerError(err.message ?? 'server_error'),
+  };
+}
+```
 
 ```dart
 sealed class ApiException implements Exception {
@@ -704,14 +802,20 @@ final class ApiServerError extends ApiException { const ApiServerError(super.mes
 final class ApiNetworkError extends ApiException { const ApiNetworkError(super.message); }
 ```
 
-### 5.4 Error → UI mapping
+### 5.5 Error → UI mapping
 
-`AuthController` converts `ApiException` to `AuthError` in the `signIn` path:
+`AuthController` converts `ApiException` to `AuthError` in the `signIn` path using merged switch cases where behaviour is shared:
 
-- `ApiBadRequest(code: 'handle_required')` → `HandleRequired`
-- `ApiBadRequest(code: _)` (any other 4xx) → `InvalidHandle`
-- `ApiServerError()` or `ApiNetworkError()` → `ServerUnavailable`
-- `ApiUnauthorized` during sign-in — not possible (login is anonymous); raise as `ServerUnavailable` defensively.
+```dart
+AuthError _mapSignInError(ApiException e) => switch (e) {
+      ApiBadRequest(code: 'handle_required') => const HandleRequired(),
+      ApiBadRequest() => const InvalidHandle(),
+      // Login is anonymous; a 401 here is defensive-only, treated like a
+      // transient server failure so the user can retry.
+      ApiNetworkError() || ApiServerError() || ApiUnauthorized() =>
+        const ServerUnavailable(),
+    };
+```
 
 `SignInPage` listens to `authControllerProvider` and maps `AuthError` to a user-facing message via `Theme.of(context).textTheme` / `ScaffoldMessenger`. Per the flutter.md rule, the snackbar content widget is a separate `AuthErrorSnackBarContent` widget class, not a helper method.
 
@@ -725,12 +829,13 @@ app/lib/
 │   └── api/
 │       ├── api_exception.dart
 │       ├── craftsky_api_client.dart
+│       ├── handoff_api_client.dart
 │       ├── models/
 │       │   ├── login_response.dart           # + .mapper.dart
 │       │   └── whoami.dart                   # + .mapper.dart
 │       └── providers/
-│           ├── api_client_provider.dart      # + .g.dart
-│           └── dio_provider.dart             # + .g.dart
+│           ├── api_client_provider.dart      # + .g.dart (craftskyApiClient, handoffApiClient)
+│           └── dio_provider.dart             # + .g.dart (session Dio + shared interceptors)
 ├── auth/
 │   ├── models/
 │   │   ├── auth_error.dart
@@ -740,7 +845,6 @@ app/lib/
 │   ├── providers/
 │   │   ├── auth_controller.dart              # + .g.dart
 │   │   ├── auth_session_provider.dart        # + .g.dart  (notifier: AuthSession)
-│   │   ├── in_flight_token_provider.dart     # + .g.dart
 │   │   ├── pending_auth_provider.dart        # + .g.dart
 │   │   └── secure_token_storage.dart         # + .g.dart
 │   └── pages/
@@ -835,23 +939,27 @@ No `android:autoVerify`, no SHA256 fingerprint, no `assetlinks.json`. Works iden
 
 Three test layers, matching the existing `app/test/` convention.
 
-### 8.1 API client unit tests — `test/shared/api/craftsky_api_client_test.dart`
+Tests follow the Riverpod 3 idioms codified in `.claude/rules/riverpod.md` (Testing section): `ProviderContainer.test()` per test body, `overrideWith(FakeNotifier.new)` for notifier seams, `overrideWith((ref) => fake)` or `overrideWithValue` for plain providers, and service-level fakes rather than notifier mocks wherever possible.
+
+### 8.1 API client unit tests — `test/shared/api/`
 
 Using `http_mock_adapter`:
 
-- `login(handle: "alice.bsky.social")` composes `POST /v1/auth/login` with body `{handle: "alice.bsky.social", handoff_mode: "deep_link"}`.
-- `whoami()` composes `GET /v1/whoami`.
-- `logout()` composes `POST /v1/auth/logout`.
-- Bearer injection present on authenticated endpoints; absent on `/v1/auth/login`.
-- Token read from an overridden `secureTokenStorageProvider`.
-- `_ErrorMappingInterceptor` maps all four status-code branches correctly.
-- `_ErrorMappingInterceptor` 401 on an authenticated endpoint (e.g. `/v1/whoami` with no `inFlightToken`) triggers `authSessionProvider.setSignedOut()` and `secureTokenStorage.clear()` before propagating `ApiUnauthorized`.
-- `_ErrorMappingInterceptor` 401 on `/v1/whoami` DURING handoff (`inFlightToken` non-null) does NOT sign the user out — it propagates `ApiUnauthorized` for `AuthController.completeFromDeepLink` to surface as a sign-in failure.
-- `ApiBadRequest.code` extraction survives missing / non-string `error` field (defensive null).
+**`craftsky_api_client_test.dart`** (session client):
+- `login(handle)` → `POST /v1/auth/login` with body `{handle, handoff_mode: "deep_link"}`; no Bearer header (anonymous path).
+- `whoami()` → `GET /v1/whoami` with `Authorization: Bearer <token>` derived from an overridden `authSessionProvider` (seeded to `SignedIn`).
+- `logout()` → `POST /v1/auth/logout` with Bearer.
+- `_SignOutOn401Interceptor`: 401 on `/v1/whoami` signs out — `authSessionProvider` transitions to `SignedOut`, `SecureTokenStorage.clear()` is called.
+- `_ErrorMappingInterceptor` maps the four branches (`ApiUnauthorized`, `ApiBadRequest(code)`, `ApiServerError`, `ApiNetworkError`).
+- `ApiBadRequest.code` defensively handles missing / non-string `error` field.
+
+**`handoff_api_client_test.dart`**:
+- `whoami()` composes `GET /v1/whoami` with `Authorization: Bearer <token>` baked into `BaseOptions.headers` (no interceptor dependency).
+- 401 surfaces as `ApiUnauthorized` and **does NOT** trigger sign-out (the handoff Dio's interceptor stack contains only `_ErrorMappingInterceptor`, not `_SignOutOn401Interceptor`). Assert by wiring it up inside a `ProviderContainer.test()` and checking `authSessionProvider` stays unchanged.
 
 ### 8.2 Provider unit tests — `test/auth/providers/`
 
-Using Riverpod's `ProviderContainer` test harness:
+Using `ProviderContainer.test()`:
 
 - `AuthSession.build` resolves to `SignedOut` when storage is empty.
 - `AuthSession.build` resolves to `SignedIn` when storage has a stored session; `_validateInBackground` fires unawaited.
@@ -859,15 +967,14 @@ Using Riverpod's `ProviderContainer` test harness:
 - Background validation: DID mismatch → clear + `SignedOut`.
 - Background validation: handle drift → update storage + state.
 - Background validation: network error → state unchanged.
-- `AuthController.signIn` happy path (browser launch mocked via `url_launcher`'s `setMockUrlLauncher`), pending-auth stamped, state transitions `idle → loading → data`.
+- `AuthController.signIn` happy path (browser launch mocked by overriding `launchAuthUrlProvider`), pending-auth stamped, state transitions `idle → loading → data`.
 - `AuthController.signIn` trims whitespace + leading `@` from handle.
 - `AuthController.signIn` empty handle → `AsyncError(HandleRequired)`.
-- `AuthController.completeFromDeepLink` happy path: sets `inFlightTokenProvider`, calls `whoami`, writes storage ONCE with full `{token, did, handle}`, transitions auth state, clears both `inFlightTokenProvider` and `pendingAuthProvider` in the finally block.
+- `AuthController.completeFromDeepLink` happy path: builds `handoffApiClientProvider(token)` (overridden in the test with a fake), calls `whoami`, writes storage ONCE with full `{token, did, handle}`, transitions auth state, clears `pendingAuthProvider` in the finally block.
 - `AuthController.completeFromDeepLink` with no pending auth → `AsyncError(NoPendingSignIn)`.
 - `AuthController.completeFromDeepLink` with stale pending (>10min) → `AsyncError(SignInTimedOut)`, pending cleared.
-- `AuthController.completeFromDeepLink` with `whoami` failure → storage NOT written (in-flight-only pattern), error rethrown, `inFlightTokenProvider` cleared.
-- Kill-during-sign-in simulation: call `completeFromDeepLink` that sets the in-flight token, then simulate shutdown before `whoami` resolves. Assert `SecureTokenStorage.read()` still returns `null` — no half-written blob. Next cold start → `SignedOut`.
-- `_AuthInterceptor` falls back to `inFlightTokenProvider` when `SecureTokenStorage` is empty.
+- `AuthController.completeFromDeepLink` with `whoami` failure → storage NOT written; no session leaks to `SecureTokenStorage`.
+- Kill-during-sign-in simulation: run `completeFromDeepLink` against a handoff client that never completes; assert `SecureTokenStorage.read()` still returns `null`. Next cold start → `SignedOut`.
 - `AuthController.signOut` happy path.
 - `AuthController.signOut` on network failure still clears local state.
 - `OnboardingStatus(did).build` reads `SharedPreferences`.
@@ -934,7 +1041,7 @@ The spec is implemented when:
 
 5. **`/v1` migration timing.** If the server migration doesn't land before this, the Flutter client's hardcoded `/v1/...` paths 404. **Mitigation:** Cross-reference note in both specs; whoever lands second does the rename (server-side is three route lines; client-side is three path constants). No compat shim — both sides flip together.
 
-6. **DID spoofing via storage corruption.** An attacker with filesystem access could swap the stored `did` for another user's. On relaunch the app optimistically trusts it, shows their profile / feed until `whoami` returns. **Mitigation:** the DID-mismatch check in `_validateInBackground` clears state if the token → DID mapping disagrees. The window is one round-trip on app launch — tolerable for a crafting app. App-layer encryption of the storage blob is future work if the threat model tightens. The in-flight-token pattern in `completeFromDeepLink` (§3.4) closes a related footgun: we never persist a `StoredSession` with an empty DID, so there's no "half-written session" attack surface from an app-kill during the handoff window.
+6. **DID spoofing via storage corruption.** An attacker with filesystem access could swap the stored `did` for another user's. On relaunch the app optimistically trusts it, shows their profile / feed until `whoami` returns. **Mitigation:** the DID-mismatch check in `_validateInBackground` clears state if the token → DID mapping disagrees. The window is one round-trip on app launch — tolerable for a crafting app. App-layer encryption of the storage blob is future work if the threat model tightens. The separate handoff Dio pattern in `completeFromDeepLink` (§3.4 + §5.2) closes a related footgun: we never persist a `StoredSession` until `whoami` has resolved the real DID, so there's no "half-written session" attack surface from an app-kill during the handoff window.
 
 ## 11. Future work
 
