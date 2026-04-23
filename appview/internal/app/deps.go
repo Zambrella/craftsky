@@ -106,10 +106,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	// indigo provides an in-process cache via DefaultDirectory.
 	identityDir := identity.DefaultDirectory()
 
-	blueskySample := index.NewBlueskyPostsSample(pool)
-
 	dispatcher := index.NewDispatcher(index.NotImplemented{})
-	dispatcher.Register("app.bsky.feed.post", blueskySample)
 
 	deps := &Deps{
 		Config:               cfg,
