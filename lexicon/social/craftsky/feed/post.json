@@ -12,25 +12,25 @@
         "properties": {
           "text": {
             "type": "string",
-            "maxLength": 3000,
-            "maxGraphemes": 300,
-            "description": "The primary text content of the post. Plain text; rich-text annotations live in 'facets'."
+            "maxLength": 20000,
+            "maxGraphemes": 2000,
+            "description": "The primary text content of the post. Plain text; rich-text annotations live in 'facets'. Craftsky allows longer posts than Bluesky (2000 graphemes vs 300) because crafters write fuller project write-ups."
           },
           "facets": {
             "type": "array",
             "items": { "type": "ref", "ref": "app.bsky.richtext.facet" },
-            "description": "Byte-range annotations over 'text' for mentions, links, and tags. Reuses app.bsky.richtext.facet so existing renderers Just Work."
+            "description": "Byte-range annotations over 'text' for mentions, links, and inline hashtags. Reuses app.bsky.richtext.facet so existing renderers Just Work. Inline hashtag facets are composer-merged into project.common.tags on project posts; see the post lexicon fields spec."
           },
           "project": {
             "type": "ref",
-            "ref": "#projectDetails",
-            "description": "If present, this post is a craft project post."
+            "ref": "#project",
+            "description": "If present, this post is a craft project post. Absence means it's a general social post."
           },
           "images": {
             "type": "array",
             "items": { "type": "ref", "ref": "#image" },
             "maxLength": 4,
-            "description": "Images attached to the post."
+            "description": "Images attached to the post. Top-level (not inside 'embed') — a post may carry images alongside a quote embed without needing a wrapper variant."
           },
           "embed": {
             "type": "union",
@@ -50,35 +50,118 @@
         }
       }
     },
-    "projectDetails": {
+    "project": {
       "type": "object",
-      "description": "Craft project metadata attached to a post.",
+      "description": "Wraps a craft project's shared fields (#projectCommon) and optional craft-specific fields (#details, open union). The wrapper exists so shared fields live in one place (common) while per-craft specialisations are added additively via the union. See ADR 001.",
+      "required": ["common"],
+      "properties": {
+        "common": {
+          "type": "ref",
+          "ref": "#projectCommon",
+          "description": "Shared project fields that apply across all crafts."
+        },
+        "details": {
+          "type": "union",
+          "refs": [
+            "social.craftsky.project.sewing#details"
+          ],
+          "description": "Optional craft-specific fields. Open union — new crafts add new variants here without breaking existing records."
+        }
+      }
+    },
+    "projectCommon": {
+      "type": "object",
+      "description": "Project fields shared across every craft. A post with project.common present but no project.details is a valid craft-tagged project post without specialised fields — useful when craftType references a craft that has no #details lexicon yet.",
+      "required": ["craftType"],
       "properties": {
         "craftType": {
           "type": "string",
-          "maxLength": 50,
-          "maxGraphemes": 50,
-          "description": "The type of craft, e.g. knitting, sewing, crochet, embroidery, quilting.",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "The craft this project belongs to. Required — a project post without a craft type is meaningless. knownValues are tokens; new crafts can be added to feed.defs without breaking old clients.",
           "knownValues": [
-            "knitting",
-            "crochet",
-            "sewing",
-            "embroidery",
-            "quilting",
-            "weaving",
-            "spinning"
+            "social.craftsky.feed.defs#knitting",
+            "social.craftsky.feed.defs#crochet",
+            "social.craftsky.feed.defs#sewing",
+            "social.craftsky.feed.defs#embroidery",
+            "social.craftsky.feed.defs#quilting"
           ]
         },
         "status": {
           "type": "string",
-          "maxLength": 20,
-          "description": "Whether the project is in progress or finished.",
-          "knownValues": ["wip", "finished"]
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Whether the project is in progress or finished at the time this post was created. Snapshot — not a mutable lifecycle flag. knownValues are tokens so new statuses (e.g. planned, frogged) can be added without breaking old clients.",
+          "knownValues": [
+            "social.craftsky.feed.defs#wip",
+            "social.craftsky.feed.defs#finished"
+          ]
         },
-        "patternUrl": {
+        "title": {
+          "type": "string",
+          "maxLength": 500,
+          "maxGraphemes": 200,
+          "description": "Optional project name, e.g. 'Hitchhiker Shawl' or 'Linen Summer Dress'. Clients showing grid/card views should fall back to truncated text when title is absent."
+        },
+        "duration": {
+          "type": "string",
+          "maxLength": 500,
+          "maxGraphemes": 100,
+          "description": "Free-text description of how long the project took, e.g. '3 weeks', 'a weekend', '6 months of evenings'. Deliberately unstructured — crafters describe duration informally. Not range-queryable."
+        },
+        "pattern": {
+          "type": "ref",
+          "ref": "#pattern",
+          "description": "Optional pattern reference."
+        },
+        "materials": {
+          "type": "array",
+          "maxLength": 20,
+          "items": {
+            "type": "string",
+            "maxLength": 100,
+            "maxGraphemes": 100
+          },
+          "description": "Materials used in the project, as free-form tags. Indexed for search, e.g. 'show me all projects using linen'. Structure per material is intentionally free-form because every craft uses different material descriptors."
+        },
+        "tags": {
+          "type": "array",
+          "maxLength": 10,
+          "items": {
+            "type": "string",
+            "maxLength": 64,
+            "maxGraphemes": 64
+          },
+          "description": "Structured search tags. Composer responsibility to normalise to ASCII kebab-case (pattern ^[a-z0-9]+(-[a-z0-9]+)*$) and to merge any inline #hashtag facets from text into this field. AppView indexer materialises this as a multi-value searchable column."
+        }
+      }
+    },
+    "pattern": {
+      "type": "object",
+      "description": "Optional reference to the pattern used. Every field optional — 'Simplicity 8265' (name only), 'https://ravelry.com/patterns/library/hitchhiker' (URL only), or both plus difficulty are all valid.",
+      "properties": {
+        "url": {
           "type": "string",
           "format": "uri",
-          "description": "Link to the pattern used, e.g. on Ravelry or Etsy."
+          "description": "Link to the pattern."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 500,
+          "maxGraphemes": 200,
+          "description": "Pattern name, e.g. 'Simplicity 8265' or 'Hitchhiker Shawl'. Useful when there is no URL (e.g. a physical pattern), or alongside a URL as a display label."
+        },
+        "difficulty": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Pattern difficulty as rated by the designer. A property of the pattern, not the post — self-drafted or free-formed projects should leave this empty. knownValues are tokens.",
+          "knownValues": [
+            "social.craftsky.feed.defs#beginner",
+            "social.craftsky.feed.defs#intermediate",
+            "social.craftsky.feed.defs#advanced",
+            "social.craftsky.feed.defs#expert"
+          ]
         }
       }
     },
@@ -90,7 +173,7 @@
         "image": {
           "type": "blob",
           "accept": ["image/jpeg", "image/png", "image/webp"],
-          "maxSize": 10485760
+          "maxSize": 15728640
         },
         "alt": {
           "type": "string",
