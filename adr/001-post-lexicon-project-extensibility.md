@@ -1,4 +1,5 @@
 ## Architecture Decision Record
+- Status: Approved — implemented by 2026-04-23 post lexicon fields plan
 - Aspect: Lexicon (atproto schemas)
 - Date: 2026-04-23
 - Decision: One post lexicon with an optional, extensible `project` sub-object — not separate lexicons per craft, not a free-form extensions map
