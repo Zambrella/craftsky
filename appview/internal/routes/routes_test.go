@@ -161,3 +161,45 @@ func TestAddRoutes_UnknownPathReturns404(t *testing.T) {
 		t.Errorf("status = %d, want 404", rec.Code)
 	}
 }
+
+func TestRoutes_GetProfileByHandleOrDIDRequiresAuth(t *testing.T) {
+	t.Parallel()
+	deps := testDeps()
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/profiles/@alice.example", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("GET /v1/profiles/@{handleOrDid} without auth: status = %d, want 401", rr.Code)
+	}
+}
+
+func TestRoutes_GetProfileMeRequiresAuth(t *testing.T) {
+	t.Parallel()
+	deps := testDeps()
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/profiles/me", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("GET /v1/profiles/me without auth: status = %d, want 401", rr.Code)
+	}
+}
+
+func TestRoutes_PutProfileMeRequiresAuth(t *testing.T) {
+	t.Parallel()
+	deps := testDeps()
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me", strings.NewReader(`{}`))
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("PUT /v1/profiles/me without auth: status = %d, want 401", rr.Code)
+	}
+}

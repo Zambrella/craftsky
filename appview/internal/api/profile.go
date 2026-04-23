@@ -26,11 +26,12 @@ type ProfileReader interface {
 // GetProfileHandler serves GET /v1/profiles/@{handleOrDid}.
 //
 // The "{handleOrDid}" path segment arrives URL-decoded by net/http's
-// routing; this handler does not strip the leading "@" (the mux pattern
-// includes the "@" literally).
+// routing. The mux pattern is registered as /v1/profiles/{handleOrDid}
+// (ServeMux does not support literal-prefix wildcards), so clients supply
+// the "@" prefix and this handler strips it before resolving the identity.
 func GetProfileHandler(store ProfileReader, resolver HandleResolver, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		raw := r.PathValue("handleOrDid")
+		raw := strings.TrimPrefix(r.PathValue("handleOrDid"), "@")
 		runID := middleware.GetRunID(r.Context())
 		did, err := resolveToDID(r.Context(), raw, resolver)
 		if err != nil {
