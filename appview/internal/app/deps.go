@@ -9,6 +9,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api"
@@ -44,6 +45,15 @@ type Deps struct {
 
 	Consumer tap.Consumer
 	Indexer  index.Indexer
+
+	// ProfileStore serves the /v1/profiles endpoints.
+	ProfileStore *api.ProfileStore
+	// NewPDSClient produces an api.ProfilePDSClient bound to an OAuth session;
+	// shared by the write-proxy handlers (today PUT /v1/profiles/me).
+	NewPDSClient func(ctx context.Context, did syntax.DID, oauthSessionID string) (api.ProfilePDSClient, error)
+	// NewAuthPDSClient produces an auth.PDSClient bound to an OAuth session;
+	// used by the OAuth callback's InitializeProfile step.
+	NewAuthPDSClient func(ctx context.Context, did syntax.DID, oauthSessionID string) (auth.PDSClient, error)
 }
 
 // NewDevDeps wires the dev variant: debug-level logger, StackedAuthService
@@ -107,6 +117,8 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	identityDir := identity.DefaultDirectory()
 
 	dispatcher := index.NewDispatcher(index.NotImplemented{})
+	dispatcher.Register("social.craftsky.actor.profile", index.NewCraftskyProfile(pool))
+	dispatcher.Register("app.bsky.actor.profile", index.NewBlueskyProfile(pool))
 
 	deps := &Deps{
 		Config:               cfg,
@@ -128,6 +140,22 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		MaxRetries:   cfg.TapMaxRetries,
 		Logger:       logger,
 	})
+
+	deps.ProfileStore = api.NewProfileStore(pool)
+	deps.NewPDSClient = func(ctx context.Context, did syntax.DID, sid string) (api.ProfilePDSClient, error) {
+		sess, err := oauthApp.ResumeSession(ctx, did, sid)
+		if err != nil {
+			return nil, err
+		}
+		return &auth.IndigoPDSClient{Client: sess.APIClient()}, nil
+	}
+	deps.NewAuthPDSClient = func(ctx context.Context, did syntax.DID, sid string) (auth.PDSClient, error) {
+		sess, err := oauthApp.ResumeSession(ctx, did, sid)
+		if err != nil {
+			return nil, err
+		}
+		return &auth.IndigoPDSClient{Client: sess.APIClient()}, nil
+	}
 
 	var once sync.Once
 	cleanup := func() {
