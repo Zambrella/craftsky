@@ -9,47 +9,42 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
-// HandleResolver resolves a DID string to its current handle. The
-// primary implementation is DirectoryHandleResolver, which wraps
-// indigo's identity.Directory; tests commonly stub the interface
-// directly.
+// HandleResolver resolves between atproto DIDs and handles. Production
+// impl wraps indigo's identity.Directory; tests commonly stub the
+// interface directly.
 type HandleResolver interface {
-	ResolveHandle(ctx context.Context, did string) (string, error)
+	ResolveHandle(ctx context.Context, did syntax.DID) (syntax.Handle, error)
+	ResolveDID(ctx context.Context, handle syntax.Handle) (syntax.DID, error)
 }
 
-// DirectoryHandleResolver is the indigo-backed implementation of HandleResolver.
-// v1 does no caching beyond what the directory provides internally — every
-// /v1/whoami call pays one lookup.
-//
-// A nil Directory is a programmer error and will panic on use.
+// DirectoryHandleResolver is the indigo-backed implementation.
 type DirectoryHandleResolver struct {
 	Directory identity.Directory
 }
 
-// Compile-time interface check.
 var _ HandleResolver = DirectoryHandleResolver{}
 
-// ErrHandleUnavailable wraps every failure mode (malformed DID,
-// directory error, empty handle) into a single sentinel. Handlers
-// convert this to 502 identity_unavailable.
+// ErrHandleUnavailable wraps every failure mode (directory error, empty
+// handle, etc). Handlers convert this to 502 identity_unavailable.
 var ErrHandleUnavailable = errors.New("handle unavailable")
 
 // ResolveHandle returns the handle for did.
-func (r DirectoryHandleResolver) ResolveHandle(ctx context.Context, did string) (string, error) {
-	parsed, err := syntax.ParseDID(did)
-	if err != nil {
-		return "", fmt.Errorf("%w: parse did: %v", ErrHandleUnavailable, err)
-	}
-	id, err := r.Directory.LookupDID(ctx, parsed)
+func (r DirectoryHandleResolver) ResolveHandle(ctx context.Context, did syntax.DID) (syntax.Handle, error) {
+	id, err := r.Directory.LookupDID(ctx, did)
 	if err != nil {
 		return "", fmt.Errorf("%w: lookup: %v", ErrHandleUnavailable, err)
 	}
-	h := id.Handle.String()
-	if h == "" || h == syntax.HandleInvalid.String() {
-		// syntax.HandleInvalid ("handle.invalid") is the indigo
-		// sentinel for DIDs with no valid handle (deactivated,
-		// mid-migration, etc.).
+	if id.Handle == "" || id.Handle == syntax.HandleInvalid {
 		return "", fmt.Errorf("%w: empty handle for %s", ErrHandleUnavailable, did)
 	}
-	return h, nil
+	return id.Handle, nil
+}
+
+// ResolveDID returns the DID for handle.
+func (r DirectoryHandleResolver) ResolveDID(ctx context.Context, handle syntax.Handle) (syntax.DID, error) {
+	id, err := r.Directory.LookupHandle(ctx, handle)
+	if err != nil {
+		return "", fmt.Errorf("%w: lookup: %v", ErrHandleUnavailable, err)
+	}
+	return id.DID, nil
 }

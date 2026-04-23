@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/auth"
@@ -17,10 +18,13 @@ import (
 
 // stubResolver is a minimal api.HandleResolver used by the routing
 // tests so they don't depend on the real PLC directory.
-type stubResolver struct{ handle string }
+type stubResolver struct{ handle syntax.Handle }
 
-func (s stubResolver) ResolveHandle(ctx context.Context, did string) (string, error) {
+func (s stubResolver) ResolveHandle(_ context.Context, _ syntax.DID) (syntax.Handle, error) {
 	return s.handle, nil
+}
+func (s stubResolver) ResolveDID(_ context.Context, _ syntax.Handle) (syntax.DID, error) {
+	return "", nil
 }
 
 var _ api.HandleResolver = stubResolver{}
@@ -30,7 +34,7 @@ func testDeps() *app.Deps {
 		Config:         app.Config{Env: app.EnvDev, AllowedOrigins: []string{"*"}, DevDID: "did:plc:test"},
 		Logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
 		AuthService:    &auth.MockAuthService{DefaultDID: "did:plc:test"},
-		HandleResolver: stubResolver{handle: "stub-handle.example"},
+		HandleResolver: stubResolver{handle: syntax.Handle("stub-handle.example")},
 	}
 }
 

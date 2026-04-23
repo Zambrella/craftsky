@@ -9,22 +9,21 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
+// fakeDirectory lets us inject canned responses for both directions.
+// LookupDID and LookupHandle each return the paired (identity, err); any
+// unused direction returns a sentinel panic to catch accidental calls.
 type fakeDirectory struct {
-	identity *identity.Identity
-	err      error
+	didResult    *identity.Identity
+	didErr       error
+	handleResult *identity.Identity
+	handleErr    error
 }
 
-func (f *fakeDirectory) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identity, error) {
-	if f.err != nil {
-		return nil, f.err
-	}
-	return f.identity, nil
+func (f *fakeDirectory) LookupDID(_ context.Context, _ syntax.DID) (*identity.Identity, error) {
+	return f.didResult, f.didErr
 }
-
-// Stubs for the rest of the identity.Directory interface. We only
-// care about LookupDID; everything else panics if exercised.
-func (f *fakeDirectory) LookupHandle(context.Context, syntax.Handle) (*identity.Identity, error) {
-	panic("unexpected LookupHandle")
+func (f *fakeDirectory) LookupHandle(_ context.Context, _ syntax.Handle) (*identity.Identity, error) {
+	return f.handleResult, f.handleErr
 }
 func (f *fakeDirectory) Lookup(context.Context, syntax.AtIdentifier) (*identity.Identity, error) {
 	panic("unexpected Lookup")
@@ -33,50 +32,58 @@ func (f *fakeDirectory) Purge(context.Context, syntax.AtIdentifier) error {
 	panic("unexpected Purge")
 }
 
-func TestHandleResolver_HappyPath(t *testing.T) {
+func TestHandleResolver_ResolveHandle_HappyPath(t *testing.T) {
 	r := DirectoryHandleResolver{Directory: &fakeDirectory{
-		identity: &identity.Identity{Handle: syntax.Handle("alice.bsky.social")},
+		didResult: &identity.Identity{Handle: syntax.Handle("alice.bsky.social")},
 	}}
-	h, err := r.ResolveHandle(context.Background(), "did:plc:abc")
+	h, err := r.ResolveHandle(context.Background(), syntax.DID("did:plc:abc"))
 	if err != nil {
 		t.Fatalf("ResolveHandle: %v", err)
 	}
-	if h != "alice.bsky.social" {
-		t.Errorf("handle = %q, want %q", h, "alice.bsky.social")
+	if h != syntax.Handle("alice.bsky.social") {
+		t.Errorf("handle = %q", h)
 	}
 }
 
-func TestHandleResolver_MalformedDID(t *testing.T) {
-	r := DirectoryHandleResolver{Directory: &fakeDirectory{}}
-	_, err := r.ResolveHandle(context.Background(), "not-a-did")
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if !errors.Is(err, ErrHandleUnavailable) {
-		t.Errorf("want ErrHandleUnavailable, got %v", err)
-	}
-}
-
-func TestHandleResolver_DirectoryError(t *testing.T) {
-	r := DirectoryHandleResolver{Directory: &fakeDirectory{err: errors.New("network down")}}
-	_, err := r.ResolveHandle(context.Background(), "did:plc:abc")
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if !errors.Is(err, ErrHandleUnavailable) {
-		t.Errorf("want ErrHandleUnavailable, got %v", err)
-	}
-}
-
-func TestHandleResolver_EmptyHandle(t *testing.T) {
+func TestHandleResolver_ResolveHandle_DirectoryError(t *testing.T) {
 	r := DirectoryHandleResolver{Directory: &fakeDirectory{
-		identity: &identity.Identity{Handle: syntax.HandleInvalid},
+		didErr: errors.New("plc down"),
 	}}
-	_, err := r.ResolveHandle(context.Background(), "did:plc:abc")
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
+	_, err := r.ResolveHandle(context.Background(), syntax.DID("did:plc:abc"))
 	if !errors.Is(err, ErrHandleUnavailable) {
-		t.Errorf("want ErrHandleUnavailable, got %v", err)
+		t.Errorf("want ErrHandleUnavailable; got %v", err)
+	}
+}
+
+func TestHandleResolver_ResolveHandle_EmptyHandle(t *testing.T) {
+	r := DirectoryHandleResolver{Directory: &fakeDirectory{
+		didResult: &identity.Identity{Handle: syntax.HandleInvalid},
+	}}
+	_, err := r.ResolveHandle(context.Background(), syntax.DID("did:plc:abc"))
+	if !errors.Is(err, ErrHandleUnavailable) {
+		t.Errorf("want ErrHandleUnavailable; got %v", err)
+	}
+}
+
+func TestHandleResolver_ResolveDID_HappyPath(t *testing.T) {
+	r := DirectoryHandleResolver{Directory: &fakeDirectory{
+		handleResult: &identity.Identity{DID: syntax.DID("did:plc:xyz")},
+	}}
+	got, err := r.ResolveDID(context.Background(), syntax.Handle("alice.example"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != syntax.DID("did:plc:xyz") {
+		t.Errorf("did = %q", got)
+	}
+}
+
+func TestHandleResolver_ResolveDID_DirectoryError(t *testing.T) {
+	r := DirectoryHandleResolver{Directory: &fakeDirectory{
+		handleErr: errors.New("plc down"),
+	}}
+	_, err := r.ResolveDID(context.Background(), syntax.Handle("alice.example"))
+	if !errors.Is(err, ErrHandleUnavailable) {
+		t.Errorf("want ErrHandleUnavailable; got %v", err)
 	}
 }

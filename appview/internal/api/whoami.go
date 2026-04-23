@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
 )
@@ -28,7 +29,18 @@ func WhoAmIHandler(resolver HandleResolver, logger *slog.Logger) http.Handler {
 				middleware.GetRunID(r.Context()), nil)
 			return
 		}
-		handle, err := resolver.ResolveHandle(r.Context(), did)
+		parsed, perr := syntax.ParseDID(did)
+		if perr != nil {
+			logger.Warn("whoami: invalid DID in context",
+				slog.String("did", did),
+				slog.String("err", perr.Error()),
+				slog.String("run_id", middleware.GetRunID(r.Context())))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "invalid did in context",
+				middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		handle, err := resolver.ResolveHandle(r.Context(), parsed)
 		if err != nil {
 			logger.Warn("whoami: handle resolution failed",
 				slog.String("did", did),
@@ -41,6 +53,6 @@ func WhoAmIHandler(resolver HandleResolver, logger *slog.Logger) http.Handler {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(WhoAmIResponse{DID: did, Handle: handle})
+		_ = json.NewEncoder(w).Encode(WhoAmIResponse{DID: did, Handle: handle.String()})
 	})
 }
