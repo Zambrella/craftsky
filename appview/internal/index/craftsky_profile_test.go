@@ -141,3 +141,78 @@ func TestCraftskyProfile_ReplayedEventPreservesIndexedAt(t *testing.T) {
 		t.Errorf("indexed_at changed on replay: %q -> %q", firstIndexedAt, secondIndexedAt)
 	}
 }
+
+func TestCraftskyProfile_DeleteRemovesBothRows(t *testing.T) {
+	t.Parallel()
+	pool := withSchema(t, craftskyProfilesDDL)
+	idx := index.NewCraftskyProfile(pool)
+	ctx := context.Background()
+
+	create := tap.Event{
+		URI:        "at://did:plc:z/social.craftsky.actor.profile/self",
+		CID:        "c1",
+		DID:        "did:plc:z",
+		Rkey:       "self",
+		Collection: "social.craftsky.actor.profile",
+		Action:     "create",
+		Record:     json.RawMessage(`{"crafts":["sewing"]}`),
+	}
+	if err := idx.Handle(ctx, create); err != nil {
+		t.Fatal(err)
+	}
+	// Seed a bluesky_profiles row for the same DID.
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO bluesky_profiles (did, display_name, record_cid) VALUES ($1, $2, $3)`,
+		create.DID, "alice", "bskyCID"); err != nil {
+		t.Fatal(err)
+	}
+
+	del := tap.Event{
+		URI: create.URI, DID: create.DID, Rkey: "self",
+		Collection: "social.craftsky.actor.profile", Action: "delete",
+	}
+	if err := idx.Handle(ctx, del); err != nil {
+		t.Fatalf("delete Handle: %v", err)
+	}
+
+	var crCount, bsCount int
+	_ = pool.QueryRow(ctx,
+		`SELECT count(*) FROM craftsky_profiles WHERE did = $1`, del.DID).Scan(&crCount)
+	_ = pool.QueryRow(ctx,
+		`SELECT count(*) FROM bluesky_profiles WHERE did = $1`, del.DID).Scan(&bsCount)
+	if crCount != 0 || bsCount != 0 {
+		t.Errorf("post-delete counts = (craftsky:%d, bluesky:%d), want (0,0)", crCount, bsCount)
+	}
+}
+
+func TestCraftskyProfile_UnknownAction(t *testing.T) {
+	t.Parallel()
+	pool := withSchema(t, craftskyProfilesDDL)
+	idx := index.NewCraftskyProfile(pool)
+	ev := tap.Event{
+		URI:        "at://did:plc:a/social.craftsky.actor.profile/self",
+		CID:        "c",
+		DID:        "did:plc:a",
+		Rkey:       "self",
+		Collection: "social.craftsky.actor.profile",
+		Action:     "weird",
+		Record:     json.RawMessage(`{"crafts":[]}`),
+	}
+	if err := idx.Handle(context.Background(), ev); err == nil {
+		t.Error("want error for unknown action; got nil")
+	}
+}
+
+func TestCraftskyProfile_OtherCollectionIgnored(t *testing.T) {
+	t.Parallel()
+	pool := withSchema(t, craftskyProfilesDDL)
+	idx := index.NewCraftskyProfile(pool)
+	ev := tap.Event{
+		URI: "at://did:plc:b/app.bsky.feed.post/k", CID: "c", DID: "did:plc:b", Rkey: "k",
+		Collection: "app.bsky.feed.post", Action: "create",
+		Record: json.RawMessage(`{}`),
+	}
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Errorf("want nil for other collection; got %v", err)
+	}
+}
