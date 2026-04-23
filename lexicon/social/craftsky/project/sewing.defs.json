@@ -1,0 +1,31 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.project.sewing.defs",
+  "description": "Sub-domain tokens for sewing projects. Referenced from social.craftsky.project.sewing#details.projectType via knownValues.",
+  "defs": {
+    "garment": {
+      "type": "token",
+      "description": "Clothing: dresses, shirts, trousers, skirts, jackets, etc."
+    },
+    "homeGoods": {
+      "type": "token",
+      "description": "Curtains, pillows, bedding, tablecloths, and other home items."
+    },
+    "accessory": {
+      "type": "token",
+      "description": "Bags, hats, scarves, and similar worn or carried items."
+    },
+    "softToy": {
+      "type": "token",
+      "description": "Plushies, stuffed animals, dolls."
+    },
+    "costume": {
+      "type": "token",
+      "description": "Cosplay, theatre, fancy dress."
+    },
+    "alteration": {
+      "type": "token",
+      "description": "Modifications, repairs, or mending of existing garments."
+    }
+  }
+}
