@@ -1,0 +1,51 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.feed.defs",
+  "description": "Shared tokens for cross-craft values in social.craftsky.feed.post. Tokens are referenced from #projectCommon.craftType, #projectCommon.status, and #pattern.difficulty via knownValues. knownValues is open: new tokens can be added here without breaking existing records.",
+  "defs": {
+    "knitting": {
+      "type": "token",
+      "description": "Knitting projects."
+    },
+    "crochet": {
+      "type": "token",
+      "description": "Crochet projects."
+    },
+    "sewing": {
+      "type": "token",
+      "description": "Sewing projects."
+    },
+    "embroidery": {
+      "type": "token",
+      "description": "Embroidery projects."
+    },
+    "quilting": {
+      "type": "token",
+      "description": "Quilting projects."
+    },
+    "wip": {
+      "type": "token",
+      "description": "Work in progress."
+    },
+    "finished": {
+      "type": "token",
+      "description": "Finished project."
+    },
+    "beginner": {
+      "type": "token",
+      "description": "Pattern suitable for newcomers to the craft."
+    },
+    "intermediate": {
+      "type": "token",
+      "description": "Pattern assumes familiarity with core techniques of the craft."
+    },
+    "advanced": {
+      "type": "token",
+      "description": "Pattern assumes confident skill and some complex techniques."
+    },
+    "expert": {
+      "type": "token",
+      "description": "Pattern demands mastery of the craft and uncommon techniques."
+    }
+  }
+}
