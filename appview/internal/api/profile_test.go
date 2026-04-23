@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -174,5 +175,195 @@ func TestGetMeProfile_NoDIDInContext(t *testing.T) {
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d", rr.Code)
+	}
+}
+
+// fakePDSForPut is a lightweight mock scoped to PUT tests.
+type fakePDSForPut struct {
+	getBsky      func() (map[string]any, error)
+	putBsky      func(body map[string]any) error
+	putCraftsky  func(body map[string]any) error
+	putBskyCalls []map[string]any
+}
+
+func (f *fakePDSForPut) GetRecord(_ context.Context, _ syntax.DID, collection, _ string, out any) error {
+	if collection == "app.bsky.actor.profile" {
+		rec, err := f.getBsky()
+		if err != nil {
+			return err
+		}
+		*(out.(*map[string]any)) = rec
+		return nil
+	}
+	return errors.New("unexpected get collection: " + collection)
+}
+func (f *fakePDSForPut) PutRecord(_ context.Context, _ syntax.DID, collection, _ string, body any) error {
+	m, _ := body.(map[string]any)
+	switch collection {
+	case "app.bsky.actor.profile":
+		f.putBskyCalls = append(f.putBskyCalls, m)
+		return f.putBsky(m)
+	case "social.craftsky.actor.profile":
+		return f.putCraftsky(m)
+	}
+	return errors.New("unexpected put collection: " + collection)
+}
+
+// newPutHandler wires a fake store, resolver, and PDS client.
+func newPutHandler(
+	t *testing.T,
+	store *fakeStore,
+	pds *fakePDSForPut,
+	resolver fakeResolver,
+) http.Handler {
+	t.Helper()
+	return api.PutMeProfileHandler(
+		store,
+		resolver,
+		func(_ context.Context, _ syntax.DID, _ string) (api.ProfilePDSClient, error) {
+			return pds, nil
+		},
+		nilLogger(),
+	)
+}
+
+func TestPutProfile_HappyPathMergesBlueskyExtras(t *testing.T) {
+	t.Parallel()
+	captured := map[string]any{}
+	pds := &fakePDSForPut{
+		getBsky: func() (map[string]any, error) {
+			return map[string]any{
+				"displayName": "old",
+				"avatar": map[string]any{
+					"$type":    "blob",
+					"ref":      map[string]any{"$link": "bafav"},
+					"mimeType": "image/jpeg",
+					"size":     1,
+				},
+			}, nil
+		},
+		putBsky: func(body map[string]any) error {
+			for k, v := range body {
+				captured[k] = v
+			}
+			return nil
+		},
+		putCraftsky: func(_ map[string]any) error { return nil },
+	}
+	row := &api.ProfileRow{DID: "did:plc:me", Crafts: []string{"sewing"}, CreatedAt: time.Now()}
+	h := newPutHandler(t,
+		&fakeStore{row: row},
+		pds,
+		fakeResolver{handleFor: "alice.example"},
+	)
+	body := `{"displayName":"new","crafts":["sewing","quilting"]}`
+	req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me", strings.NewReader(body))
+	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:me"))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rr.Code, rr.Body.String())
+	}
+	if captured["displayName"] != "new" {
+		t.Errorf("bluesky displayName = %v", captured["displayName"])
+	}
+	if _, ok := captured["avatar"]; !ok {
+		t.Error("avatar must be preserved from existing record")
+	}
+}
+
+func TestPutProfile_RejectsAvatar(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDSForPut{}
+	h := newPutHandler(t, &fakeStore{}, pds, fakeResolver{})
+	body := `{"avatar":{"ref":{"$link":"x"}}}`
+	req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me", strings.NewReader(body))
+	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:me"))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d", rr.Code)
+	}
+	var env envelope.Error
+	_ = json.Unmarshal(rr.Body.Bytes(), &env)
+	if env.Error != "unexpected_field" {
+		t.Errorf("code = %q", env.Error)
+	}
+}
+
+func TestPutProfile_PartialSuccessReturns502(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDSForPut{
+		getBsky:     func() (map[string]any, error) { return map[string]any{}, nil },
+		putBsky:     func(_ map[string]any) error { return nil },
+		putCraftsky: func(_ map[string]any) error { return errors.New("pds down") },
+	}
+	row := &api.ProfileRow{DID: "did:plc:me", Crafts: []string{}, CreatedAt: time.Now()}
+	h := newPutHandler(t,
+		&fakeStore{row: row},
+		pds,
+		fakeResolver{handleFor: "alice.example"},
+	)
+	body := `{"displayName":"x"}`
+	req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me", strings.NewReader(body))
+	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:me"))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d", rr.Code)
+	}
+	var env envelope.Error
+	_ = json.Unmarshal(rr.Body.Bytes(), &env)
+	if env.Error != "pds_write_partial" {
+		t.Errorf("code = %q", env.Error)
+	}
+	if env.Fields["craftsky"] != "failed" || env.Fields["bsky"] != "ok" {
+		t.Errorf("fields = %v", env.Fields)
+	}
+}
+
+func TestPutProfile_BothFailsReturns502(t *testing.T) {
+	t.Parallel()
+	boom := errors.New("boom")
+	pds := &fakePDSForPut{
+		getBsky:     func() (map[string]any, error) { return map[string]any{}, nil },
+		putBsky:     func(_ map[string]any) error { return boom },
+		putCraftsky: func(_ map[string]any) error { return boom },
+	}
+	row := &api.ProfileRow{DID: "did:plc:me", Crafts: []string{}, CreatedAt: time.Now()}
+	h := newPutHandler(t, &fakeStore{row: row}, pds, fakeResolver{handleFor: "alice.example"})
+	req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me", strings.NewReader(`{"displayName":"x"}`))
+	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:me"))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d", rr.Code)
+	}
+	var env envelope.Error
+	_ = json.Unmarshal(rr.Body.Bytes(), &env)
+	if env.Error != "pds_write_failed" {
+		t.Errorf("code = %q", env.Error)
+	}
+}
+
+func TestPutProfile_ReadBeforeWriteFailure(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDSForPut{
+		getBsky: func() (map[string]any, error) { return nil, errors.New("pds down") },
+	}
+	row := &api.ProfileRow{DID: "did:plc:me", Crafts: []string{}, CreatedAt: time.Now()}
+	h := newPutHandler(t, &fakeStore{row: row}, pds, fakeResolver{handleFor: "alice.example"})
+	req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me", strings.NewReader(`{"displayName":"x"}`))
+	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:me"))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d", rr.Code)
+	}
+	var env envelope.Error
+	_ = json.Unmarshal(rr.Body.Bytes(), &env)
+	if env.Error != "pds_read_failed" {
+		t.Errorf("code = %q", env.Error)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -132,4 +133,222 @@ func resolveToDID(ctx context.Context, raw string, resolver HandleResolver) (syn
 		return "", errInvalidIdentifier
 	}
 	return resolver.ResolveDID(ctx, handle)
+}
+
+// ProfilePDSClient is the subset of PDS operations the PUT handler uses.
+// Defined here (rather than in internal/auth) so handlers depend on a
+// local abstraction and tests don't drag in the auth package's mock.
+type ProfilePDSClient interface {
+	GetRecord(ctx context.Context, repo syntax.DID, collection, rkey string, out any) error
+	PutRecord(ctx context.Context, repo syntax.DID, collection, rkey string, record any) error
+}
+
+// PDSClientFactory produces a per-request PDS client scoped to the caller's
+// OAuth session.
+type PDSClientFactory func(ctx context.Context, did syntax.DID, oauthSessionID string) (ProfilePDSClient, error)
+
+// Constants repeated from internal/auth/initialize_profile.go to avoid an
+// import cycle. Different packages; no actual conflict.
+const (
+	blueskyProfileNSID  = "app.bsky.actor.profile"
+	craftskyProfileNSID = "social.craftsky.actor.profile"
+	profileRecordKey    = "self"
+)
+
+// PutMeProfileHandler serves PUT /v1/profiles/me.
+func PutMeProfileHandler(
+	store ProfileReader,
+	resolver HandleResolver,
+	newPDS PDSClientFactory,
+	logger *slog.Logger,
+) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := middleware.GetRunID(r.Context())
+
+		didStr, ok := middleware.GetDID(r.Context())
+		if !ok {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "no did in context", runID, nil)
+			return
+		}
+		did, derr := syntax.ParseDID(didStr)
+		if derr != nil {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "invalid did in context", runID, nil)
+			return
+		}
+		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+
+		reqBody, err := DecodeProfilePut(r.Body)
+		if err != nil {
+			if fe, ok := err.(*FieldError); ok {
+				envelope.WriteError(w, http.StatusBadRequest, fe.Code,
+					"request body rejected", runID, fe.Fields)
+				return
+			}
+			envelope.WriteError(w, http.StatusBadRequest,
+				"malformed_body", "could not parse body", runID, nil)
+			return
+		}
+		if err := ValidateProfilePut(reqBody); err != nil {
+			if fe, ok := err.(*FieldError); ok {
+				envelope.WriteError(w, http.StatusUnprocessableEntity,
+					fe.Code, "validation failed", runID, fe.Fields)
+				return
+			}
+			envelope.WriteError(w, http.StatusUnprocessableEntity,
+				"validation_failed", "validation failed", runID, nil)
+			return
+		}
+
+		pds, err := newPDS(r.Context(), did, sessionID)
+		if err != nil {
+			logger.Error("profile: newPDS failed", slog.String("err", err.Error()))
+			envelope.WriteError(w, http.StatusBadGateway,
+				"pds_unavailable", "could not contact PDS", runID, nil)
+			return
+		}
+
+		// Read-before-write on Bluesky so we preserve avatar/banner.
+		var bsky map[string]any
+		if err := pds.GetRecord(r.Context(), did, blueskyProfileNSID, profileRecordKey, &bsky); err != nil {
+			logger.Warn("profile: bluesky getRecord failed", slog.String("err", err.Error()))
+			envelope.WriteError(w, http.StatusBadGateway,
+				"pds_read_failed", "could not read current bluesky profile", runID, nil)
+			return
+		}
+		mergedBsky := mergeBlueskyRecord(bsky, reqBody)
+		cskyBody := map[string]any{
+			"$type":  craftskyProfileNSID,
+			"crafts": nonNilStrings(reqBody.Crafts),
+		}
+
+		type writeResult struct {
+			err error
+		}
+		var wg sync.WaitGroup
+		wg.Add(2)
+		bskyRes := make(chan writeResult, 1)
+		cskyRes := make(chan writeResult, 1)
+		go func() {
+			defer wg.Done()
+			err := pds.PutRecord(r.Context(), did, blueskyProfileNSID, profileRecordKey, mergedBsky)
+			bskyRes <- writeResult{err: err}
+		}()
+		go func() {
+			defer wg.Done()
+			err := pds.PutRecord(r.Context(), did, craftskyProfileNSID, profileRecordKey, cskyBody)
+			cskyRes <- writeResult{err: err}
+		}()
+		wg.Wait()
+		close(bskyRes)
+		close(cskyRes)
+		bskyErr := (<-bskyRes).err
+		cskyErr := (<-cskyRes).err
+
+		switch {
+		case bskyErr == nil && cskyErr == nil:
+			handle, herr := resolver.ResolveHandle(r.Context(), did)
+			if herr != nil {
+				envelope.WriteError(w, http.StatusBadGateway,
+					"identity_unavailable", "could not resolve handle", runID, nil)
+				return
+			}
+			row := syntheticRow(did.String(), mergedBsky, reqBody.Crafts)
+			resp := BuildProfileResponse(row, handle.String(), false)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(resp)
+		case bskyErr != nil && cskyErr != nil:
+			logger.Error("profile: both PDS writes failed",
+				slog.String("bsky_err", bskyErr.Error()),
+				slog.String("csky_err", cskyErr.Error()))
+			envelope.WriteError(w, http.StatusBadGateway,
+				"pds_write_failed", "both profile writes failed", runID, nil)
+		default:
+			logger.Warn("profile: partial PDS write",
+				slog.Any("bsky_err", bskyErr), slog.Any("csky_err", cskyErr))
+			fields := map[string]string{
+				"bsky":     okOrFailed(bskyErr),
+				"craftsky": okOrFailed(cskyErr),
+			}
+			envelope.WriteError(w, http.StatusBadGateway,
+				"pds_write_partial", "partial profile write", runID, fields)
+		}
+	})
+}
+
+// mergeBlueskyRecord returns a fresh record body formed from `existing`
+// (preserving avatar/banner/etc.) with displayName and description
+// overridden by the request. If the request field is nil, the existing
+// value is cleared from the output, matching PUT-clears-missing semantics.
+func mergeBlueskyRecord(existing map[string]any, req ProfilePutRequest) map[string]any {
+	out := map[string]any{"$type": blueskyProfileNSID}
+	for k, v := range existing {
+		switch k {
+		case "$type", "displayName", "description":
+			continue
+		default:
+			out[k] = v
+		}
+	}
+	if req.DisplayName != nil {
+		out["displayName"] = *req.DisplayName
+	}
+	if req.Description != nil {
+		out["description"] = *req.Description
+	}
+	return out
+}
+
+// syntheticRow constructs a ProfileRow from the bodies we just wrote,
+// used to render the PUT response without a DB round-trip.
+func syntheticRow(did string, bsky map[string]any, crafts []string) *ProfileRow {
+	row := &ProfileRow{DID: did, Crafts: nonNilStrings(crafts)}
+	if dn, ok := bsky["displayName"].(string); ok {
+		row.DisplayName = &dn
+	}
+	if desc, ok := bsky["description"].(string); ok {
+		row.Description = &desc
+	}
+	if av, ok := bsky["avatar"].(map[string]any); ok {
+		if cid := blobCID(av); cid != "" {
+			row.AvatarCID = &cid
+		}
+		if mime, ok := av["mimeType"].(string); ok && mime != "" {
+			row.AvatarMime = &mime
+		}
+	}
+	if bn, ok := bsky["banner"].(map[string]any); ok {
+		if cid := blobCID(bn); cid != "" {
+			row.BannerCID = &cid
+		}
+		if mime, ok := bn["mimeType"].(string); ok && mime != "" {
+			row.BannerMime = &mime
+		}
+	}
+	return row
+}
+
+func blobCID(blob map[string]any) string {
+	ref, ok := blob["ref"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	link, _ := ref["$link"].(string)
+	return link
+}
+
+func nonNilStrings(in []string) []string {
+	if in == nil {
+		return []string{}
+	}
+	return in
+}
+
+func okOrFailed(err error) string {
+	if err == nil {
+		return "ok"
+	}
+	return "failed"
 }
