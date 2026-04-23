@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"sync"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -214,28 +213,18 @@ func PutMeProfileHandler(
 			"crafts": nonNilStrings(reqBody.Crafts),
 		}
 
-		type writeResult struct {
-			err error
-		}
-		var wg sync.WaitGroup
-		wg.Add(2)
-		bskyRes := make(chan writeResult, 1)
-		cskyRes := make(chan writeResult, 1)
+		// Buffered channels let each goroutine send without blocking; the
+		// receive below is what synchronises us with their completion.
+		bskyRes := make(chan error, 1)
+		cskyRes := make(chan error, 1)
 		go func() {
-			defer wg.Done()
-			err := pds.PutRecord(r.Context(), did, blueskyProfileNSID, profileRecordKey, mergedBsky)
-			bskyRes <- writeResult{err: err}
+			bskyRes <- pds.PutRecord(r.Context(), did, blueskyProfileNSID, profileRecordKey, mergedBsky)
 		}()
 		go func() {
-			defer wg.Done()
-			err := pds.PutRecord(r.Context(), did, craftskyProfileNSID, profileRecordKey, cskyBody)
-			cskyRes <- writeResult{err: err}
+			cskyRes <- pds.PutRecord(r.Context(), did, craftskyProfileNSID, profileRecordKey, cskyBody)
 		}()
-		wg.Wait()
-		close(bskyRes)
-		close(cskyRes)
-		bskyErr := (<-bskyRes).err
-		cskyErr := (<-cskyRes).err
+		bskyErr := <-bskyRes
+		cskyErr := <-cskyRes
 
 		switch {
 		case bskyErr == nil && cskyErr == nil:
