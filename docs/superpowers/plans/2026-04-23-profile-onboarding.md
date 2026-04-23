@@ -2198,34 +2198,27 @@ Add imports `context`, `errors`, and `"github.com/bluesky-social/indigo/atproto/
 Rather than driving a full OAuth callback (which requires the fake-PDS harness used by the existing tests), write a focused unit test that invokes the failure path directly. In `handlers_test.go`:
 
 ```go
-func TestCallbackHandler_InitializeProfileFailurePath(t *testing.T) {
-    // Build an HTTPHandlers whose NewPDSClient returns a client whose
-    // GetRecord(bsky) always errors (non-404). We drive this by calling
-    // InitializeProfile directly — the integration point that the
-    // callback exercises is the same function.
-    //
-    // The callback's own integration is already exercised by the
-    // existing happy-path tests that use handlersFixture's noopPDSClient;
-    // this test covers the error-return plumbing.
-    failingPDS := &noopPDSClient{} // we override GetRecord inline via a new type:
-    type bskyFailingPDS struct{ noopPDSClient }
-    var _ auth.PDSClient = (*bskyFailingPDS)(nil)
-    // bskyFailingPDS.GetRecord is inherited from noopPDSClient which
-    // returns ErrRecordNotFound — that's "missing," not "error."
-    // For a non-404 error, define a separate type:
-
-    ctx := t.Context()
-    err := auth.InitializeProfile(ctx, &erroringGetPDSClient{}, syntax.DID("did:plc:me"))
-    if err == nil || !errors.Is(err, auth.ErrProfileInitFailed) {
-        t.Fatalf("want ErrProfileInitFailed; got %v", err)
-    }
-    _ = failingPDS // silence unused
-}
-
-type erroringGetPDSClient struct{ noopPDSClient }
+// erroringGetPDSClient is used to exercise InitializeProfile's error
+// propagation. GetRecord always errors (non-404) on the Bluesky read;
+// PutRecord is unused but must exist to satisfy auth.PDSClient.
+type erroringGetPDSClient struct{}
 
 func (erroringGetPDSClient) GetRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error {
     return errors.New("boom")
+}
+func (erroringGetPDSClient) PutRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error {
+    return nil
+}
+
+func TestInitializeProfile_BlueskyErrorPropagates(t *testing.T) {
+    // Lightweight alternative to driving ProcessCallback end-to-end:
+    // verify the error-path wiring by invoking the function directly.
+    // The callback happy path is exercised by the existing tests that
+    // use handlersFixture's noopPDSClient.
+    err := auth.InitializeProfile(context.Background(), erroringGetPDSClient{}, syntax.DID("did:plc:me"))
+    if !errors.Is(err, auth.ErrProfileInitFailed) {
+        t.Fatalf("want ErrProfileInitFailed; got %v", err)
+    }
 }
 ```
 
@@ -3865,7 +3858,7 @@ git commit -m "app: wire profile indexers, store, and PDS client factories"
 ```go
 func TestRoutes_GetProfileByHandleOrDIDRequiresAuth(t *testing.T) {
 	t.Parallel()
-	deps := buildTestDeps(t) // use whatever the existing tests call
+	deps := testDeps()
 	mux := http.NewServeMux()
 	routes.AddRoutes(context.Background(), mux, deps)
 
@@ -3879,7 +3872,7 @@ func TestRoutes_GetProfileByHandleOrDIDRequiresAuth(t *testing.T) {
 
 func TestRoutes_GetProfileMeRequiresAuth(t *testing.T) {
 	t.Parallel()
-	deps := buildTestDeps(t)
+	deps := testDeps()
 	mux := http.NewServeMux()
 	routes.AddRoutes(context.Background(), mux, deps)
 
@@ -3893,7 +3886,7 @@ func TestRoutes_GetProfileMeRequiresAuth(t *testing.T) {
 
 func TestRoutes_PutProfileMeRequiresAuth(t *testing.T) {
 	t.Parallel()
-	deps := buildTestDeps(t)
+	deps := testDeps()
 	mux := http.NewServeMux()
 	routes.AddRoutes(context.Background(), mux, deps)
 
@@ -3906,7 +3899,7 @@ func TestRoutes_PutProfileMeRequiresAuth(t *testing.T) {
 }
 ```
 
-If the existing test helper isn't called `buildTestDeps`, replace that call with whatever the existing tests in the file use. The point is: use the same fixture the other routing tests use, so the new assertions slot into the established pattern.
+The existing helper is `testDeps()` in `routes_test.go`. It does not populate `ProfileStore` or `NewPDSClient` — that's fine for these tests because the auth middleware fires before the handlers, so the unauth requests are rejected with 401 before the nil deps would be dereferenced. If you later add a test that needs an authenticated request on these routes, extend `testDeps()` (or supply a richer fixture locally).
 
 - [ ] **Step 1b:** Run the tests — they should fail because the routes aren't registered yet.
 
