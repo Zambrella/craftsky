@@ -326,6 +326,8 @@ Failures → `422 validation_failed` with a `fields` map.
 
 **Note on the response:** the AppView returns the profile composed from the record bodies it just wrote (merged with the client's input), not from the indexer's view. The firehose event may not have arrived yet. This makes the response immediately consistent with the write; a subsequent `GET` may briefly race the firehose, same as the onboarding-on-login window in §3.5.
 
+**`createdAt` on the PUT response:** the AppView does not read `craftsky_profiles.created_at` for the PUT response (to avoid a DB round-trip whose result may not exist yet for brand-new users who just onboarded). Instead, the PUT response **omits `createdAt`**; the `GET` response is where clients read it. §5.4's "always present" rule applies to GET only; for PUT, `createdAt` is omitted from the JSON.
+
 **Errors:**
 
 | Code | Status | Meaning |
@@ -358,7 +360,18 @@ Used by all three endpoints' success responses:
 - `crafts` — always an array, possibly empty.
 - `createdAt` — `craftsky_profiles.created_at`, always present.
 
-**Avatar/banner URL synthesis** (per Q9a): construct `https://cdn.bsky.app/img/{avatar|banner}/plain/{did}/{cid}@{ext}` where `{ext}` derives from the MIME type (`image/jpeg` → `jpeg`, `image/png` → `png`, etc.). If the MIME type is unrecognised, omit the field rather than emit a broken URL.
+**Avatar/banner URL synthesis** (per Q9a): construct `https://cdn.bsky.app/img/{avatar|banner}/plain/{did}/{cid}@{ext}` where `{ext}` derives from the MIME type via this table:
+
+| MIME type | `{ext}` |
+|---|---|
+| `image/jpeg` | `jpeg` |
+| `image/png` | `png` |
+| `image/gif` | `gif` |
+| `image/webp` | `webp` |
+
+If the MIME type is not in this table, **omit the field** rather than emit a broken URL. The list is intentionally the set that the Bluesky CDN is known to serve as of v1; additions require touching this spec.
+
+**On `createdAt` for the PUT response:** omitted (see §5.3's "Note on the response"). The field is documented as `always present` for GET responses only.
 
 ### 5.5 Code layout
 
