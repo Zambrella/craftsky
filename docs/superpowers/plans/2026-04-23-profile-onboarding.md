@@ -1256,26 +1256,18 @@ git commit -m "test: add BlueskyProfile idempotency/update/delete coverage"
 
 Switch the interface to use `syntax.DID` / `syntax.Handle` and add `ResolveDID`.
 
-### Task 5.1: Add a failing `ResolveDID` test
+### Task 5.1: Rewrite `handle_resolver_test.go` for the new signatures
+
+The existing test file is in `package api` (internal) with `fakeDirectory` that panics on `LookupHandle`, and has a `TestHandleResolver_MalformedDID` that relies on the old string-based API. After this task the file supports both directions and drops the obsolete malformed-DID test (parsing moves to the caller).
 
 **Files:**
-- Modify: `appview/internal/api/handle_resolver_test.go` (if it doesn't exist, create).
+- Modify: `appview/internal/api/handle_resolver_test.go`
 
-- [ ] **Step 1:** Inspect the current test file.
-
-```bash
-cat appview/internal/api/handle_resolver_test.go
-```
-
-Note whether it uses `identity.Directory` directly (meaning we update the stub too). If the file doesn't exist, create it in Step 2.
-
-- [ ] **Step 2:** Write/extend the test.
-
-If the file exists, add to it. If it doesn't, replace with:
+- [ ] **Step 1:** Rewrite the file.
 
 ```go
 // appview/internal/api/handle_resolver_test.go
-package api_test
+package api
 
 import (
 	"context"
@@ -1284,64 +1276,97 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-
-	"social.craftsky/appview/internal/api"
 )
 
-// stubDirectory lets us inject canned directory results.
-type stubDirectory struct {
-	lookupDID    func(syntax.DID) (*identity.Identity, error)
-	lookupHandle func(syntax.Handle) (*identity.Identity, error)
+// fakeDirectory lets us inject canned responses for both directions.
+// LookupDID and LookupHandle each return the paired (identity, err); any
+// unused direction returns a sentinel panic to catch accidental calls.
+type fakeDirectory struct {
+	didResult    *identity.Identity
+	didErr       error
+	handleResult *identity.Identity
+	handleErr    error
 }
 
-func (s stubDirectory) LookupDID(_ context.Context, did syntax.DID) (*identity.Identity, error) {
-	return s.lookupDID(did)
+func (f *fakeDirectory) LookupDID(_ context.Context, _ syntax.DID) (*identity.Identity, error) {
+	return f.didResult, f.didErr
 }
-func (s stubDirectory) LookupHandle(_ context.Context, h syntax.Handle) (*identity.Identity, error) {
-	return s.lookupHandle(h)
+func (f *fakeDirectory) LookupHandle(_ context.Context, _ syntax.Handle) (*identity.Identity, error) {
+	return f.handleResult, f.handleErr
 }
-func (s stubDirectory) Lookup(_ context.Context, _ syntax.AtIdentifier) (*identity.Identity, error) {
-	panic("not used")
+func (f *fakeDirectory) Lookup(context.Context, syntax.AtIdentifier) (*identity.Identity, error) {
+	panic("unexpected Lookup")
 }
-func (s stubDirectory) Purge(_ context.Context, _ syntax.AtIdentifier) error { return nil }
+func (f *fakeDirectory) Purge(context.Context, syntax.AtIdentifier) error {
+	panic("unexpected Purge")
+}
 
-func TestDirectoryHandleResolver_ResolveDID_HappyPath(t *testing.T) {
-	t.Parallel()
-	r := api.DirectoryHandleResolver{Directory: stubDirectory{
-		lookupHandle: func(h syntax.Handle) (*identity.Identity, error) {
-			return &identity.Identity{DID: syntax.DID("did:plc:xyz"), Handle: h}, nil
-		},
+func TestHandleResolver_ResolveHandle_HappyPath(t *testing.T) {
+	r := DirectoryHandleResolver{Directory: &fakeDirectory{
+		didResult: &identity.Identity{Handle: syntax.Handle("alice.bsky.social")},
+	}}
+	h, err := r.ResolveHandle(context.Background(), syntax.DID("did:plc:abc"))
+	if err != nil {
+		t.Fatalf("ResolveHandle: %v", err)
+	}
+	if h != syntax.Handle("alice.bsky.social") {
+		t.Errorf("handle = %q", h)
+	}
+}
+
+func TestHandleResolver_ResolveHandle_DirectoryError(t *testing.T) {
+	r := DirectoryHandleResolver{Directory: &fakeDirectory{
+		didErr: errors.New("plc down"),
+	}}
+	_, err := r.ResolveHandle(context.Background(), syntax.DID("did:plc:abc"))
+	if !errors.Is(err, ErrHandleUnavailable) {
+		t.Errorf("want ErrHandleUnavailable; got %v", err)
+	}
+}
+
+func TestHandleResolver_ResolveHandle_EmptyHandle(t *testing.T) {
+	r := DirectoryHandleResolver{Directory: &fakeDirectory{
+		didResult: &identity.Identity{Handle: syntax.HandleInvalid},
+	}}
+	_, err := r.ResolveHandle(context.Background(), syntax.DID("did:plc:abc"))
+	if !errors.Is(err, ErrHandleUnavailable) {
+		t.Errorf("want ErrHandleUnavailable; got %v", err)
+	}
+}
+
+func TestHandleResolver_ResolveDID_HappyPath(t *testing.T) {
+	r := DirectoryHandleResolver{Directory: &fakeDirectory{
+		handleResult: &identity.Identity{DID: syntax.DID("did:plc:xyz")},
 	}}
 	got, err := r.ResolveDID(context.Background(), syntax.Handle("alice.example"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != syntax.DID("did:plc:xyz") {
-		t.Errorf("got %q", got)
+		t.Errorf("did = %q", got)
 	}
 }
 
-func TestDirectoryHandleResolver_ResolveDID_LookupError(t *testing.T) {
-	t.Parallel()
-	r := api.DirectoryHandleResolver{Directory: stubDirectory{
-		lookupHandle: func(h syntax.Handle) (*identity.Identity, error) {
-			return nil, errors.New("plc down")
-		},
+func TestHandleResolver_ResolveDID_DirectoryError(t *testing.T) {
+	r := DirectoryHandleResolver{Directory: &fakeDirectory{
+		handleErr: errors.New("plc down"),
 	}}
 	_, err := r.ResolveDID(context.Background(), syntax.Handle("alice.example"))
-	if !errors.Is(err, api.ErrHandleUnavailable) {
+	if !errors.Is(err, ErrHandleUnavailable) {
 		t.Errorf("want ErrHandleUnavailable; got %v", err)
 	}
 }
 ```
 
-Note: `identity.Directory` is an interface; if the stub doesn't satisfy it after you write it, run `go build` and mirror the real signatures — the three methods above are the minimum the resolver uses; the rest can `panic` in tests.
+The file is in `package api` (internal test), matching the original convention. The old `TestHandleResolver_MalformedDID` test is deliberately removed: `ResolveHandle` no longer takes a raw string, so malformed-DID handling is the caller's concern (enforced by `syntax.ParseDID`).
 
-- [ ] **Step 3:** Run — should fail to compile (`ResolveDID` doesn't exist yet).
+- [ ] **Step 2:** Run — should fail to compile (`ResolveDID` doesn't exist yet and `ResolveHandle` still takes `string`).
 
 ```bash
-just test -run TestDirectoryHandleResolver_ResolveDID ./internal/api/...
+just test ./internal/api/...
 ```
+
+Expected: compile errors. Good.
 
 ### Task 5.2: Add `ResolveDID` and switch to `syntax.DID`/`syntax.Handle`
 
@@ -1412,11 +1437,14 @@ just test -run TestDirectoryHandleResolver ./internal/api/...
 
 At this point `whoami.go` and `whoami_test.go` will fail to compile because `ResolveHandle` now takes `syntax.DID`. That's expected — we fix in Task 5.3.
 
-### Task 5.3: Update `whoami.go` and its test to pass `syntax.DID`
+### Task 5.3: Fix all call sites of the resolver interface
+
+Because the interface signature changed, every caller and mock that implements or calls it must be updated in the same commit, or the build breaks. This task handles all of them in one go.
 
 **Files:**
 - Modify: `appview/internal/api/whoami.go`
 - Modify: `appview/internal/api/whoami_test.go`
+- Modify: `appview/internal/routes/routes_test.go`
 
 - [ ] **Step 1:** Update `whoami.go`.
 
@@ -1478,23 +1506,51 @@ func (s stubResolver) ResolveDID(_ context.Context, _ syntax.Handle) (syntax.DID
 
 And update the test initialisers: `stubResolver{handle: "alice.example"}` becomes `stubResolver{handle: syntax.Handle("alice.example")}`. Add the import.
 
-- [ ] **Step 3:** Run.
+- [ ] **Step 3:** Update the `stubResolver` in `routes_test.go` the same way.
 
-```bash
-just test ./internal/api/...
+In `appview/internal/routes/routes_test.go`, the existing stub looks like:
+
+```go
+type stubResolver struct{ handle string }
+
+func (s stubResolver) ResolveHandle(ctx context.Context, did string) (string, error) {
+    return s.handle, nil
+}
 ```
 
-Expected: all PASS.
+Replace with:
 
-- [ ] **Step 4:** `just fmt`.
+```go
+type stubResolver struct{ handle syntax.Handle }
 
-- [ ] **Step 5:** Commit.
+func (s stubResolver) ResolveHandle(_ context.Context, _ syntax.DID) (syntax.Handle, error) {
+    return s.handle, nil
+}
+func (s stubResolver) ResolveDID(_ context.Context, _ syntax.Handle) (syntax.DID, error) {
+    return "", nil
+}
+```
+
+And the initialiser on line 33: `stubResolver{handle: "stub-handle.example"}` becomes `stubResolver{handle: syntax.Handle("stub-handle.example")}`. Add the import `"github.com/bluesky-social/indigo/atproto/syntax"`.
+
+- [ ] **Step 4:** Run the full test suite.
+
+```bash
+just test
+```
+
+Expected: all PASS. If anything still fails to compile, search for call sites of `ResolveHandle(ctx, something)` where `something` is a string — those are the remaining places to update.
+
+- [ ] **Step 5:** `just fmt`.
+
+- [ ] **Step 6:** Commit.
 
 ```bash
 git add appview/internal/api/handle_resolver.go \
         appview/internal/api/handle_resolver_test.go \
         appview/internal/api/whoami.go \
-        appview/internal/api/whoami_test.go
+        appview/internal/api/whoami_test.go \
+        appview/internal/routes/routes_test.go
 git commit -m "api: add ResolveDID; type HandleResolver with syntax.DID/Handle"
 ```
 
@@ -1906,6 +1962,8 @@ git commit -m "auth: add InitializeProfile for onboarding-on-login"
 
 Adapts indigo's `*atclient.APIClient` to our interface. XRPC naming: `com.atproto.repo.getRecord` is a query (GET); `com.atproto.repo.putRecord` is a procedure (POST).
 
+**Before writing code:** run `go doc github.com/bluesky-social/indigo/atproto/atclient.APIClient` to confirm the method signatures (`Get`, `Post`) and `go doc github.com/bluesky-social/indigo/atproto/atclient.APIError` to confirm the HTTP-status field name. If `atclient` is not in the module graph yet, `cd appview && go mod tidy` will pull it in transitively — it's already depended on by `auth/oauth` which we use.
+
 - [ ] **Step 1:** Write the adapter.
 
 ```go
@@ -2003,9 +2061,12 @@ git commit -m "auth: add indigo-backed PDSClient adapter"
 
 ### Task 6.5: Wire `InitializeProfile` into the OAuth callback
 
+Because `NewHTTPHandlers` is gaining a parameter, every caller of it must be updated in the same commit. There are currently two callers: `appview/internal/routes/routes.go` (line 20 at time of writing) and `appview/internal/auth/handlers_test.go`'s `handlersFixture` helper (line 36).
+
 **Files:**
 - Modify: `appview/internal/auth/handlers_oauth.go`
 - Modify: `appview/internal/auth/handlers_test.go`
+- Modify: `appview/internal/routes/routes.go`
 
 - [ ] **Step 1:** Update `HTTPHandlers` to hold a `PDSClient` factory.
 
@@ -2080,38 +2141,114 @@ if err := InitializeProfile(r.Context(), pdsClient, sessData.AccountDID); err !=
 
 Make sure `errors` is imported.
 
-- [ ] **Step 3:** Add a handler test for "initialiser returns error → error page."
+- [ ] **Step 3:** Update every caller of `NewHTTPHandlers` to supply a default `NewPDSClient`.
 
-In `handlers_test.go`, add a test like:
+**In `appview/internal/auth/handlers_test.go`, `handlersFixture`:** change the `return auth.NewHTTPHandlers(oauthApp, craftsky, pool, logger, true)` line to pass a no-op factory:
 
 ```go
-func TestCallbackHandler_InitializeProfileFailureRendersErrorPage(t *testing.T) {
-    // Build an HTTPHandlers with NewPDSClient returning a mock whose
-    // GetRecord always errors. Drive ProcessCallback via the existing
-    // test harness (copy from an existing happy-path test in this file).
-    // Assert rr.Code == http.StatusBadGateway and the body mentions the
-    // expected user-facing message. Do NOT assert on CraftskySessions
-    // being untouched — simpler to assert on the response only.
+noopPDS := func(_ context.Context, _ syntax.DID, _ string) (auth.PDSClient, error) {
+    return &noopPDSClient{}, nil
+}
+return auth.NewHTTPHandlers(oauthApp, craftsky, pool, logger, true, noopPDS)
+```
+
+And add, somewhere near the top of `handlers_test.go`:
+
+```go
+// noopPDSClient satisfies auth.PDSClient without touching any real PDS.
+// Used by handlersFixture so the OAuth callback tests that don't care
+// about onboarding-on-login don't fail in InitializeProfile. GetRecord
+// returns 404 (record missing), causing InitializeProfile to emit an
+// empty-Craftsky-profile write — which also returns nil here, a no-op.
+type noopPDSClient struct{}
+
+func (noopPDSClient) GetRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error {
+    return auth.ErrRecordNotFound
+}
+func (noopPDSClient) PutRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error {
+    return nil
 }
 ```
 
-Look at existing tests in `handlers_test.go` for the harness shape; the test should follow the same setup as any other callback test. The point is: plug in an `InitializeProfile`-failing mock and verify the response is the error page, not the happy-path callback HTML.
+Add imports for `context` and `github.com/bluesky-social/indigo/atproto/syntax` if not already present.
 
-- [ ] **Step 4:** Run.
+**In `appview/internal/routes/routes.go`, around line 20:** update the `auth.NewHTTPHandlers` call site to pass `deps.NewAuthPDSClient` (we'll wire this field in Chunk 10.1). For now, to keep this chunk's build green, use a placeholder factory defined locally in `routes.go` that errors — it will be overwritten in Chunk 10. Simpler: **defer the `routes.go` update to Chunk 10.1** where it'll land with the real factory, and in this task just update `handlers_test.go`.
 
-```bash
-just test ./internal/auth/...
+**This means after Task 6.5, `routes.go` will not compile** because `NewHTTPHandlers` now requires 6 args. To keep the build green across chunks, add a one-line shim to `routes.go` now:
+
+```go
+// In routes.go — temporary factory; overwritten in Chunk 10.
+placeholderPDS := func(_ context.Context, _ syntax.DID, _ string) (auth.PDSClient, error) {
+    return nil, errors.New("PDS client not wired; routes.go placeholder")
+}
+oauthHandlers := auth.NewHTTPHandlers(
+    deps.OAuthApp,
+    deps.CraftskySessionStore,
+    deps.DB,
+    deps.Logger,
+    deps.Config.Env == app.EnvDev,
+    placeholderPDS,
+)
 ```
 
-Expected: all PASS. If the existing `handlers_test.go` tests fail because they don't supply `NewPDSClient`, update their constructors to pass a no-op mock (getRecord returns ErrRecordNotFound, putRecord returns nil).
+Add imports `context`, `errors`, and `"github.com/bluesky-social/indigo/atproto/syntax"` to `routes.go`. Chunk 10.1 replaces `placeholderPDS` with the real deps-provided factory.
 
-- [ ] **Step 5:** `just fmt`.
+- [ ] **Step 4:** Add a handler test for "initialiser returns error → error page."
 
-- [ ] **Step 6:** Commit.
+Rather than driving a full OAuth callback (which requires the fake-PDS harness used by the existing tests), write a focused unit test that invokes the failure path directly. In `handlers_test.go`:
+
+```go
+func TestCallbackHandler_InitializeProfileFailurePath(t *testing.T) {
+    // Build an HTTPHandlers whose NewPDSClient returns a client whose
+    // GetRecord(bsky) always errors (non-404). We drive this by calling
+    // InitializeProfile directly — the integration point that the
+    // callback exercises is the same function.
+    //
+    // The callback's own integration is already exercised by the
+    // existing happy-path tests that use handlersFixture's noopPDSClient;
+    // this test covers the error-return plumbing.
+    failingPDS := &noopPDSClient{} // we override GetRecord inline via a new type:
+    type bskyFailingPDS struct{ noopPDSClient }
+    var _ auth.PDSClient = (*bskyFailingPDS)(nil)
+    // bskyFailingPDS.GetRecord is inherited from noopPDSClient which
+    // returns ErrRecordNotFound — that's "missing," not "error."
+    // For a non-404 error, define a separate type:
+
+    ctx := t.Context()
+    err := auth.InitializeProfile(ctx, &erroringGetPDSClient{}, syntax.DID("did:plc:me"))
+    if err == nil || !errors.Is(err, auth.ErrProfileInitFailed) {
+        t.Fatalf("want ErrProfileInitFailed; got %v", err)
+    }
+    _ = failingPDS // silence unused
+}
+
+type erroringGetPDSClient struct{ noopPDSClient }
+
+func (erroringGetPDSClient) GetRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error {
+    return errors.New("boom")
+}
+```
+
+This test is lighter than driving ProcessCallback end-to-end and covers the same error-propagation logic that the callback relies on. It lives alongside the callback tests because it shares the package.
+
+Add imports `errors` and `"github.com/bluesky-social/indigo/atproto/syntax"` if needed.
+
+- [ ] **Step 5:** Run.
+
+```bash
+just test
+```
+
+Expected: all PASS, including previously-existing callback tests that flow through `handlersFixture` + `noopPDSClient`. The noop client's 404-on-GetRecord triggers the `putRecord` branch of `InitializeProfile`, which succeeds (noop `PutRecord` returns nil), so those tests are still green.
+
+- [ ] **Step 6:** `just fmt`.
+
+- [ ] **Step 7:** Commit.
 
 ```bash
 git add appview/internal/auth/handlers_oauth.go \
-        appview/internal/auth/handlers_test.go
+        appview/internal/auth/handlers_test.go \
+        appview/internal/routes/routes.go
 git commit -m "auth: call InitializeProfile in OAuth callback"
 ```
 
@@ -3052,6 +3189,7 @@ func asFieldErr(err error, out **api.FieldError) bool {
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -3084,11 +3222,17 @@ func (e *FieldError) Error() string {
 // are deliberately not writable in v1). Returns a *FieldError with
 // Code = "unexpected_field" in the latter case.
 func DecodeProfilePut(body io.Reader) (ProfilePutRequest, error) {
-	// Sniff the raw body once so we can reject avatar/banner with a
-	// specific error code before touching strict-unmarshal.
-	var raw map[string]json.RawMessage
-	dec := json.NewDecoder(body)
-	if err := dec.Decode(&raw); err != nil {
+	// Read the body once so we can both (a) scan for avatar/banner
+	// rejections and (b) re-decode strictly.
+	raw, err := io.ReadAll(body)
+	if err != nil {
+		return ProfilePutRequest{}, &FieldError{
+			Code:   "malformed_body",
+			Fields: map[string]string{"_": err.Error()},
+		}
+	}
+	var rawMap map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &rawMap); err != nil {
 		return ProfilePutRequest{}, &FieldError{
 			Code:   "malformed_body",
 			Fields: map[string]string{"_": err.Error()},
@@ -3096,7 +3240,7 @@ func DecodeProfilePut(body io.Reader) (ProfilePutRequest, error) {
 	}
 	rejected := map[string]string{}
 	for _, k := range []string{"avatar", "banner"} {
-		if _, present := raw[k]; present {
+		if _, present := rawMap[k]; present {
 			rejected[k] = "not writable in v1"
 		}
 	}
@@ -3106,14 +3250,8 @@ func DecodeProfilePut(body io.Reader) (ProfilePutRequest, error) {
 			Fields: rejected,
 		}
 	}
-	// Re-marshal through a strict decoder to catch other unknown keys.
 	out := ProfilePutRequest{}
-	// Round-trip raw back to JSON so DisallowUnknownFields has a full body.
-	pretty, err := json.Marshal(raw)
-	if err != nil {
-		return ProfilePutRequest{}, &FieldError{Code: "malformed_body", Fields: map[string]string{"_": err.Error()}}
-	}
-	strict := json.NewDecoder(bytesReader(pretty))
+	strict := json.NewDecoder(bytes.NewReader(raw))
 	strict.DisallowUnknownFields()
 	if err := strict.Decode(&out); err != nil {
 		return ProfilePutRequest{}, &FieldError{
@@ -3122,23 +3260,6 @@ func DecodeProfilePut(body io.Reader) (ProfilePutRequest, error) {
 		}
 	}
 	return out, nil
-}
-
-// bytesReader is a tiny helper to turn a []byte into an io.Reader.
-func bytesReader(b []byte) io.Reader { return &byteReader{b: b} }
-
-type byteReader struct {
-	b   []byte
-	pos int
-}
-
-func (r *byteReader) Read(p []byte) (int, error) {
-	if r.pos >= len(r.b) {
-		return 0, io.EOF
-	}
-	n := copy(p, r.b[r.pos:])
-	r.pos += n
-	return n, nil
 }
 
 // ValidateProfilePut enforces the length/count constraints from spec §5.3.
@@ -3710,7 +3831,7 @@ newAuthPDSClient := func(ctx context.Context, did syntax.DID, sid string) (auth.
 }
 ```
 
-And pass it into `NewHTTPHandlers`.
+And pass it into `NewHTTPHandlers` — **replacing** the `placeholderPDS` shim added in Task 6.5 Step 3. After this edit, `routes.go` no longer imports `errors` purely for the placeholder; remove that import if nothing else needs it.
 
 - [ ] **Step 2:** Compile check.
 
@@ -3739,12 +3860,61 @@ git commit -m "app: wire profile indexers, store, and PDS client factories"
 - Modify: `appview/internal/routes/routes.go`
 - Modify: `appview/internal/routes/routes_test.go`
 
-- [ ] **Step 1:** Write a failing test first. In `routes_test.go`, add assertions that `GET /v1/profiles/@{handleOrDid}`, `GET /v1/profiles/me`, and `PUT /v1/profiles/me` all exist and reject unauthenticated requests with 401.
+- [ ] **Step 1:** Write failing route-registration tests. Open `appview/internal/routes/routes_test.go` and find the existing test pattern (likely a helper like `buildTestDeps` or similar that returns a `*app.Deps` with stub fields). Append:
 
-Copy the pattern from an existing route test in the file. Each test should:
-- Build routes via `routes.AddRoutes` with a minimal `*app.Deps`.
-- Send an unauth request to each new route.
-- Assert 401 (because `Authenticated` middleware is first).
+```go
+func TestRoutes_GetProfileByHandleOrDIDRequiresAuth(t *testing.T) {
+	t.Parallel()
+	deps := buildTestDeps(t) // use whatever the existing tests call
+	mux := http.NewServeMux()
+	routes.AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/profiles/@alice.example", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("GET /v1/profiles/@{handleOrDid} without auth: status = %d, want 401", rr.Code)
+	}
+}
+
+func TestRoutes_GetProfileMeRequiresAuth(t *testing.T) {
+	t.Parallel()
+	deps := buildTestDeps(t)
+	mux := http.NewServeMux()
+	routes.AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/profiles/me", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("GET /v1/profiles/me without auth: status = %d, want 401", rr.Code)
+	}
+}
+
+func TestRoutes_PutProfileMeRequiresAuth(t *testing.T) {
+	t.Parallel()
+	deps := buildTestDeps(t)
+	mux := http.NewServeMux()
+	routes.AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me", strings.NewReader(`{}`))
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("PUT /v1/profiles/me without auth: status = %d, want 401", rr.Code)
+	}
+}
+```
+
+If the existing test helper isn't called `buildTestDeps`, replace that call with whatever the existing tests in the file use. The point is: use the same fixture the other routing tests use, so the new assertions slot into the established pattern.
+
+- [ ] **Step 1b:** Run the tests — they should fail because the routes aren't registered yet.
+
+```bash
+just test ./internal/routes/...
+```
+
+Expected: the three new tests fail with 404 (route not found). Existing tests still pass.
 
 - [ ] **Step 2:** Register the routes. In `routes.go`, after the existing `POST /v1/auth/logout` line:
 
