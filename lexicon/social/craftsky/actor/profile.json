@@ -17,7 +17,7 @@
               "maxGraphemes": 50
             },
             "maxLength": 10,
-            "description": "The crafts this user practices. Free-form but clients may normalize against the knownValues of social.craftsky.feed.post#projectDetails.craftType."
+            "description": "The crafts this user practices. Free-form but clients may normalize against the craftType tokens defined in social.craftsky.feed.defs (knitting, crochet, sewing, embroidery, quilting, etc.)."
           }
         }
       }
