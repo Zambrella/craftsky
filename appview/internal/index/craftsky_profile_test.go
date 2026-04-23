@@ -18,6 +18,7 @@ CREATE TABLE craftsky_profiles (
     indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- bluesky_profiles is needed for the delete-cascade test; owned by Chunk 4 indexer.
 CREATE TABLE bluesky_profiles (
     did          TEXT        NOT NULL PRIMARY KEY,
     display_name TEXT,
@@ -93,9 +94,11 @@ func TestCraftskyProfile_UpdateReplacesCrafts(t *testing.T) {
 
 	var crafts []string
 	var cid string
-	_ = pool.QueryRow(context.Background(),
+	if err := pool.QueryRow(context.Background(),
 		`SELECT crafts, record_cid FROM craftsky_profiles WHERE did = $1`, create.DID).
-		Scan(&crafts, &cid)
+		Scan(&crafts, &cid); err != nil {
+		t.Fatalf("select: %v", err)
+	}
 	if cid != "c2" {
 		t.Errorf("record_cid = %q, want c2", cid)
 	}
@@ -123,9 +126,11 @@ func TestCraftskyProfile_ReplayedEventPreservesIndexedAt(t *testing.T) {
 	}
 
 	var firstIndexedAt string
-	_ = pool.QueryRow(context.Background(),
+	if err := pool.QueryRow(context.Background(),
 		`SELECT indexed_at::text FROM craftsky_profiles WHERE did = $1`, ev.DID).
-		Scan(&firstIndexedAt)
+		Scan(&firstIndexedAt); err != nil {
+		t.Fatalf("select first indexed_at: %v", err)
+	}
 
 	// Re-deliver identical event.
 	if err := idx.Handle(context.Background(), ev); err != nil {
@@ -133,9 +138,11 @@ func TestCraftskyProfile_ReplayedEventPreservesIndexedAt(t *testing.T) {
 	}
 
 	var secondIndexedAt string
-	_ = pool.QueryRow(context.Background(),
+	if err := pool.QueryRow(context.Background(),
 		`SELECT indexed_at::text FROM craftsky_profiles WHERE did = $1`, ev.DID).
-		Scan(&secondIndexedAt)
+		Scan(&secondIndexedAt); err != nil {
+		t.Fatalf("select second indexed_at: %v", err)
+	}
 
 	if firstIndexedAt != secondIndexedAt {
 		t.Errorf("indexed_at changed on replay: %q -> %q", firstIndexedAt, secondIndexedAt)
