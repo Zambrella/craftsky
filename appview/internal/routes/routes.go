@@ -23,7 +23,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		deps.DB,
 		deps.Logger,
 		deps.Config.Env == app.EnvDev,
-		deps.NewAuthPDSClient,
+		deps.NewPDSClient,
 	)
 	mux.Handle("GET /oauth/client-metadata.json", oauthHandlers.ClientMetadataHandler())
 	mux.Handle("GET /oauth/jwks.json", oauthHandlers.JWKSHandler())

@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,7 +9,6 @@ import (
 	"net/url"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -24,7 +22,7 @@ type HTTPHandlers struct {
 	DevMode          bool // emits the session token in the callback HTML when true
 	// NewPDSClient builds a PDSClient scoped to the given OAuth session.
 	// Injected so tests can supply a mock without standing up indigo.
-	NewPDSClient func(ctx context.Context, did syntax.DID, oauthSessionID string) (PDSClient, error)
+	NewPDSClient PDSClientFactory
 }
 
 func NewHTTPHandlers(
@@ -33,7 +31,7 @@ func NewHTTPHandlers(
 	pool *pgxpool.Pool,
 	logger *slog.Logger,
 	devMode bool,
-	newPDSClient func(ctx context.Context, did syntax.DID, oauthSessionID string) (PDSClient, error),
+	newPDSClient PDSClientFactory,
 ) *HTTPHandlers {
 	return &HTTPHandlers{
 		OAuth:            oauthApp,

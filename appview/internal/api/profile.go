@@ -13,6 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
 )
 
@@ -136,20 +137,9 @@ func resolveToDID(ctx context.Context, raw string, resolver HandleResolver) (syn
 	return resolver.ResolveDID(ctx, handle)
 }
 
-// ProfilePDSClient is the subset of PDS operations the PUT handler uses.
-// Defined here (rather than in internal/auth) so handlers depend on a
-// local abstraction and tests don't drag in the auth package's mock.
-type ProfilePDSClient interface {
-	GetRecord(ctx context.Context, repo syntax.DID, collection, rkey string, out any) error
-	PutRecord(ctx context.Context, repo syntax.DID, collection, rkey string, record any) error
-}
-
-// PDSClientFactory produces a per-request PDS client scoped to the caller's
-// OAuth session.
-type PDSClientFactory func(ctx context.Context, did syntax.DID, oauthSessionID string) (ProfilePDSClient, error)
-
-// Constants repeated from internal/auth/initialize_profile.go to avoid an
-// import cycle. Different packages; no actual conflict.
+// Constants repeated from internal/auth/initialize_profile.go. Keeping
+// them local keeps the `api` package's surface self-contained for handler
+// logic; the canonical declarations live in the auth package.
 const (
 	blueskyProfileNSID  = "app.bsky.actor.profile"
 	craftskyProfileNSID = "social.craftsky.actor.profile"
@@ -160,7 +150,7 @@ const (
 func PutMeProfileHandler(
 	store ProfileReader,
 	resolver HandleResolver,
-	newPDS PDSClientFactory,
+	newPDS auth.PDSClientFactory,
 	logger *slog.Logger,
 ) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

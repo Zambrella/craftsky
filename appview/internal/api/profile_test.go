@@ -17,6 +17,7 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
 )
 
@@ -220,7 +221,7 @@ func newPutHandler(
 	return api.PutMeProfileHandler(
 		store,
 		resolver,
-		func(_ context.Context, _ syntax.DID, _ string) (api.ProfilePDSClient, error) {
+		func(_ context.Context, _ syntax.DID, _ string) (auth.PDSClient, error) {
 			return pds, nil
 		},
 		nilLogger(),

@@ -48,12 +48,10 @@ type Deps struct {
 
 	// ProfileStore serves the /v1/profiles endpoints.
 	ProfileStore *api.ProfileStore
-	// NewPDSClient produces an api.ProfilePDSClient bound to an OAuth session;
-	// shared by the write-proxy handlers (today PUT /v1/profiles/me).
-	NewPDSClient func(ctx context.Context, did syntax.DID, oauthSessionID string) (api.ProfilePDSClient, error)
-	// NewAuthPDSClient produces an auth.PDSClient bound to an OAuth session;
-	// used by the OAuth callback's InitializeProfile step.
-	NewAuthPDSClient func(ctx context.Context, did syntax.DID, oauthSessionID string) (auth.PDSClient, error)
+	// NewPDSClient produces a PDSClient bound to an OAuth session. Shared
+	// by the OAuth callback's InitializeProfile step and the write-proxy
+	// handlers (today PUT /v1/profiles/me).
+	NewPDSClient auth.PDSClientFactory
 }
 
 // NewDevDeps wires the dev variant: debug-level logger, StackedAuthService
@@ -142,14 +140,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	})
 
 	deps.ProfileStore = api.NewProfileStore(pool)
-	deps.NewPDSClient = func(ctx context.Context, did syntax.DID, sid string) (api.ProfilePDSClient, error) {
-		sess, err := oauthApp.ResumeSession(ctx, did, sid)
-		if err != nil {
-			return nil, err
-		}
-		return &auth.IndigoPDSClient{Client: sess.APIClient()}, nil
-	}
-	deps.NewAuthPDSClient = func(ctx context.Context, did syntax.DID, sid string) (auth.PDSClient, error) {
+	deps.NewPDSClient = func(ctx context.Context, did syntax.DID, sid string) (auth.PDSClient, error) {
 		sess, err := oauthApp.ResumeSession(ctx, did, sid)
 		if err != nil {
 			return nil, err
