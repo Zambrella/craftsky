@@ -32,6 +32,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [ ] Reposts — `POST /v1/posts/{did}/{rkey}/reposts` etc. Lexicon already defined. Folds into Posts spec unless it grows.
 - [ ] Blocks, mutes, reports — moderation endpoints → own spec (overlaps the v1 "report a post" moderation plan; reconcile when scoping)
 - [ ] Push notification registration — `POST /v1/notifications/devices` etc. → own spec
+- [ ] How to handle different languages
 
 ### Flutter app
 
