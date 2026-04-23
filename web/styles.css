@@ -350,7 +350,11 @@ a:hover { color: var(--cobalt-deep); }
 }
 
 @media (min-width: 820px) {
-  .value-cards__list { grid-template-columns: repeat(3, 1fr); }
+  .value-cards__list { grid-template-columns: repeat(6, 1fr); }
+  .value-cards__list > .value-card { grid-column: span 2; }
+  /* 5 cards: top row of 3, bottom row of 2 centred */
+  .value-cards__list > .value-card:nth-child(4) { grid-column: 2 / span 2; }
+  .value-cards__list > .value-card:nth-child(5) { grid-column: 4 / span 2; }
 }
 
 .value-card {
@@ -366,6 +370,8 @@ a:hover { color: var(--cobalt-deep); }
 .value-card--butter { background: var(--butter); }
 .value-card--sky    { background: var(--sky); }
 .value-card--lilac  { background: var(--lilac); }
+.value-card--clay   { background: var(--clay); }
+.value-card--blush  { background: var(--red-soft); }
 
 .value-card__title {
   font-family: var(--font-display);
