@@ -1,13 +1,16 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -19,15 +22,26 @@ type HTTPHandlers struct {
 	Pool             *pgxpool.Pool // for handoff read/write
 	Logger           *slog.Logger
 	DevMode          bool // emits the session token in the callback HTML when true
+	// NewPDSClient builds a PDSClient scoped to the given OAuth session.
+	// Injected so tests can supply a mock without standing up indigo.
+	NewPDSClient func(ctx context.Context, did syntax.DID, oauthSessionID string) (PDSClient, error)
 }
 
-func NewHTTPHandlers(oauthApp *oauth.ClientApp, craftskyStore *CraftskySessionStore, pool *pgxpool.Pool, logger *slog.Logger, devMode bool) *HTTPHandlers {
+func NewHTTPHandlers(
+	oauthApp *oauth.ClientApp,
+	craftskyStore *CraftskySessionStore,
+	pool *pgxpool.Pool,
+	logger *slog.Logger,
+	devMode bool,
+	newPDSClient func(ctx context.Context, did syntax.DID, oauthSessionID string) (PDSClient, error),
+) *HTTPHandlers {
 	return &HTTPHandlers{
 		OAuth:            oauthApp,
 		CraftskySessions: craftskyStore,
 		Pool:             pool,
 		Logger:           logger,
 		DevMode:          devMode,
+		NewPDSClient:     newPDSClient,
 	}
 }
 
@@ -88,6 +102,30 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 		}
 		if mode == "" {
 			mode = "deep_link"
+		}
+
+		pdsClient, err := h.NewPDSClient(r.Context(), sessData.AccountDID, sessData.SessionID)
+		if err != nil {
+			h.Logger.Error("NewPDSClient failed",
+				slog.String("did", sessData.AccountDID.String()),
+				slog.String("err", err.Error()))
+			renderErrorHTML(w, http.StatusBadGateway,
+				"Sign-in succeeded but we couldn't initialise your profile. Please try again.")
+			return
+		}
+		if err := InitializeProfile(r.Context(), pdsClient, sessData.AccountDID); err != nil {
+			h.Logger.Warn("InitializeProfile failed",
+				slog.String("did", sessData.AccountDID.String()),
+				slog.String("err", err.Error()))
+			switch {
+			case errors.Is(err, ErrProfileDataInvalid):
+				renderErrorHTML(w, http.StatusBadGateway,
+					"Your Craftsky profile record is in an unexpected format. Contact support.")
+			default:
+				renderErrorHTML(w, http.StatusBadGateway,
+					"Sign-in succeeded but we couldn't initialise your profile. Please try again.")
+			}
+			return
 		}
 
 		token, err := h.CraftskySessions.Create(r.Context(), sessData.AccountDID.String(), sessData.SessionID, "")

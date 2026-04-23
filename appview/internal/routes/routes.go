@@ -2,7 +2,10 @@ package routes
 
 import (
 	"context"
+	"errors"
 	"net/http"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/app"
@@ -16,6 +19,10 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("GET /health", api.HealthHandler(deps.DB, deps.Logger))
 	mux.Handle("GET /healthz", api.NewHealthHandler(deps.DB, deps.Consumer))
 
+	// Temporary factory; overwritten in Chunk 10 with a real indigo-backed one.
+	placeholderPDS := func(_ context.Context, _ syntax.DID, _ string) (auth.PDSClient, error) {
+		return nil, errors.New("PDS client not wired; routes.go placeholder")
+	}
 	// OAuth discovery endpoints (contracts with the AS; not versioned).
 	oauthHandlers := auth.NewHTTPHandlers(
 		deps.OAuthApp,
@@ -23,6 +30,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		deps.DB,
 		deps.Logger,
 		deps.Config.Env == app.EnvDev,
+		placeholderPDS,
 	)
 	mux.Handle("GET /oauth/client-metadata.json", oauthHandlers.ClientMetadataHandler())
 	mux.Handle("GET /oauth/jwks.json", oauthHandlers.JWKSHandler())
