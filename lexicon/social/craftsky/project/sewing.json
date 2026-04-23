@@ -1,0 +1,27 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.project.sewing",
+  "description": "Sewing-specific fields for a craft project post. Referenced from social.craftsky.feed.post#project.details as one variant of the open union. This file defines a referenced type (#details) only; no main record.",
+  "defs": {
+    "details": {
+      "type": "object",
+      "description": "Sewing-specific fields attached to a project post when craftType is sewing.",
+      "properties": {
+        "projectType": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "The kind of sewing project. Helps discovery so readers can filter on, e.g., only garment projects.",
+          "knownValues": [
+            "social.craftsky.project.sewing.defs#garment",
+            "social.craftsky.project.sewing.defs#homeGoods",
+            "social.craftsky.project.sewing.defs#accessory",
+            "social.craftsky.project.sewing.defs#softToy",
+            "social.craftsky.project.sewing.defs#costume",
+            "social.craftsky.project.sewing.defs#alteration"
+          ]
+        }
+      }
+    }
+  }
+}
