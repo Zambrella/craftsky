@@ -134,7 +134,7 @@ Unchanged from the current lexicon.
 
 Shared tokens referenced by `#projectCommon` and `#pattern`. One file, clearly-named tokens avoid NSID collisions between categories.
 
-- **`craftType` tokens:** `knitting`, `crochet`, `sewing`, `embroidery`, `quilting`, `weaving`, `spinning`. Initial set; more added as the craft taxonomy settles.
+- **`craftType` tokens:** `knitting`, `crochet`, `sewing`, `embroidery`, `quilting`. Initial set; more added as the craft taxonomy settles.
 - **`status` tokens:** `wip`, `finished`.
 - **`difficulty` tokens:** `beginner`, `intermediate`, `advanced`, `expert`.
 
@@ -306,6 +306,8 @@ None needed. First real PDS writes happen against the new schema.
 
 ## Open questions
 
-- Exact initial token list for `craftType` — the current list (knitting, crochet, sewing, embroidery, quilting, weaving, spinning) is a starting set. Do we add felting, dyeing, spinning, macramé, or others at launch? Additions later are safe, so err on the small side.
-- Inline `#hashtag` characters other than a-z/0-9 — do we need to accept existing Bluesky conventions for non-ASCII tags, or lock `tags[]` to ASCII-only? Current rule is ASCII-only kebab-case; revisit if users want international tags.
-- Image count limit: `maxLength: 4` matches Bluesky. Crafters posting WIP → finished before-and-afters might want more. Consider bumping to 8 or 10. Lowering later is forbidden, so pick conservatively.
+None at time of writing. Resolved during review:
+
+- **Initial `craftType` token list:** knitting, crochet, sewing, embroidery, quilting. More can be added later without breaking changes.
+- **Tag character set:** ASCII-only kebab-case as specified. Revisit if international tags become a real user need.
+- **Image count limit:** `maxLength: 4` matches Bluesky. Revisit if crafters ask for more (e.g. WIP → finished before-and-after sequences).
