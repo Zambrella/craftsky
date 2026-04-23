@@ -38,11 +38,11 @@
     <div class="container hero__inner">
       <div class="hero__text">
         <span class="eyebrow-chip">Built in the open · on the AT Protocol</span>
-        <h1 class="hero__title">Made with <em>stuff</em>.</h1>
+        <h1 class="hero__title">A new home for <em>makers</em>.</h1>
         <p class="hero__lede">
-          A social feed for textile crafters. Share what you're making. Find the
-          pattern everyone's talking about. Follow your local shop — no algorithm
-          deciding what you see.
+          A social platform for textile crafters on the open web. Post what
+          you're making, find the patterns people are loving, follow your local
+          yarn shop. No ads, no algorithm, no guessing.
         </p>
         <div class="hero__ctas">
           <button
@@ -100,18 +100,30 @@
   <main id="main">
     <section id="value-cards" class="value-cards" aria-label="What makes Craftsky different">
       <div class="container">
+        <div class="value-cards__intro">
+          <h2 class="section-title">The things we're building for.</h2>
+          <p class="value-cards__lede">A short list of what matters — and what we won't compromise on.</p>
+        </div>
         <ul class="value-cards__list">
           <li class="value-card value-card--butter">
-            <h2 class="value-card__title">No ads. Ever.</h2>
-            <p class="value-card__body">Not now, not later. We'll figure out sustainability together — advertising is off the table.</p>
+            <h2 class="value-card__title">You're the user, not the product.</h2>
+            <p class="value-card__body">No ads, ever. No data sold on the side. We'll figure out sustainability with you, in the open.</p>
           </li>
           <li class="value-card value-card--sky">
             <h2 class="value-card__title">Your data is yours.</h2>
-            <p class="value-card__body">Built on the AT Protocol. If we ever disappear, your posts and followers don't.</p>
+            <p class="value-card__body">Posts, follows, everything — stored on the open AT Protocol. Not locked inside Craftsky, not ours to hold hostage.</p>
           </li>
           <li class="value-card value-card--lilac">
-            <h2 class="value-card__title">Chronological feed.</h2>
-            <p class="value-card__body">You see the people you follow, in the order they posted. No algorithmic guessing.</p>
+            <h2 class="value-card__title">Newest first. Always.</h2>
+            <p class="value-card__body">No algorithm deciding what you see. You follow the people you want, and their posts show up in order.</p>
+          </li>
+          <li class="value-card value-card--clay">
+            <h2 class="value-card__title">Find the pattern, not the noise.</h2>
+            <p class="value-card__body">Built in from day one. Search by fabric, pattern, technique, or maker — because that's how crafters actually think.</p>
+          </li>
+          <li class="value-card value-card--blush">
+            <h2 class="value-card__title">Open source. A platform you can help build.</h2>
+            <p class="value-card__body">Craftsky is being built in the open, for the long haul. Feedback, ideas, and contributions from crafters are how it gets better.</p>
           </li>
         </ul>
       </div>
@@ -119,36 +131,79 @@
     <section id="project-posts" class="project-posts section">
       <div class="container project-posts__grid">
         <div class="project-posts__copy">
-          <h2 class="section-title">Post projects. Find projects.</h2>
+          <h2 class="section-title">Post yours. Find theirs.</h2>
           <p>
-            Craftsky is built for sharing the things you make — sweaters in progress,
-            the bag pattern you've been perfecting, the quilt you finished last
-            weekend. Post the project, note the pattern, tag the fabric, and move on.
+            When you post a project, you're not shouting into a feed — you're
+            adding to a shared library of real makes. Your finished quilt helps
+            someone else pick their next fabric. Your in-progress jumper shows
+            another knitter how that pattern really fits.
           </p>
           <p>
-            When you're trying to remember what everyone did with that one Sewaholic
-            pattern, you can search for it. When you want to see everything someone
-            has made with Merchant &amp; Mills linen, you can find that too. The
-            things crafters actually care about — fabric, pattern, technique,
-            modifications — are fields, not guesses.
+            And it works the other way. Need a new dress pattern? See every make
+            crafters have posted. Curious how a fabric drapes? Find it on
+            someone's actual project. Discoverability built for makers, by the
+            makers using it.
           </p>
         </div>
         <figure class="project-posts__card-wrap" aria-label="Example project post preview">
-          <div class="project-card">
-            <div class="project-card__photo-frame">
-              <div class="project-card__photo" role="img" aria-label="Placeholder project photo">
-                <!-- Placeholder photo area — CSS fills it with a paper swatch until a real image lands -->
+          <article class="project-card project-card--full">
+            <header class="project-card__header">
+              <div class="project-card__avatar" aria-hidden="true">M</div>
+              <div class="project-card__who">
+                <p class="project-card__name">Maya Chen</p>
+                <p class="project-card__handle">@mayastitches · 2h</p>
               </div>
+              <button type="button" class="project-card__more" aria-label="More" tabindex="-1">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+              </button>
+            </header>
+            <div class="project-card__photo-frame">
+              <div class="project-card__photo" role="img" aria-label="Placeholder project photo"></div>
             </div>
             <div class="project-card__body">
-              <h3 class="project-card__title">Wiksten Haori</h3>
-              <p class="project-card__meta">Sewing · WIP · 2 days</p>
+              <h3 class="project-card__title">Wiksten Haori in indigo linen</h3>
               <ul class="project-card__chips">
-                <li class="ck-chip ck-chip--wip">Work in progress</li>
-                <li class="ck-chip">Linen</li>
+                <li class="ck-chip ck-chip--done">Finished</li>
+                <li class="ck-chip">Sewing</li>
+                <li class="ck-chip">#wikstenhaori</li>
               </ul>
+              <dl class="project-card__fields">
+                <div class="project-card__field">
+                  <dt>Pattern</dt>
+                  <dd>Wiksten Haori</dd>
+                </div>
+                <div class="project-card__field">
+                  <dt>Fabric</dt>
+                  <dd>Merchant &amp; Mills 185 linen</dd>
+                </div>
+                <div class="project-card__field">
+                  <dt>Mods</dt>
+                  <dd>Widened sleeves · shortened body 4cm</dd>
+                </div>
+              </dl>
             </div>
-          </div>
+            <footer class="project-card__actions" aria-hidden="true">
+              <span class="project-card__action project-card__action--liked">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 21s-7.5-4.5-9.5-9.5C1 8 3.5 5 6.5 5c1.9 0 3.4 1 4.5 2.5C12.1 6 13.6 5 15.5 5 18.5 5 21 8 19.5 11.5 17.5 16.5 12 21 12 21z"/></svg>
+                128
+              </span>
+              <span class="project-card__action">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.4-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                14
+              </span>
+              <span class="project-card__action">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                6
+              </span>
+              <span class="project-card__action">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6z"/></svg>
+                22
+              </span>
+              <span class="project-card__action project-card__action--last">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg>
+              </span>
+            </footer>
+          </article>
         </figure>
       </div>
     </section>
@@ -156,18 +211,15 @@
       <div class="container container--narrow">
         <h2 class="section-title">Why we're building this.</h2>
         <p>
-          The social networks we used to trust turned against us. Feeds that show
-          you what the algorithm wants you to see. Search that doesn't work. A
-          tidal wave of ads, sponsored posts, and pay-to-play reach that crowds
-          out the people you actually follow. Makers deserve better.
+          The platforms crafters used to rely on aren't built for us anymore.
+          They're built for engagement, for ads, for algorithms that decide who
+          gets seen. Makers got squeezed out in the middle.
         </p>
         <p>
-          Craftsky is a chronological feed — you see what the people you follow
-          posted, in the order they posted it. No ads, now or ever. Strong search
-          that finds every version of a pattern. Transparent business accounts,
-          not pay-to-play. Profiles that feel like yours, not a template. Your
-          posts and followers live on the AT Protocol, so if we ever disappear,
-          you still have them.
+          Craftsky is the alternative we wanted to exist: a chronological feed,
+          search that actually finds things, no ads now or ever, and your data
+          portable on the AT Protocol. A social platform where crafters are the
+          point, not the audience being sold to.
         </p>
         <p>
           The <a href="https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit" target="_blank" rel="noopener">full vision doc</a>
@@ -180,49 +232,87 @@
         <h2 class="section-title">How it works.</h2>
         <ul class="how__list">
           <li class="how__item">
-            <svg class="how__icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="m21 8-9 4-9-4" />
-              <path d="M3 8v8l9 4 9-4V8" />
-              <path d="m3 8 9-4 9 4" />
+            <svg class="how__icon" viewBox="0 0 48 48" width="56" height="56" aria-hidden="true">
+              <rect x="4" y="8" width="30" height="30" fill="var(--cobalt)" stroke="var(--ink)" stroke-width="2" transform="rotate(-6 19 23)" />
+              <rect x="18" y="14" width="22" height="22" fill="var(--butter)" stroke="var(--ink)" stroke-width="2" transform="rotate(5 29 25)" />
             </svg>
-            <h3 class="how__heading">Your posts live on a server you control.</h3>
-            <p>Every post is a record on your PDS — your corner of the AT Protocol. Craftsky reads from the public network; it doesn't own your data.</p>
+            <h3 class="how__heading">Post once, own it forever.</h3>
+            <p>Every Craftsky post is stored on the open AT Protocol — a network of servers no single company controls. Your posts don't live in our database; we just read from the network.</p>
           </li>
           <li class="how__item">
-            <svg class="how__icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" />
-              <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+            <svg class="how__icon" viewBox="0 0 48 48" width="56" height="56" aria-hidden="true">
+              <rect x="6" y="10" width="32" height="26" fill="var(--clay)" stroke="var(--ink)" stroke-width="2" transform="rotate(-3 22 23)" />
+              <circle cx="30" cy="28" r="10" fill="var(--cobalt)" stroke="var(--ink)" stroke-width="2" />
+              <circle cx="34" cy="14" r="5" fill="var(--red)" stroke="var(--ink)" stroke-width="2" />
             </svg>
-            <h3 class="how__heading">Craftsky reads the network, organises it for crafters.</h3>
-            <p>We index posts that use our project format and surface them in a chronological feed. You follow the people you want to see.</p>
+            <h3 class="how__heading">We're the lens, not the landlord.</h3>
+            <p>Craftsky watches the network for craft projects, organises them, and shows them to you in chronological order. The data isn't ours — how it's presented is.</p>
           </li>
           <li class="how__item">
-            <svg class="how__icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <polyline points="16 3 21 3 21 8" />
-              <line x1="4" y1="20" x2="21" y2="3" />
-              <polyline points="21 16 21 21 16 21" />
-              <line x1="15" y1="15" x2="21" y2="21" />
-              <line x1="4" y1="4" x2="9" y2="9" />
+            <svg class="how__icon" viewBox="0 0 48 48" width="56" height="56" aria-hidden="true">
+              <rect x="4" y="16" width="22" height="22" fill="var(--sky)" stroke="var(--ink)" stroke-width="2" transform="rotate(-5 15 27)" />
+              <rect x="22" y="10" width="22" height="22" fill="var(--lilac)" stroke="var(--ink)" stroke-width="2" transform="rotate(4 33 21)" />
+              <path d="M16 28 L34 16" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round" />
+              <path d="M30 14 L34 16 L32 20" fill="none" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
-            <h3 class="how__heading">Move your account any time.</h3>
-            <p>If Craftsky isn't for you, take your account elsewhere. Your followers come with you.</p>
+            <h3 class="how__heading">Move any time, take it all with you.</h3>
+            <p>If Craftsky isn't for you, point your account at another app on the network. Your followers come with you.</p>
           </li>
         </ul>
       </div>
     </section>
     <section id="whos-behind" class="whos-behind section">
-      <div class="container container--narrow">
-        <div class="whos-behind__accent">
+      <div class="container whos-behind__grid">
+        <figure class="whos-behind__card-wrap" aria-label="Profile of the builder">
+          <!-- TODO(photo): swap placeholder for real headshot at project-card__photo -->
+          <article class="project-card project-card--full project-card--profile">
+            <header class="project-card__header">
+              <div class="project-card__avatar" aria-hidden="true">D</div>
+              <div class="project-card__who">
+                <p class="project-card__name">Doug Todd</p>
+                <p class="project-card__handle">@dougtodd · builder</p>
+              </div>
+              <button type="button" class="project-card__more" aria-label="More" tabindex="-1">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+              </button>
+            </header>
+            <div class="project-card__photo-frame project-card__photo-frame--profile">
+              <div class="project-card__photo project-card__photo--profile" role="img" aria-label="Placeholder headshot — TODO: replace with real photo"></div>
+            </div>
+            <div class="project-card__body">
+              <h3 class="project-card__title">Building Craftsky, in the open.</h3>
+              <ul class="project-card__chips">
+                <li class="ck-chip ck-chip--wip">In progress</li>
+                <li class="ck-chip">Developer</li>
+                <li class="ck-chip">Stash Hub</li>
+              </ul>
+              <dl class="project-card__fields">
+                <div class="project-card__field">
+                  <dt>Making</dt>
+                  <dd>A social platform for textile crafters</dd>
+                </div>
+                <div class="project-card__field">
+                  <dt>Also made</dt>
+                  <dd>Stash Hub — fabric &amp; pattern tracking</dd>
+                </div>
+                <div class="project-card__field">
+                  <dt>Approach</dt>
+                  <dd>Open source · community-first · no rush</dd>
+                </div>
+              </dl>
+            </div>
+          </article>
+        </figure>
+        <div class="whos-behind__copy">
           <h2 class="section-title">Who's behind it.</h2>
           <p>
-            Craftsky is being built by Doug Todd, the developer behind Stash Hub,
-            in the open on
-            <a href="#TODO-GITHUB-URL" target="_blank" rel="noopener"><!-- FIXME: replace with real repo URL -->GitHub</a>.
-            It's a community-first project — the
+            Craftsky is being built by Doug Todd — the developer behind Stash
+            Hub — alongside anyone who wants to help shape it. The
             <a href="https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit" target="_blank" rel="noopener">vision doc</a>
-            is open for comments, the code is open for PRs, and the lexicons are
-            public. We're not announcing dates. We'd rather get it right than get
-            it out fast.
+            is open for comments and the code lives on
+            <a href="#TODO-GITHUB-URL" target="_blank" rel="noopener"><!-- FIXME: replace with real repo URL -->GitHub</a>,
+            so nothing about how Craftsky gets built is a secret. We'd rather
+            get it right than get it out fast.
           </p>
         </div>
       </div>
@@ -233,12 +323,12 @@
 
         <details class="faq__item">
           <summary>When's it launching?</summary>
-          <p>We're not announcing dates. We'd rather get it right than get it out fast. Join the waiting list and you'll hear from us when there's something worth trying.</p>
+          <p>No dates yet. We'd rather get it right than get it out fast. Join the waiting list and we'll be in touch when there's something worth showing.</p>
         </details>
 
         <details class="faq__item">
           <summary>Will it be free?</summary>
-          <p>Yes. No ads, ever. We're still figuring out how the project sustains itself long-term — probably a mix of optional premium features and something tied to Stash Hub — and we'll be honest when we know. In the meantime, using Craftsky costs nothing.</p>
+          <p>Yes, and it stays free at the core. No ads, ever. Sustainability will probably come from optional premium features down the line. We'll be transparent about the plan when it's firm.</p>
         </details>
 
         <details class="faq__item">
@@ -248,24 +338,34 @@
 
         <details class="faq__item">
           <summary>Can I use my Bluesky handle?</summary>
-          <p>Yes. Craftsky is its own app view on top of the AT Protocol, so if you already have a Bluesky account you can sign in with that handle. Your Bluesky follows carry over — no new graph to rebuild.</p>
+          <p>Yes. Sign in with your Bluesky handle and your follows come along. No second account to manage, no follower graph to rebuild.</p>
         </details>
 
         <details class="faq__item">
           <summary>Is this just for textile crafters?</summary>
-          <p>To start, yes. Sewing, knitting, crochet, quilting, embroidery — the textile side of craft. The post structure is designed around those kinds of projects. Other crafts may follow, but we'd rather do one community well than spread thin.</p>
+          <p>To start, yes — sewing, knitting, crochet, quilting, embroidery. The posts are designed around those projects. Other crafts may follow, but we'd rather do one community well than spread thin.</p>
         </details>
 
         <details class="faq__item">
-          <summary>How is this different from Instagram / Pinterest / Ravelry?</summary>
-          <p>Chronological feed, no ads, no algorithmic ranking, and the structured fields crafters actually want — pattern, fabric or yarn, techniques, status. You own the data, and you can take it with you. It's not trying to replace any of those platforms — it's trying to be the one crafters asked for.</p>
+          <summary>How is this different from Instagram?</summary>
+          <p>Instagram is built for engagement and advertisers. Craftsky is built for crafters: a chronological feed, no ads, real search, and the details you'd actually log about a project. Your data lives on an open network, so it's yours to keep or take.</p>
         </details>
       </div>
     </section>
     <section id="final-cta" class="final-cta on-cobalt">
+      <svg class="final-cta__accent final-cta__accent--tl" viewBox="0 0 160 160" aria-hidden="true">
+        <rect x="10" y="20" width="70" height="90" fill="#F7D46A" stroke="#161210" stroke-width="3" transform="rotate(-8 45 65)" />
+        <rect x="50" y="40" width="60" height="60" fill="#E27B4A" stroke="#161210" stroke-width="3" transform="rotate(6 80 70)" />
+        <circle cx="120" cy="30" r="12" fill="#F03A2E" stroke="#161210" stroke-width="3" />
+      </svg>
+      <svg class="final-cta__accent final-cta__accent--br" viewBox="0 0 160 160" aria-hidden="true">
+        <rect x="60" y="50" width="80" height="80" fill="#9BC2E6" stroke="#161210" stroke-width="3" transform="rotate(-5 100 90)" />
+        <rect x="20" y="70" width="70" height="60" fill="#C9B8E8" stroke="#161210" stroke-width="3" transform="rotate(7 55 100)" />
+        <circle cx="30" cy="40" r="10" fill="#F03A2E" stroke="#161210" stroke-width="3" />
+      </svg>
       <div class="container final-cta__inner">
-        <h2 class="final-cta__title">Want in?</h2>
-        <p class="final-cta__sub">We'll email you when there's something to see.</p>
+        <h2 class="final-cta__title">Ready for a new home?</h2>
+        <p class="final-cta__sub">We'll email you when there's something to see. Nothing else.</p>
         <button
           type="button"
           class="btn btn--on-cobalt js-open-waiting-list"
