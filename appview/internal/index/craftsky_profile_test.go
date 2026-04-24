@@ -4,7 +4,11 @@ package index_test
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"testing"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/index"
 	"social.craftsky/appview/internal/tap"
@@ -33,10 +37,25 @@ CREATE TABLE bluesky_profiles (
 );
 `
 
+// noopBackfiller is the default backfiller for existing tests that
+// predate the backfill path. Satisfies index.BlueskyBackfiller.
+type noopBackfiller struct{}
+
+func (noopBackfiller) Backfill(context.Context, syntax.DID) error { return nil }
+
+// testLogger returns a logger that discards output. Equivalent patterns
+// live elsewhere in the repo — inline here to avoid a new exported helper.
+// Both `noopBackfiller` and `testLogger` are unexported; because this file
+// and `bluesky_backfiller_test.go` share `package index_test`, the helpers
+// are visible to both test files (no sharing-helper-file needed).
+func testLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
 func TestCraftskyProfile_Create(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, craftskyProfilesDDL)
-	idx := index.NewCraftskyProfile(pool)
+	idx := index.NewCraftskyProfile(pool, noopBackfiller{}, testLogger())
 
 	ev := tap.Event{
 		URI:        "at://did:plc:abc/social.craftsky.actor.profile/self",
@@ -70,7 +89,7 @@ func TestCraftskyProfile_Create(t *testing.T) {
 func TestCraftskyProfile_UpdateReplacesCrafts(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, craftskyProfilesDDL)
-	idx := index.NewCraftskyProfile(pool)
+	idx := index.NewCraftskyProfile(pool, noopBackfiller{}, testLogger())
 
 	create := tap.Event{
 		URI:        "at://did:plc:x/social.craftsky.actor.profile/self",
@@ -111,7 +130,7 @@ func TestCraftskyProfile_UpdateReplacesCrafts(t *testing.T) {
 func TestCraftskyProfile_ReplayedEventPreservesIndexedAt(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, craftskyProfilesDDL)
-	idx := index.NewCraftskyProfile(pool)
+	idx := index.NewCraftskyProfile(pool, noopBackfiller{}, testLogger())
 
 	ev := tap.Event{
 		URI:        "at://did:plc:y/social.craftsky.actor.profile/self",
@@ -153,7 +172,7 @@ func TestCraftskyProfile_ReplayedEventPreservesIndexedAt(t *testing.T) {
 func TestCraftskyProfile_DeleteRemovesBothRows(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, craftskyProfilesDDL)
-	idx := index.NewCraftskyProfile(pool)
+	idx := index.NewCraftskyProfile(pool, noopBackfiller{}, testLogger())
 	ctx := context.Background()
 
 	create := tap.Event{
@@ -196,7 +215,7 @@ func TestCraftskyProfile_DeleteRemovesBothRows(t *testing.T) {
 func TestCraftskyProfile_UnknownAction(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, craftskyProfilesDDL)
-	idx := index.NewCraftskyProfile(pool)
+	idx := index.NewCraftskyProfile(pool, noopBackfiller{}, testLogger())
 	ev := tap.Event{
 		URI:        "at://did:plc:a/social.craftsky.actor.profile/self",
 		CID:        "c",
@@ -214,7 +233,7 @@ func TestCraftskyProfile_UnknownAction(t *testing.T) {
 func TestCraftskyProfile_OtherCollectionIgnored(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, craftskyProfilesDDL)
-	idx := index.NewCraftskyProfile(pool)
+	idx := index.NewCraftskyProfile(pool, noopBackfiller{}, testLogger())
 	ev := tap.Event{
 		URI: "at://did:plc:b/app.bsky.feed.post/k", CID: "c", DID: "did:plc:b", Rkey: "k",
 		Collection: "app.bsky.feed.post", Action: "create",

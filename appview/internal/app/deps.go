@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -115,8 +116,12 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	identityDir := identity.DefaultDirectory()
 
 	dispatcher := index.NewDispatcher(index.NotImplemented{})
-	dispatcher.Register("social.craftsky.actor.profile", index.NewCraftskyProfile(pool))
-	dispatcher.Register("app.bsky.actor.profile", index.NewBlueskyProfile(pool))
+	anonPDS := auth.NewAnonymousPDSClient(identityDir, 5*time.Second)
+	blueskyIdx := index.NewBlueskyProfile(pool)
+	backfiller := index.NewBlueskyBackfiller(anonPDS, blueskyIdx)
+	dispatcher.Register("social.craftsky.actor.profile",
+		index.NewCraftskyProfile(pool, backfiller, logger))
+	dispatcher.Register("app.bsky.actor.profile", blueskyIdx)
 
 	deps := &Deps{
 		Config:               cfg,

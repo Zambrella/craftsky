@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,14 +22,22 @@ import (
 // Bluesky mirror, since membership is defined by presence in
 // craftsky_profiles.
 type CraftskyProfile struct {
-	pool *pgxpool.Pool
+	pool       *pgxpool.Pool
+	backfiller BlueskyBackfiller
+	logger     *slog.Logger
 }
 
 var _ Indexer = (*CraftskyProfile)(nil)
 
-// NewCraftskyProfile builds an indexer backed by the given pool.
-func NewCraftskyProfile(pool *pgxpool.Pool) *CraftskyProfile {
-	return &CraftskyProfile{pool: pool}
+// NewCraftskyProfile builds an indexer. The backfiller is invoked when
+// Handle commits a genuinely new membership row; it may be a no-op in
+// tests. A nil logger defaults to slog.Default() to keep call sites that
+// don't care about structured logging concise.
+func NewCraftskyProfile(pool *pgxpool.Pool, backfiller BlueskyBackfiller, logger *slog.Logger) *CraftskyProfile {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &CraftskyProfile{pool: pool, backfiller: backfiller, logger: logger}
 }
 
 const craftskyProfileNSID = "social.craftsky.actor.profile"
