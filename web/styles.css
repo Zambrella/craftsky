@@ -142,6 +142,13 @@ body {
 
 p { margin: 0; text-wrap: pretty; }
 
+/* Body-text emphasis utility. Cobalt + bold so emphasised phrases pop
+   without the readability hit of italics in long passages. Use sparingly. */
+.em-cobalt {
+  color: var(--cobalt);
+  font-weight: 700;
+}
+
 a {
   color: var(--cobalt);
   text-decoration: underline;
