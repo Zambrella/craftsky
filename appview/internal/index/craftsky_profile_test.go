@@ -305,3 +305,32 @@ func TestCraftskyProfile_Handle_Replay_SkipsBackfill(t *testing.T) {
 		t.Errorf("backfill calls = %d; want 1 (replay must not re-fire)", len(spy.calls))
 	}
 }
+
+func TestCraftskyProfile_Handle_Update_SkipsBackfill(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
+	spy := &spyBackfiller{}
+	idx := index.NewCraftskyProfile(pool, spy, testLogger())
+	ctx := context.Background()
+
+	create := tap.Event{
+		URI: "at://did:plc:up/social.craftsky.actor.profile/self", CID: "c1",
+		DID: "did:plc:up", Rkey: "self",
+		Collection: "social.craftsky.actor.profile", Action: "create",
+		Record: json.RawMessage(`{"crafts":["a"]}`),
+	}
+	update := create
+	update.CID = "c2"
+	update.Action = "update"
+	update.Record = json.RawMessage(`{"crafts":["a","b"]}`)
+
+	if err := idx.Handle(ctx, create); err != nil {
+		t.Fatal(err)
+	}
+	if err := idx.Handle(ctx, update); err != nil {
+		t.Fatal(err)
+	}
+	if len(spy.calls) != 1 {
+		t.Errorf("backfill calls = %d; want 1 (update must not re-fire)", len(spy.calls))
+	}
+}
