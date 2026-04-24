@@ -147,3 +147,19 @@ func TestAnonymousPDSClient_GetRecord_NoPDSEndpoint(t *testing.T) {
 		t.Errorf("err = %v; want mention of missing endpoint", err)
 	}
 }
+
+func TestAnonymousPDSClient_GetRecord_DirectoryError(t *testing.T) {
+	t.Parallel()
+	dir := &fakeDirectory{did: syntax.DID("did:plc:abc"), err: errors.New("dns failure")}
+	cli := auth.NewAnonymousPDSClient(dir, 2*time.Second)
+
+	var out map[string]any
+	_, err := cli.GetRecord(context.Background(),
+		syntax.DID("did:plc:abc"), "app.bsky.actor.profile", "self", &out)
+	if err == nil {
+		t.Fatal("want error when directory lookup fails; got nil")
+	}
+	if !strings.Contains(err.Error(), "dns failure") {
+		t.Errorf("err = %v; want wrapped underlying error", err)
+	}
+}
