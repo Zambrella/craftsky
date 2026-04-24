@@ -2,6 +2,7 @@ package index_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/index"
+	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -134,5 +136,48 @@ func TestBlueskyBackfiller_Backfill_PDSError_Propagates(t *testing.T) {
 	err := bf.Backfill(context.Background(), syntax.DID("did:plc:err"))
 	if !errors.Is(err, boom) {
 		t.Errorf("want wrapped %v; got %v", boom, err)
+	}
+}
+
+func TestCraftskyProfile_Handle_NewRow_BackfillsBluesky(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
+	pds := &fakeAnonPDS{
+		cid:   "bafbluesky",
+		value: map[string]any{"displayName": "alice"},
+	}
+	bsky := index.NewBlueskyProfile(pool)
+	bf := index.NewBlueskyBackfiller(pds, bsky)
+	idx := index.NewCraftskyProfile(pool, bf, testLogger())
+
+	ev := tap.Event{
+		URI:        "at://did:plc:e2e/social.craftsky.actor.profile/self",
+		CID:        "ccsky",
+		DID:        "did:plc:e2e",
+		Rkey:       "self",
+		Collection: "social.craftsky.actor.profile",
+		Action:     "create",
+		Record:     json.RawMessage(`{"crafts":["sewing"]}`),
+	}
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+
+	// Both tables populated after a single handle call.
+	var craftskyCount int
+	_ = pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM craftsky_profiles WHERE did = $1`, ev.DID).Scan(&craftskyCount)
+	if craftskyCount != 1 {
+		t.Errorf("craftsky_profiles count = %d; want 1", craftskyCount)
+	}
+
+	var displayName string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT display_name FROM bluesky_profiles WHERE did = $1`, ev.DID).
+		Scan(&displayName); err != nil {
+		t.Fatalf("select bluesky: %v", err)
+	}
+	if displayName != "alice" {
+		t.Errorf("display_name = %q; want alice", displayName)
 	}
 }
