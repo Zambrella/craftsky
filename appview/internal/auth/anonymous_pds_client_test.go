@@ -131,3 +131,19 @@ func TestAnonymousPDSClient_GetRecord_RecordNotFound(t *testing.T) {
 		t.Errorf("want ErrRecordNotFound; got %v", err)
 	}
 }
+
+func TestAnonymousPDSClient_GetRecord_NoPDSEndpoint(t *testing.T) {
+	t.Parallel()
+	dir := &fakeDirectory{did: syntax.DID("did:plc:abc")} // endpoint empty
+	cli := auth.NewAnonymousPDSClient(dir, 2*time.Second)
+
+	var out map[string]any
+	_, err := cli.GetRecord(context.Background(),
+		syntax.DID("did:plc:abc"), "app.bsky.actor.profile", "self", &out)
+	if err == nil {
+		t.Fatal("want error when DID doc has no PDS endpoint; got nil")
+	}
+	if !strings.Contains(err.Error(), "no atproto_pds") {
+		t.Errorf("err = %v; want mention of missing endpoint", err)
+	}
+}
