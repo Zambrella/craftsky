@@ -52,7 +52,7 @@ func (f *fakeAnonPDS) GetRecord(_ context.Context, _ syntax.DID, _, _ string, ou
 }
 
 func (f *fakeAnonPDS) PutRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error {
-	return errors.New("not used")
+	panic("fakeAnonPDS.PutRecord must not be called in backfiller tests")
 }
 
 func TestBlueskyBackfiller_Backfill_RecordPresent_WritesBlueskyRow(t *testing.T) {
@@ -77,7 +77,7 @@ func TestBlueskyBackfiller_Backfill_RecordPresent_WritesBlueskyRow(t *testing.T)
 		t.Fatalf("Backfill: %v", err)
 	}
 	if pds.calls != 1 {
-		t.Errorf("PDS GetRecord called %d times; want 1", pds.calls)
+		t.Fatalf("PDS GetRecord called %d times; want 1", pds.calls)
 	}
 
 	var displayName, recordCID string
@@ -109,9 +109,11 @@ func TestBlueskyBackfiller_Backfill_RecordNotFound_IsNoOp(t *testing.T) {
 		t.Errorf("want nil for RecordNotFound; got %v", err)
 	}
 	var count int
-	_ = pool.QueryRow(context.Background(),
+	if err := pool.QueryRow(context.Background(),
 		`SELECT count(*) FROM bluesky_profiles WHERE did = $1`,
-		"did:plc:none").Scan(&count)
+		"did:plc:none").Scan(&count); err != nil {
+		t.Fatalf("count select: %v", err)
+	}
 	if count != 0 {
 		t.Errorf("bluesky_profiles count = %d; want 0", count)
 	}
