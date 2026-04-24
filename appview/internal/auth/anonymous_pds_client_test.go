@@ -5,10 +5,14 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+
+	"social.craftsky/appview/internal/auth"
 )
 
 // NOTE: the `social.craftsky/appview/internal/auth` import is added in
@@ -77,4 +81,34 @@ func helperServer(_ *testing.T, status int, body string, path *string) *httptest
 		w.WriteHeader(status)
 		_, _ = w.Write([]byte(body))
 	}))
+}
+
+func TestAnonymousPDSClient_GetRecord_HappyPath(t *testing.T) {
+	t.Parallel()
+	var gotPath string
+	srv := helperServer(t, 200, `{
+        "uri":"at://did:plc:abc/app.bsky.actor.profile/self",
+        "cid":"bafcid",
+        "value":{"displayName":"alice"}
+    }`, &gotPath)
+	defer srv.Close()
+
+	dir := &fakeDirectory{did: syntax.DID("did:plc:abc"), endpoint: srv.URL}
+	cli := auth.NewAnonymousPDSClient(dir, 2*time.Second)
+
+	var out map[string]any
+	cid, err := cli.GetRecord(context.Background(),
+		syntax.DID("did:plc:abc"), "app.bsky.actor.profile", "self", &out)
+	if err != nil {
+		t.Fatalf("GetRecord: %v", err)
+	}
+	if cid != "bafcid" {
+		t.Errorf("cid = %q, want bafcid", cid)
+	}
+	if out["displayName"] != "alice" {
+		t.Errorf("displayName = %v", out["displayName"])
+	}
+	if !strings.HasPrefix(gotPath, "/xrpc/com.atproto.repo.getRecord") {
+		t.Errorf("path = %q", gotPath)
+	}
 }
