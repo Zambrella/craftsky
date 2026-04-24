@@ -79,6 +79,9 @@ func (c *AnonymousPDSClient) GetRecord(ctx context.Context, repo syntax.DID, col
 	if err := api.Get(ctx, nsid, params, &resp); err != nil {
 		return "", translateGetRecordError(err)
 	}
+	if resp.CID == "" {
+		return "", fmt.Errorf("getRecord: PDS returned empty cid for %s/%s", collection, rkey)
+	}
 	if m, ok := out.(*map[string]any); ok {
 		if v, ok := resp.Value.(map[string]any); ok {
 			*m = v

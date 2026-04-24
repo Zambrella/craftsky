@@ -15,11 +15,6 @@ import (
 	"social.craftsky/appview/internal/auth"
 )
 
-// NOTE: the `social.craftsky/appview/internal/auth` import is added in
-// Task 2.2 Step 1 when the first test references `auth.NewAnonymousPDSClient`.
-// Adding it here would fail Go's unused-import check because the scaffold
-// test below only touches `identity`, `syntax`, and stdlib types.
-
 // fakeDirectory is a minimal identity.Directory that returns a hard-coded
 // PDSEndpoint for a single DID. Tests set `endpoint` to an httptest
 // server's URL so the anonymous client hits a controllable fake PDS.
@@ -171,5 +166,28 @@ func TestAnonymousPDSClient_PutRecord_ReadOnly(t *testing.T) {
 		syntax.DID("did:plc:x"), "any.nsid", "self", map[string]any{})
 	if !errors.Is(err, auth.ErrReadOnlyPDSClient) {
 		t.Errorf("want ErrReadOnlyPDSClient; got %v", err)
+	}
+}
+
+func TestAnonymousPDSClient_GetRecord_EmptyCID(t *testing.T) {
+	t.Parallel()
+	// A malformed PDS response with no cid field must be rejected loudly so
+	// downstream NOT NULL columns never receive an empty string.
+	srv := helperServer(t, 200,
+		`{"uri":"at://did:plc:abc/app.bsky.actor.profile/self","cid":"","value":{"displayName":"x"}}`,
+		nil)
+	defer srv.Close()
+
+	dir := &fakeDirectory{did: syntax.DID("did:plc:abc"), endpoint: srv.URL}
+	cli := auth.NewAnonymousPDSClient(dir, 2*time.Second)
+
+	var out map[string]any
+	_, err := cli.GetRecord(context.Background(),
+		syntax.DID("did:plc:abc"), "app.bsky.actor.profile", "self", &out)
+	if err == nil {
+		t.Fatal("want error for empty cid; got nil")
+	}
+	if !strings.Contains(err.Error(), "empty cid") {
+		t.Errorf("err = %v; want mention of empty cid", err)
 	}
 }
