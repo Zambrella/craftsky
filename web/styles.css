@@ -385,7 +385,7 @@ a:hover { color: var(--cobalt-deep); }
   box-shadow: var(--sh-drop);
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
+  gap: var(--sp-4);
 }
 
 .value-card--butter { background: var(--butter); }
@@ -400,11 +400,13 @@ a:hover { color: var(--cobalt-deep); }
   font-weight: 400;
   line-height: 1.05;
   color: var(--ink);
+  margin: 0;
 }
 
 .value-card__body {
   font-weight: 500;
   color: var(--ink);
+  margin: 0;
 }
 
 /* =========================================================================
@@ -667,10 +669,11 @@ a:hover { color: var(--cobalt-deep); }
 
 .project-card__photo--profile {
   aspect-ratio: 1 / 1;
-  background:
-    radial-gradient(circle at 50% 38%, var(--paper-3) 0 28%, transparent 29%),
-    radial-gradient(ellipse at 50% 95%, var(--paper-3) 0 45%, transparent 46%),
-    linear-gradient(135deg, var(--lilac) 0%, var(--sky) 100%);
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  background: linear-gradient(135deg, var(--lilac) 0%, var(--sky) 100%);
 }
 
 .project-card__photo-frame--profile {
