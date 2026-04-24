@@ -201,7 +201,7 @@ func PutMeProfileHandler(
 
 		// Read-before-write on Bluesky so we preserve avatar/banner.
 		var bsky map[string]any
-		if err := pds.GetRecord(r.Context(), did, blueskyProfileNSID, profileRecordKey, &bsky); err != nil {
+		if _, err := pds.GetRecord(r.Context(), did, blueskyProfileNSID, profileRecordKey, &bsky); err != nil {
 			logger.Warn("profile: bluesky getRecord failed", slog.String("err", err.Error()))
 			envelope.WriteError(w, http.StatusBadGateway,
 				"pds_read_failed", "could not read current bluesky profile", runID, nil)

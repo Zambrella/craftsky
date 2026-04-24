@@ -22,10 +22,10 @@ var _ PDSClient = (*IndigoPDSClient)(nil)
 // "record missing" response is translated to ErrRecordNotFound so callers
 // can switch on presence; see translateGetRecordError for the detection
 // rules.
-func (i *IndigoPDSClient) GetRecord(ctx context.Context, repo syntax.DID, collection, rkey string, out any) error {
+func (i *IndigoPDSClient) GetRecord(ctx context.Context, repo syntax.DID, collection, rkey string, out any) (string, error) {
 	nsid, err := syntax.ParseNSID("com.atproto.repo.getRecord")
 	if err != nil {
-		return fmt.Errorf("parse nsid: %w", err)
+		return "", fmt.Errorf("parse nsid: %w", err)
 	}
 	var resp struct {
 		URI   string `json:"uri"`
@@ -38,16 +38,16 @@ func (i *IndigoPDSClient) GetRecord(ctx context.Context, repo syntax.DID, collec
 		"rkey":       rkey,
 	}
 	if err := i.Client.Get(ctx, nsid, params, &resp); err != nil {
-		return translateGetRecordError(err)
+		return "", translateGetRecordError(err)
 	}
 	if m, ok := out.(*map[string]any); ok {
 		if v, ok := resp.Value.(map[string]any); ok {
 			*m = v
-			return nil
+			return resp.CID, nil
 		}
-		return fmt.Errorf("getRecord value has unexpected type %T", resp.Value)
+		return "", fmt.Errorf("getRecord value has unexpected type %T", resp.Value)
 	}
-	return fmt.Errorf("unsupported out type %T", out)
+	return "", fmt.Errorf("unsupported out type %T", out)
 }
 
 // translateGetRecordError maps the PDS response for a missing record into

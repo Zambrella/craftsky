@@ -187,16 +187,16 @@ type fakePDSForPut struct {
 	putBskyCalls []map[string]any
 }
 
-func (f *fakePDSForPut) GetRecord(_ context.Context, _ syntax.DID, collection, _ string, out any) error {
+func (f *fakePDSForPut) GetRecord(_ context.Context, _ syntax.DID, collection, _ string, out any) (string, error) {
 	if collection == "app.bsky.actor.profile" {
 		rec, err := f.getBsky()
 		if err != nil {
-			return err
+			return "", err
 		}
 		*(out.(*map[string]any)) = rec
-		return nil
+		return "", nil
 	}
-	return errors.New("unexpected get collection: " + collection)
+	return "", errors.New("unexpected get collection: " + collection)
 }
 func (f *fakePDSForPut) PutRecord(_ context.Context, _ syntax.DID, collection, _ string, body any) error {
 	m, _ := body.(map[string]any)

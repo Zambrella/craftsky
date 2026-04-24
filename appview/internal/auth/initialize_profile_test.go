@@ -15,7 +15,7 @@ type mockPDS struct {
 	getCalls []getCall
 	putCalls []putCall
 
-	getRecord func(collection, rkey string, out any) error
+	getRecord func(collection, rkey string, out any) (string, error)
 	putRecord func(collection, rkey string, record any) error
 }
 
@@ -25,7 +25,7 @@ type putCall struct {
 	Record           any
 }
 
-func (m *mockPDS) GetRecord(_ context.Context, _ syntax.DID, collection, rkey string, out any) error {
+func (m *mockPDS) GetRecord(_ context.Context, _ syntax.DID, collection, rkey string, out any) (string, error) {
 	m.getCalls = append(m.getCalls, getCall{collection, rkey})
 	return m.getRecord(collection, rkey, out)
 }
@@ -42,20 +42,20 @@ const (
 func TestInitializeProfile_ReturningUserBothPresent(t *testing.T) {
 	t.Parallel()
 	m := &mockPDS{
-		getRecord: func(coll, _ string, out any) error {
+		getRecord: func(coll, _ string, out any) (string, error) {
 			switch coll {
 			case bskyNSID:
 				*(out.(*map[string]any)) = map[string]any{"displayName": "Alice"}
-				return nil
+				return "", nil
 			case cskyNSID:
 				*(out.(*map[string]any)) = map[string]any{
 					"$type":  cskyNSID,
 					"crafts": []any{"sewing"},
 				}
-				return nil
+				return "", nil
 			}
 			t.Fatalf("unexpected get collection %q", coll)
-			return nil
+			return "", nil
 		},
 		putRecord: func(_, _ string, _ any) error {
 			t.Fatalf("PutRecord should not be called for returning user")
@@ -76,15 +76,15 @@ func TestInitializeProfile_ReturningUserBothPresent(t *testing.T) {
 func TestInitializeProfile_NewUserWritesEmptyCraftsky(t *testing.T) {
 	t.Parallel()
 	m := &mockPDS{
-		getRecord: func(coll, _ string, out any) error {
+		getRecord: func(coll, _ string, out any) (string, error) {
 			switch coll {
 			case bskyNSID:
 				*(out.(*map[string]any)) = map[string]any{"displayName": "Alice"}
-				return nil
+				return "", nil
 			case cskyNSID:
-				return auth.ErrRecordNotFound
+				return "", auth.ErrRecordNotFound
 			}
-			return nil
+			return "", nil
 		},
 		putRecord: func(coll, rkey string, record any) error {
 			if coll != cskyNSID {
@@ -115,8 +115,8 @@ func TestInitializeProfile_NewUserWritesEmptyCraftsky(t *testing.T) {
 func TestInitializeProfile_NoBlueskyProfileIsOK(t *testing.T) {
 	t.Parallel()
 	m := &mockPDS{
-		getRecord: func(coll, _ string, _ any) error {
-			return auth.ErrRecordNotFound
+		getRecord: func(coll, _ string, _ any) (string, error) {
+			return "", auth.ErrRecordNotFound
 		},
 		putRecord: func(coll, _ string, _ any) error {
 			if coll != cskyNSID {
@@ -134,11 +134,11 @@ func TestInitializeProfile_BlueskyReadErrorFails(t *testing.T) {
 	t.Parallel()
 	boom := errors.New("boom")
 	m := &mockPDS{
-		getRecord: func(coll, _ string, _ any) error {
+		getRecord: func(coll, _ string, _ any) (string, error) {
 			if coll == bskyNSID {
-				return boom
+				return "", boom
 			}
-			return nil
+			return "", nil
 		},
 		putRecord: func(_, _ string, _ any) error { return nil },
 	}
@@ -154,12 +154,12 @@ func TestInitializeProfile_BlueskyReadErrorFails(t *testing.T) {
 func TestInitializeProfile_CraftskyReadErrorFails(t *testing.T) {
 	t.Parallel()
 	m := &mockPDS{
-		getRecord: func(coll, _ string, out any) error {
+		getRecord: func(coll, _ string, out any) (string, error) {
 			if coll == bskyNSID {
 				*(out.(*map[string]any)) = map[string]any{}
-				return nil
+				return "", nil
 			}
-			return errors.New("boom")
+			return "", errors.New("boom")
 		},
 		putRecord: func(_, _ string, _ any) error { return nil },
 	}
@@ -172,17 +172,17 @@ func TestInitializeProfile_CraftskyReadErrorFails(t *testing.T) {
 func TestInitializeProfile_MalformedCraftskyRecord(t *testing.T) {
 	t.Parallel()
 	m := &mockPDS{
-		getRecord: func(coll, _ string, out any) error {
+		getRecord: func(coll, _ string, out any) (string, error) {
 			if coll == bskyNSID {
 				*(out.(*map[string]any)) = map[string]any{}
-				return nil
+				return "", nil
 			}
 			// crafts expected to be []string; return wrong type.
 			*(out.(*map[string]any)) = map[string]any{
 				"$type":  cskyNSID,
 				"crafts": "not an array",
 			}
-			return nil
+			return "", nil
 		},
 		putRecord: func(_, _ string, _ any) error { return nil },
 	}
@@ -195,12 +195,12 @@ func TestInitializeProfile_MalformedCraftskyRecord(t *testing.T) {
 func TestInitializeProfile_PutRecordFailure(t *testing.T) {
 	t.Parallel()
 	m := &mockPDS{
-		getRecord: func(coll, _ string, out any) error {
+		getRecord: func(coll, _ string, out any) (string, error) {
 			if coll == bskyNSID {
 				*(out.(*map[string]any)) = map[string]any{}
-				return nil
+				return "", nil
 			}
-			return auth.ErrRecordNotFound
+			return "", auth.ErrRecordNotFound
 		},
 		putRecord: func(_, _ string, _ any) error { return errors.New("pds down") },
 	}

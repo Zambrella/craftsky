@@ -28,8 +28,8 @@ import (
 // empty-Craftsky-profile write — which also returns nil here, a no-op.
 type noopPDSClient struct{}
 
-func (noopPDSClient) GetRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error {
-	return auth.ErrRecordNotFound
+func (noopPDSClient) GetRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) (string, error) {
+	return "", auth.ErrRecordNotFound
 }
 func (noopPDSClient) PutRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error {
 	return nil
@@ -39,8 +39,8 @@ func (noopPDSClient) PutRecord(_ context.Context, _ syntax.DID, _, _ string, _ a
 // exercise InitializeProfile's error propagation.
 type erroringGetPDSClient struct{}
 
-func (erroringGetPDSClient) GetRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error {
-	return errors.New("boom")
+func (erroringGetPDSClient) GetRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) (string, error) {
+	return "", errors.New("boom")
 }
 func (erroringGetPDSClient) PutRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error {
 	return nil

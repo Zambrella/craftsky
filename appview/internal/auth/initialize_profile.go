@@ -40,7 +40,7 @@ const (
 func InitializeProfile(ctx context.Context, client PDSClient, did syntax.DID) error {
 	// 1. Bluesky profile: presence is optional; only non-404 errors fail.
 	var bskyRecord map[string]any
-	if err := client.GetRecord(ctx, did, blueskyProfileNSID, profileRecordKey, &bskyRecord); err != nil {
+	if _, err := client.GetRecord(ctx, did, blueskyProfileNSID, profileRecordKey, &bskyRecord); err != nil {
 		if !errors.Is(err, ErrRecordNotFound) {
 			return fmt.Errorf("%w: get %s: %v", ErrProfileInitFailed, blueskyProfileNSID, err)
 		}
@@ -48,7 +48,7 @@ func InitializeProfile(ctx context.Context, client PDSClient, did syntax.DID) er
 
 	// 2. Craftsky profile: present → validate; missing → write empty.
 	var cskyRecord map[string]any
-	err := client.GetRecord(ctx, did, craftskyProfileNSID, profileRecordKey, &cskyRecord)
+	_, err := client.GetRecord(ctx, did, craftskyProfileNSID, profileRecordKey, &cskyRecord)
 	switch {
 	case err == nil:
 		if vErr := validateCraftskyProfile(cskyRecord); vErr != nil {

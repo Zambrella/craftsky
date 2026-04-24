@@ -19,8 +19,11 @@ var ErrRecordNotFound = errors.New("pds: record not found")
 //
 // All record bodies are passed and returned as already-decoded Go values
 // (typically map[string]any) — the adapter handles JSON encoding.
+//
+// GetRecord returns the record CID alongside the decoded value. cid is
+// always populated on success and empty on error.
 type PDSClient interface {
-	GetRecord(ctx context.Context, repo syntax.DID, collection string, rkey string, out any) error
+	GetRecord(ctx context.Context, repo syntax.DID, collection string, rkey string, out any) (cid string, err error)
 	PutRecord(ctx context.Context, repo syntax.DID, collection string, rkey string, record any) error
 }
 
