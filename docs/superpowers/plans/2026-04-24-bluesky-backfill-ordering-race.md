@@ -97,7 +97,7 @@ Update the doc comment on `PDSClient` to note that `GetRecord` returns the recor
 - [ ] **Step 2: Run `go build ./...` to confirm the break is visible**
 
 Run: `cd appview && go build ./...`
-Expected: FAIL — every implementation and mock fails to compile because they haven't been updated yet. Read the list of errors; it should match §3.5 of the spec exactly. If a call site you don't recognise shows up, stop and investigate.
+Expected: FAIL with compile errors in the interface file plus `pds_client_indigo.go`, `initialize_profile.go`, and `api/profile.go`. Note that `go build` skips `_test.go` files, so test-mock breakage won't surface here — it'll show up under `go vet` / `go test` in Task 1.4. If a call site you don't recognise shows up, stop and investigate.
 
 - [ ] **Step 3: Do not commit yet**
 
@@ -209,7 +209,7 @@ if _, err := pds.GetRecord(r.Context(), did, blueskyProfileNSID, profileRecordKe
 - [ ] **Step 3: `go build` — expect only test-file breakage**
 
 Run: `cd appview && go build ./...`
-Expected: PASS. Production source is now consistent.
+Expected: PASS. Production source is now consistent. Note: `go vet ./...` and `go test ./...` will still fail here because the test mocks haven't been updated yet — that's Task 1.4. Do not run them at this step.
 
 ### Task 1.4: Update test mocks
 
@@ -295,9 +295,12 @@ import (
 
     "github.com/bluesky-social/indigo/atproto/identity"
     "github.com/bluesky-social/indigo/atproto/syntax"
-
-    "social.craftsky/appview/internal/auth"
 )
+
+// NOTE: the `social.craftsky/appview/internal/auth` import is added in
+// Task 2.2 Step 1 when the first test references `auth.NewAnonymousPDSClient`.
+// Adding it here would fail Go's unused-import check because the scaffold
+// test below only touches `identity`, `syntax`, and stdlib types.
 
 // fakeDirectory is a minimal identity.Directory that returns a hard-coded
 // PDSEndpoint for a single DID. Tests set `endpoint` to an httptest
@@ -366,7 +369,7 @@ func helperServer(_ *testing.T, status int, body string, path *string) *httptest
 - [ ] **Step 2: Run the scaffold test**
 
 Run: `cd appview && go test ./internal/auth -run TestFakeDirectory_ShapesIdentity -v`
-Expected: FAIL with "cannot find package" OR the symbol `auth.AnonymousPDSClient` isn't referenced yet so `go test` compiles this file fine — it should **PASS** because it doesn't touch `auth.AnonymousPDSClient`. If the shape of `identity.Identity` is different from what I've written here, the compile fails here and you need to look at the indigo source at `$GOPATH/pkg/mod/github.com/bluesky-social/indigo@.../atproto/identity/identity.go` to see how `PDSEndpoint()` is derived, then adjust the `Services` initialisation.
+Expected: PASS. The scaffold doesn't depend on `AnonymousPDSClient` yet. If the compile fails with a complaint about the shape of `identity.Identity.Services`, look at the indigo source at `$GOPATH/pkg/mod/github.com/bluesky-social/indigo@.../atproto/identity/identity.go` to see how `PDSEndpoint()` is derived, then adjust the `Services` initialisation here. (Expected shape is verified against indigo v0.0.0-20260417172304: `Services map[string]ServiceEndpoint`, `ServiceEndpoint{Type, URL}`, and `PDSEndpoint()` reads `Services["atproto_pds"].URL`.)
 
 - [ ] **Step 3: Commit the test scaffold**
 
@@ -384,7 +387,26 @@ git commit -m "auth: test scaffolding for anonymous PDS client"
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `anonymous_pds_client_test.go`:
+First, update the import block of `anonymous_pds_client_test.go` to add `"strings"`, `"time"`, and `"social.craftsky/appview/internal/auth"` (the latter is now referenced for the first time). Final import block should read:
+
+```go
+import (
+    "context"
+    "errors"
+    "net/http"
+    "net/http/httptest"
+    "strings"
+    "testing"
+    "time"
+
+    "github.com/bluesky-social/indigo/atproto/identity"
+    "github.com/bluesky-social/indigo/atproto/syntax"
+
+    "social.craftsky/appview/internal/auth"
+)
+```
+
+Then append the test:
 
 ```go
 func TestAnonymousPDSClient_GetRecord_HappyPath(t *testing.T) {
@@ -417,8 +439,6 @@ func TestAnonymousPDSClient_GetRecord_HappyPath(t *testing.T) {
     }
 }
 ```
-
-Add `"strings"` and `"time"` to the imports.
 
 - [ ] **Step 2: Run — expect FAIL with undefined symbol**
 
@@ -485,9 +505,11 @@ func (c *AnonymousPDSClient) GetRecord(ctx context.Context, repo syntax.DID, col
     }
 
     api := atclient.NewAPIClient(host)
-    // NewAPIClient defaults Client.Client to http.DefaultClient. Replace
-    // with our own *http.Client so we can pin a short per-request timeout
-    // without mutating global state.
+    // NewAPIClient assigns `http.DefaultClient` to `api.Client`. Setting
+    // `api.Client.Timeout = c.timeout` (as spec §4.2 step 3 prescribes)
+    // would mutate the process-wide default. Replace the whole client
+    // with our own so the short per-request timeout applies only here.
+    // This is an intentional, narrower deviation from the spec wording.
     api.Client = &http.Client{Timeout: c.timeout}
 
     nsid, err := syntax.ParseNSID("com.atproto.repo.getRecord")
@@ -571,9 +593,9 @@ func TestAnonymousPDSClient_GetRecord_RecordNotFound(t *testing.T) {
 - [ ] **Step 2: Run — expect PASS already**
 
 Run: `cd appview && go test ./internal/auth -run TestAnonymousPDSClient_GetRecord_RecordNotFound -v`
-Expected: PASS — `translateGetRecordError` already handles this case; the test is a regression guard, not a driver.
+Expected: PASS — `translateGetRecordError` (see `appview/internal/auth/pds_client_indigo.go:58–67`) keys off `APIError.Name == "RecordNotFound"` first and falls through to `StatusCode == 404`. The existing logic covers this case; this test is a regression guard, not a driver.
 
-If it fails, it means `atclient.APIClient.Get` doesn't wrap a 400 JSON error body into `*atclient.APIError`. Check that assumption at `apiclient.go`. This is why we run the test: to confirm behaviour, not just to drive code.
+If it fails, either (a) `atclient.APIClient.Get` doesn't wrap the 400 JSON body into `*atclient.APIError` — check `apiclient.go`'s `decodeErrorResponse` — or (b) `translateGetRecordError` isn't being reached because the error isn't an `*atclient.APIError`. Investigate before proceeding.
 
 - [ ] **Step 3: Commit**
 
@@ -701,6 +723,8 @@ Expected: PASS. If any unrelated test regressed, it's likely a leaked signature 
 
 The backfiller interface plus concrete impl that (1) fetches `app.bsky.actor.profile` via the anonymous client, (2) synthesises a `tap.Event`, (3) dispatches to `BlueskyProfile.Handle`. Lives in `internal/index`. Intra-package, no circular imports.
 
+**Note on logger placement (reconciling with spec §4.6):** the spec's §4.6 step 4 sketches a three-arg `NewBlueskyBackfiller(anonPDS, blueskyIdx, logger)`. We deliberately use a two-arg form `NewBlueskyBackfiller(reader, indexer)` in the plan because spec §4.5 places the warn-level logger on `CraftskyProfile`, which is the only caller and the one that logs+swallows backfill errors. The backfiller itself just returns errors; no logging surface needed. Chunk 5's wiring omits the logger arg to match.
+
 ### Task 3.1: Interface file
 
 **Files:**
@@ -799,7 +823,7 @@ git commit -m "index: BlueskyBackfiller interface"
 
 The backfiller needs two dependencies: a `PDSClient` (provides `GetRecord`) and something to dispatch `tap.Event` into — we call `*BlueskyProfile` directly. Since `BlueskyProfile.Handle` needs the membership gate to pass, this test seeds a craftsky_profiles row so the write completes end-to-end.
 
-Append to `bluesky_backfiller_test.go`:
+Open `bluesky_backfiller_test.go` and extend the imports block (created in Task 3.1) so the final block reads:
 
 ```go
 import (
@@ -813,7 +837,13 @@ import (
     "social.craftsky/appview/internal/index"
     "social.craftsky/appview/internal/testdb"
 )
+```
 
+The net-new additions vs Task 3.1 are `"errors"`, `"social.craftsky/appview/internal/auth"`, and `"social.craftsky/appview/internal/testdb"`.
+
+Append the test code below the existing `TestBlueskyBackfiller_InterfaceShape` function. Reuses `craftskyProfilesDDL` defined in `craftsky_profile_test.go` (same `package index_test`, same rationale as the existing `bluesky_profile_test.go:16` reuse).
+
+```go
 // fakeAnonPDS implements auth.PDSClient for backfiller tests. GetRecord
 // returns the configured value+cid; PutRecord is never used.
 type fakeAnonPDS struct {
@@ -878,8 +908,6 @@ func TestBlueskyBackfiller_Backfill_RecordPresent_WritesBlueskyRow(t *testing.T)
 }
 ```
 
-Consolidate imports at the top of the file (the skeleton Task 3.1 added minimal imports).
-
 - [ ] **Step 2: Run — expect FAIL with undefined symbol**
 
 Run: `cd appview && go test ./internal/index -run TestBlueskyBackfiller_Backfill_RecordPresent -v`
@@ -887,21 +915,39 @@ Expected: FAIL — `undefined: index.NewBlueskyBackfiller`.
 
 - [ ] **Step 3: Implement**
 
-Append to `bluesky_backfiller.go`:
+Replace the contents of `bluesky_backfiller.go` (created in Task 3.1) with the following full file. The interface definition stays; the imports grow and the concrete impl is added below it.
 
 ```go
+// appview/internal/index/bluesky_backfiller.go
+package index
+
 import (
     "context"
     "encoding/json"
     "errors"
     "fmt"
-    "log/slog"
 
     "github.com/bluesky-social/indigo/atproto/syntax"
 
     "social.craftsky/appview/internal/auth"
     "social.craftsky/appview/internal/tap"
 )
+
+// BlueskyBackfiller eagerly populates bluesky_profiles for a newly-
+// onboarded Craftsky member by fetching their app.bsky.actor.profile
+// record from their PDS and feeding it back through BlueskyProfile.Handle.
+//
+// This exists to sidestep a race during Tap backfill: the MST emits
+// records in key-sorted order, so app.bsky.actor.profile arrives before
+// social.craftsky.actor.profile and is dropped by the membership gate.
+// CraftskyProfile.Handle invokes Backfill only when it commits a
+// genuinely new membership row (see craftsky_profile.go's xmax check).
+//
+// Implementations must tolerate a missing Bluesky record (many users
+// won't have one) and return nil in that case.
+type BlueskyBackfiller interface {
+    Backfill(ctx context.Context, did syntax.DID) error
+}
 
 // blueskyBackfiller implements BlueskyBackfiller.
 type blueskyBackfiller struct {
@@ -945,16 +991,9 @@ func (b *blueskyBackfiller) Backfill(ctx context.Context, did syntax.DID) error 
     }
     return b.indexer.Handle(ctx, ev)
 }
-
-// compile-time assertion: slog is imported for the test symmetry; if the
-// linter flags it later, we move the import to craftsky_profile.go where
-// the logger actually lives. Keeping it here as a guard during review.
-var _ = slog.Default // suppress unused-import; remove in a follow-up if lint complains.
 ```
 
-**Note:** the `slog` import here is defensive — if `go vet` flags it, delete both the import and the `var _ = slog.Default` line. We only need it in this package because Chunk 4 also uses slog, and some packages conflate imports awkwardly. If lint is clean, leave it.
-
-Actually — simpler: drop the slog import entirely from this file. The logger lives on `CraftskyProfile`, not on the backfiller. Remove the `slog` import and the `var _` line before committing.
+The backfiller takes no logger by design (see the "Note on logger placement" at the top of Chunk 3): errors are returned up to `CraftskyProfile.Handle`, which owns the warn-level logging per spec §4.5.
 
 - [ ] **Step 4: Run the test**
 
@@ -1045,7 +1084,7 @@ func TestBlueskyBackfiller_Backfill_PDSError_Propagates(t *testing.T) {
 - [ ] **Step 2: Run — expect PASS**
 
 Run: `just test`
-Expected: PASS.
+Expected: PASS. Regression guard — Task 3.2's implementation already wraps non-404 PDS errors and returns them; this test pins the behaviour.
 
 - [ ] **Step 3: Commit**
 
@@ -1069,16 +1108,41 @@ The simplest way to drive the constructor change is to update every existing `in
 
 - [ ] **Step 1: Add a no-op backfiller + helper to the test file**
 
-At the top of `craftsky_profile_test.go` (below the existing DDL constant), add:
+Replace the existing import block in `craftsky_profile_test.go`:
 
 ```go
 import (
-    // existing imports, plus:
+    "context"
+    "encoding/json"
+    "testing"
+
+    "social.craftsky/appview/internal/index"
+    "social.craftsky/appview/internal/tap"
+    "social.craftsky/appview/internal/testdb"
+)
+```
+
+with the full final block:
+
+```go
+import (
+    "context"
+    "encoding/json"
+    "io"
     "log/slog"
+    "testing"
 
     "github.com/bluesky-social/indigo/atproto/syntax"
-)
 
+    "social.craftsky/appview/internal/index"
+    "social.craftsky/appview/internal/tap"
+    "social.craftsky/appview/internal/testdb"
+)
+```
+
+Then, below the existing `craftskyProfilesDDL` constant, add:
+
+```go
 // noopBackfiller is the default backfiller for existing tests that
 // predate the backfill path. Satisfies index.BlueskyBackfiller.
 type noopBackfiller struct{}
@@ -1087,12 +1151,13 @@ func (noopBackfiller) Backfill(context.Context, syntax.DID) error { return nil }
 
 // testLogger returns a logger that discards output. Equivalent patterns
 // live elsewhere in the repo — inline here to avoid a new exported helper.
+// Both `noopBackfiller` and `testLogger` are unexported; because this file
+// and `bluesky_backfiller_test.go` share `package index_test`, the helpers
+// are visible to both test files (no sharing-helper-file needed).
 func testLogger() *slog.Logger {
     return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 ```
-
-Add `"io"` to the imports.
 
 - [ ] **Step 2: Update every `index.NewCraftskyProfile(pool)` call in this file**
 
@@ -1265,7 +1330,7 @@ case "create", "update":
     return nil
 ```
 
-Add imports: `"errors"`, `"github.com/bluesky-social/indigo/atproto/syntax"`, `"github.com/jackc/pgx/v5"`. (`pgxpool` is already imported; `pgx` is a separate import path.)
+Add these imports to `craftsky_profile.go`: `"errors"` and `"github.com/bluesky-social/indigo/atproto/syntax"`. `log/slog` was added in Task 4.2. `github.com/jackc/pgx/v5` is already imported (it's used by `handleDelete` for `pgx.BeginFunc`) — do NOT add it again; just use `pgx.ErrNoRows` from the existing import.
 
 - [ ] **Step 4: Run the failing test — expect PASS**
 
@@ -1488,7 +1553,7 @@ func TestCraftskyProfile_Handle_NewRow_BackfillsBluesky(t *testing.T) {
 }
 ```
 
-This test will need `testLogger` and `noopBackfiller` OR to import them from the sibling test file. Go test files in the same package (`index_test`) share exported helpers — `testLogger` is defined in `craftsky_profile_test.go` in the same `index_test` package, so it's visible here. If the compiler disagrees, either (a) lowercase it and accept the sibling-file sharing, or (b) move `testLogger` and `noopBackfiller` into a shared `testing_helpers_test.go` file in the same package.
+`testLogger` is defined in `craftsky_profile_test.go` (Task 4.1 Step 1) in the same `package index_test` as this file. Unexported helpers declared at package scope are visible to every file in the same package — including `_test.go` files. No import, no sharing-helper file, no action needed: this test calls `testLogger()` directly.
 
 - [ ] **Step 2: Run the test**
 
@@ -1542,7 +1607,7 @@ dispatcher.Register("social.craftsky.actor.profile",
 dispatcher.Register("app.bsky.actor.profile", blueskyIdx)
 ```
 
-Add `"time"` to imports if not already present. (Given `OAuthSessionExpiry` et al. exist on Config, `"time"` is almost certainly already imported; verify.)
+Add `"time"` to imports. Verified: `deps.go` does NOT currently import `time` (the `OAuthSessionExpiry` config lives on `Config` in a different file). You must add it.
 
 - [ ] **Step 3: Build**
 
@@ -1571,27 +1636,46 @@ git commit -m "app: wire anonymous PDS client + bluesky backfiller into deps"
 Run: `just dev-d`
 Expected: containers come up. `docker compose ps` should show postgres, tap, appview all healthy.
 
-- [ ] **Step 2: Hit the OAuth flow end-to-end**
+- [ ] **Step 2: Ensure the test DID is "new" from the DB's perspective**
 
-Open the app and complete the OAuth login flow with a test Bluesky account that already has an `app.bsky.actor.profile` record. (If you cleared out the dev DB, the user is seen as new.)
-
-- [ ] **Step 3: Verify both rows are populated**
+The backfill path only fires on a genuine INSERT of a `craftsky_profiles` row. If the test DID is already in the table from a prior run, the xmax check returns `created = false` and no backfill happens. Either use a fresh DID or clear the rows:
 
 ```bash
 docker compose exec postgres psql -U craftsky -d craftsky_dev -c \
-  "SELECT did FROM craftsky_profiles;"
-docker compose exec postgres psql -U craftsky -d craftsky_dev -c \
-  "SELECT did, display_name FROM bluesky_profiles;"
+  "DELETE FROM craftsky_profiles WHERE did = 'did:plc:YOUR_TEST_DID';
+   DELETE FROM bluesky_profiles  WHERE did = 'did:plc:YOUR_TEST_DID';"
 ```
 
-Expected: both tables contain a row for your test DID, with `display_name` matching your Bluesky handle's display name.
+- [ ] **Step 3: Hit the OAuth flow end-to-end**
 
-If `bluesky_profiles` is empty:
-- Check the appview logs for warnings containing "bluesky backfill failed".
-- If no such log, the backfill path wasn't invoked — check whether the craftsky row was committed (a `pgx.ErrNoRows` branch would cause a silent skip; a replay would do the same).
-- If there's a log, the PDS call failed. Read the error.
+Open the app and complete the OAuth login flow with a test Bluesky account that already has an `app.bsky.actor.profile` record.
 
-- [ ] **Step 4: No commit**
+- [ ] **Step 4: Verify both rows are populated**
+
+First confirm the craftsky row exists (precondition):
+
+```bash
+docker compose exec postgres psql -U craftsky -d craftsky_dev -c \
+  "SELECT did FROM craftsky_profiles WHERE did = 'did:plc:YOUR_TEST_DID';"
+```
+
+Then check the bluesky row:
+
+```bash
+docker compose exec postgres psql -U craftsky -d craftsky_dev -c \
+  "SELECT did, display_name FROM bluesky_profiles WHERE did = 'did:plc:YOUR_TEST_DID';"
+```
+
+Expected: both tables contain a row for your test DID, with `display_name` matching the Bluesky record's display name.
+
+Troubleshooting flow if `bluesky_profiles` is empty:
+
+1. **No `craftsky_profiles` row either** → upstream failure (OAuth callback or craftsky indexer). Check appview logs for errors during the OAuth callback or the `CraftskyProfile.Handle` path. The backfill layer is not implicated.
+2. **`craftsky_profiles` row present, `bluesky_profiles` empty, no warning logs** → backfill was invoked but returned nil silently. Most likely the test account has no `app.bsky.actor.profile` record on its PDS (spec §3.6 documents this as a no-op). Go to the Bluesky account settings, set a display name, then re-trigger the flow.
+3. **`craftsky_profiles` row present, warning log "bluesky backfill failed"** → the PDS call failed. Read the error message; common causes include DID-doc resolution (`identity.DefaultDirectory()` cache miss), transient PDS unavailability, or the 5s timeout firing.
+4. **`craftsky_profiles` row present, no warning log, but this is a re-run with the same DID** → the xmax check returned `created = false` and the backfill path was correctly skipped (see Step 2 for reset instructions).
+
+- [ ] **Step 5: No commit**
 
 This step validates the work; nothing to commit.
 
