@@ -112,3 +112,22 @@ func TestAnonymousPDSClient_GetRecord_HappyPath(t *testing.T) {
 		t.Errorf("path = %q", gotPath)
 	}
 }
+
+func TestAnonymousPDSClient_GetRecord_RecordNotFound(t *testing.T) {
+	t.Parallel()
+	// Real PDSes signal missing records with HTTP 400 + XRPC error name
+	// "RecordNotFound". The translate helper recognises that shape.
+	srv := helperServer(t, 400,
+		`{"error":"RecordNotFound","message":"Could not locate record"}`, nil)
+	defer srv.Close()
+
+	dir := &fakeDirectory{did: syntax.DID("did:plc:abc"), endpoint: srv.URL}
+	cli := auth.NewAnonymousPDSClient(dir, 2*time.Second)
+
+	var out map[string]any
+	_, err := cli.GetRecord(context.Background(),
+		syntax.DID("did:plc:abc"), "app.bsky.actor.profile", "self", &out)
+	if !errors.Is(err, auth.ErrRecordNotFound) {
+		t.Errorf("want ErrRecordNotFound; got %v", err)
+	}
+}
