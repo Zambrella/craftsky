@@ -4,9 +4,11 @@ package index
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -70,9 +72,34 @@ func (c *CraftskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 				record_cid = EXCLUDED.record_cid,
 				indexed_at = now()
 			WHERE craftsky_profiles.record_cid IS DISTINCT FROM EXCLUDED.record_cid
+			RETURNING xmax = 0 AS created
 		`
-		if _, err := c.pool.Exec(ctx, q, ev.DID, rec.Crafts, ev.CID); err != nil {
+		var created bool
+		err := c.pool.QueryRow(ctx, q, ev.DID, rec.Crafts, ev.CID).Scan(&created)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			// Replay of an existing row: ON CONFLICT ... WHERE IS DISTINCT FROM
+			// filtered the update, so no row came back. Not an error.
+			return nil
+		case err != nil:
 			return fmt.Errorf("upsert %s: %w", ev.URI, err)
+		}
+		if !created {
+			// UPDATE branch — membership row already existed; no backfill needed.
+			return nil
+		}
+		// Genuine new-row INSERT. Trigger one-shot Bluesky backfill;
+		// errors are logged and swallowed so the craftsky event is still
+		// acked by Tap.
+		did, parseErr := syntax.ParseDID(ev.DID)
+		if parseErr != nil {
+			c.logger.Warn("craftsky profile: cannot parse DID for backfill",
+				slog.String("did", ev.DID), slog.String("err", parseErr.Error()))
+			return nil
+		}
+		if bfErr := c.backfiller.Backfill(ctx, did); bfErr != nil {
+			c.logger.Warn("craftsky profile: bluesky backfill failed",
+				slog.String("did", ev.DID), slog.String("err", bfErr.Error()))
 		}
 		return nil
 	case "delete":

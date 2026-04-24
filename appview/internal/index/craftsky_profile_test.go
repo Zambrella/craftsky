@@ -243,3 +243,37 @@ func TestCraftskyProfile_OtherCollectionIgnored(t *testing.T) {
 		t.Errorf("want nil for other collection; got %v", err)
 	}
 }
+
+// spyBackfiller records every call so tests can assert arity and DID.
+type spyBackfiller struct {
+	calls []string
+	err   error
+}
+
+func (s *spyBackfiller) Backfill(_ context.Context, did syntax.DID) error {
+	s.calls = append(s.calls, did.String())
+	return s.err
+}
+
+func TestCraftskyProfile_Handle_NewRow_CallsBackfill(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
+	spy := &spyBackfiller{}
+	idx := index.NewCraftskyProfile(pool, spy, testLogger())
+
+	ev := tap.Event{
+		URI:        "at://did:plc:new/social.craftsky.actor.profile/self",
+		CID:        "c1",
+		DID:        "did:plc:new",
+		Rkey:       "self",
+		Collection: "social.craftsky.actor.profile",
+		Action:     "create",
+		Record:     json.RawMessage(`{"crafts":["sewing"]}`),
+	}
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+	if len(spy.calls) != 1 || spy.calls[0] != "did:plc:new" {
+		t.Errorf("backfill calls = %v; want [did:plc:new]", spy.calls)
+	}
+}
