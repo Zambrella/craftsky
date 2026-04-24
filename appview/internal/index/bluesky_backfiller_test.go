@@ -17,8 +17,8 @@ import (
 // Reuses craftskyProfilesDDL from craftsky_profile_test.go (same package index_test,
 // same rationale as bluesky_profile_test.go:16).
 
-// fakeBackfiller is used by CraftskyProfile tests in Chunk 4 but we also
-// verify here that it satisfies the exported interface.
+// fakeBackfiller satisfies the exported BlueskyBackfiller interface.
+// Used by TestBlueskyBackfiller_InterfaceShape only.
 type fakeBackfiller struct {
 	calls []syntax.DID
 	err   error
@@ -179,5 +179,15 @@ func TestCraftskyProfile_Handle_NewRow_BackfillsBluesky(t *testing.T) {
 	}
 	if displayName != "alice" {
 		t.Errorf("display_name = %q; want alice", displayName)
+	}
+
+	var recordCID string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT record_cid FROM bluesky_profiles WHERE did = $1`, ev.DID).
+		Scan(&recordCID); err != nil {
+		t.Fatalf("select record_cid: %v", err)
+	}
+	if recordCID != "bafbluesky" {
+		t.Errorf("record_cid = %q; want bafbluesky", recordCID)
 	}
 }
