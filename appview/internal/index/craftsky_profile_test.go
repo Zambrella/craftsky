@@ -4,6 +4,7 @@ package index_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"testing"
@@ -332,5 +333,33 @@ func TestCraftskyProfile_Handle_Update_SkipsBackfill(t *testing.T) {
 	}
 	if len(spy.calls) != 1 {
 		t.Errorf("backfill calls = %d; want 1 (update must not re-fire)", len(spy.calls))
+	}
+}
+
+func TestCraftskyProfile_Handle_BackfillError_DoesNotFail(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
+	spy := &spyBackfiller{err: errors.New("pds fire")}
+	idx := index.NewCraftskyProfile(pool, spy, testLogger())
+
+	ev := tap.Event{
+		URI:        "at://did:plc:bf/social.craftsky.actor.profile/self",
+		CID:        "c1",
+		DID:        "did:plc:bf",
+		Rkey:       "self",
+		Collection: "social.craftsky.actor.profile",
+		Action:     "create",
+		Record:     json.RawMessage(`{"crafts":["sewing"]}`),
+	}
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle returned %v; want nil despite backfill error", err)
+	}
+
+	// Craftsky row must still be committed.
+	var count int
+	_ = pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM craftsky_profiles WHERE did = $1`, ev.DID).Scan(&count)
+	if count != 1 {
+		t.Errorf("craftsky_profiles count = %d; want 1", count)
 	}
 }
