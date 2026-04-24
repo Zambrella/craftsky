@@ -7,6 +7,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
+	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/index"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -90,5 +91,28 @@ func TestBlueskyBackfiller_Backfill_RecordPresent_WritesBlueskyRow(t *testing.T)
 	}
 	if recordCID != "bafbluesky" {
 		t.Errorf("record_cid = %q", recordCID)
+	}
+}
+
+func TestBlueskyBackfiller_Backfill_RecordNotFound_IsNoOp(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
+	if _, err := pool.Exec(context.Background(),
+		`INSERT INTO craftsky_profiles (did, record_cid) VALUES ($1, $2)`,
+		"did:plc:none", "cidcsky"); err != nil {
+		t.Fatal(err)
+	}
+	pds := &fakeAnonPDS{err: auth.ErrRecordNotFound}
+	bf := index.NewBlueskyBackfiller(pds, index.NewBlueskyProfile(pool))
+
+	if err := bf.Backfill(context.Background(), syntax.DID("did:plc:none")); err != nil {
+		t.Errorf("want nil for RecordNotFound; got %v", err)
+	}
+	var count int
+	_ = pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM bluesky_profiles WHERE did = $1`,
+		"did:plc:none").Scan(&count)
+	if count != 0 {
+		t.Errorf("bluesky_profiles count = %d; want 0", count)
 	}
 }
