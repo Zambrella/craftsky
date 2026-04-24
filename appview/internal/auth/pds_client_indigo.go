@@ -18,9 +18,10 @@ type IndigoPDSClient struct {
 
 var _ PDSClient = (*IndigoPDSClient)(nil)
 
-// GetRecord calls com.atproto.repo.getRecord on the user's PDS. A 404
-// error response is translated to ErrRecordNotFound so callers can
-// switch on presence.
+// GetRecord calls com.atproto.repo.getRecord on the user's PDS. A
+// "record missing" response is translated to ErrRecordNotFound so callers
+// can switch on presence; see translateGetRecordError for the detection
+// rules.
 func (i *IndigoPDSClient) GetRecord(ctx context.Context, repo syntax.DID, collection, rkey string, out any) error {
 	nsid, err := syntax.ParseNSID("com.atproto.repo.getRecord")
 	if err != nil {
@@ -37,11 +38,7 @@ func (i *IndigoPDSClient) GetRecord(ctx context.Context, repo syntax.DID, collec
 		"rkey":       rkey,
 	}
 	if err := i.Client.Get(ctx, nsid, params, &resp); err != nil {
-		var apiErr *atclient.APIError
-		if errors.As(err, &apiErr) && apiErr.StatusCode == 404 {
-			return ErrRecordNotFound
-		}
-		return err
+		return translateGetRecordError(err)
 	}
 	if m, ok := out.(*map[string]any); ok {
 		if v, ok := resp.Value.(map[string]any); ok {
@@ -51,6 +48,25 @@ func (i *IndigoPDSClient) GetRecord(ctx context.Context, repo syntax.DID, collec
 		return fmt.Errorf("getRecord value has unexpected type %T", resp.Value)
 	}
 	return fmt.Errorf("unsupported out type %T", out)
+}
+
+// translateGetRecordError maps the PDS response for a missing record into
+// ErrRecordNotFound. atproto PDSes signal a missing record with HTTP 400
+// + XRPC error name "RecordNotFound" (NOT HTTP 404); we also accept a
+// plain HTTP 404 as a fallback in case an upstream variant uses it.
+// Returns the original error otherwise (including nil in → nil out).
+func translateGetRecordError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var apiErr *atclient.APIError
+	if !errors.As(err, &apiErr) {
+		return err
+	}
+	if apiErr.Name == "RecordNotFound" || apiErr.StatusCode == 404 {
+		return ErrRecordNotFound
+	}
+	return err
 }
 
 // PutRecord calls com.atproto.repo.putRecord on the user's PDS.
