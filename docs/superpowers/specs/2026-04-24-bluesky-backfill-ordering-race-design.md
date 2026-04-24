@@ -91,12 +91,20 @@ exists and the `WHERE ... IS DISTINCT FROM` clause skips the UPDATE, so
 We introduce a second implementation of the existing `auth.PDSClient`
 interface that:
 
-- Resolves the PDS URL from the DID doc (shared with the authenticated
-  path).
-- Builds an unauthenticated `atclient.APIClient` — no DPoP, no OAuth
-  session, no token refresh.
-- Implements `GetRecord` normally (delegates to the existing
-  `translateGetRecordError` helper for `RecordNotFound` handling).
+- Resolves the PDS URL from the user's DID doc via
+  `identity.Directory.LookupDID(ctx, did)` → `Identity.PDSEndpoint()`.
+  The shared `identity.Directory` constructed in `deps.go` (currently
+  used only by `HandleResolver`) is passed in.
+- Builds an unauthenticated `*atclient.APIClient` via
+  `atclient.NewAPIClient(host)` — no DPoP, no OAuth session, no token
+  refresh. Indigo's own doc comment calls this constructor out as
+  "appropriate for use with unauthenticated ('public') atproto API
+  endpoints".
+- Overrides the client's underlying `http.Client` with one whose
+  `Timeout` is set to 5s so a slow or hung PDS can't block the Tap
+  pipeline past `TAP_ACK_TIMEOUT=10s`.
+- Implements `GetRecord` by delegating to the existing
+  `translateGetRecordError` helper for `RecordNotFound` detection.
 - `PutRecord` returns an error — reads only.
 
 The existing `IndigoPDSClient` is not changed. The new type
@@ -114,8 +122,26 @@ must carry a CID, and `getRecord` responses include one. Today
 GetRecord(ctx context.Context, repo syntax.DID, collection, rkey string, out any) (cid string, err error)
 ```
 
-Affected call sites: `InitializeProfile` (ignores the CID, underscores
-it), the backfiller (uses it), and the test mocks. Small blast radius.
+Affected call sites (full list — a planner MUST update all of these
+together or the build breaks):
+
+Production:
+
+- `appview/internal/auth/initialize_profile.go` — two calls, both
+  ignore the CID (underscore it).
+- `appview/internal/api/profile.go` — the PUT `/v1/profiles/me`
+  handler's read-before-write. Ignores the CID.
+- `appview/internal/index/` — new caller is the backfiller, which
+  uses the CID.
+
+Test mocks:
+
+- `appview/internal/auth/initialize_profile_test.go` — `mockPDS.GetRecord`.
+- `appview/internal/auth/handlers_test.go` — `noopPDSClient.GetRecord`
+  and `erroringGetPDSClient.GetRecord` (two types).
+- `appview/internal/api/profile_test.go` — `fakePDSForPut.GetRecord`.
+- `appview/internal/auth/pds_client_indigo_test.go` — `translateGetRecordError`
+  tests are unaffected (they test the helper, not the interface).
 
 ### 3.6 Error policy
 
@@ -147,9 +173,30 @@ type PDSClient interface {
 
 ### 4.2 `auth.AnonymousPDSClient`
 
-Read-only implementation, constructed with a DID-doc resolver and an
-`*http.Client` with a short timeout. `PutRecord` returns
-`errors.New("pds: read-only client")`.
+Read-only implementation. Constructor signature (illustrative):
+
+```go
+func NewAnonymousPDSClient(dir identity.Directory, timeout time.Duration) *AnonymousPDSClient
+```
+
+On each `GetRecord` call it:
+
+1. `dir.LookupDID(ctx, repo)` → `*identity.Identity`.
+2. Calls `ident.PDSEndpoint()` — returns empty string if no
+   `#atproto_pds` service entry exists in the DID doc; treat empty as
+   an error.
+3. Builds an `*atclient.APIClient` via `atclient.NewAPIClient(host)`
+   and overrides the embedded `*http.Client`'s timeout (the field is
+   `APIClient.Client`, which is of type `*http.Client` — set
+   `apiClient.Client.Timeout = timeout`).
+4. Delegates the XRPC call; runs the response through
+   `translateGetRecordError`.
+
+`PutRecord` returns `errors.New("pds: read-only client")`.
+
+Re-using the per-request client is fine for correctness (short
+timeout, HTTP keep-alive in `http.DefaultTransport`); caching is a
+future optimisation and not in scope.
 
 ### 4.3 `index.BlueskyBackfiller` interface
 
@@ -187,16 +234,50 @@ Struct with:
   RETURNING xmax = 0 AS created;
   ```
 
-- `QueryRow` the result; if no row (replay) or `created == false`
-  (update), skip backfill. If `created == true`, call
-  `backfiller.Backfill`, log any error, return nil.
+- Read the boolean with `pool.QueryRow(ctx, q, …).Scan(&created)`.
+  pgx semantics (important):
+
+  - On a genuine INSERT, Scan yields `created = true`, `err = nil`.
+  - On an UPDATE that actually ran (content changed), Scan yields
+    `created = false`, `err = nil`.
+  - On a replay that the `WHERE ... IS DISTINCT FROM` clause filters
+    out, no row is returned and Scan returns `pgx.ErrNoRows`. This is
+    the normal no-op path, **not** an error — the handler must treat
+    `errors.Is(err, pgx.ErrNoRows)` as success and skip the backfill.
+
+- Only when `created == true` (new membership row) does the handler
+  call `backfiller.Backfill(ctx, did)`. Errors from Backfill are
+  logged at warn level and swallowed; the handler still returns nil
+  so Tap acks the event.
+
+- `CraftskyProfile` gains a `*slog.Logger` dependency so warn-level
+  backfill errors have somewhere to go. Default to `slog.Default()`
+  if the caller passes nil, matching existing convention.
+
+- `indexed_at` in the UPDATE branch bumps to `now()` only when
+  `record_cid IS DISTINCT FROM` succeeds — i.e. only on a real
+  content change. That's the existing behaviour; preserved here.
 
 ### 4.6 `deps.go` wiring
 
-- Build an anonymous `auth.PDSClient` (no OAuth session needed).
-- Build a `BlueskyProfile` instance as today.
-- Build a `blueskyBackfiller{reader, indexer}`.
-- Pass the backfiller into `NewCraftskyProfile`.
+Construction order (adjusts the existing block around
+`dispatcher.Register`):
+
+1. `identityDir := identity.DefaultDirectory()` — already exists.
+2. `anonPDS := auth.NewAnonymousPDSClient(identityDir, 5*time.Second)`.
+3. `blueskyIdx := index.NewBlueskyProfile(pool)` — existing
+   constructor; unchanged.
+4. `backfiller := index.NewBlueskyBackfiller(anonPDS, blueskyIdx,
+   logger)`.
+5. `craftskyIdx := index.NewCraftskyProfile(pool, backfiller, logger)`
+   — **constructor signature changes** to take the backfiller + logger.
+6. Register both indexers with the dispatcher as today.
+
+Intra-package note: `CraftskyProfile`, `BlueskyProfile`, and
+`blueskyBackfiller` all live in `package index`, so the
+`CraftskyProfile → BlueskyBackfiller → BlueskyProfile` chain is
+intra-package — no circular-import concerns. The interface
+`BlueskyBackfiller` exists purely for test substitution.
 
 ## 5. Data flow
 
@@ -242,15 +323,31 @@ Unit tests in `appview/internal/index`:
 
 Integration tests in `appview/internal/index` using `testdb.WithSchema`:
 
-- New DID with stubbed PDS reader → both tables populated after a
-  single `CraftskyProfile.Handle(create)`.
+- `CraftskyProfile_Handle_NewRow_BackfillsBluesky` — new DID with a
+  stubbed PDS reader returning a valid `app.bsky.actor.profile`;
+  after a single `CraftskyProfile.Handle(create)` both
+  `craftsky_profiles` and `bluesky_profiles` have rows.
+- `CraftskyProfile_Handle_ReplayDoesNotRefetch` — pass the same
+  create event twice through a real Postgres schema; assert the fake
+  PDS reader's call counter == 1. This is the test that exercises the
+  `RETURNING xmax = 0` / `pgx.ErrNoRows` path end-to-end.
 
 Existing `BlueskyProfile_*` tests need no changes — the gate logic is
 unchanged and the new synthesised path goes through the same entry
 point.
 
-`auth.PDSClient` signature change: update `InitializeProfile` and its
-tests (ignore returned CID).
+Existing `CraftskyProfile_*` tests (`craftsky_profile_test.go`) DO
+need updates: the constructor signature changes (§4.6 step 5), so
+every `index.NewCraftskyProfile(pool)` call becomes
+`index.NewCraftskyProfile(pool, backfiller, logger)` with a fake
+backfiller. A no-op fake that records calls is sufficient for the
+pre-existing tests; the new tests listed above drive it more
+specifically.
+
+`auth.PDSClient` signature change: update **all** call-site tests
+enumerated in §3.5 (four mocks plus `InitializeProfile` production
+code) to return the new `(cid, err)` pair. `cid` can be the empty
+string in cases where the test doesn't care.
 
 ## 7. Risks and mitigations
 
