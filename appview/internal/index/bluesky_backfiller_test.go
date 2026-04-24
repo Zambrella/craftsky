@@ -116,3 +116,21 @@ func TestBlueskyBackfiller_Backfill_RecordNotFound_IsNoOp(t *testing.T) {
 		t.Errorf("bluesky_profiles count = %d; want 0", count)
 	}
 }
+
+func TestBlueskyBackfiller_Backfill_PDSError_Propagates(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
+	if _, err := pool.Exec(context.Background(),
+		`INSERT INTO craftsky_profiles (did, record_cid) VALUES ($1, $2)`,
+		"did:plc:err", "cidcsky"); err != nil {
+		t.Fatal(err)
+	}
+	boom := errors.New("pds on fire")
+	pds := &fakeAnonPDS{err: boom}
+	bf := index.NewBlueskyBackfiller(pds, index.NewBlueskyProfile(pool))
+
+	err := bf.Backfill(context.Background(), syntax.DID("did:plc:err"))
+	if !errors.Is(err, boom) {
+		t.Errorf("want wrapped %v; got %v", boom, err)
+	}
+}
