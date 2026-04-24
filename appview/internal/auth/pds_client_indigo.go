@@ -40,6 +40,12 @@ func (i *IndigoPDSClient) GetRecord(ctx context.Context, repo syntax.DID, collec
 	if err := i.Client.Get(ctx, nsid, params, &resp); err != nil {
 		return "", translateGetRecordError(err)
 	}
+	// Downstream callers (notably the Bluesky backfiller) write resp.CID
+	// into NOT NULL columns. Fail loudly here rather than silently
+	// propagate an empty string from a malformed PDS response.
+	if resp.CID == "" {
+		return "", fmt.Errorf("getRecord: PDS returned empty cid for %s/%s", collection, rkey)
+	}
 	if m, ok := out.(*map[string]any); ok {
 		if v, ok := resp.Value.(map[string]any); ok {
 			*m = v
