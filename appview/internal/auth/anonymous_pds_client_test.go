@@ -163,3 +163,13 @@ func TestAnonymousPDSClient_GetRecord_DirectoryError(t *testing.T) {
 		t.Errorf("err = %v; want wrapped underlying error", err)
 	}
 }
+
+func TestAnonymousPDSClient_PutRecord_ReadOnly(t *testing.T) {
+	t.Parallel()
+	cli := auth.NewAnonymousPDSClient(&fakeDirectory{}, time.Second)
+	err := cli.PutRecord(context.Background(),
+		syntax.DID("did:plc:x"), "any.nsid", "self", map[string]any{})
+	if !errors.Is(err, auth.ErrReadOnlyPDSClient) {
+		t.Errorf("want ErrReadOnlyPDSClient; got %v", err)
+	}
+}
