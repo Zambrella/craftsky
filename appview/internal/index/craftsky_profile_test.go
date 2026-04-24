@@ -8,6 +8,7 @@ import (
 
 	"social.craftsky/appview/internal/index"
 	"social.craftsky/appview/internal/tap"
+	"social.craftsky/appview/internal/testdb"
 )
 
 const craftskyProfilesDDL = `
@@ -34,7 +35,7 @@ CREATE TABLE bluesky_profiles (
 
 func TestCraftskyProfile_Create(t *testing.T) {
 	t.Parallel()
-	pool := withSchema(t, craftskyProfilesDDL)
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
 	idx := index.NewCraftskyProfile(pool)
 
 	ev := tap.Event{
@@ -68,7 +69,7 @@ func TestCraftskyProfile_Create(t *testing.T) {
 
 func TestCraftskyProfile_UpdateReplacesCrafts(t *testing.T) {
 	t.Parallel()
-	pool := withSchema(t, craftskyProfilesDDL)
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
 	idx := index.NewCraftskyProfile(pool)
 
 	create := tap.Event{
@@ -109,7 +110,7 @@ func TestCraftskyProfile_UpdateReplacesCrafts(t *testing.T) {
 
 func TestCraftskyProfile_ReplayedEventPreservesIndexedAt(t *testing.T) {
 	t.Parallel()
-	pool := withSchema(t, craftskyProfilesDDL)
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
 	idx := index.NewCraftskyProfile(pool)
 
 	ev := tap.Event{
@@ -151,7 +152,7 @@ func TestCraftskyProfile_ReplayedEventPreservesIndexedAt(t *testing.T) {
 
 func TestCraftskyProfile_DeleteRemovesBothRows(t *testing.T) {
 	t.Parallel()
-	pool := withSchema(t, craftskyProfilesDDL)
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
 	idx := index.NewCraftskyProfile(pool)
 	ctx := context.Background()
 
@@ -194,7 +195,7 @@ func TestCraftskyProfile_DeleteRemovesBothRows(t *testing.T) {
 
 func TestCraftskyProfile_UnknownAction(t *testing.T) {
 	t.Parallel()
-	pool := withSchema(t, craftskyProfilesDDL)
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
 	idx := index.NewCraftskyProfile(pool)
 	ev := tap.Event{
 		URI:        "at://did:plc:a/social.craftsky.actor.profile/self",
@@ -212,7 +213,7 @@ func TestCraftskyProfile_UnknownAction(t *testing.T) {
 
 func TestCraftskyProfile_OtherCollectionIgnored(t *testing.T) {
 	t.Parallel()
-	pool := withSchema(t, craftskyProfilesDDL)
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
 	idx := index.NewCraftskyProfile(pool)
 	ev := tap.Event{
 		URI: "at://did:plc:b/app.bsky.feed.post/k", CID: "c", DID: "did:plc:b", Rkey: "k",

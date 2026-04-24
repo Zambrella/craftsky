@@ -3,9 +3,7 @@ package auth_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
-	"math/rand/v2"
 	"os"
 	"testing"
 	"time"
@@ -15,78 +13,51 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/testdb"
 )
 
-// withAuthSchema creates a private schema, runs the OAuth DDL inside it,
-// and returns a pool scoped to that schema via search_path. Dropped via
-// t.Cleanup. Mirrors the withSchema helper in internal/index tests.
+// authSchemaDDL is the full OAuth + Craftsky-sessions schema used by every
+// test in this package.
 //
 // IMPORTANT: includes the sibling columns on oauth_auth_requests
 // (handoff_mode, loopback_redirect_uri) per Appendix A's decision.
+const authSchemaDDL = `
+	CREATE TABLE oauth_sessions (
+		account_did TEXT NOT NULL,
+		session_id  TEXT NOT NULL,
+		data        JSONB NOT NULL,
+		created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+		updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+		PRIMARY KEY (account_did, session_id)
+	);
+	CREATE TABLE oauth_auth_requests (
+		state                  TEXT NOT NULL PRIMARY KEY,
+		data                   JSONB NOT NULL,
+		created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+		handoff_mode           TEXT NOT NULL DEFAULT 'deep_link',
+		loopback_redirect_uri  TEXT
+	);
+	CREATE TABLE craftsky_sessions (
+		token_hash        BYTEA NOT NULL PRIMARY KEY,
+		account_did       TEXT NOT NULL,
+		oauth_session_id  TEXT NOT NULL,
+		device_label      TEXT,
+		last_device_id    TEXT,
+		created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+		last_seen_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+		revoked_at        TIMESTAMPTZ,
+		FOREIGN KEY (account_did, oauth_session_id)
+			REFERENCES oauth_sessions (account_did, session_id)
+			ON DELETE CASCADE
+	);
+`
+
+// withAuthSchema returns a pool scoped to a fresh schema seeded with the
+// full auth schema. Thin convenience wrapper over testdb.WithSchema that
+// bakes in authSchemaDDL so the many call sites stay tidy.
 func withAuthSchema(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		url = os.Getenv("DATABASE_URL")
-	}
-	if url == "" {
-		t.Skip("TEST_DATABASE_URL and DATABASE_URL both unset")
-	}
-	ctx := context.Background()
-	bootstrap, err := pgxpool.New(ctx, url)
-	if err != nil {
-		t.Fatalf("bootstrap pool: %v", err)
-	}
-	schema := fmt.Sprintf("test_auth_%d", rand.Uint32())
-	if _, err := bootstrap.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
-		t.Fatalf("create schema: %v", err)
-	}
-	t.Cleanup(func() {
-		_, _ = bootstrap.Exec(context.Background(), "DROP SCHEMA "+schema+" CASCADE")
-		bootstrap.Close()
-	})
-
-	ddl := `
-		CREATE TABLE ` + schema + `.oauth_sessions (
-			account_did TEXT NOT NULL,
-			session_id  TEXT NOT NULL,
-			data        JSONB NOT NULL,
-			created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-			updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-			PRIMARY KEY (account_did, session_id)
-		);
-		CREATE TABLE ` + schema + `.oauth_auth_requests (
-			state                  TEXT NOT NULL PRIMARY KEY,
-			data                   JSONB NOT NULL,
-			created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
-			handoff_mode           TEXT NOT NULL DEFAULT 'deep_link',
-			loopback_redirect_uri  TEXT
-		);
-		CREATE TABLE ` + schema + `.craftsky_sessions (
-			token_hash        BYTEA NOT NULL PRIMARY KEY,
-			account_did       TEXT NOT NULL,
-			oauth_session_id  TEXT NOT NULL,
-			device_label      TEXT,
-			last_device_id    TEXT,
-			created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-			last_seen_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-			revoked_at        TIMESTAMPTZ,
-			FOREIGN KEY (account_did, oauth_session_id)
-				REFERENCES ` + schema + `.oauth_sessions (account_did, session_id)
-				ON DELETE CASCADE
-		);`
-	if _, err := bootstrap.Exec(ctx, ddl); err != nil {
-		t.Fatalf("create tables: %v", err)
-	}
-
-	cfg, _ := pgxpool.ParseConfig(url)
-	cfg.ConnConfig.RuntimeParams["search_path"] = schema
-	pool, err := pgxpool.NewWithConfig(ctx, cfg)
-	if err != nil {
-		t.Fatalf("scoped pool: %v", err)
-	}
-	t.Cleanup(pool.Close)
-	return pool
+	return testdb.WithSchema(t, authSchemaDDL)
 }
 
 func testStoreConfig() auth.StoreConfig {

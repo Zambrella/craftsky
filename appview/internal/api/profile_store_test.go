@@ -3,14 +3,10 @@ package api_test
 
 import (
 	"context"
-	"fmt"
-	"math/rand/v2"
-	"os"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/testdb"
 )
 
 const profileStoreDDL = `
@@ -34,49 +30,9 @@ CREATE TABLE bluesky_profiles (
 );
 `
 
-// Duplicated from internal/index/testhelpers_test.go to avoid cross-package
-// test deps. Small enough to paste; if a third copy appears, extract.
-func withSchema(t *testing.T, ddl string) *pgxpool.Pool {
-	t.Helper()
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		url = os.Getenv("DATABASE_URL")
-	}
-	if url == "" {
-		t.Skip("no database URL")
-	}
-	ctx := context.Background()
-	bootstrap, err := pgxpool.New(ctx, url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	schema := fmt.Sprintf("test_%d", rand.Uint32())
-	if _, err := bootstrap.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		_, _ = bootstrap.Exec(context.Background(), "DROP SCHEMA "+schema+" CASCADE")
-		bootstrap.Close()
-	})
-	cfg, err := pgxpool.ParseConfig(url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cfg.ConnConfig.RuntimeParams["search_path"] = schema
-	pool, err := pgxpool.NewWithConfig(ctx, cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(pool.Close)
-	if _, err := pool.Exec(ctx, ddl); err != nil {
-		t.Fatal(err)
-	}
-	return pool
-}
-
 func TestProfileStore_ReadByDID_MemberWithBothRows(t *testing.T) {
 	t.Parallel()
-	pool := withSchema(t, profileStoreDDL)
+	pool := testdb.WithSchema(t, profileStoreDDL)
 	ctx := context.Background()
 
 	_, err := pool.Exec(ctx,
@@ -117,7 +73,7 @@ func TestProfileStore_ReadByDID_MemberWithBothRows(t *testing.T) {
 
 func TestProfileStore_ReadByDID_NonMember(t *testing.T) {
 	t.Parallel()
-	pool := withSchema(t, profileStoreDDL)
+	pool := testdb.WithSchema(t, profileStoreDDL)
 	store := api.NewProfileStore(pool)
 	_, err := store.Read(context.Background(), "did:plc:nobody")
 	if err == nil {
@@ -130,7 +86,7 @@ func TestProfileStore_ReadByDID_NonMember(t *testing.T) {
 
 func TestProfileStore_ReadByDID_MemberWithoutBlueskyRow(t *testing.T) {
 	t.Parallel()
-	pool := withSchema(t, profileStoreDDL)
+	pool := testdb.WithSchema(t, profileStoreDDL)
 	ctx := context.Background()
 	_, _ = pool.Exec(ctx,
 		`INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES ($1, $2, $3)`,

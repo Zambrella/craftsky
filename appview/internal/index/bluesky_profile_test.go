@@ -10,6 +10,7 @@ import (
 
 	"social.craftsky/appview/internal/index"
 	"social.craftsky/appview/internal/tap"
+	"social.craftsky/appview/internal/testdb"
 )
 
 // Reuses craftskyProfilesDDL from craftsky_profile_test.go.
@@ -25,7 +26,7 @@ func seedMember(t *testing.T, pool *pgxpool.Pool, did string) {
 
 func TestBlueskyProfile_CreateForMember(t *testing.T) {
 	t.Parallel()
-	pool := withSchema(t, craftskyProfilesDDL)
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
 	seedMember(t, pool, "did:plc:m")
 	idx := index.NewBlueskyProfile(pool)
 
@@ -76,7 +77,7 @@ func TestBlueskyProfile_CreateForMember(t *testing.T) {
 
 func TestBlueskyProfile_DropsForNonMember(t *testing.T) {
 	t.Parallel()
-	pool := withSchema(t, craftskyProfilesDDL)
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
 	idx := index.NewBlueskyProfile(pool)
 
 	ev := tap.Event{
@@ -101,7 +102,7 @@ func TestBlueskyProfile_DropsForNonMember(t *testing.T) {
 
 func TestBlueskyProfile_UpdateReplacesFields(t *testing.T) {
 	t.Parallel()
-	pool := withSchema(t, craftskyProfilesDDL)
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
 	seedMember(t, pool, "did:plc:u")
 	idx := index.NewBlueskyProfile(pool)
 	ctx := context.Background()
@@ -136,7 +137,7 @@ func TestBlueskyProfile_UpdateReplacesFields(t *testing.T) {
 
 func TestBlueskyProfile_ReplayedEventPreservesIndexedAt(t *testing.T) {
 	t.Parallel()
-	pool := withSchema(t, craftskyProfilesDDL)
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
 	seedMember(t, pool, "did:plc:r")
 	idx := index.NewBlueskyProfile(pool)
 	ctx := context.Background()
@@ -174,7 +175,7 @@ func TestBlueskyProfile_ReplayedEventPreservesIndexedAt(t *testing.T) {
 
 func TestBlueskyProfile_DeleteRemovesRow(t *testing.T) {
 	t.Parallel()
-	pool := withSchema(t, craftskyProfilesDDL)
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
 	seedMember(t, pool, "did:plc:d")
 	idx := index.NewBlueskyProfile(pool)
 	ctx := context.Background()
@@ -207,7 +208,7 @@ func TestBlueskyProfile_DeleteRemovesRow(t *testing.T) {
 
 func TestBlueskyProfile_DeleteNonMemberIsNoop(t *testing.T) {
 	t.Parallel()
-	pool := withSchema(t, craftskyProfilesDDL)
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
 	idx := index.NewBlueskyProfile(pool)
 	del := tap.Event{
 		URI: "at://did:plc:gone/app.bsky.actor.profile/self",
