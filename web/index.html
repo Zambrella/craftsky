@@ -310,6 +310,13 @@
                             come with you.</p>
                     </li>
                 </ul>
+
+                <div class="how__cta">
+                    <button type="button" class="btn btn--ghost js-open-protocol-diagram"
+                        aria-haspopup="dialog" aria-controls="protocol-diagram-modal">
+                        See how the AT Protocol fits together
+                    </button>
+                </div>
             </div>
         </section>
         <section id="whos-behind" class="whos-behind section">
@@ -475,6 +482,16 @@
             </div>
         </div>
     </footer>
+
+    <!-- AT Protocol diagram lightbox -->
+    <dialog id="protocol-diagram-modal" class="lightbox" aria-label="How the AT Protocol fits together">
+        <form method="dialog" class="lightbox__close-form">
+            <button type="submit" class="lightbox__close" value="cancel" aria-label="Close">&times;</button>
+        </form>
+        <img class="lightbox__image" src="assets/atprotocol-diagram.png"
+            alt="The AT Protocol works in three layers. Apps (Craftsky, Bluesky, anything else) sit on top of Storage (your portable repository of posts, follows, likes and profile), which is tied to your Identity (a handle like @rosie.craftsky.app). On traditional social your posts live inside the app and stay behind if you leave. On the AT Protocol your posts live with you and any compatible app can read them."
+            width="1178" height="1233" draggable="false" />
+    </dialog>
 
     <!-- Modal (Chunk 7) -->
     <dialog id="waiting-list-modal" class="modal" aria-labelledby="waiting-list-title">

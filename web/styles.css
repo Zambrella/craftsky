@@ -729,6 +729,12 @@ a:hover { color: var(--cobalt-deep); }
   margin: 0;
 }
 
+.how__cta {
+  margin-top: var(--sp-7);
+  display: flex;
+  justify-content: center;
+}
+
 .whos-behind__accent {
   border-left: 3px solid var(--cobalt);
   padding-left: var(--sp-5);
@@ -1016,4 +1022,68 @@ a:hover { color: var(--cobalt-deep); }
 
 .modal__submit {
   align-self: flex-start;
+}
+
+/* =========================================================================
+   AT Protocol diagram lightbox
+   A bare-bones <dialog>: no background, no padding, no border. Just a
+   close button and the image, sized to fill the viewport at the image's
+   aspect ratio.
+   ========================================================================= */
+
+.lightbox {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: auto;
+  max-width: 100vw;
+  max-height: 100vh;
+  overflow: visible;
+}
+
+.lightbox::backdrop {
+  background: rgba(22, 18, 16, 0.85);
+}
+
+.lightbox__close-form {
+  position: fixed;
+  top: var(--sp-4);
+  right: var(--sp-4);
+  margin: 0;
+  z-index: 2;
+}
+
+.lightbox__close {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--paper-3);
+  border: var(--border-w) solid var(--ink);
+  font-size: 24px;
+  line-height: 1;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 0;
+  box-shadow: var(--sh-drop);
+}
+
+.lightbox__close:hover {
+  background: var(--paper-2);
+}
+
+.lightbox__close:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+.lightbox__image {
+  display: block;
+  /* Fill the viewport while preserving aspect ratio. The browser does the
+     work — no JS needed. */
+  max-width: calc(100vw - var(--sp-5));
+  max-height: calc(100vh - var(--sp-5));
+  width: auto;
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
 }

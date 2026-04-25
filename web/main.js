@@ -3,7 +3,8 @@
  *
  * Responsibilities:
  *   - Open/close the waiting-list <dialog> on CTA clicks
- *   - Dispatch two PostHog events (behind DNT + key checks)
+ *   - Open/close the AT Protocol diagram lightbox <dialog>
+ *   - Dispatch PostHog events (behind DNT + key checks)
  *   - Close modal on overlay click
  *   - Keep current year in footer up to date
  *
@@ -129,6 +130,28 @@
           successBody.hidden = false;
         }
       }
+    });
+  }
+
+  // -----------------------------------------------------------------------
+  // AT Protocol diagram lightbox — open + close-on-overlay
+  // -----------------------------------------------------------------------
+
+  const diagramModal = document.getElementById('protocol-diagram-modal');
+  const diagramOpenButtons = document.querySelectorAll('.js-open-protocol-diagram');
+
+  if (diagramModal) {
+    diagramOpenButtons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        track('landing_protocol_diagram_opened', { source: 'how-it-works' });
+        diagramModal.showModal();
+      });
+    });
+
+    // Backdrop click closes. The image is the dialog's child, so a click on
+    // the dialog itself (not the image or close button) means a backdrop hit.
+    diagramModal.addEventListener('click', function (event) {
+      if (event.target === diagramModal) diagramModal.close();
     });
   }
 
