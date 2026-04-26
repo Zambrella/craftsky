@@ -2,7 +2,8 @@
  * Craftsky landing page — main.js
  *
  * Responsibilities:
- *   - Open/close the waiting-list <dialog> on CTA clicks
+ *   - Open/close the waiting-list <dialog> on CTA clicks (form is a
+ *     cross-origin Brevo iframe, so submission happens entirely inside it)
  *   - Open/close the AT Protocol diagram lightbox <dialog>
  *   - Dispatch PostHog events (behind DNT + key checks)
  *   - Close modal on overlay click
@@ -82,17 +83,10 @@
 
   const modal = document.getElementById('waiting-list-modal');
   const openButtons = document.querySelectorAll('.js-open-waiting-list');
-  const form = modal && modal.querySelector('.modal__form');
-  const formBody = modal && modal.querySelector('[data-state="form"]');
-  const successBody = modal && modal.querySelector('[data-state="success"]');
 
   function openModal(source) {
     if (!modal) return;
     track('landing_cta_waiting_list_clicked', { source: source });
-    if (formBody && successBody) {
-      formBody.hidden = false;
-      successBody.hidden = true;
-    }
     modal.showModal();
   }
 
@@ -108,28 +102,6 @@
   if (modal) {
     modal.addEventListener('click', function (event) {
       if (event.target === modal) modal.close();
-    });
-  }
-
-  // After the form submits, show the success state.
-  // NOTE: until a real provider endpoint is set in the form action, the
-  // browser will attempt to navigate to '#TODO-WAITING-LIST-ENDPOINT', which
-  // means the success state won't be seen. When a provider is wired up, one
-  // of two paths applies:
-  //   (a) Native POST with redirect-after-submit — remove this listener.
-  //   (b) Provider endpoint with no-redirect JSON response — keep this
-  //       listener and preventDefault/fetch from here.
-  if (form) {
-    form.addEventListener('submit', function (event) {
-      // Until a real provider is set, show the success state optimistically.
-      const rawAction = form.getAttribute('action') || '';
-      if (rawAction.startsWith('#TODO')) {
-        event.preventDefault();
-        if (formBody && successBody) {
-          formBody.hidden = true;
-          successBody.hidden = false;
-        }
-      }
     });
   }
 

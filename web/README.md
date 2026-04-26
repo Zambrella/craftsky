@@ -51,8 +51,5 @@ Every PR gets a preview URL under `pages.dev`. Production deploys land on `craft
 
 Grep for `FIXME:` and `FIXME(` in this directory to find items still to be resolved:
 
-- **Waiting-list provider endpoint** in `index.html` (modal form `action` — currently `#TODO-WAITING-LIST-ENDPOINT`).
-- **PostHog project key** in `main.js` (currently `REPLACE_ME`; until replaced, PostHog does not load).
-- **GitHub repo URL** in footer and "Who's behind it" section (currently `#TODO-GITHUB-URL`).
 - **OG image PNG** at `assets/og-image.png` (1200×630) — meta tags are currently commented out until the file exists.
 - **atproto mark** — currently a text fallback at `assets/atproto-mark.svg`. Replace with the official mark from atproto.com brand assets when convenient.

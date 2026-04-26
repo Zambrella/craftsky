@@ -497,32 +497,18 @@
             width="1178" height="1233" draggable="false" />
     </dialog>
 
-    <!-- Modal (Chunk 7) -->
-    <dialog id="waiting-list-modal" class="modal" aria-labelledby="waiting-list-title">
+    <!-- Waiting-list modal — just a card around the Brevo iframe. Brevo's
+         own styling has been stripped, so the form is bare HTML inside our
+         card chrome (no title — we don't add one to avoid duplicating
+         whatever the form ends up being titled). -->
+    <dialog id="waiting-list-modal" class="modal modal--brevo" aria-label="Join the Craftsky waiting list">
         <form method="dialog" class="modal__close-form">
             <button type="submit" class="modal__close" value="cancel" aria-label="Close">&times;</button>
         </form>
 
-        <div class="modal__body" data-state="form">
-            <h2 id="waiting-list-title" class="modal__title">Join the waiting list.</h2>
-            <p class="modal__sub">We'll email you when there's something to see. Nothing else.</p>
-
-            <!-- FIXME: set action="" to the chosen waiting-list provider URL. -->
-            <form class="modal__form" method="POST" action="#TODO-WAITING-LIST-ENDPOINT" novalidate>
-                <label class="modal__label" for="waiting-list-email">Email</label>
-                <input class="modal__input" type="email" id="waiting-list-email" name="email" required
-                    autocomplete="email" placeholder="you@example.com" />
-                <button type="submit" class="btn btn--primary modal__submit">Sign me up</button>
-            </form>
-        </div>
-
-        <div class="modal__body" data-state="success" hidden>
-            <h2 class="modal__title">Thanks.</h2>
-            <p class="modal__sub">We'll be in touch when there's something worth sharing.</p>
-            <form method="dialog">
-                <button type="submit" class="btn btn--primary">Close</button>
-            </form>
-        </div>
+        <iframe class="modal__iframe" title="Join the Craftsky waiting list" width="540" height="640"
+            src="https://537f57e5.sibforms.com/serve/MUIFAK2yaDNdNXlRWw2kavO7EeWUj20Xl9OteRR0zrDT8EIsjBA_Dme9L74XztuGu6EUCf4yKrL2m8KiPpvNaPMF-R7FKfkzf402M1pnARZTwX35tXOsiD63vxuGa4n_W0Kc-Qal_dcM8rDZZLnjeJdApPdivEYBUVBjbQuyLoNRjL1o3PThn1B4XvCmFQm2eEc1yy9V_WXFgHuAxA=="
+            frameborder="0" scrolling="auto" allowfullscreen></iframe>
     </dialog>
 
     <script src="main.js" defer></script>

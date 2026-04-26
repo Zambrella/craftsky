@@ -958,6 +958,22 @@ a:hover { color: var(--cobalt-deep); }
   position: relative;
 }
 
+/* Modal sized to fit the embedded Brevo signup iframe (540px wide) flush.
+   No padding on sides/bottom — the iframe fills the modal and gets clipped
+   by the modal's border-radius via overflow:hidden. Top padding only exists
+   to clear the absolutely-positioned close button. */
+.modal--brevo {
+  max-width: 540px;
+  padding: var(--sp-6) 0 0;
+  overflow: hidden;
+}
+
+.modal__iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+}
+
 .modal::backdrop {
   background: rgba(22, 18, 16, 0.5);
 }
