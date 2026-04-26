@@ -4,7 +4,9 @@ Single static HTML page served at https://craftsky.social.
 
 ## Contents
 
-- `index.html` — one page, nine sections
+- `index.html` — landing page, nine sections
+- `privacy.html` — privacy policy (linked from footer)
+- `terms.html` — terms of service (linked from footer)
 - `styles.css` — all styles, design tokens copied from `../docs/design/colors_and_type.css`
 - `main.js` — waiting-list modal + PostHog event tracking
 - `assets/` — favicon, logo, atproto mark, paper-grain texture

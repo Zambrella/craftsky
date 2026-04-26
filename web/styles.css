@@ -1087,3 +1087,128 @@ a:hover { color: var(--cobalt-deep); }
   user-select: none;
   -webkit-user-drag: none;
 }
+
+/* =========================================================================
+   Page header (legal pages — privacy, terms)
+   ========================================================================= */
+
+.page-header {
+  background: var(--paper);
+  padding: var(--sp-5) 0;
+}
+
+.page-header__home {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  text-decoration: none;
+  font-family: var(--font-display);
+  font-size: 26px;
+  color: var(--ink);
+}
+
+.page-header__home img {
+  width: 40px;
+  height: 40px;
+  display: block;
+}
+
+.page-header__home:hover {
+  color: var(--cobalt);
+}
+
+/* =========================================================================
+   Legal prose (privacy, terms)
+   ========================================================================= */
+
+.legal {
+  background: var(--paper);
+  padding: var(--sp-7) 0 var(--sp-9);
+}
+
+.legal__title {
+  font-family: var(--font-display);
+  font-size: clamp(48px, 7vw, 80px);
+  font-weight: 400;
+  line-height: var(--lh-tight);
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 0;
+}
+
+.legal__updated {
+  margin-top: var(--sp-3);
+  color: var(--fg-3);
+  font-size: var(--t-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+.legal__intro {
+  margin-top: var(--sp-5);
+  font-size: 18px;
+  color: var(--fg-1);
+}
+
+.legal h2 {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1.1;
+  color: var(--ink);
+  margin: var(--sp-7) 0 var(--sp-3);
+}
+
+.legal h3 {
+  font-family: var(--font-ui);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: var(--sp-5) 0 var(--sp-2);
+}
+
+.legal p,
+.legal ul,
+.legal ol {
+  margin: var(--sp-3) 0 0;
+  max-width: 64ch;
+}
+
+.legal ul,
+.legal ol {
+  padding-left: var(--sp-5);
+}
+
+.legal li {
+  margin-top: var(--sp-2);
+}
+
+.legal li:first-child {
+  margin-top: 0;
+}
+
+.legal strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* =========================================================================
+   Footer legal nav (privacy + terms in the bottom strip)
+   ========================================================================= */
+
+.footer__legal {
+  display: flex;
+  gap: var(--sp-4);
+}
+
+.footer__legal a {
+  color: var(--fg-3);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.footer__legal a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
