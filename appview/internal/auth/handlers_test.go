@@ -141,6 +141,15 @@ func TestLogin_MissingHandle(t *testing.T) {
 	expectEnvelopeError(t, rr, http.StatusBadRequest, "handle_required")
 }
 
+func TestLogin_MalformedHandle(t *testing.T) {
+	// "not a handle" has no dot and contains a space — fails syntax.ParseHandle.
+	// We reject this at the boundary rather than letting indigo's resolver
+	// chase a clearly-invalid identifier.
+	rr := postLogin(t, handlersFixture(t, ""),
+		`{"handle":"not a handle","handoffMode":"deep_link"}`)
+	expectEnvelopeError(t, rr, http.StatusBadRequest, "invalid_handle")
+}
+
 func TestLogin_InvalidHandoffMode(t *testing.T) {
 	rr := postLogin(t, handlersFixture(t, ""), `{"handle":"alice.example","handoffMode":"wat"}`)
 	expectEnvelopeError(t, rr, http.StatusBadRequest, "invalid_handoff_mode")

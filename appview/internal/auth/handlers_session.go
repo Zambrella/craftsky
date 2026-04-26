@@ -43,6 +43,12 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 				ctxkeys.GetRunID(r.Context()), nil)
 			return
 		}
+		if _, err := syntax.ParseHandle(req.Handle); err != nil {
+			envelope.WriteError(w, http.StatusBadRequest, "invalid_handle",
+				"handle is malformed",
+				ctxkeys.GetRunID(r.Context()), nil)
+			return
+		}
 		if req.HandoffMode != "deep_link" && req.HandoffMode != "loopback" {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_handoff_mode",
 				"handoffMode must be deep_link or loopback",

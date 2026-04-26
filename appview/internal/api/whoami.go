@@ -41,6 +41,6 @@ func WhoAmIHandler(resolver HandleResolver, logger *slog.Logger) http.Handler {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(WhoAmIResponse{DID: did.String(), Handle: handle.String()})
+		_ = json.NewEncoder(w).Encode(WhoAmIResponse{DID: did, Handle: handle})
 	})
 }

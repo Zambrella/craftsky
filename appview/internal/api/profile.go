@@ -103,7 +103,7 @@ func writeProfileResponse(
 			"identity_unavailable", "could not resolve handle", runID, nil)
 		return
 	}
-	resp := BuildProfileResponse(row, handle.String(), true)
+	resp := BuildProfileResponse(row, handle, true)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(resp)
@@ -223,7 +223,7 @@ func PutMeProfileHandler(
 				return
 			}
 			row := syntheticRow(did.String(), mergedBsky, reqBody.Crafts)
-			resp := BuildProfileResponse(row, handle.String(), false)
+			resp := BuildProfileResponse(row, handle, false)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(resp)
