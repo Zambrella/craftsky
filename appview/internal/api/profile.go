@@ -57,16 +57,10 @@ func GetProfileHandler(store ProfileReader, resolver HandleResolver, logger *slo
 func GetMeProfileHandler(store ProfileReader, resolver HandleResolver, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
-		didStr, ok := middleware.GetDID(r.Context())
+		did, ok := middleware.GetDID(r.Context())
 		if !ok {
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "no did in context", runID, nil)
-			return
-		}
-		did, err := syntax.ParseDID(didStr)
-		if err != nil {
-			envelope.WriteError(w, http.StatusInternalServerError,
-				"internal_error", "invalid did in context", runID, nil)
 			return
 		}
 		writeProfileResponse(w, r, store, resolver, did, logger)
@@ -155,16 +149,10 @@ func PutMeProfileHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
 
-		didStr, ok := middleware.GetDID(r.Context())
+		did, ok := middleware.GetDID(r.Context())
 		if !ok {
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "no did in context", runID, nil)
-			return
-		}
-		did, derr := syntax.ParseDID(didStr)
-		if derr != nil {
-			envelope.WriteError(w, http.StatusInternalServerError,
-				"internal_error", "invalid did in context", runID, nil)
 			return
 		}
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())

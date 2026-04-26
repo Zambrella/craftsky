@@ -1,12 +1,16 @@
 package auth
 
-import "context"
+import (
+	"context"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
+)
 
 // MockAuthService is the dev-only AuthService. It always authenticates.
 // The returned DID comes from the request context (see WithDevDID) when
 // present, otherwise DefaultDID.
 type MockAuthService struct {
-	DefaultDID string
+	DefaultDID syntax.DID
 }
 
 var _ AuthService = (*MockAuthService)(nil)

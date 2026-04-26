@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/ctxkeys"
@@ -15,7 +17,7 @@ import (
 // middleware. Returns ("", false) if no middleware ran or if the request
 // reached the handler without authentication (which shouldn't happen on
 // routes wired via Authenticated, but GetDID stays safe either way).
-func GetDID(ctx context.Context) (string, bool) {
+func GetDID(ctx context.Context) (syntax.DID, bool) {
 	return ctxkeys.GetDID(ctx)
 }
 
@@ -27,7 +29,7 @@ func GetOAuthSessionID(ctx context.Context) (string, bool) {
 
 // WithDID stores did in ctx under the same key the Authenticated middleware uses.
 // Exported for tests that want to skip middleware setup.
-func WithDID(ctx context.Context, did string) context.Context {
+func WithDID(ctx context.Context, did syntax.DID) context.Context {
 	return ctxkeys.WithDID(ctx, did)
 }
 
@@ -77,7 +79,16 @@ func Authenticated(authService auth.AuthService, logger *slog.Logger) func(http.
 
 			ctx := r.Context()
 			if devDID := r.Header.Get("X-Dev-DID"); devDID != "" {
-				ctx = auth.WithDevDID(ctx, devDID)
+				parsed, err := syntax.ParseDID(devDID)
+				if err != nil {
+					logger.Warn("auth: invalid X-Dev-DID header",
+						slog.String("dev_did", devDID),
+						slog.String("err", err.Error()),
+						slog.String("run_id", GetRunID(r.Context())))
+					envelope.WriteError(w, http.StatusBadRequest, "invalid_dev_did", "X-Dev-DID is malformed", GetRunID(r.Context()), nil)
+					return
+				}
+				ctx = auth.WithDevDID(ctx, parsed)
 			}
 
 			info, err := authService.Authenticate(ctx, token)

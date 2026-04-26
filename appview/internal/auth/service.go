@@ -11,12 +11,16 @@
 // middleware — that would create a cycle.
 package auth
 
-import "context"
+import (
+	"context"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
+)
 
 // AuthInfo carries the authenticated identity and its OAuth session ID.
 // Dev/mock implementations return SessionID = "" and consumers must tolerate that.
 type AuthInfo struct {
-	DID       string
+	DID       syntax.DID
 	SessionID string
 }
 
@@ -31,14 +35,15 @@ type contextKey string
 const devDIDKey contextKey = "dev_did"
 
 // WithDevDID returns a derived context carrying the given DID under the
-// dev-DID key. Middleware calls this when the X-Dev-DID header is present.
-func WithDevDID(ctx context.Context, did string) context.Context {
+// dev-DID key. Middleware calls this when the X-Dev-DID header is present
+// and parsed successfully.
+func WithDevDID(ctx context.Context, did syntax.DID) context.Context {
 	return context.WithValue(ctx, devDIDKey, did)
 }
 
 // DevDIDFromContext extracts a dev-DID previously stored via WithDevDID.
 // Returns ("", false) if none is present.
-func DevDIDFromContext(ctx context.Context) (string, bool) {
-	did, ok := ctx.Value(devDIDKey).(string)
+func DevDIDFromContext(ctx context.Context) (syntax.DID, bool) {
+	did, ok := ctx.Value(devDIDKey).(syntax.DID)
 	return did, ok
 }

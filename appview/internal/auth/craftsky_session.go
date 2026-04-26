@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -72,7 +73,9 @@ func (s *CraftskySessionStore) Lookup(ctx context.Context, token string) (AuthIn
 		return AuthInfo{}, fmt.Errorf("lookup craftsky session: %w", err)
 	}
 	s.maybeTouchLastSeen(ctx, hash[:])
-	return AuthInfo{DID: did, SessionID: sessID}, nil
+	// account_did is written from a syntax.DID (see Create); a direct cast
+	// preserves the typed boundary without re-validating data we own.
+	return AuthInfo{DID: syntax.DID(did), SessionID: sessID}, nil
 }
 
 func (s *CraftskySessionStore) Revoke(ctx context.Context, token string) error {
