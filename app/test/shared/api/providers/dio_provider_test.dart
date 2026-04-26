@@ -8,7 +8,7 @@ void main() {
 
     final dio = container.read(dioProvider);
 
-    expect(dio.options.baseUrl, 'http://10.0.2.2:8080');
+    expect(dio.options.baseUrl, 'http://10.0.2.2:18080');
     // Dio adds ImplyContentTypeInterceptor by default, plus our
     // SessionAuthInterceptor + ErrorMappingInterceptor +
     // SignOutOn401Interceptor = 4.

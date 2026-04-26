@@ -10,14 +10,15 @@ import (
 // BuildClientConfig produces an indigo oauth.ClientConfig.
 //
 //   - hostname == ""               → localhost/public client via NewLocalhostConfig
-//     (callback http://127.0.0.1:8080/oauth/callback).
+//     (callback http://127.0.0.1:18080/oauth/callback — matches the host
+//     port docker-compose.yml publishes the appview on).
 //   - hostname != "" and key == "" → public client at that hostname (test scenario).
 //   - hostname != "" and key != "" → confidential client via SetClientSecret.
 //
 // The key is multibase-encoded P-256 (matching what `cli oauth-keygen` emits).
 func BuildClientConfig(hostname, clientSecretKey, clientKeyID string, scopes []string) (oauth.ClientConfig, error) {
 	if hostname == "" {
-		return oauth.NewLocalhostConfig("http://127.0.0.1:8080/oauth/callback", scopes), nil
+		return oauth.NewLocalhostConfig("http://127.0.0.1:18080/oauth/callback", scopes), nil
 	}
 	clientID := fmt.Sprintf("https://%s/oauth/client-metadata.json", hostname)
 	callback := fmt.Sprintf("https://%s/oauth/callback", hostname)
