@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
@@ -23,17 +24,22 @@ import (
 // Event is one decoded record-event from Tap's /channel WebSocket.
 // Identity events are consumed internally by the consumer and are not
 // surfaced to indexers.
+//
+// DID, Collection, and Rkey are validated by the consumer before this
+// struct is handed to an indexer; CID is a passthrough (per indigo's
+// syntax.CID docstring, the typed wrapper is informal and the real
+// validator is the ipfs/go-cid package).
 type Event struct {
-	URI        string          // at://did/collection/rkey
-	CID        string          // content identifier of the record
-	DID        string          // repo owner
-	Collection string          // e.g. "app.bsky.feed.post"
-	Rkey       string          // record key
-	Action     string          // "create" | "update" | "delete"
-	Record     json.RawMessage // opaque JSON; nil or empty on Action == "delete"
-	Live       bool            // false during backfill, true for steady-state
-	ID         uint64          // Tap's per-event "id" field from the envelope
-	Rev        string          // repo rev at time of event
+	URI        syntax.ATURI     // at://did/collection/rkey
+	CID        syntax.CID       // content identifier of the record
+	DID        syntax.DID       // repo owner
+	Collection syntax.NSID      // e.g. "app.bsky.feed.post"
+	Rkey       syntax.RecordKey // record key
+	Action     string           // "create" | "update" | "delete"
+	Record     json.RawMessage  // opaque JSON; nil or empty on Action == "delete"
+	Live       bool             // false during backfill, true for steady-state
+	ID         uint64           // Tap's per-event "id" field from the envelope
+	Rev        string           // repo rev at time of event
 }
 
 // Consumer is the interface the appview uses to consume events from Tap.
@@ -245,27 +251,29 @@ func (c *WSConsumer) runOnce(ctx context.Context) error {
 				c.logger.Warn("record envelope missing record field", slog.Uint64("id", env.ID))
 				continue
 			}
-			ev := Event{
-				URI:        fmt.Sprintf("at://%s/%s/%s", env.Record.DID, env.Record.Collection, env.Record.Rkey),
-				CID:        env.Record.CID,
-				DID:        env.Record.DID,
-				Collection: env.Record.Collection,
-				Rkey:       env.Record.Rkey,
-				Action:     env.Record.Action,
-				Record:     env.Record.Record,
-				Live:       env.Record.Live,
-				ID:         env.ID,
-				Rev:        env.Record.Rev,
+			ev, err := decodeRecordEvent(env)
+			if err != nil {
+				// Malformed identifiers in the envelope itself: this won't
+				// improve on retry, so ack and drop rather than letting
+				// Tap redeliver indefinitely.
+				c.logger.Error("dropping event with invalid identifier",
+					slog.Uint64("id", env.ID),
+					slog.Any("err", err),
+				)
+				if ackErr := c.sendAck(ctx, conn, env.ID); ackErr != nil {
+					return fmt.Errorf("ack: %w", ackErr)
+				}
+				continue
 			}
 			if err := c.handleWithTimeout(ctx, ev); err != nil {
 				c.logger.Error("indexer handle failed",
-					slog.String("uri", ev.URI),
+					slog.String("uri", ev.URI.String()),
 					slog.Uint64("id", ev.ID),
 					slog.Any("err", err),
 				)
 				if c.shouldDrop(ev.ID) {
 					c.logger.Error("dropping poison-pill event after retries",
-						slog.String("uri", ev.URI),
+						slog.String("uri", ev.URI.String()),
 						slog.Uint64("id", ev.ID),
 						slog.String("record", string(ev.Record)),
 					)
@@ -325,4 +333,38 @@ func (c *WSConsumer) forgetRetry(id uint64) {
 
 func (c *WSConsumer) sendAck(ctx context.Context, conn *websocket.Conn, id uint64) error {
 	return wsjson.Write(ctx, conn, ackFrame{Type: "ack", ID: id})
+}
+
+// decodeRecordEvent parses the wire envelope into a typed Event, validating
+// DID/NSID/RecordKey at the boundary. CID is a passthrough cast — indigo's
+// syntax.CID is documented as an informal helper, not a complete CID
+// validator, and tests use short fixture strings that wouldn't pass
+// syntax.ParseCID. The downstream guarantee we want is type safety, not
+// CID well-formedness; that's the codec's job.
+func decodeRecordEvent(env envelope) (Event, error) {
+	rec := env.Record
+	did, err := syntax.ParseDID(rec.DID)
+	if err != nil {
+		return Event{}, fmt.Errorf("did %q: %w", rec.DID, err)
+	}
+	nsid, err := syntax.ParseNSID(rec.Collection)
+	if err != nil {
+		return Event{}, fmt.Errorf("collection %q: %w", rec.Collection, err)
+	}
+	rkey, err := syntax.ParseRecordKey(rec.Rkey)
+	if err != nil {
+		return Event{}, fmt.Errorf("rkey %q: %w", rec.Rkey, err)
+	}
+	return Event{
+		URI:        syntax.ATURI(fmt.Sprintf("at://%s/%s/%s", did, nsid, rkey)),
+		CID:        syntax.CID(rec.CID),
+		DID:        did,
+		Collection: nsid,
+		Rkey:       rkey,
+		Action:     rec.Action,
+		Record:     rec.Record,
+		Live:       rec.Live,
+		ID:         env.ID,
+		Rev:        rec.Rev,
+	}, nil
 }

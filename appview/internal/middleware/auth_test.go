@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"social.craftsky/appview/internal/auth"
 )
 
@@ -19,7 +21,7 @@ func discardLogger() *slog.Logger {
 }
 
 // passthroughHandler captures the DID seen in context and responds 200.
-func passthroughHandler(didSeen *string) http.Handler {
+func passthroughHandler(didSeen *syntax.DID) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		*didSeen, _ = GetDID(r.Context())
 		w.WriteHeader(http.StatusOK)
@@ -27,7 +29,7 @@ func passthroughHandler(didSeen *string) http.Handler {
 }
 
 func TestAuthenticated_RejectsMissingHeader(t *testing.T) {
-	var seen string
+	var seen syntax.DID
 	h := Authenticated(&auth.MockAuthService{DefaultDID: "did:plc:default"}, discardLogger())(passthroughHandler(&seen))
 	req := httptest.NewRequest("GET", "/whoami", nil)
 	rec := httptest.NewRecorder()
@@ -38,7 +40,7 @@ func TestAuthenticated_RejectsMissingHeader(t *testing.T) {
 }
 
 func TestAuthenticated_RejectsMalformedHeader(t *testing.T) {
-	var seen string
+	var seen syntax.DID
 	h := Authenticated(&auth.MockAuthService{DefaultDID: "did:plc:default"}, discardLogger())(passthroughHandler(&seen))
 	req := httptest.NewRequest("GET", "/whoami", nil)
 	req.Header.Set("Authorization", "Token abc")
@@ -50,7 +52,7 @@ func TestAuthenticated_RejectsMalformedHeader(t *testing.T) {
 }
 
 func TestAuthenticated_RejectsEmptyBearer(t *testing.T) {
-	var seen string
+	var seen syntax.DID
 	h := Authenticated(&auth.MockAuthService{DefaultDID: "did:plc:default"}, discardLogger())(passthroughHandler(&seen))
 	req := httptest.NewRequest("GET", "/whoami", nil)
 	req.Header.Set("Authorization", "Bearer ")
@@ -62,7 +64,7 @@ func TestAuthenticated_RejectsEmptyBearer(t *testing.T) {
 }
 
 func TestAuthenticated_MockSuccessUsesDefaultDID(t *testing.T) {
-	var seen string
+	var seen syntax.DID
 	h := Authenticated(&auth.MockAuthService{DefaultDID: "did:plc:default"}, discardLogger())(passthroughHandler(&seen))
 	req := httptest.NewRequest("GET", "/whoami", nil)
 	req.Header.Set("Authorization", "Bearer anything")
@@ -77,7 +79,7 @@ func TestAuthenticated_MockSuccessUsesDefaultDID(t *testing.T) {
 }
 
 func TestAuthenticated_MockHonoursXDevDID(t *testing.T) {
-	var seen string
+	var seen syntax.DID
 	h := Authenticated(&auth.MockAuthService{DefaultDID: "did:plc:default"}, discardLogger())(passthroughHandler(&seen))
 	req := httptest.NewRequest("GET", "/whoami", nil)
 	req.Header.Set("Authorization", "Bearer anything")
@@ -92,6 +94,21 @@ func TestAuthenticated_MockHonoursXDevDID(t *testing.T) {
 	}
 }
 
+// A malformed X-Dev-DID is rejected at the boundary rather than silently
+// dropped — surfacing the bug to the dev who set the header.
+func TestAuthenticated_RejectsMalformedXDevDID(t *testing.T) {
+	var seen syntax.DID
+	h := Authenticated(&auth.MockAuthService{DefaultDID: "did:plc:default"}, discardLogger())(passthroughHandler(&seen))
+	req := httptest.NewRequest("GET", "/whoami", nil)
+	req.Header.Set("Authorization", "Bearer anything")
+	req.Header.Set("X-Dev-DID", "not-a-did")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
+}
+
 // errorAuthSvc always returns an auth error regardless of token, standing in
 // for any service that rejects every token (e.g. invalid token, revoked, etc.).
 type errorAuthSvc struct{ err error }
@@ -101,7 +118,7 @@ func (e *errorAuthSvc) Authenticate(_ context.Context, _ string) (auth.AuthInfo,
 }
 
 func TestAuthenticated_AlwaysErroringServiceReturns401(t *testing.T) {
-	var seen string
+	var seen syntax.DID
 	h := Authenticated(&errorAuthSvc{err: auth.ErrAuthTokenInvalid}, discardLogger())(passthroughHandler(&seen))
 	req := httptest.NewRequest("GET", "/whoami", nil)
 	req.Header.Set("Authorization", "Bearer anything")
@@ -121,7 +138,7 @@ func TestAuthenticated_AlwaysErroringServiceReturns401(t *testing.T) {
 
 // fakeAuthSvc is a minimal AuthService that returns a fixed DID and session ID.
 type fakeAuthSvc struct {
-	did    string
+	did    syntax.DID
 	sessID string
 }
 
@@ -131,7 +148,8 @@ func (f *fakeAuthSvc) Authenticate(_ context.Context, _ string) (auth.AuthInfo, 
 
 func TestAuthenticatedInjectsOAuthSessionID(t *testing.T) {
 	svc := &fakeAuthSvc{did: "did:plc:xyz", sessID: "sess-123"}
-	var gotDID, gotSID string
+	var gotDID syntax.DID
+	var gotSID string
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotDID, _ = GetDID(r.Context())
 		gotSID, _ = GetOAuthSessionID(r.Context())

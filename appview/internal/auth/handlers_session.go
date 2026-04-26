@@ -43,6 +43,12 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 				ctxkeys.GetRunID(r.Context()), nil)
 			return
 		}
+		if _, err := syntax.ParseHandle(req.Handle); err != nil {
+			envelope.WriteError(w, http.StatusBadRequest, "invalid_handle",
+				"handle is malformed",
+				ctxkeys.GetRunID(r.Context()), nil)
+			return
+		}
 		if req.HandoffMode != "deep_link" && req.HandoffMode != "loopback" {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_handoff_mode",
 				"handoffMode must be deep_link or loopback",
@@ -146,14 +152,11 @@ func (h *HTTPHandlers) loadHandoff(ctx context.Context, state string) (mode stri
 	return
 }
 
-// oauthLogout is a small wrapper that parses+validates the DID before
-// calling indigo's Logout. Used by LogoutHandler (?all=true path).
-func (h *HTTPHandlers) oauthLogout(ctx context.Context, did, sessionID string) error {
-	parsed, err := syntax.ParseDID(did)
-	if err != nil {
-		return err
-	}
-	return h.OAuth.Logout(ctx, parsed, sessionID)
+// oauthLogout is a thin wrapper around indigo's Logout. The DID has
+// already been parsed at the auth boundary, so no extra validation is
+// needed here.
+func (h *HTTPHandlers) oauthLogout(ctx context.Context, did syntax.DID, sessionID string) error {
+	return h.OAuth.Logout(ctx, did, sessionID)
 }
 
 // bearerToken extracts the Bearer token from the Authorization header.
@@ -169,7 +172,7 @@ func bearerToken(r *http.Request) string {
 
 // authInfoFromCtx pulls DID and OAuth session ID off the context.
 // Assumes the request has passed through middleware.Authenticated.
-func authInfoFromCtx(ctx context.Context) (did string, sid string, ok bool) {
+func authInfoFromCtx(ctx context.Context) (did syntax.DID, sid string, ok bool) {
 	did, ok = ctxkeys.GetDID(ctx)
 	if !ok {
 		return "", "", false
@@ -200,7 +203,7 @@ func (h *HTTPHandlers) LogoutHandler() http.Handler {
 			if sid != "" {
 				if err := h.oauthLogout(r.Context(), did, sid); err != nil {
 					h.Logger.Warn("oauth.Logout failed; revoke-all will cover",
-						slog.String("did", did),
+						slog.String("did", did.String()),
 						slog.String("session_id", sid),
 						slog.String("err", err.Error()))
 				}
@@ -208,8 +211,8 @@ func (h *HTTPHandlers) LogoutHandler() http.Handler {
 			// Step 2: belt-and-braces. If Logout succeeded, the cascade
 			// already deleted these rows and RevokeAll is a no-op. If
 			// Logout failed, this at least invalidates local tokens.
-			if err := h.CraftskySessions.RevokeAll(r.Context(), did); err != nil {
-				h.Logger.Error("RevokeAll failed", slog.String("did", did), slog.String("err", err.Error()))
+			if err := h.CraftskySessions.RevokeAll(r.Context(), did.String()); err != nil {
+				h.Logger.Error("RevokeAll failed", slog.String("did", did.String()), slog.String("err", err.Error()))
 				envelope.WriteError(w, http.StatusInternalServerError, "internal",
 					"internal error",
 					ctxkeys.GetRunID(r.Context()), nil)

@@ -42,7 +42,7 @@ func NewCraftskyProfile(pool *pgxpool.Pool, backfiller BlueskyBackfiller, logger
 	return &CraftskyProfile{pool: pool, backfiller: backfiller, logger: logger}
 }
 
-const craftskyProfileNSID = "social.craftsky.actor.profile"
+const craftskyProfileNSID syntax.NSID = "social.craftsky.actor.profile"
 
 // craftskyProfileRecord mirrors the subset of social.craftsky.actor.profile
 // that the indexer cares about.
@@ -90,16 +90,10 @@ func (c *CraftskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 		}
 		// Genuine new-row INSERT. Trigger one-shot Bluesky backfill;
 		// errors are logged and swallowed so the craftsky event is still
-		// acked by Tap.
-		did, parseErr := syntax.ParseDID(ev.DID)
-		if parseErr != nil {
-			c.logger.Warn("craftsky profile: cannot parse DID for backfill",
-				slog.String("did", ev.DID), slog.String("err", parseErr.Error()))
-			return nil
-		}
-		if bfErr := c.backfiller.Backfill(ctx, did); bfErr != nil {
+		// acked by Tap. ev.DID is already validated at the WS boundary.
+		if bfErr := c.backfiller.Backfill(ctx, ev.DID); bfErr != nil {
 			c.logger.Warn("craftsky profile: bluesky backfill failed",
-				slog.String("did", ev.DID), slog.String("err", bfErr.Error()))
+				slog.String("did", ev.DID.String()), slog.String("err", bfErr.Error()))
 		}
 		return nil
 	case "delete":
@@ -111,7 +105,7 @@ func (c *CraftskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 
 // handleDelete removes the craftsky_profiles row and its bluesky_profiles
 // mirror in a single transaction. See spec §3.1.
-func (c *CraftskyProfile) handleDelete(ctx context.Context, did string) error {
+func (c *CraftskyProfile) handleDelete(ctx context.Context, did syntax.DID) error {
 	return pgx.BeginFunc(ctx, c.pool, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx,
 			`DELETE FROM craftsky_profiles WHERE did = $1`, did); err != nil {

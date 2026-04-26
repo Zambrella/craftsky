@@ -3,7 +3,11 @@
 // the import cycle that would arise if auth imported middleware.
 package ctxkeys
 
-import "context"
+import (
+	"context"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
+)
 
 // contextKey is a private named type so these keys never collide with
 // keys from other packages.
@@ -18,8 +22,8 @@ const (
 
 // GetDID extracts the authenticated DID from ctx.
 // Returns ("", false) if not present.
-func GetDID(ctx context.Context) (string, bool) {
-	did, ok := ctx.Value(DIDKey).(string)
+func GetDID(ctx context.Context) (syntax.DID, bool) {
+	did, ok := ctx.Value(DIDKey).(syntax.DID)
 	return did, ok
 }
 
@@ -31,7 +35,7 @@ func GetOAuthSessionID(ctx context.Context) (string, bool) {
 }
 
 // WithDID stores did in ctx under DIDKey.
-func WithDID(ctx context.Context, did string) context.Context {
+func WithDID(ctx context.Context, did syntax.DID) context.Context {
 	return context.WithValue(ctx, DIDKey, did)
 }
 

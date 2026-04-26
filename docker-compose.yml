@@ -115,7 +115,10 @@ services:
       ALLOWED_ORIGINS: "*"
       CRAFTSKY_DEV_DID: did:plc:craftsky-dev-user
     ports:
-      - "8080:8080"
+      # Host 18080 → container 8080. Host port differs from the internal
+      # listen port to avoid colliding with other dev servers commonly on
+      # :8080. Update .zed/tasks.json's CRAFTSKY_API_BASE_URL to match.
+      - "18080:8080"
 
 volumes:
   pgdata:

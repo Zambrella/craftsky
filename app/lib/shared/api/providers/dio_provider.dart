@@ -10,8 +10,13 @@ part 'dio_provider.g.dart';
 /// Android emulator maps the host machine to 10.0.2.2. iOS simulator
 /// reaches localhost directly. Android is the more common footgun so
 /// it's the default; iOS devs pass
-/// --dart-define=CRAFTSKY_API_BASE_URL=http://localhost:8080.
-const _devDefaultBaseUrl = 'http://10.0.2.2:8080';
+/// --dart-define=CRAFTSKY_API_BASE_URL=http://localhost:18080.
+///
+/// Port 18080 (not 8080) matches the host-side mapping in
+/// docker-compose.yml — the appview container still listens on 8080
+/// internally but is published on 18080 to avoid colliding with other
+/// dev servers.
+const _devDefaultBaseUrl = 'http://10.0.2.2:18080';
 
 const _baseUrl = String.fromEnvironment(
   'CRAFTSKY_API_BASE_URL',

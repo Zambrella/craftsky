@@ -13,11 +13,14 @@
   // Each `flutter run` task injects CRAFTSKY_API_BASE_URL via --dart-define
   // so the app knows where to reach the AppView in dev. Chrome / macOS /
   // iOS simulator all resolve "localhost" to the host machine, so they use
-  // http://localhost:8080. The Android emulator task uses 10.0.2.2:8080
+  // http://localhost:18080. The Android emulator task uses 10.0.2.2:18080
   // because Android routes localhost to the emulator itself, not the host.
-  // (The in-code debug default — `http://10.0.2.2:8080` — still applies if
+  // (The in-code debug default — `http://10.0.2.2:18080` — still applies if
   // a task runs without --dart-define; we set it explicitly so release
   // builds launched from Zed don't throw `StateError`.)
+  //
+  // Port 18080 is the host-side mapping in docker-compose.yml; the
+  // appview container itself listens on 8080 internally.
   {
     "label": "flutter run — Chrome",
     "command": "flutter",
@@ -25,7 +28,7 @@
       "run",
       "-d",
       "chrome",
-      "--dart-define=CRAFTSKY_API_BASE_URL=http://localhost:8080"
+      "--dart-define=CRAFTSKY_API_BASE_URL=http://localhost:18080"
     ],
     "cwd": "$ZED_WORKTREE_ROOT/app",
     "use_new_terminal": true,
@@ -40,7 +43,7 @@
     "command": "flutter",
     "args": [
       "run",
-      "--dart-define=CRAFTSKY_API_BASE_URL=http://localhost:8080"
+      "--dart-define=CRAFTSKY_API_BASE_URL=http://localhost:18080"
     ],
     "cwd": "$ZED_WORKTREE_ROOT/app",
     "use_new_terminal": true,
@@ -57,7 +60,7 @@
       "run",
       "-d",
       "macos",
-      "--dart-define=CRAFTSKY_API_BASE_URL=http://localhost:8080"
+      "--dart-define=CRAFTSKY_API_BASE_URL=http://localhost:18080"
     ],
     "cwd": "$ZED_WORKTREE_ROOT/app",
     "use_new_terminal": true,
@@ -74,7 +77,7 @@
       "run",
       "-d",
       "ios",
-      "--dart-define=CRAFTSKY_API_BASE_URL=http://localhost:8080"
+      "--dart-define=CRAFTSKY_API_BASE_URL=http://localhost:18080"
     ],
     "cwd": "$ZED_WORKTREE_ROOT/app",
     "use_new_terminal": true,
@@ -91,7 +94,7 @@
       "run",
       "-d",
       "emulator",
-      "--dart-define=CRAFTSKY_API_BASE_URL=http://10.0.2.2:8080"
+      "--dart-define=CRAFTSKY_API_BASE_URL=http://10.0.2.2:18080"
     ],
     "cwd": "$ZED_WORKTREE_ROOT/app",
     "use_new_terminal": true,
@@ -109,7 +112,7 @@
     "command": "flutter",
     "args": [
       "run",
-      "--dart-define=CRAFTSKY_API_BASE_URL=http://localhost:8080"
+      "--dart-define=CRAFTSKY_API_BASE_URL=http://localhost:18080"
     ],
     "cwd": "$ZED_WORKTREE_ROOT/app",
     "use_new_terminal": true,

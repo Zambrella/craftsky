@@ -313,3 +313,47 @@ func TestWSConsumer_PoisonPillIsDroppedAfterMaxRetries(t *testing.T) {
 type alwaysFailIndexer struct{}
 
 func (alwaysFailIndexer) Handle(ctx context.Context, ev tap.Event) error { return errTest }
+
+// TestWSConsumer_MalformedIdentifierAcksAndDrops covers the boundary
+// validation added when Event fields became typed via indigo syntax types.
+// A frame with an invalid NSID can never be successfully indexed, so the
+// consumer must ack-and-drop rather than letting Tap redeliver forever.
+func TestWSConsumer_MalformedIdentifierAcksAndDrops(t *testing.T) {
+	t.Parallel()
+
+	// "x" is a valid DID prefix but "not-an-nsid!" fails syntax.ParseNSID.
+	frames := []string{
+		`{"id":7,"type":"record","record":{"live":true,"rev":"r","did":"did:plc:a","collection":"not-an-nsid!","rkey":"k","action":"create","cid":"bafy","record":{}}}`,
+	}
+	ft := newFakeTap(frames)
+	srv := httptest.NewServer(ft.handler(t))
+	defer srv.Close()
+
+	wsURL := strings.Replace(srv.URL, "http://", "ws://", 1)
+
+	idx := &fakeIndexer{}
+	c := tap.NewWSConsumer(tap.WSConsumerConfig{
+		URL:          wsURL,
+		Indexer:      idx,
+		AckTimeout:   1 * time.Second,
+		ReconnectMax: 500 * time.Millisecond,
+		MaxRetries:   5,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go c.Run(ctx)
+
+	// Expect an ack despite the indexer never being called.
+	select {
+	case id := <-ft.acks:
+		if id != 7 {
+			t.Fatalf("ack id=%d, want 7", id)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("timeout waiting for ack of malformed event")
+	}
+	if got := len(idx.Events()); got != 0 {
+		t.Errorf("indexer received %d events for malformed envelope; want 0", got)
+	}
+}

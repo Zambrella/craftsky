@@ -3,19 +3,24 @@ package api
 
 import (
 	"time"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
 // ProfileResponse is the JSON shape returned by all three profile
 // endpoints. Fields tagged `omitempty` are omitted from the wire when nil.
+//
+// syntax.DID and syntax.Handle JSON-marshal via TextMarshaler — the
+// wire shape is the same plain-string JSON it always was.
 type ProfileResponse struct {
-	DID         string     `json:"did"`
-	Handle      string     `json:"handle"`
-	DisplayName *string    `json:"displayName,omitempty"`
-	Description *string    `json:"description,omitempty"`
-	Avatar      *string    `json:"avatar,omitempty"`
-	Banner      *string    `json:"banner,omitempty"`
-	Crafts      []string   `json:"crafts"`
-	CreatedAt   *time.Time `json:"createdAt,omitempty"`
+	DID         syntax.DID    `json:"did"`
+	Handle      syntax.Handle `json:"handle"`
+	DisplayName *string       `json:"displayName,omitempty"`
+	Description *string       `json:"description,omitempty"`
+	Avatar      *string       `json:"avatar,omitempty"`
+	Banner      *string       `json:"banner,omitempty"`
+	Crafts      []string      `json:"crafts"`
+	CreatedAt   *time.Time    `json:"createdAt,omitempty"`
 }
 
 // mimeExt maps the MIME types we know Bluesky's CDN serves into the
@@ -33,13 +38,16 @@ var mimeExt = map[string]string{
 // freshly-resolved handle. When includeCreatedAt is false, CreatedAt is
 // nil — used by the PUT response path, which must not emit this field
 // (see §5.3 of the spec).
-func BuildProfileResponse(row *ProfileRow, handle string, includeCreatedAt bool) ProfileResponse {
+//
+// row.DID is direct-cast to syntax.DID — we own the database, and DIDs
+// are written from typed values via the indexer path.
+func BuildProfileResponse(row *ProfileRow, handle syntax.Handle, includeCreatedAt bool) ProfileResponse {
 	crafts := row.Crafts
 	if crafts == nil {
 		crafts = []string{}
 	}
 	out := ProfileResponse{
-		DID:         row.DID,
+		DID:         syntax.DID(row.DID),
 		Handle:      handle,
 		DisplayName: row.DisplayName,
 		Description: row.Description,
