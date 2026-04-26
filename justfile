@@ -51,3 +51,29 @@ fmt:
 # Paste into your local prod-style .env; never commit.
 oauth-keygen:
     cd appview && go run ./cmd/cli oauth-keygen
+
+# Regenerate Go types from lexicon/ JSON schemas.
+# Two-phase: indigo lexgen (struct shapes) → cbor-gen (CBOR methods).
+# Both phases overwrite checked-in files under appview/internal/lexicon/craftsky/.
+# Commit the result. See docs/superpowers/specs/2026-04-26-lexicon-codegen-design.md.
+lexgen:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd appview
+    # Pin lexgen to whatever indigo version go.mod resolves to. `go list -m`
+    # output is "<module> <version>" — awk strips the module prefix.
+    INDIGO_INFO=$(go list -m github.com/bluesky-social/indigo)
+    INDIGO_VERSION=$(echo "$INDIGO_INFO" | awk '{print $2}')
+    INDIGO_DIR=$(go env GOMODCACHE)/github.com/bluesky-social/indigo@$INDIGO_VERSION
+    go run github.com/bluesky-social/indigo/cmd/lexgen@$INDIGO_VERSION \
+      --build-file cmd/lexgen/build.json \
+      --external-lexicons "$INDIGO_DIR/lexicons/app/bsky/richtext/facet.json" \
+      --external-lexicons "$INDIGO_DIR/lexicons/com/atproto/repo/strongRef.json" \
+      ../lexicon/social/craftsky
+    go run ./cmd/lexgen/cborgen
+    gofmt -w internal/lexicon/craftsky
+
+# Drift guard: regenerate and fail if the working tree changes.
+# Wire into CI when CI exists.
+lexgen-check: lexgen
+    git diff --exit-code appview/internal/lexicon/craftsky appview/cmd/lexgen

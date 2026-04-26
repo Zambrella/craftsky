@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -44,19 +45,13 @@ func NewCraftskyProfile(pool *pgxpool.Pool, backfiller BlueskyBackfiller, logger
 
 const craftskyProfileNSID syntax.NSID = "social.craftsky.actor.profile"
 
-// craftskyProfileRecord mirrors the subset of social.craftsky.actor.profile
-// that the indexer cares about.
-type craftskyProfileRecord struct {
-	Crafts []string `json:"crafts"`
-}
-
 func (c *CraftskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 	if ev.Collection != craftskyProfileNSID {
 		return nil
 	}
 	switch ev.Action {
 	case "create", "update":
-		var rec craftskyProfileRecord
+		var rec craftskylex.ActorProfile
 		if err := json.Unmarshal(ev.Record, &rec); err != nil {
 			return fmt.Errorf("unmarshal %s: %w", ev.URI, err)
 		}

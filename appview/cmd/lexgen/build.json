@@ -1,0 +1,20 @@
+[
+  {
+    "package": "craftsky",
+    "prefix": "social.craftsky",
+    "outdir": "internal/lexicon/craftsky",
+    "import": "social.craftsky/appview/internal/lexicon/craftsky"
+  },
+  {
+    "package": "bsky",
+    "prefix": "app.bsky",
+    "outdir": "_external_bsky_unused",
+    "import": "github.com/bluesky-social/indigo/api/bsky"
+  },
+  {
+    "package": "atproto",
+    "prefix": "com.atproto",
+    "outdir": "_external_atproto_unused",
+    "import": "github.com/bluesky-social/indigo/api/atproto"
+  }
+]
