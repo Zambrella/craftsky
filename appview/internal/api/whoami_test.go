@@ -10,17 +10,21 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
 )
 
 type stubResolver struct {
-	handle string
+	handle syntax.Handle
 	err    error
 }
 
-func (s stubResolver) ResolveHandle(ctx context.Context, did string) (string, error) {
+func (s stubResolver) ResolveHandle(_ context.Context, _ syntax.DID) (syntax.Handle, error) {
 	return s.handle, s.err
+}
+func (s stubResolver) ResolveDID(_ context.Context, _ syntax.Handle) (syntax.DID, error) {
+	return "", nil
 }
 
 // testLogger returns a slog.Logger that discards output but preserves
@@ -31,7 +35,7 @@ func testLogger(t *testing.T) *slog.Logger {
 }
 
 func TestWhoAmI_HappyPath(t *testing.T) {
-	h := WhoAmIHandler(stubResolver{handle: "alice.example"}, testLogger(t))
+	h := WhoAmIHandler(stubResolver{handle: syntax.Handle("alice.example")}, testLogger(t))
 	req := httptest.NewRequest(http.MethodGet, "/v1/whoami", nil)
 	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:abc"))
 	rr := httptest.NewRecorder()
@@ -53,7 +57,7 @@ func TestWhoAmI_HappyPath(t *testing.T) {
 }
 
 func TestWhoAmI_DirectoryUnavailable(t *testing.T) {
-	h := WhoAmIHandler(stubResolver{err: errors.New("plc down")}, testLogger(t))
+	h := WhoAmIHandler(stubResolver{handle: "", err: errors.New("plc down")}, testLogger(t))
 	req := httptest.NewRequest(http.MethodGet, "/v1/whoami", nil)
 	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:abc"))
 	rr := httptest.NewRecorder()
@@ -72,7 +76,7 @@ func TestWhoAmI_DirectoryUnavailable(t *testing.T) {
 }
 
 func TestWhoAmI_NoDIDInContext(t *testing.T) {
-	h := WhoAmIHandler(stubResolver{handle: "unused"}, testLogger(t))
+	h := WhoAmIHandler(stubResolver{handle: syntax.Handle("unused")}, testLogger(t))
 	req := httptest.NewRequest(http.MethodGet, "/v1/whoami", nil)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)

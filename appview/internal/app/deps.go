@@ -6,9 +6,11 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api"
@@ -44,6 +46,13 @@ type Deps struct {
 
 	Consumer tap.Consumer
 	Indexer  index.Indexer
+
+	// ProfileStore serves the /v1/profiles endpoints.
+	ProfileStore *api.ProfileStore
+	// NewPDSClient produces a PDSClient bound to an OAuth session. Shared
+	// by the OAuth callback's InitializeProfile step and the write-proxy
+	// handlers (today PUT /v1/profiles/me).
+	NewPDSClient auth.PDSClientFactory
 }
 
 // NewDevDeps wires the dev variant: debug-level logger, StackedAuthService
@@ -106,10 +115,13 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	// indigo provides an in-process cache via DefaultDirectory.
 	identityDir := identity.DefaultDirectory()
 
-	blueskySample := index.NewBlueskyPostsSample(pool)
-
 	dispatcher := index.NewDispatcher(index.NotImplemented{})
-	dispatcher.Register("app.bsky.feed.post", blueskySample)
+	anonPDS := auth.NewAnonymousPDSClient(identityDir, 5*time.Second)
+	blueskyIdx := index.NewBlueskyProfile(pool)
+	backfiller := index.NewBlueskyBackfiller(anonPDS, blueskyIdx)
+	dispatcher.Register("social.craftsky.actor.profile",
+		index.NewCraftskyProfile(pool, backfiller, logger))
+	dispatcher.Register("app.bsky.actor.profile", blueskyIdx)
 
 	deps := &Deps{
 		Config:               cfg,
@@ -131,6 +143,15 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		MaxRetries:   cfg.TapMaxRetries,
 		Logger:       logger,
 	})
+
+	deps.ProfileStore = api.NewProfileStore(pool)
+	deps.NewPDSClient = func(ctx context.Context, did syntax.DID, sid string) (auth.PDSClient, error) {
+		sess, err := oauthApp.ResumeSession(ctx, did, sid)
+		if err != nil {
+			return nil, err
+		}
+		return &auth.IndigoPDSClient{Client: sess.APIClient()}, nil
+	}
 
 	var once sync.Once
 	cleanup := func() {

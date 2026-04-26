@@ -23,6 +23,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		deps.DB,
 		deps.Logger,
 		deps.Config.Env == app.EnvDev,
+		deps.NewPDSClient,
 	)
 	mux.Handle("GET /oauth/client-metadata.json", oauthHandlers.ClientMetadataHandler())
 	mux.Handle("GET /oauth/jwks.json", oauthHandlers.JWKSHandler())
@@ -38,6 +39,12 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	// v1 — authenticated + device-id required.
 	mux.Handle("GET /v1/whoami", authN(deviceID(api.WhoAmIHandler(deps.HandleResolver, deps.Logger))))
 	mux.Handle("POST /v1/auth/logout", authN(deviceID(oauthHandlers.LogoutHandler())))
+	mux.Handle("GET /v1/profiles/{handleOrDid}",
+		authN(deviceID(api.GetProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger))))
+	mux.Handle("GET /v1/profiles/me",
+		authN(deviceID(api.GetMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger))))
+	mux.Handle("PUT /v1/profiles/me",
+		authN(deviceID(api.PutMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger))))
 
 	// Fallthrough.
 	mux.Handle("/", http.NotFoundHandler())

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -13,11 +14,37 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
 )
+
+// noopPDSClient satisfies auth.PDSClient without touching any real PDS.
+// Used by handlersFixture so the OAuth callback tests that don't care
+// about onboarding-on-login don't fail in InitializeProfile. GetRecord
+// returns 404 (record missing), causing InitializeProfile to emit an
+// empty-Craftsky-profile write — which also returns nil here, a no-op.
+type noopPDSClient struct{}
+
+func (noopPDSClient) GetRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) (string, error) {
+	return "", auth.ErrRecordNotFound
+}
+func (noopPDSClient) PutRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error {
+	return nil
+}
+
+// erroringGetPDSClient always errors on GetRecord (non-404). Used to
+// exercise InitializeProfile's error propagation.
+type erroringGetPDSClient struct{}
+
+func (erroringGetPDSClient) GetRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) (string, error) {
+	return "", errors.New("boom")
+}
+func (erroringGetPDSClient) PutRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error {
+	return nil
+}
 
 // handlersFixture builds a test HTTPHandlers backed by a real
 // oauth.ClientApp built from BuildClientConfig, and the Postgres
@@ -33,7 +60,10 @@ func handlersFixture(t *testing.T, hostname string) *auth.HTTPHandlers {
 	oauthApp := oauth.NewClientApp(&cfg, store)
 	craftsky := auth.NewCraftskySessionStore(pool, 5*time.Minute)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	return auth.NewHTTPHandlers(oauthApp, craftsky, pool, logger, true /* devMode */)
+	noopPDS := func(_ context.Context, _ syntax.DID, _ string) (auth.PDSClient, error) {
+		return noopPDSClient{}, nil
+	}
+	return auth.NewHTTPHandlers(oauthApp, craftsky, pool, logger, true /* devMode */, noopPDS)
 }
 
 func TestClientMetadata_Localhost(t *testing.T) {
@@ -253,5 +283,16 @@ func TestCallbackTemplate_XSSRegression(t *testing.T) {
 		// as the surrounding quotes are intact. The check above already
 		// catches a broken-out script tag.
 		t.Logf("note: 'alert(1)' literal appears in output — fine if inside a JS string literal. Rendered:\n%s", out)
+	}
+}
+
+func TestInitializeProfile_BlueskyErrorPropagates(t *testing.T) {
+	// Lightweight alternative to driving ProcessCallback end-to-end:
+	// verify the error-path wiring by invoking the function directly.
+	// The callback happy path is exercised by the existing tests that
+	// use handlersFixture's noopPDSClient.
+	err := auth.InitializeProfile(context.Background(), erroringGetPDSClient{}, syntax.DID("did:plc:me"))
+	if !errors.Is(err, auth.ErrProfileInitFailed) {
+		t.Fatalf("want ErrProfileInitFailed; got %v", err)
 	}
 }

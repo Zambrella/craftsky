@@ -46,7 +46,18 @@ services:
     environment:
       TAP_RELAY_URL: https://relay1.us-east.bsky.network
       TAP_DATABASE_URL: sqlite:///data/tap.db
-      TAP_COLLECTION_FILTERS: "app.bsky.feed.post"
+      # Deliver only the record types our indexers register — see
+      # appview/internal/app/deps.go (dispatcher.Register calls).
+      # Widening this requires a matching indexer on the appview side,
+      # otherwise events hit index.NotImplemented{} and Tap retries forever.
+      TAP_COLLECTION_FILTERS: "social.craftsky.actor.profile,app.bsky.actor.profile"
+      # Auto-discover any repo with a Craftsky profile record. Once a
+      # user onboards (InitializeProfile writes social.craftsky.actor.profile
+      # via the OAuth callback) the firehose event triggers Tap to add the
+      # repo to its watch list and backfill existing records. The static
+      # tap-bootstrap below still seeds a handful of known dev DIDs for a
+      # fast first-boot path but is now redundant for real users.
+      TAP_SIGNAL_COLLECTION: "social.craftsky.actor.profile"
       TAP_LOG_LEVEL: info
       TAP_NO_REPLAY: "true"
     volumes:
@@ -57,6 +68,16 @@ services:
       timeout: 3s
       retries: 10
 
+  # tap-bootstrap is now mostly redundant: TAP_SIGNAL_COLLECTION on the
+  # tap service auto-discovers any repo that writes a Craftsky profile
+  # record. We keep it as a backfill helper for repos that wrote their
+  # profile record BEFORE signal-collection was configured — Tap only
+  # discovers on live firehose events, so pre-existing records don't get
+  # ingested until the user writes again. Explicitly POSTing a DID to
+  # /repos/add triggers a one-time resync that pulls their existing
+  # records.
+  #
+  # Add dev DIDs here as needed; real users don't need an entry.
   tap-bootstrap:
     image: curlimages/curl:8.9.1
     depends_on:
@@ -68,7 +89,7 @@ services:
       - |
         curl -fsS -X POST http://tap:2480/repos/add \
           -H "Content-Type: application/json" \
-          -d '{"dids":["did:plc:z72i7hdynmk6r22z27h6tvur","did:plc:oky5czdrnfjpqslsw2a5iclo","did:plc:jt3cxdyrhjhrkpwzdvonheax","did:plc:ooensn4mr5mhznzypvxelfa3"]}'
+          -d '{"dids":["did:plc:jt3cxdyrhjhrkpwzdvonheax"]}'
 
   appview:
     build:
