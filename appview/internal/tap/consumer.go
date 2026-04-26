@@ -265,6 +265,14 @@ func (c *WSConsumer) runOnce(ctx context.Context) error {
 				}
 				continue
 			}
+			c.logger.Debug("tap record event received",
+				slog.Uint64("id", ev.ID),
+				slog.String("action", ev.Action),
+				slog.String("collection", ev.Collection.String()),
+				slog.String("did", ev.DID.String()),
+				slog.String("rkey", ev.Rkey.String()),
+				slog.Int("recordBytes", len(ev.Record)),
+			)
 			if err := c.handleWithTimeout(ctx, ev); err != nil {
 				c.logger.Error("indexer handle failed",
 					slog.String("uri", ev.URI.String()),

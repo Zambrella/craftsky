@@ -2,6 +2,8 @@ package index
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -45,10 +47,18 @@ func (d *Dispatcher) Register(collection syntax.NSID, idx Indexer) {
 // Handle routes ev to the indexer registered for ev.Collection, or to
 // the fallback if none matches. Downstream errors propagate unchanged.
 func (d *Dispatcher) Handle(ctx context.Context, ev tap.Event) error {
-	if h, ok := d.handlers[ev.Collection]; ok {
-		return h.Handle(ctx, ev)
+	h, ok := d.handlers[ev.Collection]
+	if !ok {
+		h = d.fallback
 	}
-	return d.fallback.Handle(ctx, ev)
+	slog.Default().Debug("dispatch indexer",
+		slog.String("collection", ev.Collection.String()),
+		slog.String("action", ev.Action),
+		slog.String("uri", ev.URI.String()),
+		slog.String("indexer", fmt.Sprintf("%T", h)),
+		slog.Bool("fallback", !ok),
+	)
+	return h.Handle(ctx, ev)
 }
 
 var _ Indexer = (*Dispatcher)(nil)
