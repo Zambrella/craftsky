@@ -61,11 +61,11 @@ func (b *blueskyBackfiller) Backfill(ctx context.Context, did syntax.DID) error 
 		return fmt.Errorf("backfill marshal %s: %w", did, err)
 	}
 	ev := tap.Event{
-		URI:        "at://" + did.String() + "/app.bsky.actor.profile/self",
-		CID:        cid,
-		DID:        did.String(),
-		Rkey:       "self",
+		URI:        syntax.ATURI("at://" + did.String() + "/app.bsky.actor.profile/self"),
+		CID:        syntax.CID(cid),
+		DID:        did,
 		Collection: "app.bsky.actor.profile",
+		Rkey:       "self",
 		Action:     "create",
 		Record:     raw,
 	}

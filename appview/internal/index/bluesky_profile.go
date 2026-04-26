@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/tap"
@@ -25,7 +26,7 @@ func NewBlueskyProfile(pool *pgxpool.Pool) *BlueskyProfile {
 	return &BlueskyProfile{pool: pool}
 }
 
-const blueskyProfileNSID = "app.bsky.actor.profile"
+const blueskyProfileNSID syntax.NSID = "app.bsky.actor.profile"
 
 // blueskyBlobRef is the atproto blob-reference shape carried inside an
 // app.bsky.actor.profile record. We only need the CID link and MIME type.
@@ -108,7 +109,7 @@ func (b *BlueskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 	}
 }
 
-func (b *BlueskyProfile) isMember(ctx context.Context, did string) (bool, error) {
+func (b *BlueskyProfile) isMember(ctx context.Context, did syntax.DID) (bool, error) {
 	var exists bool
 	err := b.pool.QueryRow(ctx,
 		`SELECT EXISTS (SELECT 1 FROM craftsky_profiles WHERE did = $1)`, did).
