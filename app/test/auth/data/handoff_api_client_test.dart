@@ -1,6 +1,6 @@
+import 'package:craftsky_app/auth/data/handoff_api_client.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
-import 'package:craftsky_app/shared/api/handoff_api_client.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';

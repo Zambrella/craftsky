@@ -1,18 +1,19 @@
+import 'package:craftsky_app/auth/data/auth_api_client.dart';
+import 'package:craftsky_app/auth/data/handoff_api_client.dart';
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/models/pending_auth.dart' as model;
 import 'package:craftsky_app/auth/models/stored_session.dart';
+import 'package:craftsky_app/auth/providers/auth_api_client_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/handoff_api_client_provider.dart';
 import 'package:craftsky_app/auth/providers/pending_auth_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
-import 'package:craftsky_app/shared/api/craftsky_api_client.dart';
-import 'package:craftsky_app/shared/api/handoff_api_client.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
-import 'package:craftsky_app/shared/api/providers/api_client_provider.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,10 +30,10 @@ class _FakeStorage implements SecureTokenStorage {
   Future<void> clear() async => _v = null;
 }
 
-class _FakeCraftskyApi implements CraftskyApiClient {
+class _FakeAuthApi implements AuthApiClient {
   // Allow current tests to omit onWhoami (the default in [whoami] covers
   // the AuthSession background-validation path); future tests can stub it.
-  _FakeCraftskyApi({
+  _FakeAuthApi({
     this.onLogin,
     this.onLogout,
     // Reserved for future tests that want a non-default whoami.
@@ -75,17 +76,17 @@ class _LaunchRecorder {
 
 ProviderContainer _container({
   _FakeStorage? storage,
-  _FakeCraftskyApi? api,
+  _FakeAuthApi? api,
   _FakeHandoffApi? handoff,
   _LaunchRecorder? launch,
 }) {
   storage ??= _FakeStorage();
-  api ??= _FakeCraftskyApi();
+  api ??= _FakeAuthApi();
   launch ??= _LaunchRecorder();
   return ProviderContainer.test(
     overrides: [
       secureTokenStorageProvider.overrideWithValue(storage),
-      craftskyApiClientProvider.overrideWithValue(api),
+      authApiClientProvider.overrideWithValue(api),
       launchAuthUrlProvider.overrideWithValue(launch.launch),
       // Override the handoff family for ANY (token, deviceId) — the
       // test passes a specific token and the override serves that.
@@ -108,7 +109,7 @@ void main() {
 
   test('signIn trims handle + @ prefix and posts to /login', () async {
     final launch = _LaunchRecorder();
-    final api = _FakeCraftskyApi(
+    final api = _FakeAuthApi(
       onLogin: (h) async {
         expect(h, 'alice.bsky.social');
         return const LoginResponse(authUrl: 'https://pds.example.com/a?b=1');
@@ -135,7 +136,7 @@ void main() {
 
   test('signIn maps ApiBadRequest(handle_required) → HandleRequired', () async {
     final container = _container(
-      api: _FakeCraftskyApi(
+      api: _FakeAuthApi(
         onLogin: (_) async => throw const ApiBadRequest('handle_required'),
       ),
     );
@@ -150,7 +151,7 @@ void main() {
 
   test('signIn maps ApiNetworkError → ServerUnavailable', () async {
     final container = _container(
-      api: _FakeCraftskyApi(
+      api: _FakeAuthApi(
         onLogin: (_) async => throw const ApiNetworkError('offline'),
       ),
     );
@@ -168,7 +169,7 @@ void main() {
     () async {
       final launch = _LaunchRecorder()..nextResult = false;
       final container = _container(
-        api: _FakeCraftskyApi(
+        api: _FakeAuthApi(
           onLogin: (_) async => const LoginResponse(authUrl: 'https://x'),
         ),
         launch: launch,
@@ -283,7 +284,7 @@ void main() {
       );
       final container = _container(
         storage: storage,
-        api: _FakeCraftskyApi(
+        api: _FakeAuthApi(
           onLogout: () async => throw const ApiNetworkError('offline'),
         ),
       );

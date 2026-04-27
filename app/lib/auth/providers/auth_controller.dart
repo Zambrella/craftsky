@@ -3,12 +3,13 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
+import 'package:craftsky_app/auth/providers/auth_api_client_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/handoff_api_client_provider.dart';
 import 'package:craftsky_app/auth/providers/pending_auth_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
-import 'package:craftsky_app/shared/api/providers/api_client_provider.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
 import 'package:logging/logging.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -47,7 +48,7 @@ class AuthController extends _$AuthController {
       final trimmed = handle.trim().replaceFirst(RegExp('^@'), '');
       if (trimmed.isEmpty) throw const HandleRequired();
 
-      final api = ref.read(craftskyApiClientProvider);
+      final api = ref.read(authApiClientProvider);
       final LoginResponse response;
       try {
         response = await api.login(handle: trimmed);
@@ -128,7 +129,7 @@ class AuthController extends _$AuthController {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       try {
-        await ref.read(craftskyApiClientProvider).logout();
+        await ref.read(authApiClientProvider).logout();
       } on ApiException catch (e, st) {
         _log.warning('logout network/server error; clearing locally', e, st);
       }

@@ -48,7 +48,7 @@ final class AuthSessionProvider
   AuthSession create() => AuthSession();
 }
 
-String _$authSessionHash() => r'6742931a12780af5f7193be5dea320d681c0b06c';
+String _$authSessionHash() => r'360b560bb30f80b5af7b24da6a0885d15e0bfb01';
 
 /// Sole source of truth for the app's auth state. Cold start reads
 /// secure storage once and emits an optimistic `SignedIn` immediately

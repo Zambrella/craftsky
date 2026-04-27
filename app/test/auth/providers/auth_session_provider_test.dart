@@ -1,13 +1,13 @@
+import 'package:craftsky_app/auth/data/auth_api_client.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
+import 'package:craftsky_app/auth/providers/auth_api_client_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
-import 'package:craftsky_app/shared/api/craftsky_api_client.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
-import 'package:craftsky_app/shared/api/providers/api_client_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -27,7 +27,7 @@ class _FakeStorage implements SecureTokenStorage {
   Future<void> clear() async => _value = null;
 }
 
-class _FakeApi implements CraftskyApiClient {
+class _FakeApi implements AuthApiClient {
   _FakeApi({required this.onWhoami});
   final Future<WhoAmI> Function() onWhoami;
   @override
@@ -42,11 +42,11 @@ class _FakeApi implements CraftskyApiClient {
 
 ProviderContainer _container({
   required SecureTokenStorage storage,
-  CraftskyApiClient? api,
+  AuthApiClient? api,
 }) => ProviderContainer.test(
   overrides: [
     secureTokenStorageProvider.overrideWithValue(storage),
-    if (api != null) craftskyApiClientProvider.overrideWithValue(api),
+    if (api != null) authApiClientProvider.overrideWithValue(api),
   ],
 );
 

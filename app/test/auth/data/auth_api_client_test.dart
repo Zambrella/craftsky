@@ -1,6 +1,6 @@
+import 'package:craftsky_app/auth/data/auth_api_client.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
-import 'package:craftsky_app/shared/api/craftsky_api_client.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,7 +23,7 @@ void main() {
     'handoffMode': 'deep_link',
   };
 
-  group('CraftskyApiClient.login', () {
+  group('AuthApiClient.login', () {
     test('POSTs /v1/auth/login with handle + deep_link handoff', () async {
       final dio = buildDio();
       DioAdapter(dio: dio).onPost(
@@ -35,7 +35,7 @@ void main() {
         data: kLoginBody,
       );
 
-      final res = await CraftskyApiClient(
+      final res = await AuthApiClient(
         dio,
       ).login(handle: 'alice.bsky.social');
 
@@ -53,7 +53,7 @@ void main() {
         );
 
         await expectLater(
-          () => CraftskyApiClient(dio).login(handle: 'alice.bsky.social'),
+          () => AuthApiClient(dio).login(handle: 'alice.bsky.social'),
           throwsA(
             isA<ApiBadRequest>().having(
               (e) => e.code,
@@ -66,7 +66,7 @@ void main() {
     );
   });
 
-  group('CraftskyApiClient.whoami', () {
+  group('AuthApiClient.whoami', () {
     test('GETs /v1/whoami and parses did + handle', () async {
       final dio = buildDio();
       DioAdapter(dio: dio).onGet(
@@ -77,7 +77,7 @@ void main() {
         ),
       );
 
-      final res = await CraftskyApiClient(dio).whoami();
+      final res = await AuthApiClient(dio).whoami();
 
       expect(res.did, 'did:plc:alice');
       expect(res.handle, 'alice.bsky.social');
@@ -91,13 +91,13 @@ void main() {
       );
 
       await expectLater(
-        () => CraftskyApiClient(dio).whoami(),
+        () => AuthApiClient(dio).whoami(),
         throwsA(isA<ApiUnauthorized>()),
       );
     });
   });
 
-  group('CraftskyApiClient.logout', () {
+  group('AuthApiClient.logout', () {
     test('POSTs /v1/auth/logout and returns on 204', () async {
       final dio = buildDio();
       DioAdapter(dio: dio).onPost(
@@ -105,7 +105,7 @@ void main() {
         (server) => server.reply(204, null),
       );
 
-      await CraftskyApiClient(dio).logout();
+      await AuthApiClient(dio).logout();
     });
   });
 }

@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
+import 'package:craftsky_app/auth/providers/auth_api_client_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
-import 'package:craftsky_app/shared/api/providers/api_client_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'auth_session_provider.g.dart';
@@ -34,7 +34,7 @@ class AuthSession extends _$AuthSession {
 
   Future<void> _validateInBackground(StoredSession stored) async {
     try {
-      final api = ref.read(craftskyApiClientProvider);
+      final api = ref.read(authApiClientProvider);
       final who = await api.whoami();
       if (!ref.mounted) return;
 
