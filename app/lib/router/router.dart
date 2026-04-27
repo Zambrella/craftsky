@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/pages/sign_in_page.dart';
@@ -10,7 +12,6 @@ import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/pages/saved_page.dart';
-import 'package:craftsky_app/profile/pages/user_profile_page.dart';
 import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/router/error_screen.dart';
 import 'package:craftsky_app/router/onboarding_refresh_listener.dart';
@@ -18,6 +19,7 @@ import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -330,9 +332,27 @@ class UserProfileRoute extends GoRouteData with $UserProfileRoute {
 
   final String handle;
 
+  /// `/profile/me` is a soft alias — resolves to the signed-in user's
+  /// real handle so deep links remain shareable. When the user is
+  /// signed out, the top-level redirect handles bouncing them to
+  /// `/welcome`.
+  @override
+  FutureOr<String?> redirect(BuildContext context, GoRouterState state) {
+    if (handle != 'me') return null;
+    final auth = ProviderScope.containerOf(
+      context,
+    ).read(authSessionProvider).value;
+    return switch (auth) {
+      SignedIn(handle: final myHandle) => UserProfileRoute(
+        handle: myHandle,
+      ).location,
+      _ => null,
+    };
+  }
+
   @override
   Widget build(BuildContext context, GoRouterState state) =>
-      UserProfilePage(handle: handle);
+      ProfilePage(handle: handle);
 }
 
 extension GoRouterExtension on GoRouter {
