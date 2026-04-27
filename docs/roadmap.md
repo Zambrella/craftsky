@@ -17,7 +17,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] OAuth BFF (client auth, session storage) — [`2026-04-18-appview-oauth-bff-design.md`](superpowers/specs/2026-04-18-appview-oauth-bff-design.md)
 - [x] API architecture (REST, `/v1/` prefix, auth headers, error envelope, pagination) — [`2026-04-21-appview-api-architecture-design.md`](superpowers/specs/2026-04-21-appview-api-architecture-design.md)
 - [ ] Feed: `GET /v1/feed/timeline` → own spec
-- [ ] Profiles: `GET /v1/profiles/@{handleOrDid}`, `GET /v1/profiles/@{handleOrDid}/posts`, `PATCH /v1/profiles/me`, `PUT /v1/profiles/me`, follow/unfollow → own spec (writes go via a shared DPoP-signed PDS helper built on `indigo/atproto/auth/oauth`; spec it as part of the first write endpoint that lands, reuse thereafter)
+- [x] Profiles: `GET /v1/profiles/@{handleOrDid}`, `GET /v1/profiles/@{handleOrDid}/posts`, `PATCH /v1/profiles/me`, `PUT /v1/profiles/me`, follow/unfollow → own spec (writes go via a shared DPoP-signed PDS helper built on `indigo/atproto/auth/oauth`; spec it as part of the first write endpoint that lands, reuse thereafter)
 - [ ] Posts: `GET /v1/posts/{did}/{rkey}`, thread, create, delete, like, unlike → own spec (splits into reads / writes if it gets big; writes use the same shared PDS helper)
 - [ ] Notifications: `GET /v1/notifications` → own spec
 - [ ] Blob upload (required for images on posts) → own spec; may trigger TMB upgrade per OAuth BFF §6

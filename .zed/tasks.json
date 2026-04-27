@@ -8,6 +8,19 @@
 //
 // Docs: https://zed.dev/docs/tasks
 [
+  {
+    "label": "LazyGit",
+    "command": "lazygit",
+    "shell": {
+      "program": "sh"
+    },
+    "hide": "on_success",
+    "reveal_target": "center",
+    "show_summary": false,
+    "show_command": false,
+    "allow_concurrent_runs": true,
+    "use_new_terminal": true
+  },
   // ---------- Flutter run: per-device ----------
   //
   // Each `flutter run` task injects CRAFTSKY_API_BASE_URL via --dart-define
