@@ -6,6 +6,12 @@ Craftsky lets makers — sewers, knitters, quilters, woodworkers, and others —
 
 Domain: **craftsky.social** (app at **app.craftsky.social**). atproto namespace: `social.craftsky.*`.
 
+## Contributing
+
+Craftsky isn't ready for outside code contributions yet — the architecture is still settling and I'm not set up to review PRs. Please don't open one for now; it'll likely sit unmerged.
+
+That said, **discussion is very welcome**. If you have ideas, questions, feedback on the [product vision doc](https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit?usp=sharing), or want to flag something you'd like to see, please open a [GitHub Discussion](../../discussions) or an issue. I'll update this section once the project is ready for code contributions.
+
 ## Architecture
 
 Craftsky follows the standard atproto App View pattern:
@@ -79,3 +85,13 @@ Each subdirectory also has its own README:
 ## Status
 
 Early scaffolding. See [AGENTS.md](AGENTS.md) for agent/contributor guidance.
+
+## License
+
+Craftsky is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
+
+Copyright (C) 2026 Doug Todd.
+
+In short: you're free to use, study, modify, and redistribute the code, including running it as a service. If you run a modified version as a network service, AGPL requires you to offer the source of your modifications to your users. See the [LICENSE](LICENSE) file for the full terms.
+
+If/when external code contributions open up, contributors will be asked to sign a Contributor License Agreement — see [CLA.md](CLA.md) for the current draft.
