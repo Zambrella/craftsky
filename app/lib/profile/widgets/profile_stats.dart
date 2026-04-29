@@ -1,3 +1,4 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -27,11 +28,12 @@ class ProfileStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Row(
       children: [
         _ProfileStat(
           count: followingCount,
-          label: 'following',
+          label: l10n.profileStatsFollowing,
           onTap: onFollowingTap,
         ),
         // 20px sits between sp4(16) and sp5(24) — chosen deliberately
@@ -40,13 +42,13 @@ class ProfileStats extends StatelessWidget {
         const SizedBox(width: 20),
         _ProfileStat(
           count: followerCount,
-          label: 'followers',
+          label: l10n.profileStatsFollowers,
           onTap: onFollowersTap,
         ),
         const SizedBox(width: 20),
         _ProfileStat(
           count: projectCount,
-          label: 'projects',
+          label: l10n.profileStatsProjects,
           onTap: onProjectsTap,
         ),
       ],

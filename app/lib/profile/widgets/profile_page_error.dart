@@ -1,3 +1,4 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +19,7 @@ class ProfilePageError extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Padding(
         padding: EdgeInsets.all(spacing.sp6),
@@ -25,7 +27,7 @@ class ProfilePageError extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              "That didn't load.",
+              l10n.profileLoadErrorTitle,
               style: theme.textTheme.headlineSmall,
               textAlign: TextAlign.center,
             ),
@@ -42,7 +44,10 @@ class ProfilePageError extends StatelessWidget {
             // 20px sits between sp4(16) and sp5(24); intentional
             // breathing room above the retry button.
             const SizedBox(height: 20),
-            ChunkyButton(onPressed: onRetry, child: const Text('Try again')),
+            ChunkyButton(
+              onPressed: onRetry,
+              child: Text(l10n.profileLoadErrorRetry),
+            ),
           ],
         ),
       ),

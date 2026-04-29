@@ -1,5 +1,6 @@
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
@@ -108,12 +109,13 @@ class _ProfileBody extends ConsumerWidget {
   }
 
   ProfileActionSet _actionsFor(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     if (isOwnProfile) {
       return SelfProfileActionSet(
         onEdit: () {
           // TODO(craftsky): push profile edit flow once it exists.
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Profile editing coming soon.')),
+            SnackBar(content: Text(l10n.profileEditComingSoon)),
           );
         },
         onSettings: () => const SettingsRoute().go(context),
@@ -126,12 +128,12 @@ class _ProfileBody extends ConsumerWidget {
       isFollowing: false,
       onFollowToggle: () {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Follow coming soon.')),
+          SnackBar(content: Text(l10n.profileFollowComingSoon)),
         );
       },
       onShare: () {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Share coming soon.')),
+          SnackBar(content: Text(l10n.profileShareComingSoon)),
         );
       },
     );
@@ -196,18 +198,24 @@ class _ProfileTabScrollView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return CustomScrollView(
       key: PageStorageKey<String>('profile_tab_${tab.name}'),
-      slivers: [_slivertForTab(tab, profile)],
+      slivers: [_slivertForTab(tab, profile, l10n)],
     );
   }
 
-  Widget _slivertForTab(ProfileTab tab, Profile profile) {
+  Widget _slivertForTab(
+    ProfileTab tab,
+    Profile profile,
+    AppLocalizations l10n,
+  ) {
     return switch (tab) {
       ProfileTab.posts => ProfilePostsTab(handle: profile.handle),
-      ProfileTab.projects => const ProfileEmptyTab(message: 'No projects yet.'),
-      ProfileTab.saved => const ProfileEmptyTab(message: 'Nothing saved yet.'),
-      ProfileTab.reposts => const ProfileEmptyTab(message: 'No reposts yet.'),
+      ProfileTab.projects =>
+        ProfileEmptyTab(message: l10n.profileEmptyProjects),
+      ProfileTab.saved => ProfileEmptyTab(message: l10n.profileEmptySaved),
+      ProfileTab.reposts => ProfileEmptyTab(message: l10n.profileEmptyReposts),
       ProfileTab.about => ProfileAboutTab(profile: profile),
     };
   }

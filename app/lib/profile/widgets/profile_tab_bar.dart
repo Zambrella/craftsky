@@ -1,20 +1,23 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 /// The five top-level profile tabs. Sealed in an enum so the page,
 /// the tab bar delegate, and the tab content list all reference the
-/// same source of truth and can't drift.
-enum ProfileTab {
-  posts(label: 'Posts'),
-  projects(label: 'Projects'),
-  saved(label: 'Saved'),
-  reposts(label: 'Reposts'),
-  about(label: 'About')
-  ;
+/// same source of truth and can't drift. Display labels are looked up
+/// via [ProfileTabLabel.label] on the current [AppLocalizations] —
+/// keeping the enum locale-agnostic.
+enum ProfileTab { posts, projects, saved, reposts, about }
 
-  const ProfileTab({required this.label});
-
-  final String label;
+extension ProfileTabLabel on ProfileTab {
+  /// Localised tab label for [AppLocalizations].
+  String label(AppLocalizations l10n) => switch (this) {
+    ProfileTab.posts => l10n.profileTabPosts,
+    ProfileTab.projects => l10n.profileTabProjects,
+    ProfileTab.saved => l10n.profileTabSaved,
+    ProfileTab.reposts => l10n.profileTabReposts,
+    ProfileTab.about => l10n.profileTabAbout,
+  };
 }
 
 /// Sticky tab bar for the profile screen. Pinned via
@@ -48,6 +51,7 @@ class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
     final theme = Theme.of(context);
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final spacing = theme.extension<SpacingTheme>()!;
+    final l10n = AppLocalizations.of(context);
     final onSurface = theme.colorScheme.onSurface;
     // `outline` carries the brand's ink3 (tertiary text) per the
     // ColorScheme override in app_theme.dart.
@@ -70,7 +74,8 @@ class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
               indicatorColor: onSurface,
               dividerColor: Colors.transparent,
               tabs: [
-                for (final tab in ProfileTab.values) Tab(text: _labelFor(tab)),
+                for (final tab in ProfileTab.values)
+                  Tab(text: _labelFor(tab, l10n)),
               ],
             ),
           ),
@@ -80,13 +85,14 @@ class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
     );
   }
 
-  String _labelFor(ProfileTab tab) {
+  String _labelFor(ProfileTab tab, AppLocalizations l10n) {
+    final base = tab.label(l10n);
     return switch (tab) {
       ProfileTab.projects when projectsCountLabel != null =>
-        '${tab.label} · $projectsCountLabel',
+        '$base · $projectsCountLabel',
       ProfileTab.saved when savedCountLabel != null =>
-        '${tab.label} · $savedCountLabel',
-      _ => tab.label,
+        '$base · $savedCountLabel',
+      _ => base,
     };
   }
 

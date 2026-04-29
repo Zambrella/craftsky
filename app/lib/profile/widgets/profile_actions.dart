@@ -1,3 +1,4 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -55,6 +56,7 @@ class _SelfActions extends StatelessWidget {
     final theme = Theme.of(context);
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final spacing = theme.extension<SpacingTheme>()!;
+    final l10n = AppLocalizations.of(context);
     return Row(
       // Hug content rather than stretching across the action lane —
       // Edit and Settings are secondary on your own profile, so the
@@ -72,7 +74,7 @@ class _SelfActions extends StatelessWidget {
             children: [
               const Icon(Icons.edit_outlined),
               SizedBox(width: spacing.sp2),
-              const Text('Edit profile'),
+              Text(l10n.profileEditAction),
             ],
           ),
         ),
@@ -80,7 +82,7 @@ class _SelfActions extends StatelessWidget {
         _ChunkyIconButton(
           onPressed: actions.onSettings,
           icon: Icons.settings_outlined,
-          tooltip: 'Settings',
+          tooltip: l10n.profileSettingsAction,
         ),
       ],
     );
@@ -97,6 +99,7 @@ class _VisitorActions extends StatelessWidget {
     final theme = Theme.of(context);
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final spacing = theme.extension<SpacingTheme>()!;
+    final l10n = AppLocalizations.of(context);
     return Row(
       children: [
         Expanded(
@@ -106,14 +109,18 @@ class _VisitorActions extends StatelessWidget {
             foregroundColor: actions.isFollowing
                 ? theme.colorScheme.onSurface
                 : null,
-            child: Text(actions.isFollowing ? 'Following' : 'Follow'),
+            child: Text(
+              actions.isFollowing
+                  ? l10n.profileFollowingAction
+                  : l10n.profileFollowAction,
+            ),
           ),
         ),
         SizedBox(width: spacing.sp3),
         _ChunkyIconButton(
           onPressed: actions.onShare,
           icon: Icons.ios_share_outlined,
-          tooltip: 'Share',
+          tooltip: l10n.profileShareAction,
         ),
       ],
     );

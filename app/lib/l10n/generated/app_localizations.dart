@@ -135,6 +135,150 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Go home'**
   String get goHomeButton;
+
+  /// Label on the primary action button shown on a self-profile, opens the edit-profile flow.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit profile'**
+  String get profileEditAction;
+
+  /// Tooltip on the settings icon button shown next to Edit profile on a self-profile, and on the collapsed-bar trailing action.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get profileSettingsAction;
+
+  /// Tooltip on the share icon button shown on a visitor profile, and on the collapsed-bar trailing action.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get profileShareAction;
+
+  /// Label on the follow button on a visitor profile when the viewer is not yet following them.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow'**
+  String get profileFollowAction;
+
+  /// Label on the follow button on a visitor profile when the viewer is already following them.
+  ///
+  /// In en, this message translates to:
+  /// **'Following'**
+  String get profileFollowingAction;
+
+  /// Tab label for the Posts tab on the profile screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts'**
+  String get profileTabPosts;
+
+  /// Tab label for the Projects tab on the profile screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Projects'**
+  String get profileTabProjects;
+
+  /// Tab label for the Saved tab on the profile screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get profileTabSaved;
+
+  /// Tab label for the Reposts tab on the profile screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Reposts'**
+  String get profileTabReposts;
+
+  /// Tab label for the About tab on the profile screen.
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get profileTabAbout;
+
+  /// Lower-case label paired with the following-count on the profile stats row.
+  ///
+  /// In en, this message translates to:
+  /// **'following'**
+  String get profileStatsFollowing;
+
+  /// Lower-case label paired with the follower-count on the profile stats row.
+  ///
+  /// In en, this message translates to:
+  /// **'followers'**
+  String get profileStatsFollowers;
+
+  /// Lower-case label paired with the project-count on the profile stats row.
+  ///
+  /// In en, this message translates to:
+  /// **'projects'**
+  String get profileStatsProjects;
+
+  /// Headline on the full-screen profile-page error fallback when the profile fetch fails.
+  ///
+  /// In en, this message translates to:
+  /// **'That didn\'t load.'**
+  String get profileLoadErrorTitle;
+
+  /// Retry-action button label on the full-screen profile-page error fallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get profileLoadErrorRetry;
+
+  /// Muted placeholder shown in the About tab when the profile has no bio.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing here yet.'**
+  String get profileAboutEmpty;
+
+  /// Section heading above the craft chips on the About tab.
+  ///
+  /// In en, this message translates to:
+  /// **'Crafts'**
+  String get profileAboutCraftsHeading;
+
+  /// Section heading above the join-date on the About tab.
+  ///
+  /// In en, this message translates to:
+  /// **'Joined'**
+  String get profileAboutJoinedHeading;
+
+  /// Muted placeholder shown in the Projects tab while project data isn't wired.
+  ///
+  /// In en, this message translates to:
+  /// **'No projects yet.'**
+  String get profileEmptyProjects;
+
+  /// Muted placeholder shown in the Saved tab while saved-item data isn't wired.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing saved yet.'**
+  String get profileEmptySaved;
+
+  /// Muted placeholder shown in the Reposts tab while repost data isn't wired.
+  ///
+  /// In en, this message translates to:
+  /// **'No reposts yet.'**
+  String get profileEmptyReposts;
+
+  /// Snackbar shown when tapping Edit profile while the edit flow isn't implemented yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile editing coming soon.'**
+  String get profileEditComingSoon;
+
+  /// Snackbar shown when tapping Follow while follow wiring isn't implemented yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow coming soon.'**
+  String get profileFollowComingSoon;
+
+  /// Snackbar shown when tapping Share while share wiring isn't implemented yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Share coming soon.'**
+  String get profileShareComingSoon;
 }
 
 class _AppLocalizationsDelegate

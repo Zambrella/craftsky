@@ -23,5 +23,77 @@
   "@routingErrorTitle": { "description": "Headline on ErrorScreen (from GoRouter.errorBuilder)." },
 
   "goHomeButton": "Go home",
-  "@goHomeButton": { "description": "Button label on routing ErrorScreen returning to HomeRoute." }
+  "@goHomeButton": { "description": "Button label on routing ErrorScreen returning to HomeRoute." },
+
+  "profileEditAction": "Edit profile",
+  "@profileEditAction": { "description": "Label on the primary action button shown on a self-profile, opens the edit-profile flow." },
+
+  "profileSettingsAction": "Settings",
+  "@profileSettingsAction": { "description": "Tooltip on the settings icon button shown next to Edit profile on a self-profile, and on the collapsed-bar trailing action." },
+
+  "profileShareAction": "Share",
+  "@profileShareAction": { "description": "Tooltip on the share icon button shown on a visitor profile, and on the collapsed-bar trailing action." },
+
+  "profileFollowAction": "Follow",
+  "@profileFollowAction": { "description": "Label on the follow button on a visitor profile when the viewer is not yet following them." },
+
+  "profileFollowingAction": "Following",
+  "@profileFollowingAction": { "description": "Label on the follow button on a visitor profile when the viewer is already following them." },
+
+  "profileTabPosts": "Posts",
+  "@profileTabPosts": { "description": "Tab label for the Posts tab on the profile screen." },
+
+  "profileTabProjects": "Projects",
+  "@profileTabProjects": { "description": "Tab label for the Projects tab on the profile screen." },
+
+  "profileTabSaved": "Saved",
+  "@profileTabSaved": { "description": "Tab label for the Saved tab on the profile screen." },
+
+  "profileTabReposts": "Reposts",
+  "@profileTabReposts": { "description": "Tab label for the Reposts tab on the profile screen." },
+
+  "profileTabAbout": "About",
+  "@profileTabAbout": { "description": "Tab label for the About tab on the profile screen." },
+
+  "profileStatsFollowing": "following",
+  "@profileStatsFollowing": { "description": "Lower-case label paired with the following-count on the profile stats row." },
+
+  "profileStatsFollowers": "followers",
+  "@profileStatsFollowers": { "description": "Lower-case label paired with the follower-count on the profile stats row." },
+
+  "profileStatsProjects": "projects",
+  "@profileStatsProjects": { "description": "Lower-case label paired with the project-count on the profile stats row." },
+
+  "profileLoadErrorTitle": "That didn't load.",
+  "@profileLoadErrorTitle": { "description": "Headline on the full-screen profile-page error fallback when the profile fetch fails." },
+
+  "profileLoadErrorRetry": "Try again",
+  "@profileLoadErrorRetry": { "description": "Retry-action button label on the full-screen profile-page error fallback." },
+
+  "profileAboutEmpty": "Nothing here yet.",
+  "@profileAboutEmpty": { "description": "Muted placeholder shown in the About tab when the profile has no bio." },
+
+  "profileAboutCraftsHeading": "Crafts",
+  "@profileAboutCraftsHeading": { "description": "Section heading above the craft chips on the About tab." },
+
+  "profileAboutJoinedHeading": "Joined",
+  "@profileAboutJoinedHeading": { "description": "Section heading above the join-date on the About tab." },
+
+  "profileEmptyProjects": "No projects yet.",
+  "@profileEmptyProjects": { "description": "Muted placeholder shown in the Projects tab while project data isn't wired." },
+
+  "profileEmptySaved": "Nothing saved yet.",
+  "@profileEmptySaved": { "description": "Muted placeholder shown in the Saved tab while saved-item data isn't wired." },
+
+  "profileEmptyReposts": "No reposts yet.",
+  "@profileEmptyReposts": { "description": "Muted placeholder shown in the Reposts tab while repost data isn't wired." },
+
+  "profileEditComingSoon": "Profile editing coming soon.",
+  "@profileEditComingSoon": { "description": "Snackbar shown when tapping Edit profile while the edit flow isn't implemented yet." },
+
+  "profileFollowComingSoon": "Follow coming soon.",
+  "@profileFollowComingSoon": { "description": "Snackbar shown when tapping Follow while follow wiring isn't implemented yet." },
+
+  "profileShareComingSoon": "Share coming soon.",
+  "@profileShareComingSoon": { "description": "Snackbar shown when tapping Share while share wiring isn't implemented yet." }
 }

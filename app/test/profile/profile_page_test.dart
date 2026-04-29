@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
@@ -32,6 +33,8 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: const ProfilePage(),
           ),
         ),
@@ -68,6 +71,8 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: const ProfilePage(handle: 'alice.bsky.social'),
           ),
         ),

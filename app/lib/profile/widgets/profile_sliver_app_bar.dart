@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_banner.dart';
@@ -285,14 +286,15 @@ class _CollapsedTrailingAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return switch (actions) {
       SelfProfileActionSet(:final onSettings) => IconButton(
-        tooltip: 'Settings',
+        tooltip: l10n.profileSettingsAction,
         icon: const Icon(Icons.settings_outlined),
         onPressed: onSettings,
       ),
       VisitorProfileActionSet(:final onShare) => IconButton(
-        tooltip: 'Share',
+        tooltip: l10n.profileShareAction,
         icon: const Icon(Icons.ios_share_outlined),
         onPressed: onShare,
       ),

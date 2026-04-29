@@ -1,3 +1,4 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/widgets/profile_bio.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
@@ -18,6 +19,7 @@ class ProfileAboutTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
+    final l10n = AppLocalizations.of(context);
     final hasBio = profile.description?.isNotEmpty ?? false;
 
     // 20px sits between sp4(16) and sp5(24) — used as the section
@@ -30,7 +32,7 @@ class ProfileAboutTab extends StatelessWidget {
         ProfileBio(description: profile.description)
       else
         Text(
-          'Nothing here yet.',
+          l10n.profileAboutEmpty,
           // `outline` carries the brand's ink3 (tertiary text) per
           // the ColorScheme override in app_theme.dart.
           style: theme.textTheme.bodyMedium?.copyWith(
@@ -39,16 +41,18 @@ class ProfileAboutTab extends StatelessWidget {
         ),
       sectionGap,
       if (profile.crafts.isNotEmpty) ...[
-        Text('Crafts', style: theme.textTheme.labelSmall),
+        Text(l10n.profileAboutCraftsHeading, style: theme.textTheme.labelSmall),
         SizedBox(height: spacing.sp2),
         ProfileCraftChips(crafts: profile.crafts),
         sectionGap,
       ],
       if (profile.createdAt != null) ...[
-        Text('Joined', style: theme.textTheme.labelSmall),
+        Text(l10n.profileAboutJoinedHeading, style: theme.textTheme.labelSmall),
         SizedBox(height: spacing.sp1),
         Text(
-          DateFormat.yMMMM().format(profile.createdAt!),
+          // Pass the active locale so e.g. "April 2026" / "avril 2026"
+          // follow the user's language rather than the intl default.
+          DateFormat.yMMMM(l10n.localeName).format(profile.createdAt!),
           style: theme.textTheme.bodyMedium,
         ),
       ],
