@@ -1,7 +1,7 @@
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/widgets/profile_bio.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
-import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -17,7 +17,13 @@ class ProfileAboutTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     final hasBio = profile.description?.isNotEmpty ?? false;
+
+    // 20px sits between sp4(16) and sp5(24) — used as the section
+    // gap. Kept as a literal because it doesn't map to a SpacingTheme
+    // token.
+    const sectionGap = SizedBox(height: 20);
 
     final children = <Widget>[
       if (hasBio)
@@ -25,18 +31,22 @@ class ProfileAboutTab extends StatelessWidget {
       else
         Text(
           'Nothing here yet.',
-          style: theme.textTheme.bodyMedium?.copyWith(color: BrandColors.ink3),
+          // `outline` carries the brand's ink3 (tertiary text) per
+          // the ColorScheme override in app_theme.dart.
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.outline,
+          ),
         ),
-      const SizedBox(height: 20),
+      sectionGap,
       if (profile.crafts.isNotEmpty) ...[
         Text('Crafts', style: theme.textTheme.labelSmall),
-        const SizedBox(height: 8),
+        SizedBox(height: spacing.sp2),
         ProfileCraftChips(crafts: profile.crafts),
-        const SizedBox(height: 20),
+        sectionGap,
       ],
       if (profile.createdAt != null) ...[
         Text('Joined', style: theme.textTheme.labelSmall),
-        const SizedBox(height: 4),
+        SizedBox(height: spacing.sp1),
         Text(
           DateFormat.yMMMM().format(profile.createdAt!),
           style: theme.textTheme.bodyMedium,
@@ -45,7 +55,7 @@ class ProfileAboutTab extends StatelessWidget {
     ];
 
     return SliverPadding(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(spacing.sp4),
       sliver: SliverList.builder(
         itemCount: children.length,
         itemBuilder: (context, index) => children[index],

@@ -2,6 +2,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/widgets/profile_bio.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
 import 'package:craftsky_app/profile/widgets/profile_stats.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 /// Below-the-bar header content: bio, craft chips, and the
@@ -20,21 +21,27 @@ class ProfileMetaSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
     final hasBio = profile.description?.isNotEmpty ?? false;
     final hasCrafts = profile.crafts.isNotEmpty;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      padding: EdgeInsets.fromLTRB(
+        spacing.sp4,
+        spacing.sp1,
+        spacing.sp4,
+        spacing.sp4,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (hasBio) ...[
             ProfileBio(description: profile.description),
-            const SizedBox(height: 12),
+            SizedBox(height: spacing.sp3),
           ],
           if (hasCrafts) ...[
             ProfileCraftChips(crafts: profile.crafts),
-            const SizedBox(height: 12),
+            SizedBox(height: spacing.sp3),
           ],
           // TODO(craftsky): wire real counts when follow / project
           // indexers land. Numbers chosen to mirror the design mockup.

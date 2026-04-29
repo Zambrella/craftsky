@@ -1,4 +1,4 @@
-import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 /// Display name (DM Serif Display) + optional pronouns + `@handle` block,
@@ -19,7 +19,12 @@ class ProfileIdentity extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     final name = (displayName?.isNotEmpty ?? false) ? displayName! : '@$handle';
+
+    // `outline` carries the brand's ink3 (tertiary text) per the
+    // ColorScheme override in app_theme.dart.
+    final mutedInk = theme.colorScheme.outline;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -37,12 +42,10 @@ class ProfileIdentity extends StatelessWidget {
               ),
             ),
             if (pronouns != null) ...[
-              const SizedBox(width: 8),
+              SizedBox(width: spacing.sp2),
               Text(
                 pronouns!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: BrandColors.ink3,
-                ),
+                style: theme.textTheme.bodySmall?.copyWith(color: mutedInk),
               ),
             ],
           ],
@@ -51,8 +54,12 @@ class ProfileIdentity extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             '@$handle',
+            // `onSurfaceVariant` (ink2) rather than `outline` (ink3) —
+            // the @handle reads as a secondary identifier paired with
+            // the display name, not tertiary metadata, so it wants
+            // the darker secondary-text strength.
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: BrandColors.ink3,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ],

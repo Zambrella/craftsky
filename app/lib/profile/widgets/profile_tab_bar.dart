@@ -1,4 +1,4 @@
-import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 /// The five top-level profile tabs. Sealed in an enum so the page,
@@ -46,29 +46,35 @@ class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
     bool overlapsContent,
   ) {
     final theme = Theme.of(context);
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    final spacing = theme.extension<SpacingTheme>()!;
+    final onSurface = theme.colorScheme.onSurface;
+    // `outline` carries the brand's ink3 (tertiary text) per the
+    // ColorScheme override in app_theme.dart.
+    final muted = theme.colorScheme.outline;
     return ColoredBox(
-      color: BrandColors.paper,
+      color: swatches.paper,
       child: Column(
         children: [
           Expanded(
             child: TabBar(
               isScrollable: true,
               tabAlignment: TabAlignment.start,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: EdgeInsets.symmetric(horizontal: spacing.sp2),
               labelStyle: theme.textTheme.labelMedium,
               unselectedLabelStyle: theme.textTheme.labelMedium?.copyWith(
-                color: BrandColors.ink3,
+                color: muted,
               ),
-              labelColor: BrandColors.ink,
-              unselectedLabelColor: BrandColors.ink3,
-              indicatorColor: BrandColors.ink,
+              labelColor: onSurface,
+              unselectedLabelColor: muted,
+              indicatorColor: onSurface,
               dividerColor: Colors.transparent,
               tabs: [
                 for (final tab in ProfileTab.values) Tab(text: _labelFor(tab)),
               ],
             ),
           ),
-          Container(height: 1, color: BrandColors.borderHair),
+          Container(height: 1, color: swatches.borderHair),
         ],
       ),
     );

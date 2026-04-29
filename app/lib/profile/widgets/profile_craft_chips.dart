@@ -1,4 +1,4 @@
-import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 /// Pill chips listing the crafts a user works in. Renders nothing when
@@ -11,9 +11,10 @@ class ProfileCraftChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (crafts.isEmpty) return const SizedBox.shrink();
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: spacing.sp2,
+      runSpacing: spacing.sp2,
       children: [for (final craft in crafts) _CraftChip(label: craft)],
     );
   }
@@ -30,17 +31,22 @@ class _CraftChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    final spacing = theme.extension<SpacingTheme>()!;
+    final radii = theme.extension<RadiusTheme>()!;
     final display = _toSentenceCase(label);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.symmetric(horizontal: spacing.sp3, vertical: 6),
       decoration: BoxDecoration(
-        color: BrandColors.paper3,
-        borderRadius: BorderRadius.circular(999),
+        color: swatches.paper3,
+        borderRadius: BorderRadius.circular(radii.rPill),
         border: Border.all(color: theme.colorScheme.onSurface, width: 1.5),
       ),
       child: Text(
         display,
-        style: theme.textTheme.labelMedium?.copyWith(color: BrandColors.ink),
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: theme.colorScheme.onSurface,
+        ),
       ),
     );
   }

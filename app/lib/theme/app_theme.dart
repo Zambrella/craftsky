@@ -28,7 +28,7 @@ class AppTheme {
   );
 
   static ThemeData _buildLight() {
-    final base = FlexThemeData.light(
+    final base0 = FlexThemeData.light(
       colors: _lightColors,
       scaffoldBackground: BrandColors.paper,
       surface: BrandColors.paper3,
@@ -58,6 +58,24 @@ class AppTheme {
       ),
       visualDensity: FlexColorScheme.comfortablePlatformDensity,
       textTheme: _textTheme(ink: BrandColors.ink, ink2: BrandColors.ink2),
+    );
+    // Pin the `on-surface` family to the brand's four ink levels so callers
+    // can read brand text strengths directly from `colorScheme` in standard
+    // Material vocabulary, no `BrandColors.X` import needed:
+    //   ink  → onSurface          (full-strength text, primary surface)
+    //   ink2 → onSurfaceVariant   (M3's canonical secondary text)
+    //   ink3 → outline            (tertiary text + decorative borders)
+    //   ink4 → outlineVariant     (faintest tier; dividers, disabled lines)
+    // M3 only has two text strengths officially — using outline/outlineVariant
+    // for ink3/ink4 is a deliberate departure that lets the brand's four-level
+    // hierarchy live inside the standard ColorScheme surface.
+    final base = base0.copyWith(
+      colorScheme: base0.colorScheme.copyWith(
+        onSurface: BrandColors.ink,
+        onSurfaceVariant: BrandColors.ink2,
+        outline: BrandColors.ink3,
+        outlineVariant: BrandColors.ink4,
+      ),
     );
     return base.copyWith(
       extensions: _extensions(base.colorScheme),
@@ -223,7 +241,8 @@ class AppTheme {
   /// prefers a clean surface without ripple/tint overlays.
   static NavigationBarThemeData _navigationBarTheme(ThemeData base) {
     final colors = base.colorScheme;
-    const unselected = BrandColors.ink3;
+    // `outline` carries ink3 after the ColorScheme override in _buildLight.
+    final unselected = colors.outline;
     return NavigationBarThemeData(
       backgroundColor: BrandColors.paper,
       surfaceTintColor: Colors.transparent,
@@ -246,7 +265,7 @@ class AppTheme {
         if (states.contains(WidgetState.selected)) {
           return IconThemeData(color: colors.primary);
         }
-        return const IconThemeData(color: unselected);
+        return IconThemeData(color: unselected);
       }),
       // Top hairline rule: the NavigationBar ships as a Material with its own
       // shape, so we wrap with a decoration — but NavigationBarThemeData

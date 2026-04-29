@@ -1,4 +1,4 @@
-import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 /// Following / followers / projects count row. Counts are nullable so
@@ -34,6 +34,9 @@ class ProfileStats extends StatelessWidget {
           label: 'following',
           onTap: onFollowingTap,
         ),
+        // 20px sits between sp4(16) and sp5(24) — chosen deliberately
+        // for the count row's breathing room. Kept as a raw value
+        // because it doesn't map to a SpacingTheme token.
         const SizedBox(width: 20),
         _ProfileStat(
           count: followerCount,
@@ -61,11 +64,12 @@ class _ProfileStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(spacing.sp1),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: EdgeInsets.symmetric(vertical: spacing.sp1),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -75,14 +79,16 @@ class _ProfileStat extends StatelessWidget {
               count == null ? '—' : _formatCount(count!),
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: BrandColors.ink,
+                color: theme.colorScheme.onSurface,
               ),
             ),
-            const SizedBox(width: 4),
+            SizedBox(width: spacing.sp1),
             Text(
               label,
+              // `onSurfaceVariant` carries the brand's ink2 (secondary
+              // text) per the ColorScheme override in app_theme.dart.
               style: theme.textTheme.bodySmall?.copyWith(
-                color: BrandColors.ink2,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ],

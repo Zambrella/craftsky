@@ -5,7 +5,7 @@ import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_banner.dart';
 import 'package:craftsky_app/profile/widgets/profile_banner_chip.dart';
 import 'package:craftsky_app/profile/widgets/profile_identity.dart';
-import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 /// Collapsing profile header. Owns the banner, avatar, action row,
@@ -65,6 +65,8 @@ class ProfileSliverAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final swatches = theme.extension<BrandSwatchTheme>()!;
     return SliverAppBar(
       pinned: true,
       expandedHeight: expandedHeight,
@@ -73,8 +75,8 @@ class ProfileSliverAppBar extends StatelessWidget {
       // has faded out. `shape` is intentionally not overridden so the
       // global AppBarTheme bottom rule (1.5px ink) applies and the
       // bar separates from the meta content underneath.
-      backgroundColor: BrandColors.paper,
-      foregroundColor: BrandColors.ink,
+      backgroundColor: swatches.paper,
+      foregroundColor: theme.colorScheme.onSurface,
       surfaceTintColor: Colors.transparent,
       flexibleSpace: _ProfileFlexibleSpace(
         bannerColor: bannerColor,
@@ -116,6 +118,9 @@ class _ProfileFlexibleSpace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    final spacing = theme.extension<SpacingTheme>()!;
     final settings = context
         .dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
     final topPadding = MediaQuery.paddingOf(context).top;
@@ -137,7 +142,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
         // Paper strip below the banner. Painted as a full-bleed layer
         // so anything that scrolls into the strip during collapse meets
         // a paper background, not banner colour.
-        const ColoredBox(color: BrandColors.paper),
+        ColoredBox(color: swatches.paper),
         // Banner — extends behind status bar so the colour reaches the
         // very top of the screen. Blurs and fades on collapse so the
         // bar's resting state is clean paper, not a stale strip of
@@ -173,8 +178,8 @@ class _ProfileFlexibleSpace extends StatelessWidget {
         ),
         if (bannerChipLabel != null)
           Positioned(
-            top: topPadding + 8,
-            right: 16,
+            top: topPadding + spacing.sp2,
+            right: spacing.sp4,
             child: Opacity(
               opacity: 1 - collapsed,
               child: ProfileBannerChip(label: bannerChipLabel!),
@@ -184,7 +189,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
         // it sits in the paper strip; only `avatarBannerOverlap`
         // pokes up into the banner.
         Positioned(
-          left: 16,
+          left: spacing.sp4,
           top: bannerVisualBottom - ProfileSliverAppBar.avatarBannerOverlap,
           child: Opacity(
             opacity: 1 - collapsed,
@@ -201,8 +206,8 @@ class _ProfileFlexibleSpace extends StatelessWidget {
         // edge while a stretching group (visitor's Follow + share)
         // still spans the full lane.
         Positioned(
-          left: 16 + _avatarLaneWidth,
-          right: 16,
+          left: spacing.sp4 + _avatarLaneWidth,
+          right: spacing.sp4,
           top: bannerVisualBottom,
           height: ProfileSliverAppBar.paperStripHeight,
           child: IgnorePointer(
@@ -220,8 +225,8 @@ class _ProfileFlexibleSpace extends StatelessWidget {
         // avatar/action strip and fades with the bar so the collapsed
         // toolbar carries only the compact title variant.
         Positioned(
-          left: 16,
-          right: 16,
+          left: spacing.sp4,
+          right: spacing.sp4,
           top: bannerVisualBottom + ProfileSliverAppBar.paperStripHeight,
           height: ProfileSliverAppBar.identityHeight,
           child: Opacity(
@@ -322,8 +327,10 @@ class _CollapsedTitle extends StatelessWidget {
           if (showSubtitle)
             Text(
               '@$handle',
+              // `onSurfaceVariant` carries the brand's ink2 (secondary
+              // text) per the ColorScheme override in app_theme.dart.
               style: theme.textTheme.bodySmall?.copyWith(
-                color: BrandColors.ink2,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
               overflow: TextOverflow.ellipsis,
             ),

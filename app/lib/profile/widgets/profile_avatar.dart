@@ -1,4 +1,3 @@
-import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -26,17 +25,18 @@ class ProfileAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    final shadows = theme.extension<BrandShadowTheme>()!;
     final dimension = size.dimension;
     final borderWidth = size.borderWidth;
     final initial = seed.isEmpty ? '?' : seed.characters.first.toUpperCase();
-    final shadows = theme.extension<BrandShadowTheme>()!;
 
     return Container(
       width: dimension,
       height: dimension,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: BrandColors.butter,
+        color: swatches.butter,
         border: Border.all(
           color: theme.colorScheme.onSurface,
           width: borderWidth,
@@ -56,7 +56,7 @@ class ProfileAvatar extends StatelessWidget {
               initial,
               style: theme.textTheme.displaySmall?.copyWith(
                 fontSize: dimension * 0.5,
-                color: BrandColors.ink,
+                color: theme.colorScheme.onSurface,
               ),
             ),
     );

@@ -1,4 +1,3 @@
-import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:flutter/material.dart';
 
 /// Profile bio text. Renders nothing when [description] is null or
@@ -13,11 +12,12 @@ class ProfileBio extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = description;
     if (text == null || text.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
     return Text(
       text,
-      style: Theme.of(
-        context,
-      ).textTheme.bodyMedium?.copyWith(color: BrandColors.ink),
+      style: theme.textTheme.bodyMedium?.copyWith(
+        color: theme.colorScheme.onSurface,
+      ),
     );
   }
 }

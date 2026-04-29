@@ -1,6 +1,6 @@
 import 'package:craftsky_app/feed/models/placeholder_post.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 /// Card-shaped post row used by the feed and the profile Posts tab.
@@ -15,15 +15,18 @@ class PostCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    final spacing = theme.extension<SpacingTheme>()!;
     final onSurface = theme.colorScheme.onSurface;
 
     return Container(
-      decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: BrandColors.borderHair),
-        ),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: swatches.borderHair)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: spacing.sp4,
+        vertical: spacing.sp3,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -31,7 +34,7 @@ class PostCard extends StatelessWidget {
             seed: post.authorDisplayName,
             size: ProfileAvatarSize.small,
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: spacing.sp3),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -41,10 +44,12 @@ class PostCard extends StatelessWidget {
                   handle: post.authorHandle,
                   postedAt: post.postedAt,
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: spacing.sp1),
                 Text('@${post.authorHandle}', style: theme.textTheme.bodySmall),
-                const SizedBox(height: 8),
+                SizedBox(height: spacing.sp2),
                 Text(post.body, style: theme.textTheme.bodyMedium),
+                // 10px sits between sp2(8) and sp3(12); intentional
+                // tight gap between body and reaction row.
                 const SizedBox(height: 10),
                 _PostCardReactions(
                   replyCount: post.replyCount,
@@ -75,6 +80,7 @@ class _PostCardHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.baseline,
       textBaseline: TextBaseline.alphabetic,
@@ -86,10 +92,14 @@ class _PostCardHeader extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: spacing.sp2),
         Text(
           '· ${_relativeTime(postedAt)}',
-          style: theme.textTheme.bodySmall?.copyWith(color: BrandColors.ink3),
+          // `outline` carries the brand's ink3 (tertiary text) per
+          // the ColorScheme override in app_theme.dart.
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.outline,
+          ),
         ),
       ],
     );
@@ -119,17 +129,16 @@ class _PostCardReactions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final swatches = Theme.of(context).extension<BrandSwatchTheme>()!;
     return Row(
       children: [
         _Reaction(icon: Icons.mode_comment_outlined, count: replyCount),
+        // 20px sits between sp4(16) and sp5(24); kept as a literal
+        // because it doesn't map to a SpacingTheme token.
         const SizedBox(width: 20),
         _Reaction(icon: Icons.repeat, count: repostCount),
         const SizedBox(width: 20),
-        _Reaction(
-          icon: Icons.favorite,
-          count: likeCount,
-          tint: BrandColors.red,
-        ),
+        _Reaction(icon: Icons.favorite, count: likeCount, tint: swatches.like),
         const Spacer(),
         Icon(Icons.bookmark_border, size: 18, color: iconColor),
       ],
@@ -147,7 +156,10 @@ class _Reaction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = tint ?? BrandColors.ink2;
+    // `onSurfaceVariant` carries the brand's ink2 (secondary text)
+    // per the ColorScheme override in app_theme.dart.
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final color = tint ?? muted;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -155,7 +167,7 @@ class _Reaction extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           '$count',
-          style: theme.textTheme.bodySmall?.copyWith(color: BrandColors.ink2),
+          style: theme.textTheme.bodySmall?.copyWith(color: muted),
         ),
       ],
     );

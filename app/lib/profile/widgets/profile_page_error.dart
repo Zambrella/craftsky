@@ -1,5 +1,5 @@
-import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 /// Full-screen error fallback for the profile page. Rendered when the
@@ -17,9 +17,10 @@ class ProfilePageError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: EdgeInsets.all(spacing.sp6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -28,14 +29,18 @@ class ProfilePageError extends StatelessWidget {
               style: theme.textTheme.headlineSmall,
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: spacing.sp2),
             Text(
               '$error',
+              // `outline` carries the brand's ink3 (tertiary text) per
+              // the ColorScheme override in app_theme.dart.
               style: theme.textTheme.bodySmall?.copyWith(
-                color: BrandColors.ink3,
+                color: theme.colorScheme.outline,
               ),
               textAlign: TextAlign.center,
             ),
+            // 20px sits between sp4(16) and sp5(24); intentional
+            // breathing room above the retry button.
             const SizedBox(height: 20),
             ChunkyButton(onPressed: onRetry, child: const Text('Try again')),
           ],

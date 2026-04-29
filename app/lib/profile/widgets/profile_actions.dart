@@ -1,5 +1,5 @@
-import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 /// The action-row variants drawn under the avatar/identity block.
@@ -52,6 +52,9 @@ class _SelfActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    final spacing = theme.extension<SpacingTheme>()!;
     return Row(
       // Hug content rather than stretching across the action lane —
       // Edit and Settings are secondary on your own profile, so the
@@ -61,19 +64,19 @@ class _SelfActions extends StatelessWidget {
       children: [
         ChunkyButton(
           onPressed: actions.onEdit,
-          backgroundColor: BrandColors.paper3,
-          foregroundColor: BrandColors.ink,
-          child: const Row(
+          backgroundColor: swatches.paper3,
+          foregroundColor: theme.colorScheme.onSurface,
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.edit_outlined),
-              SizedBox(width: 8),
-              Text('Edit profile'),
+              const Icon(Icons.edit_outlined),
+              SizedBox(width: spacing.sp2),
+              const Text('Edit profile'),
             ],
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: spacing.sp3),
         _ChunkyIconButton(
           onPressed: actions.onSettings,
           icon: Icons.settings_outlined,
@@ -91,17 +94,22 @@ class _VisitorActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    final spacing = theme.extension<SpacingTheme>()!;
     return Row(
       children: [
         Expanded(
           child: ChunkyButton(
             onPressed: actions.onFollowToggle,
-            backgroundColor: actions.isFollowing ? BrandColors.paper3 : null,
-            foregroundColor: actions.isFollowing ? BrandColors.ink : null,
+            backgroundColor: actions.isFollowing ? swatches.paper3 : null,
+            foregroundColor: actions.isFollowing
+                ? theme.colorScheme.onSurface
+                : null,
             child: Text(actions.isFollowing ? 'Following' : 'Follow'),
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: spacing.sp3),
         _ChunkyIconButton(
           onPressed: actions.onShare,
           icon: Icons.ios_share_outlined,
@@ -131,13 +139,15 @@ class _ChunkyIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final swatches = theme.extension<BrandSwatchTheme>()!;
     final button = SizedBox(
       width: _size,
       height: _size,
       child: ChunkyButton(
         onPressed: onPressed,
-        backgroundColor: BrandColors.paper3,
-        foregroundColor: BrandColors.ink,
+        backgroundColor: swatches.paper3,
+        foregroundColor: theme.colorScheme.onSurface,
         // Strip ChunkyButton's default text-button padding so the icon
         // can centre in the 44×44 hit target without forcing the
         // stadium shape into a long pill.
