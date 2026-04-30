@@ -15,19 +15,18 @@ part of 'save_profile_provider.dart';
 /// `AsyncError` on failure. Callers wire navigation/snackbars via
 /// `ref.listen` rather than try/catch — see `edit_profile_page.dart`.
 ///
-/// Diff semantics live in the caller: pass only the fields that
-/// changed. The repository turns missing (`null`) fields into omitted
-/// keys, so an unchanged field is never overwritten on the server.
-/// Pass an empty string to clear `displayName`/`description`, an empty
-/// list to clear `crafts`.
+/// Callers should pass the **full** desired field values, not a diff.
+/// The PUT path on the AppView ultimately writes a new
+/// `app.bsky.actor.profile` record on the user's PDS, and atproto
+/// records are atomic — fields absent from the body get cleared on the
+/// PDS, regardless of any "leave unchanged" wording the AppView's HTTP
+/// layer suggests. Always send the complete current state.
 ///
-/// On success this provider invalidates the entire `userProfileProvider`
-/// family so any open profile pages refetch fresh data. The signed-in
-/// user's own entry is the only one that's actually changing — but
-/// we'd otherwise need the caller to know its own handle/DID, and the
-/// over-invalidation cost (a single refetch on screens that happen to
-/// be open) is negligible compared to the bug surface of getting the
-/// key wrong.
+/// On success this provider pushes the freshly-saved [Profile] back
+/// into the `userProfileProvider` family cache for the entries
+/// currently being watched (keyed by handle and by DID). That avoids a
+/// refetch round-trip and any read-after-write lag, and keeps the
+/// profile page in sync the instant the edit page pops.
 
 @ProviderFor(SaveProfile)
 final saveProfileProvider = SaveProfileProvider._();
@@ -39,19 +38,18 @@ final saveProfileProvider = SaveProfileProvider._();
 /// `AsyncError` on failure. Callers wire navigation/snackbars via
 /// `ref.listen` rather than try/catch — see `edit_profile_page.dart`.
 ///
-/// Diff semantics live in the caller: pass only the fields that
-/// changed. The repository turns missing (`null`) fields into omitted
-/// keys, so an unchanged field is never overwritten on the server.
-/// Pass an empty string to clear `displayName`/`description`, an empty
-/// list to clear `crafts`.
+/// Callers should pass the **full** desired field values, not a diff.
+/// The PUT path on the AppView ultimately writes a new
+/// `app.bsky.actor.profile` record on the user's PDS, and atproto
+/// records are atomic — fields absent from the body get cleared on the
+/// PDS, regardless of any "leave unchanged" wording the AppView's HTTP
+/// layer suggests. Always send the complete current state.
 ///
-/// On success this provider invalidates the entire `userProfileProvider`
-/// family so any open profile pages refetch fresh data. The signed-in
-/// user's own entry is the only one that's actually changing — but
-/// we'd otherwise need the caller to know its own handle/DID, and the
-/// over-invalidation cost (a single refetch on screens that happen to
-/// be open) is negligible compared to the bug surface of getting the
-/// key wrong.
+/// On success this provider pushes the freshly-saved [Profile] back
+/// into the `userProfileProvider` family cache for the entries
+/// currently being watched (keyed by handle and by DID). That avoids a
+/// refetch round-trip and any read-after-write lag, and keeps the
+/// profile page in sync the instant the edit page pops.
 final class SaveProfileProvider
     extends $AsyncNotifierProvider<SaveProfile, Profile?> {
   /// Mutation notifier for the profile-edit page.
@@ -61,19 +59,18 @@ final class SaveProfileProvider
   /// `AsyncError` on failure. Callers wire navigation/snackbars via
   /// `ref.listen` rather than try/catch — see `edit_profile_page.dart`.
   ///
-  /// Diff semantics live in the caller: pass only the fields that
-  /// changed. The repository turns missing (`null`) fields into omitted
-  /// keys, so an unchanged field is never overwritten on the server.
-  /// Pass an empty string to clear `displayName`/`description`, an empty
-  /// list to clear `crafts`.
+  /// Callers should pass the **full** desired field values, not a diff.
+  /// The PUT path on the AppView ultimately writes a new
+  /// `app.bsky.actor.profile` record on the user's PDS, and atproto
+  /// records are atomic — fields absent from the body get cleared on the
+  /// PDS, regardless of any "leave unchanged" wording the AppView's HTTP
+  /// layer suggests. Always send the complete current state.
   ///
-  /// On success this provider invalidates the entire `userProfileProvider`
-  /// family so any open profile pages refetch fresh data. The signed-in
-  /// user's own entry is the only one that's actually changing — but
-  /// we'd otherwise need the caller to know its own handle/DID, and the
-  /// over-invalidation cost (a single refetch on screens that happen to
-  /// be open) is negligible compared to the bug surface of getting the
-  /// key wrong.
+  /// On success this provider pushes the freshly-saved [Profile] back
+  /// into the `userProfileProvider` family cache for the entries
+  /// currently being watched (keyed by handle and by DID). That avoids a
+  /// refetch round-trip and any read-after-write lag, and keeps the
+  /// profile page in sync the instant the edit page pops.
   SaveProfileProvider._()
     : super(
         from: null,
@@ -93,7 +90,7 @@ final class SaveProfileProvider
   SaveProfile create() => SaveProfile();
 }
 
-String _$saveProfileHash() => r'e04d605ab0d9bce1b560ea50fbe8e366dfc7eeeb';
+String _$saveProfileHash() => r'34049d9208be57c176459511ddd909704588a63c';
 
 /// Mutation notifier for the profile-edit page.
 ///
@@ -102,19 +99,18 @@ String _$saveProfileHash() => r'e04d605ab0d9bce1b560ea50fbe8e366dfc7eeeb';
 /// `AsyncError` on failure. Callers wire navigation/snackbars via
 /// `ref.listen` rather than try/catch — see `edit_profile_page.dart`.
 ///
-/// Diff semantics live in the caller: pass only the fields that
-/// changed. The repository turns missing (`null`) fields into omitted
-/// keys, so an unchanged field is never overwritten on the server.
-/// Pass an empty string to clear `displayName`/`description`, an empty
-/// list to clear `crafts`.
+/// Callers should pass the **full** desired field values, not a diff.
+/// The PUT path on the AppView ultimately writes a new
+/// `app.bsky.actor.profile` record on the user's PDS, and atproto
+/// records are atomic — fields absent from the body get cleared on the
+/// PDS, regardless of any "leave unchanged" wording the AppView's HTTP
+/// layer suggests. Always send the complete current state.
 ///
-/// On success this provider invalidates the entire `userProfileProvider`
-/// family so any open profile pages refetch fresh data. The signed-in
-/// user's own entry is the only one that's actually changing — but
-/// we'd otherwise need the caller to know its own handle/DID, and the
-/// over-invalidation cost (a single refetch on screens that happen to
-/// be open) is negligible compared to the bug surface of getting the
-/// key wrong.
+/// On success this provider pushes the freshly-saved [Profile] back
+/// into the `userProfileProvider` family cache for the entries
+/// currently being watched (keyed by handle and by DID). That avoids a
+/// refetch round-trip and any read-after-write lag, and keeps the
+/// profile page in sync the instant the edit page pops.
 
 abstract class _$SaveProfile extends $AsyncNotifier<Profile?> {
   FutureOr<Profile?> build();

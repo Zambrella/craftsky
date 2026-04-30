@@ -2,6 +2,7 @@ import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_meta_section.dart';
@@ -112,7 +113,7 @@ class _ProfileBody extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     if (isOwnProfile) {
       return SelfProfileActionSet(
-        onEdit: () => const EditProfileRoute().go(context),
+        onEdit: () => showEditProfileDialog(context),
         onSettings: () => const SettingsRoute().go(context),
       );
     }

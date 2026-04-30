@@ -31,11 +31,42 @@ const _displayNameMaxLength = 64;
 /// 256 graphemes. Same code-unit caveat as [_displayNameMaxLength].
 const _bioMaxLength = 256;
 
-/// Fullscreen profile-edit screen reached via `/profile/edit`. Resolves
-/// the signed-in user's handle, loads their profile, and hands a
-/// snapshot to [_EditProfileScaffold] which owns the form state.
-class EditProfilePage extends ConsumerWidget {
-  const EditProfilePage({super.key});
+/// Opens the profile-edit screen as a full-screen Material dialog.
+///
+/// Uses `MaterialPageRoute(fullscreenDialog: true)` for two reasons:
+/// 1. The AppBar's auto-injected leading becomes a `CloseButton` (X)
+///    instead of a back arrow — the "close button for free" that
+///    matches Material's intent for temporary task screens.
+/// 2. The transition slides up from the bottom rather than the
+///    platform's default page-push, signalling "this is a modal task,
+///    not a navigation step".
+///
+/// Profile editing isn't a core navigation surface, so it doesn't
+/// live as a named route — callers reach it through this helper.
+/// Discard semantics still flow through [PopScope] inside the dialog,
+/// so the close button and system-back with unsaved changes prompt a
+/// confirm dialog before the pop completes.
+Future<void> showEditProfileDialog(BuildContext context) {
+  return Navigator.of(context, rootNavigator: true).push<void>(
+    MaterialPageRoute<void>(
+      fullscreenDialog: true,
+      builder: (_) => const EditProfileDialog(),
+    ),
+  );
+}
+
+/// Full-screen profile-edit screen. Pushed as a `fullscreenDialog`
+/// `MaterialPageRoute` (see [showEditProfileDialog]); not a named
+/// route. Resolves the signed-in user's handle, loads their profile,
+/// and hands a snapshot to [_EditProfileForm] which owns the form
+/// state.
+///
+/// Loading and error states render a minimal Scaffold + AppBar so the
+/// route's auto-injected `CloseButton` (the "free" close affordance
+/// from `fullscreenDialog: true`) is reachable even before the profile
+/// resolves.
+class EditProfileDialog extends ConsumerWidget {
+  const EditProfileDialog({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -46,45 +77,51 @@ class EditProfilePage extends ConsumerWidget {
     };
 
     if (myHandle == null) {
-      // Either auth is loading or the user signed out while sitting on
-      // this page — the router will resolve the redirect; show a
-      // neutral progress state in the meantime.
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      // Either auth is loading or the user signed out while sitting
+      // on this dialog. Both are transient — show a neutral progress
+      // state and let the host's redirect logic settle.
+      return Scaffold(
+        appBar: AppBar(),
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
 
     final profileAsync = ref.watch(userProfileProvider(myHandle));
-    return Scaffold(
-      body: switch (profileAsync) {
-        AsyncValue(:final value?) => _EditProfileScaffold(profile: value),
-        AsyncError(:final error) => ProfilePageError(
+    return switch (profileAsync) {
+      AsyncValue(:final value?) => _EditProfileForm(profile: value),
+      AsyncError(:final error) => Scaffold(
+        appBar: AppBar(),
+        body: ProfilePageError(
           error: error,
           onRetry: () => ref.invalidate(userProfileProvider(myHandle)),
         ),
-        _ => const Center(child: CircularProgressIndicator()),
-      },
-    );
+      ),
+      _ => Scaffold(
+        appBar: AppBar(),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+    };
   }
 }
 
-/// Stateful body of the edit page. Wires a [FormBuilder] over the three
-/// editable fields (display name, bio, crafts) so validation, dirty
-/// tracking, and read-time access all flow through a single
+/// Stateful body of the edit sheet. Wires a [FormBuilder] over the
+/// three editable fields (display name, bio, crafts) so validation,
+/// dirty tracking, and read-time access all flow through a single
 /// [GlobalKey<FormBuilderState>].
-class _EditProfileScaffold extends ConsumerStatefulWidget {
-  const _EditProfileScaffold({required this.profile});
+class _EditProfileForm extends ConsumerStatefulWidget {
+  const _EditProfileForm({required this.profile});
 
-  /// Snapshot of the signed-in user's profile at the time the page
+  /// Snapshot of the signed-in user's profile at the time the sheet
   /// opened. Treated as the "original" against which the form's diff
   /// is computed — we don't re-seed the form if the underlying provider
   /// changes mid-edit, since that would clobber the user's typing.
   final Profile profile;
 
   @override
-  ConsumerState<_EditProfileScaffold> createState() =>
-      _EditProfileScaffoldState();
+  ConsumerState<_EditProfileForm> createState() => _EditProfileFormState();
 }
 
-class _EditProfileScaffoldState extends ConsumerState<_EditProfileScaffold> {
+class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   final _formKey = GlobalKey<FormBuilderState>();
 
   /// Text controllers are kept in state because [BrandTextField] needs
@@ -96,7 +133,7 @@ class _EditProfileScaffoldState extends ConsumerState<_EditProfileScaffold> {
 
   /// Focus nodes are owned at the page level and handed to **both** the
   /// [FormBuilderField] and the [BrandTextField] for each text input.
-  /// Sharing the node is critical: [FormBuilderFieldState.validate]
+  /// Sharing the node is critical: `FormBuilderFieldState.validate`
   /// auto-grabs focus when a field becomes invalid unless one of the
   /// form's registered fields already has focus, and it checks each
   /// field's own `effectiveFocusNode` for that. If we let the form
@@ -242,7 +279,7 @@ class _EditProfileScaffoldState extends ConsumerState<_EditProfileScaffold> {
     final isSaving = saveState is AsyncLoading;
 
     // Handle the (loading -> data) and (loading -> error) transitions.
-    // Success closes the page; failure surfaces a snackbar and leaves
+    // Success closes the sheet; failure surfaces a snackbar and leaves
     // the form untouched so the user can retry. Per the Riverpod rules,
     // listeners go in build (not initState).
     ref.listen<AsyncValue<Profile?>>(saveProfileProvider, (prev, next) {
@@ -278,13 +315,11 @@ class _EditProfileScaffoldState extends ConsumerState<_EditProfileScaffold> {
       },
       child: Scaffold(
         backgroundColor: swatches.paper,
+        // Inside a `fullscreenDialog: true` route, the AppBar's
+        // automatically-implied leading resolves to a `CloseButton`
+        // (X) instead of a back arrow — that's the "close button for
+        // free" Material gives us for temporary task screens.
         appBar: AppBar(
-          leading: CloseButton(
-            // Tooltip surfaces the cancel intent on hover/long-press;
-            // the icon itself is the close X (not a back arrow) since
-            // this is a modal-style edit page.
-            onPressed: () => Navigator.of(context).maybePop(),
-          ),
           title: Text(l10n.editProfileTitle),
           actions: [
             Padding(
@@ -296,130 +331,126 @@ class _EditProfileScaffoldState extends ConsumerState<_EditProfileScaffold> {
             ),
           ],
         ),
-        body: SafeArea(
-          top: false,
-          bottom: false,
-          child: FormBuilder(
-            key: _formKey,
-            // Re-render on any field change so the save button picks
-            // up the dirty/valid state without us hand-rolling
-            // listeners per controller.
-            onChanged: () {
-              if (mounted) setState(() {});
-            },
-            // Validate as the user types so length errors surface
-            // beneath the field they refer to, not only on save.
-            autovalidateMode: AutovalidateMode.onUserInteraction,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  EditProfileBannerAvatar(
-                    profile: widget.profile,
-                    bannerColor: swatches.clay,
+        body: FormBuilder(
+          key: _formKey,
+          // Re-render on any field change so the save button picks up
+          // the dirty/valid state without us hand-rolling listeners
+          // per controller.
+          onChanged: () {
+            if (mounted) setState(() {});
+          },
+          // Validate as the user types so length errors surface
+          // beneath the field they refer to, not only on save.
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                EditProfileBannerAvatar(
+                  profile: widget.profile,
+                  bannerColor: swatches.clay,
+                ),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    spacing.sp4,
+                    spacing.sp4,
+                    spacing.sp4,
+                    spacing.sp6,
                   ),
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      spacing.sp4,
-                      spacing.sp4,
-                      spacing.sp4,
-                      spacing.sp6,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        FormBuilderField<String>(
-                          name: _fieldDisplayName,
-                          // Shared node — see _displayNameFocusNode docstring
-                          // for why this matters.
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      FormBuilderField<String>(
+                        name: _fieldDisplayName,
+                        // Shared node — see _displayNameFocusNode docstring
+                        // for why this matters.
+                        focusNode: _displayNameFocusNode,
+                        initialValue: widget.profile.displayName ?? '',
+                        // `checkNullOrEmpty: false` — form_builder_validators
+                        // 11.x's BaseValidator treats empty/null as a hard
+                        // failure by default, which is wrong for a
+                        // length-cap validator (empty is a valid display
+                        // name).
+                        validator: FormBuilderValidators.maxLength(
+                          _displayNameMaxLength,
+                          errorText: l10n.editProfileDisplayNameTooLong,
+                          checkNullOrEmpty: false,
+                        ),
+                        builder: (field) => BrandTextField(
+                          label: l10n.editProfileDisplayNameLabel,
+                          controller: _displayNameController,
                           focusNode: _displayNameFocusNode,
-                          initialValue: widget.profile.displayName ?? '',
-                          // `checkNullOrEmpty: false` — form_builder_validators
-                          // 11.x's BaseValidator treats empty/null as a hard
-                          // failure by default, which is wrong for a
-                          // length-cap validator (empty is a valid display
-                          // name).
-                          validator: FormBuilderValidators.maxLength(
-                            _displayNameMaxLength,
-                            errorText: l10n.editProfileDisplayNameTooLong,
-                            checkNullOrEmpty: false,
-                          ),
-                          builder: (field) => BrandTextField(
-                            label: l10n.editProfileDisplayNameLabel,
-                            controller: _displayNameController,
-                            focusNode: _displayNameFocusNode,
-                            hintText: l10n.editProfileDisplayNameHint,
-                            textInputAction: TextInputAction.next,
-                            enabled: !isSaving,
-                            onChanged: field.didChange,
-                            errorText: field.errorText,
-                          ),
+                          hintText: l10n.editProfileDisplayNameHint,
+                          textInputAction: TextInputAction.next,
+                          enabled: !isSaving,
+                          onChanged: field.didChange,
+                          errorText: field.errorText,
                         ),
-                        SizedBox(height: spacing.sp5),
-                        FormBuilderField<String>(
-                          name: _fieldBio,
+                      ),
+                      SizedBox(height: spacing.sp5),
+                      FormBuilderField<String>(
+                        name: _fieldBio,
+                        focusNode: _bioFocusNode,
+                        initialValue: widget.profile.description ?? '',
+                        validator: FormBuilderValidators.maxLength(
+                          _bioMaxLength,
+                          errorText: l10n.editProfileBioTooLong,
+                          checkNullOrEmpty: false,
+                        ),
+                        builder: (field) => BrandTextField(
+                          label: l10n.editProfileBioLabel,
+                          controller: _bioController,
                           focusNode: _bioFocusNode,
-                          initialValue: widget.profile.description ?? '',
-                          validator: FormBuilderValidators.maxLength(
-                            _bioMaxLength,
-                            errorText: l10n.editProfileBioTooLong,
-                            checkNullOrEmpty: false,
-                          ),
-                          builder: (field) => BrandTextField(
-                            label: l10n.editProfileBioLabel,
-                            controller: _bioController,
-                            focusNode: _bioFocusNode,
-                            hintText: l10n.editProfileBioHint,
-                            minLines: 3,
-                            maxLines: 6,
-                            keyboardType: TextInputType.multiline,
-                            textInputAction: TextInputAction.newline,
-                            enabled: !isSaving,
-                            onChanged: field.didChange,
-                            errorText: field.errorText,
-                          ),
+                          hintText: l10n.editProfileBioHint,
+                          minLines: 3,
+                          maxLines: 6,
+                          keyboardType: TextInputType.multiline,
+                          textInputAction: TextInputAction.newline,
+                          enabled: !isSaving,
+                          onChanged: field.didChange,
+                          errorText: field.errorText,
                         ),
-                        SizedBox(height: spacing.sp5),
-                        Text(
-                          l10n.editProfileCraftsLabel,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                      ),
+                      SizedBox(height: spacing.sp5),
+                      Text(
+                        l10n.editProfileCraftsLabel,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
                         ),
-                        SizedBox(height: spacing.sp1),
-                        Text(
-                          l10n.editProfileCraftsHelper,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
+                      ),
+                      SizedBox(height: spacing.sp1),
+                      Text(
+                        l10n.editProfileCraftsHelper,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
-                        SizedBox(height: spacing.sp3),
-                        FormBuilderField<Set<Craft>>(
-                          name: _fieldCrafts,
-                          initialValue: _initialSelectedCrafts.toSet(),
-                          builder: (field) {
-                            final selected = field.value ?? const <Craft>{};
-                            return EditProfileCraftsPicker(
-                              selected: selected,
-                              onToggle: isSaving
-                                  ? (_) {}
-                                  : (craft) {
-                                      final next = selected.toSet();
-                                      if (next.contains(craft)) {
-                                        next.remove(craft);
-                                      } else {
-                                        next.add(craft);
-                                      }
-                                      field.didChange(next);
-                                    },
-                            );
-                          },
-                        ),
-                      ],
-                    ),
+                      ),
+                      SizedBox(height: spacing.sp3),
+                      FormBuilderField<Set<Craft>>(
+                        name: _fieldCrafts,
+                        initialValue: _initialSelectedCrafts.toSet(),
+                        builder: (field) {
+                          final selected = field.value ?? const <Craft>{};
+                          return EditProfileCraftsPicker(
+                            selected: selected,
+                            onToggle: isSaving
+                                ? (_) {}
+                                : (craft) {
+                                    final next = selected.toSet();
+                                    if (next.contains(craft)) {
+                                      next.remove(craft);
+                                    } else {
+                                      next.add(craft);
+                                    }
+                                    field.didChange(next);
+                                  },
+                          );
+                        },
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

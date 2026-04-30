@@ -1,7 +1,7 @@
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
-import 'package:craftsky_app/profile/pages/edit_profile_page.dart';
+import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -20,11 +20,12 @@ const _seedProfile = Profile(
   crafts: ['sewing', 'quilting'],
 );
 
-/// Test harness that hosts [EditProfilePage] under a real navigator so
-/// pop semantics (close-on-save, back-on-discard) can be exercised. The
-/// host route exposes a `[Open]` button that pushes the edit page so a
-/// subsequent pop returns to a known marker.
-Future<void> _pumpEditPage(
+/// Test harness that hosts [EditProfileDialog] via the same
+/// `showEditProfileDialog` helper the app uses, so pop semantics
+/// (close-on-save, system-back-with-confirm) exercise the real route
+/// shape. The host exposes an `Open` button that opens the dialog so
+/// a subsequent pop returns to a known marker.
+Future<void> _pumpEditDialog(
   WidgetTester tester, {
   required FakeProfileRepository repo,
 }) async {
@@ -43,11 +44,7 @@ Future<void> _pumpEditPage(
             return Scaffold(
               body: Center(
                 child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).push<void>(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const EditProfilePage(),
-                    ),
-                  ),
+                  onPressed: () => showEditProfileDialog(context),
                   child: const Text('Open'),
                 ),
               ),
@@ -62,10 +59,10 @@ Future<void> _pumpEditPage(
 }
 
 void main() {
-  group('EditProfilePage', () {
+  group('EditProfileDialog', () {
     testWidgets('seeds form with current display name and bio', (tester) async {
       final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
-      await _pumpEditPage(tester, repo: repo);
+      await _pumpEditDialog(tester, repo: repo);
 
       // Display name and bio are seeded into the controllers — assert
       // by widget value rather than text occurrence so we don't pick
@@ -84,7 +81,7 @@ void main() {
       tester,
     ) async {
       final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
-      await _pumpEditPage(tester, repo: repo);
+      await _pumpEditDialog(tester, repo: repo);
 
       final saveButton = tester.widget<TextButton>(
         find.widgetWithText(TextButton, 'Save'),
@@ -120,7 +117,7 @@ void main() {
         },
       );
 
-      await _pumpEditPage(tester, repo: repo);
+      await _pumpEditDialog(tester, repo: repo);
 
       // Only displayName visibly changes — but the save call still
       // sends every field's current value, because atproto profile
@@ -148,9 +145,10 @@ void main() {
         onUpdateMe: ({displayName, description, crafts}) async =>
             _seedProfile.copyWith(displayName: displayName ?? 'Test User'),
       );
-      await _pumpEditPage(tester, repo: repo);
+      await _pumpEditDialog(tester, repo: repo);
 
-      // We're on the edit page — the host's Open button is hidden.
+      // Dialog covers the host (the route is opaque), so the host's
+      // Open button is offstage and `find.text` skips it by default.
       expect(find.text('Open'), findsNothing);
 
       await tester.enterText(
@@ -161,7 +159,7 @@ void main() {
       await tester.tap(find.widgetWithText(TextButton, 'Save'));
       await tester.pumpAndSettle();
 
-      // Edit page popped — we're back at the host.
+      // Dialog popped — host's Open button is back on screen.
       expect(find.text('Open'), findsOneWidget);
     });
 
@@ -177,12 +175,12 @@ void main() {
         onUpdateMe: ({displayName, description, crafts}) async =>
             _seedProfile.copyWith(displayName: displayName),
       );
-      await _pumpEditPage(tester, repo: repo);
+      await _pumpEditDialog(tester, repo: repo);
 
       // Keep a listener on the family entry so it stays alive past
       // the edit page's pop and we can observe its cached value.
       final container = ProviderScope.containerOf(
-        tester.element(find.byType(EditProfilePage)),
+        tester.element(find.byType(EditProfileDialog)),
       );
       final sub = container.listen<AsyncValue<Profile>>(
         userProfileProvider('test.bsky.social'),
@@ -216,7 +214,7 @@ void main() {
           throw Exception('boom');
         },
       );
-      await _pumpEditPage(tester, repo: repo);
+      await _pumpEditDialog(tester, repo: repo);
 
       await tester.enterText(
         find.widgetWithText(TextField, 'Test User'),
@@ -236,7 +234,7 @@ void main() {
       'clearing the display name is valid (empty is a permitted value)',
       (tester) async {
         final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
-        await _pumpEditPage(tester, repo: repo);
+        await _pumpEditDialog(tester, repo: repo);
 
         await tester.enterText(
           find.widgetWithText(TextField, 'Test User'),
@@ -265,7 +263,7 @@ void main() {
       'editing keeps the active field focused when validation toggles',
       (tester) async {
         final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
-        await _pumpEditPage(tester, repo: repo);
+        await _pumpEditDialog(tester, repo: repo);
 
         // Tap the field to give it focus, then drive it past the limit.
         // Use a low-level `enterText`-then-`requestFocus` flow because
@@ -300,7 +298,7 @@ void main() {
       'and disables save',
       (tester) async {
         final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
-        await _pumpEditPage(tester, repo: repo);
+        await _pumpEditDialog(tester, repo: repo);
 
         await tester.enterText(
           find.widgetWithText(TextField, 'Test User'),
@@ -328,7 +326,7 @@ void main() {
       tester,
     ) async {
       final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
-      await _pumpEditPage(tester, repo: repo);
+      await _pumpEditDialog(tester, repo: repo);
 
       // 'Knitting' starts unselected (seed has only sewing + quilting).
       // Use the Semantics' selected flag rather than colour to verify

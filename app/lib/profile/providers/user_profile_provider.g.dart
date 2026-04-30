@@ -83,7 +83,7 @@ final class UserProfileProvider
   }
 }
 
-String _$userProfileHash() => r'28075e8bf03650280902059cc383964d65d159bd';
+String _$userProfileHash() => r'0d952f5c8253970c8aa84f2de7cc23b4665d40ff';
 
 /// Single source of truth for a user's profile, keyed by handle or DID.
 ///
