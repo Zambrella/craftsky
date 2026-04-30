@@ -17,4 +17,5 @@ class RouteLocations {
   static const savedChild = 'saved';
   static const settingsChild = 'settings';
   static const playgroundChild = 'playground';
+  static const editProfileChild = 'edit';
 }

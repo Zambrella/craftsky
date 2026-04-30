@@ -88,12 +88,120 @@
   "profileEmptyReposts": "No reposts yet.",
   "@profileEmptyReposts": { "description": "Muted placeholder shown in the Reposts tab while repost data isn't wired." },
 
-  "profileEditComingSoon": "Profile editing coming soon.",
-  "@profileEditComingSoon": { "description": "Snackbar shown when tapping Edit profile while the edit flow isn't implemented yet." },
-
   "profileFollowComingSoon": "Follow coming soon.",
   "@profileFollowComingSoon": { "description": "Snackbar shown when tapping Follow while follow wiring isn't implemented yet." },
 
   "profileShareComingSoon": "Share coming soon.",
-  "@profileShareComingSoon": { "description": "Snackbar shown when tapping Share while share wiring isn't implemented yet." }
+  "@profileShareComingSoon": { "description": "Snackbar shown when tapping Share while share wiring isn't implemented yet." },
+
+  "editProfileTitle": "Edit profile",
+  "@editProfileTitle": { "description": "App-bar title on the profile-edit page." },
+
+  "editProfileSave": "Save",
+  "@editProfileSave": { "description": "Label on the save action in the profile-edit app bar." },
+
+  "editProfileCancel": "Cancel",
+  "@editProfileCancel": { "description": "Tooltip on the close (back) action in the profile-edit app bar." },
+
+  "editProfileDisplayNameLabel": "Display name",
+  "@editProfileDisplayNameLabel": { "description": "Label above the display-name field on the profile-edit page." },
+
+  "editProfileDisplayNameHint": "How your name appears on your profile",
+  "@editProfileDisplayNameHint": { "description": "Hint text inside the display-name field on the profile-edit page." },
+
+  "editProfileBioLabel": "Bio",
+  "@editProfileBioLabel": { "description": "Label above the bio field on the profile-edit page." },
+
+  "editProfileBioHint": "Tell people about yourself",
+  "@editProfileBioHint": { "description": "Hint text inside the bio field on the profile-edit page." },
+
+  "editProfileCraftsLabel": "Crafts",
+  "@editProfileCraftsLabel": { "description": "Section heading above the crafts picker on the profile-edit page." },
+
+  "editProfileCraftsHelper": "Pick the crafts you make",
+  "@editProfileCraftsHelper": { "description": "Helper text below the crafts heading on the profile-edit page, hinting that the user should pick from the list." },
+
+  "editProfilePhotosComingSoon": "Photo uploads coming soon",
+  "@editProfilePhotosComingSoon": { "description": "Caption shown over the avatar/banner area on the profile-edit page, indicating that photo upload isn't wired yet." },
+
+  "editProfileSaveError": "Couldn't save your profile.",
+  "@editProfileSaveError": { "description": "Snackbar shown when the profile-edit save request fails." },
+
+  "editProfileDiscardTitle": "Discard changes?",
+  "@editProfileDiscardTitle": { "description": "Title of the confirm-discard dialog shown when leaving the profile-edit page with unsaved changes." },
+
+  "editProfileDiscardMessage": "Your edits won't be saved.",
+  "@editProfileDiscardMessage": { "description": "Body of the confirm-discard dialog on the profile-edit page." },
+
+  "editProfileDiscardConfirm": "Discard",
+  "@editProfileDiscardConfirm": { "description": "Confirm action in the confirm-discard dialog — closes the edit page without saving." },
+
+  "editProfileDiscardCancel": "Keep editing",
+  "@editProfileDiscardCancel": { "description": "Cancel action in the confirm-discard dialog — returns the user to the edit form." },
+
+  "craftSewing": "Sewing",
+  "@craftSewing": { "description": "Display label for the 'sewing' craft option in the crafts picker." },
+
+  "craftQuilting": "Quilting",
+  "@craftQuilting": { "description": "Display label for the 'quilting' craft option." },
+
+  "craftKnitting": "Knitting",
+  "@craftKnitting": { "description": "Display label for the 'knitting' craft option." },
+
+  "craftCrochet": "Crochet",
+  "@craftCrochet": { "description": "Display label for the 'crochet' craft option." },
+
+  "craftEmbroidery": "Embroidery",
+  "@craftEmbroidery": { "description": "Display label for the 'embroidery' craft option." },
+
+  "craftCrossStitch": "Cross-stitch",
+  "@craftCrossStitch": { "description": "Display label for the 'cross-stitch' craft option." },
+
+  "craftWeaving": "Weaving",
+  "@craftWeaving": { "description": "Display label for the 'weaving' craft option." },
+
+  "craftSpinning": "Spinning",
+  "@craftSpinning": { "description": "Display label for the 'spinning' craft option." },
+
+  "craftFelting": "Felting",
+  "@craftFelting": { "description": "Display label for the 'felting' craft option." },
+
+  "craftMacrame": "Macramé",
+  "@craftMacrame": { "description": "Display label for the 'macrame' craft option." },
+
+  "craftPottery": "Pottery",
+  "@craftPottery": { "description": "Display label for the 'pottery' craft option." },
+
+  "craftWoodworking": "Woodworking",
+  "@craftWoodworking": { "description": "Display label for the 'woodworking' craft option." },
+
+  "craftLeatherwork": "Leatherwork",
+  "@craftLeatherwork": { "description": "Display label for the 'leatherwork' craft option." },
+
+  "craftJewellery": "Jewellery",
+  "@craftJewellery": { "description": "Display label for the 'jewellery' craft option." },
+
+  "craftBookbinding": "Bookbinding",
+  "@craftBookbinding": { "description": "Display label for the 'bookbinding' craft option." },
+
+  "craftCalligraphy": "Calligraphy",
+  "@craftCalligraphy": { "description": "Display label for the 'calligraphy' craft option." },
+
+  "craftPrintmaking": "Printmaking",
+  "@craftPrintmaking": { "description": "Display label for the 'printmaking' craft option." },
+
+  "craftPapercraft": "Paper craft",
+  "@craftPapercraft": { "description": "Display label for the 'papercraft' craft option (covers origami, kirigami, card-making)." },
+
+  "craftPainting": "Painting",
+  "@craftPainting": { "description": "Display label for the 'painting' craft option." },
+
+  "craftDrawing": "Drawing",
+  "@craftDrawing": { "description": "Display label for the 'drawing' craft option." },
+
+  "craftCandleMaking": "Candle making",
+  "@craftCandleMaking": { "description": "Display label for the 'candlemaking' craft option." },
+
+  "craftSoapMaking": "Soap making",
+  "@craftSoapMaking": { "description": "Display label for the 'soapmaking' craft option." }
 }

@@ -25,6 +25,13 @@ class UserProfile extends _$UserProfile {
     return ref.watch(profileRepositoryProvider).fetch(handleOrDid);
   }
 
+  /// Replaces the cached profile without refetching. Used by mutation
+  /// flows (`SaveProfile.save`) that already have an authoritative
+  /// server response in hand — pushing it straight into the cache
+  /// avoids both the round-trip and any read-after-write lag on the
+  /// AppView.
+  void setCached(Profile profile) => state = AsyncData(profile);
+
   Future<void> updateDisplayName(String displayName) => _patch(
     optimistic: (p) => p.copyWith(displayName: displayName),
     apply: (repo) => repo.updateMe(displayName: displayName),

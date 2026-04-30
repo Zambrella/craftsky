@@ -73,6 +73,12 @@ RouteBase get $appShellRoute => StatefulShellRouteData.$route(
               parentNavigatorKey: PlaygroundRoute.$parentNavigatorKey,
               factory: $PlaygroundRoute._fromState,
             ),
+            GoRouteData.$route(
+              path: 'edit',
+              name: 'edit-profile',
+              parentNavigatorKey: EditProfileRoute.$parentNavigatorKey,
+              factory: $EditProfileRoute._fromState,
+            ),
           ],
         ),
       ],
@@ -211,6 +217,27 @@ mixin $PlaygroundRoute on GoRouteData {
 
   @override
   String get location => GoRouteData.$location('/profile/playground');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $EditProfileRoute on GoRouteData {
+  static EditProfileRoute _fromState(GoRouterState state) =>
+      const EditProfileRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/edit');
 
   @override
   void go(BuildContext context) => context.go(location);

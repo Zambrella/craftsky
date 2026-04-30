@@ -95,11 +95,120 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileEmptyReposts => 'No reposts yet.';
 
   @override
-  String get profileEditComingSoon => 'Profile editing coming soon.';
-
-  @override
   String get profileFollowComingSoon => 'Follow coming soon.';
 
   @override
   String get profileShareComingSoon => 'Share coming soon.';
+
+  @override
+  String get editProfileTitle => 'Edit profile';
+
+  @override
+  String get editProfileSave => 'Save';
+
+  @override
+  String get editProfileCancel => 'Cancel';
+
+  @override
+  String get editProfileDisplayNameLabel => 'Display name';
+
+  @override
+  String get editProfileDisplayNameHint =>
+      'How your name appears on your profile';
+
+  @override
+  String get editProfileBioLabel => 'Bio';
+
+  @override
+  String get editProfileBioHint => 'Tell people about yourself';
+
+  @override
+  String get editProfileCraftsLabel => 'Crafts';
+
+  @override
+  String get editProfileCraftsHelper => 'Pick the crafts you make';
+
+  @override
+  String get editProfilePhotosComingSoon => 'Photo uploads coming soon';
+
+  @override
+  String get editProfileSaveError => 'Couldn\'t save your profile.';
+
+  @override
+  String get editProfileDiscardTitle => 'Discard changes?';
+
+  @override
+  String get editProfileDiscardMessage => 'Your edits won\'t be saved.';
+
+  @override
+  String get editProfileDiscardConfirm => 'Discard';
+
+  @override
+  String get editProfileDiscardCancel => 'Keep editing';
+
+  @override
+  String get craftSewing => 'Sewing';
+
+  @override
+  String get craftQuilting => 'Quilting';
+
+  @override
+  String get craftKnitting => 'Knitting';
+
+  @override
+  String get craftCrochet => 'Crochet';
+
+  @override
+  String get craftEmbroidery => 'Embroidery';
+
+  @override
+  String get craftCrossStitch => 'Cross-stitch';
+
+  @override
+  String get craftWeaving => 'Weaving';
+
+  @override
+  String get craftSpinning => 'Spinning';
+
+  @override
+  String get craftFelting => 'Felting';
+
+  @override
+  String get craftMacrame => 'Macramé';
+
+  @override
+  String get craftPottery => 'Pottery';
+
+  @override
+  String get craftWoodworking => 'Woodworking';
+
+  @override
+  String get craftLeatherwork => 'Leatherwork';
+
+  @override
+  String get craftJewellery => 'Jewellery';
+
+  @override
+  String get craftBookbinding => 'Bookbinding';
+
+  @override
+  String get craftCalligraphy => 'Calligraphy';
+
+  @override
+  String get craftPrintmaking => 'Printmaking';
+
+  @override
+  String get craftPapercraft => 'Paper craft';
+
+  @override
+  String get craftPainting => 'Painting';
+
+  @override
+  String get craftDrawing => 'Drawing';
+
+  @override
+  String get craftCandleMaking => 'Candle making';
+
+  @override
+  String get craftSoapMaking => 'Soap making';
 }

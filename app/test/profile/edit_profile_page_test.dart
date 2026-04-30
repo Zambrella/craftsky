@@ -1,0 +1,266 @@
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/pages/edit_profile_page.dart';
+import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import '../fakes/auth_session_fakes.dart';
+import 'fakes/fake_profile_repository.dart';
+
+const _seedProfile = Profile(
+  did: 'did:plc:test',
+  handle: 'test.bsky.social',
+  displayName: 'Test User',
+  description: 'Sewist in Bristol',
+  crafts: ['sewing', 'quilting'],
+);
+
+/// Test harness that hosts [EditProfilePage] under a real navigator so
+/// pop semantics (close-on-save, back-on-discard) can be exercised. The
+/// host route exposes a `[Open]` button that pushes the edit page so a
+/// subsequent pop returns to a known marker.
+Future<void> _pumpEditPage(
+  WidgetTester tester, {
+  required FakeProfileRepository repo,
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        authSessionProvider.overrideWith(SignedInAuthSession.new),
+        profileRepositoryProvider.overrideWithValue(repo),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.lightThemeData,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(
+          builder: (context) {
+            return Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const EditProfilePage(),
+                    ),
+                  ),
+                  child: const Text('Open'),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    ),
+  );
+  await tester.tap(find.text('Open'));
+  await tester.pumpAndSettle();
+}
+
+void main() {
+  group('EditProfilePage', () {
+    testWidgets('seeds form with current display name and bio', (tester) async {
+      final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
+      await _pumpEditPage(tester, repo: repo);
+
+      // Display name and bio are seeded into the controllers — assert
+      // by widget value rather than text occurrence so we don't pick
+      // up the page's own static labels by accident.
+      expect(
+        find.widgetWithText(TextField, 'Test User'),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(TextField, 'Sewist in Bristol'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('save is disabled until the user makes a change', (
+      tester,
+    ) async {
+      final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
+      await _pumpEditPage(tester, repo: repo);
+
+      final saveButton = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, 'Save'),
+      );
+      expect(saveButton.onPressed, isNull);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Test User'),
+        'Renamed',
+      );
+      await tester.pump();
+
+      final updated = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, 'Save'),
+      );
+      expect(updated.onPressed, isNotNull);
+    });
+
+    testWidgets('saving sends the full current form state', (tester) async {
+      String? capturedDisplayName;
+      String? capturedDescription;
+      List<String>? capturedCrafts;
+      var updateCallCount = 0;
+
+      final repo = FakeProfileRepository(
+        onFetch: (_) async => _seedProfile,
+        onUpdateMe: ({displayName, description, crafts}) async {
+          updateCallCount++;
+          capturedDisplayName = displayName;
+          capturedDescription = description;
+          capturedCrafts = crafts;
+          return _seedProfile.copyWith(displayName: displayName);
+        },
+      );
+
+      await _pumpEditPage(tester, repo: repo);
+
+      // Only displayName visibly changes — but the save call still
+      // sends every field's current value, because atproto profile
+      // records are atomic and a partial PUT would clear the absent
+      // fields on the PDS.
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Test User'),
+        'Renamed',
+      );
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(updateCallCount, 1);
+      expect(capturedDisplayName, 'Renamed');
+      expect(capturedDescription, 'Sewist in Bristol');
+      expect(capturedCrafts, ['sewing', 'quilting']);
+    });
+
+    testWidgets('successful save pops back to the previous route', (
+      tester,
+    ) async {
+      final repo = FakeProfileRepository(
+        onFetch: (_) async => _seedProfile,
+        onUpdateMe: ({displayName, description, crafts}) async =>
+            _seedProfile.copyWith(displayName: displayName ?? 'Test User'),
+      );
+      await _pumpEditPage(tester, repo: repo);
+
+      // We're on the edit page — the host's Open button is hidden.
+      expect(find.text('Open'), findsNothing);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Test User'),
+        'Renamed',
+      );
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      // Edit page popped — we're back at the host.
+      expect(find.text('Open'), findsOneWidget);
+    });
+
+    testWidgets('successful save updates the cached profile without refetch', (
+      tester,
+    ) async {
+      var fetchCallCount = 0;
+      final repo = FakeProfileRepository(
+        onFetch: (_) async {
+          fetchCallCount++;
+          return _seedProfile;
+        },
+        onUpdateMe: ({displayName, description, crafts}) async =>
+            _seedProfile.copyWith(displayName: displayName),
+      );
+      await _pumpEditPage(tester, repo: repo);
+
+      // Keep a listener on the family entry so it stays alive past
+      // the edit page's pop and we can observe its cached value.
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(EditProfilePage)),
+      );
+      final sub = container.listen<AsyncValue<Profile>>(
+        userProfileProvider('test.bsky.social'),
+        (_, _) {},
+      );
+      addTearDown(sub.close);
+
+      // Edit page's initial fetch already happened.
+      expect(fetchCallCount, 1);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Test User'),
+        'Renamed',
+      );
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      // Cache reflects the saved profile — pushed via setCached, no
+      // second fetch fired.
+      expect(sub.read().value?.displayName, 'Renamed');
+      expect(fetchCallCount, 1);
+    });
+
+    testWidgets('failed save surfaces an error snackbar and stays on page', (
+      tester,
+    ) async {
+      final repo = FakeProfileRepository(
+        onFetch: (_) async => _seedProfile,
+        onUpdateMe: ({displayName, description, crafts}) async {
+          throw Exception('boom');
+        },
+      );
+      await _pumpEditPage(tester, repo: repo);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Test User'),
+        'Renamed',
+      );
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      // Snackbar text comes from the editProfileSaveError ARB key.
+      expect(find.text("Couldn't save your profile."), findsOneWidget);
+      // Still on the edit page — the host's Open button hasn't returned.
+      expect(find.text('Open'), findsNothing);
+    });
+
+    testWidgets('tapping a craft chip toggles its selection state', (
+      tester,
+    ) async {
+      final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
+      await _pumpEditPage(tester, repo: repo);
+
+      // 'Knitting' starts unselected (seed has only sewing + quilting).
+      // Use the Semantics' selected flag rather than colour to verify
+      // toggle, since colours are theme-dependent.
+      final knittingFinder = find.byWidgetPredicate(
+        (w) => w is Semantics && w.properties.label == 'Knitting',
+      );
+      expect(knittingFinder, findsOneWidget);
+
+      // The crafts grid is below the fold in the default 800x600 test
+      // viewport — scroll it into view before tapping.
+      await tester.ensureVisible(knittingFinder);
+      await tester.pumpAndSettle();
+
+      Semantics knitting() => tester.widget<Semantics>(knittingFinder);
+      expect(knitting().properties.selected, isFalse);
+
+      await tester.tap(knittingFinder);
+      await tester.pump();
+      expect(knitting().properties.selected, isTrue);
+
+      await tester.tap(knittingFinder);
+      await tester.pump();
+      expect(knitting().properties.selected, isFalse);
+    });
+  });
+}

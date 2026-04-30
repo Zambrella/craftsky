@@ -112,12 +112,7 @@ class _ProfileBody extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     if (isOwnProfile) {
       return SelfProfileActionSet(
-        onEdit: () {
-          // TODO(craftsky): push profile edit flow once it exists.
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.profileEditComingSoon)),
-          );
-        },
+        onEdit: () => const EditProfileRoute().go(context),
         onSettings: () => const SettingsRoute().go(context),
       );
     }

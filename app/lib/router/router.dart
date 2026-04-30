@@ -10,6 +10,7 @@ import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
+import 'package:craftsky_app/profile/pages/edit_profile_page.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/pages/saved_page.dart';
 import 'package:craftsky_app/router/app_shell.dart';
@@ -159,6 +160,10 @@ GoRouter goRouter(Ref ref) {
               path: RouteLocations.playgroundChild,
               name: 'playground',
             ),
+            TypedGoRoute<EditProfileRoute>(
+              path: RouteLocations.editProfileChild,
+              name: 'edit-profile',
+            ),
           ],
         ),
       ],
@@ -261,6 +266,20 @@ class PlaygroundRoute extends GoRouteData with $PlaygroundRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const DesignPlaygroundPage();
+}
+
+/// Self-profile edit flow at `/profile/edit`. Same shape as [SettingsRoute]
+/// — nested under profile so the back arrow returns to the profile page,
+/// pushed on the root navigator so it covers the shell's bottom nav.
+class EditProfileRoute extends GoRouteData with $EditProfileRoute {
+  const EditProfileRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const EditProfilePage();
 }
 
 // --- Root-navigator routes (push over the shell) ---------------------------

@@ -30,9 +30,14 @@ class ProfileApiClient {
   });
 
   /// PUT /v1/profiles/me — updates the authenticated user's profile.
-  /// Only fields present in the body are written; passing `null` for a
-  /// field omits it from the request, leaving the existing value
-  /// untouched. Avatar and banner are not writable in v1.
+  ///
+  /// **Callers should send the full desired field values, not a diff.**
+  /// This method strips `null` fields from the body, but the AppView's
+  /// PDS write path treats absent keys as cleared — atproto records
+  /// are atomic, so a partial body produces a partial profile record.
+  /// To leave a field unchanged, send its current value.
+  ///
+  /// Avatar and banner are not writable in v1.
   Future<Profile> updateMyProfile({
     String? displayName,
     String? description,

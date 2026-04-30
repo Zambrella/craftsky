@@ -262,12 +262,6 @@ abstract class AppLocalizations {
   /// **'No reposts yet.'**
   String get profileEmptyReposts;
 
-  /// Snackbar shown when tapping Edit profile while the edit flow isn't implemented yet.
-  ///
-  /// In en, this message translates to:
-  /// **'Profile editing coming soon.'**
-  String get profileEditComingSoon;
-
   /// Snackbar shown when tapping Follow while follow wiring isn't implemented yet.
   ///
   /// In en, this message translates to:
@@ -279,6 +273,228 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Share coming soon.'**
   String get profileShareComingSoon;
+
+  /// App-bar title on the profile-edit page.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit profile'**
+  String get editProfileTitle;
+
+  /// Label on the save action in the profile-edit app bar.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get editProfileSave;
+
+  /// Tooltip on the close (back) action in the profile-edit app bar.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get editProfileCancel;
+
+  /// Label above the display-name field on the profile-edit page.
+  ///
+  /// In en, this message translates to:
+  /// **'Display name'**
+  String get editProfileDisplayNameLabel;
+
+  /// Hint text inside the display-name field on the profile-edit page.
+  ///
+  /// In en, this message translates to:
+  /// **'How your name appears on your profile'**
+  String get editProfileDisplayNameHint;
+
+  /// Label above the bio field on the profile-edit page.
+  ///
+  /// In en, this message translates to:
+  /// **'Bio'**
+  String get editProfileBioLabel;
+
+  /// Hint text inside the bio field on the profile-edit page.
+  ///
+  /// In en, this message translates to:
+  /// **'Tell people about yourself'**
+  String get editProfileBioHint;
+
+  /// Section heading above the crafts picker on the profile-edit page.
+  ///
+  /// In en, this message translates to:
+  /// **'Crafts'**
+  String get editProfileCraftsLabel;
+
+  /// Helper text below the crafts heading on the profile-edit page, hinting that the user should pick from the list.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick the crafts you make'**
+  String get editProfileCraftsHelper;
+
+  /// Caption shown over the avatar/banner area on the profile-edit page, indicating that photo upload isn't wired yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo uploads coming soon'**
+  String get editProfilePhotosComingSoon;
+
+  /// Snackbar shown when the profile-edit save request fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save your profile.'**
+  String get editProfileSaveError;
+
+  /// Title of the confirm-discard dialog shown when leaving the profile-edit page with unsaved changes.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard changes?'**
+  String get editProfileDiscardTitle;
+
+  /// Body of the confirm-discard dialog on the profile-edit page.
+  ///
+  /// In en, this message translates to:
+  /// **'Your edits won\'t be saved.'**
+  String get editProfileDiscardMessage;
+
+  /// Confirm action in the confirm-discard dialog — closes the edit page without saving.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get editProfileDiscardConfirm;
+
+  /// Cancel action in the confirm-discard dialog — returns the user to the edit form.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep editing'**
+  String get editProfileDiscardCancel;
+
+  /// Display label for the 'sewing' craft option in the crafts picker.
+  ///
+  /// In en, this message translates to:
+  /// **'Sewing'**
+  String get craftSewing;
+
+  /// Display label for the 'quilting' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Quilting'**
+  String get craftQuilting;
+
+  /// Display label for the 'knitting' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Knitting'**
+  String get craftKnitting;
+
+  /// Display label for the 'crochet' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Crochet'**
+  String get craftCrochet;
+
+  /// Display label for the 'embroidery' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Embroidery'**
+  String get craftEmbroidery;
+
+  /// Display label for the 'cross-stitch' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Cross-stitch'**
+  String get craftCrossStitch;
+
+  /// Display label for the 'weaving' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Weaving'**
+  String get craftWeaving;
+
+  /// Display label for the 'spinning' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Spinning'**
+  String get craftSpinning;
+
+  /// Display label for the 'felting' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Felting'**
+  String get craftFelting;
+
+  /// Display label for the 'macrame' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Macramé'**
+  String get craftMacrame;
+
+  /// Display label for the 'pottery' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Pottery'**
+  String get craftPottery;
+
+  /// Display label for the 'woodworking' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Woodworking'**
+  String get craftWoodworking;
+
+  /// Display label for the 'leatherwork' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Leatherwork'**
+  String get craftLeatherwork;
+
+  /// Display label for the 'jewellery' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Jewellery'**
+  String get craftJewellery;
+
+  /// Display label for the 'bookbinding' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Bookbinding'**
+  String get craftBookbinding;
+
+  /// Display label for the 'calligraphy' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Calligraphy'**
+  String get craftCalligraphy;
+
+  /// Display label for the 'printmaking' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Printmaking'**
+  String get craftPrintmaking;
+
+  /// Display label for the 'papercraft' craft option (covers origami, kirigami, card-making).
+  ///
+  /// In en, this message translates to:
+  /// **'Paper craft'**
+  String get craftPapercraft;
+
+  /// Display label for the 'painting' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Painting'**
+  String get craftPainting;
+
+  /// Display label for the 'drawing' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Drawing'**
+  String get craftDrawing;
+
+  /// Display label for the 'candlemaking' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Candle making'**
+  String get craftCandleMaking;
+
+  /// Display label for the 'soapmaking' craft option.
+  ///
+  /// In en, this message translates to:
+  /// **'Soap making'**
+  String get craftSoapMaking;
 }
 
 class _AppLocalizationsDelegate

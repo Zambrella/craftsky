@@ -11,9 +11,12 @@ abstract interface class ProfileRepository {
   /// Fetches the authenticated user's profile via `/v1/profiles/me`.
   Future<Profile> fetchMe();
 
-  /// Patches the authenticated user's profile. `null` fields are
-  /// omitted from the request — the AppView treats them as "leave
-  /// unchanged".
+  /// Replaces the authenticated user's profile.
+  ///
+  /// Callers should pass the **full** desired field values, not a diff.
+  /// `null` fields are stripped from the wire body, but atproto record
+  /// semantics mean any field absent from the request is cleared on the
+  /// PDS — see `ProfileApiClient.updateMyProfile` for the gory detail.
   Future<Profile> updateMe({
     String? displayName,
     String? description,
