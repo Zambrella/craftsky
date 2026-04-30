@@ -11,7 +11,25 @@ import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:form_builder_validators/form_builder_validators.dart';
+
+/// Field names used by the [FormBuilder] state. Centralised so the
+/// build site, the validators, and the save-time reads can't drift
+/// from one another.
+const _fieldDisplayName = 'displayName';
+const _fieldBio = 'bio';
+const _fieldCrafts = 'crafts';
+
+/// Bsky's `app.bsky.actor.profile.displayName` lexicon caps display
+/// names at 64 graphemes. We approximate with code-unit length here —
+/// the server has the final say.
+const _displayNameMaxLength = 64;
+
+/// Bsky's `app.bsky.actor.profile.description` lexicon caps the bio at
+/// 256 graphemes. Same code-unit caveat as [_displayNameMaxLength].
+const _bioMaxLength = 256;
 
 /// Fullscreen profile-edit screen reached via `/profile/edit`. Resolves
 /// the signed-in user's handle, loads their profile, and hands a
@@ -48,9 +66,10 @@ class EditProfilePage extends ConsumerWidget {
   }
 }
 
-/// Stateful body of the edit page. Holds the draft form state
-/// (controllers + selected crafts), the originals (for diffing), and
-/// the listener that closes the page on a successful save.
+/// Stateful body of the edit page. Wires a [FormBuilder] over the three
+/// editable fields (display name, bio, crafts) so validation, dirty
+/// tracking, and read-time access all flow through a single
+/// [GlobalKey<FormBuilderState>].
 class _EditProfileScaffold extends ConsumerStatefulWidget {
   const _EditProfileScaffold({required this.profile});
 
@@ -66,9 +85,31 @@ class _EditProfileScaffold extends ConsumerStatefulWidget {
 }
 
 class _EditProfileScaffoldState extends ConsumerState<_EditProfileScaffold> {
+  final _formKey = GlobalKey<FormBuilderState>();
+
+  /// Text controllers are kept in state because [BrandTextField] needs
+  /// one to seed its initial display text — `TextField` doesn't expose
+  /// an `initialValue` parameter. The form value is kept in sync via
+  /// each field's `onChanged: field.didChange`.
   late final TextEditingController _displayNameController;
   late final TextEditingController _bioController;
-  late final Set<Craft> _selectedCrafts;
+
+  /// Focus nodes are owned at the page level and handed to **both** the
+  /// [FormBuilderField] and the [BrandTextField] for each text input.
+  /// Sharing the node is critical: [FormBuilderFieldState.validate]
+  /// auto-grabs focus when a field becomes invalid unless one of the
+  /// form's registered fields already has focus, and it checks each
+  /// field's own `effectiveFocusNode` for that. If we let the form
+  /// allocate its own node and BrandTextField create its own internally,
+  /// they're disjoint, and every keystroke that fails validation steals
+  /// focus mid-typing.
+  late final FocusNode _displayNameFocusNode;
+  late final FocusNode _bioFocusNode;
+
+  /// Initial set of selected crafts — captured once at mount and used
+  /// by [_hasChanges] to decide whether the form is dirty. The current
+  /// selection lives in the form's value under [_fieldCrafts].
+  late final Set<Craft> _initialSelectedCrafts;
 
   /// Crafts on the profile that don't map to any [Craft] enum entry.
   /// Preserved verbatim and re-attached on save so a viewer on an older
@@ -85,6 +126,8 @@ class _EditProfileScaffoldState extends ConsumerState<_EditProfileScaffold> {
     _bioController = TextEditingController(
       text: widget.profile.description,
     );
+    _displayNameFocusNode = FocusNode(debugLabel: _fieldDisplayName);
+    _bioFocusNode = FocusNode(debugLabel: _fieldBio);
 
     final selected = <Craft>{};
     final unknown = <String>[];
@@ -96,74 +139,71 @@ class _EditProfileScaffoldState extends ConsumerState<_EditProfileScaffold> {
         unknown.add(id);
       }
     }
-    _selectedCrafts = selected;
+    _initialSelectedCrafts = Set.unmodifiable(selected);
     _unknownCrafts = List.unmodifiable(unknown);
-
-    // Save-button enabled state depends on whether any field differs
-    // from its initial value, so re-render whenever the text changes.
-    _displayNameController.addListener(_onTextChanged);
-    _bioController.addListener(_onTextChanged);
   }
 
   @override
   void dispose() {
-    _displayNameController
-      ..removeListener(_onTextChanged)
-      ..dispose();
-    _bioController
-      ..removeListener(_onTextChanged)
-      ..dispose();
+    _displayNameController.dispose();
+    _bioController.dispose();
+    _displayNameFocusNode.dispose();
+    _bioFocusNode.dispose();
     super.dispose();
   }
 
-  void _onTextChanged() {
-    if (mounted) setState(() {});
-  }
+  /// Currently-typed values, as the [FormBuilder] sees them. Returns an
+  /// empty map before the form has built so callers can fall back to
+  /// "no changes" without null-checking.
+  Map<String, dynamic> get _formValues =>
+      _formKey.currentState?.instantValue ?? const {};
 
   bool get _hasChanges {
+    final values = _formValues;
+    if (values.isEmpty) return false;
+
     final initialDisplayName = widget.profile.displayName ?? '';
     final initialBio = widget.profile.description ?? '';
-    if (_displayNameController.text != initialDisplayName) return true;
-    if (_bioController.text != initialBio) return true;
+    if ((values[_fieldDisplayName] as String? ?? '') != initialDisplayName) {
+      return true;
+    }
+    if ((values[_fieldBio] as String? ?? '') != initialBio) return true;
 
-    final initialKnownCraftIds = widget.profile.crafts
-        .where((id) => Craft.fromId(id) != null)
+    final initialIds = _initialSelectedCrafts.map((c) => c.id).toSet();
+    final currentIds = (values[_fieldCrafts] as Set<Craft>? ?? const <Craft>{})
+        .map((c) => c.id)
         .toSet();
-    final currentCraftIds = _selectedCrafts.map((c) => c.id).toSet();
-    if (currentCraftIds.length != initialKnownCraftIds.length) return true;
-    if (!currentCraftIds.containsAll(initialKnownCraftIds)) return true;
+    if (currentIds.length != initialIds.length) return true;
+    if (!currentIds.containsAll(initialIds)) return true;
     return false;
   }
 
-  void _toggleCraft(Craft craft) {
-    setState(() {
-      if (_selectedCrafts.contains(craft)) {
-        _selectedCrafts.remove(craft);
-      } else {
-        _selectedCrafts.add(craft);
-      }
-    });
-  }
-
-  /// Dispatches the save. Sends the **full** current form state, not a
-  /// diff — atproto profile records are atomic, so any field absent
-  /// from the PUT gets cleared on the PDS. See
-  /// `ProfileApiClient.updateMyProfile` for the rationale.
+  /// Validates the form and dispatches the save. Sends the **full**
+  /// current form state, not a diff — atproto profile records are
+  /// atomic, so any field absent from the PUT gets cleared on the PDS.
+  /// See `ProfileApiClient.updateMyProfile` for the rationale.
   void _save() {
+    final form = _formKey.currentState;
+    if (form == null) return;
+    if (!form.saveAndValidate()) return;
     if (!_hasChanges) return;
+
+    final values = form.value;
+    final selectedCrafts =
+        (values[_fieldCrafts] as Set<Craft>?) ?? const <Craft>{};
 
     // Re-attach the preserved unknowns so a save from this client
     // doesn't strip tags a newer server has added.
     final craftsPayload = <String>[
-      ..._selectedCrafts.map((c) => c.id),
+      ...selectedCrafts.map((c) => c.id),
       ..._unknownCrafts,
     ];
 
     ref
         .read(saveProfileProvider.notifier)
         .save(
-          displayName: _displayNameController.text.trim(),
-          description: _bioController.text.trim(),
+          displayName: (values[_fieldDisplayName] as String? ?? '').trim(),
+          description: (values[_fieldBio] as String? ?? '').trim(),
           crafts: craftsPayload,
         );
   }
@@ -207,15 +247,10 @@ class _EditProfileScaffoldState extends ConsumerState<_EditProfileScaffold> {
     // listeners go in build (not initState).
     ref.listen<AsyncValue<Profile?>>(saveProfileProvider, (prev, next) {
       switch ((prev, next)) {
-        case (AsyncLoading(), AsyncData(value: final updated?)):
+        case (AsyncLoading(), AsyncData(value: final _?)):
           if (Navigator.of(context).canPop()) {
             Navigator.of(context).pop();
           }
-          // Drop the result on the floor — userProfileProvider is
-          // already invalidated inside the notifier, so the profile
-          // page picks up the change on its own.
-          // ignore: unused_local_variable
-          final _ = updated;
         case (AsyncLoading(), AsyncError()):
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(l10n.editProfileSaveError)),
@@ -225,7 +260,12 @@ class _EditProfileScaffoldState extends ConsumerState<_EditProfileScaffold> {
       }
     });
 
-    final canSave = _hasChanges && !isSaving;
+    // `isValid` is true on first build (no errors yet) and flips false
+    // as soon as a validator fails — autovalidateMode keeps it in sync
+    // with the user's typing. Combined with `_hasChanges` it gives the
+    // save button the strict "dirty + valid + not in flight" gate.
+    final isFormValid = _formKey.currentState?.isValid ?? true;
+    final canSave = _hasChanges && isFormValid && !isSaving;
 
     return PopScope<Object?>(
       canPop: !_hasChanges || isSaving,
@@ -259,65 +299,127 @@ class _EditProfileScaffoldState extends ConsumerState<_EditProfileScaffold> {
         body: SafeArea(
           top: false,
           bottom: false,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                EditProfileBannerAvatar(
-                  profile: widget.profile,
-                  bannerColor: swatches.clay,
-                ),
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    spacing.sp4,
-                    spacing.sp4,
-                    spacing.sp4,
-                    spacing.sp6,
+          child: FormBuilder(
+            key: _formKey,
+            // Re-render on any field change so the save button picks
+            // up the dirty/valid state without us hand-rolling
+            // listeners per controller.
+            onChanged: () {
+              if (mounted) setState(() {});
+            },
+            // Validate as the user types so length errors surface
+            // beneath the field they refer to, not only on save.
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  EditProfileBannerAvatar(
+                    profile: widget.profile,
+                    bannerColor: swatches.clay,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      BrandTextField(
-                        label: l10n.editProfileDisplayNameLabel,
-                        controller: _displayNameController,
-                        hintText: l10n.editProfileDisplayNameHint,
-                        textInputAction: TextInputAction.next,
-                        enabled: !isSaving,
-                      ),
-                      SizedBox(height: spacing.sp5),
-                      BrandTextField(
-                        label: l10n.editProfileBioLabel,
-                        controller: _bioController,
-                        hintText: l10n.editProfileBioHint,
-                        minLines: 3,
-                        maxLines: 6,
-                        keyboardType: TextInputType.multiline,
-                        textInputAction: TextInputAction.newline,
-                        enabled: !isSaving,
-                      ),
-                      SizedBox(height: spacing.sp5),
-                      Text(
-                        l10n.editProfileCraftsLabel,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      spacing.sp4,
+                      spacing.sp4,
+                      spacing.sp4,
+                      spacing.sp6,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        FormBuilderField<String>(
+                          name: _fieldDisplayName,
+                          // Shared node — see _displayNameFocusNode docstring
+                          // for why this matters.
+                          focusNode: _displayNameFocusNode,
+                          initialValue: widget.profile.displayName ?? '',
+                          // `checkNullOrEmpty: false` — form_builder_validators
+                          // 11.x's BaseValidator treats empty/null as a hard
+                          // failure by default, which is wrong for a
+                          // length-cap validator (empty is a valid display
+                          // name).
+                          validator: FormBuilderValidators.maxLength(
+                            _displayNameMaxLength,
+                            errorText: l10n.editProfileDisplayNameTooLong,
+                            checkNullOrEmpty: false,
+                          ),
+                          builder: (field) => BrandTextField(
+                            label: l10n.editProfileDisplayNameLabel,
+                            controller: _displayNameController,
+                            focusNode: _displayNameFocusNode,
+                            hintText: l10n.editProfileDisplayNameHint,
+                            textInputAction: TextInputAction.next,
+                            enabled: !isSaving,
+                            onChanged: field.didChange,
+                            errorText: field.errorText,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: spacing.sp1),
-                      Text(
-                        l10n.editProfileCraftsHelper,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                        SizedBox(height: spacing.sp5),
+                        FormBuilderField<String>(
+                          name: _fieldBio,
+                          focusNode: _bioFocusNode,
+                          initialValue: widget.profile.description ?? '',
+                          validator: FormBuilderValidators.maxLength(
+                            _bioMaxLength,
+                            errorText: l10n.editProfileBioTooLong,
+                            checkNullOrEmpty: false,
+                          ),
+                          builder: (field) => BrandTextField(
+                            label: l10n.editProfileBioLabel,
+                            controller: _bioController,
+                            focusNode: _bioFocusNode,
+                            hintText: l10n.editProfileBioHint,
+                            minLines: 3,
+                            maxLines: 6,
+                            keyboardType: TextInputType.multiline,
+                            textInputAction: TextInputAction.newline,
+                            enabled: !isSaving,
+                            onChanged: field.didChange,
+                            errorText: field.errorText,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: spacing.sp3),
-                      EditProfileCraftsPicker(
-                        selected: _selectedCrafts,
-                        onToggle: isSaving ? (_) {} : _toggleCraft,
-                      ),
-                    ],
+                        SizedBox(height: spacing.sp5),
+                        Text(
+                          l10n.editProfileCraftsLabel,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(height: spacing.sp1),
+                        Text(
+                          l10n.editProfileCraftsHelper,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        SizedBox(height: spacing.sp3),
+                        FormBuilderField<Set<Craft>>(
+                          name: _fieldCrafts,
+                          initialValue: _initialSelectedCrafts.toSet(),
+                          builder: (field) {
+                            final selected = field.value ?? const <Craft>{};
+                            return EditProfileCraftsPicker(
+                              selected: selected,
+                              onToggle: isSaving
+                                  ? (_) {}
+                                  : (craft) {
+                                      final next = selected.toSet();
+                                      if (next.contains(craft)) {
+                                        next.remove(craft);
+                                      } else {
+                                        next.add(craft);
+                                      }
+                                      field.didChange(next);
+                                    },
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -329,9 +431,16 @@ class _EditProfileScaffoldState extends ConsumerState<_EditProfileScaffold> {
 /// Save button shown in the app-bar trailing slot. Plain `TextButton` —
 /// flat, no chunky styling, just a bold text label that picks up
 /// `colorScheme.primary` for the accent colour. Disabled (`null`
-/// callback) when the form is unchanged or a save is in flight; the
-/// in-flight state replaces the label with a small spinner so the user
-/// has feedback during the network round trip.
+/// callback) when the form is clean / invalid / a save is in flight;
+/// the in-flight state replaces the label with a small spinner so the
+/// user has feedback during the network round trip.
+///
+/// Styling is delivered via `TextButton.styleFrom(textStyle: ...)`
+/// rather than an explicit style on the inner [Text] so the
+/// `WidgetStateProperty<Color>` foreground resolver gets to choose
+/// between enabled and disabled colours unimpeded — passing a baked-in
+/// colour on the child Text overrides the resolver and the disabled
+/// state ends up looking identical to the enabled one.
 class _SaveAction extends StatelessWidget {
   const _SaveAction({required this.onPressed, required this.isSaving});
 
@@ -345,6 +454,9 @@ class _SaveAction extends StatelessWidget {
 
     return TextButton(
       onPressed: onPressed,
+      style: TextButton.styleFrom(
+        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+      ),
       child: isSaving
           ? SizedBox(
               width: 18,
@@ -356,12 +468,7 @@ class _SaveAction extends StatelessWidget {
                 ),
               ),
             )
-          : Text(
-              l10n.editProfileSave,
-              style: theme.textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+          : Text(l10n.editProfileSave),
     );
   }
 }

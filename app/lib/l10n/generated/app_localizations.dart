@@ -316,6 +316,18 @@ abstract class AppLocalizations {
   /// **'Tell people about yourself'**
   String get editProfileBioHint;
 
+  /// Form-validation error shown below the display-name field on the profile-edit page when the user enters more than 64 characters (the AppView profile lexicon's grapheme limit).
+  ///
+  /// In en, this message translates to:
+  /// **'Display name must be 64 characters or fewer'**
+  String get editProfileDisplayNameTooLong;
+
+  /// Form-validation error shown below the bio field on the profile-edit page when the user enters more than 256 characters (the AppView profile lexicon's grapheme limit).
+  ///
+  /// In en, this message translates to:
+  /// **'Bio must be 256 characters or fewer'**
+  String get editProfileBioTooLong;
+
   /// Section heading above the crafts picker on the profile-edit page.
   ///
   /// In en, this message translates to:

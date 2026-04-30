@@ -115,6 +115,12 @@
   "editProfileBioHint": "Tell people about yourself",
   "@editProfileBioHint": { "description": "Hint text inside the bio field on the profile-edit page." },
 
+  "editProfileDisplayNameTooLong": "Display name must be 64 characters or fewer",
+  "@editProfileDisplayNameTooLong": { "description": "Form-validation error shown below the display-name field on the profile-edit page when the user enters more than 64 characters (the AppView profile lexicon's grapheme limit)." },
+
+  "editProfileBioTooLong": "Bio must be 256 characters or fewer",
+  "@editProfileBioTooLong": { "description": "Form-validation error shown below the bio field on the profile-edit page when the user enters more than 256 characters (the AppView profile lexicon's grapheme limit)." },
+
   "editProfileCraftsLabel": "Crafts",
   "@editProfileCraftsLabel": { "description": "Section heading above the crafts picker on the profile-edit page." },
 

@@ -232,6 +232,98 @@ void main() {
       expect(find.text('Open'), findsNothing);
     });
 
+    testWidgets(
+      'clearing the display name is valid (empty is a permitted value)',
+      (tester) async {
+        final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
+        await _pumpEditPage(tester, repo: repo);
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Test User'),
+          '',
+        );
+        await tester.pump();
+
+        // The maxLength validator must not fire on empty values —
+        // form_builder_validators 11.x's BaseValidator otherwise treats
+        // null/empty as a hard failure.
+        expect(
+          find.text('Display name must be 64 characters or fewer'),
+          findsNothing,
+        );
+
+        // Form is dirty (was 'Test User', now '') and valid → save
+        // is enabled.
+        final saveButton = tester.widget<TextButton>(
+          find.widgetWithText(TextButton, 'Save'),
+        );
+        expect(saveButton.onPressed, isNotNull);
+      },
+    );
+
+    testWidgets(
+      'editing keeps the active field focused when validation toggles',
+      (tester) async {
+        final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
+        await _pumpEditPage(tester, repo: repo);
+
+        // Tap the field to give it focus, then drive it past the limit.
+        // Use a low-level `enterText`-then-`requestFocus` flow because
+        // tester.tap on a TextField doesn't always reliably hand focus
+        // in widget tests.
+        final fieldFinder = find.widgetWithText(TextField, 'Test User');
+        await tester.tap(fieldFinder);
+        await tester.pumpAndSettle();
+
+        final focusNode = tester
+            .widget<TextField>(fieldFinder)
+            .focusNode!;
+        expect(focusNode.hasFocus, isTrue);
+
+        // Type something that fails validation. The
+        // FormBuilderField.validate path used to focus a sibling
+        // FocusNode here, stealing focus from the TextField — sharing
+        // the focus node fixes that.
+        await tester.enterText(fieldFinder, 'x' * 65);
+        await tester.pump();
+
+        expect(
+          find.text('Display name must be 64 characters or fewer'),
+          findsOneWidget,
+        );
+        expect(focusNode.hasFocus, isTrue);
+      },
+    );
+
+    testWidgets(
+      'display name longer than 64 characters surfaces a validator error '
+      'and disables save',
+      (tester) async {
+        final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
+        await _pumpEditPage(tester, repo: repo);
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Test User'),
+          'x' * 65,
+        );
+        await tester.pump();
+
+        // The validator's errorText (sourced from the ARB) renders
+        // beneath the field once autovalidate kicks in.
+        expect(
+          find.text('Display name must be 64 characters or fewer'),
+          findsOneWidget,
+        );
+
+        // Save is disabled even though the form is dirty — invalid
+        // fields fail the canSave gate.
+        final saveButton = tester.widget<TextButton>(
+          find.widgetWithText(TextButton, 'Save'),
+        );
+        expect(saveButton.onPressed, isNull);
+      },
+    );
+
     testWidgets('tapping a craft chip toggles its selection state', (
       tester,
     ) async {

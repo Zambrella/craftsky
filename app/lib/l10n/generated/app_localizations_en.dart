@@ -123,6 +123,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editProfileBioHint => 'Tell people about yourself';
 
   @override
+  String get editProfileDisplayNameTooLong =>
+      'Display name must be 64 characters or fewer';
+
+  @override
+  String get editProfileBioTooLong => 'Bio must be 256 characters or fewer';
+
+  @override
   String get editProfileCraftsLabel => 'Crafts';
 
   @override
