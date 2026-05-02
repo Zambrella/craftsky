@@ -366,6 +366,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_form_builder:
+    dependency: "direct main"
+    description:
+      name: flutter_form_builder
+      sha256: "1233251b4bc1d5deb245745d2a89dcebf4cdd382e1ec3f21f1c6703b700e574f"
+      url: "https://pub.dev"
+    source: hosted
+    version: "10.3.0+2"
   flutter_localizations:
     dependency: "direct main"
     description: flutter
@@ -437,6 +445,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  form_builder_validators:
+    dependency: "direct main"
+    description:
+      name: form_builder_validators
+      sha256: cd9a06b35abaed8bf050467c1239e3ee1c8795f42d4cb6568c08dbb8a4d6bd36
+      url: "https://pub.dev"
+    source: hosted
+    version: "11.3.0"
   freezed_annotation:
     dependency: transitive
     description:

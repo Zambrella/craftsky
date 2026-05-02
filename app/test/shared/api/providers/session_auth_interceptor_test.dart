@@ -91,17 +91,20 @@ void main() {
   // Test name describes the precise state we want to assert; keeping it
   // on one line reads cleaner than wrapping mid-sentence.
   // ignore: lines_longer_than_80_chars
-  test('omits header when AuthSession is still loading (no value yet)', () async {
-    final container = ProviderContainer.test();
-    final options = RequestOptions(path: '/v1/whoami');
-    SessionAuthInterceptor.withReader(
-      () => container.read(authSessionProvider),
-    ).onRequest(options, _CapturingHandler());
+  test(
+    'omits header when AuthSession is still loading (no value yet)',
+    () async {
+      final container = ProviderContainer.test();
+      final options = RequestOptions(path: '/v1/whoami');
+      SessionAuthInterceptor.withReader(
+        () => container.read(authSessionProvider),
+      ).onRequest(options, _CapturingHandler());
 
-    await _pumpEventLoop();
+      await _pumpEventLoop();
 
-    expect(options.headers.containsKey('Authorization'), isFalse);
-  });
+      expect(options.headers.containsKey('Authorization'), isFalse);
+    },
+  );
 
   // --- Device-ID header attachment ---
 
@@ -128,25 +131,28 @@ void main() {
   // Test name enumerates both headers for clarity; wrapping it hurts
   // readability more than it helps.
   // ignore: lines_longer_than_80_chars
-  test('attaches BOTH Authorization and X-Craftsky-Device-Id on authed requests', () async {
-    final container = ProviderContainer.test(
-      overrides: [
-        authSessionProvider.overrideWith(() => _SignedInFake('tok')),
-      ],
-    );
-    await seed(container);
+  test(
+    'attaches BOTH Authorization and X-Craftsky-Device-Id on authed requests',
+    () async {
+      final container = ProviderContainer.test(
+        overrides: [
+          authSessionProvider.overrideWith(() => _SignedInFake('tok')),
+        ],
+      );
+      await seed(container);
 
-    final options = RequestOptions(path: '/v1/whoami');
-    SessionAuthInterceptor.withReaders(
-      readAuth: () => container.read(authSessionProvider),
-      readDeviceId: () async => 'device-abc',
-    ).onRequest(options, _CapturingHandler());
+      final options = RequestOptions(path: '/v1/whoami');
+      SessionAuthInterceptor.withReaders(
+        readAuth: () => container.read(authSessionProvider),
+        readDeviceId: () async => 'device-abc',
+      ).onRequest(options, _CapturingHandler());
 
-    await _pumpEventLoop();
+      await _pumpEventLoop();
 
-    expect(options.headers['Authorization'], 'Bearer tok');
-    expect(options.headers['X-Craftsky-Device-Id'], 'device-abc');
-  });
+      expect(options.headers['Authorization'], 'Bearer tok');
+      expect(options.headers['X-Craftsky-Device-Id'], 'device-abc');
+    },
+  );
 }
 
 /// Flushes microtasks so async gaps inside a `void`-returning async

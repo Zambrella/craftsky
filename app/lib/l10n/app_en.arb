@@ -23,5 +23,191 @@
   "@routingErrorTitle": { "description": "Headline on ErrorScreen (from GoRouter.errorBuilder)." },
 
   "goHomeButton": "Go home",
-  "@goHomeButton": { "description": "Button label on routing ErrorScreen returning to HomeRoute." }
+  "@goHomeButton": { "description": "Button label on routing ErrorScreen returning to HomeRoute." },
+
+  "profileEditAction": "Edit profile",
+  "@profileEditAction": { "description": "Label on the primary action button shown on a self-profile, opens the edit-profile flow." },
+
+  "profileSettingsAction": "Settings",
+  "@profileSettingsAction": { "description": "Tooltip on the settings icon button shown next to Edit profile on a self-profile, and on the collapsed-bar trailing action." },
+
+  "profileShareAction": "Share",
+  "@profileShareAction": { "description": "Tooltip on the share icon button shown on a visitor profile, and on the collapsed-bar trailing action." },
+
+  "profileFollowAction": "Follow",
+  "@profileFollowAction": { "description": "Label on the follow button on a visitor profile when the viewer is not yet following them." },
+
+  "profileFollowingAction": "Following",
+  "@profileFollowingAction": { "description": "Label on the follow button on a visitor profile when the viewer is already following them." },
+
+  "profileTabPosts": "Posts",
+  "@profileTabPosts": { "description": "Tab label for the Posts tab on the profile screen." },
+
+  "profileTabProjects": "Projects",
+  "@profileTabProjects": { "description": "Tab label for the Projects tab on the profile screen." },
+
+  "profileTabSaved": "Saved",
+  "@profileTabSaved": { "description": "Tab label for the Saved tab on the profile screen." },
+
+  "profileTabReposts": "Reposts",
+  "@profileTabReposts": { "description": "Tab label for the Reposts tab on the profile screen." },
+
+  "profileTabAbout": "About",
+  "@profileTabAbout": { "description": "Tab label for the About tab on the profile screen." },
+
+  "profileStatsFollowing": "following",
+  "@profileStatsFollowing": { "description": "Lower-case label paired with the following-count on the profile stats row." },
+
+  "profileStatsFollowers": "followers",
+  "@profileStatsFollowers": { "description": "Lower-case label paired with the follower-count on the profile stats row." },
+
+  "profileStatsProjects": "projects",
+  "@profileStatsProjects": { "description": "Lower-case label paired with the project-count on the profile stats row." },
+
+  "profileLoadErrorTitle": "That didn't load.",
+  "@profileLoadErrorTitle": { "description": "Headline on the full-screen profile-page error fallback when the profile fetch fails." },
+
+  "profileLoadErrorRetry": "Try again",
+  "@profileLoadErrorRetry": { "description": "Retry-action button label on the full-screen profile-page error fallback." },
+
+  "profileAboutEmpty": "Nothing here yet.",
+  "@profileAboutEmpty": { "description": "Muted placeholder shown in the About tab when the profile has no bio." },
+
+  "profileAboutCraftsHeading": "Crafts",
+  "@profileAboutCraftsHeading": { "description": "Section heading above the craft chips on the About tab." },
+
+  "profileAboutJoinedHeading": "Joined",
+  "@profileAboutJoinedHeading": { "description": "Section heading above the join-date on the About tab." },
+
+  "profileEmptyProjects": "No projects yet.",
+  "@profileEmptyProjects": { "description": "Muted placeholder shown in the Projects tab while project data isn't wired." },
+
+  "profileEmptySaved": "Nothing saved yet.",
+  "@profileEmptySaved": { "description": "Muted placeholder shown in the Saved tab while saved-item data isn't wired." },
+
+  "profileEmptyReposts": "No reposts yet.",
+  "@profileEmptyReposts": { "description": "Muted placeholder shown in the Reposts tab while repost data isn't wired." },
+
+  "profileFollowComingSoon": "Follow coming soon.",
+  "@profileFollowComingSoon": { "description": "Snackbar shown when tapping Follow while follow wiring isn't implemented yet." },
+
+  "profileShareComingSoon": "Share coming soon.",
+  "@profileShareComingSoon": { "description": "Snackbar shown when tapping Share while share wiring isn't implemented yet." },
+
+  "editProfileTitle": "Edit profile",
+  "@editProfileTitle": { "description": "App-bar title on the profile-edit page." },
+
+  "editProfileSave": "Save",
+  "@editProfileSave": { "description": "Label on the save action in the profile-edit app bar." },
+
+  "editProfileCancel": "Cancel",
+  "@editProfileCancel": { "description": "Tooltip on the close (back) action in the profile-edit app bar." },
+
+  "editProfileDisplayNameLabel": "Display name",
+  "@editProfileDisplayNameLabel": { "description": "Label above the display-name field on the profile-edit page." },
+
+  "editProfileDisplayNameHint": "How your name appears on your profile",
+  "@editProfileDisplayNameHint": { "description": "Hint text inside the display-name field on the profile-edit page." },
+
+  "editProfileBioLabel": "Bio",
+  "@editProfileBioLabel": { "description": "Label above the bio field on the profile-edit page." },
+
+  "editProfileBioHint": "Tell people about yourself",
+  "@editProfileBioHint": { "description": "Hint text inside the bio field on the profile-edit page." },
+
+  "editProfileDisplayNameTooLong": "Display name must be 64 characters or fewer",
+  "@editProfileDisplayNameTooLong": { "description": "Form-validation error shown below the display-name field on the profile-edit page when the user enters more than 64 characters (the AppView profile lexicon's grapheme limit)." },
+
+  "editProfileBioTooLong": "Bio must be 256 characters or fewer",
+  "@editProfileBioTooLong": { "description": "Form-validation error shown below the bio field on the profile-edit page when the user enters more than 256 characters (the AppView profile lexicon's grapheme limit)." },
+
+  "editProfileCraftsLabel": "Crafts",
+  "@editProfileCraftsLabel": { "description": "Section heading above the crafts picker on the profile-edit page." },
+
+  "editProfileCraftsHelper": "Pick the crafts you make",
+  "@editProfileCraftsHelper": { "description": "Helper text below the crafts heading on the profile-edit page, hinting that the user should pick from the list." },
+
+  "editProfilePhotosComingSoon": "Photo uploads coming soon",
+  "@editProfilePhotosComingSoon": { "description": "Caption shown over the avatar/banner area on the profile-edit page, indicating that photo upload isn't wired yet." },
+
+  "editProfileSaveError": "Couldn't save your profile.",
+  "@editProfileSaveError": { "description": "Snackbar shown when the profile-edit save request fails." },
+
+  "editProfileDiscardTitle": "Discard changes?",
+  "@editProfileDiscardTitle": { "description": "Title of the confirm-discard dialog shown when leaving the profile-edit page with unsaved changes." },
+
+  "editProfileDiscardMessage": "Your edits won't be saved.",
+  "@editProfileDiscardMessage": { "description": "Body of the confirm-discard dialog on the profile-edit page." },
+
+  "editProfileDiscardConfirm": "Discard",
+  "@editProfileDiscardConfirm": { "description": "Confirm action in the confirm-discard dialog — closes the edit page without saving." },
+
+  "editProfileDiscardCancel": "Keep editing",
+  "@editProfileDiscardCancel": { "description": "Cancel action in the confirm-discard dialog — returns the user to the edit form." },
+
+  "craftSewing": "Sewing",
+  "@craftSewing": { "description": "Display label for the 'sewing' craft option in the crafts picker." },
+
+  "craftQuilting": "Quilting",
+  "@craftQuilting": { "description": "Display label for the 'quilting' craft option." },
+
+  "craftKnitting": "Knitting",
+  "@craftKnitting": { "description": "Display label for the 'knitting' craft option." },
+
+  "craftCrochet": "Crochet",
+  "@craftCrochet": { "description": "Display label for the 'crochet' craft option." },
+
+  "craftEmbroidery": "Embroidery",
+  "@craftEmbroidery": { "description": "Display label for the 'embroidery' craft option." },
+
+  "craftCrossStitch": "Cross-stitch",
+  "@craftCrossStitch": { "description": "Display label for the 'cross-stitch' craft option." },
+
+  "craftWeaving": "Weaving",
+  "@craftWeaving": { "description": "Display label for the 'weaving' craft option." },
+
+  "craftSpinning": "Spinning",
+  "@craftSpinning": { "description": "Display label for the 'spinning' craft option." },
+
+  "craftFelting": "Felting",
+  "@craftFelting": { "description": "Display label for the 'felting' craft option." },
+
+  "craftMacrame": "Macramé",
+  "@craftMacrame": { "description": "Display label for the 'macrame' craft option." },
+
+  "craftPottery": "Pottery",
+  "@craftPottery": { "description": "Display label for the 'pottery' craft option." },
+
+  "craftWoodworking": "Woodworking",
+  "@craftWoodworking": { "description": "Display label for the 'woodworking' craft option." },
+
+  "craftLeatherwork": "Leatherwork",
+  "@craftLeatherwork": { "description": "Display label for the 'leatherwork' craft option." },
+
+  "craftJewellery": "Jewellery",
+  "@craftJewellery": { "description": "Display label for the 'jewellery' craft option." },
+
+  "craftBookbinding": "Bookbinding",
+  "@craftBookbinding": { "description": "Display label for the 'bookbinding' craft option." },
+
+  "craftCalligraphy": "Calligraphy",
+  "@craftCalligraphy": { "description": "Display label for the 'calligraphy' craft option." },
+
+  "craftPrintmaking": "Printmaking",
+  "@craftPrintmaking": { "description": "Display label for the 'printmaking' craft option." },
+
+  "craftPapercraft": "Paper craft",
+  "@craftPapercraft": { "description": "Display label for the 'papercraft' craft option (covers origami, kirigami, card-making)." },
+
+  "craftPainting": "Painting",
+  "@craftPainting": { "description": "Display label for the 'painting' craft option." },
+
+  "craftDrawing": "Drawing",
+  "@craftDrawing": { "description": "Display label for the 'drawing' craft option." },
+
+  "craftCandleMaking": "Candle making",
+  "@craftCandleMaking": { "description": "Display label for the 'candlemaking' craft option." },
+
+  "craftSoapMaking": "Soap making",
+  "@craftSoapMaking": { "description": "Display label for the 'soapmaking' craft option." }
 }
