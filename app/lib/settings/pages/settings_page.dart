@@ -1,3 +1,4 @@
+import 'package:craftsky_app/settings/widgets/clear_image_cache_tile.dart';
 import 'package:craftsky_app/settings/widgets/sign_out_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +22,7 @@ class SettingsPageBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return const Column(
       children: [
+        ClearImageCacheTile(),
         SignOutTile(),
       ],
     );
