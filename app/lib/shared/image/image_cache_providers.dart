@@ -4,9 +4,9 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'image_cache_providers.g.dart';
 
-@riverpod
+@Riverpod(keepAlive: true)
 BaseCacheManager profileImageCacheManager(Ref ref) =>
     ProfileImageCacheManager();
 
-@riverpod
+@Riverpod(keepAlive: true)
 BaseCacheManager feedImageCacheManager(Ref ref) => FeedImageCacheManager();

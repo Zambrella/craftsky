@@ -26,7 +26,7 @@ final class ProfileImageCacheManagerProvider
         argument: null,
         retry: null,
         name: r'profileImageCacheManagerProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -54,7 +54,7 @@ final class ProfileImageCacheManagerProvider
 }
 
 String _$profileImageCacheManagerHash() =>
-    r'94a853b38c46449dbb9237f8705a8371bd568944';
+    r'faeb03dc20a27afb4a57b6a53c3e5fd3e42c61c8';
 
 @ProviderFor(feedImageCacheManager)
 final feedImageCacheManagerProvider = FeedImageCacheManagerProvider._();
@@ -73,7 +73,7 @@ final class FeedImageCacheManagerProvider
         argument: null,
         retry: null,
         name: r'feedImageCacheManagerProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -101,4 +101,4 @@ final class FeedImageCacheManagerProvider
 }
 
 String _$feedImageCacheManagerHash() =>
-    r'226252145e15f22830639423d046dfb5b08772a3';
+    r'c2b487319c47c54a49bcd2c2f786de674dc224cc';
