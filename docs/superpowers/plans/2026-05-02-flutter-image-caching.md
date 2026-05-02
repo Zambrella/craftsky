@@ -269,13 +269,15 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'image_cache_providers.g.dart';
 
-@riverpod
+@Riverpod(keepAlive: true)
 BaseCacheManager profileImageCacheManager(Ref ref) =>
     ProfileImageCacheManager();
 
-@riverpod
+@Riverpod(keepAlive: true)
 BaseCacheManager feedImageCacheManager(Ref ref) => FeedImageCacheManager();
 ```
+
+`keepAlive: true` matches every other infrastructure provider in this codebase (Dio, auth session, theme, device id, profile repo) — these managers are long-lived singletons, not view-scoped or autodispose-eligible.
 
 - [ ] **Step 4: Run codegen**
 
@@ -620,8 +622,8 @@ class ProfileAvatar extends ConsumerWidget {
                 fit: BoxFit.cover,
                 width: dimension,
                 height: dimension,
-                placeholder: (_, __) => fallback,
-                errorWidget: (_, __, ___) => fallback,
+                placeholder: (_, _) => fallback,
+                errorWidget: (_, _, _) => fallback,
               ),
       ),
     );
@@ -854,8 +856,8 @@ class ProfileBanner extends ConsumerWidget {
               imageUrl: bannerUrl!,
               cacheManager: ref.watch(profileImageCacheManagerProvider),
               fit: BoxFit.cover,
-              placeholder: (_, __) => const SizedBox.shrink(),
-              errorWidget: (_, __, ___) => const SizedBox.shrink(),
+              placeholder: (_, _) => const SizedBox.shrink(),
+              errorWidget: (_, _, _) => const SizedBox.shrink(),
             ),
     );
   }
