@@ -112,6 +112,24 @@ abstract class AppLocalizations {
   /// **'v{version}'**
   String homeVersionLabel(String version);
 
+  /// Default label for the primary action button on a CraftskyDialog confirm helper when the caller does not provide one.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm'**
+  String get dialogConfirmDefault;
+
+  /// Default label for the secondary action button on a CraftskyDialog confirm helper when the caller does not provide one.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get dialogCancelDefault;
+
+  /// Default label for the dismiss button on a CraftskyDialog alert helper when the caller does not provide one.
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get dialogOkDefault;
+
   /// Generic accessibility label announced by the StitchProgressIndicator while content is loading.
   ///
   /// In en, this message translates to:

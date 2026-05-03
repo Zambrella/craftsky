@@ -13,6 +13,15 @@
     "placeholders": { "version": { "type": "String", "example": "1.0.0" } }
   },
 
+  "dialogConfirmDefault": "Confirm",
+  "@dialogConfirmDefault": { "description": "Default label for the primary action button on a CraftskyDialog confirm helper when the caller does not provide one." },
+
+  "dialogCancelDefault": "Cancel",
+  "@dialogCancelDefault": { "description": "Default label for the secondary action button on a CraftskyDialog confirm helper when the caller does not provide one." },
+
+  "dialogOkDefault": "OK",
+  "@dialogOkDefault": { "description": "Default label for the dismiss button on a CraftskyDialog alert helper when the caller does not provide one." },
+
   "loading": "Loading",
   "@loading": { "description": "Generic accessibility label announced by the StitchProgressIndicator while content is loading." },
 

@@ -63,7 +63,6 @@ void main() {
       expect(materialApp.scaffoldMessengerKey, same(appScaffoldMessengerKey));
     }
 
-    testWidgets('loading state renders CircularProgressIndicator', (
     testWidgets('loading state renders StitchProgressIndicator', (
       tester,
     ) async {
