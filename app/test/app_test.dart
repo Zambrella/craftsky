@@ -4,6 +4,8 @@ import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -186,6 +188,39 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(records.where(isInitSevere), hasLength(1));
+      },
+    );
+
+    testWidgets(
+      'App wires MessengerScope and scaffoldMessengerKey on every MaterialApp',
+      (tester) async {
+        // Keep appDependenciesProvider in flight forever so we render the
+        // _LoadingApp branch, which is the cheapest of the three branches to
+        // pump (no router, no theme dependencies that need the full deps).
+        final neverComplete = Completer<AppDependencies>();
+        // tidy on tear-down
+        addTearDown(() => neverComplete.completeError('test teardown'));
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              appDependenciesProvider.overrideWith(
+                (ref) => neverComplete.future,
+              ),
+            ],
+            child: const App(),
+          ),
+        );
+
+        final BuildContext context = tester.element(find.byType(MaterialApp));
+        expect(MessengerScope.of(context), same(defaultAppMessenger));
+
+        final materialApp =
+            tester.widget<MaterialApp>(find.byType(MaterialApp));
+        expect(
+          materialApp.scaffoldMessengerKey,
+          same(appScaffoldMessengerKey),
+        );
       },
     );
   });

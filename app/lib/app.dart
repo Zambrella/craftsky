@@ -1,6 +1,8 @@
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/text_scale_factor_clamper.dart';
@@ -44,22 +46,26 @@ class _ReadyApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
     final router = ref.watch(goRouterProvider);
 
-    return MaterialApp.router(
-      onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
-      theme: AppTheme.lightThemeData,
-      darkTheme: AppTheme.darkThemeData,
-      themeMode: themeMode,
-      debugShowCheckedModeBanner: false,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      routerConfig: router,
-      builder: (context, child) {
-        return TextScaleFactorClamper(
-          child: FormFactorWidget(
-            child: child ?? const SizedBox.shrink(),
-          ),
-        );
-      },
+    return MessengerScope(
+      messenger: defaultAppMessenger,
+      child: MaterialApp.router(
+        scaffoldMessengerKey: appScaffoldMessengerKey,
+        onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
+        theme: AppTheme.lightThemeData,
+        darkTheme: AppTheme.darkThemeData,
+        themeMode: themeMode,
+        debugShowCheckedModeBanner: false,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+        builder: (context, child) {
+          return TextScaleFactorClamper(
+            child: FormFactorWidget(
+              child: child ?? const SizedBox.shrink(),
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -69,11 +75,15 @@ class _LoadingApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: InitializationLoadingScreen(),
+    return MessengerScope(
+      messenger: defaultAppMessenger,
+      child: MaterialApp(
+        scaffoldMessengerKey: appScaffoldMessengerKey,
+        debugShowCheckedModeBanner: false,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const InitializationLoadingScreen(),
+      ),
     );
   }
 }
@@ -85,13 +95,17 @@ class _ErrorApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: InitializationErrorScreen(
-        error: error,
-        onRetry: () => ref.invalidate(appDependenciesProvider),
+    return MessengerScope(
+      messenger: defaultAppMessenger,
+      child: MaterialApp(
+        scaffoldMessengerKey: appScaffoldMessengerKey,
+        debugShowCheckedModeBanner: false,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: InitializationErrorScreen(
+          error: error,
+          onRetry: () => ref.invalidate(appDependenciesProvider),
+        ),
       ),
     );
   }
