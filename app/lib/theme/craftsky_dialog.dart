@@ -223,16 +223,36 @@ class _AsyncConfirmDialogHost extends StatefulWidget {
 }
 
 class _AsyncConfirmDialogHostState extends State<_AsyncConfirmDialogHost> {
-  // Mutated by setState in Task 4 once async onConfirm wiring lands.
-  // ignore: prefer_final_fields
   bool _isConfirming = false;
 
   Future<void> _handleConfirm() async {
-    if (widget.onConfirm == null) {
+    final onConfirm = widget.onConfirm;
+    if (onConfirm == null) {
       Navigator.of(context).pop(true);
       return;
     }
-    // Async path is implemented in Task 4.
+
+    setState(() => _isConfirming = true);
+    var threw = false;
+    try {
+      await onConfirm();
+    } on Object catch (_) {
+      // Swallow the error here so it doesn't crash the widget tree as an
+      // unhandled async exception. The contract is that the caller observes
+      // failure via their existing channel (typically a Riverpod `ref.listen`
+      // on the mutation provider being invoked) — this widget's only job is
+      // to keep the dialog open and re-enable interaction so the user can
+      // retry or cancel.
+      threw = true;
+    }
+
+    if (!mounted) return;
+
+    if (threw) {
+      setState(() => _isConfirming = false);
+      return;
+    }
+
     Navigator.of(context).pop(true);
   }
 
@@ -258,7 +278,16 @@ class _AsyncConfirmDialogHostState extends State<_AsyncConfirmDialogHost> {
           ChunkyButton(
             backgroundColor: primaryBackground,
             onPressed: _isConfirming ? null : _handleConfirm,
-            child: Text(widget.confirmLabel),
+            child: _isConfirming
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : Text(widget.confirmLabel),
           ),
         ],
       ),
