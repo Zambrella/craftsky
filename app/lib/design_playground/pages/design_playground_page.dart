@@ -2,6 +2,7 @@ import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -59,6 +60,11 @@ class DesignPlaygroundPage extends ConsumerWidget {
           const PlaygroundSection(
             eyebrow: 'Cards',
             child: CardsSample(),
+          ),
+          SizedBox(height: sp.sp7),
+          const PlaygroundSection(
+            eyebrow: 'Dialogs',
+            child: DialogsSample(),
           ),
           SizedBox(height: sp.sp7),
           const PlaygroundSection(
@@ -493,6 +499,93 @@ class SwatchTile extends StatelessWidget {
           Text(label, style: theme.textTheme.labelMedium),
         ],
       ),
+    );
+  }
+}
+
+class DialogsSample extends StatelessWidget {
+  const DialogsSample({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+
+    return Wrap(
+      spacing: spacing.sp3,
+      runSpacing: spacing.sp3,
+      children: [
+        ChunkyButton(
+          onPressed: () async {
+            final result = await showCraftskyConfirmDialog(
+              context,
+              title: 'Discard draft?',
+              message: 'Your changes will be lost.',
+              confirmLabel: 'Discard',
+              cancelLabel: 'Keep editing',
+            );
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Confirm result: $result')),
+            );
+          },
+          child: const Text('Show neutral confirm'),
+        ),
+        ChunkyButton(
+          backgroundColor: theme.colorScheme.error,
+          onPressed: () async {
+            final result = await showCraftskyDestructiveConfirmDialog(
+              context,
+              title: 'Delete this post?',
+              message: 'This cannot be undone.',
+              confirmLabel: 'Delete',
+              cancelLabel: 'Cancel',
+            );
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Destructive result: $result')),
+            );
+          },
+          child: const Text('Show destructive confirm'),
+        ),
+        ChunkyButton(
+          onPressed: () async {
+            await showCraftskyAlertDialog(
+              context,
+              title: 'Saved',
+              message: 'Your profile is live.',
+              dismissLabel: 'Got it',
+            );
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Alert dismissed')),
+            );
+          },
+          child: const Text('Show alert'),
+        ),
+        ChunkyButton(
+          onPressed: () async {
+            final result = await showCraftskyConfirmDialog(
+              context,
+              title: 'Sync draft?',
+              message: 'Pretends to do work for 1.5s, throws ~50% of the time.',
+              confirmLabel: 'Sync',
+              cancelLabel: 'Cancel',
+              onConfirm: () async {
+                await Future<void>.delayed(const Duration(milliseconds: 1500));
+                if (DateTime.now().millisecondsSinceEpoch.isEven) {
+                  throw StateError('Pretend network error');
+                }
+              },
+            );
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Async result: $result')),
+            );
+          },
+          child: const Text('Show async confirm'),
+        ),
+      ],
     );
   }
 }
