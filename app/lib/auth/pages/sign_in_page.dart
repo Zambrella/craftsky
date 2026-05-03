@@ -1,5 +1,6 @@
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
+import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
@@ -26,10 +27,7 @@ class _SignInPageState extends ConsumerState<SignInPage> {
     ref.listen(authControllerProvider, (prev, next) {
       switch ((prev, next)) {
         case (AsyncLoading(), AsyncError(:final error)):
-          final message = _messageFor(error);
-          ScaffoldMessenger.of(context)
-            ..clearSnackBars()
-            ..showSnackBar(SnackBar(content: Text(message)));
+          context.showError(_messageFor(error));
         case _:
           break;
       }
