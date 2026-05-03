@@ -20,6 +20,15 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get dialogConfirmDefault => 'Confirm';
+
+  @override
+  String get dialogCancelDefault => 'Cancel';
+
+  @override
+  String get dialogOkDefault => 'OK';
+
+  @override
   String get initializationFailedTitle => 'Initialization Failed';
 
   @override
