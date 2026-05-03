@@ -112,6 +112,12 @@ abstract class AppLocalizations {
   /// **'v{version}'**
   String homeVersionLabel(String version);
 
+  /// Generic accessibility label announced by the StitchProgressIndicator while content is loading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading'**
+  String get loading;
+
   /// Headline on InitializationErrorScreen when appDependenciesProvider fails.
   ///
   /// In en, this message translates to:

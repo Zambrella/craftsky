@@ -6,6 +6,7 @@ import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,6 +64,7 @@ void main() {
     }
 
     testWidgets('loading state renders CircularProgressIndicator', (
+    testWidgets('loading state renders StitchProgressIndicator', (
       tester,
     ) async {
       // Future never completes → appDependenciesProvider stays in AsyncLoading.
@@ -77,12 +79,12 @@ void main() {
         ),
       );
 
-      // CircularProgressIndicator spins forever (AnimationController.repeat);
+      // StitchProgressIndicator spins forever (AnimationController.repeat);
       // pumpAndSettle would time out. A single pump is enough — the initial
       // build is synchronous in pumpWidget.
       await tester.pump();
 
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(StitchProgressIndicator), findsOneWidget);
       expect(find.byType(WelcomePage), findsNothing);
       expect(find.byType(InitializationErrorScreen), findsNothing);
     });

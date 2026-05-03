@@ -14,6 +14,7 @@ import 'package:craftsky_app/profile/widgets/profile_tabs/profile_empty_tab.dart
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_posts_tab.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,7 +43,7 @@ class ProfilePage extends ConsumerWidget {
       // Either auth is still loading or a visitor route somehow
       // landed here without a handle. Both are transient — show a
       // neutral progress state and let the router redirect resolve.
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: Center(child: StitchProgressIndicator()));
     }
 
     return _ProfileScaffold(
@@ -79,7 +80,7 @@ class _ProfileScaffold extends ConsumerWidget {
           error: error,
           onRetry: () => ref.invalidate(userProfileProvider(handle)),
         ),
-        _ => const Center(child: CircularProgressIndicator()),
+        _ => const Center(child: StitchProgressIndicator()),
       },
     );
   }
@@ -201,8 +202,9 @@ class _ProfileTabScrollView extends StatelessWidget {
   ) {
     return switch (tab) {
       ProfileTab.posts => ProfilePostsTab(handle: profile.handle),
-      ProfileTab.projects =>
-        ProfileEmptyTab(message: l10n.profileEmptyProjects),
+      ProfileTab.projects => ProfileEmptyTab(
+        message: l10n.profileEmptyProjects,
+      ),
       ProfileTab.saved => ProfileEmptyTab(message: l10n.profileEmptySaved),
       ProfileTab.reposts => ProfileEmptyTab(message: l10n.profileEmptyReposts),
       ProfileTab.about => ProfileAboutTab(profile: profile),

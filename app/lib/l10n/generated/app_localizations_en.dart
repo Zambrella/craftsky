@@ -20,6 +20,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get loading => 'Loading';
+
+  @override
   String get initializationFailedTitle => 'Initialization Failed';
 
   @override

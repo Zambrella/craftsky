@@ -1,0 +1,116 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  group('StitchProgressIndicator', () {
+    testWidgets('renders at the requested size', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          locale: Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Center(child: StitchProgressIndicator(size: 48)),
+          ),
+        ),
+      );
+
+      // Pump a single frame; do NOT use pumpAndSettle (later tasks will add a
+      // repeating animation that never settles).
+      await tester.pump();
+
+      final size = tester.getSize(find.byType(StitchProgressIndicator));
+      expect(size, const Size(48, 48));
+    });
+
+    testWidgets('advances rotationTurns over time', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          locale: Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(body: Center(child: StitchProgressIndicator())),
+        ),
+      );
+
+      final initialState =
+          tester.state<State<StitchProgressIndicator>>(
+                find.byType(StitchProgressIndicator),
+              )
+              as StitchProgressIndicatorStateForTesting;
+      expect(initialState.rotationTurns, 0);
+
+      // Advance well past zero but less than a full cycle so we can assert
+      // the value has moved without worrying about wrap-around.
+      await tester.pump(const Duration(milliseconds: 700));
+
+      expect(initialState.rotationTurns, greaterThan(0));
+      expect(initialState.rotationTurns, lessThan(1));
+    });
+
+    testWidgets('disposes its ticker when unmounted', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          locale: Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(body: StitchProgressIndicator()),
+        ),
+      );
+      // Replacing the tree should dispose the State; if the AnimationController
+      // is leaked, flutter_test will fail the test.
+      await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+    });
+
+    testWidgets(
+      'does not animate when MediaQuery.disableAnimations is true',
+      (tester) async {
+        await tester.pumpWidget(
+          const MediaQuery(
+            data: MediaQueryData(disableAnimations: true),
+            child: MaterialApp(
+              locale: Locale('en'),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(
+                body: Center(child: StitchProgressIndicator()),
+              ),
+            ),
+          ),
+        );
+
+        final state =
+            tester.state<State<StitchProgressIndicator>>(
+                  find.byType(StitchProgressIndicator),
+                )
+                as StitchProgressIndicatorStateForTesting;
+
+        expect(state.rotationTurns, 0);
+        await tester.pump(const Duration(milliseconds: 1000));
+        expect(state.rotationTurns, 0);
+      },
+    );
+
+    testWidgets('exposes a loading semantics label', (tester) async {
+      // Capture the SemanticsHandle to make the framework build the semantics
+      // tree for this test.
+      final handle = tester.ensureSemantics();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          locale: Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(body: Center(child: StitchProgressIndicator())),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.bySemanticsLabel('Loading'), findsOneWidget);
+
+      handle.dispose();
+    });
+  });
+}

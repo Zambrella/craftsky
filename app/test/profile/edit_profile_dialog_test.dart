@@ -282,9 +282,7 @@ void main() {
         await tester.tap(fieldFinder);
         await tester.pumpAndSettle();
 
-        final focusNode = tester
-            .widget<TextField>(fieldFinder)
-            .focusNode!;
+        final focusNode = tester.widget<TextField>(fieldFinder).focusNode!;
         expect(focusNode.hasFocus, isTrue);
 
         // Type something that fails validation. The
