@@ -67,6 +67,12 @@ class _StitchProgressIndicatorState extends State<StitchProgressIndicator>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncAnimationToReduceMotion();
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
@@ -75,14 +81,8 @@ class _StitchProgressIndicatorState extends State<StitchProgressIndicator>
   @override
   double get rotationTurns => _controller.value;
 
-  @override
-  Widget build(BuildContext context) {
-    final color = widget.color ?? Theme.of(context).colorScheme.primary;
-    final strokeWidth =
-        widget.strokeWidth ?? (widget.size / 12).clamp(1.4, 6.0);
-    final dashCount = _computeDashCount(widget.size);
+  void _syncAnimationToReduceMotion() {
     final disableAnimations = MediaQuery.disableAnimationsOf(context);
-
     if (disableAnimations) {
       if (_controller.isAnimating) {
         _controller
@@ -92,6 +92,14 @@ class _StitchProgressIndicatorState extends State<StitchProgressIndicator>
     } else if (!_controller.isAnimating) {
       _controller.repeat();
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.color ?? Theme.of(context).colorScheme.primary;
+    final strokeWidth =
+        widget.strokeWidth ?? (widget.size / 12).clamp(1.4, 6.0);
+    final dashCount = _computeDashCount(widget.size);
 
     return Semantics(
       label: AppLocalizations.of(context).loading,
