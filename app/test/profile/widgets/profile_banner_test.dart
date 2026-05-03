@@ -20,40 +20,42 @@ Widget _wrap(Widget child, {List<dynamic> overrides = const []}) {
 
 void main() {
   group('ProfileBanner', () {
-    testWidgets('renders no CachedNetworkImage when bannerUrl is null', (
-      tester,
-    ) async {
+    testWidgets('renders no Image when bannerUrl is null', (tester) async {
       await tester.pumpWidget(
         _wrap(const ProfileBanner(color: Color(0xFFCC8866))),
       );
 
-      expect(find.byType(CachedNetworkImage), findsNothing);
+      expect(find.byType(Image), findsNothing);
     });
 
-    testWidgets('mounts CachedNetworkImage with the profile cache manager '
-        'when bannerUrl is set', (tester) async {
-      final fake = FakeBaseCacheManager();
+    testWidgets(
+      'mounts an Image with a CachedNetworkImageProvider pointing at the '
+      'profile cache manager when bannerUrl is set',
+      (tester) async {
+        final fake = FakeBaseCacheManager();
 
-      await tester.pumpWidget(
-        _wrap(
-          const ProfileBanner(
-            color: Color(0xFFCC8866),
-            bannerUrl: 'https://example.test/banner.jpg',
+        await tester.pumpWidget(
+          _wrap(
+            const ProfileBanner(
+              color: Color(0xFFCC8866),
+              bannerUrl: 'https://example.test/banner.jpg',
+            ),
+            overrides: [
+              profileImageCacheManagerProvider.overrideWith((ref) => fake),
+            ],
           ),
-          overrides: [
-            profileImageCacheManagerProvider.overrideWith((ref) => fake),
-          ],
-        ),
-      );
-      await tester.pump();
+        );
+        await tester.pump();
 
-      final image = tester.widget<CachedNetworkImage>(
-        find.byType(CachedNetworkImage),
-      );
-      expect(image.imageUrl, 'https://example.test/banner.jpg');
-      expect(image.cacheManager, same(fake));
-      expect(image.fit, BoxFit.cover);
-    });
+        final image = tester.widget<Image>(find.byType(Image));
+        final provider = image.image;
+        expect(provider, isA<CachedNetworkImageProvider>());
+        provider as CachedNetworkImageProvider;
+        expect(provider.url, 'https://example.test/banner.jpg');
+        expect(provider.cacheManager, same(fake));
+        expect(image.fit, BoxFit.cover);
+      },
+    );
 
     testWidgets('respects the height parameter', (tester) async {
       await tester.pumpWidget(

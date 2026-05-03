@@ -56,14 +56,23 @@ class ProfileAvatar extends ConsumerWidget {
       child: ClipOval(
         child: avatarUrl == null
             ? fallback
-            : CachedNetworkImage(
-                imageUrl: avatarUrl!,
-                cacheManager: ref.watch(profileImageCacheManagerProvider),
+            : Image(
+                image: CachedNetworkImageProvider(
+                  avatarUrl!,
+                  cacheManager: ref.watch(profileImageCacheManagerProvider),
+                ),
                 fit: BoxFit.cover,
                 width: dimension,
                 height: dimension,
-                placeholder: (_, _) => fallback,
-                errorWidget: (_, _, _) => fallback,
+                // Drives the in-memory ImageCache: on a synchronous hit
+                // (revisit, hot reload) the bitmap is delivered immediately
+                // and we skip the placeholder entirely. On a cold load the
+                // fallback shows until the first frame arrives.
+                frameBuilder: (_, child, frame, wasSynchronouslyLoaded) {
+                  if (wasSynchronouslyLoaded || frame != null) return child;
+                  return fallback;
+                },
+                errorBuilder: (_, _, _) => fallback,
               ),
       ),
     );

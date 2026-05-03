@@ -30,7 +30,7 @@ void main() {
       await tester.pumpWidget(_wrap(const ProfileAvatar(seed: 'Alice')));
 
       expect(find.text('A'), findsOneWidget);
-      expect(find.byType(CachedNetworkImage), findsNothing);
+      expect(find.byType(Image), findsNothing);
     });
 
     testWidgets('renders "?" when seed is empty and avatarUrl is null', (
@@ -41,30 +41,34 @@ void main() {
       expect(find.text('?'), findsOneWidget);
     });
 
-    testWidgets('mounts CachedNetworkImage with the profile cache manager '
-        'when avatarUrl is set', (tester) async {
-      final fake = FakeBaseCacheManager();
+    testWidgets(
+      'mounts an Image with a CachedNetworkImageProvider pointing at the '
+      'profile cache manager when avatarUrl is set',
+      (tester) async {
+        final fake = FakeBaseCacheManager();
 
-      await tester.pumpWidget(
-        _wrap(
-          const ProfileAvatar(
-            seed: 'Bob',
-            avatarUrl: 'https://example.test/b.jpg',
+        await tester.pumpWidget(
+          _wrap(
+            const ProfileAvatar(
+              seed: 'Bob',
+              avatarUrl: 'https://example.test/b.jpg',
+            ),
+            overrides: [
+              profileImageCacheManagerProvider.overrideWith((ref) => fake),
+            ],
           ),
-          overrides: [
-            profileImageCacheManagerProvider.overrideWith((ref) => fake),
-          ],
-        ),
-      );
-      await tester.pump();
+        );
+        await tester.pump();
 
-      final image = tester.widget<CachedNetworkImage>(
-        find.byType(CachedNetworkImage),
-      );
-      expect(image.imageUrl, 'https://example.test/b.jpg');
-      expect(image.cacheManager, same(fake));
-      expect(image.fit, BoxFit.cover);
-    });
+        final image = tester.widget<Image>(find.byType(Image));
+        final provider = image.image;
+        expect(provider, isA<CachedNetworkImageProvider>());
+        provider as CachedNetworkImageProvider;
+        expect(provider.url, 'https://example.test/b.jpg');
+        expect(provider.cacheManager, same(fake));
+        expect(image.fit, BoxFit.cover);
+      },
+    );
 
     testWidgets('shows the initial-letter placeholder while loading', (
       tester,
