@@ -86,6 +86,7 @@ class _StitchPainter extends CustomPainter {
   final double strokeWidth;
   final int dashCount;
   final double rotationTurns;
+  // Plumbed for the future determinate variant; not yet rendered.
   // ignore: unused_field
   final double? value;
 
@@ -107,7 +108,7 @@ class _StitchPainter extends CustomPainter {
 
     // Total angle = 2π. Half the circumference is dashes, half is gaps
     // (1:1 dash:gap ratio).
-    final fullAngle = 2 * math.pi;
+    const fullAngle = 2 * math.pi;
     final segmentAngle = fullAngle / dashCount;
     final dashAngle = segmentAngle / 2;
     final rect = Rect.fromCircle(center: Offset.zero, radius: radius);
