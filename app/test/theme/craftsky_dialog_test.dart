@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -290,6 +292,45 @@ void main() {
         expect(cancel.onPressed, isNotNull);
       },
     );
+
+    testWidgets('destructive helper paints primary surface red', (
+      tester,
+    ) async {
+      late Future<bool> resultFuture;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () {
+                  resultFuture = showCraftskyDestructiveConfirmDialog(
+                    context,
+                    title: 'Delete?',
+                    message: 'This cannot be undone.',
+                    confirmLabel: 'Delete',
+                    cancelLabel: 'Cancel',
+                  );
+                },
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      final primary = tester.widget<ChunkyButton>(find.byType(ChunkyButton));
+      expect(primary.backgroundColor, BrandColors.red);
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(await resultFuture, isFalse);
+    });
 
     testWidgets('barrier tap during async in flight is suppressed', (
       tester,

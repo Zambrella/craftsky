@@ -158,6 +158,28 @@ Future<bool> showCraftskyConfirmDialog(
   );
 }
 
+/// Shows a destructive two-button confirm dialog. Identical to
+/// [showCraftskyConfirmDialog] except the primary action surface is
+/// [BrandColors.red] for delete-style flows.
+Future<bool> showCraftskyDestructiveConfirmDialog(
+  BuildContext context, {
+  required String title,
+  required String message,
+  String? confirmLabel,
+  String? cancelLabel,
+  Future<void> Function()? onConfirm,
+}) {
+  return _showConfirmDialog(
+    context,
+    title: title,
+    message: message,
+    confirmLabel: confirmLabel,
+    cancelLabel: cancelLabel,
+    onConfirm: onConfirm,
+    isDestructive: true,
+  );
+}
+
 Future<bool> _showConfirmDialog(
   BuildContext context, {
   required String title,
