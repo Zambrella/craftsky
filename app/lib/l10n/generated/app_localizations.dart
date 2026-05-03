@@ -124,6 +124,12 @@ abstract class AppLocalizations {
   /// **'Retry'**
   String get retryButton;
 
+  /// Semantics label and tooltip on the close icon shown on sticky warning/error messages dispatched via AppMessenger.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get messengerDismiss;
+
   /// Headline on ErrorScreen (from GoRouter.errorBuilder).
   ///
   /// In en, this message translates to:

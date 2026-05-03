@@ -8,6 +8,7 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_banner_avatar.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_crafts_picker.dart';
 import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
+import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -289,9 +290,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
             Navigator.of(context).pop();
           }
         case (AsyncLoading(), AsyncError()):
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.editProfileSaveError)),
-          );
+          context.showError(l10n.editProfileSaveError);
         case _:
           break;
       }

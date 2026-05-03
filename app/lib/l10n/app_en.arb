@@ -19,6 +19,9 @@
   "retryButton": "Retry",
   "@retryButton": { "description": "Retry-action button label on InitializationErrorScreen." },
 
+  "messengerDismiss": "Dismiss",
+  "@messengerDismiss": { "description": "Semantics label and tooltip on the close icon shown on sticky warning/error messages dispatched via AppMessenger." },
+
   "routingErrorTitle": "Something went wrong",
   "@routingErrorTitle": { "description": "Headline on ErrorScreen (from GoRouter.errorBuilder)." },
 

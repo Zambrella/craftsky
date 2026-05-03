@@ -26,6 +26,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get retryButton => 'Retry';
 
   @override
+  String get messengerDismiss => 'Dismiss';
+
+  @override
   String get routingErrorTitle => 'Something went wrong';
 
   @override

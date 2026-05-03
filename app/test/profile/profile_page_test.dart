@@ -3,12 +3,14 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes/auth_session_fakes.dart';
+import '../fakes/recording_messenger.dart';
 import 'fakes/fake_profile_repository.dart';
 
 void main() {
@@ -84,6 +86,80 @@ void main() {
       // the collapsed-state trailing slot.
       expect(find.byIcon(Icons.ios_share_outlined), findsWidgets);
       expect(find.text('Edit profile'), findsNothing);
+    });
+
+    testWidgets('tapping Follow dispatches a coming-soon info', (
+      tester,
+    ) async {
+      const profile = Profile(
+        did: 'did:plc:other',
+        handle: 'alice.bsky.social',
+        displayName: 'Alice',
+        crafts: [],
+      );
+      final repo = FakeProfileRepository(onFetch: (_) async => profile);
+      final messenger = RecordingMessenger();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+          ],
+          child: MessengerScope(
+            messenger: messenger,
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const ProfilePage(handle: 'alice.bsky.social'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Follow'));
+      expect(messenger.calls.length, 1);
+      expect(messenger.calls.first.$1, 'info');
+      expect(messenger.calls.first.$2, 'Follow coming soon.');
+    });
+
+    testWidgets('tapping Share dispatches a coming-soon info', (
+      tester,
+    ) async {
+      const profile = Profile(
+        did: 'did:plc:other',
+        handle: 'alice.bsky.social',
+        displayName: 'Alice',
+        crafts: [],
+      );
+      final repo = FakeProfileRepository(onFetch: (_) async => profile);
+      final messenger = RecordingMessenger();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+          ],
+          child: MessengerScope(
+            messenger: messenger,
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const ProfilePage(handle: 'alice.bsky.social'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.ios_share_outlined).first);
+      expect(messenger.calls.length, 1);
+      expect(messenger.calls.first.$1, 'info');
+      expect(messenger.calls.first.$2, 'Share coming soon.');
     });
   });
 }
