@@ -13,6 +13,7 @@ import 'package:craftsky_app/profile/widgets/profile_tabs/profile_about_tab.dart
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_empty_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_posts_tab.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -122,16 +123,8 @@ class _ProfileBody extends ConsumerWidget {
     // false and a no-op so the button still demos correctly.
     return VisitorProfileActionSet(
       isFollowing: false,
-      onFollowToggle: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.profileFollowComingSoon)),
-        );
-      },
-      onShare: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.profileShareComingSoon)),
-        );
-      },
+      onFollowToggle: () => context.showInfo(l10n.profileFollowComingSoon),
+      onShare: () => context.showInfo(l10n.profileShareComingSoon),
     );
   }
 }
