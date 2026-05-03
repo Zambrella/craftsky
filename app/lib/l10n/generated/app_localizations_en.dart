@@ -29,10 +29,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dialogOkDefault => 'OK';
 
   @override
+  String get loading => 'Loading';
+
+  @override
   String get initializationFailedTitle => 'Initialization Failed';
 
   @override
   String get retryButton => 'Retry';
+
+  @override
+  String get messengerDismiss => 'Dismiss';
 
   @override
   String get routingErrorTitle => 'Something went wrong';

@@ -4,6 +4,9 @@ import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,7 +53,17 @@ void main() {
       appVersion: Version.parse('1.0.0'),
     );
 
-    testWidgets('loading state renders CircularProgressIndicator', (
+    // Asserts that the active MaterialApp in the tree has been wired
+    // with the production MessengerScope and scaffoldMessengerKey.
+    void expectWiring(WidgetTester tester) {
+      final context = tester.element(find.byType(MaterialApp));
+      expect(MessengerScope.of(context), same(defaultAppMessenger));
+
+      final materialApp = tester.widget<MaterialApp>(find.byType(MaterialApp));
+      expect(materialApp.scaffoldMessengerKey, same(appScaffoldMessengerKey));
+    }
+
+    testWidgets('loading state renders StitchProgressIndicator', (
       tester,
     ) async {
       // Future never completes → appDependenciesProvider stays in AsyncLoading.
@@ -65,12 +78,12 @@ void main() {
         ),
       );
 
-      // CircularProgressIndicator spins forever (AnimationController.repeat);
+      // StitchProgressIndicator spins forever (AnimationController.repeat);
       // pumpAndSettle would time out. A single pump is enough — the initial
       // build is synchronous in pumpWidget.
       await tester.pump();
 
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(StitchProgressIndicator), findsOneWidget);
       expect(find.byType(WelcomePage), findsNothing);
       expect(find.byType(InitializationErrorScreen), findsNothing);
     });
@@ -186,6 +199,74 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(records.where(isInitSevere), hasLength(1));
+      },
+    );
+
+    testWidgets(
+      '_LoadingApp wires MessengerScope and scaffoldMessengerKey',
+      (tester) async {
+        // Keep appDependenciesProvider in flight forever so we render the
+        // _LoadingApp branch, which is the cheapest of the three branches to
+        // pump (no router, no theme dependencies that need the full deps).
+        final neverComplete = Completer<AppDependencies>();
+        // tidy on tear-down
+        addTearDown(() => neverComplete.completeError('test teardown'));
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              appDependenciesProvider.overrideWith(
+                (ref) => neverComplete.future,
+              ),
+            ],
+            child: const App(),
+          ),
+        );
+
+        expectWiring(tester);
+      },
+    );
+
+    testWidgets(
+      '_ReadyApp wires MessengerScope and scaffoldMessengerKey',
+      (tester) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              appDependenciesProvider.overrideWith(
+                (ref) async => stubDeps(),
+              ),
+              authSessionProvider.overrideWith(SignedOutAuthSession.new),
+            ],
+            child: const App(),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(WelcomePage), findsOneWidget);
+        expectWiring(tester);
+      },
+    );
+
+    testWidgets(
+      '_ErrorApp wires MessengerScope and scaffoldMessengerKey',
+      (tester) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            // Disable auto-retry to keep the provider in the error state.
+            retry: (_, _) => null,
+            overrides: [
+              appDependenciesProvider.overrideWith(
+                (ref) async => throw Exception('boot failed'),
+              ),
+            ],
+            child: const App(),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(InitializationErrorScreen), findsOneWidget);
+        expectWiring(tester);
       },
     );
   });

@@ -307,12 +307,23 @@ class BrandSwatchTheme extends ThemeExtension<BrandSwatchTheme> {
   }
 }
 
+/// Semantic foreground colours and their paper-tone surface tints.
+///
+/// Foreground slots (`error`, `warning`, `success`, `info`) are used for
+/// icons and accents. Surface slots (`errorSurface`, `warningSurface`,
+/// `successSurface`, `infoSurface`) are paper-tone tints designed to be
+/// used as SnackBar or container backgrounds — light enough to keep dark
+/// ink text readable while still communicating severity by colour.
 class SemanticColorsTheme extends ThemeExtension<SemanticColorsTheme> {
   const SemanticColorsTheme({
     required this.error,
     required this.warning,
     required this.success,
     required this.info,
+    required this.errorSurface,
+    required this.warningSurface,
+    required this.successSurface,
+    required this.infoSurface,
   });
 
   final Color error;
@@ -320,18 +331,31 @@ class SemanticColorsTheme extends ThemeExtension<SemanticColorsTheme> {
   final Color success;
   final Color info;
 
+  final Color errorSurface;
+  final Color warningSurface;
+  final Color successSurface;
+  final Color infoSurface;
+
   @override
   SemanticColorsTheme copyWith({
     Color? error,
     Color? warning,
     Color? success,
     Color? info,
+    Color? errorSurface,
+    Color? warningSurface,
+    Color? successSurface,
+    Color? infoSurface,
   }) {
     return SemanticColorsTheme(
       error: error ?? this.error,
       warning: warning ?? this.warning,
       success: success ?? this.success,
       info: info ?? this.info,
+      errorSurface: errorSurface ?? this.errorSurface,
+      warningSurface: warningSurface ?? this.warningSurface,
+      successSurface: successSurface ?? this.successSurface,
+      infoSurface: infoSurface ?? this.infoSurface,
     );
   }
 
@@ -346,6 +370,10 @@ class SemanticColorsTheme extends ThemeExtension<SemanticColorsTheme> {
       warning: Color.lerp(warning, other.warning, t)!,
       success: Color.lerp(success, other.success, t)!,
       info: Color.lerp(info, other.info, t)!,
+      errorSurface: Color.lerp(errorSurface, other.errorSurface, t)!,
+      warningSurface: Color.lerp(warningSurface, other.warningSurface, t)!,
+      successSurface: Color.lerp(successSurface, other.successSurface, t)!,
+      infoSurface: Color.lerp(infoSurface, other.infoSurface, t)!,
     );
   }
 }

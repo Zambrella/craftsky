@@ -47,7 +47,24 @@ class MyScreen extends StatelessWidget {
 
 ## Data Modeling
 
-- Prefer **immutable data structures** using code generation packages (`freezed`, `dart_mappable`) over hand-written classes with mutable fields.
+- Use **`dart_mappable`** for immutable data classes — never `freezed`. Codegen produces a `*.mapper.dart` part file that supplies `==`, `hashCode`, `copyWith`, and `toString`.
+- Pattern to match (see `app/lib/auth/models/pending_auth.dart` for a canonical example):
+
+```dart
+import 'package:dart_mappable/dart_mappable.dart';
+
+part 'pending_auth.mapper.dart';
+
+@MappableClass()
+class PendingAuth with PendingAuthMappable {
+  const PendingAuth({required this.handle, required this.startedAt});
+
+  final String handle;
+  final DateTime startedAt;
+}
+```
+
+- After modifying a mappable class, run `dart run build_runner build --delete-conflicting-outputs`.
 
 ## Logging
 

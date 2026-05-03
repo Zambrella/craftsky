@@ -1,5 +1,6 @@
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -50,7 +51,7 @@ class _AuthCompleteLoading extends StatelessWidget {
     return const Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        CircularProgressIndicator(),
+        StitchProgressIndicator(),
         SizedBox(height: 16),
         Text('Signing in…'),
       ],

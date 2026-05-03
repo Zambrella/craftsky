@@ -3,6 +3,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -45,6 +46,11 @@ class DesignPlaygroundPage extends ConsumerWidget {
           const PlaygroundSection(
             eyebrow: 'Buttons',
             child: ButtonsSample(),
+          ),
+          SizedBox(height: sp.sp7),
+          const PlaygroundSection(
+            eyebrow: 'Progress',
+            child: ProgressSample(),
           ),
           SizedBox(height: sp.sp7),
           const PlaygroundSection(
@@ -585,6 +591,53 @@ class DialogsSample extends StatelessWidget {
           },
           child: const Text('Show async confirm'),
         ),
+      ],
+    );
+  }
+}
+
+class ProgressSample extends StatelessWidget {
+  const ProgressSample({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sp = theme.extension<SpacingTheme>()!;
+    final text = theme.textTheme.labelSmall;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        _ProgressSize(label: '18 px', size: 18, sp: sp, labelStyle: text),
+        _ProgressSize(label: '36 px', size: 36, sp: sp, labelStyle: text),
+        _ProgressSize(label: '64 px', size: 64, sp: sp, labelStyle: text),
+      ],
+    );
+  }
+}
+
+class _ProgressSize extends StatelessWidget {
+  const _ProgressSize({
+    required this.label,
+    required this.size,
+    required this.sp,
+    required this.labelStyle,
+  });
+
+  final String label;
+  final double size;
+  final SpacingTheme sp;
+  final TextStyle? labelStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        StitchProgressIndicator(size: size),
+        SizedBox(height: sp.sp2),
+        Text(label, style: labelStyle),
       ],
     );
   }

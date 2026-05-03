@@ -2,6 +2,7 @@ import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/router/route_locations.dart';
@@ -27,6 +28,8 @@ Future<void> _pumpRouter(
       container: container,
       child: MaterialApp.router(
         theme: AppTheme.lightThemeData,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         routerConfig: router,
         builder: (context, child) =>
             FormFactorWidget(child: child ?? const SizedBox.shrink()),

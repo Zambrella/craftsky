@@ -8,8 +8,10 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_banner_avatar.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_crafts_picker.dart';
 import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
+import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
@@ -83,7 +85,7 @@ class EditProfileDialog extends ConsumerWidget {
       // state and let the host's redirect logic settle.
       return Scaffold(
         appBar: AppBar(),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const Center(child: StitchProgressIndicator()),
       );
     }
 
@@ -99,7 +101,7 @@ class EditProfileDialog extends ConsumerWidget {
       ),
       _ => Scaffold(
         appBar: AppBar(),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const Center(child: StitchProgressIndicator()),
       ),
     };
   }
@@ -277,9 +279,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
             Navigator.of(context).pop();
           }
         case (AsyncLoading(), AsyncError()):
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.editProfileSaveError)),
-          );
+          context.showError(l10n.editProfileSaveError);
         case _:
           break;
       }
@@ -468,7 +468,6 @@ class _SaveAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
 
     return TextButton(
@@ -477,16 +476,7 @@ class _SaveAction extends StatelessWidget {
         textStyle: const TextStyle(fontWeight: FontWeight.w800),
       ),
       child: isSaving
-          ? SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.4,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  theme.colorScheme.primary,
-                ),
-              ),
-            )
+          ? const StitchProgressIndicator(size: 18)
           : Text(l10n.editProfileSave),
     );
   }

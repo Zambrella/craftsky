@@ -130,6 +130,12 @@ abstract class AppLocalizations {
   /// **'OK'**
   String get dialogOkDefault;
 
+  /// Generic accessibility label announced by the StitchProgressIndicator while content is loading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading'**
+  String get loading;
+
   /// Headline on InitializationErrorScreen when appDependenciesProvider fails.
   ///
   /// In en, this message translates to:
@@ -141,6 +147,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Retry'**
   String get retryButton;
+
+  /// Semantics label and tooltip on the close icon shown on sticky warning/error messages dispatched via AppMessenger.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get messengerDismiss;
 
   /// Headline on ErrorScreen (from GoRouter.errorBuilder).
   ///

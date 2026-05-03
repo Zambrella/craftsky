@@ -22,11 +22,17 @@
   "dialogOkDefault": "OK",
   "@dialogOkDefault": { "description": "Default label for the dismiss button on a CraftskyDialog alert helper when the caller does not provide one." },
 
+  "loading": "Loading",
+  "@loading": { "description": "Generic accessibility label announced by the StitchProgressIndicator while content is loading." },
+
   "initializationFailedTitle": "Initialization Failed",
   "@initializationFailedTitle": { "description": "Headline on InitializationErrorScreen when appDependenciesProvider fails." },
 
   "retryButton": "Retry",
   "@retryButton": { "description": "Retry-action button label on InitializationErrorScreen." },
+
+  "messengerDismiss": "Dismiss",
+  "@messengerDismiss": { "description": "Semantics label and tooltip on the close icon shown on sticky warning/error messages dispatched via AppMessenger." },
 
   "routingErrorTitle": "Something went wrong",
   "@routingErrorTitle": { "description": "Headline on ErrorScreen (from GoRouter.errorBuilder)." },

@@ -4,6 +4,8 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,27 +31,34 @@ Future<void> _pumpEditDialog(
   WidgetTester tester, {
   required FakeProfileRepository repo,
 }) async {
+  final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+  final messenger = ScaffoldMessengerImpl(scaffoldMessengerKey);
+
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         authSessionProvider.overrideWith(SignedInAuthSession.new),
         profileRepositoryProvider.overrideWithValue(repo),
       ],
-      child: MaterialApp(
-        theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Builder(
-          builder: (context) {
-            return Scaffold(
-              body: Center(
-                child: ElevatedButton(
-                  onPressed: () => showEditProfileDialog(context),
-                  child: const Text('Open'),
+      child: MessengerScope(
+        messenger: messenger,
+        child: MaterialApp(
+          scaffoldMessengerKey: scaffoldMessengerKey,
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) {
+              return Scaffold(
+                body: Center(
+                  child: ElevatedButton(
+                    onPressed: () => showEditProfileDialog(context),
+                    child: const Text('Open'),
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     ),
@@ -273,9 +282,7 @@ void main() {
         await tester.tap(fieldFinder);
         await tester.pumpAndSettle();
 
-        final focusNode = tester
-            .widget<TextField>(fieldFinder)
-            .focusNode!;
+        final focusNode = tester.widget<TextField>(fieldFinder).focusNode!;
         expect(focusNode.hasFocus, isTrue);
 
         // Type something that fails validation. The

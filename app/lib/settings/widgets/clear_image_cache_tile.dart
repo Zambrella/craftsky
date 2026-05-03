@@ -1,4 +1,5 @@
 import 'package:craftsky_app/shared/image/clear_image_cache_provider.dart';
+import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,13 +15,9 @@ class ClearImageCacheTile extends ConsumerWidget {
     ref.listen(clearImageCacheProvider, (prev, next) {
       switch ((prev, next)) {
         case (AsyncLoading(), AsyncData()):
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Image cache cleared')),
-          );
+          context.showInfo('Image cache cleared');
         case (AsyncLoading(), AsyncError(:final error)):
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not clear cache: $error')),
-          );
+          context.showError('Could not clear cache: $error');
         case _:
           break;
       }
