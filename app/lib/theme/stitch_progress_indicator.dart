@@ -98,6 +98,8 @@ class _StitchProgressIndicatorState extends State<StitchProgressIndicator>
     );
   }
 
+  /// Stitch density stays roughly constant across sizes by targeting ~14
+  /// stitches at the default 36 px size, then scaling with circumference.
   static int _computeDashCount(double size) {
     const referenceSize = 36.0;
     const referenceDashCount = 14;
