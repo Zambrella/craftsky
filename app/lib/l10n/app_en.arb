@@ -13,6 +13,9 @@
     "placeholders": { "version": { "type": "String", "example": "1.0.0" } }
   },
 
+  "loading": "Loading",
+  "@loading": { "description": "Generic accessibility label announced by the StitchProgressIndicator while content is loading." },
+
   "initializationFailedTitle": "Initialization Failed",
   "@initializationFailedTitle": { "description": "Headline on InitializationErrorScreen when appDependenciesProvider fails." },
 
