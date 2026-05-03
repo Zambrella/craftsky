@@ -95,7 +95,10 @@ void main() {
         'Boom',
         action: MessageAction(label: 'Retry', onPressed: () => taps++),
       );
-      // Pump once to schedule, then advance past the entrance animation.
+      // Floating SnackBar wraps its content in IgnorePointer during the
+      // slide-in entrance animation (~250ms). Without advancing past it,
+      // tester.tap() hits the IgnorePointer layer and the action's
+      // onPressed never fires. 300ms covers the animation with margin.
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -122,7 +125,7 @@ void main() {
             dismissOnTap: false,
           ),
         );
-        // Pump once to schedule, then advance past the entrance animation.
+        // Advance past the entrance IgnorePointer (see first test for details).
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
 
@@ -140,7 +143,7 @@ void main() {
     ) async {
       final h = await _pumpHarness(tester);
       h.impl.error('Boom');
-      // Pump once to schedule, then advance past the entrance animation.
+      // Advance past the entrance IgnorePointer (see first test for details).
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
