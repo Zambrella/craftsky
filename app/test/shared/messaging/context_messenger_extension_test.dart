@@ -1,29 +1,14 @@
-import 'package:craftsky_app/shared/messaging/app_messenger.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-class _RecordingMessenger implements AppMessenger {
-  final calls = <(String severity, String message, MessageAction? action)>[];
-
-  @override
-  void info(String m, {MessageAction? action}) =>
-      calls.add(('info', m, action));
-  @override
-  void warning(String m, {MessageAction? action}) =>
-      calls.add(('warning', m, action));
-  @override
-  void error(String m, {MessageAction? action}) =>
-      calls.add(('error', m, action));
-  @override
-  void dismiss() => calls.add(('dismiss', '', null));
-}
+import '../../fakes/recording_messenger.dart';
 
 Future<void> _pumpUnderScope(
   WidgetTester tester,
-  AppMessenger messenger,
+  RecordingMessenger messenger,
   void Function(BuildContext context) onContext,
 ) async {
   await tester.pumpWidget(
@@ -44,7 +29,7 @@ Future<void> _pumpUnderScope(
 void main() {
   group('AppMessengerX', () {
     testWidgets('showInfo routes to messenger.info', (tester) async {
-      final messenger = _RecordingMessenger();
+      final messenger = RecordingMessenger();
       await _pumpUnderScope(
         tester,
         messenger,
@@ -54,7 +39,7 @@ void main() {
     });
 
     testWidgets('showWarning routes to messenger.warning', (tester) async {
-      final messenger = _RecordingMessenger();
+      final messenger = RecordingMessenger();
       await _pumpUnderScope(
         tester,
         messenger,
@@ -66,7 +51,7 @@ void main() {
     testWidgets(
       'showError routes to messenger.error and forwards action',
       (tester) async {
-        final messenger = _RecordingMessenger();
+        final messenger = RecordingMessenger();
         final action = MessageAction(label: 'Retry', onPressed: () {});
         await _pumpUnderScope(
           tester,
@@ -81,7 +66,7 @@ void main() {
     );
 
     testWidgets('dismissMessage routes to messenger.dismiss', (tester) async {
-      final messenger = _RecordingMessenger();
+      final messenger = RecordingMessenger();
       await _pumpUnderScope(
         tester,
         messenger,
