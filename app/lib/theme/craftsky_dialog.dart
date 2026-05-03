@@ -158,6 +158,50 @@ Future<bool> showCraftskyConfirmDialog(
   );
 }
 
+/// Shows a single-button informational dialog. Resolves when the user taps
+/// the dismiss button or the modal barrier.
+Future<void> showCraftskyAlertDialog(
+  BuildContext context, {
+  required String title,
+  required String message,
+  String? dismissLabel,
+}) async {
+  final l10n = AppLocalizations.of(context);
+  final theme = Theme.of(context);
+  final durations = theme.extension<DurationTheme>()!;
+  await showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    barrierColor: Colors.black54,
+    transitionDuration: durations.modal,
+    pageBuilder: (dialogContext, _, _) => CraftskyDialog(
+      title: title,
+      body: Text(message),
+      actions: [
+        ChunkyButton(
+          backgroundColor: theme.colorScheme.primary,
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: Text(dismissLabel ?? l10n.dialogOkDefault),
+        ),
+      ],
+    ),
+    transitionBuilder: (_, animation, _, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: durations.easePop,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
 /// Shows a destructive two-button confirm dialog. Identical to
 /// [showCraftskyConfirmDialog] except the primary action surface is
 /// [BrandColors.red] for delete-style flows.

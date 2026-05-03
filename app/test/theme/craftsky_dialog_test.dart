@@ -376,4 +376,80 @@ void main() {
       await tester.pumpAndSettle();
     });
   });
+
+  group('showCraftskyAlertDialog', () {
+    testWidgets('renders title, message, single dismiss button', (
+      tester,
+    ) async {
+      late Future<void> resultFuture;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () {
+                  resultFuture = showCraftskyAlertDialog(
+                    context,
+                    title: 'Saved',
+                    message: 'Your changes are live.',
+                    dismissLabel: 'Got it',
+                  );
+                },
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Saved'), findsOneWidget);
+      expect(find.text('Your changes are live.'), findsOneWidget);
+      expect(find.byType(ChunkyButton), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(CraftskyDialog),
+          matching: find.byType(TextButton),
+        ),
+        findsNothing,
+      );
+
+      await tester.tap(find.text('Got it'));
+      await tester.pumpAndSettle();
+
+      await resultFuture;
+      expect(find.byType(CraftskyDialog), findsNothing);
+    });
+
+    testWidgets('falls back to localized dismiss label', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => showCraftskyAlertDialog(
+                  context,
+                  title: 'T',
+                  message: 'M',
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('OK'), findsOneWidget);
+    });
+  });
 }
