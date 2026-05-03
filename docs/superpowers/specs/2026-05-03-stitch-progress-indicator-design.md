@@ -103,12 +103,13 @@ When this lands, no API break and no painter rewrite — only a `value`-aware br
 
 ## Tests
 
-All under `app/test/theme/stitch_progress_indicator_test.dart`:
+All under `app/test/theme/stitch_progress_indicator_test.dart`. Behaviour-only — no golden image regression. The visual itself is simple enough (one rotating dashed ring) that pixel-locking goldens add maintenance cost without much real protection; the design playground entry serves as a visual check during development.
 
+- **Widget test (renders at requested size).** Pump the indicator at 48 px, confirm `tester.getSize(find.byType(StitchProgressIndicator))` is `48 × 48`.
 - **Widget test (animation runs).** Pump the indicator, advance the clock by 700 ms (half cycle), confirm the painter's `rotationTurns` has changed. Implementation: expose `rotationTurns` via a `@visibleForTesting` getter on the State and assert it has advanced from 0.
-- **Golden tests.** Default size (36 px) and small size (18 px) at a fixed `rotationTurns` value (set the controller to `0.25` and pump). Two goldens total.
-- **Reduce-motion test.** Wrap in a `MediaQuery` with `disableAnimations: true`; pump for one second; assert the controller never advanced past zero. The static ring still renders (golden assertion optional).
+- **Reduce-motion test.** Wrap in a `MediaQuery` with `disableAnimations: true`; pump for one second; assert `rotationTurns` stayed at 0.
 - **Disposal test.** Push the indicator into the tree, then pump a different widget; assert the controller is disposed (no leaked tickers — `tester.pump()` would otherwise flag the ticker).
+- **Semantics test.** Assert `find.bySemanticsLabel('Loading')` matches one widget when the indicator is in the tree.
 
 Existing widget tests that match `find.byType(CircularProgressIndicator)` need updates wherever they apply to one of the eight replaced sites; see "Replacement plan" below.
 
