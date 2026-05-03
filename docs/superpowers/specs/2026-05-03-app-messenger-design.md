@@ -2,7 +2,7 @@
 
 ## Summary
 
-Replace scattered `ScaffoldMessenger.of(context).showSnackBar(...)` calls with a small, swappable `AppMessenger` interface that exposes three semantic methods — `info`, `warning`, `error` — each accepting an optional `MessageAction`. Info auto-dismisses; warning and error are sticky until dismissed by the user. Consumers call it via a `BuildContext` extension (`context.showInfo(...)`). The default implementation is backed by `ScaffoldMessenger` and a `GlobalKey<ScaffoldMessengerState>` attached to `MaterialApp.scaffoldMessengerKey`; the interface lets us swap that for a custom overlay later without touching call sites.
+Replace scattered `ScaffoldMessenger.of(context).showSnackBar(...)` calls with a small, swappable `AppMessenger` interface that exposes three semantic methods — `info`, `warning`, `error` — each accepting an optional `MessageAction`. Info auto-dismisses; warning and error are sticky until dismissed by the user. Consumers call it via a `BuildContext` extension (`context.showInfo(...)`). The default implementation is backed by `ScaffoldMessenger` and a `GlobalKey<ScaffoldMessengerState>` attached to `MaterialApp.scaffoldMessengerKey`. The messenger is provided to the widget tree through a `MessengerScope` `InheritedWidget` — the same pattern Flutter itself uses for `Theme`, `MediaQuery`, and `ScaffoldMessenger` — so tests override by wrapping in a different scope. No state-management dependency. The interface lets us swap the impl for a custom overlay later without touching call sites.
 
 ## Why now
 
@@ -18,7 +18,7 @@ Each constructs a bare `SnackBar(content: Text(...))` with no consistent styling
 A central abstraction gives us:
 - One place to enforce "info auto-times out, warning/error stick until dismissed".
 - One place to apply consistent visual treatment (semantic-coloured leading icon, optional action, close affordance).
-- A test seam: widget tests for the four call sites can override the messenger and assert intent (`info('Saved')` was called) instead of poking SnackBar internals.
+- A test seam: widget tests for the four call sites can wrap in a `MessengerScope` with a recording fake and assert intent (`info('Saved')` was called) instead of poking SnackBar internals.
 - A migration path: switching to a custom overlay later changes the impl; consumers stay unchanged.
 
 ## Non-goals (v1)
@@ -40,8 +40,7 @@ app/lib/shared/messaging/
   message_action.dart                  # @freezed value object
   message_action.freezed.dart          # generated
   scaffold_messenger_impl.dart         # default impl + global key
-  app_messenger_provider.dart          # @riverpod provider
-  app_messenger_provider.g.dart        # generated
+  messenger_scope.dart                 # InheritedWidget that provides AppMessenger
   context_messenger_extension.dart     # BuildContext extension
   widgets/
     craftsky_snack_bar.dart            # [icon · text · action? · close?] layout
@@ -77,15 +76,31 @@ class MessageAction with _$MessageAction {
 
 `dismissOnTap` defaults to `true` (matches Material's `SnackBarAction`). Consumers set it to `false` for actions whose effect should leave the snackbar in place — e.g. a "Retry" that triggers an async operation and lets the same snackbar reflect the next outcome.
 
-### Provider
+### `MessengerScope` (InheritedWidget)
 
 ```dart
-// app_messenger_provider.dart
-@Riverpod(keepAlive: true)
-AppMessenger appMessenger(Ref ref) => ScaffoldMessengerImpl(appScaffoldMessengerKey);
+// messenger_scope.dart
+class MessengerScope extends InheritedWidget {
+  const MessengerScope({
+    required this.messenger,
+    required super.child,
+    super.key,
+  });
+
+  final AppMessenger messenger;
+
+  static AppMessenger of(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<MessengerScope>();
+    assert(scope != null, 'MessengerScope.of() called with no MessengerScope ancestor');
+    return scope!.messenger;
+  }
+
+  @override
+  bool updateShouldNotify(MessengerScope old) => messenger != old.messenger;
+}
 ```
 
-`keepAlive: true` because the messenger is a singleton for the app's lifetime; there's no scenario where disposing it makes sense.
+This is the canonical Flutter pattern for providing context-scoped values — identical in shape to how `Theme`, `MediaQuery`, and `ScaffoldMessenger` itself expose themselves. No state-management dependency, no global mutable state, and tests override by wrapping in a different scope.
 
 ### `BuildContext` extension
 
@@ -93,19 +108,14 @@ AppMessenger appMessenger(Ref ref) => ScaffoldMessengerImpl(appScaffoldMessenger
 // context_messenger_extension.dart
 extension AppMessengerX on BuildContext {
   void showInfo(String message, {MessageAction? action}) =>
-      _resolve(this).info(message, action: action);
+      MessengerScope.of(this).info(message, action: action);
   void showWarning(String message, {MessageAction? action}) =>
-      _resolve(this).warning(message, action: action);
+      MessengerScope.of(this).warning(message, action: action);
   void showError(String message, {MessageAction? action}) =>
-      _resolve(this).error(message, action: action);
-  void dismissMessage() => _resolve(this).dismiss();
+      MessengerScope.of(this).error(message, action: action);
+  void dismissMessage() => MessengerScope.of(this).dismiss();
 }
-
-AppMessenger _resolve(BuildContext context) =>
-    ProviderScope.containerOf(context).read(appMessengerProvider);
 ```
-
-Reaching the provider via `ProviderScope.containerOf(context)` keeps the call site free of `WidgetRef` while still routing through Riverpod, so test overrides on `appMessengerProvider` are honoured.
 
 ### Global key wiring
 
@@ -118,9 +128,30 @@ class ScaffoldMessengerImpl implements AppMessenger {
   final GlobalKey<ScaffoldMessengerState> _key;
   // ...
 }
+
+/// The default production messenger. Constructed once and reused — the
+/// `GlobalKey` is the only piece of mutable state, and Flutter owns it.
+/// (Not `const` because `GlobalKey()` isn't a const expression.)
+final AppMessenger defaultAppMessenger = ScaffoldMessengerImpl(appScaffoldMessengerKey);
 ```
 
-`main.dart` (or wherever `MaterialApp` is constructed) passes `appScaffoldMessengerKey` to `MaterialApp.scaffoldMessengerKey`. The impl never calls `ScaffoldMessenger.of(context)`; every operation goes through `_key.currentState`. This centralises messages on the root messenger regardless of which subtree the call site lives in, and is what makes future context-free callers possible without touching the interface.
+The impl never calls `ScaffoldMessenger.of(context)`; every operation goes through `_key.currentState`. This centralises messages on the root messenger regardless of which subtree the call site lives in, and keeps the door open to context-free callers later (the interface doesn't change — only how the messenger is reached).
+
+### Wiring in `app/lib/app.dart`
+
+Each of the three `MaterialApp` / `MaterialApp.router` constructions in [app/lib/app.dart](app/lib/app.dart) (lines 47, 72, 88) is wrapped in a `MessengerScope`:
+
+```dart
+return MessengerScope(
+  messenger: defaultAppMessenger,
+  child: MaterialApp.router(
+    scaffoldMessengerKey: appScaffoldMessengerKey,
+    // ... rest unchanged
+  ),
+);
+```
+
+The `scaffoldMessengerKey` argument is added to all three so messages still appear during early-app failure paths (the splash and error fallback `MaterialApp` instances above the router).
 
 ## Behaviour
 
@@ -201,7 +232,7 @@ Behavioural deltas worth noting:
 - `edit_profile_dialog.dart`'s save error becomes **sticky** for the same reason.
 - `sign_in_page.dart` loses the manual `clearSnackBars()` call (now redundant under the always-replace policy).
 
-`app/lib/app.dart` (which constructs the three `MaterialApp` / `MaterialApp.router` instances at lines 47, 72, and 88) gains one line on each: `scaffoldMessengerKey: appScaffoldMessengerKey`. The fallback `MaterialApp` instances (the splash and error states above the router) get the same key so messages still appear during early-app failure paths.
+For `app/lib/app.dart` wiring (wrapping each `MaterialApp` in a `MessengerScope` and passing `scaffoldMessengerKey`), see [Wiring in `app/lib/app.dart`](#wiring-in-applibappdart) above.
 
 ## Testing
 
@@ -232,18 +263,26 @@ class RecordingMessenger implements AppMessenger {
 }
 ```
 
-Call-site tests override `appMessengerProvider` with a `RecordingMessenger` and assert against `calls`. The existing `clear_image_cache_tile_test.dart` is updated to use this pattern; tests for the other three migrated call sites are out of scope for this spec (they can adopt the recording fake when they're written).
+Call-site tests wrap the widget under test in a `MessengerScope` whose `messenger` is the `RecordingMessenger`, then assert against `calls`. The existing `clear_image_cache_tile_test.dart` is updated to use this pattern; tests for the other three migrated call sites are out of scope for this spec (they can adopt the recording fake when they're written).
 
-### Riverpod override pattern
+### Scope override pattern
 
 ```dart
-ProviderScope(
-  overrides: [appMessengerProvider.overrideWith((ref) => recording)],
-  child: …,
+final recording = RecordingMessenger();
+await tester.pumpWidget(
+  ProviderScope(
+    child: MessengerScope(
+      messenger: recording,
+      child: MaterialApp(home: ClearImageCacheTile()),
+    ),
+  ),
 );
+// ... drive the widget
+expect(recording.calls.first.$1, 'info');
+expect(recording.calls.first.$2, 'Image cache cleared');
 ```
 
-The repo's Riverpod rules reserve `overrideWithValue` for `FutureProvider` / `StreamProvider` (per Riverpod 3.0); synchronous function providers like `appMessengerProvider` use `overrideWith((ref) => …)`.
+The outer `ProviderScope` is still required because the widget under test is a `ConsumerWidget` (it uses Riverpod for its own state). `MessengerScope` lives inside it and is independent of Riverpod entirely.
 
 ## Open questions
 
