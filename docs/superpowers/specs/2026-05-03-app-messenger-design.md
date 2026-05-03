@@ -37,8 +37,8 @@ A central abstraction gives us:
 ```
 app/lib/shared/messaging/
   app_messenger.dart                   # abstract interface
-  message_action.dart                  # @freezed value object
-  message_action.freezed.dart          # generated
+  message_action.dart                  # @MappableClass value object
+  message_action.mapper.dart           # generated
   scaffold_messenger_impl.dart         # default impl + global key
   messenger_scope.dart                 # InheritedWidget that provides AppMessenger
   context_messenger_extension.dart     # BuildContext extension
@@ -64,17 +64,28 @@ abstract interface class AppMessenger {
 
 ```dart
 // message_action.dart
-@freezed
-class MessageAction with _$MessageAction {
-  const factory MessageAction({
-    required String label,
-    required VoidCallback onPressed,
-    @Default(true) bool dismissOnTap,
-  }) = _MessageAction;
+import 'package:dart_mappable/dart_mappable.dart';
+import 'package:flutter/foundation.dart';
+
+part 'message_action.mapper.dart';
+
+@MappableClass()
+class MessageAction with MessageActionMappable {
+  const MessageAction({
+    required this.label,
+    required this.onPressed,
+    this.dismissOnTap = true,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+  final bool dismissOnTap;
 }
 ```
 
 `dismissOnTap` defaults to `true` (matches Material's `SnackBarAction`). Consumers set it to `false` for actions whose effect should leave the snackbar in place — e.g. a "Retry" that triggers an async operation and lets the same snackbar reflect the next outcome.
+
+Equality on `MessageAction` falls back to reference equality on the `onPressed` closure (closures don't structurally compare), which is fine for the messenger's use — we never need to deduplicate actions.
 
 ### `MessengerScope` (InheritedWidget)
 
