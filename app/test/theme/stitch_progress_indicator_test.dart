@@ -1,3 +1,4 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -77,5 +78,25 @@ void main() {
         expect(state.rotationTurns, 0);
       },
     );
+
+    testWidgets('exposes a loading semantics label', (tester) async {
+      // Capture the SemanticsHandle to make the framework build the semantics
+      // tree for this test.
+      final handle = tester.ensureSemantics();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          locale: Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(body: Center(child: StitchProgressIndicator())),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.bySemanticsLabel('Loading'), findsOneWidget);
+
+      handle.dispose();
+    });
   });
 }

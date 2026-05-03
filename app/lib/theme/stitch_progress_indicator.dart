@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
 
 /// Test-only view onto the private `_StitchProgressIndicatorState`. Lets
@@ -92,17 +93,24 @@ class _StitchProgressIndicatorState extends State<StitchProgressIndicator>
       _controller.repeat();
     }
 
-    return SizedBox.square(
-      dimension: widget.size,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) => CustomPaint(
-          painter: _StitchPainter(
-            color: color,
-            strokeWidth: strokeWidth,
-            dashCount: dashCount,
-            rotationTurns: _controller.value,
-            value: widget.value,
+    return Semantics(
+      label: Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      )?.loading,
+      container: true,
+      child: SizedBox.square(
+        dimension: widget.size,
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) => CustomPaint(
+            painter: _StitchPainter(
+              color: color,
+              strokeWidth: strokeWidth,
+              dashCount: dashCount,
+              rotationTurns: _controller.value,
+              value: widget.value,
+            ),
           ),
         ),
       ),
