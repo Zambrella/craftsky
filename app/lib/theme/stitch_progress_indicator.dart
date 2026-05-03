@@ -2,6 +2,14 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+/// Test-only view onto the private `_StitchProgressIndicatorState`. Lets
+/// widget tests read animation progress without exposing it on the public
+/// widget API.
+@visibleForTesting
+abstract interface class StitchProgressIndicatorStateForTesting {
+  double get rotationTurns;
+}
+
 /// A Craftsky-branded indeterminate progress indicator.
 ///
 /// Renders a rotating dashed "running-stitch" ring in the theme's primary
@@ -41,7 +49,31 @@ class StitchProgressIndicator extends StatefulWidget {
       _StitchProgressIndicatorState();
 }
 
-class _StitchProgressIndicatorState extends State<StitchProgressIndicator> {
+class _StitchProgressIndicatorState extends State<StitchProgressIndicator>
+    with SingleTickerProviderStateMixin
+    implements StitchProgressIndicatorStateForTesting {
+  static const _rotationDuration = Duration(milliseconds: 1400);
+
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: _rotationDuration,
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  double get rotationTurns => _controller.value;
+
   @override
   Widget build(BuildContext context) {
     final color = widget.color ?? Theme.of(context).colorScheme.primary;
@@ -51,20 +83,21 @@ class _StitchProgressIndicatorState extends State<StitchProgressIndicator> {
 
     return SizedBox.square(
       dimension: widget.size,
-      child: CustomPaint(
-        painter: _StitchPainter(
-          color: color,
-          strokeWidth: strokeWidth,
-          dashCount: dashCount,
-          rotationTurns: 0,
-          value: widget.value,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) => CustomPaint(
+          painter: _StitchPainter(
+            color: color,
+            strokeWidth: strokeWidth,
+            dashCount: dashCount,
+            rotationTurns: _controller.value,
+            value: widget.value,
+          ),
         ),
       ),
     );
   }
 
-  /// Stitch density stays roughly constant across sizes by targeting ~14
-  /// stitches at the default 36 px size, then scaling with circumference.
   static int _computeDashCount(double size) {
     const referenceSize = 36.0;
     const referenceDashCount = 14;
