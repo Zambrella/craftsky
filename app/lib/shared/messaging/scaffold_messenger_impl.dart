@@ -1,6 +1,7 @@
 import 'package:craftsky_app/shared/messaging/app_messenger.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 /// The root ScaffoldMessenger key. Wired into every `MaterialApp` in
@@ -76,6 +77,18 @@ class ScaffoldMessengerImpl implements AppMessenger {
     final state = _key.currentState;
     if (state == null) return;
 
+    final context = _key.currentContext;
+    final semantic = context == null
+        ? null
+        : Theme.of(context).extension<SemanticColorsTheme>();
+    final backgroundColor = semantic == null
+        ? null
+        : switch (severity) {
+            MessageSeverity.info => semantic.infoSurface,
+            MessageSeverity.warning => semantic.warningSurface,
+            MessageSeverity.error => semantic.errorSurface,
+          };
+
     state.clearSnackBars();
 
     final wrappedAction = action == null
@@ -96,6 +109,7 @@ class ScaffoldMessengerImpl implements AppMessenger {
         behavior: SnackBarBehavior.floating,
         dismissDirection: DismissDirection.horizontal,
         duration: duration,
+        backgroundColor: backgroundColor,
         content: CraftskySnackBarContent(
           severity: severity,
           message: message,

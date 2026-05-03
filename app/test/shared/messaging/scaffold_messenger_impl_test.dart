@@ -2,6 +2,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -166,5 +167,30 @@ void main() {
 
       expect(find.byType(SnackBar), findsNothing);
     });
+
+    testWidgets(
+      'SnackBar background matches the severity surface from the theme',
+      (tester) async {
+        final h = await _pumpHarness(tester);
+
+        // info → infoSurface
+        h.impl.info('Hello');
+        await tester.pump();
+        var snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
+        expect(snackBar.backgroundColor, BrandColors.cobaltSoft);
+
+        // warning → warningSurface
+        h.impl.warning('Watch out');
+        await tester.pump();
+        snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
+        expect(snackBar.backgroundColor, BrandColors.butter);
+
+        // error → errorSurface
+        h.impl.error('Boom');
+        await tester.pump();
+        snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
+        expect(snackBar.backgroundColor, BrandColors.redSoft);
+      },
+    );
   });
 }

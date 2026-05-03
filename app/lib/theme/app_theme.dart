@@ -286,6 +286,10 @@ class AppTheme {
         warning: BrandColors.butter,
         success: BrandColors.moss,
         info: BrandColors.cobalt,
+        errorSurface: BrandColors.redSoft,
+        warningSurface: BrandColors.butter,
+        successSurface: BrandColors.moss,
+        infoSurface: BrandColors.cobaltSoft,
       ),
     ];
   }

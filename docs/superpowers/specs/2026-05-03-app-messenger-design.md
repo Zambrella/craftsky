@@ -216,7 +216,7 @@ The snackbar's `content` is a single `CraftskySnackBarContent` widget rather tha
 - **Action button** is a `TextButton` rendered only when `MessageAction` is non-null. The label uses `textTheme.labelLarge`.
 - **Close icon** is `Icons.close` rendered only for warning/error severity, regardless of whether an action is supplied. Tapping it calls `dismiss()`. Its `Semantics.label` is the localised "Dismiss" string from `l10n`.
 
-Spacing between elements pulls from `SpacingTheme` (`sp2` between text and trailing items, `sp3` between the leading icon and text). The SnackBar's `backgroundColor` stays Material default — the semantic colour appears via the leading icon, not the surface, so contrast against the message text is unaffected.
+Spacing between elements pulls from `SpacingTheme` (`sp2` between text and trailing items, `sp3` between the leading icon and text). The SnackBar's `backgroundColor` is set per severity from new `SemanticColorsTheme` surface slots (`infoSurface`, `warningSurface`, `errorSurface`) — paper-tone tints of the semantic colours, designed to keep dark ink text readable while still communicating severity. The mapping: `info → BrandColors.cobaltSoft`, `warning → BrandColors.butter` (already a designed paper swatch), `error → BrandColors.redSoft`. The leading semantic-coloured icon stays as the focal accent against the lighter surface.
 
 ### SnackBar configuration
 
@@ -224,6 +224,7 @@ The default impl produces SnackBars with:
 - `behavior: SnackBarBehavior.floating`
 - `dismissDirection: DismissDirection.horizontal`
 - `action: null` (the action button is rendered inside `content` so the layout can include the close icon and we keep full control of ordering)
+- `backgroundColor` set per severity from `SemanticColorsTheme` surface slots (`infoSurface`, `warningSurface`, `errorSurface`); falls back to Material's default when the extension is not registered (e.g. in tests that don't use `AppTheme.lightThemeData`).
 - `duration` per the lifetime table above.
 
 ## Migration
