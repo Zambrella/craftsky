@@ -8,6 +8,9 @@ void main() {
     testWidgets('renders at the requested size', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
+          locale: Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: Center(child: StitchProgressIndicator(size: 48)),
           ),
@@ -25,6 +28,9 @@ void main() {
     testWidgets('advances rotationTurns over time', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
+          locale: Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: Center(child: StitchProgressIndicator())),
         ),
       );
@@ -47,6 +53,9 @@ void main() {
     testWidgets('disposes its ticker when unmounted', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
+          locale: Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: StitchProgressIndicator()),
         ),
       );
@@ -62,7 +71,12 @@ void main() {
           const MediaQuery(
             data: MediaQueryData(disableAnimations: true),
             child: MaterialApp(
-              home: Scaffold(body: Center(child: StitchProgressIndicator())),
+              locale: Locale('en'),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(
+                body: Center(child: StitchProgressIndicator()),
+              ),
             ),
           ),
         );

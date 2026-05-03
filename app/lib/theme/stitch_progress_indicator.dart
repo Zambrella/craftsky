@@ -94,10 +94,7 @@ class _StitchProgressIndicatorState extends State<StitchProgressIndicator>
     }
 
     return Semantics(
-      label: Localizations.of<AppLocalizations>(
-        context,
-        AppLocalizations,
-      )?.loading,
+      label: AppLocalizations.of(context).loading,
       container: true,
       child: SizedBox.square(
         dimension: widget.size,
