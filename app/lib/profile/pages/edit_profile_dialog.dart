@@ -9,6 +9,7 @@ import 'package:craftsky_app/profile/widgets/edit_profile_banner_avatar.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_crafts_picker.dart';
 import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
@@ -247,26 +248,13 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
 
   Future<bool> _confirmDiscard() async {
     final l10n = AppLocalizations.of(context);
-    final discard = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(l10n.editProfileDiscardTitle),
-          content: Text(l10n.editProfileDiscardMessage),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(l10n.editProfileDiscardCancel),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: Text(l10n.editProfileDiscardConfirm),
-            ),
-          ],
-        );
-      },
+    return showCraftskyConfirmDialog(
+      context,
+      title: l10n.editProfileDiscardTitle,
+      message: l10n.editProfileDiscardMessage,
+      confirmLabel: l10n.editProfileDiscardConfirm,
+      cancelLabel: l10n.editProfileDiscardCancel,
     );
-    return discard ?? false;
   }
 
   @override
