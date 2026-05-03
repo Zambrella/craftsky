@@ -53,5 +53,29 @@ void main() {
       // is leaked, flutter_test will fail the test.
       await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
     });
+
+    testWidgets(
+      'does not animate when MediaQuery.disableAnimations is true',
+      (tester) async {
+        await tester.pumpWidget(
+          const MediaQuery(
+            data: MediaQueryData(disableAnimations: true),
+            child: MaterialApp(
+              home: Scaffold(body: Center(child: StitchProgressIndicator())),
+            ),
+          ),
+        );
+
+        final state =
+            tester.state<State<StitchProgressIndicator>>(
+                  find.byType(StitchProgressIndicator),
+                )
+                as StitchProgressIndicatorStateForTesting;
+
+        expect(state.rotationTurns, 0);
+        await tester.pump(const Duration(milliseconds: 1000));
+        expect(state.rotationTurns, 0);
+      },
+    );
   });
 }

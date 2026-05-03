@@ -62,7 +62,7 @@ class _StitchProgressIndicatorState extends State<StitchProgressIndicator>
     _controller = AnimationController(
       vsync: this,
       duration: _rotationDuration,
-    )..repeat();
+    );
   }
 
   @override
@@ -80,6 +80,17 @@ class _StitchProgressIndicatorState extends State<StitchProgressIndicator>
     final strokeWidth =
         widget.strokeWidth ?? (widget.size / 12).clamp(1.4, 6.0);
     final dashCount = _computeDashCount(widget.size);
+    final disableAnimations = MediaQuery.disableAnimationsOf(context);
+
+    if (disableAnimations) {
+      if (_controller.isAnimating) {
+        _controller
+          ..stop()
+          ..value = 0;
+      }
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
 
     return SizedBox.square(
       dimension: widget.size,
