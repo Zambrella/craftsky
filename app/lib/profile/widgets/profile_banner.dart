@@ -32,21 +32,16 @@ class ProfileBanner extends ConsumerWidget {
       color: color,
       child: bannerUrl == null
           ? null
-          : Image(
-              image: CachedNetworkImageProvider(
-                bannerUrl!,
-                cacheManager: ref.watch(profileImageCacheManagerProvider),
-              ),
+          : CachedNetworkImage(
+              imageUrl: bannerUrl!,
+              cacheManager: ref.watch(profileImageCacheManagerProvider),
               fit: BoxFit.cover,
-              // On a synchronous in-memory cache hit (revisit, hot reload)
-              // the bitmap renders immediately. While loading or on error,
-              // emit nothing so the parent Container's colour swatch shows
-              // through.
-              frameBuilder: (_, child, frame, wasSynchronouslyLoaded) {
-                if (wasSynchronouslyLoaded || frame != null) return child;
-                return const SizedBox.shrink();
-              },
-              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              placeholder: (_, _) => const SizedBox.shrink(),
+              errorWidget: (_, _, _) => const SizedBox.shrink(),
+              // Quick cross-fade instead of the 500ms default — see
+              // ProfileAvatar for the rationale.
+              fadeInDuration: const Duration(milliseconds: 150),
+              fadeOutDuration: const Duration(milliseconds: 150),
             ),
     );
   }
