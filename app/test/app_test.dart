@@ -52,6 +52,16 @@ void main() {
       appVersion: Version.parse('1.0.0'),
     );
 
+    // Asserts that the active MaterialApp in the tree has been wired
+    // with the production MessengerScope and scaffoldMessengerKey.
+    void expectWiring(WidgetTester tester) {
+      final context = tester.element(find.byType(MaterialApp));
+      expect(MessengerScope.of(context), same(defaultAppMessenger));
+
+      final materialApp = tester.widget<MaterialApp>(find.byType(MaterialApp));
+      expect(materialApp.scaffoldMessengerKey, same(appScaffoldMessengerKey));
+    }
+
     testWidgets('loading state renders CircularProgressIndicator', (
       tester,
     ) async {
@@ -192,7 +202,7 @@ void main() {
     );
 
     testWidgets(
-      'App wires MessengerScope and scaffoldMessengerKey on every MaterialApp',
+      '_LoadingApp wires MessengerScope and scaffoldMessengerKey',
       (tester) async {
         // Keep appDependenciesProvider in flight forever so we render the
         // _LoadingApp branch, which is the cheapest of the three branches to
@@ -212,15 +222,50 @@ void main() {
           ),
         );
 
-        final BuildContext context = tester.element(find.byType(MaterialApp));
-        expect(MessengerScope.of(context), same(defaultAppMessenger));
+        expectWiring(tester);
+      },
+    );
 
-        final materialApp =
-            tester.widget<MaterialApp>(find.byType(MaterialApp));
-        expect(
-          materialApp.scaffoldMessengerKey,
-          same(appScaffoldMessengerKey),
+    testWidgets(
+      '_ReadyApp wires MessengerScope and scaffoldMessengerKey',
+      (tester) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              appDependenciesProvider.overrideWith(
+                (ref) async => stubDeps(),
+              ),
+              authSessionProvider.overrideWith(SignedOutAuthSession.new),
+            ],
+            child: const App(),
+          ),
         );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(WelcomePage), findsOneWidget);
+        expectWiring(tester);
+      },
+    );
+
+    testWidgets(
+      '_ErrorApp wires MessengerScope and scaffoldMessengerKey',
+      (tester) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            // Disable auto-retry to keep the provider in the error state.
+            retry: (_, _) => null,
+            overrides: [
+              appDependenciesProvider.overrideWith(
+                (ref) async => throw Exception('boot failed'),
+              ),
+            ],
+            child: const App(),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(InitializationErrorScreen), findsOneWidget);
+        expectWiring(tester);
       },
     );
   });
