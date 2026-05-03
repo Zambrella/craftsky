@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,6 +36,8 @@ void main() {
           ),
         ],
         child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: AuthCompletePage(token: 'tok-123'),
         ),
       ),
@@ -50,11 +54,15 @@ void main() {
             () => _FakeAuthController(onComplete: (_) async {}),
           ),
         ],
-        child: const MaterialApp(home: AuthCompletePage(token: 't')),
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AuthCompletePage(token: 't'),
+        ),
       ),
     );
     await tester.pump();
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(StitchProgressIndicator), findsOneWidget);
     expect(find.text('Signing in…'), findsOneWidget);
   });
 
@@ -68,7 +76,11 @@ void main() {
             ),
           ),
         ],
-        child: const MaterialApp(home: AuthCompletePage(token: 't')),
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AuthCompletePage(token: 't'),
+        ),
       ),
     );
     await tester.pump();

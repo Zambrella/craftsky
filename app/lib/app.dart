@@ -5,6 +5,7 @@ import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/text_scale_factor_clamper.dart';
 import 'package:craftsky_app/theme/theme_notifier.dart';
 import 'package:flutter/material.dart';
@@ -117,7 +118,7 @@ class InitializationLoadingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
+      body: Center(child: StitchProgressIndicator()),
     );
   }
 }

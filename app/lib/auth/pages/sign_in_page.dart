@@ -3,6 +3,7 @@ import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -53,11 +54,7 @@ class _SignInPageState extends ConsumerState<SignInPage> {
             ChunkyButton(
               onPressed: state is AsyncLoading ? null : _submit,
               child: state is AsyncLoading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                  ? const StitchProgressIndicator(size: 18)
                   : const Text('Continue'),
             ),
           ],
