@@ -537,7 +537,7 @@ func (t *FeedPost) MarshalCBOR(w io.Writer) error {
 	}
 
 	cw := cbg.NewCborWriter(w)
-	fieldCount := 8
+	fieldCount := 9
 
 	if t.Embed == nil {
 		fieldCount--
@@ -548,6 +548,10 @@ func (t *FeedPost) MarshalCBOR(w io.Writer) error {
 	}
 
 	if t.Images == nil {
+		fieldCount--
+	}
+
+	if t.Langs == nil {
 		fieldCount--
 	}
 
@@ -621,6 +625,42 @@ func (t *FeedPost) MarshalCBOR(w io.Writer) error {
 
 		if err := t.Embed.MarshalCBOR(cw); err != nil {
 			return err
+		}
+	}
+
+	// t.Langs ([]string) (slice)
+	if t.Langs != nil {
+
+		if len("langs") > 1000000 {
+			return xerrors.Errorf("Value in field \"langs\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("langs"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("langs")); err != nil {
+			return err
+		}
+
+		if len(t.Langs) > 8192 {
+			return xerrors.Errorf("Slice value in field t.Langs was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajArray, uint64(len(t.Langs))); err != nil {
+			return err
+		}
+		for _, v := range t.Langs {
+			if len(v) > 1000000 {
+				return xerrors.Errorf("Value in field v was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(v))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(v)); err != nil {
+				return err
+			}
+
 		}
 	}
 
@@ -827,6 +867,46 @@ func (t *FeedPost) UnmarshalCBOR(r io.Reader) (err error) {
 					}
 				}
 
+			}
+			// t.Langs ([]string) (slice)
+		case "langs":
+
+			maj, extra, err = cr.ReadHeader()
+			if err != nil {
+				return err
+			}
+
+			if extra > 8192 {
+				return fmt.Errorf("t.Langs: array too large (%d)", extra)
+			}
+
+			if maj != cbg.MajArray {
+				return fmt.Errorf("expected cbor array")
+			}
+
+			if extra > 0 {
+				t.Langs = make([]string, extra)
+			}
+
+			for i := 0; i < int(extra); i++ {
+				{
+					var maj byte
+					var extra uint64
+					var err error
+					_ = maj
+					_ = extra
+					_ = err
+
+					{
+						sval, err := cbg.ReadStringWithMax(cr, 1000000)
+						if err != nil {
+							return err
+						}
+
+						t.Langs[i] = string(sval)
+					}
+
+				}
 			}
 			// t.Reply (craftsky.FeedPost_ReplyRef) (struct)
 		case "reply":

@@ -30,6 +30,8 @@ type FeedPost struct {
 	Facets []*appbsky.RichtextFacet `json:"facets,omitempty" cborgen:"facets,omitempty"`
 	// images: Images attached to the post. Top-level (not inside 'embed') — a post may carry images alongside a quote embed without needing a wrapper variant.
 	Images []*FeedPost_Image `json:"images,omitempty" cborgen:"images,omitempty"`
+	// langs: Indicates human language of post primary text content.
+	Langs []string `json:"langs,omitempty" cborgen:"langs,omitempty"`
 	// project: If present, this post is a craft project post. Absence means it's a general social post.
 	Project *FeedPost_Project `json:"project,omitempty" cborgen:"project,omitempty"`
 	// reply: If present, this post is a reply to another post.

@@ -8,7 +8,10 @@
       "key": "tid",
       "record": {
         "type": "object",
-        "required": ["text", "createdAt"],
+        "required": [
+          "text",
+          "createdAt"
+        ],
         "properties": {
           "text": {
             "type": "string",
@@ -18,7 +21,10 @@
           },
           "facets": {
             "type": "array",
-            "items": { "type": "ref", "ref": "app.bsky.richtext.facet" },
+            "items": {
+              "type": "ref",
+              "ref": "app.bsky.richtext.facet"
+            },
             "description": "Byte-range annotations over 'text' for mentions, links, and inline hashtags. Reuses app.bsky.richtext.facet so existing renderers Just Work. Inline hashtag facets are composer-merged into project.common.tags on project posts; see the post lexicon fields spec."
           },
           "project": {
@@ -28,13 +34,18 @@
           },
           "images": {
             "type": "array",
-            "items": { "type": "ref", "ref": "#image" },
+            "items": {
+              "type": "ref",
+              "ref": "#image"
+            },
             "maxLength": 4,
             "description": "Images attached to the post. Top-level (not inside 'embed') — a post may carry images alongside a quote embed without needing a wrapper variant."
           },
           "embed": {
             "type": "union",
-            "refs": ["#quoteEmbed"],
+            "refs": [
+              "#quoteEmbed"
+            ],
             "description": "Optional embedded content. Open union; today only quote embeds are defined."
           },
           "reply": {
@@ -46,6 +57,15 @@
             "type": "string",
             "format": "datetime",
             "description": "Client-declared creation timestamp."
+          },
+          "langs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "language"
+            },
+            "maxLength": 3,
+            "description": "Indicates human language of post primary text content."
           }
         }
       }
@@ -53,7 +73,9 @@
     "project": {
       "type": "object",
       "description": "Wraps a craft project's shared fields (#projectCommon) and optional craft-specific fields (#details, open union). The wrapper exists so shared fields live in one place (common) while per-craft specialisations are added additively via the union. See ADR 001.",
-      "required": ["common"],
+      "required": [
+        "common"
+      ],
       "properties": {
         "common": {
           "type": "ref",
@@ -72,7 +94,9 @@
     "projectCommon": {
       "type": "object",
       "description": "Project fields shared across every craft. A post with project.common present but no project.details is a valid craft-tagged project post without specialised fields — useful when craftType references a craft that has no #details lexicon yet.",
-      "required": ["craftType"],
+      "required": [
+        "craftType"
+      ],
       "properties": {
         "craftType": {
           "type": "string",
@@ -168,11 +192,18 @@
     "image": {
       "type": "object",
       "description": "An image blob with alt text.",
-      "required": ["image", "alt"],
+      "required": [
+        "image",
+        "alt"
+      ],
       "properties": {
         "image": {
           "type": "blob",
-          "accept": ["image/jpeg", "image/png", "image/webp"],
+          "accept": [
+            "image/jpeg",
+            "image/png",
+            "image/webp"
+          ],
           "maxSize": 15728640
         },
         "alt": {
@@ -186,7 +217,9 @@
     "quoteEmbed": {
       "type": "object",
       "description": "Embed wrapping another record (typically a social.craftsky.feed.post) for a quote post.",
-      "required": ["record"],
+      "required": [
+        "record"
+      ],
       "properties": {
         "record": {
           "type": "ref",
@@ -198,7 +231,10 @@
     "replyRef": {
       "type": "object",
       "description": "Reference to the parent and root posts of a thread.",
-      "required": ["root", "parent"],
+      "required": [
+        "root",
+        "parent"
+      ],
       "properties": {
         "root": {
           "type": "ref",
