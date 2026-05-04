@@ -214,6 +214,124 @@ The `cli request` subcommand sends both `X-Dev-DID` and
 `X-Craftsky-Device-Id: cli-dev` automatically in dev mode, so
 `cli request GET /v1/whoami` Just Works without extra flags.
 
+## Smoke testing the indexer
+
+End-to-end sanity check: write a record to your real PDS and confirm it
+lands in `craftsky_posts` via the firehose → Tap → indexer pipeline. We
+use [`goat`](https://github.com/bluesky-social/indigo/tree/main/cmd/goat),
+indigo's atproto CLI, to do the PDS write — there is no built-in `cli`
+subcommand for this yet.
+
+### Prerequisites
+
+- `goat` installed: `brew install goat` on macOS, or
+  `go install github.com/bluesky-social/indigo/cmd/goat@latest`.
+- An **app password** for your atproto account. From bsky.social:
+  Settings → App Passwords → Add. Make a dedicated one for craftsky-dev
+  so you can revoke it independently. App passwords are required by
+  goat — it uses the legacy session API, not OAuth.
+- You must be **onboarded** to the local appview, i.e. have a row in
+  `craftsky_profiles` for your DID. The post indexer drops events from
+  non-members silently. If your dev DB has been reset, re-run the OAuth
+  flow above (your `social.craftsky.actor.profile` record on the PDS
+  triggers Tap's `TAP_SIGNAL_COLLECTION` discovery on first event, but
+  the membership row only re-materialises when the OAuth callback fires
+  `InitializeProfile`).
+
+### One-time goat login
+
+```bash
+goat account login -u YOUR_HANDLE -p YOUR_APP_PASSWORD
+```
+
+Goat caches the session under `~/.config/goat/` (or your XDG-config
+equivalent). Re-run only if you log out or rotate the app password.
+
+### Write a test post
+
+Put the record in a file rather than echoing inline. `goat record create`
+reads `$type` from the JSON to derive the collection — and dotted NSIDs
+like `social.craftsky.feed.post` are eagerly auto-linked into markdown
+`[text](url)` syntax by many chat UIs and "smart-paste" tools, which
+silently corrupts `$type` and produces a record under a malformed
+collection name. A single-quoted heredoc bypasses every layer of shell
+substitution and "helpful" linkification:
+
+```bash
+cat > /tmp/post.json <<'EOF'
+{
+  "$type": "social.craftsky.feed.post",
+  "text": "smoke test",
+  "createdAt": "2026-05-04T17:00:00Z"
+}
+EOF
+
+goat record create --no-validate /tmp/post.json
+```
+
+`--no-validate` is required against bsky.social: the PDS doesn't bundle
+`social.craftsky.*` lexicons and refuses the write under strict
+validation. `--no-validate` sets `validate=false` on the
+`com.atproto.repo.createRecord` call so the PDS skips schema validation
+for unknown NSIDs.
+
+`goat record create` prints the new record's `at://` URI and CID on
+success. The PDS mints a TID-shaped rkey when `--rkey` is omitted — pass
+`-r myrkey` if you want a stable key for repeated overwrite tests.
+
+### Verify the row landed
+
+The firehose round-trip is usually under a second:
+
+```bash
+just psql -c "
+SELECT uri, text, created_at, indexed_at
+FROM craftsky_posts
+ORDER BY indexed_at DESC
+LIMIT 5;"
+```
+
+You should see the row at the top. If it doesn't appear within a few
+seconds:
+
+```bash
+# Confirm the appview's Tap consumer is connected.
+just tap-status
+
+# Confirm you're a member.
+just psql -c "SELECT did FROM craftsky_profiles WHERE did = 'YOUR_DID';"
+
+# Confirm the record really landed at the canonical NSID on your PDS
+# (not a markdown-corrupted variant).
+goat record ls --collection social.craftsky.feed.post YOUR_HANDLE
+```
+
+If `goat record ls` shows the record but `craftsky_posts` is empty, the
+membership gate is the most likely culprit — the indexer drops
+non-member posts silently. Re-onboard via the OAuth flow.
+
+### Editing and deleting test records
+
+```bash
+# Replace existing record (same rkey, new content).
+goat record update --no-validate -r RKEY /tmp/post.json
+
+# Delete.
+goat record delete -c social.craftsky.feed.post -r RKEY
+```
+
+Records on your real PDS persist across dev DB resets, so periodically
+prune old smoke-test records or use a stable rkey (e.g. `-r smoketest`)
+that you keep overwriting.
+
+### Why not a `cli` subcommand?
+
+A future `cli post-create` could resume the user's existing OAuth
+session via `Deps.NewPDSClient` and write the record without an app
+password. That's a better long-term home — same tokens as the rest of
+the dev stack, no separate session file. Tracked as future work; until
+then, goat is the path of least resistance.
+
 ## Why Go
 
 See the reference doc's "Tech Stack" section. TL;DR: contributor accessibility, ecosystem maturity, single static binary deploys, alignment with the atproto Go ecosystem (`indigo`).
