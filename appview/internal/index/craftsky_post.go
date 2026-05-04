@@ -6,14 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
-	appbsky "github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
+	"social.craftsky/appview/internal/postutil"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -88,7 +87,7 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		}
 	}
 
-	tags := extractTags(rec.Facets)
+	tags := postutil.ExtractTags(rec.Facets)
 
 	// Reply and quote pointers are typed `any` (not `string`) so absent
 	// fields stay nil and pgx writes SQL NULL. An empty string would still
@@ -170,37 +169,6 @@ func (c *CraftskyPost) isMember(ctx context.Context, did syntax.DID) (bool, erro
 		`SELECT EXISTS (SELECT 1 FROM craftsky_profiles WHERE did = $1)`, did).
 		Scan(&exists)
 	return exists, err
-}
-
-// extractTags walks facets and pulls hashtag-feature tags. Lowercase,
-// trim, drop empties, dedupe (preserve first-seen order). Always returns
-// a non-nil slice — the column is NOT NULL DEFAULT '{}'.
-func extractTags(facets []*appbsky.RichtextFacet) []string {
-	if len(facets) == 0 {
-		return []string{}
-	}
-	out := []string{}
-	seen := map[string]struct{}{}
-	for _, facet := range facets {
-		if facet == nil {
-			continue
-		}
-		for _, feat := range facet.Features {
-			if feat == nil || feat.RichtextFacet_Tag == nil {
-				continue
-			}
-			t := strings.ToLower(strings.TrimSpace(feat.RichtextFacet_Tag.Tag))
-			if t == "" {
-				continue
-			}
-			if _, dup := seen[t]; dup {
-				continue
-			}
-			seen[t] = struct{}{}
-			out = append(out, t)
-		}
-	}
-	return out
 }
 
 // flattenImages turns the lexicon's [{image: LexBlob, alt}, ...] array
