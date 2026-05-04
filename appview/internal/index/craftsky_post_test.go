@@ -334,6 +334,25 @@ func TestCraftskyPost_Create_WithTagsFromFacets(t *testing.T) {
 	if facets == nil {
 		t.Errorf("facets column should be populated; got NULL")
 	}
+
+	// Forward-compat: the stored facets must carry $type discriminators on
+	// each feature so a future read endpoint can route renders. The generated
+	// MarshalJSON adds these — this test guards against silently dropping them.
+	var facetsParsed []map[string]any
+	if err := json.Unmarshal([]byte(*facets), &facetsParsed); err != nil {
+		t.Fatalf("parse facets JSON: %v", err)
+	}
+	if len(facetsParsed) != 3 {
+		t.Fatalf("facets count = %d, want 3", len(facetsParsed))
+	}
+	features, _ := facetsParsed[0]["features"].([]any)
+	if len(features) == 0 {
+		t.Fatalf("facets[0].features missing")
+	}
+	feat0, _ := features[0].(map[string]any)
+	if feat0["$type"] != "app.bsky.richtext.facet#tag" {
+		t.Errorf("facets[0].features[0].$type = %v, want app.bsky.richtext.facet#tag", feat0["$type"])
+	}
 }
 
 func TestCraftskyPost_MalformedCreatedAt_Errors(t *testing.T) {
