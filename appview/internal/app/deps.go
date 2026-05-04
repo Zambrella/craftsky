@@ -121,6 +121,8 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	backfiller := index.NewBlueskyBackfiller(anonPDS, blueskyIdx)
 	dispatcher.Register("social.craftsky.actor.profile",
 		index.NewCraftskyProfile(pool, backfiller, logger))
+	dispatcher.Register("social.craftsky.feed.post",
+		index.NewCraftskyPost(pool, logger))
 	dispatcher.Register("app.bsky.actor.profile", blueskyIdx)
 
 	deps := &Deps{
