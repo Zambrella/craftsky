@@ -207,3 +207,100 @@ func TestCraftskyPost_Create_PlainText(t *testing.T) {
 		t.Errorf("created_at = %v, want %v", createdAt, testTime(t))
 	}
 }
+
+func TestCraftskyPost_Create_WithProjectPayload_StoredInRecordOnly(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:p")
+	idx := index.NewCraftskyPost(pool, testLogger())
+
+	const projectJSON = `{
+		"$type": "social.craftsky.feed.post",
+		"text": "finished the shawl!",
+		"createdAt": "` + fixedCreatedAt + `",
+		"project": {
+			"common": {
+				"craftType": "social.craftsky.feed.defs#knitting",
+				"status":    "social.craftsky.feed.defs#finished",
+				"title":     "Hitchhiker Shawl",
+				"materials": ["merino"],
+				"tags":      ["fair-isle"]
+			}
+		}
+	}`
+	ev := tap.Event{
+		URI:        "at://did:plc:p/social.craftsky.feed.post/r",
+		CID:        "bafyP",
+		DID:        "did:plc:p",
+		Rkey:       "r",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record:     json.RawMessage(projectJSON),
+	}
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+
+	// The materialised columns must NOT carry project data this pass —
+	// `tags` is from facets only, the read endpoint will not see project
+	// fields until the project-fields spec lands.
+	var (
+		tags   []string
+		recRaw string
+	)
+	if err := pool.QueryRow(context.Background(),
+		`SELECT tags, record::text FROM craftsky_posts WHERE uri = $1`, ev.URI).
+		Scan(&tags, &recRaw); err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	if len(tags) != 0 {
+		t.Errorf("tags = %v, want empty (project tags are not yet materialised)", tags)
+	}
+
+	// The raw record column must round-trip the project payload byte-for-meaning.
+	var got map[string]any
+	if err := json.Unmarshal([]byte(recRaw), &got); err != nil {
+		t.Fatalf("decode record: %v", err)
+	}
+	project, ok := got["project"].(map[string]any)
+	if !ok {
+		t.Fatalf("record.project missing or not an object; got %T", got["project"])
+	}
+	common, ok := project["common"].(map[string]any)
+	if !ok {
+		t.Fatalf("record.project.common missing")
+	}
+	if common["craftType"] != "social.craftsky.feed.defs#knitting" {
+		t.Errorf("craftType = %v", common["craftType"])
+	}
+	if common["title"] != "Hitchhiker Shawl" {
+		t.Errorf("title = %v", common["title"])
+	}
+}
+
+func TestCraftskyPost_MalformedCreatedAt_Errors(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:bad")
+	idx := index.NewCraftskyPost(pool, testLogger())
+
+	ev := tap.Event{
+		URI:        "at://did:plc:bad/social.craftsky.feed.post/r",
+		CID:        "bafyBAD",
+		DID:        "did:plc:bad",
+		Rkey:       "r",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record:     json.RawMessage(`{"text":"x","createdAt":"not-a-timestamp"}`),
+	}
+	if err := idx.Handle(context.Background(), ev); err == nil {
+		t.Error("want error for unparseable createdAt; got nil")
+	}
+
+	var count int
+	_ = pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM craftsky_posts WHERE uri = $1`, ev.URI).Scan(&count)
+	if count != 0 {
+		t.Errorf("count = %d, want 0 (malformed event must not insert a row)", count)
+	}
+}
