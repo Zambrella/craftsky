@@ -99,7 +99,6 @@ func TestCraftskyPost_OtherCollectionIgnored(t *testing.T) {
 func TestCraftskyPost_UnknownAction(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, craftskyPostsDDL)
-	seedCraftskyMember(t, pool, "did:plc:a")
 	idx := index.NewCraftskyPost(pool, testLogger())
 
 	ev := tap.Event{
@@ -190,6 +189,9 @@ func TestCraftskyPost_Create_PlainText(t *testing.T) {
 	}
 	if did != "did:plc:m" || rkey != "r1" || cid != "bafy1" {
 		t.Errorf("ident = (%q,%q,%q)", did, rkey, cid)
+	}
+	if uri != string(ev.URI) {
+		t.Errorf("uri = %q, want %q", uri, ev.URI)
 	}
 	if text != "first post" {
 		t.Errorf("text = %q", text)

@@ -113,9 +113,10 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 }
 
 func (c *CraftskyPost) handleDelete(ctx context.Context, ev tap.Event) error {
-	// Real implementation lands in Chunk 7. Returning nil here is fine
-	// for now — no test in this chunk exercises the delete path against
-	// a populated row.
+	// Real implementation lands in Chunk 7. Until then, delete events for
+	// existing posts are silently acked but the row is left in place — Tap
+	// considers the event delivered. Acceptable because no production traffic
+	// reaches this code path before Chunk 7 ships on the same branch.
 	_ = ev
 	_ = ctx
 	return nil
