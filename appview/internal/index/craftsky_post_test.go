@@ -435,3 +435,83 @@ func TestCraftskyPost_Create_WithImages(t *testing.T) {
 		t.Errorf("images[1] = %v", images[1])
 	}
 }
+
+func TestCraftskyPost_Create_WithReply(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:r")
+	idx := index.NewCraftskyPost(pool, testLogger())
+
+	ev := tap.Event{
+		URI:        "at://did:plc:r/social.craftsky.feed.post/reply",
+		CID:        "bafyR",
+		DID:        "did:plc:r",
+		Rkey:       "reply",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record: json.RawMessage(`{
+			"$type": "social.craftsky.feed.post",
+			"text": "reply text",
+			"createdAt": "` + fixedCreatedAt + `",
+			"reply": {
+				"root":   {"uri": "at://did:plc:author/social.craftsky.feed.post/root",   "cid": "bafyRoot"},
+				"parent": {"uri": "at://did:plc:author/social.craftsky.feed.post/parent", "cid": "bafyParent"}
+			}
+		}`),
+	}
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+
+	var rootURI, rootCID, parentURI, parentCID string
+	if err := pool.QueryRow(context.Background(), `
+		SELECT reply_root_uri, reply_root_cid, reply_parent_uri, reply_parent_cid
+		FROM craftsky_posts WHERE uri = $1`, ev.URI).
+		Scan(&rootURI, &rootCID, &parentURI, &parentCID); err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	if rootURI != "at://did:plc:author/social.craftsky.feed.post/root" || rootCID != "bafyRoot" {
+		t.Errorf("root = (%q, %q)", rootURI, rootCID)
+	}
+	if parentURI != "at://did:plc:author/social.craftsky.feed.post/parent" || parentCID != "bafyParent" {
+		t.Errorf("parent = (%q, %q)", parentURI, parentCID)
+	}
+}
+
+func TestCraftskyPost_Create_WithQuote(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:q")
+	idx := index.NewCraftskyPost(pool, testLogger())
+
+	ev := tap.Event{
+		URI:        "at://did:plc:q/social.craftsky.feed.post/quote",
+		CID:        "bafyQ",
+		DID:        "did:plc:q",
+		Rkey:       "quote",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record: json.RawMessage(`{
+			"$type": "social.craftsky.feed.post",
+			"text": "quoting another post",
+			"createdAt": "` + fixedCreatedAt + `",
+			"embed": {
+				"$type": "social.craftsky.feed.post#quoteEmbed",
+				"record": {"uri": "at://did:plc:other/social.craftsky.feed.post/orig", "cid": "bafyOrig"}
+			}
+		}`),
+	}
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+
+	var quoteURI, quoteCID string
+	if err := pool.QueryRow(context.Background(), `
+		SELECT quote_uri, quote_cid FROM craftsky_posts WHERE uri = $1`, ev.URI).
+		Scan(&quoteURI, &quoteCID); err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	if quoteURI != "at://did:plc:other/social.craftsky.feed.post/orig" || quoteCID != "bafyOrig" {
+		t.Errorf("quote = (%q, %q)", quoteURI, quoteCID)
+	}
+}

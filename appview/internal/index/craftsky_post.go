@@ -90,6 +90,28 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 
 	tags := extractTags(rec.Facets)
 
+	var (
+		replyRootURI, replyRootCID     any
+		replyParentURI, replyParentCID any
+	)
+	if rec.Reply != nil {
+		if rec.Reply.Root != nil {
+			replyRootURI = rec.Reply.Root.Uri
+			replyRootCID = rec.Reply.Root.Cid
+		}
+		if rec.Reply.Parent != nil {
+			replyParentURI = rec.Reply.Parent.Uri
+			replyParentCID = rec.Reply.Parent.Cid
+		}
+	}
+
+	var quoteURI, quoteCID any
+	if rec.Embed != nil && rec.Embed.FeedPost_QuoteEmbed != nil &&
+		rec.Embed.FeedPost_QuoteEmbed.Record != nil {
+		quoteURI = rec.Embed.FeedPost_QuoteEmbed.Record.Uri
+		quoteCID = rec.Embed.FeedPost_QuoteEmbed.Record.Cid
+	}
+
 	const q = `
 		INSERT INTO craftsky_posts
 			(uri, did, rkey, cid, text, facets, images,
@@ -117,9 +139,9 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		ev.URI, ev.DID, ev.Rkey, ev.CID,
 		rec.Text,
 		facetsJSON, imagesJSON,
-		nil, nil, // reply_root_*
-		nil, nil, // reply_parent_*
-		nil, nil, // quote_*       — Chunk 5
+		replyRootURI, replyRootCID,
+		replyParentURI, replyParentCID,
+		quoteURI, quoteCID,
 		tags,
 		ev.Record,
 		createdAt,
