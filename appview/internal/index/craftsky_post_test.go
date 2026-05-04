@@ -643,3 +643,91 @@ func TestCraftskyPost_Update_BeforeCreate_TreatedAsCreate(t *testing.T) {
 		t.Errorf("count = %d, want 1 (update-before-create must insert)", count)
 	}
 }
+
+func TestCraftskyPost_Delete(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:d")
+	idx := index.NewCraftskyPost(pool, testLogger())
+	ctx := context.Background()
+
+	create := tap.Event{
+		URI:        "at://did:plc:d/social.craftsky.feed.post/r",
+		CID:        "bafyD",
+		DID:        "did:plc:d",
+		Rkey:       "r",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record:     json.RawMessage(`{"text":"to delete","createdAt":"` + fixedCreatedAt + `"}`),
+	}
+	if err := idx.Handle(ctx, create); err != nil {
+		t.Fatal(err)
+	}
+
+	del := tap.Event{
+		URI: create.URI, DID: create.DID, Rkey: create.Rkey,
+		Collection: "social.craftsky.feed.post",
+		Action:     "delete",
+	}
+	if err := idx.Handle(ctx, del); err != nil {
+		t.Fatalf("delete Handle: %v", err)
+	}
+
+	var count int
+	_ = pool.QueryRow(ctx,
+		`SELECT count(*) FROM craftsky_posts WHERE uri = $1`, create.URI).Scan(&count)
+	if count != 0 {
+		t.Errorf("count = %d, want 0 after delete", count)
+	}
+}
+
+func TestCraftskyPost_Delete_Nonexistent_NoOp(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	idx := index.NewCraftskyPost(pool, testLogger())
+
+	del := tap.Event{
+		URI:        "at://did:plc:none/social.craftsky.feed.post/r",
+		DID:        "did:plc:none",
+		Rkey:       "r",
+		Collection: "social.craftsky.feed.post",
+		Action:     "delete",
+	}
+	if err := idx.Handle(context.Background(), del); err != nil {
+		t.Errorf("delete-of-nonexistent should be no-op; got %v", err)
+	}
+}
+
+func TestCraftskyPost_CascadeOnProfileDelete(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:cc")
+	idx := index.NewCraftskyPost(pool, testLogger())
+	ctx := context.Background()
+
+	create := tap.Event{
+		URI:        "at://did:plc:cc/social.craftsky.feed.post/r",
+		CID:        "bafyCC",
+		DID:        "did:plc:cc",
+		Rkey:       "r",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record:     json.RawMessage(`{"text":"will cascade","createdAt":"` + fixedCreatedAt + `"}`),
+	}
+	if err := idx.Handle(ctx, create); err != nil {
+		t.Fatal(err)
+	}
+
+	// Delete the parent profile row directly. The FK cascade should fire.
+	if _, err := pool.Exec(ctx,
+		`DELETE FROM craftsky_profiles WHERE did = $1`, create.DID); err != nil {
+		t.Fatalf("delete profile: %v", err)
+	}
+
+	var count int
+	_ = pool.QueryRow(ctx,
+		`SELECT count(*) FROM craftsky_posts WHERE did = $1`, create.DID).Scan(&count)
+	if count != 0 {
+		t.Errorf("post count = %d after profile delete, want 0 (cascade missing?)", count)
+	}
+}
