@@ -362,3 +362,57 @@ func TestCraftskyPost_MalformedCreatedAt_Errors(t *testing.T) {
 		t.Errorf("count = %d, want 0 (malformed event must not insert a row)", count)
 	}
 }
+
+func TestCraftskyPost_Create_WithImages(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:i")
+	idx := index.NewCraftskyPost(pool, testLogger())
+
+	ev := tap.Event{
+		URI:        "at://did:plc:i/social.craftsky.feed.post/r",
+		CID:        "bafyI",
+		DID:        "did:plc:i",
+		Rkey:       "r",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record: json.RawMessage(`{
+			"$type": "social.craftsky.feed.post",
+			"text": "post with images",
+			"createdAt": "` + fixedCreatedAt + `",
+			"images": [
+				{
+					"image": {"$type":"blob","ref":{"$link":"bafkreigxxxkul4e5rjz4fomqgn6ieeoxbcqeztmxjbrhnbpe7r44ya4ahe"},"mimeType":"image/jpeg","size":12345},
+					"alt": "first photo"
+				},
+				{
+					"image": {"$type":"blob","ref":{"$link":"bafkreidjq52a7nre4puzipwf3gwfkgnxftvbwnp3jppfogo7her2g3ai64"},"mimeType":"image/png","size":54321},
+					"alt": "second photo"
+				}
+			]
+		}`),
+	}
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+
+	var imagesJSON string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT images::text FROM craftsky_posts WHERE uri = $1`, ev.URI).
+		Scan(&imagesJSON); err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	var images []map[string]string
+	if err := json.Unmarshal([]byte(imagesJSON), &images); err != nil {
+		t.Fatalf("decode images: %v (raw=%s)", err, imagesJSON)
+	}
+	if len(images) != 2 {
+		t.Fatalf("len(images) = %d, want 2", len(images))
+	}
+	if images[0]["cid"] != "bafkreigxxxkul4e5rjz4fomqgn6ieeoxbcqeztmxjbrhnbpe7r44ya4ahe" || images[0]["mime"] != "image/jpeg" || images[0]["alt"] != "first photo" {
+		t.Errorf("images[0] = %v", images[0])
+	}
+	if images[1]["cid"] != "bafkreidjq52a7nre4puzipwf3gwfkgnxftvbwnp3jppfogo7her2g3ai64" || images[1]["mime"] != "image/png" || images[1]["alt"] != "second photo" {
+		t.Errorf("images[1] = %v", images[1])
+	}
+}
