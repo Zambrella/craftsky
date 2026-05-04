@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
+	appbsky "github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -70,8 +72,24 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		return fmt.Errorf("parse createdAt %q on %s: %w", rec.CreatedAt, ev.URI, err)
 	}
 
-	// Materialised columns. Subsequent chunks fill the nil/empty values
-	// from rec.Facets, rec.Images, rec.Reply, rec.Embed.
+	var facetsJSON []byte
+	if len(rec.Facets) > 0 {
+		facetsJSON, err = json.Marshal(rec.Facets)
+		if err != nil {
+			return fmt.Errorf("marshal facets %s: %w", ev.URI, err)
+		}
+	}
+
+	var imagesJSON []byte
+	if flat := flattenImages(rec.Images); flat != nil {
+		imagesJSON, err = json.Marshal(flat)
+		if err != nil {
+			return fmt.Errorf("marshal images %s: %w", ev.URI, err)
+		}
+	}
+
+	tags := extractTags(rec.Facets)
+
 	const q = `
 		INSERT INTO craftsky_posts
 			(uri, did, rkey, cid, text, facets, images,
@@ -98,11 +116,11 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	_, err = c.pool.Exec(ctx, q,
 		ev.URI, ev.DID, ev.Rkey, ev.CID,
 		rec.Text,
-		nil, nil, // facets, images — Chunk 4
+		facetsJSON, imagesJSON,
 		nil, nil, // reply_root_*
 		nil, nil, // reply_parent_*
 		nil, nil, // quote_*       — Chunk 5
-		[]string{}, // tags         — Chunk 4
+		tags,
 		ev.Record,
 		createdAt,
 	)
@@ -128,4 +146,59 @@ func (c *CraftskyPost) isMember(ctx context.Context, did syntax.DID) (bool, erro
 		`SELECT EXISTS (SELECT 1 FROM craftsky_profiles WHERE did = $1)`, did).
 		Scan(&exists)
 	return exists, err
+}
+
+// extractTags walks facets and pulls hashtag-feature tags. Lowercase,
+// trim, drop empties, dedupe (preserve first-seen order). Always returns
+// a non-nil slice — the column is NOT NULL DEFAULT '{}'.
+func extractTags(facets []*appbsky.RichtextFacet) []string {
+	if len(facets) == 0 {
+		return []string{}
+	}
+	out := []string{}
+	seen := map[string]struct{}{}
+	for _, facet := range facets {
+		if facet == nil {
+			continue
+		}
+		for _, feat := range facet.Features {
+			if feat == nil || feat.RichtextFacet_Tag == nil {
+				continue
+			}
+			t := strings.ToLower(strings.TrimSpace(feat.RichtextFacet_Tag.Tag))
+			if t == "" {
+				continue
+			}
+			if _, dup := seen[t]; dup {
+				continue
+			}
+			seen[t] = struct{}{}
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// flattenImages turns the lexicon's [{image: LexBlob, alt}, ...] array
+// into the storage shape [{cid, mime, alt}, ...]. Returns nil when there
+// are no images, so the caller can pass nil to the JSONB column for SQL NULL.
+func flattenImages(images []*craftskylex.FeedPost_Image) []map[string]string {
+	if len(images) == 0 {
+		return nil
+	}
+	out := make([]map[string]string, 0, len(images))
+	for _, img := range images {
+		if img == nil || img.Image == nil {
+			continue
+		}
+		out = append(out, map[string]string{
+			"cid":  img.Image.Ref.String(),
+			"mime": img.Image.MimeType,
+			"alt":  img.Alt,
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

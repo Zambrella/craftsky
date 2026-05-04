@@ -280,6 +280,62 @@ func TestCraftskyPost_Create_WithProjectPayload_StoredInRecordOnly(t *testing.T)
 	}
 }
 
+func TestCraftskyPost_Create_WithTagsFromFacets(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:t")
+	idx := index.NewCraftskyPost(pool, testLogger())
+
+	// Two #tag features (one duplicate after lowercasing/trimming) and
+	// one #link feature that must NOT contribute a tag.
+	ev := tap.Event{
+		URI:        "at://did:plc:t/social.craftsky.feed.post/r",
+		CID:        "bafyT",
+		DID:        "did:plc:t",
+		Rkey:       "r",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record: json.RawMessage(`{
+			"$type": "social.craftsky.feed.post",
+			"text": "with tags #FairIsle #fairisle and a link",
+			"createdAt": "` + fixedCreatedAt + `",
+			"facets": [
+				{
+					"index": {"byteStart": 11, "byteEnd": 20},
+					"features": [{"$type": "app.bsky.richtext.facet#tag", "tag": "FairIsle"}]
+				},
+				{
+					"index": {"byteStart": 21, "byteEnd": 30},
+					"features": [{"$type": "app.bsky.richtext.facet#tag", "tag": "  fairisle "}]
+				},
+				{
+					"index": {"byteStart": 35, "byteEnd": 39},
+					"features": [{"$type": "app.bsky.richtext.facet#link", "uri": "https://example.com"}]
+				}
+			]
+		}`),
+	}
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+
+	var (
+		tags   []string
+		facets *string
+	)
+	if err := pool.QueryRow(context.Background(),
+		`SELECT tags, facets::text FROM craftsky_posts WHERE uri = $1`, ev.URI).
+		Scan(&tags, &facets); err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	if len(tags) != 1 || tags[0] != "fairisle" {
+		t.Errorf("tags = %v, want [fairisle]", tags)
+	}
+	if facets == nil {
+		t.Errorf("facets column should be populated; got NULL")
+	}
+}
+
 func TestCraftskyPost_MalformedCreatedAt_Errors(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, craftskyPostsDDL)
