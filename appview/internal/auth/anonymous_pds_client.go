@@ -96,3 +96,13 @@ func (c *AnonymousPDSClient) GetRecord(ctx context.Context, repo syntax.DID, col
 func (c *AnonymousPDSClient) PutRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error {
 	return ErrReadOnlyPDSClient
 }
+
+// CreateRecord is not supported by the anonymous client.
+func (c *AnonymousPDSClient) CreateRecord(_ context.Context, _ syntax.DID, _ string, _ any) (syntax.ATURI, syntax.CID, error) {
+	return "", "", ErrReadOnlyPDSClient
+}
+
+// DeleteRecord is not supported by the anonymous client.
+func (c *AnonymousPDSClient) DeleteRecord(_ context.Context, _ syntax.DID, _, _ string) error {
+	return ErrReadOnlyPDSClient
+}

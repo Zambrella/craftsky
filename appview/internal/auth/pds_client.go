@@ -25,6 +25,8 @@ var ErrRecordNotFound = errors.New("pds: record not found")
 type PDSClient interface {
 	GetRecord(ctx context.Context, repo syntax.DID, collection string, rkey string, out any) (cid string, err error)
 	PutRecord(ctx context.Context, repo syntax.DID, collection string, rkey string, record any) error
+	CreateRecord(ctx context.Context, repo syntax.DID, collection string, record any) (uri syntax.ATURI, cid syntax.CID, err error)
+	DeleteRecord(ctx context.Context, repo syntax.DID, collection string, rkey string) error
 }
 
 // PDSClientFactory builds a PDSClient scoped to a caller's OAuth session.
