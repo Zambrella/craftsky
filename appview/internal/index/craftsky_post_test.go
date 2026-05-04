@@ -515,3 +515,131 @@ func TestCraftskyPost_Create_WithQuote(t *testing.T) {
 		t.Errorf("quote = (%q, %q)", quoteURI, quoteCID)
 	}
 }
+
+func TestCraftskyPost_Replay_PreservesIndexedAt(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:rp")
+	idx := index.NewCraftskyPost(pool, testLogger())
+
+	ev := tap.Event{
+		URI:        "at://did:plc:rp/social.craftsky.feed.post/r",
+		CID:        "bafyRP",
+		DID:        "did:plc:rp",
+		Rkey:       "r",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record:     json.RawMessage(`{"text":"once","createdAt":"` + fixedCreatedAt + `"}`),
+	}
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatal(err)
+	}
+
+	var firstIndexedAt string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT indexed_at::text FROM craftsky_posts WHERE uri = $1`, ev.URI).
+		Scan(&firstIndexedAt); err != nil {
+		t.Fatalf("select first indexed_at: %v", err)
+	}
+
+	// Replay identical event.
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatal(err)
+	}
+
+	var secondIndexedAt string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT indexed_at::text FROM craftsky_posts WHERE uri = $1`, ev.URI).
+		Scan(&secondIndexedAt); err != nil {
+		t.Fatalf("select second indexed_at: %v", err)
+	}
+
+	if firstIndexedAt != secondIndexedAt {
+		t.Errorf("indexed_at changed on replay: %q -> %q", firstIndexedAt, secondIndexedAt)
+	}
+}
+
+func TestCraftskyPost_Update_NewCID_ReplacesRow(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:u")
+	idx := index.NewCraftskyPost(pool, testLogger())
+	ctx := context.Background()
+
+	create := tap.Event{
+		URI:        "at://did:plc:u/social.craftsky.feed.post/r",
+		CID:        "bafy1",
+		DID:        "did:plc:u",
+		Rkey:       "r",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record:     json.RawMessage(`{"text":"original","createdAt":"` + fixedCreatedAt + `"}`),
+	}
+	if err := idx.Handle(ctx, create); err != nil {
+		t.Fatal(err)
+	}
+
+	var firstIndexedAt string
+	if err := pool.QueryRow(ctx,
+		`SELECT indexed_at::text FROM craftsky_posts WHERE uri = $1`, create.URI).
+		Scan(&firstIndexedAt); err != nil {
+		t.Fatalf("select first indexed_at: %v", err)
+	}
+
+	update := create
+	update.CID = "bafy2"
+	update.Action = "update"
+	update.Record = json.RawMessage(`{"text":"edited","createdAt":"` + fixedCreatedAt + `"}`)
+	if err := idx.Handle(ctx, update); err != nil {
+		t.Fatal(err)
+	}
+
+	var (
+		text, cid       string
+		secondIndexedAt string
+	)
+	if err := pool.QueryRow(ctx,
+		`SELECT text, cid, indexed_at::text FROM craftsky_posts WHERE uri = $1`, create.URI).
+		Scan(&text, &cid, &secondIndexedAt); err != nil {
+		t.Fatalf("select after update: %v", err)
+	}
+	if text != "edited" {
+		t.Errorf("text = %q, want edited", text)
+	}
+	if cid != "bafy2" {
+		t.Errorf("cid = %q, want bafy2", cid)
+	}
+	if secondIndexedAt == firstIndexedAt {
+		t.Errorf("indexed_at did not advance: %q stayed", firstIndexedAt)
+	}
+}
+
+func TestCraftskyPost_Update_BeforeCreate_TreatedAsCreate(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:ub")
+	idx := index.NewCraftskyPost(pool, testLogger())
+
+	ev := tap.Event{
+		URI:        "at://did:plc:ub/social.craftsky.feed.post/r",
+		CID:        "bafyUB",
+		DID:        "did:plc:ub",
+		Rkey:       "r",
+		Collection: "social.craftsky.feed.post",
+		Action:     "update",
+		Record:     json.RawMessage(`{"text":"hi","createdAt":"` + fixedCreatedAt + `"}`),
+	}
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+
+	var count int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM craftsky_posts WHERE uri = $1`, ev.URI).
+		Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Errorf("count = %d, want 1 (update-before-create must insert)", count)
+	}
+}
