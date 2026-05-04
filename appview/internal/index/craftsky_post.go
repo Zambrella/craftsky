@@ -90,6 +90,10 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 
 	tags := extractTags(rec.Facets)
 
+	// Reply and quote pointers are typed `any` (not `string`) so absent
+	// fields stay nil and pgx writes SQL NULL. An empty string would still
+	// satisfy the partial indexes' `WHERE ... IS NOT NULL` predicate and
+	// defeat them.
 	var (
 		replyRootURI, replyRootCID     any
 		replyParentURI, replyParentCID any
