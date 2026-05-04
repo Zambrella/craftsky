@@ -183,7 +183,7 @@ Bad input → `envelope.ErrInvalidCursor`, mapped by handlers to 400 `invalid_cu
 5. `pds := newPDS(ctx, did, sessionID); uri, cid, err := pds.CreateRecord(ctx, did, "social.craftsky.feed.post", body)`.
    - Connection error → 502 `pds_unavailable`.
    - PDS rejects (lexicon validation, etc.) → 502 `pds_write_failed`, message includes the PDS error name.
-6. `author := postStore.ReadAuthor(ctx, did)` — one query, joins `craftsky_profiles ⨝ bluesky_profiles`.
+6. Hydrate author: `displayName` / `avatarCid` from a single SELECT against `bluesky_profiles` (LEFT JOIN-safe — both default to `null` if the row is missing); `handle` from `HandleResolver.ResolveHandle(ctx, did)`. Failure to resolve the handle → 502 `identity_unavailable`, matching the existing profile handler.
 7. Build `PostResponse`:
    - `uri`, `cid` from PDS response.
    - `rkey` = last URL-segment of `uri` (TID stamped by PDS).
@@ -195,10 +195,11 @@ Bad input → `envelope.ErrInvalidCursor`, mapped by handlers to 400 `invalid_cu
 #### `GET /v1/posts/{did}/{rkey}`
 
 1. Parse `{did}` as `syntax.DID`. Bad → 400 `invalid_identifier`.
-2. `row, err := postStore.ReadOne(ctx, did, rkey)`. Joins author profile inline.
+2. `row, err := postStore.ReadOne(ctx, did, rkey)`. Returns the post's columns plus `display_name` / `avatar_cid` from the LEFT JOIN.
    - `ErrPostNotFound` → 404 `post_not_found`.
    - Other → 500 `internal_error`.
-3. Build `PostResponse` from row. 200 + JSON.
+3. `handle, err := resolver.ResolveHandle(ctx, did)`. Failure → 502 `identity_unavailable`.
+4. Build `PostResponse` from row + handle. 200 + JSON.
 
 #### `DELETE /v1/posts/{did}/{rkey}`
 
@@ -215,8 +216,8 @@ The local postgres row is **not** pre-emptively deleted. The firehose tombstone 
 
 1. Strip `@` prefix from path; resolve handle → DID via the existing `resolveToDID(ctx, raw, resolver)` helper from `profile.go` (move to a shared file if test ergonomics suggest it; otherwise import).
 2. Parse `limit` (default 50, max 100; `min(parsed, 100)` not 400-on-overshoot, per pagination spec) and `cursor` (opaque).
-3. `rows, nextCursor, err := postStore.ListByAuthor(ctx, did, limit, cursor)`. Bad cursor → 400 `invalid_cursor`.
-4. Author profile is identical for every row, so the store fetches author once and zips into rows; not a join-per-row.
+3. `rows, nextCursor, err := postStore.ListByAuthor(ctx, did, limit, cursor)`. Bad cursor → 400 `invalid_cursor`. Each row carries `display_name` and `avatar_cid` from the LEFT JOIN against `bluesky_profiles`; in this query they're identical across rows but joining per row is cheap and keeps the query simple.
+4. `handle, err := resolver.ResolveHandle(ctx, did)`. Resolved once and zipped into every item's `author.handle` field. Failure → 502 `identity_unavailable`.
 5. `{ items: [PostResponse...], cursor: "..." }`. Omit `cursor` field when there are no more pages.
 
 ### 4. Postgres queries
@@ -229,33 +230,34 @@ The local postgres row is **not** pre-emptively deleted. The firehose tombstone 
 SELECT p.uri, p.did, p.rkey, p.cid, p.text, p.facets,
        p.reply_root_uri, p.reply_root_cid, p.reply_parent_uri, p.reply_parent_cid,
        p.quote_uri, p.quote_cid, p.tags, p.created_at, p.indexed_at,
-       cp.handle, bp.display_name, bp.avatar_cid
+       bp.display_name, bp.avatar_cid
 FROM craftsky_posts p
-JOIN craftsky_profiles cp ON cp.did = p.did
 LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 WHERE p.did = $1 AND p.rkey = $2
 ```
 
-`LEFT JOIN` on `bluesky_profiles` — a craftsky member without a Bluesky-profile mirror should still return their post (display name and avatar default to NULL, surfaced as `null` in the response).
+`LEFT JOIN` on `bluesky_profiles` — a craftsky member without a Bluesky-profile mirror should still return their post (display name and avatar default to NULL, surfaced as `null` in the response). The post's existence implies craftsky membership (the indexer's FK enforces it), so no separate craftsky_profiles join is needed for filtering.
+
+The author handle is **not** stored in any local table. Handlers fetch it via the existing `HandleResolver` (the same mechanism `GetProfileHandler` uses) after `ReadOne` returns. This keeps the store concerned only with what's actually in postgres and matches the pattern already in `profile.go`.
 
 `ListByAuthor` — keyset pagination over `(indexed_at, uri)`:
 
 ```sql
 SELECT p.uri, p.did, p.rkey, p.cid, p.text, p.facets,
        p.reply_root_uri, p.reply_root_cid, p.reply_parent_uri, p.reply_parent_cid,
-       p.quote_uri, p.quote_cid, p.tags, p.created_at, p.indexed_at
+       p.quote_uri, p.quote_cid, p.tags, p.created_at, p.indexed_at,
+       bp.display_name, bp.avatar_cid
 FROM craftsky_posts p
+LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 WHERE p.did = $1
   AND ($2::timestamptz IS NULL OR (p.indexed_at, p.uri) < ($2, $3))
 ORDER BY p.indexed_at DESC, p.uri DESC
 LIMIT $4
 ```
 
-Author hydration is a separate single-row fetch zipped into the result. The existing `craftsky_posts_did_indexed_at_desc` index covers the WHERE/ORDER BY.
+The existing `craftsky_posts_did_indexed_at_desc` index covers the WHERE/ORDER BY.
 
 `nextCursor` is the `(indexed_at, uri)` of the **last** row returned, encoded via `envelope.EncodeCursor`. Omit when fewer than `limit` rows came back.
-
-> **Cursor query column names.** The exact column-resolution names verified against `craftsky_profiles` and `bluesky_profiles` schemas (e.g. `cp.handle`, `bp.display_name`, `bp.avatar_cid`) need to be confirmed at implementation time against the migrations. Where this spec names a column that doesn't exist verbatim, the implementer follows the actual schema and updates this spec inline.
 
 ### 5. `PDSClient` interface additions
 
