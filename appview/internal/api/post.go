@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
+	"strconv"
+	"strings"
 	"time"
 
 	appbsky "github.com/bluesky-social/indigo/api/bsky"
@@ -307,4 +309,94 @@ func DeletePostHandler(newPDS auth.PDSClientFactory, logger *slog.Logger) http.H
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
+}
+
+// ListPostsByAuthorHandler serves GET /v1/profiles/{handleOrDid}/posts.
+func ListPostsByAuthorHandler(
+	store PostReader,
+	resolver HandleResolver,
+	logger *slog.Logger,
+) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := middleware.GetRunID(r.Context())
+		raw := strings.TrimPrefix(r.PathValue("handleOrDid"), "@")
+		did, err := resolveToDID(r.Context(), raw, resolver)
+		if err != nil {
+			switch {
+			case errors.Is(err, errInvalidIdentifier):
+				envelope.WriteError(w, http.StatusBadRequest,
+					"invalid_identifier", "not a valid handle or DID", runID, nil)
+			default:
+				logger.Warn("post list: ResolveDID failed",
+					slog.String("input", raw),
+					slog.String("err", err.Error()),
+					slog.String("run_id", runID))
+				envelope.WriteError(w, http.StatusBadGateway,
+					"identity_unavailable", "could not resolve identity", runID, nil)
+			}
+			return
+		}
+		limit := parseLimit(r.URL.Query().Get("limit"))
+		cursor := r.URL.Query().Get("cursor")
+
+		rows, nextCursor, err := store.ListByAuthor(r.Context(), did.String(), limit, cursor)
+		if err != nil {
+			if errors.Is(err, envelope.ErrInvalidCursor) {
+				envelope.WriteError(w, http.StatusBadRequest,
+					"invalid_cursor", "cursor could not be decoded", runID, nil)
+				return
+			}
+			logger.Error("post list: ListByAuthor failed",
+				slog.String("did", did.String()),
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "post list failed", runID, nil)
+			return
+		}
+
+		items := make([]*PostResponse, 0, len(rows))
+		if len(rows) > 0 {
+			// Only pay handle-resolution cost when there are rows to render.
+			handle, herr := resolver.ResolveHandle(r.Context(), did)
+			if herr != nil {
+				logger.Warn("post list: ResolveHandle failed",
+					slog.String("did", did.String()),
+					slog.String("err", herr.Error()),
+					slog.String("run_id", runID))
+				envelope.WriteError(w, http.StatusBadGateway,
+					"identity_unavailable", "could not resolve handle", runID, nil)
+				return
+			}
+			for _, row := range rows {
+				items = append(items, BuildPostResponse(row, handle))
+			}
+		}
+		body := struct {
+			Items  []*PostResponse `json:"items"`
+			Cursor string          `json:"cursor,omitempty"`
+		}{Items: items, Cursor: nextCursor}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(body)
+	})
+}
+
+// parseLimit returns the validated limit, defaulting to 50 and capping
+// at 100. Per pagination spec §5: caps are silent (we don't 400 on
+// overshoot, we cap).
+func parseLimit(raw string) int {
+	const defaultLimit, maxLimit = 50, 100
+	if raw == "" {
+		return defaultLimit
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return defaultLimit
+	}
+	if n > maxLimit {
+		return maxLimit
+	}
+	return n
 }

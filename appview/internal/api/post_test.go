@@ -14,6 +14,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
 )
@@ -391,5 +392,114 @@ func TestDeletePost_BadDID_400(t *testing.T) {
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d", rr.Code)
+	}
+}
+
+func TestListPosts_HappyPath_PaginatesCorrectly(t *testing.T) {
+	t.Parallel()
+	rows := []*api.PostRow{
+		{URI: "at://did:plc:alice/social.craftsky.feed.post/rk2", DID: "did:plc:alice", Rkey: "rk2", Text: "second"},
+		{URI: "at://did:plc:alice/social.craftsky.feed.post/rk1", DID: "did:plc:alice", Rkey: "rk1", Text: "first"},
+	}
+	store := &fakePostStore{listRows: rows, listCursor: "next-cursor-opaque"}
+	h := api.ListPostsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts?limit=2", "", "did:plc:alice")
+	req.SetPathValue("handleOrDid", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp struct {
+		Items  []api.PostResponse `json:"items"`
+		Cursor string             `json:"cursor,omitempty"`
+	}
+	_ = json.NewDecoder(rr.Body).Decode(&resp)
+	if len(resp.Items) != 2 {
+		t.Fatalf("items len = %d", len(resp.Items))
+	}
+	if resp.Items[0].Rkey != "rk2" {
+		t.Errorf("ordering wrong: %q", resp.Items[0].Rkey)
+	}
+	if resp.Cursor != "next-cursor-opaque" {
+		t.Errorf("cursor = %q", resp.Cursor)
+	}
+}
+
+func TestListPosts_ResolvesHandle(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{listRows: []*api.PostRow{}}
+	resolver := fakeResolver{
+		didFor:    syntax.DID("did:plc:alice"),
+		handleFor: syntax.Handle("alice.example"),
+	}
+	h := api.ListPostsByAuthorHandler(store, resolver, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/profiles/@alice.example/posts", "", "did:plc:bob")
+	req.SetPathValue("handleOrDid", "alice.example")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestListPosts_BadCursor_400(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{listErr: envelope.ErrInvalidCursor}
+	h := api.ListPostsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts?cursor=garbage", "", "did:plc:alice")
+	req.SetPathValue("handleOrDid", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d", rr.Code)
+	}
+}
+
+func TestListPosts_FinalPage_OmitsCursorField(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{listRows: []*api.PostRow{}, listCursor: ""}
+	h := api.ListPostsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts", "", "did:plc:alice")
+	req.SetPathValue("handleOrDid", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d", rr.Code)
+	}
+	if strings.Contains(rr.Body.String(), `"cursor"`) {
+		t.Errorf("cursor field should be omitted, got body: %s", rr.Body.String())
+	}
+}
+
+type fakePostStoreCapturing struct {
+	fakePostStore
+	captured *struct{ limit int }
+}
+
+func (f *fakePostStoreCapturing) ListByAuthor(_ context.Context, _ string, limit int, _ string) ([]*api.PostRow, string, error) {
+	f.captured.limit = limit
+	return f.listRows, f.listCursor, f.listErr
+}
+
+func TestListPosts_LimitDefaultAndCap(t *testing.T) {
+	t.Parallel()
+	captured := struct {
+		limit int
+	}{}
+	store := &fakePostStoreCapturing{
+		fakePostStore: fakePostStore{listRows: []*api.PostRow{}},
+		captured:      &captured,
+	}
+	h := api.ListPostsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts?limit=500", "", "did:plc:alice")
+	req.SetPathValue("handleOrDid", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d", rr.Code)
+	}
+	if captured.limit != 100 {
+		t.Errorf("limit = %d, want capped at 100", captured.limit)
 	}
 }
