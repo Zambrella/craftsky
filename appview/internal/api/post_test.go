@@ -161,9 +161,9 @@ func TestCreatePost_TextEmpty_422(t *testing.T) {
 	}
 }
 
-func TestCreatePost_PDSDown_502(t *testing.T) {
+func TestCreatePost_PDSWriteFailed_502(t *testing.T) {
 	t.Parallel()
-	pds := &fakePDS{createErr: errors.New("pds down")}
+	pds := &fakePDS{createErr: errors.New("pds rejected the create")}
 	store := &fakePostStore{}
 	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, nilLogger())
 	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hi"}`, "did:plc:alice")
@@ -171,6 +171,31 @@ func TestCreatePost_PDSDown_502(t *testing.T) {
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadGateway {
 		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	// The response envelope should distinguish write-failed from unavailable.
+	body := rr.Body.String()
+	if !strings.Contains(body, "pds_write_failed") {
+		t.Errorf("expected pds_write_failed in body, got: %s", body)
+	}
+}
+
+func TestCreatePost_PDSUnavailable_502(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{}
+	// Factory itself fails — the PDS RPC layer is never reached.
+	failingFactory := func(_ context.Context, _ syntax.DID, _ string) (auth.PDSClient, error) {
+		return nil, errors.New("session lookup failed")
+	}
+	h := api.CreatePostHandler(store, failingFactory, fakeResolver{handleFor: "a.example"}, nilLogger())
+	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hi"}`, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "pds_unavailable") {
+		t.Errorf("expected pds_unavailable in body, got: %s", body)
 	}
 }
 
@@ -501,5 +526,60 @@ func TestListPosts_LimitDefaultAndCap(t *testing.T) {
 	}
 	if captured.limit != 100 {
 		t.Errorf("limit = %d, want capped at 100", captured.limit)
+	}
+}
+
+func TestCreatePost_WithReply_PassesThroughToPDS(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{}
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, nilLogger())
+	body := `{"text":"replying","reply":{"root":{"uri":"at://did:plc:bob/social.craftsky.feed.post/root1","cid":"bafyR1"},"parent":{"uri":"at://did:plc:bob/social.craftsky.feed.post/par1","cid":"bafyP1"}}}`
+	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	rec, _ := pds.lastCreateRec.(map[string]any)
+	reply, _ := rec["reply"].(map[string]any)
+	if reply == nil {
+		t.Fatalf("expected reply in PDS body, got: %+v", rec)
+	}
+	root, _ := reply["root"].(map[string]any)
+	if root["uri"] != "at://did:plc:bob/social.craftsky.feed.post/root1" {
+		t.Errorf("reply.root.uri = %v", root["uri"])
+	}
+	if root["cid"] != "bafyR1" {
+		t.Errorf("reply.root.cid = %v", root["cid"])
+	}
+	parent, _ := reply["parent"].(map[string]any)
+	if parent["uri"] != "at://did:plc:bob/social.craftsky.feed.post/par1" {
+		t.Errorf("reply.parent.uri = %v", parent["uri"])
+	}
+	if parent["cid"] != "bafyP1" {
+		t.Errorf("reply.parent.cid = %v", parent["cid"])
+	}
+}
+
+func TestListPosts_HandleResolutionFails_502(t *testing.T) {
+	t.Parallel()
+	rows := []*api.PostRow{
+		{URI: "at://did:plc:alice/social.craftsky.feed.post/rk1", DID: "did:plc:alice", Rkey: "rk1", Text: "hi"},
+	}
+	store := &fakePostStore{listRows: rows}
+	// Resolver fails. With non-empty rows the handler MUST resolve the
+	// handle to render the response — and on failure must return 502.
+	h := api.ListPostsByAuthorHandler(store, fakeResolver{err: errors.New("plc down")}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts", "", "did:plc:alice")
+	req.SetPathValue("handleOrDid", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "identity_unavailable") {
+		t.Errorf("expected identity_unavailable in body, got: %s", body)
 	}
 }

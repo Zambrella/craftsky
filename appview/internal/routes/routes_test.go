@@ -203,3 +203,17 @@ func TestRoutes_PutProfileMeRequiresAuth(t *testing.T) {
 		t.Errorf("PUT /v1/profiles/me without auth: status = %d, want 401", rr.Code)
 	}
 }
+
+func TestRoutes_PostPostsRequiresAuth(t *testing.T) {
+	t.Parallel()
+	deps := testDeps()
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(`{"text":"hi"}`))
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("POST /v1/posts without auth: status = %d, want 401", rr.Code)
+	}
+}
