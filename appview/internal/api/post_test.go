@@ -252,3 +252,68 @@ func TestCreatePost_ResolveHandleFails_502(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
 	}
 }
+
+func TestGetPost_HappyPath(t *testing.T) {
+	t.Parallel()
+	row := &api.PostRow{
+		URI: "at://did:plc:alice/social.craftsky.feed.post/rk1",
+		DID: "did:plc:alice", Rkey: "rk1", CID: "bafy", Text: "hi",
+	}
+	store := &fakePostStore{one: row}
+	h := api.GetPostHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/rk1", "", "did:plc:alice")
+	req.SetPathValue("did", "did:plc:alice")
+	req.SetPathValue("rkey", "rk1")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.PostResponse
+	_ = json.NewDecoder(rr.Body).Decode(&resp)
+	if resp.Text != "hi" || resp.Author.Handle != "alice.example" {
+		t.Errorf("resp = %+v", resp)
+	}
+}
+
+func TestGetPost_NotFound_404(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{oneErr: api.ErrPostNotFound}
+	h := api.GetPostHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/rk1", "", "did:plc:alice")
+	req.SetPathValue("did", "did:plc:alice")
+	req.SetPathValue("rkey", "rk1")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("status = %d", rr.Code)
+	}
+}
+
+func TestGetPost_BadDID_400(t *testing.T) {
+	t.Parallel()
+	h := api.GetPostHandler(&fakePostStore{}, fakeResolver{}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/posts/not-a-did/rk1", "", "did:plc:alice")
+	req.SetPathValue("did", "not-a-did")
+	req.SetPathValue("rkey", "rk1")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d", rr.Code)
+	}
+}
+
+func TestGetPost_HandleResolutionFailure_502(t *testing.T) {
+	t.Parallel()
+	row := &api.PostRow{DID: "did:plc:alice", Rkey: "rk1"}
+	store := &fakePostStore{one: row}
+	h := api.GetPostHandler(store, fakeResolver{err: errors.New("plc down")}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/rk1", "", "did:plc:alice")
+	req.SetPathValue("did", "did:plc:alice")
+	req.SetPathValue("rkey", "rk1")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d", rr.Code)
+	}
+}
