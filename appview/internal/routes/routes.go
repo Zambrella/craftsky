@@ -46,6 +46,17 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("PUT /v1/profiles/me",
 		authN(deviceID(api.PutMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger))))
 
+	// v1 — post handlers (authenticated + device-id required).
+	postStore := api.NewPostStore(deps.DB)
+	mux.Handle("POST /v1/posts",
+		authN(deviceID(api.CreatePostHandler(postStore, deps.NewPDSClient, deps.HandleResolver, deps.Logger))))
+	mux.Handle("GET /v1/posts/{did}/{rkey}",
+		authN(deviceID(api.GetPostHandler(postStore, deps.HandleResolver, deps.Logger))))
+	mux.Handle("DELETE /v1/posts/{did}/{rkey}",
+		authN(deviceID(api.DeletePostHandler(deps.NewPDSClient, deps.Logger))))
+	mux.Handle("GET /v1/profiles/{handleOrDid}/posts",
+		authN(deviceID(api.ListPostsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger))))
+
 	// Fallthrough.
 	mux.Handle("/", http.NotFoundHandler())
 }
