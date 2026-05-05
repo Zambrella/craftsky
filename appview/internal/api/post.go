@@ -257,3 +257,54 @@ func GetPostHandler(store PostReader, resolver HandleResolver, logger *slog.Logg
 		_ = json.NewEncoder(w).Encode(resp)
 	})
 }
+
+// DeletePostHandler serves DELETE /v1/posts/{did}/{rkey}. Idempotent —
+// returns 204 even if the underlying record was already gone.
+func DeletePostHandler(newPDS auth.PDSClientFactory, logger *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := middleware.GetRunID(r.Context())
+		caller, ok := middleware.GetDID(r.Context())
+		if !ok {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "no did in context", runID, nil)
+			return
+		}
+		did, err := syntax.ParseDID(r.PathValue("did"))
+		if err != nil {
+			envelope.WriteError(w, http.StatusBadRequest,
+				"invalid_identifier", "did path segment is not a valid DID", runID, nil)
+			return
+		}
+		if did != caller {
+			envelope.WriteError(w, http.StatusForbidden,
+				"forbidden", "cannot delete another user's post", runID, nil)
+			return
+		}
+		rkey := r.PathValue("rkey")
+		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+		pds, err := newPDS(r.Context(), did, sessionID)
+		if err != nil {
+			logger.Error("post: newPDS failed",
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusBadGateway,
+				"pds_unavailable", "could not contact PDS", runID, nil)
+			return
+		}
+		if err := pds.DeleteRecord(r.Context(), did, craftskyPostNSID, rkey); err != nil {
+			if errors.Is(err, auth.ErrRecordNotFound) {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			logger.Warn("post: DeleteRecord failed",
+				slog.String("did", did.String()),
+				slog.String("rkey", rkey),
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusBadGateway,
+				"pds_unavailable", "PDS delete failed", runID, nil)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+}

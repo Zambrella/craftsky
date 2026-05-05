@@ -317,3 +317,79 @@ func TestGetPost_HandleResolutionFailure_502(t *testing.T) {
 		t.Fatalf("status = %d", rr.Code)
 	}
 }
+
+func TestDeletePost_Self_204_CallsPDS(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	h := api.DeletePostHandler(newPDSFactory(pds), nilLogger())
+	req := authedReq(http.MethodDelete, "/v1/posts/did:plc:alice/rk1", "", "did:plc:alice")
+	req.SetPathValue("did", "did:plc:alice")
+	req.SetPathValue("rkey", "rk1")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.lastDeleteRkey != "rk1" {
+		t.Errorf("PDS not called: %q", pds.lastDeleteRkey)
+	}
+}
+
+func TestDeletePost_OtherUser_403_NoPDSCall(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	h := api.DeletePostHandler(newPDSFactory(pds), nilLogger())
+	req := authedReq(http.MethodDelete, "/v1/posts/did:plc:bob/rk1", "", "did:plc:alice")
+	req.SetPathValue("did", "did:plc:bob")
+	req.SetPathValue("rkey", "rk1")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status = %d", rr.Code)
+	}
+	if pds.lastDeleteRkey != "" {
+		t.Errorf("PDS should not have been called")
+	}
+}
+
+func TestDeletePost_RecordAlreadyGone_204_Idempotent(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{deleteErr: auth.ErrRecordNotFound}
+	h := api.DeletePostHandler(newPDSFactory(pds), nilLogger())
+	req := authedReq(http.MethodDelete, "/v1/posts/did:plc:alice/rk1", "", "did:plc:alice")
+	req.SetPathValue("did", "did:plc:alice")
+	req.SetPathValue("rkey", "rk1")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("status = %d", rr.Code)
+	}
+}
+
+func TestDeletePost_PDSDown_502(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{deleteErr: errors.New("pds down")}
+	h := api.DeletePostHandler(newPDSFactory(pds), nilLogger())
+	req := authedReq(http.MethodDelete, "/v1/posts/did:plc:alice/rk1", "", "did:plc:alice")
+	req.SetPathValue("did", "did:plc:alice")
+	req.SetPathValue("rkey", "rk1")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d", rr.Code)
+	}
+}
+
+func TestDeletePost_BadDID_400(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	h := api.DeletePostHandler(newPDSFactory(pds), nilLogger())
+	req := authedReq(http.MethodDelete, "/v1/posts/not-a-did/rk1", "", "did:plc:alice")
+	req.SetPathValue("did", "not-a-did")
+	req.SetPathValue("rkey", "rk1")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d", rr.Code)
+	}
+}
