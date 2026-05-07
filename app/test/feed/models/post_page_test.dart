@@ -7,15 +7,16 @@ void main() {
 
   group('PostPage', () {
     test('round-trips with cursor present', () {
+      const cursor =
+          'eyJpbmRleGVkQXQiOiIyMDI2LTA1LTA0VDE4OjIzOjQ3WiIsInVyaSI6ImF0Oi8vIn0';
       final json = {
         'items': <Map<String, dynamic>>[],
-        'cursor':
-            'eyJpbmRleGVkQXQiOiIyMDI2LTA1LTA0VDE4OjIzOjQ3WiIsInVyaSI6ImF0Oi8vIn0',
+        'cursor': cursor,
       };
 
       final page = PostPageMapper.fromMap(json);
       expect(page.items, isEmpty);
-      expect(page.cursor, json['cursor']);
+      expect(page.cursor, cursor);
       expect(page.toMap(), json);
     });
 
