@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
@@ -185,6 +187,74 @@ void main() {
           .value!;
       expect(after.items.map((p) => p.rkey), ['a', 'b']);
     });
+
+    test('no-op when a previous loadMore is still in flight', () async {
+      var calls = 0;
+      final firstPageGate = Completer<PostPage>();
+      final fake = FakePostRepository(
+        onListByAuthor: (id, {cursor, limit}) async {
+          calls++;
+          if (calls == 1) {
+            return PostPage(
+              items: [_samplePost(rkey: 'a')],
+              cursor: 'c1',
+            );
+          }
+          // The second call is the in-flight loadMore; gated by the
+          // completer so it stays pending while we fire a third.
+          return firstPageGate.future;
+        },
+      );
+
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      // Keep a persistent subscription so the provider is never auto-disposed
+      // between the unawaited loadMore() and the assertions that follow.
+      final sub = container.listen(
+        userPostsProvider('alice.craftsky.social'),
+        (_, _) {},
+      );
+      addTearDown(sub.close);
+
+      // Initial build (call 1 to the repo).
+      await container.read(
+        userPostsProvider('alice.craftsky.social').future,
+      );
+      expect(calls, 1);
+
+      // Fire loadMore but don't await — it triggers call 2 (gated).
+      final inFlight = container
+          .read(userPostsProvider('alice.craftsky.social').notifier)
+          .loadMore();
+      // Yield once so the loadMore method enters the AsyncLoading branch.
+      await Future<void>.delayed(Duration.zero);
+      expect(calls, 2, reason: 'first loadMore reached the repo');
+
+      // Fire a second loadMore while the first is still pending. The
+      // state.isLoading guard should swallow it without contacting the
+      // repo.
+      await container
+          .read(userPostsProvider('alice.craftsky.social').notifier)
+          .loadMore();
+      expect(
+        calls,
+        2,
+        reason: 'concurrent loadMore must short-circuit on state.isLoading',
+      );
+
+      // Now release the first loadMore and let it settle.
+      firstPageGate.complete(
+        PostPage(items: [_samplePost(rkey: 'b')]),
+      );
+      await inFlight;
+
+      final state = container
+          .read(userPostsProvider('alice.craftsky.social'))
+          .value!;
+      expect(state.items.map((p) => p.rkey), ['a', 'b']);
+    });
   });
 
   group('userPostsProvider prepend', () {
@@ -235,6 +305,42 @@ void main() {
           .read(userPostsProvider('alice.craftsky.social'))
           .value!;
       expect(state.items.map((p) => p.rkey), ['a']);
+    });
+
+    test('no-op when state has no data', () async {
+      // Repo never resolves; the family entry stays in AsyncLoading.
+      final fake = FakePostRepository(
+        onListByAuthor: (id, {cursor, limit}) async {
+          return Completer<PostPage>().future;
+        },
+      );
+
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      // Read the notifier without awaiting — state is AsyncLoading,
+      // state.value is null.
+      final notifier = container.read(
+        userPostsProvider('alice.craftsky.social').notifier,
+      );
+      expect(
+        container.read(userPostsProvider('alice.craftsky.social')).isLoading,
+        isTrue,
+      );
+
+      // Must not throw, must not mutate state.
+      notifier.prepend(_samplePost(rkey: 'new'));
+
+      expect(
+        container.read(userPostsProvider('alice.craftsky.social')).isLoading,
+        isTrue,
+        reason: 'prepend must be a no-op when state has no data',
+      );
+      expect(
+        container.read(userPostsProvider('alice.craftsky.social')).value,
+        isNull,
+      );
     });
   });
 
@@ -290,6 +396,39 @@ void main() {
           .read(userPostsProvider('alice.craftsky.social'))
           .value!;
       expect(state.items.map((p) => p.rkey), ['a']);
+    });
+
+    test('no-op when state has no data', () async {
+      final fake = FakePostRepository(
+        onListByAuthor: (id, {cursor, limit}) async {
+          return Completer<PostPage>().future;
+        },
+      );
+
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      final notifier = container.read(
+        userPostsProvider('alice.craftsky.social').notifier,
+      );
+      expect(
+        container.read(userPostsProvider('alice.craftsky.social')).isLoading,
+        isTrue,
+      );
+
+      // Must not throw, must not mutate state.
+      notifier.removeByRkey('anything');
+
+      expect(
+        container.read(userPostsProvider('alice.craftsky.social')).isLoading,
+        isTrue,
+        reason: 'removeByRkey must be a no-op when state has no data',
+      );
+      expect(
+        container.read(userPostsProvider('alice.craftsky.social')).value,
+        isNull,
+      );
     });
   });
 }
