@@ -49,7 +49,10 @@ void main() {
       final deleted = <(String, String)>[];
       final fake = FakePostRepository(
         onListByAuthor: (id, {cursor, limit}) async => PostPage(
-          items: [_post(rkey: 'a'), _post(rkey: 'b')],
+          items: [
+            _post(rkey: 'a'),
+            _post(rkey: 'b'),
+          ],
         ),
         onDelete: (did, rkey) async {
           deleted.add((did, rkey));

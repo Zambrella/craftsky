@@ -9,8 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../fakes/fake_post_repository.dart';
 
 Map<String, dynamic> _samplePostMap({required String rkey, String? did}) => {
-  'uri':
-      'at://${did ?? 'did:plc:alice'}/social.craftsky.feed.post/$rkey',
+  'uri': 'at://${did ?? 'did:plc:alice'}/social.craftsky.feed.post/$rkey',
   'cid': 'bafy_$rkey',
   'rkey': rkey,
   'text': 'post $rkey',
@@ -33,7 +32,10 @@ void main() {
     test('first build fetches page 1 and surfaces items + cursor', () async {
       final fake = FakePostRepository(
         onListByAuthor: (id, {cursor, limit}) async => PostPage(
-          items: [_samplePost(rkey: 'a'), _samplePost(rkey: 'b')],
+          items: [
+            _samplePost(rkey: 'a'),
+            _samplePost(rkey: 'b'),
+          ],
           cursor: 'next',
         ),
       );
@@ -76,7 +78,10 @@ void main() {
         onListByAuthor: (id, {cursor, limit}) async {
           call++;
           if (call == 1) {
-            return PostPage(items: [_samplePost(rkey: 'a')], cursor: 'c1');
+            return PostPage(
+              items: [_samplePost(rkey: 'a')],
+              cursor: 'c1',
+            );
           }
           expect(cursor, 'c1');
           return PostPage(items: [_samplePost(rkey: 'b')]);
@@ -134,7 +139,10 @@ void main() {
         onListByAuthor: (id, {cursor, limit}) async {
           call++;
           if (call == 1) {
-            return PostPage(items: [_samplePost(rkey: 'a')], cursor: 'c1');
+            return PostPage(
+              items: [_samplePost(rkey: 'a')],
+              cursor: 'c1',
+            );
           }
           if (call == 2) {
             throw Exception('network down');
