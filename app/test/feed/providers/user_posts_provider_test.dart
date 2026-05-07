@@ -68,4 +68,114 @@ void main() {
       expect(state.hasMore, isFalse);
     });
   });
+
+  group('userPostsProvider loadMore', () {
+    test('appends next page and advances cursor', () async {
+      var call = 0;
+      final fake = FakePostRepository(
+        onListByAuthor: (id, {cursor, limit}) async {
+          call++;
+          if (call == 1) {
+            return PostPage(items: [_samplePost(rkey: 'a')], cursor: 'c1');
+          }
+          expect(cursor, 'c1');
+          return PostPage(items: [_samplePost(rkey: 'b')]);
+        },
+      );
+
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      // First build to populate the state.
+      await container.read(
+        userPostsProvider('alice.craftsky.social').future,
+      );
+
+      await container
+          .read(userPostsProvider('alice.craftsky.social').notifier)
+          .loadMore();
+
+      final state = container
+          .read(userPostsProvider('alice.craftsky.social'))
+          .value!;
+      expect(state.items.map((p) => p.rkey), ['a', 'b']);
+      expect(state.cursor, isNull);
+      expect(state.hasMore, isFalse);
+    });
+
+    test('no-op when hasMore is false', () async {
+      var calls = 0;
+      final fake = FakePostRepository(
+        onListByAuthor: (id, {cursor, limit}) async {
+          calls++;
+          return const PostPage(items: []);
+        },
+      );
+
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      await container.read(
+        userPostsProvider('alice.craftsky.social').future,
+      );
+      expect(calls, 1);
+
+      await container
+          .read(userPostsProvider('alice.craftsky.social').notifier)
+          .loadMore();
+      expect(calls, 1, reason: 'loadMore must not call repo when !hasMore');
+    });
+
+    test('failure preserves visible items and cursor for retry', () async {
+      var call = 0;
+      final fake = FakePostRepository(
+        onListByAuthor: (id, {cursor, limit}) async {
+          call++;
+          if (call == 1) {
+            return PostPage(items: [_samplePost(rkey: 'a')], cursor: 'c1');
+          }
+          if (call == 2) {
+            throw Exception('network down');
+          }
+          // Retry succeeds with the same cursor.
+          expect(cursor, 'c1');
+          return PostPage(items: [_samplePost(rkey: 'b')]);
+        },
+      );
+
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      await container.read(
+        userPostsProvider('alice.craftsky.social').future,
+      );
+
+      // First loadMore fails.
+      await container
+          .read(userPostsProvider('alice.craftsky.social').notifier)
+          .loadMore();
+
+      final mid = container.read(userPostsProvider('alice.craftsky.social'));
+      expect(mid.hasError, isTrue, reason: 'state is AsyncError after failure');
+      expect(
+        mid.value?.items.map((p) => p.rkey),
+        ['a'],
+        reason: 'previous data preserved via copyWithPrevious',
+      );
+      expect(mid.value?.cursor, 'c1', reason: 'cursor unchanged on failure');
+
+      // Retry uses the same cursor and succeeds.
+      await container
+          .read(userPostsProvider('alice.craftsky.social').notifier)
+          .loadMore();
+
+      final after = container
+          .read(userPostsProvider('alice.craftsky.social'))
+          .value!;
+      expect(after.items.map((p) => p.rkey), ['a', 'b']);
+    });
+  });
 }

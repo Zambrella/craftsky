@@ -9,23 +9,14 @@ part of 'user_posts_provider.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 /// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
-///
-/// `loadMore`, `prepend`, and `removeByRkey` are added in subsequent
-/// commits. `build` fetches the first page only.
 
 @ProviderFor(UserPosts)
 final userPostsProvider = UserPostsFamily._();
 
 /// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
-///
-/// `loadMore`, `prepend`, and `removeByRkey` are added in subsequent
-/// commits. `build` fetches the first page only.
 final class UserPostsProvider
     extends $AsyncNotifierProvider<UserPosts, UserPostsState> {
   /// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
-  ///
-  /// `loadMore`, `prepend`, and `removeByRkey` are added in subsequent
-  /// commits. `build` fetches the first page only.
   UserPostsProvider._({
     required UserPostsFamily super.from,
     required String super.argument,
@@ -62,12 +53,9 @@ final class UserPostsProvider
   }
 }
 
-String _$userPostsHash() => r'6189aff63bd81a4ede189399d0fa3cfb95e0d584';
+String _$userPostsHash() => r'7dca0bfbc9762a235b70ebbde00971bbd27092b1';
 
 /// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
-///
-/// `loadMore`, `prepend`, and `removeByRkey` are added in subsequent
-/// commits. `build` fetches the first page only.
 
 final class UserPostsFamily extends $Family
     with
@@ -88,9 +76,6 @@ final class UserPostsFamily extends $Family
       );
 
   /// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
-  ///
-  /// `loadMore`, `prepend`, and `removeByRkey` are added in subsequent
-  /// commits. `build` fetches the first page only.
 
   UserPostsProvider call(String handleOrDid) =>
       UserPostsProvider._(argument: handleOrDid, from: this);
@@ -100,9 +85,6 @@ final class UserPostsFamily extends $Family
 }
 
 /// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
-///
-/// `loadMore`, `prepend`, and `removeByRkey` are added in subsequent
-/// commits. `build` fetches the first page only.
 
 abstract class _$UserPosts extends $AsyncNotifier<UserPostsState> {
   late final _$args = ref.$arg as String;
