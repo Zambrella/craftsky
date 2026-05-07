@@ -33,6 +33,12 @@ func (m *mockPDS) PutRecord(_ context.Context, _ syntax.DID, collection, rkey st
 	m.putCalls = append(m.putCalls, putCall{collection, rkey, record})
 	return m.putRecord(collection, rkey, record)
 }
+func (m *mockPDS) CreateRecord(_ context.Context, _ syntax.DID, _ string, _ any) (syntax.ATURI, syntax.CID, error) {
+	return "", "", nil
+}
+func (m *mockPDS) DeleteRecord(_ context.Context, _ syntax.DID, _, _ string) error {
+	return nil
+}
 
 const (
 	bskyNSID = "app.bsky.actor.profile"

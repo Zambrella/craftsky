@@ -209,6 +209,12 @@ func (f *fakePDSForPut) PutRecord(_ context.Context, _ syntax.DID, collection, _
 	}
 	return errors.New("unexpected put collection: " + collection)
 }
+func (f *fakePDSForPut) CreateRecord(_ context.Context, _ syntax.DID, _ string, _ any) (syntax.ATURI, syntax.CID, error) {
+	return "", "", errors.New("CreateRecord: not implemented in fakePDSForPut")
+}
+func (f *fakePDSForPut) DeleteRecord(_ context.Context, _ syntax.DID, _, _ string) error {
+	return errors.New("DeleteRecord: not implemented in fakePDSForPut")
+}
 
 // newPutHandler wires a fake store, resolver, and PDS client.
 func newPutHandler(

@@ -90,3 +90,60 @@ func (i *IndigoPDSClient) PutRecord(ctx context.Context, repo syntax.DID, collec
 	var resp any
 	return i.Client.Post(ctx, nsid, body, &resp)
 }
+
+// CreateRecord calls com.atproto.repo.createRecord on the user's PDS.
+// Returns the AT-URI and CID assigned by the PDS. The PDS stamps the
+// rkey on TID-keyed collections.
+func (i *IndigoPDSClient) CreateRecord(
+	ctx context.Context,
+	repo syntax.DID,
+	collection string,
+	record any,
+) (syntax.ATURI, syntax.CID, error) {
+	nsid, err := syntax.ParseNSID("com.atproto.repo.createRecord")
+	if err != nil {
+		return "", "", fmt.Errorf("parse nsid: %w", err)
+	}
+	body := map[string]any{
+		"repo":       repo.String(),
+		"collection": collection,
+		"record":     record,
+	}
+	var resp struct {
+		URI string `json:"uri"`
+		CID string `json:"cid"`
+	}
+	if err := i.Client.Post(ctx, nsid, body, &resp); err != nil {
+		return "", "", err
+	}
+	if resp.URI == "" || resp.CID == "" {
+		return "", "", fmt.Errorf("createRecord: PDS returned empty uri or cid")
+	}
+	return syntax.ATURI(resp.URI), syntax.CID(resp.CID), nil
+}
+
+// DeleteRecord calls com.atproto.repo.deleteRecord on the user's PDS.
+// "Record not found" responses are translated to ErrRecordNotFound so
+// callers can treat delete-of-already-deleted as idempotent success.
+func (i *IndigoPDSClient) DeleteRecord(
+	ctx context.Context,
+	repo syntax.DID,
+	collection string,
+	rkey string,
+) error {
+	nsid, err := syntax.ParseNSID("com.atproto.repo.deleteRecord")
+	if err != nil {
+		return fmt.Errorf("parse nsid: %w", err)
+	}
+	body := map[string]any{
+		"repo":       repo.String(),
+		"collection": collection,
+		"rkey":       rkey,
+	}
+	var resp any
+	if err := i.Client.Post(ctx, nsid, body, &resp); err != nil {
+		// translateGetRecordError also handles deleteRecord's "RecordNotFound" shape; reused deliberately.
+		return translateGetRecordError(err)
+	}
+	return nil
+}

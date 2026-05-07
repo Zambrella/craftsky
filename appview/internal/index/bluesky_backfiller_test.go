@@ -57,6 +57,14 @@ func (f *fakeAnonPDS) PutRecord(_ context.Context, _ syntax.DID, _, _ string, _ 
 	panic("fakeAnonPDS.PutRecord must not be called in backfiller tests")
 }
 
+func (f *fakeAnonPDS) CreateRecord(_ context.Context, _ syntax.DID, _ string, _ any) (syntax.ATURI, syntax.CID, error) {
+	panic("fakeAnonPDS.CreateRecord must not be called in backfiller tests")
+}
+
+func (f *fakeAnonPDS) DeleteRecord(_ context.Context, _ syntax.DID, _, _ string) error {
+	panic("fakeAnonPDS.DeleteRecord must not be called in backfiller tests")
+}
+
 func TestBlueskyBackfiller_Backfill_RecordPresent_WritesBlueskyRow(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, craftskyProfilesDDL)

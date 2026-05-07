@@ -34,6 +34,12 @@ func (noopPDSClient) GetRecord(_ context.Context, _ syntax.DID, _, _ string, _ a
 func (noopPDSClient) PutRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error {
 	return nil
 }
+func (noopPDSClient) CreateRecord(_ context.Context, _ syntax.DID, _ string, _ any) (syntax.ATURI, syntax.CID, error) {
+	return "", "", nil
+}
+func (noopPDSClient) DeleteRecord(_ context.Context, _ syntax.DID, _, _ string) error {
+	return nil
+}
 
 // erroringGetPDSClient always errors on GetRecord (non-404). Used to
 // exercise InitializeProfile's error propagation.
@@ -43,6 +49,12 @@ func (erroringGetPDSClient) GetRecord(_ context.Context, _ syntax.DID, _, _ stri
 	return "", errors.New("boom")
 }
 func (erroringGetPDSClient) PutRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error {
+	return nil
+}
+func (erroringGetPDSClient) CreateRecord(_ context.Context, _ syntax.DID, _ string, _ any) (syntax.ATURI, syntax.CID, error) {
+	return "", "", nil
+}
+func (erroringGetPDSClient) DeleteRecord(_ context.Context, _ syntax.DID, _, _ string) error {
 	return nil
 }
 

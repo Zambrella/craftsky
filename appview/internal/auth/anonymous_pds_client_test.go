@@ -191,3 +191,21 @@ func TestAnonymousPDSClient_GetRecord_EmptyCID(t *testing.T) {
 		t.Errorf("err = %v; want mention of empty cid", err)
 	}
 }
+
+func TestAnonymousPDSClient_CreateRecord_ReadOnly(t *testing.T) {
+	cli := auth.NewAnonymousPDSClient(nil, time.Second)
+	_, _, err := cli.CreateRecord(context.Background(),
+		syntax.DID("did:plc:xyz"), "social.craftsky.feed.post", map[string]any{})
+	if !errors.Is(err, auth.ErrReadOnlyPDSClient) {
+		t.Fatalf("want ErrReadOnlyPDSClient, got %v", err)
+	}
+}
+
+func TestAnonymousPDSClient_DeleteRecord_ReadOnly(t *testing.T) {
+	cli := auth.NewAnonymousPDSClient(nil, time.Second)
+	err := cli.DeleteRecord(context.Background(),
+		syntax.DID("did:plc:xyz"), "social.craftsky.feed.post", "3lf2abc")
+	if !errors.Is(err, auth.ErrReadOnlyPDSClient) {
+		t.Fatalf("want ErrReadOnlyPDSClient, got %v", err)
+	}
+}
