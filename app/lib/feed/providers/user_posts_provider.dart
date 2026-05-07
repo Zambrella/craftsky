@@ -1,3 +1,4 @@
+import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/user_posts_state.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -48,5 +49,32 @@ class UserPosts extends _$UserPosts {
     // when guard returns an AsyncError, enabling retry with the same cursor.
     // ignore: invalid_use_of_internal_member
     state = next.copyWithPrevious(state);
+  }
+
+  /// Cache helper. Inserts [post] at the head of the items list. No-op
+  /// when the state has no data yet, or when a post with the same
+  /// `uri` is already present (dedupe — protects against a synthetic
+  /// create response and a later firehose-driven refresh both inserting
+  /// the same row).
+  void prepend(Post post) {
+    final current = state.value;
+    if (current == null) return;
+    if (current.items.any((p) => p.uri == post.uri)) return;
+    state = AsyncData(
+      current.copyWith(items: [post, ...current.items]),
+    );
+  }
+
+  /// Cache helper. Removes the post with [rkey] from items if present.
+  /// No-op when the state has no data, and quietly succeeds when no
+  /// post matches.
+  void removeByRkey(String rkey) {
+    final current = state.value;
+    if (current == null) return;
+    state = AsyncData(
+      current.copyWith(
+        items: current.items.where((p) => p.rkey != rkey).toList(),
+      ),
+    );
   }
 }

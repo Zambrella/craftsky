@@ -178,4 +178,110 @@ void main() {
       expect(after.items.map((p) => p.rkey), ['a', 'b']);
     });
   });
+
+  group('userPostsProvider prepend', () {
+    test('inserts a new post at the head', () async {
+      final fake = FakePostRepository(
+        onListByAuthor: (id, {cursor, limit}) async =>
+            PostPage(items: [_samplePost(rkey: 'a')]),
+      );
+
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      await container.read(
+        userPostsProvider('alice.craftsky.social').future,
+      );
+
+      container
+          .read(userPostsProvider('alice.craftsky.social').notifier)
+          .prepend(_samplePost(rkey: 'new'));
+
+      final state = container
+          .read(userPostsProvider('alice.craftsky.social'))
+          .value!;
+      expect(state.items.map((p) => p.rkey), ['new', 'a']);
+    });
+
+    test('dedupes by uri', () async {
+      final fake = FakePostRepository(
+        onListByAuthor: (id, {cursor, limit}) async =>
+            PostPage(items: [_samplePost(rkey: 'a')]),
+      );
+
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      await container.read(
+        userPostsProvider('alice.craftsky.social').future,
+      );
+
+      // Same uri as 'a' — must not double-insert.
+      container
+          .read(userPostsProvider('alice.craftsky.social').notifier)
+          .prepend(_samplePost(rkey: 'a'));
+
+      final state = container
+          .read(userPostsProvider('alice.craftsky.social'))
+          .value!;
+      expect(state.items.map((p) => p.rkey), ['a']);
+    });
+  });
+
+  group('userPostsProvider removeByRkey', () {
+    test('filters the matching post out of the list', () async {
+      final fake = FakePostRepository(
+        onListByAuthor: (id, {cursor, limit}) async => PostPage(
+          items: [
+            _samplePost(rkey: 'a'),
+            _samplePost(rkey: 'b'),
+            _samplePost(rkey: 'c'),
+          ],
+        ),
+      );
+
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      await container.read(
+        userPostsProvider('alice.craftsky.social').future,
+      );
+
+      container
+          .read(userPostsProvider('alice.craftsky.social').notifier)
+          .removeByRkey('b');
+
+      final state = container
+          .read(userPostsProvider('alice.craftsky.social'))
+          .value!;
+      expect(state.items.map((p) => p.rkey), ['a', 'c']);
+    });
+
+    test('no-op when rkey not present', () async {
+      final fake = FakePostRepository(
+        onListByAuthor: (id, {cursor, limit}) async =>
+            PostPage(items: [_samplePost(rkey: 'a')]),
+      );
+
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      await container.read(
+        userPostsProvider('alice.craftsky.social').future,
+      );
+
+      container
+          .read(userPostsProvider('alice.craftsky.social').notifier)
+          .removeByRkey('not-here');
+
+      final state = container
+          .read(userPostsProvider('alice.craftsky.social'))
+          .value!;
+      expect(state.items.map((p) => p.rkey), ['a']);
+    });
+  });
 }
