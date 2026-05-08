@@ -18,7 +18,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] API architecture (REST, `/v1/` prefix, auth headers, error envelope, pagination) — [`2026-04-21-appview-api-architecture-design.md`](superpowers/specs/2026-04-21-appview-api-architecture-design.md)
 - [ ] Feed: `GET /v1/feed/timeline` → own spec
 - [x] Profiles: `GET /v1/profiles/@{handleOrDid}`, `GET /v1/profiles/@{handleOrDid}/posts`, `PATCH /v1/profiles/me`, `PUT /v1/profiles/me`, follow/unfollow → own spec (writes go via a shared DPoP-signed PDS helper built on `indigo/atproto/auth/oauth`; spec it as part of the first write endpoint that lands, reuse thereafter)
-- [ ] Posts: `GET /v1/posts/{did}/{rkey}`, thread, create, delete, like, unlike → own spec (splits into reads / writes if it gets big; writes use the same shared PDS helper)
+- [x] Posts: `GET /v1/posts/{did}/{rkey}`, thread, create, delete, like, unlike → own spec (splits into reads / writes if it gets big; writes use the same shared PDS helper)
 - [ ] Notifications: `GET /v1/notifications` → own spec
 - [ ] Blob upload (required for images on posts) → own spec; may trigger TMB upgrade per OAuth BFF §6
 - [ ] Indexer: consume Tap → populate `posts`, `follows`, `likes`, `blocks` tables for Craftsky lexicons → own spec (replaces the `000001_bluesky_posts_sample` placeholder)
@@ -44,7 +44,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Device-id generation and persistence (for `X-Craftsky-Device-Id` header)
 - [x] API client layer (thin wrapper that injects auth headers, handles errors, decodes envelopes)
 - [ ] Feed screen (timeline consumption + pagination)
-- [ ] Profile screen (view + edit)
+- [x] Profile screen (view + edit)
 - [ ] Post composer (text-only first; image attach lands with blob upload)
 - [ ] Post detail / thread view
 - [ ] Follow / unfollow interactions
@@ -63,7 +63,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 
 ### Web / marketing
 
-- [ ] Landing page at craftsky.social (hero + 8 sections, Cloudflare Pages, anonymous PostHog) — [`2026-04-22-landing-page-design.md`](superpowers/specs/2026-04-22-landing-page-design.md)
+- [x] Landing page at craftsky.social (hero + 8 sections, Cloudflare Pages, anonymous PostHog) — [`2026-04-22-landing-page-design.md`](superpowers/specs/2026-04-22-landing-page-design.md)
 
 ### Ops / infra
 
