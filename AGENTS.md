@@ -36,7 +36,6 @@ For the product-level "why" and the community-facing feature intent, read the vi
 
 - **Go:** standard `gofmt`, `slog` for logging, `sqlc` for queries (write SQL, not ORMs), stdlib `net/http` for routing (Go 1.22+ method/path routing is enough), `pgx` for Postgres.
 - **atproto identifiers:** strongly prefer indigo's typed wrappers from [`github.com/bluesky-social/indigo/atproto/syntax`](https://github.com/bluesky-social/indigo/tree/main/atproto/syntax) — `syntax.DID`, `syntax.Handle`, `syntax.NSID`, `syntax.ATURI`, `syntax.RecordKey`, `syntax.CID`, `syntax.TID`, `syntax.AtIdentifier` — over plain `string` for any field, parameter, or return value that semantically carries an atproto identifier. They are zero-cost (`type X string`), implement `MarshalText`/`UnmarshalText` so JSON round-trips through `Parse*()` automatically, and pgx v5 accepts them as query parameters via its reflective fallback. **Parse at the boundary, trust internally:** the WS-decode site (`tap.Event` construction), the auth middleware (`X-Dev-DID` header), and HTTP request bodies (e.g. `loginRequest.Handle`) call `syntax.Parse*` once and hand typed values downstream — handlers, indexers, and storage helpers should not re-validate. `syntax.CID` is the one exception: indigo documents it as an "informal helper" — direct-cast it through (the real validator is `ipfs/go-cid`, applied where canonical CID handling actually matters).
-- **Dart/Flutter:** `dart format`, follow `flutter_lints`. Prefer the `atproto.dart` SDK over hand-rolled XRPC calls. Additional rules that apply to **all `**/*.dart` files** live in [`.claude/rules/flutter.md`](.claude/rules/flutter.md) and [`.claude/rules/riverpod.md`](.claude/rules/riverpod.md) — read and follow both before writing Dart.
 - **SQL:** migrations in `appview/migrations/` via `golang-migrate/v4` (wrapped by `appview/cmd/cli migrate`). Queries in `appview/queries/` consumed by `sqlc`.
 - **Commits:** conventional commits style is fine but not enforced. Keep them focused.
 - **API:** The HTTP surface between the Flutter app and the AppView is governed by the API architecture spec ([`docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`](docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md)). Before adding or changing any route, read it — it fixes the `/v1/` prefix, auth headers, error envelope (`{error, message, requestId}`), opaque-cursor pagination, and URL conventions.
@@ -51,16 +50,7 @@ Project-scoped skills that Claude Code auto-discovers:
 |---|---|
 | [`atproto-lexicon`](.claude/skills/atproto-lexicon/SKILL.md) | Before designing, writing, reviewing, or changing anything under `lexicon/`. Distils the three canonical atproto lexicon docs (guide, style guide, spec) into NSID conventions, the type system, string constraints, evolution rules, and a checklist. |
 
-## Language-Specific Rules (`.claude/rules/`)
 
-The [`.claude/rules/`](.claude/rules/) directory holds rule files that apply to specific file globs. `CLAUDE.md` imports them with `@` so Claude Code auto-loads them for every session in this repo. Other agents and human contributors should follow them when working on matching files:
-
-| File | Applies to | Summary |
-|---|---|---|
-| [`.claude/rules/flutter.md`](.claude/rules/flutter.md) | `**/*.dart` | Widget architecture (one class per widget, no `_build*` helpers), theming (no `.withOpacity`), immutable data via `freezed`/`dart_mappable`, modern Dart syntax, logging package over `print`. |
-| [`.claude/rules/riverpod.md`](.claude/rules/riverpod.md) | `**/*.dart` | Riverpod 3.x with `@riverpod` code generation. `ref.watch` in build / `ref.read` in callbacks, `FutureOr` for idle providers, `AsyncValue.guard`, switch-based pattern matching (no `.when()`), `ref.listen` for side effects, `ref.mounted` after awaits. |
-
-These are binding for Dart code. Each file carries a YAML `paths:` frontmatter so rule-aware tools can auto-scope them.
 
 ## What NOT to Do
 

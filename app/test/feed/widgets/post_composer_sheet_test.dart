@@ -4,7 +4,6 @@ import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -59,13 +58,13 @@ void main() {
         messenger: messenger,
       );
 
-      final initial = tester.widget<ChunkyButton>(find.byType(ChunkyButton));
+      final initial = tester.widget<TextButton>(find.byType(TextButton));
       expect(initial.onPressed, isNull);
 
       await tester.enterText(find.byType(TextField), 'hello');
       await tester.pump();
 
-      final updated = tester.widget<ChunkyButton>(find.byType(ChunkyButton));
+      final updated = tester.widget<TextButton>(find.byType(TextButton));
       expect(updated.onPressed, isNotNull);
     });
 
@@ -82,7 +81,7 @@ void main() {
       await _pump(tester, repo: repo, messenger: messenger);
       await tester.enterText(find.byType(TextField), ' hello ');
       await tester.pump();
-      await tester.tap(find.byType(ChunkyButton));
+      await tester.tap(find.text('Post'));
       await tester.pumpAndSettle();
 
       expect(capturedText, 'hello');

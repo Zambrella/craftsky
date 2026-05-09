@@ -2,18 +2,17 @@ import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 Future<void> showPostComposerSheet(BuildContext context) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    builder: (_) => const PostComposerSheet(),
+  return Navigator.of(context, rootNavigator: true).push<void>(
+    MaterialPageRoute<void>(
+      fullscreenDialog: true,
+      builder: (_) => const PostComposerSheet(),
+    ),
   );
 }
 
@@ -28,11 +27,22 @@ class PostComposerSheet extends ConsumerStatefulWidget {
 
 class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
   final _controller = TextEditingController();
+  final _focusNode = FocusNode(debugLabel: 'postComposerText');
   var _text = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _focusNode.requestFocus();
+    });
+  }
 
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -41,6 +51,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
     final createState = ref.watch(createPostProvider);
     final trimmed = _text.trim();
     final tooLong = _text.length > PostComposerSheet.maxCharacters;
@@ -49,7 +60,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     ref.listen(createPostProvider, (previous, next) {
       switch ((previous, next)) {
         case (AsyncLoading(), AsyncData(value: != null)):
-          Navigator.of(context).pop();
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
           context.showInfo(l10n.postCreateSuccess);
           ref.read(createPostProvider.notifier).reset();
         case (AsyncLoading(), AsyncError()):
@@ -60,24 +73,38 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
       }
     });
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: spacing.sp4,
-        right: spacing.sp4,
-        top: spacing.sp4,
-        bottom: MediaQuery.viewInsetsOf(context).bottom + spacing.sp4,
+    return Scaffold(
+      backgroundColor: swatches.paper,
+      appBar: AppBar(
+        title: Text(l10n.postComposeTitle),
+        actions: [
+          Padding(
+            padding: EdgeInsets.only(right: spacing.sp3),
+            child: _PostAction(
+              isSaving: createState.isLoading,
+              onPressed: canSubmit
+                  ? () => ref
+                        .read(createPostProvider.notifier)
+                        .create(text: trimmed)
+                  : null,
+            ),
+          ),
+        ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(l10n.postComposeTitle, style: theme.textTheme.headlineSmall),
-          SizedBox(height: spacing.sp4),
-          BrandTextField(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            spacing.sp4,
+            spacing.sp4,
+            spacing.sp4,
+            spacing.sp6,
+          ),
+          child: BrandTextField(
             label: l10n.postComposeHint,
             controller: _controller,
-            minLines: 5,
-            maxLines: 10,
+            focusNode: _focusNode,
+            minLines: 8,
+            maxLines: 16,
             textInputAction: TextInputAction.newline,
             keyboardType: TextInputType.multiline,
             enabled: !createState.isLoading,
@@ -85,23 +112,36 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
             helperText: '${_text.length}/${PostComposerSheet.maxCharacters}',
             onChanged: (value) => setState(() => _text = value),
           ),
-          SizedBox(height: spacing.sp5),
-          ChunkyButton(
-            onPressed: canSubmit
-                ? () => ref
-                      .read(createPostProvider.notifier)
-                      .create(text: trimmed)
-                : null,
-            child: createState.isLoading
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: StitchProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(l10n.postComposeSubmit),
-          ),
-        ],
+        ),
       ),
+    );
+  }
+}
+
+class _PostAction extends StatelessWidget {
+  const _PostAction({required this.isSaving, required this.onPressed});
+
+  final bool isSaving;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    if (isSaving) {
+      return const SizedBox(
+        width: 48,
+        child: Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: StitchProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    return TextButton(
+      onPressed: onPressed,
+      child: Text(l10n.postComposeSubmit),
     );
   }
 }
