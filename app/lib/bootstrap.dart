@@ -22,6 +22,42 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 final _log = Logger('bootstrap');
 
+final class ProviderLogger extends ProviderObserver {
+  const ProviderLogger();
+
+  static final _log = Logger('ProviderLogger');
+
+  @override
+  void didUpdateProvider(
+    ProviderObserverContext context,
+    Object? previousValue,
+    Object? newValue,
+  ) {
+    _log.fine(
+      'provider updated: '
+      'provider=${context.provider}, '
+      'previousValue=$previousValue, '
+      'newValue=$newValue, '
+      'mutation=${context.mutation}',
+    );
+  }
+
+  @override
+  void providerDidFail(
+    ProviderObserverContext context,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    _log.warning(
+      'provider failed: '
+      'provider=${context.provider}, '
+      'mutation=${context.mutation}',
+      error,
+      stackTrace,
+    );
+  }
+}
+
 /// Runs platform / Flutter init before `runApp`.
 ///
 /// IMPORTANT: must never throw in production. Anything that *can* fail
@@ -35,7 +71,7 @@ Future<void> bootstrap(WidgetsBinding widgetsBinding) async {
   if (kIsWeb) {
     _log.fine('web detected, skipping native init');
     runApp(
-      const ProviderScope(child: App()),
+      const ProviderScope(observers: [ProviderLogger()], child: App()),
     );
     return;
   }
@@ -72,7 +108,7 @@ Future<void> bootstrap(WidgetsBinding widgetsBinding) async {
   // authenticated routes; if the provider hasn't resolved by the time
   // the session Dio fires its first request, the server 400s. The
   // eager await here guarantees the future is hot before runApp.
-  final probe = ProviderContainer();
+  final probe = ProviderContainer(observers: const [ProviderLogger()]);
   try {
     probe.read(dioProvider);
     await probe.read(deviceIdProvider.future);
@@ -83,7 +119,7 @@ Future<void> bootstrap(WidgetsBinding widgetsBinding) async {
   _log.fine('bootstrap complete');
 
   runApp(
-    const ProviderScope(child: App()),
+    const ProviderScope(observers: [ProviderLogger()], child: App()),
   );
 }
 
