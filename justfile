@@ -15,6 +15,10 @@ dev-d:
 down:
     docker compose down
 
+# Stop and remove containers, networks, and volumes. This resets dev storage.
+reset:
+    docker compose down --volumes --remove-orphans
+
 # Follow logs across all services.
 logs:
     docker compose logs -f
