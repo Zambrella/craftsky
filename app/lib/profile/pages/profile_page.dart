@@ -107,6 +107,7 @@ class _ProfileBody extends ConsumerWidget {
         profile: profile,
         bannerColor: bannerColor,
         actions: _actionsFor(context, ref),
+        isOwnProfile: isOwnProfile,
       ),
     );
   }
@@ -142,11 +143,13 @@ class _ProfileScrollView extends StatelessWidget {
     required this.profile,
     required this.bannerColor,
     required this.actions,
+    required this.isOwnProfile,
   });
 
   final Profile profile;
   final Color bannerColor;
   final ProfileActionSet actions;
+  final bool isOwnProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -170,7 +173,11 @@ class _ProfileScrollView extends StatelessWidget {
       body: TabBarView(
         children: [
           for (final tab in ProfileTab.values)
-            _ProfileTabScrollView(tab: tab, profile: profile),
+            _ProfileTabScrollView(
+              tab: tab,
+              profile: profile,
+              isOwnProfile: isOwnProfile,
+            ),
         ],
       ),
     );
@@ -181,10 +188,15 @@ class _ProfileScrollView extends StatelessWidget {
 /// [CustomScrollView] keyed by tab name so [PageStorage] retains the
 /// scroll offset when the user swipes back to it.
 class _ProfileTabScrollView extends StatelessWidget {
-  const _ProfileTabScrollView({required this.tab, required this.profile});
+  const _ProfileTabScrollView({
+    required this.tab,
+    required this.profile,
+    required this.isOwnProfile,
+  });
 
   final ProfileTab tab;
   final Profile profile;
+  final bool isOwnProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -201,7 +213,10 @@ class _ProfileTabScrollView extends StatelessWidget {
     AppLocalizations l10n,
   ) {
     return switch (tab) {
-      ProfileTab.posts => ProfilePostsTab(handle: profile.handle),
+      ProfileTab.posts => ProfilePostsTab(
+        handle: profile.handle,
+        isOwnProfile: isOwnProfile,
+      ),
       ProfileTab.projects => ProfileEmptyTab(
         message: l10n.profileEmptyProjects,
       ),

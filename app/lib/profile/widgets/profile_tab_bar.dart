@@ -1,4 +1,5 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -79,7 +80,7 @@ class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
               ],
             ),
           ),
-          Container(height: 1, color: swatches.borderHair),
+          const CraftskyDivider(),
         ],
       ),
     );

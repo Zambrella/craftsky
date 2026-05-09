@@ -110,6 +110,54 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileEmptyReposts => 'No reposts yet.';
 
   @override
+  String get profilePostsEmpty => 'No posts yet.';
+
+  @override
+  String get profilePostsLoadError => 'Posts didn\'t load.';
+
+  @override
+  String get profilePostsLoadMore => 'Load more posts';
+
+  @override
+  String get postComposeAction => 'New post';
+
+  @override
+  String get postComposeTitle => 'New post';
+
+  @override
+  String get postComposeHint => 'What are you making?';
+
+  @override
+  String get postComposeSubmit => 'Post';
+
+  @override
+  String get postComposeTooLong => 'Posts must be 2000 characters or fewer';
+
+  @override
+  String get postCreateSuccess => 'Posted.';
+
+  @override
+  String get postCreateError => 'Couldn\'t post.';
+
+  @override
+  String get postDeleteAction => 'Delete post';
+
+  @override
+  String get postDeleteTitle => 'Delete post?';
+
+  @override
+  String get postDeleteMessage => 'This removes the post from Craftsky.';
+
+  @override
+  String get postDeleteConfirm => 'Delete';
+
+  @override
+  String get postDeleteSuccess => 'Post deleted.';
+
+  @override
+  String get postDeleteError => 'Couldn\'t delete post.';
+
+  @override
   String get profileFollowComingSoon => 'Follow coming soon.';
 
   @override

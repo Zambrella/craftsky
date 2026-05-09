@@ -292,6 +292,102 @@ abstract class AppLocalizations {
   /// **'No reposts yet.'**
   String get profileEmptyReposts;
 
+  /// Muted placeholder shown in the profile Posts tab when the user has not posted.
+  ///
+  /// In en, this message translates to:
+  /// **'No posts yet.'**
+  String get profilePostsEmpty;
+
+  /// Error title shown in the profile Posts tab when post fetching fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts didn\'t load.'**
+  String get profilePostsLoadError;
+
+  /// Button label for loading the next page in the profile Posts tab.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more posts'**
+  String get profilePostsLoadMore;
+
+  /// Button label that opens the text-only post composer.
+  ///
+  /// In en, this message translates to:
+  /// **'New post'**
+  String get postComposeAction;
+
+  /// Title of the text-only post composer sheet.
+  ///
+  /// In en, this message translates to:
+  /// **'New post'**
+  String get postComposeTitle;
+
+  /// Label above the text field in the text-only post composer.
+  ///
+  /// In en, this message translates to:
+  /// **'What are you making?'**
+  String get postComposeHint;
+
+  /// Submit button label in the text-only post composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Post'**
+  String get postComposeSubmit;
+
+  /// Validation error shown when the text-only post composer exceeds the post text limit.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts must be 2000 characters or fewer'**
+  String get postComposeTooLong;
+
+  /// Snackbar shown after successfully creating a post.
+  ///
+  /// In en, this message translates to:
+  /// **'Posted.'**
+  String get postCreateSuccess;
+
+  /// Snackbar shown when creating a post fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t post.'**
+  String get postCreateError;
+
+  /// Tooltip and menu label for deleting a post.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete post'**
+  String get postDeleteAction;
+
+  /// Title of the delete-post confirmation dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete post?'**
+  String get postDeleteTitle;
+
+  /// Body text of the delete-post confirmation dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes the post from Craftsky.'**
+  String get postDeleteMessage;
+
+  /// Confirm button label in the delete-post confirmation dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get postDeleteConfirm;
+
+  /// Snackbar shown after successfully deleting a post.
+  ///
+  /// In en, this message translates to:
+  /// **'Post deleted.'**
+  String get postDeleteSuccess;
+
+  /// Snackbar shown when deleting a post fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t delete post.'**
+  String get postDeleteError;
+
   /// Snackbar shown when tapping Follow while follow wiring isn't implemented yet.
   ///
   /// In en, this message translates to:

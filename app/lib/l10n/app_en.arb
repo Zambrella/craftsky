@@ -103,6 +103,54 @@
   "profileEmptyReposts": "No reposts yet.",
   "@profileEmptyReposts": { "description": "Muted placeholder shown in the Reposts tab while repost data isn't wired." },
 
+  "profilePostsEmpty": "No posts yet.",
+  "@profilePostsEmpty": { "description": "Muted placeholder shown in the profile Posts tab when the user has not posted." },
+
+  "profilePostsLoadError": "Posts didn't load.",
+  "@profilePostsLoadError": { "description": "Error title shown in the profile Posts tab when post fetching fails." },
+
+  "profilePostsLoadMore": "Load more posts",
+  "@profilePostsLoadMore": { "description": "Button label for loading the next page in the profile Posts tab." },
+
+  "postComposeAction": "New post",
+  "@postComposeAction": { "description": "Button label that opens the text-only post composer." },
+
+  "postComposeTitle": "New post",
+  "@postComposeTitle": { "description": "Title of the text-only post composer sheet." },
+
+  "postComposeHint": "What are you making?",
+  "@postComposeHint": { "description": "Label above the text field in the text-only post composer." },
+
+  "postComposeSubmit": "Post",
+  "@postComposeSubmit": { "description": "Submit button label in the text-only post composer." },
+
+  "postComposeTooLong": "Posts must be 2000 characters or fewer",
+  "@postComposeTooLong": { "description": "Validation error shown when the text-only post composer exceeds the post text limit." },
+
+  "postCreateSuccess": "Posted.",
+  "@postCreateSuccess": { "description": "Snackbar shown after successfully creating a post." },
+
+  "postCreateError": "Couldn't post.",
+  "@postCreateError": { "description": "Snackbar shown when creating a post fails." },
+
+  "postDeleteAction": "Delete post",
+  "@postDeleteAction": { "description": "Tooltip and menu label for deleting a post." },
+
+  "postDeleteTitle": "Delete post?",
+  "@postDeleteTitle": { "description": "Title of the delete-post confirmation dialog." },
+
+  "postDeleteMessage": "This removes the post from Craftsky.",
+  "@postDeleteMessage": { "description": "Body text of the delete-post confirmation dialog." },
+
+  "postDeleteConfirm": "Delete",
+  "@postDeleteConfirm": { "description": "Confirm button label in the delete-post confirmation dialog." },
+
+  "postDeleteSuccess": "Post deleted.",
+  "@postDeleteSuccess": { "description": "Snackbar shown after successfully deleting a post." },
+
+  "postDeleteError": "Couldn't delete post.",
+  "@postDeleteError": { "description": "Snackbar shown when deleting a post fails." },
+
   "profileFollowComingSoon": "Follow coming soon.",
   "@profileFollowComingSoon": { "description": "Snackbar shown when tapping Follow while follow wiring isn't implemented yet." },
 

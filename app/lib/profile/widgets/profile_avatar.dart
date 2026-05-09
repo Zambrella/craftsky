@@ -109,8 +109,8 @@ class _AvatarInitialFallback extends StatelessWidget {
 /// Avatar size variants. Dimensions and border weights are tuned per
 /// surface so the chunky border reads at every scale.
 enum ProfileAvatarSize {
-  small(dimension: 36, borderWidth: 1),
-  medium(dimension: 48, borderWidth: 1.5),
+  small(dimension: 36, borderWidth: 2),
+  medium(dimension: 48, borderWidth: 2),
   large(dimension: 96, borderWidth: 2)
   ;
 
@@ -119,14 +119,11 @@ enum ProfileAvatarSize {
   final double dimension;
   final double borderWidth;
 
-  /// Hard-offset drop shadow scaled to the avatar's surface. All sizes
-  /// currently use `dropSm` (3,3) so the avatar's shadow tail matches
-  /// the chunky buttons it sits next to in the profile header — kept
-  /// as a switch so we can dial up to `drop` (6,6) for hero variants
-  /// later without touching call sites.
+  /// Hard-offset drop shadow scaled to the avatar's surface. Small avatars
+  /// render flat so dense surfaces like post cards stay visually clean.
   List<BoxShadow> shadowsFrom(BrandShadowTheme shadows) {
     return switch (this) {
-      ProfileAvatarSize.small => shadows.dropSm,
+      ProfileAvatarSize.small => const [],
       ProfileAvatarSize.medium => shadows.dropSm,
       ProfileAvatarSize.large => shadows.dropSm,
     };

@@ -1,4 +1,6 @@
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
@@ -11,7 +13,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes/auth_session_fakes.dart';
 import '../fakes/recording_messenger.dart';
+import '../feed/fakes/fake_post_repository.dart';
 import 'fakes/fake_profile_repository.dart';
+
+final _emptyPostRepository = FakePostRepository(
+  onListByAuthor: (_, {cursor, limit}) async => const PostPage(items: []),
+);
 
 void main() {
   group('ProfilePage', () {
@@ -32,6 +39,7 @@ void main() {
           overrides: [
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
@@ -70,6 +78,7 @@ void main() {
           overrides: [
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
@@ -105,6 +114,7 @@ void main() {
           overrides: [
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
           ],
           child: MessengerScope(
             messenger: messenger,
@@ -142,6 +152,7 @@ void main() {
           overrides: [
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
           ],
           child: MessengerScope(
             messenger: messenger,

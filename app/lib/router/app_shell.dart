@@ -1,3 +1,4 @@
+import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -56,7 +57,7 @@ class AppShell extends ConsumerWidget {
               selectedIndex: navigationShell.currentIndex,
               onDestinationSelected: _goBranch,
             ),
-            const VerticalDivider(thickness: 1, width: 1),
+            const CraftskyDivider(axis: Axis.vertical),
             Expanded(child: navigationShell),
           ],
         ),
