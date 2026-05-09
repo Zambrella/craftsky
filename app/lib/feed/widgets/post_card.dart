@@ -2,6 +2,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -159,22 +160,21 @@ class _PostCardMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return SizedBox(
       width: _postCardMenuWidth,
-      child: PopupMenuButton<_PostCardMenuAction>(
-        icon: const Icon(Icons.more_horiz, size: 22),
-        tooltip: AppLocalizations.of(context).postDeleteAction,
-        padding: EdgeInsets.zero,
-        onSelected: (action) {
-          switch (action) {
-            case _PostCardMenuAction.delete:
-              onDelete();
-          }
-        },
-        itemBuilder: (context) => [
-          PopupMenuItem(
-            value: _PostCardMenuAction.delete,
-            child: Text(AppLocalizations.of(context).postDeleteAction),
+      child: CraftskyContextMenuButton(
+        tooltip: l10n.postDeleteAction,
+        groups: [
+          CraftskyContextMenuGroup(
+            items: [
+              CraftskyContextMenuItem(
+                text: l10n.postDeleteAction,
+                icon: Icons.delete_outline,
+                onPressed: onDelete,
+                style: CraftskyContextMenuItemStyle.destructive,
+              ),
+            ],
           ),
         ],
       ),
@@ -197,5 +197,3 @@ class _PostCardAction extends StatelessWidget {
     );
   }
 }
-
-enum _PostCardMenuAction { delete }
