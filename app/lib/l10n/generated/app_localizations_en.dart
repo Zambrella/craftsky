@@ -119,6 +119,39 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profilePostsLoadMore => 'Load more posts';
 
   @override
+  String get postThreadTitle => 'Thread';
+
+  @override
+  String get postThreadEmptyReplies => 'No replies yet.';
+
+  @override
+  String get postThreadReadMoreReplies => 'Read more replies';
+
+  @override
+  String get postThreadShowMoreReplies => 'Show more replies';
+
+  @override
+  String get postThreadContinueThread => 'Continue thread';
+
+  @override
+  String get postThreadReplyAction => 'Reply';
+
+  @override
+  String postThreadReplyToAuthor(String author) {
+    return 'Reply to $author';
+  }
+
+  @override
+  String postThreadShowMoreRepliesForAuthor(String author) {
+    return 'Show more replies to $author';
+  }
+
+  @override
+  String postThreadContinueThreadFromAuthor(String author) {
+    return 'Continue thread from $author';
+  }
+
+  @override
   String get postComposeAction => 'New post';
 
   @override
@@ -128,7 +161,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postComposeHint => 'What are you making?';
 
   @override
+  String get postComposeReplyTitle => 'Reply';
+
+  @override
+  String get postComposeReplyHint => 'Write your reply';
+
+  @override
   String get postComposeSubmit => 'Post';
+
+  @override
+  String get postComposeReplySubmit => 'Reply';
 
   @override
   String get postComposeTooLong => 'Posts must be 2000 characters or fewer';
