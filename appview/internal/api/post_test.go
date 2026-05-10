@@ -7,9 +7,11 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -23,13 +25,17 @@ import (
 // errors to simulate failures.
 type fakePDS struct {
 	mu             sync.Mutex
+	lastCreateRepo syntax.DID
 	lastCreateColl string
 	lastCreateRec  any
 	createURI      syntax.ATURI
 	createCID      syntax.CID
 	createErr      error
 
+	lastDeleteRepo syntax.DID
+	lastDeleteColl string
 	lastDeleteRkey string
+	deleteCalls    int
 	deleteErr      error
 }
 
@@ -37,9 +43,10 @@ func (f *fakePDS) GetRecord(_ context.Context, _ syntax.DID, _, _ string, _ any)
 	return "", nil
 }
 func (f *fakePDS) PutRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error { return nil }
-func (f *fakePDS) CreateRecord(_ context.Context, _ syntax.DID, coll string, rec any) (syntax.ATURI, syntax.CID, error) {
+func (f *fakePDS) CreateRecord(_ context.Context, repo syntax.DID, coll string, rec any) (syntax.ATURI, syntax.CID, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.lastCreateRepo = repo
 	f.lastCreateColl = coll
 	f.lastCreateRec = rec
 	if f.createErr != nil {
@@ -51,10 +58,13 @@ func (f *fakePDS) CreateRecord(_ context.Context, _ syntax.DID, coll string, rec
 	}
 	return f.createURI, f.createCID, nil
 }
-func (f *fakePDS) DeleteRecord(_ context.Context, _ syntax.DID, _, rkey string) error {
+func (f *fakePDS) DeleteRecord(_ context.Context, repo syntax.DID, coll string, rkey string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.lastDeleteRepo = repo
+	f.lastDeleteColl = coll
 	f.lastDeleteRkey = rkey
+	f.deleteCalls++
 	return f.deleteErr
 }
 
@@ -64,17 +74,51 @@ func newPDSFactory(p *fakePDS) auth.PDSClientFactory {
 	}
 }
 
+func failingPDSFactory(err error) auth.PDSClientFactory {
+	return func(_ context.Context, _ syntax.DID, _ string) (auth.PDSClient, error) {
+		return nil, err
+	}
+}
+
 // fakePostStore implements api.PostReader for handler tests.
 type fakePostStore struct {
-	one        *api.PostRow
-	oneErr     error
-	listRows   []*api.PostRow
-	listCursor string
-	listErr    error
-	author     *api.PostAuthorRow
-	authorErr  error
-	lastDID    string
-	lastRkey   string
+	one                  *api.PostRow
+	oneErr               error
+	listRows             []*api.PostRow
+	listCursor           string
+	listErr              error
+	replyRows            []*api.PostRow
+	replyCursor          string
+	replyErr             error
+	threadRows           []*api.PostRow
+	threadErr            error
+	author               *api.PostAuthorRow
+	authorErr            error
+	engagement           map[string]api.EngagementSummary
+	engagementErr        error
+	target               *api.PostTargetRef
+	targetErr            error
+	activeLike           *api.InteractionRow
+	activeLikeErr        error
+	activeRepost         *api.InteractionRow
+	activeRepostErr      error
+	lastDID              string
+	lastRkey             string
+	lastEngagementViewer string
+	lastEngagementURIs   []string
+	engagementCalls      int
+	lastTargetDID        string
+	lastTargetRkey       string
+	lastActiveLikeDID    string
+	lastActiveLikeURI    string
+	lastActiveRepostDID  string
+	lastActiveRepostURI  string
+	lastReplyParentURI   string
+	lastReplyLimit       int
+	lastReplyCursor      string
+	lastThreadRootURI    string
+	lastThreadTargetURI  string
+	lastThreadLimit      int
 }
 
 func (f *fakePostStore) ReadOne(_ context.Context, did, rkey string) (*api.PostRow, error) {
@@ -85,11 +129,71 @@ func (f *fakePostStore) ReadOne(_ context.Context, did, rkey string) (*api.PostR
 func (f *fakePostStore) ListByAuthor(_ context.Context, _ string, _ int, _ string) ([]*api.PostRow, string, error) {
 	return f.listRows, f.listCursor, f.listErr
 }
+func (f *fakePostStore) ListDirectReplies(_ context.Context, parentURI string, limit int, cursor string) ([]*api.PostRow, string, error) {
+	f.lastReplyParentURI = parentURI
+	f.lastReplyLimit = limit
+	f.lastReplyCursor = cursor
+	return f.replyRows, f.replyCursor, f.replyErr
+}
+func (f *fakePostStore) LoadThreadCandidates(_ context.Context, rootURI, targetURI string, limit int) ([]*api.PostRow, error) {
+	f.lastThreadRootURI = rootURI
+	f.lastThreadTargetURI = targetURI
+	f.lastThreadLimit = limit
+	return f.threadRows, f.threadErr
+}
 func (f *fakePostStore) ReadAuthor(_ context.Context, _ string) (*api.PostAuthorRow, error) {
 	if f.author == nil && f.authorErr == nil {
 		return &api.PostAuthorRow{}, nil
 	}
 	return f.author, f.authorErr
+}
+
+func (f *fakePostStore) ResolvePostTarget(_ context.Context, did, rkey string) (*api.PostTargetRef, error) {
+	f.lastTargetDID = did
+	f.lastTargetRkey = rkey
+	if f.targetErr != nil {
+		return nil, f.targetErr
+	}
+	return f.target, nil
+}
+func (f *fakePostStore) FindActiveLike(_ context.Context, did, subjectURI string) (*api.InteractionRow, error) {
+	f.lastActiveLikeDID = did
+	f.lastActiveLikeURI = subjectURI
+	if f.activeLikeErr != nil {
+		return nil, f.activeLikeErr
+	}
+	if f.activeLike == nil {
+		return nil, api.ErrInteractionNotFound
+	}
+	return f.activeLike, nil
+}
+func (f *fakePostStore) FindActiveRepost(_ context.Context, did, subjectURI string) (*api.InteractionRow, error) {
+	f.lastActiveRepostDID = did
+	f.lastActiveRepostURI = subjectURI
+	if f.activeRepostErr != nil {
+		return nil, f.activeRepostErr
+	}
+	if f.activeRepost == nil {
+		return nil, api.ErrInteractionNotFound
+	}
+	return f.activeRepost, nil
+}
+
+func (f *fakePostStore) EngagementSummaries(_ context.Context, viewerDID string, postURIs []string) (map[string]api.EngagementSummary, error) {
+	f.engagementCalls++
+	f.lastEngagementViewer = viewerDID
+	f.lastEngagementURIs = append([]string(nil), postURIs...)
+	if f.engagementErr != nil {
+		return nil, f.engagementErr
+	}
+	out := make(map[string]api.EngagementSummary, len(postURIs))
+	for _, uri := range postURIs {
+		out[uri] = api.EngagementSummary{}
+	}
+	for uri, summary := range f.engagement {
+		out[uri] = summary
+	}
+	return out, nil
 }
 
 func authedReq(method, path, body string, did string) *http.Request {
@@ -101,6 +205,574 @@ func authedReq(method, path, body string, did string) *http.Request {
 	}
 	ctx := middleware.WithDID(r.Context(), syntax.DID(did))
 	return r.WithContext(ctx)
+}
+
+func authedPostPathReq(method, urlPath, body string, did string) *http.Request {
+	req := authedReq(method, urlPath, body, did)
+	parts := strings.Split(strings.Trim(urlPath, "/"), "/")
+	req.SetPathValue("did", parts[2])
+	req.SetPathValue("rkey", parts[3])
+	return req
+}
+
+func testPostRow(did, rkey, text string, createdAt time.Time) *api.PostRow {
+	return &api.PostRow{
+		URI:       "at://" + did + "/social.craftsky.feed.post/" + rkey,
+		DID:       did,
+		Rkey:      rkey,
+		CID:       "bafy" + rkey,
+		Text:      text,
+		CreatedAt: createdAt,
+		IndexedAt: createdAt,
+	}
+}
+
+func testReplyRow(did, rkey, text, rootURI, parentURI string, createdAt time.Time) *api.PostRow {
+	row := testPostRow(did, rkey, text, createdAt)
+	rootCID := "bafyroot"
+	parentCID := "bafyparent"
+	row.ReplyRootURI = &rootURI
+	row.ReplyRootCID = &rootCID
+	row.ReplyParentURI = &parentURI
+	row.ReplyParentCID = &parentCID
+	return row
+}
+
+func TestLikePost_CreatesPDSLikeRecord(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{
+		createURI: syntax.ATURI("at://did:plc:alice/social.craftsky.feed.like/likeSrv"),
+		createCID: syntax.CID("bafyLike"),
+	}
+	store := &fakePostStore{target: &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"}}
+	h := api.LikePostHandler(store, newPDSFactory(pds), nilLogger())
+	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/likes", "   ", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.lastCreateRepo != "did:plc:alice" || pds.lastCreateColl != "social.craftsky.feed.like" {
+		t.Fatalf("CreateRecord repo/coll = %q/%q", pds.lastCreateRepo, pds.lastCreateColl)
+	}
+	rec, ok := pds.lastCreateRec.(map[string]any)
+	if !ok {
+		t.Fatalf("record type = %T", pds.lastCreateRec)
+	}
+	if rec["$type"] != "social.craftsky.feed.like" {
+		t.Errorf("$type = %v", rec["$type"])
+	}
+	subject := rec["subject"].(map[string]any)
+	if subject["uri"] != store.target.URI || subject["cid"] != store.target.CID {
+		t.Errorf("subject = %+v", subject)
+	}
+	if _, err := time.Parse(time.RFC3339, rec["createdAt"].(string)); err != nil {
+		t.Errorf("createdAt is not RFC3339: %v", err)
+	}
+	var resp api.InteractionWriteResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.URI != string(pds.createURI) || resp.CID != string(pds.createCID) || resp.Rkey != "likeSrv" {
+		t.Errorf("resp identity = %+v", resp)
+	}
+	if resp.Subject.URI != store.target.URI || resp.Subject.CID != store.target.CID {
+		t.Errorf("resp subject = %+v", resp.Subject)
+	}
+	if store.lastTargetDID != "did:plc:bob" || store.lastTargetRkey != "post1" {
+		t.Errorf("target lookup = %q/%q", store.lastTargetDID, store.lastTargetRkey)
+	}
+	if store.lastActiveLikeDID != "did:plc:alice" || store.lastActiveLikeURI != store.target.URI {
+		t.Errorf("active lookup = %q/%q", store.lastActiveLikeDID, store.lastActiveLikeURI)
+	}
+}
+
+func TestLikePost_AlreadyLikedReturnsExistingIdentity(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	created := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	store := &fakePostStore{
+		target: &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"},
+		activeLike: &api.InteractionRow{
+			URI: "at://did:plc:alice/social.craftsky.feed.like/existing", DID: "did:plc:alice", Rkey: "existing", CID: "bafyExisting",
+			SubjectURI: "at://did:plc:bob/social.craftsky.feed.post/post1", SubjectCID: "bafyPost", CreatedAt: created,
+		},
+	}
+	h := api.LikePostHandler(store, newPDSFactory(pds), nilLogger())
+	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/likes", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.lastCreateColl != "" {
+		t.Fatalf("CreateRecord called for already-liked path: %q", pds.lastCreateColl)
+	}
+	var resp api.InteractionWriteResponse
+	_ = json.NewDecoder(rr.Body).Decode(&resp)
+	if resp.URI != store.activeLike.URI || resp.CID != store.activeLike.CID || resp.Rkey != store.activeLike.Rkey {
+		t.Errorf("resp = %+v", resp)
+	}
+}
+
+func TestLikePost_RejectsNonEmptyBody(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{target: &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"}}
+	h := api.LikePostHandler(store, newPDSFactory(&fakePDS{}), nilLogger())
+	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/likes", `{"foo":true}`, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "unexpected_field" {
+		t.Errorf("error = %q", body.Error)
+	}
+	if pdsLookup := store.lastTargetDID; pdsLookup != "" {
+		t.Errorf("target lookup should not run, got %q", pdsLookup)
+	}
+}
+
+func TestLikePost_MissingSubjectReturns404(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{targetErr: api.ErrPostNotFound}
+	h := api.LikePostHandler(store, newPDSFactory(&fakePDS{}), nilLogger())
+	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/missing/likes", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "post_not_found" {
+		t.Errorf("error = %q", body.Error)
+	}
+}
+
+func TestLikePost_PDSCreateFailureReturns502(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{target: &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"}}
+	h := api.LikePostHandler(store, newPDSFactory(&fakePDS{createErr: errors.New("pds down")}), nilLogger())
+	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/likes", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "pds_write_failed" {
+		t.Errorf("error = %q", body.Error)
+	}
+}
+
+func TestUnlikePost_ExistingDeletesPDSRecord(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{
+		target:     &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"},
+		activeLike: &api.InteractionRow{URI: "at://did:plc:alice/social.craftsky.feed.like/like1", DID: "did:plc:alice", Rkey: "like1", CID: "bafyLike", SubjectURI: "at://did:plc:bob/social.craftsky.feed.post/post1", SubjectCID: "bafyPost"},
+	}
+	h := api.UnlikePostHandler(store, newPDSFactory(pds), nilLogger())
+	req := authedPostPathReq(http.MethodDelete, "/v1/posts/did:plc:bob/post1/likes", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.lastDeleteRepo != "did:plc:alice" || pds.lastDeleteColl != "social.craftsky.feed.like" || pds.lastDeleteRkey != "like1" {
+		t.Errorf("DeleteRecord = repo %q coll %q rkey %q", pds.lastDeleteRepo, pds.lastDeleteColl, pds.lastDeleteRkey)
+	}
+	if pds.deleteCalls != 1 {
+		t.Errorf("deleteCalls = %d, want 1", pds.deleteCalls)
+	}
+}
+
+func TestUnlikePost_AbsentActiveLikeIsIdempotent(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{target: &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"}}
+	h := api.UnlikePostHandler(store, newPDSFactory(pds), nilLogger())
+	req := authedPostPathReq(http.MethodDelete, "/v1/posts/did:plc:bob/post1/likes", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.deleteCalls != 0 {
+		t.Errorf("deleteCalls = %d, want 0", pds.deleteCalls)
+	}
+}
+
+func TestUnlikePost_PDSDeleteFailureReturns502(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{
+		target:     &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"},
+		activeLike: &api.InteractionRow{Rkey: "like1", SubjectURI: "at://did:plc:bob/social.craftsky.feed.post/post1", SubjectCID: "bafyPost"},
+	}
+	h := api.UnlikePostHandler(store, newPDSFactory(&fakePDS{deleteErr: errors.New("pds down")}), nilLogger())
+	req := authedPostPathReq(http.MethodDelete, "/v1/posts/did:plc:bob/post1/likes", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "pds_unavailable" {
+		t.Errorf("error = %q", body.Error)
+	}
+}
+
+func TestRepostPost_CreatesPDSRepostRecord(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{
+		createURI: syntax.ATURI("at://did:plc:alice/social.craftsky.feed.repost/repostSrv"),
+		createCID: syntax.CID("bafyRepost"),
+	}
+	store := &fakePostStore{target: &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"}}
+	h := api.RepostPostHandler(store, newPDSFactory(pds), nilLogger())
+	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/reposts", "   ", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.lastCreateRepo != "did:plc:alice" || pds.lastCreateColl != "social.craftsky.feed.repost" {
+		t.Fatalf("CreateRecord repo/coll = %q/%q", pds.lastCreateRepo, pds.lastCreateColl)
+	}
+	rec, ok := pds.lastCreateRec.(map[string]any)
+	if !ok {
+		t.Fatalf("record type = %T", pds.lastCreateRec)
+	}
+	if rec["$type"] != "social.craftsky.feed.repost" {
+		t.Errorf("$type = %v", rec["$type"])
+	}
+	subject := rec["subject"].(map[string]any)
+	if subject["uri"] != store.target.URI || subject["cid"] != store.target.CID {
+		t.Errorf("subject = %+v", subject)
+	}
+	if _, hasText := rec["text"]; hasText {
+		t.Errorf("repost record unexpectedly had text: %+v", rec)
+	}
+	if _, hasEmbed := rec["embed"]; hasEmbed {
+		t.Errorf("repost record unexpectedly had embed: %+v", rec)
+	}
+	if _, err := time.Parse(time.RFC3339, rec["createdAt"].(string)); err != nil {
+		t.Errorf("createdAt is not RFC3339: %v", err)
+	}
+	var resp api.InteractionWriteResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.URI != string(pds.createURI) || resp.CID != string(pds.createCID) || resp.Rkey != "repostSrv" {
+		t.Errorf("resp identity = %+v", resp)
+	}
+	if resp.Subject.URI != store.target.URI || resp.Subject.CID != store.target.CID {
+		t.Errorf("resp subject = %+v", resp.Subject)
+	}
+	if store.lastTargetDID != "did:plc:bob" || store.lastTargetRkey != "post1" {
+		t.Errorf("target lookup = %q/%q", store.lastTargetDID, store.lastTargetRkey)
+	}
+	if store.lastActiveRepostDID != "did:plc:alice" || store.lastActiveRepostURI != store.target.URI {
+		t.Errorf("active lookup = %q/%q", store.lastActiveRepostDID, store.lastActiveRepostURI)
+	}
+}
+
+func TestRepostPost_AlreadyRepostedReturnsExistingIdentity(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	created := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	store := &fakePostStore{
+		target: &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"},
+		activeRepost: &api.InteractionRow{
+			URI: "at://did:plc:alice/social.craftsky.feed.repost/existing", DID: "did:plc:alice", Rkey: "existing", CID: "bafyExisting",
+			SubjectURI: "at://did:plc:bob/social.craftsky.feed.post/post1", SubjectCID: "bafyPost", CreatedAt: created,
+		},
+	}
+	h := api.RepostPostHandler(store, newPDSFactory(pds), nilLogger())
+	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/reposts", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.lastCreateColl != "" {
+		t.Fatalf("CreateRecord called for already-reposted path: %q", pds.lastCreateColl)
+	}
+	var resp api.InteractionWriteResponse
+	_ = json.NewDecoder(rr.Body).Decode(&resp)
+	if resp.URI != store.activeRepost.URI || resp.CID != store.activeRepost.CID || resp.Rkey != store.activeRepost.Rkey {
+		t.Errorf("resp = %+v", resp)
+	}
+}
+
+func TestRepostPost_RejectsNonEmptyBody(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{target: &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"}}
+	h := api.RepostPostHandler(store, newPDSFactory(pds), nilLogger())
+	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/reposts", `{"text":"quote-like body","embed":{"foo":true}}`, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "unexpected_field" {
+		t.Errorf("error = %q", body.Error)
+	}
+	if store.lastTargetDID != "" {
+		t.Errorf("target lookup should not run, got %q", store.lastTargetDID)
+	}
+	if pds.lastCreateColl != "" {
+		t.Errorf("CreateRecord should not run, got coll %q", pds.lastCreateColl)
+	}
+}
+
+func TestRepostPost_MissingSubjectReturns404(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{targetErr: api.ErrPostNotFound}
+	h := api.RepostPostHandler(store, newPDSFactory(&fakePDS{}), nilLogger())
+	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/missing/reposts", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "post_not_found" {
+		t.Errorf("error = %q", body.Error)
+	}
+}
+
+func TestRepostPost_PDSCreateFailureReturns502(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{target: &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"}}
+	h := api.RepostPostHandler(store, newPDSFactory(&fakePDS{createErr: errors.New("pds down")}), nilLogger())
+	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/reposts", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "pds_write_failed" {
+		t.Errorf("error = %q", body.Error)
+	}
+}
+
+func TestRepostPost_NewPDSFailureReturns502(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{target: &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"}}
+	h := api.RepostPostHandler(store, failingPDSFactory(errors.New("session missing")), nilLogger())
+	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/reposts", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "pds_unavailable" {
+		t.Errorf("error = %q", body.Error)
+	}
+}
+
+func TestRepostPost_TargetLookupFailureReturns500(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{targetErr: errors.New("database unavailable")}
+	h := api.RepostPostHandler(store, newPDSFactory(&fakePDS{}), nilLogger())
+	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/reposts", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "internal_error" {
+		t.Errorf("error = %q", body.Error)
+	}
+}
+
+func TestRepostPost_ActiveLookupFailureReturns500(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{
+		target:          &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"},
+		activeRepostErr: errors.New("database unavailable"),
+	}
+	h := api.RepostPostHandler(store, newPDSFactory(&fakePDS{}), nilLogger())
+	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/reposts", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "internal_error" {
+		t.Errorf("error = %q", body.Error)
+	}
+}
+
+func TestUnrepostPost_ExistingDeletesPDSRecord(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{
+		target:       &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"},
+		activeRepost: &api.InteractionRow{URI: "at://did:plc:alice/social.craftsky.feed.repost/repost1", DID: "did:plc:alice", Rkey: "repost1", CID: "bafyRepost", SubjectURI: "at://did:plc:bob/social.craftsky.feed.post/post1", SubjectCID: "bafyPost"},
+	}
+	h := api.UnrepostPostHandler(store, newPDSFactory(pds), nilLogger())
+	req := authedPostPathReq(http.MethodDelete, "/v1/posts/did:plc:bob/post1/reposts", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.lastDeleteRepo != "did:plc:alice" || pds.lastDeleteColl != "social.craftsky.feed.repost" || pds.lastDeleteRkey != "repost1" {
+		t.Errorf("DeleteRecord = repo %q coll %q rkey %q", pds.lastDeleteRepo, pds.lastDeleteColl, pds.lastDeleteRkey)
+	}
+	if pds.deleteCalls != 1 {
+		t.Errorf("deleteCalls = %d, want 1", pds.deleteCalls)
+	}
+}
+
+func TestUnrepostPost_AbsentActiveRepostIsIdempotent(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{target: &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"}}
+	h := api.UnrepostPostHandler(store, newPDSFactory(pds), nilLogger())
+	req := authedPostPathReq(http.MethodDelete, "/v1/posts/did:plc:bob/post1/reposts", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.deleteCalls != 0 {
+		t.Errorf("deleteCalls = %d, want 0", pds.deleteCalls)
+	}
+}
+
+func TestUnrepostPost_NewPDSFailureReturns502(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{
+		target:       &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"},
+		activeRepost: &api.InteractionRow{Rkey: "repost1", SubjectURI: "at://did:plc:bob/social.craftsky.feed.post/post1", SubjectCID: "bafyPost"},
+	}
+	h := api.UnrepostPostHandler(store, failingPDSFactory(errors.New("session missing")), nilLogger())
+	req := authedPostPathReq(http.MethodDelete, "/v1/posts/did:plc:bob/post1/reposts", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "pds_unavailable" {
+		t.Errorf("error = %q", body.Error)
+	}
+}
+
+func TestUnrepostPost_TargetLookupFailureReturns500(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{targetErr: errors.New("database unavailable")}
+	h := api.UnrepostPostHandler(store, newPDSFactory(&fakePDS{}), nilLogger())
+	req := authedPostPathReq(http.MethodDelete, "/v1/posts/did:plc:bob/post1/reposts", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "internal_error" {
+		t.Errorf("error = %q", body.Error)
+	}
+}
+
+func TestUnrepostPost_ActiveLookupFailureReturns500(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{
+		target:          &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"},
+		activeRepostErr: errors.New("database unavailable"),
+	}
+	h := api.UnrepostPostHandler(store, newPDSFactory(&fakePDS{}), nilLogger())
+	req := authedPostPathReq(http.MethodDelete, "/v1/posts/did:plc:bob/post1/reposts", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "internal_error" {
+		t.Errorf("error = %q", body.Error)
+	}
+}
+
+func TestUnrepostPost_PDSRecordAlreadyGoneIsIdempotent(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{
+		target:       &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"},
+		activeRepost: &api.InteractionRow{Rkey: "repost1", SubjectURI: "at://did:plc:bob/social.craftsky.feed.post/post1", SubjectCID: "bafyPost"},
+	}
+	h := api.UnrepostPostHandler(store, newPDSFactory(&fakePDS{deleteErr: auth.ErrRecordNotFound}), nilLogger())
+	req := authedPostPathReq(http.MethodDelete, "/v1/posts/did:plc:bob/post1/reposts", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestUnrepostPost_PDSDeleteFailureReturns502(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{
+		target:       &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"},
+		activeRepost: &api.InteractionRow{Rkey: "repost1", SubjectURI: "at://did:plc:bob/social.craftsky.feed.post/post1", SubjectCID: "bafyPost"},
+	}
+	h := api.UnrepostPostHandler(store, newPDSFactory(&fakePDS{deleteErr: errors.New("pds down")}), nilLogger())
+	req := authedPostPathReq(http.MethodDelete, "/v1/posts/did:plc:bob/post1/reposts", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "pds_unavailable" {
+		t.Errorf("error = %q", body.Error)
+	}
 }
 
 func TestCreatePost_HappyPath(t *testing.T) {
@@ -128,6 +800,9 @@ func TestCreatePost_HappyPath(t *testing.T) {
 	}
 	if resp.Author.Handle != "alice.example" {
 		t.Errorf("author.handle = %q", resp.Author.Handle)
+	}
+	if resp.LikeCount != 0 || resp.RepostCount != 0 || resp.ReplyCount != 0 || resp.ViewerHasLiked || resp.ViewerHasReposted {
+		t.Errorf("engagement defaults = %+v", resp)
 	}
 
 	body, _ := pds.lastCreateRec.(map[string]any)
@@ -285,7 +960,12 @@ func TestGetPost_HappyPath(t *testing.T) {
 		URI: "at://did:plc:alice/social.craftsky.feed.post/rk1",
 		DID: "did:plc:alice", Rkey: "rk1", CID: "bafy", Text: "hi",
 	}
-	store := &fakePostStore{one: row}
+	store := &fakePostStore{
+		one: row,
+		engagement: map[string]api.EngagementSummary{
+			row.URI: {LikeCount: 3, RepostCount: 1, ReplyCount: 2, ViewerHasLiked: true, ViewerHasReposted: false},
+		},
+	}
 	h := api.GetPostHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
 	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/rk1", "", "did:plc:alice")
 	req.SetPathValue("did", "did:plc:alice")
@@ -299,6 +979,12 @@ func TestGetPost_HappyPath(t *testing.T) {
 	_ = json.NewDecoder(rr.Body).Decode(&resp)
 	if resp.Text != "hi" || resp.Author.Handle != "alice.example" {
 		t.Errorf("resp = %+v", resp)
+	}
+	if resp.LikeCount != 3 || resp.RepostCount != 1 || resp.ReplyCount != 2 || !resp.ViewerHasLiked || resp.ViewerHasReposted {
+		t.Errorf("engagement = %+v", resp)
+	}
+	if store.engagementCalls != 1 || len(store.lastEngagementURIs) != 1 || store.lastEngagementURIs[0] != row.URI || store.lastEngagementViewer != "did:plc:alice" {
+		t.Errorf("engagement lookup = calls:%d viewer:%q uris:%v", store.engagementCalls, store.lastEngagementViewer, store.lastEngagementURIs)
 	}
 }
 
@@ -341,6 +1027,328 @@ func TestGetPost_HandleResolutionFailure_502(t *testing.T) {
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadGateway {
 		t.Fatalf("status = %d", rr.Code)
+	}
+}
+
+func TestListDirectReplies_HappyPath_PaginatesEngagementAndAuthorHandles(t *testing.T) {
+	t.Parallel()
+	parentURI := "at://did:plc:alice/social.craftsky.feed.post/root"
+	replies := []*api.PostRow{
+		{URI: "at://did:plc:bob/social.craftsky.feed.post/reply1", DID: "did:plc:bob", Rkey: "reply1", CID: "bafy1", Text: "first"},
+		{URI: "at://did:plc:carol/social.craftsky.feed.post/reply2", DID: "did:plc:carol", Rkey: "reply2", CID: "bafy2", Text: "second"},
+	}
+	store := &fakePostStore{
+		target:      &api.PostTargetRef{URI: parentURI, CID: "bafyRoot"},
+		replyRows:   replies,
+		replyCursor: "next-replies",
+		engagement: map[string]api.EngagementSummary{
+			replies[0].URI: {LikeCount: 2, RepostCount: 1, ReplyCount: 4, ViewerHasLiked: true},
+			replies[1].URI: {LikeCount: 1, RepostCount: 0, ReplyCount: 0, ViewerHasReposted: true},
+		},
+	}
+	h := api.ListDirectRepliesHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:bob":   "bob.example",
+		"did:plc:carol": "carol.example",
+	}}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/root/replies?limit=2&cursor=opaque", "", "did:plc:viewer")
+	req.SetPathValue("did", "did:plc:alice")
+	req.SetPathValue("rkey", "root")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp struct {
+		Items  []api.PostResponse `json:"items"`
+		Cursor string             `json:"cursor,omitempty"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if store.lastTargetDID != "did:plc:alice" || store.lastTargetRkey != "root" {
+		t.Fatalf("target lookup = %s/%s", store.lastTargetDID, store.lastTargetRkey)
+	}
+	if store.lastReplyParentURI != parentURI || store.lastReplyLimit != 2 || store.lastReplyCursor != "opaque" {
+		t.Fatalf("reply lookup = uri:%q limit:%d cursor:%q", store.lastReplyParentURI, store.lastReplyLimit, store.lastReplyCursor)
+	}
+	if len(resp.Items) != 2 || resp.Items[0].Author.Handle != "bob.example" || resp.Items[1].Author.Handle != "carol.example" {
+		t.Fatalf("items = %+v", resp.Items)
+	}
+	if resp.Items[0].LikeCount != 2 || resp.Items[0].RepostCount != 1 || resp.Items[0].ReplyCount != 4 || !resp.Items[0].ViewerHasLiked {
+		t.Errorf("item0 engagement = %+v", resp.Items[0])
+	}
+	if !resp.Items[1].ViewerHasReposted {
+		t.Errorf("item1 engagement = %+v", resp.Items[1])
+	}
+	if store.engagementCalls != 1 || store.lastEngagementViewer != "did:plc:viewer" || len(store.lastEngagementURIs) != 2 {
+		t.Errorf("engagement lookup = calls:%d viewer:%q uris:%v", store.engagementCalls, store.lastEngagementViewer, store.lastEngagementURIs)
+	}
+	if resp.Cursor != "next-replies" {
+		t.Errorf("cursor = %q", resp.Cursor)
+	}
+}
+
+func TestGetPostThread_TargetWithNoRepliesReturnsEmptyArrays(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:alice", "root", "root", base)
+	store := &fakePostStore{
+		one:        root,
+		target:     &api.PostTargetRef{URI: root.URI, CID: root.CID},
+		threadRows: []*api.PostRow{root},
+	}
+	h := api.GetPostThreadHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/thread", "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `"replies":[]`) {
+		t.Fatalf("body should include empty replies array: %s", rr.Body.String())
+	}
+	var resp api.ThreadResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Post.Rkey != "root" || len(resp.Replies) != 0 || resp.Truncated {
+		t.Fatalf("thread response = %+v", resp)
+	}
+	if store.lastThreadRootURI != root.URI || store.lastThreadTargetURI != root.URI || store.lastThreadLimit != 501 {
+		t.Fatalf("thread lookup = root:%q target:%q limit:%d", store.lastThreadRootURI, store.lastThreadTargetURI, store.lastThreadLimit)
+	}
+}
+
+func TestGetPostThread_NestedTreeDescendantsOnlyOldestFirst(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:alice", "root", "root", base)
+	replyA := testReplyRow("did:plc:bob", "replyA", "a", root.URI, root.URI, base.Add(2*time.Minute))
+	replyB := testReplyRow("did:plc:carol", "replyB", "b", root.URI, replyA.URI, base.Add(3*time.Minute))
+	replyC := testReplyRow("did:plc:dave", "replyC", "c", root.URI, root.URI, base.Add(time.Minute))
+	orphan := testReplyRow("did:plc:erin", "orphan", "orphan", root.URI, "at://did:plc:missing/social.craftsky.feed.post/gone", base.Add(4*time.Minute))
+	store := &fakePostStore{
+		one:        root,
+		target:     &api.PostTargetRef{URI: root.URI, CID: root.CID},
+		threadRows: []*api.PostRow{replyA, replyB, replyC, orphan, root},
+		engagement: map[string]api.EngagementSummary{
+			root.URI:   {ReplyCount: 2},
+			replyA.URI: {LikeCount: 2, ViewerHasLiked: true},
+			replyB.URI: {RepostCount: 1},
+		},
+	}
+	h := api.GetPostThreadHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+		"did:plc:bob":   "bob.example",
+		"did:plc:carol": "carol.example",
+		"did:plc:dave":  "dave.example",
+	}}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/thread", "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.ThreadResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Post.Rkey != "root" || resp.Post.Author.Handle != "alice.example" || resp.Post.ReplyCount != 2 {
+		t.Fatalf("root = %+v", resp.Post)
+	}
+	if len(resp.Replies) != 2 || resp.Replies[0].Post.Rkey != "replyC" || resp.Replies[1].Post.Rkey != "replyA" {
+		t.Fatalf("top-level replies = %+v", resp.Replies)
+	}
+	if len(resp.Replies[1].Replies) != 1 || resp.Replies[1].Replies[0].Post.Rkey != "replyB" {
+		t.Fatalf("nested reply = %+v", resp.Replies[1].Replies)
+	}
+	if !resp.Replies[1].Post.ViewerHasLiked || resp.Replies[1].Post.LikeCount != 2 || resp.Replies[1].Replies[0].Post.RepostCount != 1 {
+		t.Fatalf("engagement = %+v", resp)
+	}
+	if store.engagementCalls != 1 || len(store.lastEngagementURIs) != 4 || store.lastEngagementViewer != "did:plc:viewer" {
+		t.Fatalf("engagement lookup = calls:%d viewer:%q uris:%v", store.engagementCalls, store.lastEngagementViewer, store.lastEngagementURIs)
+	}
+}
+
+func TestGetPostThread_TargetIsReplyReturnsDescendantsOnly(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:alice", "root", "root", base)
+	replyA := testReplyRow("did:plc:bob", "replyA", "a", root.URI, root.URI, base.Add(time.Minute))
+	replyB := testReplyRow("did:plc:carol", "replyB", "b", root.URI, replyA.URI, base.Add(2*time.Minute))
+	replyC := testReplyRow("did:plc:dave", "replyC", "c", root.URI, root.URI, base.Add(3*time.Minute))
+	store := &fakePostStore{
+		one:        replyA,
+		target:     &api.PostTargetRef{URI: replyA.URI, CID: replyA.CID},
+		threadRows: []*api.PostRow{root, replyA, replyB, replyC},
+	}
+	h := api.GetPostThreadHandler(store, fakeResolver{handleFor: "handle.example"}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:bob/replyA/thread", "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.ThreadResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Post.Rkey != "replyA" || len(resp.Replies) != 1 || resp.Replies[0].Post.Rkey != "replyB" {
+		t.Fatalf("thread should be replyA subtree only: %+v", resp)
+	}
+	if store.lastThreadRootURI != root.URI || store.lastThreadTargetURI != replyA.URI {
+		t.Fatalf("thread lookup = root:%q target:%q", store.lastThreadRootURI, store.lastThreadTargetURI)
+	}
+}
+
+func TestGetPostThread_TruncatesAtDepthAndTotalCap(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:alice", "root", "root", base)
+	rows := []*api.PostRow{root}
+	parentURI := root.URI
+	for i := 1; i <= 7; i++ {
+		row := testReplyRow("did:plc:alice", "depth"+strconv.Itoa(i), "d", root.URI, parentURI, base.Add(time.Duration(i)*time.Minute))
+		rows = append(rows, row)
+		parentURI = row.URI
+	}
+	for i := 0; i < 493; i++ {
+		rows = append(rows, testReplyRow("did:plc:alice", "sibling"+strconv.Itoa(i), "s", root.URI, root.URI, base.Add(time.Duration(i+10)*time.Minute)))
+	}
+	store := &fakePostStore{
+		one:        root,
+		target:     &api.PostTargetRef{URI: root.URI, CID: root.CID},
+		threadRows: rows,
+	}
+	h := api.GetPostThreadHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/thread", "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.ThreadResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !resp.Truncated {
+		t.Fatal("want truncated true")
+	}
+	node := resp.Replies[0]
+	for depth := 1; depth < 6; depth++ {
+		if len(node.Replies) == 0 {
+			t.Fatalf("missing depth %d child", depth+1)
+		}
+		node = node.Replies[0]
+	}
+	if len(node.Replies) != 0 {
+		t.Fatalf("depth cap should omit children beyond depth 6: %+v", node.Replies)
+	}
+}
+
+func TestGetPostThread_MissingAndInvalidTargets(t *testing.T) {
+	t.Parallel()
+	h := api.GetPostThreadHandler(&fakePostStore{targetErr: api.ErrPostNotFound}, fakeResolver{}, nilLogger())
+	missingReq := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/thread", "", "did:plc:viewer")
+	missingRec := httptest.NewRecorder()
+	h.ServeHTTP(missingRec, missingReq)
+	if missingRec.Code != http.StatusNotFound {
+		t.Fatalf("missing status = %d, body = %s", missingRec.Code, missingRec.Body.String())
+	}
+
+	invalidReq := authedReq(http.MethodGet, "/v1/posts/not-a-did/root/thread", "", "did:plc:viewer")
+	invalidReq.SetPathValue("did", "not-a-did")
+	invalidReq.SetPathValue("rkey", "root")
+	invalidRec := httptest.NewRecorder()
+	h.ServeHTTP(invalidRec, invalidReq)
+	if invalidRec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid status = %d, body = %s", invalidRec.Code, invalidRec.Body.String())
+	}
+}
+
+func TestListDirectReplies_DefaultLimitAndMissingTarget(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{target: &api.PostTargetRef{URI: "at://did:plc:alice/social.craftsky.feed.post/root", CID: "bafyRoot"}}
+	h := api.ListDirectRepliesHandler(store, fakeResolver{}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/root/replies", "", "did:plc:viewer")
+	req.SetPathValue("did", "did:plc:alice")
+	req.SetPathValue("rkey", "root")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if store.lastReplyLimit != 50 {
+		t.Fatalf("default limit = %d, want 50", store.lastReplyLimit)
+	}
+}
+
+func TestListDirectReplies_LimitCapsAt100(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{target: &api.PostTargetRef{URI: "at://did:plc:alice/social.craftsky.feed.post/root", CID: "bafyRoot"}}
+	h := api.ListDirectRepliesHandler(store, fakeResolver{}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/root/replies?limit=500", "", "did:plc:viewer")
+	req.SetPathValue("did", "did:plc:alice")
+	req.SetPathValue("rkey", "root")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if store.lastReplyLimit != 100 {
+		t.Fatalf("capped limit = %d, want 100", store.lastReplyLimit)
+	}
+}
+
+func TestListDirectReplies_MissingTarget_404(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{targetErr: api.ErrPostNotFound}
+	h := api.ListDirectRepliesHandler(store, fakeResolver{}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/missing/replies", "", "did:plc:viewer")
+	req.SetPathValue("did", "did:plc:alice")
+	req.SetPathValue("rkey", "missing")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if store.lastReplyLimit != 0 {
+		t.Fatalf("ListDirectReplies should not run for missing target")
+	}
+}
+
+func TestListDirectReplies_BadDID_400(t *testing.T) {
+	t.Parallel()
+	h := api.ListDirectRepliesHandler(&fakePostStore{}, fakeResolver{}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/posts/not-a-did/root/replies", "", "did:plc:viewer")
+	req.SetPathValue("did", "not-a-did")
+	req.SetPathValue("rkey", "root")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d", rr.Code)
+	}
+}
+
+func TestListDirectReplies_InvalidCursor_400(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{
+		target:   &api.PostTargetRef{URI: "at://did:plc:alice/social.craftsky.feed.post/root", CID: "bafyRoot"},
+		replyErr: envelope.ErrInvalidCursor,
+	}
+	h := api.ListDirectRepliesHandler(store, fakeResolver{}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/root/replies?cursor=bad", "", "did:plc:viewer")
+	req.SetPathValue("did", "did:plc:alice")
+	req.SetPathValue("rkey", "root")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "invalid_cursor" {
+		t.Fatalf("error = %q", body.Error)
 	}
 }
 
@@ -426,7 +1434,14 @@ func TestListPosts_HappyPath_PaginatesCorrectly(t *testing.T) {
 		{URI: "at://did:plc:alice/social.craftsky.feed.post/rk2", DID: "did:plc:alice", Rkey: "rk2", Text: "second"},
 		{URI: "at://did:plc:alice/social.craftsky.feed.post/rk1", DID: "did:plc:alice", Rkey: "rk1", Text: "first"},
 	}
-	store := &fakePostStore{listRows: rows, listCursor: "next-cursor-opaque"}
+	store := &fakePostStore{
+		listRows:   rows,
+		listCursor: "next-cursor-opaque",
+		engagement: map[string]api.EngagementSummary{
+			rows[0].URI: {LikeCount: 5, RepostCount: 4, ReplyCount: 3, ViewerHasLiked: true, ViewerHasReposted: true},
+			rows[1].URI: {LikeCount: 1, RepostCount: 0, ReplyCount: 2, ViewerHasLiked: false, ViewerHasReposted: false},
+		},
+	}
 	h := api.ListPostsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
 	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts?limit=2", "", "did:plc:alice")
 	req.SetPathValue("handleOrDid", "did:plc:alice")
@@ -445,6 +1460,15 @@ func TestListPosts_HappyPath_PaginatesCorrectly(t *testing.T) {
 	}
 	if resp.Items[0].Rkey != "rk2" {
 		t.Errorf("ordering wrong: %q", resp.Items[0].Rkey)
+	}
+	if resp.Items[0].LikeCount != 5 || !resp.Items[0].ViewerHasLiked || !resp.Items[0].ViewerHasReposted {
+		t.Errorf("item0 engagement = %+v", resp.Items[0])
+	}
+	if resp.Items[1].LikeCount != 1 || resp.Items[1].RepostCount != 0 || resp.Items[1].ReplyCount != 2 {
+		t.Errorf("item1 engagement = %+v", resp.Items[1])
+	}
+	if store.engagementCalls != 1 || len(store.lastEngagementURIs) != 2 || store.lastEngagementViewer != "did:plc:alice" {
+		t.Errorf("engagement lookup = calls:%d viewer:%q uris:%v", store.engagementCalls, store.lastEngagementViewer, store.lastEngagementURIs)
 	}
 	if resp.Cursor != "next-cursor-opaque" {
 		t.Errorf("cursor = %q", resp.Cursor)

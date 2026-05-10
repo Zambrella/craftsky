@@ -3,6 +3,7 @@ package api_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,6 +51,9 @@ func TestBuildPostResponse_MinimalPost(t *testing.T) {
 	if !resp.IndexedAt.Equal(baseRow().IndexedAt) {
 		t.Errorf("indexedAt = %v", resp.IndexedAt)
 	}
+	if resp.LikeCount != 0 || resp.RepostCount != 0 || resp.ReplyCount != 0 || resp.ViewerHasLiked || resp.ViewerHasReposted {
+		t.Errorf("engagement defaults = %+v", resp)
+	}
 	if resp.Reply != nil {
 		t.Errorf("expected nil reply, got %+v", resp.Reply)
 	}
@@ -85,6 +89,21 @@ func TestBuildPostResponse_WithReplyAndQuote(t *testing.T) {
 	}
 	if resp.Quote == nil || resp.Quote.URI != *row.QuoteURI {
 		t.Errorf("quote: %+v", resp.Quote)
+	}
+}
+
+func TestBuildPostResponse_JSONIncludesEngagementFields(t *testing.T) {
+	t.Parallel()
+	resp := api.BuildPostResponse(baseRow(), syntax.Handle("alice.example"))
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	got := string(data)
+	for _, key := range []string{`"likeCount":0`, `"repostCount":0`, `"replyCount":0`, `"viewerHasLiked":false`, `"viewerHasReposted":false`} {
+		if !strings.Contains(got, key) {
+			t.Fatalf("missing %s in %s", key, got)
+		}
 	}
 }
 

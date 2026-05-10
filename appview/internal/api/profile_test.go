@@ -33,12 +33,19 @@ func (f *fakeStore) Read(_ context.Context, _ string) (*api.ProfileRow, error) {
 
 // fakeResolver implements api.HandleResolver.
 type fakeResolver struct {
-	handleFor syntax.Handle
-	didFor    syntax.DID
-	err       error
+	handleFor    syntax.Handle
+	handlesByDID map[string]syntax.Handle
+	didFor       syntax.DID
+	err          error
 }
 
-func (f fakeResolver) ResolveHandle(_ context.Context, _ syntax.DID) (syntax.Handle, error) {
+func (f fakeResolver) ResolveHandle(_ context.Context, did syntax.DID) (syntax.Handle, error) {
+	if f.err != nil {
+		return "", f.err
+	}
+	if f.handlesByDID != nil {
+		return f.handlesByDID[did.String()], nil
+	}
 	return f.handleFor, f.err
 }
 func (f fakeResolver) ResolveDID(_ context.Context, _ syntax.Handle) (syntax.DID, error) {

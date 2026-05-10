@@ -98,6 +98,68 @@ func TestAddRoutes_V1WhoAmIWithoutDeviceIDReturns400(t *testing.T) {
 	}
 }
 
+func TestAddRoutes_PostRepliesRequiresAuthenticatedDevice(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest("GET", "/v1/posts/did:plc:alice/root/replies", nil)
+	req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+}
+
+func TestAddRoutes_PostRepliesRequiresDeviceID(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest("GET", "/v1/posts/did:plc:alice/root/replies", nil)
+	req.Header.Set("Authorization", "Bearer anything")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "missing_device_id") {
+		t.Errorf("body = %q, want containing 'missing_device_id'", rec.Body.String())
+	}
+}
+
+func TestAddRoutes_PostThreadRequiresAuthenticatedDevice(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest("GET", "/v1/posts/did:plc:alice/root/thread", nil)
+	req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+}
+
+func TestAddRoutes_PostThreadRequiresDeviceID(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest("GET", "/v1/posts/did:plc:alice/root/thread", nil)
+	req.Header.Set("Authorization", "Bearer anything")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "missing_device_id") {
+		t.Errorf("body = %q, want containing 'missing_device_id'", rec.Body.String())
+	}
+}
+
 func TestAddRoutes_V1LoginWithoutDeviceIDReturns400(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, testDeps())
@@ -201,6 +263,98 @@ func TestRoutes_PutProfileMeRequiresAuth(t *testing.T) {
 	mux.ServeHTTP(rr, req)
 	if rr.Code != http.StatusUnauthorized {
 		t.Errorf("PUT /v1/profiles/me without auth: status = %d, want 401", rr.Code)
+	}
+}
+
+func TestRoutes_PostPostLikesRequiresAuth(t *testing.T) {
+	t.Parallel()
+	deps := testDeps()
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/posts/did:plc:bob/post1/likes", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("POST /v1/posts/{did}/{rkey}/likes without auth: status = %d, want 401", rr.Code)
+	}
+}
+
+func TestRoutes_DeletePostLikesRequiresAuth(t *testing.T) {
+	t.Parallel()
+	deps := testDeps()
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/posts/did:plc:bob/post1/likes", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("DELETE /v1/posts/{did}/{rkey}/likes without auth: status = %d, want 401", rr.Code)
+	}
+}
+
+func TestRoutes_PostPostRepostsRequiresAuth(t *testing.T) {
+	t.Parallel()
+	deps := testDeps()
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/posts/did:plc:bob/post1/reposts", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("POST /v1/posts/{did}/{rkey}/reposts without auth: status = %d, want 401", rr.Code)
+	}
+}
+
+func TestRoutes_DeletePostRepostsRequiresAuth(t *testing.T) {
+	t.Parallel()
+	deps := testDeps()
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/posts/did:plc:bob/post1/reposts", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("DELETE /v1/posts/{did}/{rkey}/reposts without auth: status = %d, want 401", rr.Code)
+	}
+}
+
+func TestRoutes_PostPostRepostsRequiresDeviceID(t *testing.T) {
+	t.Parallel()
+	deps := testDeps()
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/posts/did:plc:bob/post1/reposts", nil)
+	req.Header.Set("Authorization", "Bearer anything")
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("POST /v1/posts/{did}/{rkey}/reposts without device: status = %d, want 400", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "missing_device_id") {
+		t.Errorf("body = %q, want containing 'missing_device_id'", rr.Body.String())
+	}
+}
+
+func TestRoutes_DeletePostRepostsRequiresDeviceID(t *testing.T) {
+	t.Parallel()
+	deps := testDeps()
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/posts/did:plc:bob/post1/reposts", nil)
+	req.Header.Set("Authorization", "Bearer anything")
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("DELETE /v1/posts/{did}/{rkey}/reposts without device: status = %d, want 400", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "missing_device_id") {
+		t.Errorf("body = %q, want containing 'missing_device_id'", rr.Body.String())
 	}
 }
 

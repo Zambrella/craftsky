@@ -53,6 +53,32 @@ CREATE TABLE craftsky_posts (
     indexed_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (did, rkey)
 );
+CREATE TABLE craftsky_likes (
+    uri         TEXT        NOT NULL PRIMARY KEY,
+    did         TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    rkey        TEXT        NOT NULL,
+    cid         TEXT        NOT NULL,
+    subject_uri TEXT        NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
+    subject_cid TEXT        NOT NULL,
+    record      JSONB       NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL,
+    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at  TIMESTAMPTZ,
+    UNIQUE (did, rkey)
+);
+CREATE TABLE craftsky_reposts (
+    uri         TEXT        NOT NULL PRIMARY KEY,
+    did         TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    rkey        TEXT        NOT NULL,
+    cid         TEXT        NOT NULL,
+    subject_uri TEXT        NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
+    subject_cid TEXT        NOT NULL,
+    record      JSONB       NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL,
+    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at  TIMESTAMPTZ,
+    UNIQUE (did, rkey)
+);
 `
 
 func seedMember(t *testing.T, pool *pgxpool.Pool, did string) {
@@ -80,6 +106,37 @@ func seedPost(t *testing.T, pool *pgxpool.Pool, did, rkey, text string, indexedA
 		VALUES ($1, $2, $3, 'bafycid', $4, '{}'::jsonb, $5, $5)`,
 		uri, did, rkey, text, indexedAt); err != nil {
 		t.Fatalf("seed post: %v", err)
+	}
+	return uri
+}
+
+func seedReplyPost(t *testing.T, pool *pgxpool.Pool, did, rkey, text, rootURI, parentURI string, createdAt time.Time) string {
+	t.Helper()
+	uri := "at://" + did + "/social.craftsky.feed.post/" + rkey
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO craftsky_posts (
+			uri, did, rkey, cid, text, record, created_at, indexed_at,
+			reply_root_uri, reply_root_cid, reply_parent_uri, reply_parent_cid
+		)
+		VALUES ($1, $2, $3, 'bafycid-' || $3, $4, '{}'::jsonb, $5, $5, $6, 'rootcid', $7, 'parentcid')`,
+		uri, did, rkey, text, createdAt, rootURI, parentURI); err != nil {
+		t.Fatalf("seed reply post: %v", err)
+	}
+	return uri
+}
+
+func seedInteraction(t *testing.T, pool *pgxpool.Pool, table, did, rkey, subjectURI string, deleted bool) string {
+	t.Helper()
+	uri := "at://" + did + "/social.craftsky.feed." + table + "/" + rkey
+	var deletedAt any
+	if deleted {
+		deletedAt = time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO craftsky_`+table+`s (uri, did, rkey, cid, subject_uri, subject_cid, record, created_at, indexed_at, deleted_at)
+		VALUES ($1, $2, $3, 'bafy' || $3, $4, 'subjectcid', '{}'::jsonb, $5, $5, $6)`,
+		uri, did, rkey, subjectURI, time.Date(2026, 5, 10, 11, 0, 0, 0, time.UTC), deletedAt); err != nil {
+		t.Fatalf("seed %s: %v", table, err)
 	}
 	return uri
 }
@@ -363,4 +420,178 @@ func TestPostStore_ListByAuthor_CursorContinues_TiedIndexedAt(t *testing.T) {
 	if cursor4 != "" {
 		t.Errorf("want empty cursor on exhausted page, got %q", cursor4)
 	}
+}
+
+func TestPostStore_ResolveTargetAndFindActiveInteractions(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	seedMember(t, pool, "did:plc:bob")
+	postURI := seedPost(t, pool, "did:plc:alice", "rk1", "hello", time.Now())
+	likeURI := seedInteraction(t, pool, "like", "did:plc:bob", "like1", postURI, false)
+	seedInteraction(t, pool, "repost", "did:plc:bob", "repost-deleted", postURI, true)
+
+	store := api.NewPostStore(pool)
+	target, err := store.ResolvePostTarget(context.Background(), "did:plc:alice", "rk1")
+	if err != nil {
+		t.Fatalf("ResolvePostTarget: %v", err)
+	}
+	if target.URI != postURI || target.CID != "bafycid" {
+		t.Fatalf("target = %+v", target)
+	}
+
+	like, err := store.FindActiveLike(context.Background(), "did:plc:bob", postURI)
+	if err != nil {
+		t.Fatalf("FindActiveLike: %v", err)
+	}
+	if like.URI != likeURI || like.SubjectURI != postURI || like.Rkey != "like1" {
+		t.Fatalf("like = %+v", like)
+	}
+	_, err = store.FindActiveRepost(context.Background(), "did:plc:bob", postURI)
+	if !errors.Is(err, api.ErrInteractionNotFound) {
+		t.Fatalf("want ErrInteractionNotFound for deleted repost, got %v", err)
+	}
+}
+
+func TestPostStore_EngagementSummaries_ActiveOnlyAndViewerStates(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol", "did:plc:dave"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	post1 := seedPost(t, pool, "did:plc:alice", "p1", "one", base)
+	post2 := seedPost(t, pool, "did:plc:alice", "p2", "two", base.Add(time.Hour))
+	seedInteraction(t, pool, "like", "did:plc:bob", "like-p1", post1, false)
+	seedInteraction(t, pool, "like", "did:plc:carol", "like-p1", post1, false)
+	seedInteraction(t, pool, "like", "did:plc:dave", "like-p1-deleted", post1, true)
+	seedInteraction(t, pool, "like", "did:plc:bob", "like-p2", post2, false)
+	seedInteraction(t, pool, "repost", "did:plc:bob", "repost-p1", post1, false)
+	seedInteraction(t, pool, "repost", "did:plc:bob", "repost-p2-deleted", post2, true)
+	seedInteraction(t, pool, "repost", "did:plc:carol", "repost-p2", post2, false)
+	reply1 := seedReplyPost(t, pool, "did:plc:bob", "reply1", "reply", post1, post1, base.Add(2*time.Hour))
+	seedReplyPost(t, pool, "did:plc:carol", "reply2", "reply", post1, post1, base.Add(3*time.Hour))
+	seedReplyPost(t, pool, "did:plc:dave", "grandchild", "nested", post1, reply1, base.Add(4*time.Hour))
+
+	store := api.NewPostStore(pool)
+	summaries, err := store.EngagementSummaries(context.Background(), "did:plc:bob", []string{post1, post2})
+	if err != nil {
+		t.Fatalf("EngagementSummaries: %v", err)
+	}
+	if got := summaries[post1]; got.LikeCount != 2 || got.RepostCount != 1 || got.ReplyCount != 2 || !got.ViewerHasLiked || !got.ViewerHasReposted {
+		t.Fatalf("post1 summary = %+v", got)
+	}
+	if got := summaries[post2]; got.LikeCount != 1 || got.RepostCount != 1 || got.ReplyCount != 0 || !got.ViewerHasLiked || got.ViewerHasReposted {
+		t.Fatalf("post2 summary = %+v", got)
+	}
+}
+
+func TestPostStore_ListDirectReplies_PaginatesOpaqueCursorOldestFirst(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol", "did:plc:dave"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
+	reply1 := seedReplyPost(t, pool, "did:plc:bob", "reply1", "first", root, root, base.Add(time.Minute))
+	seedReplyPost(t, pool, "did:plc:carol", "reply2", "second", root, root, base.Add(2*time.Minute))
+	seedReplyPost(t, pool, "did:plc:dave", "reply3", "third", root, root, base.Add(3*time.Minute))
+	seedReplyPost(t, pool, "did:plc:bob", "grandchild", "nested", root, reply1, base.Add(4*time.Minute))
+
+	store := api.NewPostStore(pool)
+	page1, cursor, err := store.ListDirectReplies(context.Background(), root, 2, "")
+	if err != nil {
+		t.Fatalf("page1: %v", err)
+	}
+	if len(page1) != 2 || page1[0].Rkey != "reply1" || page1[1].Rkey != "reply2" {
+		t.Fatalf("page1 = %v", replyRkeys(page1))
+	}
+	if cursor == "" {
+		t.Fatal("want non-empty cursor")
+	}
+	if _, err := envelope.DecodeCursor(cursor); err != nil {
+		t.Fatalf("cursor is not decodable by envelope helper: %v", err)
+	}
+	page2, cursor2, err := store.ListDirectReplies(context.Background(), root, 2, cursor)
+	if err != nil {
+		t.Fatalf("page2: %v", err)
+	}
+	if len(page2) != 1 || page2[0].Rkey != "reply3" {
+		t.Fatalf("page2 = %v", replyRkeys(page2))
+	}
+	if cursor2 != "" {
+		t.Fatalf("want empty final cursor, got %q", cursor2)
+	}
+}
+
+func TestPostStore_ListDirectReplies_RejectsIncompleteCursor(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	store := api.NewPostStore(pool)
+	cursor, err := envelope.EncodeCursor(map[string]any{
+		"createdAt": time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano),
+	})
+	if err != nil {
+		t.Fatalf("encode cursor: %v", err)
+	}
+	_, _, err = store.ListDirectReplies(context.Background(), "at://did:plc:alice/social.craftsky.feed.post/root", 2, cursor)
+	if !errors.Is(err, envelope.ErrInvalidCursor) {
+		t.Fatalf("want ErrInvalidCursor, got %v", err)
+	}
+}
+
+func TestPostStore_LoadThreadCandidates_UsesRootAndTargetWithCap(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol", "did:plc:dave"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
+	otherRoot := seedPost(t, pool, "did:plc:alice", "other", "other", base)
+	seedReplyPost(t, pool, "did:plc:bob", "reply1", "first", root, root, base.Add(time.Minute))
+	seedReplyPost(t, pool, "did:plc:carol", "reply2", "second", root, root, base.Add(2*time.Minute))
+	target := seedReplyPost(t, pool, "did:plc:dave", "late-target", "late", root, root, base.Add(3*time.Minute))
+	child := seedReplyPost(t, pool, "did:plc:bob", "target-child", "child", root, target, base.Add(5*time.Minute))
+	seedReplyPost(t, pool, "did:plc:bob", "other-reply", "other", otherRoot, otherRoot, base.Add(4*time.Minute))
+
+	store := api.NewPostStore(pool)
+	rows, err := store.LoadThreadCandidates(context.Background(), root, target, 2)
+	if err != nil {
+		t.Fatalf("LoadThreadCandidates: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("len = %d, want target plus one capped child", len(rows))
+	}
+	seenTarget := false
+	seenChild := false
+	for _, row := range rows {
+		if row.URI == target {
+			seenTarget = true
+		}
+		if row.URI == child {
+			seenChild = true
+		}
+		if row.Rkey == "reply1" || row.Rkey == "reply2" {
+			t.Fatalf("included target sibling outside subtree: %+v", row)
+		}
+		if row.URI == otherRoot || row.Rkey == "other-reply" {
+			t.Fatalf("included off-thread row: %+v", row)
+		}
+	}
+	if !seenTarget {
+		t.Fatalf("target row missing under cap: %v", replyRkeys(rows))
+	}
+	if !seenChild {
+		t.Fatalf("target child missing under cap: %v", replyRkeys(rows))
+	}
+}
+
+func replyRkeys(rows []*api.PostRow) []string {
+	out := make([]string, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, row.Rkey)
+	}
+	return out
 }
