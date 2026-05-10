@@ -55,9 +55,10 @@ type PostResponse struct {
 
 // ThreadResponse is the root response for nested thread reads.
 type ThreadResponse struct {
-	Post      *PostResponse `json:"post"`
-	Replies   []*ThreadNode `json:"replies"`
-	Truncated bool          `json:"truncated"`
+	Post      *PostResponse   `json:"post"`
+	Ancestors []*PostResponse `json:"ancestors"`
+	Replies   []*ThreadNode   `json:"replies"`
+	Truncated bool            `json:"truncated"`
 }
 
 // ThreadNode is a nested reply node in a thread response.

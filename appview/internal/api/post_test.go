@@ -82,43 +82,49 @@ func failingPDSFactory(err error) auth.PDSClientFactory {
 
 // fakePostStore implements api.PostReader for handler tests.
 type fakePostStore struct {
-	one                  *api.PostRow
-	oneErr               error
-	listRows             []*api.PostRow
-	listCursor           string
-	listErr              error
-	replyRows            []*api.PostRow
-	replyCursor          string
-	replyErr             error
-	threadRows           []*api.PostRow
-	threadErr            error
-	author               *api.PostAuthorRow
-	authorErr            error
-	engagement           map[string]api.EngagementSummary
-	engagementErr        error
-	target               *api.PostTargetRef
-	targetErr            error
-	activeLike           *api.InteractionRow
-	activeLikeErr        error
-	activeRepost         *api.InteractionRow
-	activeRepostErr      error
-	lastDID              string
-	lastRkey             string
-	lastEngagementViewer string
-	lastEngagementURIs   []string
-	engagementCalls      int
-	lastTargetDID        string
-	lastTargetRkey       string
-	lastActiveLikeDID    string
-	lastActiveLikeURI    string
-	lastActiveRepostDID  string
-	lastActiveRepostURI  string
-	lastReplyParentURI   string
-	lastReplyLimit       int
-	lastReplyCursor      string
-	lastThreadRootURI    string
-	lastThreadTargetURI  string
-	lastThreadLimit      int
+	one                   *api.PostRow
+	oneErr                error
+	listRows              []*api.PostRow
+	listCursor            string
+	listErr               error
+	replyRows             []*api.PostRow
+	replyCursor           string
+	replyErr              error
+	ancestorRows          []*api.PostRow
+	ancestorErr           error
+	threadRows            []*api.PostRow
+	threadErr             error
+	author                *api.PostAuthorRow
+	authorErr             error
+	engagement            map[string]api.EngagementSummary
+	engagementErr         error
+	target                *api.PostTargetRef
+	targetErr             error
+	activeLike            *api.InteractionRow
+	activeLikeErr         error
+	activeRepost          *api.InteractionRow
+	activeRepostErr       error
+	lastDID               string
+	lastRkey              string
+	lastEngagementViewer  string
+	lastEngagementURIs    []string
+	engagementCalls       int
+	lastTargetDID         string
+	lastTargetRkey        string
+	lastActiveLikeDID     string
+	lastActiveLikeURI     string
+	lastActiveRepostDID   string
+	lastActiveRepostURI   string
+	lastReplyParentURI    string
+	lastReplyLimit        int
+	lastReplyCursor       string
+	lastAncestorRootURI   string
+	lastAncestorParentURI string
+	lastAncestorTargetURI string
+	lastAncestorLimit     int
+	lastThreadRootURI     string
+	lastThreadTargetURI   string
+	lastThreadLimit       int
 }
 
 func (f *fakePostStore) ReadOne(_ context.Context, did, rkey string) (*api.PostRow, error) {
@@ -140,6 +146,13 @@ func (f *fakePostStore) LoadThreadCandidates(_ context.Context, rootURI, targetU
 	f.lastThreadTargetURI = targetURI
 	f.lastThreadLimit = limit
 	return f.threadRows, f.threadErr
+}
+func (f *fakePostStore) LoadThreadAncestors(_ context.Context, rootURI, parentURI, targetURI string, limit int) ([]*api.PostRow, error) {
+	f.lastAncestorRootURI = rootURI
+	f.lastAncestorParentURI = parentURI
+	f.lastAncestorTargetURI = targetURI
+	f.lastAncestorLimit = limit
+	return f.ancestorRows, f.ancestorErr
 }
 func (f *fakePostStore) ReadAuthor(_ context.Context, _ string) (*api.PostAuthorRow, error) {
 	if f.author == nil && f.authorErr == nil {
@@ -1107,11 +1120,14 @@ func TestGetPostThread_TargetWithNoRepliesReturnsEmptyArrays(t *testing.T) {
 	if !strings.Contains(rr.Body.String(), `"replies":[]`) {
 		t.Fatalf("body should include empty replies array: %s", rr.Body.String())
 	}
+	if !strings.Contains(rr.Body.String(), `"ancestors":[]`) {
+		t.Fatalf("body should include empty ancestors array: %s", rr.Body.String())
+	}
 	var resp api.ThreadResponse
 	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if resp.Post.Rkey != "root" || len(resp.Replies) != 0 || resp.Truncated {
+	if resp.Post.Rkey != "root" || len(resp.Ancestors) != 0 || len(resp.Replies) != 0 || resp.Truncated {
 		t.Fatalf("thread response = %+v", resp)
 	}
 	if store.lastThreadRootURI != root.URI || store.lastThreadTargetURI != root.URI || store.lastThreadLimit != 501 {
@@ -1178,9 +1194,10 @@ func TestGetPostThread_TargetIsReplyReturnsDescendantsOnly(t *testing.T) {
 	replyB := testReplyRow("did:plc:carol", "replyB", "b", root.URI, replyA.URI, base.Add(2*time.Minute))
 	replyC := testReplyRow("did:plc:dave", "replyC", "c", root.URI, root.URI, base.Add(3*time.Minute))
 	store := &fakePostStore{
-		one:        replyA,
-		target:     &api.PostTargetRef{URI: replyA.URI, CID: replyA.CID},
-		threadRows: []*api.PostRow{root, replyA, replyB, replyC},
+		one:          replyA,
+		target:       &api.PostTargetRef{URI: replyA.URI, CID: replyA.CID},
+		ancestorRows: []*api.PostRow{root},
+		threadRows:   []*api.PostRow{root, replyA, replyB, replyC},
 	}
 	h := api.GetPostThreadHandler(store, fakeResolver{handleFor: "handle.example"}, nilLogger())
 	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:bob/replyA/thread", "", "did:plc:viewer")
@@ -1196,8 +1213,90 @@ func TestGetPostThread_TargetIsReplyReturnsDescendantsOnly(t *testing.T) {
 	if resp.Post.Rkey != "replyA" || len(resp.Replies) != 1 || resp.Replies[0].Post.Rkey != "replyB" {
 		t.Fatalf("thread should be replyA subtree only: %+v", resp)
 	}
+	if len(resp.Ancestors) != 1 || resp.Ancestors[0].Rkey != "root" {
+		t.Fatalf("ancestors = %+v", resp.Ancestors)
+	}
 	if store.lastThreadRootURI != root.URI || store.lastThreadTargetURI != replyA.URI {
 		t.Fatalf("thread lookup = root:%q target:%q", store.lastThreadRootURI, store.lastThreadTargetURI)
+	}
+	if store.lastAncestorRootURI != root.URI || store.lastAncestorParentURI != root.URI || store.lastAncestorTargetURI != replyA.URI || store.lastAncestorLimit != 7 {
+		t.Fatalf("ancestor lookup = root:%q parent:%q target:%q limit:%d", store.lastAncestorRootURI, store.lastAncestorParentURI, store.lastAncestorTargetURI, store.lastAncestorLimit)
+	}
+}
+
+func TestGetPostThread_ReplyTargetReturnsAncestorsRootToParent(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:alice", "root", "root", base)
+	replyA := testReplyRow("did:plc:bob", "replyA", "a", root.URI, root.URI, base.Add(time.Minute))
+	replyB := testReplyRow("did:plc:carol", "replyB", "b", root.URI, replyA.URI, base.Add(2*time.Minute))
+	replyC := testReplyRow("did:plc:dave", "replyC", "c", root.URI, replyB.URI, base.Add(3*time.Minute))
+	store := &fakePostStore{
+		one:          replyB,
+		target:       &api.PostTargetRef{URI: replyB.URI, CID: replyB.CID},
+		ancestorRows: []*api.PostRow{root, replyA},
+		threadRows:   []*api.PostRow{replyB, replyC},
+		engagement: map[string]api.EngagementSummary{
+			root.URI:   {LikeCount: 5},
+			replyA.URI: {ReplyCount: 1},
+		},
+	}
+	h := api.GetPostThreadHandler(store, fakeResolver{handleFor: "handle.example"}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:carol/replyB/thread", "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.ThreadResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Post.Rkey != "replyB" || len(resp.Replies) != 1 || resp.Replies[0].Post.Rkey != "replyC" {
+		t.Fatalf("thread subtree = %+v", resp)
+	}
+	if len(resp.Ancestors) != 2 || resp.Ancestors[0].Rkey != "root" || resp.Ancestors[1].Rkey != "replyA" {
+		t.Fatalf("ancestors = %+v", resp.Ancestors)
+	}
+	if resp.Ancestors[0].LikeCount != 5 || resp.Ancestors[1].ReplyCount != 1 {
+		t.Fatalf("ancestor engagement = %+v", resp.Ancestors)
+	}
+	if store.engagementCalls != 1 || len(store.lastEngagementURIs) != 4 {
+		t.Fatalf("engagement lookup = calls:%d uris:%v", store.engagementCalls, store.lastEngagementURIs)
+	}
+}
+
+func TestGetPostThread_MissingParentKeepsIndexedRootAncestor(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:alice", "root", "root", base)
+	missingParentURI := "at://did:plc:missing/social.craftsky.feed.post/gone"
+	reply := testReplyRow("did:plc:bob", "reply", "reply", root.URI, missingParentURI, base.Add(time.Minute))
+	store := &fakePostStore{
+		one:          reply,
+		target:       &api.PostTargetRef{URI: reply.URI, CID: reply.CID},
+		ancestorRows: []*api.PostRow{root},
+		threadRows:   []*api.PostRow{reply},
+	}
+	h := api.GetPostThreadHandler(store, fakeResolver{handleFor: "handle.example"}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:bob/reply/thread", "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.ThreadResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Post.Rkey != "reply" || len(resp.Replies) != 0 {
+		t.Fatalf("thread response = %+v", resp)
+	}
+	if len(resp.Ancestors) != 1 || resp.Ancestors[0].Rkey != "root" || resp.Ancestors[0].URI == missingParentURI {
+		t.Fatalf("ancestors should omit missing parent and keep indexed root: %+v", resp.Ancestors)
+	}
+	if store.lastAncestorRootURI != root.URI || store.lastAncestorParentURI != missingParentURI {
+		t.Fatalf("ancestor lookup = root:%q parent:%q", store.lastAncestorRootURI, store.lastAncestorParentURI)
 	}
 }
 
