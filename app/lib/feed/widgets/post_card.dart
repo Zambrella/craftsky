@@ -1,6 +1,7 @@
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
@@ -8,12 +9,23 @@ import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 const _postCardMenuWidth = 48.0;
+const _postCardActionIconSize = 22.0;
 
 /// Card-shaped post row used by the feed and the profile Posts tab.
 class PostCard extends StatelessWidget {
-  const PostCard({required this.post, super.key, this.onDelete});
+  const PostCard({
+    required this.post,
+    super.key,
+    this.onReply,
+    this.onLike,
+    this.onRepost,
+    this.onDelete,
+  });
 
   final Post post;
+  final VoidCallback? onReply;
+  final VoidCallback? onLike;
+  final VoidCallback? onRepost;
   final VoidCallback? onDelete;
 
   @override
@@ -67,22 +79,52 @@ class PostCard extends StatelessWidget {
                 SizedBox(height: spacing.sp3),
                 Padding(
                   padding: EdgeInsets.only(left: bodyIndent),
-                  child: Text(
-                    post.text,
-                    style: theme.textTheme.bodyLarge,
-                  ),
+                  child: Text(post.text, style: theme.textTheme.bodyLarge),
                 ),
                 SizedBox(height: spacing.sp3),
                 const CraftskyDivider(),
                 Row(
                   children: [
                     SizedBox(width: bodyIndent),
-                    const _PostCardAction(icon: Icons.chat_bubble_outline),
-                    SizedBox(width: spacing.sp4),
-                    const _PostCardAction(icon: Icons.favorite_border),
-                    SizedBox(width: spacing.sp4),
-                    const _PostCardAction(icon: Icons.repeat),
-                    const Spacer(),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _PostCardAction(
+                              icon: Icons.chat_bubble_outline,
+                              count: post.replyCount,
+                              selectedColor: BrandColors.sky,
+                              tooltip: 'Reply',
+                              onPressed: onReply,
+                            ),
+                          ),
+                          Expanded(
+                            child: _PostCardAction(
+                              icon: post.viewerHasLiked
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                              count: post.likeCount,
+                              isSelected: post.viewerHasLiked,
+                              selectedColor: BrandColors.red,
+                              tooltip: post.viewerHasLiked ? 'Unlike' : 'Like',
+                              onPressed: onLike,
+                            ),
+                          ),
+                          Expanded(
+                            child: _PostCardAction(
+                              icon: Icons.repeat,
+                              count: post.repostCount,
+                              isSelected: post.viewerHasReposted,
+                              selectedColor: BrandColors.moss,
+                              tooltip: post.viewerHasReposted
+                                  ? 'Unrepost'
+                                  : 'Repost',
+                              onPressed: onRepost,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     if (onDelete != null) _PostCardMenu(onDelete: onDelete!),
                   ],
                 ),
@@ -96,10 +138,7 @@ class PostCard extends StatelessWidget {
 }
 
 class _PostCardHeader extends StatelessWidget {
-  const _PostCardHeader({
-    required this.displayName,
-    required this.handle,
-  });
+  const _PostCardHeader({required this.displayName, required this.handle});
 
   final String displayName;
   final String handle;
@@ -183,17 +222,74 @@ class _PostCardMenu extends StatelessWidget {
 }
 
 class _PostCardAction extends StatelessWidget {
-  const _PostCardAction({required this.icon});
+  const _PostCardAction({
+    required this.icon,
+    required this.count,
+    required this.selectedColor,
+    required this.tooltip,
+    this.isSelected = false,
+    this.onPressed,
+  });
 
   final IconData icon;
+  final int count;
+  final Color selectedColor;
+  final String tooltip;
+  final bool isSelected;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Icon(
-      icon,
-      size: 22,
-      color: theme.colorScheme.onSurface,
+    final spacing = theme.extension<SpacingTheme>()!;
+    final color = isSelected ? selectedColor : BrandColors.ink2;
+    final countLabel = _compactCountLabel(count);
+    return Tooltip(
+      message: tooltip,
+      child: TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          foregroundColor: color,
+          disabledForegroundColor: color,
+          minimumSize: Size(spacing.sp7, spacing.sp7),
+          padding: EdgeInsets.symmetric(horizontal: spacing.sp1),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          alignment: Alignment.centerLeft,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: _postCardActionIconSize),
+            if (countLabel != null) ...[
+              SizedBox(width: spacing.sp1),
+              Text(
+                countLabel,
+                style: theme.textTheme.labelLarge?.copyWith(color: color),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
+  }
+
+  String? _compactCountLabel(int count) {
+    if (count == 0) return null;
+    if (count.abs() < 1000) return '$count';
+
+    final absoluteCount = count.abs();
+    final sign = count.isNegative ? '-' : '';
+    if (absoluteCount < 999950) {
+      return '$sign${_trimCompactNumber(absoluteCount / 1000)}k';
+    }
+    if (absoluteCount < 999950000) {
+      return '$sign${_trimCompactNumber(absoluteCount / 1000000)}m';
+    }
+    return '$sign${_trimCompactNumber(absoluteCount / 1000000000)}b';
+  }
+
+  String _trimCompactNumber(double value) {
+    final digits = value < 10 ? 1 : 0;
+    return value.toStringAsFixed(digits).replaceFirst(RegExp(r'\.0$'), '');
   }
 }
