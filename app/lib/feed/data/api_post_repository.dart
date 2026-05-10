@@ -12,7 +12,8 @@ class ApiPostRepository implements PostRepository {
   final PostApiClient _api;
 
   @override
-  Future<Post> create({required String text}) => _api.createPost(text: text);
+  Future<Post> create({required String text, PostReply? reply}) =>
+      _api.createPost(text: text, reply: reply);
 
   @override
   Future<Post> fetch(String did, String rkey) => _api.getPost(did, rkey);

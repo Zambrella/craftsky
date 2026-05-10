@@ -1,4 +1,6 @@
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/post_thread.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -32,10 +34,42 @@ Post _post() {
   );
 }
 
+Post _replyTarget() {
+  return Post(
+    uri: 'at://did:plc:alice/social.craftsky.feed.post/target',
+    cid: 'bafy_target',
+    rkey: 'target',
+    text: 'target',
+    tags: const [],
+    likeCount: 0,
+    repostCount: 0,
+    replyCount: 0,
+    viewerHasLiked: false,
+    viewerHasReposted: false,
+    createdAt: DateTime.now(),
+    indexedAt: DateTime.now(),
+    author: const PostAuthor(
+      did: 'did:plc:alice',
+      handle: 'alice.craftsky.social',
+    ),
+    reply: const PostReply(
+      root: PostRef(
+        uri: 'at://did:plc:root/social.craftsky.feed.post/root',
+        cid: 'bafy_root',
+      ),
+      parent: PostRef(
+        uri: 'at://did:plc:parent/social.craftsky.feed.post/parent',
+        cid: 'bafy_parent',
+      ),
+    ),
+  );
+}
+
 Future<void> _pump(
   WidgetTester tester, {
   required FakePostRepository repo,
   required RecordingMessenger messenger,
+  Post? replyTarget,
 }) {
   return tester.pumpWidget(
     ProviderScope(
@@ -46,7 +80,7 @@ Future<void> _pump(
           theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const Scaffold(body: PostComposerSheet()),
+          home: Scaffold(body: PostComposerSheet(replyTarget: replyTarget)),
         ),
       ),
     ),
@@ -73,7 +107,7 @@ void main() {
       final messenger = RecordingMessenger();
       var capturedText = '';
       final repo = FakePostRepository(
-        onCreate: ({required text}) async {
+        onCreate: ({required text, reply}) async {
           capturedText = text;
           return _post();
         },
@@ -87,6 +121,51 @@ void main() {
 
       expect(capturedText, 'hello');
       expect(messenger.calls.last.$2, 'Posted.');
+    });
+
+    testWidgets('reply mode shows reply copy and forwards reply refs', (
+      tester,
+    ) async {
+      final messenger = RecordingMessenger();
+      var capturedText = '';
+      PostReply? capturedReply;
+      final target = _replyTarget();
+      final repo = FakePostRepository(
+        onThread: (did, rkey) async => PostThread(
+          post: target,
+          replies: const [],
+        ),
+        onListDirectReplies: (did, rkey, {cursor, limit}) async =>
+            const PostPage(items: []),
+        onCreate: ({required text, reply}) async {
+          capturedText = text;
+          capturedReply = reply;
+          return _post();
+        },
+      );
+
+      await _pump(
+        tester,
+        repo: repo,
+        messenger: messenger,
+        replyTarget: target,
+      );
+
+      expect(find.text('Reply'), findsNWidgets(2));
+      expect(find.text('Write your reply'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Reply'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), ' hello ');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TextButton, 'Reply'));
+      await tester.pumpAndSettle();
+
+      expect(capturedText, 'hello');
+      expect(capturedReply, isNotNull);
+      expect(capturedReply!.root.uri, target.reply!.root.uri);
+      expect(capturedReply!.root.cid, target.reply!.root.cid);
+      expect(capturedReply!.parent.uri, target.uri);
+      expect(capturedReply!.parent.cid, target.cid);
     });
   });
 }

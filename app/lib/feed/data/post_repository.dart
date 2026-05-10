@@ -9,7 +9,7 @@ import 'package:craftsky_app/feed/models/post_thread.dart';
 abstract interface class PostRepository {
   /// POST /v1/posts. AppView returns a synthetic [Post] populated from
   /// the PDS write response.
-  Future<Post> create({required String text});
+  Future<Post> create({required String text, PostReply? reply});
 
   /// GET /v1/posts/{did}/{rkey}
   Future<Post> fetch(String did, String rkey);

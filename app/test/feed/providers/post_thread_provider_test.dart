@@ -65,7 +65,6 @@ void main() {
           return PostThread(
             post: _post(rkey),
             replies: const [],
-            truncated: false,
           );
         },
       );

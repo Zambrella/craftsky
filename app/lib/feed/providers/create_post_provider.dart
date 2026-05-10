@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/providers/post_thread_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -27,18 +28,28 @@ class CreatePost extends _$CreatePost {
   @override
   FutureOr<Post?> build() => null;
 
-  Future<void> create({required String text}) async {
+  Future<void> create({required String text, PostReply? reply}) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
-      final post = await repo.create(text: text);
+      final post = await repo.create(text: text, reply: reply);
       if (!ref.mounted) return null;
 
-      for (final id in <String>{post.author.handle, post.author.did}) {
-        final entry = userPostsProvider(id);
-        if (ref.exists(entry)) {
-          ref.read(entry.notifier).prepend(post);
+      if (reply == null) {
+        for (final id in <String>{post.author.handle, post.author.did}) {
+          final entry = userPostsProvider(id);
+          if (ref.exists(entry)) {
+            ref.read(entry.notifier).prepend(post);
+          }
         }
+      } else {
+        final (targetDid, targetRkey) = _replyTargetIdentifiers(
+          reply.parent.uri,
+        );
+
+        ref
+          ..invalidate(postThreadProvider(targetDid, targetRkey))
+          ..invalidate(directRepliesProvider(targetDid, targetRkey));
       }
 
       return post;
@@ -48,4 +59,13 @@ class CreatePost extends _$CreatePost {
   /// Resets the notifier to its idle state. Call after consuming a
   /// success/failure transition so a re-entry doesn't see prior result.
   void reset() => state = const AsyncData(null);
+}
+
+(String, String) _replyTargetIdentifiers(String uri) {
+  final withoutScheme = uri.substring('at://'.length);
+  final slashIndex = withoutScheme.indexOf('/');
+  return (
+    withoutScheme.substring(0, slashIndex),
+    withoutScheme.substring(withoutScheme.lastIndexOf('/') + 1),
+  );
 }
