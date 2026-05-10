@@ -14,18 +14,19 @@ class PostApiClient {
 
   final Dio _dio;
 
-  /// POST /v1/posts — text-only create.
+  /// POST /v1/posts — text-only create, optionally as a reply.
   ///
   /// AppView returns a synthetic [Post] populated from the PDS write
   /// response; the firehose-driven indexer hasn't necessarily caught
   /// up yet by the time this returns.
-  Future<Post> createPost({required String text}) => unwrapApi(() async {
-    final res = await _dio.post<Map<String, dynamic>>(
-      '/v1/posts',
-      data: {'text': text},
-    );
-    return PostMapper.fromMap(res.data!);
-  });
+  Future<Post> createPost({required String text, PostReply? reply}) =>
+      unwrapApi(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/v1/posts',
+          data: {'text': text, if (reply != null) 'reply': reply.toMap()},
+        );
+        return PostMapper.fromMap(res.data!);
+      });
 
   /// GET /v1/posts/{did}/{rkey}
   Future<Post> getPost(String did, String rkey) => unwrapApi(() async {

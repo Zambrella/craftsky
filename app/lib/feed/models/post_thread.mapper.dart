@@ -31,16 +31,26 @@ class PostThreadMapper extends ClassMapperBase<PostThread> {
     'replies',
     _$replies,
   );
+  static List<Post> _$ancestors(PostThread v) => v.ancestors;
+  static const Field<PostThread, List<Post>> _f$ancestors = Field(
+    'ancestors',
+    _$ancestors,
+    opt: true,
+    def: const [],
+  );
   static bool _$truncated(PostThread v) => v.truncated;
   static const Field<PostThread, bool> _f$truncated = Field(
     'truncated',
     _$truncated,
+    opt: true,
+    def: false,
   );
 
   @override
   final MappableFields<PostThread> fields = const {
     #post: _f$post,
     #replies: _f$replies,
+    #ancestors: _f$ancestors,
     #truncated: _f$truncated,
   };
 
@@ -48,6 +58,7 @@ class PostThreadMapper extends ClassMapperBase<PostThread> {
     return PostThread(
       post: data.dec(_f$post),
       replies: data.dec(_f$replies),
+      ancestors: data.dec(_f$ancestors),
       truncated: data.dec(_f$truncated),
     );
   }
@@ -115,7 +126,13 @@ abstract class PostThreadCopyWith<$R, $In extends PostThread, $Out>
   PostCopyWith<$R, Post, Post> get post;
   ListCopyWith<$R, PostThread, PostThreadCopyWith<$R, PostThread, PostThread>>
   get replies;
-  $R call({Post? post, List<PostThread>? replies, bool? truncated});
+  ListCopyWith<$R, Post, PostCopyWith<$R, Post, Post>> get ancestors;
+  $R call({
+    Post? post,
+    List<PostThread>? replies,
+    List<Post>? ancestors,
+    bool? truncated,
+  });
   PostThreadCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
 
@@ -138,10 +155,23 @@ class _PostThreadCopyWithImpl<$R, $Out>
     (v) => call(replies: v),
   );
   @override
-  $R call({Post? post, List<PostThread>? replies, bool? truncated}) => $apply(
+  ListCopyWith<$R, Post, PostCopyWith<$R, Post, Post>> get ancestors =>
+      ListCopyWith(
+        $value.ancestors,
+        (v, t) => v.copyWith.$chain(t),
+        (v) => call(ancestors: v),
+      );
+  @override
+  $R call({
+    Post? post,
+    List<PostThread>? replies,
+    List<Post>? ancestors,
+    bool? truncated,
+  }) => $apply(
     FieldCopyWithData({
       if (post != null) #post: post,
       if (replies != null) #replies: replies,
+      if (ancestors != null) #ancestors: ancestors,
       if (truncated != null) #truncated: truncated,
     }),
   );
@@ -149,6 +179,7 @@ class _PostThreadCopyWithImpl<$R, $Out>
   PostThread $make(CopyWithData data) => PostThread(
     post: data.get(#post, or: $value.post),
     replies: data.get(#replies, or: $value.replies),
+    ancestors: data.get(#ancestors, or: $value.ancestors),
     truncated: data.get(#truncated, or: $value.truncated),
   );
 

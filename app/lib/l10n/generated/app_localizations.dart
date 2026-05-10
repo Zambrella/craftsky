@@ -310,6 +310,60 @@ abstract class AppLocalizations {
   /// **'Load more posts'**
   String get profilePostsLoadMore;
 
+  /// Title of the post thread screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Thread'**
+  String get postThreadTitle;
+
+  /// Empty state shown on a post thread when the post has no direct replies.
+  ///
+  /// In en, this message translates to:
+  /// **'No replies yet.'**
+  String get postThreadEmptyReplies;
+
+  /// Label shown when a thread response has additional replies that are not loaded yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Read more replies'**
+  String get postThreadReadMoreReplies;
+
+  /// Button label shown under a reply that has multiple hidden child replies.
+  ///
+  /// In en, this message translates to:
+  /// **'Show more replies'**
+  String get postThreadShowMoreReplies;
+
+  /// Button label shown under a reply that continues into one hidden child reply.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue thread'**
+  String get postThreadContinueThread;
+
+  /// Button label for replying from the post thread screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply'**
+  String get postThreadReplyAction;
+
+  /// Accessibility label for a reply button on the thread screen. The author placeholder includes a display name or handle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply to {author}'**
+  String postThreadReplyToAuthor(String author);
+
+  /// Accessibility label for the show-more-replies continuation button on the thread screen. The author placeholder identifies the post being continued.
+  ///
+  /// In en, this message translates to:
+  /// **'Show more replies to {author}'**
+  String postThreadShowMoreRepliesForAuthor(String author);
+
+  /// Accessibility label for the continue-thread button on the thread screen. The author placeholder identifies the post being continued.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue thread from {author}'**
+  String postThreadContinueThreadFromAuthor(String author);
+
   /// Button label that opens the text-only post composer.
   ///
   /// In en, this message translates to:
@@ -328,11 +382,29 @@ abstract class AppLocalizations {
   /// **'What are you making?'**
   String get postComposeHint;
 
+  /// Title of the reply composer sheet.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply'**
+  String get postComposeReplyTitle;
+
+  /// Label above the text field in reply mode.
+  ///
+  /// In en, this message translates to:
+  /// **'Write your reply'**
+  String get postComposeReplyHint;
+
   /// Submit button label in the text-only post composer.
   ///
   /// In en, this message translates to:
   /// **'Post'**
   String get postComposeSubmit;
+
+  /// Submit button label in reply mode.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply'**
+  String get postComposeReplySubmit;
 
   /// Validation error shown when the text-only post composer exceeds the post text limit.
   ///

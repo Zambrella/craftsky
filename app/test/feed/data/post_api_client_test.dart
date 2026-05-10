@@ -1,5 +1,6 @@
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/data/post_api_client.dart';
+import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:dio/dio.dart';
@@ -44,6 +45,54 @@ void main() {
       final post = await PostApiClient(dio).createPost(text: 'hi');
       expect(post.text, 'hi');
       expect(post.rkey, '3lf2abc');
+    });
+
+    test('omits reply for top-level posts', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onPost(
+        '/v1/posts',
+        (server) => server.reply(201, samplePost(text: 'top-level')),
+        data: {'text': 'top-level'},
+      );
+
+      final post = await PostApiClient(dio).createPost(text: 'top-level');
+      expect(post.text, 'top-level');
+    });
+
+    test('sends nested root and parent refs when reply is provided', () async {
+      final dio = buildDio();
+      const reply = PostReply(
+        root: PostRef(
+          uri: 'at://did:plc:alice/social.craftsky.feed.post/root',
+          cid: 'bafy_root',
+        ),
+        parent: PostRef(
+          uri: 'at://did:plc:bob/social.craftsky.feed.post/parent',
+          cid: 'bafy_parent',
+        ),
+      );
+      DioAdapter(dio: dio).onPost(
+        '/v1/posts',
+        (server) => server.reply(201, samplePost(text: 'reply')),
+        data: {
+          'text': 'reply',
+          'reply': {
+            'root': {
+              'uri': 'at://did:plc:alice/social.craftsky.feed.post/root',
+              'cid': 'bafy_root',
+            },
+            'parent': {
+              'uri': 'at://did:plc:bob/social.craftsky.feed.post/parent',
+              'cid': 'bafy_parent',
+            },
+          },
+        },
+      );
+
+      final post = await PostApiClient(
+        dio,
+      ).createPost(text: 'reply', reply: reply);
+      expect(post.text, 'reply');
     });
 
     test('422 validation_failed surfaces as ApiBadRequest', () async {
@@ -184,12 +233,15 @@ void main() {
         DioAdapter(dio: dio).onGet(
           '/v1/posts/did:plc:alice/3lf2abc/thread',
           (server) => server.reply(200, {
+            'ancestors': [
+              samplePost(text: 'root ancestor'),
+              samplePost(text: 'parent ancestor'),
+            ],
             'post': samplePost(text: 'root'),
             'replies': [
               {
                 'post': samplePost(text: 'reply'),
                 'replies': <Map<String, dynamic>>[],
-                'truncated': false,
               },
             ],
             'truncated': false,
@@ -200,6 +252,10 @@ void main() {
           dio,
         ).getThread('did:plc:alice', '3lf2abc');
         expect(thread.post.text, 'root');
+        expect(thread.ancestors.map((post) => post.text), [
+          'root ancestor',
+          'parent ancestor',
+        ]);
         expect(thread.replies.single.post.text, 'reply');
         expect(thread.truncated, isFalse);
       },

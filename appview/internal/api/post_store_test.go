@@ -588,6 +588,59 @@ func TestPostStore_LoadThreadCandidates_UsesRootAndTargetWithCap(t *testing.T) {
 	}
 }
 
+func TestPostStore_LoadThreadAncestors_ReturnsRootToParentAndOmitsMissing(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol", "did:plc:dave"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
+	replyA := seedReplyPost(t, pool, "did:plc:bob", "replyA", "a", root, root, base.Add(time.Minute))
+	replyB := seedReplyPost(t, pool, "did:plc:carol", "replyB", "b", root, replyA, base.Add(2*time.Minute))
+	missingParent := "at://did:plc:missing/social.craftsky.feed.post/gone"
+	missingChild := seedReplyPost(t, pool, "did:plc:dave", "missingChild", "missing", root, missingParent, base.Add(3*time.Minute))
+
+	store := api.NewPostStore(pool)
+	rows, err := store.LoadThreadAncestors(context.Background(), root, replyA, replyB, 7)
+	if err != nil {
+		t.Fatalf("LoadThreadAncestors: %v", err)
+	}
+	if got := replyRkeys(rows); len(got) != 2 || got[0] != "root" || got[1] != "replyA" {
+		t.Fatalf("ancestor order = %v", got)
+	}
+
+	rows, err = store.LoadThreadAncestors(context.Background(), root, missingParent, missingChild, 7)
+	if err != nil {
+		t.Fatalf("LoadThreadAncestors missing parent: %v", err)
+	}
+	if got := replyRkeys(rows); len(got) != 1 || got[0] != "root" {
+		t.Fatalf("missing parent ancestors = %v", got)
+	}
+}
+
+func TestPostStore_LoadThreadAncestors_DoesNotCrossThreadRoots(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	declaredRoot := seedPost(t, pool, "did:plc:alice", "declared", "declared", base)
+	otherRoot := seedPost(t, pool, "did:plc:alice", "other", "other", base.Add(time.Minute))
+	offThreadParent := seedReplyPost(t, pool, "did:plc:bob", "offThread", "off", otherRoot, otherRoot, base.Add(2*time.Minute))
+	target := seedReplyPost(t, pool, "did:plc:carol", "target", "target", declaredRoot, offThreadParent, base.Add(3*time.Minute))
+
+	store := api.NewPostStore(pool)
+	rows, err := store.LoadThreadAncestors(context.Background(), declaredRoot, offThreadParent, target, 7)
+	if err != nil {
+		t.Fatalf("LoadThreadAncestors: %v", err)
+	}
+	if got := replyRkeys(rows); len(got) != 1 || got[0] != "declared" {
+		t.Fatalf("cross-thread ancestors = %v", got)
+	}
+}
+
 func replyRkeys(rows []*api.PostRow) []string {
 	out := make([]string, 0, len(rows))
 	for _, row := range rows {

@@ -35,7 +35,8 @@ class FakePostRepository implements PostRepository {
     this.onListByAuthor,
   });
 
-  final Future<Post> Function({required String text})? onCreate;
+  final Future<Post> Function({required String text, PostReply? reply})?
+  onCreate;
   final Future<Post> Function(String did, String rkey)? onFetch;
   final Future<void> Function(String did, String rkey)? onDelete;
   final Future<PostPage> Function(
@@ -60,8 +61,8 @@ class FakePostRepository implements PostRepository {
   onListByAuthor;
 
   @override
-  Future<Post> create({required String text}) =>
-      onCreate?.call(text: text) ??
+  Future<Post> create({required String text, PostReply? reply}) =>
+      onCreate?.call(text: text, reply: reply) ??
       Future<Post>.error(UnimplementedError('create not stubbed'));
 
   @override

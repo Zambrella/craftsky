@@ -452,11 +452,26 @@ func GetPostThreadHandler(
 		if !containsPostRow(rows, target.URI) {
 			rows = append(rows, targetRow)
 		}
+		ancestors := []*PostRow{}
+		if targetRow.ReplyParentURI != nil {
+			ancestors, err = store.LoadThreadAncestors(r.Context(), rootURI, *targetRow.ReplyParentURI, target.URI, threadMaxDepth+1)
+			if err != nil {
+				logger.Error("post thread: LoadThreadAncestors failed",
+					slog.String("target_uri", target.URI),
+					slog.String("err", err.Error()),
+					slog.String("run_id", runID))
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "thread ancestor read failed", runID, nil)
+				return
+			}
+		}
 
 		rowTree, renderedRows, truncated := buildThreadRowTree(rows, target.URI)
 		viewerDID, _ := middleware.GetDID(r.Context())
-		postURIs := make([]string, 0, len(renderedRows))
-		for _, row := range renderedRows {
+		hydratedRows := append([]*PostRow{}, ancestors...)
+		hydratedRows = append(hydratedRows, renderedRows...)
+		postURIs := make([]string, 0, len(hydratedRows))
+		for _, row := range hydratedRows {
 			postURIs = append(postURIs, row.URI)
 		}
 		summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
@@ -469,7 +484,7 @@ func GetPostThreadHandler(
 				"internal_error", "post engagement lookup failed", runID, nil)
 			return
 		}
-		handles, err := resolveHandlesForRows(r.Context(), renderedRows, resolver)
+		handles, err := resolveHandlesForRows(r.Context(), hydratedRows, resolver)
 		if err != nil {
 			logger.Warn("post thread: ResolveHandle failed",
 				slog.String("err", err.Error()),
@@ -479,7 +494,7 @@ func GetPostThreadHandler(
 			return
 		}
 
-		body := buildThreadResponse(rowTree, handles, summaries, truncated)
+		body := buildThreadResponse(rowTree, ancestors, handles, summaries, truncated)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(body)
@@ -1071,7 +1086,7 @@ func buildThreadRowTree(rows []*PostRow, targetURI string) (*threadRowNode, []*P
 	return root, rendered, truncated
 }
 
-func buildThreadResponse(root *threadRowNode, handles map[string]syntax.Handle, summaries map[string]EngagementSummary, truncated bool) *ThreadResponse {
+func buildThreadResponse(root *threadRowNode, ancestors []*PostRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary, truncated bool) *ThreadResponse {
 	var convert func(*threadRowNode) *ThreadNode
 	convert = func(node *threadRowNode) *ThreadNode {
 		post := BuildPostResponse(node.row, handles[node.row.DID])
@@ -1086,8 +1101,14 @@ func buildThreadResponse(root *threadRowNode, handles map[string]syntax.Handle, 
 	applyEngagementSummary(rootPost, summaries[root.row.URI])
 	out := &ThreadResponse{
 		Post:      rootPost,
+		Ancestors: make([]*PostResponse, 0, len(ancestors)),
 		Replies:   make([]*ThreadNode, 0, len(root.replies)),
 		Truncated: truncated,
+	}
+	for _, row := range ancestors {
+		post := BuildPostResponse(row, handles[row.DID])
+		applyEngagementSummary(post, summaries[row.URI])
+		out.Ancestors = append(out.Ancestors, post)
 	}
 	for _, child := range root.replies {
 		out.Replies = append(out.Replies, convert(child))

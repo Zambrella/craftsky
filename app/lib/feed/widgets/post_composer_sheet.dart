@@ -1,3 +1,4 @@
+import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
@@ -7,19 +8,24 @@ import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-Future<void> showPostComposerSheet(BuildContext context) {
+Future<void> showPostComposerSheet(
+  BuildContext context, {
+  Post? replyTarget,
+}) {
   return Navigator.of(context, rootNavigator: true).push<void>(
     MaterialPageRoute<void>(
       fullscreenDialog: true,
-      builder: (_) => const PostComposerSheet(),
+      builder: (_) => PostComposerSheet(replyTarget: replyTarget),
     ),
   );
 }
 
 class PostComposerSheet extends ConsumerStatefulWidget {
-  const PostComposerSheet({super.key});
+  const PostComposerSheet({super.key, this.replyTarget});
 
   static const maxCharacters = 2000;
+
+  final Post? replyTarget;
 
   @override
   ConsumerState<PostComposerSheet> createState() => _PostComposerSheetState();
@@ -53,9 +59,13 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final createState = ref.watch(createPostProvider);
+    final isReply = widget.replyTarget != null;
     final trimmed = _text.trim();
     final tooLong = _text.length > PostComposerSheet.maxCharacters;
     final canSubmit = trimmed.isNotEmpty && !tooLong && !createState.isLoading;
+    final submitLabel = isReply
+        ? l10n.postComposeReplySubmit
+        : l10n.postComposeSubmit;
 
     ref.listen(createPostProvider, (previous, next) {
       switch ((previous, next)) {
@@ -76,16 +86,22 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     return Scaffold(
       backgroundColor: swatches.paper,
       appBar: AppBar(
-        title: Text(l10n.postComposeTitle),
+        title: Text(
+          isReply ? l10n.postComposeReplyTitle : l10n.postComposeTitle,
+        ),
         actions: [
           Padding(
             padding: EdgeInsets.only(right: spacing.sp3),
             child: _PostAction(
               isSaving: createState.isLoading,
+              label: submitLabel,
               onPressed: canSubmit
                   ? () => ref
                         .read(createPostProvider.notifier)
-                        .create(text: trimmed)
+                        .create(
+                          text: trimmed,
+                          reply: _replyFor(widget.replyTarget),
+                        )
                   : null,
             ),
           ),
@@ -100,7 +116,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
             spacing.sp6,
           ),
           child: BrandTextField(
-            label: l10n.postComposeHint,
+            label: isReply ? l10n.postComposeReplyHint : l10n.postComposeHint,
             controller: _controller,
             focusNode: _focusNode,
             minLines: 8,
@@ -119,14 +135,18 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
 }
 
 class _PostAction extends StatelessWidget {
-  const _PostAction({required this.isSaving, required this.onPressed});
+  const _PostAction({
+    required this.isSaving,
+    required this.label,
+    required this.onPressed,
+  });
 
   final bool isSaving;
+  final String label;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     if (isSaving) {
       return const SizedBox(
         width: 48,
@@ -141,7 +161,16 @@ class _PostAction extends StatelessWidget {
     }
     return TextButton(
       onPressed: onPressed,
-      child: Text(l10n.postComposeSubmit),
+      child: Text(label),
     );
   }
+}
+
+PostReply? _replyFor(Post? target) {
+  if (target == null) return null;
+
+  return PostReply(
+    root: target.reply?.root ?? PostRef(uri: target.uri, cid: target.cid),
+    parent: PostRef(uri: target.uri, cid: target.cid),
+  );
 }

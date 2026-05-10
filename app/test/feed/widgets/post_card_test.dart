@@ -176,6 +176,33 @@ void main() {
       expect(reposts, 1);
     });
 
+    testWidgets('invokes card tap from body', (tester) async {
+      var taps = 0;
+      await _pump(tester, PostCard(post: _post(), onTap: () => taps++));
+
+      await tester.tap(find.text('Cast on for the Hitchhiker shawl tonight.'));
+
+      expect(taps, 1);
+    });
+
+    testWidgets('reply tap does not invoke card tap', (tester) async {
+      var replies = 0;
+      var taps = 0;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(),
+          onTap: () => taps++,
+          onReply: () => replies++,
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+
+      expect(replies, 1);
+      expect(taps, 0);
+    });
+
     testWidgets('falls back to handle when display name is absent', (
       tester,
     ) async {

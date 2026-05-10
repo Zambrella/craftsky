@@ -112,6 +112,42 @@
   "profilePostsLoadMore": "Load more posts",
   "@profilePostsLoadMore": { "description": "Button label for loading the next page in the profile Posts tab." },
 
+  "postThreadTitle": "Thread",
+  "@postThreadTitle": { "description": "Title of the post thread screen." },
+
+  "postThreadEmptyReplies": "No replies yet.",
+  "@postThreadEmptyReplies": { "description": "Empty state shown on a post thread when the post has no direct replies." },
+
+  "postThreadReadMoreReplies": "Read more replies",
+  "@postThreadReadMoreReplies": { "description": "Label shown when a thread response has additional replies that are not loaded yet." },
+
+  "postThreadShowMoreReplies": "Show more replies",
+  "@postThreadShowMoreReplies": { "description": "Button label shown under a reply that has multiple hidden child replies." },
+
+  "postThreadContinueThread": "Continue thread",
+  "@postThreadContinueThread": { "description": "Button label shown under a reply that continues into one hidden child reply." },
+
+  "postThreadReplyAction": "Reply",
+  "@postThreadReplyAction": { "description": "Button label for replying from the post thread screen." },
+
+  "postThreadReplyToAuthor": "Reply to {author}",
+  "@postThreadReplyToAuthor": {
+    "description": "Accessibility label for a reply button on the thread screen. The author placeholder includes a display name or handle.",
+    "placeholders": { "author": { "type": "String", "example": "Ada (@ada.craftsky.social)" } }
+  },
+
+  "postThreadShowMoreRepliesForAuthor": "Show more replies to {author}",
+  "@postThreadShowMoreRepliesForAuthor": {
+    "description": "Accessibility label for the show-more-replies continuation button on the thread screen. The author placeholder identifies the post being continued.",
+    "placeholders": { "author": { "type": "String", "example": "Ada (@ada.craftsky.social)" } }
+  },
+
+  "postThreadContinueThreadFromAuthor": "Continue thread from {author}",
+  "@postThreadContinueThreadFromAuthor": {
+    "description": "Accessibility label for the continue-thread button on the thread screen. The author placeholder identifies the post being continued.",
+    "placeholders": { "author": { "type": "String", "example": "Ada (@ada.craftsky.social)" } }
+  },
+
   "postComposeAction": "New post",
   "@postComposeAction": { "description": "Button label that opens the text-only post composer." },
 
@@ -121,8 +157,17 @@
   "postComposeHint": "What are you making?",
   "@postComposeHint": { "description": "Label above the text field in the text-only post composer." },
 
+  "postComposeReplyTitle": "Reply",
+  "@postComposeReplyTitle": { "description": "Title of the reply composer sheet." },
+
+  "postComposeReplyHint": "Write your reply",
+  "@postComposeReplyHint": { "description": "Label above the text field in reply mode." },
+
   "postComposeSubmit": "Post",
   "@postComposeSubmit": { "description": "Submit button label in the text-only post composer." },
+
+  "postComposeReplySubmit": "Reply",
+  "@postComposeReplySubmit": { "description": "Submit button label in reply mode." },
 
   "postComposeTooLong": "Posts must be 2000 characters or fewer",
   "@postComposeTooLong": { "description": "Validation error shown when the text-only post composer exceeds the post text limit." },

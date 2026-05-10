@@ -12,6 +12,7 @@ List<RouteBase> get $appRoutes => [
   $signInRoute,
   $authCompleteRoute,
   $onboardingRoute,
+  $postThreadRoute,
   $userProfileRoute,
 ];
 
@@ -326,6 +327,40 @@ mixin $OnboardingRoute on GoRouteData {
 
   @override
   String get location => GoRouteData.$location('/onboarding');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+RouteBase get $postThreadRoute => GoRouteData.$route(
+  path: '/posts/:did/:rkey',
+  name: 'post-thread',
+  parentNavigatorKey: PostThreadRoute.$parentNavigatorKey,
+  factory: $PostThreadRoute._fromState,
+);
+
+mixin $PostThreadRoute on GoRouteData {
+  static PostThreadRoute _fromState(GoRouterState state) => PostThreadRoute(
+    did: state.pathParameters['did']!,
+    rkey: state.pathParameters['rkey']!,
+  );
+
+  PostThreadRoute get _self => this as PostThreadRoute;
+
+  @override
+  String get location => GoRouteData.$location(
+    '/posts/${Uri.encodeComponent(_self.did)}/${Uri.encodeComponent(_self.rkey)}',
+  );
 
   @override
   void go(BuildContext context) => context.go(location);
