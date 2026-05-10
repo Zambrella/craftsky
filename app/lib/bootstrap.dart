@@ -4,6 +4,11 @@ import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/pending_auth.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
+import 'package:craftsky_app/feed/models/interaction_write_response.dart';
+import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/post_thread.dart';
+import 'package:craftsky_app/feed/models/user_posts_state.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
@@ -131,4 +136,9 @@ void initializeMappers() {
   WhoAmIMapper.ensureInitialized();
   StoredSessionMapper.ensureInitialized();
   PendingAuthMapper.ensureInitialized();
+  PostMapper.ensureInitialized();
+  PostPageMapper.ensureInitialized();
+  UserPostsStateMapper.ensureInitialized();
+  InteractionWriteResponseMapper.ensureInitialized();
+  PostThreadMapper.ensureInitialized();
 }

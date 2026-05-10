@@ -18,6 +18,11 @@ Post _post() {
     rkey: 'new',
     text: 'hello',
     tags: const [],
+    likeCount: 0,
+    repostCount: 0,
+    replyCount: 0,
+    viewerHasLiked: false,
+    viewerHasReposted: false,
     createdAt: DateTime.now(),
     indexedAt: DateTime.now(),
     author: const PostAuthor(
@@ -52,11 +57,7 @@ void main() {
   group('PostComposerSheet', () {
     testWidgets('submit is disabled until text is entered', (tester) async {
       final messenger = RecordingMessenger();
-      await _pump(
-        tester,
-        repo: FakePostRepository(),
-        messenger: messenger,
-      );
+      await _pump(tester, repo: FakePostRepository(), messenger: messenger);
 
       final initial = tester.widget<TextButton>(find.byType(TextButton));
       expect(initial.onPressed, isNull);

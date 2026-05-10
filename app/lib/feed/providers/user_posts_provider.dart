@@ -60,9 +60,7 @@ class UserPosts extends _$UserPosts {
     final current = state.value;
     if (current == null) return;
     if (current.items.any((p) => p.uri == post.uri)) return;
-    state = AsyncData(
-      current.copyWith(items: [post, ...current.items]),
-    );
+    state = AsyncData(current.copyWith(items: [post, ...current.items]));
   }
 
   /// Cache helper. Removes the post with [rkey] from items if present.
@@ -76,5 +74,28 @@ class UserPosts extends _$UserPosts {
         items: current.items.where((p) => p.rkey != rkey).toList(),
       ),
     );
+  }
+
+  /// Cache helper. Replaces a rendered post with [post] by stable URI or rkey.
+  void replace(Post post) {
+    final current = state.value;
+    if (current == null) return;
+    state = AsyncData(
+      current.copyWith(
+        items: [
+          for (final item in current.items)
+            if (item.uri == post.uri || item.rkey == post.rkey) post else item,
+        ],
+      ),
+    );
+  }
+}
+
+void updateLiveUserPostCaches(Ref ref, Post post) {
+  for (final id in <String>{post.author.did, post.author.handle}) {
+    final entry = userPostsProvider(id);
+    if (ref.exists(entry)) {
+      ref.read(entry.notifier).replace(post);
+    }
   }
 }

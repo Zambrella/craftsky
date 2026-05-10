@@ -19,6 +19,11 @@ Map<String, dynamic> _postMap({
   'rkey': rkey,
   'text': 'post $rkey',
   'tags': <String>[],
+  'likeCount': 0,
+  'repostCount': 0,
+  'replyCount': 0,
+  'viewerHasLiked': false,
+  'viewerHasReposted': false,
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',
   'author': {'did': did, 'handle': handle},
@@ -76,9 +81,7 @@ void main() {
 
       // Pre-instantiate both family entries so they are "live".
       await container.read(userPostsProvider('did:plc:alice').future);
-      await container.read(
-        userPostsProvider('alice.craftsky.social').future,
-      );
+      await container.read(userPostsProvider('alice.craftsky.social').future);
 
       await container.read(createPostProvider.notifier).create(text: 'hi');
 

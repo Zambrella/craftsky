@@ -25,6 +25,11 @@ class Post with PostMappable {
     required this.createdAt,
     required this.indexedAt,
     required this.author,
+    required this.likeCount,
+    required this.repostCount,
+    required this.replyCount,
+    required this.viewerHasLiked,
+    required this.viewerHasReposted,
     this.facets,
     this.reply,
     this.quote,
@@ -41,6 +46,11 @@ class Post with PostMappable {
   final DateTime createdAt;
   final DateTime indexedAt;
   final PostAuthor author;
+  final int likeCount;
+  final int repostCount;
+  final int replyCount;
+  final bool viewerHasLiked;
+  final bool viewerHasReposted;
 }
 
 /// Author identity embedded in every [Post] response.

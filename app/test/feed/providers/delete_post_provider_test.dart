@@ -19,6 +19,11 @@ Map<String, dynamic> _postMap({
   'rkey': rkey,
   'text': 'post $rkey',
   'tags': <String>[],
+  'likeCount': 0,
+  'repostCount': 0,
+  'replyCount': 0,
+  'viewerHasLiked': false,
+  'viewerHasReposted': false,
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',
   'author': {'did': did, 'handle': handle},
@@ -63,9 +68,7 @@ void main() {
       );
 
       await container.read(userPostsProvider('did:plc:alice').future);
-      await container.read(
-        userPostsProvider('alice.craftsky.social').future,
-      );
+      await container.read(userPostsProvider('alice.craftsky.social').future);
 
       await container
           .read(deletePostProvider.notifier)
@@ -103,9 +106,7 @@ void main() {
     });
 
     test('reset() returns to AsyncData(null)', () async {
-      final fake = FakePostRepository(
-        onDelete: (did, rkey) async {},
-      );
+      final fake = FakePostRepository(onDelete: (did, rkey) async {});
       final container = ProviderContainer.test(
         overrides: [postRepositoryProvider.overrideWithValue(fake)],
       );

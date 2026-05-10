@@ -21,6 +21,11 @@ void main() {
           },
         ],
         'tags': ['knitting'],
+        'likeCount': 7,
+        'repostCount': 2,
+        'replyCount': 4,
+        'viewerHasLiked': true,
+        'viewerHasReposted': false,
         'reply': {
           'root': {'uri': 'at://x/y/1', 'cid': 'bafyR'},
           'parent': {'uri': 'at://x/y/2', 'cid': 'bafyP'},
@@ -44,6 +49,8 @@ void main() {
       expect(post.reply!.root.uri, 'at://x/y/1');
       expect(post.reply!.parent.cid, 'bafyP');
       expect(post.quote!.uri, 'at://x/y/q');
+      expect(post.likeCount, 7);
+      expect(post.viewerHasLiked, isTrue);
       expect(post.author.handle, 'alice.craftsky.social');
       expect(post.author.avatarCid, 'bafyA');
 
@@ -57,12 +64,14 @@ void main() {
         'rkey': '3lf2abc',
         'text': 'hello',
         'tags': <String>[],
+        'likeCount': 0,
+        'repostCount': 0,
+        'replyCount': 0,
+        'viewerHasLiked': false,
+        'viewerHasReposted': false,
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
-        'author': {
-          'did': 'did:plc:alice',
-          'handle': 'alice.craftsky.social',
-        },
+        'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
       };
 
       final post = PostMapper.fromMap(json);
