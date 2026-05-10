@@ -115,15 +115,8 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	// indigo provides an in-process cache via DefaultDirectory.
 	identityDir := identity.DefaultDirectory()
 
-	dispatcher := index.NewDispatcher(index.NotImplemented{})
 	anonPDS := auth.NewAnonymousPDSClient(identityDir, 5*time.Second)
-	blueskyIdx := index.NewBlueskyProfile(pool)
-	backfiller := index.NewBlueskyBackfiller(anonPDS, blueskyIdx)
-	dispatcher.Register("social.craftsky.actor.profile",
-		index.NewCraftskyProfile(pool, backfiller, logger))
-	dispatcher.Register("social.craftsky.feed.post",
-		index.NewCraftskyPost(pool, logger))
-	dispatcher.Register("app.bsky.actor.profile", blueskyIdx)
+	dispatcher := newIndexerDispatcher(pool, anonPDS, logger)
 
 	deps := &Deps{
 		Config:               cfg,
@@ -170,4 +163,20 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	logger.Info("deps initialised", slog.String("env", string(cfg.Env)))
 
 	return deps, cleanup, nil
+}
+
+func newIndexerDispatcher(pool *pgxpool.Pool, anonPDS auth.PDSClient, logger *slog.Logger) *index.Dispatcher {
+	dispatcher := index.NewDispatcher(index.NotImplemented{})
+	blueskyIdx := index.NewBlueskyProfile(pool)
+	backfiller := index.NewBlueskyBackfiller(anonPDS, blueskyIdx)
+	dispatcher.Register("social.craftsky.actor.profile",
+		index.NewCraftskyProfile(pool, backfiller, logger))
+	dispatcher.Register("social.craftsky.feed.post",
+		index.NewCraftskyPost(pool, logger))
+	dispatcher.Register("social.craftsky.feed.like",
+		index.NewCraftskyLike(pool, logger))
+	dispatcher.Register("social.craftsky.feed.repost",
+		index.NewCraftskyRepost(pool, logger))
+	dispatcher.Register("app.bsky.actor.profile", blueskyIdx)
+	return dispatcher
 }
