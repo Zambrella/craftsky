@@ -2,11 +2,14 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +24,23 @@ import (
 )
 
 const craftskyPostNSID = "social.craftsky.feed.post"
+const craftskyLikeNSID = "social.craftsky.feed.like"
+const craftskyRepostNSID = "social.craftsky.feed.repost"
+
+const threadMaxDepth = 6
+const threadMaxPosts = 500
+
+// LikeStore is the read-side interaction subset needed by like/unlike handlers.
+type LikeStore interface {
+	ResolvePostTarget(ctx context.Context, did, rkey string) (*PostTargetRef, error)
+	FindActiveLike(ctx context.Context, did, subjectURI string) (*InteractionRow, error)
+}
+
+// RepostStore is the read-side interaction subset needed by repost/unrepost handlers.
+type RepostStore interface {
+	ResolvePostTarget(ctx context.Context, did, rkey string) (*PostTargetRef, error)
+	FindActiveRepost(ctx context.Context, did, subjectURI string) (*InteractionRow, error)
+}
 
 // CreatePostHandler serves POST /v1/posts.
 func CreatePostHandler(
@@ -84,7 +104,7 @@ func CreatePostHandler(
 				slog.String("did", did.String()), slog.String("err", err.Error()),
 				slog.String("run_id", runID))
 			envelope.WriteError(w, http.StatusBadGateway,
-				"pds_write_failed", "PDS rejected the post", runID, nil)
+				"pds_write_failed", "could not write post", runID, nil)
 			return
 		}
 
@@ -243,6 +263,18 @@ func GetPostHandler(store PostReader, resolver HandleResolver, logger *slog.Logg
 				"internal_error", "post read failed", runID, nil)
 			return
 		}
+		viewerDID, _ := middleware.GetDID(r.Context())
+		summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), []string{row.URI})
+		if err != nil {
+			logger.Error("post: EngagementSummaries failed",
+				slog.String("did", did.String()),
+				slog.String("rkey", rkey),
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "post engagement lookup failed", runID, nil)
+			return
+		}
 		handle, err := resolver.ResolveHandle(r.Context(), did)
 		if err != nil {
 			logger.Warn("post: ResolveHandle failed",
@@ -254,9 +286,203 @@ func GetPostHandler(store PostReader, resolver HandleResolver, logger *slog.Logg
 			return
 		}
 		resp := BuildPostResponse(row, handle)
+		applyEngagementSummary(resp, summaries[row.URI])
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(resp)
+	})
+}
+
+// ListDirectRepliesHandler serves GET /v1/posts/{did}/{rkey}/replies.
+func ListDirectRepliesHandler(
+	store PostReader,
+	resolver HandleResolver,
+	logger *slog.Logger,
+) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := middleware.GetRunID(r.Context())
+		did, err := syntax.ParseDID(r.PathValue("did"))
+		if err != nil {
+			envelope.WriteError(w, http.StatusBadRequest,
+				"invalid_identifier", "did path segment is not a valid DID", runID, nil)
+			return
+		}
+		rkey := r.PathValue("rkey")
+		target, err := store.ResolvePostTarget(r.Context(), did.String(), rkey)
+		if errors.Is(err, ErrPostNotFound) {
+			envelope.WriteError(w, http.StatusNotFound,
+				"post_not_found", "post not found", runID, nil)
+			return
+		}
+		if err != nil {
+			logger.Error("post replies: ResolvePostTarget failed",
+				slog.String("did", did.String()),
+				slog.String("rkey", rkey),
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "could not resolve post", runID, nil)
+			return
+		}
+
+		limit := parseLimit(r.URL.Query().Get("limit"))
+		cursor := r.URL.Query().Get("cursor")
+		rows, nextCursor, err := store.ListDirectReplies(r.Context(), target.URI, limit, cursor)
+		if err != nil {
+			if errors.Is(err, envelope.ErrInvalidCursor) {
+				envelope.WriteError(w, http.StatusBadRequest,
+					"invalid_cursor", "cursor could not be decoded", runID, nil)
+				return
+			}
+			logger.Error("post replies: ListDirectReplies failed",
+				slog.String("target_uri", target.URI),
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "reply list failed", runID, nil)
+			return
+		}
+
+		items := make([]*PostResponse, 0, len(rows))
+		if len(rows) > 0 {
+			viewerDID, _ := middleware.GetDID(r.Context())
+			postURIs := make([]string, 0, len(rows))
+			for _, row := range rows {
+				postURIs = append(postURIs, row.URI)
+			}
+			summaries, serr := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
+			if serr != nil {
+				logger.Error("post replies: EngagementSummaries failed",
+					slog.String("target_uri", target.URI),
+					slog.String("err", serr.Error()),
+					slog.String("run_id", runID))
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "post engagement lookup failed", runID, nil)
+				return
+			}
+			handles, herr := resolveHandlesForRows(r.Context(), rows, resolver)
+			if herr != nil {
+				logger.Warn("post replies: ResolveHandle failed",
+					slog.String("err", herr.Error()),
+					slog.String("run_id", runID))
+				envelope.WriteError(w, http.StatusBadGateway,
+					"identity_unavailable", "could not resolve handle", runID, nil)
+				return
+			}
+			for _, row := range rows {
+				resp := BuildPostResponse(row, handles[row.DID])
+				applyEngagementSummary(resp, summaries[row.URI])
+				items = append(items, resp)
+			}
+		}
+		body := struct {
+			Items  []*PostResponse `json:"items"`
+			Cursor string          `json:"cursor,omitempty"`
+		}{Items: items, Cursor: nextCursor}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(body)
+	})
+}
+
+// GetPostThreadHandler serves GET /v1/posts/{did}/{rkey}/thread.
+func GetPostThreadHandler(
+	store PostReader,
+	resolver HandleResolver,
+	logger *slog.Logger,
+) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := middleware.GetRunID(r.Context())
+		did, err := syntax.ParseDID(r.PathValue("did"))
+		if err != nil {
+			envelope.WriteError(w, http.StatusBadRequest,
+				"invalid_identifier", "did path segment is not a valid DID", runID, nil)
+			return
+		}
+		rkey := r.PathValue("rkey")
+		target, err := store.ResolvePostTarget(r.Context(), did.String(), rkey)
+		if errors.Is(err, ErrPostNotFound) {
+			envelope.WriteError(w, http.StatusNotFound,
+				"post_not_found", "post not found", runID, nil)
+			return
+		}
+		if err != nil {
+			logger.Error("post thread: ResolvePostTarget failed",
+				slog.String("did", did.String()),
+				slog.String("rkey", rkey),
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "could not resolve post", runID, nil)
+			return
+		}
+
+		targetRow, err := store.ReadOne(r.Context(), did.String(), rkey)
+		if errors.Is(err, ErrPostNotFound) {
+			envelope.WriteError(w, http.StatusNotFound,
+				"post_not_found", "post not found", runID, nil)
+			return
+		}
+		if err != nil {
+			logger.Error("post thread: ReadOne failed",
+				slog.String("did", did.String()),
+				slog.String("rkey", rkey),
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "post read failed", runID, nil)
+			return
+		}
+
+		rootURI := target.URI
+		if targetRow.ReplyRootURI != nil {
+			rootURI = *targetRow.ReplyRootURI
+		}
+		rows, err := store.LoadThreadCandidates(r.Context(), rootURI, target.URI, threadMaxPosts+1)
+		if err != nil {
+			logger.Error("post thread: LoadThreadCandidates failed",
+				slog.String("target_uri", target.URI),
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "thread read failed", runID, nil)
+			return
+		}
+		if !containsPostRow(rows, target.URI) {
+			rows = append(rows, targetRow)
+		}
+
+		rowTree, renderedRows, truncated := buildThreadRowTree(rows, target.URI)
+		viewerDID, _ := middleware.GetDID(r.Context())
+		postURIs := make([]string, 0, len(renderedRows))
+		for _, row := range renderedRows {
+			postURIs = append(postURIs, row.URI)
+		}
+		summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
+		if err != nil {
+			logger.Error("post thread: EngagementSummaries failed",
+				slog.String("target_uri", target.URI),
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "post engagement lookup failed", runID, nil)
+			return
+		}
+		handles, err := resolveHandlesForRows(r.Context(), renderedRows, resolver)
+		if err != nil {
+			logger.Warn("post thread: ResolveHandle failed",
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusBadGateway,
+				"identity_unavailable", "could not resolve handle", runID, nil)
+			return
+		}
+
+		body := buildThreadResponse(rowTree, handles, summaries, truncated)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(body)
 	})
 }
 
@@ -311,6 +537,357 @@ func DeletePostHandler(newPDS auth.PDSClientFactory, logger *slog.Logger) http.H
 	})
 }
 
+// LikePostHandler serves POST /v1/posts/{did}/{rkey}/likes.
+func LikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := middleware.GetRunID(r.Context())
+		caller, ok := middleware.GetDID(r.Context())
+		if !ok {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "no did in context", runID, nil)
+			return
+		}
+		if err := rejectNonEmptyBody(r); err != nil {
+			envelope.WriteError(w, http.StatusBadRequest,
+				"unexpected_field", "request body rejected", runID, nil)
+			return
+		}
+		targetDID, err := syntax.ParseDID(r.PathValue("did"))
+		if err != nil {
+			envelope.WriteError(w, http.StatusBadRequest,
+				"invalid_identifier", "did path segment is not a valid DID", runID, nil)
+			return
+		}
+		target, err := store.ResolvePostTarget(r.Context(), targetDID.String(), r.PathValue("rkey"))
+		if err != nil {
+			if errors.Is(err, ErrPostNotFound) {
+				envelope.WriteError(w, http.StatusNotFound,
+					"post_not_found", "post not found", runID, nil)
+				return
+			}
+			logger.Error("like: resolve target failed",
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "could not resolve post", runID, nil)
+			return
+		}
+		active, err := store.FindActiveLike(r.Context(), caller.String(), target.URI)
+		if err == nil {
+			writeInteractionResponse(w, http.StatusOK, interactionResponseFromRow(active))
+			return
+		}
+		if !errors.Is(err, ErrInteractionNotFound) {
+			logger.Error("like: find active failed",
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "could not read like", runID, nil)
+			return
+		}
+
+		createdAt := time.Now().UTC()
+		body := likeRecordBody(target, createdAt)
+		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+		pds, err := newPDS(r.Context(), caller, sessionID)
+		if err != nil {
+			logger.Error("like: newPDS failed",
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusBadGateway,
+				"pds_unavailable", "could not contact PDS", runID, nil)
+			return
+		}
+		uri, cid, err := pds.CreateRecord(r.Context(), caller, craftskyLikeNSID, body)
+		if err != nil {
+			logger.Warn("like: CreateRecord failed",
+				slog.String("did", caller.String()), slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusBadGateway,
+				"pds_write_failed", "could not write like", runID, nil)
+			return
+		}
+		writeInteractionResponse(w, http.StatusCreated, &InteractionWriteResponse{
+			URI:       string(uri),
+			CID:       string(cid),
+			Rkey:      path.Base(string(uri)),
+			Subject:   ResponseStrongRef{URI: target.URI, CID: target.CID},
+			CreatedAt: createdAt,
+		})
+	})
+}
+
+// UnlikePostHandler serves DELETE /v1/posts/{did}/{rkey}/likes.
+func UnlikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := middleware.GetRunID(r.Context())
+		caller, ok := middleware.GetDID(r.Context())
+		if !ok {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "no did in context", runID, nil)
+			return
+		}
+		targetDID, err := syntax.ParseDID(r.PathValue("did"))
+		if err != nil {
+			envelope.WriteError(w, http.StatusBadRequest,
+				"invalid_identifier", "did path segment is not a valid DID", runID, nil)
+			return
+		}
+		target, err := store.ResolvePostTarget(r.Context(), targetDID.String(), r.PathValue("rkey"))
+		if err != nil {
+			if errors.Is(err, ErrPostNotFound) {
+				envelope.WriteError(w, http.StatusNotFound,
+					"post_not_found", "post not found", runID, nil)
+				return
+			}
+			logger.Error("unlike: resolve target failed",
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "could not resolve post", runID, nil)
+			return
+		}
+		active, err := store.FindActiveLike(r.Context(), caller.String(), target.URI)
+		if errors.Is(err, ErrInteractionNotFound) {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if err != nil {
+			logger.Error("unlike: find active failed",
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "could not read like", runID, nil)
+			return
+		}
+		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+		pds, err := newPDS(r.Context(), caller, sessionID)
+		if err != nil {
+			logger.Error("unlike: newPDS failed",
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusBadGateway,
+				"pds_unavailable", "could not contact PDS", runID, nil)
+			return
+		}
+		if err := pds.DeleteRecord(r.Context(), caller, craftskyLikeNSID, active.Rkey); err != nil {
+			if errors.Is(err, auth.ErrRecordNotFound) {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			logger.Warn("unlike: DeleteRecord failed",
+				slog.String("did", caller.String()),
+				slog.String("rkey", active.Rkey),
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusBadGateway,
+				"pds_unavailable", "PDS delete failed", runID, nil)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+}
+
+// RepostPostHandler serves POST /v1/posts/{did}/{rkey}/reposts.
+func RepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := middleware.GetRunID(r.Context())
+		caller, ok := middleware.GetDID(r.Context())
+		if !ok {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "no did in context", runID, nil)
+			return
+		}
+		if err := rejectNonEmptyBody(r); err != nil {
+			envelope.WriteError(w, http.StatusBadRequest,
+				"unexpected_field", "request body rejected", runID, nil)
+			return
+		}
+		targetDID, err := syntax.ParseDID(r.PathValue("did"))
+		if err != nil {
+			envelope.WriteError(w, http.StatusBadRequest,
+				"invalid_identifier", "did path segment is not a valid DID", runID, nil)
+			return
+		}
+		target, err := store.ResolvePostTarget(r.Context(), targetDID.String(), r.PathValue("rkey"))
+		if err != nil {
+			if errors.Is(err, ErrPostNotFound) {
+				envelope.WriteError(w, http.StatusNotFound,
+					"post_not_found", "post not found", runID, nil)
+				return
+			}
+			logger.Error("repost: resolve target failed",
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "could not resolve post", runID, nil)
+			return
+		}
+		active, err := store.FindActiveRepost(r.Context(), caller.String(), target.URI)
+		if err == nil {
+			writeInteractionResponse(w, http.StatusOK, interactionResponseFromRow(active))
+			return
+		}
+		if !errors.Is(err, ErrInteractionNotFound) {
+			logger.Error("repost: find active failed",
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "could not read repost", runID, nil)
+			return
+		}
+
+		createdAt := time.Now().UTC()
+		body := repostRecordBody(target, createdAt)
+		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+		pds, err := newPDS(r.Context(), caller, sessionID)
+		if err != nil {
+			logger.Error("repost: newPDS failed",
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusBadGateway,
+				"pds_unavailable", "could not contact PDS", runID, nil)
+			return
+		}
+		uri, cid, err := pds.CreateRecord(r.Context(), caller, craftskyRepostNSID, body)
+		if err != nil {
+			logger.Warn("repost: CreateRecord failed",
+				slog.String("did", caller.String()), slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusBadGateway,
+				"pds_write_failed", "could not write repost", runID, nil)
+			return
+		}
+		writeInteractionResponse(w, http.StatusCreated, &InteractionWriteResponse{
+			URI:       string(uri),
+			CID:       string(cid),
+			Rkey:      path.Base(string(uri)),
+			Subject:   ResponseStrongRef{URI: target.URI, CID: target.CID},
+			CreatedAt: createdAt,
+		})
+	})
+}
+
+// UnrepostPostHandler serves DELETE /v1/posts/{did}/{rkey}/reposts.
+func UnrepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := middleware.GetRunID(r.Context())
+		caller, ok := middleware.GetDID(r.Context())
+		if !ok {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "no did in context", runID, nil)
+			return
+		}
+		targetDID, err := syntax.ParseDID(r.PathValue("did"))
+		if err != nil {
+			envelope.WriteError(w, http.StatusBadRequest,
+				"invalid_identifier", "did path segment is not a valid DID", runID, nil)
+			return
+		}
+		target, err := store.ResolvePostTarget(r.Context(), targetDID.String(), r.PathValue("rkey"))
+		if err != nil {
+			if errors.Is(err, ErrPostNotFound) {
+				envelope.WriteError(w, http.StatusNotFound,
+					"post_not_found", "post not found", runID, nil)
+				return
+			}
+			logger.Error("unrepost: resolve target failed",
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "could not resolve post", runID, nil)
+			return
+		}
+		active, err := store.FindActiveRepost(r.Context(), caller.String(), target.URI)
+		if errors.Is(err, ErrInteractionNotFound) {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if err != nil {
+			logger.Error("unrepost: find active failed",
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "could not read repost", runID, nil)
+			return
+		}
+		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+		pds, err := newPDS(r.Context(), caller, sessionID)
+		if err != nil {
+			logger.Error("unrepost: newPDS failed",
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusBadGateway,
+				"pds_unavailable", "could not contact PDS", runID, nil)
+			return
+		}
+		if err := pds.DeleteRecord(r.Context(), caller, craftskyRepostNSID, active.Rkey); err != nil {
+			if errors.Is(err, auth.ErrRecordNotFound) {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			logger.Warn("unrepost: DeleteRecord failed",
+				slog.String("did", caller.String()),
+				slog.String("rkey", active.Rkey),
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusBadGateway,
+				"pds_unavailable", "PDS delete failed", runID, nil)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+}
+
+func rejectNonEmptyBody(r *http.Request) error {
+	if r.Body == nil {
+		return nil
+	}
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(string(raw)) != "" {
+		return errors.New("body must be empty")
+	}
+	return nil
+}
+
+func likeRecordBody(target *PostTargetRef, createdAt time.Time) map[string]any {
+	return interactionRecordBody(craftskyLikeNSID, target, createdAt)
+}
+
+func repostRecordBody(target *PostTargetRef, createdAt time.Time) map[string]any {
+	return interactionRecordBody(craftskyRepostNSID, target, createdAt)
+}
+
+func interactionRecordBody(nsid string, target *PostTargetRef, createdAt time.Time) map[string]any {
+	return map[string]any{
+		"$type": nsid,
+		"subject": map[string]any{
+			"uri": target.URI,
+			"cid": target.CID,
+		},
+		"createdAt": createdAt.Format(time.RFC3339),
+	}
+}
+
+func interactionResponseFromRow(row *InteractionRow) *InteractionWriteResponse {
+	return &InteractionWriteResponse{
+		URI:       row.URI,
+		CID:       row.CID,
+		Rkey:      row.Rkey,
+		Subject:   ResponseStrongRef{URI: row.SubjectURI, CID: row.SubjectCID},
+		CreatedAt: row.CreatedAt.UTC(),
+	}
+}
+
+func writeInteractionResponse(w http.ResponseWriter, status int, resp *InteractionWriteResponse) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
 // ListPostsByAuthorHandler serves GET /v1/profiles/{handleOrDid}/posts.
 func ListPostsByAuthorHandler(
 	store PostReader,
@@ -357,6 +934,21 @@ func ListPostsByAuthorHandler(
 
 		items := make([]*PostResponse, 0, len(rows))
 		if len(rows) > 0 {
+			viewerDID, _ := middleware.GetDID(r.Context())
+			postURIs := make([]string, 0, len(rows))
+			for _, row := range rows {
+				postURIs = append(postURIs, row.URI)
+			}
+			summaries, serr := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
+			if serr != nil {
+				logger.Error("post list: EngagementSummaries failed",
+					slog.String("did", did.String()),
+					slog.String("err", serr.Error()),
+					slog.String("run_id", runID))
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "post engagement lookup failed", runID, nil)
+				return
+			}
 			// Only pay handle-resolution cost when there are rows to render.
 			handle, herr := resolver.ResolveHandle(r.Context(), did)
 			if herr != nil {
@@ -369,7 +961,9 @@ func ListPostsByAuthorHandler(
 				return
 			}
 			for _, row := range rows {
-				items = append(items, BuildPostResponse(row, handle))
+				resp := BuildPostResponse(row, handle)
+				applyEngagementSummary(resp, summaries[row.URI])
+				items = append(items, resp)
 			}
 		}
 		body := struct {
@@ -381,6 +975,124 @@ func ListPostsByAuthorHandler(
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(body)
 	})
+}
+
+func resolveHandlesForRows(ctx context.Context, rows []*PostRow, resolver HandleResolver) (map[string]syntax.Handle, error) {
+	handles := make(map[string]syntax.Handle)
+	for _, row := range rows {
+		if _, ok := handles[row.DID]; ok {
+			continue
+		}
+		did, err := syntax.ParseDID(row.DID)
+		if err != nil {
+			return nil, err
+		}
+		handle, err := resolver.ResolveHandle(ctx, did)
+		if err != nil {
+			return nil, err
+		}
+		handles[row.DID] = handle
+	}
+	return handles, nil
+}
+
+type threadRowNode struct {
+	row     *PostRow
+	replies []*threadRowNode
+}
+
+func containsPostRow(rows []*PostRow, uri string) bool {
+	for _, row := range rows {
+		if row.URI == uri {
+			return true
+		}
+	}
+	return false
+}
+
+func buildThreadRowTree(rows []*PostRow, targetURI string) (*threadRowNode, []*PostRow, bool) {
+	rowsByURI := make(map[string]*PostRow, len(rows))
+	childrenByParent := make(map[string][]*PostRow)
+	truncated := len(rows) > threadMaxPosts
+	for _, row := range rows {
+		if _, ok := rowsByURI[row.URI]; ok {
+			continue
+		}
+		rowsByURI[row.URI] = row
+		if row.URI != targetURI && row.ReplyParentURI != nil {
+			childrenByParent[*row.ReplyParentURI] = append(childrenByParent[*row.ReplyParentURI], row)
+		}
+	}
+	for parentURI := range childrenByParent {
+		sort.SliceStable(childrenByParent[parentURI], func(i, j int) bool {
+			left := childrenByParent[parentURI][i]
+			right := childrenByParent[parentURI][j]
+			if left.CreatedAt.Equal(right.CreatedAt) {
+				return left.URI < right.URI
+			}
+			return left.CreatedAt.Before(right.CreatedAt)
+		})
+	}
+
+	target := rowsByURI[targetURI]
+	root := &threadRowNode{row: target, replies: []*threadRowNode{}}
+	rendered := make([]*PostRow, 0, min(len(rows), threadMaxPosts))
+	count := 0
+	var addChildren func(node *threadRowNode, depth int)
+	addChildren = func(node *threadRowNode, depth int) {
+		if count >= threadMaxPosts {
+			truncated = true
+			return
+		}
+		rendered = append(rendered, node.row)
+		count++
+		children := childrenByParent[node.row.URI]
+		if len(children) == 0 {
+			return
+		}
+		if depth >= threadMaxDepth {
+			truncated = true
+			return
+		}
+		for _, childRow := range children {
+			if _, ok := rowsByURI[childRow.URI]; !ok {
+				continue
+			}
+			if count >= threadMaxPosts {
+				truncated = true
+				return
+			}
+			child := &threadRowNode{row: childRow, replies: []*threadRowNode{}}
+			node.replies = append(node.replies, child)
+			addChildren(child, depth+1)
+		}
+	}
+	addChildren(root, 0)
+	return root, rendered, truncated
+}
+
+func buildThreadResponse(root *threadRowNode, handles map[string]syntax.Handle, summaries map[string]EngagementSummary, truncated bool) *ThreadResponse {
+	var convert func(*threadRowNode) *ThreadNode
+	convert = func(node *threadRowNode) *ThreadNode {
+		post := BuildPostResponse(node.row, handles[node.row.DID])
+		applyEngagementSummary(post, summaries[node.row.URI])
+		out := &ThreadNode{Post: post, Replies: make([]*ThreadNode, 0, len(node.replies))}
+		for _, child := range node.replies {
+			out.Replies = append(out.Replies, convert(child))
+		}
+		return out
+	}
+	rootPost := BuildPostResponse(root.row, handles[root.row.DID])
+	applyEngagementSummary(rootPost, summaries[root.row.URI])
+	out := &ThreadResponse{
+		Post:      rootPost,
+		Replies:   make([]*ThreadNode, 0, len(root.replies)),
+		Truncated: truncated,
+	}
+	for _, child := range root.replies {
+		out.Replies = append(out.Replies, convert(child))
+	}
+	return out
 }
 
 // parseLimit returns the validated limit, defaulting to 50 and capping

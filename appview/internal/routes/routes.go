@@ -52,6 +52,18 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		authN(deviceID(api.CreatePostHandler(postStore, deps.NewPDSClient, deps.HandleResolver, deps.Logger))))
 	mux.Handle("GET /v1/posts/{did}/{rkey}",
 		authN(deviceID(api.GetPostHandler(postStore, deps.HandleResolver, deps.Logger))))
+	mux.Handle("GET /v1/posts/{did}/{rkey}/replies",
+		authN(deviceID(api.ListDirectRepliesHandler(postStore, deps.HandleResolver, deps.Logger))))
+	mux.Handle("GET /v1/posts/{did}/{rkey}/thread",
+		authN(deviceID(api.GetPostThreadHandler(postStore, deps.HandleResolver, deps.Logger))))
+	mux.Handle("POST /v1/posts/{did}/{rkey}/likes",
+		authN(deviceID(api.LikePostHandler(postStore, deps.NewPDSClient, deps.Logger))))
+	mux.Handle("DELETE /v1/posts/{did}/{rkey}/likes",
+		authN(deviceID(api.UnlikePostHandler(postStore, deps.NewPDSClient, deps.Logger))))
+	mux.Handle("POST /v1/posts/{did}/{rkey}/reposts",
+		authN(deviceID(api.RepostPostHandler(postStore, deps.NewPDSClient, deps.Logger))))
+	mux.Handle("DELETE /v1/posts/{did}/{rkey}/reposts",
+		authN(deviceID(api.UnrepostPostHandler(postStore, deps.NewPDSClient, deps.Logger))))
 	mux.Handle("DELETE /v1/posts/{did}/{rkey}",
 		authN(deviceID(api.DeletePostHandler(deps.NewPDSClient, deps.Logger))))
 	mux.Handle("GET /v1/profiles/{handleOrDid}/posts",
