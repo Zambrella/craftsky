@@ -22,3 +22,8 @@ appview/tmp/
 
 # Superpowers brainstorming artefacts
 .superpowers/
+
+# Sisyphus runtime files stay local; plans remain trackable.
+.sisyphus/*
+!.sisyphus/plans/
+!.sisyphus/plans/*
