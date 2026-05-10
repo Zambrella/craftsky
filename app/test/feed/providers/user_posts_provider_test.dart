@@ -16,12 +16,14 @@ Map<String, dynamic> _samplePostMap({required String rkey, String? did}) => {
   'rkey': rkey,
   'text': 'post $rkey',
   'tags': <String>[],
+  'likeCount': 0,
+  'repostCount': 0,
+  'replyCount': 0,
+  'viewerHasLiked': false,
+  'viewerHasReposted': false,
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',
-  'author': {
-    'did': did ?? 'did:plc:alice',
-    'handle': 'alice.craftsky.social',
-  },
+  'author': {'did': did ?? 'did:plc:alice', 'handle': 'alice.craftsky.social'},
 };
 
 Post _samplePost({required String rkey, String? did}) =>
@@ -95,9 +97,7 @@ void main() {
       );
 
       // First build to populate the state.
-      await container.read(
-        userPostsProvider('alice.craftsky.social').future,
-      );
+      await container.read(userPostsProvider('alice.craftsky.social').future);
 
       await container
           .read(userPostsProvider('alice.craftsky.social').notifier)
@@ -124,9 +124,7 @@ void main() {
         overrides: [postRepositoryProvider.overrideWithValue(fake)],
       );
 
-      await container.read(
-        userPostsProvider('alice.craftsky.social').future,
-      );
+      await container.read(userPostsProvider('alice.craftsky.social').future);
       expect(calls, 1);
 
       await container
@@ -159,9 +157,7 @@ void main() {
         overrides: [postRepositoryProvider.overrideWithValue(fake)],
       );
 
-      await container.read(
-        userPostsProvider('alice.craftsky.social').future,
-      );
+      await container.read(userPostsProvider('alice.craftsky.social').future);
 
       // First loadMore fails.
       await container
@@ -219,9 +215,7 @@ void main() {
       addTearDown(sub.close);
 
       // Initial build (call 1 to the repo).
-      await container.read(
-        userPostsProvider('alice.craftsky.social').future,
-      );
+      await container.read(userPostsProvider('alice.craftsky.social').future);
       expect(calls, 1);
 
       // Fire loadMore but don't await — it triggers call 2 (gated).
@@ -245,9 +239,7 @@ void main() {
       );
 
       // Now release the first loadMore and let it settle.
-      firstPageGate.complete(
-        PostPage(items: [_samplePost(rkey: 'b')]),
-      );
+      firstPageGate.complete(PostPage(items: [_samplePost(rkey: 'b')]));
       await inFlight;
 
       final state = container
@@ -268,9 +260,7 @@ void main() {
         overrides: [postRepositoryProvider.overrideWithValue(fake)],
       );
 
-      await container.read(
-        userPostsProvider('alice.craftsky.social').future,
-      );
+      await container.read(userPostsProvider('alice.craftsky.social').future);
 
       container
           .read(userPostsProvider('alice.craftsky.social').notifier)
@@ -292,9 +282,7 @@ void main() {
         overrides: [postRepositoryProvider.overrideWithValue(fake)],
       );
 
-      await container.read(
-        userPostsProvider('alice.craftsky.social').future,
-      );
+      await container.read(userPostsProvider('alice.craftsky.social').future);
 
       // Same uri as 'a' — must not double-insert.
       container
@@ -360,9 +348,7 @@ void main() {
         overrides: [postRepositoryProvider.overrideWithValue(fake)],
       );
 
-      await container.read(
-        userPostsProvider('alice.craftsky.social').future,
-      );
+      await container.read(userPostsProvider('alice.craftsky.social').future);
 
       container
           .read(userPostsProvider('alice.craftsky.social').notifier)
@@ -384,9 +370,7 @@ void main() {
         overrides: [postRepositoryProvider.overrideWithValue(fake)],
       );
 
-      await container.read(
-        userPostsProvider('alice.craftsky.social').future,
-      );
+      await container.read(userPostsProvider('alice.craftsky.social').future);
 
       container
           .read(userPostsProvider('alice.craftsky.social').notifier)

@@ -2,16 +2,29 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Post _post({String? displayName}) {
+Post _post({
+  String? displayName,
+  int likeCount = 0,
+  int repostCount = 0,
+  int replyCount = 0,
+  bool viewerHasLiked = false,
+  bool viewerHasReposted = false,
+}) {
   return Post(
     uri: 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
     cid: 'bafy123',
     rkey: '3lf2abc',
     text: 'Cast on for the Hitchhiker shawl tonight.',
     tags: const [],
+    likeCount: likeCount,
+    repostCount: repostCount,
+    replyCount: replyCount,
+    viewerHasLiked: viewerHasLiked,
+    viewerHasReposted: viewerHasReposted,
     createdAt: DateTime.now().subtract(const Duration(minutes: 3)),
     indexedAt: DateTime.now().subtract(const Duration(minutes: 2)),
     author: PostAuthor(
@@ -22,10 +35,7 @@ Post _post({String? displayName}) {
   );
 }
 
-Future<void> _pump(
-  WidgetTester tester,
-  Widget child,
-) {
+Future<void> _pump(WidgetTester tester, Widget child) {
   return tester.pumpWidget(
     MaterialApp(
       theme: AppTheme.lightThemeData,
@@ -54,6 +64,116 @@ void main() {
       expect(find.byIcon(Icons.favorite_border), findsOneWidget);
       expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
       expect(find.byIcon(Icons.repeat), findsOneWidget);
+      expect(find.text('0'), findsNothing);
+
+      final replyIcon = tester.widget<Icon>(
+        find.byIcon(Icons.chat_bubble_outline),
+      );
+      final likeIcon = tester.widget<Icon>(find.byIcon(Icons.favorite_border));
+      final repostIcon = tester.widget<Icon>(find.byIcon(Icons.repeat));
+      expect(replyIcon.color, BrandColors.ink2);
+      expect(likeIcon.color, BrandColors.ink2);
+      expect(repostIcon.color, BrandColors.ink2);
+    });
+
+    testWidgets('renders engagement counts and selected colours', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            likeCount: 5,
+            repostCount: 2,
+            replyCount: 3,
+            viewerHasLiked: true,
+            viewerHasReposted: true,
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.favorite), findsOneWidget);
+      expect(find.text('5'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+
+      final replyIcon = tester.widget<Icon>(
+        find.byIcon(Icons.chat_bubble_outline),
+      );
+      final likeIcon = tester.widget<Icon>(find.byIcon(Icons.favorite));
+      final repostIcon = tester.widget<Icon>(find.byIcon(Icons.repeat));
+      final replyCount = tester.widget<Text>(find.text('3'));
+      final likeCount = tester.widget<Text>(find.text('5'));
+      final repostCount = tester.widget<Text>(find.text('2'));
+
+      expect(replyIcon.color, BrandColors.ink2);
+      expect(likeIcon.color, BrandColors.red);
+      expect(repostIcon.color, BrandColors.moss);
+      expect(replyCount.style?.color, BrandColors.ink2);
+      expect(likeCount.style?.color, BrandColors.red);
+      expect(repostCount.style?.color, BrandColors.moss);
+    });
+
+    testWidgets('formats large engagement counts compactly', (tester) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(likeCount: 1234, repostCount: 15000, replyCount: 2000000),
+        ),
+      );
+
+      expect(find.text('1.2k'), findsOneWidget);
+      expect(find.text('15k'), findsOneWidget);
+      expect(find.text('2m'), findsOneWidget);
+      expect(find.text('1234'), findsNothing);
+    });
+
+    testWidgets('lays out interaction actions in equal left-aligned slots', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(post: _post(likeCount: 5, repostCount: 2, replyCount: 3)),
+      );
+
+      expect(find.byType(TextButton), findsNWidgets(3));
+      final replyRect = tester.getRect(find.byType(TextButton).at(0));
+      final likeRect = tester.getRect(find.byType(TextButton).at(1));
+      final repostRect = tester.getRect(find.byType(TextButton).at(2));
+
+      expect(replyRect.width, likeRect.width);
+      expect(likeRect.width, repostRect.width);
+
+      final replyCountRect = tester.getRect(find.text('3'));
+      final likeCountRect = tester.getRect(find.text('5'));
+      final repostCountRect = tester.getRect(find.text('2'));
+
+      expect(replyCountRect.right, lessThan(replyRect.center.dx));
+      expect(likeCountRect.right, lessThan(likeRect.center.dx));
+      expect(repostCountRect.right, lessThan(repostRect.center.dx));
+    });
+
+    testWidgets('invokes interaction callbacks', (tester) async {
+      var replies = 0;
+      var likes = 0;
+      var reposts = 0;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(),
+          onReply: () => replies++,
+          onLike: () => likes++,
+          onRepost: () => reposts++,
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+      await tester.tap(find.byIcon(Icons.favorite_border));
+      await tester.tap(find.byIcon(Icons.repeat));
+
+      expect(replies, 1);
+      expect(likes, 1);
+      expect(reposts, 1);
     });
 
     testWidgets('falls back to handle when display name is absent', (

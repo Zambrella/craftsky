@@ -21,12 +21,14 @@ void main() {
       'rkey': '3lf2abc',
       'text': text,
       'tags': <String>[],
+      'likeCount': 2,
+      'repostCount': 1,
+      'replyCount': 3,
+      'viewerHasLiked': true,
+      'viewerHasReposted': false,
       'createdAt': '2026-05-04T18:23:45.000Z',
       'indexedAt': '2026-05-04T18:23:47.000Z',
-      'author': {
-        'did': 'did:plc:alice',
-        'handle': 'alice.craftsky.social',
-      },
+      'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
     };
   }
 
@@ -131,9 +133,9 @@ void main() {
         }),
       );
 
-      final page = await PostApiClient(dio).listPostsByAuthor(
-        'alice.craftsky.social',
-      );
+      final page = await PostApiClient(
+        dio,
+      ).listPostsByAuthor('alice.craftsky.social');
       expect(page.items, hasLength(1));
       expect(page.cursor, 'next-cursor');
     });
@@ -146,13 +148,113 @@ void main() {
         queryParameters: {'cursor': 'c1', 'limit': '50'},
       );
 
-      final page = await PostApiClient(dio).listPostsByAuthor(
-        'alice.craftsky.social',
-        cursor: 'c1',
-        limit: 50,
-      );
+      final page = await PostApiClient(
+        dio,
+      ).listPostsByAuthor('alice.craftsky.social', cursor: 'c1', limit: 50);
       expect(page.items, isEmpty);
       expect(page.cursor, isNull);
+    });
+  });
+
+  group('PostApiClient.listDirectReplies', () {
+    test('GETs /v1/posts/{did}/{rkey}/replies with pagination', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onGet(
+        '/v1/posts/did:plc:alice/3lf2abc/replies',
+        (server) => server.reply(200, {
+          'items': [samplePost(text: 'reply')],
+          'cursor': 'next-replies',
+        }),
+        queryParameters: {'cursor': 'c1', 'limit': '25'},
+      );
+
+      final page = await PostApiClient(
+        dio,
+      ).listDirectReplies('did:plc:alice', '3lf2abc', cursor: 'c1', limit: 25);
+      expect(page.items.single.text, 'reply');
+      expect(page.cursor, 'next-replies');
+    });
+  });
+
+  group('PostApiClient.getThread', () {
+    test(
+      'GETs /v1/posts/{did}/{rkey}/thread and parses nested replies',
+      () async {
+        final dio = buildDio();
+        DioAdapter(dio: dio).onGet(
+          '/v1/posts/did:plc:alice/3lf2abc/thread',
+          (server) => server.reply(200, {
+            'post': samplePost(text: 'root'),
+            'replies': [
+              {
+                'post': samplePost(text: 'reply'),
+                'replies': <Map<String, dynamic>>[],
+                'truncated': false,
+              },
+            ],
+            'truncated': false,
+          }),
+        );
+
+        final thread = await PostApiClient(
+          dio,
+        ).getThread('did:plc:alice', '3lf2abc');
+        expect(thread.post.text, 'root');
+        expect(thread.replies.single.post.text, 'reply');
+        expect(thread.truncated, isFalse);
+      },
+    );
+  });
+
+  group('PostApiClient likes and reposts', () {
+    final interaction = {
+      'uri': 'at://did:plc:viewer/social.craftsky.feed.like/like1',
+      'cid': 'bafy_like',
+      'rkey': 'like1',
+      'subject': {
+        'uri': 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
+        'cid': 'bafy123',
+      },
+      'createdAt': '2026-05-04T18:25:00.000Z',
+    };
+
+    test('POSTs and DELETEs like endpoint', () async {
+      final dio = buildDio();
+      final adapter = DioAdapter(dio: dio)
+        ..onPost(
+          '/v1/posts/did:plc:alice/3lf2abc/likes',
+          (server) => server.reply(201, interaction),
+        )
+        ..onDelete(
+          '/v1/posts/did:plc:alice/3lf2abc/likes',
+          (server) => server.reply(204, null),
+        );
+
+      final client = PostApiClient(dio);
+      final like = await client.likePost('did:plc:alice', '3lf2abc');
+      await client.unlikePost('did:plc:alice', '3lf2abc');
+
+      expect(like.rkey, 'like1');
+      expect(adapter, isNotNull);
+    });
+
+    test('POSTs and DELETEs repost endpoint', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio)
+        ..onPost(
+          '/v1/posts/did:plc:alice/3lf2abc/reposts',
+          (server) => server.reply(201, interaction),
+        )
+        ..onDelete(
+          '/v1/posts/did:plc:alice/3lf2abc/reposts',
+          (server) => server.reply(204, null),
+        );
+
+      final client = PostApiClient(dio);
+      final repost = await client.repostPost('did:plc:alice', '3lf2abc');
+      await client.unrepostPost('did:plc:alice', '3lf2abc');
+
+      expect(repost.subject.cid, 'bafy123');
     });
   });
 }

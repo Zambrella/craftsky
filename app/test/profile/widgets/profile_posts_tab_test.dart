@@ -1,5 +1,7 @@
+import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/post_thread.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_posts_tab.dart';
@@ -19,6 +21,11 @@ Post _post(String rkey) {
     rkey: rkey,
     text: 'post $rkey',
     tags: const [],
+    likeCount: 0,
+    repostCount: 0,
+    replyCount: 0,
+    viewerHasLiked: false,
+    viewerHasReposted: false,
     createdAt: DateTime.now().subtract(const Duration(minutes: 3)),
     indexedAt: DateTime.now().subtract(const Duration(minutes: 2)),
     author: const PostAuthor(
@@ -107,6 +114,62 @@ void main() {
 
       expect(find.text('post a'), findsOneWidget);
       expect(find.text('post b'), findsOneWidget);
+    });
+
+    testWidgets('wires reply, like, and repost actions to the repository', (
+      tester,
+    ) async {
+      final calls = <String>[];
+      final repo = FakePostRepository(
+        onListByAuthor: (_, {cursor, limit}) async => PostPage(
+          items: [_post('a')],
+        ),
+        onThread: (did, rkey) async {
+          calls.add('thread:$did/$rkey');
+          return PostThread(
+            post: _post(rkey),
+            replies: const [],
+            truncated: false,
+          );
+        },
+        onLike: (did, rkey) async {
+          calls.add('like:$did/$rkey');
+          final post = _post(rkey);
+          return InteractionWriteResponse(
+            uri: 'at://did:plc:viewer/social.craftsky.feed.like/like1',
+            cid: 'bafy_like',
+            rkey: 'like1',
+            subject: PostRef(uri: post.uri, cid: post.cid),
+            createdAt: DateTime.now(),
+          );
+        },
+        onRepost: (did, rkey) async {
+          calls.add('repost:$did/$rkey');
+          final post = _post(rkey);
+          return InteractionWriteResponse(
+            uri: 'at://did:plc:viewer/social.craftsky.feed.repost/repost1',
+            cid: 'bafy_repost',
+            rkey: 'repost1',
+            subject: PostRef(uri: post.uri, cid: post.cid),
+            createdAt: DateTime.now(),
+          );
+        },
+      );
+
+      await _pump(tester, repo: repo, isOwnProfile: false);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.favorite_border));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.repeat));
+      await tester.pump();
+
+      expect(calls, [
+        'thread:did:plc:alice/a',
+        'like:did:plc:alice/a',
+        'repost:did:plc:alice/a',
+      ]);
     });
 
     testWidgets('delete confirmation removes a post', (tester) async {
