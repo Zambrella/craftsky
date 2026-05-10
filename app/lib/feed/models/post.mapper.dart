@@ -47,6 +47,28 @@ class PostMapper extends ClassMapperBase<Post> {
   );
   static PostAuthor _$author(Post v) => v.author;
   static const Field<Post, PostAuthor> _f$author = Field('author', _$author);
+  static int _$likeCount(Post v) => v.likeCount;
+  static const Field<Post, int> _f$likeCount = Field('likeCount', _$likeCount);
+  static int _$repostCount(Post v) => v.repostCount;
+  static const Field<Post, int> _f$repostCount = Field(
+    'repostCount',
+    _$repostCount,
+  );
+  static int _$replyCount(Post v) => v.replyCount;
+  static const Field<Post, int> _f$replyCount = Field(
+    'replyCount',
+    _$replyCount,
+  );
+  static bool _$viewerHasLiked(Post v) => v.viewerHasLiked;
+  static const Field<Post, bool> _f$viewerHasLiked = Field(
+    'viewerHasLiked',
+    _$viewerHasLiked,
+  );
+  static bool _$viewerHasReposted(Post v) => v.viewerHasReposted;
+  static const Field<Post, bool> _f$viewerHasReposted = Field(
+    'viewerHasReposted',
+    _$viewerHasReposted,
+  );
   static List<Map<String, dynamic>>? _$facets(Post v) => v.facets;
   static const Field<Post, List<Map<String, dynamic>>> _f$facets = Field(
     'facets',
@@ -76,6 +98,11 @@ class PostMapper extends ClassMapperBase<Post> {
     #createdAt: _f$createdAt,
     #indexedAt: _f$indexedAt,
     #author: _f$author,
+    #likeCount: _f$likeCount,
+    #repostCount: _f$repostCount,
+    #replyCount: _f$replyCount,
+    #viewerHasLiked: _f$viewerHasLiked,
+    #viewerHasReposted: _f$viewerHasReposted,
     #facets: _f$facets,
     #reply: _f$reply,
     #quote: _f$quote,
@@ -93,6 +120,11 @@ class PostMapper extends ClassMapperBase<Post> {
       createdAt: data.dec(_f$createdAt),
       indexedAt: data.dec(_f$indexedAt),
       author: data.dec(_f$author),
+      likeCount: data.dec(_f$likeCount),
+      repostCount: data.dec(_f$repostCount),
+      replyCount: data.dec(_f$replyCount),
+      viewerHasLiked: data.dec(_f$viewerHasLiked),
+      viewerHasReposted: data.dec(_f$viewerHasReposted),
       facets: data.dec(_f$facets),
       reply: data.dec(_f$reply),
       quote: data.dec(_f$quote),
@@ -164,6 +196,11 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
     DateTime? createdAt,
     DateTime? indexedAt,
     PostAuthor? author,
+    int? likeCount,
+    int? repostCount,
+    int? replyCount,
+    bool? viewerHasLiked,
+    bool? viewerHasReposted,
     List<Map<String, dynamic>>? facets,
     PostReply? reply,
     PostRef? quote,
@@ -216,6 +253,11 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     DateTime? createdAt,
     DateTime? indexedAt,
     PostAuthor? author,
+    int? likeCount,
+    int? repostCount,
+    int? replyCount,
+    bool? viewerHasLiked,
+    bool? viewerHasReposted,
     Object? facets = $none,
     Object? reply = $none,
     Object? quote = $none,
@@ -229,6 +271,11 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       if (createdAt != null) #createdAt: createdAt,
       if (indexedAt != null) #indexedAt: indexedAt,
       if (author != null) #author: author,
+      if (likeCount != null) #likeCount: likeCount,
+      if (repostCount != null) #repostCount: repostCount,
+      if (replyCount != null) #replyCount: replyCount,
+      if (viewerHasLiked != null) #viewerHasLiked: viewerHasLiked,
+      if (viewerHasReposted != null) #viewerHasReposted: viewerHasReposted,
       if (facets != $none) #facets: facets,
       if (reply != $none) #reply: reply,
       if (quote != $none) #quote: quote,
@@ -244,6 +291,14 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     createdAt: data.get(#createdAt, or: $value.createdAt),
     indexedAt: data.get(#indexedAt, or: $value.indexedAt),
     author: data.get(#author, or: $value.author),
+    likeCount: data.get(#likeCount, or: $value.likeCount),
+    repostCount: data.get(#repostCount, or: $value.repostCount),
+    replyCount: data.get(#replyCount, or: $value.replyCount),
+    viewerHasLiked: data.get(#viewerHasLiked, or: $value.viewerHasLiked),
+    viewerHasReposted: data.get(
+      #viewerHasReposted,
+      or: $value.viewerHasReposted,
+    ),
     facets: data.get(#facets, or: $value.facets),
     reply: data.get(#reply, or: $value.reply),
     quote: data.get(#quote, or: $value.quote),
