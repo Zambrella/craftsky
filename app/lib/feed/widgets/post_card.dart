@@ -17,16 +17,20 @@ class PostCard extends StatelessWidget {
     required this.post,
     super.key,
     this.onReply,
+    this.onTap,
     this.onLike,
     this.onRepost,
     this.onDelete,
+    this.replyTooltip,
   });
 
   final Post post;
   final VoidCallback? onReply;
+  final VoidCallback? onTap;
   final VoidCallback? onLike;
   final VoidCallback? onRepost;
   final VoidCallback? onDelete;
+  final String? replyTooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -42,96 +46,102 @@ class PostCard extends StatelessWidget {
         spacing.sp4,
         spacing.sp2,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              spacing.sp3,
-              spacing.sp3,
-              spacing.sp3,
-              0,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                spacing.sp3,
+                spacing.sp3,
+                spacing.sp3,
+                0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      ProfileAvatar(
+                        seed: displayName,
+                        size: ProfileAvatarSize.small,
+                      ),
+                      SizedBox(width: spacing.sp3),
+                      Expanded(
+                        child: _PostCardHeader(
+                          displayName: displayName,
+                          handle: post.author.handle,
+                        ),
+                      ),
+                      SizedBox(
+                        width: _postCardMenuWidth,
+                        child: Center(
+                          child: _PostCardTime(postedAt: post.createdAt),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: spacing.sp3),
+                  Padding(
+                    padding: EdgeInsets.only(left: bodyIndent),
+                    child: Text(post.text, style: theme.textTheme.bodyLarge),
+                  ),
+                  SizedBox(height: spacing.sp3),
+                  const CraftskyDivider(),
+                  Row(
+                    children: [
+                      SizedBox(width: bodyIndent),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _PostCardAction(
+                                icon: Icons.chat_bubble_outline,
+                                count: post.replyCount,
+                                selectedColor: BrandColors.sky,
+                                tooltip: replyTooltip ?? 'Reply',
+                                onPressed: onReply,
+                              ),
+                            ),
+                            Expanded(
+                              child: _PostCardAction(
+                                icon: post.viewerHasLiked
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                count: post.likeCount,
+                                isSelected: post.viewerHasLiked,
+                                selectedColor: BrandColors.red,
+                                tooltip: post.viewerHasLiked
+                                    ? 'Unlike'
+                                    : 'Like',
+                                onPressed: onLike,
+                              ),
+                            ),
+                            Expanded(
+                              child: _PostCardAction(
+                                icon: Icons.repeat,
+                                count: post.repostCount,
+                                isSelected: post.viewerHasReposted,
+                                selectedColor: BrandColors.moss,
+                                tooltip: post.viewerHasReposted
+                                    ? 'Unrepost'
+                                    : 'Repost',
+                                onPressed: onRepost,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (onDelete != null) _PostCardMenu(onDelete: onDelete!),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    ProfileAvatar(
-                      seed: displayName,
-                      size: ProfileAvatarSize.small,
-                    ),
-                    SizedBox(width: spacing.sp3),
-                    Expanded(
-                      child: _PostCardHeader(
-                        displayName: displayName,
-                        handle: post.author.handle,
-                      ),
-                    ),
-                    SizedBox(
-                      width: _postCardMenuWidth,
-                      child: Center(
-                        child: _PostCardTime(postedAt: post.createdAt),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: spacing.sp3),
-                Padding(
-                  padding: EdgeInsets.only(left: bodyIndent),
-                  child: Text(post.text, style: theme.textTheme.bodyLarge),
-                ),
-                SizedBox(height: spacing.sp3),
-                const CraftskyDivider(),
-                Row(
-                  children: [
-                    SizedBox(width: bodyIndent),
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: _PostCardAction(
-                              icon: Icons.chat_bubble_outline,
-                              count: post.replyCount,
-                              selectedColor: BrandColors.sky,
-                              tooltip: 'Reply',
-                              onPressed: onReply,
-                            ),
-                          ),
-                          Expanded(
-                            child: _PostCardAction(
-                              icon: post.viewerHasLiked
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              count: post.likeCount,
-                              isSelected: post.viewerHasLiked,
-                              selectedColor: BrandColors.red,
-                              tooltip: post.viewerHasLiked ? 'Unlike' : 'Like',
-                              onPressed: onLike,
-                            ),
-                          ),
-                          Expanded(
-                            child: _PostCardAction(
-                              icon: Icons.repeat,
-                              count: post.repostCount,
-                              isSelected: post.viewerHasReposted,
-                              selectedColor: BrandColors.moss,
-                              tooltip: post.viewerHasReposted
-                                  ? 'Unrepost'
-                                  : 'Repost',
-                              onPressed: onRepost,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (onDelete != null) _PostCardMenu(onDelete: onDelete!),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -244,30 +254,39 @@ class _PostCardAction extends StatelessWidget {
     final spacing = theme.extension<SpacingTheme>()!;
     final color = isSelected ? selectedColor : BrandColors.ink2;
     final countLabel = _compactCountLabel(count);
-    return Tooltip(
-      message: tooltip,
-      child: TextButton(
-        onPressed: onPressed,
-        style: TextButton.styleFrom(
-          foregroundColor: color,
-          disabledForegroundColor: color,
-          minimumSize: Size(spacing.sp7, spacing.sp7),
-          padding: EdgeInsets.symmetric(horizontal: spacing.sp1),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          alignment: Alignment.centerLeft,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: _postCardActionIconSize),
-            if (countLabel != null) ...[
-              SizedBox(width: spacing.sp1),
-              Text(
-                countLabel,
-                style: theme.textTheme.labelLarge?.copyWith(color: color),
-              ),
-            ],
-          ],
+    return Semantics(
+      label: tooltip,
+      button: true,
+      enabled: onPressed != null,
+      onTap: onPressed,
+      child: ExcludeSemantics(
+        child: Tooltip(
+          message: tooltip,
+          excludeFromSemantics: true,
+          child: TextButton(
+            onPressed: onPressed,
+            style: TextButton.styleFrom(
+              foregroundColor: color,
+              disabledForegroundColor: color,
+              minimumSize: Size(spacing.sp7, spacing.sp7),
+              padding: EdgeInsets.symmetric(horizontal: spacing.sp1),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              alignment: Alignment.centerLeft,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: color, size: _postCardActionIconSize),
+                if (countLabel != null) ...[
+                  SizedBox(width: spacing.sp1),
+                  Text(
+                    countLabel,
+                    style: theme.textTheme.labelLarge?.copyWith(color: color),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

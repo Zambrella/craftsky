@@ -1,14 +1,12 @@
-import 'dart:async';
-
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
-import 'package:craftsky_app/feed/providers/post_thread_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -114,7 +112,12 @@ class _ProfilePostsLoadedSlivers extends ConsumerWidget {
               final post = posts[index];
               return PostCard(
                 post: post,
-                onReply: () => _loadThread(context, ref, post),
+                onTap: () => PostThreadRoute(
+                  did: post.author.did,
+                  rkey: post.rkey,
+                ).push<void>(context),
+                onReply: () =>
+                    showPostComposerSheet(context, replyTarget: post),
                 onLike: () => ref
                     .read(toggleLikePostProvider.notifier)
                     .toggle(post: post),
@@ -166,24 +169,6 @@ class _ProfilePostsLoadedSlivers extends ConsumerWidget {
       confirmLabel: l10n.postDeleteConfirm,
       onConfirm: () => ref.read(deletePostProvider.notifier).delete(post: post),
     );
-  }
-}
-
-void _loadThread(BuildContext context, WidgetRef ref, Post post) {
-  unawaited(_loadThreadAsync(context, ref, post));
-}
-
-Future<void> _loadThreadAsync(
-  BuildContext context,
-  WidgetRef ref,
-  Post post,
-) async {
-  try {
-    await ref.read(postThreadProvider(post.author.did, post.rkey).future);
-  } on Object {
-    if (context.mounted) {
-      context.showError(AppLocalizations.of(context).profilePostsLoadError);
-    }
   }
 }
 

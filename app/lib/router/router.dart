@@ -7,6 +7,7 @@ import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/design_playground/pages/design_playground_page.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
+import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
@@ -318,6 +319,24 @@ class OnboardingRoute extends GoRouteData with $OnboardingRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const OnboardingPage();
+}
+
+@TypedGoRoute<PostThreadRoute>(
+  path: RouteLocations.postThread,
+  name: 'post-thread',
+)
+class PostThreadRoute extends GoRouteData with $PostThreadRoute {
+  const PostThreadRoute({required this.did, required this.rkey});
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
+
+  final String did;
+  final String rkey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      PostThreadPage(did: did, rkey: rkey);
 }
 
 @TypedGoRoute<UserProfileRoute>(

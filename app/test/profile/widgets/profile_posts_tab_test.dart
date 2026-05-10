@@ -1,7 +1,6 @@
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
-import 'package:craftsky_app/feed/models/post_thread.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_posts_tab.dart';
@@ -71,9 +70,8 @@ void main() {
   group('ProfilePostsTab', () {
     testWidgets('renders posts from userPostsProvider', (tester) async {
       final repo = FakePostRepository(
-        onListByAuthor: (_, {cursor, limit}) async => PostPage(
-          items: [_post('a'), _post('b')],
-        ),
+        onListByAuthor: (_, {cursor, limit}) async =>
+            PostPage(items: [_post('a'), _post('b')]),
       );
 
       await _pump(tester, repo: repo, isOwnProfile: false);
@@ -116,22 +114,13 @@ void main() {
       expect(find.text('post b'), findsOneWidget);
     });
 
-    testWidgets('wires reply, like, and repost actions to the repository', (
+    testWidgets('wires reply composer, like, and repost actions', (
       tester,
     ) async {
       final calls = <String>[];
       final repo = FakePostRepository(
-        onListByAuthor: (_, {cursor, limit}) async => PostPage(
-          items: [_post('a')],
-        ),
-        onThread: (did, rkey) async {
-          calls.add('thread:$did/$rkey');
-          return PostThread(
-            post: _post(rkey),
-            replies: const [],
-            truncated: false,
-          );
-        },
+        onListByAuthor: (_, {cursor, limit}) async =>
+            PostPage(items: [_post('a')]),
         onLike: (did, rkey) async {
           calls.add('like:$did/$rkey');
           final post = _post(rkey);
@@ -159,14 +148,16 @@ void main() {
       await _pump(tester, repo: repo, isOwnProfile: false);
       await tester.pumpAndSettle();
       await tester.tap(find.byIcon(Icons.chat_bubble_outline));
-      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(find.text('Reply'), findsWidgets);
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
       await tester.tap(find.byIcon(Icons.favorite_border));
       await tester.pump();
       await tester.tap(find.byIcon(Icons.repeat));
       await tester.pump();
 
       expect(calls, [
-        'thread:did:plc:alice/a',
         'like:did:plc:alice/a',
         'repost:did:plc:alice/a',
       ]);
@@ -176,18 +167,12 @@ void main() {
       final messenger = RecordingMessenger();
       final deleted = <String>[];
       final repo = FakePostRepository(
-        onListByAuthor: (_, {cursor, limit}) async => PostPage(
-          items: [_post('a'), _post('b')],
-        ),
+        onListByAuthor: (_, {cursor, limit}) async =>
+            PostPage(items: [_post('a'), _post('b')]),
         onDelete: (_, rkey) async => deleted.add(rkey),
       );
 
-      await _pump(
-        tester,
-        repo: repo,
-        isOwnProfile: true,
-        messenger: messenger,
-      );
+      await _pump(tester, repo: repo, isOwnProfile: true, messenger: messenger);
       await tester.pumpAndSettle();
       await tester.tap(find.byIcon(Icons.more_horiz).first);
       await tester.pumpAndSettle();

@@ -1,7 +1,11 @@
 import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_thread.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
+import 'package:craftsky_app/feed/pages/post_thread_page.dart';
+import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
@@ -14,6 +18,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes/auth_session_fakes.dart';
+import '../feed/fakes/fake_post_repository.dart';
+
+Post _threadPost(String did, String rkey) => Post(
+  uri: 'at://$did/social.craftsky.feed.post/$rkey',
+  cid: 'bafy_$rkey',
+  rkey: rkey,
+  text: '$did/$rkey',
+  tags: const [],
+  likeCount: 0,
+  repostCount: 0,
+  replyCount: 0,
+  viewerHasLiked: false,
+  viewerHasReposted: false,
+  createdAt: DateTime(2026, 5, 4, 18, 23, 45),
+  indexedAt: DateTime(2026, 5, 4, 18, 23, 47),
+  author: PostAuthor(did: did, handle: 'alice.craftsky.social'),
+);
 
 Future<void> _pumpRouter(
   WidgetTester tester,
@@ -117,6 +138,45 @@ void main() {
         expect(find.byType(FeedPage), findsOneWidget);
       },
     );
+
+    testWidgets('SignedIn + onboarded + /posts/:did/:rkey → PostThreadPage', (
+      tester,
+    ) async {
+      final repo = FakePostRepository(
+        onThread: (did, rkey) async => PostThread(
+          post: _threadPost(did, rkey),
+          replies: const [],
+        ),
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          onboardingStatusProvider.overrideWith(CompletedOnboardingStatus.new),
+          postRepositoryProvider.overrideWithValue(repo),
+        ],
+      );
+      await _pumpRouter(
+        tester,
+        container,
+        initialLocation: '/posts/did:plc:alice/root',
+      );
+
+      expect(find.byType(PostThreadPage), findsOneWidget);
+      expect(find.text('did:plc:alice/root'), findsOneWidget);
+    });
+
+    testWidgets('SignedOut + /posts/:did/:rkey → WelcomePage', (tester) async {
+      final container = ProviderContainer.test(
+        overrides: [authSessionProvider.overrideWith(SignedOutAuthSession.new)],
+      );
+      await _pumpRouter(
+        tester,
+        container,
+        initialLocation: '/posts/did:plc:alice/root',
+      );
+
+      expect(find.byType(WelcomePage), findsOneWidget);
+    });
 
     testWidgets(
       'SignedIn + !onboarded + /auth/complete → OnboardingPage',
