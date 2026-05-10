@@ -35,17 +35,35 @@ type ResponseReply struct {
 // PostResponse is the canonical wire shape returned by every
 // post-shaped endpoint (POST, GET single, list items).
 type PostResponse struct {
-	URI       string             `json:"uri"`
-	CID       string             `json:"cid"`
-	Rkey      string             `json:"rkey"`
-	Text      string             `json:"text"`
-	Facets    json.RawMessage    `json:"facets"`
-	Tags      []string           `json:"tags"`
-	Reply     *ResponseReply     `json:"reply"`
-	Quote     *ResponseStrongRef `json:"quote"`
-	CreatedAt time.Time          `json:"createdAt"`
-	IndexedAt time.Time          `json:"indexedAt"`
-	Author    PostAuthor         `json:"author"`
+	URI               string             `json:"uri"`
+	CID               string             `json:"cid"`
+	Rkey              string             `json:"rkey"`
+	Text              string             `json:"text"`
+	Facets            json.RawMessage    `json:"facets"`
+	Tags              []string           `json:"tags"`
+	LikeCount         int                `json:"likeCount"`
+	RepostCount       int                `json:"repostCount"`
+	ReplyCount        int                `json:"replyCount"`
+	ViewerHasLiked    bool               `json:"viewerHasLiked"`
+	ViewerHasReposted bool               `json:"viewerHasReposted"`
+	Reply             *ResponseReply     `json:"reply"`
+	Quote             *ResponseStrongRef `json:"quote"`
+	CreatedAt         time.Time          `json:"createdAt"`
+	IndexedAt         time.Time          `json:"indexedAt"`
+	Author            PostAuthor         `json:"author"`
+}
+
+// ThreadResponse is the root response for nested thread reads.
+type ThreadResponse struct {
+	Post      *PostResponse `json:"post"`
+	Replies   []*ThreadNode `json:"replies"`
+	Truncated bool          `json:"truncated"`
+}
+
+// ThreadNode is a nested reply node in a thread response.
+type ThreadNode struct {
+	Post    *PostResponse `json:"post"`
+	Replies []*ThreadNode `json:"replies"`
 }
 
 // BuildPostResponse converts a PostRow + resolved handle into the wire
@@ -91,6 +109,14 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle) *PostResponse {
 		}
 	}
 	return resp
+}
+
+func applyEngagementSummary(resp *PostResponse, summary EngagementSummary) {
+	resp.LikeCount = summary.LikeCount
+	resp.RepostCount = summary.RepostCount
+	resp.ReplyCount = summary.ReplyCount
+	resp.ViewerHasLiked = summary.ViewerHasLiked
+	resp.ViewerHasReposted = summary.ViewerHasReposted
 }
 
 func derefOrEmpty(p *string) string {
