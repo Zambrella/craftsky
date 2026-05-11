@@ -14,6 +14,10 @@ For the product-level "why" and the community-facing feature intent, read the vi
 
 `just dev` (from the repo root) starts the full compose stack — `postgres`, `migrate`, `tap`, `tap-bootstrap`, `appview`. The appview runs only inside Docker in dev; there is no `go run ./cmd/appview` path. Go tests run on the host with `just test` against the compose Postgres (the appview image has no Go toolchain). See `justfile` for the full recipe list.
 
+## Pull Requests
+
+Use [`.github/pull_request_template.md`](.github/pull_request_template.md) for every PR. Keep the summary short, list the tests run, call out API or lexicon impact explicitly, and include screenshots or recordings for UI changes.
+
 ## Repository Layout
 
 - `app/` — Flutter client. Uses [`atproto.dart`](https://github.com/myConsciousness/atproto.dart). Talks to `appview/` via HTTPS + session token, never to the PDS directly.
