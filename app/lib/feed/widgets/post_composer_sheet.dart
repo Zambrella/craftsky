@@ -115,19 +115,75 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
             spacing.sp4,
             spacing.sp6,
           ),
-          child: BrandTextField(
-            label: isReply ? l10n.postComposeReplyHint : l10n.postComposeHint,
-            controller: _controller,
-            focusNode: _focusNode,
-            minLines: 8,
-            maxLines: 16,
-            textInputAction: TextInputAction.newline,
-            keyboardType: TextInputType.multiline,
-            enabled: !createState.isLoading,
-            errorText: tooLong ? l10n.postComposeTooLong : null,
-            helperText: '${_text.length}/${PostComposerSheet.maxCharacters}',
-            onChanged: (value) => setState(() => _text = value),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (widget.replyTarget case final replyTarget?) ...[
+                _ReplyTargetPreview(post: replyTarget),
+                SizedBox(height: spacing.sp4),
+              ],
+              BrandTextField(
+                label: isReply
+                    ? l10n.postComposeReplyHint
+                    : l10n.postComposeHint,
+                controller: _controller,
+                focusNode: _focusNode,
+                minLines: 8,
+                maxLines: 16,
+                textInputAction: TextInputAction.newline,
+                keyboardType: TextInputType.multiline,
+                enabled: !createState.isLoading,
+                errorText: tooLong ? l10n.postComposeTooLong : null,
+                helperText:
+                    '${_text.length}/${PostComposerSheet.maxCharacters}',
+                onChanged: (value) => setState(() => _text = value),
+              ),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReplyTargetPreview extends StatelessWidget {
+  const _ReplyTargetPreview({required this.post});
+
+  final Post post;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    final displayName = post.author.displayName;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: swatches.paper2,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: swatches.borderHair),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(spacing.sp3),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (displayName != null && displayName.trim().isNotEmpty)
+              Text(displayName, style: theme.textTheme.titleSmall),
+            Text(
+              '@${post.author.handle}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+            SizedBox(height: spacing.sp2),
+            Text(
+              post.text,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ],
         ),
       ),
     );

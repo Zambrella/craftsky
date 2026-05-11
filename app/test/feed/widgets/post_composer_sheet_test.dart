@@ -34,12 +34,12 @@ Post _post() {
   );
 }
 
-Post _replyTarget() {
+Post _replyTarget({String text = 'target'}) {
   return Post(
     uri: 'at://did:plc:alice/social.craftsky.feed.post/target',
     cid: 'bafy_target',
     rkey: 'target',
-    text: 'target',
+    text: text,
     tags: const [],
     likeCount: 0,
     repostCount: 0,
@@ -166,6 +166,49 @@ void main() {
       expect(capturedReply!.root.cid, target.reply!.root.cid);
       expect(capturedReply!.parent.uri, target.uri);
       expect(capturedReply!.parent.cid, target.cid);
+    });
+
+    testWidgets('reply mode shows compact target preview above input', (
+      tester,
+    ) async {
+      final messenger = RecordingMessenger();
+      final target = _replyTarget();
+
+      await _pump(
+        tester,
+        repo: FakePostRepository(),
+        messenger: messenger,
+        replyTarget: target,
+      );
+
+      expect(find.text('@alice.craftsky.social'), findsOneWidget);
+      expect(find.text('target'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('target')).dy,
+        lessThan(tester.getTopLeft(find.byType(TextField)).dy),
+      );
+    });
+
+    testWidgets('reply target preview limits long text to three lines', (
+      tester,
+    ) async {
+      final messenger = RecordingMessenger();
+      const longText =
+          'This is a very long reply target that should provide enough words '
+          'to wrap across more than three lines at phone width so the compact '
+          'preview can stay bounded above the composer input.';
+
+      await _pump(
+        tester,
+        repo: FakePostRepository(),
+        messenger: messenger,
+        replyTarget: _replyTarget(text: longText),
+      );
+
+      final previewText = tester.widget<Text>(find.text(longText));
+
+      expect(previewText.maxLines, 3);
+      expect(previewText.overflow, TextOverflow.ellipsis);
     });
   });
 }

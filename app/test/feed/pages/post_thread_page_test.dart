@@ -117,10 +117,133 @@ Future<void> _pumpThread(
   );
 }
 
+void _expectTextJustBelowAppBar(WidgetTester tester, String text) {
+  final appBarBottom = tester.getBottomLeft(find.byType(AppBar)).dy;
+  final textTop = tester.getTopLeft(find.text(text)).dy;
+
+  expect(textTop, greaterThanOrEqualTo(appBarBottom));
+  expect(textTop, lessThan(appBarBottom + 160));
+}
+
 void main() {
   final l10n = AppLocalizationsEn();
 
   group('PostThreadPage', () {
+    testWidgets('anchors top-level post below app bar with replies below', (
+      tester,
+    ) async {
+      final repo = FakePostRepository(
+        onThread: (_, rkey) async => PostThread(
+          post: _post(rkey, 'top-level target'),
+          replies: [
+            PostThread(
+              post: _post('reply-a', 'first reply'),
+              replies: const [],
+            ),
+          ],
+        ),
+      );
+
+      await _pumpThread(tester, repo, size: const Size(390, 900));
+      await tester.pumpAndSettle();
+
+      final targetTop = tester.getTopLeft(find.text('top-level target')).dy;
+
+      _expectTextJustBelowAppBar(tester, 'top-level target');
+      expect(
+        tester.getTopLeft(find.text('first reply')).dy,
+        greaterThan(targetTop),
+      );
+    });
+
+    testWidgets('anchors selected reply below app bar when opened', (
+      tester,
+    ) async {
+      final repo = FakePostRepository(
+        onThread: (_, rkey) async => _threadFor(rkey),
+      );
+
+      await _pumpThread(tester, repo, size: const Size(390, 900));
+      await tester.pumpAndSettle();
+
+      _expectTextJustBelowAppBar(tester, 'target post');
+      expect(find.text('first reply'), findsOneWidget);
+
+      await tester.drag(find.byType(Scrollable), const Offset(0, 300));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getTopLeft(find.text('root ancestor')).dy,
+        lessThan(tester.getTopLeft(find.text('parent ancestor')).dy),
+      );
+      expect(
+        tester.getTopLeft(find.text('parent ancestor')).dy,
+        lessThan(tester.getTopLeft(find.text('target post')).dy),
+      );
+    });
+
+    testWidgets('tapping selected post does not push same thread route', (
+      tester,
+    ) async {
+      final calls = <String>[];
+      final repo = FakePostRepository(
+        onThread: (_, rkey) async {
+          calls.add(rkey);
+          return _threadFor(rkey);
+        },
+      );
+
+      await _pumpThread(tester, repo, size: const Size(390, 900));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('target post'));
+      await tester.pumpAndSettle();
+
+      expect(calls, ['target']);
+    });
+
+    testWidgets('tapping non-selected reply navigates to that reply thread', (
+      tester,
+    ) async {
+      final calls = <String>[];
+      final repo = FakePostRepository(
+        onThread: (_, rkey) async {
+          calls.add(rkey);
+          return _threadFor(rkey);
+        },
+      );
+
+      await _pumpThread(tester, repo, size: const Size(390, 900));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('first reply'));
+      await tester.pumpAndSettle();
+
+      expect(calls, ['target', 'reply-a']);
+    });
+
+    testWidgets('tapping non-selected ancestor navigates to ancestor thread', (
+      tester,
+    ) async {
+      final calls = <String>[];
+      final repo = FakePostRepository(
+        onThread: (_, rkey) async {
+          calls.add(rkey);
+          return _threadFor(rkey);
+        },
+      );
+
+      await _pumpThread(tester, repo, size: const Size(390, 900));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(Scrollable), const Offset(0, 300));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('parent ancestor'));
+      await tester.pumpAndSettle();
+
+      expect(calls, ['target', 'parent']);
+    });
+
     testWidgets('shows focused thread content', (
       tester,
     ) async {
@@ -131,9 +254,11 @@ void main() {
       await _pumpThread(tester, repo, size: const Size(390, 1300));
       await tester.pumpAndSettle();
 
+      expect(find.text('target post'), findsOneWidget);
+      await tester.drag(find.byType(Scrollable), const Offset(0, 300));
+      await tester.pumpAndSettle();
       expect(find.text('root ancestor'), findsOneWidget);
       expect(find.text('parent ancestor'), findsOneWidget);
-      expect(find.text('target post'), findsOneWidget);
       await tester.scrollUntilVisible(
         find.text('first reply'),
         250,
@@ -176,7 +301,14 @@ void main() {
       await _pumpThread(tester, repo, size: const Size(390, 1300));
       await tester.pumpAndSettle();
 
+      final targetTop = tester.getTopLeft(find.text('target post')).dy;
+
+      _expectTextJustBelowAppBar(tester, 'target post');
       expect(find.text(l10n.postThreadEmptyReplies), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text(l10n.postThreadEmptyReplies)).dy,
+        greaterThan(targetTop),
+      );
     });
 
     testWidgets('uses sticky reply prompt on small screens', (tester) async {

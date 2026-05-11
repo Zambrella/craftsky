@@ -73,38 +73,54 @@ class _ThreadBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final spacing = Theme.of(context).extension<SpacingTheme>()!;
-    return ListView(
-      padding: EdgeInsets.only(bottom: spacing.sp5),
-      children: [
-        for (final ancestor in thread.ancestors)
-          _ThreadPostCard(
-            thread: PostThread(
-              post: ancestor,
-              replies: const [],
-            ),
-            isAncestor: true,
-          ),
-        Padding(
-          padding: EdgeInsets.symmetric(vertical: spacing.sp2),
-          child: _ThreadPostCard(thread: thread, isAnchor: true),
+    final anchorKey = ValueKey('selectedThreadPost-${thread.post.uri}');
+    return CustomScrollView(
+      center: anchorKey,
+      slivers: [
+        SliverList.list(
+          children: [
+            for (final ancestor in thread.ancestors.reversed)
+              _ThreadPostCard(
+                thread: PostThread(
+                  post: ancestor,
+                  replies: const [],
+                ),
+                isAncestor: true,
+              ),
+          ],
         ),
-        if (showInlineComposer)
-          _ReplyPrompt(
-            key: const ValueKey('threadInlineReplyPrompt'),
-            post: thread.post,
+        SliverToBoxAdapter(
+          key: anchorKey,
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: spacing.sp2),
+            child: _ThreadPostCard(thread: thread, isAnchor: true),
           ),
-        if (thread.replies.isEmpty)
-          Padding(
-            padding: EdgeInsets.all(spacing.sp5),
-            child: Center(child: Text(l10n.postThreadEmptyReplies)),
-          )
-        else
-          for (final reply in thread.replies) _ThreadPostCard(thread: reply),
-        if (thread.truncated)
-          Padding(
-            padding: EdgeInsets.all(spacing.sp4),
-            child: Center(child: Text(l10n.postThreadReadMoreReplies)),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.only(bottom: spacing.sp5),
+          sliver: SliverList.list(
+            children: [
+              if (showInlineComposer)
+                _ReplyPrompt(
+                  key: const ValueKey('threadInlineReplyPrompt'),
+                  post: thread.post,
+                ),
+              if (thread.replies.isEmpty)
+                Padding(
+                  padding: EdgeInsets.all(spacing.sp5),
+                  child: Center(child: Text(l10n.postThreadEmptyReplies)),
+                )
+              else
+                for (final reply in thread.replies)
+                  _ThreadPostCard(thread: reply),
+              if (thread.truncated)
+                Padding(
+                  padding: EdgeInsets.all(spacing.sp4),
+                  child: Center(child: Text(l10n.postThreadReadMoreReplies)),
+                ),
+            ],
           ),
+        ),
       ],
     );
   }
@@ -150,10 +166,12 @@ class _ThreadPostCard extends StatelessWidget {
         children: [
           PostCard(
             post: thread.post,
-            onTap: () => PostThreadRoute(
-              did: thread.post.author.did,
-              rkey: thread.post.rkey,
-            ).push<void>(context),
+            onTap: isAnchor
+                ? null
+                : () => PostThreadRoute(
+                    did: thread.post.author.did,
+                    rkey: thread.post.rkey,
+                  ).push<void>(context),
             onReply: () => showPostComposerSheet(
               context,
               replyTarget: thread.post,
