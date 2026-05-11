@@ -3,6 +3,14 @@ set dotenv-load := false
 default:
     @just --list
 
+# Create a standard git worktree under .worktrees/.
+worktree BRANCH *ARGS:
+    ./scripts/worktree-create '{{BRANCH}}' {{ARGS}}
+
+# Prune stale git worktree metadata and empty .worktrees/ directories.
+worktree-cleanup *ARGS:
+    ./scripts/worktree-cleanup {{ARGS}}
+
 # Start the full compose stack in the foreground.
 dev:
     docker compose up --build

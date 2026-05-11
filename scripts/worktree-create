@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/worktree-create <branch> [--base <ref>] [--path <path>] [--remote <name>]
+
+Create a standard local worktree under .worktrees/ from a base ref.
+
+Arguments:
+  <branch>          New local branch name, for example feature/likes.
+
+Options:
+  --base <ref>      Base ref for the new branch. Defaults to main.
+  --path <path>     Worktree path. Defaults to .worktrees/<slugged-branch>.
+  --remote <name>   Remote to fetch when using the default local base. Defaults to origin.
+  -h, --help        Show this help.
+
+Examples:
+  scripts/worktree-create feature/likes
+  scripts/worktree-create fix/api-cursor --base origin/main
+  scripts/worktree-create threads-ux --path .worktrees/threads-ux
+USAGE
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+branch=""
+base="main"
+path=""
+remote="origin"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --base)
+      [[ $# -ge 2 ]] || die "--base requires a value"
+      base="$2"
+      shift 2
+      ;;
+    --path)
+      [[ $# -ge 2 ]] || die "--path requires a value"
+      path="$2"
+      shift 2
+      ;;
+    --remote)
+      [[ $# -ge 2 ]] || die "--remote requires a value"
+      remote="$2"
+      shift 2
+      ;;
+    --*)
+      die "unknown option: $1"
+      ;;
+    *)
+      [[ -z "$branch" ]] || die "only one branch name may be provided"
+      branch="$1"
+      shift
+      ;;
+  esac
+done
+
+[[ -n "$branch" ]] || die "branch name is required"
+[[ "$branch" != -* ]] || die "branch name must not start with '-'"
+[[ "$branch" != *..* ]] || die "branch name must not contain '..'"
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || die "not inside a git repository"
+cd "$repo_root"
+
+git check-ref-format --branch "$branch" >/dev/null || die "invalid branch name: $branch"
+
+if git show-ref --verify --quiet "refs/heads/$branch"; then
+  die "local branch already exists: $branch"
+fi
+
+if [[ -z "$path" ]]; then
+  slug=$(printf '%s' "$branch" | tr '/[:space:]' '-' | tr -cd '[:alnum:]_.-')
+  [[ -n "$slug" ]] || die "branch name produced an empty path slug"
+  path=".worktrees/$slug"
+fi
+
+case "$path" in
+  /*) worktree_path="$path" ;;
+  *) worktree_path="$repo_root/$path" ;;
+esac
+
+if [[ -e "$worktree_path" ]]; then
+  die "worktree path already exists: $worktree_path"
+fi
+
+if [[ "$base" == "main" && -n "$remote" ]]; then
+  git remote get-url "$remote" >/dev/null 2>&1 || die "remote does not exist: $remote"
+  git fetch "$remote" main
+fi
+
+git rev-parse --verify --quiet "$base^{commit}" >/dev/null || die "base ref does not exist: $base"
+
+mkdir -p "$(dirname "$worktree_path")"
+git worktree add -b "$branch" "$worktree_path" "$base"
+
+printf '\nCreated worktree:\n'
+printf '  branch: %s\n' "$branch"
+printf '  base:   %s\n' "$base"
+printf '  path:   %s\n' "$worktree_path"
+printf '\nNext step:\n'
+printf '  cd %q\n' "$worktree_path"

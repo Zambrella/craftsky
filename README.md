@@ -76,6 +76,29 @@ just psql                     # psql shell; try: SELECT count(*) FROM bluesky_po
 
 See [`appview/README.md`](appview/README.md) for the full list of `just` recipes and the host-side test workflow.
 
+## Worktrees
+
+Use the repository helper to create local worktrees in the standard ignored location:
+
+```
+just worktree feature/my-change
+cd .worktrees/feature-my-change
+```
+
+The helper creates a new local branch from `main` by default, fetches `origin/main` first, and refuses to overwrite an existing branch or path. Pass extra options through `just` when needed:
+
+```
+just worktree fix/api-cursor --base origin/main
+just worktree threads-ux --path .worktrees/threads-ux
+```
+
+Clean up stale worktree metadata and empty directories with:
+
+```
+just worktree-cleanup
+just worktree-cleanup --dry-run
+```
+
 Each subdirectory also has its own README:
 
 - [`app/README.md`](app/README.md) — Flutter app setup

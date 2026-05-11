@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/worktree-cleanup [--dry-run]
+
+Prune stale git worktree metadata and remove empty directories under .worktrees/.
+
+Options:
+  --dry-run     Show what would be pruned or removed without changing anything.
+  -h, --help    Show this help.
+USAGE
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+dry_run=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --*)
+      die "unknown option: $1"
+      ;;
+    *)
+      die "unexpected argument: $1"
+      ;;
+  esac
+done
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || die "not inside a git repository"
+cd "$repo_root"
+
+if [[ "$dry_run" == true ]]; then
+  git worktree prune --dry-run -v
+else
+  git worktree prune -v
+fi
+
+worktrees_dir="$repo_root/.worktrees"
+if [[ ! -d "$worktrees_dir" ]]; then
+  printf 'No .worktrees/ directory found.\n'
+  exit 0
+fi
+
+removed_empty=false
+while IFS= read -r -d '' dir; do
+  removed_empty=true
+  if [[ "$dry_run" == true ]]; then
+    printf 'would remove empty directory: %s\n' "$dir"
+  else
+    rmdir "$dir"
+    printf 'removed empty directory: %s\n' "$dir"
+  fi
+done < <(find "$worktrees_dir" -depth -type d -empty ! -path "$worktrees_dir" -print0)
+
+if [[ "$removed_empty" == false ]]; then
+  printf 'No empty .worktrees/ directories found.\n'
+fi
