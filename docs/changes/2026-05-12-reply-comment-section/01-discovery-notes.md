@@ -44,7 +44,7 @@ Decision / implication: The backend keeps exact parent/root reply refs. The UI f
 
 Answer: No. The dropdown should include `follows`, but it is stubbed/no-op for now.
 
-Decision / implication: Requirements should call out visible `follows` sort as a placeholder. Backend can either treat it like the default sort or client can avoid changing the request behavior until follow data exists.
+Decision / implication: Requirements should call out visible `follows` sort as a placeholder. Until follow data exists, `follows` should behave like `oldest`.
 
 ### Q3: Which deep-link shape should be used for replies?
 
@@ -56,7 +56,9 @@ Decision / implication: Deep links should always open the root post comment sect
 
 Answer: Temporarily pin it at the top and scroll it into view, even if selected ordering is oldest or follows.
 
-Decision / implication: Client state needs a temporary pinned/newly-created reply treatment until the list is refreshed or the user changes context.
+Decision / implication: Client state needs a temporary pinned/newly-created reply treatment until the list is refreshed or the user changes context. A follow-up product question remains around whether the viewer's own top-level comments should always be grouped at the top.
+
+Platform pattern note: common platforms vary here. Some highlight or prioritize the viewer's own comment after posting, some rank creator/verified/relevant comments above chronological order, and strictly chronological views usually keep comments in sort order after the immediate post confirmation affordance. For Craftsky's chronological/no-ranking product principle, permanent "my comments first" should be treated as a deliberate exception rather than assumed behavior.
 
 ### Q5: When a user taps “view replies” on a top-level reply, how many second-level replies should load initially?
 
@@ -68,7 +70,7 @@ Decision / implication: Expanded child reply lists page independently with page 
 
 Answer: No. Ordering applies only to the top-level reply list.
 
-Decision / implication: Second-level replies use a fixed ordering, likely oldest-first conversation order, while top-level replies support oldest/newest/follows.
+Decision / implication: Second-level replies use a fixed oldest-first conversation order, while top-level replies support oldest/newest/follows.
 
 ### Q7: Should the current `/thread` endpoint remain?
 
@@ -161,7 +163,8 @@ In scope:
 - Two-level visual maximum while preserving full backend parentage.
 - New reply focus/scroll behavior:
   - top-level replies are temporarily pinned at the top and scrolled into view;
-  - replies to another reply are displayed/scrolled within the relevant second-level list.
+  - replies to another reply are displayed/scrolled within the relevant second-level list;
+  - replies deeper than second-level are displayed as flattened second-level replies under the nearest top-level ancestor.
 
 Out of scope:
 - Real follows graph indexing/storage or true follows-based ranking.
@@ -182,10 +185,8 @@ Reason: This is a coordinated user-visible behavior and API change across AppVie
 
 - [ ] Exact focused reply query parameter format: raw AT-URI, URL-encoded AT-URI, or structured `{did}/{rkey}` pair.
 - [ ] Exact backend response shape for the comment-section endpoint.
-- [ ] Whether `follows` no-op should behave as `oldest`, `newest`, or preserve the current list without refetching.
-- [ ] Whether second-level fixed ordering is explicitly oldest-first.
-- [ ] How long a temporarily pinned new top-level reply remains pinned: until refresh, sort change, navigation away, or until it naturally appears in the current page.
-- [ ] Whether focused deep links to replies deeper than second-level should display the actual target as a flattened second-level reply under its nearest top-level ancestor, and how to label/mention its true parent.
+- [ ] Whether viewer-authored top-level comments should always be grouped at the top, or whether only newly-created comments get a temporary post-confirmation pin before returning to the selected sort order.
+- [ ] If deeper replies are flattened under the nearest top-level ancestor, the exact visual treatment for showing the true parent context, such as an `@user` mention, "replying to" label, or no extra label beyond the composer mention.
 
 ## Decision Summary
 
@@ -193,9 +194,9 @@ Reason: This is a coordinated user-visible behavior and API change across AppVie
 - Delete the existing `/thread` endpoint and replace thread UI with comment-section UI.
 - Preserve full backend reply parentage even though frontend displays a maximum of two levels.
 - Replying to a second-level reply creates a real reply to that second-level post but displays it under the existing second-level list.
-- Include `follows` in the ordering dropdown as a stub/no-op.
+- Include `follows` in the ordering dropdown as a stub/no-op that behaves like oldest-first until follow data exists.
 - Top-level replies lazy-load on scroll in pages of 10.
-- Second-level replies load only by user action, 10 at a time, and can be hidden after loading.
+- Second-level replies load only by user action, 10 at a time, can be hidden after loading, and are always oldest-first.
 - Top-level sort applies only to top-level replies; nested replies have a fixed order.
 
 ## Handoff To Requirements
