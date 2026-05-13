@@ -91,13 +91,89 @@ type EngagementSummary struct {
 // fakes; production uses *PostStore.
 type PostReader interface {
 	ReadOne(ctx context.Context, did, rkey string) (*PostRow, error)
+	ReadPostByURI(ctx context.Context, uri string) (*PostRow, error)
 	ListByAuthor(ctx context.Context, did string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
 	ResolvePostTarget(ctx context.Context, did, rkey string) (*PostTargetRef, error)
+	ListRootComments(ctx context.Context, rootURI, viewerDID, sort string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
 	ListDirectReplies(ctx context.Context, parentURI string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
 	LoadThreadAncestors(ctx context.Context, rootURI, parentURI, targetURI string, limit int) ([]*PostRow, error)
 	LoadThreadCandidates(ctx context.Context, rootURI, targetURI string, limit int) ([]*PostRow, error)
 	ReadAuthor(ctx context.Context, did string) (*PostAuthorRow, error)
 	EngagementSummaries(ctx context.Context, viewerDID string, postURIs []string) (map[string]EngagementSummary, error)
+}
+
+// ReadPostByURI returns the post identified by AT-URI.
+func (s *PostStore) ReadPostByURI(ctx context.Context, uri string) (*PostRow, error) {
+	q := `
+		SELECT ` + postSelectColumns + `
+		FROM craftsky_posts p
+		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
+		WHERE p.uri = $1
+	`
+	row, err := scanPostRow(s.pool.QueryRow(ctx, q, uri))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrPostNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("post read uri %s: %w", uri, err)
+	}
+	return row, nil
+}
+
+// ListRootComments returns direct replies to the root post, oldest-first for
+// the initial comment-section contract. Sort/viewer grouping are expanded in
+// later TDD steps.
+func (s *PostStore) ListRootComments(ctx context.Context, rootURI, viewerDID, sortValue string, limit int, cursor string) ([]*PostRow, string, error) {
+	curCreatedAt, curURI, err := decodeSeekCursor(cursor, "createdAt")
+	if err != nil {
+		return nil, "", err
+	}
+	orderDirection := "ASC"
+	seekComparator := ">"
+	if sortValue == "newest" {
+		orderDirection = "DESC"
+		seekComparator = "<"
+	}
+
+	q := `
+		SELECT ` + postSelectColumns + `
+		FROM craftsky_posts p
+		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
+		WHERE p.reply_parent_uri = $1
+		  AND ($2::timestamptz IS NULL
+		       OR (p.created_at, p.uri) ` + seekComparator + ` ($2::timestamptz, $3::text))
+		ORDER BY CASE WHEN p.did = $5 THEN 0 ELSE 1 END ASC, p.created_at ` + orderDirection + `, p.uri ` + orderDirection + `
+		LIMIT $4
+	`
+	rows, err := s.pool.Query(ctx, q, rootURI, curCreatedAt, curURI, limit, viewerDID)
+	if err != nil {
+		return nil, "", fmt.Errorf("comment list root %s: %w", rootURI, err)
+	}
+	defer rows.Close()
+
+	out := make([]*PostRow, 0, limit)
+	for rows.Next() {
+		row, scanErr := scanPostRow(rows)
+		if scanErr != nil {
+			return nil, "", fmt.Errorf("comment list scan: %w", scanErr)
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", fmt.Errorf("comment list iter: %w", err)
+	}
+	if len(out) < limit {
+		return out, "", nil
+	}
+	last := out[len(out)-1]
+	next, err := envelope.EncodeCursor(map[string]any{
+		"createdAt": last.CreatedAt.UTC().Format(time.RFC3339Nano),
+		"uri":       last.URI,
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("encode comment cursor: %w", err)
+	}
+	return out, next, nil
 }
 
 // PostStore is the Postgres-backed implementation.

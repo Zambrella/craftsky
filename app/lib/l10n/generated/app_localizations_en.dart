@@ -152,6 +152,31 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get postCommentsSortOldest => 'Oldest';
+
+  @override
+  String get postCommentsSortNewest => 'Newest';
+
+  @override
+  String get postCommentsSortFollows => 'Follows';
+
+  @override
+  String get postCommentsViewReplies => 'View replies';
+
+  @override
+  String get postCommentsLoadMoreReplies => 'Load more replies';
+
+  @override
+  String get postCommentsHideReplies => 'Hide replies';
+
+  @override
+  String get postCommentsFocusNotFound => 'That reply isn\'t available yet.';
+
+  @override
+  String get postCommentsFocusMismatchedRoot =>
+      'That reply belongs to a different post.';
+
+  @override
   String get postComposeAction => 'New post';
 
   @override

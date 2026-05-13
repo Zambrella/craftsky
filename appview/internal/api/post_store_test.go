@@ -525,6 +525,91 @@ func TestPostStore_ListDirectReplies_PaginatesOpaqueCursorOldestFirst(t *testing
 	}
 }
 
+func TestPostStore_ListRootComments_PaginatesOpaqueCursorOldestFirst(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
+	for i := 0; i < 12; i++ {
+		did := "did:plc:bob"
+		if i%2 == 1 {
+			did = "did:plc:carol"
+		}
+		seedReplyPost(t, pool, did, "comment"+string(rune('a'+i)), "comment", root, root, base.Add(time.Duration(i+1)*time.Minute))
+	}
+	firstComment := seedReplyPost(t, pool, "did:plc:bob", "nested", "nested", root, root, base.Add(20*time.Minute))
+	seedReplyPost(t, pool, "did:plc:carol", "nested-child", "child", root, firstComment, base.Add(21*time.Minute))
+
+	store := api.NewPostStore(pool)
+	page1, cursor, err := store.ListRootComments(context.Background(), root, "did:plc:viewer", "oldest", 10, "")
+	if err != nil {
+		t.Fatalf("page1: %v", err)
+	}
+	if len(page1) != 10 {
+		t.Fatalf("page1 len = %d, want 10", len(page1))
+	}
+	if page1[0].Rkey != "commenta" || page1[9].Rkey != "commentj" {
+		t.Fatalf("page1 rkeys = %v", replyRkeys(page1))
+	}
+	if cursor == "" {
+		t.Fatal("want non-empty cursor after page 1")
+	}
+	if _, err := envelope.DecodeCursor(cursor); err != nil {
+		t.Fatalf("cursor is not opaque envelope cursor: %v", err)
+	}
+	page2, cursor2, err := store.ListRootComments(context.Background(), root, "did:plc:viewer", "oldest", 10, cursor)
+	if err != nil {
+		t.Fatalf("page2: %v", err)
+	}
+	if len(page2) != 3 || page2[0].Rkey != "commentk" || page2[1].Rkey != "commentl" || page2[2].Rkey != "nested" {
+		t.Fatalf("page2 rkeys = %v", replyRkeys(page2))
+	}
+	if cursor2 != "" {
+		t.Fatalf("want final cursor empty, got %q", cursor2)
+	}
+}
+
+func TestPostStore_ListRootComments_GroupsViewerAndSortsWithinGroups(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:viewer", "did:plc:bob"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
+	seedReplyPost(t, pool, "did:plc:bob", "other-early", "other early", root, root, base.Add(1*time.Minute))
+	seedReplyPost(t, pool, "did:plc:viewer", "viewer-mid", "viewer mid", root, root, base.Add(2*time.Minute))
+	seedReplyPost(t, pool, "did:plc:bob", "other-late", "other late", root, root, base.Add(3*time.Minute))
+	seedReplyPost(t, pool, "did:plc:viewer", "viewer-late", "viewer late", root, root, base.Add(4*time.Minute))
+
+	store := api.NewPostStore(pool)
+	for _, tc := range []struct {
+		name string
+		sort string
+		want []string
+	}{
+		{name: "oldest", sort: "oldest", want: []string{"viewer-mid", "viewer-late", "other-early", "other-late"}},
+		{name: "follows", sort: "follows", want: []string{"viewer-mid", "viewer-late", "other-early", "other-late"}},
+		{name: "newest", sort: "newest", want: []string{"viewer-late", "viewer-mid", "other-late", "other-early"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rows, cursor, err := store.ListRootComments(context.Background(), root, "did:plc:viewer", tc.sort, 10, "")
+			if err != nil {
+				t.Fatalf("ListRootComments: %v", err)
+			}
+			if cursor != "" {
+				t.Fatalf("cursor = %q, want empty final cursor", cursor)
+			}
+			if got := replyRkeys(rows); !equalStrings(got, tc.want) {
+				t.Fatalf("rkeys = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestPostStore_ListDirectReplies_RejectsIncompleteCursor(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)
@@ -647,4 +732,16 @@ func replyRkeys(rows []*api.PostRow) []string {
 		out = append(out, row.Rkey)
 	}
 	return out
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }

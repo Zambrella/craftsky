@@ -2,8 +2,8 @@ import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/data/post_repository.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
-import 'package:craftsky_app/feed/models/post_thread.dart';
 
 /// Production [PostRepository] backed by the AppView HTTP API.
 class ApiPostRepository implements PostRepository {
@@ -30,8 +30,21 @@ class ApiPostRepository implements PostRepository {
   }) => _api.listDirectReplies(did, rkey, cursor: cursor, limit: limit);
 
   @override
-  Future<PostThread> thread(String did, String rkey) =>
-      _api.getThread(did, rkey);
+  Future<PostCommentSection> commentSection(
+    String did,
+    String rkey, {
+    String? cursor,
+    CommentSort? sort,
+    String? focus,
+    int? limit,
+  }) => _api.getCommentSection(
+    did,
+    rkey,
+    cursor: cursor,
+    sort: sort,
+    focus: focus,
+    limit: limit,
+  );
 
   @override
   Future<InteractionWriteResponse> like(String did, String rkey) =>

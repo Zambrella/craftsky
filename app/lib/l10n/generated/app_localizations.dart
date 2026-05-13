@@ -364,6 +364,54 @@ abstract class AppLocalizations {
   /// **'Continue thread from {author}'**
   String postThreadContinueThreadFromAuthor(String author);
 
+  /// Comment-section sort option for oldest-first comment ordering.
+  ///
+  /// In en, this message translates to:
+  /// **'Oldest'**
+  String get postCommentsSortOldest;
+
+  /// Comment-section sort option for newest-first comment ordering.
+  ///
+  /// In en, this message translates to:
+  /// **'Newest'**
+  String get postCommentsSortNewest;
+
+  /// Comment-section sort option for follows-based ordering. Until follow ranking exists, this behaves like oldest-first.
+  ///
+  /// In en, this message translates to:
+  /// **'Follows'**
+  String get postCommentsSortFollows;
+
+  /// Control label shown under a comment before its replies are loaded.
+  ///
+  /// In en, this message translates to:
+  /// **'View replies'**
+  String get postCommentsViewReplies;
+
+  /// Control label for loading another page of replies under an expanded comment.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more replies'**
+  String get postCommentsLoadMoreReplies;
+
+  /// Control label for collapsing an expanded comment reply list.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide replies'**
+  String get postCommentsHideReplies;
+
+  /// Message shown when a focused comment/reply link points to an item the AppView has not indexed or can no longer find.
+  ///
+  /// In en, this message translates to:
+  /// **'That reply isn\'t available yet.'**
+  String get postCommentsFocusNotFound;
+
+  /// Message shown when a focused comment/reply link does not belong under the route's root post.
+  ///
+  /// In en, this message translates to:
+  /// **'That reply belongs to a different post.'**
+  String get postCommentsFocusMismatchedRoot;
+
   /// Button label that opens the text-only post composer.
   ///
   /// In en, this message translates to:

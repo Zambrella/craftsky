@@ -1,7 +1,7 @@
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
-import 'package:craftsky_app/feed/models/post_thread.dart';
 
 /// Read/write surface the post providers depend on. The production
 /// binding is `ApiPostRepository`; the test suite swaps in
@@ -25,8 +25,15 @@ abstract interface class PostRepository {
     int? limit,
   });
 
-  /// GET /v1/posts/{did}/{rkey}/thread.
-  Future<PostThread> thread(String did, String rkey);
+  /// GET /v1/posts/{did}/{rkey}/comments — root comment section.
+  Future<PostCommentSection> commentSection(
+    String did,
+    String rkey, {
+    String? cursor,
+    CommentSort? sort,
+    String? focus,
+    int? limit,
+  });
 
   /// POST /v1/posts/{did}/{rkey}/likes.
   Future<InteractionWriteResponse> like(String did, String rkey);

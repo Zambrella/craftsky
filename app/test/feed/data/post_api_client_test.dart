@@ -225,43 +225,6 @@ void main() {
     });
   });
 
-  group('PostApiClient.getThread', () {
-    test(
-      'GETs /v1/posts/{did}/{rkey}/thread and parses nested replies',
-      () async {
-        final dio = buildDio();
-        DioAdapter(dio: dio).onGet(
-          '/v1/posts/did:plc:alice/3lf2abc/thread',
-          (server) => server.reply(200, {
-            'ancestors': [
-              samplePost(text: 'root ancestor'),
-              samplePost(text: 'parent ancestor'),
-            ],
-            'post': samplePost(text: 'root'),
-            'replies': [
-              {
-                'post': samplePost(text: 'reply'),
-                'replies': <Map<String, dynamic>>[],
-              },
-            ],
-            'truncated': false,
-          }),
-        );
-
-        final thread = await PostApiClient(
-          dio,
-        ).getThread('did:plc:alice', '3lf2abc');
-        expect(thread.post.text, 'root');
-        expect(thread.ancestors.map((post) => post.text), [
-          'root ancestor',
-          'parent ancestor',
-        ]);
-        expect(thread.replies.single.post.text, 'reply');
-        expect(thread.truncated, isFalse);
-      },
-    );
-  });
-
   group('PostApiClient likes and reposts', () {
     final interaction = {
       'uri': 'at://did:plc:viewer/social.craftsky.feed.like/like1',

@@ -325,7 +325,7 @@ func ListDirectRepliesHandler(
 			return
 		}
 
-		limit := parseLimit(r.URL.Query().Get("limit"))
+		limit := parseCommentLimit(r.URL.Query().Get("limit"))
 		cursor := r.URL.Query().Get("cursor")
 		rows, nextCursor, err := store.ListDirectReplies(r.Context(), target.URI, limit, cursor)
 		if err != nil {
@@ -379,6 +379,217 @@ func ListDirectRepliesHandler(
 			Items  []*PostResponse `json:"items"`
 			Cursor string          `json:"cursor,omitempty"`
 		}{Items: items, Cursor: nextCursor}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(body)
+	})
+}
+
+// GetPostCommentsHandler serves GET /v1/posts/{did}/{rkey}/comments.
+func GetPostCommentsHandler(
+	store PostReader,
+	resolver HandleResolver,
+	logger *slog.Logger,
+) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := middleware.GetRunID(r.Context())
+		did, err := syntax.ParseDID(r.PathValue("did"))
+		if err != nil {
+			envelope.WriteError(w, http.StatusBadRequest,
+				"invalid_identifier", "did path segment is not a valid DID", runID, nil)
+			return
+		}
+		rkey := r.PathValue("rkey")
+		root, err := store.ReadOne(r.Context(), did.String(), rkey)
+		if errors.Is(err, ErrPostNotFound) {
+			envelope.WriteError(w, http.StatusNotFound,
+				"post_not_found", "post not found", runID, nil)
+			return
+		}
+		if err != nil {
+			logger.Error("post comments: ReadOne failed",
+				slog.String("did", did.String()),
+				slog.String("rkey", rkey),
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "post read failed", runID, nil)
+			return
+		}
+
+		viewerDID, _ := middleware.GetDID(r.Context())
+		sortValue := parseCommentSort(r.URL.Query().Get("sort"))
+		limit := parseCommentLimit(r.URL.Query().Get("limit"))
+		cursor := r.URL.Query().Get("cursor")
+		focus := (*FocusContext)(nil)
+		focusedURI := ""
+		var focusedCommentRow *PostRow
+		var focusedReplyRow *PostRow
+		var focusedReplyParentRow *PostRow
+		if focusRaw := r.URL.Query().Get("focus"); focusRaw != "" {
+			if _, ferr := syntax.ParseATURI(focusRaw); ferr != nil {
+				envelope.WriteError(w, http.StatusBadRequest,
+					"invalid_focus", "focus query parameter is not a valid AT-URI", runID, nil)
+				return
+			}
+			focus = &FocusContext{URI: focusRaw, Status: "notFound"}
+			focusedRow, ferr := store.ReadPostByURI(r.Context(), focusRaw)
+			if ferr != nil && !errors.Is(ferr, ErrPostNotFound) {
+				logger.Error("post comments: ReadPostByURI failed",
+					slog.String("focus", focusRaw),
+					slog.String("err", ferr.Error()),
+					slog.String("run_id", runID))
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "focus read failed", runID, nil)
+				return
+			}
+			if focusedRow != nil {
+				switch {
+				case focusedRow.URI == root.URI:
+					focus.Status = "included"
+					focus.Kind = "root"
+				case focusedRow.ReplyParentURI != nil && *focusedRow.ReplyParentURI == root.URI:
+					focus.Status = "included"
+					focus.Kind = "comment"
+					focusedURI = focusedRow.URI
+					focusedCommentRow = focusedRow
+				case focusedRow.ReplyRootURI != nil && *focusedRow.ReplyRootURI == root.URI:
+					if focusedRow.ReplyParentURI != nil {
+						parentRow, perr := store.ReadPostByURI(r.Context(), *focusedRow.ReplyParentURI)
+						if perr != nil && !errors.Is(perr, ErrPostNotFound) {
+							logger.Error("post comments: ReadPostByURI parent failed",
+								slog.String("parent", *focusedRow.ReplyParentURI),
+								slog.String("err", perr.Error()),
+								slog.String("run_id", runID))
+							envelope.WriteError(w, http.StatusInternalServerError,
+								"internal_error", "focus parent read failed", runID, nil)
+							return
+						}
+						if parentRow != nil && parentRow.ReplyParentURI != nil && *parentRow.ReplyParentURI == root.URI {
+							focus.Status = "included"
+							focus.Kind = "reply"
+							focus.CommentURI = parentRow.URI
+							focusedURI = parentRow.URI
+							focusedCommentRow = parentRow
+							focusedReplyRow = focusedRow
+							focusedReplyParentRow = parentRow
+						} else if parentRow != nil && parentRow.ReplyRootURI != nil && *parentRow.ReplyRootURI == root.URI && parentRow.ReplyParentURI != nil {
+							commentRow, cerr := store.ReadPostByURI(r.Context(), *parentRow.ReplyParentURI)
+							if cerr != nil && !errors.Is(cerr, ErrPostNotFound) {
+								logger.Error("post comments: ReadPostByURI comment ancestor failed",
+									slog.String("ancestor", *parentRow.ReplyParentURI),
+									slog.String("err", cerr.Error()),
+									slog.String("run_id", runID))
+								envelope.WriteError(w, http.StatusInternalServerError,
+									"internal_error", "focus ancestor read failed", runID, nil)
+								return
+							}
+							if commentRow != nil && commentRow.ReplyParentURI != nil && *commentRow.ReplyParentURI == root.URI {
+								focus.Status = "included"
+								focus.Kind = "reply"
+								focus.CommentURI = commentRow.URI
+								focusedURI = commentRow.URI
+								focusedCommentRow = commentRow
+								focusedReplyRow = focusedRow
+								focusedReplyParentRow = parentRow
+							}
+						}
+					}
+				default:
+					focus.Status = "mismatchedRoot"
+				}
+			}
+		}
+		comments, nextCursor, err := store.ListRootComments(r.Context(), root.URI, viewerDID.String(), sortValue, limit, cursor)
+		if err != nil {
+			if errors.Is(err, envelope.ErrInvalidCursor) {
+				envelope.WriteError(w, http.StatusBadRequest,
+					"invalid_cursor", "cursor could not be decoded", runID, nil)
+				return
+			}
+			logger.Error("post comments: ListRootComments failed",
+				slog.String("root_uri", root.URI),
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "comment list failed", runID, nil)
+			return
+		}
+
+		hydratedRows := append([]*PostRow{root}, comments...)
+		if focusedCommentRow != nil && !containsPostRow(comments, focusedCommentRow.URI) {
+			hydratedRows = append(hydratedRows, focusedCommentRow)
+		}
+		if focusedReplyRow != nil {
+			hydratedRows = append(hydratedRows, focusedReplyRow)
+		}
+		if focusedReplyParentRow != nil && focusedReplyParentRow.URI != focusedCommentRow.URI {
+			hydratedRows = append(hydratedRows, focusedReplyParentRow)
+		}
+		postURIs := make([]string, 0, len(hydratedRows))
+		for _, row := range hydratedRows {
+			postURIs = append(postURIs, row.URI)
+		}
+		summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
+		if err != nil {
+			logger.Error("post comments: EngagementSummaries failed",
+				slog.String("root_uri", root.URI),
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "post engagement lookup failed", runID, nil)
+			return
+		}
+		handles, err := resolveHandlesForRows(r.Context(), hydratedRows, resolver)
+		if err != nil {
+			logger.Warn("post comments: ResolveHandle failed",
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusBadGateway,
+				"identity_unavailable", "could not resolve handle", runID, nil)
+			return
+		}
+
+		rootPost := BuildPostResponse(root, handles[root.DID])
+		applyEngagementSummary(rootPost, summaries[root.URI])
+		items := make([]CommentItem, 0, len(comments))
+		if focusedCommentRow != nil && !containsPostRow(comments, focusedCommentRow.URI) {
+			post := BuildPostResponse(focusedCommentRow, handles[focusedCommentRow.DID])
+			applyEngagementSummary(post, summaries[focusedCommentRow.URI])
+			replies := ReplyPage{Loaded: false, Items: []ReplyItem{}}
+			if focusedReplyRow != nil {
+				replies = ReplyPage{Loaded: true, Items: []ReplyItem{buildFocusedReplyItem(focusedReplyRow, focusedReplyParentRow, focusedCommentRow, handles, summaries)}}
+			}
+			items = append(items, CommentItem{
+				Post:      post,
+				Placement: "focused",
+				Replies:   replies,
+			})
+		}
+		for _, row := range comments {
+			post := BuildPostResponse(row, handles[row.DID])
+			applyEngagementSummary(post, summaries[row.URI])
+			placement := "normal"
+			if focusedURI != "" && row.URI == focusedURI {
+				placement = "focused"
+			}
+			replies := ReplyPage{Loaded: false, Items: []ReplyItem{}}
+			if focusedReplyRow != nil && row.URI == focusedURI {
+				replies = ReplyPage{Loaded: true, Items: []ReplyItem{buildFocusedReplyItem(focusedReplyRow, focusedReplyParentRow, row, handles, summaries)}}
+			}
+			items = append(items, CommentItem{
+				Post:      post,
+				Placement: placement,
+				Replies:   replies,
+			})
+		}
+		body := &CommentSectionResponse{
+			Post:     rootPost,
+			Comments: CommentPage{Items: items, Cursor: nextCursor},
+			Sort:     sortValue,
+			Focus:    focus,
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -1011,6 +1222,22 @@ func resolveHandlesForRows(ctx context.Context, rows []*PostRow, resolver Handle
 	return handles, nil
 }
 
+func buildFocusedReplyItem(row, parentRow, commentRow *PostRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary) ReplyItem {
+	post := BuildPostResponse(row, handles[row.DID])
+	applyEngagementSummary(post, summaries[row.URI])
+	item := ReplyItem{Post: post, Flattened: false}
+	if parentRow != nil && commentRow != nil && parentRow.URI != commentRow.URI {
+		item.Flattened = true
+		item.ReplyingTo = &ReplyingToAuthor{
+			URI:         parentRow.URI,
+			DID:         parentRow.DID,
+			Handle:      handles[parentRow.DID].String(),
+			DisplayName: parentRow.AuthorDisplayName,
+		}
+	}
+	return item
+}
+
 type threadRowNode struct {
 	row     *PostRow
 	replies []*threadRowNode
@@ -1132,4 +1359,21 @@ func parseLimit(raw string) int {
 		return maxLimit
 	}
 	return n
+}
+
+func parseCommentLimit(raw string) int {
+	limit := parseLimit(raw)
+	if limit > 10 {
+		return 10
+	}
+	return limit
+}
+
+func parseCommentSort(raw string) string {
+	switch raw {
+	case "newest", "follows":
+		return raw
+	default:
+		return "oldest"
+	}
 }

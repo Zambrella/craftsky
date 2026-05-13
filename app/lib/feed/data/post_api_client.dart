@@ -1,7 +1,7 @@
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
-import 'package:craftsky_app/feed/models/post_thread.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
 import 'package:dio/dio.dart';
 
@@ -56,12 +56,25 @@ class PostApiClient {
     return PostPageMapper.fromMap(res.data!);
   });
 
-  /// GET /v1/posts/{did}/{rkey}/thread — nested reply thread.
-  Future<PostThread> getThread(String did, String rkey) => unwrapApi(() async {
+  /// GET /v1/posts/{did}/{rkey}/comments — root comment section.
+  Future<PostCommentSection> getCommentSection(
+    String did,
+    String rkey, {
+    String? cursor,
+    CommentSort? sort,
+    String? focus,
+    int? limit,
+  }) => unwrapApi(() async {
     final res = await _dio.get<Map<String, dynamic>>(
-      '/v1/posts/$did/$rkey/thread',
+      '/v1/posts/$did/$rkey/comments',
+      queryParameters: {
+        if (cursor != null) 'cursor': cursor,
+        if (sort != null) 'sort': sort.name,
+        if (focus != null) 'focus': focus,
+        if (limit != null) 'limit': limit.toString(),
+      },
     );
-    return PostThreadMapper.fromMap(res.data!);
+    return PostCommentSectionMapper.fromMap(res.data!);
   });
 
   /// POST /v1/posts/{did}/{rkey}/likes.

@@ -1,8 +1,8 @@
 import 'package:craftsky_app/feed/data/post_repository.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
-import 'package:craftsky_app/feed/models/post_thread.dart';
 
 /// Programmable [PostRepository] for unit tests. Each method delegates
 /// to an optional callback the test sets up; unstubbed methods complete
@@ -27,7 +27,7 @@ class FakePostRepository implements PostRepository {
     this.onFetch,
     this.onDelete,
     this.onListDirectReplies,
-    this.onThread,
+    this.onCommentSection,
     this.onLike,
     this.onUnlike,
     this.onRepost,
@@ -46,7 +46,15 @@ class FakePostRepository implements PostRepository {
     int? limit,
   })?
   onListDirectReplies;
-  final Future<PostThread> Function(String did, String rkey)? onThread;
+  final Future<PostCommentSection> Function(
+    String did,
+    String rkey, {
+    String? cursor,
+    CommentSort? sort,
+    String? focus,
+    int? limit,
+  })?
+  onCommentSection;
   final Future<InteractionWriteResponse> Function(String did, String rkey)?
   onLike;
   final Future<void> Function(String did, String rkey)? onUnlike;
@@ -88,9 +96,25 @@ class FakePostRepository implements PostRepository {
       );
 
   @override
-  Future<PostThread> thread(String did, String rkey) =>
-      onThread?.call(did, rkey) ??
-      Future<PostThread>.error(UnimplementedError('thread not stubbed'));
+  Future<PostCommentSection> commentSection(
+    String did,
+    String rkey, {
+    String? cursor,
+    CommentSort? sort,
+    String? focus,
+    int? limit,
+  }) =>
+      onCommentSection?.call(
+        did,
+        rkey,
+        cursor: cursor,
+        sort: sort,
+        focus: focus,
+        limit: limit,
+      ) ??
+      Future<PostCommentSection>.error(
+        UnimplementedError('commentSection not stubbed'),
+      );
 
   @override
   Future<InteractionWriteResponse> like(String did, String rkey) =>

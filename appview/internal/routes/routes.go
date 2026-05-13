@@ -54,8 +54,8 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		authN(deviceID(api.GetPostHandler(postStore, deps.HandleResolver, deps.Logger))))
 	mux.Handle("GET /v1/posts/{did}/{rkey}/replies",
 		authN(deviceID(api.ListDirectRepliesHandler(postStore, deps.HandleResolver, deps.Logger))))
-	mux.Handle("GET /v1/posts/{did}/{rkey}/thread",
-		authN(deviceID(api.GetPostThreadHandler(postStore, deps.HandleResolver, deps.Logger))))
+	mux.Handle("GET /v1/posts/{did}/{rkey}/comments",
+		authN(deviceID(api.GetPostCommentsHandler(postStore, deps.HandleResolver, deps.Logger))))
 	mux.Handle("POST /v1/posts/{did}/{rkey}/likes",
 		authN(deviceID(api.LikePostHandler(postStore, deps.NewPDSClient, deps.Logger))))
 	mux.Handle("DELETE /v1/posts/{did}/{rkey}/likes",

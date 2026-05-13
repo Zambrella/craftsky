@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -87,6 +88,12 @@ type fakePostStore struct {
 	listRows              []*api.PostRow
 	listCursor            string
 	listErr               error
+	commentRows           []*api.PostRow
+	commentCursor         string
+	commentErr            error
+	postByURI             *api.PostRow
+	postsByURI            map[string]*api.PostRow
+	postByURIErr          error
 	replyRows             []*api.PostRow
 	replyCursor           string
 	replyErr              error
@@ -115,6 +122,11 @@ type fakePostStore struct {
 	lastActiveLikeURI     string
 	lastActiveRepostDID   string
 	lastActiveRepostURI   string
+	lastCommentRootURI    string
+	lastCommentViewerDID  string
+	lastCommentSort       string
+	lastCommentLimit      int
+	lastCommentCursor     string
 	lastReplyParentURI    string
 	lastReplyLimit        int
 	lastReplyCursor       string
@@ -134,6 +146,28 @@ func (f *fakePostStore) ReadOne(_ context.Context, did, rkey string) (*api.PostR
 }
 func (f *fakePostStore) ListByAuthor(_ context.Context, _ string, _ int, _ string) ([]*api.PostRow, string, error) {
 	return f.listRows, f.listCursor, f.listErr
+}
+func (f *fakePostStore) ListRootComments(_ context.Context, rootURI, viewerDID, sort string, limit int, cursor string) ([]*api.PostRow, string, error) {
+	f.lastCommentRootURI = rootURI
+	f.lastCommentViewerDID = viewerDID
+	f.lastCommentSort = sort
+	f.lastCommentLimit = limit
+	f.lastCommentCursor = cursor
+	return f.commentRows, f.commentCursor, f.commentErr
+}
+func (f *fakePostStore) ReadPostByURI(_ context.Context, uri string) (*api.PostRow, error) {
+	if f.postByURIErr != nil {
+		return nil, f.postByURIErr
+	}
+	if f.postByURI != nil && f.postByURI.URI == uri {
+		return f.postByURI, nil
+	}
+	if f.postsByURI != nil {
+		if row := f.postsByURI[uri]; row != nil {
+			return row, nil
+		}
+	}
+	return nil, api.ErrPostNotFound
 }
 func (f *fakePostStore) ListDirectReplies(_ context.Context, parentURI string, limit int, cursor string) ([]*api.PostRow, string, error) {
 	f.lastReplyParentURI = parentURI
@@ -1101,6 +1135,467 @@ func TestListDirectReplies_HappyPath_PaginatesEngagementAndAuthorHandles(t *test
 	}
 }
 
+func TestListDirectReplies_CapsPageSizeAtTen(t *testing.T) {
+	t.Parallel()
+	parentURI := "at://did:plc:alice/social.craftsky.feed.post/comment"
+	store := &fakePostStore{
+		target:    &api.PostTargetRef{URI: parentURI, CID: "bafyComment"},
+		replyRows: []*api.PostRow{},
+	}
+	h := api.ListDirectRepliesHandler(store, fakeResolver{}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/comment/replies?limit=20", "", "did:plc:viewer")
+	req.SetPathValue("did", "did:plc:alice")
+	req.SetPathValue("rkey", "comment")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if store.lastReplyLimit != 10 {
+		t.Fatalf("reply limit = %d, want capped 10", store.lastReplyLimit)
+	}
+}
+
+func TestGetPostComments_ReturnsRootAndCommentsOnly(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:alice", "root", "root", base)
+	comment := testReplyRow("did:plc:bob", "comment1", "comment", root.URI, root.URI, base.Add(time.Minute))
+	reply := testReplyRow("did:plc:carol", "reply1", "reply", root.URI, comment.URI, base.Add(2*time.Minute))
+	store := &fakePostStore{
+		one:         root,
+		commentRows: []*api.PostRow{comment},
+		engagement: map[string]api.EngagementSummary{
+			root.URI:    {ReplyCount: 1},
+			comment.URI: {ReplyCount: 1},
+			reply.URI:   {ReplyCount: 0},
+		},
+	}
+	h := api.GetPostCommentsHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+		"did:plc:bob":   "bob.example",
+		"did:plc:carol": "carol.example",
+	}}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/comments", "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.CommentSectionResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Post.Rkey != "root" || resp.Post.Author.Handle != "alice.example" {
+		t.Fatalf("root post = %+v", resp.Post)
+	}
+	if resp.Sort != "oldest" {
+		t.Fatalf("sort = %q, want oldest", resp.Sort)
+	}
+	if len(resp.Comments.Items) != 1 {
+		t.Fatalf("comments len = %d, want 1: %+v", len(resp.Comments.Items), resp.Comments.Items)
+	}
+	if resp.Comments.Items[0].Post.Rkey != "comment1" {
+		t.Fatalf("comment item = %+v", resp.Comments.Items[0])
+	}
+	if resp.Comments.Items[0].Post.Rkey == reply.Rkey {
+		t.Fatalf("nested reply was returned as top-level comment: %+v", resp.Comments.Items[0])
+	}
+	if len(resp.Comments.Items[0].Replies.Items) != 0 || resp.Comments.Items[0].Replies.Loaded {
+		t.Fatalf("replies should not be expanded by default: %+v", resp.Comments.Items[0].Replies)
+	}
+	if store.lastCommentRootURI != root.URI || store.lastCommentLimit != 10 || store.lastCommentCursor != "" || store.lastCommentSort != "oldest" || store.lastCommentViewerDID != "did:plc:viewer" {
+		t.Fatalf("comment lookup = root:%q limit:%d cursor:%q sort:%q viewer:%q", store.lastCommentRootURI, store.lastCommentLimit, store.lastCommentCursor, store.lastCommentSort, store.lastCommentViewerDID)
+	}
+}
+
+func TestGetPostComments_CommentItemsIncludePlacement(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:alice", "root", "root", base)
+	comment := testReplyRow("did:plc:bob", "comment1", "comment", root.URI, root.URI, base.Add(time.Minute))
+	store := &fakePostStore{one: root, commentRows: []*api.PostRow{comment}}
+	h := api.GetPostCommentsHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+		"did:plc:bob":   "bob.example",
+	}}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/comments", "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.CommentSectionResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Comments.Items) != 1 {
+		t.Fatalf("items = %+v", resp.Comments.Items)
+	}
+	if resp.Comments.Items[0].Placement != "normal" {
+		t.Fatalf("placement = %q, want normal", resp.Comments.Items[0].Placement)
+	}
+}
+
+func TestGetPostComments_CommentItemsAlwaysIncludeRepliesObject(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:alice", "root", "root", base)
+	comment := testReplyRow("did:plc:bob", "comment1", "comment", root.URI, root.URI, base.Add(time.Minute))
+	store := &fakePostStore{one: root, commentRows: []*api.PostRow{comment}}
+	h := api.GetPostCommentsHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+		"did:plc:bob":   "bob.example",
+	}}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/comments", "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var raw struct {
+		Comments struct {
+			Items []struct {
+				Replies *struct {
+					Loaded bool            `json:"loaded"`
+					Items  json.RawMessage `json:"items"`
+					Cursor *string         `json:"cursor,omitempty"`
+				} `json:"replies"`
+			} `json:"items"`
+		} `json:"comments"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&raw); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(raw.Comments.Items) != 1 {
+		t.Fatalf("items len = %d", len(raw.Comments.Items))
+	}
+	if raw.Comments.Items[0].Replies == nil {
+		t.Fatal("replies object is missing")
+	}
+	if raw.Comments.Items[0].Replies.Loaded {
+		t.Fatal("replies.loaded = true, want false before expansion")
+	}
+	if string(raw.Comments.Items[0].Replies.Items) != "[]" {
+		t.Fatalf("replies.items = %s, want []", raw.Comments.Items[0].Replies.Items)
+	}
+	if raw.Comments.Items[0].Replies.Cursor != nil {
+		t.Fatalf("replies.cursor should be omitted when not loaded, got %q", *raw.Comments.Items[0].Replies.Cursor)
+	}
+}
+
+func TestGetPostComments_FocusQueryIdentifiesIncludedComment(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:alice", "root", "root", base)
+	comment := testReplyRow("did:plc:bob", "comment1", "comment", root.URI, root.URI, base.Add(time.Minute))
+	store := &fakePostStore{
+		one:         root,
+		commentRows: []*api.PostRow{comment},
+		postByURI:   comment,
+	}
+	h := api.GetPostCommentsHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+		"did:plc:bob":   "bob.example",
+	}}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/comments?focus="+url.QueryEscape(comment.URI), "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.CommentSectionResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Focus == nil {
+		t.Fatal("focus metadata missing")
+	}
+	if resp.Focus.Status != "included" || resp.Focus.URI != comment.URI || resp.Focus.Kind != "comment" {
+		t.Fatalf("focus = %+v", resp.Focus)
+	}
+	if len(resp.Comments.Items) != 1 || resp.Comments.Items[0].Placement != "focused" || resp.Comments.Items[0].Post.URI != comment.URI {
+		t.Fatalf("focused comment item = %+v", resp.Comments.Items)
+	}
+}
+
+func TestGetPostComments_FocusedCommentOutsidePageIsIncludedFirst(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:alice", "root", "root", base)
+	pageComment := testReplyRow("did:plc:bob", "page-comment", "page", root.URI, root.URI, base.Add(time.Minute))
+	focusedComment := testReplyRow("did:plc:carol", "focused-comment", "focused", root.URI, root.URI, base.Add(20*time.Minute))
+	store := &fakePostStore{
+		one:         root,
+		commentRows: []*api.PostRow{pageComment},
+		postByURI:   focusedComment,
+	}
+	h := api.GetPostCommentsHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+		"did:plc:bob":   "bob.example",
+		"did:plc:carol": "carol.example",
+	}}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/comments?focus="+url.QueryEscape(focusedComment.URI), "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.CommentSectionResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Focus == nil || resp.Focus.Status != "included" || resp.Focus.Kind != "comment" {
+		t.Fatalf("focus = %+v", resp.Focus)
+	}
+	if got := len(resp.Comments.Items); got != 2 {
+		t.Fatalf("comments len = %d, want focused extra plus page item: %+v", got, resp.Comments.Items)
+	}
+	if resp.Comments.Items[0].Post.URI != focusedComment.URI || resp.Comments.Items[0].Placement != "focused" {
+		t.Fatalf("first item = %+v", resp.Comments.Items[0])
+	}
+	if resp.Comments.Items[1].Post.URI != pageComment.URI || resp.Comments.Items[1].Placement != "normal" {
+		t.Fatalf("second item = %+v", resp.Comments.Items[1])
+	}
+}
+
+func TestGetPostComments_FocusedReplyExpandsCommentBranch(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:alice", "root", "root", base)
+	pageComment := testReplyRow("did:plc:bob", "page-comment", "page", root.URI, root.URI, base.Add(time.Minute))
+	comment := testReplyRow("did:plc:carol", "comment", "comment", root.URI, root.URI, base.Add(20*time.Minute))
+	focusedReply := testReplyRow("did:plc:dave", "focused-reply", "reply", root.URI, comment.URI, base.Add(21*time.Minute))
+	store := &fakePostStore{
+		one:         root,
+		commentRows: []*api.PostRow{pageComment},
+		postsByURI: map[string]*api.PostRow{
+			focusedReply.URI: focusedReply,
+			comment.URI:      comment,
+		},
+	}
+	h := api.GetPostCommentsHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+		"did:plc:bob":   "bob.example",
+		"did:plc:carol": "carol.example",
+		"did:plc:dave":  "dave.example",
+	}}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/comments?focus="+url.QueryEscape(focusedReply.URI), "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.CommentSectionResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Focus == nil || resp.Focus.Status != "included" || resp.Focus.Kind != "reply" || resp.Focus.CommentURI != comment.URI {
+		t.Fatalf("focus = %+v", resp.Focus)
+	}
+	if got := len(resp.Comments.Items); got != 2 {
+		t.Fatalf("comments len = %d, want focused branch plus page item: %+v", got, resp.Comments.Items)
+	}
+	focusedBranch := resp.Comments.Items[0]
+	if focusedBranch.Post.URI != comment.URI || focusedBranch.Placement != "focused" {
+		t.Fatalf("focused branch = %+v", focusedBranch)
+	}
+	if !focusedBranch.Replies.Loaded || len(focusedBranch.Replies.Items) != 1 {
+		t.Fatalf("focused branch replies = %+v", focusedBranch.Replies)
+	}
+	if focusedBranch.Replies.Items[0].Post.URI != focusedReply.URI || focusedBranch.Replies.Items[0].Flattened {
+		t.Fatalf("focused reply item = %+v", focusedBranch.Replies.Items[0])
+	}
+}
+
+func TestGetPostComments_FocusedReplySliceIsBounded(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:alice", "root", "root", base)
+	comment := testReplyRow("did:plc:carol", "comment", "comment", root.URI, root.URI, base.Add(time.Minute))
+	focusedReply := testReplyRow("did:plc:dave", "focused-reply", "reply", root.URI, comment.URI, base.Add(30*time.Minute))
+	store := &fakePostStore{
+		one:         root,
+		commentRows: []*api.PostRow{},
+		postsByURI: map[string]*api.PostRow{
+			focusedReply.URI: focusedReply,
+			comment.URI:      comment,
+		},
+	}
+	h := api.GetPostCommentsHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+		"did:plc:carol": "carol.example",
+		"did:plc:dave":  "dave.example",
+	}}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/comments?focus="+url.QueryEscape(focusedReply.URI), "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.CommentSectionResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Comments.Items) != 1 {
+		t.Fatalf("comments = %+v", resp.Comments.Items)
+	}
+	replies := resp.Comments.Items[0].Replies
+	if !replies.Loaded {
+		t.Fatalf("replies not loaded: %+v", replies)
+	}
+	if len(replies.Items) != 1 {
+		t.Fatalf("focused reply slice len = %d, want exactly focused bounded item", len(replies.Items))
+	}
+	if replies.Items[0].Post.URI != focusedReply.URI {
+		t.Fatalf("focused reply item = %+v", replies.Items[0])
+	}
+}
+
+func TestGetPostComments_FocusStatusContract(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:alice", "root", "root", base)
+	otherRoot := testPostRow("did:plc:alice", "other", "other", base)
+	mismatched := testReplyRow("did:plc:bob", "mismatched", "mismatch", otherRoot.URI, otherRoot.URI, base.Add(time.Minute))
+	store := &fakePostStore{
+		one:         root,
+		commentRows: []*api.PostRow{},
+		postsByURI: map[string]*api.PostRow{
+			mismatched.URI: mismatched,
+		},
+	}
+	h := api.GetPostCommentsHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+		"did:plc:bob":   "bob.example",
+	}}, nilLogger())
+
+	t.Run("malformed", func(t *testing.T) {
+		req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/comments?focus=not-an-at-uri", "", "did:plc:viewer")
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+		}
+		var body envelope.Error
+		if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+			t.Fatalf("decode error: %v", err)
+		}
+		if body.Error != "invalid_focus" {
+			t.Fatalf("error = %q", body.Error)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		missingURI := "at://did:plc:missing/social.craftsky.feed.post/missing"
+		req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/comments?focus="+url.QueryEscape(missingURI), "", "did:plc:viewer")
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+		}
+		var resp api.CommentSectionResponse
+		if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if resp.Focus == nil || resp.Focus.URI != missingURI || resp.Focus.Status != "notFound" || resp.Focus.Kind != "" {
+			t.Fatalf("focus = %+v", resp.Focus)
+		}
+	})
+
+	t.Run("mismatched root", func(t *testing.T) {
+		req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/comments?focus="+url.QueryEscape(mismatched.URI), "", "did:plc:viewer")
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+		}
+		var resp api.CommentSectionResponse
+		if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if resp.Focus == nil || resp.Focus.URI != mismatched.URI || resp.Focus.Status != "mismatchedRoot" || resp.Focus.Kind != "" {
+			t.Fatalf("focus = %+v", resp.Focus)
+		}
+	})
+}
+
+func TestGetPostComments_InvalidCursorUsesStandardEnvelope(t *testing.T) {
+	t.Parallel()
+	root := testPostRow("did:plc:alice", "root", "root", time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC))
+	store := &fakePostStore{one: root, commentErr: envelope.ErrInvalidCursor}
+	h := api.GetPostCommentsHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/comments?cursor=bad", "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Error != "invalid_cursor" || body.Message == "" {
+		t.Fatalf("error envelope = %+v", body)
+	}
+}
+
+func TestGetPostComments_DeeperFocusedReplyIncludesFlattenedMetadata(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:alice", "root", "root", base)
+	comment := testReplyRow("did:plc:carol", "comment", "comment", root.URI, root.URI, base.Add(time.Minute))
+	parentReply := testReplyRow("did:plc:dave", "parent-reply", "parent", root.URI, comment.URI, base.Add(2*time.Minute))
+	deeperReply := testReplyRow("did:plc:erin", "deeper-reply", "deep", root.URI, parentReply.URI, base.Add(3*time.Minute))
+	displayName := "Dave"
+	parentReply.AuthorDisplayName = &displayName
+	store := &fakePostStore{
+		one:         root,
+		commentRows: []*api.PostRow{},
+		postsByURI: map[string]*api.PostRow{
+			deeperReply.URI: deeperReply,
+			parentReply.URI: parentReply,
+			comment.URI:     comment,
+		},
+	}
+	h := api.GetPostCommentsHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+		"did:plc:carol": "carol.example",
+		"did:plc:dave":  "dave.example",
+		"did:plc:erin":  "erin.example",
+	}}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/comments?focus="+url.QueryEscape(deeperReply.URI), "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.CommentSectionResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Focus == nil || resp.Focus.Status != "included" || resp.Focus.Kind != "reply" || resp.Focus.CommentURI != comment.URI {
+		t.Fatalf("focus = %+v", resp.Focus)
+	}
+	if len(resp.Comments.Items) != 1 || resp.Comments.Items[0].Post.URI != comment.URI {
+		t.Fatalf("comments = %+v", resp.Comments.Items)
+	}
+	replies := resp.Comments.Items[0].Replies.Items
+	if len(replies) != 1 {
+		t.Fatalf("replies = %+v", replies)
+	}
+	got := replies[0]
+	if got.Post.URI != deeperReply.URI || !got.Flattened {
+		t.Fatalf("flattened reply = %+v", got)
+	}
+	if got.ReplyingTo == nil || got.ReplyingTo.URI != parentReply.URI || got.ReplyingTo.DID != parentReply.DID || got.ReplyingTo.Handle != "dave.example" {
+		t.Fatalf("replyingTo = %+v", got.ReplyingTo)
+	}
+	if got.ReplyingTo.DisplayName == nil || *got.ReplyingTo.DisplayName != "Dave" {
+		t.Fatalf("replyingTo displayName = %+v", got.ReplyingTo.DisplayName)
+	}
+}
+
 func TestGetPostThread_TargetWithNoRepliesReturnsEmptyArrays(t *testing.T) {
 	t.Parallel()
 	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
@@ -1377,12 +1872,12 @@ func TestListDirectReplies_DefaultLimitAndMissingTarget(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
 	}
-	if store.lastReplyLimit != 50 {
-		t.Fatalf("default limit = %d, want 50", store.lastReplyLimit)
+	if store.lastReplyLimit != 10 {
+		t.Fatalf("default limit = %d, want 10", store.lastReplyLimit)
 	}
 }
 
-func TestListDirectReplies_LimitCapsAt100(t *testing.T) {
+func TestListDirectReplies_LimitCapsAt10(t *testing.T) {
 	t.Parallel()
 	store := &fakePostStore{target: &api.PostTargetRef{URI: "at://did:plc:alice/social.craftsky.feed.post/root", CID: "bafyRoot"}}
 	h := api.ListDirectRepliesHandler(store, fakeResolver{}, nilLogger())
@@ -1394,8 +1889,8 @@ func TestListDirectReplies_LimitCapsAt100(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
 	}
-	if store.lastReplyLimit != 100 {
-		t.Fatalf("capped limit = %d, want 100", store.lastReplyLimit)
+	if store.lastReplyLimit != 10 {
+		t.Fatalf("capped limit = %d, want 10", store.lastReplyLimit)
 	}
 }
 

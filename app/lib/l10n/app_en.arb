@@ -148,6 +148,30 @@
     "placeholders": { "author": { "type": "String", "example": "Ada (@ada.craftsky.social)" } }
   },
 
+  "postCommentsSortOldest": "Oldest",
+  "@postCommentsSortOldest": { "description": "Comment-section sort option for oldest-first comment ordering." },
+
+  "postCommentsSortNewest": "Newest",
+  "@postCommentsSortNewest": { "description": "Comment-section sort option for newest-first comment ordering." },
+
+  "postCommentsSortFollows": "Follows",
+  "@postCommentsSortFollows": { "description": "Comment-section sort option for follows-based ordering. Until follow ranking exists, this behaves like oldest-first." },
+
+  "postCommentsViewReplies": "View replies",
+  "@postCommentsViewReplies": { "description": "Control label shown under a comment before its replies are loaded." },
+
+  "postCommentsLoadMoreReplies": "Load more replies",
+  "@postCommentsLoadMoreReplies": { "description": "Control label for loading another page of replies under an expanded comment." },
+
+  "postCommentsHideReplies": "Hide replies",
+  "@postCommentsHideReplies": { "description": "Control label for collapsing an expanded comment reply list." },
+
+  "postCommentsFocusNotFound": "That reply isn't available yet.",
+  "@postCommentsFocusNotFound": { "description": "Message shown when a focused comment/reply link points to an item the AppView has not indexed or can no longer find." },
+
+  "postCommentsFocusMismatchedRoot": "That reply belongs to a different post.",
+  "@postCommentsFocusMismatchedRoot": { "description": "Message shown when a focused comment/reply link does not belong under the route's root post." },
+
   "postComposeAction": "New post",
   "@postComposeAction": { "description": "Button label that opens the text-only post composer." },
 

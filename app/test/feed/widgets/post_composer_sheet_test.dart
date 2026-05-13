@@ -1,6 +1,5 @@
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
-import 'package:craftsky_app/feed/models/post_thread.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -131,10 +130,6 @@ void main() {
       PostReply? capturedReply;
       final target = _replyTarget();
       final repo = FakePostRepository(
-        onThread: (did, rkey) async => PostThread(
-          post: target,
-          replies: const [],
-        ),
         onListDirectReplies: (did, rkey, {cursor, limit}) async =>
             const PostPage(items: []),
         onCreate: ({required text, reply}) async {
@@ -187,6 +182,23 @@ void main() {
         tester.getTopLeft(find.text('target')).dy,
         lessThan(tester.getTopLeft(find.byType(TextField)).dy),
       );
+    });
+
+    testWidgets('replying to a reply prefills target author mention', (
+      tester,
+    ) async {
+      final messenger = RecordingMessenger();
+      final target = _replyTarget();
+
+      await _pump(
+        tester,
+        repo: FakePostRepository(),
+        messenger: messenger,
+        replyTarget: target,
+      );
+
+      final textField = tester.widget<TextField>(find.byType(TextField));
+      expect(textField.controller!.text, startsWith('@alice.craftsky.social'));
     });
 
     testWidgets('reply target preview limits long text to three lines', (
