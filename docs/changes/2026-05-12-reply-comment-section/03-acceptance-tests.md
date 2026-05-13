@@ -6,6 +6,8 @@ Use a test-first path that starts at the AppView read contract, then adds Flutte
 
 Risk level remains **Medium** because this is a coordinated API and UI behavior change. Most coverage should be automated. Manual checks are limited to real scroll feel/deep-link launch behavior that is hard to fully assert in unit/widget tests.
 
+Terminology note: product-facing nomenclature should call top-level replies **comments**. Replies under a comment remain **replies**. This test specification keeps requirement IDs and some legacy requirement wording stable for traceability, but UI labels, user-facing copy, and implementation names should prefer `comment` for top-level replies and `reply` for replies to comments.
+
 ## 2. Requirement Coverage Matrix
 
 | Requirement ID | Acceptance Criteria | Test IDs | Test Level | Automated? |
