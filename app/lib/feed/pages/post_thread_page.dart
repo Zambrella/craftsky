@@ -5,7 +5,6 @@ import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart'
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
-import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -29,7 +28,7 @@ class PostThreadPage extends ConsumerStatefulWidget {
 }
 
 class _PostThreadPageState extends ConsumerState<PostThreadPage> {
-  var _sort = CommentSort.oldest;
+  CommentSort _sort = CommentSort.oldest;
 
   @override
   Widget build(BuildContext context) {
@@ -46,58 +45,41 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
     return Scaffold(
       appBar: AppBar(title: Text(l10n.postThreadTitle)),
       body: switch (sectionAsync) {
-        AsyncData(:final value) => NotificationListener<ScrollNotification>(
-          onNotification: (notification) {
-            if (notification.metrics.extentAfter < 240) {
-              ref
-                  .read(
-                    postCommentSectionProvider(
-                      widget.did,
-                      widget.rkey,
-                      sort: _sort,
-                      focus: widget.focus,
-                    ).notifier,
-                  )
-                  .loadMoreComments();
-            }
-            return false;
-          },
-          child: _CommentSectionBody(
-            section: value,
-            showInlineComposer: formFactor.isLarge,
-            onNearEnd: () => ref
-                .read(
-                  postCommentSectionProvider(
-                    widget.did,
-                    widget.rkey,
-                    sort: _sort,
-                    focus: widget.focus,
-                  ).notifier,
-                )
-                .loadMoreComments(),
-            onLoadReplies: (commentUri) => ref
-                .read(
-                  postCommentSectionProvider(
-                    widget.did,
-                    widget.rkey,
-                    sort: _sort,
-                    focus: widget.focus,
-                  ).notifier,
-                )
-                .loadMoreReplies(commentUri),
-            onCollapseReplies: (commentUri) => ref
-                .read(
-                  postCommentSectionProvider(
-                    widget.did,
-                    widget.rkey,
-                    sort: _sort,
-                    focus: widget.focus,
-                  ).notifier,
-                )
-                .collapseReplies(commentUri),
-            selectedSort: _sort,
-            onSortChanged: (sort) => setState(() => _sort = sort),
-          ),
+        AsyncData(:final value) => _CommentSectionBody(
+          section: value,
+          showInlineComposer: formFactor.isLarge,
+          onNearEnd: () => ref
+              .read(
+                postCommentSectionProvider(
+                  widget.did,
+                  widget.rkey,
+                  sort: _sort,
+                  focus: widget.focus,
+                ).notifier,
+              )
+              .loadMoreComments(),
+          onLoadReplies: (commentUri) => ref
+              .read(
+                postCommentSectionProvider(
+                  widget.did,
+                  widget.rkey,
+                  sort: _sort,
+                  focus: widget.focus,
+                ).notifier,
+              )
+              .loadMoreReplies(commentUri),
+          onCollapseReplies: (commentUri) => ref
+              .read(
+                postCommentSectionProvider(
+                  widget.did,
+                  widget.rkey,
+                  sort: _sort,
+                  focus: widget.focus,
+                ).notifier,
+              )
+              .collapseReplies(commentUri),
+          selectedSort: _sort,
+          onSortChanged: (sort) => setState(() => _sort = sort),
         ),
         AsyncError() => _ThreadError(
           onRetry: () => ref.invalidate(

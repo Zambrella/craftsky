@@ -120,9 +120,9 @@ func (s *PostStore) ReadPostByURI(ctx context.Context, uri string) (*PostRow, er
 	return row, nil
 }
 
-// ListRootComments returns direct replies to the root post, oldest-first for
-// the initial comment-section contract. Sort/viewer grouping are expanded in
-// later TDD steps.
+// ListRootComments returns direct replies to the root post in comment-section
+// render order: viewer-authored comments first, then the selected sort within
+// each group. The follows sort currently uses oldest-first ordering.
 func (s *PostStore) ListRootComments(ctx context.Context, rootURI, viewerDID, sortValue string, limit int, cursor string) ([]*PostRow, string, error) {
 	curCreatedAt, curURI, err := decodeSeekCursor(cursor, "createdAt")
 	if err != nil {

@@ -502,6 +502,15 @@ Mirrors the approved suggested order from `03-acceptance-tests.md` §11.
 - Diff review: `git status --short` confirmed no `lexicon/` changes and no unrelated `app/lib/shared/messaging` formatting changes remain.
 - Coverage gaps: OS-level deep-link launch/push notification delivery remains manual/out of scope per `03-acceptance-tests.md` MAN-001/GAP-003; visual copy clarity for stubbed `follows` remains MAN-003.
 
+## Plannotator Review Follow-up
+- Added doc comments to the public comment-section enums, models, and state helpers.
+- Replaced direct `copyWithPrevious` calls in `PostCommentSection` provider with normal `AsyncLoading`/`AsyncValue.guard` assignments; Riverpod's provider element preserves previous async state on transition.
+- Switched synchronous provider mutations to `state.requireValue` for loaded-state access.
+- Removed the duplicate scroll-near-end trigger from `PostThreadPage`; the `ScrollController` path is the single trigger.
+- Deleted `test/feed/regression/no_stale_thread_usage_test.dart` per review feedback.
+- Updated the stale TDD-step comment in `post_store.go` to describe the current viewer-grouping/sort behavior.
+- Verified follow-up changes with `go test ./internal/api` and `flutter test test/feed test/router/router_redirect_test.dart`.
+
 ## Completion Checklist
 - [x] All Must requirements covered by tests or documented gaps
 - [x] All planned Must tests passing

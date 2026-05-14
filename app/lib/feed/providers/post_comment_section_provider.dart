@@ -24,10 +24,7 @@ class PostCommentSection extends _$PostCommentSection {
       return;
     }
 
-    // ignore: invalid_use_of_internal_member
-    state = const AsyncLoading<model.PostCommentSection>().copyWithPrevious(
-      state,
-    );
+    state = const AsyncLoading();
 
     final next = await AsyncValue.guard(() async {
       final page = await ref
@@ -42,8 +39,7 @@ class PostCommentSection extends _$PostCommentSection {
     });
 
     if (!ref.mounted) return;
-    // ignore: invalid_use_of_internal_member
-    state = next.copyWithPrevious(state);
+    state = next;
   }
 
   Future<void> loadMoreReplies(String commentUri) async {
@@ -56,10 +52,7 @@ class PostCommentSection extends _$PostCommentSection {
     if (comment == null) return;
     if (comment.replies.loaded && comment.replies.cursor == null) return;
 
-    // ignore: invalid_use_of_internal_member
-    state = const AsyncLoading<model.PostCommentSection>().copyWithPrevious(
-      state,
-    );
+    state = const AsyncLoading();
 
     final next = await AsyncValue.guard(() async {
       final page = await ref
@@ -91,21 +84,18 @@ class PostCommentSection extends _$PostCommentSection {
     });
 
     if (!ref.mounted) return;
-    // ignore: invalid_use_of_internal_member
-    state = next.copyWithPrevious(state);
+    state = next;
   }
 
   void collapseReplies(String commentUri) {
-    final current = state.value;
-    if (current == null) return;
+    final current = state.requireValue;
     state = AsyncData(
       model.collapseCommentReplies(current, commentUri: commentUri),
     );
   }
 
   void prependCreatedComment(Post post) {
-    final current = state.value;
-    if (current == null) return;
+    final current = state.requireValue;
     state = AsyncData(model.prependCreatedComment(current, post));
   }
 
@@ -113,8 +103,7 @@ class PostCommentSection extends _$PostCommentSection {
     required String parentUri,
     required Post post,
   }) {
-    final current = state.value;
-    if (current == null) return;
+    final current = state.requireValue;
     state = AsyncData(
       model.insertCreatedReplyIntoNearestBranch(
         current,

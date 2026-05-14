@@ -4,20 +4,26 @@ import 'package:dart_mappable/dart_mappable.dart';
 part 'post_comment_section.mapper.dart';
 
 @MappableEnum()
+/// User-selectable ordering for top-level comments.
 enum CommentSort { oldest, newest, follows }
 
 @MappableEnum()
+/// Server-assigned render group for a comment in the ordered comment list.
 enum CommentPlacement { focused, viewerAuthored, normal }
 
 @MappableEnum()
+/// Backend focus-resolution status for a comment/reply deep link.
 enum FocusStatus { included, notFound, mismatchedRoot }
 
 @MappableEnum()
+/// Kind of indexed item identified by a successful focus resolution.
 enum FocusKind { comment, reply }
 
+/// Action currently available for a comment branch's reply controls.
 enum BranchControl { viewReplies, hideReplies }
 
 @MappableClass()
+/// Root-post comment-section response consumed by the post route.
 class PostCommentSection with PostCommentSectionMappable {
   const PostCommentSection({
     required this.post,
@@ -33,6 +39,7 @@ class PostCommentSection with PostCommentSectionMappable {
 }
 
 @MappableClass()
+/// Opaque-cursor page of top-level comments in render order.
 class CommentPage with CommentPageMappable {
   const CommentPage({required this.items, this.cursor});
 
@@ -41,6 +48,7 @@ class CommentPage with CommentPageMappable {
 }
 
 @MappableClass()
+/// A top-level comment plus placement and child-reply loaded state.
 class CommentItem with CommentItemMappable {
   const CommentItem({
     required this.post,
@@ -54,6 +62,7 @@ class CommentItem with CommentItemMappable {
 }
 
 @MappableClass()
+/// Loaded or collapsed child-reply page for one comment branch.
 class ReplyPage with ReplyPageMappable {
   const ReplyPage({required this.loaded, required this.items, this.cursor});
 
@@ -63,6 +72,7 @@ class ReplyPage with ReplyPageMappable {
 }
 
 @MappableClass()
+/// Visual reply item rendered under a top-level comment.
 class ReplyItem with ReplyItemMappable {
   const ReplyItem({
     required this.post,
@@ -76,6 +86,7 @@ class ReplyItem with ReplyItemMappable {
 }
 
 @MappableClass()
+/// Author metadata for the true parent when a deeper reply is flattened.
 class ReplyingToAuthor with ReplyingToAuthorMappable {
   const ReplyingToAuthor({
     required this.uri,
@@ -91,6 +102,7 @@ class ReplyingToAuthor with ReplyingToAuthorMappable {
 }
 
 @MappableClass()
+/// Focus metadata returned with a comment-section response.
 class FocusContext with FocusContextMappable {
   const FocusContext({
     required this.uri,
@@ -105,6 +117,7 @@ class FocusContext with FocusContextMappable {
   final String? commentUri;
 }
 
+/// Reply graph edge used by state helpers to flatten backend nesting.
 class ReplyTreeEdge {
   const ReplyTreeEdge({required this.item, required this.parentUri});
 
@@ -112,6 +125,7 @@ class ReplyTreeEdge {
   final String parentUri;
 }
 
+/// Sorts comments by product grouping: viewer-authored first, then sort order.
 List<CommentItem> sortCommentItemsForViewer(
   Iterable<CommentItem> items, {
   required String viewerDid,
@@ -130,19 +144,21 @@ List<CommentItem> sortCommentItemsForViewer(
   return sorted;
 }
 
+/// Sorts visual replies oldest-first regardless of selected comment sort.
 List<ReplyItem> sortReplyItems(
   Iterable<ReplyItem> items, {
   required CommentSort commentSort,
 }) {
-  final sorted = items.toList();
-  sorted.sort((left, right) {
-    final created = left.post.createdAt.compareTo(right.post.createdAt);
-    if (created != 0) return created;
-    return left.post.uri.compareTo(right.post.uri);
-  });
+  final sorted = items.toList()
+    ..sort((left, right) {
+      final created = left.post.createdAt.compareTo(right.post.createdAt);
+      if (created != 0) return created;
+      return left.post.uri.compareTo(right.post.uri);
+    });
   return sorted;
 }
 
+/// Maps deeper backend replies into their nearest loaded comment branch.
 List<CommentItem> flattenRepliesToCommentBranches({
   required String rootUri,
   required Iterable<CommentItem> comments,
@@ -200,6 +216,7 @@ List<CommentItem> flattenRepliesToCommentBranches({
   ];
 }
 
+/// Creates the initial unfocused UI state with all reply branches collapsed.
 PostCommentSection initialCommentSectionState(PostCommentSection section) {
   return PostCommentSection(
     post: section.post,
@@ -219,12 +236,14 @@ PostCommentSection initialCommentSectionState(PostCommentSection section) {
   );
 }
 
+/// Returns the primary branch action available for a comment item.
 BranchControl branchControlFor(CommentItem item) {
   return item.replies.loaded
       ? BranchControl.hideReplies
       : BranchControl.viewReplies;
 }
 
+/// Replaces a comment branch with a loaded reply page.
 PostCommentSection setCommentReplies(
   PostCommentSection section, {
   required String commentUri,
@@ -240,6 +259,7 @@ PostCommentSection setCommentReplies(
   });
 }
 
+/// Collapses a comment branch without retaining visible reply items.
 PostCommentSection collapseCommentReplies(
   PostCommentSection section, {
   required String commentUri,
@@ -253,6 +273,7 @@ PostCommentSection collapseCommentReplies(
   });
 }
 
+/// Inserts a newly-created reply into the nearest visible comment branch.
 PostCommentSection insertCreatedReplyIntoNearestBranch(
   PostCommentSection section, {
   required String parentUri,
