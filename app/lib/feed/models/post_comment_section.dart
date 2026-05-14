@@ -36,6 +36,149 @@ class PostCommentSection with PostCommentSectionMappable {
   final CommentPage comments;
   final CommentSort sort;
   final FocusContext? focus;
+
+  /// Creates the initial unfocused UI state with all reply branches collapsed.
+  PostCommentSection withCollapsedReplies() {
+    return copyWith(
+      comments: comments.copyWith(
+        items: [
+          for (final item in comments.items)
+            item.copyWith(
+              replies: const ReplyPage(loaded: false, items: []),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Replaces a comment branch with a loaded reply page.
+  PostCommentSection setCommentReplies({
+    required String commentUri,
+    required List<ReplyItem> replies,
+    String? cursor,
+  }) {
+    return _mapComment(commentUri, (item) {
+      return item.copyWith(
+        replies: ReplyPage(loaded: true, items: replies, cursor: cursor),
+      );
+    });
+  }
+
+  /// Collapses a comment branch without retaining visible reply items.
+  PostCommentSection collapseCommentReplies({required String commentUri}) {
+    return _mapComment(commentUri, (item) {
+      return item.copyWith(
+        replies: const ReplyPage(loaded: false, items: []),
+      );
+    });
+  }
+
+  /// Inserts a newly-created reply into the nearest visible comment branch.
+  PostCommentSection insertCreatedReplyIntoNearestBranch({
+    required String parentUri,
+    required ReplyItem reply,
+  }) {
+    for (final comment in comments.items) {
+      final directToComment = parentUri == comment.post.uri;
+      final withinLoadedBranch = comment.replies.items.any(
+        (item) => item.post.uri == parentUri,
+      );
+      if (!directToComment && !withinLoadedBranch) continue;
+
+      final item = directToComment
+          ? ReplyItem(
+              post: reply.post,
+              flattened: false,
+              replyingTo: reply.replyingTo,
+            )
+          : ReplyItem(
+              post: reply.post,
+              flattened: true,
+              replyingTo: reply.replyingTo,
+            );
+      return _mapComment(comment.post.uri, (comment) {
+        return comment.copyWith(
+          replies: comment.replies.copyWith(
+            loaded: true,
+            items: [...comment.replies.items, item],
+          ),
+        );
+      });
+    }
+    return this;
+  }
+
+  /// Appends a comment page while preserving the first item for each URI.
+  PostCommentSection appendCommentPageDeduplicating(CommentPage page) {
+    final seen = <String>{};
+    final items = <CommentItem>[];
+    for (final item in [...comments.items, ...page.items]) {
+      if (!seen.add(item.post.uri)) continue;
+      items.add(item);
+    }
+    return copyWith(
+      comments: CommentPage(items: items, cursor: page.cursor),
+    );
+  }
+
+  /// Prepends a newly-created comment behind any focused branch.
+  PostCommentSection prependCreatedComment(Post post) {
+    final created = CommentItem(
+      post: post,
+      placement: CommentPlacement.viewerAuthored,
+      replies: const ReplyPage(loaded: false, items: []),
+    );
+    final existing = comments.items.where((item) => item.post.uri != post.uri);
+    final focused = existing.where(
+      (item) => item.placement == CommentPlacement.focused,
+    );
+    final rest = existing.where(
+      (item) => item.placement != CommentPlacement.focused,
+    );
+    return copyWith(
+      comments: comments.copyWith(items: [...focused, created, ...rest]),
+    );
+  }
+
+  /// Clears focus promotion and applies viewer grouping under a new sort.
+  PostCommentSection changeCommentSortClearingFocus({
+    required String viewerDid,
+    required CommentSort sort,
+  }) {
+    final normalized = [
+      for (final item in comments.items)
+        item.copyWith(
+          placement: item.post.author.did == viewerDid
+              ? CommentPlacement.viewerAuthored
+              : CommentPlacement.normal,
+        ),
+    ];
+    return copyWith(
+      sort: sort,
+      focus: null,
+      comments: CommentPage(
+        items: sortCommentItemsForViewer(
+          normalized,
+          viewerDid: viewerDid,
+          sort: sort,
+        ),
+      ),
+    );
+  }
+
+  PostCommentSection _mapComment(
+    String commentUri,
+    CommentItem Function(CommentItem item) update,
+  ) {
+    return copyWith(
+      comments: comments.copyWith(
+        items: [
+          for (final item in comments.items)
+            if (item.post.uri == commentUri) update(item) else item,
+        ],
+      ),
+    );
+  }
 }
 
 @MappableClass()
@@ -59,6 +202,13 @@ class CommentItem with CommentItemMappable {
   final Post post;
   final CommentPlacement placement;
   final ReplyPage replies;
+
+  /// Primary branch action available for this comment item.
+  BranchControl get branchControl {
+    return replies.loaded
+        ? BranchControl.hideReplies
+        : BranchControl.viewReplies;
+  }
 }
 
 @MappableClass()
@@ -214,194 +364,4 @@ List<CommentItem> flattenRepliesToCommentBranches({
         ),
       ),
   ];
-}
-
-/// Creates the initial unfocused UI state with all reply branches collapsed.
-PostCommentSection initialCommentSectionState(PostCommentSection section) {
-  return PostCommentSection(
-    post: section.post,
-    sort: section.sort,
-    focus: section.focus,
-    comments: CommentPage(
-      cursor: section.comments.cursor,
-      items: [
-        for (final item in section.comments.items)
-          CommentItem(
-            post: item.post,
-            placement: item.placement,
-            replies: const ReplyPage(loaded: false, items: []),
-          ),
-      ],
-    ),
-  );
-}
-
-/// Returns the primary branch action available for a comment item.
-BranchControl branchControlFor(CommentItem item) {
-  return item.replies.loaded
-      ? BranchControl.hideReplies
-      : BranchControl.viewReplies;
-}
-
-/// Replaces a comment branch with a loaded reply page.
-PostCommentSection setCommentReplies(
-  PostCommentSection section, {
-  required String commentUri,
-  required List<ReplyItem> replies,
-  String? cursor,
-}) {
-  return _mapComment(section, commentUri, (item) {
-    return CommentItem(
-      post: item.post,
-      placement: item.placement,
-      replies: ReplyPage(loaded: true, items: replies, cursor: cursor),
-    );
-  });
-}
-
-/// Collapses a comment branch without retaining visible reply items.
-PostCommentSection collapseCommentReplies(
-  PostCommentSection section, {
-  required String commentUri,
-}) {
-  return _mapComment(section, commentUri, (item) {
-    return CommentItem(
-      post: item.post,
-      placement: item.placement,
-      replies: const ReplyPage(loaded: false, items: []),
-    );
-  });
-}
-
-/// Inserts a newly-created reply into the nearest visible comment branch.
-PostCommentSection insertCreatedReplyIntoNearestBranch(
-  PostCommentSection section, {
-  required String parentUri,
-  required ReplyItem reply,
-}) {
-  for (final comment in section.comments.items) {
-    final directToComment = parentUri == comment.post.uri;
-    final withinLoadedBranch = comment.replies.items.any(
-      (item) => item.post.uri == parentUri,
-    );
-    if (!directToComment && !withinLoadedBranch) continue;
-
-    final item = directToComment
-        ? ReplyItem(
-            post: reply.post,
-            flattened: false,
-            replyingTo: reply.replyingTo,
-          )
-        : ReplyItem(
-            post: reply.post,
-            flattened: true,
-            replyingTo: reply.replyingTo,
-          );
-    return _mapComment(section, comment.post.uri, (comment) {
-      return CommentItem(
-        post: comment.post,
-        placement: comment.placement,
-        replies: ReplyPage(
-          loaded: true,
-          items: [...comment.replies.items, item],
-          cursor: comment.replies.cursor,
-        ),
-      );
-    });
-  }
-  return section;
-}
-
-PostCommentSection appendCommentPageDeduplicating(
-  PostCommentSection section,
-  CommentPage page,
-) {
-  final seen = <String>{};
-  final items = <CommentItem>[];
-  for (final item in [...section.comments.items, ...page.items]) {
-    if (!seen.add(item.post.uri)) continue;
-    items.add(item);
-  }
-  return PostCommentSection(
-    post: section.post,
-    sort: section.sort,
-    focus: section.focus,
-    comments: CommentPage(items: items, cursor: page.cursor),
-  );
-}
-
-PostCommentSection prependCreatedComment(
-  PostCommentSection section,
-  Post post,
-) {
-  final created = CommentItem(
-    post: post,
-    placement: CommentPlacement.viewerAuthored,
-    replies: const ReplyPage(loaded: false, items: []),
-  );
-  final existing = section.comments.items.where(
-    (item) => item.post.uri != post.uri,
-  );
-  final focused = existing.where(
-    (item) => item.placement == CommentPlacement.focused,
-  );
-  final rest = existing.where(
-    (item) => item.placement != CommentPlacement.focused,
-  );
-  return PostCommentSection(
-    post: section.post,
-    sort: section.sort,
-    focus: section.focus,
-    comments: CommentPage(
-      cursor: section.comments.cursor,
-      items: [...focused, created, ...rest],
-    ),
-  );
-}
-
-PostCommentSection changeCommentSortClearingFocus(
-  PostCommentSection section, {
-  required String viewerDid,
-  required CommentSort sort,
-}) {
-  final normalized = [
-    for (final item in section.comments.items)
-      CommentItem(
-        post: item.post,
-        placement: item.post.author.did == viewerDid
-            ? CommentPlacement.viewerAuthored
-            : CommentPlacement.normal,
-        replies: item.replies,
-      ),
-  ];
-  return PostCommentSection(
-    post: section.post,
-    sort: sort,
-    comments: CommentPage(
-      items: sortCommentItemsForViewer(
-        normalized,
-        viewerDid: viewerDid,
-        sort: sort,
-      ),
-    ),
-  );
-}
-
-PostCommentSection _mapComment(
-  PostCommentSection section,
-  String commentUri,
-  CommentItem Function(CommentItem item) update,
-) {
-  return PostCommentSection(
-    post: section.post,
-    sort: section.sort,
-    focus: section.focus,
-    comments: CommentPage(
-      cursor: section.comments.cursor,
-      items: [
-        for (final item in section.comments.items)
-          if (item.post.uri == commentUri) update(item) else item,
-      ],
-    ),
-  );
 }

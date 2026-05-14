@@ -35,7 +35,7 @@ class PostCommentSection extends _$PostCommentSection {
             cursor: current.comments.cursor,
             sort: current.sort,
           );
-      return model.appendCommentPageDeduplicating(current, page.comments);
+      return current.appendCommentPageDeduplicating(page.comments);
     });
 
     if (!ref.mounted) return;
@@ -90,13 +90,13 @@ class PostCommentSection extends _$PostCommentSection {
   void collapseReplies(String commentUri) {
     final current = state.requireValue;
     state = AsyncData(
-      model.collapseCommentReplies(current, commentUri: commentUri),
+      current.collapseCommentReplies(commentUri: commentUri),
     );
   }
 
   void prependCreatedComment(Post post) {
     final current = state.requireValue;
-    state = AsyncData(model.prependCreatedComment(current, post));
+    state = AsyncData(current.prependCreatedComment(post));
   }
 
   void insertCreatedReply({
@@ -105,8 +105,7 @@ class PostCommentSection extends _$PostCommentSection {
   }) {
     final current = state.requireValue;
     state = AsyncData(
-      model.insertCreatedReplyIntoNearestBranch(
-        current,
+      current.insertCreatedReplyIntoNearestBranch(
         parentUri: parentUri,
         reply: model.ReplyItem(post: post, flattened: false),
       ),

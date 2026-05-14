@@ -122,7 +122,7 @@ void main() {
         ),
       );
 
-      final initial = initialCommentSectionState(section);
+      final initial = section.withCollapsedReplies();
 
       expect(initial.comments.items.single.replies.loaded, isFalse);
       expect(initial.comments.items.single.replies.items, isEmpty);
@@ -139,28 +139,26 @@ void main() {
       final replyItem = reply('did:plc:carol', 'reply', 2);
 
       expect(
-        branchControlFor(section.comments.items.single),
+        section.comments.items.single.branchControl,
         BranchControl.viewReplies,
       );
 
-      final expanded = setCommentReplies(
-        section,
+      final expanded = section.setCommentReplies(
         commentUri: section.comments.items.single.post.uri,
         replies: [replyItem],
         cursor: 'more',
       );
       expect(
-        branchControlFor(expanded.comments.items.single),
+        expanded.comments.items.single.branchControl,
         BranchControl.hideReplies,
       );
       expect(expanded.comments.items.single.replies.cursor, 'more');
 
-      final collapsed = collapseCommentReplies(
-        expanded,
+      final collapsed = expanded.collapseCommentReplies(
         commentUri: section.comments.items.single.post.uri,
       );
       expect(
-        branchControlFor(collapsed.comments.items.single),
+        collapsed.comments.items.single.branchControl,
         BranchControl.viewReplies,
       );
       expect(collapsed.comments.items.single.replies.items, isEmpty);
@@ -171,18 +169,17 @@ void main() {
       final topComment = comment('did:plc:bob', 'comment', 1);
       final existingReply = reply('did:plc:carol', 'reply', 2);
       final createdReply = reply('did:plc:dave', 'created', 3);
-      final section = setCommentReplies(
-        PostCommentSection(
-          post: root,
-          sort: CommentSort.oldest,
-          comments: CommentPage(items: [topComment]),
-        ),
-        commentUri: topComment.post.uri,
-        replies: [existingReply],
-      );
+      final section =
+          PostCommentSection(
+            post: root,
+            sort: CommentSort.oldest,
+            comments: CommentPage(items: [topComment]),
+          ).setCommentReplies(
+            commentUri: topComment.post.uri,
+            replies: [existingReply],
+          );
 
-      final updated = insertCreatedReplyIntoNearestBranch(
-        section,
+      final updated = section.insertCreatedReplyIntoNearestBranch(
         parentUri: existingReply.post.uri,
         reply: createdReply,
       );
@@ -221,8 +218,7 @@ void main() {
         ),
       );
 
-      final updated = appendCommentPageDeduplicating(
-        section,
+      final updated = section.appendCommentPageDeduplicating(
         CommentPage(
           items: [
             CommentItem(
@@ -273,8 +269,7 @@ void main() {
           comments: CommentPage(items: [focused, normalLate, viewer]),
         );
 
-        final updated = changeCommentSortClearingFocus(
-          section,
+        final updated = section.changeCommentSortClearingFocus(
           viewerDid: 'did:plc:viewer',
           sort: CommentSort.newest,
         );
