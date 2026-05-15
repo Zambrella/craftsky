@@ -39,8 +39,8 @@ class PostApiClient {
     await _dio.delete<void>('/v1/posts/$did/$rkey');
   });
 
-  /// GET /v1/posts/{did}/{rkey}/replies — direct replies, oldest-first.
-  Future<PostPage> listDirectReplies(
+  /// GET /v1/posts/{did}/{rkey}/replies — flattened comment branch replies.
+  Future<ReplyPage> listCommentBranchReplies(
     String did,
     String rkey, {
     String? cursor,
@@ -53,7 +53,7 @@ class PostApiClient {
         if (limit != null) 'limit': limit.toString(),
       },
     );
-    return PostPageMapper.fromMap(res.data!);
+    return ReplyPageMapper.fromMap(res.data!);
   });
 
   /// GET /v1/posts/{did}/{rkey}/comments — root comment section.

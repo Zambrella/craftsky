@@ -205,22 +205,33 @@ void main() {
     });
   });
 
-  group('PostApiClient.listDirectReplies', () {
+  group('PostApiClient.listCommentBranchReplies', () {
     test('GETs /v1/posts/{did}/{rkey}/replies with pagination', () async {
       final dio = buildDio();
       DioAdapter(dio: dio).onGet(
         '/v1/posts/did:plc:alice/3lf2abc/replies',
         (server) => server.reply(200, {
-          'items': [samplePost(text: 'reply')],
+          'loaded': true,
+          'items': [
+            {'post': samplePost(text: 'reply'), 'flattened': false},
+          ],
           'cursor': 'next-replies',
         }),
         queryParameters: {'cursor': 'c1', 'limit': '25'},
       );
 
-      final page = await PostApiClient(
-        dio,
-      ).listDirectReplies('did:plc:alice', '3lf2abc', cursor: 'c1', limit: 25);
-      expect(page.items.single.text, 'reply');
+      final page =
+          await PostApiClient(
+            dio,
+          ).listCommentBranchReplies(
+            'did:plc:alice',
+            '3lf2abc',
+            cursor: 'c1',
+            limit: 25,
+          );
+      expect(page.loaded, isTrue);
+      expect(page.items.single.post.text, 'reply');
+      expect(page.items.single.flattened, isFalse);
       expect(page.cursor, 'next-replies');
     });
   });

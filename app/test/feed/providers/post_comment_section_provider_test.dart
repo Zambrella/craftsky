@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
-import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart'
     hide PostCommentSection;
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
@@ -138,9 +137,9 @@ void main() {
         final fake = FakePostRepository(
           onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
               _section(comments: [commentA, commentB], cursor: null),
-          onListDirectReplies: (did, rkey, {cursor, limit}) async {
+          onListCommentBranchReplies: (did, rkey, {cursor, limit}) async {
             calls.add((rkey: rkey, cursor: cursor));
-            return PostPage(items: [_post('did:plc:dave', 'a-reply-2', 5)]);
+            return ReplyPage(loaded: true, items: [_reply('a-reply-2', 5)]);
           },
         );
         final container = ProviderContainer.test(
@@ -181,7 +180,7 @@ void main() {
     );
 
     test('reply loaders expose per-branch loading state', () async {
-      final pendingReplies = Completer<PostPage>();
+      final pendingReplies = Completer<ReplyPage>();
       final commentA = _expandedComment(
         'comment-a',
         1,
@@ -197,7 +196,7 @@ void main() {
       final fake = FakePostRepository(
         onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
             _section(comments: [commentA, commentB], cursor: null),
-        onListDirectReplies: (did, rkey, {cursor, limit}) =>
+        onListCommentBranchReplies: (did, rkey, {cursor, limit}) =>
             pendingReplies.future,
       );
       final container = ProviderContainer.test(
@@ -231,7 +230,7 @@ void main() {
       expect(container.read(loaderB).isLoading, isFalse);
 
       pendingReplies.complete(
-        PostPage(items: [_post('did:plc:dave', 'a-reply-2', 5)]),
+        ReplyPage(loaded: true, items: [_reply('a-reply-2', 5)]),
       );
       await load;
 

@@ -22,12 +22,12 @@ class ApiPostRepository implements PostRepository {
   Future<void> delete(String did, String rkey) => _api.deletePost(did, rkey);
 
   @override
-  Future<PostPage> listDirectReplies(
+  Future<ReplyPage> listCommentBranchReplies(
     String did,
     String rkey, {
     String? cursor,
     int? limit,
-  }) => _api.listDirectReplies(did, rkey, cursor: cursor, limit: limit);
+  }) => _api.listCommentBranchReplies(did, rkey, cursor: cursor, limit: limit);
 
   @override
   Future<PostCommentSection> commentSection(

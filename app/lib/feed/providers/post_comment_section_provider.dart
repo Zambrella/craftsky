@@ -138,7 +138,7 @@ class PostCommentRepliesLoader extends _$PostCommentRepliesLoader {
     final result = await AsyncValue.guard(() async {
       final page = await ref
           .read(postRepositoryProvider)
-          .listDirectReplies(
+          .listCommentBranchReplies(
             comment.post.author.did,
             comment.post.rkey,
             cursor: comment.replies.cursor,
@@ -146,8 +146,7 @@ class PostCommentRepliesLoader extends _$PostCommentRepliesLoader {
           );
       final replies = [
         ...comment.replies.items,
-        for (final post in page.items)
-          model.ReplyItem(post: post, flattened: false),
+        ...page.items,
       ];
       ref
           .read(sectionProvider.notifier)

@@ -486,7 +486,7 @@ func TestPostStore_EngagementSummaries_ActiveOnlyAndViewerStates(t *testing.T) {
 	}
 }
 
-func TestPostStore_ListDirectReplies_PaginatesOpaqueCursorOldestFirst(t *testing.T) {
+func TestPostStore_ListCommentBranchReplies_PaginatesBranchOldestFirst(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)
 	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol", "did:plc:dave"} {
@@ -494,17 +494,20 @@ func TestPostStore_ListDirectReplies_PaginatesOpaqueCursorOldestFirst(t *testing
 	}
 	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
-	reply1 := seedReplyPost(t, pool, "did:plc:bob", "reply1", "first", root, root, base.Add(time.Minute))
-	seedReplyPost(t, pool, "did:plc:carol", "reply2", "second", root, root, base.Add(2*time.Minute))
-	seedReplyPost(t, pool, "did:plc:dave", "reply3", "third", root, root, base.Add(3*time.Minute))
-	seedReplyPost(t, pool, "did:plc:bob", "grandchild", "nested", root, reply1, base.Add(4*time.Minute))
+	comment := seedReplyPost(t, pool, "did:plc:bob", "comment", "comment", root, root, base.Add(time.Minute))
+	reply1 := seedReplyPost(t, pool, "did:plc:bob", "reply1", "first", root, comment, base.Add(2*time.Minute))
+	seedReplyPost(t, pool, "did:plc:carol", "reply2", "second", root, comment, base.Add(3*time.Minute))
+	seedReplyPost(t, pool, "did:plc:dave", "reply3", "third", root, comment, base.Add(4*time.Minute))
+	seedReplyPost(t, pool, "did:plc:bob", "grandchild", "nested", root, reply1, base.Add(5*time.Minute))
+	otherComment := seedReplyPost(t, pool, "did:plc:bob", "other-comment", "other", root, root, base.Add(6*time.Minute))
+	seedReplyPost(t, pool, "did:plc:carol", "other-reply", "other reply", root, otherComment, base.Add(7*time.Minute))
 
 	store := api.NewPostStore(pool)
-	page1, cursor, err := store.ListDirectReplies(context.Background(), root, 2, "")
+	page1, cursor, err := store.ListCommentBranchReplies(context.Background(), comment, root, 3, "")
 	if err != nil {
 		t.Fatalf("page1: %v", err)
 	}
-	if len(page1) != 2 || page1[0].Rkey != "reply1" || page1[1].Rkey != "reply2" {
+	if len(page1) != 3 || page1[0].Rkey != "reply1" || page1[1].Rkey != "reply2" || page1[2].Rkey != "reply3" {
 		t.Fatalf("page1 = %v", replyRkeys(page1))
 	}
 	if cursor == "" {
@@ -513,11 +516,11 @@ func TestPostStore_ListDirectReplies_PaginatesOpaqueCursorOldestFirst(t *testing
 	if _, err := envelope.DecodeCursor(cursor); err != nil {
 		t.Fatalf("cursor is not decodable by envelope helper: %v", err)
 	}
-	page2, cursor2, err := store.ListDirectReplies(context.Background(), root, 2, cursor)
+	page2, cursor2, err := store.ListCommentBranchReplies(context.Background(), comment, root, 3, cursor)
 	if err != nil {
 		t.Fatalf("page2: %v", err)
 	}
-	if len(page2) != 1 || page2[0].Rkey != "reply3" {
+	if len(page2) != 1 || page2[0].Rkey != "grandchild" {
 		t.Fatalf("page2 = %v", replyRkeys(page2))
 	}
 	if cursor2 != "" {
@@ -610,7 +613,7 @@ func TestPostStore_ListRootComments_GroupsViewerAndSortsWithinGroups(t *testing.
 	}
 }
 
-func TestPostStore_ListDirectReplies_RejectsIncompleteCursor(t *testing.T) {
+func TestPostStore_ListCommentBranchReplies_RejectsIncompleteCursor(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)
 	store := api.NewPostStore(pool)
@@ -620,7 +623,7 @@ func TestPostStore_ListDirectReplies_RejectsIncompleteCursor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encode cursor: %v", err)
 	}
-	_, _, err = store.ListDirectReplies(context.Background(), "at://did:plc:alice/social.craftsky.feed.post/root", 2, cursor)
+	_, _, err = store.ListCommentBranchReplies(context.Background(), "at://did:plc:alice/social.craftsky.feed.post/comment", "at://did:plc:alice/social.craftsky.feed.post/root", 2, cursor)
 	if !errors.Is(err, envelope.ErrInvalidCursor) {
 		t.Fatalf("want ErrInvalidCursor, got %v", err)
 	}

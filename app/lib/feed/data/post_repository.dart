@@ -17,8 +17,8 @@ abstract interface class PostRepository {
   /// DELETE /v1/posts/{did}/{rkey}. Idempotent.
   Future<void> delete(String did, String rkey);
 
-  /// GET /v1/posts/{did}/{rkey}/replies — direct replies.
-  Future<PostPage> listDirectReplies(
+  /// GET /v1/posts/{did}/{rkey}/replies — comment branch replies.
+  Future<ReplyPage> listCommentBranchReplies(
     String did,
     String rkey, {
     String? cursor,

@@ -289,8 +289,8 @@ func GetPostHandler(store PostReader, resolver HandleResolver, logger *slog.Logg
 	})
 }
 
-// ListDirectRepliesHandler serves GET /v1/posts/{did}/{rkey}/replies.
-func ListDirectRepliesHandler(
+// ListCommentRepliesHandler serves GET /v1/posts/{did}/{rkey}/replies.
+func ListCommentRepliesHandler(
 	store PostReader,
 	resolver HandleResolver,
 	logger *slog.Logger,
@@ -328,14 +328,14 @@ func ListDirectRepliesHandler(
 
 		limit := parseCommentLimit(r.URL.Query().Get("limit"))
 		cursor := r.URL.Query().Get("cursor")
-		rows, nextCursor, err := store.ListDirectReplies(r.Context(), target.URI, limit, cursor)
+		rows, nextCursor, err := store.ListCommentBranchReplies(r.Context(), target.URI, *target.ReplyRootURI, limit, cursor)
 		if err != nil {
 			if errors.Is(err, envelope.ErrInvalidCursor) {
 				envelope.WriteError(w, http.StatusBadRequest,
 					"invalid_cursor", "cursor could not be decoded", runID, nil)
 				return
 			}
-			logger.Error("post replies: ListDirectReplies failed",
+			logger.Error("post replies: ListCommentBranchReplies failed",
 				slog.String("target_uri", target.URI),
 				slog.String("err", err.Error()),
 				slog.String("run_id", runID))
@@ -344,12 +344,29 @@ func ListDirectRepliesHandler(
 			return
 		}
 
-		items := make([]*PostResponse, 0, len(rows))
+		items := make([]ReplyItem, 0, len(rows))
 		if len(rows) > 0 {
 			viewerDID, _ := middleware.GetDID(r.Context())
 			postURIs := make([]string, 0, len(rows))
+			hydratedRows := make([]*PostRow, 0, len(rows)*2)
 			for _, row := range rows {
 				postURIs = append(postURIs, row.URI)
+				hydratedRows = append(hydratedRows, row)
+				if row.ReplyParentURI != nil && *row.ReplyParentURI != target.URI {
+					parentRow, perr := store.ReadPostByURI(r.Context(), *row.ReplyParentURI)
+					if perr != nil && !errors.Is(perr, ErrPostNotFound) {
+						logger.Error("post replies: ReadPostByURI parent failed",
+							slog.String("parent_uri", *row.ReplyParentURI),
+							slog.String("err", perr.Error()),
+							slog.String("run_id", runID))
+						envelope.WriteError(w, http.StatusInternalServerError,
+							"internal_error", "reply parent lookup failed", runID, nil)
+						return
+					}
+					if parentRow != nil {
+						hydratedRows = append(hydratedRows, parentRow)
+					}
+				}
 			}
 			summaries, serr := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
 			if serr != nil {
@@ -361,7 +378,7 @@ func ListDirectRepliesHandler(
 					"internal_error", "post engagement lookup failed", runID, nil)
 				return
 			}
-			handles, herr := resolveHandlesForRows(r.Context(), rows, resolver)
+			handles, herr := resolveHandlesForRows(r.Context(), hydratedRows, resolver)
 			if herr != nil {
 				logger.Warn("post replies: ResolveHandle failed",
 					slog.String("err", herr.Error()),
@@ -373,13 +390,23 @@ func ListDirectRepliesHandler(
 			for _, row := range rows {
 				resp := BuildPostResponse(row, handles[row.DID])
 				applyEngagementSummary(resp, summaries[row.URI])
-				items = append(items, resp)
+				item := ReplyItem{Post: resp, Flattened: false}
+				if row.ReplyParentURI != nil && *row.ReplyParentURI != target.URI {
+					item.Flattened = true
+					parentRow, _ := findPostRow(hydratedRows, *row.ReplyParentURI)
+					if parentRow != nil {
+						item.ReplyingTo = &ReplyingToAuthor{
+							URI:         parentRow.URI,
+							DID:         parentRow.DID,
+							Handle:      handles[parentRow.DID].String(),
+							DisplayName: parentRow.AuthorDisplayName,
+						}
+					}
+				}
+				items = append(items, item)
 			}
 		}
-		body := struct {
-			Items  []*PostResponse `json:"items"`
-			Cursor string          `json:"cursor,omitempty"`
-		}{Items: items, Cursor: nextCursor}
+		body := ReplyPage{Loaded: true, Items: items, Cursor: nextCursor}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -1136,6 +1163,15 @@ func containsPostRow(rows []*PostRow, uri string) bool {
 		}
 	}
 	return false
+}
+
+func findPostRow(rows []*PostRow, uri string) (*PostRow, bool) {
+	for _, row := range rows {
+		if row.URI == uri {
+			return row, true
+		}
+	}
+	return nil, false
 }
 
 // parseLimit returns the validated limit, defaulting to 50 and capping

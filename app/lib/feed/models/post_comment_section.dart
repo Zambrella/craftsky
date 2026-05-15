@@ -80,9 +80,12 @@ class PostCommentSection with PostCommentSectionMappable {
   }) {
     for (final comment in comments.items) {
       final directToComment = parentUri == comment.post.uri;
-      final withinLoadedBranch = comment.replies.items.any(
-        (item) => item.post.uri == parentUri,
-      );
+      final parentReply = comment.replies.items
+          .where(
+            (item) => item.post.uri == parentUri,
+          )
+          .firstOrNull;
+      final withinLoadedBranch = parentReply != null;
       if (!directToComment && !withinLoadedBranch) continue;
 
       final item = directToComment
@@ -94,7 +97,14 @@ class PostCommentSection with PostCommentSectionMappable {
           : ReplyItem(
               post: reply.post,
               flattened: true,
-              replyingTo: reply.replyingTo,
+              replyingTo:
+                  reply.replyingTo ??
+                  ReplyingToAuthor(
+                    uri: parentReply!.post.uri,
+                    did: parentReply.post.author.did,
+                    handle: parentReply.post.author.handle,
+                    displayName: parentReply.post.author.displayName,
+                  ),
             );
       return _mapComment(comment.post.uri, (comment) {
         return comment.copyWith(

@@ -1,18 +1,17 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
-import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
-import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../fakes/fake_post_repository.dart';
 import '../../fakes/recording_messenger.dart';
+import '../fakes/fake_post_repository.dart';
 
 Post _post(String did, String rkey, String text, {int replyCount = 0}) => Post(
   uri: 'at://$did/social.craftsky.feed.post/$rkey',
@@ -325,16 +324,28 @@ void main() {
               ],
             ),
           ),
-      onListDirectReplies: (did, rkey, {cursor, limit}) async {
+      onListCommentBranchReplies: (did, rkey, {cursor, limit}) async {
         calls.add(cursor);
         if (cursor == null) {
-          return PostPage(
-            items: [_post('did:plc:carol', 'reply-1', 'reply 1')],
+          return ReplyPage(
+            loaded: true,
+            items: [
+              ReplyItem(
+                post: _post('did:plc:carol', 'reply-1', 'reply 1'),
+                flattened: false,
+              ),
+            ],
             cursor: 'more-replies',
           );
         }
-        return PostPage(
-          items: [_post('did:plc:dave', 'reply-2', 'reply 2')],
+        return ReplyPage(
+          loaded: true,
+          items: [
+            ReplyItem(
+              post: _post('did:plc:dave', 'reply-2', 'reply 2'),
+              flattened: false,
+            ),
+          ],
         );
       },
     );

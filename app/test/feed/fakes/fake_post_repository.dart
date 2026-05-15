@@ -26,7 +26,7 @@ class FakePostRepository implements PostRepository {
     this.onCreate,
     this.onFetch,
     this.onDelete,
-    this.onListDirectReplies,
+    this.onListCommentBranchReplies,
     this.onCommentSection,
     this.onLike,
     this.onUnlike,
@@ -39,13 +39,13 @@ class FakePostRepository implements PostRepository {
   onCreate;
   final Future<Post> Function(String did, String rkey)? onFetch;
   final Future<void> Function(String did, String rkey)? onDelete;
-  final Future<PostPage> Function(
+  final Future<ReplyPage> Function(
     String did,
     String rkey, {
     String? cursor,
     int? limit,
   })?
-  onListDirectReplies;
+  onListCommentBranchReplies;
   final Future<PostCommentSection> Function(
     String did,
     String rkey, {
@@ -84,15 +84,20 @@ class FakePostRepository implements PostRepository {
       Future<void>.error(UnimplementedError('delete not stubbed'));
 
   @override
-  Future<PostPage> listDirectReplies(
+  Future<ReplyPage> listCommentBranchReplies(
     String did,
     String rkey, {
     String? cursor,
     int? limit,
   }) =>
-      onListDirectReplies?.call(did, rkey, cursor: cursor, limit: limit) ??
-      Future<PostPage>.error(
-        UnimplementedError('listDirectReplies not stubbed'),
+      onListCommentBranchReplies?.call(
+        did,
+        rkey,
+        cursor: cursor,
+        limit: limit,
+      ) ??
+      Future<ReplyPage>.error(
+        UnimplementedError('listCommentBranchReplies not stubbed'),
       );
 
   @override

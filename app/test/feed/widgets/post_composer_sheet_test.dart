@@ -1,5 +1,5 @@
 import 'package:craftsky_app/feed/models/post.dart';
-import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -130,8 +130,8 @@ void main() {
       PostReply? capturedReply;
       final target = _replyTarget();
       final repo = FakePostRepository(
-        onListDirectReplies: (did, rkey, {cursor, limit}) async =>
-            const PostPage(items: []),
+        onListCommentBranchReplies: (did, rkey, {cursor, limit}) async =>
+            const ReplyPage(loaded: true, items: []),
         onCreate: ({required text, reply}) async {
           capturedText = text;
           capturedReply = reply;

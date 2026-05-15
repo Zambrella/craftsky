@@ -197,6 +197,14 @@ void main() {
         updated.comments.items.single.replies.items.last.flattened,
         isTrue,
       );
+      expect(
+        updated.comments.items.single.replies.items.last.replyingTo?.uri,
+        existingReply.post.uri,
+      );
+      expect(
+        updated.comments.items.single.replies.items.last.replyingTo?.handle,
+        existingReply.post.author.handle,
+      );
     });
 
     test('de-duplicates viewer-authored comments from later pages', () {
