@@ -486,7 +486,7 @@ func TestPostStore_EngagementSummaries_ActiveOnlyAndViewerStates(t *testing.T) {
 	}
 }
 
-func TestPostStore_ListDirectReplies_PaginatesOpaqueCursorOldestFirst(t *testing.T) {
+func TestPostStore_ListCommentBranchReplies_PaginatesBranchOldestFirst(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)
 	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol", "did:plc:dave"} {
@@ -494,17 +494,20 @@ func TestPostStore_ListDirectReplies_PaginatesOpaqueCursorOldestFirst(t *testing
 	}
 	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
-	reply1 := seedReplyPost(t, pool, "did:plc:bob", "reply1", "first", root, root, base.Add(time.Minute))
-	seedReplyPost(t, pool, "did:plc:carol", "reply2", "second", root, root, base.Add(2*time.Minute))
-	seedReplyPost(t, pool, "did:plc:dave", "reply3", "third", root, root, base.Add(3*time.Minute))
-	seedReplyPost(t, pool, "did:plc:bob", "grandchild", "nested", root, reply1, base.Add(4*time.Minute))
+	comment := seedReplyPost(t, pool, "did:plc:bob", "comment", "comment", root, root, base.Add(time.Minute))
+	reply1 := seedReplyPost(t, pool, "did:plc:bob", "reply1", "first", root, comment, base.Add(2*time.Minute))
+	seedReplyPost(t, pool, "did:plc:carol", "reply2", "second", root, comment, base.Add(3*time.Minute))
+	seedReplyPost(t, pool, "did:plc:dave", "reply3", "third", root, comment, base.Add(4*time.Minute))
+	seedReplyPost(t, pool, "did:plc:bob", "grandchild", "nested", root, reply1, base.Add(5*time.Minute))
+	otherComment := seedReplyPost(t, pool, "did:plc:bob", "other-comment", "other", root, root, base.Add(6*time.Minute))
+	seedReplyPost(t, pool, "did:plc:carol", "other-reply", "other reply", root, otherComment, base.Add(7*time.Minute))
 
 	store := api.NewPostStore(pool)
-	page1, cursor, err := store.ListDirectReplies(context.Background(), root, 2, "")
+	page1, cursor, err := store.ListCommentBranchReplies(context.Background(), comment, root, 3, "")
 	if err != nil {
 		t.Fatalf("page1: %v", err)
 	}
-	if len(page1) != 2 || page1[0].Rkey != "reply1" || page1[1].Rkey != "reply2" {
+	if len(page1) != 3 || page1[0].Rkey != "reply1" || page1[1].Rkey != "reply2" || page1[2].Rkey != "reply3" {
 		t.Fatalf("page1 = %v", replyRkeys(page1))
 	}
 	if cursor == "" {
@@ -513,11 +516,11 @@ func TestPostStore_ListDirectReplies_PaginatesOpaqueCursorOldestFirst(t *testing
 	if _, err := envelope.DecodeCursor(cursor); err != nil {
 		t.Fatalf("cursor is not decodable by envelope helper: %v", err)
 	}
-	page2, cursor2, err := store.ListDirectReplies(context.Background(), root, 2, cursor)
+	page2, cursor2, err := store.ListCommentBranchReplies(context.Background(), comment, root, 3, cursor)
 	if err != nil {
 		t.Fatalf("page2: %v", err)
 	}
-	if len(page2) != 1 || page2[0].Rkey != "reply3" {
+	if len(page2) != 1 || page2[0].Rkey != "grandchild" {
 		t.Fatalf("page2 = %v", replyRkeys(page2))
 	}
 	if cursor2 != "" {
@@ -525,7 +528,135 @@ func TestPostStore_ListDirectReplies_PaginatesOpaqueCursorOldestFirst(t *testing
 	}
 }
 
-func TestPostStore_ListDirectReplies_RejectsIncompleteCursor(t *testing.T) {
+func TestPostStore_ListCommentBranchRepliesAround_IncludesFocusedReplyAfterFirstPage(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
+	comment := seedReplyPost(t, pool, "did:plc:bob", "comment", "comment", root, root, base.Add(time.Minute))
+	var focused string
+	for i := 0; i < 12; i++ {
+		uri := seedReplyPost(t, pool, "did:plc:carol", "reply"+string(rune('a'+i)), "reply", root, comment, base.Add(time.Duration(i+2)*time.Minute))
+		if i == 10 {
+			focused = uri
+		}
+	}
+
+	store := api.NewPostStore(pool)
+	page, cursor, err := store.ListCommentBranchRepliesAround(context.Background(), comment, root, focused, 10)
+	if err != nil {
+		t.Fatalf("ListCommentBranchRepliesAround: %v", err)
+	}
+	if got := replyRkeys(page); len(got) != 10 || got[0] != "replyb" || got[9] != "replyk" {
+		t.Fatalf("page = %v", got)
+	}
+	if !postRowsContainURI(page, focused) {
+		t.Fatalf("focused reply missing from page = %v", replyRkeys(page))
+	}
+	if cursor == "" {
+		t.Fatal("want cursor for predictable load-more after focused slice")
+	}
+	nextPage, nextCursor, err := store.ListCommentBranchReplies(context.Background(), comment, root, 10, cursor)
+	if err != nil {
+		t.Fatalf("next page: %v", err)
+	}
+	if got := replyRkeys(nextPage); len(got) != 1 || got[0] != "replyl" {
+		t.Fatalf("next page = %v", got)
+	}
+	if nextCursor != "" {
+		t.Fatalf("next cursor = %q, want empty", nextCursor)
+	}
+}
+
+func TestPostStore_ListRootComments_PaginatesOpaqueCursorOldestFirst(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
+	for i := 0; i < 12; i++ {
+		did := "did:plc:bob"
+		if i%2 == 1 {
+			did = "did:plc:carol"
+		}
+		seedReplyPost(t, pool, did, "comment"+string(rune('a'+i)), "comment", root, root, base.Add(time.Duration(i+1)*time.Minute))
+	}
+	firstComment := seedReplyPost(t, pool, "did:plc:bob", "nested", "nested", root, root, base.Add(20*time.Minute))
+	seedReplyPost(t, pool, "did:plc:carol", "nested-child", "child", root, firstComment, base.Add(21*time.Minute))
+
+	store := api.NewPostStore(pool)
+	page1, cursor, err := store.ListRootComments(context.Background(), root, "did:plc:viewer", "oldest", 10, "")
+	if err != nil {
+		t.Fatalf("page1: %v", err)
+	}
+	if len(page1) != 10 {
+		t.Fatalf("page1 len = %d, want 10", len(page1))
+	}
+	if page1[0].Rkey != "commenta" || page1[9].Rkey != "commentj" {
+		t.Fatalf("page1 rkeys = %v", replyRkeys(page1))
+	}
+	if cursor == "" {
+		t.Fatal("want non-empty cursor after page 1")
+	}
+	if _, err := envelope.DecodeCursor(cursor); err != nil {
+		t.Fatalf("cursor is not opaque envelope cursor: %v", err)
+	}
+	page2, cursor2, err := store.ListRootComments(context.Background(), root, "did:plc:viewer", "oldest", 10, cursor)
+	if err != nil {
+		t.Fatalf("page2: %v", err)
+	}
+	if len(page2) != 3 || page2[0].Rkey != "commentk" || page2[1].Rkey != "commentl" || page2[2].Rkey != "nested" {
+		t.Fatalf("page2 rkeys = %v", replyRkeys(page2))
+	}
+	if cursor2 != "" {
+		t.Fatalf("want final cursor empty, got %q", cursor2)
+	}
+}
+
+func TestPostStore_ListRootComments_GroupsViewerAndSortsWithinGroups(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:viewer", "did:plc:bob"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
+	seedReplyPost(t, pool, "did:plc:bob", "other-early", "other early", root, root, base.Add(1*time.Minute))
+	seedReplyPost(t, pool, "did:plc:viewer", "viewer-mid", "viewer mid", root, root, base.Add(2*time.Minute))
+	seedReplyPost(t, pool, "did:plc:bob", "other-late", "other late", root, root, base.Add(3*time.Minute))
+	seedReplyPost(t, pool, "did:plc:viewer", "viewer-late", "viewer late", root, root, base.Add(4*time.Minute))
+
+	store := api.NewPostStore(pool)
+	for _, tc := range []struct {
+		name string
+		sort string
+		want []string
+	}{
+		{name: "oldest", sort: "oldest", want: []string{"viewer-mid", "viewer-late", "other-early", "other-late"}},
+		{name: "follows", sort: "follows", want: []string{"viewer-mid", "viewer-late", "other-early", "other-late"}},
+		{name: "newest", sort: "newest", want: []string{"viewer-late", "viewer-mid", "other-late", "other-early"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rows, cursor, err := store.ListRootComments(context.Background(), root, "did:plc:viewer", tc.sort, 10, "")
+			if err != nil {
+				t.Fatalf("ListRootComments: %v", err)
+			}
+			if cursor != "" {
+				t.Fatalf("cursor = %q, want empty final cursor", cursor)
+			}
+			if got := replyRkeys(rows); !equalStrings(got, tc.want) {
+				t.Fatalf("rkeys = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPostStore_ListCommentBranchReplies_RejectsIncompleteCursor(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)
 	store := api.NewPostStore(pool)
@@ -535,109 +666,9 @@ func TestPostStore_ListDirectReplies_RejectsIncompleteCursor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encode cursor: %v", err)
 	}
-	_, _, err = store.ListDirectReplies(context.Background(), "at://did:plc:alice/social.craftsky.feed.post/root", 2, cursor)
+	_, _, err = store.ListCommentBranchReplies(context.Background(), "at://did:plc:alice/social.craftsky.feed.post/comment", "at://did:plc:alice/social.craftsky.feed.post/root", 2, cursor)
 	if !errors.Is(err, envelope.ErrInvalidCursor) {
 		t.Fatalf("want ErrInvalidCursor, got %v", err)
-	}
-}
-
-func TestPostStore_LoadThreadCandidates_UsesRootAndTargetWithCap(t *testing.T) {
-	t.Parallel()
-	pool := testdb.WithSchema(t, postStoreDDL)
-	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol", "did:plc:dave"} {
-		seedMember(t, pool, did)
-	}
-	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
-	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
-	otherRoot := seedPost(t, pool, "did:plc:alice", "other", "other", base)
-	seedReplyPost(t, pool, "did:plc:bob", "reply1", "first", root, root, base.Add(time.Minute))
-	seedReplyPost(t, pool, "did:plc:carol", "reply2", "second", root, root, base.Add(2*time.Minute))
-	target := seedReplyPost(t, pool, "did:plc:dave", "late-target", "late", root, root, base.Add(3*time.Minute))
-	child := seedReplyPost(t, pool, "did:plc:bob", "target-child", "child", root, target, base.Add(5*time.Minute))
-	seedReplyPost(t, pool, "did:plc:bob", "other-reply", "other", otherRoot, otherRoot, base.Add(4*time.Minute))
-
-	store := api.NewPostStore(pool)
-	rows, err := store.LoadThreadCandidates(context.Background(), root, target, 2)
-	if err != nil {
-		t.Fatalf("LoadThreadCandidates: %v", err)
-	}
-	if len(rows) != 2 {
-		t.Fatalf("len = %d, want target plus one capped child", len(rows))
-	}
-	seenTarget := false
-	seenChild := false
-	for _, row := range rows {
-		if row.URI == target {
-			seenTarget = true
-		}
-		if row.URI == child {
-			seenChild = true
-		}
-		if row.Rkey == "reply1" || row.Rkey == "reply2" {
-			t.Fatalf("included target sibling outside subtree: %+v", row)
-		}
-		if row.URI == otherRoot || row.Rkey == "other-reply" {
-			t.Fatalf("included off-thread row: %+v", row)
-		}
-	}
-	if !seenTarget {
-		t.Fatalf("target row missing under cap: %v", replyRkeys(rows))
-	}
-	if !seenChild {
-		t.Fatalf("target child missing under cap: %v", replyRkeys(rows))
-	}
-}
-
-func TestPostStore_LoadThreadAncestors_ReturnsRootToParentAndOmitsMissing(t *testing.T) {
-	t.Parallel()
-	pool := testdb.WithSchema(t, postStoreDDL)
-	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol", "did:plc:dave"} {
-		seedMember(t, pool, did)
-	}
-	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
-	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
-	replyA := seedReplyPost(t, pool, "did:plc:bob", "replyA", "a", root, root, base.Add(time.Minute))
-	replyB := seedReplyPost(t, pool, "did:plc:carol", "replyB", "b", root, replyA, base.Add(2*time.Minute))
-	missingParent := "at://did:plc:missing/social.craftsky.feed.post/gone"
-	missingChild := seedReplyPost(t, pool, "did:plc:dave", "missingChild", "missing", root, missingParent, base.Add(3*time.Minute))
-
-	store := api.NewPostStore(pool)
-	rows, err := store.LoadThreadAncestors(context.Background(), root, replyA, replyB, 7)
-	if err != nil {
-		t.Fatalf("LoadThreadAncestors: %v", err)
-	}
-	if got := replyRkeys(rows); len(got) != 2 || got[0] != "root" || got[1] != "replyA" {
-		t.Fatalf("ancestor order = %v", got)
-	}
-
-	rows, err = store.LoadThreadAncestors(context.Background(), root, missingParent, missingChild, 7)
-	if err != nil {
-		t.Fatalf("LoadThreadAncestors missing parent: %v", err)
-	}
-	if got := replyRkeys(rows); len(got) != 1 || got[0] != "root" {
-		t.Fatalf("missing parent ancestors = %v", got)
-	}
-}
-
-func TestPostStore_LoadThreadAncestors_DoesNotCrossThreadRoots(t *testing.T) {
-	t.Parallel()
-	pool := testdb.WithSchema(t, postStoreDDL)
-	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol"} {
-		seedMember(t, pool, did)
-	}
-	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
-	declaredRoot := seedPost(t, pool, "did:plc:alice", "declared", "declared", base)
-	otherRoot := seedPost(t, pool, "did:plc:alice", "other", "other", base.Add(time.Minute))
-	offThreadParent := seedReplyPost(t, pool, "did:plc:bob", "offThread", "off", otherRoot, otherRoot, base.Add(2*time.Minute))
-	target := seedReplyPost(t, pool, "did:plc:carol", "target", "target", declaredRoot, offThreadParent, base.Add(3*time.Minute))
-
-	store := api.NewPostStore(pool)
-	rows, err := store.LoadThreadAncestors(context.Background(), declaredRoot, offThreadParent, target, 7)
-	if err != nil {
-		t.Fatalf("LoadThreadAncestors: %v", err)
-	}
-	if got := replyRkeys(rows); len(got) != 1 || got[0] != "declared" {
-		t.Fatalf("cross-thread ancestors = %v", got)
 	}
 }
 
@@ -647,4 +678,25 @@ func replyRkeys(rows []*api.PostRow) []string {
 		out = append(out, row.Rkey)
 	}
 	return out
+}
+
+func postRowsContainURI(rows []*api.PostRow, uri string) bool {
+	for _, row := range rows {
+		if row.URI == uri {
+			return true
+		}
+	}
+	return false
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }

@@ -39,6 +39,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
   @override
   void initState() {
     super.initState();
+    if (widget.replyTarget?.reply != null) {
+      _text = '@${widget.replyTarget!.author.handle} ';
+      _controller.text = _text;
+      _controller.selection = TextSelection.collapsed(offset: _text.length);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _focusNode.requestFocus();

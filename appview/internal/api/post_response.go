@@ -53,18 +53,55 @@ type PostResponse struct {
 	Author            PostAuthor         `json:"author"`
 }
 
-// ThreadResponse is the root response for nested thread reads.
-type ThreadResponse struct {
-	Post      *PostResponse   `json:"post"`
-	Ancestors []*PostResponse `json:"ancestors"`
-	Replies   []*ThreadNode   `json:"replies"`
-	Truncated bool            `json:"truncated"`
+// CommentSectionResponse is the root-post comment-section read surface.
+type CommentSectionResponse struct {
+	Post     *PostResponse `json:"post"`
+	Comments CommentPage   `json:"comments"`
+	Sort     string        `json:"sort"`
+	Focus    *FocusContext `json:"focus,omitempty"`
 }
 
-// ThreadNode is a nested reply node in a thread response.
-type ThreadNode struct {
-	Post    *PostResponse `json:"post"`
-	Replies []*ThreadNode `json:"replies"`
+// FocusContext reports backend focus resolution for a requested focus AT-URI.
+type FocusContext struct {
+	URI        string `json:"uri"`
+	Status     string `json:"status"`
+	Kind       string `json:"kind,omitempty"`
+	CommentURI string `json:"commentUri,omitempty"`
+}
+
+// CommentPage carries the ordered top-level comment render list.
+type CommentPage struct {
+	Items  []CommentItem `json:"items"`
+	Cursor string        `json:"cursor,omitempty"`
+}
+
+// CommentItem is a direct reply to the root post plus its action-loaded reply state.
+type CommentItem struct {
+	Post      *PostResponse `json:"post"`
+	Placement string        `json:"placement"`
+	Replies   ReplyPage     `json:"replies"`
+}
+
+// ReplyPage carries the per-comment reply list state.
+type ReplyPage struct {
+	Loaded bool        `json:"loaded"`
+	Items  []ReplyItem `json:"items"`
+	Cursor string      `json:"cursor,omitempty"`
+}
+
+// ReplyItem is a visual second-level reply under a comment branch.
+type ReplyItem struct {
+	Post       *PostResponse     `json:"post"`
+	Flattened  bool              `json:"flattened"`
+	ReplyingTo *ReplyingToAuthor `json:"replyingTo,omitempty"`
+}
+
+// ReplyingToAuthor describes the true backend parent for flattened replies.
+type ReplyingToAuthor struct {
+	URI         string  `json:"uri"`
+	DID         string  `json:"did"`
+	Handle      string  `json:"handle"`
+	DisplayName *string `json:"displayName,omitempty"`
 }
 
 // BuildPostResponse converts a PostRow + resolved handle into the wire

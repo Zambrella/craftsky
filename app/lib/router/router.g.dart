@@ -353,6 +353,7 @@ mixin $PostThreadRoute on GoRouteData {
   static PostThreadRoute _fromState(GoRouterState state) => PostThreadRoute(
     did: state.pathParameters['did']!,
     rkey: state.pathParameters['rkey']!,
+    focus: state.uri.queryParameters['focus'],
   );
 
   PostThreadRoute get _self => this as PostThreadRoute;
@@ -360,6 +361,7 @@ mixin $PostThreadRoute on GoRouteData {
   @override
   String get location => GoRouteData.$location(
     '/posts/${Uri.encodeComponent(_self.did)}/${Uri.encodeComponent(_self.rkey)}',
+    queryParams: {if (_self.focus != null) 'focus': _self.focus},
   );
 
   @override

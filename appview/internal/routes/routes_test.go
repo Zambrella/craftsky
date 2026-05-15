@@ -129,11 +129,11 @@ func TestAddRoutes_PostRepliesRequiresDeviceID(t *testing.T) {
 	}
 }
 
-func TestAddRoutes_PostThreadRequiresAuthenticatedDevice(t *testing.T) {
+func TestAddRoutes_PostCommentsRequiresAuthenticatedDevice(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, testDeps())
 
-	req := httptest.NewRequest("GET", "/v1/posts/did:plc:alice/root/thread", nil)
+	req := httptest.NewRequest("GET", "/v1/posts/did:plc:alice/root/comments", nil)
 	req.Header.Set("X-Craftsky-Device-Id", "dev-test")
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -143,11 +143,11 @@ func TestAddRoutes_PostThreadRequiresAuthenticatedDevice(t *testing.T) {
 	}
 }
 
-func TestAddRoutes_PostThreadRequiresDeviceID(t *testing.T) {
+func TestAddRoutes_PostCommentsRequiresDeviceID(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, testDeps())
 
-	req := httptest.NewRequest("GET", "/v1/posts/did:plc:alice/root/thread", nil)
+	req := httptest.NewRequest("GET", "/v1/posts/did:plc:alice/root/comments", nil)
 	req.Header.Set("Authorization", "Bearer anything")
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

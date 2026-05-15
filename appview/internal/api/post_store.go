@@ -44,6 +44,14 @@ type PostRow struct {
 	AuthorAvatarCID   *string
 }
 
+func (row *PostRow) IsRoot() bool {
+	return row != nil && row.ReplyRootURI == nil && row.ReplyParentURI == nil
+}
+
+func (row *PostRow) IsComment() bool {
+	return row != nil && row.ReplyRootURI != nil && row.ReplyParentURI != nil && *row.ReplyRootURI == *row.ReplyParentURI
+}
+
 // PostAuthorRow is the slim author-hydration view used when we need to
 // build a synthetic response for a freshly-created post (the post row
 // itself doesn't exist yet at that moment, but the author's bsky
@@ -91,13 +99,115 @@ type EngagementSummary struct {
 // fakes; production uses *PostStore.
 type PostReader interface {
 	ReadOne(ctx context.Context, did, rkey string) (*PostRow, error)
+	ReadPostByURI(ctx context.Context, uri string) (*PostRow, error)
 	ListByAuthor(ctx context.Context, did string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
 	ResolvePostTarget(ctx context.Context, did, rkey string) (*PostTargetRef, error)
-	ListDirectReplies(ctx context.Context, parentURI string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
-	LoadThreadAncestors(ctx context.Context, rootURI, parentURI, targetURI string, limit int) ([]*PostRow, error)
-	LoadThreadCandidates(ctx context.Context, rootURI, targetURI string, limit int) ([]*PostRow, error)
+	ListRootComments(ctx context.Context, rootURI, viewerDID, sort string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
+	ListCommentBranchReplies(ctx context.Context, commentURI, rootURI string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
+	ListCommentBranchRepliesAround(ctx context.Context, commentURI, rootURI, focusURI string, limit int) (rows []*PostRow, nextCursor string, err error)
 	ReadAuthor(ctx context.Context, did string) (*PostAuthorRow, error)
 	EngagementSummaries(ctx context.Context, viewerDID string, postURIs []string) (map[string]EngagementSummary, error)
+}
+
+// ReadPostByURI returns the post identified by AT-URI.
+func (s *PostStore) ReadPostByURI(ctx context.Context, uri string) (*PostRow, error) {
+	q := `
+		SELECT ` + postSelectColumns + `
+		FROM craftsky_posts p
+		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
+		WHERE p.uri = $1
+	`
+	row, err := scanPostRow(s.pool.QueryRow(ctx, q, uri))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrPostNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("post read uri %s: %w", uri, err)
+	}
+	return row, nil
+}
+
+// ListRootComments returns direct replies to the root post in comment-section
+// render order: viewer-authored comments first, then the selected sort within
+// each group. The follows sort currently uses oldest-first ordering.
+func (s *PostStore) ListRootComments(ctx context.Context, rootURI, viewerDID, sortValue string, limit int, cursor string) ([]*PostRow, string, error) {
+	curCreatedAt, curURI, err := decodeSeekCursor(cursor, "createdAt")
+	if err != nil {
+		return nil, "", err
+	}
+	orderDirection := "ASC"
+	seekComparator := ">"
+	if sortValue == "newest" {
+		orderDirection = "DESC"
+		seekComparator = "<"
+	}
+
+	q := `
+		SELECT ` + postSelectColumns + `
+		FROM craftsky_posts p
+		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
+		WHERE p.reply_parent_uri = $1
+		  AND ($2::timestamptz IS NULL
+		       OR (p.created_at, p.uri) ` + seekComparator + ` ($2::timestamptz, $3::text))
+		ORDER BY CASE WHEN p.did = $5 THEN 0 ELSE 1 END ASC, p.created_at ` + orderDirection + `, p.uri ` + orderDirection + `
+		LIMIT $4
+	`
+	rows, err := s.pool.Query(ctx, q, rootURI, curCreatedAt, curURI, limit, viewerDID)
+	if err != nil {
+		return nil, "", fmt.Errorf("comment list root %s: %w", rootURI, err)
+	}
+	defer rows.Close()
+
+	out := make([]*PostRow, 0, limit)
+	for rows.Next() {
+		row, scanErr := scanPostRow(rows)
+		if scanErr != nil {
+			return nil, "", fmt.Errorf("comment list scan: %w", scanErr)
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", fmt.Errorf("comment list iter: %w", err)
+	}
+	if len(out) < limit {
+		return out, "", nil
+	}
+	last := out[len(out)-1]
+	next, err := envelope.EncodeCursor(map[string]any{
+		"createdAt": last.CreatedAt.UTC().Format(time.RFC3339Nano),
+		"uri":       last.URI,
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("encode comment cursor: %w", err)
+	}
+	return out, next, nil
+}
+
+func (s *PostStore) commentBranchHasRepliesAfter(ctx context.Context, commentURI, rootURI string, createdAt time.Time, uri string) (bool, error) {
+	q := `
+		WITH RECURSIVE branch(uri, created_at, depth) AS (
+			SELECT p.uri, p.created_at, 1
+			FROM craftsky_posts p
+			WHERE p.reply_parent_uri = $1
+			  AND p.reply_root_uri = $2
+			UNION ALL
+			SELECT child.uri, child.created_at, parent.depth + 1
+			FROM craftsky_posts child
+			JOIN branch parent ON child.reply_parent_uri = parent.uri
+			WHERE child.reply_root_uri = $2
+			  AND parent.depth < 64
+		)
+		SELECT EXISTS (
+			SELECT 1
+			FROM branch
+			WHERE (created_at, uri) > ($3::timestamptz, $4::text)
+		)
+	`
+	var hasMore bool
+	if err := s.pool.QueryRow(ctx, q, commentURI, rootURI, createdAt, uri).Scan(&hasMore); err != nil {
+		return false, fmt.Errorf("reply list branch has more comment=%s root=%s: %w", commentURI, rootURI, err)
+	}
+	return hasMore, nil
 }
 
 // PostStore is the Postgres-backed implementation.
@@ -458,26 +568,43 @@ func (s *PostStore) EngagementSummaries(ctx context.Context, viewerDID string, p
 	return out, nil
 }
 
-// ListDirectReplies returns direct child replies oldest-first by (created_at, uri).
-func (s *PostStore) ListDirectReplies(ctx context.Context, parentURI string, limit int, cursor string) ([]*PostRow, string, error) {
+// ListCommentBranchReplies returns visual replies under a top-level comment,
+// including deeper descendants flattened into chronological branch order.
+func (s *PostStore) ListCommentBranchReplies(ctx context.Context, commentURI, rootURI string, limit int, cursor string) ([]*PostRow, string, error) {
 	curCreatedAt, curURI, err := decodeSeekCursor(cursor, "createdAt")
 	if err != nil {
 		return nil, "", err
 	}
 
 	q := `
+		WITH RECURSIVE branch(uri, created_at, depth) AS (
+			SELECT p.uri, p.created_at, 1
+			FROM craftsky_posts p
+			WHERE p.reply_parent_uri = $1
+			  AND p.reply_root_uri = $2
+			UNION ALL
+			SELECT child.uri, child.created_at, parent.depth + 1
+			FROM craftsky_posts child
+			JOIN branch parent ON child.reply_parent_uri = parent.uri
+			WHERE child.reply_root_uri = $2
+			  AND parent.depth < 64
+		), page AS (
+			SELECT uri, created_at
+			FROM branch
+			WHERE ($3::timestamptz IS NULL
+			       OR (created_at, uri) > ($3::timestamptz, $4::text))
+			ORDER BY created_at ASC, uri ASC
+			LIMIT $5
+		)
 		SELECT ` + postSelectColumns + `
-		FROM craftsky_posts p
+		FROM page
+		JOIN craftsky_posts p ON p.uri = page.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
-		WHERE p.reply_parent_uri = $1
-		  AND ($2::timestamptz IS NULL
-		       OR (p.created_at, p.uri) > ($2::timestamptz, $3::text))
-		ORDER BY p.created_at ASC, p.uri ASC
-		LIMIT $4
+		ORDER BY page.created_at ASC, page.uri ASC
 	`
-	rows, err := s.pool.Query(ctx, q, parentURI, curCreatedAt, curURI, limit)
+	rows, err := s.pool.Query(ctx, q, commentURI, rootURI, curCreatedAt, curURI, limit)
 	if err != nil {
-		return nil, "", fmt.Errorf("reply list direct %s: %w", parentURI, err)
+		return nil, "", fmt.Errorf("reply list branch comment=%s root=%s: %w", commentURI, rootURI, err)
 	}
 	defer rows.Close()
 
@@ -485,12 +612,12 @@ func (s *PostStore) ListDirectReplies(ctx context.Context, parentURI string, lim
 	for rows.Next() {
 		row, scanErr := scanPostRow(rows)
 		if scanErr != nil {
-			return nil, "", fmt.Errorf("reply list direct scan: %w", scanErr)
+			return nil, "", fmt.Errorf("reply list branch scan: %w", scanErr)
 		}
 		out = append(out, row)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, "", fmt.Errorf("reply list direct iter: %w", err)
+		return nil, "", fmt.Errorf("reply list branch iter: %w", err)
 	}
 	if len(out) < limit {
 		return out, "", nil
@@ -506,41 +633,47 @@ func (s *PostStore) ListDirectReplies(ctx context.Context, parentURI string, lim
 	return out, next, nil
 }
 
-// LoadThreadCandidates returns the target row plus descendants below that target.
-func (s *PostStore) LoadThreadCandidates(ctx context.Context, rootURI, targetURI string, limit int) ([]*PostRow, error) {
+// ListCommentBranchRepliesAround returns a bounded visual reply page that
+// includes focusURI, ending at the focused reply so deep links can render the
+// target without loading every earlier branch reply.
+func (s *PostStore) ListCommentBranchRepliesAround(ctx context.Context, commentURI, rootURI, focusURI string, limit int) ([]*PostRow, string, error) {
 	q := `
-		WITH RECURSIVE target_uri AS (
-			SELECT uri, created_at
-			FROM craftsky_posts
-			WHERE uri = $2
-		), tree(uri, created_at, depth) AS (
-			SELECT uri, created_at, 1
-			FROM craftsky_posts
-			WHERE reply_root_uri = $1 AND reply_parent_uri = $2
+		WITH RECURSIVE branch(uri, created_at, depth) AS (
+			SELECT p.uri, p.created_at, 1
+			FROM craftsky_posts p
+			WHERE p.reply_parent_uri = $1
+			  AND p.reply_root_uri = $2
 			UNION ALL
-			SELECT child.uri, child.created_at, tree.depth + 1
+			SELECT child.uri, child.created_at, parent.depth + 1
 			FROM craftsky_posts child
-			JOIN tree ON child.reply_parent_uri = tree.uri
-			WHERE child.reply_root_uri = $1 AND tree.depth < 7
-		), descendant_uris AS (
+			JOIN branch parent ON child.reply_parent_uri = parent.uri
+			WHERE child.reply_root_uri = $2
+			  AND parent.depth < 64
+		), focus AS (
 			SELECT uri, created_at
-			FROM tree
+			FROM branch
+			WHERE uri = $3
+		), page AS (
+			SELECT branch.uri, branch.created_at
+			FROM branch
+			JOIN focus ON true
+			WHERE (branch.created_at, branch.uri) <= (focus.created_at, focus.uri)
+			ORDER BY branch.created_at DESC, branch.uri DESC
+			LIMIT $4
+		), ordered_page AS (
+			SELECT uri, created_at
+			FROM page
 			ORDER BY created_at ASC, uri ASC
-			LIMIT GREATEST($3 - 1, 0)
-		), candidate_uris AS (
-			SELECT uri, created_at FROM target_uri
-			UNION ALL
-			SELECT uri, created_at FROM descendant_uris
 		)
 		SELECT ` + postSelectColumns + `
-		FROM candidate_uris c
-		JOIN craftsky_posts p ON p.uri = c.uri
+		FROM ordered_page
+		JOIN craftsky_posts p ON p.uri = ordered_page.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
-		ORDER BY c.created_at ASC, c.uri ASC
+		ORDER BY ordered_page.created_at ASC, ordered_page.uri ASC
 	`
-	rows, err := s.pool.Query(ctx, q, rootURI, targetURI, limit)
+	rows, err := s.pool.Query(ctx, q, commentURI, rootURI, focusURI, limit)
 	if err != nil {
-		return nil, fmt.Errorf("thread candidates root=%s target=%s: %w", rootURI, targetURI, err)
+		return nil, "", fmt.Errorf("reply list branch around comment=%s root=%s focus=%s: %w", commentURI, rootURI, focusURI, err)
 	}
 	defer rows.Close()
 
@@ -548,68 +681,30 @@ func (s *PostStore) LoadThreadCandidates(ctx context.Context, rootURI, targetURI
 	for rows.Next() {
 		row, scanErr := scanPostRow(rows)
 		if scanErr != nil {
-			return nil, fmt.Errorf("thread candidates scan: %w", scanErr)
+			return nil, "", fmt.Errorf("reply list branch around scan: %w", scanErr)
 		}
 		out = append(out, row)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("thread candidates iter: %w", err)
+		return nil, "", fmt.Errorf("reply list branch around iter: %w", err)
 	}
-	return out, nil
-}
-
-// LoadThreadAncestors returns indexed ancestors ordered from root to immediate parent.
-func (s *PostStore) LoadThreadAncestors(ctx context.Context, rootURI, parentURI, targetURI string, limit int) ([]*PostRow, error) {
-	q := `
-		WITH RECURSIVE parent_chain(uri, parent_uri, depth, path) AS (
-			SELECT p.uri, p.reply_parent_uri, 1, ARRAY[p.uri]
-			FROM craftsky_posts p
-			WHERE p.uri = $2
-			  AND p.uri <> $3
-			  AND (p.uri = $1 OR p.reply_root_uri = $1)
-			UNION ALL
-			SELECT parent.uri, parent.reply_parent_uri, parent_chain.depth + 1, parent_chain.path || parent.uri
-			FROM craftsky_posts parent
-			JOIN parent_chain ON parent.uri = parent_chain.parent_uri
-			WHERE parent_chain.depth < GREATEST($4 - 1, 0)
-			  AND parent.uri <> $3
-			  AND NOT parent.uri = ANY(parent_chain.path)
-			  AND (parent.uri = $1 OR parent.reply_root_uri = $1)
-		), candidates(uri, depth, is_root) AS (
-			SELECT uri, depth, false FROM parent_chain WHERE uri <> $1
-			UNION ALL
-			SELECT p.uri, $4, true
-			FROM craftsky_posts p
-			WHERE p.uri = $1
-				AND p.uri <> $3
-		), ranked AS (
-			SELECT uri, max(depth) AS depth, bool_or(is_root) AS is_root
-			FROM candidates
-			GROUP BY uri
-		)
-		SELECT ` + postSelectColumns + `
-		FROM ranked a
-		JOIN craftsky_posts p ON p.uri = a.uri
-		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
-		ORDER BY a.is_root DESC, a.depth DESC, a.uri ASC
-		LIMIT $4
-	`
-	rows, err := s.pool.Query(ctx, q, rootURI, parentURI, targetURI, limit)
+	if len(out) == 0 {
+		return out, "", nil
+	}
+	last := out[len(out)-1]
+	hasMore, err := s.commentBranchHasRepliesAfter(ctx, commentURI, rootURI, last.CreatedAt, last.URI)
 	if err != nil {
-		return nil, fmt.Errorf("thread ancestors root=%s parent=%s target=%s: %w", rootURI, parentURI, targetURI, err)
+		return nil, "", err
 	}
-	defer rows.Close()
-
-	out := make([]*PostRow, 0, limit)
-	for rows.Next() {
-		row, scanErr := scanPostRow(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("thread ancestors scan: %w", scanErr)
-		}
-		out = append(out, row)
+	if !hasMore {
+		return out, "", nil
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("thread ancestors iter: %w", err)
+	next, err := envelope.EncodeCursor(map[string]any{
+		"createdAt": last.CreatedAt.UTC().Format(time.RFC3339Nano),
+		"uri":       last.URI,
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("encode reply cursor: %w", err)
 	}
-	return out, nil
+	return out, next, nil
 }

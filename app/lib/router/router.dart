@@ -326,17 +326,18 @@ class OnboardingRoute extends GoRouteData with $OnboardingRoute {
   name: 'post-thread',
 )
 class PostThreadRoute extends GoRouteData with $PostThreadRoute {
-  const PostThreadRoute({required this.did, required this.rkey});
+  const PostThreadRoute({required this.did, required this.rkey, this.focus});
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.rootNavigatorKey;
 
   final String did;
   final String rkey;
+  final String? focus;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
-      PostThreadPage(did: did, rkey: rkey);
+      PostThreadPage(did: did, rkey: rkey, focus: focus);
 }
 
 @TypedGoRoute<UserProfileRoute>(

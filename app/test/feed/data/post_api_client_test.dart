@@ -205,61 +205,48 @@ void main() {
     });
   });
 
-  group('PostApiClient.listDirectReplies', () {
+  group('PostApiClient.listCommentBranchReplies', () {
     test('GETs /v1/posts/{did}/{rkey}/replies with pagination', () async {
       final dio = buildDio();
       DioAdapter(dio: dio).onGet(
         '/v1/posts/did:plc:alice/3lf2abc/replies',
         (server) => server.reply(200, {
-          'items': [samplePost(text: 'reply')],
+          'loaded': true,
+          'items': [
+            {'post': samplePost(text: 'reply'), 'flattened': false},
+            {
+              'post': samplePost(text: 'nested reply'),
+              'flattened': true,
+              'replyingTo': {
+                'uri': 'at://did:plc:bob/social.craftsky.feed.post/reply',
+                'did': 'did:plc:bob',
+                'handle': 'bob.craftsky.social',
+                'displayName': 'Bob',
+              },
+            },
+          ],
           'cursor': 'next-replies',
         }),
         queryParameters: {'cursor': 'c1', 'limit': '25'},
       );
 
-      final page = await PostApiClient(
-        dio,
-      ).listDirectReplies('did:plc:alice', '3lf2abc', cursor: 'c1', limit: 25);
-      expect(page.items.single.text, 'reply');
+      final page =
+          await PostApiClient(
+            dio,
+          ).listCommentBranchReplies(
+            'did:plc:alice',
+            '3lf2abc',
+            cursor: 'c1',
+            limit: 25,
+          );
+      expect(page.loaded, isTrue);
+      expect(page.items.first.post.text, 'reply');
+      expect(page.items.first.flattened, isFalse);
+      expect(page.items.last.post.text, 'nested reply');
+      expect(page.items.last.flattened, isTrue);
+      expect(page.items.last.replyingTo?.handle, 'bob.craftsky.social');
       expect(page.cursor, 'next-replies');
     });
-  });
-
-  group('PostApiClient.getThread', () {
-    test(
-      'GETs /v1/posts/{did}/{rkey}/thread and parses nested replies',
-      () async {
-        final dio = buildDio();
-        DioAdapter(dio: dio).onGet(
-          '/v1/posts/did:plc:alice/3lf2abc/thread',
-          (server) => server.reply(200, {
-            'ancestors': [
-              samplePost(text: 'root ancestor'),
-              samplePost(text: 'parent ancestor'),
-            ],
-            'post': samplePost(text: 'root'),
-            'replies': [
-              {
-                'post': samplePost(text: 'reply'),
-                'replies': <Map<String, dynamic>>[],
-              },
-            ],
-            'truncated': false,
-          }),
-        );
-
-        final thread = await PostApiClient(
-          dio,
-        ).getThread('did:plc:alice', '3lf2abc');
-        expect(thread.post.text, 'root');
-        expect(thread.ancestors.map((post) => post.text), [
-          'root ancestor',
-          'parent ancestor',
-        ]);
-        expect(thread.replies.single.post.text, 'reply');
-        expect(thread.truncated, isFalse);
-      },
-    );
   });
 
   group('PostApiClient likes and reposts', () {

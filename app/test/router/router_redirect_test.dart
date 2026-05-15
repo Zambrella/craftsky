@@ -2,7 +2,7 @@ import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
-import 'package:craftsky_app/feed/models/post_thread.dart';
+import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
@@ -20,7 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../fakes/auth_session_fakes.dart';
 import '../feed/fakes/fake_post_repository.dart';
 
-Post _threadPost(String did, String rkey) => Post(
+Post _post(String did, String rkey) => Post(
   uri: 'at://$did/social.craftsky.feed.post/$rkey',
   cid: 'bafy_$rkey',
   rkey: rkey,
@@ -34,6 +34,12 @@ Post _threadPost(String did, String rkey) => Post(
   createdAt: DateTime(2026, 5, 4, 18, 23, 45),
   indexedAt: DateTime(2026, 5, 4, 18, 23, 47),
   author: PostAuthor(did: did, handle: 'alice.craftsky.social'),
+);
+
+PostCommentSection _section(String did, String rkey) => PostCommentSection(
+  post: _post(did, rkey),
+  comments: const CommentPage(items: []),
+  sort: CommentSort.oldest,
 );
 
 Future<void> _pumpRouter(
@@ -143,10 +149,8 @@ void main() {
       tester,
     ) async {
       final repo = FakePostRepository(
-        onThread: (did, rkey) async => PostThread(
-          post: _threadPost(did, rkey),
-          replies: const [],
-        ),
+        onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+            _section(did, rkey),
       );
       final container = ProviderContainer.test(
         overrides: [
@@ -163,6 +167,30 @@ void main() {
 
       expect(find.byType(PostThreadPage), findsOneWidget);
       expect(find.text('did:plc:alice/root'), findsOneWidget);
+    });
+
+    testWidgets('post route decodes focus query parameter', (tester) async {
+      final focus = 'at://did:plc:bob/social.craftsky.feed.post/reply1';
+      final repo = FakePostRepository(
+        onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+            _section(did, rkey),
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          onboardingStatusProvider.overrideWith(CompletedOnboardingStatus.new),
+          postRepositoryProvider.overrideWithValue(repo),
+        ],
+      );
+      await _pumpRouter(
+        tester,
+        container,
+        initialLocation:
+            '/posts/did:plc:alice/root?focus=${Uri.encodeQueryComponent(focus)}',
+      );
+
+      final page = tester.widget<PostThreadPage>(find.byType(PostThreadPage));
+      expect(page.focus, focus);
     });
 
     testWidgets('SignedOut + /posts/:did/:rkey → WelcomePage', (tester) async {

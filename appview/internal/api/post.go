@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -26,9 +25,6 @@ import (
 const craftskyPostNSID = "social.craftsky.feed.post"
 const craftskyLikeNSID = "social.craftsky.feed.like"
 const craftskyRepostNSID = "social.craftsky.feed.repost"
-
-const threadMaxDepth = 6
-const threadMaxPosts = 500
 
 // LikeStore is the read-side interaction subset needed by like/unlike handlers.
 type LikeStore interface {
@@ -293,8 +289,8 @@ func GetPostHandler(store PostReader, resolver HandleResolver, logger *slog.Logg
 	})
 }
 
-// ListDirectRepliesHandler serves GET /v1/posts/{did}/{rkey}/replies.
-func ListDirectRepliesHandler(
+// ListCommentRepliesHandler serves GET /v1/posts/{did}/{rkey}/replies.
+func ListCommentRepliesHandler(
 	store PostReader,
 	resolver HandleResolver,
 	logger *slog.Logger,
@@ -308,14 +304,14 @@ func ListDirectRepliesHandler(
 			return
 		}
 		rkey := r.PathValue("rkey")
-		target, err := store.ResolvePostTarget(r.Context(), did.String(), rkey)
+		target, err := store.ReadOne(r.Context(), did.String(), rkey)
 		if errors.Is(err, ErrPostNotFound) {
 			envelope.WriteError(w, http.StatusNotFound,
 				"post_not_found", "post not found", runID, nil)
 			return
 		}
 		if err != nil {
-			logger.Error("post replies: ResolvePostTarget failed",
+			logger.Error("post replies: ReadOne failed",
 				slog.String("did", did.String()),
 				slog.String("rkey", rkey),
 				slog.String("err", err.Error()),
@@ -324,17 +320,22 @@ func ListDirectRepliesHandler(
 				"internal_error", "could not resolve post", runID, nil)
 			return
 		}
+		if !target.IsComment() {
+			envelope.WriteError(w, http.StatusBadRequest,
+				"invalid_post_role", "post must be a top-level comment", runID, nil)
+			return
+		}
 
-		limit := parseLimit(r.URL.Query().Get("limit"))
+		limit := parseCommentLimit(r.URL.Query().Get("limit"))
 		cursor := r.URL.Query().Get("cursor")
-		rows, nextCursor, err := store.ListDirectReplies(r.Context(), target.URI, limit, cursor)
+		rows, nextCursor, err := store.ListCommentBranchReplies(r.Context(), target.URI, *target.ReplyRootURI, limit, cursor)
 		if err != nil {
 			if errors.Is(err, envelope.ErrInvalidCursor) {
 				envelope.WriteError(w, http.StatusBadRequest,
 					"invalid_cursor", "cursor could not be decoded", runID, nil)
 				return
 			}
-			logger.Error("post replies: ListDirectReplies failed",
+			logger.Error("post replies: ListCommentBranchReplies failed",
 				slog.String("target_uri", target.URI),
 				slog.String("err", err.Error()),
 				slog.String("run_id", runID))
@@ -343,12 +344,29 @@ func ListDirectRepliesHandler(
 			return
 		}
 
-		items := make([]*PostResponse, 0, len(rows))
+		items := make([]ReplyItem, 0, len(rows))
 		if len(rows) > 0 {
 			viewerDID, _ := middleware.GetDID(r.Context())
 			postURIs := make([]string, 0, len(rows))
+			hydratedRows := make([]*PostRow, 0, len(rows)*2)
 			for _, row := range rows {
 				postURIs = append(postURIs, row.URI)
+				hydratedRows = append(hydratedRows, row)
+				if row.ReplyParentURI != nil && *row.ReplyParentURI != target.URI {
+					parentRow, perr := store.ReadPostByURI(r.Context(), *row.ReplyParentURI)
+					if perr != nil && !errors.Is(perr, ErrPostNotFound) {
+						logger.Error("post replies: ReadPostByURI parent failed",
+							slog.String("parent_uri", *row.ReplyParentURI),
+							slog.String("err", perr.Error()),
+							slog.String("run_id", runID))
+						envelope.WriteError(w, http.StatusInternalServerError,
+							"internal_error", "reply parent lookup failed", runID, nil)
+						return
+					}
+					if parentRow != nil {
+						hydratedRows = append(hydratedRows, parentRow)
+					}
+				}
 			}
 			summaries, serr := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
 			if serr != nil {
@@ -360,7 +378,7 @@ func ListDirectRepliesHandler(
 					"internal_error", "post engagement lookup failed", runID, nil)
 				return
 			}
-			handles, herr := resolveHandlesForRows(r.Context(), rows, resolver)
+			handles, herr := resolveHandlesForRows(r.Context(), hydratedRows, resolver)
 			if herr != nil {
 				logger.Warn("post replies: ResolveHandle failed",
 					slog.String("err", herr.Error()),
@@ -372,13 +390,23 @@ func ListDirectRepliesHandler(
 			for _, row := range rows {
 				resp := BuildPostResponse(row, handles[row.DID])
 				applyEngagementSummary(resp, summaries[row.URI])
-				items = append(items, resp)
+				item := ReplyItem{Post: resp, Flattened: false}
+				if row.ReplyParentURI != nil && *row.ReplyParentURI != target.URI {
+					item.Flattened = true
+					parentRow, _ := findPostRow(hydratedRows, *row.ReplyParentURI)
+					if parentRow != nil {
+						item.ReplyingTo = &ReplyingToAuthor{
+							URI:         parentRow.URI,
+							DID:         parentRow.DID,
+							Handle:      handles[parentRow.DID].String(),
+							DisplayName: parentRow.AuthorDisplayName,
+						}
+					}
+				}
+				items = append(items, item)
 			}
 		}
-		body := struct {
-			Items  []*PostResponse `json:"items"`
-			Cursor string          `json:"cursor,omitempty"`
-		}{Items: items, Cursor: nextCursor}
+		body := ReplyPage{Loaded: true, Items: items, Cursor: nextCursor}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -386,8 +414,8 @@ func ListDirectRepliesHandler(
 	})
 }
 
-// GetPostThreadHandler serves GET /v1/posts/{did}/{rkey}/thread.
-func GetPostThreadHandler(
+// GetPostCommentsHandler serves GET /v1/posts/{did}/{rkey}/comments.
+func GetPostCommentsHandler(
 	store PostReader,
 	resolver HandleResolver,
 	logger *slog.Logger,
@@ -401,31 +429,14 @@ func GetPostThreadHandler(
 			return
 		}
 		rkey := r.PathValue("rkey")
-		target, err := store.ResolvePostTarget(r.Context(), did.String(), rkey)
+		root, err := store.ReadOne(r.Context(), did.String(), rkey)
 		if errors.Is(err, ErrPostNotFound) {
 			envelope.WriteError(w, http.StatusNotFound,
 				"post_not_found", "post not found", runID, nil)
 			return
 		}
 		if err != nil {
-			logger.Error("post thread: ResolvePostTarget failed",
-				slog.String("did", did.String()),
-				slog.String("rkey", rkey),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
-			envelope.WriteError(w, http.StatusInternalServerError,
-				"internal_error", "could not resolve post", runID, nil)
-			return
-		}
-
-		targetRow, err := store.ReadOne(r.Context(), did.String(), rkey)
-		if errors.Is(err, ErrPostNotFound) {
-			envelope.WriteError(w, http.StatusNotFound,
-				"post_not_found", "post not found", runID, nil)
-			return
-		}
-		if err != nil {
-			logger.Error("post thread: ReadOne failed",
+			logger.Error("post comments: ReadOne failed",
 				slog.String("did", did.String()),
 				slog.String("rkey", rkey),
 				slog.String("err", err.Error()),
@@ -434,50 +445,150 @@ func GetPostThreadHandler(
 				"internal_error", "post read failed", runID, nil)
 			return
 		}
-
-		rootURI := target.URI
-		if targetRow.ReplyRootURI != nil {
-			rootURI = *targetRow.ReplyRootURI
+		if !root.IsRoot() {
+			envelope.WriteError(w, http.StatusBadRequest,
+				"invalid_post_role", "post must be a root post", runID, nil)
+			return
 		}
-		rows, err := store.LoadThreadCandidates(r.Context(), rootURI, target.URI, threadMaxPosts+1)
+
+		viewerDID, _ := middleware.GetDID(r.Context())
+		sortValue := parseCommentSort(r.URL.Query().Get("sort"))
+		limit := parseCommentLimit(r.URL.Query().Get("limit"))
+		cursor := r.URL.Query().Get("cursor")
+		focus := (*FocusContext)(nil)
+		focusedURI := ""
+		var focusedCommentRow *PostRow
+		var focusedReplyRow *PostRow
+		if focusRaw := r.URL.Query().Get("focus"); focusRaw != "" {
+			if _, ferr := syntax.ParseATURI(focusRaw); ferr != nil {
+				envelope.WriteError(w, http.StatusBadRequest,
+					"invalid_focus", "focus query parameter is not a valid AT-URI", runID, nil)
+				return
+			}
+			focus = &FocusContext{URI: focusRaw, Status: "notFound"}
+			focusedRow, ferr := store.ReadPostByURI(r.Context(), focusRaw)
+			if ferr != nil && !errors.Is(ferr, ErrPostNotFound) {
+				logger.Error("post comments: ReadPostByURI failed",
+					slog.String("focus", focusRaw),
+					slog.String("err", ferr.Error()),
+					slog.String("run_id", runID))
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "focus read failed", runID, nil)
+				return
+			}
+			if focusedRow != nil {
+				switch {
+				case focusedRow.URI == root.URI:
+					focus.Status = "included"
+					focus.Kind = "root"
+				case focusedRow.ReplyParentURI != nil && *focusedRow.ReplyParentURI == root.URI:
+					focus.Status = "included"
+					focus.Kind = "comment"
+					focusedURI = focusedRow.URI
+					focusedCommentRow = focusedRow
+				case focusedRow.ReplyRootURI != nil && *focusedRow.ReplyRootURI == root.URI:
+					if focusedRow.ReplyParentURI != nil {
+						commentRow, cerr := resolveCommentAncestor(r.Context(), store, root.URI, *focusedRow.ReplyParentURI)
+						if cerr != nil {
+							logger.Error("post comments: resolve focus ancestor failed",
+								slog.String("parent", *focusedRow.ReplyParentURI),
+								slog.String("err", cerr.Error()),
+								slog.String("run_id", runID))
+							envelope.WriteError(w, http.StatusInternalServerError,
+								"internal_error", "focus ancestor read failed", runID, nil)
+							return
+						}
+						if commentRow != nil {
+							focus.Status = "included"
+							focus.Kind = "reply"
+							focus.CommentURI = commentRow.URI
+							focusedURI = commentRow.URI
+							focusedCommentRow = commentRow
+							focusedReplyRow = focusedRow
+						}
+					}
+				default:
+					focus.Status = "mismatchedRoot"
+				}
+			}
+		}
+		comments, nextCursor, err := store.ListRootComments(r.Context(), root.URI, viewerDID.String(), sortValue, limit, cursor)
 		if err != nil {
-			logger.Error("post thread: LoadThreadCandidates failed",
-				slog.String("target_uri", target.URI),
+			if errors.Is(err, envelope.ErrInvalidCursor) {
+				envelope.WriteError(w, http.StatusBadRequest,
+					"invalid_cursor", "cursor could not be decoded", runID, nil)
+				return
+			}
+			logger.Error("post comments: ListRootComments failed",
+				slog.String("root_uri", root.URI),
 				slog.String("err", err.Error()),
 				slog.String("run_id", runID))
 			envelope.WriteError(w, http.StatusInternalServerError,
-				"internal_error", "thread read failed", runID, nil)
+				"internal_error", "comment list failed", runID, nil)
 			return
 		}
-		if !containsPostRow(rows, target.URI) {
-			rows = append(rows, targetRow)
-		}
-		ancestors := []*PostRow{}
-		if targetRow.ReplyParentURI != nil {
-			ancestors, err = store.LoadThreadAncestors(r.Context(), rootURI, *targetRow.ReplyParentURI, target.URI, threadMaxDepth+1)
+
+		var focusedBranchRows []*PostRow
+		focusedBranchCursor := ""
+		focusedBranchParentRows := []*PostRow{}
+		if focusedReplyRow != nil && focusedCommentRow != nil {
+			focusedBranchRows, focusedBranchCursor, err = store.ListCommentBranchReplies(r.Context(), focusedCommentRow.URI, root.URI, parseCommentLimit(""), "")
 			if err != nil {
-				logger.Error("post thread: LoadThreadAncestors failed",
-					slog.String("target_uri", target.URI),
+				logger.Error("post comments: ListCommentBranchReplies failed",
+					slog.String("comment_uri", focusedCommentRow.URI),
 					slog.String("err", err.Error()),
 					slog.String("run_id", runID))
 				envelope.WriteError(w, http.StatusInternalServerError,
-					"internal_error", "thread ancestor read failed", runID, nil)
+					"internal_error", "reply list failed", runID, nil)
 				return
+			}
+			if !containsPostRow(focusedBranchRows, focusedReplyRow.URI) {
+				focusedBranchRows, focusedBranchCursor, err = store.ListCommentBranchRepliesAround(r.Context(), focusedCommentRow.URI, root.URI, focusedReplyRow.URI, parseCommentLimit(""))
+				if err != nil {
+					logger.Error("post comments: ListCommentBranchRepliesAround failed",
+						slog.String("comment_uri", focusedCommentRow.URI),
+						slog.String("focus_uri", focusedReplyRow.URI),
+						slog.String("err", err.Error()),
+						slog.String("run_id", runID))
+					envelope.WriteError(w, http.StatusInternalServerError,
+						"internal_error", "reply list failed", runID, nil)
+					return
+				}
+			}
+			for _, row := range focusedBranchRows {
+				if row.ReplyParentURI == nil || *row.ReplyParentURI == focusedCommentRow.URI || containsPostRow(focusedBranchRows, *row.ReplyParentURI) || containsPostRow(focusedBranchParentRows, *row.ReplyParentURI) {
+					continue
+				}
+				parentRow, perr := store.ReadPostByURI(r.Context(), *row.ReplyParentURI)
+				if perr != nil && !errors.Is(perr, ErrPostNotFound) {
+					logger.Error("post comments: ReadPostByURI branch parent failed",
+						slog.String("parent_uri", *row.ReplyParentURI),
+						slog.String("err", perr.Error()),
+						slog.String("run_id", runID))
+					envelope.WriteError(w, http.StatusInternalServerError,
+						"internal_error", "reply parent lookup failed", runID, nil)
+					return
+				}
+				if parentRow != nil {
+					focusedBranchParentRows = append(focusedBranchParentRows, parentRow)
+				}
 			}
 		}
 
-		rowTree, renderedRows, truncated := buildThreadRowTree(rows, target.URI)
-		viewerDID, _ := middleware.GetDID(r.Context())
-		hydratedRows := append([]*PostRow{}, ancestors...)
-		hydratedRows = append(hydratedRows, renderedRows...)
+		hydratedRows := append([]*PostRow{root}, comments...)
+		if focusedCommentRow != nil && !containsPostRow(comments, focusedCommentRow.URI) {
+			hydratedRows = append(hydratedRows, focusedCommentRow)
+		}
+		hydratedRows = append(hydratedRows, focusedBranchRows...)
+		hydratedRows = append(hydratedRows, focusedBranchParentRows...)
 		postURIs := make([]string, 0, len(hydratedRows))
 		for _, row := range hydratedRows {
 			postURIs = append(postURIs, row.URI)
 		}
 		summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
 		if err != nil {
-			logger.Error("post thread: EngagementSummaries failed",
-				slog.String("target_uri", target.URI),
+			logger.Error("post comments: EngagementSummaries failed",
+				slog.String("root_uri", root.URI),
 				slog.String("err", err.Error()),
 				slog.String("run_id", runID))
 			envelope.WriteError(w, http.StatusInternalServerError,
@@ -486,7 +597,7 @@ func GetPostThreadHandler(
 		}
 		handles, err := resolveHandlesForRows(r.Context(), hydratedRows, resolver)
 		if err != nil {
-			logger.Warn("post thread: ResolveHandle failed",
+			logger.Warn("post comments: ResolveHandle failed",
 				slog.String("err", err.Error()),
 				slog.String("run_id", runID))
 			envelope.WriteError(w, http.StatusBadGateway,
@@ -494,7 +605,46 @@ func GetPostThreadHandler(
 			return
 		}
 
-		body := buildThreadResponse(rowTree, ancestors, handles, summaries, truncated)
+		rootPost := BuildPostResponse(root, handles[root.DID])
+		applyEngagementSummary(rootPost, summaries[root.URI])
+		items := make([]CommentItem, 0, len(comments))
+		if focusedCommentRow != nil && !containsPostRow(comments, focusedCommentRow.URI) {
+			post := BuildPostResponse(focusedCommentRow, handles[focusedCommentRow.DID])
+			applyEngagementSummary(post, summaries[focusedCommentRow.URI])
+			replies := ReplyPage{Loaded: false, Items: []ReplyItem{}}
+			if focusedReplyRow != nil {
+				replies = buildReplyPage(focusedBranchRows, focusedBranchCursor, focusedCommentRow, hydratedRows, handles, summaries)
+			}
+			items = append(items, CommentItem{
+				Post:      post,
+				Placement: "focused",
+				Replies:   replies,
+			})
+		}
+		for _, row := range comments {
+			post := BuildPostResponse(row, handles[row.DID])
+			applyEngagementSummary(post, summaries[row.URI])
+			placement := "normal"
+			if focusedURI != "" && row.URI == focusedURI {
+				placement = "focused"
+			}
+			replies := ReplyPage{Loaded: false, Items: []ReplyItem{}}
+			if focusedReplyRow != nil && row.URI == focusedURI {
+				replies = buildReplyPage(focusedBranchRows, focusedBranchCursor, row, hydratedRows, handles, summaries)
+			}
+			items = append(items, CommentItem{
+				Post:      post,
+				Placement: placement,
+				Replies:   replies,
+			})
+		}
+		body := &CommentSectionResponse{
+			Post:     rootPost,
+			Comments: CommentPage{Items: items, Cursor: nextCursor},
+			Sort:     sortValue,
+			Focus:    focus,
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(body)
@@ -1011,9 +1161,58 @@ func resolveHandlesForRows(ctx context.Context, rows []*PostRow, resolver Handle
 	return handles, nil
 }
 
-type threadRowNode struct {
-	row     *PostRow
-	replies []*threadRowNode
+func resolveCommentAncestor(ctx context.Context, store PostReader, rootURI, parentURI string) (*PostRow, error) {
+	seen := make(map[string]struct{})
+	for uri := parentURI; uri != "" && len(seen) < 64; {
+		if _, ok := seen[uri]; ok {
+			return nil, nil
+		}
+		seen[uri] = struct{}{}
+
+		row, err := store.ReadPostByURI(ctx, uri)
+		if errors.Is(err, ErrPostNotFound) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if row.ReplyParentURI != nil && *row.ReplyParentURI == rootURI {
+			return row, nil
+		}
+		if row.ReplyRootURI == nil || *row.ReplyRootURI != rootURI || row.ReplyParentURI == nil {
+			return nil, nil
+		}
+		uri = *row.ReplyParentURI
+	}
+	return nil, nil
+}
+
+func buildReplyPage(rows []*PostRow, cursor string, commentRow *PostRow, hydratedRows []*PostRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary) ReplyPage {
+	items := make([]ReplyItem, 0, len(rows))
+	for _, row := range rows {
+		var parentRow *PostRow
+		if row.ReplyParentURI != nil && *row.ReplyParentURI != commentRow.URI {
+			parentRow, _ = findPostRow(hydratedRows, *row.ReplyParentURI)
+		}
+		items = append(items, buildReplyItem(row, parentRow, commentRow, handles, summaries))
+	}
+	return ReplyPage{Loaded: true, Items: items, Cursor: cursor}
+}
+
+func buildReplyItem(row, parentRow, commentRow *PostRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary) ReplyItem {
+	post := BuildPostResponse(row, handles[row.DID])
+	applyEngagementSummary(post, summaries[row.URI])
+	item := ReplyItem{Post: post, Flattened: false}
+	if parentRow != nil && commentRow != nil && parentRow.URI != commentRow.URI {
+		item.Flattened = true
+		item.ReplyingTo = &ReplyingToAuthor{
+			URI:         parentRow.URI,
+			DID:         parentRow.DID,
+			Handle:      handles[parentRow.DID].String(),
+			DisplayName: parentRow.AuthorDisplayName,
+		}
+	}
+	return item
 }
 
 func containsPostRow(rows []*PostRow, uri string) bool {
@@ -1025,95 +1224,13 @@ func containsPostRow(rows []*PostRow, uri string) bool {
 	return false
 }
 
-func buildThreadRowTree(rows []*PostRow, targetURI string) (*threadRowNode, []*PostRow, bool) {
-	rowsByURI := make(map[string]*PostRow, len(rows))
-	childrenByParent := make(map[string][]*PostRow)
-	truncated := len(rows) > threadMaxPosts
+func findPostRow(rows []*PostRow, uri string) (*PostRow, bool) {
 	for _, row := range rows {
-		if _, ok := rowsByURI[row.URI]; ok {
-			continue
-		}
-		rowsByURI[row.URI] = row
-		if row.URI != targetURI && row.ReplyParentURI != nil {
-			childrenByParent[*row.ReplyParentURI] = append(childrenByParent[*row.ReplyParentURI], row)
+		if row.URI == uri {
+			return row, true
 		}
 	}
-	for parentURI := range childrenByParent {
-		sort.SliceStable(childrenByParent[parentURI], func(i, j int) bool {
-			left := childrenByParent[parentURI][i]
-			right := childrenByParent[parentURI][j]
-			if left.CreatedAt.Equal(right.CreatedAt) {
-				return left.URI < right.URI
-			}
-			return left.CreatedAt.Before(right.CreatedAt)
-		})
-	}
-
-	target := rowsByURI[targetURI]
-	root := &threadRowNode{row: target, replies: []*threadRowNode{}}
-	rendered := make([]*PostRow, 0, min(len(rows), threadMaxPosts))
-	count := 0
-	var addChildren func(node *threadRowNode, depth int)
-	addChildren = func(node *threadRowNode, depth int) {
-		if count >= threadMaxPosts {
-			truncated = true
-			return
-		}
-		rendered = append(rendered, node.row)
-		count++
-		children := childrenByParent[node.row.URI]
-		if len(children) == 0 {
-			return
-		}
-		if depth >= threadMaxDepth {
-			truncated = true
-			return
-		}
-		for _, childRow := range children {
-			if _, ok := rowsByURI[childRow.URI]; !ok {
-				continue
-			}
-			if count >= threadMaxPosts {
-				truncated = true
-				return
-			}
-			child := &threadRowNode{row: childRow, replies: []*threadRowNode{}}
-			node.replies = append(node.replies, child)
-			addChildren(child, depth+1)
-		}
-	}
-	addChildren(root, 0)
-	return root, rendered, truncated
-}
-
-func buildThreadResponse(root *threadRowNode, ancestors []*PostRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary, truncated bool) *ThreadResponse {
-	var convert func(*threadRowNode) *ThreadNode
-	convert = func(node *threadRowNode) *ThreadNode {
-		post := BuildPostResponse(node.row, handles[node.row.DID])
-		applyEngagementSummary(post, summaries[node.row.URI])
-		out := &ThreadNode{Post: post, Replies: make([]*ThreadNode, 0, len(node.replies))}
-		for _, child := range node.replies {
-			out.Replies = append(out.Replies, convert(child))
-		}
-		return out
-	}
-	rootPost := BuildPostResponse(root.row, handles[root.row.DID])
-	applyEngagementSummary(rootPost, summaries[root.row.URI])
-	out := &ThreadResponse{
-		Post:      rootPost,
-		Ancestors: make([]*PostResponse, 0, len(ancestors)),
-		Replies:   make([]*ThreadNode, 0, len(root.replies)),
-		Truncated: truncated,
-	}
-	for _, row := range ancestors {
-		post := BuildPostResponse(row, handles[row.DID])
-		applyEngagementSummary(post, summaries[row.URI])
-		out.Ancestors = append(out.Ancestors, post)
-	}
-	for _, child := range root.replies {
-		out.Replies = append(out.Replies, convert(child))
-	}
-	return out
+	return nil, false
 }
 
 // parseLimit returns the validated limit, defaulting to 50 and capping
@@ -1132,4 +1249,21 @@ func parseLimit(raw string) int {
 		return maxLimit
 	}
 	return n
+}
+
+func parseCommentLimit(raw string) int {
+	limit := parseLimit(raw)
+	if limit > 10 {
+		return 10
+	}
+	return limit
+}
+
+func parseCommentSort(raw string) string {
+	switch raw {
+	case "newest", "follows":
+		return raw
+	default:
+		return "oldest"
+	}
 }

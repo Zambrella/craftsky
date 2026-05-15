@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_comment_section.dart';
+import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart'
+    hide PostCommentSection;
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
-import 'package:craftsky_app/feed/providers/post_thread_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -43,13 +45,29 @@ class CreatePost extends _$CreatePost {
           }
         }
       } else {
-        final (targetDid, targetRkey) = _replyTargetIdentifiers(
-          reply.parent.uri,
-        );
+        final (rootDid, rootRkey) = _replyTargetIdentifiers(reply.root.uri);
 
-        ref
-          ..invalidate(postThreadProvider(targetDid, targetRkey))
-          ..invalidate(directRepliesProvider(targetDid, targetRkey));
+        for (final sort in CommentSort.values) {
+          final entry = postCommentSectionProvider(
+            rootDid,
+            rootRkey,
+            sort: sort,
+          );
+          if (!ref.exists(entry)) continue;
+          final notifier = ref.read(entry.notifier);
+          if (reply.root.uri == reply.parent.uri) {
+            notifier.prependCreatedComment(post);
+          } else {
+            notifier.insertCreatedReply(
+              parentUri: reply.parent.uri,
+              post: post,
+            );
+          }
+        }
+
+        // Existing live comment-section caches are updated above. Any unloaded
+        // branch will converge through the direct-replies endpoint when the
+        // viewer expands it.
       }
 
       return post;
