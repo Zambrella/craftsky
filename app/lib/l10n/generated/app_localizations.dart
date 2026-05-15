@@ -202,6 +202,12 @@ abstract class AppLocalizations {
   /// **'Posts'**
   String get profileTabPosts;
 
+  /// Tab label for the Comments tab on the profile screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Comments'**
+  String get profileTabComments;
+
   /// Tab label for the Projects tab on the profile screen.
   ///
   /// In en, this message translates to:
@@ -310,6 +316,24 @@ abstract class AppLocalizations {
   /// **'Load more posts'**
   String get profilePostsLoadMore;
 
+  /// Muted placeholder shown in the profile Comments tab when the user has not commented.
+  ///
+  /// In en, this message translates to:
+  /// **'No comments yet.'**
+  String get profileCommentsEmpty;
+
+  /// Error title shown in the profile Comments tab when comment fetching fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Comments didn\'t load.'**
+  String get profileCommentsLoadError;
+
+  /// Button label for loading the next page in the profile Comments tab.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more comments'**
+  String get profileCommentsLoadMore;
+
   /// Title of the post thread screen.
   ///
   /// In en, this message translates to:
@@ -346,11 +370,23 @@ abstract class AppLocalizations {
   /// **'Reply'**
   String get postThreadReplyAction;
 
+  /// Button label for commenting on a root post from the post thread screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Comment'**
+  String get postCommentAction;
+
   /// Accessibility label for a reply button on the thread screen. The author placeholder includes a display name or handle.
   ///
   /// In en, this message translates to:
   /// **'Reply to {author}'**
   String postThreadReplyToAuthor(String author);
+
+  /// Accessibility label for a comment button on the thread screen. The author placeholder includes a display name or handle.
+  ///
+  /// In en, this message translates to:
+  /// **'Comment on {author}'**
+  String postCommentOnAuthor(String author);
 
   /// Accessibility label for the show-more-replies continuation button on the thread screen. The author placeholder identifies the post being continued.
   ///

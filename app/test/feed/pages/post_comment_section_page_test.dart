@@ -199,6 +199,75 @@ void main() {
     expect(find.text('focused reply'), findsOneWidget);
   });
 
+  testWidgets('focused reply scrolls into view in a loaded branch', (
+    tester,
+  ) async {
+    const focusUri = 'at://did:plc:target/social.craftsky.feed.post/focused';
+    final root = _post('did:plc:alice', 'root', 'root post');
+    final focusedComment = _post(
+      'did:plc:bob',
+      'focused-comment',
+      'promoted comment',
+    );
+    final repo = FakePostRepository(
+      onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+          PostCommentSection(
+            post: root,
+            sort: CommentSort.oldest,
+            focus: const FocusContext(
+              uri: focusUri,
+              status: FocusStatus.included,
+              kind: FocusKind.reply,
+              commentUri:
+                  'at://did:plc:bob/social.craftsky.feed.post/focused-comment',
+            ),
+            comments: CommentPage(
+              items: [
+                CommentItem(
+                  post: focusedComment,
+                  placement: CommentPlacement.focused,
+                  replies: ReplyPage(
+                    loaded: true,
+                    items: [
+                      for (var i = 0; i < 8; i++)
+                        ReplyItem(
+                          post: _post(
+                            'did:plc:reply$i',
+                            'reply-$i',
+                            'reply $i',
+                          ),
+                          flattened: false,
+                        ),
+                      ReplyItem(
+                        post: _post(
+                          'did:plc:target',
+                          'focused',
+                          'focused reply',
+                        ),
+                        flattened: false,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+    );
+
+    await _pumpCommentSection(
+      tester,
+      repo: repo,
+      focus: focusUri,
+      size: const Size(390, 420),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    final focusedRect = tester.getRect(find.text('focused reply'));
+    expect(focusedRect.top, greaterThanOrEqualTo(0));
+    expect(focusedRect.bottom, lessThanOrEqualTo(420));
+  });
+
   testWidgets('root post initially shows comments only without replies', (
     tester,
   ) async {
@@ -331,7 +400,12 @@ void main() {
             loaded: true,
             items: [
               ReplyItem(
-                post: _post('did:plc:carol', 'reply-1', 'reply 1'),
+                post: _post(
+                  'did:plc:carol',
+                  'reply-1',
+                  'reply 1',
+                  replyCount: 4,
+                ),
                 flattened: false,
               ),
             ],
@@ -359,11 +433,16 @@ void main() {
     expect(find.text('reply 1'), findsOneWidget);
     expect(find.text('Hide replies'), findsOneWidget);
     expect(find.text('Load more replies'), findsOneWidget);
+    expect(find.text('4'), findsNothing);
 
     await tester.tap(find.text('Load more replies'));
     await tester.pumpAndSettle();
     expect(calls, [null, 'more-replies']);
     expect(find.text('reply 2'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('reply 1')).dy,
+      lessThan(tester.getTopLeft(find.text('reply 2')).dy),
+    );
 
     await tester.tap(find.text('Hide replies'));
     await tester.pumpAndSettle();

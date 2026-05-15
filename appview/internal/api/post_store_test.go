@@ -222,6 +222,79 @@ func TestPostStore_ListByAuthor_OrdersByIndexedAtDesc(t *testing.T) {
 	}
 }
 
+func TestPostStore_ListByAuthor_ExcludesCommentsAndReplies(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
+	comment := seedReplyPost(t, pool, "did:plc:alice", "comment", "comment", root, root, base.Add(time.Minute))
+	seedReplyPost(t, pool, "did:plc:alice", "nested", "nested", root, comment, base.Add(2*time.Minute))
+
+	store := api.NewPostStore(pool)
+	rows, _, err := store.ListByAuthor(context.Background(), "did:plc:alice", 50, "")
+	if err != nil {
+		t.Fatalf("ListByAuthor: %v", err)
+	}
+	if len(rows) != 1 || rows[0].Rkey != "root" {
+		t.Fatalf("rows = %v, want only root", replyRkeys(rows))
+	}
+}
+
+func TestPostStore_ListCommentsByAuthor_ReturnsCommentsAndRepliesOnly(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
+	comment := seedReplyPost(t, pool, "did:plc:alice", "comment", "comment", root, root, base.Add(time.Minute))
+	seedReplyPost(t, pool, "did:plc:alice", "nested", "nested", root, comment, base.Add(2*time.Minute))
+	seedReplyPost(t, pool, "did:plc:bob", "bob-comment", "bob", root, root, base.Add(3*time.Minute))
+
+	store := api.NewPostStore(pool)
+	rows, cursor, err := store.ListCommentsByAuthor(context.Background(), "did:plc:alice", 50, "")
+	if err != nil {
+		t.Fatalf("ListCommentsByAuthor: %v", err)
+	}
+	if cursor != "" {
+		t.Fatalf("cursor = %q, want empty", cursor)
+	}
+	if len(rows) != 2 || rows[0].Rkey != "nested" || rows[1].Rkey != "comment" {
+		t.Fatalf("rows = %v", replyRkeys(rows))
+	}
+}
+
+func TestPostStore_ListCommentsByAuthor_Paginates(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
+	for i := 0; i < 3; i++ {
+		seedReplyPost(t, pool, "did:plc:alice", "comment"+string(rune('0'+i)), "comment", root, root, base.Add(time.Duration(i+1)*time.Hour))
+	}
+
+	store := api.NewPostStore(pool)
+	page1, cursor, err := store.ListCommentsByAuthor(context.Background(), "did:plc:alice", 2, "")
+	if err != nil || len(page1) != 2 {
+		t.Fatalf("page1 err=%v len=%d", err, len(page1))
+	}
+	if cursor == "" {
+		t.Fatal("want non-empty cursor")
+	}
+	page2, cursor2, err := store.ListCommentsByAuthor(context.Background(), "did:plc:alice", 2, cursor)
+	if err != nil || len(page2) != 1 {
+		t.Fatalf("page2 err=%v len=%d", err, len(page2))
+	}
+	if cursor2 != "" {
+		t.Fatalf("cursor2 = %q, want empty", cursor2)
+	}
+}
+
 func TestPostStore_ListByAuthor_RespectsLimitAndPaginates(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)
@@ -478,7 +551,7 @@ func TestPostStore_EngagementSummaries_ActiveOnlyAndViewerStates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EngagementSummaries: %v", err)
 	}
-	if got := summaries[post1]; got.LikeCount != 2 || got.RepostCount != 1 || got.ReplyCount != 2 || !got.ViewerHasLiked || !got.ViewerHasReposted {
+	if got := summaries[post1]; got.LikeCount != 2 || got.RepostCount != 1 || got.ReplyCount != 3 || !got.ViewerHasLiked || !got.ViewerHasReposted {
 		t.Fatalf("post1 summary = %+v", got)
 	}
 	if got := summaries[post2]; got.LikeCount != 1 || got.RepostCount != 1 || got.ReplyCount != 0 || !got.ViewerHasLiked || got.ViewerHasReposted {

@@ -83,54 +83,60 @@ func failingPDSFactory(err error) auth.PDSClientFactory {
 
 // fakePostStore implements api.PostReader for handler tests.
 type fakePostStore struct {
-	one                  *api.PostRow
-	oneErr               error
-	listRows             []*api.PostRow
-	listCursor           string
-	listErr              error
-	commentRows          []*api.PostRow
-	commentCursor        string
-	commentErr           error
-	postByURI            *api.PostRow
-	postsByURI           map[string]*api.PostRow
-	postByURIErr         error
-	replyRows            []*api.PostRow
-	replyCursor          string
-	replyErr             error
-	aroundReplyRows      []*api.PostRow
-	aroundReplyCursor    string
-	aroundReplyErr       error
-	author               *api.PostAuthorRow
-	authorErr            error
-	engagement           map[string]api.EngagementSummary
-	engagementErr        error
-	target               *api.PostTargetRef
-	targetErr            error
-	activeLike           *api.InteractionRow
-	activeLikeErr        error
-	activeRepost         *api.InteractionRow
-	activeRepostErr      error
-	lastDID              string
-	lastRkey             string
-	lastEngagementViewer string
-	lastEngagementURIs   []string
-	engagementCalls      int
-	lastTargetDID        string
-	lastTargetRkey       string
-	lastActiveLikeDID    string
-	lastActiveLikeURI    string
-	lastActiveRepostDID  string
-	lastActiveRepostURI  string
-	lastCommentRootURI   string
-	lastCommentViewerDID string
-	lastCommentSort      string
-	lastCommentLimit     int
-	lastCommentCursor    string
-	lastReplyParentURI   string
-	lastReplyRootURI     string
-	lastReplyLimit       int
-	lastReplyCursor      string
-	lastReplyFocusURI    string
+	one                    *api.PostRow
+	oneErr                 error
+	listRows               []*api.PostRow
+	listCursor             string
+	listErr                error
+	commentListRows        []*api.PostRow
+	commentListCursor      string
+	commentListErr         error
+	commentRows            []*api.PostRow
+	commentCursor          string
+	commentErr             error
+	postByURI              *api.PostRow
+	postsByURI             map[string]*api.PostRow
+	postByURIErr           error
+	replyRows              []*api.PostRow
+	replyCursor            string
+	replyErr               error
+	aroundReplyRows        []*api.PostRow
+	aroundReplyCursor      string
+	aroundReplyErr         error
+	author                 *api.PostAuthorRow
+	authorErr              error
+	engagement             map[string]api.EngagementSummary
+	engagementErr          error
+	target                 *api.PostTargetRef
+	targetErr              error
+	activeLike             *api.InteractionRow
+	activeLikeErr          error
+	activeRepost           *api.InteractionRow
+	activeRepostErr        error
+	lastDID                string
+	lastRkey               string
+	lastListCommentsDID    string
+	lastListCommentsLimit  int
+	lastListCommentsCursor string
+	lastEngagementViewer   string
+	lastEngagementURIs     []string
+	engagementCalls        int
+	lastTargetDID          string
+	lastTargetRkey         string
+	lastActiveLikeDID      string
+	lastActiveLikeURI      string
+	lastActiveRepostDID    string
+	lastActiveRepostURI    string
+	lastCommentRootURI     string
+	lastCommentViewerDID   string
+	lastCommentSort        string
+	lastCommentLimit       int
+	lastCommentCursor      string
+	lastReplyParentURI     string
+	lastReplyRootURI       string
+	lastReplyLimit         int
+	lastReplyCursor        string
+	lastReplyFocusURI      string
 }
 
 func (f *fakePostStore) ReadOne(_ context.Context, did, rkey string) (*api.PostRow, error) {
@@ -140,6 +146,12 @@ func (f *fakePostStore) ReadOne(_ context.Context, did, rkey string) (*api.PostR
 }
 func (f *fakePostStore) ListByAuthor(_ context.Context, _ string, _ int, _ string) ([]*api.PostRow, string, error) {
 	return f.listRows, f.listCursor, f.listErr
+}
+func (f *fakePostStore) ListCommentsByAuthor(_ context.Context, did string, limit int, cursor string) ([]*api.PostRow, string, error) {
+	f.lastListCommentsDID = did
+	f.lastListCommentsLimit = limit
+	f.lastListCommentsCursor = cursor
+	return f.commentListRows, f.commentListCursor, f.commentListErr
 }
 func (f *fakePostStore) ListRootComments(_ context.Context, rootURI, viewerDID, sort string, limit int, cursor string) ([]*api.PostRow, string, error) {
 	f.lastCommentRootURI = rootURI
@@ -2046,6 +2058,62 @@ func TestListPosts_HappyPath_PaginatesCorrectly(t *testing.T) {
 	}
 	if resp.Cursor != "next-cursor-opaque" {
 		t.Errorf("cursor = %q", resp.Cursor)
+	}
+}
+
+func TestListCommentsByAuthor_HappyPath(t *testing.T) {
+	t.Parallel()
+	rows := []*api.PostRow{
+		testReplyRow("did:plc:alice", "reply", "reply", "at://did:plc:bob/social.craftsky.feed.post/root", "at://did:plc:bob/social.craftsky.feed.post/comment", time.Now()),
+		testReplyRow("did:plc:alice", "comment", "comment", "at://did:plc:bob/social.craftsky.feed.post/root", "at://did:plc:bob/social.craftsky.feed.post/root", time.Now()),
+	}
+	store := &fakePostStore{
+		commentListRows:   rows,
+		commentListCursor: "next-comments",
+		engagement: map[string]api.EngagementSummary{
+			rows[0].URI: {ReplyCount: 1},
+			rows[1].URI: {ReplyCount: 2},
+		},
+	}
+	h := api.ListCommentsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/comments?limit=2", "", "did:plc:viewer")
+	req.SetPathValue("handleOrDid", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp struct {
+		Items  []api.PostResponse `json:"items"`
+		Cursor string             `json:"cursor,omitempty"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Items) != 2 || resp.Items[0].Rkey != "reply" || resp.Items[1].Rkey != "comment" {
+		t.Fatalf("items = %+v", resp.Items)
+	}
+	if resp.Cursor != "next-comments" {
+		t.Fatalf("cursor = %q", resp.Cursor)
+	}
+	if store.lastListCommentsDID != "did:plc:alice" || store.lastListCommentsLimit != 2 || store.lastListCommentsCursor != "" {
+		t.Fatalf("list call did=%q limit=%d cursor=%q", store.lastListCommentsDID, store.lastListCommentsLimit, store.lastListCommentsCursor)
+	}
+	if store.engagementCalls != 1 || store.lastEngagementViewer != "did:plc:viewer" {
+		t.Fatalf("engagement calls=%d viewer=%q", store.engagementCalls, store.lastEngagementViewer)
+	}
+}
+
+func TestListCommentsByAuthor_BadCursor_400(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{commentListErr: envelope.ErrInvalidCursor}
+	h := api.ListCommentsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/comments?cursor=garbage", "", "did:plc:alice")
+	req.SetPathValue("handleOrDid", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d", rr.Code)
 	}
 }
 

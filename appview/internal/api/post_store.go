@@ -101,6 +101,7 @@ type PostReader interface {
 	ReadOne(ctx context.Context, did, rkey string) (*PostRow, error)
 	ReadPostByURI(ctx context.Context, uri string) (*PostRow, error)
 	ListByAuthor(ctx context.Context, did string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
+	ListCommentsByAuthor(ctx context.Context, did string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
 	ResolvePostTarget(ctx context.Context, did, rkey string) (*PostTargetRef, error)
 	ListRootComments(ctx context.Context, rootURI, viewerDID, sort string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
 	ListCommentBranchReplies(ctx context.Context, commentURI, rootURI string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
@@ -297,6 +298,8 @@ func (s *PostStore) ListByAuthor(ctx context.Context, did string, limit int, cur
 		FROM craftsky_posts p
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.did = $1
+		  AND p.reply_root_uri IS NULL
+		  AND p.reply_parent_uri IS NULL
 		  AND ($2::timestamptz IS NULL
 		       OR (p.indexed_at, p.uri) < ($2::timestamptz, $3::text))
 		ORDER BY p.indexed_at DESC, p.uri DESC
@@ -330,6 +333,58 @@ func (s *PostStore) ListByAuthor(ctx context.Context, did string, limit int, cur
 	})
 	if err != nil {
 		return nil, "", fmt.Errorf("encode cursor: %w", err)
+	}
+	return out, next, nil
+}
+
+// ListCommentsByAuthor returns authored comments and nested replies, ordered by
+// (indexed_at DESC, uri DESC), starting after the cursor if non-empty.
+func (s *PostStore) ListCommentsByAuthor(ctx context.Context, did string, limit int, cursor string) ([]*PostRow, string, error) {
+	curIndexedAt, curURI, err := decodeSeekCursor(cursor, "indexedAt")
+	if err != nil {
+		return nil, "", err
+	}
+
+	q := `
+		SELECT ` + postSelectColumns + `
+		FROM craftsky_posts p
+		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
+		WHERE p.did = $1
+		  AND p.reply_root_uri IS NOT NULL
+		  AND p.reply_parent_uri IS NOT NULL
+		  AND ($2::timestamptz IS NULL
+		       OR (p.indexed_at, p.uri) < ($2::timestamptz, $3::text))
+		ORDER BY p.indexed_at DESC, p.uri DESC
+		LIMIT $4
+	`
+	rows, err := s.pool.Query(ctx, q, did, curIndexedAt, curURI, limit)
+	if err != nil {
+		return nil, "", fmt.Errorf("comment list author %s: %w", did, err)
+	}
+	defer rows.Close()
+
+	out := make([]*PostRow, 0, limit)
+	for rows.Next() {
+		row, scanErr := scanPostRow(rows)
+		if scanErr != nil {
+			return nil, "", fmt.Errorf("comment list author scan: %w", scanErr)
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", fmt.Errorf("comment list author iter: %w", err)
+	}
+
+	if len(out) < limit {
+		return out, "", nil
+	}
+	last := out[len(out)-1]
+	next, err := envelope.EncodeCursor(map[string]any{
+		"indexedAt": last.IndexedAt.UTC().Format(time.RFC3339Nano),
+		"uri":       last.URI,
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("encode comment author cursor: %w", err)
 	}
 	return out, next, nil
 }
@@ -452,8 +507,9 @@ func (s *PostStore) CountActiveReposts(ctx context.Context, postURIs []string) (
 	return s.countActiveInteractions(ctx, "craftsky_reposts", "repost", postURIs)
 }
 
-// CountDirectReplies returns direct child reply counts keyed by parent post URI.
-func (s *PostStore) CountDirectReplies(ctx context.Context, postURIs []string) (map[string]int, error) {
+// CountDescendantReplies returns all descendant reply counts keyed by ancestor
+// post URI. Traversal is depth-capped to match branch rendering.
+func (s *PostStore) CountDescendantReplies(ctx context.Context, postURIs []string) (map[string]int, error) {
 	out := make(map[string]int, len(postURIs))
 	if len(postURIs) == 0 {
 		return out, nil
@@ -462,26 +518,35 @@ func (s *PostStore) CountDirectReplies(ctx context.Context, postURIs []string) (
 		out[uri] = 0
 	}
 	const q = `
-		SELECT reply_parent_uri, count(*)::int
-		FROM craftsky_posts
-		WHERE reply_parent_uri = ANY($1::text[])
-		GROUP BY reply_parent_uri
+		WITH RECURSIVE descendants(subject_uri, uri, depth) AS (
+			SELECT subjects.subject_uri, p.uri, 1
+			FROM unnest($1::text[]) AS subjects(subject_uri)
+			JOIN craftsky_posts p ON p.reply_parent_uri = subjects.subject_uri
+			UNION ALL
+			SELECT descendants.subject_uri, child.uri, descendants.depth + 1
+			FROM descendants
+			JOIN craftsky_posts child ON child.reply_parent_uri = descendants.uri
+			WHERE descendants.depth < 64
+		)
+		SELECT subject_uri, count(*)::int
+		FROM descendants
+		GROUP BY subject_uri
 	`
 	rows, err := s.pool.Query(ctx, q, postURIs)
 	if err != nil {
-		return nil, fmt.Errorf("reply count direct: %w", err)
+		return nil, fmt.Errorf("reply count descendants: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var uri string
 		var count int
 		if err := rows.Scan(&uri, &count); err != nil {
-			return nil, fmt.Errorf("reply count scan: %w", err)
+			return nil, fmt.Errorf("reply count descendant scan: %w", err)
 		}
 		out[uri] = count
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("reply count iter: %w", err)
+		return nil, fmt.Errorf("reply count descendant iter: %w", err)
 	}
 	return out, nil
 }
@@ -547,7 +612,7 @@ func (s *PostStore) EngagementSummaries(ctx context.Context, viewerDID string, p
 	if err != nil {
 		return nil, err
 	}
-	replyCounts, err := s.CountDirectReplies(ctx, postURIs)
+	replyCounts, err := s.CountDescendantReplies(ctx, postURIs)
 	if err != nil {
 		return nil, err
 	}

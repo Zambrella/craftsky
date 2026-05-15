@@ -1,24 +1,21 @@
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
-import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
-import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
+import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Posts tab body. Returns a [SliverList] so it slots into the page's
-/// outer [CustomScrollView] without nesting another scrollable.
-class ProfilePostsTab extends ConsumerWidget {
-  const ProfilePostsTab({
+class ProfileCommentsTab extends ConsumerWidget {
+  const ProfileCommentsTab({
     required this.handle,
     required this.isOwnProfile,
     super.key,
@@ -30,7 +27,7 @@ class ProfilePostsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final postsAsync = ref.watch(userPostsProvider(handle));
+    final commentsAsync = ref.watch(userCommentsProvider(handle));
 
     ref.listen(deletePostProvider, (previous, next) {
       switch ((previous, next)) {
@@ -45,18 +42,18 @@ class ProfilePostsTab extends ConsumerWidget {
       }
     });
 
-    return switch (postsAsync) {
-      AsyncValue(:final value?) => _ProfilePostsLoadedSlivers(
+    return switch (commentsAsync) {
+      AsyncValue(:final value?) => _ProfileCommentsLoadedSlivers(
         handle: handle,
-        posts: value.items,
+        comments: value.items,
         hasMore: value.hasMore,
-        isLoadingMore: postsAsync.isLoading,
-        hasLoadMoreError: postsAsync.hasError,
+        isLoadingMore: commentsAsync.isLoading,
+        hasLoadMoreError: commentsAsync.hasError,
         isOwnProfile: isOwnProfile,
       ),
-      AsyncError(:final error) => _ProfilePostsErrorSliver(
+      AsyncError(:final error) => _ProfileCommentsErrorSliver(
         error: error,
-        onRetry: () => ref.invalidate(userPostsProvider(handle)),
+        onRetry: () => ref.invalidate(userCommentsProvider(handle)),
       ),
       _ => const SliverFillRemaining(
         hasScrollBody: false,
@@ -66,10 +63,10 @@ class ProfilePostsTab extends ConsumerWidget {
   }
 }
 
-class _ProfilePostsLoadedSlivers extends ConsumerWidget {
-  const _ProfilePostsLoadedSlivers({
+class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
+  const _ProfileCommentsLoadedSlivers({
     required this.handle,
-    required this.posts,
+    required this.comments,
     required this.hasMore,
     required this.isLoadingMore,
     required this.hasLoadMoreError,
@@ -77,7 +74,7 @@ class _ProfilePostsLoadedSlivers extends ConsumerWidget {
   });
 
   final String handle;
-  final List<Post> posts;
+  final List<Post> comments;
   final bool hasMore;
   final bool isLoadingMore;
   final bool hasLoadMoreError;
@@ -90,40 +87,38 @@ class _ProfilePostsLoadedSlivers extends ConsumerWidget {
 
     return SliverMainAxisGroup(
       slivers: [
-        if (isOwnProfile)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(spacing.sp4),
-              child: ChunkyButton(
-                onPressed: () => showPostComposerSheet(context),
-                child: Text(l10n.postComposeAction),
-              ),
-            ),
-          ),
-        if (posts.isEmpty)
+        if (comments.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
-            child: Center(child: Text(l10n.profilePostsEmpty)),
+            child: Center(child: Text(l10n.profileCommentsEmpty)),
           )
         else
           SliverList.builder(
-            itemCount: posts.length,
+            itemCount: comments.length,
             itemBuilder: (context, index) {
-              final post = posts[index];
+              final post = comments[index];
+              final root = post.reply == null
+                  ? null
+                  : parseCraftskyPostUri(post.reply!.root.uri);
+              final isNestedReply =
+                  post.reply != null &&
+                  post.reply!.root.uri != post.reply!.parent.uri;
               return PostCard(
                 post: post,
-                onTap: () => PostThreadRoute(
-                  did: post.author.did,
-                  rkey: post.rkey,
-                ).push<void>(context),
+                replyTooltip: l10n.postThreadReplyAction,
+                showRepostAction: false,
+                showReplyCount: !isNestedReply,
+                onTap: root == null
+                    ? null
+                    : () => PostThreadRoute(
+                        did: root.did,
+                        rkey: root.rkey,
+                        focus: post.uri,
+                      ).push<void>(context),
                 onReply: () =>
                     showPostComposerSheet(context, replyTarget: post),
-                replyTooltip: l10n.postCommentAction,
                 onLike: () => ref
                     .read(toggleLikePostProvider.notifier)
-                    .toggle(post: post),
-                onRepost: () => ref
-                    .read(toggleRepostPostProvider.notifier)
                     .toggle(post: post),
                 onDelete: isOwnProfile
                     ? () => _confirmDelete(context, ref, post)
@@ -131,7 +126,8 @@ class _ProfilePostsLoadedSlivers extends ConsumerWidget {
               );
             },
           ),
-        if (posts.isNotEmpty && (hasMore || isLoadingMore || hasLoadMoreError))
+        if (comments.isNotEmpty &&
+            (hasMore || isLoadingMore || hasLoadMoreError))
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.all(spacing.sp4),
@@ -139,15 +135,17 @@ class _ProfilePostsLoadedSlivers extends ConsumerWidget {
                 child: switch ((isLoadingMore, hasLoadMoreError)) {
                   (true, _) => const StitchProgressIndicator(),
                   (_, true) => TextButton.icon(
-                    onPressed: () =>
-                        ref.read(userPostsProvider(handle).notifier).loadMore(),
+                    onPressed: () => ref
+                        .read(userCommentsProvider(handle).notifier)
+                        .loadMore(),
                     icon: const Icon(Icons.refresh),
                     label: Text(l10n.retryButton),
                   ),
                   _ => TextButton(
-                    onPressed: () =>
-                        ref.read(userPostsProvider(handle).notifier).loadMore(),
-                    child: Text(l10n.profilePostsLoadMore),
+                    onPressed: () => ref
+                        .read(userCommentsProvider(handle).notifier)
+                        .loadMore(),
+                    child: Text(l10n.profileCommentsLoadMore),
                   ),
                 },
               ),
@@ -173,8 +171,11 @@ class _ProfilePostsLoadedSlivers extends ConsumerWidget {
   }
 }
 
-class _ProfilePostsErrorSliver extends StatelessWidget {
-  const _ProfilePostsErrorSliver({required this.error, required this.onRetry});
+class _ProfileCommentsErrorSliver extends StatelessWidget {
+  const _ProfileCommentsErrorSliver({
+    required this.error,
+    required this.onRetry,
+  });
 
   final Object error;
   final VoidCallback onRetry;
@@ -195,7 +196,7 @@ class _ProfilePostsErrorSliver extends StatelessWidget {
               Icon(Icons.error_outline, color: theme.colorScheme.error),
               SizedBox(height: spacing.sp3),
               Text(
-                l10n.profilePostsLoadError,
+                l10n.profileCommentsLoadError,
                 style: theme.textTheme.titleMedium,
               ),
               SizedBox(height: spacing.sp3),

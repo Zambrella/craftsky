@@ -10,6 +10,7 @@ import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
 import 'package:craftsky_app/profile/widgets/profile_sliver_app_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_about_tab.dart';
+import 'package:craftsky_app/profile/widgets/profile_tabs/profile_comments_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_empty_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_posts_tab.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -214,6 +215,10 @@ class _ProfileTabScrollView extends StatelessWidget {
   ) {
     return switch (tab) {
       ProfileTab.posts => ProfilePostsTab(
+        handle: profile.handle,
+        isOwnProfile: isOwnProfile,
+      ),
+      ProfileTab.comments => ProfileCommentsTab(
         handle: profile.handle,
         isOwnProfile: isOwnProfile,
       ),

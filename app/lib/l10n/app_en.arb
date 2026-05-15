@@ -58,6 +58,9 @@
   "profileTabPosts": "Posts",
   "@profileTabPosts": { "description": "Tab label for the Posts tab on the profile screen." },
 
+  "profileTabComments": "Comments",
+  "@profileTabComments": { "description": "Tab label for the Comments tab on the profile screen." },
+
   "profileTabProjects": "Projects",
   "@profileTabProjects": { "description": "Tab label for the Projects tab on the profile screen." },
 
@@ -112,6 +115,15 @@
   "profilePostsLoadMore": "Load more posts",
   "@profilePostsLoadMore": { "description": "Button label for loading the next page in the profile Posts tab." },
 
+  "profileCommentsEmpty": "No comments yet.",
+  "@profileCommentsEmpty": { "description": "Muted placeholder shown in the profile Comments tab when the user has not commented." },
+
+  "profileCommentsLoadError": "Comments didn't load.",
+  "@profileCommentsLoadError": { "description": "Error title shown in the profile Comments tab when comment fetching fails." },
+
+  "profileCommentsLoadMore": "Load more comments",
+  "@profileCommentsLoadMore": { "description": "Button label for loading the next page in the profile Comments tab." },
+
   "postThreadTitle": "Thread",
   "@postThreadTitle": { "description": "Title of the post thread screen." },
 
@@ -130,9 +142,18 @@
   "postThreadReplyAction": "Reply",
   "@postThreadReplyAction": { "description": "Button label for replying from the post thread screen." },
 
+  "postCommentAction": "Comment",
+  "@postCommentAction": { "description": "Button label for commenting on a root post from the post thread screen." },
+
   "postThreadReplyToAuthor": "Reply to {author}",
   "@postThreadReplyToAuthor": {
     "description": "Accessibility label for a reply button on the thread screen. The author placeholder includes a display name or handle.",
+    "placeholders": { "author": { "type": "String", "example": "Ada (@ada.craftsky.social)" } }
+  },
+
+  "postCommentOnAuthor": "Comment on {author}",
+  "@postCommentOnAuthor": {
+    "description": "Accessibility label for a comment button on the thread screen. The author placeholder includes a display name or handle.",
     "placeholders": { "author": { "type": "String", "example": "Ada (@ada.craftsky.social)" } }
   },
 

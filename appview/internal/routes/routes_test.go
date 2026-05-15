@@ -160,6 +160,37 @@ func TestAddRoutes_PostCommentsRequiresDeviceID(t *testing.T) {
 	}
 }
 
+func TestAddRoutes_ProfileCommentsRequiresAuthenticatedDevice(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest("GET", "/v1/profiles/@alice.example/comments", nil)
+	req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+}
+
+func TestAddRoutes_ProfileCommentsRequiresDeviceID(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest("GET", "/v1/profiles/@alice.example/comments", nil)
+	req.Header.Set("Authorization", "Bearer anything")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "missing_device_id") {
+		t.Errorf("body = %q, want containing 'missing_device_id'", rec.Body.String())
+	}
+}
+
 func TestAddRoutes_V1LoginWithoutDeviceIDReturns400(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, testDeps())

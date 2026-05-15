@@ -124,4 +124,20 @@ class PostApiClient {
     );
     return PostPageMapper.fromMap(res.data!);
   });
+
+  /// GET /v1/profiles/@{handleOrDid}/comments — newest-first.
+  Future<PostPage> listCommentsByAuthor(
+    String handleOrDid, {
+    String? cursor,
+    int? limit,
+  }) => unwrapApi(() async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/profiles/@$handleOrDid/comments',
+      queryParameters: {
+        if (cursor != null) 'cursor': cursor,
+        if (limit != null) 'limit': limit.toString(),
+      },
+    );
+    return PostPageMapper.fromMap(res.data!);
+  });
 }

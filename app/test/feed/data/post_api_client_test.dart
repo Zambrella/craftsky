@@ -205,6 +205,42 @@ void main() {
     });
   });
 
+  group('PostApiClient.listCommentsByAuthor', () {
+    test('GETs /v1/profiles/@{handleOrDid}/comments', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onGet(
+        '/v1/profiles/@alice.craftsky.social/comments',
+        (server) => server.reply(200, {
+          'items': [samplePost()],
+          'cursor': 'next-cursor',
+        }),
+      );
+
+      final page = await PostApiClient(
+        dio,
+      ).listCommentsByAuthor('alice.craftsky.social');
+      expect(page.items, hasLength(1));
+      expect(page.cursor, 'next-cursor');
+    });
+
+    test('passes cursor and limit as query params', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onGet(
+        '/v1/profiles/@alice.craftsky.social/comments',
+        (server) => server.reply(200, {'items': <Map<String, dynamic>>[]}),
+        queryParameters: {'cursor': 'c1', 'limit': '50'},
+      );
+
+      final page = await PostApiClient(dio).listCommentsByAuthor(
+        'alice.craftsky.social',
+        cursor: 'c1',
+        limit: 50,
+      );
+      expect(page.items, isEmpty);
+      expect(page.cursor, isNull);
+    });
+  });
+
   group('PostApiClient.listCommentBranchReplies', () {
     test('GETs /v1/posts/{did}/{rkey}/replies with pagination', () async {
       final dio = buildDio();

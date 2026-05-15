@@ -13,6 +13,7 @@ Post _post({
   int replyCount = 0,
   bool viewerHasLiked = false,
   bool viewerHasReposted = false,
+  DateTime? createdAt,
 }) {
   return Post(
     uri: 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
@@ -25,7 +26,7 @@ Post _post({
     replyCount: replyCount,
     viewerHasLiked: viewerHasLiked,
     viewerHasReposted: viewerHasReposted,
-    createdAt: DateTime.now().subtract(const Duration(minutes: 3)),
+    createdAt: createdAt ?? DateTime.now().subtract(const Duration(minutes: 3)),
     indexedAt: DateTime.now().subtract(const Duration(minutes: 2)),
     author: PostAuthor(
       did: 'did:plc:alice',
@@ -126,6 +127,46 @@ void main() {
       expect(find.text('15k'), findsOneWidget);
       expect(find.text('2m'), findsOneWidget);
       expect(find.text('1234'), findsNothing);
+    });
+
+    testWidgets('can hide reply count while keeping reply action', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(post: _post(replyCount: 3), showReplyCount: false),
+      );
+
+      expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
+      expect(find.text('3'), findsNothing);
+    });
+
+    testWidgets('uses stronger treatment when highlighted', (tester) async {
+      await _pump(tester, PostCard(post: _post(), isHighlighted: true));
+
+      final highlighted = tester.widget<AnimatedContainer>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is AnimatedContainer && widget.decoration is BoxDecoration,
+        ),
+      );
+      final decoration = highlighted.decoration! as BoxDecoration;
+      final border = decoration.border! as Border;
+
+      expect(decoration.color, BrandColors.sky.withValues(alpha: 0.32));
+      expect(border.left.color, BrandColors.cobalt);
+      expect(border.left.width, 6);
+    });
+
+    testWidgets('shows full timestamp tooltip on relative time', (
+      tester,
+    ) async {
+      final createdAt = DateTime(2026, 5, 15, 14, 30);
+      await _pump(tester, PostCard(post: _post(createdAt: createdAt)));
+
+      final tooltip = tester.widget<Tooltip>(find.byType(Tooltip).first);
+      expect(tooltip.message, contains('2026'));
+      expect(tooltip.message, contains('2:30'));
     });
 
     testWidgets('lays out interaction actions in equal left-aligned slots', (

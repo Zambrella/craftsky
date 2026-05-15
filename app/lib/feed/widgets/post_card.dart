@@ -22,6 +22,9 @@ class PostCard extends StatelessWidget {
     this.onRepost,
     this.onDelete,
     this.replyTooltip,
+    this.showRepostAction = true,
+    this.showReplyCount = true,
+    this.isHighlighted = false,
   });
 
   final Post post;
@@ -31,6 +34,9 @@ class PostCard extends StatelessWidget {
   final VoidCallback? onRepost;
   final VoidCallback? onDelete;
   final String? replyTooltip;
+  final bool showRepostAction;
+  final bool showReplyCount;
+  final bool isHighlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -46,101 +52,115 @@ class PostCard extends StatelessWidget {
         spacing.sp4,
         spacing.sp2,
       ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                spacing.sp3,
-                spacing.sp3,
-                spacing.sp3,
-                0,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+        decoration: BoxDecoration(
+          color: isHighlighted ? BrandColors.sky.withValues(alpha: 0.32) : null,
+          border: isHighlighted
+              ? const Border(
+                  left: BorderSide(color: BrandColors.cobalt, width: 6),
+                )
+              : null,
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  spacing.sp3,
+                  spacing.sp3,
+                  spacing.sp3,
+                  0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        ProfileAvatar(
+                          seed: displayName,
+                          size: ProfileAvatarSize.small,
+                        ),
+                        SizedBox(width: spacing.sp3),
+                        Expanded(
+                          child: _PostCardHeader(
+                            displayName: displayName,
+                            handle: post.author.handle,
+                          ),
+                        ),
+                        SizedBox(
+                          width: _postCardMenuWidth,
+                          child: Center(
+                            child: _PostCardTime(postedAt: post.createdAt),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: spacing.sp3),
+                    Padding(
+                      padding: EdgeInsets.only(left: bodyIndent),
+                      child: Text(post.text, style: theme.textTheme.bodyLarge),
+                    ),
+                    SizedBox(height: spacing.sp3),
+                    const CraftskyDivider(),
+                    Row(
+                      children: [
+                        SizedBox(width: bodyIndent),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _PostCardAction(
+                                  icon: Icons.chat_bubble_outline,
+                                  count: showReplyCount ? post.replyCount : 0,
+                                  selectedColor: BrandColors.sky,
+                                  tooltip: replyTooltip ?? 'Reply',
+                                  onPressed: onReply,
+                                ),
+                              ),
+                              Expanded(
+                                child: _PostCardAction(
+                                  icon: post.viewerHasLiked
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                  count: post.likeCount,
+                                  isSelected: post.viewerHasLiked,
+                                  selectedColor: BrandColors.red,
+                                  tooltip: post.viewerHasLiked
+                                      ? 'Unlike'
+                                      : 'Like',
+                                  onPressed: onLike,
+                                ),
+                              ),
+                              if (showRepostAction)
+                                Expanded(
+                                  child: _PostCardAction(
+                                    icon: Icons.repeat,
+                                    count: post.repostCount,
+                                    isSelected: post.viewerHasReposted,
+                                    selectedColor: BrandColors.moss,
+                                    tooltip: post.viewerHasReposted
+                                        ? 'Unrepost'
+                                        : 'Repost',
+                                    onPressed: onRepost,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        if (onDelete != null)
+                          _PostCardMenu(onDelete: onDelete!),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      ProfileAvatar(
-                        seed: displayName,
-                        size: ProfileAvatarSize.small,
-                      ),
-                      SizedBox(width: spacing.sp3),
-                      Expanded(
-                        child: _PostCardHeader(
-                          displayName: displayName,
-                          handle: post.author.handle,
-                        ),
-                      ),
-                      SizedBox(
-                        width: _postCardMenuWidth,
-                        child: Center(
-                          child: _PostCardTime(postedAt: post.createdAt),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: spacing.sp3),
-                  Padding(
-                    padding: EdgeInsets.only(left: bodyIndent),
-                    child: Text(post.text, style: theme.textTheme.bodyLarge),
-                  ),
-                  SizedBox(height: spacing.sp3),
-                  const CraftskyDivider(),
-                  Row(
-                    children: [
-                      SizedBox(width: bodyIndent),
-                      Expanded(
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: _PostCardAction(
-                                icon: Icons.chat_bubble_outline,
-                                count: post.replyCount,
-                                selectedColor: BrandColors.sky,
-                                tooltip: replyTooltip ?? 'Reply',
-                                onPressed: onReply,
-                              ),
-                            ),
-                            Expanded(
-                              child: _PostCardAction(
-                                icon: post.viewerHasLiked
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                count: post.likeCount,
-                                isSelected: post.viewerHasLiked,
-                                selectedColor: BrandColors.red,
-                                tooltip: post.viewerHasLiked
-                                    ? 'Unlike'
-                                    : 'Like',
-                                onPressed: onLike,
-                              ),
-                            ),
-                            Expanded(
-                              child: _PostCardAction(
-                                icon: Icons.repeat,
-                                count: post.repostCount,
-                                isSelected: post.viewerHasReposted,
-                                selectedColor: BrandColors.moss,
-                                tooltip: post.viewerHasReposted
-                                    ? 'Unrepost'
-                                    : 'Repost',
-                                onPressed: onRepost,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (onDelete != null) _PostCardMenu(onDelete: onDelete!),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -184,13 +204,27 @@ class _PostCardTime extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Text(
-      _relativeTime(postedAt),
-      style: theme.textTheme.bodySmall?.copyWith(
-        color: theme.colorScheme.outline,
+    return Tooltip(
+      message: _fullTimestamp(context, postedAt),
+      child: Text(
+        _relativeTime(postedAt),
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.outline,
+        ),
+        textAlign: TextAlign.end,
       ),
-      textAlign: TextAlign.end,
     );
+  }
+
+  String _fullTimestamp(BuildContext context, DateTime when) {
+    final local = when.toLocal();
+    final material = MaterialLocalizations.of(context);
+    final date = material.formatFullDate(local);
+    final time = material.formatTimeOfDay(
+      TimeOfDay.fromDateTime(local),
+      alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+    );
+    return '$date at $time ${local.timeZoneName}';
   }
 
   String _relativeTime(DateTime when) {

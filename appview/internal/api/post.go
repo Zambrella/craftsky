@@ -1059,6 +1059,25 @@ func ListPostsByAuthorHandler(
 	resolver HandleResolver,
 	logger *slog.Logger,
 ) http.Handler {
+	return listAuthorPostsHandler(store, resolver, logger, "post list", store.ListByAuthor)
+}
+
+// ListCommentsByAuthorHandler serves GET /v1/profiles/{handleOrDid}/comments.
+func ListCommentsByAuthorHandler(
+	store PostReader,
+	resolver HandleResolver,
+	logger *slog.Logger,
+) http.Handler {
+	return listAuthorPostsHandler(store, resolver, logger, "comment list", store.ListCommentsByAuthor)
+}
+
+func listAuthorPostsHandler(
+	store PostReader,
+	resolver HandleResolver,
+	logger *slog.Logger,
+	logLabel string,
+	list func(context.Context, string, int, string) ([]*PostRow, string, error),
+) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
 		raw := strings.TrimPrefix(r.PathValue("handleOrDid"), "@")
@@ -1069,7 +1088,7 @@ func ListPostsByAuthorHandler(
 				envelope.WriteError(w, http.StatusBadRequest,
 					"invalid_identifier", "not a valid handle or DID", runID, nil)
 			default:
-				logger.Warn("post list: ResolveDID failed",
+				logger.Warn(logLabel+": ResolveDID failed",
 					slog.String("input", raw),
 					slog.String("err", err.Error()),
 					slog.String("run_id", runID))
@@ -1081,14 +1100,14 @@ func ListPostsByAuthorHandler(
 		limit := parseLimit(r.URL.Query().Get("limit"))
 		cursor := r.URL.Query().Get("cursor")
 
-		rows, nextCursor, err := store.ListByAuthor(r.Context(), did.String(), limit, cursor)
+		rows, nextCursor, err := list(r.Context(), did.String(), limit, cursor)
 		if err != nil {
 			if errors.Is(err, envelope.ErrInvalidCursor) {
 				envelope.WriteError(w, http.StatusBadRequest,
 					"invalid_cursor", "cursor could not be decoded", runID, nil)
 				return
 			}
-			logger.Error("post list: ListByAuthor failed",
+			logger.Error(logLabel+": list failed",
 				slog.String("did", did.String()),
 				slog.String("err", err.Error()),
 				slog.String("run_id", runID))
@@ -1106,7 +1125,7 @@ func ListPostsByAuthorHandler(
 			}
 			summaries, serr := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
 			if serr != nil {
-				logger.Error("post list: EngagementSummaries failed",
+				logger.Error(logLabel+": EngagementSummaries failed",
 					slog.String("did", did.String()),
 					slog.String("err", serr.Error()),
 					slog.String("run_id", runID))
@@ -1117,7 +1136,7 @@ func ListPostsByAuthorHandler(
 			// Only pay handle-resolution cost when there are rows to render.
 			handle, herr := resolver.ResolveHandle(r.Context(), did)
 			if herr != nil {
-				logger.Warn("post list: ResolveHandle failed",
+				logger.Warn(logLabel+": ResolveHandle failed",
 					slog.String("did", did.String()),
 					slog.String("err", herr.Error()),
 					slog.String("run_id", runID))

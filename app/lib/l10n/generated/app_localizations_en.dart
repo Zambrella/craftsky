@@ -65,6 +65,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileTabPosts => 'Posts';
 
   @override
+  String get profileTabComments => 'Comments';
+
+  @override
   String get profileTabProjects => 'Projects';
 
   @override
@@ -119,6 +122,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profilePostsLoadMore => 'Load more posts';
 
   @override
+  String get profileCommentsEmpty => 'No comments yet.';
+
+  @override
+  String get profileCommentsLoadError => 'Comments didn\'t load.';
+
+  @override
+  String get profileCommentsLoadMore => 'Load more comments';
+
+  @override
   String get postThreadTitle => 'Thread';
 
   @override
@@ -137,8 +149,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postThreadReplyAction => 'Reply';
 
   @override
+  String get postCommentAction => 'Comment';
+
+  @override
   String postThreadReplyToAuthor(String author) {
     return 'Reply to $author';
+  }
+
+  @override
+  String postCommentOnAuthor(String author) {
+    return 'Comment on $author';
   }
 
   @override

@@ -33,6 +33,7 @@ class FakePostRepository implements PostRepository {
     this.onRepost,
     this.onUnrepost,
     this.onListByAuthor,
+    this.onListCommentsByAuthor,
   });
 
   final Future<Post> Function({required String text, PostReply? reply})?
@@ -67,6 +68,12 @@ class FakePostRepository implements PostRepository {
     int? limit,
   })?
   onListByAuthor;
+  final Future<PostPage> Function(
+    String handleOrDid, {
+    String? cursor,
+    int? limit,
+  })?
+  onListCommentsByAuthor;
 
   @override
   Future<Post> create({required String text, PostReply? reply}) =>
@@ -153,4 +160,15 @@ class FakePostRepository implements PostRepository {
   }) =>
       onListByAuthor?.call(handleOrDid, cursor: cursor, limit: limit) ??
       Future<PostPage>.error(UnimplementedError('listByAuthor not stubbed'));
+
+  @override
+  Future<PostPage> listCommentsByAuthor(
+    String handleOrDid, {
+    String? cursor,
+    int? limit,
+  }) =>
+      onListCommentsByAuthor?.call(handleOrDid, cursor: cursor, limit: limit) ??
+      Future<PostPage>.error(
+        UnimplementedError('listCommentsByAuthor not stubbed'),
+      );
 }

@@ -107,10 +107,16 @@ class PostCommentSection with PostCommentSectionMappable {
                   ),
             );
       return _mapComment(comment.post.uri, (comment) {
+        final replies = [...comment.replies.items, item]
+          ..sort(
+            (left, right) => left.post.createdAt.compareTo(
+              right.post.createdAt,
+            ),
+          );
         return comment.copyWith(
           replies: comment.replies.copyWith(
             loaded: true,
-            items: [...comment.replies.items, item],
+            items: replies,
           ),
         );
       });

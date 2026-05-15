@@ -53,4 +53,11 @@ abstract interface class PostRepository {
     String? cursor,
     int? limit,
   });
+
+  /// GET /v1/profiles/@{handleOrDid}/comments — newest-first, paginated.
+  Future<PostPage> listCommentsByAuthor(
+    String handleOrDid, {
+    String? cursor,
+    int? limit,
+  });
 }

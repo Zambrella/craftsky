@@ -18,6 +18,8 @@ import 'fakes/fake_profile_repository.dart';
 
 final _emptyPostRepository = FakePostRepository(
   onListByAuthor: (_, {cursor, limit}) async => const PostPage(items: []),
+  onListCommentsByAuthor: (_, {cursor, limit}) async =>
+      const PostPage(items: []),
 );
 
 void main() {

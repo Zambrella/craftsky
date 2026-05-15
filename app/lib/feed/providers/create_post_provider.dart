@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
+import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart'
     hide PostCommentSection;
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -45,12 +47,14 @@ class CreatePost extends _$CreatePost {
           }
         }
       } else {
-        final (rootDid, rootRkey) = _replyTargetIdentifiers(reply.root.uri);
+        updateLiveUserCommentCaches(ref, post);
+        final root = parseCraftskyPostUri(reply.root.uri);
+        if (root == null) return post;
 
         for (final sort in CommentSort.values) {
           final entry = postCommentSectionProvider(
-            rootDid,
-            rootRkey,
+            root.did,
+            root.rkey,
             sort: sort,
           );
           if (!ref.exists(entry)) continue;
@@ -77,13 +81,4 @@ class CreatePost extends _$CreatePost {
   /// Resets the notifier to its idle state. Call after consuming a
   /// success/failure transition so a re-entry doesn't see prior result.
   void reset() => state = const AsyncData(null);
-}
-
-(String, String) _replyTargetIdentifiers(String uri) {
-  final withoutScheme = uri.substring('at://'.length);
-  final slashIndex = withoutScheme.indexOf('/');
-  return (
-    withoutScheme.substring(0, slashIndex),
-    withoutScheme.substring(withoutScheme.lastIndexOf('/') + 1),
-  );
 }

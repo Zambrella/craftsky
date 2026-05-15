@@ -8,12 +8,13 @@ import 'package:flutter/material.dart';
 /// same source of truth and can't drift. Display labels are looked up
 /// via [ProfileTabLabel.label] on the current [AppLocalizations] —
 /// keeping the enum locale-agnostic.
-enum ProfileTab { posts, projects, saved, reposts, about }
+enum ProfileTab { posts, comments, projects, saved, reposts, about }
 
 extension ProfileTabLabel on ProfileTab {
   /// Localised tab label for [AppLocalizations].
   String label(AppLocalizations l10n) => switch (this) {
     ProfileTab.posts => l10n.profileTabPosts,
+    ProfileTab.comments => l10n.profileTabComments,
     ProfileTab.projects => l10n.profileTabProjects,
     ProfileTab.saved => l10n.profileTabSaved,
     ProfileTab.reposts => l10n.profileTabReposts,
@@ -25,10 +26,7 @@ extension ProfileTabLabel on ProfileTab {
 /// [SliverPersistentHeader] above the [TabBarView] body so tabs stay
 /// reachable while the post list scrolls under them.
 class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
-  const ProfileTabBarDelegate({
-    this.projectsCountLabel,
-    this.savedCountLabel,
-  });
+  const ProfileTabBarDelegate({this.projectsCountLabel, this.savedCountLabel});
 
   /// Optional inline counts ("Projects · 15"). Mockup hints at this; real
   /// counts plug in once feed data is wired.
