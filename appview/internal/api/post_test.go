@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -96,6 +97,9 @@ type fakePostStore struct {
 	replyRows            []*api.PostRow
 	replyCursor          string
 	replyErr             error
+	aroundReplyRows      []*api.PostRow
+	aroundReplyCursor    string
+	aroundReplyErr       error
 	author               *api.PostAuthorRow
 	authorErr            error
 	engagement           map[string]api.EngagementSummary
@@ -126,6 +130,7 @@ type fakePostStore struct {
 	lastReplyRootURI     string
 	lastReplyLimit       int
 	lastReplyCursor      string
+	lastReplyFocusURI    string
 }
 
 func (f *fakePostStore) ReadOne(_ context.Context, did, rkey string) (*api.PostRow, error) {
@@ -163,6 +168,17 @@ func (f *fakePostStore) ListCommentBranchReplies(_ context.Context, commentURI, 
 	f.lastReplyRootURI = rootURI
 	f.lastReplyLimit = limit
 	f.lastReplyCursor = cursor
+	return f.replyRows, f.replyCursor, f.replyErr
+}
+func (f *fakePostStore) ListCommentBranchRepliesAround(_ context.Context, commentURI, rootURI, focusURI string, limit int) ([]*api.PostRow, string, error) {
+	f.lastReplyParentURI = commentURI
+	f.lastReplyRootURI = rootURI
+	f.lastReplyFocusURI = focusURI
+	f.lastReplyLimit = limit
+	f.lastReplyCursor = ""
+	if f.aroundReplyRows != nil || f.aroundReplyCursor != "" || f.aroundReplyErr != nil {
+		return f.aroundReplyRows, f.aroundReplyCursor, f.aroundReplyErr
+	}
 	return f.replyRows, f.replyCursor, f.replyErr
 }
 func (f *fakePostStore) ReadAuthor(_ context.Context, _ string) (*api.PostAuthorRow, error) {
@@ -237,6 +253,15 @@ func authedPostPathReq(method, urlPath, body string, did string) *http.Request {
 	req.SetPathValue("did", parts[2])
 	req.SetPathValue("rkey", parts[3])
 	return req
+}
+
+func replyItemsContainURI(items []api.ReplyItem, uri string) bool {
+	for _, item := range items {
+		if item.Post.URI == uri {
+			return true
+		}
+	}
+	return false
 }
 
 func testPostRow(did, rkey, text string, createdAt time.Time) *api.PostRow {
@@ -1496,6 +1521,59 @@ func TestGetPostComments_FocusedReplyBranchUsesBoundedPage(t *testing.T) {
 	}
 	if store.lastReplyParentURI != comment.URI || store.lastReplyRootURI != root.URI || store.lastReplyLimit != 10 || store.lastReplyCursor != "" {
 		t.Fatalf("branch reply lookup = parent:%q root:%q limit:%d cursor:%q", store.lastReplyParentURI, store.lastReplyRootURI, store.lastReplyLimit, store.lastReplyCursor)
+	}
+}
+
+func TestGetPostComments_FocusedReplyAfterFirstBranchPageIsIncluded(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:alice", "root", "root", base)
+	comment := testReplyRow("did:plc:carol", "comment", "comment", root.URI, root.URI, base.Add(time.Minute))
+	firstPage := make([]*api.PostRow, 0, 10)
+	for i := 0; i < 10; i++ {
+		firstPage = append(firstPage, testReplyRow("did:plc:dave", "reply-before-"+strconv.Itoa(i), "before", root.URI, comment.URI, base.Add(time.Duration(i+2)*time.Minute)))
+	}
+	focusedReply := testReplyRow("did:plc:erin", "focused-reply", "target", root.URI, comment.URI, base.Add(20*time.Minute))
+	store := &fakePostStore{
+		one:               root,
+		commentRows:       []*api.PostRow{},
+		replyRows:         firstPage,
+		replyCursor:       "first-page-cursor",
+		aroundReplyRows:   append(firstPage[1:], focusedReply),
+		aroundReplyCursor: "after-focus-cursor",
+		postsByURI: map[string]*api.PostRow{
+			focusedReply.URI: focusedReply,
+			comment.URI:      comment,
+		},
+	}
+	h := api.GetPostCommentsHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+		"did:plc:carol": "carol.example",
+		"did:plc:dave":  "dave.example",
+		"did:plc:erin":  "erin.example",
+	}}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/comments?focus="+url.QueryEscape(focusedReply.URI), "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.CommentSectionResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Focus == nil || resp.Focus.Status != "included" || resp.Focus.Kind != "reply" || resp.Focus.CommentURI != comment.URI {
+		t.Fatalf("focus = %+v", resp.Focus)
+	}
+	if len(resp.Comments.Items) != 1 || !resp.Comments.Items[0].Replies.Loaded {
+		t.Fatalf("focused branch = %+v", resp.Comments.Items)
+	}
+	replies := resp.Comments.Items[0].Replies.Items
+	if len(replies) > 10 {
+		t.Fatalf("focused branch loaded %d replies, want bounded page", len(replies))
+	}
+	if !replyItemsContainURI(replies, focusedReply.URI) {
+		t.Fatalf("focused reply missing from bounded branch page: %+v", replies)
 	}
 }
 

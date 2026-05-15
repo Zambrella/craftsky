@@ -528,6 +528,49 @@ func TestPostStore_ListCommentBranchReplies_PaginatesBranchOldestFirst(t *testin
 	}
 }
 
+func TestPostStore_ListCommentBranchRepliesAround_IncludesFocusedReplyAfterFirstPage(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
+	comment := seedReplyPost(t, pool, "did:plc:bob", "comment", "comment", root, root, base.Add(time.Minute))
+	var focused string
+	for i := 0; i < 12; i++ {
+		uri := seedReplyPost(t, pool, "did:plc:carol", "reply"+string(rune('a'+i)), "reply", root, comment, base.Add(time.Duration(i+2)*time.Minute))
+		if i == 10 {
+			focused = uri
+		}
+	}
+
+	store := api.NewPostStore(pool)
+	page, cursor, err := store.ListCommentBranchRepliesAround(context.Background(), comment, root, focused, 10)
+	if err != nil {
+		t.Fatalf("ListCommentBranchRepliesAround: %v", err)
+	}
+	if got := replyRkeys(page); len(got) != 10 || got[0] != "replyb" || got[9] != "replyk" {
+		t.Fatalf("page = %v", got)
+	}
+	if !postRowsContainURI(page, focused) {
+		t.Fatalf("focused reply missing from page = %v", replyRkeys(page))
+	}
+	if cursor == "" {
+		t.Fatal("want cursor for predictable load-more after focused slice")
+	}
+	nextPage, nextCursor, err := store.ListCommentBranchReplies(context.Background(), comment, root, 10, cursor)
+	if err != nil {
+		t.Fatalf("next page: %v", err)
+	}
+	if got := replyRkeys(nextPage); len(got) != 1 || got[0] != "replyl" {
+		t.Fatalf("next page = %v", got)
+	}
+	if nextCursor != "" {
+		t.Fatalf("next cursor = %q, want empty", nextCursor)
+	}
+}
+
 func TestPostStore_ListRootComments_PaginatesOpaqueCursorOldestFirst(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)
@@ -635,6 +678,15 @@ func replyRkeys(rows []*api.PostRow) []string {
 		out = append(out, row.Rkey)
 	}
 	return out
+}
+
+func postRowsContainURI(rows []*api.PostRow, uri string) bool {
+	for _, row := range rows {
+		if row.URI == uri {
+			return true
+		}
+	}
+	return false
 }
 
 func equalStrings(left, right []string) bool {

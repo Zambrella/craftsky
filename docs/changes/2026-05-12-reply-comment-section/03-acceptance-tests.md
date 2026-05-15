@@ -25,7 +25,7 @@ Terminology note: top-level replies are **comments**. Replies under a comment ar
 | FR-007 | AC-007, AC-010, AC-020 | AT-006, IT-005, UT-001, UT-002 | Acceptance / Integration / Unit | Yes |
 | FR-008 | AC-007 | AT-006, IT-005, UT-001 | Acceptance / Integration / Unit | Yes |
 | FR-009 | AC-006 | AT-005, UT-005 | Acceptance / Unit | Yes |
-| FR-010 | AC-006, AC-010 | AT-005, IT-007, UT-002 | Acceptance / Integration / Unit | Yes |
+| FR-010 | AC-006, AC-010, AC-026 | AT-005, IT-007, UT-002, IT-016 | Acceptance / Integration / Unit | Yes |
 | FR-011 | AC-009, AC-010 | AT-005, IT-007, UT-009 | Acceptance / Integration / Unit | Yes |
 | FR-012 | AC-006 | AT-005, UT-005 | Acceptance / Unit | Yes |
 | FR-013 | AC-014 | AT-009, UT-003 | Acceptance / Unit | Yes |
@@ -39,7 +39,7 @@ Terminology note: top-level replies are **comments**. Replies under a comment ar
 | NFR-003 | AC-018 | UT-011, IT-012 | Unit / Integration | Yes |
 | RULE-001 | AC-015, AC-019 | IT-008, REG-004 | Integration / Regression | Yes |
 | RULE-002 | AC-004, AC-007 | IT-001, IT-005, UT-004 | Integration / Unit | Yes |
-| RULE-003 | AC-012, AC-014 | AT-008, AT-009, UT-003 | Acceptance / Unit | Yes |
+| RULE-003 | AC-006, AC-010, AC-012, AC-014, AC-026 | AT-005, AT-008, AT-009, IT-007, UT-003 | Acceptance / Integration / Unit | Yes |
 | RULE-004 | AC-010 | IT-007, UT-002 | Integration / Unit | Yes |
 | RULE-005 | AC-007 | IT-005, UT-001 | Integration / Unit | Yes |
 | RULE-006 | AC-007, AC-011, AC-020 | AT-006, AT-007, IT-005, UT-001, UT-011 | Acceptance / Integration / Unit | Yes |
@@ -145,7 +145,8 @@ Feature: Child reply controls
     Given a comment has more than 10 replies
     And replies are not loaded
     When the user taps "view replies"
-    Then the first 10 replies are shown oldest-first
+    Then the first 10 visual replies for that comment branch are shown oldest-first
+    And deeper descendants are flattened into the same reply list
     And the branch control changes to "hide replies"
     And a "load more" control is shown
     When the user taps "load more"
@@ -305,7 +306,7 @@ Feature: Focus promotion
 | IT-004 | FR-006, NFR-002 | AC-005, AC-009 | Comments page in chunks of 10 with opaque cursor. | Seed 12 comments. | Request limit 10, then cursor. | Page 1 has 10 normal-page comments plus allowed promoted extras; page 2 has remaining normal comments; cursor is based on normal ordering. | `appview/internal/api/post_store_test.go`. |
 | IT-005 | FR-007, FR-008, RULE-005, RULE-006 | AC-007, AC-020 | Comment sorting and viewer grouping. | Seed viewer-authored and other comments with different timestamps. | Request `sort=oldest`, `sort=newest`, `sort=follows`. | Viewer-authored group first when no focus promotion; sort applies within groups; follows equals oldest. | `appview/internal/api/post_store_test.go`. |
 | IT-006 | FR-004, RULE-007 | AC-003, AC-021 | Focused reply outside first reply page uses bounded focused slice. | Seed comment with >10 replies and focus reply after first 10. | GET comment section with focus. | Expanded branch contains target in bounded slice and exposes reply pagination state. | `appview/internal/api/post_store_test.go`. |
-| IT-007 | FR-010, FR-011, RULE-004 | AC-006, AC-009, AC-010 | Direct replies load 10 at a time oldest-first. | Seed comment with 12 direct replies. | GET replies with limit 10, then cursor. | First 10 and next 2 are oldest-first; deeper replies only appear through focused/flattened cases handled elsewhere. | `appview/internal/api/post_store_test.go`, update existing `ListDirectReplies` tests. |
+| IT-007 | FR-010, FR-011, RULE-003, RULE-004 | AC-006, AC-009, AC-010, AC-026 | Comment branch replies load 10 visual replies at a time oldest-first, flattening deeper descendants. | Seed comment with direct replies and deeper descendants. | GET replies with limit 10, then cursor. | Direct replies and deeper descendants for the comment branch are returned oldest-first; deeper descendants have `flattened = true` and `replyingTo` metadata. | `appview/internal/api/post_store_test.go`, `appview/internal/api/post_test.go`, and API client decode tests. |
 | IT-008 | FR-014, RULE-001 | AC-015, AC-019 | Creating reply preserves actual parent and root refs. | Existing create-post handler with reply target parent/root refs. | POST reply to a reply target. | PDS record body contains actual parent ref and root ref; no lexicon change needed. | `appview/internal/api/post_test.go`, existing create reply tests. |
 | IT-009 | FR-001 | AC-013 | `/thread` route is removed. | AppView routes registered. | GET `/v1/posts/{did}/{rkey}/thread` with auth/device headers. | Route no longer resolves to thread handler; stale route tests are removed/replaced. | `appview/internal/routes/routes_test.go`. |
 | IT-010 | NFR-001 | AC-017 | API contract follows `/v1/` conventions. | Success and error responses from comment endpoints. | Inspect JSON bodies. | camelCase keys, standard error envelope, opaque cursor string semantics. | `appview/internal/api/post_test.go`, routes contract tests. |
@@ -324,7 +325,7 @@ Feature: Focus promotion
 | REG-002 | Flutter no longer calls stale `/thread` API or decodes `PostThread`. | FR-001 | Replace `PostApiClient.getThread`, `postThreadProvider`, and `PostThreadPage` tests with comment-section equivalents; stale test names should fail if code remains. |
 | REG-003 | Existing post create/read/delete/like/repost API behavior remains unchanged. | NFR-001 | Keep existing `post_api_client_test.dart`, `post_test.go`, and interaction tests passing outside intentional thread/comment changes. |
 | REG-004 | Reply records remain posts with root/parent refs; lexicon-derived behavior remains unchanged. | RULE-001 | Keep existing `post_request_test.go`, `post_response_test.go`, and indexer reply-column tests passing; verify no lexicon file changes are needed. |
-| REG-005 | Existing direct replies endpoint pagination oldest-first remains valid for reply loading if reused. | FR-010, FR-011, RULE-004 | Preserve/update `TestPostStore_ListDirectReplies_PaginatesOpaqueCursorOldestFirst` with limit 10 expectations. |
+| REG-005 | Existing replies endpoint pagination oldest-first remains valid for comment-branch reply loading. | FR-010, FR-011, RULE-003, RULE-004 | Preserve/update `TestPostStore_ListCommentBranchReplies_PaginatesBranchOldestFirst` and handler/client reply-loading tests with limit 10 expectations and flattened descendant metadata. |
 
 ## 7. Test Data
 
@@ -333,7 +334,7 @@ Feature: Focus promotion
 | TD-001 | Basic root comment section | Root post by Alice; 3 comments by Bob/Carol/Dave; each has reply counts. | AT-003, IT-001, UT-004 |
 | TD-002 | Comment pagination | Root post with 12 comments, timestamps one minute apart. | AT-004, IT-004 |
 | TD-003 | Viewer grouping and sort | Viewer-authored comments at early/late timestamps plus non-viewer comments at interleaved timestamps. | AT-006, AT-007, IT-005, UT-001, UT-011 |
-| TD-004 | Reply pagination | One comment with 12 direct replies oldest-first. | AT-005, IT-007, UT-009 |
+| TD-004 | Reply pagination | One comment with direct replies and deeper descendants ordered oldest-first as visual branch replies. | AT-005, IT-007, UT-009 |
 | TD-005 | Focus outside pages | >10 comments; focused branch outside page 1; branch has >10 replies; focused reply after first 10. | AT-002, IT-003, IT-006, IT-011 |
 | TD-006 | Deeper backend chain | Root -> comment -> reply -> deeper reply target, with actual root/parent refs. | AT-008, AT-009, IT-008, UT-003, UT-010 |
 | TD-007 | Invalid focus cases | Malformed AT-URI, missing reply URI, focus belonging to a different root. | IT-010, GAP-001 follow-up tests |

@@ -542,6 +542,19 @@ func GetPostCommentsHandler(
 					"internal_error", "reply list failed", runID, nil)
 				return
 			}
+			if !containsPostRow(focusedBranchRows, focusedReplyRow.URI) {
+				focusedBranchRows, focusedBranchCursor, err = store.ListCommentBranchRepliesAround(r.Context(), focusedCommentRow.URI, root.URI, focusedReplyRow.URI, parseCommentLimit(""))
+				if err != nil {
+					logger.Error("post comments: ListCommentBranchRepliesAround failed",
+						slog.String("comment_uri", focusedCommentRow.URI),
+						slog.String("focus_uri", focusedReplyRow.URI),
+						slog.String("err", err.Error()),
+						slog.String("run_id", runID))
+					envelope.WriteError(w, http.StatusInternalServerError,
+						"internal_error", "reply list failed", runID, nil)
+					return
+				}
+			}
 			for _, row := range focusedBranchRows {
 				if row.ReplyParentURI == nil || *row.ReplyParentURI == focusedCommentRow.URI || containsPostRow(focusedBranchRows, *row.ReplyParentURI) || containsPostRow(focusedBranchParentRows, *row.ReplyParentURI) {
 					continue

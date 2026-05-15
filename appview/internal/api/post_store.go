@@ -104,6 +104,7 @@ type PostReader interface {
 	ResolvePostTarget(ctx context.Context, did, rkey string) (*PostTargetRef, error)
 	ListRootComments(ctx context.Context, rootURI, viewerDID, sort string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
 	ListCommentBranchReplies(ctx context.Context, commentURI, rootURI string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
+	ListCommentBranchRepliesAround(ctx context.Context, commentURI, rootURI, focusURI string, limit int) (rows []*PostRow, nextCursor string, err error)
 	ReadAuthor(ctx context.Context, did string) (*PostAuthorRow, error)
 	EngagementSummaries(ctx context.Context, viewerDID string, postURIs []string) (map[string]EngagementSummary, error)
 }
@@ -180,6 +181,33 @@ func (s *PostStore) ListRootComments(ctx context.Context, rootURI, viewerDID, so
 		return nil, "", fmt.Errorf("encode comment cursor: %w", err)
 	}
 	return out, next, nil
+}
+
+func (s *PostStore) commentBranchHasRepliesAfter(ctx context.Context, commentURI, rootURI string, createdAt time.Time, uri string) (bool, error) {
+	q := `
+		WITH RECURSIVE branch(uri, created_at, depth) AS (
+			SELECT p.uri, p.created_at, 1
+			FROM craftsky_posts p
+			WHERE p.reply_parent_uri = $1
+			  AND p.reply_root_uri = $2
+			UNION ALL
+			SELECT child.uri, child.created_at, parent.depth + 1
+			FROM craftsky_posts child
+			JOIN branch parent ON child.reply_parent_uri = parent.uri
+			WHERE child.reply_root_uri = $2
+			  AND parent.depth < 64
+		)
+		SELECT EXISTS (
+			SELECT 1
+			FROM branch
+			WHERE (created_at, uri) > ($3::timestamptz, $4::text)
+		)
+	`
+	var hasMore bool
+	if err := s.pool.QueryRow(ctx, q, commentURI, rootURI, createdAt, uri).Scan(&hasMore); err != nil {
+		return false, fmt.Errorf("reply list branch has more comment=%s root=%s: %w", commentURI, rootURI, err)
+	}
+	return hasMore, nil
 }
 
 // PostStore is the Postgres-backed implementation.
@@ -595,6 +623,82 @@ func (s *PostStore) ListCommentBranchReplies(ctx context.Context, commentURI, ro
 		return out, "", nil
 	}
 	last := out[len(out)-1]
+	next, err := envelope.EncodeCursor(map[string]any{
+		"createdAt": last.CreatedAt.UTC().Format(time.RFC3339Nano),
+		"uri":       last.URI,
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("encode reply cursor: %w", err)
+	}
+	return out, next, nil
+}
+
+// ListCommentBranchRepliesAround returns a bounded visual reply page that
+// includes focusURI, ending at the focused reply so deep links can render the
+// target without loading every earlier branch reply.
+func (s *PostStore) ListCommentBranchRepliesAround(ctx context.Context, commentURI, rootURI, focusURI string, limit int) ([]*PostRow, string, error) {
+	q := `
+		WITH RECURSIVE branch(uri, created_at, depth) AS (
+			SELECT p.uri, p.created_at, 1
+			FROM craftsky_posts p
+			WHERE p.reply_parent_uri = $1
+			  AND p.reply_root_uri = $2
+			UNION ALL
+			SELECT child.uri, child.created_at, parent.depth + 1
+			FROM craftsky_posts child
+			JOIN branch parent ON child.reply_parent_uri = parent.uri
+			WHERE child.reply_root_uri = $2
+			  AND parent.depth < 64
+		), focus AS (
+			SELECT uri, created_at
+			FROM branch
+			WHERE uri = $3
+		), page AS (
+			SELECT branch.uri, branch.created_at
+			FROM branch
+			JOIN focus ON true
+			WHERE (branch.created_at, branch.uri) <= (focus.created_at, focus.uri)
+			ORDER BY branch.created_at DESC, branch.uri DESC
+			LIMIT $4
+		), ordered_page AS (
+			SELECT uri, created_at
+			FROM page
+			ORDER BY created_at ASC, uri ASC
+		)
+		SELECT ` + postSelectColumns + `
+		FROM ordered_page
+		JOIN craftsky_posts p ON p.uri = ordered_page.uri
+		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
+		ORDER BY ordered_page.created_at ASC, ordered_page.uri ASC
+	`
+	rows, err := s.pool.Query(ctx, q, commentURI, rootURI, focusURI, limit)
+	if err != nil {
+		return nil, "", fmt.Errorf("reply list branch around comment=%s root=%s focus=%s: %w", commentURI, rootURI, focusURI, err)
+	}
+	defer rows.Close()
+
+	out := make([]*PostRow, 0, limit)
+	for rows.Next() {
+		row, scanErr := scanPostRow(rows)
+		if scanErr != nil {
+			return nil, "", fmt.Errorf("reply list branch around scan: %w", scanErr)
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", fmt.Errorf("reply list branch around iter: %w", err)
+	}
+	if len(out) == 0 {
+		return out, "", nil
+	}
+	last := out[len(out)-1]
+	hasMore, err := s.commentBranchHasRepliesAfter(ctx, commentURI, rootURI, last.CreatedAt, last.URI)
+	if err != nil {
+		return nil, "", err
+	}
+	if !hasMore {
+		return out, "", nil
+	}
 	next, err := envelope.EncodeCursor(map[string]any{
 		"createdAt": last.CreatedAt.UTC().Format(time.RFC3339Nano),
 		"uri":       last.URI,

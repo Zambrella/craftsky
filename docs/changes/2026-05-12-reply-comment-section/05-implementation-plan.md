@@ -17,7 +17,7 @@
 
 ## Concrete Implementation Choices
 - Backend route: `GET /v1/posts/{did}/{rkey}/comments` is the root comment-section read surface.
-- Existing `GET /v1/posts/{did}/{rkey}/replies` remains the actioned per-comment reply loader.
+- Existing `GET /v1/posts/{did}/{rkey}/replies` remains the actioned per-comment reply loader and returns visual comment-branch replies, including deeper descendants flattened under the comment.
 - `GET /v1/posts/{did}/{rkey}/thread` is removed.
 - Comment page size defaults to 10 and caps at 10 for comment-section and reply-loading behavior.
 - Sort values are `oldest`, `newest`, and `follows`; `follows` uses oldest-first semantics until follow data exists.
@@ -511,10 +511,45 @@ Mirrors the approved suggested order from `03-acceptance-tests.md` §11.
 - Updated the stale TDD-step comment in `post_store.go` to describe the current viewer-grouping/sort behavior.
 - Verified follow-up changes with `go test ./internal/api` and `flutter test test/feed test/router/router_redirect_test.dart`.
 
+## Implementation Review Follow-up: 2026-05-15
+
+### Decisions
+- IR-001 is accepted as a legitimate implementation bug: focused reply deep links must include the focused reply even when the target is outside the first branch reply page.
+- IR-002 is not a code bug. The product/API decision is that action-expanded `/replies` returns visual comment-branch replies, including deeper descendants flattened under the comment. Updated `02-requirements.md` and `03-acceptance-tests.md` to make that behavior authoritative.
+
+### Follow-up Test Order
+| Step | Test ID | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---|---|---|---|---|
+| 49 | IT-006 / IT-011 | FR-004, RULE-007, NFR-002 | AC-003, AC-021 | Fails until focused reply after the first branch page is included in the loaded focused branch. |
+| 50 | IT-007 | FR-010, FR-011, RULE-003, RULE-004 | AC-006, AC-009, AC-010, AC-026 | Expected to be green after doc/test updates because branch reply loading already returns flattened descendants. |
+
+### Step 49: IT-006 / IT-011
+- Write failing test: added `TestGetPostComments_FocusedReplyAfterFirstBranchPageIsIncluded`, which simulates a branch first page of 10 replies that does not contain the focused reply and asserts the focused branch response remains bounded while including the focus target.
+- Run command: `go test ./internal/api -run TestGetPostComments_FocusedReplyAfterFirstBranchPageIsIncluded -count=1`.
+- Confirmed failure: the response reported `focus.status = "included"` but rendered only the first 10 branch replies and omitted the focused reply.
+- Implement: added `PostReader.ListCommentBranchRepliesAround`, implemented `PostStore.ListCommentBranchRepliesAround` with a recursive branch CTE that returns a bounded page ending at the focused reply, and changed focused reply hydration in `GetPostCommentsHandler` to use the normal first branch page when it already contains the focus or fall back to the target-including branch page when the focus is outside the first page.
+- Run command: `go test ./internal/api -run 'TestGetPostComments_FocusedReplyAfterFirstBranchPageIsIncluded|TestGetPostComments_FocusedReplyBranchUsesBoundedPage|TestGetPostComments_FocusedReplyExpandsCommentBranch' -count=1` passed.
+- Refactor: added store-level coverage `TestPostStore_ListCommentBranchRepliesAround_IncludesFocusedReplyAfterFirstPage` for the Postgres query path, including cursor round-trip to the next branch reply after the focused slice.
+- Notes: The focused page is bounded to 10 visual branch replies and includes the focus target without loading every earlier reply. A follow-up code review caught that focused-slice cursors should only appear when later replies can be loaded; `ListCommentBranchRepliesAround` now checks for later branch replies before emitting a cursor.
+
+### Step 50: IT-007
+- Write/update test: updated `PostApiClient.listCommentBranchReplies` coverage to decode both direct and flattened branch reply items with `replyingTo` metadata, aligning client tests with the confirmed recursive/flattened branch behavior.
+- Run command: `go test ./internal/api -run 'TestListCommentReplies_NestedBranchReplyIncludesFlattenedMetadata|TestPostStore_ListCommentBranchReplies_PaginatesBranchOldestFirst|TestPostStore_ListCommentBranchRepliesAround' -count=1` and `flutter test test/feed/data/post_api_client_test.dart --plain-name 'GETs /v1/posts/{did}/{rkey}/replies with pagination'`.
+- Confirmed result: backend branch reply tests and Flutter client decode test passed.
+- Implement: no production code change required for IR-002; the implementation already returned flattened branch replies and the workflow docs/tests were updated to make that behavior authoritative.
+- Run command: broader verification below passed.
+- Refactor: none.
+- Notes: `02-requirements.md` and `03-acceptance-tests.md` now define `/replies` as visual comment-branch reply loading rather than direct-only loading.
+
+### Follow-up Final Verification
+- Backend verification: `go test ./internal/api ./internal/routes` passed.
+- Flutter verification: `flutter test test/feed/models/post_comment_section_test.dart test/feed/models/post_comment_section_state_test.dart test/feed/providers/post_comment_section_provider_test.dart test/feed/pages/post_comment_section_page_test.dart test/feed/data/post_api_client_test.dart test/feed/widgets/post_composer_sheet_test.dart test/router/router_redirect_test.dart` passed.
+- Review findings addressed: IR-001 fixed in code/tests; IR-002 resolved by updating requirements and acceptance tests; IR-003 addressed by this follow-up plan update.
+
 ## Completion Checklist
 - [x] All Must requirements covered by tests or documented gaps
 - [x] All planned Must tests passing
 - [x] Relevant regression tests passing
 - [x] No unlinked behavior implemented
 - [x] Docs updated
-- [ ] Review completed or explicitly skipped
+- [x] Review completed or explicitly skipped

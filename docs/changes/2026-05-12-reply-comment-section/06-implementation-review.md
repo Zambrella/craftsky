@@ -1,22 +1,22 @@
 # Implementation Review: Reply Comment Section
 
 ## Verdict
-Status: Changes required
+Status: Approved with notes
 Reviewer: OpenAI gpt-5.5 implementation reviewer
 Date: 2026-05-15
-Risk level: High
+Risk level: Medium
 
 ## Summary
-The implementation covers much of the requested comment-section replacement: the `/comments` read surface exists, `/thread` route usage is removed from the active client/API surface, comment/reply models and providers were added, focus status handling exists, reply parentage is preserved, and the focused test suites reviewed here pass. However, two Must-level behavior gaps remain against the persisted requirements and acceptance tests. Focused replies outside the first reply page are not guaranteed to be included in the response, and normal action-expanded reply loading now returns recursive branch descendants even though the requirements and acceptance spec say normal expansion should load direct replies only, with deeper descendants appearing only for focus/newly-created flattened cases.
+The implementation covers much of the requested comment-section replacement: the `/comments` read surface exists, `/thread` route usage is removed from the active client/API surface, comment/reply models and providers were added, focus status handling exists, reply parentage is preserved, and the focused test suites reviewed here pass. This review originally identified two Must-level behavior/doc gaps. Follow-up work accepted IR-001 as a legitimate bug and fixed it with target-including focused branch hydration. Follow-up work resolved IR-002 by updating `02-requirements.md` and `03-acceptance-tests.md` to make recursive flattened branch replies the authoritative behavior.
 
 `04-document-review.md` was not present in this workflow folder; `05-implementation-plan.md` records that it was absent at implementation start.
 
 ## Findings
 | ID | Severity | Area | Finding | References | Required Action |
 |---|---|---|---|---|---|
-| IR-001 | Important | Behavior / Tests | Focused replies outside the first reply page are not guaranteed to be returned. `GetPostCommentsHandler` resolves the focused reply's comment ancestor, then calls `ListCommentBranchReplies(..., limit=10, cursor="")` and renders that first oldest-first branch page. If the focused reply is after the first 10 branch replies, the target will not be in `replies.items`, despite `focus.status = "included"`. The current handler test uses a fake store that already returns the focused reply, so it does not exercise the real store ordering/pagination case described by the acceptance tests. | `02-requirements.md` FR-004, RULE-007, AC-003, AC-021, EC-011; `03-acceptance-tests.md` AT-002, IT-006, IT-011; `appview/internal/api/post.go:531-535`, `appview/internal/api/post_store.go:563-570`, `appview/internal/api/post_test.go:1450-1499` | Add a store-backed or handler+store test with more than 10 earlier replies and a focused reply after the first page. Then implement a bounded target-including focused slice, or update the persisted requirements/acceptance tests if the product decision has changed. The API must not report an included focused reply while omitting the target from the loaded focused branch. |
-| IR-002 | Important | Behavior / Traceability | The actioned `/v1/posts/{commentDid}/{commentRkey}/replies` loader now returns recursive comment-branch descendants, not only direct replies. The persisted requirements specify that activating “view replies” loads the first 10 direct replies oldest-first, and the acceptance spec explicitly says deeper replies only appear through focused/flattened cases handled elsewhere. Returning all descendants during normal expansion changes visible behavior by surfacing reply-to-reply records without a focus or newly-created insertion path. | `02-requirements.md` FR-010, RULE-003, ASM-002, AC-006, AC-010, AC-014; `03-acceptance-tests.md` IT-007, REG-005; `appview/internal/api/post.go:331`, `appview/internal/api/post_store.go:543-563`, `appview/internal/api/post_store_test.go:489-529`, `app/lib/feed/data/post_api_client.dart:42-43`, `app/lib/feed/providers/post_comment_section_provider.dart:139-146` | Restore direct-only action expansion for `/replies` and keep recursive/flattened branch hydration limited to focus/newly-created cases, or update `02-requirements.md`, `03-acceptance-tests.md`, and `05-implementation-plan.md` to make recursive visual branch loading the new source of truth before approval. Add tests that distinguish normal direct expansion from focused branch hydration. |
-| IR-003 | Important | Traceability | The implementation plan is stale relative to the final behavior. It still records the focused reply slice as a single focused item in Steps 8-9 and describes the direct-replies regression path in REG-005, while the latest implementation hydrates first-page branch replies and uses recursive branch pagination. This makes the persisted source of truth ambiguous for the next TDD loop. | `05-implementation-plan.md:130-146`, `05-implementation-plan.md:490-497`, `appview/internal/api/post.go:531-535`, `appview/internal/api/post_store.go:543-563` | After deciding whether IR-001/IR-002 should be fixed in code or accepted as changed product behavior, update the workflow documents so requirements, tests, and implementation notes agree. |
+| IR-001 | Important | Behavior / Tests | Follow-up addressed the original bug where focused replies outside the first reply page were not guaranteed to be returned. | `02-requirements.md` FR-004, RULE-007, AC-003, AC-021, EC-011; `03-acceptance-tests.md` AT-002, IT-006, IT-011; `appview/internal/api/post.go`, `appview/internal/api/post_store.go`, `appview/internal/api/post_test.go`, `appview/internal/api/post_store_test.go` | Completed: added target-including bounded focused branch hydration and tests. |
+| IR-002 | Suggestion | Behavior / Traceability | User feedback reclassified the original direct-only concern as incorrect documentation. `/replies` now intentionally returns visual comment-branch replies, including flattened descendants. | `02-requirements.md` FR-010, RULE-003, ASM-002, AC-006, AC-010, AC-026; `03-acceptance-tests.md` IT-007, REG-005; `app/test/feed/data/post_api_client_test.dart` | Completed: updated requirements, acceptance tests, implementation notes, and relevant client decode coverage. |
+| IR-003 | Suggestion | Traceability | Follow-up updated the implementation plan to record IR-001/IR-002 decisions, test order, red/green notes, and verification evidence. | `05-implementation-plan.md` | Completed. |
 
 ## Requirement And Test Traceability
 - Requirements implemented:
@@ -32,11 +32,9 @@ The implementation covers much of the requested comment-section replacement: the
   - Backend handler/store/route tests for `/comments`, focus status, focus promotion, reply metadata, comment paging, sorting/grouping, route removal, and branch reply pagination.
   - Flutter model/provider/page/client tests for comment-section decoding, route focus, lazy loading, branch controls, sort changes, creation insertion, localization, and stale-thread replacement.
 - Unplanned behavior:
-  - Recursive branch replies are now returned by normal `/replies` action expansion; this is not reflected in `02-requirements.md`/`03-acceptance-tests.md`.
-  - Focused reply hydration now loads the first bounded branch page rather than a target-centered bounded slice; this does not satisfy the target-outside-first-page case in the docs.
+  - None identified after follow-up documentation alignment.
 - Remaining gaps:
-  - Missing automated coverage proving a focused reply after the first 10 branch replies is included.
-  - Missing coverage that normal action expansion excludes deeper descendants if the persisted direct-only requirement remains valid.
+  - OS-level deep-link launch/push notification delivery and visual copy clarity for the stubbed `follows` sort remain manual/out of scope as documented in `03-acceptance-tests.md`.
 
 ## Test Evidence
 - Commands reviewed:
@@ -55,19 +53,23 @@ The implementation covers much of the requested comment-section replacement: the
   - `04-document-review.md` was absent; review used `02-requirements.md`, `03-acceptance-tests.md`, and `05-implementation-plan.md` plus implementation diffs.
 
 ## Risk Review
-- Risk level: High
+- Risk level: Medium
 - Risk notes:
-  - Deep-link reliability is a core Must requirement. Reporting `focus.status = "included"` while omitting an off-page focused reply would make share/push links land in the wrong context.
-  - Normal recursive reply expansion may change conversation visibility and pagination semantics beyond what the approved documents describe.
+  - Deep-link reliability remains a core Must requirement; follow-up tests now cover the previously missing off-page focused reply case.
+  - Normal recursive reply expansion is now documented as intentional visual branch behavior.
 - Approval notes:
-  - The implementation is close, but the remaining gaps affect Must acceptance criteria and need a new TDD loop or explicit document update before approval.
+  - Follow-up work addressed the blocking findings. Manual OS-level deep-link launch checks remain as documented manual coverage.
 
 ## Handoff Back To TDD Builder
 - Required fixes:
-  1. Decide whether the source of truth remains direct-only normal reply expansion plus target-centered focused slices. If yes, implement those behaviors and add the missing tests.
-  2. If the desired product behavior has changed to recursive visual branch loading and first-page focused branch hydration, update `02-requirements.md`, `03-acceptance-tests.md`, and `05-implementation-plan.md` before re-review.
+  - None remaining from this review after follow-up.
 - Suggested next failing test:
-  - Add a backend store-backed focus test where a comment branch has at least 11 replies and the focus URI is the 11th or later reply. Assert the response includes the focused reply in the loaded focused branch while remaining bounded and exposing predictable pagination state.
+  - None; proceed to final review/manual checks as desired.
 - Verification to rerun:
   - `cd appview && go test ./internal/api ./internal/routes`
   - `cd app && flutter test test/feed/models/post_comment_section_test.dart test/feed/models/post_comment_section_state_test.dart test/feed/providers/post_comment_section_provider_test.dart test/feed/pages/post_comment_section_page_test.dart test/feed/data/post_api_client_test.dart test/feed/widgets/post_composer_sheet_test.dart test/router/router_redirect_test.dart`
+
+## Follow-up Resolution
+- IR-001: Addressed in follow-up TDD loop. Added a failing handler test for a focused reply after the first branch page, added `ListCommentBranchRepliesAround`, verified the focused branch includes the target while remaining bounded, and tightened focused-slice cursor emission so the cursor only appears when later branch replies can be loaded.
+- IR-002: Reclassified by user feedback as incorrect documentation, not an implementation bug. Updated `02-requirements.md`, `03-acceptance-tests.md`, and relevant client decode coverage so `/replies` means visual comment-branch replies with flattened descendants.
+- IR-003: Addressed by updating `05-implementation-plan.md` with follow-up decisions, test order, red/green notes, and verification commands.

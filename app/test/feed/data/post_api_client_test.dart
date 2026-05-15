@@ -214,6 +214,16 @@ void main() {
           'loaded': true,
           'items': [
             {'post': samplePost(text: 'reply'), 'flattened': false},
+            {
+              'post': samplePost(text: 'nested reply'),
+              'flattened': true,
+              'replyingTo': {
+                'uri': 'at://did:plc:bob/social.craftsky.feed.post/reply',
+                'did': 'did:plc:bob',
+                'handle': 'bob.craftsky.social',
+                'displayName': 'Bob',
+              },
+            },
           ],
           'cursor': 'next-replies',
         }),
@@ -230,8 +240,11 @@ void main() {
             limit: 25,
           );
       expect(page.loaded, isTrue);
-      expect(page.items.single.post.text, 'reply');
-      expect(page.items.single.flattened, isFalse);
+      expect(page.items.first.post.text, 'reply');
+      expect(page.items.first.flattened, isFalse);
+      expect(page.items.last.post.text, 'nested reply');
+      expect(page.items.last.flattened, isTrue);
+      expect(page.items.last.replyingTo?.handle, 'bob.craftsky.social');
       expect(page.cursor, 'next-replies');
     });
   });
