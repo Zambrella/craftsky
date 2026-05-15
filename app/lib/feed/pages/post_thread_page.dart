@@ -511,7 +511,6 @@ class _CommentCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final spacing = Theme.of(context).extension<SpacingTheme>()!;
     final targetComment = targetUri == item.post.uri;
     final repliesLoader = postCommentRepliesLoaderProvider(
       did,
@@ -554,46 +553,43 @@ class _CommentCard extends ConsumerWidget {
             onCollapseReplies: onCollapseReplies,
             onLoadMore: () => ref.read(repliesLoader.notifier).load(),
           ),
-        if (item.replies.loaded)
-          Padding(
-            padding: EdgeInsetsDirectional.only(start: spacing.sp6),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final reply in item.replies.items)
-                  _FocusedTargetWrapper(
-                    focusTargetKey: focusedTargetKey,
-                    isFocused: targetUri == reply.post.uri,
-                    child: PostCard(
-                      key: targetUri == reply.post.uri
-                          ? const ValueKey('focused-comment-target')
-                          : null,
-                      post: reply.post,
-                      style: PostCardStyle.flat,
-                      isHighlighted: highlightedUri == reply.post.uri,
-                      replyTooltip: l10n.postThreadReplyAction,
-                      showRepostAction: false,
-                      showReplyCount: false,
-                      showReplyLabel: true,
-                      onReply: () => showPostComposerSheet(
-                        context,
-                        replyTarget: reply.post,
-                      ),
-                      onLike: () => ref
-                          .read(toggleLikePostProvider.notifier)
-                          .toggle(post: reply.post),
-                      deleteLabel: l10n.replyDeleteAction,
-                      onDelete: _deleteIfViewerOwned(
-                        context,
-                        ref,
-                        reply.post,
-                        title: l10n.replyDeleteTitle,
-                        message: l10n.replyDeleteMessage,
-                      ),
+        if (item.replies.loaded && item.replies.items.isNotEmpty)
+          _ReplyBranchBox(
+            key: ValueKey('comment-reply-branch-${item.post.uri}'),
+            children: [
+              for (final reply in item.replies.items)
+                _FocusedTargetWrapper(
+                  focusTargetKey: focusedTargetKey,
+                  isFocused: targetUri == reply.post.uri,
+                  child: PostCard(
+                    key: targetUri == reply.post.uri
+                        ? const ValueKey('focused-comment-target')
+                        : null,
+                    post: reply.post,
+                    style: PostCardStyle.flat,
+                    isHighlighted: highlightedUri == reply.post.uri,
+                    replyTooltip: l10n.postThreadReplyAction,
+                    showRepostAction: false,
+                    showReplyCount: false,
+                    showReplyLabel: true,
+                    onReply: () => showPostComposerSheet(
+                      context,
+                      replyTarget: reply.post,
+                    ),
+                    onLike: () => ref
+                        .read(toggleLikePostProvider.notifier)
+                        .toggle(post: reply.post),
+                    deleteLabel: l10n.replyDeleteAction,
+                    onDelete: _deleteIfViewerOwned(
+                      context,
+                      ref,
+                      reply.post,
+                      title: l10n.replyDeleteTitle,
+                      message: l10n.replyDeleteMessage,
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         if (!item.replies.loaded && item.post.replyCount > 0)
           _CommentReplyControls(
@@ -655,6 +651,42 @@ class _CommentCard extends ConsumerWidget {
       message: message,
       confirmLabel: l10n.postDeleteConfirm,
       onConfirm: () => ref.read(deletePostProvider.notifier).delete(post: post),
+    );
+  }
+}
+
+class _ReplyBranchBox extends StatelessWidget {
+  const _ReplyBranchBox({required this.children, super.key});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final radii = theme.extension<RadiusTheme>()!;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+
+    return Padding(
+      padding: EdgeInsetsDirectional.only(
+        start: spacing.sp6,
+        end: spacing.sp4,
+        bottom: spacing.sp2,
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: swatches.paper2,
+          borderRadius: BorderRadius.circular(radii.r3),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: spacing.sp2),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -789,13 +821,19 @@ class _CommentReplyControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final spacing = Theme.of(context).extension<SpacingTheme>()!;
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final semanticColors = theme.extension<SemanticColorsTheme>()!;
     final showViewReplies = !showHide && repliesCursor == null;
+    final compactButtonStyle = _compactButtonStyle(
+      spacing,
+      foregroundColor: semanticColors.success,
+    );
     return Padding(
       padding: EdgeInsetsDirectional.only(
         start: spacing.sp8 + spacing.sp2,
         end: spacing.sp4,
-        bottom: spacing.sp2,
+        bottom: showViewReplies ? spacing.sp4 : spacing.sp2,
       ),
       child: Align(
         alignment: Alignment.centerLeft,
@@ -805,11 +843,13 @@ class _CommentReplyControls extends StatelessWidget {
             if (showHide)
               TextButton(
                 onPressed: () => onCollapseReplies(commentUri),
+                style: compactButtonStyle,
                 child: Text(l10n.postCommentsHideReplies),
               )
             else if (showViewReplies)
               TextButton(
                 onPressed: isLoading ? null : onLoadMore,
+                style: compactButtonStyle,
                 child: isLoading
                     ? const SizedBox.square(
                         dimension: 20,
@@ -820,6 +860,7 @@ class _CommentReplyControls extends StatelessWidget {
             if (repliesCursor != null)
               TextButton(
                 onPressed: isLoading ? null : onLoadMore,
+                style: compactButtonStyle,
                 child: isLoading
                     ? const SizedBox.square(
                         dimension: 20,
@@ -830,6 +871,22 @@ class _CommentReplyControls extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  ButtonStyle _compactButtonStyle(
+    SpacingTheme spacing, {
+    required Color foregroundColor,
+  }) {
+    return TextButton.styleFrom(
+      foregroundColor: foregroundColor,
+      disabledForegroundColor: foregroundColor.withValues(alpha: 0.55),
+      minimumSize: Size.zero,
+      padding: EdgeInsets.fromLTRB(spacing.sp2, 0, spacing.sp2, spacing.sp2),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    ).copyWith(
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+      splashFactory: NoSplash.splashFactory,
     );
   }
 }

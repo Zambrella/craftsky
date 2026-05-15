@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -462,6 +463,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(calls, [null]);
     expect(find.text('reply 1'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is DecoratedBox &&
+            widget.decoration is BoxDecoration &&
+            (widget.decoration as BoxDecoration).color == BrandColors.paper2,
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Hide replies'), findsOneWidget);
     expect(find.text('Load more replies'), findsOneWidget);
     expect(find.text('4'), findsNothing);
