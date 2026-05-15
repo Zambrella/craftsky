@@ -459,7 +459,6 @@ func GetPostCommentsHandler(
 		focusedURI := ""
 		var focusedCommentRow *PostRow
 		var focusedReplyRow *PostRow
-		var focusedReplyParentRow *PostRow
 		if focusRaw := r.URL.Query().Get("focus"); focusRaw != "" {
 			if _, ferr := syntax.ParseATURI(focusRaw); ferr != nil {
 				envelope.WriteError(w, http.StatusBadRequest,
@@ -489,44 +488,23 @@ func GetPostCommentsHandler(
 					focusedCommentRow = focusedRow
 				case focusedRow.ReplyRootURI != nil && *focusedRow.ReplyRootURI == root.URI:
 					if focusedRow.ReplyParentURI != nil {
-						parentRow, perr := store.ReadPostByURI(r.Context(), *focusedRow.ReplyParentURI)
-						if perr != nil && !errors.Is(perr, ErrPostNotFound) {
-							logger.Error("post comments: ReadPostByURI parent failed",
+						commentRow, cerr := resolveCommentAncestor(r.Context(), store, root.URI, *focusedRow.ReplyParentURI)
+						if cerr != nil {
+							logger.Error("post comments: resolve focus ancestor failed",
 								slog.String("parent", *focusedRow.ReplyParentURI),
-								slog.String("err", perr.Error()),
+								slog.String("err", cerr.Error()),
 								slog.String("run_id", runID))
 							envelope.WriteError(w, http.StatusInternalServerError,
-								"internal_error", "focus parent read failed", runID, nil)
+								"internal_error", "focus ancestor read failed", runID, nil)
 							return
 						}
-						if parentRow != nil && parentRow.ReplyParentURI != nil && *parentRow.ReplyParentURI == root.URI {
+						if commentRow != nil {
 							focus.Status = "included"
 							focus.Kind = "reply"
-							focus.CommentURI = parentRow.URI
-							focusedURI = parentRow.URI
-							focusedCommentRow = parentRow
+							focus.CommentURI = commentRow.URI
+							focusedURI = commentRow.URI
+							focusedCommentRow = commentRow
 							focusedReplyRow = focusedRow
-							focusedReplyParentRow = parentRow
-						} else if parentRow != nil && parentRow.ReplyRootURI != nil && *parentRow.ReplyRootURI == root.URI && parentRow.ReplyParentURI != nil {
-							commentRow, cerr := store.ReadPostByURI(r.Context(), *parentRow.ReplyParentURI)
-							if cerr != nil && !errors.Is(cerr, ErrPostNotFound) {
-								logger.Error("post comments: ReadPostByURI comment ancestor failed",
-									slog.String("ancestor", *parentRow.ReplyParentURI),
-									slog.String("err", cerr.Error()),
-									slog.String("run_id", runID))
-								envelope.WriteError(w, http.StatusInternalServerError,
-									"internal_error", "focus ancestor read failed", runID, nil)
-								return
-							}
-							if commentRow != nil && commentRow.ReplyParentURI != nil && *commentRow.ReplyParentURI == root.URI {
-								focus.Status = "included"
-								focus.Kind = "reply"
-								focus.CommentURI = commentRow.URI
-								focusedURI = commentRow.URI
-								focusedCommentRow = commentRow
-								focusedReplyRow = focusedRow
-								focusedReplyParentRow = parentRow
-							}
 						}
 					}
 				default:
@@ -550,16 +528,46 @@ func GetPostCommentsHandler(
 			return
 		}
 
+		var focusedBranchRows []*PostRow
+		focusedBranchCursor := ""
+		focusedBranchParentRows := []*PostRow{}
+		if focusedReplyRow != nil && focusedCommentRow != nil {
+			focusedBranchRows, focusedBranchCursor, err = store.ListCommentBranchReplies(r.Context(), focusedCommentRow.URI, root.URI, parseCommentLimit(""), "")
+			if err != nil {
+				logger.Error("post comments: ListCommentBranchReplies failed",
+					slog.String("comment_uri", focusedCommentRow.URI),
+					slog.String("err", err.Error()),
+					slog.String("run_id", runID))
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "reply list failed", runID, nil)
+				return
+			}
+			for _, row := range focusedBranchRows {
+				if row.ReplyParentURI == nil || *row.ReplyParentURI == focusedCommentRow.URI || containsPostRow(focusedBranchRows, *row.ReplyParentURI) || containsPostRow(focusedBranchParentRows, *row.ReplyParentURI) {
+					continue
+				}
+				parentRow, perr := store.ReadPostByURI(r.Context(), *row.ReplyParentURI)
+				if perr != nil && !errors.Is(perr, ErrPostNotFound) {
+					logger.Error("post comments: ReadPostByURI branch parent failed",
+						slog.String("parent_uri", *row.ReplyParentURI),
+						slog.String("err", perr.Error()),
+						slog.String("run_id", runID))
+					envelope.WriteError(w, http.StatusInternalServerError,
+						"internal_error", "reply parent lookup failed", runID, nil)
+					return
+				}
+				if parentRow != nil {
+					focusedBranchParentRows = append(focusedBranchParentRows, parentRow)
+				}
+			}
+		}
+
 		hydratedRows := append([]*PostRow{root}, comments...)
 		if focusedCommentRow != nil && !containsPostRow(comments, focusedCommentRow.URI) {
 			hydratedRows = append(hydratedRows, focusedCommentRow)
 		}
-		if focusedReplyRow != nil {
-			hydratedRows = append(hydratedRows, focusedReplyRow)
-		}
-		if focusedReplyParentRow != nil && focusedReplyParentRow.URI != focusedCommentRow.URI {
-			hydratedRows = append(hydratedRows, focusedReplyParentRow)
-		}
+		hydratedRows = append(hydratedRows, focusedBranchRows...)
+		hydratedRows = append(hydratedRows, focusedBranchParentRows...)
 		postURIs := make([]string, 0, len(hydratedRows))
 		for _, row := range hydratedRows {
 			postURIs = append(postURIs, row.URI)
@@ -592,7 +600,7 @@ func GetPostCommentsHandler(
 			applyEngagementSummary(post, summaries[focusedCommentRow.URI])
 			replies := ReplyPage{Loaded: false, Items: []ReplyItem{}}
 			if focusedReplyRow != nil {
-				replies = ReplyPage{Loaded: true, Items: []ReplyItem{buildFocusedReplyItem(focusedReplyRow, focusedReplyParentRow, focusedCommentRow, handles, summaries)}}
+				replies = buildReplyPage(focusedBranchRows, focusedBranchCursor, focusedCommentRow, hydratedRows, handles, summaries)
 			}
 			items = append(items, CommentItem{
 				Post:      post,
@@ -609,7 +617,7 @@ func GetPostCommentsHandler(
 			}
 			replies := ReplyPage{Loaded: false, Items: []ReplyItem{}}
 			if focusedReplyRow != nil && row.URI == focusedURI {
-				replies = ReplyPage{Loaded: true, Items: []ReplyItem{buildFocusedReplyItem(focusedReplyRow, focusedReplyParentRow, row, handles, summaries)}}
+				replies = buildReplyPage(focusedBranchRows, focusedBranchCursor, row, hydratedRows, handles, summaries)
 			}
 			items = append(items, CommentItem{
 				Post:      post,
@@ -1140,7 +1148,45 @@ func resolveHandlesForRows(ctx context.Context, rows []*PostRow, resolver Handle
 	return handles, nil
 }
 
-func buildFocusedReplyItem(row, parentRow, commentRow *PostRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary) ReplyItem {
+func resolveCommentAncestor(ctx context.Context, store PostReader, rootURI, parentURI string) (*PostRow, error) {
+	seen := make(map[string]struct{})
+	for uri := parentURI; uri != "" && len(seen) < 64; {
+		if _, ok := seen[uri]; ok {
+			return nil, nil
+		}
+		seen[uri] = struct{}{}
+
+		row, err := store.ReadPostByURI(ctx, uri)
+		if errors.Is(err, ErrPostNotFound) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if row.ReplyParentURI != nil && *row.ReplyParentURI == rootURI {
+			return row, nil
+		}
+		if row.ReplyRootURI == nil || *row.ReplyRootURI != rootURI || row.ReplyParentURI == nil {
+			return nil, nil
+		}
+		uri = *row.ReplyParentURI
+	}
+	return nil, nil
+}
+
+func buildReplyPage(rows []*PostRow, cursor string, commentRow *PostRow, hydratedRows []*PostRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary) ReplyPage {
+	items := make([]ReplyItem, 0, len(rows))
+	for _, row := range rows {
+		var parentRow *PostRow
+		if row.ReplyParentURI != nil && *row.ReplyParentURI != commentRow.URI {
+			parentRow, _ = findPostRow(hydratedRows, *row.ReplyParentURI)
+		}
+		items = append(items, buildReplyItem(row, parentRow, commentRow, handles, summaries))
+	}
+	return ReplyPage{Loaded: true, Items: items, Cursor: cursor}
+}
+
+func buildReplyItem(row, parentRow, commentRow *PostRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary) ReplyItem {
 	post := BuildPostResponse(row, handles[row.DID])
 	applyEngagementSummary(post, summaries[row.URI])
 	item := ReplyItem{Post: post, Flattened: false}

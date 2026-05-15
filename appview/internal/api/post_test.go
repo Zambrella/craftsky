@@ -123,6 +123,7 @@ type fakePostStore struct {
 	lastCommentLimit     int
 	lastCommentCursor    string
 	lastReplyParentURI   string
+	lastReplyRootURI     string
 	lastReplyLimit       int
 	lastReplyCursor      string
 }
@@ -157,8 +158,9 @@ func (f *fakePostStore) ReadPostByURI(_ context.Context, uri string) (*api.PostR
 	}
 	return nil, api.ErrPostNotFound
 }
-func (f *fakePostStore) ListCommentBranchReplies(_ context.Context, commentURI, _ string, limit int, cursor string) ([]*api.PostRow, string, error) {
+func (f *fakePostStore) ListCommentBranchReplies(_ context.Context, commentURI, rootURI string, limit int, cursor string) ([]*api.PostRow, string, error) {
 	f.lastReplyParentURI = commentURI
+	f.lastReplyRootURI = rootURI
 	f.lastReplyLimit = limit
 	f.lastReplyCursor = cursor
 	return f.replyRows, f.replyCursor, f.replyErr
@@ -1394,10 +1396,12 @@ func TestGetPostComments_FocusedReplyExpandsCommentBranch(t *testing.T) {
 	root := testPostRow("did:plc:alice", "root", "root", base)
 	pageComment := testReplyRow("did:plc:bob", "page-comment", "page", root.URI, root.URI, base.Add(time.Minute))
 	comment := testReplyRow("did:plc:carol", "comment", "comment", root.URI, root.URI, base.Add(20*time.Minute))
+	firstReply := testReplyRow("did:plc:erin", "first-reply", "first", root.URI, comment.URI, base.Add(20*time.Minute+30*time.Second))
 	focusedReply := testReplyRow("did:plc:dave", "focused-reply", "reply", root.URI, comment.URI, base.Add(21*time.Minute))
 	store := &fakePostStore{
 		one:         root,
 		commentRows: []*api.PostRow{pageComment},
+		replyRows:   []*api.PostRow{firstReply, focusedReply},
 		postsByURI: map[string]*api.PostRow{
 			focusedReply.URI: focusedReply,
 			comment.URI:      comment,
@@ -1429,15 +1433,21 @@ func TestGetPostComments_FocusedReplyExpandsCommentBranch(t *testing.T) {
 	if focusedBranch.Post.URI != comment.URI || focusedBranch.Placement != "focused" {
 		t.Fatalf("focused branch = %+v", focusedBranch)
 	}
-	if !focusedBranch.Replies.Loaded || len(focusedBranch.Replies.Items) != 1 {
+	if !focusedBranch.Replies.Loaded || len(focusedBranch.Replies.Items) != 2 {
 		t.Fatalf("focused branch replies = %+v", focusedBranch.Replies)
 	}
-	if focusedBranch.Replies.Items[0].Post.URI != focusedReply.URI || focusedBranch.Replies.Items[0].Flattened {
-		t.Fatalf("focused reply item = %+v", focusedBranch.Replies.Items[0])
+	if focusedBranch.Replies.Items[0].Post.URI != firstReply.URI || focusedBranch.Replies.Items[0].Flattened {
+		t.Fatalf("first reply item = %+v", focusedBranch.Replies.Items[0])
+	}
+	if focusedBranch.Replies.Items[1].Post.URI != focusedReply.URI || focusedBranch.Replies.Items[1].Flattened {
+		t.Fatalf("focused reply item = %+v", focusedBranch.Replies.Items[1])
+	}
+	if store.lastReplyParentURI != comment.URI || store.lastReplyRootURI != root.URI || store.lastReplyLimit != 10 || store.lastReplyCursor != "" {
+		t.Fatalf("branch reply lookup = parent:%q root:%q limit:%d cursor:%q", store.lastReplyParentURI, store.lastReplyRootURI, store.lastReplyLimit, store.lastReplyCursor)
 	}
 }
 
-func TestGetPostComments_FocusedReplySliceIsBounded(t *testing.T) {
+func TestGetPostComments_FocusedReplyBranchUsesBoundedPage(t *testing.T) {
 	t.Parallel()
 	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 	root := testPostRow("did:plc:alice", "root", "root", base)
@@ -1446,6 +1456,8 @@ func TestGetPostComments_FocusedReplySliceIsBounded(t *testing.T) {
 	store := &fakePostStore{
 		one:         root,
 		commentRows: []*api.PostRow{},
+		replyRows:   []*api.PostRow{focusedReply},
+		replyCursor: "next-replies",
 		postsByURI: map[string]*api.PostRow{
 			focusedReply.URI: focusedReply,
 			comment.URI:      comment,
@@ -1474,10 +1486,16 @@ func TestGetPostComments_FocusedReplySliceIsBounded(t *testing.T) {
 		t.Fatalf("replies not loaded: %+v", replies)
 	}
 	if len(replies.Items) != 1 {
-		t.Fatalf("focused reply slice len = %d, want exactly focused bounded item", len(replies.Items))
+		t.Fatalf("focused reply branch len = %d, want bounded branch page", len(replies.Items))
 	}
 	if replies.Items[0].Post.URI != focusedReply.URI {
 		t.Fatalf("focused reply item = %+v", replies.Items[0])
+	}
+	if replies.Cursor != "next-replies" {
+		t.Fatalf("reply cursor = %q", replies.Cursor)
+	}
+	if store.lastReplyParentURI != comment.URI || store.lastReplyRootURI != root.URI || store.lastReplyLimit != 10 || store.lastReplyCursor != "" {
+		t.Fatalf("branch reply lookup = parent:%q root:%q limit:%d cursor:%q", store.lastReplyParentURI, store.lastReplyRootURI, store.lastReplyLimit, store.lastReplyCursor)
 	}
 }
 
@@ -1603,6 +1621,7 @@ func TestGetPostComments_DeeperFocusedReplyIncludesFlattenedMetadata(t *testing.
 	store := &fakePostStore{
 		one:         root,
 		commentRows: []*api.PostRow{},
+		replyRows:   []*api.PostRow{parentReply, deeperReply},
 		postsByURI: map[string]*api.PostRow{
 			deeperReply.URI: deeperReply,
 			parentReply.URI: parentReply,
@@ -1632,10 +1651,13 @@ func TestGetPostComments_DeeperFocusedReplyIncludesFlattenedMetadata(t *testing.
 		t.Fatalf("comments = %+v", resp.Comments.Items)
 	}
 	replies := resp.Comments.Items[0].Replies.Items
-	if len(replies) != 1 {
+	if len(replies) != 2 {
 		t.Fatalf("replies = %+v", replies)
 	}
-	got := replies[0]
+	if replies[0].Post.URI != parentReply.URI || replies[0].Flattened {
+		t.Fatalf("parent reply = %+v", replies[0])
+	}
+	got := replies[1]
 	if got.Post.URI != deeperReply.URI || !got.Flattened {
 		t.Fatalf("flattened reply = %+v", got)
 	}
@@ -1644,6 +1666,58 @@ func TestGetPostComments_DeeperFocusedReplyIncludesFlattenedMetadata(t *testing.
 	}
 	if got.ReplyingTo.DisplayName == nil || *got.ReplyingTo.DisplayName != "Dave" {
 		t.Fatalf("replyingTo displayName = %+v", got.ReplyingTo.DisplayName)
+	}
+}
+
+func TestGetPostComments_DeepFocusedReplyResolvesCommentAncestor(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:alice", "root", "root", base)
+	comment := testReplyRow("did:plc:carol", "comment", "comment", root.URI, root.URI, base.Add(time.Minute))
+	reply1 := testReplyRow("did:plc:dave", "reply-1", "one", root.URI, comment.URI, base.Add(2*time.Minute))
+	reply2 := testReplyRow("did:plc:erin", "reply-2", "two", root.URI, reply1.URI, base.Add(3*time.Minute))
+	focusedReply := testReplyRow("did:plc:frank", "reply-3", "three", root.URI, reply2.URI, base.Add(4*time.Minute))
+	store := &fakePostStore{
+		one:         root,
+		commentRows: []*api.PostRow{},
+		replyRows:   []*api.PostRow{reply1, reply2, focusedReply},
+		postsByURI: map[string]*api.PostRow{
+			focusedReply.URI: focusedReply,
+			reply2.URI:       reply2,
+			reply1.URI:       reply1,
+			comment.URI:      comment,
+		},
+	}
+	h := api.GetPostCommentsHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+		"did:plc:carol": "carol.example",
+		"did:plc:dave":  "dave.example",
+		"did:plc:erin":  "erin.example",
+		"did:plc:frank": "frank.example",
+	}}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/comments?focus="+url.QueryEscape(focusedReply.URI), "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.CommentSectionResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Focus == nil || resp.Focus.Status != "included" || resp.Focus.Kind != "reply" || resp.Focus.CommentURI != comment.URI {
+		t.Fatalf("focus = %+v", resp.Focus)
+	}
+	if len(resp.Comments.Items) != 1 || resp.Comments.Items[0].Post.URI != comment.URI || resp.Comments.Items[0].Placement != "focused" {
+		t.Fatalf("comments = %+v", resp.Comments.Items)
+	}
+	replies := resp.Comments.Items[0].Replies.Items
+	if len(replies) != 3 {
+		t.Fatalf("replies = %+v", replies)
+	}
+	got := replies[2]
+	if got.Post.URI != focusedReply.URI || !got.Flattened || got.ReplyingTo == nil || got.ReplyingTo.URI != reply2.URI {
+		t.Fatalf("focused reply = %+v", got)
 	}
 }
 
