@@ -172,14 +172,29 @@
   "postCommentsSortOldest": "Oldest",
   "@postCommentsSortOldest": { "description": "Comment-section sort option for oldest-first comment ordering." },
 
+  "postCommentsSortOldestDescription": "Conversation order",
+  "@postCommentsSortOldestDescription": { "description": "Helper text for the oldest-first comment sort option." },
+
   "postCommentsSortNewest": "Newest",
   "@postCommentsSortNewest": { "description": "Comment-section sort option for newest-first comment ordering." },
+
+  "postCommentsSortNewestDescription": "Most recent on top",
+  "@postCommentsSortNewestDescription": { "description": "Helper text for the newest-first comment sort option." },
 
   "postCommentsSortFollows": "Follows",
   "@postCommentsSortFollows": { "description": "Comment-section sort option for follows-based ordering. Until follow ranking exists, this behaves like oldest-first." },
 
+  "postCommentsSortFollowsDescription": "People you follow first",
+  "@postCommentsSortFollowsDescription": { "description": "Helper text for the follows-first comment sort option." },
+
   "postCommentsViewReplies": "View replies",
   "@postCommentsViewReplies": { "description": "Control label shown under a comment before its replies are loaded." },
+
+  "postCommentsViewReplyCount": "Show {count, plural, =1{1 reply} other{{count} replies}}",
+  "@postCommentsViewReplyCount": {
+    "description": "Control label shown under a comment before its replies are loaded, including the total reply count.",
+    "placeholders": { "count": { "type": "int", "example": "3" } }
+  },
 
   "postCommentsLoadMoreReplies": "Load more replies",
   "@postCommentsLoadMoreReplies": { "description": "Control label for loading another page of replies under an expanded comment." },
@@ -226,11 +241,32 @@
   "postDeleteAction": "Delete post",
   "@postDeleteAction": { "description": "Tooltip and menu label for deleting a post." },
 
+  "postMoreActions": "More actions",
+  "@postMoreActions": { "description": "Tooltip for opening a post, comment, or reply context menu when no destructive action label applies." },
+
+  "commentDeleteAction": "Delete comment",
+  "@commentDeleteAction": { "description": "Menu label for deleting a comment." },
+
+  "replyDeleteAction": "Delete reply",
+  "@replyDeleteAction": { "description": "Menu label for deleting a reply." },
+
   "postDeleteTitle": "Delete post?",
   "@postDeleteTitle": { "description": "Title of the delete-post confirmation dialog." },
 
+  "commentDeleteTitle": "Delete comment?",
+  "@commentDeleteTitle": { "description": "Title of the delete-comment confirmation dialog." },
+
+  "replyDeleteTitle": "Delete reply?",
+  "@replyDeleteTitle": { "description": "Title of the delete-reply confirmation dialog." },
+
   "postDeleteMessage": "This removes the post from Craftsky.",
   "@postDeleteMessage": { "description": "Body text of the delete-post confirmation dialog." },
+
+  "commentDeleteMessage": "This removes the comment from Craftsky.",
+  "@commentDeleteMessage": { "description": "Body text of the delete-comment confirmation dialog." },
+
+  "replyDeleteMessage": "This removes the reply from Craftsky.",
+  "@replyDeleteMessage": { "description": "Body text of the delete-reply confirmation dialog." },
 
   "postDeleteConfirm": "Delete",
   "@postDeleteConfirm": { "description": "Confirm button label in the delete-post confirmation dialog." },

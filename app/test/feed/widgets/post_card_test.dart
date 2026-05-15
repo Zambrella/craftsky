@@ -3,6 +3,7 @@ import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -61,9 +62,10 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('3m'), findsOneWidget);
-      expect(find.byIcon(Icons.more_horiz), findsNothing);
+      expect(find.byIcon(Icons.more_horiz), findsOneWidget);
       expect(find.byIcon(Icons.favorite_border), findsOneWidget);
       expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
+      expect(find.text('Reply'), findsNothing);
       expect(find.byIcon(Icons.repeat), findsOneWidget);
       expect(find.text('0'), findsNothing);
 
@@ -134,11 +136,43 @@ void main() {
     ) async {
       await _pump(
         tester,
-        PostCard(post: _post(replyCount: 3), showReplyCount: false),
+        PostCard(
+          post: _post(replyCount: 3),
+          showReplyCount: false,
+          showReplyLabel: true,
+        ),
       );
 
       expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
       expect(find.text('3'), findsNothing);
+      expect(find.text('Reply'), findsOneWidget);
+    });
+
+    testWidgets('can hide reply label while keeping reply count', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(post: _post(replyCount: 3)),
+      );
+
+      expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+      expect(find.text('Reply'), findsNothing);
+    });
+
+    testWidgets('flat style does not use the card surface', (tester) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(),
+          style: PostCardStyle.flat,
+          showReplyLabel: true,
+        ),
+      );
+
+      expect(find.byType(CraftskyCard), findsNothing);
+      expect(find.text('Reply'), findsOneWidget);
     });
 
     testWidgets('uses stronger treatment when highlighted', (tester) async {
@@ -169,7 +203,7 @@ void main() {
       expect(tooltip.message, contains('2:30'));
     });
 
-    testWidgets('lays out interaction actions in equal left-aligned slots', (
+    testWidgets('lays out interaction actions left-aligned at natural widths', (
       tester,
     ) async {
       await _pump(
@@ -178,20 +212,27 @@ void main() {
       );
 
       expect(find.byType(TextButton), findsNWidgets(3));
-      final replyRect = tester.getRect(find.byType(TextButton).at(0));
-      final likeRect = tester.getRect(find.byType(TextButton).at(1));
+      final likeRect = tester.getRect(find.byType(TextButton).at(0));
+      final replyRect = tester.getRect(find.byType(TextButton).at(1));
       final repostRect = tester.getRect(find.byType(TextButton).at(2));
 
+      expect(likeRect.left, lessThan(replyRect.left));
+      expect(replyRect.left, lessThan(repostRect.left));
       expect(replyRect.width, likeRect.width);
-      expect(likeRect.width, repostRect.width);
 
       final replyCountRect = tester.getRect(find.text('3'));
       final likeCountRect = tester.getRect(find.text('5'));
       final repostCountRect = tester.getRect(find.text('2'));
 
-      expect(replyCountRect.right, lessThan(replyRect.center.dx));
-      expect(likeCountRect.right, lessThan(likeRect.center.dx));
-      expect(repostCountRect.right, lessThan(repostRect.center.dx));
+      expect(replyCountRect.right, lessThan(replyRect.right));
+      expect(likeCountRect.right, lessThan(likeRect.right));
+      expect(repostCountRect.right, lessThan(repostRect.right));
+
+      final replyCount = tester.widget<Text>(find.text('3'));
+      expect(
+        replyCount.style?.fontFeatures,
+        contains(const FontFeature.tabularFigures()),
+      );
     });
 
     testWidgets('invokes interaction callbacks', (tester) async {
@@ -208,8 +249,8 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
       await tester.tap(find.byIcon(Icons.favorite_border));
+      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
       await tester.tap(find.byIcon(Icons.repeat));
 
       expect(replies, 1);
@@ -252,7 +293,18 @@ void main() {
       expect(find.text('alice.craftsky.social'), findsOneWidget);
     });
 
-    testWidgets('shows delete action only when callback is supplied', (
+    testWidgets('opens empty menu when delete callback is absent', (
+      tester,
+    ) async {
+      await _pump(tester, PostCard(post: _post()));
+
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Delete post'), findsNothing);
+    });
+
+    testWidgets('shows delete action when callback is supplied', (
       tester,
     ) async {
       var tapped = false;
@@ -265,6 +317,23 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Delete post'));
       expect(tapped, isTrue);
+    });
+
+    testWidgets('uses custom delete label when supplied', (tester) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(),
+          deleteLabel: 'Delete comment',
+          onDelete: () {},
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Delete comment'), findsOneWidget);
+      expect(find.text('Delete post'), findsNothing);
     });
   });
 }

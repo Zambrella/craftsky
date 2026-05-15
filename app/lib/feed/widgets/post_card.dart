@@ -11,6 +11,8 @@ import 'package:flutter/material.dart';
 const _postCardMenuWidth = 48.0;
 const _postCardActionIconSize = 22.0;
 
+enum PostCardStyle { card, flat }
+
 /// Card-shaped post row used by the feed and the profile Posts tab.
 class PostCard extends StatelessWidget {
   const PostCard({
@@ -21,10 +23,14 @@ class PostCard extends StatelessWidget {
     this.onLike,
     this.onRepost,
     this.onDelete,
+    this.deleteTooltip,
+    this.deleteLabel,
     this.replyTooltip,
     this.showRepostAction = true,
     this.showReplyCount = true,
+    this.showReplyLabel = false,
     this.isHighlighted = false,
+    this.style = PostCardStyle.card,
   });
 
   final Post post;
@@ -33,48 +39,54 @@ class PostCard extends StatelessWidget {
   final VoidCallback? onLike;
   final VoidCallback? onRepost;
   final VoidCallback? onDelete;
+  final String? deleteTooltip;
+  final String? deleteLabel;
   final String? replyTooltip;
   final bool showRepostAction;
   final bool showReplyCount;
+  final bool showReplyLabel;
   final bool isHighlighted;
+  final PostCardStyle style;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
+    final radii = theme.extension<RadiusTheme>()!;
     final displayName = post.author.displayName ?? post.author.handle;
     final bodyIndent = ProfileAvatarSize.small.dimension + spacing.sp3;
+    final isFlat = style == PostCardStyle.flat;
+    final borderRadius = isFlat
+        ? BorderRadius.zero
+        : BorderRadius.circular(radii.r3);
 
-    return CraftskyCard(
-      margin: EdgeInsets.fromLTRB(
-        spacing.sp4,
-        spacing.sp3,
-        spacing.sp4,
-        spacing.sp2,
+    final content = AnimatedContainer(
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+      decoration: BoxDecoration(
+        color: isHighlighted ? BrandColors.sky.withValues(alpha: 0.32) : null,
+        border: isHighlighted
+            ? const Border(
+                left: BorderSide(color: BrandColors.cobalt, width: 6),
+              )
+            : null,
       ),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeOutCubic,
-        decoration: BoxDecoration(
-          color: isHighlighted ? BrandColors.sky.withValues(alpha: 0.32) : null,
-          border: isHighlighted
-              ? const Border(
-                  left: BorderSide(color: BrandColors.cobalt, width: 6),
-                )
-              : null,
-        ),
+      child: Material(
+        type: MaterialType.transparency,
+        borderRadius: borderRadius,
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: borderRadius,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
                 padding: EdgeInsets.fromLTRB(
                   spacing.sp3,
+                  isFlat ? spacing.sp2 : spacing.sp3,
                   spacing.sp3,
-                  spacing.sp3,
-                  0,
+                  isFlat ? spacing.sp2 : 0,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -105,55 +117,50 @@ class PostCard extends StatelessWidget {
                       padding: EdgeInsets.only(left: bodyIndent),
                       child: Text(post.text, style: theme.textTheme.bodyLarge),
                     ),
-                    SizedBox(height: spacing.sp3),
-                    const CraftskyDivider(),
+                    SizedBox(height: spacing.sp2),
+                    if (!isFlat) const CraftskyDivider(),
                     Row(
                       children: [
                         SizedBox(width: bodyIndent),
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _PostCardAction(
-                                  icon: Icons.chat_bubble_outline,
-                                  count: showReplyCount ? post.replyCount : 0,
-                                  selectedColor: BrandColors.sky,
-                                  tooltip: replyTooltip ?? 'Reply',
-                                  onPressed: onReply,
-                                ),
+                        Row(
+                          children: [
+                            _PostCardAction(
+                              icon: post.viewerHasLiked
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                              count: post.likeCount,
+                              isSelected: post.viewerHasLiked,
+                              selectedColor: BrandColors.red,
+                              tooltip: post.viewerHasLiked ? 'Unlike' : 'Like',
+                              onPressed: onLike,
+                            ),
+                            _PostCardAction(
+                              icon: Icons.chat_bubble_outline,
+                              count: showReplyCount ? post.replyCount : 0,
+                              selectedColor: BrandColors.sky,
+                              tooltip: replyTooltip ?? 'Reply',
+                              label: showReplyLabel ? 'Reply' : null,
+                              onPressed: onReply,
+                            ),
+                            if (showRepostAction)
+                              _PostCardAction(
+                                icon: Icons.repeat,
+                                count: post.repostCount,
+                                isSelected: post.viewerHasReposted,
+                                selectedColor: BrandColors.moss,
+                                tooltip: post.viewerHasReposted
+                                    ? 'Unrepost'
+                                    : 'Repost',
+                                onPressed: onRepost,
                               ),
-                              Expanded(
-                                child: _PostCardAction(
-                                  icon: post.viewerHasLiked
-                                      ? Icons.favorite
-                                      : Icons.favorite_border,
-                                  count: post.likeCount,
-                                  isSelected: post.viewerHasLiked,
-                                  selectedColor: BrandColors.red,
-                                  tooltip: post.viewerHasLiked
-                                      ? 'Unlike'
-                                      : 'Like',
-                                  onPressed: onLike,
-                                ),
-                              ),
-                              if (showRepostAction)
-                                Expanded(
-                                  child: _PostCardAction(
-                                    icon: Icons.repeat,
-                                    count: post.repostCount,
-                                    isSelected: post.viewerHasReposted,
-                                    selectedColor: BrandColors.moss,
-                                    tooltip: post.viewerHasReposted
-                                        ? 'Unrepost'
-                                        : 'Repost',
-                                    onPressed: onRepost,
-                                  ),
-                                ),
-                            ],
-                          ),
+                          ],
                         ),
-                        if (onDelete != null)
-                          _PostCardMenu(onDelete: onDelete!),
+                        const Spacer(),
+                        _PostCardMenu(
+                          onDelete: onDelete,
+                          tooltip: deleteTooltip,
+                          label: deleteLabel,
+                        ),
                       ],
                     ),
                   ],
@@ -163,6 +170,18 @@ class PostCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+
+    if (isFlat) return content;
+
+    return CraftskyCard(
+      margin: EdgeInsets.fromLTRB(
+        spacing.sp4,
+        spacing.sp3,
+        spacing.sp4,
+        spacing.sp2,
+      ),
+      child: content,
     );
   }
 }
@@ -237,9 +256,11 @@ class _PostCardTime extends StatelessWidget {
 }
 
 class _PostCardMenu extends StatelessWidget {
-  const _PostCardMenu({required this.onDelete});
+  const _PostCardMenu({required this.onDelete, this.tooltip, this.label});
 
-  final VoidCallback onDelete;
+  final VoidCallback? onDelete;
+  final String? tooltip;
+  final String? label;
 
   @override
   Widget build(BuildContext context) {
@@ -247,16 +268,17 @@ class _PostCardMenu extends StatelessWidget {
     return SizedBox(
       width: _postCardMenuWidth,
       child: CraftskyContextMenuButton(
-        tooltip: l10n.postDeleteAction,
+        tooltip: tooltip ?? l10n.postMoreActions,
         groups: [
           CraftskyContextMenuGroup(
             items: [
-              CraftskyContextMenuItem(
-                text: l10n.postDeleteAction,
-                icon: Icons.delete_outline,
-                onPressed: onDelete,
-                style: CraftskyContextMenuItemStyle.destructive,
-              ),
+              if (onDelete != null)
+                CraftskyContextMenuItem(
+                  text: label ?? l10n.postDeleteAction,
+                  icon: Icons.delete_outline,
+                  onPressed: onDelete,
+                  style: CraftskyContextMenuItemStyle.destructive,
+                ),
             ],
           ),
         ],
@@ -271,6 +293,7 @@ class _PostCardAction extends StatelessWidget {
     required this.count,
     required this.selectedColor,
     required this.tooltip,
+    this.label,
     this.isSelected = false,
     this.onPressed,
   });
@@ -279,6 +302,7 @@ class _PostCardAction extends StatelessWidget {
   final int count;
   final Color selectedColor;
   final String tooltip;
+  final String? label;
   final bool isSelected;
   final VoidCallback? onPressed;
 
@@ -297,29 +321,34 @@ class _PostCardAction extends StatelessWidget {
         child: Tooltip(
           message: tooltip,
           excludeFromSemantics: true,
-          child: TextButton(
+          child: TextButton.icon(
+            icon: Icon(
+              icon,
+              color: color,
+              size: _postCardActionIconSize,
+            ),
             onPressed: onPressed,
             style: TextButton.styleFrom(
               foregroundColor: color,
               disabledForegroundColor: color,
-              minimumSize: Size(spacing.sp7, spacing.sp7),
               padding: EdgeInsets.symmetric(horizontal: spacing.sp1),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               alignment: Alignment.centerLeft,
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, color: color, size: _postCardActionIconSize),
-                if (countLabel != null) ...[
-                  SizedBox(width: spacing.sp1),
-                  Text(
-                    countLabel,
+            label: label != null
+                ? Text(
+                    label!,
                     style: theme.textTheme.labelLarge?.copyWith(color: color),
-                  ),
-                ],
-              ],
-            ),
+                  )
+                : countLabel != null
+                ? Text(
+                    countLabel,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: color,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  )
+                : const SizedBox.shrink(),
           ),
         ),
       ),

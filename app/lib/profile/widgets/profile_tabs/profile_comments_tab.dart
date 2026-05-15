@@ -100,14 +100,19 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
               final root = post.reply == null
                   ? null
                   : parseCraftskyPostUri(post.reply!.root.uri);
-              final isNestedReply =
+              final isReply =
                   post.reply != null &&
                   post.reply!.root.uri != post.reply!.parent.uri;
               return PostCard(
                 post: post,
+                style: PostCardStyle.flat,
                 replyTooltip: l10n.postThreadReplyAction,
                 showRepostAction: false,
-                showReplyCount: !isNestedReply,
+                showReplyCount: false,
+                showReplyLabel: true,
+                deleteLabel: isReply
+                    ? l10n.replyDeleteAction
+                    : l10n.commentDeleteAction,
                 onTap: root == null
                     ? null
                     : () => PostThreadRoute(
@@ -121,7 +126,7 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
                     .read(toggleLikePostProvider.notifier)
                     .toggle(post: post),
                 onDelete: isOwnProfile
-                    ? () => _confirmDelete(context, ref, post)
+                    ? () => _confirmDelete(context, ref, post, isReply: isReply)
                     : null,
               );
             },
@@ -158,13 +163,14 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
   Future<void> _confirmDelete(
     BuildContext context,
     WidgetRef ref,
-    Post post,
-  ) async {
+    Post post, {
+    required bool isReply,
+  }) async {
     final l10n = AppLocalizations.of(context);
     await showCraftskyDestructiveConfirmDialog(
       context,
-      title: l10n.postDeleteTitle,
-      message: l10n.postDeleteMessage,
+      title: isReply ? l10n.replyDeleteTitle : l10n.commentDeleteTitle,
+      message: isReply ? l10n.replyDeleteMessage : l10n.commentDeleteMessage,
       confirmLabel: l10n.postDeleteConfirm,
       onConfirm: () => ref.read(deletePostProvider.notifier).delete(post: post),
     );

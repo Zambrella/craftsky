@@ -1,10 +1,6 @@
 import 'dart:async';
 
 import 'package:craftsky_app/feed/models/post.dart';
-import 'package:craftsky_app/feed/models/post_comment_section.dart';
-import 'package:craftsky_app/feed/models/post_uri.dart';
-import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart'
-    hide PostCommentSection;
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
@@ -36,7 +32,10 @@ class CreatePost extends _$CreatePost {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
-      final post = await repo.create(text: text, reply: reply);
+      final created = await repo.create(text: text, reply: reply);
+      final post = reply != null && created.reply == null
+          ? created.copyWith(reply: reply)
+          : created;
       if (!ref.mounted) return null;
 
       if (reply == null) {
@@ -48,30 +47,6 @@ class CreatePost extends _$CreatePost {
         }
       } else {
         updateLiveUserCommentCaches(ref, post);
-        final root = parseCraftskyPostUri(reply.root.uri);
-        if (root == null) return post;
-
-        for (final sort in CommentSort.values) {
-          final entry = postCommentSectionProvider(
-            root.did,
-            root.rkey,
-            sort: sort,
-          );
-          if (!ref.exists(entry)) continue;
-          final notifier = ref.read(entry.notifier);
-          if (reply.root.uri == reply.parent.uri) {
-            notifier.prependCreatedComment(post);
-          } else {
-            notifier.insertCreatedReply(
-              parentUri: reply.parent.uri,
-              post: post,
-            );
-          }
-        }
-
-        // Existing live comment-section caches are updated above. Any unloaded
-        // branch will converge through the direct-replies endpoint when the
-        // viewer expands it.
       }
 
       return post;

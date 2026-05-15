@@ -1,12 +1,22 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/auth_state.dart';
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart' as craftsky_post;
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
+import 'package:craftsky_app/feed/providers/create_post_provider.dart';
+import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart'
     hide PostCommentSection;
+import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
+import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -32,18 +42,22 @@ class PostThreadPage extends ConsumerStatefulWidget {
 class _PostThreadPageState extends ConsumerState<PostThreadPage> {
   CommentSort _sort = CommentSort.oldest;
   PostCommentSection? _lastSection;
+  String? _createdTargetUri;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final sectionAsync = ref.watch(
-      postCommentSectionProvider(
-        widget.did,
-        widget.rkey,
-        sort: _sort,
-        focus: widget.focus,
-      ),
+    final viewerDid = switch (ref.watch(authSessionProvider).value) {
+      SignedIn(:final did) => did,
+      _ => null,
+    };
+    final sectionProvider = postCommentSectionProvider(
+      widget.did,
+      widget.rkey,
+      sort: _sort,
+      focus: widget.focus,
     );
+    final sectionAsync = ref.watch(sectionProvider);
     final pageLoader = postCommentPageLoaderProvider(
       widget.did,
       widget.rkey,
@@ -60,6 +74,34 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
         sectionAsync.isLoading &&
         sectionAsync.value == null &&
         visibleSection != null;
+    ref
+      ..listen(deletePostProvider, (previous, next) {
+        switch ((previous, next)) {
+          case (AsyncLoading(), AsyncData(value: != null)):
+            context.showInfo(l10n.postDeleteSuccess);
+            ref.read(deletePostProvider.notifier).reset();
+          case (AsyncLoading(), AsyncError()):
+            context.showError(l10n.postDeleteError);
+            ref.read(deletePostProvider.notifier).reset();
+          case _:
+            break;
+        }
+      })
+      ..listen(createPostProvider, (previous, next) {
+        final post = next.value;
+        if (post == null) return;
+        unawaited(_handleCreatedThreadPost(post));
+      })
+      ..listen(toggleLikePostProvider, (previous, next) {
+        final post = next.value;
+        if (post == null) return;
+        ref.read(sectionProvider.notifier).replacePost(post);
+      })
+      ..listen(toggleRepostPostProvider, (previous, next) {
+        final post = next.value;
+        if (post == null) return;
+        ref.read(sectionProvider.notifier).replacePost(post);
+      });
     return Scaffold(
       appBar: AppBar(title: Text(l10n.postThreadTitle)),
       body: switch ((sectionAsync, visibleSection)) {
@@ -68,6 +110,8 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
           did: widget.did,
           rkey: widget.rkey,
           focus: widget.focus,
+          createdTargetUri: _createdTargetUri,
+          viewerDid: viewerDid,
           showInlineComposer: formFactor.isLarge,
           isLoadingMoreComments: pageLoaderAsync.isLoading,
           isRefreshingComments: isRefreshingComments,
@@ -107,14 +151,92 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
       },
     );
   }
+
+  Future<void> _handleCreatedThreadPost(craftsky_post.Post post) async {
+    final reply = post.reply;
+    if (reply == null) return;
+
+    final sectionProvider = postCommentSectionProvider(
+      widget.did,
+      widget.rkey,
+      sort: _sort,
+      focus: widget.focus,
+    );
+    final section = ref.read(sectionProvider).value;
+    if (section == null || reply.root.uri != section.post.uri) return;
+
+    final notifier = ref.read(sectionProvider.notifier);
+    if (reply.parent.uri == reply.root.uri) {
+      notifier.prependCreatedComment(post);
+      if (mounted) setState(() => _createdTargetUri = post.uri);
+      return;
+    }
+
+    final parentComment = section.comments.items
+        .where((item) => item.post.uri == reply.parent.uri)
+        .firstOrNull;
+    if (parentComment == null || parentComment.replies.loaded) {
+      notifier.insertCreatedReply(parentUri: reply.parent.uri, post: post);
+      if (mounted) setState(() => _createdTargetUri = post.uri);
+      return;
+    }
+
+    if (parentComment.post.replyCount == 0) {
+      notifier.insertCreatedReply(parentUri: reply.parent.uri, post: post);
+      if (mounted) setState(() => _createdTargetUri = post.uri);
+      return;
+    }
+
+    try {
+      final pages = <ReplyItem>[];
+      String? cursor;
+      do {
+        final page = await ref
+            .read(postRepositoryProvider)
+            .listCommentBranchReplies(
+              parentComment.post.author.did,
+              parentComment.post.rkey,
+              cursor: cursor,
+              limit: 10,
+            );
+        pages.addAll(page.items);
+        cursor = page.cursor;
+      } while (cursor != null);
+      if (!mounted) return;
+      final replies = sortReplyItems(
+        [
+          for (final item in pages)
+            if (item.post.uri != post.uri) item,
+          ReplyItem(post: post, flattened: false),
+        ],
+        commentSort: _sort,
+      );
+      ref
+          .read(sectionProvider.notifier)
+          .setRepliesForComment(
+            commentUri: parentComment.post.uri,
+            replies: replies,
+            incrementRootReplyCount: true,
+          );
+      if (mounted) setState(() => _createdTargetUri = post.uri);
+    } on Object {
+      if (!mounted) return;
+      ref
+          .read(sectionProvider.notifier)
+          .insertCreatedReply(parentUri: reply.parent.uri, post: post);
+      if (mounted) setState(() => _createdTargetUri = post.uri);
+    }
+  }
 }
 
-class _CommentSectionBody extends StatefulWidget {
+class _CommentSectionBody extends ConsumerStatefulWidget {
   const _CommentSectionBody({
     required this.section,
     required this.did,
     required this.rkey,
     required this.focus,
+    required this.createdTargetUri,
+    required this.viewerDid,
     required this.showInlineComposer,
     required this.isLoadingMoreComments,
     required this.isRefreshingComments,
@@ -128,6 +250,8 @@ class _CommentSectionBody extends StatefulWidget {
   final String did;
   final String rkey;
   final String? focus;
+  final String? createdTargetUri;
+  final String? viewerDid;
   final bool showInlineComposer;
   final bool isLoadingMoreComments;
   final bool isRefreshingComments;
@@ -137,16 +261,17 @@ class _CommentSectionBody extends StatefulWidget {
   final ValueChanged<CommentSort> onSortChanged;
 
   @override
-  State<_CommentSectionBody> createState() => _CommentSectionBodyState();
+  ConsumerState<_CommentSectionBody> createState() =>
+      _CommentSectionBodyState();
 }
 
-class _CommentSectionBodyState extends State<_CommentSectionBody> {
+class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
   final _controller = ScrollController();
   final GlobalKey _focusedTargetKey = GlobalKey(
     debugLabel: 'focusedCommentTarget',
   );
-  String? _scrolledFocusUri;
-  String? _highlightedFocusUri;
+  String? _scrolledTargetUri;
+  String? _highlightedTargetUri;
   bool _focusRevealScheduled = false;
   Timer? _clearHighlightTimer;
 
@@ -171,22 +296,31 @@ class _CommentSectionBodyState extends State<_CommentSectionBody> {
   @override
   void didUpdateWidget(covariant _CommentSectionBody oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.section.focus?.uri != widget.section.focus?.uri) {
-      _scrolledFocusUri = null;
-      _highlightedFocusUri = null;
+    if (_targetUri(oldWidget) != _targetUri(widget)) {
+      _scrolledTargetUri = null;
+      _highlightedTargetUri = null;
       _clearHighlightTimer?.cancel();
     }
   }
 
-  void _scheduleFocusedReveal() {
+  String? _targetUri(_CommentSectionBody widget) {
+    if (widget.createdTargetUri != null) return widget.createdTargetUri;
     final focus = widget.section.focus;
-    if (focus == null || focus.status != FocusStatus.included) return;
-    if (_scrolledFocusUri == focus.uri) return;
+    if (focus != null && focus.status == FocusStatus.included) {
+      return focus.uri;
+    }
+    return null;
+  }
+
+  void _scheduleFocusedReveal() {
+    final targetUri = _targetUri(widget);
+    if (targetUri == null) return;
+    if (_scrolledTargetUri == targetUri) return;
     if (_focusRevealScheduled) return;
     _focusRevealScheduled = true;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || _scrolledFocusUri == focus.uri) {
+      if (!mounted || _scrolledTargetUri == targetUri) {
         _focusRevealScheduled = false;
         return;
       }
@@ -196,7 +330,7 @@ class _CommentSectionBodyState extends State<_CommentSectionBody> {
         setState(() {});
         return;
       }
-      setState(() => _highlightedFocusUri = focus.uri);
+      setState(() => _highlightedTargetUri = targetUri);
       if (!_controller.hasClients) {
         _focusRevealScheduled = false;
         setState(() {});
@@ -204,9 +338,9 @@ class _CommentSectionBodyState extends State<_CommentSectionBody> {
       }
       if (_controller.position.maxScrollExtent <=
           _controller.position.minScrollExtent) {
-        _scrolledFocusUri = focus.uri;
+        _scrolledTargetUri = targetUri;
         _focusRevealScheduled = false;
-        _scheduleClearHighlight(focus.uri);
+        _scheduleClearHighlight(targetUri);
         return;
       }
       final target = context.findRenderObject();
@@ -228,17 +362,17 @@ class _CommentSectionBodyState extends State<_CommentSectionBody> {
         _focusRevealScheduled = false;
         return;
       }
-      _scrolledFocusUri = focus.uri;
+      _scrolledTargetUri = targetUri;
       _focusRevealScheduled = false;
-      _scheduleClearHighlight(focus.uri);
+      _scheduleClearHighlight(targetUri);
     });
   }
 
-  void _scheduleClearHighlight(String focusUri) {
+  void _scheduleClearHighlight(String targetUri) {
     _clearHighlightTimer?.cancel();
     _clearHighlightTimer = Timer(const Duration(seconds: 3), () {
-      if (!mounted || _highlightedFocusUri != focusUri) return;
-      setState(() => _highlightedFocusUri = null);
+      if (!mounted || _highlightedTargetUri != targetUri) return;
+      setState(() => _highlightedTargetUri = null);
     });
   }
 
@@ -260,6 +394,13 @@ class _CommentSectionBodyState extends State<_CommentSectionBody> {
                 context,
                 replyTarget: widget.section.post,
               ),
+              onLike: () => ref
+                  .read(toggleLikePostProvider.notifier)
+                  .toggle(post: widget.section.post),
+              onRepost: () => ref
+                  .read(toggleRepostPostProvider.notifier)
+                  .toggle(post: widget.section.post),
+              onDelete: _deleteIfViewerOwned(widget.section.post),
             ),
           ),
         ),
@@ -273,25 +414,9 @@ class _CommentSectionBodyState extends State<_CommentSectionBody> {
                   padding: EdgeInsets.symmetric(horizontal: spacing.sp4),
                   child: Align(
                     alignment: Alignment.centerRight,
-                    child: DropdownButton<CommentSort>(
-                      value: widget.selectedSort,
-                      onChanged: (sort) {
-                        if (sort != null) widget.onSortChanged(sort);
-                      },
-                      items: [
-                        DropdownMenuItem(
-                          value: CommentSort.oldest,
-                          child: Text(l10n.postCommentsSortOldest),
-                        ),
-                        DropdownMenuItem(
-                          value: CommentSort.newest,
-                          child: Text(l10n.postCommentsSortNewest),
-                        ),
-                        DropdownMenuItem(
-                          value: CommentSort.follows,
-                          child: Text(l10n.postCommentsSortFollows),
-                        ),
-                      ],
+                    child: _CommentSortButton(
+                      selectedSort: widget.selectedSort,
+                      onSortChanged: widget.onSortChanged,
                     ),
                   ),
                 ),
@@ -319,9 +444,10 @@ class _CommentSectionBodyState extends State<_CommentSectionBody> {
                       rkey: widget.rkey,
                       sort: widget.selectedSort,
                       focus: widget.focus,
-                      focusedUri: widget.section.focus?.uri,
-                      highlightedUri: _highlightedFocusUri,
+                      targetUri: _targetUri(widget),
+                      highlightedUri: _highlightedTargetUri,
                       focusedTargetKey: _focusedTargetKey,
+                      viewerDid: widget.viewerDid,
                       onCollapseReplies: widget.onCollapseReplies,
                     ),
                 if (widget.isLoadingMoreComments)
@@ -336,6 +462,25 @@ class _CommentSectionBodyState extends State<_CommentSectionBody> {
       ],
     );
   }
+
+  VoidCallback? _deleteIfViewerOwned(craftsky_post.Post post) {
+    if (widget.viewerDid != post.author.did) return null;
+    return () => _confirmDelete(context, post);
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    craftsky_post.Post post,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    await showCraftskyDestructiveConfirmDialog(
+      context,
+      title: l10n.postDeleteTitle,
+      message: l10n.postDeleteMessage,
+      confirmLabel: l10n.postDeleteConfirm,
+      onConfirm: () => ref.read(deletePostProvider.notifier).delete(post: post),
+    );
+  }
 }
 
 class _CommentCard extends ConsumerWidget {
@@ -345,9 +490,10 @@ class _CommentCard extends ConsumerWidget {
     required this.rkey,
     required this.sort,
     required this.focus,
-    required this.focusedUri,
+    required this.targetUri,
     required this.highlightedUri,
     required this.focusedTargetKey,
+    required this.viewerDid,
     required this.onCollapseReplies,
   });
 
@@ -356,16 +502,17 @@ class _CommentCard extends ConsumerWidget {
   final String rkey;
   final CommentSort sort;
   final String? focus;
-  final String? focusedUri;
+  final String? targetUri;
   final String? highlightedUri;
   final GlobalKey focusedTargetKey;
+  final String? viewerDid;
   final void Function(String commentUri) onCollapseReplies;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final spacing = Theme.of(context).extension<SpacingTheme>()!;
-    final focusedComment = focusedUri == item.post.uri;
+    final targetComment = targetUri == item.post.uri;
     final repliesLoader = postCommentRepliesLoaderProvider(
       did,
       rkey,
@@ -375,20 +522,34 @@ class _CommentCard extends ConsumerWidget {
     );
     final repliesLoaderAsync = ref.watch(repliesLoader);
     final column = Column(
-      key: focusedComment ? const ValueKey('focused-comment-target') : null,
+      key: targetComment ? const ValueKey('focused-comment-target') : null,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         PostCard(
           post: item.post,
+          style: PostCardStyle.flat,
           isHighlighted: highlightedUri == item.post.uri,
           replyTooltip: l10n.postThreadReplyAction,
           showRepostAction: false,
+          showReplyCount: false,
+          showReplyLabel: true,
           onReply: () => showPostComposerSheet(context, replyTarget: item.post),
+          onLike: () =>
+              ref.read(toggleLikePostProvider.notifier).toggle(post: item.post),
+          deleteLabel: l10n.commentDeleteAction,
+          onDelete: _deleteIfViewerOwned(
+            context,
+            ref,
+            item.post,
+            title: l10n.commentDeleteTitle,
+            message: l10n.commentDeleteMessage,
+          ),
         ),
         if (item.replies.loaded)
           _CommentReplyControls(
             commentUri: item.post.uri,
             repliesCursor: null,
+            replyCount: item.post.replyCount,
             isLoading: repliesLoaderAsync.isLoading,
             onCollapseReplies: onCollapseReplies,
             onLoadMore: () => ref.read(repliesLoader.notifier).load(),
@@ -402,19 +563,32 @@ class _CommentCard extends ConsumerWidget {
                 for (final reply in item.replies.items)
                   _FocusedTargetWrapper(
                     focusTargetKey: focusedTargetKey,
-                    isFocused: focusedUri == reply.post.uri,
+                    isFocused: targetUri == reply.post.uri,
                     child: PostCard(
-                      key: focusedUri == reply.post.uri
+                      key: targetUri == reply.post.uri
                           ? const ValueKey('focused-comment-target')
                           : null,
                       post: reply.post,
+                      style: PostCardStyle.flat,
                       isHighlighted: highlightedUri == reply.post.uri,
                       replyTooltip: l10n.postThreadReplyAction,
                       showRepostAction: false,
                       showReplyCount: false,
+                      showReplyLabel: true,
                       onReply: () => showPostComposerSheet(
                         context,
                         replyTarget: reply.post,
+                      ),
+                      onLike: () => ref
+                          .read(toggleLikePostProvider.notifier)
+                          .toggle(post: reply.post),
+                      deleteLabel: l10n.replyDeleteAction,
+                      onDelete: _deleteIfViewerOwned(
+                        context,
+                        ref,
+                        reply.post,
+                        title: l10n.replyDeleteTitle,
+                        message: l10n.replyDeleteMessage,
                       ),
                     ),
                   ),
@@ -425,6 +599,7 @@ class _CommentCard extends ConsumerWidget {
           _CommentReplyControls(
             commentUri: item.post.uri,
             repliesCursor: null,
+            replyCount: item.post.replyCount,
             isLoading: repliesLoaderAsync.isLoading,
             showHide: false,
             onCollapseReplies: onCollapseReplies,
@@ -434,6 +609,7 @@ class _CommentCard extends ConsumerWidget {
           _CommentReplyControls(
             commentUri: item.post.uri,
             repliesCursor: item.replies.cursor,
+            replyCount: item.post.replyCount,
             isLoading: repliesLoaderAsync.isLoading,
             showHide: false,
             onCollapseReplies: onCollapseReplies,
@@ -443,10 +619,134 @@ class _CommentCard extends ConsumerWidget {
     );
     return _FocusedTargetWrapper(
       focusTargetKey: focusedTargetKey,
-      isFocused: focusedComment,
+      isFocused: targetComment,
       child: column,
     );
   }
+
+  VoidCallback? _deleteIfViewerOwned(
+    BuildContext context,
+    WidgetRef ref,
+    craftsky_post.Post post, {
+    required String title,
+    required String message,
+  }) {
+    if (viewerDid != post.author.did) return null;
+    return () => _confirmDelete(
+      context,
+      ref,
+      post,
+      title: title,
+      message: message,
+    );
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    craftsky_post.Post post, {
+    required String title,
+    required String message,
+  }) async {
+    final l10n = AppLocalizations.of(context);
+    await showCraftskyDestructiveConfirmDialog(
+      context,
+      title: title,
+      message: message,
+      confirmLabel: l10n.postDeleteConfirm,
+      onConfirm: () => ref.read(deletePostProvider.notifier).delete(post: post),
+    );
+  }
+}
+
+class _CommentSortButton extends StatelessWidget {
+  const _CommentSortButton({
+    required this.selectedSort,
+    required this.onSortChanged,
+  });
+
+  final CommentSort selectedSort;
+  final ValueChanged<CommentSort> onSortChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final label = _sortLabel(l10n, selectedSort);
+    return OutlinedButton.icon(
+      onPressed: () => _showMenu(context),
+      icon: const Icon(Icons.filter_list, size: 18),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: theme.colorScheme.onSurface,
+        side: BorderSide(color: theme.colorScheme.onSurface, width: 1.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        padding: EdgeInsets.symmetric(
+          horizontal: spacing.sp3,
+          vertical: spacing.sp2,
+        ),
+      ),
+    );
+  }
+
+  void _showMenu(BuildContext context) {
+    final button = context.findRenderObject()! as RenderBox;
+    final overlay =
+        Navigator.of(context).overlay!.context.findRenderObject()! as RenderBox;
+    final offset = button.localToGlobal(Offset.zero, ancestor: overlay);
+    final position = RelativeRect.fromRect(
+      offset & button.size,
+      Offset.zero & overlay.size,
+    );
+    final l10n = AppLocalizations.of(context);
+
+    showCraftskyContextMenu(
+      context,
+      position: position,
+      groups: [
+        CraftskyContextMenuGroup(
+          items: [
+            _sortItem(
+              sort: CommentSort.newest,
+              text: l10n.postCommentsSortNewest,
+              description: l10n.postCommentsSortNewestDescription,
+            ),
+            _sortItem(
+              sort: CommentSort.oldest,
+              text: l10n.postCommentsSortOldest,
+              description: l10n.postCommentsSortOldestDescription,
+            ),
+            _sortItem(
+              sort: CommentSort.follows,
+              text: l10n.postCommentsSortFollows,
+              description: l10n.postCommentsSortFollowsDescription,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  CraftskyContextMenuItem _sortItem({
+    required CommentSort sort,
+    required String text,
+    required String description,
+  }) {
+    return CraftskyContextMenuItem(
+      text: text,
+      description: description,
+      icon: Icons.check_box_outline_blank,
+      isSelected: selectedSort == sort,
+      onPressed: selectedSort == sort ? () {} : () => onSortChanged(sort),
+    );
+  }
+
+  String _sortLabel(AppLocalizations l10n, CommentSort sort) => switch (sort) {
+    CommentSort.oldest => l10n.postCommentsSortOldest,
+    CommentSort.newest => l10n.postCommentsSortNewest,
+    CommentSort.follows => l10n.postCommentsSortFollows,
+  };
 }
 
 class _FocusedTargetWrapper extends StatelessWidget {
@@ -471,6 +771,7 @@ class _CommentReplyControls extends StatelessWidget {
   const _CommentReplyControls({
     required this.commentUri,
     required this.repliesCursor,
+    required this.replyCount,
     required this.isLoading,
     required this.onCollapseReplies,
     required this.onLoadMore,
@@ -479,6 +780,7 @@ class _CommentReplyControls extends StatelessWidget {
 
   final String commentUri;
   final String? repliesCursor;
+  final int replyCount;
   final bool isLoading;
   final bool showHide;
   final void Function(String commentUri) onCollapseReplies;
@@ -513,7 +815,7 @@ class _CommentReplyControls extends StatelessWidget {
                         dimension: 20,
                         child: StitchProgressIndicator(),
                       )
-                    : Text(l10n.postCommentsViewReplies),
+                    : Text(l10n.postCommentsViewReplyCount(replyCount)),
               ),
             if (repliesCursor != null)
               TextButton(
