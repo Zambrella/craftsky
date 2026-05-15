@@ -138,6 +138,12 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		MaxRetries:   cfg.TapMaxRetries,
 		Logger:       logger,
 	})
+	if cfg.Env == EnvDev {
+		deps.HandleResolver = api.DevHandleResolver{
+			Primary: api.DirectoryHandleResolver{Directory: identityDir},
+			Pool:    pool,
+		}
+	}
 
 	deps.ProfileStore = api.NewProfileStore(pool)
 	deps.NewPDSClient = func(ctx context.Context, did syntax.DID, sid string) (auth.PDSClient, error) {
