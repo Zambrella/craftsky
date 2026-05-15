@@ -15,6 +15,8 @@ import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+const _autoLoadMoreThreshold = 3;
+
 /// Posts tab body. Returns a [SliverList] so it slots into the page's
 /// outer [CustomScrollView] without nesting another scrollable.
 class ProfilePostsTab extends ConsumerWidget {
@@ -109,6 +111,16 @@ class _ProfilePostsLoadedSlivers extends ConsumerWidget {
           SliverList.builder(
             itemCount: posts.length,
             itemBuilder: (context, index) {
+              if (hasMore &&
+                  !isLoadingMore &&
+                  !hasLoadMoreError &&
+                  index >= posts.length - _autoLoadMoreThreshold) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (context.mounted) {
+                    ref.read(userPostsProvider(handle).notifier).loadMore();
+                  }
+                });
+              }
               final post = posts[index];
               return PostCard(
                 post: post,
@@ -131,7 +143,7 @@ class _ProfilePostsLoadedSlivers extends ConsumerWidget {
               );
             },
           ),
-        if (posts.isNotEmpty && (hasMore || isLoadingMore || hasLoadMoreError))
+        if (posts.isNotEmpty && (isLoadingMore || hasLoadMoreError))
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.all(spacing.sp4),
@@ -144,11 +156,7 @@ class _ProfilePostsLoadedSlivers extends ConsumerWidget {
                     icon: const Icon(Icons.refresh),
                     label: Text(l10n.retryButton),
                   ),
-                  _ => TextButton(
-                    onPressed: () =>
-                        ref.read(userPostsProvider(handle).notifier).loadMore(),
-                    child: Text(l10n.profilePostsLoadMore),
-                  ),
+                  _ => const SizedBox.shrink(),
                 },
               ),
             ),

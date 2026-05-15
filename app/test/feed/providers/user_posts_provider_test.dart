@@ -35,13 +35,16 @@ void main() {
   group('userPostsProvider build', () {
     test('first build fetches page 1 and surfaces items + cursor', () async {
       final fake = FakePostRepository(
-        onListByAuthor: (id, {cursor, limit}) async => PostPage(
-          items: [
-            _samplePost(rkey: 'a'),
-            _samplePost(rkey: 'b'),
-          ],
-          cursor: 'next',
-        ),
+        onListByAuthor: (id, {cursor, limit}) async {
+          expect(limit, userPostsPageLimit);
+          return PostPage(
+            items: [
+              _samplePost(rkey: 'a'),
+              _samplePost(rkey: 'b'),
+            ],
+            cursor: 'next',
+          );
+        },
       );
 
       final container = ProviderContainer.test(
@@ -81,6 +84,7 @@ void main() {
       final fake = FakePostRepository(
         onListByAuthor: (id, {cursor, limit}) async {
           call++;
+          expect(limit, userPostsPageLimit);
           if (call == 1) {
             return PostPage(
               items: [_samplePost(rkey: 'a')],

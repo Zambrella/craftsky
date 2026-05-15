@@ -94,12 +94,17 @@ void main() {
       expect(find.text('No posts yet.'), findsOneWidget);
     });
 
-    testWidgets('load more appends the next page', (tester) async {
-      var calls = 0;
+    testWidgets('scrolling near the end appends the next page', (tester) async {
+      final calls = <({String? cursor, int? limit})>[];
       final repo = FakePostRepository(
         onListByAuthor: (_, {cursor, limit}) async {
-          calls++;
-          if (calls == 1) return PostPage(items: [_post('a')], cursor: 'c1');
+          calls.add((cursor: cursor, limit: limit));
+          if (calls.length == 1) {
+            return PostPage(
+              items: [for (var i = 0; i < 10; i++) _post('a$i')],
+              cursor: 'c1',
+            );
+          }
           expect(cursor, 'c1');
           return PostPage(items: [_post('b')]);
         },
@@ -107,11 +112,20 @@ void main() {
 
       await _pump(tester, repo: repo, isOwnProfile: false);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Load more posts'));
+      await tester.scrollUntilVisible(
+        find.text('post a9'),
+        500,
+        scrollable: find.byType(Scrollable),
+      );
       await tester.pumpAndSettle();
 
-      expect(find.text('post a'), findsOneWidget);
+      expect(calls, [
+        (cursor: null, limit: 10),
+        (cursor: 'c1', limit: 10),
+      ]);
+      expect(find.text('post a9'), findsOneWidget);
       expect(find.text('post b'), findsOneWidget);
+      expect(find.text('Load more posts'), findsNothing);
     });
 
     testWidgets('wires reply composer, like, and repost actions', (

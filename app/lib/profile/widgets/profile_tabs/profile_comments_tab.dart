@@ -14,6 +14,8 @@ import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+const _autoLoadMoreThreshold = 3;
+
 class ProfileCommentsTab extends ConsumerWidget {
   const ProfileCommentsTab({
     required this.handle,
@@ -96,6 +98,16 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
           SliverList.builder(
             itemCount: comments.length,
             itemBuilder: (context, index) {
+              if (hasMore &&
+                  !isLoadingMore &&
+                  !hasLoadMoreError &&
+                  index >= comments.length - _autoLoadMoreThreshold) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (context.mounted) {
+                    ref.read(userCommentsProvider(handle).notifier).loadMore();
+                  }
+                });
+              }
               final post = comments[index];
               final root = post.reply == null
                   ? null
@@ -131,8 +143,7 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
               );
             },
           ),
-        if (comments.isNotEmpty &&
-            (hasMore || isLoadingMore || hasLoadMoreError))
+        if (comments.isNotEmpty && (isLoadingMore || hasLoadMoreError))
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.all(spacing.sp4),
@@ -146,12 +157,7 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
                     icon: const Icon(Icons.refresh),
                     label: Text(l10n.retryButton),
                   ),
-                  _ => TextButton(
-                    onPressed: () => ref
-                        .read(userCommentsProvider(handle).notifier)
-                        .loadMore(),
-                    child: Text(l10n.profileCommentsLoadMore),
-                  ),
+                  _ => const SizedBox.shrink(),
                 },
               ),
             ),

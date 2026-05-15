@@ -5,13 +5,18 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_comments_provider.g.dart';
 
+const userCommentsPageLimit = 10;
+
 /// Cursor-accumulating authored comments/replies list, keyed by `handleOrDid`.
 @riverpod
 class UserComments extends _$UserComments {
   @override
   Future<UserPostsState> build(String handleOrDid) async {
     final repo = ref.watch(postRepositoryProvider);
-    final page = await repo.listCommentsByAuthor(handleOrDid);
+    final page = await repo.listCommentsByAuthor(
+      handleOrDid,
+      limit: userCommentsPageLimit,
+    );
     return UserPostsState(items: page.items, cursor: page.cursor);
   }
 
@@ -29,6 +34,7 @@ class UserComments extends _$UserComments {
       final page = await repo.listCommentsByAuthor(
         handleOrDid,
         cursor: current.cursor,
+        limit: userCommentsPageLimit,
       );
       return UserPostsState(
         items: [...current.items, ...page.items],
