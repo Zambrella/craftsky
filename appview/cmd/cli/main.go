@@ -26,6 +26,7 @@ var rootCmd = &cobra.Command{
   * migrate — apply or inspect database migrations
   * ping    — check DB connectivity
   * request — hit the running server as the dev DID
+  * seed    — populate local development data
   * did-resolve — stub pending real impl`,
 }
 

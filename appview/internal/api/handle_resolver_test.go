@@ -87,3 +87,13 @@ func TestHandleResolver_ResolveDID_DirectoryError(t *testing.T) {
 		t.Errorf("want ErrHandleUnavailable; got %v", err)
 	}
 }
+
+func TestLocalHandleForDIDProducesValidHandle(t *testing.T) {
+	got := localHandleForDID("did:plc:craftsky-dev-user")
+	if _, err := syntax.ParseHandle(got); err != nil {
+		t.Fatalf("local handle %q should parse: %v", got, err)
+	}
+	if got != "craftsky-dev-user.craftsky.test" {
+		t.Errorf("handle = %q", got)
+	}
+}

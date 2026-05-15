@@ -41,6 +41,10 @@ ping:
 tap-status:
     docker compose exec appview /app/cli tap status
 
+# Populate the dev database with deterministic fake posts/comments/replies.
+seed-fake *ARGS:
+    docker compose exec appview /app/cli seed fake-posts {{ARGS}}
+
 # Open a psql session against the dev database, or run one-off commands.
 #   just psql                 # interactive shell
 #   just psql -c '\d'         # pass -c / other args through to psql
