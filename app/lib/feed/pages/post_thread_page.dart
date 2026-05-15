@@ -41,33 +41,25 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
         focus: widget.focus,
       ),
     );
+    final pageLoader = postCommentPageLoaderProvider(
+      widget.did,
+      widget.rkey,
+      sort: _sort,
+      focus: widget.focus,
+    );
+    final pageLoaderAsync = ref.watch(pageLoader);
     final formFactor = FormFactorWidget.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.postThreadTitle)),
       body: switch (sectionAsync) {
         AsyncData(:final value) => _CommentSectionBody(
           section: value,
+          did: widget.did,
+          rkey: widget.rkey,
+          focus: widget.focus,
           showInlineComposer: formFactor.isLarge,
-          onNearEnd: () => ref
-              .read(
-                postCommentSectionProvider(
-                  widget.did,
-                  widget.rkey,
-                  sort: _sort,
-                  focus: widget.focus,
-                ).notifier,
-              )
-              .loadMoreComments(),
-          onLoadReplies: (commentUri) => ref
-              .read(
-                postCommentSectionProvider(
-                  widget.did,
-                  widget.rkey,
-                  sort: _sort,
-                  focus: widget.focus,
-                ).notifier,
-              )
-              .loadMoreReplies(commentUri),
+          isLoadingMoreComments: pageLoaderAsync.isLoading,
+          onNearEnd: () => ref.read(pageLoader.notifier).load(),
           onCollapseReplies: (commentUri) => ref
               .read(
                 postCommentSectionProvider(
@@ -107,18 +99,24 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
 class _CommentSectionBody extends StatefulWidget {
   const _CommentSectionBody({
     required this.section,
+    required this.did,
+    required this.rkey,
+    required this.focus,
     required this.showInlineComposer,
+    required this.isLoadingMoreComments,
     required this.onNearEnd,
-    required this.onLoadReplies,
     required this.onCollapseReplies,
     required this.selectedSort,
     required this.onSortChanged,
   });
 
   final PostCommentSection section;
+  final String did;
+  final String rkey;
+  final String? focus;
   final bool showInlineComposer;
+  final bool isLoadingMoreComments;
   final VoidCallback onNearEnd;
-  final void Function(String commentUri) onLoadReplies;
   final void Function(String commentUri) onCollapseReplies;
   final CommentSort selectedSort;
   final ValueChanged<CommentSort> onSortChanged;
@@ -210,10 +208,18 @@ class _CommentSectionBodyState extends State<_CommentSectionBody> {
                 for (final comment in widget.section.comments.items)
                   _CommentCard(
                     item: comment,
+                    did: widget.did,
+                    rkey: widget.rkey,
+                    sort: widget.selectedSort,
+                    focus: widget.focus,
                     focusedUri: widget.section.focus?.uri,
-                    onLoadReplies: widget.onLoadReplies,
                     onCollapseReplies: widget.onCollapseReplies,
                   ),
+              if (widget.isLoadingMoreComments)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(child: StitchProgressIndicator()),
+                ),
             ],
           ),
         ),
@@ -222,24 +228,38 @@ class _CommentSectionBodyState extends State<_CommentSectionBody> {
   }
 }
 
-class _CommentCard extends StatelessWidget {
+class _CommentCard extends ConsumerWidget {
   const _CommentCard({
     required this.item,
+    required this.did,
+    required this.rkey,
+    required this.sort,
+    required this.focus,
     required this.focusedUri,
-    required this.onLoadReplies,
     required this.onCollapseReplies,
   });
 
   final CommentItem item;
+  final String did;
+  final String rkey;
+  final CommentSort sort;
+  final String? focus;
   final String? focusedUri;
-  final void Function(String commentUri) onLoadReplies;
   final void Function(String commentUri) onCollapseReplies;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final spacing = Theme.of(context).extension<SpacingTheme>()!;
     final focusedComment = focusedUri == item.post.uri;
+    final repliesLoader = postCommentRepliesLoaderProvider(
+      did,
+      rkey,
+      commentUri: item.post.uri,
+      sort: sort,
+      focus: focus,
+    );
+    final repliesLoaderAsync = ref.watch(repliesLoader);
     return Column(
       key: focusedComment ? const ValueKey('focused-comment-target') : null,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -278,8 +298,15 @@ class _CommentCard extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: switch (item.replies.loaded) {
               false when item.post.replyCount > 0 => TextButton(
-                onPressed: () => onLoadReplies(item.post.uri),
-                child: Text(l10n.postCommentsViewReplies),
+                onPressed: repliesLoaderAsync.isLoading
+                    ? null
+                    : () => ref.read(repliesLoader.notifier).load(),
+                child: repliesLoaderAsync.isLoading
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: StitchProgressIndicator(),
+                      )
+                    : Text(l10n.postCommentsViewReplies),
               ),
               true => Wrap(
                 spacing: spacing.sp2,
@@ -290,8 +317,15 @@ class _CommentCard extends StatelessWidget {
                   ),
                   if (item.replies.cursor != null)
                     TextButton(
-                      onPressed: () => onLoadReplies(item.post.uri),
-                      child: Text(l10n.postCommentsLoadMoreReplies),
+                      onPressed: repliesLoaderAsync.isLoading
+                          ? null
+                          : () => ref.read(repliesLoader.notifier).load(),
+                      child: repliesLoaderAsync.isLoading
+                          ? const SizedBox.square(
+                              dimension: 20,
+                              child: StitchProgressIndicator(),
+                            )
+                          : Text(l10n.postCommentsLoadMoreReplies),
                     ),
                 ],
               ),

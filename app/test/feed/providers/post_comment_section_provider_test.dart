@@ -91,15 +91,19 @@ void main() {
         final initial = await container.read(provider.future);
         expect(initial.comments.cursor, 'c1');
 
-        final notifier = container.read(provider.notifier);
-        final firstLoad = notifier.loadMoreComments();
-        final duplicateLoad = notifier.loadMoreComments();
+        final loader = postCommentPageLoaderProvider('did:plc:alice', 'root');
+        final loaderSubscription = container.listen(loader, (_, _) {});
+        addTearDown(loaderSubscription.close);
+        final firstLoad = container.read(loader.notifier).load();
+        final duplicateLoad = container.read(loader.notifier).load();
 
         await Future<void>.delayed(Duration.zero);
         expect(calls, [
           (cursor: null, sort: CommentSort.oldest),
           (cursor: 'c1', sort: CommentSort.oldest),
         ]);
+        expect(container.read(provider).hasValue, isTrue);
+        expect(container.read(loader).isLoading, isTrue);
 
         secondPage.complete(
           _section(comments: [_comment('comment-2', 2)], cursor: 'c2'),
@@ -147,9 +151,14 @@ void main() {
         addTearDown(subscription.close);
 
         await container.read(provider.future);
-        await container
-            .read(provider.notifier)
-            .loadMoreReplies(commentA.post.uri);
+        final loader = postCommentRepliesLoaderProvider(
+          'did:plc:alice',
+          'root',
+          commentUri: commentA.post.uri,
+        );
+        final loaderSubscription = container.listen(loader, (_, _) {});
+        addTearDown(loaderSubscription.close);
+        await container.read(loader.notifier).load();
 
         final updated = container.read(provider).value!;
         final updatedA = updated.comments.items.firstWhere(
@@ -170,5 +179,77 @@ void main() {
         expect(updatedB.replies.cursor, 'b-cursor');
       },
     );
+
+    test('reply loaders expose per-branch loading state', () async {
+      final pendingReplies = Completer<PostPage>();
+      final commentA = _expandedComment(
+        'comment-a',
+        1,
+        replies: [_reply('a-reply-1', 2)],
+        cursor: 'a-cursor',
+      );
+      final commentB = _expandedComment(
+        'comment-b',
+        3,
+        replies: [_reply('b-reply-1', 4)],
+        cursor: 'b-cursor',
+      );
+      final fake = FakePostRepository(
+        onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+            _section(comments: [commentA, commentB], cursor: null),
+        onListDirectReplies: (did, rkey, {cursor, limit}) =>
+            pendingReplies.future,
+      );
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+      final provider = postCommentSectionProvider('did:plc:alice', 'root');
+      final subscription = container.listen(provider, (_, _) {});
+      addTearDown(subscription.close);
+
+      await container.read(provider.future);
+      final loaderA = postCommentRepliesLoaderProvider(
+        'did:plc:alice',
+        'root',
+        commentUri: commentA.post.uri,
+      );
+      final loaderB = postCommentRepliesLoaderProvider(
+        'did:plc:alice',
+        'root',
+        commentUri: commentB.post.uri,
+      );
+      final loaderASubscription = container.listen(loaderA, (_, _) {});
+      final loaderBSubscription = container.listen(loaderB, (_, _) {});
+      addTearDown(loaderASubscription.close);
+      addTearDown(loaderBSubscription.close);
+
+      final load = container.read(loaderA.notifier).load();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(container.read(provider).hasValue, isTrue);
+      expect(container.read(loaderA).isLoading, isTrue);
+      expect(container.read(loaderB).isLoading, isFalse);
+
+      pendingReplies.complete(
+        PostPage(items: [_post('did:plc:dave', 'a-reply-2', 5)]),
+      );
+      await load;
+
+      expect(container.read(loaderA).hasValue, isTrue);
+      final updated = container.read(provider).value!;
+      final updatedA = updated.comments.items.firstWhere(
+        (item) => item.post.uri == commentA.post.uri,
+      );
+      final updatedB = updated.comments.items.firstWhere(
+        (item) => item.post.uri == commentB.post.uri,
+      );
+      expect(updatedA.replies.items.map((item) => item.post.rkey), [
+        'a-reply-1',
+        'a-reply-2',
+      ]);
+      expect(updatedB.replies.items.map((item) => item.post.rkey), [
+        'b-reply-1',
+      ]);
+    });
   });
 }

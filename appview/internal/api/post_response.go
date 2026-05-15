@@ -53,20 +53,6 @@ type PostResponse struct {
 	Author            PostAuthor         `json:"author"`
 }
 
-// ThreadResponse is the root response for nested thread reads.
-type ThreadResponse struct {
-	Post      *PostResponse   `json:"post"`
-	Ancestors []*PostResponse `json:"ancestors"`
-	Replies   []*ThreadNode   `json:"replies"`
-	Truncated bool            `json:"truncated"`
-}
-
-// ThreadNode is a nested reply node in a thread response.
-type ThreadNode struct {
-	Post    *PostResponse `json:"post"`
-	Replies []*ThreadNode `json:"replies"`
-}
-
 // CommentSectionResponse is the root-post comment-section read surface.
 type CommentSectionResponse struct {
 	Post     *PostResponse `json:"post"`
