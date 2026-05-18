@@ -124,7 +124,7 @@
   "profileCommentsLoadMore": "Load more comments",
   "@profileCommentsLoadMore": { "description": "Button label for loading the next page in the profile Comments tab." },
 
-  "postThreadTitle": "Thread",
+  "postThreadTitle": "Post",
   "@postThreadTitle": { "description": "Title of the post thread screen." },
 
   "postThreadEmptyReplies": "No replies yet.",

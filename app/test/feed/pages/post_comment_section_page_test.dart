@@ -57,6 +57,7 @@ Future<void> _pumpCommentSection(
   WidgetTester tester, {
   required FakePostRepository repo,
   String? focus,
+  Post? initialCreatedPost,
   Size size = const Size(390, 1200),
   RecordingMessenger? messenger,
 }) async {
@@ -79,6 +80,7 @@ Future<void> _pumpCommentSection(
               did: 'did:plc:alice',
               rkey: 'root',
               focus: focus,
+              initialCreatedPost: initialCreatedPost,
             ),
           ),
         ),
@@ -794,6 +796,47 @@ void main() {
     final createdRect = tester.getRect(find.text('created comment'));
     expect(createdRect.top, greaterThanOrEqualTo(0));
     expect(createdRect.bottom, lessThanOrEqualTo(420));
+  });
+
+  testWidgets('initial created comment renders before it is indexed', (
+    tester,
+  ) async {
+    final root = _post('did:plc:alice', 'root', 'root post');
+    final created =
+        _post(
+          'did:plc:viewer',
+          'created',
+          'created comment',
+        ).copyWith(
+          reply: PostReply(
+            root: PostRef(uri: root.uri, cid: root.cid),
+            parent: PostRef(uri: root.uri, cid: root.cid),
+          ),
+        );
+    final repo = FakePostRepository(
+      onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+          PostCommentSection(
+            post: root,
+            sort: sort ?? CommentSort.oldest,
+            focus: FocusContext(
+              uri: created.uri,
+              status: FocusStatus.notFound,
+              kind: FocusKind.comment,
+            ),
+            comments: const CommentPage(items: []),
+          ),
+    );
+
+    await _pumpCommentSection(
+      tester,
+      repo: repo,
+      focus: created.uri,
+      initialCreatedPost: created,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('created comment'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
   });
 
   testWidgets('replying to a collapsed comment loads the visible branch', (

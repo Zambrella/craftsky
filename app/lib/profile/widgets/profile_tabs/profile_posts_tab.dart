@@ -128,8 +128,7 @@ class _ProfilePostsLoadedSlivers extends ConsumerWidget {
                   did: post.author.did,
                   rkey: post.rkey,
                 ).push<void>(context),
-                onReply: () =>
-                    showPostComposerSheet(context, replyTarget: post),
+                onReply: () => _replyAndOpenThread(context, post),
                 replyTooltip: l10n.postCommentAction,
                 onLike: () => ref
                     .read(toggleLikePostProvider.notifier)
@@ -178,6 +177,17 @@ class _ProfilePostsLoadedSlivers extends ConsumerWidget {
       confirmLabel: l10n.postDeleteConfirm,
       onConfirm: () => ref.read(deletePostProvider.notifier).delete(post: post),
     );
+  }
+
+  Future<void> _replyAndOpenThread(BuildContext context, Post post) async {
+    final created = await showPostComposerSheet(context, replyTarget: post);
+    if (created == null || !context.mounted) return;
+    await PostThreadRoute(
+      did: post.author.did,
+      rkey: post.rkey,
+      focus: created.uri,
+      $extra: created,
+    ).push<void>(context);
   }
 }
 

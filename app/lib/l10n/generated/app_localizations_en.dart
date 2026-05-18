@@ -131,7 +131,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileCommentsLoadMore => 'Load more comments';
 
   @override
-  String get postThreadTitle => 'Thread';
+  String get postThreadTitle => 'Post';
 
   @override
   String get postThreadEmptyReplies => 'No replies yet.';

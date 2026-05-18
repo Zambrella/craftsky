@@ -9,6 +9,7 @@ import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../fakes/recording_messenger.dart';
 import '../../feed/fakes/fake_post_repository.dart';
@@ -175,6 +176,74 @@ void main() {
         'like:did:plc:alice/a',
         'repost:did:plc:alice/a',
       ]);
+    });
+
+    testWidgets('reply create opens thread focused on the new comment', (
+      tester,
+    ) async {
+      GoRouterState? threadState;
+      final root = _post('root');
+      final created = _post('created');
+      final repo = FakePostRepository(
+        onListByAuthor: (_, {cursor, limit}) async => PostPage(items: [root]),
+        onCreate: ({required text, reply}) async => created,
+      );
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => const Scaffold(
+              body: CustomScrollView(
+                slivers: [
+                  ProfilePostsTab(
+                    handle: 'alice.craftsky.social',
+                    isOwnProfile: false,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/posts/:did/:rkey',
+            builder: (context, state) {
+              threadState = state;
+              return const Scaffold(body: Text('Thread route'));
+            },
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [postRepositoryProvider.overrideWithValue(repo)],
+          child: MessengerScope(
+            messenger: RecordingMessenger(),
+            child: MaterialApp.router(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              routerConfig: router,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'new comment');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TextButton, 'Reply'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Thread route'), findsOneWidget);
+      expect(threadState?.pathParameters['did'], root.author.did);
+      expect(threadState?.pathParameters['rkey'], root.rkey);
+      expect(threadState?.uri.queryParameters['focus'], created.uri);
+      expect(threadState?.extra, isA<Post>());
+      expect((threadState!.extra! as Post).uri, created.uri);
+      expect((threadState!.extra! as Post).reply?.root.uri, root.uri);
     });
 
     testWidgets('delete confirmation removes a post', (tester) async {

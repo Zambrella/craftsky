@@ -337,7 +337,7 @@ abstract class AppLocalizations {
   /// Title of the post thread screen.
   ///
   /// In en, this message translates to:
-  /// **'Thread'**
+  /// **'Post'**
   String get postThreadTitle;
 
   /// Empty state shown on a post thread when the post has no direct replies.

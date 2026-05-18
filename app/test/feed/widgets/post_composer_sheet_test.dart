@@ -122,6 +122,47 @@ void main() {
       expect(messenger.calls.last.$2, 'Posted.');
     });
 
+    testWidgets('successful create returns the created post', (tester) async {
+      final messenger = RecordingMessenger();
+      final created = _post();
+      Post? result;
+      final repo = FakePostRepository(
+        onCreate: ({required text, reply}) async => created,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [postRepositoryProvider.overrideWithValue(repo)],
+          child: MessengerScope(
+            messenger: messenger,
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Builder(
+                builder: (context) => TextButton(
+                  onPressed: () async {
+                    result = await showPostComposerSheet(context);
+                  },
+                  child: const Text('Open composer'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open composer'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'hello');
+      await tester.pump();
+      await tester.tap(find.text('Post'));
+      await tester.pumpAndSettle();
+
+      expect(result?.uri, created.uri);
+      expect(messenger.calls.last.$2, 'Posted.');
+    });
+
     testWidgets('reply mode shows reply copy and forwards reply refs', (
       tester,
     ) async {

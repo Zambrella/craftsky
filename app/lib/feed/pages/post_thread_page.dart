@@ -28,12 +28,14 @@ class PostThreadPage extends ConsumerStatefulWidget {
     required this.did,
     required this.rkey,
     this.focus,
+    this.initialCreatedPost,
     super.key,
   });
 
   final String did;
   final String rkey;
   final String? focus;
+  final craftsky_post.Post? initialCreatedPost;
 
   @override
   ConsumerState<PostThreadPage> createState() => _PostThreadPageState();
@@ -43,6 +45,7 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
   CommentSort _sort = CommentSort.oldest;
   PostCommentSection? _lastSection;
   String? _createdTargetUri;
+  String? _consumedInitialCreatedPostUri;
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +73,7 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
     if (sectionAsync case AsyncData(:final value)) {
       _lastSection = value;
     }
+    _scheduleInitialCreatedPostSeed(visibleSection);
     final isRefreshingComments =
         sectionAsync.isLoading &&
         sectionAsync.value == null &&
@@ -150,6 +154,17 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
         _ => null,
       },
     );
+  }
+
+  void _scheduleInitialCreatedPostSeed(PostCommentSection? section) {
+    final post = widget.initialCreatedPost;
+    if (post == null || section == null) return;
+    if (_consumedInitialCreatedPostUri == post.uri) return;
+    _consumedInitialCreatedPostUri = post.uri;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_handleCreatedThreadPost(post));
+    });
   }
 
   Future<void> _handleCreatedThreadPost(craftsky_post.Post post) async {
