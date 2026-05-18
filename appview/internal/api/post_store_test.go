@@ -551,11 +551,39 @@ func TestPostStore_EngagementSummaries_ActiveOnlyAndViewerStates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EngagementSummaries: %v", err)
 	}
-	if got := summaries[post1]; got.LikeCount != 2 || got.RepostCount != 1 || got.ReplyCount != 3 || !got.ViewerHasLiked || !got.ViewerHasReposted {
+	if got := summaries[post1]; got.LikeCount != 2 || got.RepostCount != 1 || got.ReplyCount != 3 || !got.ViewerHasLiked || !got.ViewerHasReposted || !got.ViewerHasReplied {
 		t.Fatalf("post1 summary = %+v", got)
 	}
-	if got := summaries[post2]; got.LikeCount != 1 || got.RepostCount != 1 || got.ReplyCount != 0 || !got.ViewerHasLiked || got.ViewerHasReposted {
+	if got := summaries[post2]; got.LikeCount != 1 || got.RepostCount != 1 || got.ReplyCount != 0 || !got.ViewerHasLiked || got.ViewerHasReposted || got.ViewerHasReplied {
 		t.Fatalf("post2 summary = %+v", got)
+	}
+}
+
+func TestPostStore_EngagementSummaries_ViewerHasRepliedIsDirectChildOnly(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
+	comment := seedReplyPost(t, pool, "did:plc:carol", "comment", "comment", root, root, base.Add(time.Minute))
+	reply := seedReplyPost(t, pool, "did:plc:alice", "reply", "reply", root, comment, base.Add(2*time.Minute))
+	seedReplyPost(t, pool, "did:plc:bob", "nested", "nested", root, reply, base.Add(3*time.Minute))
+
+	store := api.NewPostStore(pool)
+	summaries, err := store.EngagementSummaries(context.Background(), "did:plc:bob", []string{root, comment, reply})
+	if err != nil {
+		t.Fatalf("EngagementSummaries: %v", err)
+	}
+	if got := summaries[root]; got.ViewerHasReplied {
+		t.Fatalf("root summary = %+v, want viewer reply false for nested-only participation", got)
+	}
+	if got := summaries[comment]; !got.ViewerHasReplied {
+		t.Fatalf("comment summary = %+v, want direct viewer reply true", got)
+	}
+	if got := summaries[reply]; !got.ViewerHasReplied {
+		t.Fatalf("reply summary = %+v, want direct viewer reply true", got)
 	}
 }
 

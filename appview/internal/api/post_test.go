@@ -1024,7 +1024,7 @@ func TestGetPost_HappyPath(t *testing.T) {
 	store := &fakePostStore{
 		one: row,
 		engagement: map[string]api.EngagementSummary{
-			row.URI: {LikeCount: 3, RepostCount: 1, ReplyCount: 2, ViewerHasLiked: true, ViewerHasReposted: false},
+			row.URI: {LikeCount: 3, RepostCount: 1, ReplyCount: 2, ViewerHasLiked: true, ViewerHasReposted: false, ViewerHasReplied: true},
 		},
 	}
 	h := api.GetPostHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
@@ -1041,7 +1041,7 @@ func TestGetPost_HappyPath(t *testing.T) {
 	if resp.Text != "hi" || resp.Author.Handle != "alice.example" {
 		t.Errorf("resp = %+v", resp)
 	}
-	if resp.LikeCount != 3 || resp.RepostCount != 1 || resp.ReplyCount != 2 || !resp.ViewerHasLiked || resp.ViewerHasReposted {
+	if resp.LikeCount != 3 || resp.RepostCount != 1 || resp.ReplyCount != 2 || !resp.ViewerHasLiked || resp.ViewerHasReposted || !resp.ViewerHasReplied {
 		t.Errorf("engagement = %+v", resp)
 	}
 	if store.engagementCalls != 1 || len(store.lastEngagementURIs) != 1 || store.lastEngagementURIs[0] != row.URI || store.lastEngagementViewer != "did:plc:alice" {
@@ -1105,7 +1105,7 @@ func TestListCommentReplies_HappyPath_PaginatesEngagementAndAuthorHandles(t *tes
 		replyRows:   replies,
 		replyCursor: "next-replies",
 		engagement: map[string]api.EngagementSummary{
-			replies[0].URI: {LikeCount: 2, RepostCount: 1, ReplyCount: 4, ViewerHasLiked: true},
+			replies[0].URI: {LikeCount: 2, RepostCount: 1, ReplyCount: 4, ViewerHasLiked: true, ViewerHasReplied: true},
 			replies[1].URI: {LikeCount: 1, RepostCount: 0, ReplyCount: 0, ViewerHasReposted: true},
 		},
 	}
@@ -1140,7 +1140,7 @@ func TestListCommentReplies_HappyPath_PaginatesEngagementAndAuthorHandles(t *tes
 	if resp.Items[0].Flattened || resp.Items[0].ReplyingTo != nil {
 		t.Fatalf("direct reply should not be flattened: %+v", resp.Items[0])
 	}
-	if resp.Items[0].Post.LikeCount != 2 || resp.Items[0].Post.RepostCount != 1 || resp.Items[0].Post.ReplyCount != 4 || !resp.Items[0].Post.ViewerHasLiked {
+	if resp.Items[0].Post.LikeCount != 2 || resp.Items[0].Post.RepostCount != 1 || resp.Items[0].Post.ReplyCount != 4 || !resp.Items[0].Post.ViewerHasLiked || !resp.Items[0].Post.ViewerHasReplied {
 		t.Errorf("item0 engagement = %+v", resp.Items[0])
 	}
 	if !resp.Items[1].Post.ViewerHasReposted {

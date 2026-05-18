@@ -150,7 +150,12 @@ class PostCommentSection with PostCommentSectionMappable {
         final replies =
             [
               for (final reply in comment.replies.items)
-                if (reply.post.uri != item.post.uri) reply,
+                if (reply.post.uri != item.post.uri)
+                  reply.post.uri == parentUri
+                      ? reply.copyWith(
+                          post: reply.post.copyWith(viewerHasReplied: true),
+                        )
+                      : reply,
               item,
             ]..sort(
               (left, right) => left.post.createdAt.compareTo(
@@ -161,7 +166,10 @@ class PostCommentSection with PostCommentSectionMappable {
             ? comment.post.replyCount
             : comment.post.replyCount + 1;
         return comment.copyWith(
-          post: comment.post.copyWith(replyCount: replyCount),
+          post: comment.post.copyWith(
+            replyCount: replyCount,
+            viewerHasReplied: directToComment || comment.post.viewerHasReplied,
+          ),
           replies: comment.replies.copyWith(
             loaded: true,
             items: replies,
@@ -199,7 +207,10 @@ class PostCommentSection with PostCommentSectionMappable {
     return copyWith(
       post: alreadyVisible
           ? this.post
-          : this.post.copyWith(replyCount: this.post.replyCount + 1),
+          : this.post.copyWith(
+              replyCount: this.post.replyCount + 1,
+              viewerHasReplied: true,
+            ),
       comments: comments.copyWith(items: [created, ...existing]),
     );
   }

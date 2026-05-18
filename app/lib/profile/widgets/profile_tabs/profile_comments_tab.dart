@@ -132,8 +132,7 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
                         rkey: root.rkey,
                         focus: post.uri,
                       ).push<void>(context),
-                onReply: () =>
-                    showPostComposerSheet(context, replyTarget: post),
+                onReply: () => _replyAndMarkJoined(ref, context, post),
                 onLike: () => ref
                     .read(toggleLikePostProvider.notifier)
                     .toggle(post: post),
@@ -180,6 +179,23 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
       confirmLabel: l10n.postDeleteConfirm,
       onConfirm: () => ref.read(deletePostProvider.notifier).delete(post: post),
     );
+  }
+
+  Future<void> _replyAndMarkJoined(
+    WidgetRef ref,
+    BuildContext context,
+    Post post,
+  ) async {
+    final created = await showPostComposerSheet(context, replyTarget: post);
+    if (created == null) return;
+    ref
+        .read(userCommentsProvider(handle).notifier)
+        .replace(
+          post.copyWith(
+            replyCount: post.replyCount + 1,
+            viewerHasReplied: true,
+          ),
+        );
   }
 }
 

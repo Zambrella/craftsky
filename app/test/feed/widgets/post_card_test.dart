@@ -14,6 +14,7 @@ Post _post({
   int replyCount = 0,
   bool viewerHasLiked = false,
   bool viewerHasReposted = false,
+  bool viewerHasReplied = false,
   DateTime? createdAt,
 }) {
   return Post(
@@ -27,6 +28,7 @@ Post _post({
     replyCount: replyCount,
     viewerHasLiked: viewerHasLiked,
     viewerHasReposted: viewerHasReposted,
+    viewerHasReplied: viewerHasReplied,
     createdAt: createdAt ?? DateTime.now().subtract(const Duration(minutes: 3)),
     indexedAt: DateTime.now().subtract(const Duration(minutes: 2)),
     author: PostAuthor(
@@ -91,6 +93,7 @@ void main() {
             replyCount: 3,
             viewerHasLiked: true,
             viewerHasReposted: true,
+            viewerHasReplied: true,
           ),
         ),
       );
@@ -109,12 +112,31 @@ void main() {
       final likeCount = tester.widget<Text>(find.text('5'));
       final repostCount = tester.widget<Text>(find.text('2'));
 
-      expect(replyIcon.color, BrandColors.ink2);
+      expect(replyIcon.color, BrandColors.clay);
       expect(likeIcon.color, BrandColors.red);
       expect(repostIcon.color, BrandColors.moss);
-      expect(replyCount.style?.color, BrandColors.ink2);
+      expect(replyCount.style?.color, BrandColors.clay);
       expect(likeCount.style?.color, BrandColors.red);
       expect(repostCount.style?.color, BrandColors.moss);
+    });
+
+    testWidgets('colours reply label when viewer has replied', (tester) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(viewerHasReplied: true),
+          showReplyCount: false,
+          showReplyLabel: true,
+        ),
+      );
+
+      final replyIcon = tester.widget<Icon>(
+        find.byIcon(Icons.chat_bubble_outline),
+      );
+      final replyLabel = tester.widget<Text>(find.text('Reply'));
+
+      expect(replyIcon.color, BrandColors.clay);
+      expect(replyLabel.style?.color, BrandColors.clay);
     });
 
     testWidgets('formats large engagement counts compactly', (tester) async {

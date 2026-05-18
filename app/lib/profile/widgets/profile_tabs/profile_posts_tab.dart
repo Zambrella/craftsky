@@ -128,7 +128,7 @@ class _ProfilePostsLoadedSlivers extends ConsumerWidget {
                   did: post.author.did,
                   rkey: post.rkey,
                 ).push<void>(context),
-                onReply: () => _replyAndOpenThread(context, post),
+                onReply: () => _replyAndOpenThread(context, ref, post),
                 replyTooltip: l10n.postCommentAction,
                 onLike: () => ref
                     .read(toggleLikePostProvider.notifier)
@@ -179,9 +179,21 @@ class _ProfilePostsLoadedSlivers extends ConsumerWidget {
     );
   }
 
-  Future<void> _replyAndOpenThread(BuildContext context, Post post) async {
+  Future<void> _replyAndOpenThread(
+    BuildContext context,
+    WidgetRef ref,
+    Post post,
+  ) async {
     final created = await showPostComposerSheet(context, replyTarget: post);
     if (created == null || !context.mounted) return;
+    ref
+        .read(userPostsProvider(handle).notifier)
+        .replace(
+          post.copyWith(
+            replyCount: post.replyCount + 1,
+            viewerHasReplied: true,
+          ),
+        );
     await PostThreadRoute(
       did: post.author.did,
       rkey: post.rkey,

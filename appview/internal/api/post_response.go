@@ -46,6 +46,7 @@ type PostResponse struct {
 	ReplyCount        int                `json:"replyCount"`
 	ViewerHasLiked    bool               `json:"viewerHasLiked"`
 	ViewerHasReposted bool               `json:"viewerHasReposted"`
+	ViewerHasReplied  bool               `json:"viewerHasReplied"`
 	Reply             *ResponseReply     `json:"reply"`
 	Quote             *ResponseStrongRef `json:"quote"`
 	CreatedAt         time.Time          `json:"createdAt"`
@@ -155,6 +156,7 @@ func applyEngagementSummary(resp *PostResponse, summary EngagementSummary) {
 	resp.ReplyCount = summary.ReplyCount
 	resp.ViewerHasLiked = summary.ViewerHasLiked
 	resp.ViewerHasReposted = summary.ViewerHasReposted
+	resp.ViewerHasReplied = summary.ViewerHasReplied
 }
 
 func derefOrEmpty(p *string) string {

@@ -65,6 +65,19 @@ class UserComments extends _$UserComments {
       ),
     );
   }
+
+  void replace(Post post) {
+    final current = state.value;
+    if (current == null) return;
+    state = AsyncData(
+      current.copyWith(
+        items: [
+          for (final item in current.items)
+            if (item.uri == post.uri || item.rkey == post.rkey) post else item,
+        ],
+      ),
+    );
+  }
 }
 
 void updateLiveUserCommentCaches(Ref ref, Post post) {

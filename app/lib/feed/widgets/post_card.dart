@@ -137,7 +137,8 @@ class PostCard extends StatelessWidget {
                             _PostCardAction(
                               icon: Icons.chat_bubble_outline,
                               count: showReplyCount ? post.replyCount : 0,
-                              selectedColor: BrandColors.sky,
+                              isSelected: post.viewerHasReplied,
+                              selectedColor: BrandColors.clay,
                               tooltip: replyTooltip ?? 'Reply',
                               label: showReplyLabel ? 'Reply' : null,
                               onPressed: onReply,

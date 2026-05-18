@@ -86,6 +86,11 @@ type ViewerInteractionState struct {
 	HasReposted bool
 }
 
+// ViewerReplyState is the current viewer's authored direct-reply state for one post.
+type ViewerReplyState struct {
+	HasReplied bool
+}
+
 // EngagementSummary is the batch-friendly read model used to augment posts.
 type EngagementSummary struct {
 	LikeCount         int
@@ -93,6 +98,7 @@ type EngagementSummary struct {
 	ReplyCount        int
 	ViewerHasLiked    bool
 	ViewerHasReposted bool
+	ViewerHasReplied  bool
 }
 
 // PostReader is the read-side interface handlers depend on. Tests inject
@@ -595,6 +601,41 @@ func (s *PostStore) ViewerInteractionStates(ctx context.Context, viewerDID strin
 	return out, nil
 }
 
+// ViewerReplyStates returns whether the current viewer authored a direct child reply for each post URI.
+func (s *PostStore) ViewerReplyStates(ctx context.Context, viewerDID string, postURIs []string) (map[string]ViewerReplyState, error) {
+	out := make(map[string]ViewerReplyState, len(postURIs))
+	for _, uri := range postURIs {
+		out[uri] = ViewerReplyState{}
+	}
+	if len(postURIs) == 0 || viewerDID == "" {
+		return out, nil
+	}
+	const q = `
+		SELECT reply_parent_uri, true
+		FROM craftsky_posts
+		WHERE did = $1
+		  AND reply_parent_uri = ANY($2::text[])
+		GROUP BY reply_parent_uri
+	`
+	rows, err := s.pool.Query(ctx, q, viewerDID, postURIs)
+	if err != nil {
+		return nil, fmt.Errorf("viewer reply states %s: %w", viewerDID, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var uri string
+		var replied bool
+		if err := rows.Scan(&uri, &replied); err != nil {
+			return nil, fmt.Errorf("viewer reply states scan: %w", err)
+		}
+		out[uri] = ViewerReplyState{HasReplied: replied}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("viewer reply states iter: %w", err)
+	}
+	return out, nil
+}
+
 // EngagementSummaries returns counts and current-viewer state keyed by post URI.
 func (s *PostStore) EngagementSummaries(ctx context.Context, viewerDID string, postURIs []string) (map[string]EngagementSummary, error) {
 	out := make(map[string]EngagementSummary, len(postURIs))
@@ -620,14 +661,20 @@ func (s *PostStore) EngagementSummaries(ctx context.Context, viewerDID string, p
 	if err != nil {
 		return nil, err
 	}
+	viewerReplyStates, err := s.ViewerReplyStates(ctx, viewerDID, postURIs)
+	if err != nil {
+		return nil, err
+	}
 	for _, uri := range postURIs {
 		state := viewerStates[uri]
+		replyState := viewerReplyStates[uri]
 		out[uri] = EngagementSummary{
 			LikeCount:         likeCounts[uri],
 			RepostCount:       repostCounts[uri],
 			ReplyCount:        replyCounts[uri],
 			ViewerHasLiked:    state.HasLiked,
 			ViewerHasReposted: state.HasReposted,
+			ViewerHasReplied:  replyState.HasReplied,
 		}
 	}
 	return out, nil

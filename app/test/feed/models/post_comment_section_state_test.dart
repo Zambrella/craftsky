@@ -174,6 +174,7 @@ void main() {
         CommentPlacement.viewerAuthored,
       );
       expect(updated.post.replyCount, 1);
+      expect(updated.post.viewerHasReplied, isTrue);
     });
 
     test('does not double-count a duplicate created comment', () {
@@ -285,6 +286,34 @@ void main() {
         existingReply.post.author.handle,
       );
       expect(updated.comments.items.single.post.replyCount, 2);
+      expect(updated.comments.items.single.post.viewerHasReplied, isFalse);
+      expect(
+        updated.comments.items.single.replies.items.first.post.viewerHasReplied,
+        isTrue,
+      );
+      expect(updated.post.replyCount, 1);
+    });
+
+    test('marks a comment when inserting a direct created reply', () {
+      final root = post('did:plc:alice', 'root', DateTime.utc(2026, 5, 1, 12));
+      final topComment = comment('did:plc:bob', 'comment', 1);
+      final createdReply = reply('did:plc:viewer', 'created', 2);
+      final section = PostCommentSection(
+        post: root,
+        sort: CommentSort.oldest,
+        comments: CommentPage(items: [topComment]),
+      );
+
+      final updated = section.insertCreatedReplyIntoNearestBranch(
+        parentUri: topComment.post.uri,
+        reply: createdReply,
+      );
+
+      expect(updated.comments.items.single.post.viewerHasReplied, isTrue);
+      expect(
+        updated.comments.items.single.replies.items.single.flattened,
+        isFalse,
+      );
       expect(updated.post.replyCount, 1);
     });
 

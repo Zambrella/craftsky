@@ -30,6 +30,7 @@ class Post with PostMappable {
     required this.replyCount,
     required this.viewerHasLiked,
     required this.viewerHasReposted,
+    this.viewerHasReplied = false,
     this.facets,
     this.reply,
     this.quote,
@@ -51,6 +52,7 @@ class Post with PostMappable {
   final int replyCount;
   final bool viewerHasLiked;
   final bool viewerHasReposted;
+  final bool viewerHasReplied;
 }
 
 /// Author identity embedded in every [Post] response.
