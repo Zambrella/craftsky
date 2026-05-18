@@ -67,4 +67,11 @@ class ApiPostRepository implements PostRepository {
     String? cursor,
     int? limit,
   }) => _api.listPostsByAuthor(handleOrDid, cursor: cursor, limit: limit);
+
+  @override
+  Future<PostPage> listCommentsByAuthor(
+    String handleOrDid, {
+    String? cursor,
+    int? limit,
+  }) => _api.listCommentsByAuthor(handleOrDid, cursor: cursor, limit: limit);
 }

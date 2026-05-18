@@ -170,7 +170,7 @@ void main() {
     });
 
     testWidgets('post route decodes focus query parameter', (tester) async {
-      final focus = 'at://did:plc:bob/social.craftsky.feed.post/reply1';
+      const focus = 'at://did:plc:bob/social.craftsky.feed.post/reply1';
       final repo = FakePostRepository(
         onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
             _section(did, rkey),

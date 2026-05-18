@@ -11,12 +11,16 @@ class CraftskyContextMenuItem {
     required this.text,
     required this.icon,
     required this.onPressed,
+    this.description,
+    this.isSelected = false,
     this.style = CraftskyContextMenuItemStyle.normal,
   });
 
   final String text;
   final IconData icon;
   final VoidCallback? onPressed;
+  final String? description;
+  final bool isSelected;
   final CraftskyContextMenuItemStyle style;
 }
 
@@ -208,16 +212,35 @@ class _CraftskyContextMenuRow extends StatelessWidget {
       CraftskyContextMenuItemStyle.destructive => semanticColors.error,
     };
     final color = isDisabled ? theme.colorScheme.outline : foreground;
+    final selectedBackground = theme.colorScheme.primaryContainer.withValues(
+      alpha: 0.4,
+    );
 
-    return ListTile(
-      enabled: !isDisabled,
-      onTap: onTap,
-      contentPadding: EdgeInsets.symmetric(horizontal: spacing.sp4),
-      horizontalTitleGap: spacing.sp3,
-      leading: Icon(item.icon, color: color),
-      title: Text(
-        item.text,
-        style: theme.textTheme.labelLarge?.copyWith(color: color),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: item.isSelected ? selectedBackground : Colors.transparent,
+      ),
+      child: ListTile(
+        enabled: !isDisabled,
+        onTap: onTap,
+        contentPadding: EdgeInsets.symmetric(horizontal: spacing.sp4),
+        horizontalTitleGap: spacing.sp3,
+        leading: Icon(
+          item.isSelected ? Icons.check_box : item.icon,
+          color: color,
+        ),
+        title: Text(
+          item.text,
+          style: theme.textTheme.labelLarge?.copyWith(color: color),
+        ),
+        subtitle: item.description == null
+            ? null
+            : Text(
+                item.description!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
+              ),
       ),
     );
   }

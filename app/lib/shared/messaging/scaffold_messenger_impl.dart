@@ -13,8 +13,9 @@ final GlobalKey<ScaffoldMessengerState> appScaffoldMessengerKey =
 /// The default production [AppMessenger]. Constructed once and reused —
 /// the [GlobalKey] is the only piece of mutable state and Flutter owns it.
 /// Not `const` because `GlobalKey()` is not a const expression.
-final AppMessenger defaultAppMessenger =
-    ScaffoldMessengerImpl(appScaffoldMessengerKey);
+final AppMessenger defaultAppMessenger = ScaffoldMessengerImpl(
+  appScaffoldMessengerKey,
+);
 
 /// `AppMessenger` backed by Flutter's `ScaffoldMessenger`. Routes every
 /// message through the global [appScaffoldMessengerKey] (never via

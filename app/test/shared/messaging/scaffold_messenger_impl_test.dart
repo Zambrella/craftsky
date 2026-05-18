@@ -6,9 +6,7 @@ import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Future<
-  ({GlobalKey<ScaffoldMessengerState> key, ScaffoldMessengerImpl impl})
->
+Future<({GlobalKey<ScaffoldMessengerState> key, ScaffoldMessengerImpl impl})>
 _pumpHarness(WidgetTester tester) async {
   final key = GlobalKey<ScaffoldMessengerState>();
   final impl = ScaffoldMessengerImpl(key);

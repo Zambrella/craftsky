@@ -19,6 +19,13 @@ void main() {
     viewerHasReposted: false,
   );
 
+  Post postWithReplyCount(
+    String did,
+    String rkey,
+    DateTime createdAt,
+    int replyCount,
+  ) => post(did, rkey, createdAt).copyWith(replyCount: replyCount);
+
   CommentItem comment(String did, String rkey, int minute) => CommentItem(
     post: post(did, rkey, DateTime.utc(2026, 5, 1, 12, minute)),
     placement: CommentPlacement.normal,
@@ -128,6 +135,79 @@ void main() {
       expect(initial.comments.items.single.replies.items, isEmpty);
     });
 
+    test('prepends newly created comments ahead of focused branches', () {
+      final focused = CommentItem(
+        post: post(
+          'did:plc:other',
+          'focused',
+          DateTime.utc(2026, 5, 1, 12, 1),
+        ),
+        placement: CommentPlacement.focused,
+        replies: const ReplyPage(loaded: false, items: []),
+      );
+      final normal = comment('did:plc:other', 'normal', 2);
+      final created = post(
+        'did:plc:viewer',
+        'created',
+        DateTime.utc(2026, 5, 1, 12, 3),
+      );
+      final section = PostCommentSection(
+        post: post('did:plc:alice', 'root', DateTime.utc(2026, 5, 1, 12)),
+        sort: CommentSort.oldest,
+        focus: FocusContext(
+          uri: focused.post.uri,
+          status: FocusStatus.included,
+          kind: FocusKind.comment,
+        ),
+        comments: CommentPage(items: [focused, normal]),
+      );
+
+      final updated = section.prependCreatedComment(created);
+
+      expect(updated.comments.items.map((item) => item.post.rkey), [
+        'created',
+        'focused',
+        'normal',
+      ]);
+      expect(
+        updated.comments.items.first.placement,
+        CommentPlacement.viewerAuthored,
+      );
+      expect(updated.post.replyCount, 1);
+      expect(updated.post.viewerHasReplied, isTrue);
+    });
+
+    test('does not double-count a duplicate created comment', () {
+      final created = post(
+        'did:plc:viewer',
+        'created',
+        DateTime.utc(2026, 5, 1, 12, 1),
+      );
+      final section = PostCommentSection(
+        post: postWithReplyCount(
+          'did:plc:alice',
+          'root',
+          DateTime.utc(2026, 5, 1, 12),
+          4,
+        ),
+        sort: CommentSort.oldest,
+        comments: CommentPage(
+          items: [
+            CommentItem(
+              post: created,
+              placement: CommentPlacement.viewerAuthored,
+              replies: const ReplyPage(loaded: false, items: []),
+            ),
+          ],
+        ),
+      );
+
+      final updated = section.prependCreatedComment(created);
+
+      expect(updated.post.replyCount, 4);
+      expect(updated.comments.items, hasLength(1));
+    });
+
     test('branch expansion and collapse state changes controls', () {
       final section = PostCommentSection(
         post: post('did:plc:alice', 'root', DateTime.utc(2026, 5, 1, 12)),
@@ -205,6 +285,65 @@ void main() {
         updated.comments.items.single.replies.items.last.replyingTo?.handle,
         existingReply.post.author.handle,
       );
+      expect(updated.comments.items.single.post.replyCount, 2);
+      expect(updated.comments.items.single.post.viewerHasReplied, isFalse);
+      expect(
+        updated.comments.items.single.replies.items.first.post.viewerHasReplied,
+        isTrue,
+      );
+      expect(updated.post.replyCount, 1);
+    });
+
+    test('marks a comment when inserting a direct created reply', () {
+      final root = post('did:plc:alice', 'root', DateTime.utc(2026, 5, 1, 12));
+      final topComment = comment('did:plc:bob', 'comment', 1);
+      final createdReply = reply('did:plc:viewer', 'created', 2);
+      final section = PostCommentSection(
+        post: root,
+        sort: CommentSort.oldest,
+        comments: CommentPage(items: [topComment]),
+      );
+
+      final updated = section.insertCreatedReplyIntoNearestBranch(
+        parentUri: topComment.post.uri,
+        reply: createdReply,
+      );
+
+      expect(updated.comments.items.single.post.viewerHasReplied, isTrue);
+      expect(
+        updated.comments.items.single.replies.items.single.flattened,
+        isFalse,
+      );
+      expect(updated.post.replyCount, 1);
+    });
+
+    test('loaded replies update comment reply count to visible total', () {
+      final topComment = CommentItem(
+        post: postWithReplyCount(
+          'did:plc:bob',
+          'comment',
+          DateTime.utc(2026, 5, 1, 12, 1),
+          15,
+        ),
+        placement: CommentPlacement.normal,
+        replies: const ReplyPage(loaded: false, items: []),
+      );
+      final section = PostCommentSection(
+        post: post('did:plc:alice', 'root', DateTime.utc(2026, 5, 1, 12)),
+        sort: CommentSort.oldest,
+        comments: CommentPage(items: [topComment]),
+      );
+
+      final updated = section.setCommentReplies(
+        commentUri: topComment.post.uri,
+        replies: [
+          for (var i = 0; i < 16; i++) reply('did:plc:reply$i', 'reply-$i', i),
+        ],
+        incrementRootReplyCount: true,
+      );
+
+      expect(updated.comments.items.single.post.replyCount, 16);
+      expect(updated.post.replyCount, 1);
     });
 
     test('de-duplicates viewer-authored comments from later pages', () {

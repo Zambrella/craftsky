@@ -202,6 +202,12 @@ abstract class AppLocalizations {
   /// **'Posts'**
   String get profileTabPosts;
 
+  /// Tab label for the Comments tab on the profile screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Comments'**
+  String get profileTabComments;
+
   /// Tab label for the Projects tab on the profile screen.
   ///
   /// In en, this message translates to:
@@ -310,10 +316,28 @@ abstract class AppLocalizations {
   /// **'Load more posts'**
   String get profilePostsLoadMore;
 
+  /// Muted placeholder shown in the profile Comments tab when the user has not commented.
+  ///
+  /// In en, this message translates to:
+  /// **'No comments yet.'**
+  String get profileCommentsEmpty;
+
+  /// Error title shown in the profile Comments tab when comment fetching fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Comments didn\'t load.'**
+  String get profileCommentsLoadError;
+
+  /// Button label for loading the next page in the profile Comments tab.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more comments'**
+  String get profileCommentsLoadMore;
+
   /// Title of the post thread screen.
   ///
   /// In en, this message translates to:
-  /// **'Thread'**
+  /// **'Post'**
   String get postThreadTitle;
 
   /// Empty state shown on a post thread when the post has no direct replies.
@@ -346,11 +370,23 @@ abstract class AppLocalizations {
   /// **'Reply'**
   String get postThreadReplyAction;
 
+  /// Button label for commenting on a root post from the post thread screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Comment'**
+  String get postCommentAction;
+
   /// Accessibility label for a reply button on the thread screen. The author placeholder includes a display name or handle.
   ///
   /// In en, this message translates to:
   /// **'Reply to {author}'**
   String postThreadReplyToAuthor(String author);
+
+  /// Accessibility label for a comment button on the thread screen. The author placeholder includes a display name or handle.
+  ///
+  /// In en, this message translates to:
+  /// **'Comment on {author}'**
+  String postCommentOnAuthor(String author);
 
   /// Accessibility label for the show-more-replies continuation button on the thread screen. The author placeholder identifies the post being continued.
   ///
@@ -370,11 +406,23 @@ abstract class AppLocalizations {
   /// **'Oldest'**
   String get postCommentsSortOldest;
 
+  /// Helper text for the oldest-first comment sort option.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation order'**
+  String get postCommentsSortOldestDescription;
+
   /// Comment-section sort option for newest-first comment ordering.
   ///
   /// In en, this message translates to:
   /// **'Newest'**
   String get postCommentsSortNewest;
+
+  /// Helper text for the newest-first comment sort option.
+  ///
+  /// In en, this message translates to:
+  /// **'Most recent on top'**
+  String get postCommentsSortNewestDescription;
 
   /// Comment-section sort option for follows-based ordering. Until follow ranking exists, this behaves like oldest-first.
   ///
@@ -382,11 +430,23 @@ abstract class AppLocalizations {
   /// **'Follows'**
   String get postCommentsSortFollows;
 
+  /// Helper text for the follows-first comment sort option.
+  ///
+  /// In en, this message translates to:
+  /// **'People you follow first'**
+  String get postCommentsSortFollowsDescription;
+
   /// Control label shown under a comment before its replies are loaded.
   ///
   /// In en, this message translates to:
   /// **'View replies'**
   String get postCommentsViewReplies;
+
+  /// Control label shown under a comment before its replies are loaded, including the total reply count.
+  ///
+  /// In en, this message translates to:
+  /// **'Show {count, plural, =1{1 reply} other{{count} replies}}'**
+  String postCommentsViewReplyCount(int count);
 
   /// Control label for loading another page of replies under an expanded comment.
   ///
@@ -478,17 +538,59 @@ abstract class AppLocalizations {
   /// **'Delete post'**
   String get postDeleteAction;
 
+  /// Tooltip for opening a post, comment, or reply context menu when no destructive action label applies.
+  ///
+  /// In en, this message translates to:
+  /// **'More actions'**
+  String get postMoreActions;
+
+  /// Menu label for deleting a comment.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete comment'**
+  String get commentDeleteAction;
+
+  /// Menu label for deleting a reply.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete reply'**
+  String get replyDeleteAction;
+
   /// Title of the delete-post confirmation dialog.
   ///
   /// In en, this message translates to:
   /// **'Delete post?'**
   String get postDeleteTitle;
 
+  /// Title of the delete-comment confirmation dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete comment?'**
+  String get commentDeleteTitle;
+
+  /// Title of the delete-reply confirmation dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete reply?'**
+  String get replyDeleteTitle;
+
   /// Body text of the delete-post confirmation dialog.
   ///
   /// In en, this message translates to:
   /// **'This removes the post from Craftsky.'**
   String get postDeleteMessage;
+
+  /// Body text of the delete-comment confirmation dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes the comment from Craftsky.'**
+  String get commentDeleteMessage;
+
+  /// Body text of the delete-reply confirmation dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes the reply from Craftsky.'**
+  String get replyDeleteMessage;
 
   /// Confirm button label in the delete-post confirmation dialog.
   ///

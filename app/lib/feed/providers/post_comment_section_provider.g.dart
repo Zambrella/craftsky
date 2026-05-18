@@ -53,7 +53,7 @@ final class PostCommentSectionProvider
 }
 
 String _$postCommentSectionHash() =>
-    r'e00f0f90e70ff63482463763473fcbf439635838';
+    r'eb1bfb68b3d24d4d93db8aeeebfca6d360d3948c';
 
 final class PostCommentSectionFamily extends $Family
     with
@@ -289,7 +289,7 @@ final class PostCommentRepliesLoaderProvider
 }
 
 String _$postCommentRepliesLoaderHash() =>
-    r'c331cc5dc7643fd982e3dde41db22892201f7d27';
+    r'28b977a14c25ecc495287ab30cb85f7dfd3783a7';
 
 final class PostCommentRepliesLoaderFamily extends $Family
     with

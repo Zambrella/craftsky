@@ -51,17 +51,54 @@ class PostCommentSection with PostCommentSectionMappable {
     );
   }
 
+  /// Replaces the root post, a visible comment, or a visible reply.
+  PostCommentSection replacePost(Post post) {
+    return copyWith(
+      post: this.post.uri == post.uri || this.post.rkey == post.rkey
+          ? post
+          : this.post,
+      comments: comments.copyWith(
+        items: [
+          for (final item in comments.items)
+            item.copyWith(
+              post: item.post.uri == post.uri || item.post.rkey == post.rkey
+                  ? post
+                  : item.post,
+              replies: item.replies.copyWith(
+                items: [
+                  for (final reply in item.replies.items)
+                    reply.copyWith(
+                      post:
+                          reply.post.uri == post.uri ||
+                              reply.post.rkey == post.rkey
+                          ? post
+                          : reply.post,
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   /// Replaces a comment branch with a loaded reply page.
   PostCommentSection setCommentReplies({
     required String commentUri,
     required List<ReplyItem> replies,
     String? cursor,
+    bool incrementRootReplyCount = false,
   }) {
-    return _mapComment(commentUri, (item) {
+    final updated = _mapComment(commentUri, (item) {
+      final replyCount = replies.length > item.post.replyCount
+          ? replies.length
+          : item.post.replyCount;
       return item.copyWith(
+        post: item.post.copyWith(replyCount: replyCount),
         replies: ReplyPage(loaded: true, items: replies, cursor: cursor),
       );
     });
+    return updated._incrementRootReplyCountIf(incrementRootReplyCount);
   }
 
   /// Collapses a comment branch without retaining visible reply items.
@@ -106,14 +143,39 @@ class PostCommentSection with PostCommentSectionMappable {
                     displayName: parentReply.post.author.displayName,
                   ),
             );
+      final alreadyVisible = comment.replies.items.any(
+        (reply) => reply.post.uri == item.post.uri,
+      );
       return _mapComment(comment.post.uri, (comment) {
+        final replies =
+            [
+              for (final reply in comment.replies.items)
+                if (reply.post.uri != item.post.uri)
+                  reply.post.uri == parentUri
+                      ? reply.copyWith(
+                          post: reply.post.copyWith(viewerHasReplied: true),
+                        )
+                      : reply,
+              item,
+            ]..sort(
+              (left, right) => left.post.createdAt.compareTo(
+                right.post.createdAt,
+              ),
+            );
+        final replyCount = alreadyVisible
+            ? comment.post.replyCount
+            : comment.post.replyCount + 1;
         return comment.copyWith(
+          post: comment.post.copyWith(
+            replyCount: replyCount,
+            viewerHasReplied: directToComment || comment.post.viewerHasReplied,
+          ),
           replies: comment.replies.copyWith(
             loaded: true,
-            items: [...comment.replies.items, item],
+            items: replies,
           ),
         );
-      });
+      })._incrementRootReplyCountIf(!alreadyVisible);
     }
     return this;
   }
@@ -131,23 +193,31 @@ class PostCommentSection with PostCommentSectionMappable {
     );
   }
 
-  /// Prepends a newly-created comment behind any focused branch.
+  /// Prepends a newly-created comment ahead of server-provided ordering.
   PostCommentSection prependCreatedComment(Post post) {
     final created = CommentItem(
       post: post,
       placement: CommentPlacement.viewerAuthored,
       replies: const ReplyPage(loaded: false, items: []),
     );
+    final alreadyVisible = comments.items.any(
+      (item) => item.post.uri == post.uri,
+    );
     final existing = comments.items.where((item) => item.post.uri != post.uri);
-    final focused = existing.where(
-      (item) => item.placement == CommentPlacement.focused,
-    );
-    final rest = existing.where(
-      (item) => item.placement != CommentPlacement.focused,
-    );
     return copyWith(
-      comments: comments.copyWith(items: [...focused, created, ...rest]),
+      post: alreadyVisible
+          ? this.post
+          : this.post.copyWith(
+              replyCount: this.post.replyCount + 1,
+              viewerHasReplied: true,
+            ),
+      comments: comments.copyWith(items: [created, ...existing]),
     );
+  }
+
+  PostCommentSection _incrementRootReplyCountIf(bool shouldIncrement) {
+    if (!shouldIncrement) return this;
+    return copyWith(post: post.copyWith(replyCount: post.replyCount + 1));
   }
 
   /// Clears focus promotion and applies viewer grouping under a new sort.

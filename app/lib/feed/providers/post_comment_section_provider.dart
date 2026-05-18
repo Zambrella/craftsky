@@ -29,6 +29,7 @@ class PostCommentSection extends _$PostCommentSection {
     required String commentUri,
     required List<model.ReplyItem> replies,
     String? cursor,
+    bool incrementRootReplyCount = false,
   }) {
     final current = state.requireValue;
     state = AsyncData(
@@ -36,6 +37,7 @@ class PostCommentSection extends _$PostCommentSection {
         commentUri: commentUri,
         replies: replies,
         cursor: cursor,
+        incrementRootReplyCount: incrementRootReplyCount,
       ),
     );
   }
@@ -50,6 +52,12 @@ class PostCommentSection extends _$PostCommentSection {
   void prependCreatedComment(Post post) {
     final current = state.requireValue;
     state = AsyncData(current.prependCreatedComment(post));
+  }
+
+  void replacePost(Post post) {
+    final current = state.value;
+    if (current == null) return;
+    state = AsyncData(current.replacePost(post));
   }
 
   void insertCreatedReply({

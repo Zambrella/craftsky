@@ -51,7 +51,7 @@ func TestBuildPostResponse_MinimalPost(t *testing.T) {
 	if !resp.IndexedAt.Equal(baseRow().IndexedAt) {
 		t.Errorf("indexedAt = %v", resp.IndexedAt)
 	}
-	if resp.LikeCount != 0 || resp.RepostCount != 0 || resp.ReplyCount != 0 || resp.ViewerHasLiked || resp.ViewerHasReposted {
+	if resp.LikeCount != 0 || resp.RepostCount != 0 || resp.ReplyCount != 0 || resp.ViewerHasLiked || resp.ViewerHasReposted || resp.ViewerHasReplied {
 		t.Errorf("engagement defaults = %+v", resp)
 	}
 	if resp.Reply != nil {
@@ -100,7 +100,7 @@ func TestBuildPostResponse_JSONIncludesEngagementFields(t *testing.T) {
 		t.Fatalf("marshal: %v", err)
 	}
 	got := string(data)
-	for _, key := range []string{`"likeCount":0`, `"repostCount":0`, `"replyCount":0`, `"viewerHasLiked":false`, `"viewerHasReposted":false`} {
+	for _, key := range []string{`"likeCount":0`, `"repostCount":0`, `"replyCount":0`, `"viewerHasLiked":false`, `"viewerHasReposted":false`, `"viewerHasReplied":false`} {
 		if !strings.Contains(got, key) {
 			t.Fatalf("missing %s in %s", key, got)
 		}

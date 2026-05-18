@@ -9,6 +9,7 @@ import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../fakes/recording_messenger.dart';
 import '../../feed/fakes/fake_post_repository.dart';
@@ -94,12 +95,17 @@ void main() {
       expect(find.text('No posts yet.'), findsOneWidget);
     });
 
-    testWidgets('load more appends the next page', (tester) async {
-      var calls = 0;
+    testWidgets('scrolling near the end appends the next page', (tester) async {
+      final calls = <({String? cursor, int? limit})>[];
       final repo = FakePostRepository(
         onListByAuthor: (_, {cursor, limit}) async {
-          calls++;
-          if (calls == 1) return PostPage(items: [_post('a')], cursor: 'c1');
+          calls.add((cursor: cursor, limit: limit));
+          if (calls.length == 1) {
+            return PostPage(
+              items: [for (var i = 0; i < 10; i++) _post('a$i')],
+              cursor: 'c1',
+            );
+          }
           expect(cursor, 'c1');
           return PostPage(items: [_post('b')]);
         },
@@ -107,11 +113,20 @@ void main() {
 
       await _pump(tester, repo: repo, isOwnProfile: false);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Load more posts'));
+      await tester.scrollUntilVisible(
+        find.text('post a9'),
+        500,
+        scrollable: find.byType(Scrollable),
+      );
       await tester.pumpAndSettle();
 
-      expect(find.text('post a'), findsOneWidget);
+      expect(calls, [
+        (cursor: null, limit: 10),
+        (cursor: 'c1', limit: 10),
+      ]);
+      expect(find.text('post a9'), findsOneWidget);
       expect(find.text('post b'), findsOneWidget);
+      expect(find.text('Load more posts'), findsNothing);
     });
 
     testWidgets('wires reply composer, like, and repost actions', (
@@ -161,6 +176,74 @@ void main() {
         'like:did:plc:alice/a',
         'repost:did:plc:alice/a',
       ]);
+    });
+
+    testWidgets('reply create opens thread focused on the new comment', (
+      tester,
+    ) async {
+      GoRouterState? threadState;
+      final root = _post('root');
+      final created = _post('created');
+      final repo = FakePostRepository(
+        onListByAuthor: (_, {cursor, limit}) async => PostPage(items: [root]),
+        onCreate: ({required text, reply}) async => created,
+      );
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => const Scaffold(
+              body: CustomScrollView(
+                slivers: [
+                  ProfilePostsTab(
+                    handle: 'alice.craftsky.social',
+                    isOwnProfile: false,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/posts/:did/:rkey',
+            builder: (context, state) {
+              threadState = state;
+              return const Scaffold(body: Text('Thread route'));
+            },
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [postRepositoryProvider.overrideWithValue(repo)],
+          child: MessengerScope(
+            messenger: RecordingMessenger(),
+            child: MaterialApp.router(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              routerConfig: router,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'new comment');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TextButton, 'Reply'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Thread route'), findsOneWidget);
+      expect(threadState?.pathParameters['did'], root.author.did);
+      expect(threadState?.pathParameters['rkey'], root.rkey);
+      expect(threadState?.uri.queryParameters['focus'], created.uri);
+      expect(threadState?.extra, isA<Post>());
+      expect((threadState!.extra! as Post).uri, created.uri);
+      expect((threadState!.extra! as Post).reply?.root.uri, root.uri);
     });
 
     testWidgets('delete confirmation removes a post', (tester) async {

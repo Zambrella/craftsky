@@ -5,13 +5,18 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_posts_provider.g.dart';
 
+const userPostsPageLimit = 10;
+
 /// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
 @riverpod
 class UserPosts extends _$UserPosts {
   @override
   Future<UserPostsState> build(String handleOrDid) async {
     final repo = ref.watch(postRepositoryProvider);
-    final page = await repo.listByAuthor(handleOrDid);
+    final page = await repo.listByAuthor(
+      handleOrDid,
+      limit: userPostsPageLimit,
+    );
     return UserPostsState(items: page.items, cursor: page.cursor);
   }
 
@@ -37,7 +42,11 @@ class UserPosts extends _$UserPosts {
 
     final next = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
-      final page = await repo.listByAuthor(handleOrDid, cursor: current.cursor);
+      final page = await repo.listByAuthor(
+        handleOrDid,
+        cursor: current.cursor,
+        limit: userPostsPageLimit,
+      );
       return UserPostsState(
         items: [...current.items, ...page.items],
         cursor: page.cursor,

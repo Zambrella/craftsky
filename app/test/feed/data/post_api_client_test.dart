@@ -27,6 +27,7 @@ void main() {
       'replyCount': 3,
       'viewerHasLiked': true,
       'viewerHasReposted': false,
+      'viewerHasReplied': true,
       'createdAt': '2026-05-04T18:23:45.000Z',
       'indexedAt': '2026-05-04T18:23:47.000Z',
       'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
@@ -45,6 +46,7 @@ void main() {
       final post = await PostApiClient(dio).createPost(text: 'hi');
       expect(post.text, 'hi');
       expect(post.rkey, '3lf2abc');
+      expect(post.viewerHasReplied, isTrue);
     });
 
     test('omits reply for top-level posts', () async {
@@ -200,6 +202,42 @@ void main() {
       final page = await PostApiClient(
         dio,
       ).listPostsByAuthor('alice.craftsky.social', cursor: 'c1', limit: 50);
+      expect(page.items, isEmpty);
+      expect(page.cursor, isNull);
+    });
+  });
+
+  group('PostApiClient.listCommentsByAuthor', () {
+    test('GETs /v1/profiles/@{handleOrDid}/comments', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onGet(
+        '/v1/profiles/@alice.craftsky.social/comments',
+        (server) => server.reply(200, {
+          'items': [samplePost()],
+          'cursor': 'next-cursor',
+        }),
+      );
+
+      final page = await PostApiClient(
+        dio,
+      ).listCommentsByAuthor('alice.craftsky.social');
+      expect(page.items, hasLength(1));
+      expect(page.cursor, 'next-cursor');
+    });
+
+    test('passes cursor and limit as query params', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onGet(
+        '/v1/profiles/@alice.craftsky.social/comments',
+        (server) => server.reply(200, {'items': <Map<String, dynamic>>[]}),
+        queryParameters: {'cursor': 'c1', 'limit': '50'},
+      );
+
+      final page = await PostApiClient(dio).listCommentsByAuthor(
+        'alice.craftsky.social',
+        cursor: 'c1',
+        limit: 50,
+      );
       expect(page.items, isEmpty);
       expect(page.cursor, isNull);
     });

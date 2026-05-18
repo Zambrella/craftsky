@@ -16,8 +16,7 @@ class MessengerScope extends InheritedWidget {
   final AppMessenger messenger;
 
   static AppMessenger of(BuildContext context) {
-    final scope = context
-        .dependOnInheritedWidgetOfExactType<MessengerScope>();
+    final scope = context.dependOnInheritedWidgetOfExactType<MessengerScope>();
     assert(
       scope != null,
       'MessengerScope.of() called with no MessengerScope ancestor.',

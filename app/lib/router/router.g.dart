@@ -354,6 +354,7 @@ mixin $PostThreadRoute on GoRouteData {
     did: state.pathParameters['did']!,
     rkey: state.pathParameters['rkey']!,
     focus: state.uri.queryParameters['focus'],
+    $extra: state.extra as Post?,
   );
 
   PostThreadRoute get _self => this as PostThreadRoute;
@@ -365,17 +366,19 @@ mixin $PostThreadRoute on GoRouteData {
   );
 
   @override
-  void go(BuildContext context) => context.go(location);
+  void go(BuildContext context) => context.go(location, extra: _self.$extra);
 
   @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+  Future<T?> push<T>(BuildContext context) =>
+      context.push<T>(location, extra: _self.$extra);
 
   @override
   void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
+      context.pushReplacement(location, extra: _self.$extra);
 
   @override
-  void replace(BuildContext context) => context.replace(location);
+  void replace(BuildContext context) =>
+      context.replace(location, extra: _self.$extra);
 }
 
 RouteBase get $userProfileRoute => GoRouteData.$route(

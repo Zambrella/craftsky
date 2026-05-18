@@ -1,3 +1,4 @@
+import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
@@ -5,6 +6,7 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,14 +15,20 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../fakes/recording_messenger.dart';
 import '../fakes/fake_post_repository.dart';
 
-Post _post(String did, String rkey, String text, {int replyCount = 0}) => Post(
+Post _post(
+  String did,
+  String rkey,
+  String text, {
+  int replyCount = 0,
+  DateTime? createdAt,
+}) => Post(
   uri: 'at://$did/social.craftsky.feed.post/$rkey',
   cid: 'bafy_$rkey',
   rkey: rkey,
   text: text,
   tags: const [],
-  createdAt: DateTime.utc(2026, 5, 1, 12),
-  indexedAt: DateTime.utc(2026, 5, 1, 12),
+  createdAt: createdAt ?? DateTime.utc(2026, 5, 1, 12),
+  indexedAt: createdAt ?? DateTime.utc(2026, 5, 1, 12),
   author: PostAuthor(did: did, handle: '$rkey.craftsky.social'),
   likeCount: 0,
   repostCount: 0,
@@ -29,10 +37,27 @@ Post _post(String did, String rkey, String text, {int replyCount = 0}) => Post(
   viewerHasReposted: false,
 );
 
+InteractionWriteResponse _likeResponse(Post post) => InteractionWriteResponse(
+  uri: 'at://did:plc:viewer/social.craftsky.feed.like/like-${post.rkey}',
+  cid: 'bafy_like_${post.rkey}',
+  rkey: 'like-${post.rkey}',
+  subject: PostRef(uri: post.uri, cid: post.cid),
+  createdAt: DateTime.utc(2026, 5, 1, 12, 1),
+);
+
+InteractionWriteResponse _repostResponse(Post post) => InteractionWriteResponse(
+  uri: 'at://did:plc:viewer/social.craftsky.feed.repost/repost-${post.rkey}',
+  cid: 'bafy_repost_${post.rkey}',
+  rkey: 'repost-${post.rkey}',
+  subject: PostRef(uri: post.uri, cid: post.cid),
+  createdAt: DateTime.utc(2026, 5, 1, 12, 1),
+);
+
 Future<void> _pumpCommentSection(
   WidgetTester tester, {
   required FakePostRepository repo,
   String? focus,
+  Post? initialCreatedPost,
   Size size = const Size(390, 1200),
   RecordingMessenger? messenger,
 }) async {
@@ -55,6 +80,7 @@ Future<void> _pumpCommentSection(
               did: 'did:plc:alice',
               rkey: 'root',
               focus: focus,
+              initialCreatedPost: initialCreatedPost,
             ),
           ),
         ),
@@ -82,11 +108,18 @@ void main() {
     );
 
     expect(l10n.postCommentsSortOldest, 'Oldest');
+    expect(l10n.postCommentsSortOldestDescription, 'Conversation order');
     expect(l10n.postCommentsSortNewest, 'Newest');
+    expect(l10n.postCommentsSortNewestDescription, 'Most recent on top');
     expect(l10n.postCommentsSortFollows, 'Follows');
+    expect(l10n.postCommentsSortFollowsDescription, 'People you follow first');
     expect(l10n.postCommentsViewReplies, 'View replies');
+    expect(l10n.postCommentsViewReplyCount(1), 'Show 1 reply');
+    expect(l10n.postCommentsViewReplyCount(3), 'Show 3 replies');
     expect(l10n.postCommentsLoadMoreReplies, 'Load more replies');
     expect(l10n.postCommentsHideReplies, 'Hide replies');
+    expect(l10n.commentDeleteAction, 'Delete comment');
+    expect(l10n.replyDeleteAction, 'Delete reply');
     expect(l10n.postCommentsFocusNotFound, isNotEmpty);
     expect(l10n.postCommentsFocusMismatchedRoot, isNotEmpty);
   });
@@ -197,6 +230,75 @@ void main() {
       lessThan(tester.getTopLeft(find.text('normal comment')).dy),
     );
     expect(find.text('focused reply'), findsOneWidget);
+  });
+
+  testWidgets('focused reply scrolls into view in a loaded branch', (
+    tester,
+  ) async {
+    const focusUri = 'at://did:plc:target/social.craftsky.feed.post/focused';
+    final root = _post('did:plc:alice', 'root', 'root post');
+    final focusedComment = _post(
+      'did:plc:bob',
+      'focused-comment',
+      'promoted comment',
+    );
+    final repo = FakePostRepository(
+      onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+          PostCommentSection(
+            post: root,
+            sort: CommentSort.oldest,
+            focus: const FocusContext(
+              uri: focusUri,
+              status: FocusStatus.included,
+              kind: FocusKind.reply,
+              commentUri:
+                  'at://did:plc:bob/social.craftsky.feed.post/focused-comment',
+            ),
+            comments: CommentPage(
+              items: [
+                CommentItem(
+                  post: focusedComment,
+                  placement: CommentPlacement.focused,
+                  replies: ReplyPage(
+                    loaded: true,
+                    items: [
+                      for (var i = 0; i < 8; i++)
+                        ReplyItem(
+                          post: _post(
+                            'did:plc:reply$i',
+                            'reply-$i',
+                            'reply $i',
+                          ),
+                          flattened: false,
+                        ),
+                      ReplyItem(
+                        post: _post(
+                          'did:plc:target',
+                          'focused',
+                          'focused reply',
+                        ),
+                        flattened: false,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+    );
+
+    await _pumpCommentSection(
+      tester,
+      repo: repo,
+      focus: focusUri,
+      size: const Size(390, 420),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    final focusedRect = tester.getRect(find.text('focused reply'));
+    expect(focusedRect.top, greaterThanOrEqualTo(0));
+    expect(focusedRect.bottom, lessThanOrEqualTo(420));
   });
 
   testWidgets('root post initially shows comments only without replies', (
@@ -331,7 +433,12 @@ void main() {
             loaded: true,
             items: [
               ReplyItem(
-                post: _post('did:plc:carol', 'reply-1', 'reply 1'),
+                post: _post(
+                  'did:plc:carol',
+                  'reply-1',
+                  'reply 1',
+                  replyCount: 4,
+                ),
                 flattened: false,
               ),
             ],
@@ -353,22 +460,120 @@ void main() {
     await _pumpCommentSection(tester, repo: repo);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('View replies'));
+    expect(find.text('Show 12 replies'), findsOneWidget);
+    await tester.tap(find.text('Show 12 replies'));
     await tester.pumpAndSettle();
     expect(calls, [null]);
     expect(find.text('reply 1'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is DecoratedBox &&
+            widget.decoration is BoxDecoration &&
+            (widget.decoration as BoxDecoration).color == BrandColors.paper2,
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Hide replies'), findsOneWidget);
     expect(find.text('Load more replies'), findsOneWidget);
+    expect(find.text('4'), findsNothing);
 
     await tester.tap(find.text('Load more replies'));
     await tester.pumpAndSettle();
     expect(calls, [null, 'more-replies']);
     expect(find.text('reply 2'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('reply 1')).dy,
+      lessThan(tester.getTopLeft(find.text('reply 2')).dy),
+    );
 
-    await tester.tap(find.text('Hide replies'));
+    final hideReplies = find.widgetWithText(TextButton, 'Hide replies');
+    await tester.ensureVisible(hideReplies);
+    await tester.pumpAndSettle();
+    await tester.tap(hideReplies);
     await tester.pumpAndSettle();
     expect(find.text('reply 1'), findsNothing);
     expect(find.text('reply 2'), findsNothing);
+  });
+
+  testWidgets('wires like actions for root post, comments, and replies', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    final root = _post('did:plc:alice', 'root', 'root post');
+    final comment = _post('did:plc:bob', 'comment', 'comment');
+    final reply = _post('did:plc:carol', 'reply', 'reply');
+    final postsByRkey = {
+      root.rkey: root,
+      comment.rkey: comment,
+      reply.rkey: reply,
+    };
+    final repo = FakePostRepository(
+      onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+          PostCommentSection(
+            post: root,
+            sort: CommentSort.oldest,
+            comments: CommentPage(
+              items: [
+                CommentItem(
+                  post: comment,
+                  placement: CommentPlacement.normal,
+                  replies: ReplyPage(
+                    loaded: true,
+                    items: [ReplyItem(post: reply, flattened: false)],
+                  ),
+                ),
+              ],
+            ),
+          ),
+      onLike: (did, rkey) async {
+        calls.add('$did/$rkey');
+        return _likeResponse(postsByRkey[rkey]!);
+      },
+    );
+
+    await _pumpCommentSection(tester, repo: repo);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.favorite_border).at(0));
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.favorite_border).at(0));
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.favorite_border).at(0));
+    await tester.pump();
+
+    expect(calls, [
+      'did:plc:alice/root',
+      'did:plc:bob/comment',
+      'did:plc:carol/reply',
+    ]);
+    expect(find.byIcon(Icons.favorite), findsNWidgets(3));
+    expect(find.byIcon(Icons.favorite_border), findsNothing);
+    expect(find.text('1'), findsNWidgets(3));
+  });
+
+  testWidgets('wires repost action for the root post', (tester) async {
+    final calls = <String>[];
+    final root = _post('did:plc:alice', 'root', 'root post');
+    final repo = FakePostRepository(
+      onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+          PostCommentSection(
+            post: root,
+            sort: CommentSort.oldest,
+            comments: const CommentPage(items: []),
+          ),
+      onRepost: (did, rkey) async {
+        calls.add('$did/$rkey');
+        return _repostResponse(root);
+      },
+    );
+
+    await _pumpCommentSection(tester, repo: repo);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.repeat));
+    await tester.pump();
+
+    expect(calls, ['did:plc:alice/root']);
+    expect(find.text('1'), findsOneWidget);
   });
 
   testWidgets('selecting comment sort rerenders backend ordered comments', (
@@ -414,6 +619,8 @@ void main() {
 
     await tester.tap(find.text('Oldest'));
     await tester.pumpAndSettle();
+    expect(find.text('Conversation order'), findsOneWidget);
+    expect(find.byIcon(Icons.check_box), findsOneWidget);
     await tester.tap(find.text('Newest').last);
     await tester.pumpAndSettle();
 
@@ -466,6 +673,7 @@ void main() {
 
     expect(createCalls, 1);
     expect(find.text('created comment'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
     expect(find.byType(TextField), findsNothing);
     await tester.scrollUntilVisible(
       find.text('normal comment'),
@@ -477,6 +685,319 @@ void main() {
       lessThan(tester.getTopLeft(find.text('normal comment')).dy),
     );
     expect(find.text('Oldest'), findsOneWidget);
+  });
+
+  testWidgets('new top-level comment appears above a focused branch', (
+    tester,
+  ) async {
+    const focusUri = 'at://did:plc:focus/social.craftsky.feed.post/focused';
+    final root = _post('did:plc:alice', 'root', 'root post');
+    final focused = _post('did:plc:focus', 'focused', 'focused comment');
+    final normal = _post('did:plc:other', 'normal', 'normal comment');
+    final created = _post('did:plc:viewer', 'created', 'created comment');
+    final repo = FakePostRepository(
+      onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+          PostCommentSection(
+            post: root,
+            sort: sort ?? CommentSort.oldest,
+            focus: const FocusContext(
+              uri: focusUri,
+              status: FocusStatus.included,
+              kind: FocusKind.comment,
+            ),
+            comments: CommentPage(
+              items: [
+                CommentItem(
+                  post: focused,
+                  placement: CommentPlacement.focused,
+                  replies: const ReplyPage(loaded: false, items: []),
+                ),
+                CommentItem(
+                  post: normal,
+                  placement: CommentPlacement.normal,
+                  replies: const ReplyPage(loaded: false, items: []),
+                ),
+              ],
+            ),
+          ),
+      onCreate: ({required text, reply}) async => created,
+    );
+
+    await _pumpCommentSection(tester, repo: repo, focus: focusUri);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('threadStickyReplyPrompt')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'created comment');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(TextButton, 'Reply'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('created comment'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('created comment')).dy,
+      lessThan(tester.getTopLeft(find.text('focused comment')).dy),
+    );
+  });
+
+  testWidgets('new top-level comment scrolls into view after create', (
+    tester,
+  ) async {
+    final root = _post('did:plc:alice', 'root', 'root post');
+    final created = _post(
+      'did:plc:viewer',
+      'created',
+      'created comment',
+      createdAt: DateTime.utc(2026, 5, 1, 12, 20),
+    );
+    final repo = FakePostRepository(
+      onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+          PostCommentSection(
+            post: root,
+            sort: sort ?? CommentSort.oldest,
+            comments: CommentPage(
+              items: [
+                for (var i = 0; i < 12; i++)
+                  CommentItem(
+                    post: _post(
+                      'did:plc:other$i',
+                      'comment-$i',
+                      'comment $i',
+                      createdAt: DateTime.utc(2026, 5, 1, 12, i),
+                    ),
+                    placement: CommentPlacement.normal,
+                    replies: const ReplyPage(loaded: false, items: []),
+                  ),
+              ],
+            ),
+          ),
+      onCreate: ({required text, reply}) async => created,
+    );
+
+    await _pumpCommentSection(
+      tester,
+      repo: repo,
+      size: const Size(390, 420),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('comment 11'),
+      250,
+      scrollable: find.byType(Scrollable),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('threadStickyReplyPrompt')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'created comment');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(TextButton, 'Reply'));
+    await tester.pumpAndSettle();
+
+    final createdRect = tester.getRect(find.text('created comment'));
+    expect(createdRect.top, greaterThanOrEqualTo(0));
+    expect(createdRect.bottom, lessThanOrEqualTo(420));
+  });
+
+  testWidgets('initial created comment renders before it is indexed', (
+    tester,
+  ) async {
+    final root = _post('did:plc:alice', 'root', 'root post');
+    final created =
+        _post(
+          'did:plc:viewer',
+          'created',
+          'created comment',
+        ).copyWith(
+          reply: PostReply(
+            root: PostRef(uri: root.uri, cid: root.cid),
+            parent: PostRef(uri: root.uri, cid: root.cid),
+          ),
+        );
+    final repo = FakePostRepository(
+      onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+          PostCommentSection(
+            post: root,
+            sort: sort ?? CommentSort.oldest,
+            focus: FocusContext(
+              uri: created.uri,
+              status: FocusStatus.notFound,
+              kind: FocusKind.comment,
+            ),
+            comments: const CommentPage(items: []),
+          ),
+    );
+
+    await _pumpCommentSection(
+      tester,
+      repo: repo,
+      focus: created.uri,
+      initialCreatedPost: created,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('created comment'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
+  });
+
+  testWidgets('replying to a collapsed comment loads the visible branch', (
+    tester,
+  ) async {
+    final replyLoadCursors = <String?>[];
+    final root = _post('did:plc:alice', 'root', 'root post');
+    final comment =
+        _post(
+          'did:plc:bob',
+          'comment',
+          'collapsed comment',
+          replyCount: 15,
+        ).copyWith(
+          reply: PostReply(
+            root: PostRef(uri: root.uri, cid: root.cid),
+            parent: PostRef(uri: root.uri, cid: root.cid),
+          ),
+        );
+    final existingReplies = [
+      for (var i = 0; i < 15; i++)
+        _post(
+          'did:plc:reply$i',
+          'existing-$i',
+          'existing reply $i',
+          createdAt: DateTime.utc(2026, 5, 1, 12, i),
+        ),
+    ];
+    final createdReply = _post(
+      'did:plc:viewer',
+      'created-reply',
+      'created reply',
+      createdAt: DateTime.utc(2026, 5, 1, 12, 16),
+    );
+    final repo = FakePostRepository(
+      onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+          PostCommentSection(
+            post: root,
+            sort: sort ?? CommentSort.oldest,
+            comments: CommentPage(
+              items: [
+                CommentItem(
+                  post: comment,
+                  placement: CommentPlacement.normal,
+                  replies: const ReplyPage(loaded: false, items: []),
+                ),
+              ],
+            ),
+          ),
+      onListCommentBranchReplies: (did, rkey, {cursor, limit}) async {
+        replyLoadCursors.add(cursor);
+        if (cursor == null) {
+          return ReplyPage(
+            loaded: true,
+            items: [
+              for (final reply in existingReplies.take(10))
+                ReplyItem(post: reply, flattened: false),
+            ],
+            cursor: 'more-replies',
+          );
+        }
+        return ReplyPage(
+          loaded: true,
+          items: [
+            for (final reply in existingReplies.skip(10))
+              ReplyItem(post: reply, flattened: false),
+          ],
+        );
+      },
+      onCreate: ({required text, reply}) async => createdReply,
+    );
+
+    await _pumpCommentSection(
+      tester,
+      repo: repo,
+      size: const Size(390, 420),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Show 15 replies'), findsOneWidget);
+
+    final replyButton = find.widgetWithText(TextButton, 'Reply').first;
+    await tester.ensureVisible(replyButton);
+    await tester.pumpAndSettle();
+    await tester.tap(replyButton);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'created reply');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(TextButton, 'Reply'));
+    await tester.pumpAndSettle();
+
+    expect(replyLoadCursors, [null, 'more-replies']);
+    expect(find.text('existing reply 0'), findsOneWidget);
+    expect(find.text('existing reply 14'), findsOneWidget);
+    expect(find.text('created reply'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('existing reply 14')).dy,
+      lessThan(tester.getTopLeft(find.text('created reply')).dy),
+    );
+    expect(find.text('Show 15 replies'), findsNothing);
+    expect(find.text('Load more replies'), findsNothing);
+    final createdRect = tester.getRect(find.text('created reply'));
+    expect(createdRect.top, greaterThanOrEqualTo(0));
+    expect(createdRect.bottom, lessThanOrEqualTo(420));
+
+    final hideReplies = find.widgetWithText(TextButton, 'Hide replies');
+    await tester.scrollUntilVisible(
+      hideReplies,
+      -250,
+      scrollable: find.byType(Scrollable),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(hideReplies);
+    await tester.pumpAndSettle();
+    expect(find.text('Show 16 replies'), findsOneWidget);
+  });
+
+  testWidgets('replying to a comment increments root comment count', (
+    tester,
+  ) async {
+    final root = _post('did:plc:alice', 'root', 'root post');
+    final comment = _post('did:plc:bob', 'comment', 'comment').copyWith(
+      reply: PostReply(
+        root: PostRef(uri: root.uri, cid: root.cid),
+        parent: PostRef(uri: root.uri, cid: root.cid),
+      ),
+    );
+    final createdReply = _post(
+      'did:plc:viewer',
+      'created-reply',
+      'created reply',
+    );
+    final repo = FakePostRepository(
+      onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+          PostCommentSection(
+            post: root,
+            sort: sort ?? CommentSort.oldest,
+            comments: CommentPage(
+              items: [
+                CommentItem(
+                  post: comment,
+                  placement: CommentPlacement.normal,
+                  replies: const ReplyPage(loaded: false, items: []),
+                ),
+              ],
+            ),
+          ),
+      onCreate: ({required text, reply}) async => createdReply,
+    );
+
+    await _pumpCommentSection(tester, repo: repo);
+    await tester.pumpAndSettle();
+    expect(find.text('1'), findsNothing);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Reply').first);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'created reply');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(TextButton, 'Reply'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1'), findsOneWidget);
   });
 
   testWidgets('replying to a reply inserts created reply into comment branch', (
@@ -605,10 +1126,8 @@ void main() {
     await _pumpCommentSection(tester, repo: repo, focus: focusUri);
     await tester.pumpAndSettle();
 
-    final rootLeft = tester.getTopLeft(find.text('root post')).dx;
     final commentLeft = tester.getTopLeft(find.text('comment')).dx;
     final deepLeft = tester.getTopLeft(find.text('deep focused reply')).dx;
-    expect(commentLeft, rootLeft);
     expect(deepLeft, greaterThan(commentLeft));
     expect(deepLeft - commentLeft, lessThan(80));
   });
@@ -671,6 +1190,7 @@ void main() {
 
     await tester.tap(find.text('Oldest'));
     await tester.pumpAndSettle();
+    expect(find.text('Most recent on top'), findsOneWidget);
     await tester.tap(find.text('Newest').last);
     await tester.pumpAndSettle();
 

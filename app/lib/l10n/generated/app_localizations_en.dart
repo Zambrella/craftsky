@@ -65,6 +65,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileTabPosts => 'Posts';
 
   @override
+  String get profileTabComments => 'Comments';
+
+  @override
   String get profileTabProjects => 'Projects';
 
   @override
@@ -119,7 +122,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profilePostsLoadMore => 'Load more posts';
 
   @override
-  String get postThreadTitle => 'Thread';
+  String get profileCommentsEmpty => 'No comments yet.';
+
+  @override
+  String get profileCommentsLoadError => 'Comments didn\'t load.';
+
+  @override
+  String get profileCommentsLoadMore => 'Load more comments';
+
+  @override
+  String get postThreadTitle => 'Post';
 
   @override
   String get postThreadEmptyReplies => 'No replies yet.';
@@ -137,8 +149,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postThreadReplyAction => 'Reply';
 
   @override
+  String get postCommentAction => 'Comment';
+
+  @override
   String postThreadReplyToAuthor(String author) {
     return 'Reply to $author';
+  }
+
+  @override
+  String postCommentOnAuthor(String author) {
+    return 'Comment on $author';
   }
 
   @override
@@ -155,13 +175,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postCommentsSortOldest => 'Oldest';
 
   @override
+  String get postCommentsSortOldestDescription => 'Conversation order';
+
+  @override
   String get postCommentsSortNewest => 'Newest';
+
+  @override
+  String get postCommentsSortNewestDescription => 'Most recent on top';
 
   @override
   String get postCommentsSortFollows => 'Follows';
 
   @override
+  String get postCommentsSortFollowsDescription => 'People you follow first';
+
+  @override
   String get postCommentsViewReplies => 'View replies';
+
+  @override
+  String postCommentsViewReplyCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count replies',
+      one: '1 reply',
+    );
+    return 'Show $_temp0';
+  }
 
   @override
   String get postCommentsLoadMoreReplies => 'Load more replies';
@@ -210,10 +250,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postDeleteAction => 'Delete post';
 
   @override
+  String get postMoreActions => 'More actions';
+
+  @override
+  String get commentDeleteAction => 'Delete comment';
+
+  @override
+  String get replyDeleteAction => 'Delete reply';
+
+  @override
   String get postDeleteTitle => 'Delete post?';
 
   @override
+  String get commentDeleteTitle => 'Delete comment?';
+
+  @override
+  String get replyDeleteTitle => 'Delete reply?';
+
+  @override
   String get postDeleteMessage => 'This removes the post from Craftsky.';
+
+  @override
+  String get commentDeleteMessage => 'This removes the comment from Craftsky.';
+
+  @override
+  String get replyDeleteMessage => 'This removes the reply from Craftsky.';
 
   @override
   String get postDeleteConfirm => 'Delete';

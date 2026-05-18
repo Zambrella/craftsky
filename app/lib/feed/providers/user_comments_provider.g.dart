@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'user_posts_provider.dart';
+part of 'user_comments_provider.dart';
 
 // **************************************************************************
 // RiverpodGenerator
@@ -8,43 +8,43 @@ part of 'user_posts_provider.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
+/// Cursor-accumulating authored comments/replies list, keyed by `handleOrDid`.
 
-@ProviderFor(UserPosts)
-final userPostsProvider = UserPostsFamily._();
+@ProviderFor(UserComments)
+final userCommentsProvider = UserCommentsFamily._();
 
-/// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
-final class UserPostsProvider
-    extends $AsyncNotifierProvider<UserPosts, UserPostsState> {
-  /// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
-  UserPostsProvider._({
-    required UserPostsFamily super.from,
+/// Cursor-accumulating authored comments/replies list, keyed by `handleOrDid`.
+final class UserCommentsProvider
+    extends $AsyncNotifierProvider<UserComments, UserPostsState> {
+  /// Cursor-accumulating authored comments/replies list, keyed by `handleOrDid`.
+  UserCommentsProvider._({
+    required UserCommentsFamily super.from,
     required String super.argument,
   }) : super(
          retry: null,
-         name: r'userPostsProvider',
+         name: r'userCommentsProvider',
          isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
 
   @override
-  String debugGetCreateSourceHash() => _$userPostsHash();
+  String debugGetCreateSourceHash() => _$userCommentsHash();
 
   @override
   String toString() {
-    return r'userPostsProvider'
+    return r'userCommentsProvider'
         ''
         '($argument)';
   }
 
   @$internal
   @override
-  UserPosts create() => UserPosts();
+  UserComments create() => UserComments();
 
   @override
   bool operator ==(Object other) {
-    return other is UserPostsProvider && other.argument == argument;
+    return other is UserCommentsProvider && other.argument == argument;
   }
 
   @override
@@ -53,40 +53,40 @@ final class UserPostsProvider
   }
 }
 
-String _$userPostsHash() => r'15a85cb259973196202538057c4f420dc6c7a88f';
+String _$userCommentsHash() => r'fb7e1b65f77e9a3e3d1bd612560dd9531173498f';
 
-/// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
+/// Cursor-accumulating authored comments/replies list, keyed by `handleOrDid`.
 
-final class UserPostsFamily extends $Family
+final class UserCommentsFamily extends $Family
     with
         $ClassFamilyOverride<
-          UserPosts,
+          UserComments,
           AsyncValue<UserPostsState>,
           UserPostsState,
           FutureOr<UserPostsState>,
           String
         > {
-  UserPostsFamily._()
+  UserCommentsFamily._()
     : super(
         retry: null,
-        name: r'userPostsProvider',
+        name: r'userCommentsProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
         isAutoDispose: true,
       );
 
-  /// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
+  /// Cursor-accumulating authored comments/replies list, keyed by `handleOrDid`.
 
-  UserPostsProvider call(String handleOrDid) =>
-      UserPostsProvider._(argument: handleOrDid, from: this);
+  UserCommentsProvider call(String handleOrDid) =>
+      UserCommentsProvider._(argument: handleOrDid, from: this);
 
   @override
-  String toString() => r'userPostsProvider';
+  String toString() => r'userCommentsProvider';
 }
 
-/// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
+/// Cursor-accumulating authored comments/replies list, keyed by `handleOrDid`.
 
-abstract class _$UserPosts extends $AsyncNotifier<UserPostsState> {
+abstract class _$UserComments extends $AsyncNotifier<UserPostsState> {
   late final _$args = ref.$arg as String;
   String get handleOrDid => _$args;
 

@@ -8,12 +8,12 @@ import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-Future<void> showPostComposerSheet(
+Future<Post?> showPostComposerSheet(
   BuildContext context, {
   Post? replyTarget,
 }) {
-  return Navigator.of(context, rootNavigator: true).push<void>(
-    MaterialPageRoute<void>(
+  return Navigator.of(context, rootNavigator: true).push<Post?>(
+    MaterialPageRoute<Post?>(
       fullscreenDialog: true,
       builder: (_) => PostComposerSheet(replyTarget: replyTarget),
     ),
@@ -74,9 +74,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
 
     ref.listen(createPostProvider, (previous, next) {
       switch ((previous, next)) {
-        case (AsyncLoading(), AsyncData(value: != null)):
+        case (AsyncLoading(), AsyncData(:final value?)):
           if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
+            Navigator.of(context).pop(value);
           }
           context.showInfo(l10n.postCreateSuccess);
           ref.read(createPostProvider.notifier).reset();

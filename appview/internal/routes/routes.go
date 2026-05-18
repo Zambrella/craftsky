@@ -68,6 +68,8 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		authN(deviceID(api.DeletePostHandler(deps.NewPDSClient, deps.Logger))))
 	mux.Handle("GET /v1/profiles/{handleOrDid}/posts",
 		authN(deviceID(api.ListPostsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger))))
+	mux.Handle("GET /v1/profiles/{handleOrDid}/comments",
+		authN(deviceID(api.ListCommentsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger))))
 
 	// Fallthrough.
 	mux.Handle("/", http.NotFoundHandler())

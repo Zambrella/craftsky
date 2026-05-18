@@ -1,10 +1,8 @@
 import 'dart:async';
 
 import 'package:craftsky_app/feed/models/post.dart';
-import 'package:craftsky_app/feed/models/post_comment_section.dart';
-import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart'
-    hide PostCommentSection;
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -34,7 +32,10 @@ class CreatePost extends _$CreatePost {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
-      final post = await repo.create(text: text, reply: reply);
+      final created = await repo.create(text: text, reply: reply);
+      final post = reply != null && created.reply == null
+          ? created.copyWith(reply: reply)
+          : created;
       if (!ref.mounted) return null;
 
       if (reply == null) {
@@ -45,29 +46,7 @@ class CreatePost extends _$CreatePost {
           }
         }
       } else {
-        final (rootDid, rootRkey) = _replyTargetIdentifiers(reply.root.uri);
-
-        for (final sort in CommentSort.values) {
-          final entry = postCommentSectionProvider(
-            rootDid,
-            rootRkey,
-            sort: sort,
-          );
-          if (!ref.exists(entry)) continue;
-          final notifier = ref.read(entry.notifier);
-          if (reply.root.uri == reply.parent.uri) {
-            notifier.prependCreatedComment(post);
-          } else {
-            notifier.insertCreatedReply(
-              parentUri: reply.parent.uri,
-              post: post,
-            );
-          }
-        }
-
-        // Existing live comment-section caches are updated above. Any unloaded
-        // branch will converge through the direct-replies endpoint when the
-        // viewer expands it.
+        updateLiveUserCommentCaches(ref, post);
       }
 
       return post;
@@ -77,13 +56,4 @@ class CreatePost extends _$CreatePost {
   /// Resets the notifier to its idle state. Call after consuming a
   /// success/failure transition so a re-entry doesn't see prior result.
   void reset() => state = const AsyncData(null);
-}
-
-(String, String) _replyTargetIdentifiers(String uri) {
-  final withoutScheme = uri.substring('at://'.length);
-  final slashIndex = withoutScheme.indexOf('/');
-  return (
-    withoutScheme.substring(0, slashIndex),
-    withoutScheme.substring(withoutScheme.lastIndexOf('/') + 1),
-  );
 }

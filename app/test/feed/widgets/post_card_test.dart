@@ -3,6 +3,7 @@ import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -13,6 +14,8 @@ Post _post({
   int replyCount = 0,
   bool viewerHasLiked = false,
   bool viewerHasReposted = false,
+  bool viewerHasReplied = false,
+  DateTime? createdAt,
 }) {
   return Post(
     uri: 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
@@ -25,7 +28,8 @@ Post _post({
     replyCount: replyCount,
     viewerHasLiked: viewerHasLiked,
     viewerHasReposted: viewerHasReposted,
-    createdAt: DateTime.now().subtract(const Duration(minutes: 3)),
+    viewerHasReplied: viewerHasReplied,
+    createdAt: createdAt ?? DateTime.now().subtract(const Duration(minutes: 3)),
     indexedAt: DateTime.now().subtract(const Duration(minutes: 2)),
     author: PostAuthor(
       did: 'did:plc:alice',
@@ -60,9 +64,10 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('3m'), findsOneWidget);
-      expect(find.byIcon(Icons.more_horiz), findsNothing);
+      expect(find.byIcon(Icons.more_horiz), findsOneWidget);
       expect(find.byIcon(Icons.favorite_border), findsOneWidget);
       expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
+      expect(find.text('Reply'), findsNothing);
       expect(find.byIcon(Icons.repeat), findsOneWidget);
       expect(find.text('0'), findsNothing);
 
@@ -88,6 +93,7 @@ void main() {
             replyCount: 3,
             viewerHasLiked: true,
             viewerHasReposted: true,
+            viewerHasReplied: true,
           ),
         ),
       );
@@ -106,12 +112,31 @@ void main() {
       final likeCount = tester.widget<Text>(find.text('5'));
       final repostCount = tester.widget<Text>(find.text('2'));
 
-      expect(replyIcon.color, BrandColors.ink2);
+      expect(replyIcon.color, BrandColors.clay);
       expect(likeIcon.color, BrandColors.red);
       expect(repostIcon.color, BrandColors.moss);
-      expect(replyCount.style?.color, BrandColors.ink2);
+      expect(replyCount.style?.color, BrandColors.clay);
       expect(likeCount.style?.color, BrandColors.red);
       expect(repostCount.style?.color, BrandColors.moss);
+    });
+
+    testWidgets('colours reply label when viewer has replied', (tester) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(viewerHasReplied: true),
+          showReplyCount: false,
+          showReplyLabel: true,
+        ),
+      );
+
+      final replyIcon = tester.widget<Icon>(
+        find.byIcon(Icons.chat_bubble_outline),
+      );
+      final replyLabel = tester.widget<Text>(find.text('Reply'));
+
+      expect(replyIcon.color, BrandColors.clay);
+      expect(replyLabel.style?.color, BrandColors.clay);
     });
 
     testWidgets('formats large engagement counts compactly', (tester) async {
@@ -128,7 +153,79 @@ void main() {
       expect(find.text('1234'), findsNothing);
     });
 
-    testWidgets('lays out interaction actions in equal left-aligned slots', (
+    testWidgets('can hide reply count while keeping reply action', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(replyCount: 3),
+          showReplyCount: false,
+          showReplyLabel: true,
+        ),
+      );
+
+      expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
+      expect(find.text('3'), findsNothing);
+      expect(find.text('Reply'), findsOneWidget);
+    });
+
+    testWidgets('can hide reply label while keeping reply count', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(post: _post(replyCount: 3)),
+      );
+
+      expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+      expect(find.text('Reply'), findsNothing);
+    });
+
+    testWidgets('flat style does not use the card surface', (tester) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(),
+          style: PostCardStyle.flat,
+          showReplyLabel: true,
+        ),
+      );
+
+      expect(find.byType(CraftskyCard), findsNothing);
+      expect(find.text('Reply'), findsOneWidget);
+    });
+
+    testWidgets('uses stronger treatment when highlighted', (tester) async {
+      await _pump(tester, PostCard(post: _post(), isHighlighted: true));
+
+      final highlighted = tester.widget<AnimatedContainer>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is AnimatedContainer && widget.decoration is BoxDecoration,
+        ),
+      );
+      final decoration = highlighted.decoration! as BoxDecoration;
+      final border = decoration.border! as Border;
+
+      expect(decoration.color, BrandColors.sky.withValues(alpha: 0.32));
+      expect(border.left.color, BrandColors.cobalt);
+      expect(border.left.width, 6);
+    });
+
+    testWidgets('shows full timestamp tooltip on relative time', (
+      tester,
+    ) async {
+      final createdAt = DateTime(2026, 5, 15, 14, 30);
+      await _pump(tester, PostCard(post: _post(createdAt: createdAt)));
+
+      final tooltip = tester.widget<Tooltip>(find.byType(Tooltip).first);
+      expect(tooltip.message, contains('2026'));
+      expect(tooltip.message, contains('2:30'));
+    });
+
+    testWidgets('lays out interaction actions left-aligned at natural widths', (
       tester,
     ) async {
       await _pump(
@@ -137,20 +234,27 @@ void main() {
       );
 
       expect(find.byType(TextButton), findsNWidgets(3));
-      final replyRect = tester.getRect(find.byType(TextButton).at(0));
-      final likeRect = tester.getRect(find.byType(TextButton).at(1));
+      final likeRect = tester.getRect(find.byType(TextButton).at(0));
+      final replyRect = tester.getRect(find.byType(TextButton).at(1));
       final repostRect = tester.getRect(find.byType(TextButton).at(2));
 
+      expect(likeRect.left, lessThan(replyRect.left));
+      expect(replyRect.left, lessThan(repostRect.left));
       expect(replyRect.width, likeRect.width);
-      expect(likeRect.width, repostRect.width);
 
       final replyCountRect = tester.getRect(find.text('3'));
       final likeCountRect = tester.getRect(find.text('5'));
       final repostCountRect = tester.getRect(find.text('2'));
 
-      expect(replyCountRect.right, lessThan(replyRect.center.dx));
-      expect(likeCountRect.right, lessThan(likeRect.center.dx));
-      expect(repostCountRect.right, lessThan(repostRect.center.dx));
+      expect(replyCountRect.right, lessThan(replyRect.right));
+      expect(likeCountRect.right, lessThan(likeRect.right));
+      expect(repostCountRect.right, lessThan(repostRect.right));
+
+      final replyCount = tester.widget<Text>(find.text('3'));
+      expect(
+        replyCount.style?.fontFeatures,
+        contains(const FontFeature.tabularFigures()),
+      );
     });
 
     testWidgets('invokes interaction callbacks', (tester) async {
@@ -167,8 +271,8 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
       await tester.tap(find.byIcon(Icons.favorite_border));
+      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
       await tester.tap(find.byIcon(Icons.repeat));
 
       expect(replies, 1);
@@ -211,7 +315,18 @@ void main() {
       expect(find.text('alice.craftsky.social'), findsOneWidget);
     });
 
-    testWidgets('shows delete action only when callback is supplied', (
+    testWidgets('opens empty menu when delete callback is absent', (
+      tester,
+    ) async {
+      await _pump(tester, PostCard(post: _post()));
+
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Delete post'), findsNothing);
+    });
+
+    testWidgets('shows delete action when callback is supplied', (
       tester,
     ) async {
       var tapped = false;
@@ -224,6 +339,23 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Delete post'));
       expect(tapped, isTrue);
+    });
+
+    testWidgets('uses custom delete label when supplied', (tester) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(),
+          deleteLabel: 'Delete comment',
+          onDelete: () {},
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Delete comment'), findsOneWidget);
+      expect(find.text('Delete post'), findsNothing);
     });
   });
 }
