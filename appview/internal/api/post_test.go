@@ -2427,6 +2427,23 @@ func TestCreatePost_WithMoreThanFourImages_422WithoutPDSWrite(t *testing.T) {
 	}
 }
 
+func TestCreatePost_WithInvalidImageBlobMetadata_422WithoutPDSWrite(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{}
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, nilLogger())
+	body := `{"text":"bad image","images":[{"image":{"foo":"bar"},"alt":"ok"}]}`
+	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.createCalls != 0 {
+		t.Fatalf("createCalls = %d, want 0", pds.createCalls)
+	}
+}
+
 func TestListPosts_HandleResolutionFails_502(t *testing.T) {
 	t.Parallel()
 	rows := []*api.PostRow{

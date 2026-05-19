@@ -131,6 +131,8 @@ func ValidatePostCreate(req PostCreateRequest) error {
 		prefix := fmt.Sprintf("images[%d]", i)
 		if len(img.Image) == 0 {
 			fields[prefix+".image"] = "must not be empty"
+		} else {
+			validatePostImageBlob(fields, prefix+".image", img.Image)
 		}
 		if strings.TrimSpace(img.Alt) == "" {
 			fields[prefix+".alt"] = "must not be empty"
@@ -148,6 +150,67 @@ func ValidatePostCreate(req PostCreateRequest) error {
 		return &FieldError{Code: "validation_failed", Fields: fields}
 	}
 	return nil
+}
+
+func validatePostImageBlob(fields map[string]string, prefix string, blob map[string]any) {
+	refRaw, ok := blob["ref"]
+	if !ok {
+		fields[prefix+".ref"] = "must include ref"
+	} else {
+		ref, ok := refRaw.(map[string]any)
+		if !ok {
+			fields[prefix+".ref"] = "must include ref"
+		} else {
+			linkRaw, ok := ref["$link"]
+			link, linkIsString := linkRaw.(string)
+			if !ok || !linkIsString || strings.TrimSpace(link) == "" {
+				fields[prefix+".ref.$link"] = "must not be empty"
+			}
+		}
+	}
+	mime, ok := blob["mimeType"].(string)
+	if !ok || strings.TrimSpace(mime) == "" {
+		fields[prefix+".mimeType"] = "must not be empty"
+	}
+	if !isPositiveIntegerValue(blob["size"]) {
+		fields[prefix+".size"] = "must be a positive integer"
+	}
+}
+
+func isPositiveIntegerValue(v any) bool {
+	switch n := v.(type) {
+	case int:
+		return n > 0
+	case int8:
+		return n > 0
+	case int16:
+		return n > 0
+	case int32:
+		return n > 0
+	case int64:
+		return n > 0
+	case uint:
+		return n > 0
+	case uint8:
+		return n > 0
+	case uint16:
+		return n > 0
+	case uint32:
+		return n > 0
+	case uint64:
+		return n > 0
+	case float32:
+		return n > 0 && n == float32(int64(n))
+	case float64:
+		return n > 0 && n == float64(int64(n))
+	case json.Number:
+		if i, err := n.Int64(); err == nil {
+			return i > 0
+		}
+		return false
+	default:
+		return false
+	}
 }
 
 func validateStrongRef(fields map[string]string, prefix string, ref StrongRef) {

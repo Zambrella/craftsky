@@ -212,6 +212,33 @@ func TestValidatePostCreate_RejectsMissingAltOrBlobOrInvalidAspectRatio(t *testi
 	}
 }
 
+func TestValidatePostCreate_RejectsImageWithMissingBlobMetadata(t *testing.T) {
+	t.Parallel()
+	body := strings.NewReader(`{
+		"text":"hi",
+		"images":[
+			{"image":{"$type":"blob","mimeType":"image/jpeg","size":1},"alt":"ok"},
+			{"image":{"$type":"blob","ref":{},"mimeType":"image/jpeg","size":1},"alt":"ok"},
+			{"image":{"$type":"blob","ref":{"$link":"bafk3"},"mimeType":"","size":1},"alt":"ok"},
+			{"image":{"$type":"blob","ref":{"$link":"bafk4"},"mimeType":"image/jpeg","size":0},"alt":"ok"}
+		]
+	}`)
+	req, err := api.DecodePostCreate(body)
+	if err != nil {
+		t.Fatalf("DecodePostCreate: %v", err)
+	}
+	err = api.ValidatePostCreate(req)
+	var fe *api.FieldError
+	if !errors.As(err, &fe) || fe.Code != "validation_failed" {
+		t.Fatalf("want validation_failed, got %v", err)
+	}
+	for _, key := range []string{"images[0].image.ref", "images[1].image.ref.$link", "images[2].image.mimeType", "images[3].image.size"} {
+		if _, ok := fe.Fields[key]; !ok {
+			t.Fatalf("fields=%v, want key %q", fe.Fields, key)
+		}
+	}
+}
+
 func TestDecodePostCreate_RejectsVideoField(t *testing.T) {
 	t.Parallel()
 	body := strings.NewReader(`{"text":"hi","video":{"blob":"x"}}`)

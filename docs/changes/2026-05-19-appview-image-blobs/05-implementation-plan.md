@@ -184,3 +184,41 @@
   - `just lexgen-check` (expected non-zero in dirty tree while feature changes are uncommitted; confirms generated diffs are present)
 - Environment note:
   - Some DB-backed tests are conditionally skipped without configured test DB env; this is documented in Step 12 notes.
+
+## Post-Implementation Review Remediation (2026-05-19)
+
+Source: `06-implementation-review.md` (`IR-001`, Status: Changes required)
+
+### Remediation Test Order
+| Step | Test ID | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---|---|---|---|---|
+| 16 | UT-003 | FR-006, FR-008, NFR-002, RULE-001, RULE-002 | AC-008, AC-009 | Fails |
+| 17 | IT-004 | BR-003, FR-006, FR-007, FR-008, NFR-002 | AC-004, AC-008, AC-009, AC-010 | Fails |
+
+### Remediation Steps
+#### Step 16: UT-003 (IR-001)
+- Write failing test: `TestValidatePostCreate_RejectsImageWithMissingBlobMetadata` in `appview/internal/api/post_request_test.go`
+- Run command: `cd appview && go test ./internal/api -run TestValidatePostCreate_RejectsImageWithMissingBlobMetadata`
+- Confirmed failure: red with `want validation_failed, got <nil>` proving malformed/partial blob metadata was accepted.
+- Implement: strengthened `ValidatePostCreate` image validation to require blob `ref.$link`, non-empty `mimeType`, and positive integer `size`.
+- Run command:
+  - `cd appview && go test ./internal/api -run TestValidatePostCreate_RejectsImageWithMissingBlobMetadata`
+  - `cd appview && go test ./internal/api -run TestValidatePostCreate`
+- Refactor: extracted focused helpers `validatePostImageBlob` and `isPositiveIntegerValue` for clarity while staying behavior-minimal.
+- Notes: closes `AC-009` gap for missing blob metadata validation before PDS write.
+
+#### Step 17: IT-004 (IR-001)
+- Write failing test: `TestCreatePost_WithInvalidImageBlobMetadata_422WithoutPDSWrite` in `appview/internal/api/post_test.go`
+- Run command: `cd appview && go test ./internal/api -run TestCreatePost_WithInvalidImageBlobMetadata_422WithoutPDSWrite`
+- Confirmed failure: no new red after Step 16 because the create handler shares `ValidatePostCreate`; the new integration test passed immediately and now guards the contract.
+- Implement: no additional handler logic required beyond Step 16 validation fix.
+- Run command:
+  - `cd appview && go test ./internal/api -run TestCreatePost_WithInvalidImageBlobMetadata_422WithoutPDSWrite`
+  - `cd appview && go test ./internal/api -run 'TestValidatePostCreate_RejectsImageWithMissingBlobMetadata|TestCreatePost_WithInvalidImageBlobMetadata_422WithoutPDSWrite'`
+  - `cd appview && go test ./internal/api -run 'TestValidatePostCreate|TestCreatePost_.*Image'`
+- Refactor: none.
+- Notes: verifies malformed image blob metadata returns 422 and `CreateRecord` is not called (`createCalls == 0`).
+
+### Remediation Verification
+- `cd appview && go test ./internal/auth ./internal/api ./internal/index ./internal/routes` (pass)
+- `just lexgen-check` (pass)
