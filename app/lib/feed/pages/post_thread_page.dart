@@ -171,16 +171,26 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
     final reply = post.reply;
     if (reply == null) return;
 
-    final sectionProvider = postCommentSectionProvider(
-      widget.did,
-      widget.rkey,
-      sort: _sort,
-      focus: widget.focus,
-    );
-    final section = ref.read(sectionProvider).value;
+    final section = ref
+        .read(
+          postCommentSectionProvider(
+            widget.did,
+            widget.rkey,
+            sort: _sort,
+            focus: widget.focus,
+          ),
+        )
+        .value;
     if (section == null || reply.root.uri != section.post.uri) return;
 
-    final notifier = ref.read(sectionProvider.notifier);
+    final notifier = ref.read(
+      postCommentSectionProvider(
+        widget.did,
+        widget.rkey,
+        sort: _sort,
+        focus: widget.focus,
+      ).notifier,
+    );
     if (reply.parent.uri == reply.root.uri) {
       notifier.prependCreatedComment(post);
       if (mounted) setState(() => _createdTargetUri = post.uri);
@@ -218,16 +228,20 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
         cursor = page.cursor;
       } while (cursor != null);
       if (!mounted) return;
-      final replies = sortReplyItems(
-        [
-          for (final item in pages)
-            if (item.post.uri != post.uri) item,
-          ReplyItem(post: post, flattened: false),
-        ],
-        commentSort: _sort,
-      );
+      final replies = sortReplyItems([
+        for (final item in pages)
+          if (item.post.uri != post.uri) item,
+        ReplyItem(post: post, flattened: false),
+      ], commentSort: _sort);
       ref
-          .read(sectionProvider.notifier)
+          .read(
+            postCommentSectionProvider(
+              widget.did,
+              widget.rkey,
+              sort: _sort,
+              focus: widget.focus,
+            ).notifier,
+          )
           .setRepliesForComment(
             commentUri: parentComment.post.uri,
             replies: replies,
@@ -237,7 +251,14 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
     } on Object {
       if (!mounted) return;
       ref
-          .read(sectionProvider.notifier)
+          .read(
+            postCommentSectionProvider(
+              widget.did,
+              widget.rkey,
+              sort: _sort,
+              focus: widget.focus,
+            ).notifier,
+          )
           .insertCreatedReply(parentUri: reply.parent.uri, post: post);
       if (mounted) setState(() => _createdTargetUri = post.uri);
     }
@@ -587,10 +608,8 @@ class _CommentCard extends ConsumerWidget {
                     showRepostAction: false,
                     showReplyCount: false,
                     showReplyLabel: true,
-                    onReply: () => showPostComposerSheet(
-                      context,
-                      replyTarget: reply.post,
-                    ),
+                    onReply: () =>
+                        showPostComposerSheet(context, replyTarget: reply.post),
                     onLike: () => ref
                         .read(toggleLikePostProvider.notifier)
                         .toggle(post: reply.post),
@@ -643,13 +662,8 @@ class _CommentCard extends ConsumerWidget {
     required String message,
   }) {
     if (viewerDid != post.author.did) return null;
-    return () => _confirmDelete(
-      context,
-      ref,
-      post,
-      title: title,
-      message: message,
-    );
+    return () =>
+        _confirmDelete(context, ref, post, title: title, message: message);
   }
 
   Future<void> _confirmDelete(

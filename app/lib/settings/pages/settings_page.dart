@@ -10,13 +10,13 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: const SettingsPageBody(),
+      body: const _SettingsPageBody(),
     );
   }
 }
 
-class SettingsPageBody extends ConsumerWidget {
-  const SettingsPageBody({super.key});
+class _SettingsPageBody extends ConsumerWidget {
+  const _SettingsPageBody();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

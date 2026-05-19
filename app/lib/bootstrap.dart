@@ -9,6 +9,12 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/user_posts_state.dart';
+import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart'
+    as post_comment_section_provider;
+import 'package:craftsky_app/feed/providers/user_comments_provider.dart'
+    as user_comments_provider;
+import 'package:craftsky_app/feed/providers/user_posts_provider.dart'
+    as user_posts_provider;
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
@@ -41,8 +47,8 @@ final class ProviderLogger extends ProviderObserver {
     _log.fine(
       'provider updated: '
       'provider=${context.provider}, '
-      'previousValue=$previousValue, '
-      'newValue=$newValue, '
+      'previousValue=${_formatProviderValue(context.provider, previousValue)}, '
+      'newValue=${_formatProviderValue(context.provider, newValue)}, '
       'mutation=${context.mutation}',
     );
   }
@@ -61,6 +67,45 @@ final class ProviderLogger extends ProviderObserver {
       stackTrace,
     );
   }
+}
+
+String _formatProviderValue(Object provider, Object? value) {
+  if (value case final AsyncValue<Object?> asyncValue) {
+    return _formatAsyncValue(provider, asyncValue);
+  }
+  return _formatDataValue(provider, value);
+}
+
+String _formatAsyncValue(Object provider, AsyncValue<Object?> value) {
+  return switch (value) {
+    AsyncLoading(:final value?) =>
+      'AsyncLoading(previous: ${_formatDataValue(provider, value)})',
+    AsyncLoading() => 'AsyncLoading()',
+    AsyncError(:final error, :final value?) =>
+      'AsyncError('
+          'error: $error, '
+          'previous: ${_formatDataValue(provider, value)}'
+          ')',
+    AsyncError(:final error) => 'AsyncError(error: $error)',
+    AsyncData(:final value) =>
+      'AsyncData(${_formatDataValue(provider, value)})',
+  };
+}
+
+String _formatDataValue(Object provider, Object? value) {
+  return switch (provider) {
+    user_posts_provider.UserPostsProvider() =>
+      user_posts_provider.UserPosts.formatLogValue(value),
+    user_comments_provider.UserCommentsProvider() =>
+      user_comments_provider.UserComments.formatLogValue(value),
+    post_comment_section_provider.PostCommentSectionProvider() =>
+      post_comment_section_provider.PostCommentSection.formatLogValue(value),
+    _ when value is Iterable<Object?> =>
+      '${value.runtimeType}(length: ${value.length})',
+    _ when value is Map<Object?, Object?> =>
+      '${value.runtimeType}(length: ${value.length})',
+    _ => value.toString(),
+  };
 }
 
 /// Runs platform / Flutter init before `runApp`.

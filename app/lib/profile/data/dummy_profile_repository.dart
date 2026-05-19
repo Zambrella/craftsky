@@ -16,7 +16,7 @@ class DummyProfileRepository implements ProfileRepository {
   }) : _profile = seed ?? _defaultSeed,
        _latency = latency;
 
-  static const _defaultSeed = Profile(
+  static final _defaultSeed = Profile(
     did: 'did:plc:dummycraftskyuser0000000',
     handle: 'dummy.craftsky.social',
     displayName: 'Dummy Crafter',

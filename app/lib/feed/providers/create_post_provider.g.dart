@@ -78,7 +78,7 @@ final class CreatePostProvider
   CreatePost create() => CreatePost();
 }
 
-String _$createPostHash() => r'fba0e93b5696ce67cbeac78d89e160f0376ad5ff';
+String _$createPostHash() => r'16cad4e86ecba6dbe3a894068635e62e51d5a4aa';
 
 /// Standalone create-a-post mutation notifier. Idle until [create] runs,
 /// then transitions `AsyncLoading` -> `AsyncData(post)` on success, or

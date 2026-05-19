@@ -10,6 +10,8 @@ const userPostsPageLimit = 10;
 /// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
 @riverpod
 class UserPosts extends _$UserPosts {
+  static String formatLogValue(Object? value) => value.toString();
+
   @override
   Future<UserPostsState> build(String handleOrDid) async {
     final repo = ref.watch(postRepositoryProvider);
@@ -102,9 +104,8 @@ class UserPosts extends _$UserPosts {
 
 void updateLiveUserPostCaches(Ref ref, Post post) {
   for (final id in <String>{post.author.did, post.author.handle}) {
-    final entry = userPostsProvider(id);
-    if (ref.exists(entry)) {
-      ref.read(entry.notifier).replace(post);
+    if (ref.exists(userPostsProvider(id))) {
+      ref.read(userPostsProvider(id).notifier).replace(post);
     }
   }
 }

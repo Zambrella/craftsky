@@ -1013,7 +1013,7 @@ void main() {
       tags: const [],
       createdAt: DateTime.utc(2026, 5, 1, 12),
       indexedAt: DateTime.utc(2026, 5, 1, 12),
-      author: const PostAuthor(
+      author: PostAuthor(
         did: 'did:plc:carol',
         handle: 'carol.craftsky.social',
       ),

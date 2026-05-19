@@ -120,9 +120,9 @@ Scoped but not urgent. Ordered roughly by expected sequence, not strictly priori
 ### Product / community
 
 - [ ] **Web viewer for SEO / discoverability** — reference doc calls out "how to sew a French seam" as a growth channel.
-- [ ] **Stash Hub integration** — existing user base seed.
+- [ ] **Stash Hub integration**
 - [ ] **Business accounts** — transparent-business-account requirement from vision doc.
-- [ ] **Monetisation model** — premium features, Stash Hub tie-in.
+- [ ] **Monetisation model** — premium features
 
 ### Ops / infra
 

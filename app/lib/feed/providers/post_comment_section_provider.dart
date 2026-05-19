@@ -9,6 +9,8 @@ part 'post_comment_section_provider.g.dart';
 
 @riverpod
 class PostCommentSection extends _$PostCommentSection {
+  static String formatLogValue(Object? value) => value.toString();
+
   @override
   Future<model.PostCommentSection> build(
     String did,
@@ -44,9 +46,7 @@ class PostCommentSection extends _$PostCommentSection {
 
   void collapseReplies(String commentUri) {
     final current = state.requireValue;
-    state = AsyncData(
-      current.collapseCommentReplies(commentUri: commentUri),
-    );
+    state = AsyncData(current.collapseCommentReplies(commentUri: commentUri));
   }
 
   void prependCreatedComment(Post post) {
@@ -60,10 +60,7 @@ class PostCommentSection extends _$PostCommentSection {
     state = AsyncData(current.replacePost(post));
   }
 
-  void insertCreatedReply({
-    required String parentUri,
-    required Post post,
-  }) {
+  void insertCreatedReply({required String parentUri, required Post post}) {
     final current = state.requireValue;
     state = AsyncData(
       current.insertCreatedReplyIntoNearestBranch(
@@ -87,13 +84,9 @@ class PostCommentPageLoader extends _$PostCommentPageLoader {
   Future<void> load() async {
     if (state.isLoading) return;
 
-    final sectionProvider = postCommentSectionProvider(
-      did,
-      rkey,
-      sort: sort,
-      focus: focus,
-    );
-    final current = ref.read(sectionProvider).value;
+    final current = ref
+        .read(postCommentSectionProvider(did, rkey, sort: sort, focus: focus))
+        .value;
     if (current == null || current.comments.cursor == null) return;
 
     state = const AsyncLoading();
@@ -106,7 +99,16 @@ class PostCommentPageLoader extends _$PostCommentPageLoader {
             cursor: current.comments.cursor,
             sort: current.sort,
           );
-      ref.read(sectionProvider.notifier).appendCommentPage(page.comments);
+      ref
+          .read(
+            postCommentSectionProvider(
+              did,
+              rkey,
+              sort: sort,
+              focus: focus,
+            ).notifier,
+          )
+          .appendCommentPage(page.comments);
     });
     if (!ref.mounted) return;
     state = result;
@@ -127,13 +129,9 @@ class PostCommentRepliesLoader extends _$PostCommentRepliesLoader {
   Future<void> load() async {
     if (state.isLoading) return;
 
-    final sectionProvider = postCommentSectionProvider(
-      did,
-      rkey,
-      sort: sort,
-      focus: focus,
-    );
-    final current = ref.read(sectionProvider).value;
+    final current = ref
+        .read(postCommentSectionProvider(did, rkey, sort: sort, focus: focus))
+        .value;
     if (current == null) return;
 
     final comment = current.comments.items
@@ -152,12 +150,16 @@ class PostCommentRepliesLoader extends _$PostCommentRepliesLoader {
             cursor: comment.replies.cursor,
             limit: 10,
           );
-      final replies = [
-        ...comment.replies.items,
-        ...page.items,
-      ];
+      final replies = [...comment.replies.items, ...page.items];
       ref
-          .read(sectionProvider.notifier)
+          .read(
+            postCommentSectionProvider(
+              did,
+              rkey,
+              sort: sort,
+              focus: focus,
+            ).notifier,
+          )
           .setRepliesForComment(
             commentUri: commentUri,
             replies: replies,

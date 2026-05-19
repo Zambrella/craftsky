@@ -63,7 +63,7 @@ void main() {
 
     test('sends nested root and parent refs when reply is provided', () async {
       final dio = buildDio();
-      const reply = PostReply(
+      final reply = PostReply(
         root: PostRef(
           uri: 'at://did:plc:alice/social.craftsky.feed.post/root',
           cid: 'bafy_root',

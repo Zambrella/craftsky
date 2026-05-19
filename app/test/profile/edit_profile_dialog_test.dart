@@ -14,7 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../fakes/auth_session_fakes.dart';
 import 'fakes/fake_profile_repository.dart';
 
-const _seedProfile = Profile(
+final _seedProfile = Profile(
   did: 'did:plc:test',
   handle: 'test.bsky.social',
   displayName: 'Test User',

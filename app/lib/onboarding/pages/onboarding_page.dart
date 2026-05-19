@@ -12,13 +12,13 @@ class OnboardingPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(title: const Text('Onboarding')),
-      body: const Center(child: OnboardingPageBody()),
+      body: const Center(child: _OnboardingPageBody()),
     );
   }
 }
 
-class OnboardingPageBody extends ConsumerWidget {
-  const OnboardingPageBody({super.key});
+class _OnboardingPageBody extends ConsumerWidget {
+  const _OnboardingPageBody();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

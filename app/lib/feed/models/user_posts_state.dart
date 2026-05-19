@@ -23,4 +23,9 @@ class UserPostsState with UserPostsStateMappable {
   final String? cursor;
 
   bool get hasMore => cursor != null;
+
+  @override
+  String toString() {
+    return 'UserPostsState(items: ${items.length}, hasMore: $hasMore)';
+  }
 }

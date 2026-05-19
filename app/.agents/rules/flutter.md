@@ -13,6 +13,7 @@ paths:
 
 - **Always create new widget classes** instead of extracting build logic into helper methods within a widget.
 - Prefer **small, composable widgets** that do one thing well.
+- Prefer **one public widget per file**. Keep a secondary widget in the same file only when it is very likely to be used only in the context of the file's primary public widget; make those context-only helper widgets private.
 
 ```dart
 // BAD: Helper method inside a widget
@@ -37,6 +38,18 @@ class MyScreen extends StatelessWidget {
     );
   }
 }
+```
+
+```dart
+// BAD: two reusable public widgets in one file
+class ProfileHeader extends StatelessWidget { ... }
+class ProfileAvatar extends StatelessWidget { ... }
+
+// GOOD: split into profile_header.dart and profile_avatar.dart
+
+// OK: context-only helper stays private with its owner widget
+class ProfilePage extends StatelessWidget { ... }
+class _ProfilePageHeader extends StatelessWidget { ... }
 ```
 
 ## Theming & Styling

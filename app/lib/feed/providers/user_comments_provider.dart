@@ -10,6 +10,8 @@ const userCommentsPageLimit = 10;
 /// Cursor-accumulating authored comments/replies list, keyed by `handleOrDid`.
 @riverpod
 class UserComments extends _$UserComments {
+  static String formatLogValue(Object? value) => value.toString();
+
   @override
   Future<UserPostsState> build(String handleOrDid) async {
     final repo = ref.watch(postRepositoryProvider);
@@ -83,9 +85,8 @@ class UserComments extends _$UserComments {
 void updateLiveUserCommentCaches(Ref ref, Post post) {
   if (post.reply == null) return;
   for (final id in <String>{post.author.did, post.author.handle}) {
-    final entry = userCommentsProvider(id);
-    if (ref.exists(entry)) {
-      ref.read(entry.notifier).prependOrReplace(post);
+    if (ref.exists(userCommentsProvider(id))) {
+      ref.read(userCommentsProvider(id).notifier).prependOrReplace(post);
     }
   }
 }

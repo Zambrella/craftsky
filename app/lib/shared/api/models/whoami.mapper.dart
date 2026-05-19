@@ -15,6 +15,7 @@ class WhoAmIMapper extends ClassMapperBase<WhoAmI> {
   static WhoAmIMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = WhoAmIMapper._());
+      MapperContainer.globals.useAll([DidMapper(), HandleMapper()]);
     }
     return _instance!;
   }
@@ -22,10 +23,20 @@ class WhoAmIMapper extends ClassMapperBase<WhoAmI> {
   @override
   final String id = 'WhoAmI';
 
-  static String _$did(WhoAmI v) => v.did;
-  static const Field<WhoAmI, String> _f$did = Field('did', _$did);
-  static String _$handle(WhoAmI v) => v.handle;
-  static const Field<WhoAmI, String> _f$handle = Field('handle', _$handle);
+  static Did _$did(WhoAmI v) => v.did;
+  static dynamic _arg$did(f) => f<Did>();
+  static const Field<WhoAmI, String> _f$did = Field(
+    'did',
+    _$did,
+    arg: _arg$did,
+  );
+  static Handle _$handle(WhoAmI v) => v.handle;
+  static dynamic _arg$handle(f) => f<Handle>();
+  static const Field<WhoAmI, String> _f$handle = Field(
+    'handle',
+    _$handle,
+    arg: _arg$handle,
+  );
 
   @override
   final MappableFields<WhoAmI> fields = const {

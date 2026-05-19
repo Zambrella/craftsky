@@ -40,9 +40,8 @@ class CreatePost extends _$CreatePost {
 
       if (reply == null) {
         for (final id in <String>{post.author.handle, post.author.did}) {
-          final entry = userPostsProvider(id);
-          if (ref.exists(entry)) {
-            ref.read(entry.notifier).prepend(post);
+          if (ref.exists(userPostsProvider(id))) {
+            ref.read(userPostsProvider(id).notifier).prepend(post);
           }
         }
       } else {

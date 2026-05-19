@@ -22,6 +22,30 @@ part 'my_provider.g.dart';
 
 ## Provider Patterns
 
+### Read Family Providers Inline
+
+When reading a parameterized/family provider, pass the provider call directly to `ref.read()` or `container.read()`. Do not store the provider instance in a local variable just to read it.
+
+```dart
+// Wrong - unnecessary provider instance local
+final itemProvider = itemDetailProvider(id, locale);
+final item = ref.read(itemProvider);
+
+// Right - read the family provider inline
+final item = ref.read(itemDetailProvider(id, locale));
+```
+
+This applies to notifier reads too:
+
+```dart
+// Wrong
+final itemProvider = itemDetailProvider(id, locale);
+ref.read(itemProvider.notifier).refresh();
+
+// Right
+ref.read(itemDetailProvider(id, locale).notifier).refresh();
+```
+
 ### Simple State (Search, View Mode, Filters)
 
 ```dart
@@ -433,6 +457,7 @@ final container = tester.container();
 |---|---|
 | `ref.watch()` in build methods | `ref.read()` in build methods |
 | `ref.read()` in callbacks/methods | `ref.watch()` in callbacks |
+| `ref.read(provider(x, y))` | `final p = provider(x, y); ref.read(p)` |
 | Check `ref.mounted` after every `await` | Use `ref`/`state` after async gaps unchecked |
 | Initialize notifiers in `build()` | Put logic in notifier constructors |
 | Keep notifier properties private | Expose public fields on notifiers |

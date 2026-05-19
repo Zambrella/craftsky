@@ -106,7 +106,7 @@ void main() {
     test('reply-to-reply preserves the target thread root', () async {
       final target = _post(
         rkey: 'target',
-        reply: const PostReply(
+        reply: PostReply(
           root: PostRef(
             uri: 'at://did:plc:root/social.craftsky.feed.post/root',
             cid: 'bafy_root',

@@ -27,7 +27,7 @@ void main() {
     testWidgets('signed-in self profile renders identity + edit actions', (
       tester,
     ) async {
-      const profile = Profile(
+      final profile = Profile(
         did: 'did:plc:test',
         handle: 'test.bsky.social',
         displayName: 'Test User',
@@ -67,7 +67,7 @@ void main() {
     testWidgets('visitor profile renders Follow + Share actions', (
       tester,
     ) async {
-      const profile = Profile(
+      final profile = Profile(
         did: 'did:plc:other',
         handle: 'alice.bsky.social',
         displayName: 'Alice',
@@ -102,7 +102,7 @@ void main() {
     testWidgets('tapping Follow dispatches a coming-soon info', (
       tester,
     ) async {
-      const profile = Profile(
+      final profile = Profile(
         did: 'did:plc:other',
         handle: 'alice.bsky.social',
         displayName: 'Alice',
@@ -140,7 +140,7 @@ void main() {
     testWidgets('tapping Share dispatches a coming-soon info', (
       tester,
     ) async {
-      const profile = Profile(
+      final profile = Profile(
         did: 'did:plc:other',
         handle: 'alice.bsky.social',
         displayName: 'Alice',

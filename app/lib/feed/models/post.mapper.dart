@@ -15,6 +15,13 @@ class PostMapper extends ClassMapperBase<Post> {
   static PostMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = PostMapper._());
+      MapperContainer.globals.useAll([
+        DidMapper(),
+        HandleMapper(),
+        CidMapper(),
+        AtUriMapper(),
+        RecordKeyMapper(),
+      ]);
       PostAuthorMapper.ensureInitialized();
       PostReplyMapper.ensureInitialized();
       PostRefMapper.ensureInitialized();
@@ -25,12 +32,19 @@ class PostMapper extends ClassMapperBase<Post> {
   @override
   final String id = 'Post';
 
-  static String _$uri(Post v) => v.uri;
-  static const Field<Post, String> _f$uri = Field('uri', _$uri);
-  static String _$cid(Post v) => v.cid;
-  static const Field<Post, String> _f$cid = Field('cid', _$cid);
-  static String _$rkey(Post v) => v.rkey;
-  static const Field<Post, String> _f$rkey = Field('rkey', _$rkey);
+  static AtUri _$uri(Post v) => v.uri;
+  static dynamic _arg$uri(f) => f<AtUri>();
+  static const Field<Post, String> _f$uri = Field('uri', _$uri, arg: _arg$uri);
+  static Cid _$cid(Post v) => v.cid;
+  static dynamic _arg$cid(f) => f<Cid>();
+  static const Field<Post, String> _f$cid = Field('cid', _$cid, arg: _arg$cid);
+  static RecordKey _$rkey(Post v) => v.rkey;
+  static dynamic _arg$rkey(f) => f<RecordKey>();
+  static const Field<Post, String> _f$rkey = Field(
+    'rkey',
+    _$rkey,
+    arg: _arg$rkey,
+  );
   static String _$text(Post v) => v.text;
   static const Field<Post, String> _f$text = Field('text', _$text);
   static List<String> _$tags(Post v) => v.tags;
@@ -329,6 +343,11 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
   static PostAuthorMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = PostAuthorMapper._());
+      MapperContainer.globals.useAll([
+        DidMapper(),
+        HandleMapper(),
+        CidMapper(),
+      ]);
     }
     return _instance!;
   }
@@ -336,21 +355,33 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
   @override
   final String id = 'PostAuthor';
 
-  static String _$did(PostAuthor v) => v.did;
-  static const Field<PostAuthor, String> _f$did = Field('did', _$did);
-  static String _$handle(PostAuthor v) => v.handle;
-  static const Field<PostAuthor, String> _f$handle = Field('handle', _$handle);
+  static Did _$did(PostAuthor v) => v.did;
+  static dynamic _arg$did(f) => f<Did>();
+  static const Field<PostAuthor, String> _f$did = Field(
+    'did',
+    _$did,
+    arg: _arg$did,
+  );
+  static Handle _$handle(PostAuthor v) => v.handle;
+  static dynamic _arg$handle(f) => f<Handle>();
+  static const Field<PostAuthor, String> _f$handle = Field(
+    'handle',
+    _$handle,
+    arg: _arg$handle,
+  );
   static String? _$displayName(PostAuthor v) => v.displayName;
   static const Field<PostAuthor, String> _f$displayName = Field(
     'displayName',
     _$displayName,
     opt: true,
   );
-  static String? _$avatarCid(PostAuthor v) => v.avatarCid;
+  static Cid? _$avatarCid(PostAuthor v) => v.avatarCid;
+  static dynamic _arg$avatarCid(f) => f<Cid>();
   static const Field<PostAuthor, String> _f$avatarCid = Field(
     'avatarCid',
     _$avatarCid,
     opt: true,
+    arg: _arg$avatarCid,
   );
 
   @override
@@ -612,6 +643,7 @@ class PostRefMapper extends ClassMapperBase<PostRef> {
   static PostRefMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = PostRefMapper._());
+      MapperContainer.globals.useAll([AtUriMapper(), CidMapper()]);
     }
     return _instance!;
   }
@@ -619,10 +651,20 @@ class PostRefMapper extends ClassMapperBase<PostRef> {
   @override
   final String id = 'PostRef';
 
-  static String _$uri(PostRef v) => v.uri;
-  static const Field<PostRef, String> _f$uri = Field('uri', _$uri);
-  static String _$cid(PostRef v) => v.cid;
-  static const Field<PostRef, String> _f$cid = Field('cid', _$cid);
+  static AtUri _$uri(PostRef v) => v.uri;
+  static dynamic _arg$uri(f) => f<AtUri>();
+  static const Field<PostRef, String> _f$uri = Field(
+    'uri',
+    _$uri,
+    arg: _arg$uri,
+  );
+  static Cid _$cid(PostRef v) => v.cid;
+  static dynamic _arg$cid(f) => f<Cid>();
+  static const Field<PostRef, String> _f$cid = Field(
+    'cid',
+    _$cid,
+    arg: _arg$cid,
+  );
 
   @override
   final MappableFields<PostRef> fields = const {#uri: _f$uri, #cid: _f$cid};
