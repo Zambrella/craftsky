@@ -37,6 +37,21 @@ class PostCommentSection with PostCommentSectionMappable {
   final CommentSort sort;
   final FocusContext? focus;
 
+  @override
+  String toString() {
+    final loadedReplies = comments.items.fold<int>(
+      0,
+      (total, item) => total + item.replies.items.length,
+    );
+    return 'PostCommentSection('
+        'post: ${post.uri}, '
+        'comments: ${comments.items.length}, '
+        'loadedReplies: $loadedReplies, '
+        'sort: ${sort.name}, '
+        'focus: ${focus?.status.name}'
+        ')';
+  }
+
   /// Creates the initial unfocused UI state with all reply branches collapsed.
   PostCommentSection withCollapsedReplies() {
     return copyWith(
@@ -268,6 +283,13 @@ class CommentPage with CommentPageMappable {
 
   final List<CommentItem> items;
   final String? cursor;
+
+  bool get hasMore => cursor != null;
+
+  @override
+  String toString() {
+    return 'CommentPage(items: ${items.length}, hasMore: $hasMore)';
+  }
 }
 
 @MappableClass()
@@ -299,6 +321,14 @@ class ReplyPage with ReplyPageMappable {
   final bool loaded;
   final List<ReplyItem> items;
   final String? cursor;
+
+  bool get hasMore => cursor != null;
+
+  @override
+  String toString() {
+    return 'ReplyPage(loaded: $loaded, items: ${items.length}, '
+        'hasMore: $hasMore)';
+  }
 }
 
 @MappableClass()

@@ -69,6 +69,33 @@ void main() {
     expect(reply.replyingTo?.handle, 'bob.craftsky.social');
     expect(section.focus?.status, FocusStatus.included);
     expect(section.focus?.kind, FocusKind.reply);
+    expect(
+      section.toString(),
+      [
+        'PostCommentSection(',
+        'post: at://did:plc:alice/social.craftsky.feed.post/root, ',
+        'comments: 1, ',
+        'loadedReplies: 1, ',
+        'sort: oldest, ',
+        'focus: included',
+        ')',
+      ].join(),
+    );
+  });
+
+  test('page toString methods summarize list state', () {
+    const comments = CommentPage(items: [], cursor: 'next-comments');
+    const replies = ReplyPage(
+      loaded: true,
+      items: [],
+      cursor: 'next-replies',
+    );
+
+    expect(comments.toString(), 'CommentPage(items: 0, hasMore: true)');
+    expect(
+      replies.toString(),
+      'ReplyPage(loaded: true, items: 0, hasMore: true)',
+    );
   });
 
   test('requires enum-backed comment placement', () {

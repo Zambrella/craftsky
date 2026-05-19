@@ -22,5 +22,10 @@ void main() {
       expect(next.items, state.items);
       expect(next.cursor, isNull);
     });
+
+    test('toString summarizes list state', () {
+      const state = UserPostsState(items: [], cursor: 'abc');
+      expect(state.toString(), 'UserPostsState(items: 0, hasMore: true)');
+    });
   });
 }

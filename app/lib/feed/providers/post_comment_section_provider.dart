@@ -9,6 +9,8 @@ part 'post_comment_section_provider.g.dart';
 
 @riverpod
 class PostCommentSection extends _$PostCommentSection {
+  static String formatLogValue(Object? value) => value.toString();
+
   @override
   Future<model.PostCommentSection> build(
     String did,

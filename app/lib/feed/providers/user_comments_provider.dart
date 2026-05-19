@@ -10,6 +10,8 @@ const userCommentsPageLimit = 10;
 /// Cursor-accumulating authored comments/replies list, keyed by `handleOrDid`.
 @riverpod
 class UserComments extends _$UserComments {
+  static String formatLogValue(Object? value) => value.toString();
+
   @override
   Future<UserPostsState> build(String handleOrDid) async {
     final repo = ref.watch(postRepositoryProvider);
