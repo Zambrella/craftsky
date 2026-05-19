@@ -171,23 +171,31 @@ func (c *CraftskyPost) isMember(ctx context.Context, did syntax.DID) (bool, erro
 	return exists, err
 }
 
-// flattenImages turns the lexicon's [{image: LexBlob, alt}, ...] array
-// into the storage shape [{cid, mime, alt}, ...]. Returns nil when there
+// flattenImages turns the lexicon's [{image: LexBlob, alt, aspectRatio?}, ...] array
+// into the storage shape [{cid, mime, size, alt, aspectRatio?}, ...]. Returns nil when there
 // are no images, so the caller can pass nil to the JSONB column for SQL NULL.
-func flattenImages(images []*craftskylex.FeedPost_Image) []map[string]string {
+func flattenImages(images []*craftskylex.FeedPost_Image) []map[string]any {
 	if len(images) == 0 {
 		return nil
 	}
-	out := make([]map[string]string, 0, len(images))
+	out := make([]map[string]any, 0, len(images))
 	for _, img := range images {
 		if img == nil || img.Image == nil {
 			continue
 		}
-		out = append(out, map[string]string{
+		one := map[string]any{
 			"cid":  img.Image.Ref.String(),
 			"mime": img.Image.MimeType,
+			"size": img.Image.Size,
 			"alt":  img.Alt,
-		})
+		}
+		if img.AspectRatio != nil {
+			one["aspectRatio"] = map[string]any{
+				"width":  img.AspectRatio.Width,
+				"height": img.AspectRatio.Height,
+			}
+		}
+		out = append(out, one)
 	}
 	if len(out) == 0 {
 		return nil

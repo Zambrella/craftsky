@@ -2,9 +2,12 @@
 package auth
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -146,4 +149,71 @@ func (i *IndigoPDSClient) DeleteRecord(
 		return translateGetRecordError(err)
 	}
 	return nil
+}
+
+// UploadBlob calls com.atproto.repo.uploadBlob with raw image bytes.
+// The request content type is forwarded to the PDS as provided.
+func (i *IndigoPDSClient) UploadBlob(ctx context.Context, contentType string, body []byte) (*UploadedBlob, error) {
+	nsid, err := syntax.ParseNSID("com.atproto.repo.uploadBlob")
+	if err != nil {
+		return nil, fmt.Errorf("parse nsid: %w", err)
+	}
+
+	req := atclient.NewAPIRequest(http.MethodPost, nsid, bytes.NewReader(body))
+	req.Headers.Set("Accept", "application/json")
+	req.Headers.Set("Content-Type", contentType)
+
+	resp, err := i.Client.Do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if !(resp.StatusCode >= 200 && resp.StatusCode < 300) {
+		var eb atclient.ErrorBody
+		if err := json.NewDecoder(resp.Body).Decode(&eb); err != nil {
+			return nil, &atclient.APIError{StatusCode: resp.StatusCode}
+		}
+		return nil, eb.APIError(resp.StatusCode)
+	}
+
+	var out struct {
+		Blob map[string]any `json:"blob"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("failed decoding JSON response body: %w", err)
+	}
+	if out.Blob == nil {
+		return nil, fmt.Errorf("uploadBlob: PDS returned empty blob")
+	}
+
+	ref, _ := out.Blob["ref"].(map[string]any)
+	cid, _ := ref["$link"].(string)
+	mime, _ := out.Blob["mimeType"].(string)
+	sizeAny, ok := out.Blob["size"]
+	if cid == "" || mime == "" || !ok {
+		return nil, fmt.Errorf("uploadBlob: PDS returned incomplete blob metadata")
+	}
+
+	size, err := parseBlobSize(sizeAny)
+	if err != nil {
+		return nil, fmt.Errorf("uploadBlob: parse blob size: %w", err)
+	}
+
+	return &UploadedBlob{Raw: out.Blob, CID: cid, MIME: mime, Size: size}, nil
+}
+
+func parseBlobSize(v any) (int64, error) {
+	switch n := v.(type) {
+	case float64:
+		return int64(n), nil
+	case int64:
+		return n, nil
+	case int:
+		return int64(n), nil
+	case json.Number:
+		return n.Int64()
+	default:
+		return 0, fmt.Errorf("unexpected type %T", v)
+	}
 }

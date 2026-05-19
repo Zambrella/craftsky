@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -35,8 +36,7 @@ type EmbedRequest struct {
 }
 
 // PostCreateRequest is the decoded body of POST /v1/posts.
-// createdAt is server-stamped; project, images are not writable in this
-// pass and are explicitly rejected.
+// createdAt is server-stamped; project is not writable in this pass.
 type PostCreateRequest struct {
 	Text string `json:"text"`
 	// Facets is opaque raw JSON deliberately. The lexicon's
@@ -48,10 +48,22 @@ type PostCreateRequest struct {
 	Facets json.RawMessage `json:"facets,omitempty"`
 	Reply  *ReplyRef       `json:"reply,omitempty"`
 	Embed  *EmbedRequest   `json:"embed,omitempty"`
+	Images []PostImage     `json:"images,omitempty"`
+}
+
+type PostImage struct {
+	Image       map[string]any        `json:"image"`
+	Alt         string                `json:"alt"`
+	AspectRatio *PostImageAspectRatio `json:"aspectRatio,omitempty"`
+}
+
+type PostImageAspectRatio struct {
+	Width  int `json:"width"`
+	Height int `json:"height"`
 }
 
 // rejectedPostFields enumerates wire fields that are NOT writable here.
-var rejectedPostFields = []string{"images", "project", "createdAt"}
+var rejectedPostFields = []string{"project", "createdAt"}
 
 // DecodePostCreate reads a JSON body into PostCreateRequest. Rejects
 // any of rejectedPostFields and any unknown keys with code
@@ -111,6 +123,26 @@ func ValidatePostCreate(req PostCreateRequest) error {
 	}
 	if req.Embed != nil && req.Embed.Quote != nil {
 		validateStrongRef(fields, "embed.quote", *req.Embed.Quote)
+	}
+	if len(req.Images) > 4 {
+		fields["images"] = "exceeds maximum of 4 entries"
+	}
+	for i, img := range req.Images {
+		prefix := fmt.Sprintf("images[%d]", i)
+		if len(img.Image) == 0 {
+			fields[prefix+".image"] = "must not be empty"
+		}
+		if strings.TrimSpace(img.Alt) == "" {
+			fields[prefix+".alt"] = "must not be empty"
+		}
+		if img.AspectRatio != nil {
+			if img.AspectRatio.Width <= 0 {
+				fields[prefix+".aspectRatio.width"] = "must be a positive integer"
+			}
+			if img.AspectRatio.Height <= 0 {
+				fields[prefix+".aspectRatio.height"] = "must be a positive integer"
+			}
+		}
 	}
 	if len(fields) > 0 {
 		return &FieldError{Code: "validation_failed", Fields: fields}

@@ -30,6 +30,7 @@ type PostRow struct {
 	CID            string
 	Text           string
 	Facets         json.RawMessage
+	Images         json.RawMessage
 	ReplyRootURI   *string
 	ReplyRootCID   *string
 	ReplyParentURI *string
@@ -227,7 +228,7 @@ func NewPostStore(pool *pgxpool.Pool) *PostStore {
 }
 
 const postSelectColumns = `
-	p.uri, p.did, p.rkey, p.cid, p.text, p.facets,
+	p.uri, p.did, p.rkey, p.cid, p.text, p.facets, p.images,
 	p.reply_root_uri, p.reply_root_cid, p.reply_parent_uri, p.reply_parent_cid,
 	p.quote_uri, p.quote_cid, p.tags, p.created_at, p.indexed_at,
 	bp.display_name, bp.avatar_cid
@@ -236,7 +237,7 @@ const postSelectColumns = `
 func scanPostRow(scanner pgx.Row) (*PostRow, error) {
 	out := &PostRow{}
 	err := scanner.Scan(
-		&out.URI, &out.DID, &out.Rkey, &out.CID, &out.Text, &out.Facets,
+		&out.URI, &out.DID, &out.Rkey, &out.CID, &out.Text, &out.Facets, &out.Images,
 		&out.ReplyRootURI, &out.ReplyRootCID, &out.ReplyParentURI, &out.ReplyParentCID,
 		&out.QuoteURI, &out.QuoteCID, &out.Tags, &out.CreatedAt, &out.IndexedAt,
 		&out.AuthorDisplayName, &out.AuthorAvatarCID,

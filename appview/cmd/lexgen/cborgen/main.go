@@ -23,6 +23,7 @@ func main() {
 		craftsky.FeedLike{},
 		craftsky.FeedRepost{},
 		craftsky.FeedPost{},
+		craftsky.FeedPost_AspectRatio{},
 		craftsky.FeedPost_Image{},
 		craftsky.FeedPost_Pattern{},
 		craftsky.FeedPost_Project{},

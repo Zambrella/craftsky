@@ -325,6 +325,48 @@ func TestRoutes_DeletePostLikesRequiresAuth(t *testing.T) {
 	}
 }
 
+func TestAddRoutes_ImageBlobUploadRouteRegistered(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/blobs/images", nil)
+	_, pattern := mux.Handler(req)
+	if pattern == "/" || pattern == "" {
+		t.Fatalf("pattern = %q; /v1/blobs/images must be registered", pattern)
+	}
+}
+
+func TestAddRoutes_ImageBlobUploadRequiresAuth(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/blobs/images", nil)
+	req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rr.Code)
+	}
+}
+
+func TestAddRoutes_ImageBlobUploadRequiresDeviceID(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/blobs/images", nil)
+	req.Header.Set("Authorization", "Bearer anything")
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "missing_device_id") {
+		t.Errorf("body = %q, want containing 'missing_device_id'", rr.Body.String())
+	}
+}
+
 func TestRoutes_PostPostRepostsRequiresAuth(t *testing.T) {
 	t.Parallel()
 	deps := testDeps()

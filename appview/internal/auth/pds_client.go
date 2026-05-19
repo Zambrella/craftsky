@@ -27,6 +27,16 @@ type PDSClient interface {
 	PutRecord(ctx context.Context, repo syntax.DID, collection string, rkey string, record any) error
 	CreateRecord(ctx context.Context, repo syntax.DID, collection string, record any) (uri syntax.ATURI, cid syntax.CID, err error)
 	DeleteRecord(ctx context.Context, repo syntax.DID, collection string, rkey string) error
+	UploadBlob(ctx context.Context, contentType string, body []byte) (*UploadedBlob, error)
+}
+
+// UploadedBlob is normalized metadata returned from com.atproto.repo.uploadBlob.
+// Raw preserves the atproto blob object for pass-through into later record writes.
+type UploadedBlob struct {
+	Raw  map[string]any
+	CID  string
+	MIME string
+	Size int64
 }
 
 // PDSClientFactory builds a PDSClient scoped to a caller's OAuth session.

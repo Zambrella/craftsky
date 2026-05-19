@@ -146,3 +146,43 @@ func TestBuildPostResponse_OneSidedReplyPointer_DropsReply(t *testing.T) {
 		t.Errorf("expected nil reply when parent pointer is missing, got %+v", resp.Reply)
 	}
 }
+
+func TestBuildPostResponse_ImageURLsKnownAndUnknownMIME(t *testing.T) {
+	t.Parallel()
+	row := baseRow()
+	row.Images = json.RawMessage(`[
+		{"cid":"bafkjpeg","mime":"image/jpeg","size":123,"alt":"jpg"},
+		{"cid":"bafktiff","mime":"image/tiff","size":456,"alt":"tiff"}
+	]`)
+
+	resp := api.BuildPostResponse(row, syntax.Handle("alice.example"))
+	if len(resp.Images) != 2 {
+		t.Fatalf("len(images) = %d, want 2", len(resp.Images))
+	}
+	if resp.Images[0].Thumb == "" || resp.Images[0].Fullsize == "" {
+		t.Fatalf("known mime urls missing: %+v", resp.Images[0])
+	}
+	if resp.Images[1].Thumb != "" || resp.Images[1].Fullsize != "" {
+		t.Fatalf("unknown mime urls must be omitted: %+v", resp.Images[1])
+	}
+}
+
+func TestBuildPostResponse_ImageMetadataIncludesAspectRatioAndSize(t *testing.T) {
+	t.Parallel()
+	row := baseRow()
+	row.Images = json.RawMessage(`[
+		{"cid":"bafkimage","mime":"image/jpeg","size":253496,"alt":"project photo","aspectRatio":{"width":919,"height":2000}}
+	]`)
+
+	resp := api.BuildPostResponse(row, syntax.Handle("alice.example"))
+	if len(resp.Images) != 1 {
+		t.Fatalf("len(images) = %d, want 1", len(resp.Images))
+	}
+	img := resp.Images[0]
+	if img.CID != "bafkimage" || img.MIME != "image/jpeg" || img.Size != 253496 || img.Alt != "project photo" {
+		t.Fatalf("image metadata = %+v", img)
+	}
+	if img.AspectRatio == nil || img.AspectRatio.Width != 919 || img.AspectRatio.Height != 2000 {
+		t.Fatalf("aspectRatio = %+v", img.AspectRatio)
+	}
+}

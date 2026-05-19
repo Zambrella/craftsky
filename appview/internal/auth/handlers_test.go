@@ -40,6 +40,9 @@ func (noopPDSClient) CreateRecord(_ context.Context, _ syntax.DID, _ string, _ a
 func (noopPDSClient) DeleteRecord(_ context.Context, _ syntax.DID, _, _ string) error {
 	return nil
 }
+func (noopPDSClient) UploadBlob(_ context.Context, _ string, _ []byte) (*auth.UploadedBlob, error) {
+	return nil, nil
+}
 
 // erroringGetPDSClient always errors on GetRecord (non-404). Used to
 // exercise InitializeProfile's error propagation.
@@ -56,6 +59,9 @@ func (erroringGetPDSClient) CreateRecord(_ context.Context, _ syntax.DID, _ stri
 }
 func (erroringGetPDSClient) DeleteRecord(_ context.Context, _ syntax.DID, _, _ string) error {
 	return nil
+}
+func (erroringGetPDSClient) UploadBlob(_ context.Context, _ string, _ []byte) (*auth.UploadedBlob, error) {
+	return nil, nil
 }
 
 // handlersFixture builds a test HTTPHandlers backed by a real

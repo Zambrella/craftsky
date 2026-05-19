@@ -421,7 +421,7 @@ func TestCraftskyPost_Create_WithImages(t *testing.T) {
 		Scan(&imagesJSON); err != nil {
 		t.Fatalf("select: %v", err)
 	}
-	var images []map[string]string
+	var images []map[string]any
 	if err := json.Unmarshal([]byte(imagesJSON), &images); err != nil {
 		t.Fatalf("decode images: %v (raw=%s)", err, imagesJSON)
 	}
@@ -433,6 +433,64 @@ func TestCraftskyPost_Create_WithImages(t *testing.T) {
 	}
 	if images[1]["cid"] != "bafkreidjq52a7nre4puzipwf3gwfkgnxftvbwnp3jppfogo7her2g3ai64" || images[1]["mime"] != "image/png" || images[1]["alt"] != "second photo" {
 		t.Errorf("images[1] = %v", images[1])
+	}
+}
+
+func TestCraftskyPost_Create_WithImages_StoresSizeAndAspectRatio(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:is")
+	idx := index.NewCraftskyPost(pool, testLogger())
+
+	ev := tap.Event{
+		URI:        "at://did:plc:is/social.craftsky.feed.post/r",
+		CID:        "bafyIS",
+		DID:        "did:plc:is",
+		Rkey:       "r",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record: json.RawMessage(`{
+			"$type": "social.craftsky.feed.post",
+			"text": "post with image metadata",
+			"createdAt": "` + fixedCreatedAt + `",
+			"images": [
+				{
+					"image": {"$type":"blob","ref":{"$link":"bafkimgmeta"},"mimeType":"image/jpeg","size":253496},
+					"alt": "project photo",
+					"aspectRatio": {"width":919,"height":2000}
+				}
+			]
+		}`),
+	}
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+
+	var imagesJSON string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT images::text FROM craftsky_posts WHERE uri = $1`, ev.URI).
+		Scan(&imagesJSON); err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	var images []map[string]any
+	if err := json.Unmarshal([]byte(imagesJSON), &images); err != nil {
+		t.Fatalf("decode images: %v (raw=%s)", err, imagesJSON)
+	}
+	if len(images) != 1 {
+		t.Fatalf("len(images) = %d, want 1", len(images))
+	}
+	if images[0]["cid"] != "bafkimgmeta" || images[0]["mime"] != "image/jpeg" || images[0]["alt"] != "project photo" {
+		t.Fatalf("images[0] core fields = %v", images[0])
+	}
+	if images[0]["size"] != float64(253496) {
+		t.Fatalf("images[0].size = %v, want 253496", images[0]["size"])
+	}
+	aspect, ok := images[0]["aspectRatio"].(map[string]any)
+	if !ok {
+		t.Fatalf("images[0].aspectRatio = %T %v", images[0]["aspectRatio"], images[0]["aspectRatio"])
+	}
+	if aspect["width"] != float64(919) || aspect["height"] != float64(2000) {
+		t.Fatalf("aspectRatio = %v", aspect)
 	}
 }
 

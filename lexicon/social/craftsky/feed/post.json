@@ -211,6 +211,29 @@
           "maxLength": 1000,
           "maxGraphemes": 1000,
           "description": "Alt text describing the image for accessibility."
+        },
+        "aspectRatio": {
+          "type": "ref",
+          "ref": "#aspectRatio",
+          "description": "Optional aspect ratio metadata for rendering."
+        }
+      }
+    },
+    "aspectRatio": {
+      "type": "object",
+      "description": "Image aspect ratio metadata used for layout/render hints.",
+      "required": [
+        "width",
+        "height"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     },

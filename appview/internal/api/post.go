@@ -157,6 +157,23 @@ func lexiconRecordBody(req PostCreateRequest) map[string]any {
 			},
 		}
 	}
+	if len(req.Images) > 0 {
+		images := make([]map[string]any, 0, len(req.Images))
+		for _, img := range req.Images {
+			one := map[string]any{
+				"image": img.Image,
+				"alt":   img.Alt,
+			}
+			if img.AspectRatio != nil {
+				one["aspectRatio"] = map[string]any{
+					"width":  img.AspectRatio.Width,
+					"height": img.AspectRatio.Height,
+				}
+			}
+			images = append(images, one)
+		}
+		body["images"] = images
+	}
 	return body
 }
 
