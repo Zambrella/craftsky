@@ -83,9 +83,8 @@ class UserComments extends _$UserComments {
 void updateLiveUserCommentCaches(Ref ref, Post post) {
   if (post.reply == null) return;
   for (final id in <String>{post.author.did, post.author.handle}) {
-    final entry = userCommentsProvider(id);
-    if (ref.exists(entry)) {
-      ref.read(entry.notifier).prependOrReplace(post);
+    if (ref.exists(userCommentsProvider(id))) {
+      ref.read(userCommentsProvider(id).notifier).prependOrReplace(post);
     }
   }
 }

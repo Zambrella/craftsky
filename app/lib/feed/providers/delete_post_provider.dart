@@ -35,9 +35,8 @@ class DeletePost extends _$DeletePost {
       if (!ref.mounted) return null;
 
       for (final id in <String>{post.author.did, post.author.handle}) {
-        final entry = userPostsProvider(id);
-        if (ref.exists(entry)) {
-          ref.read(entry.notifier).removeByRkey(post.rkey);
+        if (ref.exists(userPostsProvider(id))) {
+          ref.read(userPostsProvider(id).notifier).removeByRkey(post.rkey);
         }
       }
 

@@ -52,9 +52,8 @@ class SaveProfile extends _$SaveProfile {
       // family entry, which would race a fresh `repo.fetch` against
       // our setCached and overwrite it.
       for (final id in <String>{updated.handle, updated.did}) {
-        final entry = userProfileProvider(id);
-        if (ref.exists(entry)) {
-          ref.read(entry.notifier).setCached(updated);
+        if (ref.exists(userProfileProvider(id))) {
+          ref.read(userProfileProvider(id).notifier).setCached(updated);
         }
       }
 

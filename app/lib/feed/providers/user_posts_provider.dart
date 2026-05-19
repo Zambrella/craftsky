@@ -102,9 +102,8 @@ class UserPosts extends _$UserPosts {
 
 void updateLiveUserPostCaches(Ref ref, Post post) {
   for (final id in <String>{post.author.did, post.author.handle}) {
-    final entry = userPostsProvider(id);
-    if (ref.exists(entry)) {
-      ref.read(entry.notifier).replace(post);
+    if (ref.exists(userPostsProvider(id))) {
+      ref.read(userPostsProvider(id).notifier).replace(post);
     }
   }
 }
