@@ -75,7 +75,7 @@ void main() {
         initial: const StoredSession(token: 't', did: 'd', handle: 'h'),
       ),
       api: _FakeApi(
-        onWhoami: () async => const WhoAmI(did: 'd', handle: 'h'),
+        onWhoami: () async => WhoAmI(did: 'did:plc:test', handle: 'h.test'),
       ),
     );
     final state = await container.read(authSessionProvider.future);
@@ -106,7 +106,7 @@ void main() {
     final container = _container(
       storage: storage,
       api: _FakeApi(
-        onWhoami: () async => const WhoAmI(did: 'd-new', handle: 'h'),
+        onWhoami: () async => WhoAmI(did: 'did:plc:new', handle: 'h.test'),
       ),
     );
     await container.read(authSessionProvider.future);
@@ -120,14 +120,17 @@ void main() {
     final storage = _FakeStorage(
       initial: const StoredSession(
         token: 't',
-        did: 'd',
+        did: 'did:plc:test',
         handle: 'old.bsky.social',
       ),
     );
     final container = _container(
       storage: storage,
       api: _FakeApi(
-        onWhoami: () async => const WhoAmI(did: 'd', handle: 'new.bsky.social'),
+        onWhoami: () async => WhoAmI(
+          did: 'did:plc:test',
+          handle: 'new.bsky.social',
+        ),
       ),
     );
     await container.read(authSessionProvider.future);

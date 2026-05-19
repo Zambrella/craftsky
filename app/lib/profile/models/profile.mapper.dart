@@ -15,6 +15,7 @@ class ProfileMapper extends ClassMapperBase<Profile> {
   static ProfileMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = ProfileMapper._());
+      MapperContainer.globals.useAll([DidMapper(), HandleMapper()]);
     }
     return _instance!;
   }
@@ -22,10 +23,20 @@ class ProfileMapper extends ClassMapperBase<Profile> {
   @override
   final String id = 'Profile';
 
-  static String _$did(Profile v) => v.did;
-  static const Field<Profile, String> _f$did = Field('did', _$did);
-  static String _$handle(Profile v) => v.handle;
-  static const Field<Profile, String> _f$handle = Field('handle', _$handle);
+  static Did _$did(Profile v) => v.did;
+  static dynamic _arg$did(f) => f<Did>();
+  static const Field<Profile, String> _f$did = Field(
+    'did',
+    _$did,
+    arg: _arg$did,
+  );
+  static Handle _$handle(Profile v) => v.handle;
+  static dynamic _arg$handle(f) => f<Handle>();
+  static const Field<Profile, String> _f$handle = Field(
+    'handle',
+    _$handle,
+    arg: _arg$handle,
+  );
   static List<String> _$crafts(Profile v) => v.crafts;
   static const Field<Profile, List<String>> _f$crafts = Field(
     'crafts',

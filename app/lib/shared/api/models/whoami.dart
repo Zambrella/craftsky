@@ -1,11 +1,14 @@
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
 part 'whoami.mapper.dart';
 
-@MappableClass()
+@MappableClass(includeCustomMappers: [DidMapper(), HandleMapper()])
 class WhoAmI with WhoAmIMappable {
-  const WhoAmI({required this.did, required this.handle});
+  WhoAmI({required String did, required String handle})
+    : did = Did.parse(did),
+      handle = Handle.parse(handle);
 
-  final String did;
-  final String handle;
+  final Did did;
+  final Handle handle;
 }

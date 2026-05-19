@@ -1,3 +1,4 @@
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
 part 'post.mapper.dart';
@@ -14,12 +15,21 @@ part 'post.mapper.dart';
 ///
 /// `images` is omitted from this model entirely — the v1 AppView
 /// response shape does not include it.
-@MappableClass(ignoreNull: true)
+@MappableClass(
+  ignoreNull: true,
+  includeCustomMappers: [
+    DidMapper(),
+    HandleMapper(),
+    CidMapper(),
+    AtUriMapper(),
+    RecordKeyMapper(),
+  ],
+)
 class Post with PostMappable {
-  const Post({
-    required this.uri,
-    required this.cid,
-    required this.rkey,
+  Post({
+    required String uri,
+    required String cid,
+    required String rkey,
     required this.text,
     required this.tags,
     required this.createdAt,
@@ -34,11 +44,13 @@ class Post with PostMappable {
     this.facets,
     this.reply,
     this.quote,
-  });
+  }) : uri = AtUri.parse(uri),
+       cid = Cid.parse(cid),
+       rkey = RecordKey.parse(rkey);
 
-  final String uri;
-  final String cid;
-  final String rkey;
+  final AtUri uri;
+  final Cid cid;
+  final RecordKey rkey;
   final String text;
   final List<Map<String, dynamic>>? facets;
   final List<String> tags;
@@ -59,28 +71,35 @@ class Post with PostMappable {
 ///
 /// `avatarCid` is a bare CID, not a URL — image proxying is its own
 /// future spec.
-@MappableClass(ignoreNull: true)
+@MappableClass(
+  ignoreNull: true,
+  includeCustomMappers: [DidMapper(), HandleMapper(), CidMapper()],
+)
 class PostAuthor with PostAuthorMappable {
-  const PostAuthor({
-    required this.did,
-    required this.handle,
+  PostAuthor({
+    required String did,
+    required String handle,
     this.displayName,
-    this.avatarCid,
-  });
+    String? avatarCid,
+  }) : did = Did.parse(did),
+       handle = Handle.parse(handle),
+       avatarCid = avatarCid == null ? null : Cid.parse(avatarCid);
 
-  final String did;
-  final String handle;
+  final Did did;
+  final Handle handle;
   final String? displayName;
-  final String? avatarCid;
+  final Cid? avatarCid;
 }
 
 /// `(uri, cid)` reference to another atproto record. Used for reply
 /// roots/parents and embedded quotes.
-@MappableClass()
+@MappableClass(includeCustomMappers: [AtUriMapper(), CidMapper()])
 class PostRef with PostRefMappable {
-  const PostRef({required this.uri, required this.cid});
-  final String uri;
-  final String cid;
+  PostRef({required String uri, required String cid})
+    : uri = AtUri.parse(uri),
+      cid = Cid.parse(cid);
+  final AtUri uri;
+  final Cid cid;
 }
 
 /// Reply target, lexicon-shaped.

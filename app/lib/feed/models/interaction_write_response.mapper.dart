@@ -18,6 +18,11 @@ class InteractionWriteResponseMapper
       MapperContainer.globals.use(
         _instance = InteractionWriteResponseMapper._(),
       );
+      MapperContainer.globals.useAll([
+        AtUriMapper(),
+        CidMapper(),
+        RecordKeyMapper(),
+      ]);
       PostRefMapper.ensureInitialized();
     }
     return _instance!;
@@ -26,20 +31,26 @@ class InteractionWriteResponseMapper
   @override
   final String id = 'InteractionWriteResponse';
 
-  static String _$uri(InteractionWriteResponse v) => v.uri;
+  static AtUri _$uri(InteractionWriteResponse v) => v.uri;
+  static dynamic _arg$uri(f) => f<AtUri>();
   static const Field<InteractionWriteResponse, String> _f$uri = Field(
     'uri',
     _$uri,
+    arg: _arg$uri,
   );
-  static String _$cid(InteractionWriteResponse v) => v.cid;
+  static Cid _$cid(InteractionWriteResponse v) => v.cid;
+  static dynamic _arg$cid(f) => f<Cid>();
   static const Field<InteractionWriteResponse, String> _f$cid = Field(
     'cid',
     _$cid,
+    arg: _arg$cid,
   );
-  static String _$rkey(InteractionWriteResponse v) => v.rkey;
+  static RecordKey _$rkey(InteractionWriteResponse v) => v.rkey;
+  static dynamic _arg$rkey(f) => f<RecordKey>();
   static const Field<InteractionWriteResponse, String> _f$rkey = Field(
     'rkey',
     _$rkey,
+    arg: _arg$rkey,
   );
   static PostRef _$subject(InteractionWriteResponse v) => v.subject;
   static const Field<InteractionWriteResponse, PostRef> _f$subject = Field(

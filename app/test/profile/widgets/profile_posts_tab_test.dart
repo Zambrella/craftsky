@@ -28,7 +28,7 @@ Post _post(String rkey) {
     viewerHasReposted: false,
     createdAt: DateTime.now().subtract(const Duration(minutes: 3)),
     indexedAt: DateTime.now().subtract(const Duration(minutes: 2)),
-    author: const PostAuthor(
+    author: PostAuthor(
       did: 'did:plc:alice',
       handle: 'alice.craftsky.social',
       displayName: 'Alice',

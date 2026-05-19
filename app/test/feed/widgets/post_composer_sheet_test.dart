@@ -26,7 +26,7 @@ Post _post() {
     viewerHasReposted: false,
     createdAt: DateTime.now(),
     indexedAt: DateTime.now(),
-    author: const PostAuthor(
+    author: PostAuthor(
       did: 'did:plc:alice',
       handle: 'alice.craftsky.social',
     ),
@@ -47,11 +47,11 @@ Post _replyTarget({String text = 'target'}) {
     viewerHasReposted: false,
     createdAt: DateTime.now(),
     indexedAt: DateTime.now(),
-    author: const PostAuthor(
+    author: PostAuthor(
       did: 'did:plc:alice',
       handle: 'alice.craftsky.social',
     ),
-    reply: const PostReply(
+    reply: PostReply(
       root: PostRef(
         uri: 'at://did:plc:root/social.craftsky.feed.post/root',
         cid: 'bafy_root',

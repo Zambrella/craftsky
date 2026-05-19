@@ -1,21 +1,26 @@
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
 part 'interaction_write_response.mapper.dart';
 
-@MappableClass()
+@MappableClass(
+  includeCustomMappers: [AtUriMapper(), CidMapper(), RecordKeyMapper()],
+)
 class InteractionWriteResponse with InteractionWriteResponseMappable {
-  const InteractionWriteResponse({
-    required this.uri,
-    required this.cid,
-    required this.rkey,
+  InteractionWriteResponse({
+    required String uri,
+    required String cid,
+    required String rkey,
     required this.subject,
     required this.createdAt,
-  });
+  }) : uri = AtUri.parse(uri),
+       cid = Cid.parse(cid),
+       rkey = RecordKey.parse(rkey);
 
-  final String uri;
-  final String cid;
-  final String rkey;
+  final AtUri uri;
+  final Cid cid;
+  final RecordKey rkey;
   final PostRef subject;
   final DateTime createdAt;
 }

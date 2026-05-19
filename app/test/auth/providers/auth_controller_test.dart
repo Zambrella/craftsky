@@ -53,7 +53,7 @@ class _FakeAuthApi implements AuthApiClient {
       // AuthSession.build's _validateInBackground calls this on cold
       // start. Default to a handle/did that matches the stored session
       // used in the sign-out test, so validation is a no-op.
-      Future.value(const WhoAmI(did: 'd', handle: 'h'));
+      Future.value(WhoAmI(did: 'did:plc:test', handle: 'h.test'));
   @override
   Future<void> logout() => onLogout?.call() ?? Future.value();
 }
@@ -227,7 +227,7 @@ void main() {
     () async {
       final storage = _FakeStorage();
       final handoff = _FakeHandoffApi(
-        () async => const WhoAmI(did: 'did:plc:a', handle: 'a.bsky.social'),
+        () async => WhoAmI(did: 'did:plc:a', handle: 'a.bsky.social'),
       );
       final container = _container(storage: storage, handoff: handoff);
 
