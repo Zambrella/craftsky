@@ -10,13 +10,13 @@ class WelcomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(title: const Text('Welcome')),
-      body: const Center(child: WelcomePageBody()),
+      body: const Center(child: _WelcomePageBody()),
     );
   }
 }
 
-class WelcomePageBody extends ConsumerWidget {
-  const WelcomePageBody({super.key});
+class _WelcomePageBody extends ConsumerWidget {
+  const _WelcomePageBody();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

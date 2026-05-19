@@ -33,49 +33,49 @@ class DesignPlaygroundPage extends ConsumerWidget {
       body: ListView(
         padding: EdgeInsets.fromLTRB(sp.sp5, sp.sp5, sp.sp5, sp.sp8),
         children: [
-          HomeHeader(
+          _HomeHeader(
             subtitle: l10n.homeSubtitle,
             versionLabel: l10n.homeVersionLabel(version),
           ),
           SizedBox(height: sp.sp6),
-          const PlaygroundSection(
+          const _PlaygroundSection(
             eyebrow: 'Typography',
-            child: TypographySample(),
+            child: _TypographySample(),
           ),
           SizedBox(height: sp.sp7),
-          const PlaygroundSection(
+          const _PlaygroundSection(
             eyebrow: 'Buttons',
-            child: ButtonsSample(),
+            child: _ButtonsSample(),
           ),
           SizedBox(height: sp.sp7),
-          const PlaygroundSection(
+          const _PlaygroundSection(
             eyebrow: 'Progress',
-            child: ProgressSample(),
+            child: _ProgressSample(),
           ),
           SizedBox(height: sp.sp7),
-          const PlaygroundSection(
+          const _PlaygroundSection(
             eyebrow: 'Chips',
-            child: ChipsSample(),
+            child: _ChipsSample(),
           ),
           SizedBox(height: sp.sp7),
-          const PlaygroundSection(
+          const _PlaygroundSection(
             eyebrow: 'Text fields',
-            child: TextFieldsSample(),
+            child: _TextFieldsSample(),
           ),
           SizedBox(height: sp.sp7),
-          const PlaygroundSection(
+          const _PlaygroundSection(
             eyebrow: 'Cards',
-            child: CardsSample(),
+            child: _CardsSample(),
           ),
           SizedBox(height: sp.sp7),
-          const PlaygroundSection(
+          const _PlaygroundSection(
             eyebrow: 'Dialogs',
-            child: DialogsSample(),
+            child: _DialogsSample(),
           ),
           SizedBox(height: sp.sp7),
-          const PlaygroundSection(
+          const _PlaygroundSection(
             eyebrow: 'Swatches',
-            child: SwatchesSample(),
+            child: _SwatchesSample(),
           ),
         ],
       ),
@@ -83,11 +83,10 @@ class DesignPlaygroundPage extends ConsumerWidget {
   }
 }
 
-class HomeHeader extends StatelessWidget {
-  const HomeHeader({
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader({
     required this.subtitle,
     required this.versionLabel,
-    super.key,
   });
 
   final String subtitle;
@@ -126,11 +125,10 @@ class HomeHeader extends StatelessWidget {
   }
 }
 
-class PlaygroundSection extends StatelessWidget {
-  const PlaygroundSection({
+class _PlaygroundSection extends StatelessWidget {
+  const _PlaygroundSection({
     required this.eyebrow,
     required this.child,
-    super.key,
   });
 
   final String eyebrow;
@@ -157,8 +155,8 @@ class PlaygroundSection extends StatelessWidget {
   }
 }
 
-class TypographySample extends StatelessWidget {
-  const TypographySample({super.key});
+class _TypographySample extends StatelessWidget {
+  const _TypographySample();
 
   @override
   Widget build(BuildContext context) {
@@ -184,8 +182,8 @@ class TypographySample extends StatelessWidget {
   }
 }
 
-class ButtonsSample extends StatelessWidget {
-  const ButtonsSample({super.key});
+class _ButtonsSample extends StatelessWidget {
+  const _ButtonsSample();
 
   @override
   Widget build(BuildContext context) {
@@ -219,8 +217,8 @@ class ButtonsSample extends StatelessWidget {
   }
 }
 
-class ChipsSample extends StatelessWidget {
-  const ChipsSample({super.key});
+class _ChipsSample extends StatelessWidget {
+  const _ChipsSample();
 
   @override
   Widget build(BuildContext context) {
@@ -277,8 +275,8 @@ class ChipsSample extends StatelessWidget {
   }
 }
 
-class TextFieldsSample extends StatelessWidget {
-  const TextFieldsSample({super.key});
+class _TextFieldsSample extends StatelessWidget {
+  const _TextFieldsSample();
 
   @override
   Widget build(BuildContext context) {
@@ -317,8 +315,8 @@ class TextFieldsSample extends StatelessWidget {
   }
 }
 
-class CardsSample extends StatelessWidget {
-  const CardsSample({super.key});
+class _CardsSample extends StatelessWidget {
+  const _CardsSample();
 
   @override
   Widget build(BuildContext context) {
@@ -443,8 +441,8 @@ class _HardShadowCard extends StatelessWidget {
   }
 }
 
-class SwatchesSample extends StatelessWidget {
-  const SwatchesSample({super.key});
+class _SwatchesSample extends StatelessWidget {
+  const _SwatchesSample();
 
   @override
   Widget build(BuildContext context) {
@@ -469,14 +467,14 @@ class SwatchesSample extends StatelessWidget {
       runSpacing: sp.sp3,
       children: [
         for (final (label, color) in entries)
-          SwatchTile(label: label, color: color),
+          _SwatchTile(label: label, color: color),
       ],
     );
   }
 }
 
-class SwatchTile extends StatelessWidget {
-  const SwatchTile({required this.label, required this.color, super.key});
+class _SwatchTile extends StatelessWidget {
+  const _SwatchTile({required this.label, required this.color});
 
   final String label;
   final Color color;
@@ -509,8 +507,8 @@ class SwatchTile extends StatelessWidget {
   }
 }
 
-class DialogsSample extends StatelessWidget {
-  const DialogsSample({super.key});
+class _DialogsSample extends StatelessWidget {
+  const _DialogsSample();
 
   @override
   Widget build(BuildContext context) {
@@ -596,8 +594,8 @@ class DialogsSample extends StatelessWidget {
   }
 }
 
-class ProgressSample extends StatelessWidget {
-  const ProgressSample({super.key});
+class _ProgressSample extends StatelessWidget {
+  const _ProgressSample();
 
   @override
   Widget build(BuildContext context) {

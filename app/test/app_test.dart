@@ -4,6 +4,7 @@ import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/initialization_error_screen.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
