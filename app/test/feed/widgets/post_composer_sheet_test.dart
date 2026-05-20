@@ -1,5 +1,8 @@
+import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
+import 'package:craftsky_app/feed/providers/composer_image_service.dart';
+import 'package:craftsky_app/feed/providers/image_draft_controller.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -69,10 +72,15 @@ Future<void> _pump(
   required FakePostRepository repo,
   required RecordingMessenger messenger,
   Post? replyTarget,
+  ComposerImageService? imageService,
 }) {
   return tester.pumpWidget(
     ProviderScope(
-      overrides: [postRepositoryProvider.overrideWithValue(repo)],
+      overrides: [
+        postRepositoryProvider.overrideWithValue(repo),
+        if (imageService != null)
+          composerImageServiceProvider.overrideWithValue(imageService),
+      ],
       child: MessengerScope(
         messenger: messenger,
         child: MaterialApp(
@@ -92,13 +100,17 @@ void main() {
       final messenger = RecordingMessenger();
       await _pump(tester, repo: FakePostRepository(), messenger: messenger);
 
-      final initial = tester.widget<TextButton>(find.byType(TextButton));
+      final initial = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, 'Post'),
+      );
       expect(initial.onPressed, isNull);
 
       await tester.enterText(find.byType(TextField), 'hello');
       await tester.pump();
 
-      final updated = tester.widget<TextButton>(find.byType(TextButton));
+      final updated = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, 'Post'),
+      );
       expect(updated.onPressed, isNotNull);
     });
 
@@ -106,7 +118,7 @@ void main() {
       final messenger = RecordingMessenger();
       var capturedText = '';
       final repo = FakePostRepository(
-        onCreate: ({required text, reply}) async {
+        onCreate: ({required text, reply, images}) async {
           capturedText = text;
           return _post();
         },
@@ -127,7 +139,7 @@ void main() {
       final created = _post();
       Post? result;
       final repo = FakePostRepository(
-        onCreate: ({required text, reply}) async => created,
+        onCreate: ({required text, reply, images}) async => created,
       );
 
       await tester.pumpWidget(
@@ -173,7 +185,7 @@ void main() {
       final repo = FakePostRepository(
         onListCommentBranchReplies: (did, rkey, {cursor, limit}) async =>
             const ReplyPage(loaded: true, items: []),
-        onCreate: ({required text, reply}) async {
+        onCreate: ({required text, reply, images}) async {
           capturedText = text;
           capturedReply = reply;
           return _post();
@@ -190,6 +202,8 @@ void main() {
       expect(find.text('Reply'), findsNWidgets(2));
       expect(find.text('Write your reply'), findsOneWidget);
       expect(find.widgetWithText(TextButton, 'Reply'), findsOneWidget);
+      expect(find.byKey(const Key('composer-add-image')), findsNothing);
+      expect(find.text('Add image'), findsNothing);
 
       await tester.enterText(find.byType(TextField), ' hello ');
       await tester.pump();
@@ -263,5 +277,126 @@ void main() {
       expect(previewText.maxLines, 3);
       expect(previewText.overflow, TextOverflow.ellipsis);
     });
+
+    testWidgets(
+      'top-level composer image lifecycle gates submit and removes failed image',
+      (
+        tester,
+      ) async {
+        final messenger = RecordingMessenger();
+        var capturedText = '';
+        List<CreatePostImage>? capturedImages;
+        final repo = FakePostRepository(
+          onCreate: ({required text, reply, images}) async {
+            capturedText = text;
+            capturedImages = images;
+            return _post();
+          },
+        );
+
+        final imageService = FakeComposerImageService(
+          onAddImages: (controller) {
+            controller.addDraftImage(
+              const DraftImageInput(
+                id: 'img-1',
+                fileName: 'one.jpg',
+                mimeType: 'image/jpeg',
+              ),
+            );
+            controller.markPrepared('img-1');
+            controller.markUploaded(
+              'img-1',
+              const UploadedDraftImage(
+                cid: 'bafkimage1',
+                mime: 'image/jpeg',
+                size: 253496,
+              ),
+            );
+
+            controller.addDraftImage(
+              const DraftImageInput(
+                id: 'img-2',
+                fileName: 'two.jpg',
+                mimeType: 'image/jpeg',
+              ),
+            );
+            controller.markPrepared('img-2');
+            controller.markUploadFailed('img-2', 'Upload failed');
+          },
+        );
+
+        await _pump(
+          tester,
+          repo: repo,
+          messenger: messenger,
+          imageService: imageService,
+        );
+
+        await tester.tap(find.byKey(const Key('composer-add-image')));
+        await tester.pump();
+
+        expect(find.text('one.jpg'), findsOneWidget);
+        expect(find.text('two.jpg'), findsOneWidget);
+        expect(find.text('Upload failed'), findsOneWidget);
+
+        await tester.enterText(find.byType(TextField).first, ' hello ');
+        await tester.enterText(
+          find.byKey(const Key('composer-alt-img-1')),
+          'Blue shawl draped on a blocking mat',
+        );
+        await tester.pump();
+
+        var submit = tester.widget<TextButton>(
+          find.widgetWithText(TextButton, 'Post'),
+        );
+        expect(submit.onPressed, isNull, reason: 'failed image still present');
+
+        final removeButton = find.byKey(const Key('composer-remove-img-2'));
+        await tester.ensureVisible(removeButton);
+        await tester.tap(removeButton);
+        await tester.pump();
+
+        submit = tester.widget<TextButton>(
+          find.widgetWithText(TextButton, 'Post'),
+        );
+        expect(submit.onPressed, isNotNull);
+
+        await tester.tap(find.widgetWithText(TextButton, 'Post'));
+        await tester.pumpAndSettle();
+
+        expect(capturedText, 'hello');
+        expect(capturedImages, hasLength(1));
+        expect(
+          capturedImages!.single.alt,
+          'Blue shawl draped on a blocking mat',
+        );
+        expect(capturedImages!.single.blob.link, 'bafkimage1');
+      },
+    );
+
+    testWidgets('image composer copy does not imply private media', (
+      tester,
+    ) async {
+      final messenger = RecordingMessenger();
+      await _pump(tester, repo: FakePostRepository(), messenger: messenger);
+
+      expect(find.text('Add image'), findsOneWidget);
+      expect(find.textContaining('private', findRichText: true), findsNothing);
+      expect(
+        find.textContaining('only you can see', findRichText: true),
+        findsNothing,
+      );
+    });
   });
+}
+
+class FakeComposerImageService implements ComposerImageService {
+  FakeComposerImageService({required this.onAddImages});
+
+  final void Function(ImageDraftController controller) onAddImages;
+
+  @override
+  Future<void> addImages(ImageDraftController controller) async {
+    onAddImages(controller);
+  }
 }

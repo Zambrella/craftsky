@@ -1,4 +1,5 @@
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
+import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
@@ -9,7 +10,11 @@ import 'package:craftsky_app/feed/models/post_page.dart';
 abstract interface class PostRepository {
   /// POST /v1/posts. AppView returns a synthetic [Post] populated from
   /// the PDS write response.
-  Future<Post> create({required String text, PostReply? reply});
+  Future<Post> create({
+    required String text,
+    PostReply? reply,
+    List<CreatePostImage>? images,
+  });
 
   /// GET /v1/posts/{did}/{rkey}
   Future<Post> fetch(String did, String rkey);

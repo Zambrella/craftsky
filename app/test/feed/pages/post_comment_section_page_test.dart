@@ -655,7 +655,7 @@ void main() {
               ],
             ),
           ),
-      onCreate: ({required text, reply}) async {
+      onCreate: ({required text, reply, images}) async {
         createCalls += 1;
         return created;
       },
@@ -720,7 +720,7 @@ void main() {
               ],
             ),
           ),
-      onCreate: ({required text, reply}) async => created,
+      onCreate: ({required text, reply, images}) async => created,
     );
 
     await _pumpCommentSection(tester, repo: repo, focus: focusUri);
@@ -771,7 +771,7 @@ void main() {
               ],
             ),
           ),
-      onCreate: ({required text, reply}) async => created,
+      onCreate: ({required text, reply, images}) async => created,
     );
 
     await _pumpCommentSection(
@@ -906,7 +906,7 @@ void main() {
           ],
         );
       },
-      onCreate: ({required text, reply}) async => createdReply,
+      onCreate: ({required text, reply, images}) async => createdReply,
     );
 
     await _pumpCommentSection(
@@ -983,7 +983,7 @@ void main() {
               ],
             ),
           ),
-      onCreate: ({required text, reply}) async => createdReply,
+      onCreate: ({required text, reply, images}) async => createdReply,
     );
 
     await _pumpCommentSection(tester, repo: repo);
@@ -1051,7 +1051,7 @@ void main() {
               ],
             ),
           ),
-      onCreate: ({required text, reply}) async {
+      onCreate: ({required text, reply, images}) async {
         capturedReply = reply;
         return created;
       },

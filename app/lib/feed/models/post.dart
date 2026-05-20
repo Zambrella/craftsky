@@ -13,8 +13,8 @@ part 'post.mapper.dart';
 /// as a pass-through (lexicon-validated by the receiving PDS). A typed
 /// `Facet` model lands when the richtext renderer does.
 ///
-/// `images` is omitted from this model entirely — the v1 AppView
-/// response shape does not include it.
+/// `images` carries optional post-image metadata returned by AppView for
+/// rendering feed cards and full-screen galleries.
 @MappableClass(
   ignoreNull: true,
   includeCustomMappers: [
@@ -41,6 +41,7 @@ class Post with PostMappable {
     required this.viewerHasLiked,
     required this.viewerHasReposted,
     this.viewerHasReplied = false,
+    this.images,
     this.facets,
     this.reply,
     this.quote,
@@ -65,6 +66,36 @@ class Post with PostMappable {
   final bool viewerHasLiked;
   final bool viewerHasReposted;
   final bool viewerHasReplied;
+  final List<PostImage>? images;
+}
+
+@MappableClass(ignoreNull: true, includeCustomMappers: [CidMapper()])
+class PostImage with PostImageMappable {
+  PostImage({
+    required String cid,
+    required this.mime,
+    required this.size,
+    required this.alt,
+    this.aspectRatio,
+    this.thumb,
+    this.fullsize,
+  }) : cid = Cid.parse(cid);
+
+  final Cid cid;
+  final String mime;
+  final int size;
+  final String alt;
+  final PostImageAspectRatio? aspectRatio;
+  final String? thumb;
+  final String? fullsize;
+}
+
+@MappableClass()
+class PostImageAspectRatio with PostImageAspectRatioMappable {
+  const PostImageAspectRatio({required this.width, required this.height});
+
+  final int width;
+  final int height;
 }
 
 /// Author identity embedded in every [Post] response.

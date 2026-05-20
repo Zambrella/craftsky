@@ -23,6 +23,7 @@ class PostMapper extends ClassMapperBase<Post> {
         RecordKeyMapper(),
       ]);
       PostAuthorMapper.ensureInitialized();
+      PostImageMapper.ensureInitialized();
       PostReplyMapper.ensureInitialized();
       PostRefMapper.ensureInitialized();
     }
@@ -90,6 +91,12 @@ class PostMapper extends ClassMapperBase<Post> {
     opt: true,
     def: false,
   );
+  static List<PostImage>? _$images(Post v) => v.images;
+  static const Field<Post, List<PostImage>> _f$images = Field(
+    'images',
+    _$images,
+    opt: true,
+  );
   static List<Map<String, dynamic>>? _$facets(Post v) => v.facets;
   static const Field<Post, List<Map<String, dynamic>>> _f$facets = Field(
     'facets',
@@ -125,6 +132,7 @@ class PostMapper extends ClassMapperBase<Post> {
     #viewerHasLiked: _f$viewerHasLiked,
     #viewerHasReposted: _f$viewerHasReposted,
     #viewerHasReplied: _f$viewerHasReplied,
+    #images: _f$images,
     #facets: _f$facets,
     #reply: _f$reply,
     #quote: _f$quote,
@@ -148,6 +156,7 @@ class PostMapper extends ClassMapperBase<Post> {
       viewerHasLiked: data.dec(_f$viewerHasLiked),
       viewerHasReposted: data.dec(_f$viewerHasReposted),
       viewerHasReplied: data.dec(_f$viewerHasReplied),
+      images: data.dec(_f$images),
       facets: data.dec(_f$facets),
       reply: data.dec(_f$reply),
       quote: data.dec(_f$quote),
@@ -202,6 +211,8 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get tags;
   PostAuthorCopyWith<$R, PostAuthor, PostAuthor> get author;
+  ListCopyWith<$R, PostImage, PostImageCopyWith<$R, PostImage, PostImage>>?
+  get images;
   ListCopyWith<
     $R,
     Map<String, dynamic>,
@@ -225,6 +236,7 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
     bool? viewerHasLiked,
     bool? viewerHasReposted,
     bool? viewerHasReplied,
+    List<PostImage>? images,
     List<Map<String, dynamic>>? facets,
     PostReply? reply,
     PostRef? quote,
@@ -248,6 +260,15 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
   @override
   PostAuthorCopyWith<$R, PostAuthor, PostAuthor> get author =>
       $value.author.copyWith.$chain((v) => call(author: v));
+  @override
+  ListCopyWith<$R, PostImage, PostImageCopyWith<$R, PostImage, PostImage>>?
+  get images => $value.images != null
+      ? ListCopyWith(
+          $value.images!,
+          (v, t) => v.copyWith.$chain(t),
+          (v) => call(images: v),
+        )
+      : null;
   @override
   ListCopyWith<
     $R,
@@ -283,6 +304,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     bool? viewerHasLiked,
     bool? viewerHasReposted,
     bool? viewerHasReplied,
+    Object? images = $none,
     Object? facets = $none,
     Object? reply = $none,
     Object? quote = $none,
@@ -302,6 +324,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       if (viewerHasLiked != null) #viewerHasLiked: viewerHasLiked,
       if (viewerHasReposted != null) #viewerHasReposted: viewerHasReposted,
       if (viewerHasReplied != null) #viewerHasReplied: viewerHasReplied,
+      if (images != $none) #images: images,
       if (facets != $none) #facets: facets,
       if (reply != $none) #reply: reply,
       if (quote != $none) #quote: quote,
@@ -326,6 +349,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       or: $value.viewerHasReposted,
     ),
     viewerHasReplied: data.get(#viewerHasReplied, or: $value.viewerHasReplied),
+    images: data.get(#images, or: $value.images),
     facets: data.get(#facets, or: $value.facets),
     reply: data.get(#reply, or: $value.reply),
     quote: data.get(#quote, or: $value.quote),
@@ -506,6 +530,342 @@ class _PostAuthorCopyWithImpl<$R, $Out>
   PostAuthorCopyWith<$R2, PostAuthor, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   ) => _PostAuthorCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class PostImageMapper extends ClassMapperBase<PostImage> {
+  PostImageMapper._();
+
+  static PostImageMapper? _instance;
+  static PostImageMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = PostImageMapper._());
+      MapperContainer.globals.useAll([CidMapper()]);
+      PostImageAspectRatioMapper.ensureInitialized();
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'PostImage';
+
+  static Cid _$cid(PostImage v) => v.cid;
+  static dynamic _arg$cid(f) => f<Cid>();
+  static const Field<PostImage, String> _f$cid = Field(
+    'cid',
+    _$cid,
+    arg: _arg$cid,
+  );
+  static String _$mime(PostImage v) => v.mime;
+  static const Field<PostImage, String> _f$mime = Field('mime', _$mime);
+  static int _$size(PostImage v) => v.size;
+  static const Field<PostImage, int> _f$size = Field('size', _$size);
+  static String _$alt(PostImage v) => v.alt;
+  static const Field<PostImage, String> _f$alt = Field('alt', _$alt);
+  static PostImageAspectRatio? _$aspectRatio(PostImage v) => v.aspectRatio;
+  static const Field<PostImage, PostImageAspectRatio> _f$aspectRatio = Field(
+    'aspectRatio',
+    _$aspectRatio,
+    opt: true,
+  );
+  static String? _$thumb(PostImage v) => v.thumb;
+  static const Field<PostImage, String> _f$thumb = Field(
+    'thumb',
+    _$thumb,
+    opt: true,
+  );
+  static String? _$fullsize(PostImage v) => v.fullsize;
+  static const Field<PostImage, String> _f$fullsize = Field(
+    'fullsize',
+    _$fullsize,
+    opt: true,
+  );
+
+  @override
+  final MappableFields<PostImage> fields = const {
+    #cid: _f$cid,
+    #mime: _f$mime,
+    #size: _f$size,
+    #alt: _f$alt,
+    #aspectRatio: _f$aspectRatio,
+    #thumb: _f$thumb,
+    #fullsize: _f$fullsize,
+  };
+  @override
+  final bool ignoreNull = true;
+
+  static PostImage _instantiate(DecodingData data) {
+    return PostImage(
+      cid: data.dec(_f$cid),
+      mime: data.dec(_f$mime),
+      size: data.dec(_f$size),
+      alt: data.dec(_f$alt),
+      aspectRatio: data.dec(_f$aspectRatio),
+      thumb: data.dec(_f$thumb),
+      fullsize: data.dec(_f$fullsize),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static PostImage fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<PostImage>(map);
+  }
+
+  static PostImage fromJson(String json) {
+    return ensureInitialized().decodeJson<PostImage>(json);
+  }
+}
+
+mixin PostImageMappable {
+  String toJson() {
+    return PostImageMapper.ensureInitialized().encodeJson<PostImage>(
+      this as PostImage,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return PostImageMapper.ensureInitialized().encodeMap<PostImage>(
+      this as PostImage,
+    );
+  }
+
+  PostImageCopyWith<PostImage, PostImage, PostImage> get copyWith =>
+      _PostImageCopyWithImpl<PostImage, PostImage>(
+        this as PostImage,
+        $identity,
+        $identity,
+      );
+  @override
+  String toString() {
+    return PostImageMapper.ensureInitialized().stringifyValue(
+      this as PostImage,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return PostImageMapper.ensureInitialized().equalsValue(
+      this as PostImage,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return PostImageMapper.ensureInitialized().hashValue(this as PostImage);
+  }
+}
+
+extension PostImageValueCopy<$R, $Out> on ObjectCopyWith<$R, PostImage, $Out> {
+  PostImageCopyWith<$R, PostImage, $Out> get $asPostImage =>
+      $base.as((v, t, t2) => _PostImageCopyWithImpl<$R, $Out>(v, t, t2));
+}
+
+abstract class PostImageCopyWith<$R, $In extends PostImage, $Out>
+    implements ClassCopyWith<$R, $In, $Out> {
+  PostImageAspectRatioCopyWith<$R, PostImageAspectRatio, PostImageAspectRatio>?
+  get aspectRatio;
+  $R call({
+    String? cid,
+    String? mime,
+    int? size,
+    String? alt,
+    PostImageAspectRatio? aspectRatio,
+    String? thumb,
+    String? fullsize,
+  });
+  PostImageCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
+}
+
+class _PostImageCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, PostImage, $Out>
+    implements PostImageCopyWith<$R, PostImage, $Out> {
+  _PostImageCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<PostImage> $mapper =
+      PostImageMapper.ensureInitialized();
+  @override
+  PostImageAspectRatioCopyWith<$R, PostImageAspectRatio, PostImageAspectRatio>?
+  get aspectRatio =>
+      $value.aspectRatio?.copyWith.$chain((v) => call(aspectRatio: v));
+  @override
+  $R call({
+    String? cid,
+    String? mime,
+    int? size,
+    String? alt,
+    Object? aspectRatio = $none,
+    Object? thumb = $none,
+    Object? fullsize = $none,
+  }) => $apply(
+    FieldCopyWithData({
+      if (cid != null) #cid: cid,
+      if (mime != null) #mime: mime,
+      if (size != null) #size: size,
+      if (alt != null) #alt: alt,
+      if (aspectRatio != $none) #aspectRatio: aspectRatio,
+      if (thumb != $none) #thumb: thumb,
+      if (fullsize != $none) #fullsize: fullsize,
+    }),
+  );
+  @override
+  PostImage $make(CopyWithData data) => PostImage(
+    cid: data.get(#cid, or: $value.cid),
+    mime: data.get(#mime, or: $value.mime),
+    size: data.get(#size, or: $value.size),
+    alt: data.get(#alt, or: $value.alt),
+    aspectRatio: data.get(#aspectRatio, or: $value.aspectRatio),
+    thumb: data.get(#thumb, or: $value.thumb),
+    fullsize: data.get(#fullsize, or: $value.fullsize),
+  );
+
+  @override
+  PostImageCopyWith<$R2, PostImage, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  ) => _PostImageCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class PostImageAspectRatioMapper extends ClassMapperBase<PostImageAspectRatio> {
+  PostImageAspectRatioMapper._();
+
+  static PostImageAspectRatioMapper? _instance;
+  static PostImageAspectRatioMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = PostImageAspectRatioMapper._());
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'PostImageAspectRatio';
+
+  static int _$width(PostImageAspectRatio v) => v.width;
+  static const Field<PostImageAspectRatio, int> _f$width = Field(
+    'width',
+    _$width,
+  );
+  static int _$height(PostImageAspectRatio v) => v.height;
+  static const Field<PostImageAspectRatio, int> _f$height = Field(
+    'height',
+    _$height,
+  );
+
+  @override
+  final MappableFields<PostImageAspectRatio> fields = const {
+    #width: _f$width,
+    #height: _f$height,
+  };
+
+  static PostImageAspectRatio _instantiate(DecodingData data) {
+    return PostImageAspectRatio(
+      width: data.dec(_f$width),
+      height: data.dec(_f$height),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static PostImageAspectRatio fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<PostImageAspectRatio>(map);
+  }
+
+  static PostImageAspectRatio fromJson(String json) {
+    return ensureInitialized().decodeJson<PostImageAspectRatio>(json);
+  }
+}
+
+mixin PostImageAspectRatioMappable {
+  String toJson() {
+    return PostImageAspectRatioMapper.ensureInitialized()
+        .encodeJson<PostImageAspectRatio>(this as PostImageAspectRatio);
+  }
+
+  Map<String, dynamic> toMap() {
+    return PostImageAspectRatioMapper.ensureInitialized()
+        .encodeMap<PostImageAspectRatio>(this as PostImageAspectRatio);
+  }
+
+  PostImageAspectRatioCopyWith<
+    PostImageAspectRatio,
+    PostImageAspectRatio,
+    PostImageAspectRatio
+  >
+  get copyWith =>
+      _PostImageAspectRatioCopyWithImpl<
+        PostImageAspectRatio,
+        PostImageAspectRatio
+      >(this as PostImageAspectRatio, $identity, $identity);
+  @override
+  String toString() {
+    return PostImageAspectRatioMapper.ensureInitialized().stringifyValue(
+      this as PostImageAspectRatio,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return PostImageAspectRatioMapper.ensureInitialized().equalsValue(
+      this as PostImageAspectRatio,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return PostImageAspectRatioMapper.ensureInitialized().hashValue(
+      this as PostImageAspectRatio,
+    );
+  }
+}
+
+extension PostImageAspectRatioValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, PostImageAspectRatio, $Out> {
+  PostImageAspectRatioCopyWith<$R, PostImageAspectRatio, $Out>
+  get $asPostImageAspectRatio => $base.as(
+    (v, t, t2) => _PostImageAspectRatioCopyWithImpl<$R, $Out>(v, t, t2),
+  );
+}
+
+abstract class PostImageAspectRatioCopyWith<
+  $R,
+  $In extends PostImageAspectRatio,
+  $Out
+>
+    implements ClassCopyWith<$R, $In, $Out> {
+  $R call({int? width, int? height});
+  PostImageAspectRatioCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _PostImageAspectRatioCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, PostImageAspectRatio, $Out>
+    implements PostImageAspectRatioCopyWith<$R, PostImageAspectRatio, $Out> {
+  _PostImageAspectRatioCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<PostImageAspectRatio> $mapper =
+      PostImageAspectRatioMapper.ensureInitialized();
+  @override
+  $R call({int? width, int? height}) => $apply(
+    FieldCopyWithData({
+      if (width != null) #width: width,
+      if (height != null) #height: height,
+    }),
+  );
+  @override
+  PostImageAspectRatio $make(CopyWithData data) => PostImageAspectRatio(
+    width: data.get(#width, or: $value.width),
+    height: data.get(#height, or: $value.height),
+  );
+
+  @override
+  PostImageAspectRatioCopyWith<$R2, PostImageAspectRatio, $Out2>
+  $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
+      _PostImageAspectRatioCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 
 class PostReplyMapper extends ClassMapperBase<PostReply> {

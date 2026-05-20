@@ -1,5 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/data/post_api_client.dart';
+import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
@@ -33,6 +36,44 @@ void main() {
       'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
     };
   }
+
+  group('PostApiClient.uploadImage', () {
+    test(
+      'POSTs prepared bytes to /v1/blobs/images and parses response',
+      () async {
+        final dio = buildDio();
+        final bytes = Uint8List.fromList([0, 1, 2, 3]);
+        DioAdapter(dio: dio).onPost(
+          '/v1/blobs/images',
+          (server) => server.reply(201, {
+            'blob': {
+              r'$type': 'blob',
+              'ref': {r'$link': 'bafkimage1'},
+              'mimeType': 'image/jpeg',
+              'size': 253496,
+            },
+            'cid': 'bafkimage1',
+            'mime': 'image/jpeg',
+            'size': 253496,
+          }),
+          data: bytes,
+          headers: {'content-type': 'image/jpeg'},
+        );
+
+        final uploaded = await PostApiClient(
+          dio,
+        ).uploadImage(bytes: bytes, mimeType: 'image/jpeg');
+
+        expect(uploaded.cid, 'bafkimage1');
+        expect(uploaded.mime, 'image/jpeg');
+        expect(uploaded.size, 253496);
+        expect(uploaded.blob.type, 'blob');
+        expect(uploaded.blob.ref.link, 'bafkimage1');
+        expect(uploaded.blob.mimeType, 'image/jpeg');
+        expect(uploaded.blob.size, 253496);
+      },
+    );
+  });
 
   group('PostApiClient.createPost', () {
     test('POSTs /v1/posts with text body and parses response', () async {
@@ -97,6 +138,69 @@ void main() {
       expect(post.text, 'reply');
     });
 
+    test(
+      'serializes top-level images[] with blob, alt, and aspectRatio',
+      () async {
+        final dio = buildDio();
+        DioAdapter(dio: dio).onPost(
+          '/v1/posts',
+          (server) => server.reply(201, samplePost(text: 'with images')),
+          data: {
+            'text': 'with images',
+            'images': [
+              {
+                'blob': {
+                  r'$type': 'blob',
+                  'ref': {r'$link': 'bafkimage1'},
+                  'mimeType': 'image/jpeg',
+                  'size': 253496,
+                },
+                'alt': 'Blue shawl on a blocking mat',
+                'aspectRatio': {'width': 4, 'height': 5},
+              },
+              {
+                'blob': {
+                  r'$type': 'blob',
+                  'ref': {r'$link': 'bafkimage2'},
+                  'mimeType': 'image/png',
+                  'size': 183122,
+                },
+                'alt': 'Close-up of the stitch texture',
+              },
+            ],
+          },
+        );
+
+        final post = await PostApiClient(dio).createPost(
+          text: 'with images',
+          images: [
+            CreatePostImage(
+              blob: CreatePostBlob(
+                link: 'bafkimage1',
+                mimeType: 'image/jpeg',
+                size: 253496,
+              ),
+              alt: 'Blue shawl on a blocking mat',
+              aspectRatio: const CreatePostImageAspectRatio(
+                width: 4,
+                height: 5,
+              ),
+            ),
+            CreatePostImage(
+              blob: CreatePostBlob(
+                link: 'bafkimage2',
+                mimeType: 'image/png',
+                size: 183122,
+              ),
+              alt: 'Close-up of the stitch texture',
+            ),
+          ],
+        );
+
+        expect(post.text, 'with images');
+      },
+    );
+
     test('422 validation_failed surfaces as ApiBadRequest', () async {
       final dio = buildDio();
       DioAdapter(dio: dio).onPost(
@@ -115,6 +219,63 @@ void main() {
           ),
         ),
       );
+    });
+
+    test('preserves provided image order in create payload', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onPost(
+        '/v1/posts',
+        (server) => server.reply(201, samplePost(text: 'ordered images')),
+        data: {
+          'text': 'ordered images',
+          'images': [
+            {
+              'blob': {
+                r'$type': 'blob',
+                'ref': {r'$link': 'bafkimageB'},
+                'mimeType': 'image/png',
+                'size': 444,
+              },
+              'alt': 'second selected, first in composer now',
+            },
+            {
+              'blob': {
+                r'$type': 'blob',
+                'ref': {r'$link': 'bafkimageA'},
+                'mimeType': 'image/jpeg',
+                'size': 333,
+              },
+              'alt': 'first selected, moved second',
+              'aspectRatio': {'width': 1, 'height': 1},
+            },
+          ],
+        },
+      );
+
+      final post = await PostApiClient(dio).createPost(
+        text: 'ordered images',
+        images: [
+          CreatePostImage(
+            blob: CreatePostBlob(
+              link: 'bafkimageB',
+              mimeType: 'image/png',
+              size: 444,
+            ),
+            alt: 'second selected, first in composer now',
+          ),
+          CreatePostImage(
+            blob: CreatePostBlob(
+              link: 'bafkimageA',
+              mimeType: 'image/jpeg',
+              size: 333,
+            ),
+            alt: 'first selected, moved second',
+            aspectRatio: const CreatePostImageAspectRatio(width: 1, height: 1),
+          ),
+        ],
+      );
+
+      expect(post.text, 'ordered images');
     });
   });
 

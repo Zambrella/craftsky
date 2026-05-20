@@ -1,4 +1,6 @@
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
+import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
@@ -117,6 +119,35 @@ class PostCard extends StatelessWidget {
                       padding: EdgeInsets.only(left: bodyIndent),
                       child: Text(post.text, style: theme.textTheme.bodyLarge),
                     ),
+                    if (post.images case final images?
+                        when images.isNotEmpty) ...[
+                      SizedBox(height: spacing.sp3),
+                      Padding(
+                        padding: EdgeInsets.only(left: bodyIndent),
+                        child: PostImageCarousel(
+                          images: images,
+                          heroTagBuilder: (index) =>
+                              'post-image-hero-${post.uri}-$index',
+                          onImageTap: (index) {
+                            Navigator.of(context, rootNavigator: true).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => Scaffold(
+                                  backgroundColor: Colors.black,
+                                  body: SafeArea(
+                                    child: PostImageGallery(
+                                      images: images,
+                                      initialIndex: index,
+                                      heroTagBuilder: (galleryIndex) =>
+                                          'post-image-hero-${post.uri}-$galleryIndex',
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                     SizedBox(height: spacing.sp2),
                     if (!isFlat) const CraftskyDivider(),
                     Row(

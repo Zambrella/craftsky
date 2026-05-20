@@ -58,7 +58,7 @@ void main() {
 
     test('successful create transitions loading -> data(post)', () async {
       final fake = FakePostRepository(
-        onCreate: ({required text, reply}) async => _post(rkey: 'new'),
+        onCreate: ({required text, reply, images}) async => _post(rkey: 'new'),
       );
       final container = ProviderContainer.test(
         overrides: [postRepositoryProvider.overrideWithValue(fake)],
@@ -77,7 +77,7 @@ void main() {
       final target = _post(rkey: 'target');
       PostReply? capturedReply;
       final fake = FakePostRepository(
-        onCreate: ({required text, reply}) async {
+        onCreate: ({required text, reply, images}) async {
           capturedReply = reply;
           return _post(rkey: 'reply');
         },
@@ -119,7 +119,7 @@ void main() {
       );
       PostReply? capturedReply;
       final fake = FakePostRepository(
-        onCreate: ({required text, reply}) async {
+        onCreate: ({required text, reply, images}) async {
           capturedReply = reply;
           return _post(rkey: 'reply');
         },
@@ -150,7 +150,7 @@ void main() {
       final fake = FakePostRepository(
         onListByAuthor: (id, {cursor, limit}) async =>
             PostPage(items: [_post(rkey: 'old')]),
-        onCreate: ({required text, reply}) async => _post(rkey: 'new'),
+        onCreate: ({required text, reply, images}) async => _post(rkey: 'new'),
       );
       final container = ProviderContainer.test(
         overrides: [postRepositoryProvider.overrideWithValue(fake)],
@@ -179,7 +179,7 @@ void main() {
           calls.add(id);
           return PostPage(items: [_post(rkey: 'x')]);
         },
-        onCreate: ({required text, reply}) async => _post(rkey: 'new'),
+        onCreate: ({required text, reply, images}) async => _post(rkey: 'new'),
       );
       final container = ProviderContainer.test(
         overrides: [postRepositoryProvider.overrideWithValue(fake)],
@@ -198,7 +198,7 @@ void main() {
 
     test('reset() returns to AsyncData(null)', () async {
       final fake = FakePostRepository(
-        onCreate: ({required text, reply}) async => _post(rkey: 'new'),
+        onCreate: ({required text, reply, images}) async => _post(rkey: 'new'),
       );
       final container = ProviderContainer.test(
         overrides: [postRepositoryProvider.overrideWithValue(fake)],
@@ -215,7 +215,8 @@ void main() {
       final fake = FakePostRepository(
         onListByAuthor: (id, {cursor, limit}) async =>
             PostPage(items: [_post(rkey: 'old')]),
-        onCreate: ({required text, reply}) async => throw Exception('boom'),
+        onCreate: ({required text, reply, images}) async =>
+            throw Exception('boom'),
       );
       final container = ProviderContainer.test(
         overrides: [postRepositoryProvider.overrideWithValue(fake)],

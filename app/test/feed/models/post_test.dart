@@ -32,6 +32,23 @@ void main() {
           'parent': {'uri': 'at://x/y/2', 'cid': 'bafyP'},
         },
         'quote': {'uri': 'at://x/y/q', 'cid': 'bafyQ'},
+        'images': [
+          {
+            'cid': 'bafkimage1',
+            'mime': 'image/jpeg',
+            'size': 253496,
+            'alt': 'Blue shawl on blocking mats',
+            'aspectRatio': {'width': 4, 'height': 5},
+            'thumb': 'https://cdn.example.com/thumb/1.jpg',
+            'fullsize': 'https://cdn.example.com/full/1.jpg',
+          },
+          {
+            'cid': 'bafkimage2',
+            'mime': 'image/png',
+            'size': 183122,
+            'alt': 'Close-up stitch detail',
+          },
+        ],
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
         'author': {
@@ -55,6 +72,18 @@ void main() {
       expect(post.viewerHasReplied, isTrue);
       expect(post.author.handle, 'alice.craftsky.social');
       expect(post.author.avatarCid, 'bafyA');
+      expect(post.images, hasLength(2));
+      expect(post.images!.first.cid, 'bafkimage1');
+      expect(post.images!.first.mime, 'image/jpeg');
+      expect(post.images!.first.size, 253496);
+      expect(post.images!.first.alt, 'Blue shawl on blocking mats');
+      expect(post.images!.first.aspectRatio?.width, 4);
+      expect(post.images!.first.aspectRatio?.height, 5);
+      expect(post.images!.first.thumb, 'https://cdn.example.com/thumb/1.jpg');
+      expect(post.images!.first.fullsize, 'https://cdn.example.com/full/1.jpg');
+      expect(post.images!.last.aspectRatio, isNull);
+      expect(post.images!.last.thumb, isNull);
+      expect(post.images!.last.fullsize, isNull);
 
       expect(post.toMap(), json);
     });
@@ -84,6 +113,7 @@ void main() {
       expect(post.quote, isNull);
       expect(post.author.displayName, isNull);
       expect(post.author.avatarCid, isNull);
+      expect(post.images, isNull);
       expect(post.tags, isEmpty);
       expect(post.toMap(), json);
     });

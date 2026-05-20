@@ -1,6 +1,8 @@
+import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
+import 'package:craftsky_app/feed/models/post_image_blob.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
 import 'package:dio/dio.dart';
@@ -14,19 +16,42 @@ class PostApiClient {
 
   final Dio _dio;
 
+  /// POST /v1/blobs/images — uploads prepared image bytes.
+  Future<UploadedImageBlob> uploadImage({
+    required List<int> bytes,
+    required String mimeType,
+    ProgressCallback? onSendProgress,
+  }) => unwrapApi(() async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/v1/blobs/images',
+      data: bytes,
+      onSendProgress: onSendProgress,
+      options: Options(contentType: mimeType),
+    );
+    return UploadedImageBlob.fromMap(res.data!);
+  });
+
   /// POST /v1/posts — text-only create, optionally as a reply.
   ///
   /// AppView returns a synthetic [Post] populated from the PDS write
   /// response; the firehose-driven indexer hasn't necessarily caught
   /// up yet by the time this returns.
-  Future<Post> createPost({required String text, PostReply? reply}) =>
-      unwrapApi(() async {
-        final res = await _dio.post<Map<String, dynamic>>(
-          '/v1/posts',
-          data: {'text': text, if (reply != null) 'reply': reply.toMap()},
-        );
-        return PostMapper.fromMap(res.data!);
-      });
+  Future<Post> createPost({
+    required String text,
+    PostReply? reply,
+    List<CreatePostImage>? images,
+  }) => unwrapApi(() async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/v1/posts',
+      data: {
+        'text': text,
+        if (reply != null) 'reply': reply.toMap(),
+        if (images != null)
+          'images': images.map((image) => image.toMap()).toList(),
+      },
+    );
+    return PostMapper.fromMap(res.data!);
+  });
 
   /// GET /v1/posts/{did}/{rkey}
   Future<Post> getPost(String did, String rkey) => unwrapApi(() async {

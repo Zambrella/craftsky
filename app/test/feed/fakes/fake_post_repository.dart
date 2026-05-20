@@ -1,4 +1,5 @@
 import 'package:craftsky_app/feed/data/post_repository.dart';
+import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
@@ -36,7 +37,11 @@ class FakePostRepository implements PostRepository {
     this.onListCommentsByAuthor,
   });
 
-  final Future<Post> Function({required String text, PostReply? reply})?
+  final Future<Post> Function({
+    required String text,
+    PostReply? reply,
+    List<CreatePostImage>? images,
+  })?
   onCreate;
   final Future<Post> Function(String did, String rkey)? onFetch;
   final Future<void> Function(String did, String rkey)? onDelete;
@@ -76,8 +81,12 @@ class FakePostRepository implements PostRepository {
   onListCommentsByAuthor;
 
   @override
-  Future<Post> create({required String text, PostReply? reply}) =>
-      onCreate?.call(text: text, reply: reply) ??
+  Future<Post> create({
+    required String text,
+    PostReply? reply,
+    List<CreatePostImage>? images,
+  }) =>
+      onCreate?.call(text: text, reply: reply, images: images) ??
       Future<Post>.error(UnimplementedError('create not stubbed'));
 
   @override
