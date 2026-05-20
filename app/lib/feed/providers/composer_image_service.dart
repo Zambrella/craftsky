@@ -19,6 +19,12 @@ abstract interface class ComposerImageService {
   Future<void> addImages(ImageDraftController controller);
 }
 
+class ImageSelectionLimitExceededException implements Exception {
+  const ImageSelectionLimitExceededException(this.maxImages);
+
+  final int maxImages;
+}
+
 class SelectedComposerImage {
   const SelectedComposerImage({
     required this.id,
@@ -111,7 +117,14 @@ class DefaultComposerImageService implements ComposerImageService {
       config: config,
     );
 
+    var rejectedForLimit = false;
+
     for (final rejected in selection.rejected) {
+      if (rejected.reason == ImageSelectionRejection.imageLimitExceeded) {
+        rejectedForLimit = true;
+        continue;
+      }
+
       final pair = incoming.firstWhere((p) => p.selection == rejected.image);
       controller.addDraftImage(
         DraftImageInput(
@@ -121,14 +134,7 @@ class DefaultComposerImageService implements ComposerImageService {
           previewBytes: pair.image.bytes,
         ),
       );
-      controller.markPreparationFailed(
-        pair.image.id,
-        switch (rejected.reason) {
-          ImageSelectionRejection.unsupportedType => 'Unsupported image type',
-          ImageSelectionRejection.imageLimitExceeded =>
-            'You can add up to ${config.maxImages} images',
-        },
-      );
+      controller.markPreparationFailed(pair.image.id, 'Unsupported image type');
     }
 
     for (final accepted in selection.accepted) {
@@ -187,6 +193,10 @@ class DefaultComposerImageService implements ComposerImageService {
       } catch (_) {
         controller.markUploadFailed(image.id, 'Upload failed');
       }
+    }
+
+    if (rejectedForLimit) {
+      throw ImageSelectionLimitExceededException(config.maxImages);
     }
   }
 }

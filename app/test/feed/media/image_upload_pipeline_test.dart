@@ -55,7 +55,7 @@ void main() {
   );
 
   test(
-    'pipeline rejects webp when removable metadata cannot be safely stripped',
+    'pipeline rejects webp in production path when metadata cannot be proven stripped',
     () async {
       final source = img.Image(width: 2, height: 1);
       final originalBytes = Uint8List.fromList(img.encodePng(source));
@@ -67,11 +67,7 @@ void main() {
             fileName: 'shawl.webp',
             mimeType: 'image/webp',
             bytes: originalBytes,
-            metadata: const {
-              'gpsLatitude': '47.60',
-              'gpsLongitude': '-122.33',
-              'cameraMake': 'camera',
-            },
+            metadata: const {},
           ),
         ],
       );

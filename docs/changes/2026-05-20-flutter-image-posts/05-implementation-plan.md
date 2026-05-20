@@ -367,3 +367,70 @@
   - `cd app && flutter analyze` (info-level findings remain; no analyzer errors)
 - Remaining manual follow-ups before final approval:
   - `MAN-001` through `MAN-006` remain required for implementation review sign-off.
+
+## Remediation Pass 3 (Post Updated `06-implementation-review.md`)
+
+### Remediation Test Order
+| Step | Test ID | Requirement IDs | Acceptance Criteria | Source Finding | Expected Initial State |
+|---|---|---|---|---|---|
+| R10 | IT-004 | FR-004, FR-004A, FR-004B, FR-004C | AC-009, AC-009A | IR-001 | Fails |
+| R11 | IT-005 | FR-001, FR-012, RULE-002 | AC-007, EC-001 | IR-002 | Fails |
+| R12 | MAN-001..MAN-006 | DR-002 | N/A | IR-003 | Pending manual execution |
+
+### R10: IT-004 (WebP Production-Path Safety)
+- Write failing test: Updated `app/test/feed/media/image_upload_pipeline_test.dart` to assert the production pipeline rejects WebP even when picker metadata is empty (`pipeline rejects webp in production path when metadata cannot be proven stripped`).
+- Run command: `cd app && flutter test test/feed/media/image_upload_pipeline_test.dart --plain-name "pipeline rejects webp in production path when metadata cannot be proven stripped"`
+- Confirmed failure: uploader still received a prepared WebP payload (`Expected: empty; Actual: [PreparedComposerImage]`), proving original-byte passthrough remained possible.
+- Implement:
+  - Updated `app/lib/feed/media/image_metadata_stripper.dart` to conservatively reject WebP in `prepareImageForUpload` for the production upload-preparation path.
+  - Rationale: without a byte-level WebP metadata inspection/removal implementation in this client pipeline, safe proof of embedded metadata stripping is not available.
+- Run commands:
+  - `cd app && flutter test test/feed/media/image_upload_pipeline_test.dart --plain-name "pipeline rejects webp in production path when metadata cannot be proven stripped"`
+  - `cd app && flutter test test/feed/media/image_upload_pipeline_test.dart test/feed/media/image_metadata_stripper_test.dart`
+- Refactor: None.
+- Notes: Covers FR-004/FR-004A/FR-004B privacy behavior for production pipeline safety; keeps policy helper tests intact for format/transparency semantics.
+
+### R11: IT-005 (Partial Over-Cap Selection Behavior)
+- Write failing test: Added `service keeps draft at max when partial selection exceeds remaining slots` to `app/test/feed/providers/composer_image_service_test.dart`.
+- Run command: `cd app && flutter test test/feed/providers/composer_image_service_test.dart --plain-name "service keeps draft at max when partial selection exceeds remaining slots"`
+- Confirmed failure: draft reached 6 tiles from a 3-existing + 3-selected flow (`Expected length 4, Actual length 6`).
+- Implement:
+  - Updated `app/lib/feed/providers/composer_image_service.dart`:
+    - Do not add `imageLimitExceeded` rejections to draft tiles.
+    - Added `ImageSelectionLimitExceededException(maxImages)` for user-feedback signaling when excess selection occurs.
+  - Updated `app/lib/feed/widgets/post_composer_sheet.dart` to catch `ImageSelectionLimitExceededException` and show `You can add up to <max> images` feedback.
+- Focused green check:
+  - `cd app && flutter test test/feed/providers/composer_image_service_test.dart --plain-name "service keeps draft at max when partial selection exceeds remaining slots"`
+- Added behavior/regression widget coverage:
+  - New test in `app/test/feed/widgets/post_composer_sheet_test.dart`: `composer rejects excess partial selection without exceeding draft max`.
+  - Command: `cd app && flutter test test/feed/widgets/post_composer_sheet_test.dart --plain-name "composer rejects excess partial selection without exceeding draft max"`
+- Nearby command:
+  - `cd app && flutter test test/feed/providers/composer_image_service_test.dart test/feed/widgets/post_composer_sheet_test.dart`
+- Refactor: None.
+- Notes: Enforces RULE-002 cap invariant and AC-007/EC-001 rejection semantics without creating excess failed draft tiles.
+
+### R12: MAN-001..MAN-006 (Manual Check Status)
+- Manual checks were not executed in this automated remediation pass.
+- Recorded status for implementation review:
+  - `MAN-001` Pending
+  - `MAN-002` Pending (still required, especially for real-photo metadata behavior)
+  - `MAN-003` Pending
+  - `MAN-004` Pending
+  - `MAN-005` Pending
+  - `MAN-006` Pending
+- Notes: No approved deferral/risk acceptance is recorded yet; these remain required before final approval.
+
+### Remediation Pass 3 Verification
+- Focused commands:
+  - `cd app && flutter test test/feed/media/image_upload_pipeline_test.dart --plain-name "pipeline rejects webp in production path when metadata cannot be proven stripped"`
+  - `cd app && flutter test test/feed/providers/composer_image_service_test.dart --plain-name "service keeps draft at max when partial selection exceeds remaining slots"`
+  - `cd app && flutter test test/feed/widgets/post_composer_sheet_test.dart --plain-name "composer rejects excess partial selection without exceeding draft max"`
+- Nearby commands:
+  - `cd app && flutter test test/feed/media/image_upload_pipeline_test.dart test/feed/media/image_metadata_stripper_test.dart`
+  - `cd app && flutter test test/feed/providers/composer_image_service_test.dart test/feed/widgets/post_composer_sheet_test.dart`
+- Broader command:
+  - `cd app && flutter test test/feed/media test/feed/providers test/feed/data/post_api_client_test.dart test/feed/widgets/post_composer_sheet_test.dart test/feed/widgets/post_card_test.dart test/feed/widgets/post_image_gallery_test.dart`
+  - Result: Passing (`120` tests passed).
+- Static analysis:
+  - `cd app && flutter analyze`
+  - Result: No analyzer errors; `46` info-level findings remain.

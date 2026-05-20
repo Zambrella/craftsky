@@ -596,6 +596,98 @@ void main() {
         isTrue,
       );
     });
+
+    testWidgets(
+      'composer rejects excess partial selection without exceeding draft max',
+      (tester) async {
+        final messenger = RecordingMessenger();
+        final bytes = Uint8List.fromList(
+          img.encodeJpg(img.Image(width: 1, height: 1)),
+        );
+        final picker = _QueueComposerImagePicker(
+          selections: [
+            [
+              SelectedComposerImage(
+                id: 'base-1',
+                fileName: 'base-1.jpg',
+                mimeType: 'image/jpeg',
+                bytes: bytes,
+                metadata: const {},
+              ),
+              SelectedComposerImage(
+                id: 'base-2',
+                fileName: 'base-2.jpg',
+                mimeType: 'image/jpeg',
+                bytes: bytes,
+                metadata: const {},
+              ),
+              SelectedComposerImage(
+                id: 'base-3',
+                fileName: 'base-3.jpg',
+                mimeType: 'image/jpeg',
+                bytes: bytes,
+                metadata: const {},
+              ),
+            ],
+            [
+              SelectedComposerImage(
+                id: 'plus-1',
+                fileName: 'plus-1.jpg',
+                mimeType: 'image/jpeg',
+                bytes: bytes,
+                metadata: const {},
+              ),
+              SelectedComposerImage(
+                id: 'plus-2',
+                fileName: 'plus-2.jpg',
+                mimeType: 'image/jpeg',
+                bytes: bytes,
+                metadata: const {},
+              ),
+              SelectedComposerImage(
+                id: 'plus-3',
+                fileName: 'plus-3.jpg',
+                mimeType: 'image/jpeg',
+                bytes: bytes,
+                metadata: const {},
+              ),
+            ],
+          ],
+        );
+
+        await _pump(
+          tester,
+          repo: FakePostRepository(),
+          messenger: messenger,
+          picker: picker,
+          preparer: const _FakeComposerImagePreparer(),
+          uploader: const _FakeComposerImageUploader(),
+        );
+
+        await tester.tap(find.byKey(const Key('composer-add-image')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('base-1.jpg'), findsOneWidget);
+        expect(find.text('base-2.jpg'), findsOneWidget);
+        expect(find.text('base-3.jpg'), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('composer-add-image')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('plus-1.jpg'), findsOneWidget);
+        expect(find.text('plus-2.jpg'), findsNothing);
+        expect(find.text('plus-3.jpg'), findsNothing);
+        expect(find.byIcon(Icons.close), findsNWidgets(4));
+        expect(
+          messenger.calls.any(
+            (call) =>
+                call.$1 == 'error' &&
+                call.$2.contains('You can add up to 4 images'),
+          ),
+          isTrue,
+        );
+      },
+    );
   });
 }
 
@@ -620,6 +712,25 @@ class _FakeComposerImagePicker implements ComposerImagePicker {
     required int maxImages,
   }) async {
     return images.take(maxImages).toList();
+  }
+}
+
+class _QueueComposerImagePicker implements ComposerImagePicker {
+  _QueueComposerImagePicker({required this.selections});
+
+  final List<List<SelectedComposerImage>> selections;
+  var _callCount = 0;
+
+  @override
+  Future<List<SelectedComposerImage>> pickImages({
+    required int maxImages,
+  }) async {
+    if (_callCount >= selections.length) {
+      return const [];
+    }
+    final next = selections[_callCount];
+    _callCount += 1;
+    return next;
   }
 }
 

@@ -183,7 +183,16 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                             final service = ref.read(
                               composerImageServiceProvider,
                             );
-                            await service.addImages(_imageDraftController);
+                            try {
+                              await service.addImages(_imageDraftController);
+                            } on ImageSelectionLimitExceededException catch (
+                              exception
+                            ) {
+                              if (!context.mounted) return;
+                              context.showError(
+                                'You can add up to ${exception.maxImages} images',
+                              );
+                            }
                           },
                     icon: const Icon(Icons.add_photo_alternate_outlined),
                     label: const Text('Add image'),

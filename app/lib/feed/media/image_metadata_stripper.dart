@@ -99,10 +99,9 @@ PreparedUploadImage prepareImageForUpload({
     ),
   );
 
-  final removedMetadata = stripped.metadata.length != metadata.length;
-  if (format == SupportedImageFormat.webp && removedMetadata) {
+  if (format == SupportedImageFormat.webp) {
     throw const FormatException(
-      'WebP metadata stripping is not supported by this client pipeline',
+      'WebP preparation is not supported by this client pipeline',
     );
   }
 
