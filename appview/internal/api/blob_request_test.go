@@ -82,3 +82,17 @@ func TestDecodeImageBlobUpload_RejectsBodyOver15MBLimit(t *testing.T) {
 		t.Fatalf("fields = %v, want size", fe.Fields)
 	}
 }
+
+func TestDecodeImageBlobUpload_UsesConfiguredSizeLimit(t *testing.T) {
+	t.Parallel()
+	limits := api.MediaLimits{MaxPostImages: api.DefaultMaxPostImages, MaxImageUploadBytes: 3}
+	body := bytes.Repeat([]byte("a"), 4)
+	_, _, err := api.DecodeImageBlobUploadWithLimits("image/jpeg", bytes.NewReader(body), limits)
+	var fe *api.FieldError
+	if !errors.As(err, &fe) {
+		t.Fatalf("want *FieldError, got %v", err)
+	}
+	if _, ok := fe.Fields["size"]; !ok {
+		t.Fatalf("fields = %v, want size", fe.Fields)
+	}
+}

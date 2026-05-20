@@ -869,7 +869,7 @@ func TestCreatePost_HappyPath(t *testing.T) {
 	pds := &fakePDS{}
 	store := &fakePostStore{}
 	resolver := fakeResolver{handleFor: "alice.example"}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), resolver, nilLogger())
+	h := api.CreatePostHandler(store, newPDSFactory(pds), resolver, api.DefaultMediaLimits(), nilLogger())
 	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hello"}`, "did:plc:alice")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -905,7 +905,7 @@ func TestCreatePost_HappyPath(t *testing.T) {
 
 func TestCreatePost_MalformedBody_400(t *testing.T) {
 	t.Parallel()
-	h := api.CreatePostHandler(&fakePostStore{}, newPDSFactory(&fakePDS{}), fakeResolver{}, nilLogger())
+	h := api.CreatePostHandler(&fakePostStore{}, newPDSFactory(&fakePDS{}), fakeResolver{}, api.DefaultMediaLimits(), nilLogger())
 	req := authedReq(http.MethodPost, "/v1/posts", `{not json`, "did:plc:alice")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -916,7 +916,7 @@ func TestCreatePost_MalformedBody_400(t *testing.T) {
 
 func TestCreatePost_TextEmpty_422(t *testing.T) {
 	t.Parallel()
-	h := api.CreatePostHandler(&fakePostStore{}, newPDSFactory(&fakePDS{}), fakeResolver{}, nilLogger())
+	h := api.CreatePostHandler(&fakePostStore{}, newPDSFactory(&fakePDS{}), fakeResolver{}, api.DefaultMediaLimits(), nilLogger())
 	req := authedReq(http.MethodPost, "/v1/posts", `{"text":""}`, "did:plc:alice")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -929,7 +929,7 @@ func TestCreatePost_PDSWriteFailed_502(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{createErr: errors.New("pds rejected the create")}
 	store := &fakePostStore{}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, nilLogger())
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
 	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hi"}`, "did:plc:alice")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -951,7 +951,7 @@ func TestCreatePost_PDSWriteFailure_LogsExcludeRequestTextAndToken(t *testing.T)
 	const sentinelToken = "SENSITIVE_TOKEN"
 	pds := &fakePDS{createErr: errors.New("pds rejected create")}
 	store := &fakePostStore{}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, logger)
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), logger)
 	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"`+sentinelText+`"}`, "did:plc:alice")
 	req.Header.Set("Authorization", "Bearer "+sentinelToken)
 	rr := httptest.NewRecorder()
@@ -976,7 +976,7 @@ func TestCreatePost_PDSUnavailable_502(t *testing.T) {
 	failingFactory := func(_ context.Context, _ syntax.DID, _ string) (auth.PDSClient, error) {
 		return nil, errors.New("session lookup failed")
 	}
-	h := api.CreatePostHandler(store, failingFactory, fakeResolver{handleFor: "a.example"}, nilLogger())
+	h := api.CreatePostHandler(store, failingFactory, fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
 	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hi"}`, "did:plc:alice")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -993,7 +993,7 @@ func TestCreatePost_QuoteEmbed_TranslatedToLexiconShape(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}
 	store := &fakePostStore{}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, nilLogger())
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
 	body := `{"text":"hi","embed":{"quote":{"uri":"at://did:plc:bob/social.craftsky.feed.post/r1","cid":"bafyB"}}}`
 	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
 	rr := httptest.NewRecorder()
@@ -1016,7 +1016,7 @@ func TestCreatePost_TagsExtractedFromFacets(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}
 	store := &fakePostStore{}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, nilLogger())
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
 	body := `{"text":"hi #knit","facets":[{"index":{"byteStart":3,"byteEnd":8},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"Knitting"}]}]}`
 	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
 	rr := httptest.NewRecorder()
@@ -1039,7 +1039,7 @@ func TestCreatePost_AuthorHydratedFromStore(t *testing.T) {
 	store := &fakePostStore{
 		author: &api.PostAuthorRow{DisplayName: &displayName, AvatarCID: &avatarCID},
 	}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "alice.example"}, nilLogger())
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
 	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hi"}`, "did:plc:alice")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -1060,7 +1060,7 @@ func TestCreatePost_ResolveHandleFails_502(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}
 	store := &fakePostStore{}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{err: errors.New("plc down")}, nilLogger())
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{err: errors.New("plc down")}, api.DefaultMediaLimits(), nilLogger())
 	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hi"}`, "did:plc:alice")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -2328,7 +2328,7 @@ func TestCreatePost_WithReply_PassesThroughToPDS(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}
 	store := &fakePostStore{}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, nilLogger())
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
 	body := `{"text":"replying","reply":{"root":{"uri":"at://did:plc:bob/social.craftsky.feed.post/root1","cid":"bafyR1"},"parent":{"uri":"at://did:plc:bob/social.craftsky.feed.post/par1","cid":"bafyP1"}}}`
 	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
 	rr := httptest.NewRecorder()
@@ -2361,7 +2361,7 @@ func TestCreatePost_WithImages_WritesTopLevelImagesToPDS(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}
 	store := &fakePostStore{}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, nilLogger())
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
 	body := `{
 		"text":"image post",
 		"images":[
@@ -2408,7 +2408,7 @@ func TestCreatePost_WithMoreThanFourImages_422WithoutPDSWrite(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}
 	store := &fakePostStore{}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, nilLogger())
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
 	body := `{"text":"too many","images":[
 		{"image":{"$type":"blob","ref":{"$link":"b1"},"mimeType":"image/jpeg","size":1},"alt":"1"},
 		{"image":{"$type":"blob","ref":{"$link":"b2"},"mimeType":"image/jpeg","size":1},"alt":"2"},
@@ -2431,7 +2431,7 @@ func TestCreatePost_WithInvalidImageBlobMetadata_422WithoutPDSWrite(t *testing.T
 	t.Parallel()
 	pds := &fakePDS{}
 	store := &fakePostStore{}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, nilLogger())
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
 	body := `{"text":"bad image","images":[{"image":{"foo":"bar"},"alt":"ok"}]}`
 	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
 	rr := httptest.NewRecorder()

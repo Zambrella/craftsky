@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"social.craftsky/appview/internal/api"
 )
 
 func TestParseEnv(t *testing.T) {
@@ -44,7 +46,8 @@ func testConfigFile(t *testing.T, contents string) string {
 		"TAP_WS_URL", "TAP_ACK_TIMEOUT", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES",
 		"OAUTH_HOSTNAME", "OAUTH_CLIENT_SECRET_KEY", "OAUTH_CLIENT_SECRET_KEY_ID",
 		"OAUTH_SCOPES", "OAUTH_SESSION_EXPIRY", "OAUTH_SESSION_INACTIVITY",
-		"OAUTH_AUTH_REQUEST_EXPIRY", "CRAFTSKY_SESSION_LAST_SEEN_THROTTLE"} {
+		"OAUTH_AUTH_REQUEST_EXPIRY", "CRAFTSKY_SESSION_LAST_SEEN_THROTTLE",
+		"MAX_POST_IMAGES", "MAX_IMAGE_UPLOAD_BYTES"} {
 		// Snapshot for restoration, then unset.
 		prior, had := os.LookupEnv(k)
 		_ = os.Unsetenv(k)
@@ -86,6 +89,12 @@ func TestLoadConfig_DevValid(t *testing.T) {
 	}
 	if cfg.DevDID != "did:plc:test" {
 		t.Errorf("DevDID = %q", cfg.DevDID)
+	}
+	if cfg.MaxPostImages != api.DefaultMaxPostImages {
+		t.Errorf("MaxPostImages = %d, want %d", cfg.MaxPostImages, api.DefaultMaxPostImages)
+	}
+	if cfg.MaxImageUploadBytes != api.DefaultMaxImageUploadBytes {
+		t.Errorf("MaxImageUploadBytes = %d, want %d", cfg.MaxImageUploadBytes, api.DefaultMaxImageUploadBytes)
 	}
 }
 
@@ -177,7 +186,8 @@ func TestLoadConfig_TapFields(t *testing.T) {
 	// Clear env so file wins. godotenv.Load skips keys already set in env
 	// (including to ""), so we unset rather than set-empty.
 	for _, k := range []string{"DATABASE_URL", "ALLOWED_ORIGINS", "CRAFTSKY_DEV_DID",
-		"TAP_WS_URL", "TAP_ACK_TIMEOUT", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES"} {
+		"TAP_WS_URL", "TAP_ACK_TIMEOUT", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES",
+		"MAX_POST_IMAGES", "MAX_IMAGE_UPLOAD_BYTES"} {
 		prior, had := os.LookupEnv(k)
 		_ = os.Unsetenv(k)
 		t.Cleanup(func() {
@@ -208,18 +218,10 @@ func TestLoadConfig_TapFields(t *testing.T) {
 }
 
 func TestLoadConfig_TapDefaults(t *testing.T) {
-	dir := t.TempDir()
-	envPath := dir + "/test.env"
-	contents := "DATABASE_URL=postgres://x\n" +
-		"ALLOWED_ORIGINS=*\n" +
-		"CRAFTSKY_DEV_DID=did:plc:test\n" +
-		"TAP_WS_URL=ws://tap:2480/channel\n"
-	if err := os.WriteFile(envPath, []byte(contents), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	for _, k := range []string{"TAP_ACK_TIMEOUT", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES"} {
-		t.Setenv(k, "")
-	}
+	envPath := testConfigFile(t, "DATABASE_URL=postgres://x\n"+
+		"ALLOWED_ORIGINS=*\n"+
+		"CRAFTSKY_DEV_DID=did:plc:test\n"+
+		"TAP_WS_URL=ws://tap:2480/channel\n")
 
 	cfg, err := LoadConfig(EnvDev, envPath)
 	if err != nil {
@@ -233,6 +235,40 @@ func TestLoadConfig_TapDefaults(t *testing.T) {
 	}
 	if cfg.TapMaxRetries != 5 {
 		t.Errorf("default TapMaxRetries = %d", cfg.TapMaxRetries)
+	}
+}
+
+func TestLoadConfig_MediaLimitOverrides(t *testing.T) {
+	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nMAX_POST_IMAGES=2\nMAX_IMAGE_UPLOAD_BYTES=1048576\n")
+	cfg, err := LoadConfig(EnvDev, path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.MaxPostImages != 2 {
+		t.Errorf("MaxPostImages = %d, want 2", cfg.MaxPostImages)
+	}
+	if cfg.MaxImageUploadBytes != 1048576 {
+		t.Errorf("MaxImageUploadBytes = %d, want 1048576", cfg.MaxImageUploadBytes)
+	}
+}
+
+func TestLoadConfig_MediaLimitOverridesCannotExceedContract(t *testing.T) {
+	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nMAX_POST_IMAGES=5\n")
+	_, err := LoadConfig(EnvDev, path)
+	if err == nil {
+		t.Fatal("expected MAX_POST_IMAGES error")
+	}
+	if !strings.Contains(err.Error(), "MAX_POST_IMAGES") {
+		t.Errorf("error should mention MAX_POST_IMAGES, got: %v", err)
+	}
+
+	path = testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nMAX_IMAGE_UPLOAD_BYTES=15728641\n")
+	_, err = LoadConfig(EnvDev, path)
+	if err == nil {
+		t.Fatal("expected MAX_IMAGE_UPLOAD_BYTES error")
+	}
+	if !strings.Contains(err.Error(), "MAX_IMAGE_UPLOAD_BYTES") {
+		t.Errorf("error should mention MAX_IMAGE_UPLOAD_BYTES, got: %v", err)
 	}
 }
 

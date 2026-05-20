@@ -111,6 +111,12 @@ func DecodePostCreate(body io.Reader) (PostCreateRequest, error) {
 // graphemes (approximated by rune count, matching profile_request),
 // and AT-URI parseability on reply/quote pointers.
 func ValidatePostCreate(req PostCreateRequest) error {
+	return ValidatePostCreateWithLimits(req, DefaultMediaLimits())
+}
+
+// ValidatePostCreateWithLimits enforces lexicon rules and deployment media limits.
+func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) error {
+	limits = normalizeMediaLimits(limits)
 	fields := map[string]string{}
 	if req.Text == "" {
 		fields["text"] = "must not be empty"
@@ -124,8 +130,8 @@ func ValidatePostCreate(req PostCreateRequest) error {
 	if req.Embed != nil && req.Embed.Quote != nil {
 		validateStrongRef(fields, "embed.quote", *req.Embed.Quote)
 	}
-	if len(req.Images) > 4 {
-		fields["images"] = "exceeds maximum of 4 entries"
+	if len(req.Images) > limits.MaxPostImages {
+		fields["images"] = fmt.Sprintf("exceeds maximum of %d entries", limits.MaxPostImages)
 	}
 	for i, img := range req.Images {
 		prefix := fmt.Sprintf("images[%d]", i)

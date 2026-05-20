@@ -18,10 +18,11 @@ type ImageBlobUploadResponse struct {
 }
 
 // ImageBlobUploadHandler serves POST /v1/blobs/images.
-func ImageBlobUploadHandler(newPDS auth.PDSClientFactory, logger *slog.Logger) http.Handler {
+func ImageBlobUploadHandler(newPDS auth.PDSClientFactory, limits MediaLimits, logger *slog.Logger) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
+	limits = normalizeMediaLimits(limits)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
 		did, ok := middleware.GetDID(r.Context())
@@ -32,7 +33,7 @@ func ImageBlobUploadHandler(newPDS auth.PDSClientFactory, logger *slog.Logger) h
 		}
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
 
-		uploadReq, payload, err := DecodeImageBlobUpload(r.Header.Get("Content-Type"), r.Body)
+		uploadReq, payload, err := DecodeImageBlobUploadWithLimits(r.Header.Get("Content-Type"), r.Body, limits)
 		if err != nil {
 			if fe, ok := err.(*FieldError); ok {
 				switch fe.Code {

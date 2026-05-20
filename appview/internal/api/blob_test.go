@@ -26,7 +26,7 @@ func TestImageBlobUpload_HappyPath_ForwardsToPDSAndReturnsMetadata(t *testing.T)
 			Size: 253496,
 		},
 	}
-	h := api.ImageBlobUploadHandler(newPDSFactory(pds), nilLogger())
+	h := api.ImageBlobUploadHandler(newPDSFactory(pds), api.DefaultMediaLimits(), nilLogger())
 	body := []byte("fake-jpeg-bytes")
 	req := authedReq(http.MethodPost, "/v1/blobs/images", "", "did:plc:alice")
 	req.Body = ioNopCloser{Reader: bytes.NewReader(body)}
@@ -63,7 +63,7 @@ func TestImageBlobUpload_HappyPath_ForwardsToPDSAndReturnsMetadata(t *testing.T)
 func TestImageBlobUpload_UnsupportedMIME_RejectsWithoutCallingPDS(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}
-	h := api.ImageBlobUploadHandler(newPDSFactory(pds), nilLogger())
+	h := api.ImageBlobUploadHandler(newPDSFactory(pds), api.DefaultMediaLimits(), nilLogger())
 	req := authedReq(http.MethodPost, "/v1/blobs/images", "", "did:plc:alice")
 	req.Body = ioNopCloser{Reader: bytes.NewReader([]byte("gif-bytes"))}
 	req.Header.Set("Content-Type", "image/gif")
@@ -86,7 +86,7 @@ func TestImageBlobUpload_UnsupportedMIME_RejectsWithoutCallingPDS(t *testing.T) 
 func TestImageBlobUpload_OversizedBody_RejectsWithoutCallingPDS(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}
-	h := api.ImageBlobUploadHandler(newPDSFactory(pds), nilLogger())
+	h := api.ImageBlobUploadHandler(newPDSFactory(pds), api.DefaultMediaLimits(), nilLogger())
 	over := bytes.Repeat([]byte("a"), int(api.MaxImageUploadBytes+1))
 	req := authedReq(http.MethodPost, "/v1/blobs/images", "", "did:plc:alice")
 	req.Body = ioNopCloser{Reader: bytes.NewReader(over)}
@@ -112,7 +112,7 @@ func TestImageBlobUpload_FailureLogsExcludeImageBytesAndToken(t *testing.T) {
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
 	pds := &fakePDS{uploadErr: errors.New("pds down")}
-	h := api.ImageBlobUploadHandler(newPDSFactory(pds), logger)
+	h := api.ImageBlobUploadHandler(newPDSFactory(pds), api.DefaultMediaLimits(), logger)
 
 	const sentinelBytes = "SENSITIVE_IMAGE_BYTES"
 	const sentinelToken = "SENSITIVE_TOKEN"

@@ -185,6 +185,29 @@ func TestValidatePostCreate_RejectsMoreThanFourImages(t *testing.T) {
 	}
 }
 
+func TestValidatePostCreate_UsesConfiguredImageCountLimit(t *testing.T) {
+	t.Parallel()
+	body := strings.NewReader(`{
+		"text":"hi",
+		"images":[
+			{"image":{"$type":"blob","ref":{"$link":"bafk1"},"mimeType":"image/jpeg","size":1},"alt":"1"},
+			{"image":{"$type":"blob","ref":{"$link":"bafk2"},"mimeType":"image/jpeg","size":1},"alt":"2"}
+		]
+	}`)
+	req, err := api.DecodePostCreate(body)
+	if err != nil {
+		t.Fatalf("DecodePostCreate: %v", err)
+	}
+	err = api.ValidatePostCreateWithLimits(req, api.MediaLimits{MaxPostImages: 1, MaxImageUploadBytes: api.DefaultMaxImageUploadBytes})
+	var fe *api.FieldError
+	if !errors.As(err, &fe) || fe.Code != "validation_failed" {
+		t.Fatalf("want validation_failed, got %v", err)
+	}
+	if got := fe.Fields["images"]; got != "exceeds maximum of 1 entries" {
+		t.Fatalf("images error = %q", got)
+	}
+}
+
 func TestValidatePostCreate_RejectsMissingAltOrBlobOrInvalidAspectRatio(t *testing.T) {
 	t.Parallel()
 	body := strings.NewReader(`{

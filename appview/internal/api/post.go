@@ -43,8 +43,10 @@ func CreatePostHandler(
 	store PostReader,
 	newPDS auth.PDSClientFactory,
 	resolver HandleResolver,
+	limits MediaLimits,
 	logger *slog.Logger,
 ) http.Handler {
+	limits = normalizeMediaLimits(limits)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
 		did, ok := middleware.GetDID(r.Context())
@@ -71,7 +73,7 @@ func CreatePostHandler(
 			}
 			return
 		}
-		if err := ValidatePostCreate(req); err != nil {
+		if err := ValidatePostCreateWithLimits(req, limits); err != nil {
 			fe, isFE := err.(*FieldError)
 			if isFE {
 				envelope.WriteError(w, http.StatusUnprocessableEntity,
