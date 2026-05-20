@@ -183,6 +183,45 @@ func TestPostStore_ReadOne_NoBlueskyMirror(t *testing.T) {
 	}
 }
 
+func TestPostStore_ReadOne_PreservesImagesJSON(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO craftsky_posts (uri, did, rkey, cid, text, images, record, created_at, indexed_at)
+		VALUES (
+			'at://did:plc:alice/social.craftsky.feed.post/rk1',
+			'did:plc:alice',
+			'rk1',
+			'bafycid',
+			'hello',
+			'[{
+				"cid":"bafkimage",
+				"mime":"image/jpeg",
+				"size":253496,
+				"alt":"project photo",
+				"aspectRatio":{"width":919,"height":2000}
+			}]'::jsonb,
+			'{}'::jsonb,
+			now(),
+			now()
+		)`); err != nil {
+		t.Fatalf("seed post with images: %v", err)
+	}
+
+	store := api.NewPostStore(pool)
+	row, err := store.ReadOne(context.Background(), "did:plc:alice", "rk1")
+	if err != nil {
+		t.Fatalf("ReadOne: %v", err)
+	}
+	if len(row.Images) == 0 {
+		t.Fatalf("images missing on row")
+	}
+	if got := string(row.Images); got == "" || got == "null" {
+		t.Fatalf("images json = %q", got)
+	}
+}
+
 func TestPostStore_ReadOne_NotFound(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)

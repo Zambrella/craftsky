@@ -222,6 +222,9 @@ func (f *fakePDSForPut) CreateRecord(_ context.Context, _ syntax.DID, _ string, 
 func (f *fakePDSForPut) DeleteRecord(_ context.Context, _ syntax.DID, _, _ string) error {
 	return errors.New("DeleteRecord: not implemented in fakePDSForPut")
 }
+func (f *fakePDSForPut) UploadBlob(_ context.Context, _ string, _ []byte) (*auth.UploadedBlob, error) {
+	return nil, errors.New("UploadBlob: not implemented in fakePDSForPut")
+}
 
 // newPutHandler wires a fake store, resolver, and PDS client.
 func newPutHandler(

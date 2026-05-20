@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+
+	"social.craftsky/appview/internal/api"
 )
 
 // Env identifies which deployment environment the process is running in.
@@ -59,6 +61,11 @@ type Config struct {
 	OAuthSessionInactivity          time.Duration // default 30d
 	OAuthAuthRequestExpiry          time.Duration // default 30m
 	CraftskySessionLastSeenThrottle time.Duration // default 5m
+
+	// Media policy. Defaults preserve the approved image-posting contract;
+	// env overrides may lower but not raise these ceilings.
+	MaxPostImages       int   // default 4, maximum 4
+	MaxImageUploadBytes int64 // default 15MB, maximum 15MB
 }
 
 // LoadConfig reads environments/<env>.env from envFilePath, layers os.Getenv
@@ -131,6 +138,12 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if cfg.CraftskySessionLastSeenThrottle, err = durationEnv("CRAFTSKY_SESSION_LAST_SEEN_THROTTLE", 5*time.Minute); err != nil {
 		return Config{}, err
 	}
+	if cfg.MaxPostImages, err = boundedIntEnv("MAX_POST_IMAGES", api.DefaultMaxPostImages, 1, api.DefaultMaxPostImages); err != nil {
+		return Config{}, err
+	}
+	if cfg.MaxImageUploadBytes, err = boundedInt64Env("MAX_IMAGE_UPLOAD_BYTES", api.DefaultMaxImageUploadBytes, 1, api.DefaultMaxImageUploadBytes); err != nil {
+		return Config{}, err
+	}
 
 	// Required everywhere.
 	if cfg.DatabaseURL == "" {
@@ -181,4 +194,28 @@ func durationEnv(key string, def time.Duration) (time.Duration, error) {
 		return 0, fmt.Errorf("%s: %w", key, err)
 	}
 	return d, nil
+}
+
+func boundedIntEnv(key string, def, min, max int) (int, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return def, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < min || n > max {
+		return 0, fmt.Errorf("%s: must be integer between %d and %d, got %q", key, min, max, raw)
+	}
+	return n, nil
+}
+
+func boundedInt64Env(key string, def, min, max int64) (int64, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return def, nil
+	}
+	n, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || n < min || n > max {
+		return 0, fmt.Errorf("%s: must be integer between %d and %d, got %q", key, min, max, raw)
+	}
+	return n, nil
 }

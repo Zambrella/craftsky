@@ -106,3 +106,8 @@ func (c *AnonymousPDSClient) CreateRecord(_ context.Context, _ syntax.DID, _ str
 func (c *AnonymousPDSClient) DeleteRecord(_ context.Context, _ syntax.DID, _, _ string) error {
 	return ErrReadOnlyPDSClient
 }
+
+// UploadBlob is not supported by the anonymous client.
+func (c *AnonymousPDSClient) UploadBlob(_ context.Context, _ string, _ []byte) (*UploadedBlob, error) {
+	return nil, ErrReadOnlyPDSClient
+}

@@ -39,6 +39,9 @@ func (m *mockPDS) CreateRecord(_ context.Context, _ syntax.DID, _ string, _ any)
 func (m *mockPDS) DeleteRecord(_ context.Context, _ syntax.DID, _, _ string) error {
 	return nil
 }
+func (m *mockPDS) UploadBlob(_ context.Context, _ string, _ []byte) (*auth.UploadedBlob, error) {
+	return nil, nil
+}
 
 const (
 	bskyNSID = "app.bsky.actor.profile"

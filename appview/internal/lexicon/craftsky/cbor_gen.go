@@ -1068,7 +1068,7 @@ func (t *FeedPost) UnmarshalCBOR(r io.Reader) (err error) {
 
 	return nil
 }
-func (t *FeedPost_Image) MarshalCBOR(w io.Writer) error {
+func (t *FeedPost_AspectRatio) MarshalCBOR(w io.Writer) error {
 	if t == nil {
 		_, err := w.Write(cbg.CborNull)
 		return err
@@ -1077,6 +1077,174 @@ func (t *FeedPost_Image) MarshalCBOR(w io.Writer) error {
 	cw := cbg.NewCborWriter(w)
 
 	if _, err := cw.Write([]byte{162}); err != nil {
+		return err
+	}
+
+	// t.Width (int64) (int64)
+	if len("width") > 1000000 {
+		return xerrors.Errorf("Value in field \"width\" was too long")
+	}
+
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("width"))); err != nil {
+		return err
+	}
+	if _, err := cw.WriteString(string("width")); err != nil {
+		return err
+	}
+
+	if t.Width >= 0 {
+		if err := cw.WriteMajorTypeHeader(cbg.MajUnsignedInt, uint64(t.Width)); err != nil {
+			return err
+		}
+	} else {
+		if err := cw.WriteMajorTypeHeader(cbg.MajNegativeInt, uint64(-t.Width-1)); err != nil {
+			return err
+		}
+	}
+
+	// t.Height (int64) (int64)
+	if len("height") > 1000000 {
+		return xerrors.Errorf("Value in field \"height\" was too long")
+	}
+
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("height"))); err != nil {
+		return err
+	}
+	if _, err := cw.WriteString(string("height")); err != nil {
+		return err
+	}
+
+	if t.Height >= 0 {
+		if err := cw.WriteMajorTypeHeader(cbg.MajUnsignedInt, uint64(t.Height)); err != nil {
+			return err
+		}
+	} else {
+		if err := cw.WriteMajorTypeHeader(cbg.MajNegativeInt, uint64(-t.Height-1)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (t *FeedPost_AspectRatio) UnmarshalCBOR(r io.Reader) (err error) {
+	*t = FeedPost_AspectRatio{}
+
+	cr := cbg.NewCborReader(r)
+
+	maj, extra, err := cr.ReadHeader()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
+	}()
+
+	if maj != cbg.MajMap {
+		return fmt.Errorf("cbor input should be of type map")
+	}
+
+	if extra > cbg.MaxLength {
+		return fmt.Errorf("FeedPost_AspectRatio: map struct too large (%d)", extra)
+	}
+
+	n := extra
+
+	nameBuf := make([]byte, 6)
+	for i := uint64(0); i < n; i++ {
+		nameLen, ok, err := cbg.ReadFullStringIntoBuf(cr, nameBuf, 1000000)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			// Field doesn't exist on this type, so ignore it
+			if err := cbg.ScanForLinks(cr, func(cid.Cid) {}); err != nil {
+				return err
+			}
+			continue
+		}
+
+		switch string(nameBuf[:nameLen]) {
+		// t.Width (int64) (int64)
+		case "width":
+			{
+				maj, extra, err := cr.ReadHeader()
+				if err != nil {
+					return err
+				}
+				var extraI int64
+				switch maj {
+				case cbg.MajUnsignedInt:
+					extraI = int64(extra)
+					if extraI < 0 {
+						return fmt.Errorf("int64 positive overflow")
+					}
+				case cbg.MajNegativeInt:
+					extraI = int64(extra)
+					if extraI < 0 {
+						return fmt.Errorf("int64 negative overflow")
+					}
+					extraI = -1 - extraI
+				default:
+					return fmt.Errorf("wrong type for int64 field: %d", maj)
+				}
+
+				t.Width = int64(extraI)
+			}
+			// t.Height (int64) (int64)
+		case "height":
+			{
+				maj, extra, err := cr.ReadHeader()
+				if err != nil {
+					return err
+				}
+				var extraI int64
+				switch maj {
+				case cbg.MajUnsignedInt:
+					extraI = int64(extra)
+					if extraI < 0 {
+						return fmt.Errorf("int64 positive overflow")
+					}
+				case cbg.MajNegativeInt:
+					extraI = int64(extra)
+					if extraI < 0 {
+						return fmt.Errorf("int64 negative overflow")
+					}
+					extraI = -1 - extraI
+				default:
+					return fmt.Errorf("wrong type for int64 field: %d", maj)
+				}
+
+				t.Height = int64(extraI)
+			}
+
+		default:
+			// Field doesn't exist on this type, so ignore it
+			if err := cbg.ScanForLinks(r, func(cid.Cid) {}); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+func (t *FeedPost_Image) MarshalCBOR(w io.Writer) error {
+	if t == nil {
+		_, err := w.Write(cbg.CborNull)
+		return err
+	}
+
+	cw := cbg.NewCborWriter(w)
+	fieldCount := 3
+
+	if t.AspectRatio == nil {
+		fieldCount--
+	}
+
+	if _, err := cw.Write(cbg.CborEncodeMajorType(cbg.MajMap, uint64(fieldCount))); err != nil {
 		return err
 	}
 
@@ -1118,6 +1286,25 @@ func (t *FeedPost_Image) MarshalCBOR(w io.Writer) error {
 	if err := t.Image.MarshalCBOR(cw); err != nil {
 		return err
 	}
+
+	// t.AspectRatio (craftsky.FeedPost_AspectRatio) (struct)
+	if t.AspectRatio != nil {
+
+		if len("aspectRatio") > 1000000 {
+			return xerrors.Errorf("Value in field \"aspectRatio\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("aspectRatio"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("aspectRatio")); err != nil {
+			return err
+		}
+
+		if err := t.AspectRatio.MarshalCBOR(cw); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -1146,7 +1333,7 @@ func (t *FeedPost_Image) UnmarshalCBOR(r io.Reader) (err error) {
 
 	n := extra
 
-	nameBuf := make([]byte, 5)
+	nameBuf := make([]byte, 11)
 	for i := uint64(0); i < n; i++ {
 		nameLen, ok, err := cbg.ReadFullStringIntoBuf(cr, nameBuf, 1000000)
 		if err != nil {
@@ -1189,6 +1376,26 @@ func (t *FeedPost_Image) UnmarshalCBOR(r io.Reader) (err error) {
 					t.Image = new(util.LexBlob)
 					if err := t.Image.UnmarshalCBOR(cr); err != nil {
 						return xerrors.Errorf("unmarshaling t.Image pointer: %w", err)
+					}
+				}
+
+			}
+			// t.AspectRatio (craftsky.FeedPost_AspectRatio) (struct)
+		case "aspectRatio":
+
+			{
+
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+					t.AspectRatio = new(FeedPost_AspectRatio)
+					if err := t.AspectRatio.UnmarshalCBOR(cr); err != nil {
+						return xerrors.Errorf("unmarshaling t.AspectRatio pointer: %w", err)
 					}
 				}
 

@@ -43,8 +43,10 @@ func CreatePostHandler(
 	store PostReader,
 	newPDS auth.PDSClientFactory,
 	resolver HandleResolver,
+	limits MediaLimits,
 	logger *slog.Logger,
 ) http.Handler {
+	limits = normalizeMediaLimits(limits)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
 		did, ok := middleware.GetDID(r.Context())
@@ -71,7 +73,7 @@ func CreatePostHandler(
 			}
 			return
 		}
-		if err := ValidatePostCreate(req); err != nil {
+		if err := ValidatePostCreateWithLimits(req, limits); err != nil {
 			fe, isFE := err.(*FieldError)
 			if isFE {
 				envelope.WriteError(w, http.StatusUnprocessableEntity,
@@ -156,6 +158,23 @@ func lexiconRecordBody(req PostCreateRequest) map[string]any {
 				"cid": req.Embed.Quote.CID,
 			},
 		}
+	}
+	if len(req.Images) > 0 {
+		images := make([]map[string]any, 0, len(req.Images))
+		for _, img := range req.Images {
+			one := map[string]any{
+				"image": img.Image,
+				"alt":   img.Alt,
+			}
+			if img.AspectRatio != nil {
+				one["aspectRatio"] = map[string]any{
+					"width":  img.AspectRatio.Width,
+					"height": img.AspectRatio.Height,
+				}
+			}
+			images = append(images, one)
+		}
+		body["images"] = images
 	}
 	return body
 }

@@ -8,6 +8,12 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
+var postImageMimeExt = map[string]string{
+	"image/jpeg": "jpeg",
+	"image/png":  "png",
+	"image/webp": "webp",
+}
+
 // PostAuthor is the embedded author shape on every post-shaped response.
 // Display name and avatar may be null when the user has no Bluesky
 // profile mirror.
@@ -39,6 +45,7 @@ type PostResponse struct {
 	CID               string             `json:"cid"`
 	Rkey              string             `json:"rkey"`
 	Text              string             `json:"text"`
+	Images            []PostImageView    `json:"images,omitempty"`
 	Facets            json.RawMessage    `json:"facets"`
 	Tags              []string           `json:"tags"`
 	LikeCount         int                `json:"likeCount"`
@@ -52,6 +59,24 @@ type PostResponse struct {
 	CreatedAt         time.Time          `json:"createdAt"`
 	IndexedAt         time.Time          `json:"indexedAt"`
 	Author            PostAuthor         `json:"author"`
+}
+
+type PostImageView struct {
+	CID         string                `json:"cid,omitempty"`
+	MIME        string                `json:"mime,omitempty"`
+	Size        int64                 `json:"size,omitempty"`
+	Alt         string                `json:"alt,omitempty"`
+	AspectRatio *PostImageAspectRatio `json:"aspectRatio,omitempty"`
+	Thumb       string                `json:"thumb,omitempty"`
+	Fullsize    string                `json:"fullsize,omitempty"`
+}
+
+type storedPostImage struct {
+	CID         string                `json:"cid"`
+	MIME        string                `json:"mime"`
+	Size        int64                 `json:"size,omitempty"`
+	Alt         string                `json:"alt"`
+	AspectRatio *PostImageAspectRatio `json:"aspectRatio,omitempty"`
 }
 
 // CommentSectionResponse is the root-post comment-section read surface.
@@ -118,6 +143,7 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle) *PostResponse {
 		CID:       row.CID,
 		Rkey:      row.Rkey,
 		Text:      row.Text,
+		Images:    buildPostImageViews(row),
 		Facets:    row.Facets,
 		Tags:      tags,
 		CreatedAt: row.CreatedAt.UTC(),
@@ -148,6 +174,44 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle) *PostResponse {
 		}
 	}
 	return resp
+}
+
+func buildPostImageViews(row *PostRow) []PostImageView {
+	if row == nil || len(row.Images) == 0 {
+		return nil
+	}
+	var stored []storedPostImage
+	if err := json.Unmarshal(row.Images, &stored); err != nil {
+		return nil
+	}
+	out := make([]PostImageView, 0, len(stored))
+	for _, img := range stored {
+		view := PostImageView{
+			CID:         img.CID,
+			MIME:        img.MIME,
+			Size:        img.Size,
+			Alt:         img.Alt,
+			AspectRatio: img.AspectRatio,
+		}
+		view.Thumb = synthPostImageURL("feed_thumbnail", row.DID, img.CID, img.MIME)
+		view.Fullsize = synthPostImageURL("feed_fullsize", row.DID, img.CID, img.MIME)
+		out = append(out, view)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func synthPostImageURL(kind, did, cid, mime string) string {
+	if cid == "" || mime == "" {
+		return ""
+	}
+	ext, ok := postImageMimeExt[mime]
+	if !ok {
+		return ""
+	}
+	return "https://cdn.bsky.app/img/" + kind + "/plain/" + did + "/" + cid + "@" + ext
 }
 
 func applyEngagementSummary(resp *PostResponse, summary EngagementSummary) {

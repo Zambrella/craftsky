@@ -1,10 +1,12 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -164,5 +166,58 @@ func TestIndigoPDSClient_DeleteRecord_NotFound_TranslatesToErrRecordNotFound(t *
 		syntax.DID("did:plc:xyz"), "social.craftsky.feed.post", "3lf2abc")
 	if !errors.Is(err, ErrRecordNotFound) {
 		t.Fatalf("want ErrRecordNotFound, got %v", err)
+	}
+}
+
+func TestIndigoPDSClient_UploadBlob_HappyPath(t *testing.T) {
+	t.Parallel()
+	wantBody := []byte("fake-jpeg-bytes")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/xrpc/com.atproto.repo.uploadBlob" || r.Method != http.MethodPost {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		if got := r.Header.Get("Content-Type"); got != "image/jpeg" {
+			t.Fatalf("content-type = %q, want image/jpeg", got)
+		}
+		gotBody, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		if !bytes.Equal(gotBody, wantBody) {
+			t.Fatalf("body = %q, want %q", string(gotBody), string(wantBody))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"blob":{"$type":"blob","ref":{"$link":"bafkimage"},"mimeType":"image/jpeg","size":253496}}`))
+	}))
+	defer srv.Close()
+
+	cli := &IndigoPDSClient{Client: atclient.NewAPIClient(srv.URL)}
+	blob, err := cli.UploadBlob(context.Background(), "image/jpeg", wantBody)
+	if err != nil {
+		t.Fatalf("UploadBlob: %v", err)
+	}
+	if blob.CID != "bafkimage" || blob.MIME != "image/jpeg" || blob.Size != 253496 {
+		t.Fatalf("blob metadata = %+v", blob)
+	}
+	if blob.Raw == nil {
+		t.Fatal("blob.Raw is nil")
+	}
+	if blobRef, ok := blob.Raw["ref"].(map[string]any); !ok || blobRef["$link"] != "bafkimage" {
+		t.Fatalf("raw ref = %+v", blob.Raw["ref"])
+	}
+}
+
+func TestIndigoPDSClient_UploadBlob_EmptyBlobErrors(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"blob":null}`))
+	}))
+	defer srv.Close()
+
+	cli := &IndigoPDSClient{Client: atclient.NewAPIClient(srv.URL)}
+	_, err := cli.UploadBlob(context.Background(), "image/jpeg", []byte("img"))
+	if err == nil {
+		t.Fatal("want error on null blob, got nil")
 	}
 }

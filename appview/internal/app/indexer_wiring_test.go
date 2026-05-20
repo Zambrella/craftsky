@@ -11,6 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -102,6 +103,10 @@ func (noopPDSClient) CreateRecord(context.Context, syntax.DID, string, any) (syn
 
 func (noopPDSClient) DeleteRecord(context.Context, syntax.DID, string, string) error {
 	return nil
+}
+
+func (noopPDSClient) UploadBlob(context.Context, string, []byte) (*auth.UploadedBlob, error) {
+	return nil, nil
 }
 
 func TestNewIndexerDispatcherRegistersCraftskyInteractions(t *testing.T) {

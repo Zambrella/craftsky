@@ -21,19 +21,15 @@ func TestDecodePostCreate_HappyPathTextOnly(t *testing.T) {
 	}
 }
 
-func TestDecodePostCreate_RejectsImagesField(t *testing.T) {
+func TestDecodePostCreate_AcceptsImagesField(t *testing.T) {
 	t.Parallel()
-	body := strings.NewReader(`{"text":"hi","images":[]}`)
-	_, err := api.DecodePostCreate(body)
-	var fe *api.FieldError
-	if !errors.As(err, &fe) {
-		t.Fatalf("want *FieldError, got %v", err)
+	body := strings.NewReader(`{"text":"hi","images":[{"image":{"$type":"blob","ref":{"$link":"bafk1"},"mimeType":"image/jpeg","size":1},"alt":"alt"}]}`)
+	req, err := api.DecodePostCreate(body)
+	if err != nil {
+		t.Fatalf("DecodePostCreate: %v", err)
 	}
-	if fe.Code != "unexpected_field" {
-		t.Errorf("code = %q", fe.Code)
-	}
-	if _, ok := fe.Fields["images"]; !ok {
-		t.Errorf("expected images in fields, got %v", fe.Fields)
+	if len(req.Images) != 1 {
+		t.Fatalf("images len = %d, want 1", len(req.Images))
 	}
 }
 
@@ -139,5 +135,142 @@ func TestValidatePostCreate_RejectsReplyWithEmptyCID(t *testing.T) {
 	}
 	if _, ok := fe.Fields["reply.root.cid"]; !ok {
 		t.Errorf("expected reply.root.cid in fields, got %v", fe.Fields)
+	}
+}
+
+func TestDecodeAndValidatePostCreate_AcceptsValidImagesPayload(t *testing.T) {
+	t.Parallel()
+	body := strings.NewReader(`{
+		"text":"hi",
+		"images":[
+			{
+				"image":{"$type":"blob","ref":{"$link":"bafkimage"},"mimeType":"image/jpeg","size":253496},
+				"alt":"project photo",
+				"aspectRatio":{"width":919,"height":2000}
+			}
+		]
+	}`)
+	req, err := api.DecodePostCreate(body)
+	if err != nil {
+		t.Fatalf("DecodePostCreate: %v", err)
+	}
+	if err := api.ValidatePostCreate(req); err != nil {
+		t.Fatalf("ValidatePostCreate: %v", err)
+	}
+}
+
+func TestValidatePostCreate_RejectsMoreThanFourImages(t *testing.T) {
+	t.Parallel()
+	body := strings.NewReader(`{
+		"text":"hi",
+		"images":[
+			{"image":{"$type":"blob","ref":{"$link":"bafk1"},"mimeType":"image/jpeg","size":1},"alt":"1"},
+			{"image":{"$type":"blob","ref":{"$link":"bafk2"},"mimeType":"image/jpeg","size":1},"alt":"2"},
+			{"image":{"$type":"blob","ref":{"$link":"bafk3"},"mimeType":"image/jpeg","size":1},"alt":"3"},
+			{"image":{"$type":"blob","ref":{"$link":"bafk4"},"mimeType":"image/jpeg","size":1},"alt":"4"},
+			{"image":{"$type":"blob","ref":{"$link":"bafk5"},"mimeType":"image/jpeg","size":1},"alt":"5"}
+		]
+	}`)
+	req, err := api.DecodePostCreate(body)
+	if err != nil {
+		t.Fatalf("DecodePostCreate: %v", err)
+	}
+	err = api.ValidatePostCreate(req)
+	var fe *api.FieldError
+	if !errors.As(err, &fe) || fe.Code != "validation_failed" {
+		t.Fatalf("want validation_failed, got %v", err)
+	}
+	if _, ok := fe.Fields["images"]; !ok {
+		t.Fatalf("fields=%v, want images", fe.Fields)
+	}
+}
+
+func TestValidatePostCreate_UsesConfiguredImageCountLimit(t *testing.T) {
+	t.Parallel()
+	body := strings.NewReader(`{
+		"text":"hi",
+		"images":[
+			{"image":{"$type":"blob","ref":{"$link":"bafk1"},"mimeType":"image/jpeg","size":1},"alt":"1"},
+			{"image":{"$type":"blob","ref":{"$link":"bafk2"},"mimeType":"image/jpeg","size":1},"alt":"2"}
+		]
+	}`)
+	req, err := api.DecodePostCreate(body)
+	if err != nil {
+		t.Fatalf("DecodePostCreate: %v", err)
+	}
+	err = api.ValidatePostCreateWithLimits(req, api.MediaLimits{MaxPostImages: 1, MaxImageUploadBytes: api.DefaultMaxImageUploadBytes})
+	var fe *api.FieldError
+	if !errors.As(err, &fe) || fe.Code != "validation_failed" {
+		t.Fatalf("want validation_failed, got %v", err)
+	}
+	if got := fe.Fields["images"]; got != "exceeds maximum of 1 entries" {
+		t.Fatalf("images error = %q", got)
+	}
+}
+
+func TestValidatePostCreate_RejectsMissingAltOrBlobOrInvalidAspectRatio(t *testing.T) {
+	t.Parallel()
+	body := strings.NewReader(`{
+		"text":"hi",
+		"images":[
+			{"image":{"$type":"blob","ref":{"$link":"bafk1"},"mimeType":"image/jpeg","size":1},"alt":""},
+			{"alt":"missing blob"},
+			{"image":{"$type":"blob","ref":{"$link":"bafk2"},"mimeType":"image/jpeg","size":1},"alt":"ok","aspectRatio":{"width":0,"height":10}},
+			{"image":{"$type":"blob","ref":{"$link":"bafk3"},"mimeType":"image/jpeg","size":1},"alt":"ok","aspectRatio":{"width":10,"height":-1}}
+		]
+	}`)
+	req, err := api.DecodePostCreate(body)
+	if err != nil {
+		t.Fatalf("DecodePostCreate: %v", err)
+	}
+	err = api.ValidatePostCreate(req)
+	var fe *api.FieldError
+	if !errors.As(err, &fe) || fe.Code != "validation_failed" {
+		t.Fatalf("want validation_failed, got %v", err)
+	}
+	for _, key := range []string{"images[0].alt", "images[1].image", "images[2].aspectRatio.width", "images[3].aspectRatio.height"} {
+		if _, ok := fe.Fields[key]; !ok {
+			t.Fatalf("fields=%v, want key %q", fe.Fields, key)
+		}
+	}
+}
+
+func TestValidatePostCreate_RejectsImageWithMissingBlobMetadata(t *testing.T) {
+	t.Parallel()
+	body := strings.NewReader(`{
+		"text":"hi",
+		"images":[
+			{"image":{"$type":"blob","mimeType":"image/jpeg","size":1},"alt":"ok"},
+			{"image":{"$type":"blob","ref":{},"mimeType":"image/jpeg","size":1},"alt":"ok"},
+			{"image":{"$type":"blob","ref":{"$link":"bafk3"},"mimeType":"","size":1},"alt":"ok"},
+			{"image":{"$type":"blob","ref":{"$link":"bafk4"},"mimeType":"image/jpeg","size":0},"alt":"ok"}
+		]
+	}`)
+	req, err := api.DecodePostCreate(body)
+	if err != nil {
+		t.Fatalf("DecodePostCreate: %v", err)
+	}
+	err = api.ValidatePostCreate(req)
+	var fe *api.FieldError
+	if !errors.As(err, &fe) || fe.Code != "validation_failed" {
+		t.Fatalf("want validation_failed, got %v", err)
+	}
+	for _, key := range []string{"images[0].image.ref", "images[1].image.ref.$link", "images[2].image.mimeType", "images[3].image.size"} {
+		if _, ok := fe.Fields[key]; !ok {
+			t.Fatalf("fields=%v, want key %q", fe.Fields, key)
+		}
+	}
+}
+
+func TestDecodePostCreate_RejectsVideoField(t *testing.T) {
+	t.Parallel()
+	body := strings.NewReader(`{"text":"hi","video":{"blob":"x"}}`)
+	_, err := api.DecodePostCreate(body)
+	var fe *api.FieldError
+	if !errors.As(err, &fe) {
+		t.Fatalf("want *FieldError, got %v", err)
+	}
+	if fe.Code != "unexpected_field" {
+		t.Fatalf("code = %q, want unexpected_field", fe.Code)
 	}
 }

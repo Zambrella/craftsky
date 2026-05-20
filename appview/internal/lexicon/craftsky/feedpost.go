@@ -40,6 +40,14 @@ type FeedPost struct {
 	Text string `json:"text" cborgen:"text"`
 }
 
+// FeedPost_AspectRatio is a "aspectRatio" in the social.craftsky.feed.post schema.
+//
+// Image aspect ratio metadata used for layout/render hints.
+type FeedPost_AspectRatio struct {
+	Height int64 `json:"height" cborgen:"height"`
+	Width  int64 `json:"width" cborgen:"width"`
+}
+
 // Optional embedded content. Open union; today only quote embeds are defined.
 type FeedPost_Embed struct {
 	FeedPost_QuoteEmbed *FeedPost_QuoteEmbed
@@ -100,8 +108,10 @@ func (t *FeedPost_Embed) UnmarshalCBOR(r io.Reader) error {
 // An image blob with alt text.
 type FeedPost_Image struct {
 	// alt: Alt text describing the image for accessibility.
-	Alt   string           `json:"alt" cborgen:"alt"`
-	Image *lexutil.LexBlob `json:"image" cborgen:"image"`
+	Alt string `json:"alt" cborgen:"alt"`
+	// aspectRatio: Optional aspect ratio metadata for rendering.
+	AspectRatio *FeedPost_AspectRatio `json:"aspectRatio,omitempty" cborgen:"aspectRatio,omitempty"`
+	Image       *lexutil.LexBlob      `json:"image" cborgen:"image"`
 }
 
 // FeedPost_Pattern is a "pattern" in the social.craftsky.feed.post schema.

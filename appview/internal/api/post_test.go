@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -29,6 +30,7 @@ type fakePDS struct {
 	lastCreateRepo syntax.DID
 	lastCreateColl string
 	lastCreateRec  any
+	createCalls    int
 	createURI      syntax.ATURI
 	createCID      syntax.CID
 	createErr      error
@@ -38,6 +40,12 @@ type fakePDS struct {
 	lastDeleteRkey string
 	deleteCalls    int
 	deleteErr      error
+
+	uploadCalls    int
+	lastUploadMIME string
+	lastUploadBody []byte
+	uploadResp     *auth.UploadedBlob
+	uploadErr      error
 }
 
 func (f *fakePDS) GetRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) (string, error) {
@@ -50,6 +58,7 @@ func (f *fakePDS) CreateRecord(_ context.Context, repo syntax.DID, coll string, 
 	f.lastCreateRepo = repo
 	f.lastCreateColl = coll
 	f.lastCreateRec = rec
+	f.createCalls++
 	if f.createErr != nil {
 		return "", "", f.createErr
 	}
@@ -67,6 +76,25 @@ func (f *fakePDS) DeleteRecord(_ context.Context, repo syntax.DID, coll string, 
 	f.lastDeleteRkey = rkey
 	f.deleteCalls++
 	return f.deleteErr
+}
+func (f *fakePDS) UploadBlob(_ context.Context, contentType string, body []byte) (*auth.UploadedBlob, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.uploadCalls++
+	f.lastUploadMIME = contentType
+	f.lastUploadBody = append([]byte(nil), body...)
+	if f.uploadErr != nil {
+		return nil, f.uploadErr
+	}
+	if f.uploadResp != nil {
+		return f.uploadResp, nil
+	}
+	return &auth.UploadedBlob{
+		Raw:  map[string]any{"$type": "blob", "ref": map[string]any{"$link": "bafk-default"}, "mimeType": "image/jpeg", "size": float64(1)},
+		CID:  "bafk-default",
+		MIME: "image/jpeg",
+		Size: 1,
+	}, nil
 }
 
 func newPDSFactory(p *fakePDS) auth.PDSClientFactory {
@@ -841,7 +869,7 @@ func TestCreatePost_HappyPath(t *testing.T) {
 	pds := &fakePDS{}
 	store := &fakePostStore{}
 	resolver := fakeResolver{handleFor: "alice.example"}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), resolver, nilLogger())
+	h := api.CreatePostHandler(store, newPDSFactory(pds), resolver, api.DefaultMediaLimits(), nilLogger())
 	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hello"}`, "did:plc:alice")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -877,7 +905,7 @@ func TestCreatePost_HappyPath(t *testing.T) {
 
 func TestCreatePost_MalformedBody_400(t *testing.T) {
 	t.Parallel()
-	h := api.CreatePostHandler(&fakePostStore{}, newPDSFactory(&fakePDS{}), fakeResolver{}, nilLogger())
+	h := api.CreatePostHandler(&fakePostStore{}, newPDSFactory(&fakePDS{}), fakeResolver{}, api.DefaultMediaLimits(), nilLogger())
 	req := authedReq(http.MethodPost, "/v1/posts", `{not json`, "did:plc:alice")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -888,7 +916,7 @@ func TestCreatePost_MalformedBody_400(t *testing.T) {
 
 func TestCreatePost_TextEmpty_422(t *testing.T) {
 	t.Parallel()
-	h := api.CreatePostHandler(&fakePostStore{}, newPDSFactory(&fakePDS{}), fakeResolver{}, nilLogger())
+	h := api.CreatePostHandler(&fakePostStore{}, newPDSFactory(&fakePDS{}), fakeResolver{}, api.DefaultMediaLimits(), nilLogger())
 	req := authedReq(http.MethodPost, "/v1/posts", `{"text":""}`, "did:plc:alice")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -901,7 +929,7 @@ func TestCreatePost_PDSWriteFailed_502(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{createErr: errors.New("pds rejected the create")}
 	store := &fakePostStore{}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, nilLogger())
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
 	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hi"}`, "did:plc:alice")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -915,6 +943,32 @@ func TestCreatePost_PDSWriteFailed_502(t *testing.T) {
 	}
 }
 
+func TestCreatePost_PDSWriteFailure_LogsExcludeRequestTextAndToken(t *testing.T) {
+	t.Parallel()
+	var logs strings.Builder
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	const sentinelText = "SENSITIVE_POST_TEXT"
+	const sentinelToken = "SENSITIVE_TOKEN"
+	pds := &fakePDS{createErr: errors.New("pds rejected create")}
+	store := &fakePostStore{}
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), logger)
+	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"`+sentinelText+`"}`, "did:plc:alice")
+	req.Header.Set("Authorization", "Bearer "+sentinelToken)
+	rr := httptest.NewRecorder()
+
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	out := logs.String()
+	if strings.Contains(out, sentinelText) {
+		t.Fatalf("logs leaked request text: %s", out)
+	}
+	if strings.Contains(out, sentinelToken) {
+		t.Fatalf("logs leaked token: %s", out)
+	}
+}
+
 func TestCreatePost_PDSUnavailable_502(t *testing.T) {
 	t.Parallel()
 	store := &fakePostStore{}
@@ -922,7 +976,7 @@ func TestCreatePost_PDSUnavailable_502(t *testing.T) {
 	failingFactory := func(_ context.Context, _ syntax.DID, _ string) (auth.PDSClient, error) {
 		return nil, errors.New("session lookup failed")
 	}
-	h := api.CreatePostHandler(store, failingFactory, fakeResolver{handleFor: "a.example"}, nilLogger())
+	h := api.CreatePostHandler(store, failingFactory, fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
 	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hi"}`, "did:plc:alice")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -939,7 +993,7 @@ func TestCreatePost_QuoteEmbed_TranslatedToLexiconShape(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}
 	store := &fakePostStore{}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, nilLogger())
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
 	body := `{"text":"hi","embed":{"quote":{"uri":"at://did:plc:bob/social.craftsky.feed.post/r1","cid":"bafyB"}}}`
 	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
 	rr := httptest.NewRecorder()
@@ -962,7 +1016,7 @@ func TestCreatePost_TagsExtractedFromFacets(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}
 	store := &fakePostStore{}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, nilLogger())
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
 	body := `{"text":"hi #knit","facets":[{"index":{"byteStart":3,"byteEnd":8},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"Knitting"}]}]}`
 	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
 	rr := httptest.NewRecorder()
@@ -985,7 +1039,7 @@ func TestCreatePost_AuthorHydratedFromStore(t *testing.T) {
 	store := &fakePostStore{
 		author: &api.PostAuthorRow{DisplayName: &displayName, AvatarCID: &avatarCID},
 	}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "alice.example"}, nilLogger())
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
 	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hi"}`, "did:plc:alice")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -1006,7 +1060,7 @@ func TestCreatePost_ResolveHandleFails_502(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}
 	store := &fakePostStore{}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{err: errors.New("plc down")}, nilLogger())
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{err: errors.New("plc down")}, api.DefaultMediaLimits(), nilLogger())
 	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hi"}`, "did:plc:alice")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -1046,6 +1100,45 @@ func TestGetPost_HappyPath(t *testing.T) {
 	}
 	if store.engagementCalls != 1 || len(store.lastEngagementURIs) != 1 || store.lastEngagementURIs[0] != row.URI || store.lastEngagementViewer != "did:plc:alice" {
 		t.Errorf("engagement lookup = calls:%d viewer:%q uris:%v", store.engagementCalls, store.lastEngagementViewer, store.lastEngagementURIs)
+	}
+}
+
+func TestGetPost_WithImages_ReturnsRenderReadyMetadata(t *testing.T) {
+	t.Parallel()
+	row := &api.PostRow{
+		URI:    "at://did:plc:alice/social.craftsky.feed.post/rk1",
+		DID:    "did:plc:alice",
+		Rkey:   "rk1",
+		CID:    "bafycid",
+		Text:   "hi",
+		Images: json.RawMessage(`[{"cid":"bafkimage","mime":"image/jpeg","size":253496,"alt":"project photo","aspectRatio":{"width":919,"height":2000}}]`),
+	}
+	store := &fakePostStore{one: row}
+	h := api.GetPostHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/rk1", "", "did:plc:alice")
+	req.SetPathValue("did", "did:plc:alice")
+	req.SetPathValue("rkey", "rk1")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.PostResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Images) != 1 {
+		t.Fatalf("len(images) = %d", len(resp.Images))
+	}
+	img := resp.Images[0]
+	if img.CID != "bafkimage" || img.MIME != "image/jpeg" || img.Size != 253496 || img.Alt != "project photo" {
+		t.Fatalf("image = %+v", img)
+	}
+	if img.AspectRatio == nil || img.AspectRatio.Width != 919 || img.AspectRatio.Height != 2000 {
+		t.Fatalf("aspectRatio = %+v", img.AspectRatio)
+	}
+	if img.Thumb == "" || img.Fullsize == "" {
+		t.Fatalf("urls missing: %+v", img)
 	}
 }
 
@@ -2061,6 +2154,42 @@ func TestListPosts_HappyPath_PaginatesCorrectly(t *testing.T) {
 	}
 }
 
+func TestListPosts_WithImages_ReturnsRenderReadyMetadata(t *testing.T) {
+	t.Parallel()
+	rows := []*api.PostRow{
+		{
+			URI:    "at://did:plc:alice/social.craftsky.feed.post/rk1",
+			DID:    "did:plc:alice",
+			Rkey:   "rk1",
+			CID:    "bafycid",
+			Text:   "post",
+			Images: json.RawMessage(`[{"cid":"bafkimage","mime":"image/jpeg","size":253496,"alt":"project photo"}]`),
+		},
+	}
+	store := &fakePostStore{listRows: rows}
+	h := api.ListPostsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts", "", "did:plc:alice")
+	req.SetPathValue("handleOrDid", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp struct {
+		Items []api.PostResponse `json:"items"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Items) != 1 || len(resp.Items[0].Images) != 1 {
+		t.Fatalf("items/images = %+v", resp.Items)
+	}
+	img := resp.Items[0].Images[0]
+	if img.CID != "bafkimage" || img.Thumb == "" || img.Fullsize == "" {
+		t.Fatalf("image = %+v", img)
+	}
+}
+
 func TestListCommentsByAuthor_HappyPath(t *testing.T) {
 	t.Parallel()
 	rows := []*api.PostRow{
@@ -2199,7 +2328,7 @@ func TestCreatePost_WithReply_PassesThroughToPDS(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}
 	store := &fakePostStore{}
-	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, nilLogger())
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
 	body := `{"text":"replying","reply":{"root":{"uri":"at://did:plc:bob/social.craftsky.feed.post/root1","cid":"bafyR1"},"parent":{"uri":"at://did:plc:bob/social.craftsky.feed.post/par1","cid":"bafyP1"}}}`
 	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
 	rr := httptest.NewRecorder()
@@ -2225,6 +2354,93 @@ func TestCreatePost_WithReply_PassesThroughToPDS(t *testing.T) {
 	}
 	if parent["cid"] != "bafyP1" {
 		t.Errorf("reply.parent.cid = %v", parent["cid"])
+	}
+}
+
+func TestCreatePost_WithImages_WritesTopLevelImagesToPDS(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{}
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
+	body := `{
+		"text":"image post",
+		"images":[
+			{
+				"image":{"$type":"blob","ref":{"$link":"bafkimage"},"mimeType":"image/jpeg","size":253496},
+				"alt":"project photo",
+				"aspectRatio":{"width":919,"height":2000}
+			}
+		]
+	}`
+	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	rec, _ := pds.lastCreateRec.(map[string]any)
+	recJSON, _ := json.Marshal(rec)
+	var normalized map[string]any
+	if err := json.Unmarshal(recJSON, &normalized); err != nil {
+		t.Fatalf("decode rec: %v", err)
+	}
+	imagesRaw, ok := normalized["images"].([]any)
+	if !ok || len(imagesRaw) != 1 {
+		t.Fatalf("images = %T %v, want single image array", normalized["images"], normalized["images"])
+	}
+	img, _ := imagesRaw[0].(map[string]any)
+	if img["alt"] != "project photo" {
+		t.Fatalf("alt = %v", img["alt"])
+	}
+	if _, ok := img["image"].(map[string]any); !ok {
+		t.Fatalf("image blob missing: %+v", img)
+	}
+	aspect, _ := img["aspectRatio"].(map[string]any)
+	if aspect["width"] != float64(919) || aspect["height"] != float64(2000) {
+		t.Fatalf("aspectRatio = %+v", aspect)
+	}
+	if _, hasEmbed := normalized["embed"]; hasEmbed {
+		t.Fatalf("embed must be absent for plain image post; got %+v", normalized["embed"])
+	}
+}
+
+func TestCreatePost_WithMoreThanFourImages_422WithoutPDSWrite(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{}
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
+	body := `{"text":"too many","images":[
+		{"image":{"$type":"blob","ref":{"$link":"b1"},"mimeType":"image/jpeg","size":1},"alt":"1"},
+		{"image":{"$type":"blob","ref":{"$link":"b2"},"mimeType":"image/jpeg","size":1},"alt":"2"},
+		{"image":{"$type":"blob","ref":{"$link":"b3"},"mimeType":"image/jpeg","size":1},"alt":"3"},
+		{"image":{"$type":"blob","ref":{"$link":"b4"},"mimeType":"image/jpeg","size":1},"alt":"4"},
+		{"image":{"$type":"blob","ref":{"$link":"b5"},"mimeType":"image/jpeg","size":1},"alt":"5"}
+	]}`
+	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.createCalls != 0 {
+		t.Fatalf("createCalls = %d, want 0", pds.createCalls)
+	}
+}
+
+func TestCreatePost_WithInvalidImageBlobMetadata_422WithoutPDSWrite(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{}
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
+	body := `{"text":"bad image","images":[{"image":{"foo":"bar"},"alt":"ok"}]}`
+	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.createCalls != 0 {
+		t.Fatalf("createCalls = %d, want 0", pds.createCalls)
 	}
 }
 
