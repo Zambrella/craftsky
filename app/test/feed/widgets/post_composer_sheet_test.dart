@@ -1,9 +1,13 @@
+import 'dart:typed_data';
+
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
+import 'package:craftsky_app/feed/models/post_image_blob.dart';
 import 'package:craftsky_app/feed/providers/composer_image_service.dart';
 import 'package:craftsky_app/feed/providers/image_draft_controller.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:dio/dio.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -73,6 +77,9 @@ Future<void> _pump(
   required RecordingMessenger messenger,
   Post? replyTarget,
   ComposerImageService? imageService,
+  ComposerImagePicker? picker,
+  ComposerImagePreparer? preparer,
+  ComposerImageUploader? uploader,
 }) {
   return tester.pumpWidget(
     ProviderScope(
@@ -80,6 +87,12 @@ Future<void> _pump(
         postRepositoryProvider.overrideWithValue(repo),
         if (imageService != null)
           composerImageServiceProvider.overrideWithValue(imageService),
+        if (picker != null)
+          composerImagePickerProvider.overrideWithValue(picker),
+        if (preparer != null)
+          composerImagePreparerProvider.overrideWithValue(preparer),
+        if (uploader != null)
+          composerImageUploaderProvider.overrideWithValue(uploader),
       ],
       child: MessengerScope(
         messenger: messenger,
@@ -374,6 +387,86 @@ void main() {
       },
     );
 
+    testWidgets(
+      'default service flow supports reorder and aspect ratio payload',
+      (
+        tester,
+      ) async {
+        final messenger = RecordingMessenger();
+        var capturedText = '';
+        List<CreatePostImage>? capturedImages;
+        final repo = FakePostRepository(
+          onCreate: ({required text, reply, images}) async {
+            capturedText = text;
+            capturedImages = images;
+            return _post();
+          },
+        );
+
+        final picker = _FakeComposerImagePicker(
+          images: [
+            SelectedComposerImage(
+              id: 'img-1',
+              fileName: 'one.jpg',
+              mimeType: 'image/jpeg',
+              bytes: Uint8List.fromList([1, 2, 3]),
+              metadata: const {},
+            ),
+            SelectedComposerImage(
+              id: 'img-2',
+              fileName: 'two.png',
+              mimeType: 'image/png',
+              bytes: Uint8List.fromList([4, 5]),
+              metadata: const {},
+            ),
+          ],
+        );
+
+        await _pump(
+          tester,
+          repo: repo,
+          messenger: messenger,
+          picker: picker,
+          preparer: const _FakeComposerImagePreparer(),
+          uploader: const _FakeComposerImageUploader(),
+        );
+
+        await tester.tap(find.byKey(const Key('composer-add-image')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('one.jpg'), findsOneWidget);
+        expect(find.text('two.png'), findsOneWidget);
+
+        await tester.enterText(find.byType(TextField).first, ' hello ');
+        await tester.enterText(
+          find.byKey(const Key('composer-alt-img-1')),
+          'alt 1',
+        );
+        await tester.enterText(
+          find.byKey(const Key('composer-alt-img-2')),
+          'alt 2',
+        );
+        await tester.pump();
+
+        final moveUp = find.byKey(const Key('composer-move-up-img-2'));
+        await tester.ensureVisible(moveUp);
+        await tester.tap(moveUp);
+        await tester.pump();
+
+        await tester.tap(find.widgetWithText(TextButton, 'Post'));
+        await tester.pumpAndSettle();
+
+        expect(capturedText, 'hello');
+        expect(capturedImages, hasLength(2));
+        expect(capturedImages!.first.blob.link, 'cid-img-2');
+        expect(capturedImages![1].blob.link, 'cid-img-1');
+        expect(capturedImages!.first.aspectRatio, isNull);
+        expect(capturedImages![1].aspectRatio, isNotNull);
+        expect(capturedImages![1].aspectRatio!.width, 4);
+        expect(capturedImages![1].aspectRatio!.height, 5);
+      },
+    );
+
     testWidgets('image composer copy does not imply private media', (
       tester,
     ) async {
@@ -398,5 +491,63 @@ class FakeComposerImageService implements ComposerImageService {
   @override
   Future<void> addImages(ImageDraftController controller) async {
     onAddImages(controller);
+  }
+}
+
+class _FakeComposerImagePicker implements ComposerImagePicker {
+  const _FakeComposerImagePicker({required this.images});
+
+  final List<SelectedComposerImage> images;
+
+  @override
+  Future<List<SelectedComposerImage>> pickImages({
+    required int maxImages,
+  }) async {
+    return images.take(maxImages).toList();
+  }
+}
+
+class _FakeComposerImagePreparer implements ComposerImagePreparer {
+  const _FakeComposerImagePreparer();
+
+  @override
+  Future<PreparedComposerImage> prepare(SelectedComposerImage image) async {
+    return PreparedComposerImage(
+      id: image.id,
+      fileName: image.fileName,
+      mimeType: image.mimeType,
+      originalBytes: image.bytes.length,
+      preparedBytes: image.bytes,
+      aspectRatio: image.id == 'img-1'
+          ? const CreatePostImageAspectRatio(width: 4, height: 5)
+          : null,
+      strippedMetadata: const {},
+    );
+  }
+}
+
+class _FakeComposerImageUploader implements ComposerImageUploader {
+  const _FakeComposerImageUploader();
+
+  @override
+  Future<UploadedImageBlob> upload(
+    PreparedComposerImage image, {
+    ProgressCallback? onSendProgress,
+  }) async {
+    onSendProgress?.call(
+      image.preparedBytes.length,
+      image.preparedBytes.length,
+    );
+    return UploadedImageBlob(
+      blob: UploadedBlob(
+        type: 'blob',
+        ref: UploadedBlobRef(link: 'cid-${image.id}'),
+        mimeType: image.mimeType,
+        size: image.preparedBytes.length,
+      ),
+      cid: 'cid-${image.id}',
+      mime: image.mimeType,
+      size: image.preparedBytes.length,
+    );
   }
 }

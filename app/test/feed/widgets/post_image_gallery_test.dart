@@ -55,4 +55,30 @@ void main() {
     expect(find.text('Close-up stitch detail'), findsOneWidget);
     expect(find.bySemanticsLabel('Close-up stitch detail'), findsWidgets);
   });
+
+  testWidgets('gallery images are zoom-enabled via InteractiveViewer', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      PostImageGallery(
+        images: [
+          PostImage(
+            cid: 'bafkimage1',
+            mime: 'image/jpeg',
+            size: 10,
+            alt: 'Blue shawl laid flat',
+            thumb: 'https://cdn.example.com/thumb1.jpg',
+            fullsize: 'https://cdn.example.com/full1.jpg',
+          ),
+        ],
+      ),
+    );
+
+    final viewer = tester.widget<InteractiveViewer>(
+      find.byType(InteractiveViewer).first,
+    );
+    expect(viewer.minScale, 1);
+    expect(viewer.maxScale, greaterThan(1));
+  });
 }

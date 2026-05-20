@@ -424,6 +424,49 @@ void main() {
       expect(find.text('1/2'), findsOneWidget);
     });
 
+    testWidgets('horizontal paging updates image index without card tap', (
+      tester,
+    ) async {
+      var cardTaps = 0;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            images: [
+              PostImage(
+                cid: 'bafkimage1',
+                mime: 'image/jpeg',
+                size: 10,
+                alt: 'Image one',
+                thumb: 'https://cdn.example.com/thumb1.jpg',
+                fullsize: 'https://cdn.example.com/full1.jpg',
+              ),
+              PostImage(
+                cid: 'bafkimage2',
+                mime: 'image/png',
+                size: 11,
+                alt: 'Image two',
+                thumb: 'https://cdn.example.com/thumb2.jpg',
+                fullsize: 'https://cdn.example.com/full2.jpg',
+              ),
+            ],
+          ),
+          onTap: () => cardTaps++,
+        ),
+      );
+
+      expect(find.text('1/2'), findsOneWidget);
+
+      await tester.drag(
+        find.byKey(const Key('post-image-carousel')),
+        const Offset(-500, 0),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('2/2'), findsOneWidget);
+      expect(cardTaps, 0);
+    });
+
     testWidgets(
       'tapping image opens gallery while non-image tap keeps card routing',
       (

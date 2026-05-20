@@ -90,5 +90,86 @@ void main() {
       );
       expect(controller.images, isEmpty);
     });
+
+    test('reorder updates composer order independent of upload order', () {
+      final controller = ImageDraftController()
+        ..addDraftImage(
+          const DraftImageInput(
+            id: 'img-a',
+            fileName: 'a.jpg',
+            mimeType: 'image/jpeg',
+          ),
+        )
+        ..addDraftImage(
+          const DraftImageInput(
+            id: 'img-b',
+            fileName: 'b.jpg',
+            mimeType: 'image/jpeg',
+          ),
+        )
+        ..addDraftImage(
+          const DraftImageInput(
+            id: 'img-c',
+            fileName: 'c.jpg',
+            mimeType: 'image/jpeg',
+          ),
+        )
+        ..markPrepared('img-a')
+        ..markPrepared('img-b')
+        ..markPrepared('img-c')
+        ..markUploaded(
+          'img-b',
+          const UploadedDraftImage(cid: 'cid-b', mime: 'image/jpeg', size: 1),
+        )
+        ..markUploaded(
+          'img-a',
+          const UploadedDraftImage(cid: 'cid-a', mime: 'image/jpeg', size: 1),
+        )
+        ..markUploaded(
+          'img-c',
+          const UploadedDraftImage(cid: 'cid-c', mime: 'image/jpeg', size: 1),
+        );
+
+      controller.reorder(fromIndex: 2, toIndex: 0);
+
+      expect(
+        controller.images.map((image) => image.id).toList(),
+        ['img-c', 'img-a', 'img-b'],
+      );
+    });
+
+    test('deleted image stays removed even if completion arrives later', () {
+      final controller = ImageDraftController()
+        ..addDraftImage(
+          const DraftImageInput(
+            id: 'img-a',
+            fileName: 'a.jpg',
+            mimeType: 'image/jpeg',
+          ),
+        )
+        ..addDraftImage(
+          const DraftImageInput(
+            id: 'img-b',
+            fileName: 'b.jpg',
+            mimeType: 'image/jpeg',
+          ),
+        )
+        ..markPrepared('img-a')
+        ..markPrepared('img-b')
+        ..remove('img-b')
+        ..markUploaded(
+          'img-b',
+          const UploadedDraftImage(
+            cid: 'late-cid',
+            mime: 'image/jpeg',
+            size: 1,
+          ),
+        );
+
+      expect(
+        controller.images.map((image) => image.id).toList(),
+        ['img-a'],
+      );
+    });
   });
 }

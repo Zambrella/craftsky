@@ -1,3 +1,4 @@
+import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:flutter/foundation.dart';
 
 enum DraftImageLifecycle { preparing, uploading, uploaded, failed }
@@ -19,11 +20,13 @@ class UploadedDraftImage {
     required this.cid,
     required this.mime,
     required this.size,
+    this.aspectRatio,
   });
 
   final String cid;
   final String mime;
   final int size;
+  final CreatePostImageAspectRatio? aspectRatio;
 }
 
 class DraftImageState {
@@ -150,6 +153,16 @@ class ImageDraftController extends ChangeNotifier {
 
   void setAltText(String id, String value) {
     _update(id, (image) => image.copyWith(altText: value));
+  }
+
+  void reorder({required int fromIndex, required int toIndex}) {
+    if (fromIndex < 0 || fromIndex >= _images.length) return;
+    if (toIndex < 0 || toIndex >= _images.length) return;
+    if (fromIndex == toIndex) return;
+
+    final image = _images.removeAt(fromIndex);
+    _images.insert(toIndex, image);
+    notifyListeners();
   }
 
   void _markFailed(String id, String message) {

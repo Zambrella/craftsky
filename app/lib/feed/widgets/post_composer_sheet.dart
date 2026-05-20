@@ -181,16 +181,31 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                     label: const Text('Add image'),
                   ),
                 ),
-                ..._imageDraftController.images.map(
-                  (image) => _DraftImageTile(
+                ..._imageDraftController.images.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final image = entry.value;
+                  return _DraftImageTile(
                     image: image,
                     altTextKey: Key('composer-alt-${image.id}'),
                     removeKey: Key('composer-remove-${image.id}'),
+                    moveUpKey: Key('composer-move-up-${image.id}'),
+                    moveDownKey: Key('composer-move-down-${image.id}'),
+                    canMoveUp: index > 0,
+                    canMoveDown:
+                        index < _imageDraftController.images.length - 1,
                     onAltChanged: (value) =>
                         _imageDraftController.setAltText(image.id, value),
                     onRemove: () => _imageDraftController.remove(image.id),
-                  ),
-                ),
+                    onMoveUp: () => _imageDraftController.reorder(
+                      fromIndex: index,
+                      toIndex: index - 1,
+                    ),
+                    onMoveDown: () => _imageDraftController.reorder(
+                      fromIndex: index,
+                      toIndex: index + 1,
+                    ),
+                  );
+                }),
               ],
             ],
           ),
@@ -211,6 +226,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
               size: image.uploaded!.size,
             ),
             alt: image.altText.trim(),
+            aspectRatio: image.uploaded!.aspectRatio,
           ),
         )
         .toList();
@@ -222,15 +238,27 @@ class _DraftImageTile extends StatelessWidget {
     required this.image,
     required this.altTextKey,
     required this.removeKey,
+    required this.moveUpKey,
+    required this.moveDownKey,
+    required this.canMoveUp,
+    required this.canMoveDown,
     required this.onAltChanged,
     required this.onRemove,
+    required this.onMoveUp,
+    required this.onMoveDown,
   });
 
   final DraftImageState image;
   final Key altTextKey;
   final Key removeKey;
+  final Key moveUpKey;
+  final Key moveDownKey;
+  final bool canMoveUp;
+  final bool canMoveDown;
   final ValueChanged<String> onAltChanged;
   final VoidCallback onRemove;
+  final VoidCallback onMoveUp;
+  final VoidCallback onMoveDown;
 
   @override
   Widget build(BuildContext context) {
@@ -249,6 +277,16 @@ class _DraftImageTile extends StatelessWidget {
               Row(
                 children: [
                   Expanded(child: Text(image.fileName)),
+                  IconButton(
+                    key: moveUpKey,
+                    onPressed: canMoveUp ? onMoveUp : null,
+                    icon: const Icon(Icons.arrow_upward),
+                  ),
+                  IconButton(
+                    key: moveDownKey,
+                    onPressed: canMoveDown ? onMoveDown : null,
+                    icon: const Icon(Icons.arrow_downward),
+                  ),
                   IconButton(
                     key: removeKey,
                     onPressed: onRemove,
