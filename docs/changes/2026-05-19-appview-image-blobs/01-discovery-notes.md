@@ -5,7 +5,7 @@ Add backend/AppView support for blobs, limited to images for this pass. Video is
 
 ## Current Codebase Findings
 - Relevant files:
-  - `lexicon/social/craftsky/feed/post.json` already defines top-level `images` on `social.craftsky.feed.post`, with up to 4 images, required `alt`, accepted MIME types `image/jpeg`, `image/png`, `image/webp`, and `maxSize: 15728640` (15 MB).
+  - `lexicon/social/craftsky/feed/post.json` already defines top-level `images` on `social.craftsky.feed.post`, with up to 4 images, required `alt`, accepted MIME types `image/jpeg`, `image/png`, `image/webp`, and `maxSize: 15728640` (15 MB). It does not yet include Bluesky-style `aspectRatio`; Plannotator feedback resolved that this should be added as optional image metadata.
   - `appview/internal/lexicon/craftsky/feedpost.go` contains generated image/blob types for that lexicon.
   - `appview/internal/index/craftsky_post.go` already flattens indexed post images into `craftsky_posts.images` as `[{cid, mime, alt}, ...]`.
   - `appview/migrations/000010_craftsky_posts.up.sql` already has `images JSONB`.
@@ -27,16 +27,16 @@ Add backend/AppView support for blobs, limited to images for this pass. Video is
   - Upload image bytes to `com.atproto.repo.uploadBlob` with the image MIME type as `Content-Type`.
   - PDS returns a blob object containing ref/CID, MIME type, and size.
   - Post records reference the uploaded blob and include required alt text.
-  - Bluesky's current `app.bsky.embed.images` allows up to 4 images, accepts `image/*`, currently caps each image at 2 MB, and may carry optional `aspectRatio`.
+  - Bluesky's current `app.bsky.embed.images` allows up to 4 images, accepts `image/*`, currently caps each image at 2 MB, and may carry optional `aspectRatio` with `width` and `height`.
   - Bluesky AppView image views expose render-ready `thumb` and `fullsize` URLs.
 - Constraints discovered:
-  - Lexicon changes are load-bearing and require project lexicon workflow/ADR. The confirmed direction avoids changing the record shape in this pass.
+  - Lexicon changes are load-bearing and require project lexicon workflow/ADR. The confirmed direction avoids switching the overall record shape, but does include an additive optional image `aspectRatio` field.
   - Image blobs on PDS are public under current atproto behavior; uploads must be treated as public media.
   - Blob upload should be bounded carefully to avoid large request memory pressure.
 - Test/build commands discovered:
   - `just test` runs Go tests against compose Postgres.
   - `just fmt` runs `gofmt` and `go vet`.
-  - `just lexgen` is needed only if lexicon JSON changes; not expected for the recommended direction.
+  - `just lexgen` is needed after adding optional image `aspectRatio` to the lexicon.
 
 ## Clarifying Questions
 ### Q1: Should Craftsky switch post images to Bluesky-style `embed.images`, or keep the existing top-level `images` field?
@@ -64,6 +64,11 @@ Answer: Option A — separate AppView upload endpoint, top-level images, 15 MB, 
 
 Decision / implication: Requirements should specify a two-step flow: upload image blob first, then create a post that references the returned blob metadata.
 
+### Q6: Should Craftsky post images include Bluesky-style aspect ratio metadata?
+Answer: Yes. Add optional `aspectRatio` with `width` and `height` to each image object, and preserve blob `size` from the PDS-returned blob object.
+
+Decision / implication: Requirements should include an additive lexicon update to `social.craftsky.feed.post#image`, likely via a local `#aspectRatio` object. AppView should accept, write, index, and return aspect ratio when supplied. Because AppView will not process image bytes in this pass, it can validate that dimensions are positive but should not attempt to verify them against the actual image content.
+
 ## Candidate Approaches
 ### Option A: Separate AppView Upload, Craftsky Top-Level Images
 Summary: Add an authenticated AppView image upload endpoint that proxies raw image bytes to `com.atproto.repo.uploadBlob`, then extend `POST /v1/posts` and post read responses to use Craftsky's existing top-level `images` field.
@@ -72,7 +77,7 @@ Pros:
 - Preserves the existing Craftsky lexicon and indexer shape.
 - Closely matches Bluesky's upload-then-create flow.
 - Reuses existing `craftsky_posts.images JSONB` storage.
-- Avoids image-processing dependencies and lexicon churn.
+- Avoids image-processing dependencies and major lexicon/media-model churn.
 - Cleanly reusable for future image upload surfaces.
 
 Cons:
@@ -125,7 +130,7 @@ Why:
 - It is the smallest coherent backend slice that unblocks frontend image work.
 - It honors the confirmed decisions: top-level Craftsky images, 15 MB limit, validate/pass-through only, return render-ready URLs.
 - It fits existing AppView patterns for PDS-mediated writes and synthetic write responses.
-- It avoids lexicon changes while preserving future options for aspect ratio, server-side processing, or a Craftsky image proxy.
+- It avoids changing the top-level media model while preserving future options for server-side processing or a Craftsky image proxy. It does include a small additive lexicon change for optional image aspect ratio metadata.
 
 ## Scope Boundaries
 In scope:
@@ -135,6 +140,7 @@ In scope:
 - Validation for supported image MIME types, 15 MB max size, and upload request shape.
 - Extend `PDSClient` and indigo adapter with blob upload capability.
 - Extend `POST /v1/posts` to accept up to 4 uploaded image refs with required alt text.
+- Add optional image `aspectRatio` metadata (`width`, `height`) and preserve blob `size` from uploaded blob refs.
 - Write image refs into the existing top-level `images` field of `social.craftsky.feed.post` records.
 - Extend post reads/list responses to include image view objects with URLs.
 - Tests for request decoding/validation, PDS adapter behavior, handler behavior, response building, and store image scanning.
@@ -159,15 +165,16 @@ Reason: This introduces an authenticated file-upload surface, proxies user media
 ## Open Questions
 - [ ] Exact upload route name: likely `POST /v1/blobs/images` or `POST /v1/images`; requirements should choose the canonical path.
 - [ ] Exact upload response shape: whether to return the full atproto blob object only, or a normalized `{cid, mime, size, blob}` wrapper for easier create-post use.
-- [ ] Exact post response image shape: recommended fields are `cid`, `mime`, `alt`, `thumb`, and `fullsize`; requirements should decide whether to include `size` if available.
+- [ ] Exact post response image shape: recommended fields are `cid`, `mime`, `size`, `alt`, `aspectRatio`, `thumb`, and `fullsize`; requirements should confirm whether all of these are returned whenever available.
 - [ ] CDN URL extension behavior for feed images: reuse existing `mimeExt` mapping and omit URL fields for unknown MIME, or normalize all feed image URLs to `@jpeg` as many Bluesky examples do.
-- [ ] Whether to add optional `aspectRatio` in a later lexicon pass. Current direction avoids this for now because the existing Craftsky `#image` object lacks that field.
+- [x] Whether to add optional `aspectRatio` in a later lexicon pass. Plannotator feedback resolved this: add optional `aspectRatio` now and keep byte size in the atproto blob object's `size` field.
 
 ## Decision Summary
 - Keep the existing Craftsky top-level `images` record shape.
 - Keep the existing 15 MB/image Craftsky limit.
 - Validate and pass through image bytes; do not process images server-side.
 - Return image URLs in post responses.
+- Add optional image aspect ratio metadata and surface blob size where available.
 - Use a separate upload-then-create backend flow, similar to Bluesky's blob handling.
 - Treat source files, tests, dependencies, and lexicon files as untouched during discovery; implementation belongs to later workflow stages.
 
@@ -179,11 +186,13 @@ Reason: This introduces an authenticated file-upload surface, proxies user media
   - `docs/superpowers/specs/2026-05-04-feed-post-indexing-design.md` for existing `craftsky_posts.images` storage.
   - `lexicon/social/craftsky/feed/post.json` for current image constraints.
   - `appview/internal/api/profile_response.go` for existing blob URL synthesis precedent.
+  - The Plannotator feedback requesting image `aspectRatio`/size metadata based on Bluesky examples.
 - Requirements areas likely needed:
   - Authenticated image upload endpoint behavior.
   - Upload validation and error mapping.
   - PDS blob upload adapter contract.
   - Create-post request image shape and validation.
+  - Additive image lexicon update and generated Go type refresh.
   - Post response image view shape and URL synthesis.
   - Backward compatibility for posts without images.
   - Public-media/privacy wording.
@@ -191,6 +200,6 @@ Reason: This introduces an authenticated file-upload surface, proxies user media
   - Upload happy path and PDS error handling.
   - Rejection of unsupported MIME types, missing content type, oversized bodies, and unauthenticated requests.
   - Create post with 1-4 images writes top-level `images` to the PDS record.
-  - Create post rejects more than 4 images and invalid/missing alt/blob refs.
-  - Read/list responses include image URL objects for indexed images and omit/empty images for text-only posts.
+  - Create post rejects more than 4 images, invalid/missing alt/blob refs, and invalid non-positive aspect ratio dimensions.
+  - Read/list responses include image URL objects plus `size`/`aspectRatio` metadata for indexed images, and omit/empty images for text-only posts.
   - Existing text-only post behavior remains unchanged.
