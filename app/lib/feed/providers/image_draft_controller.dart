@@ -1,4 +1,5 @@
 import 'package:craftsky_app/feed/models/create_post_image.dart';
+
 import 'package:flutter/foundation.dart';
 
 enum DraftImageLifecycle { preparing, uploading, uploaded, failed }
@@ -8,11 +9,13 @@ class DraftImageInput {
     required this.id,
     required this.fileName,
     required this.mimeType,
+    this.previewBytes,
   });
 
   final String id;
   final String fileName;
   final String mimeType;
+  final Uint8List? previewBytes;
 }
 
 class UploadedDraftImage {
@@ -37,6 +40,7 @@ class DraftImageState {
     required this.lifecycle,
     required this.uploadProgress,
     this.altText = '',
+    this.previewBytes,
     this.errorMessage,
     this.uploaded,
   });
@@ -47,6 +51,7 @@ class DraftImageState {
   final DraftImageLifecycle lifecycle;
   final double uploadProgress;
   final String altText;
+  final Uint8List? previewBytes;
   final String? errorMessage;
   final UploadedDraftImage? uploaded;
 
@@ -66,6 +71,7 @@ class DraftImageState {
       lifecycle: lifecycle ?? this.lifecycle,
       uploadProgress: uploadProgress ?? this.uploadProgress,
       altText: altText ?? this.altText,
+      previewBytes: previewBytes,
       errorMessage: clearErrorMessage
           ? null
           : (errorMessage ?? this.errorMessage),
@@ -88,6 +94,7 @@ class ImageDraftController extends ChangeNotifier {
         lifecycle: DraftImageLifecycle.preparing,
         uploadProgress: 0,
         altText: '',
+        previewBytes: input.previewBytes,
       ),
     );
     notifyListeners();

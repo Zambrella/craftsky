@@ -275,3 +275,95 @@
   - `cd app && flutter test test/feed/media test/feed/providers test/feed/data/post_api_client_test.dart test/feed/widgets/post_composer_sheet_test.dart test/feed/widgets/post_card_test.dart test/feed/widgets/post_image_gallery_test.dart`
 - Static analysis:
   - `cd app && flutter analyze` (info-level findings remain; no analyzer errors).
+
+## Remediation Pass 2 (Post Updated `06-implementation-review.md`)
+
+### Remediation Test Order
+| Step | Test ID | Requirement IDs | Acceptance Criteria | Source Finding | Expected Initial State |
+|---|---|---|---|---|---|
+| R6 | IT-005 | FR-005, FR-003A, NFR-004 | AC-008, AC-014 | IR-001, IR-005 | Fails |
+| R7 | IT-005 | FR-001, FR-002, FR-012, RULE-002 | AC-007 | IR-004, IR-005 | Fails |
+| R8 | IT-004 | FR-004, FR-004A, FR-004B, FR-004C | AC-009, AC-009A | IR-003, IR-005 | Fails |
+| R9 | MAN-006 | FR-001, RISK-004 | AC-001 | IR-002, IR-005 | Pending manual/platform config |
+
+### Remediation Notes
+- Scope: Address blocking implementation-review findings IR-001 through IR-005 from the updated review artifact.
+- Keep fixes mapped only to approved requirement/test IDs.
+- Preserve previous green behavior while adding missing preview/progress, over-cap feedback, WebP metadata safety, and platform picker configuration.
+
+### R6: IT-005 (Preview + Progress)
+- Write failing test: Added `default service flow shows local preview and upload progress` in `app/test/feed/widgets/post_composer_sheet_test.dart`.
+- Run command: `cd app && flutter test test/feed/widgets/post_composer_sheet_test.dart --plain-name "default service flow shows local preview and upload progress"`
+- Confirmed failure: No preview widget found (`composer-preview-img-1`), proving missing FR-005 local preview behavior.
+- Implement:
+  - Added optional `previewBytes` to `DraftImageInput`/`DraftImageState` in `app/lib/feed/providers/image_draft_controller.dart`.
+  - Stored selected bytes as preview bytes when adding draft images in `app/lib/feed/providers/composer_image_service.dart`.
+  - Rendered local preview and upload progress indicators in `app/lib/feed/widgets/post_composer_sheet.dart` with keys:
+    - `composer-preview-<id>`
+    - `composer-upload-progress-<id>`
+- Run command: `cd app && flutter test test/feed/widgets/post_composer_sheet_test.dart --plain-name "default service flow shows local preview and upload progress"`
+- Refactor: None.
+- Notes: Covers FR-005 + FR-003A + NFR-004 observable composer state requirements from AC-008/AC-014.
+
+### R7: IT-005 (Over-Cap Feedback)
+- Write failing test: Added `composer shows feedback when image cap is reached` in `app/test/feed/widgets/post_composer_sheet_test.dart`.
+- Run command: `cd app && flutter test test/feed/widgets/post_composer_sheet_test.dart --plain-name "composer shows feedback when image cap is reached"`
+- Confirmed failure: service was invoked twice (`addCalls == 2`) with no cap feedback, showing missing user-visible rejection path.
+- Implement:
+  - Added top-level composer guard in `app/lib/feed/widgets/post_composer_sheet.dart` to show `context.showError("You can add up to 4 images")` and skip service invocation when draft count already meets `mediaConfig.maxImages`.
+  - Added focused picker behavior test `app/test/feed/providers/composer_image_service_test.dart` proving `DeviceComposerImagePicker` returns full platform selection for downstream cap validation.
+  - Updated `DeviceComposerImagePicker` to stop truncating with `take(maxImages)` before validation.
+- Run commands:
+  - `cd app && flutter test test/feed/widgets/post_composer_sheet_test.dart --plain-name "composer shows feedback when image cap is reached"`
+  - `cd app && flutter test test/feed/providers/composer_image_service_test.dart`
+  - `cd app && flutter test test/feed/widgets/post_composer_sheet_test.dart test/feed/providers/composer_image_service_test.dart`
+- Refactor: Adjusted widget tests to use valid encoded image bytes now that preview rendering decodes local bytes.
+- Notes: Covers AC-007/EC-001 visible rejection behavior for max-image cap in the production flow.
+
+### R8: IT-004 (WebP Metadata Safety)
+- Write failing test: Added `pipeline re-encodes webp selections before uploader receives bytes` in `app/test/feed/media/image_upload_pipeline_test.dart`.
+- Run command: `cd app && flutter test test/feed/media/image_upload_pipeline_test.dart --plain-name "pipeline re-encodes webp selections before uploader receives bytes"`
+- Confirmed failure: prepared bytes were unchanged for WebP branch, proving metadata-sensitive WebP path bypassed preparation.
+- Implementation decision: `package:image` in this app environment does not expose a WebP encoder through the current import surface, so direct WebP re-encode is not available.
+- Implement:
+  - Switched the test expectation to safe rejection behavior: `pipeline rejects webp when removable metadata cannot be safely stripped`.
+  - Updated `prepareImageForUpload` in `app/lib/feed/media/image_metadata_stripper.dart` to throw `FormatException` when WebP input contains removable metadata keys.
+  - Kept WebP passthrough only when no removable metadata is provided by the selection pipeline.
+- Run commands:
+  - `cd app && flutter test test/feed/media/image_upload_pipeline_test.dart --plain-name "pipeline rejects webp when removable metadata cannot be safely stripped"`
+  - `cd app && flutter test test/feed/media/image_upload_pipeline_test.dart test/feed/media/image_metadata_stripper_test.dart`
+- Refactor: None.
+- Notes: Satisfies IR-003 via the approved “safe reject” branch when metadata cannot be safely removed while preserving supported-format behavior.
+
+### R9: MAN-006 (Platform Picker Configuration)
+- Write failing check: Confirmed missing iOS privacy string and macOS file-selection entitlement from platform config files.
+- Verify commands/search:
+  - `grep NSPhotoLibraryUsageDescription app/ios/Runner/Info.plist` (missing before fix)
+  - `grep com.apple.security.files.user-selected.read-only app/macos/Runner/*.entitlements` (missing before fix)
+- Implement:
+  - Added `NSPhotoLibraryUsageDescription` to `app/ios/Runner/Info.plist` with non-private-implying upload copy.
+  - Added `com.apple.security.files.user-selected.read-only` entitlement to:
+    - `app/macos/Runner/DebugProfile.entitlements`
+    - `app/macos/Runner/Release.entitlements`
+  - Kept `app/ios/Podfile.lock` plugin artifact change in scope for this remediation stage commit.
+- Verify command:
+  - `grep "NSPhotoLibraryUsageDescription\|com.apple.security.files.user-selected.read-only" -R app` (present after fix)
+- Refactor: None.
+- Notes: Covers IR-002 platform-config portion and supports MAN-006 follow-up execution on devices.
+
+### Remediation Pass 2 Verification
+- Focused commands:
+  - `cd app && flutter test test/feed/widgets/post_composer_sheet_test.dart --plain-name "default service flow shows local preview and upload progress"`
+  - `cd app && flutter test test/feed/widgets/post_composer_sheet_test.dart --plain-name "composer shows feedback when image cap is reached"`
+  - `cd app && flutter test test/feed/providers/composer_image_service_test.dart`
+  - `cd app && flutter test test/feed/media/image_upload_pipeline_test.dart --plain-name "pipeline rejects webp when removable metadata cannot be safely stripped"`
+- Nearby/regression commands:
+  - `cd app && flutter test test/feed/widgets/post_composer_sheet_test.dart test/feed/providers/composer_image_service_test.dart`
+  - `cd app && flutter test test/feed/media/image_upload_pipeline_test.dart test/feed/media/image_metadata_stripper_test.dart`
+  - `cd app && flutter test test/feed/providers/image_draft_controller_test.dart test/feed/widgets/post_composer_sheet_test.dart`
+- Broader command:
+  - `cd app && flutter test test/feed/media test/feed/providers test/feed/data/post_api_client_test.dart test/feed/widgets/post_composer_sheet_test.dart test/feed/widgets/post_card_test.dart test/feed/widgets/post_image_gallery_test.dart`
+- Static analysis:
+  - `cd app && flutter analyze` (info-level findings remain; no analyzer errors)
+- Remaining manual follow-ups before final approval:
+  - `MAN-001` through `MAN-006` remain required for implementation review sign-off.

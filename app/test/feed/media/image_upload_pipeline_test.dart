@@ -53,6 +53,44 @@ void main() {
       expect(controller.images.single.lifecycle, DraftImageLifecycle.uploaded);
     },
   );
+
+  test(
+    'pipeline rejects webp when removable metadata cannot be safely stripped',
+    () async {
+      final source = img.Image(width: 2, height: 1);
+      final originalBytes = Uint8List.fromList(img.encodePng(source));
+
+      final picker = _FakePicker(
+        images: [
+          SelectedComposerImage(
+            id: 'img-1',
+            fileName: 'shawl.webp',
+            mimeType: 'image/webp',
+            bytes: originalBytes,
+            metadata: const {
+              'gpsLatitude': '47.60',
+              'gpsLongitude': '-122.33',
+              'cameraMake': 'camera',
+            },
+          ),
+        ],
+      );
+      final uploader = _RecordingUploader();
+      final service = DefaultComposerImageService(
+        picker: picker,
+        preparer: const DefaultComposerImagePreparer(),
+        uploader: uploader,
+      );
+      final controller = ImageDraftController();
+
+      await service.addImages(controller);
+
+      expect(uploader.uploaded, isEmpty);
+      expect(controller.images, hasLength(1));
+      expect(controller.images.single.lifecycle, DraftImageLifecycle.failed);
+      expect(controller.images.single.errorMessage, 'Could not prepare image');
+    },
+  );
 }
 
 class _FakePicker implements ComposerImagePicker {

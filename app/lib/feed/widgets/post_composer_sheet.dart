@@ -1,4 +1,5 @@
 import 'package:craftsky_app/feed/models/create_post_image.dart';
+import 'package:craftsky_app/feed/media/media_config.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_service.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
@@ -172,6 +173,13 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                     onPressed: createState.isLoading
                         ? null
                         : () async {
+                            if (_imageDraftController.images.length >=
+                                mediaConfig.maxImages) {
+                              context.showError(
+                                'You can add up to ${mediaConfig.maxImages} images',
+                              );
+                              return;
+                            }
                             final service = ref.read(
                               composerImageServiceProvider,
                             );
@@ -295,6 +303,29 @@ class _DraftImageTile extends StatelessWidget {
                 ],
               ),
               Text(_statusLabel(image)),
+              if (image.previewBytes case final bytes?) ...[
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.memory(
+                    bytes,
+                    key: Key('composer-preview-${image.id}'),
+                    fit: BoxFit.cover,
+                    width: 96,
+                    height: 96,
+                  ),
+                ),
+              ],
+              if (image.lifecycle == DraftImageLifecycle.preparing ||
+                  image.lifecycle == DraftImageLifecycle.uploading) ...[
+                const SizedBox(height: 8),
+                LinearProgressIndicator(
+                  key: Key('composer-upload-progress-${image.id}'),
+                  value: image.lifecycle == DraftImageLifecycle.preparing
+                      ? null
+                      : image.uploadProgress,
+                ),
+              ],
               if (image.errorMessage != null) Text(image.errorMessage!),
               TextField(
                 key: altTextKey,

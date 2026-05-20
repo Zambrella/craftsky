@@ -99,6 +99,13 @@ PreparedUploadImage prepareImageForUpload({
     ),
   );
 
+  final removedMetadata = stripped.metadata.length != metadata.length;
+  if (format == SupportedImageFormat.webp && removedMetadata) {
+    throw const FormatException(
+      'WebP metadata stripping is not supported by this client pipeline',
+    );
+  }
+
   final preparedBytes = switch (format) {
     SupportedImageFormat.jpeg => Uint8List.fromList(img.encodeJpg(decoded)),
     SupportedImageFormat.png => Uint8List.fromList(img.encodePng(decoded)),

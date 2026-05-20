@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/models/create_post_image.dart';
@@ -15,6 +16,7 @@ import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 
 import '../../fakes/recording_messenger.dart';
 import '../fakes/fake_post_repository.dart';
@@ -395,6 +397,12 @@ void main() {
         final messenger = RecordingMessenger();
         var capturedText = '';
         List<CreatePostImage>? capturedImages;
+        final jpgBytes = Uint8List.fromList(
+          img.encodeJpg(img.Image(width: 1, height: 1)),
+        );
+        final pngBytes = Uint8List.fromList(
+          img.encodePng(img.Image(width: 1, height: 1)),
+        );
         final repo = FakePostRepository(
           onCreate: ({required text, reply, images}) async {
             capturedText = text;
@@ -409,14 +417,14 @@ void main() {
               id: 'img-1',
               fileName: 'one.jpg',
               mimeType: 'image/jpeg',
-              bytes: Uint8List.fromList([1, 2, 3]),
+              bytes: jpgBytes,
               metadata: const {},
             ),
             SelectedComposerImage(
               id: 'img-2',
               fileName: 'two.png',
               mimeType: 'image/png',
-              bytes: Uint8List.fromList([4, 5]),
+              bytes: pngBytes,
               metadata: const {},
             ),
           ],
@@ -467,6 +475,57 @@ void main() {
       },
     );
 
+    testWidgets(
+      'default service flow shows local preview and upload progress',
+      (
+        tester,
+      ) async {
+        final messenger = RecordingMessenger();
+        final uploader = _ControllableComposerImageUploader();
+        final previewBytes = Uint8List.fromList(
+          img.encodeJpg(img.Image(width: 1, height: 1)),
+        );
+
+        await _pump(
+          tester,
+          repo: FakePostRepository(),
+          messenger: messenger,
+          picker: _FakeComposerImagePicker(
+            images: [
+              SelectedComposerImage(
+                id: 'img-1',
+                fileName: 'one.jpg',
+                mimeType: 'image/jpeg',
+                bytes: previewBytes,
+                metadata: const {},
+              ),
+            ],
+          ),
+          preparer: const _FakeComposerImagePreparer(),
+          uploader: uploader,
+        );
+
+        await tester.tap(find.byKey(const Key('composer-add-image')));
+        await tester.pump();
+
+        final preview = find.byKey(const Key('composer-preview-img-1'));
+        final progress = find.byKey(
+          const Key('composer-upload-progress-img-1'),
+        );
+
+        expect(preview, findsOneWidget);
+        expect(progress, findsOneWidget);
+
+        final progressWidget = tester.widget<LinearProgressIndicator>(progress);
+        expect(progressWidget.value, greaterThan(0));
+
+        uploader.completeSuccess();
+        await tester.pumpAndSettle();
+
+        expect(find.text('Uploaded'), findsOneWidget);
+      },
+    );
+
     testWidgets('image composer copy does not imply private media', (
       tester,
     ) async {
@@ -478,6 +537,63 @@ void main() {
       expect(
         find.textContaining('only you can see', findRichText: true),
         findsNothing,
+      );
+    });
+
+    testWidgets('composer shows feedback when image cap is reached', (
+      tester,
+    ) async {
+      final messenger = RecordingMessenger();
+      var addCalls = 0;
+
+      final imageService = FakeComposerImageService(
+        onAddImages: (controller) {
+          addCalls += 1;
+          if (addCalls != 1) return;
+
+          for (var i = 1; i <= 4; i++) {
+            final id = 'img-$i';
+            controller.addDraftImage(
+              DraftImageInput(
+                id: id,
+                fileName: 'image-$i.jpg',
+                mimeType: 'image/jpeg',
+              ),
+            );
+            controller.markPrepared(id);
+            controller.markUploaded(
+              id,
+              UploadedDraftImage(
+                cid: 'bafkimage$i',
+                mime: 'image/jpeg',
+                size: 2048,
+              ),
+            );
+          }
+        },
+      );
+
+      await _pump(
+        tester,
+        repo: FakePostRepository(),
+        messenger: messenger,
+        imageService: imageService,
+      );
+
+      await tester.tap(find.byKey(const Key('composer-add-image')));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('composer-add-image')));
+      await tester.pump();
+
+      expect(addCalls, 1);
+      expect(
+        messenger.calls.any(
+          (call) =>
+              call.$1 == 'error' &&
+              call.$2.contains('You can add up to 4 images'),
+        ),
+        isTrue,
       );
     });
   });
@@ -538,6 +654,36 @@ class _FakeComposerImageUploader implements ComposerImageUploader {
       image.preparedBytes.length,
       image.preparedBytes.length,
     );
+    return UploadedImageBlob(
+      blob: UploadedBlob(
+        type: 'blob',
+        ref: UploadedBlobRef(link: 'cid-${image.id}'),
+        mimeType: image.mimeType,
+        size: image.preparedBytes.length,
+      ),
+      cid: 'cid-${image.id}',
+      mime: image.mimeType,
+      size: image.preparedBytes.length,
+    );
+  }
+}
+
+class _ControllableComposerImageUploader implements ComposerImageUploader {
+  final Completer<void> _completer = Completer<void>();
+
+  void completeSuccess() {
+    if (!_completer.isCompleted) {
+      _completer.complete();
+    }
+  }
+
+  @override
+  Future<UploadedImageBlob> upload(
+    PreparedComposerImage image, {
+    ProgressCallback? onSendProgress,
+  }) async {
+    onSendProgress?.call(1, 2);
+    await _completer.future;
     return UploadedImageBlob(
       blob: UploadedBlob(
         type: 'blob',

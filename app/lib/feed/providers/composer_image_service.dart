@@ -118,6 +118,7 @@ class DefaultComposerImageService implements ComposerImageService {
           id: pair.image.id,
           fileName: pair.image.fileName,
           mimeType: pair.image.mimeType,
+          previewBytes: pair.image.bytes,
         ),
       );
       controller.markPreparationFailed(
@@ -139,6 +140,7 @@ class DefaultComposerImageService implements ComposerImageService {
           id: image.id,
           fileName: image.fileName,
           mimeType: image.mimeType,
+          previewBytes: image.bytes,
         ),
       );
 
@@ -204,9 +206,8 @@ class DeviceComposerImagePicker implements ComposerImagePicker {
     if (maxImages <= 0) return const [];
 
     final files = await _picker.pickMultiImage();
-    final limited = files.take(maxImages);
     final selected = <SelectedComposerImage>[];
-    for (final file in limited) {
+    for (final file in files) {
       final bytes = await file.readAsBytes();
       selected.add(
         SelectedComposerImage(
