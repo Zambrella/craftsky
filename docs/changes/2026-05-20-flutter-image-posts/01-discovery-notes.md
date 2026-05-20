@@ -37,7 +37,9 @@ Wire the newly implemented AppView image upload backend into the Flutter app so 
 ### Q1: For the first Flutter image-posting implementation, how should the app handle selected image bytes before upload?
 Answer: Validate only.
 
-Decision / implication: The app should upload original selected bytes unchanged. It should validate count, apparent MIME/type, and size client-side where possible, but should not resize, compress, transcode, strip EXIF, or otherwise alter image content in this slice.
+Initial decision / implication: The app would upload original selected bytes unchanged. It would validate count, apparent MIME/type, and size client-side where possible, but would not resize, compress, transcode, strip EXIF, or otherwise alter image content in this slice.
+
+Later requirements review update: This decision was superseded for privacy. The app should strip EXIF/GPS/camera and other non-essential embedded metadata before upload while preserving visible image content and supported format compatibility. This is metadata stripping only, not compression, resizing, or transcoding for optimization.
 
 ### Q2: Backend image posts require non-empty alt text per image. What should the first app UX do for alt text?
 Answer: Require alt text before posting.
@@ -61,7 +63,7 @@ Decision / implication: Discovery should hand off a full first-pass top-level im
 
 ## Candidate Approaches
 ### Option A: Full first-pass app integration, originals only
-Summary: Implement top-level image post composition and image post display end-to-end in the Flutter app using the existing backend contract. Pick up to 4 images, validate locally, immediately upload originals through AppView, show preview/progress/delete/alt UI, create posts with uploaded blob metadata and aspect ratio, parse returned image metadata, render feed images as ADR 004 carousel, and provide full-screen gallery with swipe, hero transition, and pinch zoom. Also support pinch zoom inline in feed.
+Summary: Implement top-level image post composition and image post display end-to-end in the Flutter app using the existing backend contract. Pick up to the configured image-count limit, validate locally, strip non-essential metadata, upload prepared bytes through AppView, show preview/progress/delete/reorder/alt UI, create text posts with uploaded blob metadata and aspect ratio, parse returned image metadata, render feed images as ADR 004 carousel, and provide full-screen gallery with swipe, hero transition, and pinch zoom. Also support pinch zoom inline in feed.
 
 Pros:
 - Meets the user's primary goal in one coherent feature slice.
@@ -116,17 +118,20 @@ Risks:
 ## Recommendation
 Recommended approach: Option A — full first-pass app integration, originals only.
 
-Why: It directly satisfies the requested user outcome while staying aligned with the backend's completed upload/create/read contract and accepted feed display ADR. The scope remains coherent by limiting posting to top-level posts, preserving original image bytes, requiring alt text, avoiding video and compression, and treating advanced gesture behavior as an explicit high-risk requirement rather than an accidental implementation detail.
+Why: It directly satisfies the requested user outcome while staying aligned with the backend's completed upload/create/read contract and accepted feed display ADR. The scope remains coherent by limiting posting to top-level posts, requiring alt text, stripping only non-essential metadata for privacy, avoiding video/compression/resizing/transcoding, and treating advanced gesture behavior as an explicit high-risk requirement rather than an accidental implementation detail.
 
 ## Scope Boundaries
 In scope:
 - Top-level post image attachments only; replies remain text-only.
-- Select up to 4 images.
-- Client-side validation for supported image type and 15 MB size limit where selected-file metadata is available.
-- Immediate upload of selected original bytes through AppView.
+- Top-level posts still require text; images are optional attachments for this slice.
+- Select up to a locally configured maximum number of images, defaulting to the backend-supported limit.
+- Client-side validation for supported image type, configured image size limit, and configured alt-text length.
+- Local image preparation before upload: strip EXIF/GPS/camera and other non-essential embedded metadata while preserving visible image content and supported format compatibility.
+- Upload prepared image bytes through AppView after validation and metadata stripping.
 - Per-image local preview, upload progress/status overlay, retry/error handling requirements, delete-before-post behavior, and orphaned uploaded blob acceptance.
-- Required alt text for each selected image before submit.
+- Required alt text for each selected image before submit, capped by local media config at 300 characters.
 - Aspect ratio capture from selected image dimensions where feasible and passing it in create-post requests.
+- Manual reordering of selected images before submit; final create payload order follows the current composer order, not upload completion order.
 - `Post` model/image response parsing and create-post request support.
 - Feed-card image carousel per ADR 004, using `FeedImageCacheManager`.
 - Full-screen gallery with image swipe, tap entry from feed image area, hero transition where feasible, and pinch zoom.
@@ -136,13 +141,13 @@ In scope:
 
 Out of scope:
 - Video selection, upload, display, or playback.
-- Image compression, resizing, transcoding, EXIF stripping, or other byte transformation.
+- Image-only posts; this slice keeps backend-compatible text-required post creation.
+- Image compression, resizing, transcoding, or optimization beyond metadata stripping.
 - AppView/backend API changes beyond consuming the existing image upload/create/read contract.
 - Craftsky-owned image proxy/CDN changes.
 - Avatar/banner upload.
 - Adding images to replies in this first pass.
 - Cleanup of orphaned blobs after user deletion or abandoned composer sessions.
-- Reordering images after selection unless requirements later explicitly add it.
 
 ## Risks And Review Recommendation
 Risk level: High.
@@ -155,16 +160,18 @@ Reason: This is a broad user-visible Flutter change involving local media select
 - [ ] Exact feed carousel min/max height bounds and fallback aspect ratio should be set in requirements or implementation design, consistent with ADR 004.
 - [ ] The image selection package and platform permission copy need to be chosen during requirements/design.
 - [ ] Requirements should define upload failure behavior: retry affordance, whether failed images can be deleted, and how errors are surfaced.
-- [ ] Requirements should define whether users may add more images after some uploads have already completed, up to the 4-image cap.
-- [ ] Requirements should define whether image order is fixed by selection order and whether deletion preserves remaining order.
+- [ ] Requirements should define whether users may add more images after some uploads have already completed, up to the configured image cap.
+- [x] Requirements should define whether image order is fixed by selection order and whether deletion preserves remaining order. Decision: image order follows the current composer order, including manual reordering, independent of upload completion order.
 - [ ] Requirements should define whether full-size or thumbnail URLs are used in each surface: composer preview, feed carousel, and full-screen gallery.
 
 ## Decision Summary
-- Use the backend's upload-then-create flow: upload images immediately after selection, then include returned blob metadata in `POST /v1/posts`.
+- Use the backend's upload-then-create flow: prepare/upload images after selection, then include returned blob metadata in `POST /v1/posts`.
 - Limit posting support to top-level posts; replies remain text-only.
-- Validate selected images client-side where possible, but upload original bytes unchanged.
-- Enforce backend-compatible limits in the app: up to 4 images, JPEG/PNG/WebP, 15 MB per image, required alt text.
-- Disable submit while any selected image is uploading, failed without resolution, missing alt text, or while create-post is loading.
+- Keep top-level post text required; images are optional attachments and image-only posts are out of scope.
+- Validate selected images client-side where possible, strip EXIF/GPS/camera and other non-essential metadata before upload, and upload prepared bytes.
+- Enforce app-level media config: backend-aligned image count and size defaults, JPEG/PNG/WebP, and 300-character max alt text.
+- Disable submit while any selected image is preparing, uploading, failed without resolution, missing/too-long alt text, or while create-post is loading.
+- Preserve current composer order in the create payload, including manual reordering and independent of upload completion order.
 - Render feed images with ADR 004's inline bounded-aspect carousel and count/dot indicators.
 - Support image-area tap to full-screen gallery and preserve non-image card tap behavior.
 - Support pinch zoom both inline in feed media and in full-screen gallery.
@@ -190,7 +197,7 @@ Reason: This is a broad user-visible Flutter change involving local media select
   - Text-only and reply regression behavior.
 - Acceptance criteria areas likely needed:
   - Successful top-level image post from selection through upload, create, and rendered feed card.
-  - Rejection or disabled selection for unsupported type, oversize image, and more than 4 images.
+  - Rejection or disabled selection for unsupported type, oversize image, and more images than the configured cap.
   - Submit disabled during upload, on upload failure, and when alt text is missing.
   - Deleting selected images removes them from the create payload without requiring blob cleanup.
   - Feed carousel renders one, two, and four images with count/dots and stable aspect-ratio bounds.
