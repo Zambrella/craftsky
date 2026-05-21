@@ -760,6 +760,7 @@ class _FakeComposerImageUploader implements ComposerImageUploader {
   Future<UploadedImageBlob> upload(
     PreparedComposerImage image, {
     ProgressCallback? onSendProgress,
+    ProgressCallback? onReceiveProgress,
   }) async {
     onSendProgress?.call(
       image.preparedBytes.length,
@@ -792,6 +793,7 @@ class _ControllableComposerImageUploader implements ComposerImageUploader {
   Future<UploadedImageBlob> upload(
     PreparedComposerImage image, {
     ProgressCallback? onSendProgress,
+    ProgressCallback? onReceiveProgress,
   }) async {
     onSendProgress?.call(1, 2);
     await _completer.future;

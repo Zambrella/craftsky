@@ -238,7 +238,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
         .map(
           (image) => CreatePostImage(
             blob: CreatePostBlob(
-              link: image.uploaded!.cid,
+              ref: CreatePostBlobRef(link: image.uploaded!.cid),
               mimeType: image.uploaded!.mime,
               size: image.uploaded!.size,
             ),

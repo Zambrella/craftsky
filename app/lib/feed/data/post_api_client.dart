@@ -21,11 +21,13 @@ class PostApiClient {
     required List<int> bytes,
     required String mimeType,
     ProgressCallback? onSendProgress,
+    ProgressCallback? onReceiveProgress,
   }) => unwrapApi(() async {
     final res = await _dio.post<Map<String, dynamic>>(
       '/v1/blobs/images',
       data: bytes,
       onSendProgress: onSendProgress,
+      onReceiveProgress: onReceiveProgress,
       options: Options(contentType: mimeType),
     );
     return UploadedImageBlob.fromMap(res.data!);

@@ -73,6 +73,7 @@ abstract interface class ComposerImageUploader {
   Future<UploadedImageBlob> upload(
     PreparedComposerImage image, {
     ProgressCallback? onSendProgress,
+    ProgressCallback? onReceiveProgress,
   });
 }
 
@@ -119,13 +120,39 @@ class DefaultComposerImageService implements ComposerImageService {
 
     var rejectedForLimit = false;
 
-    for (final rejected in selection.rejected) {
-      if (rejected.reason == ImageSelectionRejection.imageLimitExceeded) {
-        rejectedForLimit = true;
+    _handleRejectedSelections(
+      controller: controller,
+      incoming: incoming,
+      rejected: selection.rejected,
+      onLimitExceeded: () => rejectedForLimit = true,
+    );
+
+    for (final accepted in selection.accepted) {
+      final pair = incoming.firstWhere((p) => p.selection == accepted);
+      await _prepareAndUploadAccepted(
+        controller: controller,
+        image: pair.image,
+      );
+    }
+
+    if (rejectedForLimit) {
+      throw ImageSelectionLimitExceededException(config.maxImages);
+    }
+  }
+
+  void _handleRejectedSelections({
+    required ImageDraftController controller,
+    required List<_SelectionPair> incoming,
+    required List<RejectedImageSelection> rejected,
+    required void Function() onLimitExceeded,
+  }) {
+    for (final item in rejected) {
+      if (item.reason == ImageSelectionRejection.imageLimitExceeded) {
+        onLimitExceeded();
         continue;
       }
 
-      final pair = incoming.firstWhere((p) => p.selection == rejected.image);
+      final pair = incoming.firstWhere((p) => p.selection == item.image);
       controller.addDraftImage(
         DraftImageInput(
           id: pair.image.id,
@@ -136,67 +163,95 @@ class DefaultComposerImageService implements ComposerImageService {
       );
       controller.markPreparationFailed(pair.image.id, 'Unsupported image type');
     }
+  }
 
-    for (final accepted in selection.accepted) {
-      final pair = incoming.firstWhere((p) => p.selection == accepted);
-      final image = pair.image;
+  Future<void> _prepareAndUploadAccepted({
+    required ImageDraftController controller,
+    required SelectedComposerImage image,
+  }) async {
+    controller.addDraftImage(
+      DraftImageInput(
+        id: image.id,
+        fileName: image.fileName,
+        mimeType: image.mimeType,
+        previewBytes: image.bytes,
+      ),
+    );
 
-      controller.addDraftImage(
-        DraftImageInput(
-          id: image.id,
-          fileName: image.fileName,
-          mimeType: image.mimeType,
-          previewBytes: image.bytes,
-        ),
-      );
+    final prepared = await _prepare(controller: controller, image: image);
+    if (prepared == null) return;
 
-      PreparedComposerImage prepared;
-      try {
-        prepared = await _preparer.prepare(image);
-      } catch (_) {
-        controller.markPreparationFailed(image.id, 'Could not prepare image');
-        continue;
-      }
-
-      final sizeCheck = validatePreparedUpload(
-        originalBytes: prepared.originalBytes,
-        preparedBytes: prepared.preparedBytes.length,
-        config: config,
-      );
-      if (!sizeCheck.canUpload) {
-        controller.markPreparationFailed(
-          image.id,
-          'Image exceeds ${config.maxImageBytes ~/ (1024 * 1024)} MB limit',
-        );
-        continue;
-      }
-
-      controller.markPrepared(image.id);
-
-      try {
-        final uploaded = await _uploader.upload(
-          prepared,
-          onSendProgress: (sent, total) {
-            if (total <= 0) return;
-            controller.markUploadProgress(image.id, sent / total);
-          },
-        );
-        controller.markUploaded(
-          image.id,
-          UploadedDraftImage(
-            cid: uploaded.cid,
-            mime: uploaded.mime,
-            size: uploaded.size,
-            aspectRatio: prepared.aspectRatio,
-          ),
-        );
-      } catch (_) {
-        controller.markUploadFailed(image.id, 'Upload failed');
-      }
+    if (!_validatePreparedSize(
+      controller: controller,
+      image: image,
+      prepared: prepared,
+    )) {
+      return;
     }
 
-    if (rejectedForLimit) {
-      throw ImageSelectionLimitExceededException(config.maxImages);
+    controller.markPrepared(image.id);
+    await _uploadPrepared(
+      controller: controller,
+      image: image,
+      prepared: prepared,
+    );
+  }
+
+  Future<PreparedComposerImage?> _prepare({
+    required ImageDraftController controller,
+    required SelectedComposerImage image,
+  }) async {
+    try {
+      return await _preparer.prepare(image);
+    } on Exception {
+      controller.markPreparationFailed(image.id, 'Could not prepare image');
+      return null;
+    }
+  }
+
+  bool _validatePreparedSize({
+    required ImageDraftController controller,
+    required SelectedComposerImage image,
+    required PreparedComposerImage prepared,
+  }) {
+    final sizeCheck = validatePreparedUpload(
+      originalBytes: prepared.originalBytes,
+      preparedBytes: prepared.preparedBytes.length,
+      config: config,
+    );
+    if (sizeCheck.canUpload) return true;
+
+    controller.markPreparationFailed(
+      image.id,
+      'Image exceeds ${config.maxImageBytes ~/ (1024 * 1024)} MB limit',
+    );
+    return false;
+  }
+
+  Future<void> _uploadPrepared({
+    required ImageDraftController controller,
+    required SelectedComposerImage image,
+    required PreparedComposerImage prepared,
+  }) async {
+    try {
+      final uploaded = await _uploader.upload(
+        prepared,
+        onSendProgress: (sent, total) {
+          if (total <= 0) return;
+          controller.markUploadProgress(image.id, sent / total);
+        },
+      );
+      controller.markUploaded(
+        image.id,
+        UploadedDraftImage(
+          cid: uploaded.cid,
+          mime: uploaded.mime,
+          size: uploaded.size,
+          aspectRatio: prepared.aspectRatio,
+        ),
+      );
+    } on Exception {
+      controller.markUploadFailed(image.id, 'Upload failed');
     }
   }
 }
@@ -269,11 +324,13 @@ class AppViewComposerImageUploader implements ComposerImageUploader {
   Future<UploadedImageBlob> upload(
     PreparedComposerImage image, {
     ProgressCallback? onSendProgress,
+    ProgressCallback? onReceiveProgress,
   }) {
     return _api.uploadImage(
       bytes: image.preparedBytes,
       mimeType: image.mimeType,
       onSendProgress: onSendProgress,
+      onReceiveProgress: onReceiveProgress,
     );
   }
 }

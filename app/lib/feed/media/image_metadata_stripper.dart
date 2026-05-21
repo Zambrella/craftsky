@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
+import 'package:mime/mime.dart';
 
 enum SupportedImageFormat { jpeg, png, webp }
 
@@ -84,6 +85,7 @@ PreparedUploadImage prepareImageForUpload({
   final format = _resolveSupportedImageFormat(
     fileName: fileName,
     mimeType: mimeType,
+    headerBytes: originalBytes,
   );
 
   final decoded = img.decodeImage(originalBytes);
@@ -125,27 +127,18 @@ PreparedUploadImage prepareImageForUpload({
 SupportedImageFormat _resolveSupportedImageFormat({
   required String fileName,
   required String mimeType,
+  Uint8List? headerBytes,
 }) {
   final normalizedMime = mimeType.trim().toLowerCase();
-  switch (normalizedMime) {
-    case 'image/jpeg':
-      return SupportedImageFormat.jpeg;
-    case 'image/png':
-      return SupportedImageFormat.png;
-    case 'image/webp':
-      return SupportedImageFormat.webp;
-  }
 
-  final normalizedName = fileName.toLowerCase();
-  if (normalizedName.endsWith('.jpg') || normalizedName.endsWith('.jpeg')) {
-    return SupportedImageFormat.jpeg;
-  }
-  if (normalizedName.endsWith('.png')) {
-    return SupportedImageFormat.png;
-  }
-  if (normalizedName.endsWith('.webp')) {
-    return SupportedImageFormat.webp;
-  }
+  final detectedMime = lookupMimeType(fileName, headerBytes: headerBytes);
+  final resolvedMime = normalizedMime.isNotEmpty
+      ? normalizedMime
+      : detectedMime;
+
+  if (resolvedMime == 'image/jpeg') return SupportedImageFormat.jpeg;
+  if (resolvedMime == 'image/png') return SupportedImageFormat.png;
+  if (resolvedMime == 'image/webp') return SupportedImageFormat.webp;
 
   throw const FormatException('Unsupported image format');
 }

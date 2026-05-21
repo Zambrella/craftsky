@@ -139,7 +139,7 @@ void main() {
     });
 
     test(
-      'serializes top-level images[] with blob, alt, and aspectRatio',
+      'serializes top-level images[] with image, alt, and aspectRatio',
       () async {
         final dio = buildDio();
         DioAdapter(dio: dio).onPost(
@@ -149,7 +149,7 @@ void main() {
             'text': 'with images',
             'images': [
               {
-                'blob': {
+                'image': {
                   r'$type': 'blob',
                   'ref': {r'$link': 'bafkimage1'},
                   'mimeType': 'image/jpeg',
@@ -159,7 +159,7 @@ void main() {
                 'aspectRatio': {'width': 4, 'height': 5},
               },
               {
-                'blob': {
+                'image': {
                   r'$type': 'blob',
                   'ref': {r'$link': 'bafkimage2'},
                   'mimeType': 'image/png',
@@ -176,7 +176,7 @@ void main() {
           images: [
             CreatePostImage(
               blob: CreatePostBlob(
-                link: 'bafkimage1',
+                ref: const CreatePostBlobRef(link: 'bafkimage1'),
                 mimeType: 'image/jpeg',
                 size: 253496,
               ),
@@ -188,7 +188,7 @@ void main() {
             ),
             CreatePostImage(
               blob: CreatePostBlob(
-                link: 'bafkimage2',
+                ref: const CreatePostBlobRef(link: 'bafkimage2'),
                 mimeType: 'image/png',
                 size: 183122,
               ),
@@ -230,7 +230,7 @@ void main() {
           'text': 'ordered images',
           'images': [
             {
-              'blob': {
+              'image': {
                 r'$type': 'blob',
                 'ref': {r'$link': 'bafkimageB'},
                 'mimeType': 'image/png',
@@ -239,7 +239,7 @@ void main() {
               'alt': 'second selected, first in composer now',
             },
             {
-              'blob': {
+              'image': {
                 r'$type': 'blob',
                 'ref': {r'$link': 'bafkimageA'},
                 'mimeType': 'image/jpeg',
@@ -257,7 +257,7 @@ void main() {
         images: [
           CreatePostImage(
             blob: CreatePostBlob(
-              link: 'bafkimageB',
+              ref: const CreatePostBlobRef(link: 'bafkimageB'),
               mimeType: 'image/png',
               size: 444,
             ),
@@ -265,7 +265,7 @@ void main() {
           ),
           CreatePostImage(
             blob: CreatePostBlob(
-              link: 'bafkimageA',
+              ref: const CreatePostBlobRef(link: 'bafkimageA'),
               mimeType: 'image/jpeg',
               size: 333,
             ),

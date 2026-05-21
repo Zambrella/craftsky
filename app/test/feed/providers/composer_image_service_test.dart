@@ -142,6 +142,7 @@ class _RecordingUploader implements ComposerImageUploader {
   Future<UploadedImageBlob> upload(
     PreparedComposerImage image, {
     ProgressCallback? onSendProgress,
+    ProgressCallback? onReceiveProgress,
   }) async {
     return const UploadedImageBlob(
       blob: UploadedBlob(
