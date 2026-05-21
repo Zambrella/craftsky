@@ -547,6 +547,7 @@ class _CommentCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
     final targetComment = targetUri == item.post.uri;
     final repliesLoader = postCommentRepliesLoaderProvider(
       did,
@@ -647,10 +648,13 @@ class _CommentCard extends ConsumerWidget {
           ),
       ],
     );
-    return _FocusedTargetWrapper(
-      focusTargetKey: focusedTargetKey,
-      isFocused: targetComment,
-      child: column,
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: spacing.sp4),
+      child: _FocusedTargetWrapper(
+        focusTargetKey: focusedTargetKey,
+        isFocused: targetComment,
+        child: column,
+      ),
     );
   }
 
@@ -762,30 +766,32 @@ class _CommentSortButton extends StatelessWidget {
     );
     final l10n = AppLocalizations.of(context);
 
-    showCraftskyContextMenu(
-      context,
-      position: position,
-      groups: [
-        CraftskyContextMenuGroup(
-          items: [
-            _sortItem(
-              sort: CommentSort.newest,
-              text: l10n.postCommentsSortNewest,
-              description: l10n.postCommentsSortNewestDescription,
-            ),
-            _sortItem(
-              sort: CommentSort.oldest,
-              text: l10n.postCommentsSortOldest,
-              description: l10n.postCommentsSortOldestDescription,
-            ),
-            _sortItem(
-              sort: CommentSort.follows,
-              text: l10n.postCommentsSortFollows,
-              description: l10n.postCommentsSortFollowsDescription,
-            ),
-          ],
-        ),
-      ],
+    unawaited(
+      showCraftskyContextMenu(
+        context,
+        position: position,
+        groups: [
+          CraftskyContextMenuGroup(
+            items: [
+              _sortItem(
+                sort: CommentSort.newest,
+                text: l10n.postCommentsSortNewest,
+                description: l10n.postCommentsSortNewestDescription,
+              ),
+              _sortItem(
+                sort: CommentSort.oldest,
+                text: l10n.postCommentsSortOldest,
+                description: l10n.postCommentsSortOldestDescription,
+              ),
+              _sortItem(
+                sort: CommentSort.follows,
+                text: l10n.postCommentsSortFollows,
+                description: l10n.postCommentsSortFollowsDescription,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

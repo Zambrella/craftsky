@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
@@ -56,7 +58,6 @@ class PostCard extends StatelessWidget {
     final spacing = theme.extension<SpacingTheme>()!;
     final radii = theme.extension<RadiusTheme>()!;
     final displayName = post.author.displayName ?? post.author.handle;
-    final bodyIndent = ProfileAvatarSize.small.dimension + spacing.sp3;
     final isFlat = style == PostCardStyle.flat;
     final borderRadius = isFlat
         ? BorderRadius.zero
@@ -115,20 +116,14 @@ class PostCard extends StatelessWidget {
                       ],
                     ),
                     SizedBox(height: spacing.sp3),
-                    Padding(
-                      padding: EdgeInsets.only(left: bodyIndent),
-                      child: Text(post.text, style: theme.textTheme.bodyLarge),
-                    ),
                     if (post.images case final images?
                         when images.isNotEmpty) ...[
-                      SizedBox(height: spacing.sp3),
-                      Padding(
-                        padding: EdgeInsets.only(left: bodyIndent),
-                        child: PostImageCarousel(
-                          images: images,
-                          heroTagBuilder: (index) =>
-                              'post-image-hero-${post.uri}-$index',
-                          onImageTap: (index) {
+                      PostImageCarousel(
+                        images: images,
+                        heroTagBuilder: (index) =>
+                            'post-image-hero-${post.uri}-$index',
+                        onImageTap: (index) {
+                          unawaited(
                             Navigator.of(context, rootNavigator: true).push(
                               MaterialPageRoute<void>(
                                 builder: (_) => Scaffold(
@@ -138,21 +133,23 @@ class PostCard extends StatelessWidget {
                                       images: images,
                                       initialIndex: index,
                                       heroTagBuilder: (galleryIndex) =>
-                                          'post-image-hero-${post.uri}-$galleryIndex',
+                                          'post-image-hero-${post.uri}'
+                                          '-$galleryIndex',
                                     ),
                                   ),
                                 ),
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                          );
+                        },
                       ),
+                      SizedBox(height: spacing.sp3),
                     ],
+                    Text(post.text, style: theme.textTheme.bodyLarge),
                     SizedBox(height: spacing.sp2),
                     if (!isFlat) const CraftskyDivider(),
                     Row(
                       children: [
-                        SizedBox(width: bodyIndent),
                         Row(
                           children: [
                             _PostCardAction(
