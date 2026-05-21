@@ -65,25 +65,59 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
         return Stack(
           key: const Key('post-image-carousel'),
           children: [
-            SizedBox(
-              height: height,
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: widget.images.length,
-                onPageChanged: (value) => setState(() => _page = value),
-                itemBuilder: (context, index) {
-                  final image = widget.images[index];
-                  final url = image.thumb ?? image.fullsize;
-                  final heroTag = widget.heroTagBuilder?.call(index);
-                  if (url == null) {
+            DecoratedBox(
+              position: DecorationPosition.foreground,
+              decoration: const BoxDecoration(
+                border: Border.fromBorderSide(BorderSide(color: Colors.black)),
+              ),
+              child: SizedBox(
+                height: height,
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: widget.images.length,
+                  onPageChanged: (value) => setState(() => _page = value),
+                  itemBuilder: (context, index) {
+                    final image = widget.images[index];
+                    final url = image.thumb ?? image.fullsize;
+                    final heroTag = widget.heroTagBuilder?.call(index);
+                    if (url == null) {
+                      final child = InteractiveViewer(
+                        minScale: 1,
+                        maxScale: 4,
+                        panEnabled: false,
+                        child: Semantics(
+                          label: image.alt,
+                          child: const DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Color(0xFFEAEAEA),
+                            ),
+                          ),
+                        ),
+                      );
+
+                      return GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => widget.onImageTap?.call(index),
+                        child: heroTag == null
+                            ? child
+                            : Hero(tag: heroTag, child: child),
+                      );
+                    }
+
                     final child = InteractiveViewer(
                       minScale: 1,
                       maxScale: 4,
                       panEnabled: false,
                       child: Semantics(
                         label: image.alt,
-                        child: const DecoratedBox(
-                          decoration: BoxDecoration(color: Color(0xFFEAEAEA)),
+                        child: CachedNetworkImage(
+                          imageUrl: url,
+                          cacheManager: ref.watch(
+                            feedImageCacheManagerProvider,
+                          ),
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: height,
                         ),
                       ),
                     );
@@ -95,32 +129,8 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                           ? child
                           : Hero(tag: heroTag, child: child),
                     );
-                  }
-
-                  final child = InteractiveViewer(
-                    minScale: 1,
-                    maxScale: 4,
-                    panEnabled: false,
-                    child: Semantics(
-                      label: image.alt,
-                      child: CachedNetworkImage(
-                        imageUrl: url,
-                        cacheManager: ref.watch(feedImageCacheManagerProvider),
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: height,
-                      ),
-                    ),
-                  );
-
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => widget.onImageTap?.call(index),
-                    child: heroTag == null
-                        ? child
-                        : Hero(tag: heroTag, child: child),
-                  );
-                },
+                  },
+                ),
               ),
             ),
             if (widget.images.length > 1)
