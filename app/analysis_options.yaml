@@ -3,8 +3,6 @@
 include: package:very_good_analysis/analysis_options.yaml
 
 analyzer:
-  plugins:
-    - custom_lint
   exclude:
     - lib/l10n/generated/**
 
@@ -17,4 +15,3 @@ linter:
     # every public class/field/constructor adds noise without explaining the
     # WHY of the code.
     public_member_api_docs: false
-

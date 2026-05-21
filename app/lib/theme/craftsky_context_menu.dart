@@ -216,10 +216,8 @@ class _CraftskyContextMenuRow extends StatelessWidget {
       alpha: 0.4,
     );
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: item.isSelected ? selectedBackground : Colors.transparent,
-      ),
+    return Material(
+      color: item.isSelected ? selectedBackground : Colors.transparent,
       child: ListTile(
         enabled: !isDisabled,
         onTap: onTap,
