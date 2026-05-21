@@ -21,24 +21,32 @@ import (
 //     502 identity_unavailable.
 func WhoAmIHandler(resolver HandleResolver, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := middleware.GetRunID(r.Context())
 		did, ok := middleware.GetDID(r.Context())
 		if !ok {
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "no did in context",
-				middleware.GetRunID(r.Context()), nil)
+				runID, nil)
 			return
 		}
+		logger.Debug("whoami: resolving handle",
+			slog.String("did", did.String()),
+			slog.String("run_id", runID))
 		handle, err := resolver.ResolveHandle(r.Context(), did)
 		if err != nil {
 			logger.Warn("whoami: handle resolution failed",
 				slog.String("did", did.String()),
 				slog.String("err", err.Error()),
-				slog.String("run_id", middleware.GetRunID(r.Context())))
+				slog.String("run_id", runID))
 			envelope.WriteError(w, http.StatusBadGateway,
 				"identity_unavailable", "could not resolve handle",
-				middleware.GetRunID(r.Context()), nil)
+				runID, nil)
 			return
 		}
+		logger.Debug("whoami: resolved handle",
+			slog.String("did", did.String()),
+			slog.String("handle", handle.String()),
+			slog.String("run_id", runID))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(WhoAmIResponse{DID: did, Handle: handle})

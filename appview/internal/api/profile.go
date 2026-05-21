@@ -33,6 +33,9 @@ func GetProfileHandler(store ProfileReader, resolver HandleResolver, logger *slo
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw := strings.TrimPrefix(r.PathValue("handleOrDid"), "@")
 		runID := middleware.GetRunID(r.Context())
+		logger.Debug("profile get: resolving identity",
+			slog.String("input", raw),
+			slog.String("run_id", runID))
 		did, err := resolveToDID(r.Context(), raw, resolver)
 		if err != nil {
 			switch {
@@ -49,6 +52,10 @@ func GetProfileHandler(store ProfileReader, resolver HandleResolver, logger *slo
 			}
 			return
 		}
+		logger.Debug("profile get: resolved identity",
+			slog.String("input", raw),
+			slog.String("did", did.String()),
+			slog.String("run_id", runID))
 		writeProfileResponse(w, r, store, resolver, did, logger)
 	})
 }
@@ -63,6 +70,9 @@ func GetMeProfileHandler(store ProfileReader, resolver HandleResolver, logger *s
 				"internal_error", "no did in context", runID, nil)
 			return
 		}
+		logger.Debug("profile me: loading profile",
+			slog.String("did", did.String()),
+			slog.String("run_id", runID))
 		writeProfileResponse(w, r, store, resolver, did, logger)
 	})
 }
@@ -93,6 +103,10 @@ func writeProfileResponse(
 			"internal_error", "profile read failed", runID, nil)
 		return
 	}
+	logger.Debug("profile: store read succeeded",
+		slog.String("did", did.String()),
+		slog.Any("row", row),
+		slog.String("run_id", runID))
 	handle, err := resolver.ResolveHandle(r.Context(), did)
 	if err != nil {
 		logger.Warn("profile: ResolveHandle failed",
@@ -104,6 +118,11 @@ func writeProfileResponse(
 		return
 	}
 	resp := BuildProfileResponse(row, handle, true)
+	logger.Debug("profile: response ready",
+		slog.String("did", did.String()),
+		slog.String("handle", handle.String()),
+		slog.Any("response", resp),
+		slog.String("run_id", runID))
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(resp)
@@ -156,6 +175,10 @@ func PutMeProfileHandler(
 			return
 		}
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+		logger.Debug("profile put: request started",
+			slog.String("did", did.String()),
+			slog.String("session_id", sessionID),
+			slog.String("run_id", runID))
 
 		reqBody, err := DecodeProfilePut(r.Body)
 		if err != nil {
@@ -178,6 +201,10 @@ func PutMeProfileHandler(
 				"validation_failed", "validation failed", runID, nil)
 			return
 		}
+		logger.Debug("profile put: validated request",
+			slog.String("did", did.String()),
+			slog.Any("request", reqBody),
+			slog.String("run_id", runID))
 
 		pds, err := newPDS(r.Context(), did, sessionID)
 		if err != nil {
@@ -200,6 +227,12 @@ func PutMeProfileHandler(
 			"$type":  craftskyProfileNSID,
 			"crafts": nonNilStrings(reqBody.Crafts),
 		}
+		logger.Debug("profile put: prepared PDS records",
+			slog.String("did", did.String()),
+			slog.Any("existing_bsky", bsky),
+			slog.Any("merged_bsky", mergedBsky),
+			slog.Any("craftsky", cskyBody),
+			slog.String("run_id", runID))
 
 		// Buffered channels let each goroutine send without blocking; the
 		// receive below is what synchronises us with their completion.
@@ -224,6 +257,11 @@ func PutMeProfileHandler(
 			}
 			row := syntheticRow(did.String(), mergedBsky, reqBody.Crafts)
 			resp := BuildProfileResponse(row, handle, false)
+			logger.Debug("profile put: writes succeeded",
+				slog.String("did", did.String()),
+				slog.String("handle", handle.String()),
+				slog.Any("response", resp),
+				slog.String("run_id", runID))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(resp)
