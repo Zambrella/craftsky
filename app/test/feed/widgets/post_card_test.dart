@@ -1,10 +1,12 @@
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Post _post({
@@ -15,6 +17,7 @@ Post _post({
   bool viewerHasLiked = false,
   bool viewerHasReposted = false,
   bool viewerHasReplied = false,
+  List<PostImage>? images,
   DateTime? createdAt,
 }) {
   return Post(
@@ -29,6 +32,7 @@ Post _post({
     viewerHasLiked: viewerHasLiked,
     viewerHasReposted: viewerHasReposted,
     viewerHasReplied: viewerHasReplied,
+    images: images,
     createdAt: createdAt ?? DateTime.now().subtract(const Duration(minutes: 3)),
     indexedAt: DateTime.now().subtract(const Duration(minutes: 2)),
     author: PostAuthor(
@@ -41,11 +45,13 @@ Post _post({
 
 Future<void> _pump(WidgetTester tester, Widget child) {
   return tester.pumpWidget(
-    MaterialApp(
-      theme: AppTheme.lightThemeData,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: Scaffold(body: child),
+    ProviderScope(
+      child: MaterialApp(
+        theme: AppTheme.lightThemeData,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(body: child),
+      ),
     ),
   );
 }
@@ -356,6 +362,266 @@ void main() {
 
       expect(find.text('Delete comment'), findsOneWidget);
       expect(find.text('Delete post'), findsNothing);
+    });
+
+    testWidgets('renders single post image without multi-image indicators', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            images: [
+              PostImage(
+                cid: 'bafkimage1',
+                mime: 'image/jpeg',
+                size: 10,
+                alt: 'Blue shawl drying flat',
+                thumb: 'https://cdn.example.com/thumb1.jpg',
+                fullsize: 'https://cdn.example.com/full1.jpg',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('post-image-carousel')), findsOneWidget);
+      expect(find.byKey(const Key('post-image-count')), findsNothing);
+      expect(find.byKey(const Key('post-image-dots')), findsNothing);
+      expect(find.bySemanticsLabel('Blue shawl drying flat'), findsOneWidget);
+      expect(find.byType(InteractiveViewer), findsWidgets);
+    });
+
+    testWidgets('renders multi-image indicators and count', (tester) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            images: [
+              PostImage(
+                cid: 'bafkimage1',
+                mime: 'image/jpeg',
+                size: 10,
+                alt: 'Image one',
+                thumb: 'https://cdn.example.com/thumb1.jpg',
+                fullsize: 'https://cdn.example.com/full1.jpg',
+              ),
+              PostImage(
+                cid: 'bafkimage2',
+                mime: 'image/png',
+                size: 11,
+                alt: 'Image two',
+                thumb: 'https://cdn.example.com/thumb2.jpg',
+                fullsize: 'https://cdn.example.com/full2.jpg',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('post-image-count')), findsOneWidget);
+      expect(find.byKey(const Key('post-image-dots')), findsOneWidget);
+      expect(find.text('1/2'), findsOneWidget);
+    });
+
+    testWidgets('horizontal paging updates image index without card tap', (
+      tester,
+    ) async {
+      var cardTaps = 0;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            images: [
+              PostImage(
+                cid: 'bafkimage1',
+                mime: 'image/jpeg',
+                size: 10,
+                alt: 'Image one',
+                thumb: 'https://cdn.example.com/thumb1.jpg',
+                fullsize: 'https://cdn.example.com/full1.jpg',
+              ),
+              PostImage(
+                cid: 'bafkimage2',
+                mime: 'image/png',
+                size: 11,
+                alt: 'Image two',
+                thumb: 'https://cdn.example.com/thumb2.jpg',
+                fullsize: 'https://cdn.example.com/full2.jpg',
+              ),
+            ],
+          ),
+          onTap: () => cardTaps++,
+        ),
+      );
+
+      expect(find.text('1/2'), findsOneWidget);
+
+      await tester.drag(
+        find.byKey(const Key('post-image-carousel')),
+        const Offset(-500, 0),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('2/2'), findsOneWidget);
+      expect(cardTaps, 0);
+    });
+
+    testWidgets(
+      'tapping image opens gallery while non-image tap keeps card routing',
+      (
+        tester,
+      ) async {
+        var cardTaps = 0;
+        await _pump(
+          tester,
+          PostCard(
+            post: _post(
+              images: [
+                PostImage(
+                  cid: 'bafkimage1',
+                  mime: 'image/jpeg',
+                  size: 10,
+                  alt: 'Image one',
+                  thumb: 'https://cdn.example.com/thumb1.jpg',
+                  fullsize: 'https://cdn.example.com/full1.jpg',
+                ),
+                PostImage(
+                  cid: 'bafkimage2',
+                  mime: 'image/png',
+                  size: 11,
+                  alt: 'Image two',
+                  thumb: 'https://cdn.example.com/thumb2.jpg',
+                  fullsize: 'https://cdn.example.com/full2.jpg',
+                ),
+              ],
+            ),
+            onTap: () => cardTaps++,
+          ),
+        );
+
+        await tester.tap(find.byKey(const Key('post-image-carousel')));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(PostImageGallery), findsOneWidget);
+        expect(cardTaps, 0);
+
+        final navigator = tester.state<NavigatorState>(
+          find.byType(Navigator).first,
+        );
+        navigator.pop();
+        await tester.pumpAndSettle();
+
+        await tester.tap(
+          find.text('Cast on for the Hitchhiker shawl tonight.'),
+        );
+        expect(cardTaps, 1);
+      },
+    );
+
+    testWidgets('opens gallery at currently visible tapped image index', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            images: [
+              PostImage(
+                cid: 'bafkimage1',
+                mime: 'image/jpeg',
+                size: 10,
+                alt: 'Image one',
+                thumb: 'https://cdn.example.com/thumb1.jpg',
+                fullsize: 'https://cdn.example.com/full1.jpg',
+              ),
+              PostImage(
+                cid: 'bafkimage2',
+                mime: 'image/png',
+                size: 11,
+                alt: 'Image two',
+                thumb: 'https://cdn.example.com/thumb2.jpg',
+                fullsize: 'https://cdn.example.com/full2.jpg',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      await tester.drag(
+        find.byKey(const Key('post-image-carousel')),
+        const Offset(-500, 0),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('post-image-carousel')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PostImageGallery), findsOneWidget);
+      expect(find.text('Image two'), findsOneWidget);
+      expect(find.text('Image one'), findsNothing);
+    });
+
+    testWidgets('uses shared hero tags between feed and gallery images', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            images: [
+              PostImage(
+                cid: 'bafkimage1',
+                mime: 'image/jpeg',
+                size: 10,
+                alt: 'Image one',
+                thumb: 'https://cdn.example.com/thumb1.jpg',
+                fullsize: 'https://cdn.example.com/full1.jpg',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('post-image-carousel')));
+      await tester.pump();
+
+      expect(
+        find.byWidgetPredicate((widget) {
+          return widget is Hero &&
+              widget.tag ==
+                  'post-image-hero-at://did:plc:alice/social.craftsky.feed.post/3lf2abc-0';
+        }),
+        findsWidgets,
+      );
+    });
+
+    testWidgets('image-card action taps do not open gallery', (tester) async {
+      var replies = 0;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            images: [
+              PostImage(
+                cid: 'bafkimage1',
+                mime: 'image/jpeg',
+                size: 10,
+                alt: 'Image one',
+                thumb: 'https://cdn.example.com/thumb1.jpg',
+                fullsize: 'https://cdn.example.com/full1.jpg',
+              ),
+            ],
+          ),
+          onReply: () => replies++,
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+      await tester.pumpAndSettle();
+
+      expect(replies, 1);
+      expect(find.byType(PostImageGallery), findsNothing);
     });
   });
 }

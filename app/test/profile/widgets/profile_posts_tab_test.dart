@@ -186,7 +186,7 @@ void main() {
       final created = _post('created');
       final repo = FakePostRepository(
         onListByAuthor: (_, {cursor, limit}) async => PostPage(items: [root]),
-        onCreate: ({required text, reply}) async => created,
+        onCreate: ({required text, reply, images}) async => created,
       );
       final router = GoRouter(
         initialLocation: '/',

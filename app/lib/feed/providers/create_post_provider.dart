@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
@@ -28,11 +29,19 @@ class CreatePost extends _$CreatePost {
   @override
   FutureOr<Post?> build() => null;
 
-  Future<void> create({required String text, PostReply? reply}) async {
+  Future<void> create({
+    required String text,
+    PostReply? reply,
+    List<CreatePostImage>? images,
+  }) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
-      final created = await repo.create(text: text, reply: reply);
+      final created = await repo.create(
+        text: text,
+        reply: reply,
+        images: images,
+      );
       final post = reply != null && created.reply == null
           ? created.copyWith(reply: reply)
           : created;

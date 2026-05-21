@@ -1,3 +1,4 @@
+import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/data/post_repository.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
@@ -12,8 +13,11 @@ class ApiPostRepository implements PostRepository {
   final PostApiClient _api;
 
   @override
-  Future<Post> create({required String text, PostReply? reply}) =>
-      _api.createPost(text: text, reply: reply);
+  Future<Post> create({
+    required String text,
+    PostReply? reply,
+    List<CreatePostImage>? images,
+  }) => _api.createPost(text: text, reply: reply, images: images);
 
   @override
   Future<Post> fetch(String did, String rkey) => _api.getPost(did, rkey);

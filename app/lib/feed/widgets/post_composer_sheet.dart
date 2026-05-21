@@ -1,5 +1,10 @@
+import 'package:craftsky_app/feed/models/create_post_image.dart';
+import 'package:craftsky_app/feed/media/media_config.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/providers/composer_image_service.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
+import 'package:craftsky_app/feed/providers/image_draft_controller.dart';
+import 'package:craftsky_app/feed/providers/image_post_submit_gate.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
@@ -34,6 +39,7 @@ class PostComposerSheet extends ConsumerStatefulWidget {
 class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode(debugLabel: 'postComposerText');
+  final _imageDraftController = ImageDraftController();
   var _text = '';
 
   @override
@@ -48,13 +54,22 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
       if (!mounted) return;
       _focusNode.requestFocus();
     });
+    _imageDraftController.addListener(_onImageDraftChanged);
   }
 
   @override
   void dispose() {
+    _imageDraftController
+      ..removeListener(_onImageDraftChanged)
+      ..dispose();
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _onImageDraftChanged() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   @override
@@ -65,9 +80,14 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final createState = ref.watch(createPostProvider);
     final isReply = widget.replyTarget != null;
-    final trimmed = _text.trim();
+    final trimmedText = _text.trim();
     final tooLong = _text.length > PostComposerSheet.maxCharacters;
-    final canSubmit = trimmed.isNotEmpty && !tooLong && !createState.isLoading;
+    final canSubmit =
+        !createState.isLoading &&
+        canSubmitImagePostDraft(
+          text: _text,
+          images: _imageDraftController.images,
+        );
     final submitLabel = isReply
         ? l10n.postComposeReplySubmit
         : l10n.postComposeSubmit;
@@ -104,8 +124,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                   ? () => ref
                         .read(createPostProvider.notifier)
                         .create(
-                          text: trimmed,
+                          text: trimmedText,
                           reply: _replyFor(widget.replyTarget),
+                          images: isReply ? null : _payloadImages(),
                         )
                   : null,
             ),
@@ -143,11 +164,201 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                     '${_text.length}/${PostComposerSheet.maxCharacters}',
                 onChanged: (value) => setState(() => _text = value),
               ),
+              if (!isReply) ...[
+                SizedBox(height: spacing.sp3),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    key: const Key('composer-add-image'),
+                    onPressed: createState.isLoading
+                        ? null
+                        : () async {
+                            if (_imageDraftController.images.length >=
+                                mediaConfig.maxImages) {
+                              context.showError(
+                                'You can add up to ${mediaConfig.maxImages} images',
+                              );
+                              return;
+                            }
+                            final service = ref.read(
+                              composerImageServiceProvider,
+                            );
+                            try {
+                              await service.addImages(_imageDraftController);
+                            } on ImageSelectionLimitExceededException catch (
+                              exception
+                            ) {
+                              if (!context.mounted) return;
+                              context.showError(
+                                'You can add up to ${exception.maxImages} images',
+                              );
+                            }
+                          },
+                    icon: const Icon(Icons.add_photo_alternate_outlined),
+                    label: const Text('Add image'),
+                  ),
+                ),
+                ..._imageDraftController.images.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final image = entry.value;
+                  return _DraftImageTile(
+                    image: image,
+                    altTextKey: Key('composer-alt-${image.id}'),
+                    removeKey: Key('composer-remove-${image.id}'),
+                    moveUpKey: Key('composer-move-up-${image.id}'),
+                    moveDownKey: Key('composer-move-down-${image.id}'),
+                    canMoveUp: index > 0,
+                    canMoveDown:
+                        index < _imageDraftController.images.length - 1,
+                    onAltChanged: (value) =>
+                        _imageDraftController.setAltText(image.id, value),
+                    onRemove: () => _imageDraftController.remove(image.id),
+                    onMoveUp: () => _imageDraftController.reorder(
+                      fromIndex: index,
+                      toIndex: index - 1,
+                    ),
+                    onMoveDown: () => _imageDraftController.reorder(
+                      fromIndex: index,
+                      toIndex: index + 1,
+                    ),
+                  );
+                }),
+              ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  List<CreatePostImage>? _payloadImages() {
+    if (_imageDraftController.images.isEmpty) return null;
+    return _imageDraftController.images
+        .where((image) => image.lifecycle == DraftImageLifecycle.uploaded)
+        .map(
+          (image) => CreatePostImage(
+            blob: CreatePostBlob(
+              ref: CreatePostBlobRef(link: image.uploaded!.cid),
+              mimeType: image.uploaded!.mime,
+              size: image.uploaded!.size,
+            ),
+            alt: image.altText.trim(),
+            aspectRatio: image.uploaded!.aspectRatio,
+          ),
+        )
+        .toList();
+  }
+}
+
+class _DraftImageTile extends StatelessWidget {
+  const _DraftImageTile({
+    required this.image,
+    required this.altTextKey,
+    required this.removeKey,
+    required this.moveUpKey,
+    required this.moveDownKey,
+    required this.canMoveUp,
+    required this.canMoveDown,
+    required this.onAltChanged,
+    required this.onRemove,
+    required this.onMoveUp,
+    required this.onMoveDown,
+  });
+
+  final DraftImageState image;
+  final Key altTextKey;
+  final Key removeKey;
+  final Key moveUpKey;
+  final Key moveDownKey;
+  final bool canMoveUp;
+  final bool canMoveDown;
+  final ValueChanged<String> onAltChanged;
+  final VoidCallback onRemove;
+  final VoidCallback onMoveUp;
+  final VoidCallback onMoveDown;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(color: Theme.of(context).dividerColor),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(child: Text(image.fileName)),
+                  IconButton(
+                    key: moveUpKey,
+                    onPressed: canMoveUp ? onMoveUp : null,
+                    icon: const Icon(Icons.arrow_upward),
+                  ),
+                  IconButton(
+                    key: moveDownKey,
+                    onPressed: canMoveDown ? onMoveDown : null,
+                    icon: const Icon(Icons.arrow_downward),
+                  ),
+                  IconButton(
+                    key: removeKey,
+                    onPressed: onRemove,
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              Text(_statusLabel(image)),
+              if (image.previewBytes case final bytes?) ...[
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.memory(
+                    bytes,
+                    key: Key('composer-preview-${image.id}'),
+                    fit: BoxFit.cover,
+                    width: 96,
+                    height: 96,
+                  ),
+                ),
+              ],
+              if (image.lifecycle == DraftImageLifecycle.preparing ||
+                  image.lifecycle == DraftImageLifecycle.uploading) ...[
+                const SizedBox(height: 8),
+                LinearProgressIndicator(
+                  key: Key('composer-upload-progress-${image.id}'),
+                  value: image.lifecycle == DraftImageLifecycle.preparing
+                      ? null
+                      : image.uploadProgress,
+                ),
+              ],
+              if (image.errorMessage != null) Text(image.errorMessage!),
+              TextField(
+                key: altTextKey,
+                decoration: const InputDecoration(labelText: 'Alt text'),
+                onChanged: onAltChanged,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _statusLabel(DraftImageState image) {
+    switch (image.lifecycle) {
+      case DraftImageLifecycle.preparing:
+        return 'Preparing';
+      case DraftImageLifecycle.uploading:
+        return 'Uploading';
+      case DraftImageLifecycle.uploaded:
+        return 'Uploaded';
+      case DraftImageLifecycle.failed:
+        return 'Failed';
+    }
   }
 }
 
