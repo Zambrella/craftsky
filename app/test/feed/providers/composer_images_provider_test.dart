@@ -136,6 +136,8 @@ void main() {
         expect(image.fileName, 'PROJECT.JPG');
         expect(image.mimeType, 'image/jpeg');
         expect(image.previewBytes, originalBytes);
+        expect(image.previewAspectRatio?.width, 3);
+        expect(image.previewAspectRatio?.height, 2);
         expect(api.uploadCount, 1);
         expect(api.lastMimeType, 'image/jpeg');
         expect(api.lastBytes, isNotEmpty);
@@ -147,6 +149,58 @@ void main() {
         expect(uploaded.aspectRatio?.height, 2);
       },
     );
+
+    test('stores preview aspect ratio before upload completes', () async {
+      final uploadCompleter = Completer<UploadedImageBlob>();
+      final api = _FakePostApiClient(
+        uploadHandler:
+            ({
+              required bytes,
+              required mimeType,
+              onSendProgress,
+              onReceiveProgress,
+              cancelToken,
+            }) {
+              return uploadCompleter.future;
+            },
+      );
+      final container = _containerWithPicker(
+        _FakeImagePicker(
+          () async => [
+            XFile.fromData(
+              _jpegBytes(width: 4, height: 3),
+              name: 'project.jpg',
+              mimeType: 'image/jpeg',
+            ),
+          ],
+        ),
+        api: api,
+      );
+      addTearDown(container.dispose);
+      final sub = _listenComposer(container);
+      addTearDown(sub.close);
+
+      await container
+          .read(composerImagesProvider('composer').notifier)
+          .addImages();
+      final uploading = await _waitForState(
+        container,
+        (state) =>
+            state.images.singleOrNull?.phase is ImageUploading &&
+            state.images.single.previewAspectRatio != null,
+      );
+
+      expect(uploading.images.single.previewAspectRatio?.width, 4);
+      expect(uploading.images.single.previewAspectRatio?.height, 3);
+
+      uploadCompleter.complete(
+        _uploadedBlob(mimeType: api.lastMimeType!, size: api.lastBytes!.length),
+      );
+      await _waitForState(
+        container,
+        (state) => state.images.singleOrNull?.phase is ImageUploaded,
+      );
+    });
 
     test('reports upload progress while an upload is in flight', () async {
       final uploadCompleter = Completer<UploadedImageBlob>();
@@ -502,9 +556,12 @@ void main() {
           .addImages();
 
       final notice = container.read(composerImagesProvider('composer')).notice;
-      expect(notice, isA<ImageSelectionLimitNotice>());
-      expect((notice as ImageSelectionLimitNotice).maxImages, 0);
-      expect(notice.acceptedCount, 0);
+      expect(
+        notice,
+        isA<ImageSelectionLimitNotice>()
+            .having((notice) => notice.maxImages, 'maxImages', 0)
+            .having((notice) => notice.acceptedCount, 'acceptedCount', 0),
+      );
       expect(picker.pickCount, 0);
     });
   });
@@ -559,7 +616,7 @@ class _FakeImagePicker extends ImagePicker {
   _FakeImagePicker(this._pick);
 
   final Future<List<XFile>> Function() _pick;
-  var pickCount = 0;
+  int pickCount = 0;
 
   @override
   Future<List<XFile>> pickMultiImage({
@@ -574,22 +631,19 @@ class _FakeImagePicker extends ImagePicker {
   }
 }
 
-typedef _UploadHandler =
-    Future<UploadedImageBlob> Function({
-      required List<int> bytes,
-      required String mimeType,
-      ProgressCallback? onSendProgress,
-      ProgressCallback? onReceiveProgress,
-      CancelToken? cancelToken,
-    });
-
 class _FakePostApiClient extends PostApiClient {
-  _FakePostApiClient({_UploadHandler? uploadHandler})
-    : _uploadHandler = uploadHandler,
-      super(Dio(BaseOptions(baseUrl: 'https://example.com')));
+  _FakePostApiClient({this._uploadHandler})
+    : super(Dio(BaseOptions(baseUrl: 'https://example.com')));
 
-  final _UploadHandler? _uploadHandler;
-  var uploadCount = 0;
+  final Future<UploadedImageBlob> Function({
+    required List<int> bytes,
+    required String mimeType,
+    ProgressCallback? onSendProgress,
+    ProgressCallback? onReceiveProgress,
+    CancelToken? cancelToken,
+  })?
+  _uploadHandler;
+  int uploadCount = 0;
   List<int>? lastBytes;
   String? lastMimeType;
   CancelToken? lastCancelToken;
@@ -665,9 +719,9 @@ class _NoSlotsMediaService extends ComposerImageMediaService {
 const _testCid = 'bafkreicomposerimagetest';
 
 UploadedImageBlob _uploadedBlob({
-  String cid = _testCid,
   required String mimeType,
   required int size,
+  String cid = _testCid,
 }) {
   return UploadedImageBlob(
     blob: UploadedBlob(

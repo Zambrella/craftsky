@@ -16,10 +16,16 @@ class BrandTextField extends StatefulWidget {
     required this.label,
     super.key,
     this.controller,
+    this.initialValue,
     this.focusNode,
     this.hintText,
     this.helperText,
     this.errorText,
+    this.labelLeading,
+    this.labelTrailing,
+    this.labelStyle,
+    this.helperStyle,
+    this.helperAlignment = AlignmentDirectional.centerStart,
     this.prefixIcon,
     this.suffixIcon,
     this.maxLines = 1,
@@ -30,14 +36,23 @@ class BrandTextField extends StatefulWidget {
     this.onChanged,
     this.onSubmitted,
     this.enabled = true,
-  });
+  }) : assert(
+         controller == null || initialValue == null,
+         'Provide either controller or initialValue, not both.',
+       );
 
   final String label;
   final TextEditingController? controller;
+  final String? initialValue;
   final FocusNode? focusNode;
   final String? hintText;
   final String? helperText;
   final String? errorText;
+  final Widget? labelLeading;
+  final Widget? labelTrailing;
+  final TextStyle? labelStyle;
+  final TextStyle? helperStyle;
+  final AlignmentGeometry helperAlignment;
   final Widget? prefixIcon;
   final Widget? suffixIcon;
   final int? maxLines;
@@ -57,8 +72,16 @@ class _BrandTextFieldState extends State<BrandTextField> {
   FocusNode? _internalFocusNode;
   FocusNode get _focusNode =>
       widget.focusNode ?? (_internalFocusNode ??= FocusNode());
+  TextEditingController? _internalController;
+  TextEditingController? get _controller =>
+      widget.controller ??
+      (_internalController ??= _createInternalController());
 
   bool _focused = false;
+
+  TextEditingController _createInternalController() {
+    return TextEditingController(text: widget.initialValue ?? '');
+  }
 
   @override
   void initState() {
@@ -75,6 +98,17 @@ class _BrandTextFieldState extends State<BrandTextField> {
       );
       _focusNode.addListener(_onFocusChange);
     }
+    if (widget.controller == null &&
+        oldWidget.initialValue != widget.initialValue) {
+      final controller = _controller;
+      final nextText = widget.initialValue ?? '';
+      if (controller != null && controller.text != nextText) {
+        controller.value = TextEditingValue(
+          text: nextText,
+          selection: TextSelection.collapsed(offset: nextText.length),
+        );
+      }
+    }
   }
 
   void _onFocusChange() {
@@ -88,6 +122,7 @@ class _BrandTextFieldState extends State<BrandTextField> {
   void dispose() {
     _focusNode.removeListener(_onFocusChange);
     _internalFocusNode?.dispose();
+    _internalController?.dispose();
     super.dispose();
   }
 
@@ -112,12 +147,25 @@ class _BrandTextFieldState extends State<BrandTextField> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          widget.label,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: hasError ? colors.error : colors.onSurface,
-          ),
+        Row(
+          children: [
+            if (widget.labelLeading != null) ...[
+              widget.labelLeading!,
+              SizedBox(width: sp.sp1),
+            ],
+            Expanded(
+              child: Text(
+                widget.label,
+                style:
+                    widget.labelStyle ??
+                    theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: hasError ? colors.error : colors.onSurface,
+                    ),
+              ),
+            ),
+            if (widget.labelTrailing != null) widget.labelTrailing!,
+          ],
         ),
         SizedBox(height: sp.sp2),
         _FocusLift(
@@ -127,7 +175,7 @@ class _BrandTextFieldState extends State<BrandTextField> {
           borderRadius: BorderRadius.circular(radii.r3),
           duration: durations.fast,
           child: TextField(
-            controller: widget.controller,
+            controller: _controller,
             focusNode: _focusNode,
             enabled: widget.enabled,
             maxLines: widget.maxLines,
@@ -161,10 +209,17 @@ class _BrandTextFieldState extends State<BrandTextField> {
         ),
         if (belowText != null) ...[
           SizedBox(height: sp.sp2),
-          Text(
-            belowText,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: hasError ? colors.error : colors.onSurfaceVariant,
+          Align(
+            alignment: hasError
+                ? AlignmentDirectional.centerStart
+                : widget.helperAlignment,
+            child: Text(
+              belowText,
+              style:
+                  widget.helperStyle ??
+                  theme.textTheme.bodyMedium?.copyWith(
+                    color: hasError ? colors.error : colors.onSurfaceVariant,
+                  ),
             ),
           ),
         ],
@@ -198,33 +253,43 @@ class _FocusLift extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final shadowPadding = EdgeInsets.only(
+      left: shadowOffset.dx < 0 ? -shadowOffset.dx : 0,
+      top: shadowOffset.dy < 0 ? -shadowOffset.dy : 0,
+      right: shadowOffset.dx > 0 ? shadowOffset.dx : 0,
+      bottom: shadowOffset.dy > 0 ? shadowOffset.dy : 0,
+    );
+
     // The unpositioned child sizes the Stack; Positioned.fill stretches the
     // shadow underneath to match. Siblings below don't jump as the field
     // lifts because the Stack's size is driven by the child, not the shadow.
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Positioned.fill(
-          child: Transform.translate(
-            offset: shadowOffset,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: shadowColor,
-                borderRadius: borderRadius,
+    return Padding(
+      padding: shadowPadding,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: Transform.translate(
+              offset: shadowOffset,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: shadowColor,
+                  borderRadius: borderRadius,
+                ),
               ),
             ),
           ),
-        ),
-        TweenAnimationBuilder<Offset>(
-          tween: Tween<Offset>(begin: lift, end: lift),
-          duration: duration,
-          curve: Curves.easeOut,
-          builder: (context, value, innerChild) {
-            return Transform.translate(offset: value, child: innerChild);
-          },
-          child: child,
-        ),
-      ],
+          TweenAnimationBuilder<Offset>(
+            tween: Tween<Offset>(begin: lift, end: lift),
+            duration: duration,
+            curve: Curves.easeOut,
+            builder: (context, value, innerChild) {
+              return Transform.translate(offset: value, child: innerChild);
+            },
+            child: child,
+          ),
+        ],
+      ),
     );
   }
 }

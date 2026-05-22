@@ -187,6 +187,23 @@ void main() {
       },
     );
 
+    test('inspects preview dimensions with baked orientation', () async {
+      final source = img.Image(width: 2, height: 3)
+        ..exif.imageIfd.orientation = 6;
+      final originalBytes = Uint8List.fromList(img.encodeJpg(source));
+
+      final inspected = await service
+          .inspectImage(
+            bytes: originalBytes,
+            fileName: 'project.jpg',
+            mimeType: 'image/jpeg',
+          )
+          .future;
+
+      expect(inspected.width, 3);
+      expect(inspected.height, 2);
+    });
+
     test(
       'strips PNG text metadata and reports retained transparency',
       () async {

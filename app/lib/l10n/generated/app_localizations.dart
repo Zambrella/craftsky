@@ -532,6 +532,30 @@ abstract class AppLocalizations {
   /// **'Couldn\'t post.'**
   String get postCreateError;
 
+  /// Title of the confirm-discard dialog shown when leaving the post composer with unsaved edits.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard draft?'**
+  String get postComposeDiscardTitle;
+
+  /// Body of the confirm-discard dialog shown when leaving the post composer with unsaved edits.
+  ///
+  /// In en, this message translates to:
+  /// **'Your draft won\'t be saved.'**
+  String get postComposeDiscardMessage;
+
+  /// Confirm action in the post-composer confirm-discard dialog — closes the composer without saving.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get postComposeDiscardConfirm;
+
+  /// Cancel action in the post-composer confirm-discard dialog — returns the user to the composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep editing'**
+  String get postComposeDiscardCancel;
+
   /// Tooltip and menu label for deleting a post.
   ///
   /// In en, this message translates to:

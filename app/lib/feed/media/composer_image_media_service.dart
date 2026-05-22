@@ -131,6 +131,23 @@ class ComposerImageMediaService {
     );
   }
 
+  /// Reads oriented dimensions for the local preview before it is displayed.
+  ImageInspectionJob inspectImage({
+    required Uint8List bytes,
+    required String fileName,
+    required String mimeType,
+  }) {
+    final request = ImagePreparationRequest(
+      bytes: bytes,
+      fileName: fileName,
+      mimeType: mimeType,
+      metadata: const {},
+    );
+    return ImageInspectionJob._(
+      Isolate.run(() => ComposerImageMediaService._inspectForPreview(request)),
+    );
+  }
+
   /// Validates final bytes before upload.
   PreparedUploadValidationResult validatePreparedUploadBytes({
     required int originalBytes,
@@ -174,19 +191,7 @@ class ComposerImageMediaService {
       headerBytes: request.bytes,
     );
 
-    final img.Image? decoded;
-    try {
-      decoded = img.decodeImage(request.bytes);
-    } on Object {
-      throw const FormatException('Unsupported or corrupt image bytes');
-    }
-    if (decoded == null) {
-      throw const FormatException('Unsupported or corrupt image bytes');
-    }
-
-    final preparedImage = _stripEmbeddedMetadata(
-      img.bakeOrientation(decoded),
-    );
+    final preparedImage = _stripEmbeddedMetadata(_decodeOrientedImage(request));
 
     final stripped = _stripNonEssentialMetadata(
       format: format,
@@ -211,6 +216,33 @@ class ComposerImageMediaService {
       metadata: stripped.metadata,
       hasTransparency: stripped.hasTransparency,
     );
+  }
+
+  static ImageInspectionPayload _inspectForPreview(
+    ImagePreparationRequest request,
+  ) {
+    _resolveSupportedImageFormat(
+      fileName: request.fileName,
+      mimeType: request.mimeType,
+      headerBytes: request.bytes,
+    );
+
+    final image = _decodeOrientedImage(request);
+    return ImageInspectionPayload(width: image.width, height: image.height);
+  }
+
+  static img.Image _decodeOrientedImage(ImagePreparationRequest request) {
+    final img.Image? decoded;
+    try {
+      decoded = img.decodeImage(request.bytes);
+    } on Object {
+      throw const FormatException('Unsupported or corrupt image bytes');
+    }
+    if (decoded == null) {
+      throw const FormatException('Unsupported or corrupt image bytes');
+    }
+
+    return img.bakeOrientation(decoded);
   }
 
   static img.Image _stripEmbeddedMetadata(img.Image image) {
@@ -350,6 +382,23 @@ class PreparedImagePayload {
   final int height;
   final Map<String, String> metadata;
   final bool hasTransparency;
+}
+
+/// Lightweight image data needed before rendering the local preview.
+class ImageInspectionPayload {
+  const ImageInspectionPayload({required this.width, required this.height});
+
+  final int width;
+  final int height;
+}
+
+/// Handle for an in-flight image inspection task.
+class ImageInspectionJob {
+  ImageInspectionJob._(this.future);
+
+  final Future<ImageInspectionPayload> future;
+
+  void cancel() {}
 }
 
 /// Handle for an in-flight image preparation task.

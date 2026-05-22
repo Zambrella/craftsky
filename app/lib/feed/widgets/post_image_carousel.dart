@@ -1,5 +1,5 @@
-import 'package:craftsky_app/feed/models/post.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,13 +30,11 @@ class PostImageCarousel extends ConsumerStatefulWidget {
   const PostImageCarousel({
     required this.images,
     this.onImageTap,
-    this.heroTagBuilder,
     super.key,
   });
 
   final List<PostImage> images;
   final ValueChanged<int>? onImageTap;
-  final String Function(int index)? heroTagBuilder;
 
   @override
   ConsumerState<PostImageCarousel> createState() => _PostImageCarouselState();
@@ -68,7 +66,7 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
             DecoratedBox(
               position: DecorationPosition.foreground,
               decoration: const BoxDecoration(
-                border: Border.fromBorderSide(BorderSide(color: Colors.black)),
+                border: Border.fromBorderSide(BorderSide()),
               ),
               child: SizedBox(
                 height: height,
@@ -79,7 +77,6 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                   itemBuilder: (context, index) {
                     final image = widget.images[index];
                     final url = image.thumb ?? image.fullsize;
-                    final heroTag = widget.heroTagBuilder?.call(index);
                     if (url == null) {
                       final child = InteractiveViewer(
                         minScale: 1,
@@ -98,9 +95,7 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                       return GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTap: () => widget.onImageTap?.call(index),
-                        child: heroTag == null
-                            ? child
-                            : Hero(tag: heroTag, child: child),
+                        child: child,
                       );
                     }
 
@@ -125,9 +120,7 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                     return GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () => widget.onImageTap?.call(index),
-                      child: heroTag == null
-                          ? child
-                          : Hero(tag: heroTag, child: child),
+                      child: child,
                     );
                   },
                 ),

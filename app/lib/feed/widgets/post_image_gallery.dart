@@ -8,13 +8,11 @@ class PostImageGallery extends ConsumerStatefulWidget {
   const PostImageGallery({
     required this.images,
     this.initialIndex = 0,
-    this.heroTagBuilder,
     super.key,
   });
 
   final List<PostImage> images;
   final int initialIndex;
-  final String Function(int index)? heroTagBuilder;
 
   @override
   ConsumerState<PostImageGallery> createState() => _PostImageGalleryState();
@@ -39,7 +37,9 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
 
   @override
   Widget build(BuildContext context) {
+    final viewPadding = MediaQuery.of(context).viewPadding;
     final current = widget.images[_currentIndex];
+    final hasMultipleImages = widget.images.length > 1;
     return Stack(
       children: [
         PageView.builder(
@@ -50,9 +50,8 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
           itemBuilder: (context, index) {
             final image = widget.images[index];
             final url = image.fullsize ?? image.thumb;
-            final heroTag = widget.heroTagBuilder?.call(index);
             if (url == null) {
-              final child = InteractiveViewer(
+              return InteractiveViewer(
                 minScale: 1,
                 maxScale: 4,
                 panEnabled: false,
@@ -63,9 +62,8 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
                   ),
                 ),
               );
-              return heroTag == null ? child : Hero(tag: heroTag, child: child);
             }
-            final child = InteractiveViewer(
+            return InteractiveViewer(
               minScale: 1,
               maxScale: 4,
               panEnabled: false,
@@ -78,24 +76,79 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
                 ),
               ),
             );
-            return heroTag == null ? child : Hero(tag: heroTag, child: child);
           },
         ),
+        if (hasMultipleImages)
+          Positioned(
+            right: viewPadding.right + 16,
+            top: viewPadding.top + 16,
+            child: DecoratedBox(
+              key: const Key('post-image-gallery-count'),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.45),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                child: Text(
+                  '${_currentIndex + 1}/${widget.images.length}',
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+              ),
+            ),
+          ),
         Positioned(
           left: 0,
           right: 0,
           bottom: 0,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.55),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                current.alt,
-                style: const TextStyle(color: Colors.white),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (hasMultipleImages) ...[
+                Row(
+                  key: const Key('post-image-gallery-dots'),
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(widget.images.length, (index) {
+                    final isActive = index == _currentIndex;
+                    return Container(
+                      width: 6,
+                      height: 6,
+                      margin: const EdgeInsets.symmetric(horizontal: 2),
+                      decoration: BoxDecoration(
+                        color: (isActive ? Colors.white : Colors.white70)
+                            .withValues(alpha: 0.95),
+                        shape: BoxShape.circle,
+                      ),
+                    );
+                  }),
+                ),
+                const SizedBox(height: 8),
+              ],
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.55),
+                ),
+                child: Padding(
+                  key: const Key('post-image-gallery-alt-text-padding'),
+                  padding: EdgeInsets.fromLTRB(
+                    viewPadding.left + 12,
+                    12,
+                    viewPadding.right + 12,
+                    viewPadding.bottom + 12,
+                  ),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Text(
+                      current.alt,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ],

@@ -8,6 +8,7 @@ environment:
   flutter: ">=3.44.0"
 
 dependencies:
+  animated_list_plus: ^0.5.2
   at_primitives: ^1.0.0
   cached_network_image: ^3.4.1
   cupertino_icons: ^1.0.8

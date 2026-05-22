@@ -238,6 +238,18 @@
   "postCreateError": "Couldn't post.",
   "@postCreateError": { "description": "Snackbar shown when creating a post fails." },
 
+  "postComposeDiscardTitle": "Discard draft?",
+  "@postComposeDiscardTitle": { "description": "Title of the confirm-discard dialog shown when leaving the post composer with unsaved edits." },
+
+  "postComposeDiscardMessage": "Your draft won't be saved.",
+  "@postComposeDiscardMessage": { "description": "Body of the confirm-discard dialog shown when leaving the post composer with unsaved edits." },
+
+  "postComposeDiscardConfirm": "Discard",
+  "@postComposeDiscardConfirm": { "description": "Confirm action in the post-composer confirm-discard dialog — closes the composer without saving." },
+
+  "postComposeDiscardCancel": "Keep editing",
+  "@postComposeDiscardCancel": { "description": "Cancel action in the post-composer confirm-discard dialog — returns the user to the composer." },
+
   "postDeleteAction": "Delete post",
   "@postDeleteAction": { "description": "Tooltip and menu label for deleting a post." },
 

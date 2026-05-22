@@ -1,6 +1,6 @@
 import 'package:craftsky_app/feed/models/post.dart';
-import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
+import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
@@ -43,13 +43,24 @@ Post _post({
   );
 }
 
-Future<void> _pump(WidgetTester tester, Widget child) {
+Future<void> _pump(
+  WidgetTester tester,
+  Widget child, {
+  EdgeInsets viewPadding = EdgeInsets.zero,
+}) {
   return tester.pumpWidget(
     ProviderScope(
       child: MaterialApp(
         theme: AppTheme.lightThemeData,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, routeChild) {
+          final mediaQuery = MediaQuery.of(context);
+          return MediaQuery(
+            data: mediaQuery.copyWith(viewPadding: viewPadding),
+            child: routeChild!,
+          );
+        },
         home: Scaffold(body: child),
       ),
     ),
@@ -504,12 +515,31 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byType(PostImageGallery), findsOneWidget);
+        expect(find.byType(AppBar), findsNothing);
+        expect(find.byType(CloseButton), findsOneWidget);
+        expect(
+          find.byKey(const Key('post-image-gallery-close-background')),
+          findsOneWidget,
+        );
+        expect(
+          find.ancestor(
+            of: find.byType(CloseButton),
+            matching: find.byType(SafeArea),
+          ),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const Key('post-image-gallery-count')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('post-image-gallery-dots')),
+          findsOneWidget,
+        );
+        expect(find.text('1/2'), findsOneWidget);
         expect(cardTaps, 0);
 
-        final navigator = tester.state<NavigatorState>(
-          find.byType(Navigator).first,
-        );
-        navigator.pop();
+        tester.state<NavigatorState>(find.byType(Navigator).first).pop();
         await tester.pumpAndSettle();
 
         await tester.tap(
@@ -518,6 +548,41 @@ void main() {
         expect(cardTaps, 1);
       },
     );
+
+    testWidgets('gallery close button accounts for media view padding', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            images: [
+              PostImage(
+                cid: 'bafkimage1',
+                mime: 'image/jpeg',
+                size: 10,
+                alt: 'Image one',
+                thumb: 'https://cdn.example.com/thumb1.jpg',
+                fullsize: 'https://cdn.example.com/full1.jpg',
+              ),
+            ],
+          ),
+        ),
+        viewPadding: const EdgeInsets.only(left: 11, top: 23),
+      );
+
+      await tester.tap(find.byKey(const Key('post-image-carousel')));
+      await tester.pumpAndSettle();
+
+      final closeBackground = find.byKey(
+        const Key('post-image-gallery-close-background'),
+      );
+      expect(tester.getTopLeft(closeBackground), const Offset(19, 31));
+      final decoratedBox = tester.widget<DecoratedBox>(closeBackground);
+      final decoration = decoratedBox.decoration as BoxDecoration;
+      expect(decoration.shape, BoxShape.circle);
+      expect(decoration.color, isNotNull);
+    });
 
     testWidgets('opens gallery at currently visible tapped image index', (
       tester,
@@ -559,10 +624,11 @@ void main() {
 
       expect(find.byType(PostImageGallery), findsOneWidget);
       expect(find.text('Image two'), findsOneWidget);
+      expect(find.text('2/2'), findsOneWidget);
       expect(find.text('Image one'), findsNothing);
     });
 
-    testWidgets('uses shared hero tags between feed and gallery images', (
+    testWidgets('opens gallery without hero animations', (
       tester,
     ) async {
       await _pump(
@@ -584,16 +650,10 @@ void main() {
       );
 
       await tester.tap(find.byKey(const Key('post-image-carousel')));
-      await tester.pump();
+      await tester.pumpAndSettle();
 
-      expect(
-        find.byWidgetPredicate((widget) {
-          return widget is Hero &&
-              widget.tag ==
-                  'post-image-hero-at://did:plc:alice/social.craftsky.feed.post/3lf2abc-0';
-        }),
-        findsWidgets,
-      );
+      expect(find.byType(PostImageGallery), findsOneWidget);
+      expect(find.byType(Hero), findsNothing);
     });
 
     testWidgets('image-card action taps do not open gallery', (tester) async {

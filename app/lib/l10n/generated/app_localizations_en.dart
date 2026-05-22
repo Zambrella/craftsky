@@ -247,6 +247,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postCreateError => 'Couldn\'t post.';
 
   @override
+  String get postComposeDiscardTitle => 'Discard draft?';
+
+  @override
+  String get postComposeDiscardMessage => 'Your draft won\'t be saved.';
+
+  @override
+  String get postComposeDiscardConfirm => 'Discard';
+
+  @override
+  String get postComposeDiscardCancel => 'Keep editing';
+
+  @override
   String get postDeleteAction => 'Delete post';
 
   @override

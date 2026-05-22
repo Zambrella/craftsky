@@ -176,6 +176,7 @@ class ComposerImageDraftMapper extends ClassMapperBase<ComposerImageDraft> {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = ComposerImageDraftMapper._());
       ComposerImagePhaseMapper.ensureInitialized();
+      CreatePostImageAspectRatioMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -211,6 +212,15 @@ class ComposerImageDraftMapper extends ClassMapperBase<ComposerImageDraft> {
     _$previewBytes,
     opt: true,
   );
+  static CreatePostImageAspectRatio? _$previewAspectRatio(
+    ComposerImageDraft v,
+  ) => v.previewAspectRatio;
+  static const Field<ComposerImageDraft, CreatePostImageAspectRatio>
+  _f$previewAspectRatio = Field(
+    'previewAspectRatio',
+    _$previewAspectRatio,
+    opt: true,
+  );
 
   @override
   final MappableFields<ComposerImageDraft> fields = const {
@@ -220,6 +230,7 @@ class ComposerImageDraftMapper extends ClassMapperBase<ComposerImageDraft> {
     #altText: _f$altText,
     #phase: _f$phase,
     #previewBytes: _f$previewBytes,
+    #previewAspectRatio: _f$previewAspectRatio,
   };
 
   static ComposerImageDraft _instantiate(DecodingData data) {
@@ -230,6 +241,7 @@ class ComposerImageDraftMapper extends ClassMapperBase<ComposerImageDraft> {
       altText: data.dec(_f$altText),
       phase: data.dec(_f$phase),
       previewBytes: data.dec(_f$previewBytes),
+      previewAspectRatio: data.dec(_f$previewAspectRatio),
     );
   }
 
@@ -306,6 +318,12 @@ abstract class ComposerImageDraftCopyWith<
     implements ClassCopyWith<$R, $In, $Out> {
   ComposerImagePhaseCopyWith<$R, ComposerImagePhase, ComposerImagePhase>
   get phase;
+  CreatePostImageAspectRatioCopyWith<
+    $R,
+    CreatePostImageAspectRatio,
+    CreatePostImageAspectRatio
+  >?
+  get previewAspectRatio;
   $R call({
     String? id,
     String? fileName,
@@ -313,6 +331,7 @@ abstract class ComposerImageDraftCopyWith<
     String? altText,
     ComposerImagePhase? phase,
     Uint8List? previewBytes,
+    CreatePostImageAspectRatio? previewAspectRatio,
   });
   ComposerImageDraftCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -331,6 +350,15 @@ class _ComposerImageDraftCopyWithImpl<$R, $Out>
   ComposerImagePhaseCopyWith<$R, ComposerImagePhase, ComposerImagePhase>
   get phase => $value.phase.copyWith.$chain((v) => call(phase: v));
   @override
+  CreatePostImageAspectRatioCopyWith<
+    $R,
+    CreatePostImageAspectRatio,
+    CreatePostImageAspectRatio
+  >?
+  get previewAspectRatio => $value.previewAspectRatio?.copyWith.$chain(
+    (v) => call(previewAspectRatio: v),
+  );
+  @override
   $R call({
     String? id,
     String? fileName,
@@ -338,6 +366,7 @@ class _ComposerImageDraftCopyWithImpl<$R, $Out>
     String? altText,
     ComposerImagePhase? phase,
     Object? previewBytes = $none,
+    Object? previewAspectRatio = $none,
   }) => $apply(
     FieldCopyWithData({
       if (id != null) #id: id,
@@ -346,6 +375,7 @@ class _ComposerImageDraftCopyWithImpl<$R, $Out>
       if (altText != null) #altText: altText,
       if (phase != null) #phase: phase,
       if (previewBytes != $none) #previewBytes: previewBytes,
+      if (previewAspectRatio != $none) #previewAspectRatio: previewAspectRatio,
     }),
   );
   @override
@@ -356,6 +386,10 @@ class _ComposerImageDraftCopyWithImpl<$R, $Out>
     altText: data.get(#altText, or: $value.altText),
     phase: data.get(#phase, or: $value.phase),
     previewBytes: data.get(#previewBytes, or: $value.previewBytes),
+    previewAspectRatio: data.get(
+      #previewAspectRatio,
+      or: $value.previewAspectRatio,
+    ),
   );
 
   @override

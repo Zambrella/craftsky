@@ -65,6 +65,7 @@ class ComposerImageDraft with ComposerImageDraftMappable {
     required this.altText,
     required this.phase,
     this.previewBytes,
+    this.previewAspectRatio,
   });
 
   /// Stable client-side id used for UI keys and operation tracking.
@@ -82,6 +83,9 @@ class ComposerImageDraft with ComposerImageDraftMappable {
   /// Local preview bytes displayed while processing/uploading.
   final Uint8List? previewBytes;
 
+  /// Aspect ratio for the local preview before the upload response exists.
+  final CreatePostImageAspectRatio? previewAspectRatio;
+
   /// Current lifecycle state for this image.
   final ComposerImagePhase phase;
 
@@ -93,7 +97,8 @@ class ComposerImageDraft with ComposerImageDraftMappable {
         'mimeType: $mimeType, '
         'altText: $altText, '
         'phase: $phase, '
-        'previewBytes: ${_byteSummary(previewBytes)}'
+        'previewBytes: ${_byteSummary(previewBytes)}, '
+        'previewAspectRatio: $previewAspectRatio'
         ')';
   }
 }

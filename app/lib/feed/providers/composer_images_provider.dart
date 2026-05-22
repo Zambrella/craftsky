@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
+import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post_image_blob.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
@@ -261,13 +262,33 @@ class ComposerImages extends _$ComposerImages {
     String stepName,
     _ComposerImagePipelineItem result,
   ) {
-    if (stepName != _ImagePipelineStepNames.read) return;
-    final bytes = result.originalBytes;
-    if (bytes == null) return;
-    _updateImage(
-      imageId,
-      (draft) => draft.copyWith(previewBytes: Uint8List.fromList(bytes)),
-    );
+    switch (stepName) {
+      case _ImagePipelineStepNames.read:
+        final bytes = result.originalBytes;
+        if (bytes == null) return;
+        _updateImage(
+          imageId,
+          (draft) => draft.copyWith(
+            previewBytes: Uint8List.fromList(bytes),
+            previewAspectRatio: result.previewAspectRatio,
+          ),
+        );
+      case _ImagePipelineStepNames.prepare:
+        final prepared = result.prepared;
+        if (prepared == null) return;
+        _updateImage(
+          imageId,
+          (draft) => draft.copyWith(
+            previewAspectRatio: _media.aspectRatioFor(
+              width: prepared.width,
+              height: prepared.height,
+            ),
+          ),
+        );
+      case _ImagePipelineStepNames.validatePrepared ||
+          _ImagePipelineStepNames.upload:
+        break;
+    }
   }
 
   void _handleStepFailed(String imageId, String stepName, Object error) {
@@ -325,7 +346,21 @@ class ComposerImages extends _$ComposerImages {
         headerBytes: _headerFromBytes(bytes),
       );
     }
-    return item.copyWith(originalBytes: Uint8List.fromList(bytes));
+    final job = _media.inspectImage(
+      bytes: Uint8List.fromList(bytes),
+      fileName: item.fileName,
+      mimeType: item.mimeType,
+    );
+    item.operation.inspectionJob = job;
+    final inspected = await job.future;
+    item.operation.inspectionJob = null;
+    return item.copyWith(
+      originalBytes: Uint8List.fromList(bytes),
+      previewAspectRatio: _media.aspectRatioFor(
+        width: inspected.width,
+        height: inspected.height,
+      ),
+    );
   }
 
   Future<Uint8List> _readValidatedFileBytes(
@@ -541,6 +576,7 @@ final class _ComposerImagePipelineItem {
     required this.mimeType,
     required this.operation,
     this.originalBytes,
+    this.previewAspectRatio,
     this.prepared,
     this.uploaded,
   });
@@ -551,11 +587,13 @@ final class _ComposerImagePipelineItem {
   final String mimeType;
   final _ImageOperation operation;
   final Uint8List? originalBytes;
+  final CreatePostImageAspectRatio? previewAspectRatio;
   final PreparedImagePayload? prepared;
   final UploadedImageBlob? uploaded;
 
   _ComposerImagePipelineItem copyWith({
     Uint8List? originalBytes,
+    CreatePostImageAspectRatio? previewAspectRatio,
     PreparedImagePayload? prepared,
     UploadedImageBlob? uploaded,
   }) {
@@ -566,6 +604,7 @@ final class _ComposerImagePipelineItem {
       mimeType: mimeType,
       operation: operation,
       originalBytes: originalBytes ?? this.originalBytes,
+      previewAspectRatio: previewAspectRatio ?? this.previewAspectRatio,
       prepared: prepared ?? this.prepared,
       uploaded: uploaded ?? this.uploaded,
     );
@@ -602,6 +641,7 @@ final class _ImageOperation {
   _ImageOperation({required this.uploadCancelToken});
 
   final CancelToken uploadCancelToken;
+  ImageInspectionJob? inspectionJob;
   ImagePreparationJob? preparationJob;
   bool canceled = false;
   int sent = 0;
@@ -616,6 +656,7 @@ final class _ImageOperation {
 
   void cancel() {
     canceled = true;
+    inspectionJob?.cancel();
     preparationJob?.cancel();
     uploadCancelToken.cancel('image removed');
   }
