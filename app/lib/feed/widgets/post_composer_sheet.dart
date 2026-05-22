@@ -1,10 +1,8 @@
-import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/media/media_config.dart';
 import 'package:craftsky_app/feed/models/post.dart';
-import 'package:craftsky_app/feed/providers/composer_image_service.dart';
+import 'package:craftsky_app/feed/providers/composer_image_state.dart';
+import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
-import 'package:craftsky_app/feed/providers/image_draft_controller.dart';
-import 'package:craftsky_app/feed/providers/image_post_submit_gate.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
@@ -12,6 +10,7 @@ import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 Future<Post?> showPostComposerSheet(
   BuildContext context, {
@@ -39,8 +38,8 @@ class PostComposerSheet extends ConsumerStatefulWidget {
 class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode(debugLabel: 'postComposerText');
-  final _imageDraftController = ImageDraftController();
-  var _text = '';
+  final String _composerId = const Uuid().v4();
+  String _text = '';
 
   @override
   void initState() {
@@ -54,22 +53,13 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
       if (!mounted) return;
       _focusNode.requestFocus();
     });
-    _imageDraftController.addListener(_onImageDraftChanged);
   }
 
   @override
   void dispose() {
-    _imageDraftController
-      ..removeListener(_onImageDraftChanged)
-      ..dispose();
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
-  }
-
-  void _onImageDraftChanged() {
-    if (!mounted) return;
-    setState(() {});
   }
 
   @override
@@ -79,15 +69,18 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final createState = ref.watch(createPostProvider);
+    final imagesState = ref.watch(composerImagesProvider(_composerId));
+    final imagesNotifier = ref.read(
+      composerImagesProvider(_composerId).notifier,
+    );
     final isReply = widget.replyTarget != null;
     final trimmedText = _text.trim();
     final tooLong = _text.length > PostComposerSheet.maxCharacters;
     final canSubmit =
         !createState.isLoading &&
-        canSubmitImagePostDraft(
-          text: _text,
-          images: _imageDraftController.images,
-        );
+        trimmedText.isNotEmpty &&
+        !tooLong &&
+        imagesState.canSubmitImages();
     final submitLabel = isReply
         ? l10n.postComposeReplySubmit
         : l10n.postComposeSubmit;
@@ -108,6 +101,22 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
       }
     });
 
+    ref.listen(composerImagesProvider(_composerId), (previous, next) {
+      final notice = next.notice;
+      if (notice == null || previous?.notice?.id == notice.id) return;
+      switch (notice) {
+        case ImageSelectionLimitNotice(:final maxImages):
+          context.showError('You can add up to $maxImages images');
+        case UnsupportedImagesNotice(:final count):
+          context.showError(
+            count == 1 ? 'Unsupported image type' : '$count unsupported images',
+          );
+        case ImagePickerFailedNotice():
+          context.showError('Could not open image picker');
+      }
+      imagesNotifier.clearNotice(notice.id);
+    });
+
     return Scaffold(
       backgroundColor: swatches.paper,
       appBar: AppBar(
@@ -126,7 +135,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                         .create(
                           text: trimmedText,
                           reply: _replyFor(widget.replyTarget),
-                          images: isReply ? null : _payloadImages(),
+                          images: isReply
+                              ? null
+                              : ref
+                                    .read(composerImagesProvider(_composerId))
+                                    .toCreatePostImages(),
                         )
                   : null,
             ),
@@ -173,32 +186,21 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                     onPressed: createState.isLoading
                         ? null
                         : () async {
-                            if (_imageDraftController.images.length >=
+                            if (imagesState.images.length >=
                                 mediaConfig.maxImages) {
                               context.showError(
-                                'You can add up to ${mediaConfig.maxImages} images',
+                                'You can add up to '
+                                '${mediaConfig.maxImages} images',
                               );
                               return;
                             }
-                            final service = ref.read(
-                              composerImageServiceProvider,
-                            );
-                            try {
-                              await service.addImages(_imageDraftController);
-                            } on ImageSelectionLimitExceededException catch (
-                              exception
-                            ) {
-                              if (!context.mounted) return;
-                              context.showError(
-                                'You can add up to ${exception.maxImages} images',
-                              );
-                            }
+                            await imagesNotifier.addImages();
                           },
                     icon: const Icon(Icons.add_photo_alternate_outlined),
                     label: const Text('Add image'),
                   ),
                 ),
-                ..._imageDraftController.images.asMap().entries.map((entry) {
+                ...imagesState.images.asMap().entries.map((entry) {
                   final index = entry.key;
                   final image = entry.value;
                   return _DraftImageTile(
@@ -208,16 +210,17 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                     moveUpKey: Key('composer-move-up-${image.id}'),
                     moveDownKey: Key('composer-move-down-${image.id}'),
                     canMoveUp: index > 0,
-                    canMoveDown:
-                        index < _imageDraftController.images.length - 1,
-                    onAltChanged: (value) =>
-                        _imageDraftController.setAltText(image.id, value),
-                    onRemove: () => _imageDraftController.remove(image.id),
-                    onMoveUp: () => _imageDraftController.reorder(
+                    canMoveDown: index < imagesState.images.length - 1,
+                    onAltChanged: (value) => imagesNotifier.setAltText(
+                      image.id,
+                      value,
+                    ),
+                    onRemove: () => imagesNotifier.remove(image.id),
+                    onMoveUp: () => imagesNotifier.reorder(
                       fromIndex: index,
                       toIndex: index - 1,
                     ),
-                    onMoveDown: () => _imageDraftController.reorder(
+                    onMoveDown: () => imagesNotifier.reorder(
                       fromIndex: index,
                       toIndex: index + 1,
                     ),
@@ -229,24 +232,6 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
         ),
       ),
     );
-  }
-
-  List<CreatePostImage>? _payloadImages() {
-    if (_imageDraftController.images.isEmpty) return null;
-    return _imageDraftController.images
-        .where((image) => image.lifecycle == DraftImageLifecycle.uploaded)
-        .map(
-          (image) => CreatePostImage(
-            blob: CreatePostBlob(
-              ref: CreatePostBlobRef(link: image.uploaded!.cid),
-              mimeType: image.uploaded!.mime,
-              size: image.uploaded!.size,
-            ),
-            alt: image.altText.trim(),
-            aspectRatio: image.uploaded!.aspectRatio,
-          ),
-        )
-        .toList();
   }
 }
 
@@ -265,7 +250,7 @@ class _DraftImageTile extends StatelessWidget {
     required this.onMoveDown,
   });
 
-  final DraftImageState image;
+  final ComposerImageDraft image;
   final Key altTextKey;
   final Key removeKey;
   final Key moveUpKey;
@@ -325,17 +310,20 @@ class _DraftImageTile extends StatelessWidget {
                   ),
                 ),
               ],
-              if (image.lifecycle == DraftImageLifecycle.preparing ||
-                  image.lifecycle == DraftImageLifecycle.uploading) ...[
+              if (image.phase is ImageReading ||
+                  image.phase is ImagePreparing ||
+                  image.phase is ImageUploading) ...[
                 const SizedBox(height: 8),
                 LinearProgressIndicator(
                   key: Key('composer-upload-progress-${image.id}'),
-                  value: image.lifecycle == DraftImageLifecycle.preparing
-                      ? null
-                      : image.uploadProgress,
+                  value: switch (image.phase) {
+                    ImageUploading(:final progress) => progress.indicatorValue,
+                    _ => null,
+                  },
                 ),
               ],
-              if (image.errorMessage != null) Text(image.errorMessage!),
+              if (image.phase case ImageFailed(:final failure))
+                Text(failure.message),
               TextField(
                 key: altTextKey,
                 decoration: const InputDecoration(labelText: 'Alt text'),
@@ -348,18 +336,13 @@ class _DraftImageTile extends StatelessWidget {
     );
   }
 
-  String _statusLabel(DraftImageState image) {
-    switch (image.lifecycle) {
-      case DraftImageLifecycle.preparing:
-        return 'Preparing';
-      case DraftImageLifecycle.uploading:
-        return 'Uploading';
-      case DraftImageLifecycle.uploaded:
-        return 'Uploaded';
-      case DraftImageLifecycle.failed:
-        return 'Failed';
-    }
-  }
+  String _statusLabel(ComposerImageDraft image) => switch (image.phase) {
+    ImageQueued() || ImageReading() => 'Reading',
+    ImagePreparing() => 'Preparing',
+    ImageUploading() => 'Uploading',
+    ImageUploaded() => 'Uploaded',
+    ImageFailed() => 'Failed',
+  };
 }
 
 class _ReplyTargetPreview extends StatelessWidget {

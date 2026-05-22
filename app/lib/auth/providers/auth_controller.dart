@@ -58,7 +58,8 @@ class AuthController extends _$AuthController {
           ApiBadRequest() => const InvalidHandle(),
           ApiNetworkError() ||
           ApiServerError() ||
-          ApiUnauthorized() => const ServerUnavailable(),
+          ApiUnauthorized() ||
+          ApiCanceled() => const ServerUnavailable(),
         };
       }
 

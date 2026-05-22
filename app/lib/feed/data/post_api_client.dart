@@ -22,10 +22,12 @@ class PostApiClient {
     required String mimeType,
     ProgressCallback? onSendProgress,
     ProgressCallback? onReceiveProgress,
+    CancelToken? cancelToken,
   }) => unwrapApi(() async {
     final res = await _dio.post<Map<String, dynamic>>(
       '/v1/blobs/images',
       data: bytes,
+      cancelToken: cancelToken,
       onSendProgress: onSendProgress,
       onReceiveProgress: onReceiveProgress,
       options: Options(contentType: mimeType),

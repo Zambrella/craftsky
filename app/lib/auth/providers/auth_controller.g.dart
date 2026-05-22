@@ -94,7 +94,7 @@ final class AuthControllerProvider
   AuthController create() => AuthController();
 }
 
-String _$authControllerHash() => r'd939de56867ee96a70dbcb09eab738e5ee097238';
+String _$authControllerHash() => r'9ff0f64d43d569eaaeb4f352618191bd7a9247cb';
 
 /// Sign-in / sign-out orchestrator. Exposes `AsyncValue<void>`; pages
 /// listen for `AsyncError(AuthError)` transitions via `ref.listen`.

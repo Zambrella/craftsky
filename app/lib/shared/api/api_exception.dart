@@ -44,3 +44,11 @@ final class ApiNetworkError extends ApiException {
   @override
   String toString() => 'ApiNetworkError: $message';
 }
+
+/// Request canceled by the caller. This is expected for removable uploads.
+final class ApiCanceled extends ApiException {
+  const ApiCanceled() : super('canceled');
+
+  @override
+  String toString() => 'ApiCanceled: $message';
+}
