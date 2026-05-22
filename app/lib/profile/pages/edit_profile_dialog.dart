@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -239,13 +241,15 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
       ..._unknownCrafts,
     ];
 
-    ref
-        .read(saveProfileProvider.notifier)
-        .save(
-          displayName: (values[_fieldDisplayName] as String? ?? '').trim(),
-          description: (values[_fieldBio] as String? ?? '').trim(),
-          crafts: craftsPayload,
-        );
+    unawaited(
+      ref
+          .read(saveProfileProvider.notifier)
+          .save(
+            displayName: (values[_fieldDisplayName] as String? ?? '').trim(),
+            description: (values[_fieldBio] as String? ?? '').trim(),
+            crafts: craftsPayload,
+          ),
+    );
   }
 
   Future<bool> _confirmDiscard() async {

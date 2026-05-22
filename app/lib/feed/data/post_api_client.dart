@@ -49,9 +49,8 @@ class PostApiClient {
       '/v1/posts',
       data: {
         'text': text,
-        if (reply != null) 'reply': reply.toMap(),
-        if (images != null)
-          'images': images.map((image) => image.toMap()).toList(),
+        'reply': ?reply?.toMap(),
+        'images': ?images?.map((image) => image.toMap()).toList(),
       },
     );
     return PostMapper.fromMap(res.data!);
@@ -78,8 +77,8 @@ class PostApiClient {
     final res = await _dio.get<Map<String, dynamic>>(
       '/v1/posts/$did/$rkey/replies',
       queryParameters: {
-        if (cursor != null) 'cursor': cursor,
-        if (limit != null) 'limit': limit.toString(),
+        'cursor': ?cursor,
+        'limit': ?limit?.toString(),
       },
     );
     return ReplyPageMapper.fromMap(res.data!);
@@ -97,10 +96,10 @@ class PostApiClient {
     final res = await _dio.get<Map<String, dynamic>>(
       '/v1/posts/$did/$rkey/comments',
       queryParameters: {
-        if (cursor != null) 'cursor': cursor,
-        if (sort != null) 'sort': sort.name,
-        if (focus != null) 'focus': focus,
-        if (limit != null) 'limit': limit.toString(),
+        'cursor': ?cursor,
+        'sort': ?sort?.name,
+        'focus': ?focus,
+        'limit': ?limit?.toString(),
       },
     );
     return PostCommentSectionMapper.fromMap(res.data!);
@@ -147,8 +146,8 @@ class PostApiClient {
     final res = await _dio.get<Map<String, dynamic>>(
       '/v1/profiles/@$handleOrDid/posts',
       queryParameters: {
-        if (cursor != null) 'cursor': cursor,
-        if (limit != null) 'limit': limit.toString(),
+        'cursor': ?cursor,
+        'limit': ?limit?.toString(),
       },
     );
     return PostPageMapper.fromMap(res.data!);
@@ -163,8 +162,8 @@ class PostApiClient {
     final res = await _dio.get<Map<String, dynamic>>(
       '/v1/profiles/@$handleOrDid/comments',
       queryParameters: {
-        if (cursor != null) 'cursor': cursor,
-        if (limit != null) 'limit': limit.toString(),
+        'cursor': ?cursor,
+        'limit': ?limit?.toString(),
       },
     );
     return PostPageMapper.fromMap(res.data!);

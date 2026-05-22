@@ -106,7 +106,7 @@ void main() {
         'items': [
           {
             'post': post('comment', 'did:plc:bob'),
-            if (placement != null) 'placement': placement,
+            'placement': ?placement,
             'replies': {'loaded': false, 'items': <Map<String, dynamic>>[]},
           },
         ],

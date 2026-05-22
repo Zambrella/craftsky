@@ -27,8 +27,9 @@ class SessionAuthInterceptor extends Interceptor {
   SessionAuthInterceptor.withReaders({
     required AsyncValue<AuthState> Function() readAuth,
     required Future<String> Function() readDeviceId,
-  }) : _readAuth = readAuth,
-       _readDeviceId = readDeviceId;
+  }) : this._(readAuth, readDeviceId);
+
+  SessionAuthInterceptor._(this._readAuth, this._readDeviceId);
 
   final AsyncValue<AuthState> Function() _readAuth;
   final Future<String> Function() _readDeviceId;

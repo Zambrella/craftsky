@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
@@ -64,7 +66,11 @@ class _SignInPageState extends ConsumerState<SignInPage> {
   }
 
   void _submit() {
-    ref.read(authControllerProvider.notifier).signIn(handle: _controller.text);
+    unawaited(
+      ref
+          .read(authControllerProvider.notifier)
+          .signIn(handle: _controller.text),
+    );
   }
 
   String _messageFor(Object? error) => switch (error) {

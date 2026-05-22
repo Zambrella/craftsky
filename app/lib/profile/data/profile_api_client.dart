@@ -44,9 +44,9 @@ class ProfileApiClient {
     List<String>? crafts,
   }) => unwrapApi(() async {
     final body = <String, dynamic>{
-      if (displayName != null) 'displayName': displayName,
-      if (description != null) 'description': description,
-      if (crafts != null) 'crafts': crafts,
+      'displayName': ?displayName,
+      'description': ?description,
+      'crafts': ?crafts,
     };
     final res = await _dio.put<Map<String, dynamic>>(
       '/v1/profiles/me',

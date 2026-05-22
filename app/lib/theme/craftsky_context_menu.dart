@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -61,10 +63,12 @@ class CraftskyContextMenuButton extends StatelessWidget {
           Offset.zero & overlay.size,
         );
 
-        showCraftskyContextMenu(
-          context,
-          position: position,
-          groups: groups,
+        unawaited(
+          showCraftskyContextMenu(
+            context,
+            position: position,
+            groups: groups,
+          ),
         );
       },
     );

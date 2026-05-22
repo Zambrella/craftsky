@@ -13,8 +13,9 @@ class DummyProfileRepository implements ProfileRepository {
   DummyProfileRepository({
     Profile? seed,
     Duration latency = const Duration(milliseconds: 200),
-  }) : _profile = seed ?? _defaultSeed,
-       _latency = latency;
+  }) : this._(seed ?? _defaultSeed, latency);
+
+  DummyProfileRepository._(this._profile, this._latency);
 
   static final _defaultSeed = Profile(
     did: 'did:plc:dummycraftskyuser0000000',

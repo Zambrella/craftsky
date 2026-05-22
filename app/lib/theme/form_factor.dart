@@ -4,8 +4,7 @@ enum FormFactor {
   mobile(breakpoint: 600),
   tablet(breakpoint: 900),
   laptop(breakpoint: 1200),
-  desktop(breakpoint: double.infinity)
-  ;
+  desktop(breakpoint: double.infinity);
 
   const FormFactor({required this.breakpoint});
 

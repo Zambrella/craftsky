@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -18,9 +20,11 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref
-          .read(authControllerProvider.notifier)
-          .completeFromDeepLink(widget.token);
+      unawaited(
+        ref
+            .read(authControllerProvider.notifier)
+            .completeFromDeepLink(widget.token),
+      );
     });
   }
 

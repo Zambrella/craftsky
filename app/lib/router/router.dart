@@ -392,6 +392,6 @@ extension GoRouterExtension on GoRouter {
     while (canPop()) {
       pop();
     }
-    pushReplacement(location);
+    unawaited(pushReplacement(location));
   }
 }

@@ -174,21 +174,21 @@ void main() {
         final post = await PostApiClient(dio).createPost(
           text: 'with images',
           images: [
-            CreatePostImage(
+            const CreatePostImage(
               blob: CreatePostBlob(
-                ref: const CreatePostBlobRef(link: 'bafkimage1'),
+                ref: CreatePostBlobRef(link: 'bafkimage1'),
                 mimeType: 'image/jpeg',
                 size: 253496,
               ),
               alt: 'Blue shawl on a blocking mat',
-              aspectRatio: const CreatePostImageAspectRatio(
+              aspectRatio: CreatePostImageAspectRatio(
                 width: 4,
                 height: 5,
               ),
             ),
-            CreatePostImage(
+            const CreatePostImage(
               blob: CreatePostBlob(
-                ref: const CreatePostBlobRef(link: 'bafkimage2'),
+                ref: CreatePostBlobRef(link: 'bafkimage2'),
                 mimeType: 'image/png',
                 size: 183122,
               ),
@@ -255,22 +255,22 @@ void main() {
       final post = await PostApiClient(dio).createPost(
         text: 'ordered images',
         images: [
-          CreatePostImage(
+          const CreatePostImage(
             blob: CreatePostBlob(
-              ref: const CreatePostBlobRef(link: 'bafkimageB'),
+              ref: CreatePostBlobRef(link: 'bafkimageB'),
               mimeType: 'image/png',
               size: 444,
             ),
             alt: 'second selected, first in composer now',
           ),
-          CreatePostImage(
+          const CreatePostImage(
             blob: CreatePostBlob(
-              ref: const CreatePostBlobRef(link: 'bafkimageA'),
+              ref: CreatePostBlobRef(link: 'bafkimageA'),
               mimeType: 'image/jpeg',
               size: 333,
             ),
             alt: 'first selected, moved second',
-            aspectRatio: const CreatePostImageAspectRatio(width: 1, height: 1),
+            aspectRatio: CreatePostImageAspectRatio(width: 1, height: 1),
           ),
         ],
       );

@@ -2,8 +2,6 @@
 // root logger to forward records to stdout via `print` when running in debug
 // mode. That is the one legitimate place in the codebase where `print` is
 // used; everywhere else, use `Logger`.
-// ignore_for_file: avoid_print
-
 import 'dart:async';
 import 'dart:developer' as developer;
 
@@ -40,7 +38,7 @@ Future<void> main() async {
 
       await bootstrap(binding);
     },
-    (Object error, StackTrace stack) {
+    (error, stack) {
       // Last-resort sink: use dart:developer log because logging may not be
       // fully wired yet depending on where the crash originates.
       developer.log(
@@ -58,7 +56,7 @@ Future<void> main() async {
 void registerErrorHandlers() {
   final log = Logger('ErrorHandlers');
 
-  FlutterError.onError = (FlutterErrorDetails details) {
+  FlutterError.onError = (details) {
     FlutterError.presentError(details);
     log.severe(
       'FlutterError: ${details.exception}',
@@ -67,12 +65,12 @@ void registerErrorHandlers() {
     );
   };
 
-  PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+  PlatformDispatcher.instance.onError = (error, stack) {
     log.severe('Platform error', error, stack);
     return true;
   };
 
-  ErrorWidget.builder = (FlutterErrorDetails details) {
+  ErrorWidget.builder = (details) {
     log.warning(
       'Error building widget: ${details.exception}',
       details.exception,

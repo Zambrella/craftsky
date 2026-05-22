@@ -111,8 +111,7 @@ class _AvatarInitialFallback extends StatelessWidget {
 enum ProfileAvatarSize {
   small(dimension: 36, borderWidth: 2),
   medium(dimension: 48, borderWidth: 2),
-  large(dimension: 96, borderWidth: 2)
-  ;
+  large(dimension: 96, borderWidth: 2);
 
   const ProfileAvatarSize({required this.dimension, required this.borderWidth});
 

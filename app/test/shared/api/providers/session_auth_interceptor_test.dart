@@ -88,9 +88,6 @@ void main() {
     ); // new — device-id attaches even on anonymous paths
   });
 
-  // Test name describes the precise state we want to assert; keeping it
-  // on one line reads cleaner than wrapping mid-sentence.
-  // ignore: lines_longer_than_80_chars
   test(
     'omits header when AuthSession is still loading (no value yet)',
     () async {
@@ -128,9 +125,6 @@ void main() {
     expect(options.headers.containsKey('Authorization'), isFalse);
   });
 
-  // Test name enumerates both headers for clarity; wrapping it hurts
-  // readability more than it helps.
-  // ignore: lines_longer_than_80_chars
   test(
     'attaches BOTH Authorization and X-Craftsky-Device-Id on authed requests',
     () async {
