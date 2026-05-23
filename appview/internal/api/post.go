@@ -245,6 +245,13 @@ func syntheticPostRow(
 		row.QuoteURI = strPtr(req.Embed.Quote.URI)
 		row.QuoteCID = strPtr(req.Embed.Quote.CID)
 	}
+	if len(req.Images) > 0 {
+		imagesJSON, err := syntheticPostImagesJSON(req.Images)
+		if err != nil {
+			return nil, err
+		}
+		row.Images = imagesJSON
+	}
 
 	author, err := store.ReadAuthor(r.Context(), did.String())
 	if err != nil {
@@ -255,6 +262,39 @@ func syntheticPostRow(
 		row.AuthorAvatarCID = author.AvatarCID
 	}
 	return row, nil
+}
+
+func syntheticPostImagesJSON(images []PostImage) (json.RawMessage, error) {
+	out := make([]storedPostImage, 0, len(images))
+	for _, img := range images {
+		ref, _ := img.Image["ref"].(map[string]any)
+		cid, _ := ref["$link"].(string)
+		mime, _ := img.Image["mimeType"].(string)
+		out = append(out, storedPostImage{
+			CID:         cid,
+			MIME:        mime,
+			Size:        int64FromJSONNumber(img.Image["size"]),
+			Alt:         strings.TrimSpace(img.Alt),
+			AspectRatio: img.AspectRatio,
+		})
+	}
+	return json.Marshal(out)
+}
+
+func int64FromJSONNumber(value any) int64 {
+	switch n := value.(type) {
+	case float64:
+		return int64(n)
+	case int:
+		return int64(n)
+	case int64:
+		return n
+	case json.Number:
+		v, _ := n.Int64()
+		return v
+	default:
+		return 0
+	}
 }
 
 // extractRequestTags decodes the raw facets JSON into the indigo typed

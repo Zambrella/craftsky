@@ -2402,6 +2402,24 @@ func TestCreatePost_WithImages_WritesTopLevelImagesToPDS(t *testing.T) {
 	if _, hasEmbed := normalized["embed"]; hasEmbed {
 		t.Fatalf("embed must be absent for plain image post; got %+v", normalized["embed"])
 	}
+
+	var resp api.PostResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(resp.Images) != 1 {
+		t.Fatalf("response images = %d, want 1", len(resp.Images))
+	}
+	view := resp.Images[0]
+	if view.CID != "bafkimage" || view.MIME != "image/jpeg" || view.Size != 253496 || view.Alt != "project photo" {
+		t.Fatalf("response image = %+v", view)
+	}
+	if view.AspectRatio == nil || view.AspectRatio.Width != 919 || view.AspectRatio.Height != 2000 {
+		t.Fatalf("response aspectRatio = %+v", view.AspectRatio)
+	}
+	if view.Thumb == "" || view.Fullsize == "" {
+		t.Fatalf("response image urls missing: %+v", view)
+	}
 }
 
 func TestCreatePost_WithImageMissingAlt_OmitsAltInPDSRecord(t *testing.T) {
