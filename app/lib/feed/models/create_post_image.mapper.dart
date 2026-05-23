@@ -31,7 +31,12 @@ class CreatePostImageMapper extends ClassMapperBase<CreatePostImage> {
     key: r'image',
   );
   static String _$alt(CreatePostImage v) => v.alt;
-  static const Field<CreatePostImage, String> _f$alt = Field('alt', _$alt);
+  static const Field<CreatePostImage, String> _f$alt = Field(
+    'alt',
+    _$alt,
+    opt: true,
+    def: '',
+  );
   static CreatePostImageAspectRatio? _$aspectRatio(CreatePostImage v) =>
       v.aspectRatio;
   static const Field<CreatePostImage, CreatePostImageAspectRatio>
@@ -614,4 +619,3 @@ class _CreatePostImageAspectRatioCopyWithImpl<$R, $Out>
   $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
       _CreatePostImageAspectRatioCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

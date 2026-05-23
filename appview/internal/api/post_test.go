@@ -2404,6 +2404,35 @@ func TestCreatePost_WithImages_WritesTopLevelImagesToPDS(t *testing.T) {
 	}
 }
 
+func TestCreatePost_WithImageMissingAlt_OmitsAltInPDSRecord(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{}
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
+	body := `{
+		"text":"image post",
+		"images":[
+			{
+				"image":{"$type":"blob","ref":{"$link":"bafkimage"},"mimeType":"image/jpeg","size":253496}
+			}
+		]
+	}`
+	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	rec, _ := pds.lastCreateRec.(map[string]any)
+	imagesRaw, ok := rec["images"].([]map[string]any)
+	if !ok || len(imagesRaw) != 1 {
+		t.Fatalf("images = %T %v, want single image array", rec["images"], rec["images"])
+	}
+	if _, ok := imagesRaw[0]["alt"]; ok {
+		t.Fatalf("alt should be absent when not provided: %+v", imagesRaw[0])
+	}
+}
+
 func TestCreatePost_WithMoreThanFourImages_422WithoutPDSWrite(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}

@@ -1,13 +1,21 @@
 import 'dart:async';
 
+import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/providers/composer_image_state.dart';
+import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
+import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../fakes/recording_messenger.dart';
+import '../fakes/fake_post_repository.dart';
 
 void main() {
   group('PostComposerSheet discard confirmation', () {
@@ -66,41 +74,110 @@ void main() {
       expect(find.text('Host'), findsOneWidget);
     });
   });
+
+  group('PostComposerSheet alt text warning', () {
+    testWidgets('confirms before submitting images without alt text', (
+      tester,
+    ) async {
+      var createCalls = 0;
+      List<CreatePostImage>? submittedImages;
+      final repo = FakePostRepository(
+        onCreate: ({required text, reply, images}) async {
+          createCalls += 1;
+          submittedImages = images;
+          return _post(text);
+        },
+      );
+
+      await _openComposer(
+        tester,
+        composerId: 'composer',
+        overrides: [
+          composerImagesProvider('composer').overrideWithValue(
+            const ComposerImagesState(
+              images: [
+                ComposerImageDraft(
+                  id: 'image-1',
+                  fileName: 'project.jpg',
+                  mimeType: 'image/jpeg',
+                  altText: '',
+                  phase: ImageUploaded(
+                    UploadedDraftImage(
+                      cid: 'bafkimage',
+                      mime: 'image/jpeg',
+                      size: 123,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(repo),
+        ],
+      );
+      await tester.enterText(find.byType(TextField).first, 'A cardigan WIP');
+      await _pumpUntilPostEnabled(tester);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Post'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Some images do not have alt text'), findsOneWidget);
+      expect(find.text('Do you wish to post anyway?'), findsOneWidget);
+      expect(createCalls, 0);
+
+      await tester.tap(find.text('Post anyway'));
+      await tester.pumpAndSettle();
+
+      expect(createCalls, 1);
+      expect(submittedImages, hasLength(1));
+      expect(submittedImages!.single.alt, isEmpty);
+    });
+  });
 }
 
-Future<void> _openComposer(WidgetTester tester) async {
+Future<void> _openComposer(
+  WidgetTester tester, {
+  List<dynamic> overrides = const [],
+  String? composerId,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
-      child: MaterialApp(
-        theme: _testTheme,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Builder(
-          builder: (context) {
-            return Scaffold(
-              body: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('Host'),
-                    ElevatedButton(
-                      onPressed: () {
-                        unawaited(
-                          Navigator.of(context).push<Post?>(
-                            MaterialPageRoute<Post?>(
-                              fullscreenDialog: true,
-                              builder: (_) => const PostComposerSheet(),
+      overrides: List.from(overrides),
+      child: MessengerScope(
+        messenger: RecordingMessenger(),
+        child: MaterialApp(
+          theme: _testTheme,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) {
+              return Scaffold(
+                body: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Host'),
+                      ElevatedButton(
+                        onPressed: () {
+                          unawaited(
+                            Navigator.of(context).push<Post?>(
+                              MaterialPageRoute<Post?>(
+                                fullscreenDialog: true,
+                                builder: (_) => PostComposerSheet(
+                                  composerId: composerId,
+                                ),
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                      child: const Text('Open composer'),
-                    ),
-                  ],
+                          );
+                        },
+                        child: const Text('Open composer'),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     ),
@@ -108,6 +185,37 @@ Future<void> _openComposer(WidgetTester tester) async {
 
   await tester.tap(find.text('Open composer'));
   await tester.pumpAndSettle();
+}
+
+Future<void> _pumpUntilPostEnabled(WidgetTester tester) async {
+  for (var i = 0; i < 200; i += 1) {
+    await tester.pump(const Duration(milliseconds: 20));
+    final buttons = find.widgetWithText(TextButton, 'Post').evaluate();
+    if (buttons.isEmpty) continue;
+    final button = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Post'),
+    );
+    if (button.onPressed != null) return;
+  }
+  fail('Timed out waiting for Post button to be enabled');
+}
+
+Post _post(String text) {
+  return Post(
+    uri: 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
+    cid: 'bafy123',
+    rkey: '3lf2abc',
+    text: text,
+    tags: const [],
+    likeCount: 0,
+    repostCount: 0,
+    replyCount: 0,
+    viewerHasLiked: false,
+    viewerHasReposted: false,
+    createdAt: DateTime(2026, 5, 22, 12),
+    indexedAt: DateTime(2026, 5, 22, 12, 1),
+    author: PostAuthor(did: 'did:plc:alice', handle: 'alice.example'),
+  );
 }
 
 final ThemeData _testTheme =

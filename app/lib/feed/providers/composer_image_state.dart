@@ -17,18 +17,23 @@ class ComposerImagesState with ComposerImagesStateMappable {
   /// One-shot user feedback emitted by image selection or processing actions.
   final ComposerImageNotice? notice;
 
-  /// Whether all attached images are uploaded and have valid alt text.
+  /// Whether all attached images are uploaded and any provided alt text is
+  /// valid.
   bool canSubmitImages({MediaConfig config = mediaConfig}) {
     for (final image in images) {
       if (image.phase is! ImageUploaded) return false;
 
       final alt = image.altText.trim();
-      if (alt.isEmpty || alt.length > config.maxAltTextCharacters) {
+      if (alt.length > config.maxAltTextCharacters) {
         return false;
       }
     }
 
     return true;
+  }
+
+  bool get hasImagesMissingAltText {
+    return images.any((image) => image.altText.trim().isEmpty);
   }
 
   /// Builds the API image payload for currently uploaded images.

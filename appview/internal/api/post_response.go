@@ -65,7 +65,7 @@ type PostImageView struct {
 	CID         string                `json:"cid,omitempty"`
 	MIME        string                `json:"mime,omitempty"`
 	Size        int64                 `json:"size,omitempty"`
-	Alt         string                `json:"alt,omitempty"`
+	Alt         string                `json:"alt"`
 	AspectRatio *PostImageAspectRatio `json:"aspectRatio,omitempty"`
 	Thumb       string                `json:"thumb,omitempty"`
 	Fullsize    string                `json:"fullsize,omitempty"`

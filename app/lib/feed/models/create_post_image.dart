@@ -7,7 +7,7 @@ part 'create_post_image.mapper.dart';
 class CreatePostImage with CreatePostImageMappable {
   const CreatePostImage({
     required this.blob,
-    required this.alt,
+    this.alt = '',
     this.aspectRatio,
   });
 
@@ -15,7 +15,7 @@ class CreatePostImage with CreatePostImageMappable {
   @MappableField(key: 'image')
   final CreatePostBlob blob;
 
-  /// User-provided alternative text for accessibility.
+  /// Optional user-provided alternative text for accessibility.
   final String alt;
 
   /// Optional display aspect ratio metadata.
@@ -24,7 +24,7 @@ class CreatePostImage with CreatePostImageMappable {
   @override
   Map<String, dynamic> toMap() => {
     'image': blob.toMap(),
-    'alt': alt,
+    if (alt.trim().isNotEmpty) 'alt': alt.trim(),
     if (aspectRatio != null) 'aspectRatio': aspectRatio!.toMap(),
   };
 }

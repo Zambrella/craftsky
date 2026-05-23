@@ -186,7 +186,9 @@ func lexiconRecordBody(req PostCreateRequest) map[string]any {
 		for _, img := range req.Images {
 			one := map[string]any{
 				"image": img.Image,
-				"alt":   img.Alt,
+			}
+			if strings.TrimSpace(img.Alt) != "" {
+				one["alt"] = strings.TrimSpace(img.Alt)
 			}
 			if img.AspectRatio != nil {
 				one["aspectRatio"] = map[string]any{

@@ -29,11 +29,12 @@ Future<Post?> showPostComposerSheet(
 }
 
 class PostComposerSheet extends ConsumerStatefulWidget {
-  const PostComposerSheet({super.key, this.replyTarget});
+  const PostComposerSheet({super.key, this.replyTarget, this.composerId});
 
   static const maxCharacters = 2000;
 
   final Post? replyTarget;
+  final String? composerId;
 
   @override
   ConsumerState<PostComposerSheet> createState() => _PostComposerSheetState();
@@ -44,13 +45,14 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
 
   final _controller = TextEditingController();
   final _focusNode = FocusNode(debugLabel: 'postComposerText');
-  final String _composerId = const Uuid().v4();
+  late final String _composerId;
   String _initialText = '';
   String _text = '';
 
   @override
   void initState() {
     super.initState();
+    _composerId = widget.composerId ?? const Uuid().v4();
     if (widget.replyTarget?.reply != null) {
       _text = '@${widget.replyTarget!.author.handle} ';
       _controller.text = _text;
@@ -77,10 +79,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final createState = ref.watch(createPostProvider);
-    final imagesState = ref.watch(composerImagesProvider(_composerId));
-    final imagesNotifier = ref.read(
-      composerImagesProvider(_composerId).notifier,
-    );
+    final imagesProvider = composerImagesProvider(_composerId);
+    final imagesState = ref.watch(imagesProvider);
     final isReply = widget.replyTarget != null;
     final trimmedText = _text.trim();
     final tooLong = _text.length > PostComposerSheet.maxCharacters;
@@ -113,7 +113,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
             break;
         }
       })
-      ..listen(composerImagesProvider(_composerId), (previous, next) {
+      ..listen(imagesProvider, (previous, next) {
         final notice = next.notice;
         if (notice == null || previous?.notice?.id == notice.id) return;
         switch (notice) {
@@ -128,7 +128,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
           case ImagePickerFailedNotice():
             context.showError('Could not open image picker');
         }
-        imagesNotifier.clearNotice(notice.id);
+        ref.read(imagesProvider.notifier).clearNotice(notice.id);
       });
 
     return PopScope<Post?>(
@@ -154,19 +154,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                 isSaving: createState.isLoading,
                 label: submitLabel,
                 onPressed: canSubmit
-                    ? () => ref
-                          .read(createPostProvider.notifier)
-                          .create(
-                            text: trimmedText,
-                            reply: _replyFor(widget.replyTarget),
-                            images: isReply
-                                ? null
-                                : ref
-                                      .read(
-                                        composerImagesProvider(_composerId),
-                                      )
-                                      .toCreatePostImages(),
-                          )
+                    ? () => _submitPost(trimmedText: trimmedText)
                     : null,
               ),
             ),
@@ -230,10 +218,12 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                       areItemsTheSame: (oldItem, newItem) =>
                           oldItem.id == newItem.id,
                       onReorderFinished: (image, oldIndex, newIndex, newItems) {
-                        imagesNotifier.reorder(
-                          fromIndex: oldIndex,
-                          toIndex: newIndex,
-                        );
+                        ref
+                            .read(imagesProvider.notifier)
+                            .reorder(
+                              fromIndex: oldIndex,
+                              toIndex: newIndex,
+                            );
                       },
                       itemBuilder: (context, animation, image, index) {
                         return Reorderable(
@@ -254,20 +244,27 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                               canMoveUp: index > 0,
                               canMoveDown:
                                   index < imagesState.images.length - 1,
-                              onAltChanged: (value) =>
-                                  imagesNotifier.setAltText(
+                              onAltChanged: (value) => ref
+                                  .read(imagesProvider.notifier)
+                                  .setAltText(
                                     image.id,
                                     value,
                                   ),
-                              onRemove: () => imagesNotifier.remove(image.id),
-                              onMoveUp: () => imagesNotifier.reorder(
-                                fromIndex: index,
-                                toIndex: index - 1,
-                              ),
-                              onMoveDown: () => imagesNotifier.reorder(
-                                fromIndex: index,
-                                toIndex: index + 1,
-                              ),
+                              onRemove: () => ref
+                                  .read(imagesProvider.notifier)
+                                  .remove(image.id),
+                              onMoveUp: () => ref
+                                  .read(imagesProvider.notifier)
+                                  .reorder(
+                                    fromIndex: index,
+                                    toIndex: index - 1,
+                                  ),
+                              onMoveDown: () => ref
+                                  .read(imagesProvider.notifier)
+                                  .reorder(
+                                    fromIndex: index,
+                                    toIndex: index + 1,
+                                  ),
                             ),
                           ),
                         );
@@ -315,7 +312,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                                 );
                                 return;
                               }
-                              await imagesNotifier.addImages();
+                              await ref
+                                  .read(imagesProvider.notifier)
+                                  .addImages();
                             },
                     ),
                 ],
@@ -340,6 +339,30 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
       confirmLabel: l10n.postComposeDiscardConfirm,
       cancelLabel: l10n.postComposeDiscardCancel,
     );
+  }
+
+  Future<void> _submitPost({required String trimmedText}) async {
+    final imagesState = ref.read(composerImagesProvider(_composerId));
+    if (widget.replyTarget == null && imagesState.hasImagesMissingAltText) {
+      final shouldPost = await showCraftskyConfirmDialog(
+        context,
+        title: 'Some images do not have alt text',
+        message: 'Do you wish to post anyway?',
+        confirmLabel: 'Post anyway',
+        cancelLabel: 'Go back',
+      );
+      if (!shouldPost || !mounted) return;
+    }
+
+    await ref
+        .read(createPostProvider.notifier)
+        .create(
+          text: trimmedText,
+          reply: _replyFor(widget.replyTarget),
+          images: widget.replyTarget == null
+              ? imagesState.toCreatePostImages()
+              : null,
+        );
   }
 }
 

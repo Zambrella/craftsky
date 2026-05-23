@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -43,6 +44,40 @@ void main() {
       expect(text, contains('previewBytes: 4 bytes'));
       expect(text, contains('UnsupportedImagesNotice'));
       expect(text, isNot(contains('255, 216, 255, 224')));
+    });
+  });
+
+  group('Composer image submission', () {
+    test('allows uploaded images without alt text', () {
+      const state = ComposerImagesState(
+        images: [
+          ComposerImageDraft(
+            id: 'image-1',
+            fileName: 'project.jpg',
+            mimeType: 'image/jpeg',
+            altText: '',
+            phase: ImageUploaded(
+              UploadedDraftImage(
+                cid: 'bafkimage',
+                mime: 'image/jpeg',
+                size: 123,
+              ),
+            ),
+          ),
+        ],
+      );
+
+      expect(state.canSubmitImages(), isTrue);
+      expect(state.hasImagesMissingAltText, isTrue);
+      expect(state.toCreatePostImages(), [
+        const CreatePostImage(
+          blob: CreatePostBlob(
+            ref: CreatePostBlobRef(link: 'bafkimage'),
+            mimeType: 'image/jpeg',
+            size: 123,
+          ),
+        ),
+      ]);
     });
   });
 }

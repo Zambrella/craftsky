@@ -201,6 +201,42 @@ void main() {
       },
     );
 
+    test('omits empty image alt from create payload', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onPost(
+        '/v1/posts',
+        (server) => server.reply(201, samplePost(text: 'with image')),
+        data: {
+          'text': 'with image',
+          'images': [
+            {
+              'image': {
+                r'$type': 'blob',
+                'ref': {r'$link': 'bafkimage1'},
+                'mimeType': 'image/jpeg',
+                'size': 253496,
+              },
+            },
+          ],
+        },
+      );
+
+      final post = await PostApiClient(dio).createPost(
+        text: 'with image',
+        images: [
+          const CreatePostImage(
+            blob: CreatePostBlob(
+              ref: CreatePostBlobRef(link: 'bafkimage1'),
+              mimeType: 'image/jpeg',
+              size: 253496,
+            ),
+          ),
+        ],
+      );
+
+      expect(post.text, 'with image');
+    });
+
     test('422 validation_failed surfaces as ApiBadRequest', () async {
       final dio = buildDio();
       DioAdapter(dio: dio).onPost(
