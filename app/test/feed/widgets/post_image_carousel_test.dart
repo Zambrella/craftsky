@@ -1,6 +1,21 @@
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pinch_zoom/pinch_zoom.dart';
+
+Future<void> _pumpCarousel(WidgetTester tester, PostImageCarousel carousel) {
+  return tester.pumpWidget(
+    ProviderScope(
+      child: MaterialApp(
+        home: Scaffold(
+          body: SizedBox(width: 320, child: carousel),
+        ),
+      ),
+    ),
+  );
+}
 
 void main() {
   group('computeBoundedImageHeight', () {
@@ -39,5 +54,28 @@ void main() {
 
       expect(height, 160);
     });
+  });
+
+  testWidgets('wraps post images in Instagram-style pinch zoom', (
+    tester,
+  ) async {
+    await _pumpCarousel(
+      tester,
+      PostImageCarousel(
+        images: [
+          PostImage(
+            cid: 'bafkimage1',
+            mime: 'image/jpeg',
+            size: 10,
+            alt: 'Blue shawl drying flat',
+          ),
+        ],
+      ),
+    );
+
+    final zoom = tester.widget<PinchZoom>(find.byType(PinchZoom));
+    expect(zoom.maxScale, 4);
+    expect(zoom.zoomEnabled, isTrue);
+    expect(find.bySemanticsLabel('Blue shawl drying flat'), findsOneWidget);
   });
 }

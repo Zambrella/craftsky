@@ -3,6 +3,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pinch_zoom/pinch_zoom.dart';
 
 const _defaultFallbackHeight = 320.0;
 const _defaultMinHeight = 160.0;
@@ -78,10 +79,8 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                     final image = widget.images[index];
                     final url = image.thumb ?? image.fullsize;
                     if (url == null) {
-                      final child = InteractiveViewer(
-                        minScale: 1,
+                      final child = PinchZoom(
                         maxScale: 4,
-                        panEnabled: false,
                         child: Semantics(
                           label: image.alt,
                           child: const DecoratedBox(
@@ -99,10 +98,8 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                       );
                     }
 
-                    final child = InteractiveViewer(
-                      minScale: 1,
+                    final child = PinchZoom(
                       maxScale: 4,
-                      panEnabled: false,
                       child: Semantics(
                         label: image.alt,
                         child: CachedNetworkImage(
