@@ -328,8 +328,14 @@
   "editProfileCraftsHelper": "Pick the crafts you make",
   "@editProfileCraftsHelper": { "description": "Helper text below the crafts heading on the profile-edit page, hinting that the user should pick from the list." },
 
-  "editProfilePhotosComingSoon": "Photo uploads coming soon",
-  "@editProfilePhotosComingSoon": { "description": "Caption shown over the avatar/banner area on the profile-edit page, indicating that photo upload isn't wired yet." },
+  "editProfileChangeAvatar": "Change avatar",
+  "@editProfileChangeAvatar": { "description": "Tooltip/action label for choosing a new profile avatar image." },
+
+  "editProfileChangeCover": "Change cover",
+  "@editProfileChangeCover": { "description": "Action label for choosing a new profile cover/banner image." },
+
+  "editProfilePhotoUploadError": "Couldn't upload that photo.",
+  "@editProfilePhotoUploadError": { "description": "Snackbar shown when a selected profile avatar or cover image cannot be prepared or uploaded." },
 
   "editProfileSaveError": "Couldn't save your profile.",
   "@editProfileSaveError": { "description": "Snackbar shown when the profile-edit save request fails." },

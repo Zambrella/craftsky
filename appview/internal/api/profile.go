@@ -163,8 +163,10 @@ func PutMeProfileHandler(
 	store ProfileReader,
 	resolver HandleResolver,
 	newPDS auth.PDSClientFactory,
+	limits MediaLimits,
 	logger *slog.Logger,
 ) http.Handler {
+	limits = normalizeMediaLimits(limits)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
 
@@ -191,7 +193,7 @@ func PutMeProfileHandler(
 				"malformed_body", "could not parse body", runID, nil)
 			return
 		}
-		if err := ValidateProfilePut(reqBody); err != nil {
+		if err := ValidateProfilePutWithLimits(reqBody, limits); err != nil {
 			if fe, ok := err.(*FieldError); ok {
 				envelope.WriteError(w, http.StatusUnprocessableEntity,
 					fe.Code, "validation failed", runID, fe.Fields)
@@ -285,9 +287,8 @@ func PutMeProfileHandler(
 }
 
 // mergeBlueskyRecord returns a fresh record body formed from `existing`
-// (preserving avatar/banner/etc.) with displayName and description
-// overridden by the request. If the request field is nil, the existing
-// value is cleared from the output, matching PUT-clears-missing semantics.
+// with displayName and description overridden by the request. avatar/banner
+// are tri-state: omitted preserves, null clears, blob replaces.
 func mergeBlueskyRecord(existing map[string]any, req ProfilePutRequest) map[string]any {
 	out := map[string]any{"$type": blueskyProfileNSID}
 	for k, v := range existing {
@@ -304,7 +305,20 @@ func mergeBlueskyRecord(existing map[string]any, req ProfilePutRequest) map[stri
 	if req.Description != nil {
 		out["description"] = *req.Description
 	}
+	applyProfileImageUpdate(out, "avatar", req.Avatar)
+	applyProfileImageUpdate(out, "banner", req.Banner)
 	return out
+}
+
+func applyProfileImageUpdate(out map[string]any, field string, update ProfileImageUpdate) {
+	if !update.Present {
+		return
+	}
+	if update.Blob == nil {
+		delete(out, field)
+		return
+	}
+	out[field] = update.Blob
 }
 
 // syntheticRow constructs a ProfileRow from the bodies we just wrote,

@@ -240,6 +240,7 @@ func newPutHandler(
 		func(_ context.Context, _ syntax.DID, _ string) (auth.PDSClient, error) {
 			return pds, nil
 		},
+		api.DefaultMediaLimits(),
 		nilLogger(),
 	)
 }
@@ -290,7 +291,98 @@ func TestPutProfile_HappyPathMergesBlueskyExtras(t *testing.T) {
 	}
 }
 
-func TestPutProfile_RejectsAvatar(t *testing.T) {
+func TestPutProfile_ReplacesAvatarAndBanner(t *testing.T) {
+	t.Parallel()
+	captured := map[string]any{}
+	pds := &fakePDSForPut{
+		getBsky: func() (map[string]any, error) {
+			return map[string]any{
+				"avatar": map[string]any{"ref": map[string]any{"$link": "old-avatar"}, "mimeType": "image/jpeg", "size": 1},
+				"banner": map[string]any{"ref": map[string]any{"$link": "old-banner"}, "mimeType": "image/jpeg", "size": 1},
+			}, nil
+		},
+		putBsky: func(body map[string]any) error {
+			for k, v := range body {
+				captured[k] = v
+			}
+			return nil
+		},
+		putCraftsky: func(_ map[string]any) error { return nil },
+	}
+	h := newPutHandler(t, &fakeStore{row: &api.ProfileRow{DID: "did:plc:me", CreatedAt: time.Now()}}, pds, fakeResolver{handleFor: "alice.example"})
+	body := `{
+		"avatar":{"$type":"blob","ref":{"$link":"new-avatar"},"mimeType":"image/jpeg","size":10},
+		"banner":{"$type":"blob","ref":{"$link":"new-banner"},"mimeType":"image/png","size":20}
+	}`
+	req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me", strings.NewReader(body))
+	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:me"))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rr.Code, rr.Body.String())
+	}
+	avatar := captured["avatar"].(map[string]any)
+	if testBlobCID(avatar) != "new-avatar" {
+		t.Fatalf("avatar = %+v", avatar)
+	}
+	banner := captured["banner"].(map[string]any)
+	if testBlobCID(banner) != "new-banner" {
+		t.Fatalf("banner = %+v", banner)
+	}
+	var resp api.ProfileResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Avatar == nil || !strings.Contains(*resp.Avatar, "new-avatar@jpeg") {
+		t.Fatalf("response avatar = %v", resp.Avatar)
+	}
+	if resp.Banner == nil || !strings.Contains(*resp.Banner, "new-banner@png") {
+		t.Fatalf("response banner = %v", resp.Banner)
+	}
+
+}
+
+func testBlobCID(blob map[string]any) string {
+	ref, _ := blob["ref"].(map[string]any)
+	link, _ := ref["$link"].(string)
+	return link
+}
+
+func TestPutProfile_ClearsAvatarWithNull(t *testing.T) {
+	t.Parallel()
+	captured := map[string]any{}
+	pds := &fakePDSForPut{
+		getBsky: func() (map[string]any, error) {
+			return map[string]any{
+				"avatar": map[string]any{"ref": map[string]any{"$link": "old-avatar"}, "mimeType": "image/jpeg", "size": 1},
+				"banner": map[string]any{"ref": map[string]any{"$link": "old-banner"}, "mimeType": "image/jpeg", "size": 1},
+			}, nil
+		},
+		putBsky: func(body map[string]any) error {
+			for k, v := range body {
+				captured[k] = v
+			}
+			return nil
+		},
+		putCraftsky: func(_ map[string]any) error { return nil },
+	}
+	h := newPutHandler(t, &fakeStore{row: &api.ProfileRow{DID: "did:plc:me", CreatedAt: time.Now()}}, pds, fakeResolver{handleFor: "alice.example"})
+	req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me", strings.NewReader(`{"avatar":null}`))
+	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:me"))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rr.Code, rr.Body.String())
+	}
+	if _, ok := captured["avatar"]; ok {
+		t.Fatalf("avatar should be cleared: %+v", captured)
+	}
+	if _, ok := captured["banner"]; !ok {
+		t.Fatalf("banner should be preserved: %+v", captured)
+	}
+}
+
+func TestPutProfile_RejectsMalformedAvatarBlob(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDSForPut{}
 	h := newPutHandler(t, &fakeStore{}, pds, fakeResolver{})
@@ -299,13 +391,16 @@ func TestPutProfile_RejectsAvatar(t *testing.T) {
 	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:me"))
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
-	if rr.Code != http.StatusBadRequest {
+	if rr.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d", rr.Code)
 	}
 	var env envelope.Error
 	_ = json.Unmarshal(rr.Body.Bytes(), &env)
-	if env.Error != "unexpected_field" {
+	if env.Error != "validation_failed" {
 		t.Errorf("code = %q", env.Error)
+	}
+	if env.Fields["avatar.mimeType"] == "" || env.Fields["avatar.size"] == "" {
+		t.Errorf("fields = %v", env.Fields)
 	}
 }
 

@@ -1,5 +1,6 @@
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
+import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:dio/dio.dart';
 
 /// Profile-related AppView endpoints. Assumes the attached [Dio] has
@@ -42,16 +43,37 @@ class ProfileApiClient {
     String? displayName,
     String? description,
     List<String>? crafts,
+    UploadedBlob? avatar,
+    bool clearAvatar = false,
+    UploadedBlob? banner,
+    bool clearBanner = false,
   }) => unwrapApi(() async {
     final body = <String, dynamic>{
       'displayName': ?displayName,
       'description': ?description,
       'crafts': ?crafts,
     };
+    if (clearAvatar) {
+      body['avatar'] = null;
+    } else if (avatar != null) {
+      body['avatar'] = _blobToMap(avatar);
+    }
+    if (clearBanner) {
+      body['banner'] = null;
+    } else if (banner != null) {
+      body['banner'] = _blobToMap(banner);
+    }
     final res = await _dio.put<Map<String, dynamic>>(
       '/v1/profiles/me',
       data: body,
     );
     return ProfileMapper.fromMap(res.data!);
   });
+
+  Map<String, dynamic> _blobToMap(UploadedBlob blob) => {
+    r'$type': blob.type,
+    'ref': {r'$link': blob.ref.link},
+    'mimeType': blob.mimeType,
+    'size': blob.size,
+  };
 }

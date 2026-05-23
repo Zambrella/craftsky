@@ -1,5 +1,6 @@
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
 /// Canned [ProfileRepository] for running the app against no backend —
 /// design previews, offline UI work, etc. Holds a single in-memory
@@ -45,6 +46,10 @@ class DummyProfileRepository implements ProfileRepository {
     String? displayName,
     String? description,
     List<String>? crafts,
+    UploadedBlob? avatar,
+    bool clearAvatar = false,
+    UploadedBlob? banner,
+    bool clearBanner = false,
   }) async {
     await Future<void>.delayed(_latency);
     return _profile = _profile.copyWith(

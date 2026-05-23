@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
@@ -10,6 +12,8 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_banner_avatar.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_crafts_picker.dart';
 import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
+import 'package:craftsky_app/shared/media/blob_api_client_provider.dart';
+import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -19,6 +23,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
+import 'package:image_picker/image_picker.dart';
 
 /// Field names used by the [FormBuilder] state. Centralised so the
 /// build site, the validators, and the save-time reads can't drift
@@ -159,6 +164,9 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   /// newer server.
   late final List<String> _unknownCrafts;
 
+  _ProfileImageDraft _avatarDraft = const _ProfileImageDraft();
+  _ProfileImageDraft _bannerDraft = const _ProfileImageDraft();
+
   @override
   void initState() {
     super.initState();
@@ -217,8 +225,15 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
         .toSet();
     if (currentIds.length != initialIds.length) return true;
     if (!currentIds.containsAll(initialIds)) return true;
+    if (_avatarDraft.changed || _bannerDraft.changed) return true;
     return false;
   }
+
+  bool get _imageUploadInFlight =>
+      _avatarDraft.isUploading || _bannerDraft.isUploading;
+
+  bool get _imageUploadHasError =>
+      _avatarDraft.hasError || _bannerDraft.hasError;
 
   /// Validates the form and dispatches the save. Sends the **full**
   /// current form state, not a diff — atproto profile records are
@@ -248,8 +263,84 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
             displayName: (values[_fieldDisplayName] as String? ?? '').trim(),
             description: (values[_fieldBio] as String? ?? '').trim(),
             crafts: craftsPayload,
+            avatar: _avatarDraft.uploaded?.blob,
+            banner: _bannerDraft.uploaded?.blob,
           ),
     );
+  }
+
+  Future<void> _pickProfileImage(_ProfileImageKind kind) async {
+    if (_imageUploadInFlight) return;
+    final l10n = AppLocalizations.of(context);
+    try {
+      final picker = ref.read(imagePickerProvider);
+      final file = await picker.pickImage(source: ImageSource.gallery);
+      if (file == null) return;
+
+      final media = ref.read(composerImageMediaServiceProvider);
+      final mimeType = file.mimeType ?? media.mimeTypeForFileName(file.name);
+      final length = await file.length();
+      final header = await _readHeaderBytes(file);
+      final originalCheck = media.validateOriginalImage(
+        sizeBytes: length,
+        fileName: file.name,
+        mimeType: mimeType,
+        headerBytes: header,
+      );
+      if (!originalCheck.canPrepare) {
+        throw const _ProfileImagePickException();
+      }
+
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      setState(() => _setImageDraft(kind, _ProfileImageDraft.uploading(bytes)));
+
+      final prepared = await media
+          .prepareImage(bytes: bytes, fileName: file.name, mimeType: mimeType)
+          .future;
+      final preparedCheck = media.validatePreparedUploadBytes(
+        originalBytes: bytes.length,
+        preparedBytes: prepared.bytes.length,
+      );
+      if (!preparedCheck.canUpload) {
+        throw const _ProfileImagePickException();
+      }
+
+      final uploaded = await ref
+          .read(blobApiClientProvider)
+          .uploadImage(bytes: prepared.bytes, mimeType: prepared.mimeType);
+      if (!mounted) return;
+      setState(
+        () => _setImageDraft(
+          kind,
+          _ProfileImageDraft.uploaded(prepared.bytes, uploaded),
+        ),
+      );
+    } on Object {
+      if (!mounted) return;
+      setState(() => _setImageDraft(kind, _ProfileImageDraft.failed()));
+      context.showError(l10n.editProfilePhotoUploadError);
+    }
+  }
+
+  Future<Uint8List> _readHeaderBytes(XFile file) async {
+    final header = <int>[];
+    await for (final chunk in file.openRead(0, 16)) {
+      header.addAll(chunk);
+      if (header.length >= 16) break;
+    }
+    return Uint8List.fromList(
+      header.length <= 16 ? header : header.sublist(0, 16),
+    );
+  }
+
+  void _setImageDraft(_ProfileImageKind kind, _ProfileImageDraft draft) {
+    switch (kind) {
+      case _ProfileImageKind.avatar:
+        _avatarDraft = draft;
+      case _ProfileImageKind.banner:
+        _bannerDraft = draft;
+    }
   }
 
   Future<bool> _confirmDiscard() async {
@@ -294,7 +385,12 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     // with the user's typing. Combined with `_hasChanges` it gives the
     // save button the strict "dirty + valid + not in flight" gate.
     final isFormValid = _formKey.currentState?.isValid ?? true;
-    final canSave = _hasChanges && isFormValid && !isSaving;
+    final canSave =
+        _hasChanges &&
+        isFormValid &&
+        !isSaving &&
+        !_imageUploadInFlight &&
+        !_imageUploadHasError;
 
     return PopScope<Object?>(
       canPop: !_hasChanges || isSaving,
@@ -341,6 +437,22 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                 EditProfileBannerAvatar(
                   profile: widget.profile,
                   bannerColor: swatches.clay,
+                  avatarPreviewBytes: _avatarDraft.previewBytes,
+                  bannerPreviewBytes: _bannerDraft.previewBytes,
+                  avatarUploading: _avatarDraft.isUploading,
+                  bannerUploading: _bannerDraft.isUploading,
+                  avatarError: _avatarDraft.hasError,
+                  bannerError: _bannerDraft.hasError,
+                  onPickAvatar: isSaving
+                      ? null
+                      : () => unawaited(
+                          _pickProfileImage(_ProfileImageKind.avatar),
+                        ),
+                  onPickBanner: isSaving
+                      ? null
+                      : () => unawaited(
+                          _pickProfileImage(_ProfileImageKind.banner),
+                        ),
                 ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(
@@ -484,4 +596,41 @@ class _SaveAction extends StatelessWidget {
           : Text(l10n.editProfileSave),
     );
   }
+}
+
+enum _ProfileImageKind { avatar, banner }
+
+class _ProfileImageDraft {
+  const _ProfileImageDraft({
+    this.previewBytes,
+    this.uploaded,
+    this.isUploading = false,
+    this.hasError = false,
+  });
+
+  factory _ProfileImageDraft.uploading(Uint8List previewBytes) {
+    return _ProfileImageDraft(previewBytes: previewBytes, isUploading: true);
+  }
+
+  factory _ProfileImageDraft.uploaded(
+    Uint8List previewBytes,
+    UploadedImageBlob uploaded,
+  ) {
+    return _ProfileImageDraft(previewBytes: previewBytes, uploaded: uploaded);
+  }
+
+  factory _ProfileImageDraft.failed() {
+    return const _ProfileImageDraft(hasError: true);
+  }
+
+  final Uint8List? previewBytes;
+  final UploadedImageBlob? uploaded;
+  final bool isUploading;
+  final bool hasError;
+
+  bool get changed => previewBytes != null || uploaded != null || hasError;
+}
+
+class _ProfileImagePickException implements Exception {
+  const _ProfileImagePickException();
 }

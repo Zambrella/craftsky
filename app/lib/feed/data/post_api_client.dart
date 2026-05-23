@@ -2,9 +2,10 @@ import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
-import 'package:craftsky_app/feed/models/post_image_blob.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
+import 'package:craftsky_app/shared/media/blob_api_client.dart';
+import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:dio/dio.dart';
 
 /// Post-related AppView endpoints. Assumes the attached [Dio] has the
@@ -23,17 +24,13 @@ class PostApiClient {
     ProgressCallback? onSendProgress,
     ProgressCallback? onReceiveProgress,
     CancelToken? cancelToken,
-  }) => unwrapApi(() async {
-    final res = await _dio.post<Map<String, dynamic>>(
-      '/v1/blobs/images',
-      data: bytes,
-      cancelToken: cancelToken,
-      onSendProgress: onSendProgress,
-      onReceiveProgress: onReceiveProgress,
-      options: Options(contentType: mimeType),
-    );
-    return UploadedImageBlob.fromMap(res.data!);
-  });
+  }) => BlobApiClient(_dio).uploadImage(
+    bytes: bytes,
+    mimeType: mimeType,
+    onSendProgress: onSendProgress,
+    onReceiveProgress: onReceiveProgress,
+    cancelToken: cancelToken,
+  );
 
   /// POST /v1/posts — text-only create, optionally as a reply.
   ///

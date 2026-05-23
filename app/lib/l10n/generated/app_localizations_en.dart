@@ -339,7 +339,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editProfileCraftsHelper => 'Pick the crafts you make';
 
   @override
-  String get editProfilePhotosComingSoon => 'Photo uploads coming soon';
+  String get editProfileChangeAvatar => 'Change avatar';
+
+  @override
+  String get editProfileChangeCover => 'Change cover';
+
+  @override
+  String get editProfilePhotoUploadError => 'Couldn\'t upload that photo.';
 
   @override
   String get editProfileSaveError => 'Couldn\'t save your profile.';

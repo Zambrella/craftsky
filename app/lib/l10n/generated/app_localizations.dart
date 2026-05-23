@@ -712,11 +712,23 @@ abstract class AppLocalizations {
   /// **'Pick the crafts you make'**
   String get editProfileCraftsHelper;
 
-  /// Caption shown over the avatar/banner area on the profile-edit page, indicating that photo upload isn't wired yet.
+  /// Tooltip/action label for choosing a new profile avatar image.
   ///
   /// In en, this message translates to:
-  /// **'Photo uploads coming soon'**
-  String get editProfilePhotosComingSoon;
+  /// **'Change avatar'**
+  String get editProfileChangeAvatar;
+
+  /// Action label for choosing a new profile cover/banner image.
+  ///
+  /// In en, this message translates to:
+  /// **'Change cover'**
+  String get editProfileChangeCover;
+
+  /// Snackbar shown when a selected profile avatar or cover image cannot be prepared or uploaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t upload that photo.'**
+  String get editProfilePhotoUploadError;
 
   /// Snackbar shown when the profile-edit save request fails.
   ///

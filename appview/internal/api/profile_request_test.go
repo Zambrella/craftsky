@@ -23,27 +23,31 @@ func TestDecodeProfilePut_HappyPath(t *testing.T) {
 	}
 }
 
-func TestDecodeProfilePut_RejectsAvatar(t *testing.T) {
+func TestDecodeProfilePut_AcceptsAvatarAndBannerBlobs(t *testing.T) {
 	t.Parallel()
-	_, err := api.DecodeProfilePut(strings.NewReader(`{"avatar":"blob:..."}`))
-	var fe *api.FieldError
-	if err == nil || !asFieldErr(err, &fe) {
-		t.Fatalf("want FieldError; got %v", err)
+	req, err := api.DecodeProfilePut(strings.NewReader(`{
+		"avatar":{"$type":"blob","ref":{"$link":"bafavatar"},"mimeType":"image/jpeg","size":1},
+		"banner":{"$type":"blob","ref":{"$link":"bafbanner"},"mimeType":"image/png","size":2}
+	}`))
+	if err != nil {
+		t.Fatalf("DecodeProfilePut: %v", err)
 	}
-	if _, ok := fe.Fields["avatar"]; !ok {
-		t.Errorf("fields = %v", fe.Fields)
+	if !req.Avatar.Present || req.Avatar.Blob == nil {
+		t.Fatalf("avatar = %+v", req.Avatar)
+	}
+	if !req.Banner.Present || req.Banner.Blob == nil {
+		t.Fatalf("banner = %+v", req.Banner)
 	}
 }
 
-func TestDecodeProfilePut_RejectsBanner(t *testing.T) {
+func TestDecodeProfilePut_AcceptsNullAvatarClear(t *testing.T) {
 	t.Parallel()
-	_, err := api.DecodeProfilePut(strings.NewReader(`{"banner":"blob:..."}`))
-	var fe *api.FieldError
-	if err == nil || !asFieldErr(err, &fe) {
-		t.Fatal("want FieldError")
+	req, err := api.DecodeProfilePut(strings.NewReader(`{"avatar":null}`))
+	if err != nil {
+		t.Fatalf("DecodeProfilePut: %v", err)
 	}
-	if _, ok := fe.Fields["banner"]; !ok {
-		t.Errorf("fields = %v", fe.Fields)
+	if !req.Avatar.Present || req.Avatar.Blob != nil {
+		t.Fatalf("avatar = %+v", req.Avatar)
 	}
 }
 
@@ -72,6 +76,24 @@ func TestValidateProfilePut_TooManyCrafts(t *testing.T) {
 	var fe *api.FieldError
 	if !asFieldErr(err, &fe) || fe.Fields["crafts"] == "" {
 		t.Fatalf("want FieldError on crafts; got %v", err)
+	}
+}
+
+func TestValidateProfilePut_RejectsUnsupportedAvatarMIME(t *testing.T) {
+	t.Parallel()
+	req := api.ProfilePutRequest{Avatar: api.ProfileImageUpdate{
+		Present: true,
+		Blob: map[string]any{
+			"$type":    "blob",
+			"ref":      map[string]any{"$link": "bafavatar"},
+			"mimeType": "image/gif",
+			"size":     1,
+		},
+	}}
+	err := api.ValidateProfilePut(req)
+	var fe *api.FieldError
+	if !asFieldErr(err, &fe) || fe.Fields["avatar.mimeType"] == "" {
+		t.Fatalf("want FieldError on avatar.mimeType; got %v", err)
 	}
 }
 
