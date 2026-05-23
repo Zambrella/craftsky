@@ -512,7 +512,8 @@ void main() {
         );
 
         await tester.tap(find.byKey(const Key('post-image-carousel')));
-        await tester.pumpAndSettle();
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
 
         expect(find.byType(PostImageGallery), findsOneWidget);
         expect(find.byType(AppBar), findsNothing);
@@ -572,7 +573,8 @@ void main() {
       );
 
       await tester.tap(find.byKey(const Key('post-image-carousel')));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
 
       final closeBackground = find.byKey(
         const Key('post-image-gallery-close-background'),
@@ -620,7 +622,8 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('post-image-carousel')));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
 
       expect(find.byType(PostImageGallery), findsOneWidget);
       expect(find.text('Image two'), findsOneWidget);
@@ -650,7 +653,8 @@ void main() {
       );
 
       await tester.tap(find.byKey(const Key('post-image-carousel')));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
 
       expect(find.byType(PostImageGallery), findsOneWidget);
       expect(find.byType(Hero), findsNothing);

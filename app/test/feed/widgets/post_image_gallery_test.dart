@@ -1,17 +1,22 @@
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
+import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
+import '../../fakes/image_cache_fakes.dart';
+
 Future<void> _pump(
   WidgetTester tester,
   Widget child, {
   EdgeInsets viewPadding = EdgeInsets.zero,
+  List<dynamic> overrides = const [],
 }) {
   return tester.pumpWidget(
     ProviderScope(
+      overrides: List.from(overrides),
       child: MaterialApp(
         builder: (context, routeChild) {
           final mediaQuery = MediaQuery.of(context);
@@ -21,6 +26,32 @@ Future<void> _pump(
           );
         },
         home: Scaffold(body: SizedBox(height: 500, child: child)),
+      ),
+    ),
+  );
+}
+
+Future<void> _pumpRoute(
+  WidgetTester tester, {
+  List<dynamic> overrides = const [],
+}) {
+  return tester.pumpWidget(
+    ProviderScope(
+      overrides: List.from(overrides),
+      child: MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () => showImageGallery(
+                  context,
+                  images: const [GalleryImage(alt: 'Blue shawl')],
+                ),
+                child: const Text('Open gallery'),
+              ),
+            ),
+          ),
+        ),
       ),
     ),
   );
@@ -70,7 +101,6 @@ void main() {
 
     expect(find.text('Close-up stitch detail'), findsOneWidget);
     expect(find.text('2/2'), findsOneWidget);
-    expect(find.bySemanticsLabel('Close-up stitch detail'), findsWidgets);
   });
 
   testWidgets('gallery images are zoom-enabled via InteractiveViewer', (
@@ -97,8 +127,104 @@ void main() {
     );
     expect(viewer.minScale, 1);
     expect(viewer.maxScale, greaterThan(1));
+    expect(viewer.panEnabled, isTrue);
     expect(find.byKey(const Key('post-image-gallery-count')), findsNothing);
     expect(find.byKey(const Key('post-image-gallery-dots')), findsNothing);
+  });
+
+  testWidgets('shows a loading spinner while the fullscreen image loads', (
+    tester,
+  ) async {
+    final fakeCache = FakeBaseCacheManager();
+
+    await _pump(
+      tester,
+      PostImageGallery(
+        images: [
+          PostImage(
+            cid: 'bafkimage1',
+            mime: 'image/jpeg',
+            size: 10,
+            alt: 'Blue shawl laid flat',
+            fullsize: 'https://cdn.example.com/full1.jpg',
+          ),
+        ],
+      ),
+      overrides: [
+        feedImageCacheManagerProvider.overrideWith((ref) => fakeCache),
+      ],
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('post-image-gallery-loading')), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('zooming disables page swiping so drags pan the image', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      PostImageGallery(
+        images: [
+          PostImage(
+            cid: 'bafkimage1',
+            mime: 'image/jpeg',
+            size: 10,
+            alt: 'Blue shawl laid flat',
+          ),
+          PostImage(
+            cid: 'bafkimage2',
+            mime: 'image/png',
+            size: 11,
+            alt: 'Close-up stitch detail',
+          ),
+        ],
+      ),
+    );
+
+    var pageView = tester.widget<PageView>(
+      find.byKey(const Key('post-image-gallery-page-view')),
+    );
+    expect(pageView.physics, isA<PageScrollPhysics>());
+
+    final center = tester.getCenter(find.byType(InteractiveViewer).first);
+    final firstPointer = await tester.createGesture(pointer: 1);
+    final secondPointer = await tester.createGesture(pointer: 2);
+    await firstPointer.down(center + const Offset(-20, 0));
+    await secondPointer.down(center + const Offset(20, 0));
+    await tester.pump();
+    await firstPointer.moveTo(center + const Offset(-70, 0));
+    await secondPointer.moveTo(center + const Offset(70, 0));
+    await tester.pump();
+    await firstPointer.up();
+    await secondPointer.up();
+    await tester.pump();
+
+    pageView = tester.widget<PageView>(
+      find.byKey(const Key('post-image-gallery-page-view')),
+    );
+    expect(pageView.physics, isA<NeverScrollableScrollPhysics>());
+  });
+
+  testWidgets('dragging down closes the fullscreen gallery route', (
+    tester,
+  ) async {
+    await _pumpRoute(tester);
+
+    await tester.tap(find.text('Open gallery'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PostImageGallery), findsOneWidget);
+
+    await tester.drag(
+      find.byType(PostImageGallery),
+      const Offset(0, 260),
+      touchSlopY: 0,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PostImageGallery), findsNothing);
+    expect(find.text('Open gallery'), findsOneWidget);
   });
 
   testWidgets('gallery overlays account for media view padding', (

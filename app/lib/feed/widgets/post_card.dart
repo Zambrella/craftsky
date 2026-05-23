@@ -122,7 +122,11 @@ class PostCard extends StatelessWidget {
                         images: images,
                         onImageTap: (index) {
                           unawaited(
-                            _showPostImageGallery(context, images, index),
+                            showPostImageGallery(
+                              context,
+                              images: images,
+                              initialIndex: index,
+                            ),
                           );
                         },
                       ),
@@ -196,46 +200,6 @@ class PostCard extends StatelessWidget {
       child: content,
     );
   }
-}
-
-Future<void> _showPostImageGallery(
-  BuildContext context,
-  List<PostImage> images,
-  int initialIndex,
-) {
-  return Navigator.of(context, rootNavigator: true).push<void>(
-    MaterialPageRoute<void>(
-      fullscreenDialog: true,
-      builder: (context) {
-        final viewPadding = MediaQuery.of(context).viewPadding;
-        return Scaffold(
-          backgroundColor: Colors.black,
-          body: Stack(
-            children: [
-              Positioned.fill(
-                child: PostImageGallery(
-                  images: images,
-                  initialIndex: initialIndex,
-                ),
-              ),
-              Positioned(
-                left: viewPadding.left + 8,
-                top: viewPadding.top + 8,
-                child: DecoratedBox(
-                  key: const Key('post-image-gallery-close-background'),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.55),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const CloseButton(color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    ),
-  );
 }
 
 class _PostCardHeader extends StatelessWidget {

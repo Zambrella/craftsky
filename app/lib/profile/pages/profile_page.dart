@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
@@ -164,6 +167,20 @@ class _ProfileScrollView extends StatelessWidget {
           bannerUrl: profile.banner,
           bannerChipLabel: 'Jacket weather',
           actions: actions,
+          onAvatarTap: profile.avatar == null
+              ? null
+              : () => _openProfileImage(
+                  context,
+                  url: profile.avatar!,
+                  alt: _profileImageAlt(profile, 'profile picture'),
+                ),
+          onBannerTap: profile.banner == null
+              ? null
+              : () => _openProfileImage(
+                  context,
+                  url: profile.banner!,
+                  alt: _profileImageAlt(profile, 'profile banner'),
+                ),
         ),
         SliverToBoxAdapter(child: ProfileMetaSection(profile: profile)),
         const SliverPersistentHeader(
@@ -182,6 +199,26 @@ class _ProfileScrollView extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  void _openProfileImage(
+    BuildContext context, {
+    required String url,
+    required String alt,
+  }) {
+    unawaited(
+      showImageGallery(
+        context,
+        images: [GalleryImage(alt: alt, thumb: url, fullsize: url)],
+      ),
+    );
+  }
+
+  String _profileImageAlt(Profile profile, String imageLabel) {
+    final name = (profile.displayName?.isNotEmpty ?? false)
+        ? profile.displayName!
+        : '@${profile.handle}';
+    return '$name $imageLabel';
   }
 }
 

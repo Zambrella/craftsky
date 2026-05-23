@@ -18,6 +18,23 @@ Future<void> _pumpCarousel(WidgetTester tester, PostImageCarousel carousel) {
   );
 }
 
+List<PostImage> _images(String prefix) {
+  return [
+    PostImage(
+      cid: 'bafk${prefix}image1',
+      mime: 'image/jpeg',
+      size: 10,
+      alt: '$prefix image one',
+    ),
+    PostImage(
+      cid: 'bafk${prefix}image2',
+      mime: 'image/jpeg',
+      size: 11,
+      alt: '$prefix image two',
+    ),
+  ];
+}
+
 void main() {
   group('computeBoundedImageHeight', () {
     test('uses stable fallback when aspect ratio is missing', () {
@@ -113,5 +130,49 @@ void main() {
     );
     expect(indicator.count, 2);
     expect(indicator.effect, isA<WormEffect>());
+  });
+
+  testWidgets('newly visible carousels start on the first image', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(400, 600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: ListView.builder(
+              itemCount: 3,
+              itemBuilder: (context, index) {
+                return switch (index) {
+                  0 => SizedBox(
+                    width: 320,
+                    child: PostImageCarousel(images: _images('first')),
+                  ),
+                  1 => const SizedBox(height: 500),
+                  _ => SizedBox(
+                    width: 320,
+                    child: PostImageCarousel(images: _images('second')),
+                  ),
+                };
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.drag(
+      find.byKey(const Key('post-image-carousel')),
+      const Offset(-500, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('2/2'), findsOneWidget);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -900));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1/2'), findsOneWidget);
   });
 }

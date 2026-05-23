@@ -43,7 +43,7 @@ class PostImageCarousel extends ConsumerStatefulWidget {
 }
 
 class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
-  final _pageController = PageController();
+  final _pageController = PageController(keepPage: false);
   var _page = 0;
 
   @override

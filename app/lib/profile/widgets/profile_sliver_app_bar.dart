@@ -30,6 +30,8 @@ class ProfileSliverAppBar extends StatelessWidget {
     this.avatarUrl,
     this.bannerUrl,
     this.bannerChipLabel,
+    this.onAvatarTap,
+    this.onBannerTap,
     super.key,
   });
 
@@ -40,6 +42,8 @@ class ProfileSliverAppBar extends StatelessWidget {
   final String? avatarUrl;
   final String? bannerUrl;
   final String? bannerChipLabel;
+  final VoidCallback? onAvatarTap;
+  final VoidCallback? onBannerTap;
 
   static const double bannerHeight = 200;
 
@@ -87,6 +91,8 @@ class ProfileSliverAppBar extends StatelessWidget {
         displayName: displayName,
         avatarUrl: avatarUrl,
         actions: actions,
+        onAvatarTap: onAvatarTap,
+        onBannerTap: onBannerTap,
       ),
     );
   }
@@ -101,6 +107,8 @@ class _ProfileFlexibleSpace extends StatelessWidget {
     required this.displayName,
     required this.avatarUrl,
     required this.actions,
+    required this.onAvatarTap,
+    required this.onBannerTap,
   });
 
   final Color bannerColor;
@@ -110,6 +118,8 @@ class _ProfileFlexibleSpace extends StatelessWidget {
   final String? displayName;
   final String? avatarUrl;
   final ProfileActionSet actions;
+  final VoidCallback? onAvatarTap;
+  final VoidCallback? onBannerTap;
 
   /// Reserved horizontal space for the avatar plus a 12px gap, so the
   /// action row sits cleanly to its right. Kept as a literal because
@@ -136,6 +146,26 @@ class _ProfileFlexibleSpace extends StatelessWidget {
 
     final bannerVisualBottom = topPadding + ProfileSliverAppBar.bannerHeight;
     final seed = (displayName?.isNotEmpty ?? false) ? displayName! : handle;
+    final banner = _tappableIfAvailable(
+      key: const Key('profile-banner-viewer-target'),
+      imageUrl: bannerUrl,
+      onTap: onBannerTap,
+      child: ProfileBanner(
+        color: bannerColor,
+        bannerUrl: bannerUrl,
+        height: bannerVisualBottom,
+      ),
+    );
+    final avatar = _tappableIfAvailable(
+      key: const Key('profile-avatar-viewer-target'),
+      imageUrl: avatarUrl,
+      onTap: onAvatarTap,
+      child: ProfileAvatar(
+        seed: seed,
+        avatarUrl: avatarUrl,
+        size: ProfileAvatarSize.large,
+      ),
+    );
 
     return Stack(
       fit: StackFit.expand,
@@ -161,17 +191,16 @@ class _ProfileFlexibleSpace extends StatelessWidget {
             // visually grows the image as collapse progresses and lets
             // it overlap the action row below. ClipRect bounds the
             // filtered output back to the banner area.
-            child: ClipRect(
-              child: ImageFiltered(
-                imageFilter: ui.ImageFilter.blur(
-                  sigmaX: collapsed * 12,
-                  sigmaY: collapsed * 12,
-                  tileMode: ui.TileMode.clamp,
-                ),
-                child: ProfileBanner(
-                  color: bannerColor,
-                  bannerUrl: bannerUrl,
-                  height: bannerVisualBottom,
+            child: IgnorePointer(
+              ignoring: collapsed > 0.5,
+              child: ClipRect(
+                child: ImageFiltered(
+                  imageFilter: ui.ImageFilter.blur(
+                    sigmaX: collapsed * 12,
+                    sigmaY: collapsed * 12,
+                    tileMode: ui.TileMode.clamp,
+                  ),
+                  child: banner,
                 ),
               ),
             ),
@@ -192,12 +221,11 @@ class _ProfileFlexibleSpace extends StatelessWidget {
         Positioned(
           left: spacing.sp4,
           top: bannerVisualBottom - ProfileSliverAppBar.avatarBannerOverlap,
-          child: Opacity(
-            opacity: 1 - collapsed,
-            child: ProfileAvatar(
-              seed: seed,
-              avatarUrl: avatarUrl,
-              size: ProfileAvatarSize.large,
+          child: IgnorePointer(
+            ignoring: collapsed > 0.5,
+            child: Opacity(
+              opacity: 1 - collapsed,
+              child: avatar,
             ),
           ),
         ),
@@ -271,6 +299,21 @@ class _ProfileFlexibleSpace extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _tappableIfAvailable({
+    required Key key,
+    required String? imageUrl,
+    required VoidCallback? onTap,
+    required Widget child,
+  }) {
+    if (imageUrl == null || onTap == null) return child;
+    return GestureDetector(
+      key: key,
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: child,
     );
   }
 }
