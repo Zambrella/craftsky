@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/widgets/post_image_page_indicator.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -108,22 +109,10 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (hasMultipleImages) ...[
-                Row(
-                  key: const Key('post-image-gallery-dots'),
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(widget.images.length, (index) {
-                    final isActive = index == _currentIndex;
-                    return Container(
-                      width: 6,
-                      height: 6,
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      decoration: BoxDecoration(
-                        color: (isActive ? Colors.white : Colors.white70)
-                            .withValues(alpha: 0.95),
-                        shape: BoxShape.circle,
-                      ),
-                    );
-                  }),
+                PostImagePageIndicator(
+                  indicatorKey: const Key('post-image-gallery-dots'),
+                  controller: _controller,
+                  count: widget.images.length,
                 ),
                 const SizedBox(height: 8),
               ],

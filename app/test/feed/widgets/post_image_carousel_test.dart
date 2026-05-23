@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pinch_zoom/pinch_zoom.dart';
+import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
 Future<void> _pumpCarousel(WidgetTester tester, PostImageCarousel carousel) {
   return tester.pumpWidget(
@@ -77,5 +78,40 @@ void main() {
     expect(zoom.maxScale, 4);
     expect(zoom.zoomEnabled, isTrue);
     expect(find.bySemanticsLabel('Blue shawl drying flat'), findsOneWidget);
+  });
+
+  testWidgets('uses high-contrast worm page indicators', (tester) async {
+    await _pumpCarousel(
+      tester,
+      PostImageCarousel(
+        images: [
+          PostImage(
+            cid: 'bafkimage1',
+            mime: 'image/jpeg',
+            size: 10,
+            alt: 'Blue shawl drying flat',
+          ),
+          PostImage(
+            cid: 'bafkimage2',
+            mime: 'image/jpeg',
+            size: 11,
+            alt: 'Close-up stitch detail',
+          ),
+        ],
+      ),
+    );
+
+    final background = tester.widget<DecoratedBox>(
+      find.byKey(const Key('post-image-dots')),
+    );
+    final decoration = background.decoration as BoxDecoration;
+    expect(decoration.color, Colors.black.withValues(alpha: 0.58));
+    expect(find.byType(SmoothPageIndicator), findsOneWidget);
+
+    final indicator = tester.widget<SmoothPageIndicator>(
+      find.byType(SmoothPageIndicator),
+    );
+    expect(indicator.count, 2);
+    expect(indicator.effect, isA<WormEffect>());
   });
 }

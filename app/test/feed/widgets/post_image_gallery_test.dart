@@ -3,6 +3,7 @@ import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
 Future<void> _pump(
   WidgetTester tester,
@@ -57,6 +58,7 @@ void main() {
     expect(find.text('1/2'), findsOneWidget);
     expect(find.byKey(const Key('post-image-gallery-count')), findsOneWidget);
     expect(find.byKey(const Key('post-image-gallery-dots')), findsOneWidget);
+    expect(find.byType(SmoothPageIndicator), findsOneWidget);
     expect(find.bySemanticsLabel('Blue shawl laid flat'), findsWidgets);
     expect(find.byType(InteractiveViewer), findsWidgets);
 
@@ -144,5 +146,41 @@ void main() {
       const EdgeInsets.fromLTRB(18, 12, 20, 46),
     );
     expect(find.byType(SafeArea), findsNothing);
+  });
+
+  testWidgets('gallery page indicator has a contrast background', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      PostImageGallery(
+        images: [
+          PostImage(
+            cid: 'bafkimage1',
+            mime: 'image/jpeg',
+            size: 10,
+            alt: 'Blue shawl laid flat',
+          ),
+          PostImage(
+            cid: 'bafkimage2',
+            mime: 'image/png',
+            size: 11,
+            alt: 'Close-up stitch detail',
+          ),
+        ],
+      ),
+    );
+
+    final background = tester.widget<DecoratedBox>(
+      find.byKey(const Key('post-image-gallery-dots')),
+    );
+    final decoration = background.decoration as BoxDecoration;
+    expect(decoration.color, Colors.black.withValues(alpha: 0.58));
+
+    final indicator = tester.widget<SmoothPageIndicator>(
+      find.byType(SmoothPageIndicator),
+    );
+    expect(indicator.count, 2);
+    expect(indicator.effect, isA<WormEffect>());
   });
 }

@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/widgets/post_image_page_indicator.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -150,24 +151,10 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                 left: 0,
                 right: 0,
                 bottom: 8,
-                child: Row(
-                  key: const Key('post-image-dots'),
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(widget.images.length, (index) {
-                    final isActive = index == _page;
-                    return Container(
-                      width: 6,
-                      height: 6,
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      decoration: BoxDecoration(
-                        color: (isActive ? Colors.white : Colors.white70)
-                            .withValues(
-                              alpha: 0.95,
-                            ),
-                        shape: BoxShape.circle,
-                      ),
-                    );
-                  }),
+                child: PostImagePageIndicator(
+                  indicatorKey: const Key('post-image-dots'),
+                  controller: _pageController,
+                  count: widget.images.length,
                 ),
               ),
           ],
