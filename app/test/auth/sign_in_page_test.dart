@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/pages/sign_in_page.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
@@ -45,6 +46,8 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: const SignInPage(),
         ),
       ),
@@ -63,6 +66,8 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: const SignInPage(),
           ),
         ),
@@ -96,6 +101,8 @@ void main() {
             messenger: messenger,
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
               home: const SignInPage(),
             ),
           ),

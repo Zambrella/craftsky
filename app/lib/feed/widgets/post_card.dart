@@ -5,7 +5,6 @@ import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
@@ -57,6 +56,10 @@ class PostCard extends StatelessWidget {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final radii = theme.extension<RadiusTheme>()!;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    final semanticColors = theme.extension<SemanticColorsTheme>()!;
+    final colors = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
     final displayName = post.author.displayName ?? post.author.handle;
     final isFlat = style == PostCardStyle.flat;
     final borderRadius = isFlat
@@ -67,10 +70,10 @@ class PostCard extends StatelessWidget {
       duration: const Duration(milliseconds: 350),
       curve: Curves.easeOutCubic,
       decoration: BoxDecoration(
-        color: isHighlighted ? BrandColors.sky.withValues(alpha: 0.32) : null,
+        color: isHighlighted ? swatches.sky.withValues(alpha: 0.32) : null,
         border: isHighlighted
-            ? const Border(
-                left: BorderSide(color: BrandColors.cobalt, width: 6),
+            ? Border(
+                left: BorderSide(color: colors.primary, width: 6),
               )
             : null,
       ),
@@ -145,17 +148,21 @@ class PostCard extends StatelessWidget {
                                   : Icons.favorite_border,
                               count: post.likeCount,
                               isSelected: post.viewerHasLiked,
-                              selectedColor: BrandColors.red,
-                              tooltip: post.viewerHasLiked ? 'Unlike' : 'Like',
+                              selectedColor: semanticColors.error,
+                              tooltip: post.viewerHasLiked
+                                  ? l10n.postUnlikeAction
+                                  : l10n.postLikeAction,
                               onPressed: onLike,
                             ),
                             _PostCardAction(
                               icon: Icons.chat_bubble_outline,
                               count: showReplyCount ? post.replyCount : 0,
                               isSelected: post.viewerHasReplied,
-                              selectedColor: BrandColors.clay,
-                              tooltip: replyTooltip ?? 'Reply',
-                              label: showReplyLabel ? 'Reply' : null,
+                              selectedColor: swatches.clay,
+                              tooltip: replyTooltip ?? l10n.postReplyAction,
+                              label: showReplyLabel
+                                  ? l10n.postReplyAction
+                                  : null,
                               onPressed: onReply,
                             ),
                             if (showRepostAction)
@@ -163,10 +170,10 @@ class PostCard extends StatelessWidget {
                                 icon: Icons.repeat,
                                 count: post.repostCount,
                                 isSelected: post.viewerHasReposted,
-                                selectedColor: BrandColors.moss,
+                                selectedColor: semanticColors.success,
                                 tooltip: post.viewerHasReposted
-                                    ? 'Unrepost'
-                                    : 'Repost',
+                                    ? l10n.postUnrepostAction
+                                    : l10n.postRepostAction,
                                 onPressed: onRepost,
                               ),
                           ],
@@ -326,7 +333,9 @@ class _PostCardAction extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
-    final color = isSelected ? selectedColor : BrandColors.ink2;
+    final color = isSelected
+        ? selectedColor
+        : theme.colorScheme.onSurfaceVariant;
     final countLabel = _compactCountLabel(count);
     return Semantics(
       label: tooltip,

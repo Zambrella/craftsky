@@ -33,11 +33,12 @@ class ProfileAvatar extends ConsumerWidget {
     final shadows = theme.extension<BrandShadowTheme>()!;
     final dimension = size.dimension;
     final borderWidth = size.borderWidth;
+    final fallbackBackground = _fallbackBackgroundFor(seed, swatches);
 
     final fallback = _AvatarInitialFallback(
       seed: seed,
       dimension: dimension,
-      backgroundColor: swatches.butter,
+      backgroundColor: fallbackBackground,
       foregroundColor: theme.colorScheme.onSurface,
     );
 
@@ -46,7 +47,7 @@ class ProfileAvatar extends ConsumerWidget {
       height: dimension,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: swatches.butter,
+        color: fallbackBackground,
         border: Border.all(
           color: theme.colorScheme.onSurface,
           width: borderWidth,
@@ -74,6 +75,23 @@ class ProfileAvatar extends ConsumerWidget {
       ),
     );
   }
+}
+
+Color _fallbackBackgroundFor(String seed, BrandSwatchTheme swatches) {
+  final trimmed = seed.trim();
+  final initial = trimmed.isEmpty
+      ? null
+      : trimmed.characters.first.toUpperCase();
+  final codeUnit = initial?.codeUnitAt(0) ?? 0;
+  final colors = [
+    swatches.butter,
+    swatches.clay,
+    swatches.moss,
+    swatches.sky,
+    swatches.lilac,
+    swatches.paper2,
+  ];
+  return colors[codeUnit % colors.length];
 }
 
 class _AvatarInitialFallback extends StatelessWidget {

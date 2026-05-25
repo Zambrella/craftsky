@@ -7,7 +7,6 @@ import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
-import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -118,15 +117,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
         if (notice == null || previous?.notice?.id == notice.id) return;
         switch (notice) {
           case ImageSelectionLimitNotice(:final maxImages):
-            context.showError('You can add up to $maxImages images');
+            context.showError(l10n.postComposeImageLimitError(maxImages));
           case UnsupportedImagesNotice(:final count):
-            context.showError(
-              count == 1
-                  ? 'Unsupported image type'
-                  : '$count unsupported images',
-            );
+            context.showError(l10n.postComposeUnsupportedImagesError(count));
           case ImagePickerFailedNotice():
-            context.showError('Could not open image picker');
+            context.showError(l10n.postComposeImagePickerError);
         }
         ref.read(imagesProvider.notifier).clearNotice(notice.id);
       });
@@ -182,9 +177,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                   label: isReply
                       ? l10n.postComposeReplyHint
                       : l10n.postComposeHint,
-                  hintText: isReply
-                      ? null
-                      : "Pattern, fabric, what went right, what didn't...",
+                  hintText: isReply ? null : l10n.postComposeBodyHint,
                   controller: _controller,
                   focusNode: _focusNode,
                   minLines: isReply ? 5 : 3,
@@ -307,8 +300,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                               if (imagesState.images.length >=
                                   mediaConfig.maxImages) {
                                 context.showError(
-                                  'You can add up to '
-                                  '${mediaConfig.maxImages} images',
+                                  l10n.postComposeImageLimitError(
+                                    mediaConfig.maxImages,
+                                  ),
                                 );
                                 return;
                               }
@@ -344,12 +338,13 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
   Future<void> _submitPost({required String trimmedText}) async {
     final imagesState = ref.read(composerImagesProvider(_composerId));
     if (widget.replyTarget == null && imagesState.hasImagesMissingAltText) {
+      final l10n = AppLocalizations.of(context);
       final shouldPost = await showCraftskyConfirmDialog(
         context,
-        title: 'Some images do not have alt text',
-        message: 'Do you wish to post anyway?',
-        confirmLabel: 'Post anyway',
-        cancelLabel: 'Go back',
+        title: l10n.postComposeMissingAltTitle,
+        message: l10n.postComposeMissingAltMessage,
+        confirmLabel: l10n.postComposeMissingAltConfirm,
+        cancelLabel: l10n.postComposeMissingAltCancel,
       );
       if (!shouldPost || !mounted) return;
     }
@@ -380,9 +375,10 @@ class _PhotosHeader extends StatelessWidget {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final colors = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
     final describedLabel = imageCount == 0
-        ? '0 described'
-        : '$describedImageCount / $imageCount described';
+        ? l10n.postComposeNoImagesDescribed
+        : l10n.postComposeImagesDescribed(describedImageCount, imageCount);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -391,7 +387,7 @@ class _PhotosHeader extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                'Photos',
+                l10n.postComposePhotosTitle,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),
@@ -411,8 +407,11 @@ class _PhotosHeader extends StatelessWidget {
         SizedBox(height: spacing.sp1),
         Text(
           imageCount == 0
-              ? 'Up to ${mediaConfig.maxImages} photos'
-              : '$imageCount/${mediaConfig.maxImages} · drag to reorder · first is the cover',
+              ? l10n.postComposePhotosLimitHelper(mediaConfig.maxImages)
+              : l10n.postComposePhotosReorderHelper(
+                  imageCount,
+                  mediaConfig.maxImages,
+                ),
           style: theme.textTheme.bodyMedium?.copyWith(
             color: colors.outline,
             fontWeight: FontWeight.w700,
@@ -459,7 +458,9 @@ class _DraftImageTile extends StatelessWidget {
     final radii = theme.extension<RadiusTheme>()!;
     final shadows = theme.extension<BrandShadowTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
+    final semanticColors = theme.extension<SemanticColorsTheme>()!;
     final colors = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
     final hasAltText = image.altText.trim().isNotEmpty;
     final shadowOffset = shadows.dropSm.first.offset;
 
@@ -487,28 +488,28 @@ class _DraftImageTile extends StatelessWidget {
                   _CircleIconButton(
                     key: moveUpKey,
                     icon: Icons.arrow_upward_rounded,
-                    tooltip: 'Move image up',
+                    tooltip: l10n.postComposeMoveImageUp,
                     onPressed: canMoveUp ? onMoveUp : null,
                   ),
                   SizedBox(width: spacing.sp2),
                   _CircleIconButton(
                     key: moveDownKey,
                     icon: Icons.arrow_downward_rounded,
-                    tooltip: 'Move image down',
+                    tooltip: l10n.postComposeMoveImageDown,
                     onPressed: canMoveDown ? onMoveDown : null,
                   ),
                   SizedBox(width: spacing.sp2),
                   _CircleIconButton(
                     key: removeKey,
                     icon: Icons.delete_outline_rounded,
-                    tooltip: 'Remove image',
-                    foregroundColor: BrandColors.red,
+                    tooltip: l10n.postComposeRemoveImage,
+                    foregroundColor: semanticColors.error,
                     onPressed: onRemove,
                   ),
                   SizedBox(width: spacing.sp2),
                   Handle(
                     child: Tooltip(
-                      message: 'Drag to reorder',
+                      message: l10n.postComposeDragToReorder,
                       child: Icon(
                         Icons.drag_indicator_rounded,
                         color: colors.outline,
@@ -527,9 +528,9 @@ class _DraftImageTile extends StatelessWidget {
               SizedBox(height: spacing.sp4),
               BrandTextField(
                 key: altTextKey,
-                label: 'ALT TEXT',
+                label: l10n.postComposeAltTextLabel,
                 initialValue: image.altText,
-                hintText: _altTextHint,
+                hintText: l10n.postComposeAltTextHint,
                 minLines: 2,
                 maxLines: 4,
                 keyboardType: TextInputType.multiline,
@@ -546,9 +547,11 @@ class _DraftImageTile extends StatelessWidget {
                   fontWeight: FontWeight.w900,
                 ),
                 labelTrailing: Text(
-                  hasAltText ? 'Described' : 'Help screen readers',
+                  hasAltText
+                      ? l10n.postComposeImageDescribed
+                      : l10n.postComposeImageNeedsAltText,
                   style: theme.textTheme.labelMedium?.copyWith(
-                    color: hasAltText ? BrandColors.moss : colors.error,
+                    color: hasAltText ? semanticColors.success : colors.error,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -596,7 +599,7 @@ class _DraftImagePreview extends StatelessWidget {
                   decoration: BoxDecoration(color: Color(0xFFEAEAEA)),
                 ),
               },
-              if (_previewLoadingOverlay(image) case final overlay?)
+              if (_previewLoadingOverlay(context, image) case final overlay?)
                 _ImageLoadingOverlay(imageId: image.id, overlay: overlay),
             ],
           ),
@@ -673,7 +676,7 @@ class _ImageStatus extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          _statusLabel(image),
+          _statusLabel(context, image),
           style: theme.textTheme.bodyMedium?.copyWith(
             color: failed ? colors.error : colors.outline,
             fontWeight: FontWeight.w700,
@@ -700,12 +703,13 @@ class _ImageNumberBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isCover = index == 0;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
     return Container(
       width: 50,
       height: 50,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: isCover ? theme.colorScheme.primary : BrandColors.paper2,
+        color: isCover ? theme.colorScheme.primary : swatches.paper2,
         shape: BoxShape.circle,
         border: Border.all(color: theme.colorScheme.onSurface, width: 2),
       ),
@@ -740,6 +744,7 @@ class _CircleIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
     final enabled = onPressed != null;
 
     return IconButton(
@@ -748,7 +753,7 @@ class _CircleIconButton extends StatelessWidget {
       icon: Icon(icon),
       style: IconButton.styleFrom(
         fixedSize: const Size(52, 52),
-        backgroundColor: BrandColors.paper3,
+        backgroundColor: swatches.paper3,
         foregroundColor: enabled
             ? foregroundColor ?? colors.onSurface
             : colors.outlineVariant,
@@ -778,11 +783,16 @@ class _AddPhotoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
+    final radii = theme.extension<RadiusTheme>()!;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
     final colors = theme.colorScheme;
-    final label = hasImages ? 'Add another photo' : 'Add a photo';
+    final l10n = AppLocalizations.of(context);
+    final label = hasImages
+        ? l10n.postComposeAddAnotherPhoto
+        : l10n.postComposeAddPhoto;
     final subtitle = hasImages
-        ? 'Up to $remainingCount more'
-        : 'Up to ${mediaConfig.maxImages} photos';
+        ? l10n.postComposePhotosRemaining(remainingCount)
+        : l10n.postComposePhotosLimitHelper(mediaConfig.maxImages);
 
     return Padding(
       padding: EdgeInsets.only(bottom: spacing.sp2),
@@ -795,7 +805,7 @@ class _AddPhotoCard extends StatelessWidget {
           child: CustomPaint(
             painter: _DashedBorderPainter(
               color: colors.onSurface,
-              radius: 24,
+              radius: radii.r4,
               strokeWidth: 1.8,
             ),
             child: Padding(
@@ -810,7 +820,7 @@ class _AddPhotoCard extends StatelessWidget {
                     height: 56,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: BrandColors.butter,
+                      color: swatches.butter,
                       shape: BoxShape.circle,
                       border: Border.all(color: colors.onSurface, width: 2),
                     ),
@@ -904,41 +914,52 @@ double _previewAspectRatio(ComposerImageDraft image) {
   return 1;
 }
 
-String _statusLabel(ComposerImageDraft image) => switch (image.phase) {
-  ImageQueued() || ImageReading() => 'Reading image',
-  ImagePreparing() => 'Preparing image',
-  ImageUploading() => 'Uploading image',
-  ImageUploaded() => 'Uploaded',
-  ImageFailed() => 'Failed',
-};
-
-const _altTextHint =
-    'Describe the image for someone who cannot see it, including the craft, '
-    'materials, colors, and important details.';
-
-_PreviewLoadingOverlay? _previewLoadingOverlay(ComposerImageDraft image) {
+String _statusLabel(BuildContext context, ComposerImageDraft image) {
+  final l10n = AppLocalizations.of(context);
   return switch (image.phase) {
-    ImageQueued() || ImageReading() => const _PreviewLoadingOverlay(
-      label: 'Reading image',
+    ImageQueued() || ImageReading() => l10n.postComposeReadingImage,
+    ImagePreparing() => l10n.postComposePreparingImage,
+    ImageUploading() => l10n.postComposeUploadingImage,
+    ImageUploaded() => l10n.postComposeUploadedImage,
+    ImageFailed() => l10n.postComposeImageFailed,
+  };
+}
+
+_PreviewLoadingOverlay? _previewLoadingOverlay(
+  BuildContext context,
+  ComposerImageDraft image,
+) {
+  final l10n = AppLocalizations.of(context);
+  return switch (image.phase) {
+    ImageQueued() || ImageReading() => _PreviewLoadingOverlay(
+      label: l10n.postComposeReadingImage,
     ),
-    ImagePreparing() => const _PreviewLoadingOverlay(label: 'Preparing image'),
-    ImageUploading(:final progress) => _uploadLoadingOverlay(progress),
+    ImagePreparing() => _PreviewLoadingOverlay(
+      label: l10n.postComposePreparingImage,
+    ),
+    ImageUploading(:final progress) => _uploadLoadingOverlay(l10n, progress),
     ImageUploaded() || ImageFailed() => null,
   };
 }
 
-_PreviewLoadingOverlay _uploadLoadingOverlay(ImageTransferProgress progress) {
+_PreviewLoadingOverlay _uploadLoadingOverlay(
+  AppLocalizations l10n,
+  ImageTransferProgress progress,
+) {
   if (_isProcessingUpload(progress)) {
-    return const _PreviewLoadingOverlay(label: 'Processing');
+    return _PreviewLoadingOverlay(label: l10n.postComposeProcessingImage);
   }
 
   final value = progress.indicatorValue;
   if (value == null) {
-    return const _PreviewLoadingOverlay(label: 'Uploading image');
+    return _PreviewLoadingOverlay(label: l10n.postComposeUploadingImage);
   }
 
   final percent = (value * 100).round().clamp(0, 99);
-  return _PreviewLoadingOverlay(label: 'Uploading $percent%', value: value);
+  return _PreviewLoadingOverlay(
+    label: l10n.postComposeUploadingProgress(percent),
+    value: value,
+  );
 }
 
 bool _isProcessingUpload(ImageTransferProgress progress) {

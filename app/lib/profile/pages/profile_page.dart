@@ -76,7 +76,6 @@ class _ProfileScaffold extends ConsumerWidget {
       body: switch (profileAsync) {
         AsyncValue(:final value?) => _ProfileBody(
           profile: value,
-          handle: handle,
           isOwnProfile: isOwnProfile,
           bannerColor: bannerColor,
         ),
@@ -93,13 +92,11 @@ class _ProfileScaffold extends ConsumerWidget {
 class _ProfileBody extends ConsumerWidget {
   const _ProfileBody({
     required this.profile,
-    required this.handle,
     required this.isOwnProfile,
     required this.bannerColor,
   });
 
   final Profile profile;
-  final String handle;
   final bool isOwnProfile;
   final Color bannerColor;
 

@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_image_page_indicator.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -37,6 +38,8 @@ Future<void> showImageGallery(
       fullscreenDialog: true,
       builder: (context) {
         final viewPadding = MediaQuery.of(context).viewPadding;
+        final spacing =
+            Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
         return Scaffold(
           backgroundColor: Colors.black,
           body: Stack(
@@ -48,8 +51,8 @@ Future<void> showImageGallery(
                 ),
               ),
               Positioned(
-                left: viewPadding.left + 8,
-                top: viewPadding.top + 8,
+                left: viewPadding.left + spacing.sp2,
+                top: viewPadding.top + spacing.sp2,
                 child: DecoratedBox(
                   key: const Key('post-image-gallery-close-background'),
                   decoration: BoxDecoration(
@@ -129,6 +132,9 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
   @override
   Widget build(BuildContext context) {
     final viewPadding = MediaQuery.of(context).viewPadding;
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>() ?? const SpacingTheme();
+    final radii = theme.extension<RadiusTheme>() ?? const RadiusTheme();
     final current = widget.galleryImages[_currentIndex];
     final hasMultipleImages = widget.galleryImages.length > 1;
     final height = MediaQuery.sizeOf(context).height;
@@ -163,18 +169,18 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
         ),
         if (hasMultipleImages)
           Positioned(
-            right: viewPadding.right + 16,
-            top: viewPadding.top + 16,
+            right: viewPadding.right + spacing.sp4,
+            top: viewPadding.top + spacing.sp4,
             child: DecoratedBox(
               key: const Key('post-image-gallery-count'),
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.45),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(radii.r2),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
+                padding: EdgeInsets.symmetric(
+                  horizontal: spacing.sp3,
+                  vertical: spacing.sp1,
                 ),
                 child: Text(
                   '${_currentIndex + 1}/${widget.galleryImages.length}',
@@ -196,7 +202,7 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
                   controller: _controller,
                   count: widget.galleryImages.length,
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: spacing.sp2),
               ],
               DecoratedBox(
                 decoration: BoxDecoration(
@@ -205,10 +211,10 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
                 child: Padding(
                   key: const Key('post-image-gallery-alt-text-padding'),
                   padding: EdgeInsets.fromLTRB(
-                    viewPadding.left + 12,
-                    12,
-                    viewPadding.right + 12,
-                    viewPadding.bottom + 12,
+                    viewPadding.left + spacing.sp3,
+                    spacing.sp3,
+                    viewPadding.right + spacing.sp3,
+                    viewPadding.bottom + spacing.sp3,
                   ),
                   child: SizedBox(
                     width: double.infinity,

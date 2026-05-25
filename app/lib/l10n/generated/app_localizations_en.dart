@@ -20,6 +20,63 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get feedTitle => 'Feed';
+
+  @override
+  String get welcomeTitle => 'Welcome';
+
+  @override
+  String get welcomeSignInAction => 'Sign in';
+
+  @override
+  String get welcomeCreateAccountAction => 'Create account on a PDS';
+
+  @override
+  String get signInTitle => 'Sign in';
+
+  @override
+  String get signInHandleLabel => 'Handle';
+
+  @override
+  String get signInContinueAction => 'Continue';
+
+  @override
+  String get signInHandleRequiredError => 'Please enter a handle.';
+
+  @override
+  String get signInInvalidHandleError => 'We couldn\'t recognise that handle.';
+
+  @override
+  String get signInServerUnavailableError =>
+      'Couldn\'t reach the server. Please try again.';
+
+  @override
+  String get signInBrowserLaunchError =>
+      'Couldn\'t open the browser. Check that you have one installed.';
+
+  @override
+  String get signInGenericError => 'Something went wrong. Please try again.';
+
+  @override
+  String get authCompleteSigningIn => 'Signing in…';
+
+  @override
+  String get authCompleteTimedOutError =>
+      'That sign-in link expired. Please sign in again.';
+
+  @override
+  String get authCompleteNoPendingSignInError =>
+      'No sign-in is in progress. Please sign in again.';
+
+  @override
+  String get authCompleteStorageError =>
+      'Couldn\'t save your session securely. Please sign in again.';
+
+  @override
+  String get authCompleteGenericError =>
+      'Couldn\'t complete sign-in. Please sign in again.';
+
+  @override
   String get dialogConfirmDefault => 'Confirm';
 
   @override
@@ -226,6 +283,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postComposeHint => 'What are you making?';
 
   @override
+  String get postComposeBodyHint =>
+      'Pattern, fabric, what went right, what didn\'t...';
+
+  @override
   String get postComposeReplyTitle => 'Reply';
 
   @override
@@ -257,6 +318,132 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postComposeDiscardCancel => 'Keep editing';
+
+  @override
+  String postComposeImageLimitError(int maxImages) {
+    return 'You can add up to $maxImages images';
+  }
+
+  @override
+  String postComposeUnsupportedImagesError(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count unsupported images',
+      one: 'Unsupported image type',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get postComposeImagePickerError => 'Could not open image picker';
+
+  @override
+  String get postComposeMissingAltTitle => 'Some images do not have alt text';
+
+  @override
+  String get postComposeMissingAltMessage => 'Do you wish to post anyway?';
+
+  @override
+  String get postComposeMissingAltConfirm => 'Post anyway';
+
+  @override
+  String get postComposeMissingAltCancel => 'Go back';
+
+  @override
+  String get postComposePhotosTitle => 'Photos';
+
+  @override
+  String get postComposeNoImagesDescribed => '0 described';
+
+  @override
+  String postComposeImagesDescribed(int describedCount, int imageCount) {
+    return '$describedCount / $imageCount described';
+  }
+
+  @override
+  String postComposePhotosLimitHelper(int maxImages) {
+    return 'Up to $maxImages photos';
+  }
+
+  @override
+  String postComposePhotosReorderHelper(int imageCount, int maxImages) {
+    return '$imageCount/$maxImages · drag to reorder · first is the cover';
+  }
+
+  @override
+  String get postComposeMoveImageUp => 'Move image up';
+
+  @override
+  String get postComposeMoveImageDown => 'Move image down';
+
+  @override
+  String get postComposeRemoveImage => 'Remove image';
+
+  @override
+  String get postComposeDragToReorder => 'Drag to reorder';
+
+  @override
+  String get postComposeAltTextLabel => 'ALT TEXT';
+
+  @override
+  String get postComposeAltTextHint =>
+      'Describe the image for someone who cannot see it, including the craft, materials, colors, and important details.';
+
+  @override
+  String get postComposeImageDescribed => 'Described';
+
+  @override
+  String get postComposeImageNeedsAltText => 'Help screen readers';
+
+  @override
+  String get postComposeAddPhoto => 'Add a photo';
+
+  @override
+  String get postComposeAddAnotherPhoto => 'Add another photo';
+
+  @override
+  String postComposePhotosRemaining(int remainingCount) {
+    return 'Up to $remainingCount more';
+  }
+
+  @override
+  String get postComposeReadingImage => 'Reading image';
+
+  @override
+  String get postComposePreparingImage => 'Preparing image';
+
+  @override
+  String get postComposeUploadingImage => 'Uploading image';
+
+  @override
+  String get postComposeUploadedImage => 'Uploaded';
+
+  @override
+  String get postComposeImageFailed => 'Failed';
+
+  @override
+  String get postComposeProcessingImage => 'Processing';
+
+  @override
+  String postComposeUploadingProgress(int percent) {
+    return 'Uploading $percent%';
+  }
+
+  @override
+  String get postLikeAction => 'Like';
+
+  @override
+  String get postUnlikeAction => 'Unlike';
+
+  @override
+  String get postReplyAction => 'Reply';
+
+  @override
+  String get postRepostAction => 'Repost';
+
+  @override
+  String get postUnrepostAction => 'Unrepost';
 
   @override
   String get postDeleteAction => 'Delete post';

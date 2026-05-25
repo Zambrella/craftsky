@@ -111,7 +111,7 @@ void main() {
       expect(find.text('D'), findsOneWidget);
     });
 
-    testWidgets('preserves chunky border + butter background', (tester) async {
+    testWidgets('preserves chunky border + seeded background', (tester) async {
       await tester.pumpWidget(_wrap(const ProfileAvatar(seed: 'E')));
 
       // Find the outermost Container (the one decorated with the circle
@@ -124,9 +124,9 @@ void main() {
       });
       final decoration = circle.decoration! as BoxDecoration;
 
-      // Butter background present, ink border applied.
+      // Seeded background present, ink border applied.
       final swatches = AppTheme.lightThemeData.extension<BrandSwatchTheme>()!;
-      expect(decoration.color, swatches.butter);
+      expect(decoration.color, swatches.sky);
       expect(decoration.border, isNotNull);
       expect(decoration.boxShadow, isNotEmpty);
     });

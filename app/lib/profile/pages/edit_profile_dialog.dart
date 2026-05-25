@@ -3,16 +3,15 @@ import 'dart:typed_data';
 
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
-import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/profile/providers/save_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_banner_avatar.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_crafts_picker.dart';
 import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
-import 'package:craftsky_app/shared/media/blob_api_client_provider.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
@@ -23,7 +22,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
-import 'package:image_picker/image_picker.dart';
 
 /// Field names used by the [FormBuilder] state. Centralised so the
 /// build site, the validators, and the save-time reads can't drift
@@ -80,21 +78,13 @@ class EditProfileDialog extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final auth = ref.watch(authSessionProvider).value;
+    final auth = ref.watch(authSessionProvider);
     final myHandle = switch (auth) {
-      SignedIn(:final handle) => handle,
+      AsyncData(value: SignedIn(:final handle)) => handle,
       _ => null,
     };
 
-    if (myHandle == null) {
-      // Either auth is loading or the user signed out while sitting
-      // on this dialog. Both are transient — show a neutral progress
-      // state and let the host's redirect logic settle.
-      return Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: StitchProgressIndicator()),
-      );
-    }
+    if (myHandle == null) return _EditProfileLoadingScaffold();
 
     final profileAsync = ref.watch(userProfileProvider(myHandle));
     return switch (profileAsync) {
@@ -106,11 +96,20 @@ class EditProfileDialog extends ConsumerWidget {
           onRetry: () => ref.invalidate(userProfileProvider(myHandle)),
         ),
       ),
-      _ => Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: StitchProgressIndicator()),
-      ),
+      _ => _EditProfileLoadingScaffold(),
     };
+  }
+}
+
+class _EditProfileLoadingScaffold extends StatelessWidget {
+  const _EditProfileLoadingScaffold();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(),
+      body: const Center(child: StitchProgressIndicator()),
+    );
   }
 }
 
@@ -273,47 +272,24 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     if (_imageUploadInFlight) return;
     final l10n = AppLocalizations.of(context);
     try {
-      final picker = ref.read(imagePickerProvider);
-      final file = await picker.pickImage(source: ImageSource.gallery);
-      if (file == null) return;
-
-      final media = ref.read(composerImageMediaServiceProvider);
-      final mimeType = file.mimeType ?? media.mimeTypeForFileName(file.name);
-      final length = await file.length();
-      final header = await _readHeaderBytes(file);
-      final originalCheck = media.validateOriginalImage(
-        sizeBytes: length,
-        fileName: file.name,
-        mimeType: mimeType,
-        headerBytes: header,
-      );
-      if (!originalCheck.canPrepare) {
-        throw const _ProfileImagePickException();
-      }
-
-      final bytes = await file.readAsBytes();
-      if (!mounted) return;
-      setState(() => _setImageDraft(kind, _ProfileImageDraft.uploading(bytes)));
-
-      final prepared = await media
-          .prepareImage(bytes: bytes, fileName: file.name, mimeType: mimeType)
-          .future;
-      final preparedCheck = media.validatePreparedUploadBytes(
-        originalBytes: bytes.length,
-        preparedBytes: prepared.bytes.length,
-      );
-      if (!preparedCheck.canUpload) {
-        throw const _ProfileImagePickException();
-      }
-
-      final uploaded = await ref
-          .read(blobApiClientProvider)
-          .uploadImage(bytes: prepared.bytes, mimeType: prepared.mimeType);
-      if (!mounted) return;
+      final result = await ref
+          .read(profileImagePickerProvider)
+          .pickAndUpload(
+            onPreviewReady: (bytes) {
+              if (!mounted) return;
+              setState(
+                () => _setImageDraft(
+                  kind,
+                  _ProfileImageDraft.uploading(bytes),
+                ),
+              );
+            },
+          );
+      if (result == null || !mounted) return;
       setState(
         () => _setImageDraft(
           kind,
-          _ProfileImageDraft.uploaded(prepared.bytes, uploaded),
+          _ProfileImageDraft.uploaded(result.previewBytes, result.uploaded),
         ),
       );
     } on Object {
@@ -321,17 +297,6 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
       setState(() => _setImageDraft(kind, _ProfileImageDraft.failed()));
       context.showError(l10n.editProfilePhotoUploadError);
     }
-  }
-
-  Future<Uint8List> _readHeaderBytes(XFile file) async {
-    final header = <int>[];
-    await for (final chunk in file.openRead(0, 16)) {
-      header.addAll(chunk);
-      if (header.length >= 16) break;
-    }
-    return Uint8List.fromList(
-      header.length <= 16 ? header : header.sublist(0, 16),
-    );
   }
 
   void _setImageDraft(_ProfileImageKind kind, _ProfileImageDraft draft) {
@@ -629,8 +594,4 @@ class _ProfileImageDraft {
   final bool hasError;
 
   bool get changed => previewBytes != null || uploaded != null || hasError;
-}
-
-class _ProfileImagePickException implements Exception {
-  const _ProfileImagePickException();
 }
