@@ -52,7 +52,7 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
           const MethodChannel('com.tekartik.sqflite'),
-          (MethodCall call) async {
+          (call) async {
             return switch (call.method) {
               'getDatabasesPath' => '/tmp',
               'openDatabase' => <String, dynamic>{'id': 1},

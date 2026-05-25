@@ -20,6 +20,7 @@ import 'package:craftsky_app/router/onboarding_refresh_listener.dart';
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -344,9 +345,9 @@ class PostThreadRoute extends GoRouteData with $PostThreadRoute {
 
   @override
   Widget build(BuildContext context, GoRouterState state) => PostThreadPage(
-    did: did,
-    rkey: rkey,
-    focus: focus,
+    did: Did.parse(did),
+    rkey: RecordKey.parse(rkey),
+    focus: focus == null ? null : AtUri.parse(focus!),
     initialCreatedPost: $extra,
   );
 }
@@ -392,6 +393,6 @@ extension GoRouterExtension on GoRouter {
     while (canPop()) {
       pop();
     }
-    pushReplacement(location);
+    unawaited(pushReplacement(location));
   }
 }

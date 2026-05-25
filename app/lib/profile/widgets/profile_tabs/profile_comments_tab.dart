@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
@@ -104,7 +106,11 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
                   index >= comments.length - _autoLoadMoreThreshold) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (context.mounted) {
-                    ref.read(userCommentsProvider(handle).notifier).loadMore();
+                    unawaited(
+                      ref
+                          .read(userCommentsProvider(handle).notifier)
+                          .loadMore(),
+                    );
                   }
                 });
               }

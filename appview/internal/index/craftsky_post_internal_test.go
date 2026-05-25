@@ -18,7 +18,7 @@ func TestFlattenImages_IncludesSizeAndAspectRatio(t *testing.T) {
 	flat := flattenImages([]*craftskylex.FeedPost_Image{
 		{
 			Image: &lexutil.LexBlob{Ref: lexutil.LexLink(refCID), MimeType: "image/jpeg", Size: 253496},
-			Alt:   "project photo",
+			Alt:   strPtr("project photo"),
 			AspectRatio: &craftskylex.FeedPost_AspectRatio{
 				Width:  919,
 				Height: 2000,
@@ -49,3 +49,24 @@ func TestFlattenImages_IncludesSizeAndAspectRatio(t *testing.T) {
 		t.Fatalf("aspectRatio = %+v", aspect)
 	}
 }
+
+func TestFlattenImages_DefaultsMissingAltToEmptyString(t *testing.T) {
+	t.Parallel()
+	refCID, err := cid.Parse("bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a")
+	if err != nil {
+		t.Fatalf("parse cid: %v", err)
+	}
+	flat := flattenImages([]*craftskylex.FeedPost_Image{
+		{
+			Image: &lexutil.LexBlob{Ref: lexutil.LexLink(refCID), MimeType: "image/jpeg", Size: 253496},
+		},
+	})
+	if len(flat) != 1 {
+		t.Fatalf("len(flat) = %d, want 1", len(flat))
+	}
+	if got := flat[0]["alt"]; got != "" {
+		t.Fatalf("alt = %v, want empty string", got)
+	}
+}
+
+func strPtr(s string) *string { return &s }

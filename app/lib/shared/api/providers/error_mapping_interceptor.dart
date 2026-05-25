@@ -29,9 +29,8 @@ class ErrorMappingInterceptor extends Interceptor {
         err.message ?? err.type.name,
       ),
       DioExceptionType.badResponse => _mapBadResponse(err),
-      DioExceptionType.cancel ||
-      DioExceptionType.badCertificate ||
-      DioExceptionType.unknown =>
+      DioExceptionType.cancel => const ApiCanceled(),
+      DioExceptionType.badCertificate || DioExceptionType.unknown =>
         err.error is Exception
             ? ApiNetworkError(err.message ?? 'network_error')
             : ApiServerError(err.message ?? 'server_error'),

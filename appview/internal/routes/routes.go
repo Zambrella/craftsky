@@ -37,6 +37,10 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("POST /v1/auth/login", deviceID(oauthHandlers.LoginHandler()))
 
 	// v1 — authenticated + device-id required.
+	mediaLimits := api.MediaLimits{
+		MaxPostImages:       deps.Config.MaxPostImages,
+		MaxImageUploadBytes: deps.Config.MaxImageUploadBytes,
+	}
 	mux.Handle("GET /v1/whoami", authN(deviceID(api.WhoAmIHandler(deps.HandleResolver, deps.Logger))))
 	mux.Handle("POST /v1/auth/logout", authN(deviceID(oauthHandlers.LogoutHandler())))
 	mux.Handle("GET /v1/profiles/{handleOrDid}",
@@ -44,14 +48,10 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("GET /v1/profiles/me",
 		authN(deviceID(api.GetMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger))))
 	mux.Handle("PUT /v1/profiles/me",
-		authN(deviceID(api.PutMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger))))
+		authN(deviceID(api.PutMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, mediaLimits, deps.Logger))))
 
 	// v1 — post handlers (authenticated + device-id required).
 	postStore := api.NewPostStore(deps.DB)
-	mediaLimits := api.MediaLimits{
-		MaxPostImages:       deps.Config.MaxPostImages,
-		MaxImageUploadBytes: deps.Config.MaxImageUploadBytes,
-	}
 	mux.Handle("POST /v1/blobs/images",
 		authN(deviceID(api.ImageBlobUploadHandler(deps.NewPDSClient, mediaLimits, deps.Logger))))
 	mux.Handle("POST /v1/posts",

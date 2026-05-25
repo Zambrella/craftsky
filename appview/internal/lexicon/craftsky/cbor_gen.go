@@ -1240,6 +1240,10 @@ func (t *FeedPost_Image) MarshalCBOR(w io.Writer) error {
 	cw := cbg.NewCborWriter(w)
 	fieldCount := 3
 
+	if t.Alt == nil {
+		fieldCount--
+	}
+
 	if t.AspectRatio == nil {
 		fieldCount--
 	}
@@ -1249,26 +1253,35 @@ func (t *FeedPost_Image) MarshalCBOR(w io.Writer) error {
 	}
 
 	// t.Alt (string) (string)
-	if len("alt") > 1000000 {
-		return xerrors.Errorf("Value in field \"alt\" was too long")
-	}
+	if t.Alt != nil {
 
-	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("alt"))); err != nil {
-		return err
-	}
-	if _, err := cw.WriteString(string("alt")); err != nil {
-		return err
-	}
+		if len("alt") > 1000000 {
+			return xerrors.Errorf("Value in field \"alt\" was too long")
+		}
 
-	if len(t.Alt) > 1000000 {
-		return xerrors.Errorf("Value in field t.Alt was too long")
-	}
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("alt"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("alt")); err != nil {
+			return err
+		}
 
-	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(t.Alt))); err != nil {
-		return err
-	}
-	if _, err := cw.WriteString(string(t.Alt)); err != nil {
-		return err
+		if t.Alt == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.Alt) > 1000000 {
+				return xerrors.Errorf("Value in field t.Alt was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.Alt))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.Alt)); err != nil {
+				return err
+			}
+		}
 	}
 
 	// t.Image (util.LexBlob) (struct)
@@ -1353,12 +1366,22 @@ func (t *FeedPost_Image) UnmarshalCBOR(r io.Reader) (err error) {
 		case "alt":
 
 			{
-				sval, err := cbg.ReadStringWithMax(cr, 1000000)
+				b, err := cr.ReadByte()
 				if err != nil {
 					return err
 				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
 
-				t.Alt = string(sval)
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.Alt = (*string)(&sval)
+				}
 			}
 			// t.Image (util.LexBlob) (struct)
 		case "image":

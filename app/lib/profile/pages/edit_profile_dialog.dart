@@ -1,13 +1,18 @@
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/profile/providers/save_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_banner_avatar.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_crafts_picker.dart';
 import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
+import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -73,21 +78,13 @@ class EditProfileDialog extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final auth = ref.watch(authSessionProvider).value;
+    final auth = ref.watch(authSessionProvider);
     final myHandle = switch (auth) {
-      SignedIn(:final handle) => handle,
+      AsyncData(value: SignedIn(:final handle)) => handle,
       _ => null,
     };
 
-    if (myHandle == null) {
-      // Either auth is loading or the user signed out while sitting
-      // on this dialog. Both are transient — show a neutral progress
-      // state and let the host's redirect logic settle.
-      return Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: StitchProgressIndicator()),
-      );
-    }
+    if (myHandle == null) return _EditProfileLoadingScaffold();
 
     final profileAsync = ref.watch(userProfileProvider(myHandle));
     return switch (profileAsync) {
@@ -99,11 +96,20 @@ class EditProfileDialog extends ConsumerWidget {
           onRetry: () => ref.invalidate(userProfileProvider(myHandle)),
         ),
       ),
-      _ => Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: StitchProgressIndicator()),
-      ),
+      _ => _EditProfileLoadingScaffold(),
     };
+  }
+}
+
+class _EditProfileLoadingScaffold extends StatelessWidget {
+  const _EditProfileLoadingScaffold();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(),
+      body: const Center(child: StitchProgressIndicator()),
+    );
   }
 }
 
@@ -156,6 +162,9 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   /// build can't accidentally drop tags it doesn't recognise from a
   /// newer server.
   late final List<String> _unknownCrafts;
+
+  _ProfileImageDraft _avatarDraft = const _ProfileImageDraft();
+  _ProfileImageDraft _bannerDraft = const _ProfileImageDraft();
 
   @override
   void initState() {
@@ -215,8 +224,15 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
         .toSet();
     if (currentIds.length != initialIds.length) return true;
     if (!currentIds.containsAll(initialIds)) return true;
+    if (_avatarDraft.changed || _bannerDraft.changed) return true;
     return false;
   }
+
+  bool get _imageUploadInFlight =>
+      _avatarDraft.isUploading || _bannerDraft.isUploading;
+
+  bool get _imageUploadHasError =>
+      _avatarDraft.hasError || _bannerDraft.hasError;
 
   /// Validates the form and dispatches the save. Sends the **full**
   /// current form state, not a diff — atproto profile records are
@@ -239,13 +255,57 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
       ..._unknownCrafts,
     ];
 
-    ref
-        .read(saveProfileProvider.notifier)
-        .save(
-          displayName: (values[_fieldDisplayName] as String? ?? '').trim(),
-          description: (values[_fieldBio] as String? ?? '').trim(),
-          crafts: craftsPayload,
-        );
+    unawaited(
+      ref
+          .read(saveProfileProvider.notifier)
+          .save(
+            displayName: (values[_fieldDisplayName] as String? ?? '').trim(),
+            description: (values[_fieldBio] as String? ?? '').trim(),
+            crafts: craftsPayload,
+            avatar: _avatarDraft.uploaded?.blob,
+            banner: _bannerDraft.uploaded?.blob,
+          ),
+    );
+  }
+
+  Future<void> _pickProfileImage(_ProfileImageKind kind) async {
+    if (_imageUploadInFlight) return;
+    final l10n = AppLocalizations.of(context);
+    try {
+      final result = await ref
+          .read(profileImagePickerProvider)
+          .pickAndUpload(
+            onPreviewReady: (bytes) {
+              if (!mounted) return;
+              setState(
+                () => _setImageDraft(
+                  kind,
+                  _ProfileImageDraft.uploading(bytes),
+                ),
+              );
+            },
+          );
+      if (result == null || !mounted) return;
+      setState(
+        () => _setImageDraft(
+          kind,
+          _ProfileImageDraft.uploaded(result.previewBytes, result.uploaded),
+        ),
+      );
+    } on Object {
+      if (!mounted) return;
+      setState(() => _setImageDraft(kind, _ProfileImageDraft.failed()));
+      context.showError(l10n.editProfilePhotoUploadError);
+    }
+  }
+
+  void _setImageDraft(_ProfileImageKind kind, _ProfileImageDraft draft) {
+    switch (kind) {
+      case _ProfileImageKind.avatar:
+        _avatarDraft = draft;
+      case _ProfileImageKind.banner:
+        _bannerDraft = draft;
+    }
   }
 
   Future<bool> _confirmDiscard() async {
@@ -290,7 +350,12 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     // with the user's typing. Combined with `_hasChanges` it gives the
     // save button the strict "dirty + valid + not in flight" gate.
     final isFormValid = _formKey.currentState?.isValid ?? true;
-    final canSave = _hasChanges && isFormValid && !isSaving;
+    final canSave =
+        _hasChanges &&
+        isFormValid &&
+        !isSaving &&
+        !_imageUploadInFlight &&
+        !_imageUploadHasError;
 
     return PopScope<Object?>(
       canPop: !_hasChanges || isSaving,
@@ -337,6 +402,22 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                 EditProfileBannerAvatar(
                   profile: widget.profile,
                   bannerColor: swatches.clay,
+                  avatarPreviewBytes: _avatarDraft.previewBytes,
+                  bannerPreviewBytes: _bannerDraft.previewBytes,
+                  avatarUploading: _avatarDraft.isUploading,
+                  bannerUploading: _bannerDraft.isUploading,
+                  avatarError: _avatarDraft.hasError,
+                  bannerError: _bannerDraft.hasError,
+                  onPickAvatar: isSaving
+                      ? null
+                      : () => unawaited(
+                          _pickProfileImage(_ProfileImageKind.avatar),
+                        ),
+                  onPickBanner: isSaving
+                      ? null
+                      : () => unawaited(
+                          _pickProfileImage(_ProfileImageKind.banner),
+                        ),
                 ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(
@@ -480,4 +561,37 @@ class _SaveAction extends StatelessWidget {
           : Text(l10n.editProfileSave),
     );
   }
+}
+
+enum _ProfileImageKind { avatar, banner }
+
+class _ProfileImageDraft {
+  const _ProfileImageDraft({
+    this.previewBytes,
+    this.uploaded,
+    this.isUploading = false,
+    this.hasError = false,
+  });
+
+  factory _ProfileImageDraft.uploading(Uint8List previewBytes) {
+    return _ProfileImageDraft(previewBytes: previewBytes, isUploading: true);
+  }
+
+  factory _ProfileImageDraft.uploaded(
+    Uint8List previewBytes,
+    UploadedImageBlob uploaded,
+  ) {
+    return _ProfileImageDraft(previewBytes: previewBytes, uploaded: uploaded);
+  }
+
+  factory _ProfileImageDraft.failed() {
+    return const _ProfileImageDraft(hasError: true);
+  }
+
+  final Uint8List? previewBytes;
+  final UploadedImageBlob? uploaded;
+  final bool isUploading;
+  final bool hasError;
+
+  bool get changed => previewBytes != null || uploaded != null || hasError;
 }

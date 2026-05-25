@@ -1,4 +1,5 @@
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
 /// Read/write surface the profile providers depend on. The production
 /// binding is `ApiProfileRepository`; `DummyProfileRepository` provides
@@ -21,5 +22,9 @@ abstract interface class ProfileRepository {
     String? displayName,
     String? description,
     List<String>? crafts,
+    UploadedBlob? avatar,
+    bool clearAvatar = false,
+    UploadedBlob? banner,
+    bool clearBanner = false,
   });
 }

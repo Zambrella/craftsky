@@ -1,3 +1,4 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,11 +7,10 @@ class FeedPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // TODO(craftsky): l10n — page titles will move to AppLocalizations
-    // when real UI lands.
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Feed')),
-      body: const Center(child: Text('Feed')),
+      appBar: AppBar(title: Text(l10n.feedTitle)),
+      body: Center(child: Text(l10n.feedTitle)),
     );
   }
 }

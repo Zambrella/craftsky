@@ -1,5 +1,6 @@
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
 /// Programmable [ProfileRepository] for unit tests. Each method
 /// delegates to an optional callback the test sets up; unstubbed
@@ -26,6 +27,10 @@ class FakeProfileRepository implements ProfileRepository {
     String? displayName,
     String? description,
     List<String>? crafts,
+    UploadedBlob? avatar,
+    bool clearAvatar,
+    UploadedBlob? banner,
+    bool clearBanner,
   })?
   onUpdateMe;
 
@@ -44,11 +49,19 @@ class FakeProfileRepository implements ProfileRepository {
     String? displayName,
     String? description,
     List<String>? crafts,
+    UploadedBlob? avatar,
+    bool clearAvatar = false,
+    UploadedBlob? banner,
+    bool clearBanner = false,
   }) =>
       onUpdateMe?.call(
         displayName: displayName,
         description: description,
         crafts: crafts,
+        avatar: avatar,
+        clearAvatar: clearAvatar,
+        banner: banner,
+        clearBanner: clearBanner,
       ) ??
       Future<Profile>.error(UnimplementedError('updateMe not stubbed'));
 }

@@ -159,6 +159,24 @@ func TestDecodeAndValidatePostCreate_AcceptsValidImagesPayload(t *testing.T) {
 	}
 }
 
+func TestDecodeAndValidatePostCreate_AcceptsImagesWithoutAltText(t *testing.T) {
+	t.Parallel()
+	body := strings.NewReader(`{
+		"text":"hi",
+		"images":[
+			{"image":{"$type":"blob","ref":{"$link":"bafkimage"},"mimeType":"image/jpeg","size":253496}},
+			{"image":{"$type":"blob","ref":{"$link":"bafkimage2"},"mimeType":"image/png","size":123},"alt":""}
+		]
+	}`)
+	req, err := api.DecodePostCreate(body)
+	if err != nil {
+		t.Fatalf("DecodePostCreate: %v", err)
+	}
+	if err := api.ValidatePostCreate(req); err != nil {
+		t.Fatalf("ValidatePostCreate: %v", err)
+	}
+}
+
 func TestValidatePostCreate_RejectsMoreThanFourImages(t *testing.T) {
 	t.Parallel()
 	body := strings.NewReader(`{
@@ -208,12 +226,11 @@ func TestValidatePostCreate_UsesConfiguredImageCountLimit(t *testing.T) {
 	}
 }
 
-func TestValidatePostCreate_RejectsMissingAltOrBlobOrInvalidAspectRatio(t *testing.T) {
+func TestValidatePostCreate_RejectsMissingBlobOrInvalidAspectRatio(t *testing.T) {
 	t.Parallel()
 	body := strings.NewReader(`{
 		"text":"hi",
 		"images":[
-			{"image":{"$type":"blob","ref":{"$link":"bafk1"},"mimeType":"image/jpeg","size":1},"alt":""},
 			{"alt":"missing blob"},
 			{"image":{"$type":"blob","ref":{"$link":"bafk2"},"mimeType":"image/jpeg","size":1},"alt":"ok","aspectRatio":{"width":0,"height":10}},
 			{"image":{"$type":"blob","ref":{"$link":"bafk3"},"mimeType":"image/jpeg","size":1},"alt":"ok","aspectRatio":{"width":10,"height":-1}}
@@ -228,7 +245,7 @@ func TestValidatePostCreate_RejectsMissingAltOrBlobOrInvalidAspectRatio(t *testi
 	if !errors.As(err, &fe) || fe.Code != "validation_failed" {
 		t.Fatalf("want validation_failed, got %v", err)
 	}
-	for _, key := range []string{"images[0].alt", "images[1].image", "images[2].aspectRatio.width", "images[3].aspectRatio.height"} {
+	for _, key := range []string{"images[0].image", "images[1].aspectRatio.width", "images[2].aspectRatio.height"} {
 		if _, ok := fe.Fields[key]; !ok {
 			t.Fatalf("fields=%v, want key %q", fe.Fields, key)
 		}

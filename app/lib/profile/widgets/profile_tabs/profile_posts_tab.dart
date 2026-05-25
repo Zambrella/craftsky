@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
@@ -117,7 +119,9 @@ class _ProfilePostsLoadedSlivers extends ConsumerWidget {
                   index >= posts.length - _autoLoadMoreThreshold) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (context.mounted) {
-                    ref.read(userPostsProvider(handle).notifier).loadMore();
+                    unawaited(
+                      ref.read(userPostsProvider(handle).notifier).loadMore(),
+                    );
                   }
                 });
               }

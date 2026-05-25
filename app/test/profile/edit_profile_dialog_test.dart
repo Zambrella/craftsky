@@ -117,13 +117,22 @@ void main() {
 
       final repo = FakeProfileRepository(
         onFetch: (_) async => _seedProfile,
-        onUpdateMe: ({displayName, description, crafts}) async {
-          updateCallCount++;
-          capturedDisplayName = displayName;
-          capturedDescription = description;
-          capturedCrafts = crafts;
-          return _seedProfile.copyWith(displayName: displayName);
-        },
+        onUpdateMe:
+            ({
+              displayName,
+              description,
+              crafts,
+              avatar,
+              clearAvatar = false,
+              banner,
+              clearBanner = false,
+            }) async {
+              updateCallCount++;
+              capturedDisplayName = displayName;
+              capturedDescription = description;
+              capturedCrafts = crafts;
+              return _seedProfile.copyWith(displayName: displayName);
+            },
       );
 
       await _pumpEditDialog(tester, repo: repo);
@@ -151,8 +160,18 @@ void main() {
     ) async {
       final repo = FakeProfileRepository(
         onFetch: (_) async => _seedProfile,
-        onUpdateMe: ({displayName, description, crafts}) async =>
-            _seedProfile.copyWith(displayName: displayName ?? 'Test User'),
+        onUpdateMe:
+            ({
+              displayName,
+              description,
+              crafts,
+              avatar,
+              clearAvatar = false,
+              banner,
+              clearBanner = false,
+            }) async => _seedProfile.copyWith(
+              displayName: displayName ?? 'Test User',
+            ),
       );
       await _pumpEditDialog(tester, repo: repo);
 
@@ -181,8 +200,16 @@ void main() {
           fetchCallCount++;
           return _seedProfile;
         },
-        onUpdateMe: ({displayName, description, crafts}) async =>
-            _seedProfile.copyWith(displayName: displayName),
+        onUpdateMe:
+            ({
+              displayName,
+              description,
+              crafts,
+              avatar,
+              clearAvatar = false,
+              banner,
+              clearBanner = false,
+            }) async => _seedProfile.copyWith(displayName: displayName),
       );
       await _pumpEditDialog(tester, repo: repo);
 
@@ -219,9 +246,18 @@ void main() {
     ) async {
       final repo = FakeProfileRepository(
         onFetch: (_) async => _seedProfile,
-        onUpdateMe: ({displayName, description, crafts}) async {
-          throw Exception('boom');
-        },
+        onUpdateMe:
+            ({
+              displayName,
+              description,
+              crafts,
+              avatar,
+              clearAvatar = false,
+              banner,
+              clearBanner = false,
+            }) async {
+              throw Exception('boom');
+            },
       );
       await _pumpEditDialog(tester, repo: repo);
 

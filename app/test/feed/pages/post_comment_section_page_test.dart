@@ -4,6 +4,7 @@ import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
@@ -77,9 +78,9 @@ Future<void> _pumpCommentSection(
           supportedLocales: AppLocalizations.supportedLocales,
           home: FormFactorWidget(
             child: PostThreadPage(
-              did: 'did:plc:alice',
-              rkey: 'root',
-              focus: focus,
+              did: Did.parse('did:plc:alice'),
+              rkey: RecordKey.parse('root'),
+              focus: focus == null ? null : AtUri.parse(focus),
               initialCreatedPost: initialCreatedPost,
             ),
           ),
@@ -134,11 +135,11 @@ void main() {
     final reply = _post('did:plc:carol', 'reply', 'focused reply');
     final repo = FakePostRepository(
       onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async {
-        calls.add(focus);
+        calls.add(focus?.value);
         return PostCommentSection(
           post: root,
           sort: CommentSort.oldest,
-          focus: const FocusContext(
+          focus: FocusContext(
             uri: focusUri,
             status: FocusStatus.included,
             kind: FocusKind.reply,
@@ -194,7 +195,7 @@ void main() {
           PostCommentSection(
             post: root,
             sort: CommentSort.oldest,
-            focus: const FocusContext(
+            focus: FocusContext(
               uri: focusUri,
               status: FocusStatus.included,
               kind: FocusKind.reply,
@@ -247,7 +248,7 @@ void main() {
           PostCommentSection(
             post: root,
             sort: CommentSort.oldest,
-            focus: const FocusContext(
+            focus: FocusContext(
               uri: focusUri,
               status: FocusStatus.included,
               kind: FocusKind.reply,
@@ -700,7 +701,7 @@ void main() {
           PostCommentSection(
             post: root,
             sort: sort ?? CommentSort.oldest,
-            focus: const FocusContext(
+            focus: FocusContext(
               uri: focusUri,
               status: FocusStatus.included,
               kind: FocusKind.comment,
@@ -1091,7 +1092,7 @@ void main() {
           PostCommentSection(
             post: root,
             sort: CommentSort.oldest,
-            focus: const FocusContext(
+            focus: FocusContext(
               uri: focusUri,
               status: FocusStatus.included,
               kind: FocusKind.reply,
@@ -1108,7 +1109,7 @@ void main() {
                       ReplyItem(
                         post: deep,
                         flattened: true,
-                        replyingTo: const ReplyingToAuthor(
+                        replyingTo: ReplyingToAuthor(
                           uri:
                               'at://did:plc:carol/social.craftsky.feed.post/reply',
                           did: 'did:plc:carol',
@@ -1145,7 +1146,7 @@ void main() {
           sort: sort ?? CommentSort.oldest,
           focus: sorted
               ? null
-              : const FocusContext(
+              : FocusContext(
                   uri: focusUri,
                   status: FocusStatus.included,
                   kind: FocusKind.comment,

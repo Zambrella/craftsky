@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -90,7 +91,7 @@ class _StitchProgressIndicatorState extends State<StitchProgressIndicator>
           ..value = 0;
       }
     } else if (!_controller.isAnimating) {
-      _controller.repeat();
+      unawaited(_controller.repeat());
     }
   }
 
@@ -146,7 +147,6 @@ class _StitchPainter extends CustomPainter {
   final int dashCount;
   final double rotationTurns;
   // Plumbed for the future determinate variant; not yet rendered.
-  // ignore: unused_field
   final double? value;
 
   @override

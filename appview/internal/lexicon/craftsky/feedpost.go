@@ -105,10 +105,10 @@ func (t *FeedPost_Embed) UnmarshalCBOR(r io.Reader) error {
 
 // FeedPost_Image is a "image" in the social.craftsky.feed.post schema.
 //
-// An image blob with alt text.
+// An image blob with optional alt text.
 type FeedPost_Image struct {
-	// alt: Alt text describing the image for accessibility.
-	Alt string `json:"alt" cborgen:"alt"`
+	// alt: Optional alt text describing the image for accessibility.
+	Alt *string `json:"alt,omitempty" cborgen:"alt,omitempty"`
 	// aspectRatio: Optional aspect ratio metadata for rendering.
 	AspectRatio *FeedPost_AspectRatio `json:"aspectRatio,omitempty" cborgen:"aspectRatio,omitempty"`
 	Image       *lexutil.LexBlob      `json:"image" cborgen:"image"`

@@ -25,12 +25,17 @@ void main() {
       expect(const ApiNetworkError('offline').message, 'offline');
     });
 
+    test('ApiCanceled carries a stable message', () {
+      expect(const ApiCanceled().message, 'canceled');
+    });
+
     test('ApiException is exhaustive via switch', () {
       const values = <ApiException>[
         ApiUnauthorized(),
         ApiBadRequest('x'),
         ApiServerError('y'),
         ApiNetworkError('z'),
+        ApiCanceled(),
       ];
       for (final e in values) {
         final kind = switch (e) {
@@ -38,6 +43,7 @@ void main() {
           ApiBadRequest() => 'bad',
           ApiServerError() => 'srv',
           ApiNetworkError() => 'net',
+          ApiCanceled() => 'cancel',
         };
         expect(kind, isNotEmpty);
       }

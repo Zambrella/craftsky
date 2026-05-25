@@ -245,23 +245,25 @@ void main() {
               builder: (context) => Scaffold(
                 body: TextButton(
                   onPressed: () {
-                    showCraftskyConfirmDialog(
-                      context,
-                      title: 'T',
-                      message: 'M',
-                      confirmLabel: 'Yes',
-                      cancelLabel: 'No',
-                      onConfirm: () async {
-                        await Future<void>.delayed(
-                          const Duration(milliseconds: 10),
-                        );
-                        try {
-                          throw StateError('nope');
-                        } catch (e) {
-                          caughtInOnConfirm.add(e);
-                          rethrow;
-                        }
-                      },
+                    unawaited(
+                      showCraftskyConfirmDialog(
+                        context,
+                        title: 'T',
+                        message: 'M',
+                        confirmLabel: 'Yes',
+                        cancelLabel: 'No',
+                        onConfirm: () async {
+                          await Future<void>.delayed(
+                            const Duration(milliseconds: 10),
+                          );
+                          try {
+                            throw StateError('nope');
+                          } catch (e) {
+                            caughtInOnConfirm.add(e);
+                            rethrow;
+                          }
+                        },
+                      ),
                     );
                   },
                   child: const Text('open'),
@@ -346,13 +348,15 @@ void main() {
             builder: (context) => Scaffold(
               body: TextButton(
                 onPressed: () {
-                  showCraftskyConfirmDialog(
-                    context,
-                    title: 'T',
-                    message: 'M',
-                    confirmLabel: 'Yes',
-                    cancelLabel: 'No',
-                    onConfirm: () => completer.future,
+                  unawaited(
+                    showCraftskyConfirmDialog(
+                      context,
+                      title: 'T',
+                      message: 'M',
+                      confirmLabel: 'Yes',
+                      cancelLabel: 'No',
+                      onConfirm: () => completer.future,
+                    ),
                   );
                 },
                 child: const Text('open'),

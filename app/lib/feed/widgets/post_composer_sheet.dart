@@ -1,17 +1,19 @@
-import 'package:craftsky_app/feed/models/create_post_image.dart';
+import 'package:animated_list_plus/animated_list_plus.dart';
+import 'package:animated_list_plus/transitions.dart';
 import 'package:craftsky_app/feed/media/media_config.dart';
 import 'package:craftsky_app/feed/models/post.dart';
-import 'package:craftsky_app/feed/providers/composer_image_service.dart';
+import 'package:craftsky_app/feed/providers/composer_image_state.dart';
+import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
-import 'package:craftsky_app/feed/providers/image_draft_controller.dart';
-import 'package:craftsky_app/feed/providers/image_post_submit_gate.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 Future<Post?> showPostComposerSheet(
   BuildContext context, {
@@ -26,50 +28,47 @@ Future<Post?> showPostComposerSheet(
 }
 
 class PostComposerSheet extends ConsumerStatefulWidget {
-  const PostComposerSheet({super.key, this.replyTarget});
+  const PostComposerSheet({super.key, this.replyTarget, this.composerId});
 
   static const maxCharacters = 2000;
 
   final Post? replyTarget;
+  final String? composerId;
 
   @override
   ConsumerState<PostComposerSheet> createState() => _PostComposerSheetState();
 }
 
 class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
+  static const _imageListAnimationDuration = Duration(milliseconds: 220);
+
   final _controller = TextEditingController();
   final _focusNode = FocusNode(debugLabel: 'postComposerText');
-  final _imageDraftController = ImageDraftController();
-  var _text = '';
+  late final String _composerId;
+  String _initialText = '';
+  String _text = '';
 
   @override
   void initState() {
     super.initState();
+    _composerId = widget.composerId ?? const Uuid().v4();
     if (widget.replyTarget?.reply != null) {
       _text = '@${widget.replyTarget!.author.handle} ';
       _controller.text = _text;
       _controller.selection = TextSelection.collapsed(offset: _text.length);
     }
+    _initialText = _text;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _focusNode.requestFocus();
     });
-    _imageDraftController.addListener(_onImageDraftChanged);
   }
 
   @override
   void dispose() {
-    _imageDraftController
-      ..removeListener(_onImageDraftChanged)
-      ..dispose();
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
-  }
-
-  void _onImageDraftChanged() {
-    if (!mounted) return;
-    setState(() {});
   }
 
   @override
@@ -79,180 +78,354 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final createState = ref.watch(createPostProvider);
+    final imagesProvider = composerImagesProvider(_composerId);
+    final imagesState = ref.watch(imagesProvider);
     final isReply = widget.replyTarget != null;
     final trimmedText = _text.trim();
     final tooLong = _text.length > PostComposerSheet.maxCharacters;
     final canSubmit =
         !createState.isLoading &&
-        canSubmitImagePostDraft(
-          text: _text,
-          images: _imageDraftController.images,
-        );
+        trimmedText.isNotEmpty &&
+        !tooLong &&
+        imagesState.canSubmitImages();
     final submitLabel = isReply
         ? l10n.postComposeReplySubmit
         : l10n.postComposeSubmit;
+    final describedImageCount = imagesState.images
+        .where((image) => image.altText.trim().isNotEmpty)
+        .length;
+    final hasDraft = _hasDraft(imagesState);
 
-    ref.listen(createPostProvider, (previous, next) {
-      switch ((previous, next)) {
-        case (AsyncLoading(), AsyncData(:final value?)):
-          if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop(value);
-          }
-          context.showInfo(l10n.postCreateSuccess);
-          ref.read(createPostProvider.notifier).reset();
-        case (AsyncLoading(), AsyncError()):
-          context.showError(l10n.postCreateError);
-          ref.read(createPostProvider.notifier).reset();
-        case _:
-          break;
-      }
-    });
+    ref
+      ..listen(createPostProvider, (previous, next) {
+        switch ((previous, next)) {
+          case (AsyncLoading(), AsyncData(:final value?)):
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop(value);
+            }
+            context.showInfo(l10n.postCreateSuccess);
+            ref.read(createPostProvider.notifier).reset();
+          case (AsyncLoading(), AsyncError()):
+            context.showError(l10n.postCreateError);
+            ref.read(createPostProvider.notifier).reset();
+          case _:
+            break;
+        }
+      })
+      ..listen(imagesProvider, (previous, next) {
+        final notice = next.notice;
+        if (notice == null || previous?.notice?.id == notice.id) return;
+        switch (notice) {
+          case ImageSelectionLimitNotice(:final maxImages):
+            context.showError(l10n.postComposeImageLimitError(maxImages));
+          case UnsupportedImagesNotice(:final count):
+            context.showError(l10n.postComposeUnsupportedImagesError(count));
+          case ImagePickerFailedNotice():
+            context.showError(l10n.postComposeImagePickerError);
+        }
+        ref.read(imagesProvider.notifier).clearNotice(notice.id);
+      });
 
-    return Scaffold(
-      backgroundColor: swatches.paper,
-      appBar: AppBar(
-        title: Text(
-          isReply ? l10n.postComposeReplyTitle : l10n.postComposeTitle,
-        ),
-        actions: [
-          Padding(
-            padding: EdgeInsets.only(right: spacing.sp3),
-            child: _PostAction(
-              isSaving: createState.isLoading,
-              label: submitLabel,
-              onPressed: canSubmit
-                  ? () => ref
-                        .read(createPostProvider.notifier)
-                        .create(
-                          text: trimmedText,
-                          reply: _replyFor(widget.replyTarget),
-                          images: isReply ? null : _payloadImages(),
-                        )
-                  : null,
-            ),
+    return PopScope<Post?>(
+      canPop: !hasDraft || createState.isLoading,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final discard = await _confirmDiscard();
+        if (!discard) return;
+        if (!context.mounted) return;
+        Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        backgroundColor: swatches.paper,
+        appBar: AppBar(
+          title: Text(
+            isReply ? l10n.postComposeReplyTitle : l10n.postComposeTitle,
+            style: theme.textTheme.titleLarge,
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(
-            spacing.sp4,
-            spacing.sp4,
-            spacing.sp4,
-            spacing.sp6,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (widget.replyTarget case final replyTarget?) ...[
-                _ReplyTargetPreview(post: replyTarget),
-                SizedBox(height: spacing.sp4),
-              ],
-              BrandTextField(
-                label: isReply
-                    ? l10n.postComposeReplyHint
-                    : l10n.postComposeHint,
-                controller: _controller,
-                focusNode: _focusNode,
-                minLines: 8,
-                maxLines: 16,
-                textInputAction: TextInputAction.newline,
-                keyboardType: TextInputType.multiline,
-                enabled: !createState.isLoading,
-                errorText: tooLong ? l10n.postComposeTooLong : null,
-                helperText:
-                    '${_text.length}/${PostComposerSheet.maxCharacters}',
-                onChanged: (value) => setState(() => _text = value),
+          actions: [
+            Padding(
+              padding: EdgeInsets.only(right: spacing.sp4),
+              child: _PostAction(
+                isSaving: createState.isLoading,
+                label: submitLabel,
+                onPressed: canSubmit
+                    ? () => _submitPost(trimmedText: trimmedText)
+                    : null,
               ),
-              if (!isReply) ...[
-                SizedBox(height: spacing.sp3),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    key: const Key('composer-add-image'),
-                    onPressed: createState.isLoading
-                        ? null
-                        : () async {
-                            if (_imageDraftController.images.length >=
-                                mediaConfig.maxImages) {
-                              context.showError(
-                                'You can add up to ${mediaConfig.maxImages} images',
-                              );
-                              return;
-                            }
-                            final service = ref.read(
-                              composerImageServiceProvider,
-                            );
-                            try {
-                              await service.addImages(_imageDraftController);
-                            } on ImageSelectionLimitExceededException catch (
-                              exception
-                            ) {
-                              if (!context.mounted) return;
-                              context.showError(
-                                'You can add up to ${exception.maxImages} images',
-                              );
-                            }
-                          },
-                    icon: const Icon(Icons.add_photo_alternate_outlined),
-                    label: const Text('Add image'),
-                  ),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          top: false,
+          bottom: false,
+          child: SingleChildScrollView(
+            clipBehavior: Clip.none,
+            padding: EdgeInsets.fromLTRB(
+              spacing.sp4,
+              spacing.sp5,
+              spacing.sp4,
+              spacing.sp7,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (widget.replyTarget case final replyTarget?) ...[
+                  _ReplyTargetPreview(post: replyTarget),
+                  SizedBox(height: spacing.sp4),
+                ],
+                BrandTextField(
+                  label: isReply
+                      ? l10n.postComposeReplyHint
+                      : l10n.postComposeHint,
+                  hintText: isReply ? null : l10n.postComposeBodyHint,
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  minLines: isReply ? 5 : 3,
+                  maxLines: 12,
+                  textInputAction: TextInputAction.newline,
+                  keyboardType: TextInputType.multiline,
+                  enabled: !createState.isLoading,
+                  errorText: tooLong ? l10n.postComposeTooLong : null,
+                  helperText:
+                      '${_text.length}/${PostComposerSheet.maxCharacters}',
+                  helperAlignment: AlignmentDirectional.centerEnd,
+                  onChanged: (value) => setState(() => _text = value),
                 ),
-                ..._imageDraftController.images.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final image = entry.value;
-                  return _DraftImageTile(
-                    image: image,
-                    altTextKey: Key('composer-alt-${image.id}'),
-                    removeKey: Key('composer-remove-${image.id}'),
-                    moveUpKey: Key('composer-move-up-${image.id}'),
-                    moveDownKey: Key('composer-move-down-${image.id}'),
-                    canMoveUp: index > 0,
-                    canMoveDown:
-                        index < _imageDraftController.images.length - 1,
-                    onAltChanged: (value) =>
-                        _imageDraftController.setAltText(image.id, value),
-                    onRemove: () => _imageDraftController.remove(image.id),
-                    onMoveUp: () => _imageDraftController.reorder(
-                      fromIndex: index,
-                      toIndex: index - 1,
+                if (!isReply) ...[
+                  SizedBox(height: spacing.sp6),
+                  _PhotosHeader(
+                    imageCount: imagesState.images.length,
+                    describedImageCount: describedImageCount,
+                  ),
+                  SizedBox(height: spacing.sp3),
+                  if (imagesState.images.isNotEmpty)
+                    ImplicitlyAnimatedReorderableList<ComposerImageDraft>(
+                      items: imagesState.images,
+                      shrinkWrap: true,
+                      clipBehavior: Clip.none,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: EdgeInsets.zero,
+                      reorderDuration: _imageListAnimationDuration,
+                      insertDuration: _imageListAnimationDuration,
+                      removeDuration: _imageListAnimationDuration,
+                      areItemsTheSame: (oldItem, newItem) =>
+                          oldItem.id == newItem.id,
+                      onReorderFinished: (image, oldIndex, newIndex, newItems) {
+                        ref
+                            .read(imagesProvider.notifier)
+                            .reorder(
+                              fromIndex: oldIndex,
+                              toIndex: newIndex,
+                            );
+                      },
+                      itemBuilder: (context, animation, image, index) {
+                        return Reorderable(
+                          key: ValueKey('composer-image-${image.id}'),
+                          child: SizeFadeTransition(
+                            animation: animation,
+                            curve: Curves.easeOutCubic,
+                            sizeFraction: 0.85,
+                            child: _DraftImageTile(
+                              image: image,
+                              index: index,
+                              altTextKey: Key('composer-alt-${image.id}'),
+                              removeKey: Key('composer-remove-${image.id}'),
+                              moveUpKey: Key('composer-move-up-${image.id}'),
+                              moveDownKey: Key(
+                                'composer-move-down-${image.id}',
+                              ),
+                              canMoveUp: index > 0,
+                              canMoveDown:
+                                  index < imagesState.images.length - 1,
+                              onAltChanged: (value) => ref
+                                  .read(imagesProvider.notifier)
+                                  .setAltText(
+                                    image.id,
+                                    value,
+                                  ),
+                              onRemove: () => ref
+                                  .read(imagesProvider.notifier)
+                                  .remove(image.id),
+                              onMoveUp: () => ref
+                                  .read(imagesProvider.notifier)
+                                  .reorder(
+                                    fromIndex: index,
+                                    toIndex: index - 1,
+                                  ),
+                              onMoveDown: () => ref
+                                  .read(imagesProvider.notifier)
+                                  .reorder(
+                                    fromIndex: index,
+                                    toIndex: index + 1,
+                                  ),
+                            ),
+                          ),
+                        );
+                      },
+                      removeItemBuilder: (context, animation, image) {
+                        return Reorderable(
+                          key: ValueKey('composer-image-${image.id}'),
+                          child: SizeFadeTransition(
+                            animation: animation,
+                            curve: Curves.easeOutCubic,
+                            sizeFraction: 0.85,
+                            child: _DraftImageTile(
+                              image: image,
+                              index: 0,
+                              altTextKey: Key('composer-alt-${image.id}'),
+                              removeKey: Key('composer-remove-${image.id}'),
+                              moveUpKey: Key('composer-move-up-${image.id}'),
+                              moveDownKey: Key(
+                                'composer-move-down-${image.id}',
+                              ),
+                              canMoveUp: false,
+                              canMoveDown: false,
+                              onAltChanged: (_) {},
+                              onRemove: null,
+                              onMoveUp: null,
+                              onMoveDown: null,
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                    onMoveDown: () => _imageDraftController.reorder(
-                      fromIndex: index,
-                      toIndex: index + 1,
+                  if (imagesState.images.length < mediaConfig.maxImages)
+                    _AddPhotoCard(
+                      remainingCount:
+                          mediaConfig.maxImages - imagesState.images.length,
+                      hasImages: imagesState.images.isNotEmpty,
+                      onPressed: createState.isLoading
+                          ? null
+                          : () async {
+                              if (imagesState.images.length >=
+                                  mediaConfig.maxImages) {
+                                context.showError(
+                                  l10n.postComposeImageLimitError(
+                                    mediaConfig.maxImages,
+                                  ),
+                                );
+                                return;
+                              }
+                              await ref
+                                  .read(imagesProvider.notifier)
+                                  .addImages();
+                            },
                     ),
-                  );
-                }),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  List<CreatePostImage>? _payloadImages() {
-    if (_imageDraftController.images.isEmpty) return null;
-    return _imageDraftController.images
-        .where((image) => image.lifecycle == DraftImageLifecycle.uploaded)
-        .map(
-          (image) => CreatePostImage(
-            blob: CreatePostBlob(
-              ref: CreatePostBlobRef(link: image.uploaded!.cid),
-              mimeType: image.uploaded!.mime,
-              size: image.uploaded!.size,
+  bool _hasDraft(ComposerImagesState imagesState) {
+    return _text != _initialText || imagesState.images.isNotEmpty;
+  }
+
+  Future<bool> _confirmDiscard() {
+    final l10n = AppLocalizations.of(context);
+    return showCraftskyConfirmDialog(
+      context,
+      title: l10n.postComposeDiscardTitle,
+      message: l10n.postComposeDiscardMessage,
+      confirmLabel: l10n.postComposeDiscardConfirm,
+      cancelLabel: l10n.postComposeDiscardCancel,
+    );
+  }
+
+  Future<void> _submitPost({required String trimmedText}) async {
+    final imagesState = ref.read(composerImagesProvider(_composerId));
+    if (widget.replyTarget == null && imagesState.hasImagesMissingAltText) {
+      final l10n = AppLocalizations.of(context);
+      final shouldPost = await showCraftskyConfirmDialog(
+        context,
+        title: l10n.postComposeMissingAltTitle,
+        message: l10n.postComposeMissingAltMessage,
+        confirmLabel: l10n.postComposeMissingAltConfirm,
+        cancelLabel: l10n.postComposeMissingAltCancel,
+      );
+      if (!shouldPost || !mounted) return;
+    }
+
+    await ref
+        .read(createPostProvider.notifier)
+        .create(
+          text: trimmedText,
+          reply: _replyFor(widget.replyTarget),
+          images: widget.replyTarget == null
+              ? imagesState.toCreatePostImages()
+              : null,
+        );
+  }
+}
+
+class _PhotosHeader extends StatelessWidget {
+  const _PhotosHeader({
+    required this.imageCount,
+    required this.describedImageCount,
+  });
+
+  final int imageCount;
+  final int describedImageCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final colors = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final describedLabel = imageCount == 0
+        ? l10n.postComposeNoImagesDescribed
+        : l10n.postComposeImagesDescribed(describedImageCount, imageCount);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                l10n.postComposePhotosTitle,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
-            alt: image.altText.trim(),
-            aspectRatio: image.uploaded!.aspectRatio,
+            Icon(Icons.short_text_rounded, color: colors.outline, size: 22),
+            SizedBox(width: spacing.sp1),
+            Text(
+              describedLabel,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.outline,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: spacing.sp1),
+        Text(
+          imageCount == 0
+              ? l10n.postComposePhotosLimitHelper(mediaConfig.maxImages)
+              : l10n.postComposePhotosReorderHelper(
+                  imageCount,
+                  mediaConfig.maxImages,
+                ),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: colors.outline,
+            fontWeight: FontWeight.w700,
           ),
-        )
-        .toList();
+        ),
+      ],
+    );
   }
 }
 
 class _DraftImageTile extends StatelessWidget {
   const _DraftImageTile({
     required this.image,
+    required this.index,
     required this.altTextKey,
     required this.removeKey,
     required this.moveUpKey,
@@ -265,7 +438,8 @@ class _DraftImageTile extends StatelessWidget {
     required this.onMoveDown,
   });
 
-  final DraftImageState image;
+  final ComposerImageDraft image;
+  final int index;
   final Key altTextKey;
   final Key removeKey;
   final Key moveUpKey;
@@ -273,73 +447,114 @@ class _DraftImageTile extends StatelessWidget {
   final bool canMoveUp;
   final bool canMoveDown;
   final ValueChanged<String> onAltChanged;
-  final VoidCallback onRemove;
-  final VoidCallback onMoveUp;
-  final VoidCallback onMoveDown;
+  final VoidCallback? onRemove;
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final radii = theme.extension<RadiusTheme>()!;
+    final shadows = theme.extension<BrandShadowTheme>()!;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    final semanticColors = theme.extension<SemanticColorsTheme>()!;
+    final colors = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final hasAltText = image.altText.trim().isNotEmpty;
+    final shadowOffset = shadows.dropSm.first.offset;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: DecoratedBox(
+      padding: EdgeInsets.only(
+        right: shadowOffset.dx > 0 ? shadowOffset.dx : 0,
+        bottom: spacing.sp5 + (shadowOffset.dy > 0 ? shadowOffset.dy : 0),
+      ),
+      child: Container(
         decoration: BoxDecoration(
-          border: Border.all(color: Theme.of(context).dividerColor),
-          borderRadius: BorderRadius.circular(12),
+          color: swatches.paper3,
+          borderRadius: BorderRadius.circular(radii.r3),
+          border: Border.all(color: colors.onSurface, width: 1.5),
+          boxShadow: shadows.dropSm,
         ),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(spacing.sp4),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
                 children: [
-                  Expanded(child: Text(image.fileName)),
-                  IconButton(
+                  _ImageNumberBadge(index: index),
+                  const Spacer(),
+                  _CircleIconButton(
                     key: moveUpKey,
+                    icon: Icons.arrow_upward_rounded,
+                    tooltip: l10n.postComposeMoveImageUp,
                     onPressed: canMoveUp ? onMoveUp : null,
-                    icon: const Icon(Icons.arrow_upward),
                   ),
-                  IconButton(
+                  SizedBox(width: spacing.sp2),
+                  _CircleIconButton(
                     key: moveDownKey,
+                    icon: Icons.arrow_downward_rounded,
+                    tooltip: l10n.postComposeMoveImageDown,
                     onPressed: canMoveDown ? onMoveDown : null,
-                    icon: const Icon(Icons.arrow_downward),
                   ),
-                  IconButton(
+                  SizedBox(width: spacing.sp2),
+                  _CircleIconButton(
                     key: removeKey,
+                    icon: Icons.delete_outline_rounded,
+                    tooltip: l10n.postComposeRemoveImage,
+                    foregroundColor: semanticColors.error,
                     onPressed: onRemove,
-                    icon: const Icon(Icons.close),
+                  ),
+                  SizedBox(width: spacing.sp2),
+                  Handle(
+                    child: Tooltip(
+                      message: l10n.postComposeDragToReorder,
+                      child: Icon(
+                        Icons.drag_indicator_rounded,
+                        color: colors.outline,
+                        size: 34,
+                      ),
+                    ),
                   ),
                 ],
               ),
-              Text(_statusLabel(image)),
-              if (image.previewBytes case final bytes?) ...[
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(
-                    bytes,
-                    key: Key('composer-preview-${image.id}'),
-                    fit: BoxFit.cover,
-                    width: 96,
-                    height: 96,
+              SizedBox(height: spacing.sp3),
+              _DraftImagePreview(image: image),
+              if (image.phase is ImageFailed) ...[
+                SizedBox(height: spacing.sp3),
+                _ImageStatus(image: image),
+              ],
+              SizedBox(height: spacing.sp4),
+              BrandTextField(
+                key: altTextKey,
+                label: l10n.postComposeAltTextLabel,
+                initialValue: image.altText,
+                hintText: l10n.postComposeAltTextHint,
+                minLines: 2,
+                maxLines: 4,
+                keyboardType: TextInputType.multiline,
+                textInputAction: TextInputAction.newline,
+                onChanged: onAltChanged,
+                labelLeading: Icon(
+                  Icons.short_text_rounded,
+                  color: colors.onSurfaceVariant,
+                  size: 24,
+                ),
+                labelStyle: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.w900,
+                ),
+                labelTrailing: Text(
+                  hasAltText
+                      ? l10n.postComposeImageDescribed
+                      : l10n.postComposeImageNeedsAltText,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: hasAltText ? semanticColors.success : colors.error,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-              ],
-              if (image.lifecycle == DraftImageLifecycle.preparing ||
-                  image.lifecycle == DraftImageLifecycle.uploading) ...[
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  key: Key('composer-upload-progress-${image.id}'),
-                  value: image.lifecycle == DraftImageLifecycle.preparing
-                      ? null
-                      : image.uploadProgress,
-                ),
-              ],
-              if (image.errorMessage != null) Text(image.errorMessage!),
-              TextField(
-                key: altTextKey,
-                decoration: const InputDecoration(labelText: 'Alt text'),
-                onChanged: onAltChanged,
               ),
             ],
           ),
@@ -347,19 +562,420 @@ class _DraftImageTile extends StatelessWidget {
       ),
     );
   }
+}
 
-  String _statusLabel(DraftImageState image) {
-    switch (image.lifecycle) {
-      case DraftImageLifecycle.preparing:
-        return 'Preparing';
-      case DraftImageLifecycle.uploading:
-        return 'Uploading';
-      case DraftImageLifecycle.uploaded:
-        return 'Uploaded';
-      case DraftImageLifecycle.failed:
-        return 'Failed';
+class _DraftImagePreview extends StatelessWidget {
+  const _DraftImagePreview({required this.image});
+
+  final ComposerImageDraft image;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return DecoratedBox(
+      position: DecorationPosition.foreground,
+      decoration: BoxDecoration(
+        border: Border.all(color: colors.onSurface),
+      ),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        alignment: Alignment.topCenter,
+        child: AspectRatio(
+          aspectRatio: _previewAspectRatio(image),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              switch (image.previewBytes) {
+                final bytes? => Image.memory(
+                  bytes,
+                  key: Key('composer-preview-${image.id}'),
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                ),
+                null => const DecoratedBox(
+                  decoration: BoxDecoration(color: Color(0xFFEAEAEA)),
+                ),
+              },
+              if (_previewLoadingOverlay(context, image) case final overlay?)
+                _ImageLoadingOverlay(imageId: image.id, overlay: overlay),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ImageLoadingOverlay extends StatelessWidget {
+  const _ImageLoadingOverlay({required this.imageId, required this.overlay});
+
+  final String imageId;
+  final _PreviewLoadingOverlay overlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+
+    return Semantics(
+      label: overlay.label,
+      liveRegion: true,
+      child: DecoratedBox(
+        key: Key('composer-preview-overlay-$imageId'),
+        decoration: const BoxDecoration(color: Color(0x99000000)),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox.square(
+                dimension: 72,
+                child: CircularProgressIndicator(
+                  key: Key('composer-upload-progress-$imageId'),
+                  value: overlay.value,
+                  strokeWidth: 6,
+                  backgroundColor: Colors.white24,
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    Colors.white,
+                  ),
+                ),
+              ),
+              SizedBox(height: spacing.sp3),
+              Text(
+                overlay.label,
+                key: Key('composer-upload-label-$imageId'),
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ImageStatus extends StatelessWidget {
+  const _ImageStatus({required this.image});
+
+  final ComposerImageDraft image;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final colors = theme.colorScheme;
+    final failed = image.phase is ImageFailed;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _statusLabel(context, image),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: failed ? colors.error : colors.outline,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        if (image.phase case ImageFailed(:final failure)) ...[
+          SizedBox(height: spacing.sp1),
+          Text(
+            failure.message,
+            style: theme.textTheme.bodyMedium?.copyWith(color: colors.error),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ImageNumberBadge extends StatelessWidget {
+  const _ImageNumberBadge({required this.index});
+
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isCover = index == 0;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    return Container(
+      width: 50,
+      height: 50,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isCover ? theme.colorScheme.primary : swatches.paper2,
+        shape: BoxShape.circle,
+        border: Border.all(color: theme.colorScheme.onSurface, width: 2),
+      ),
+      child: Text(
+        '${index + 1}',
+        style: theme.textTheme.titleLarge?.copyWith(
+          color: isCover
+              ? theme.colorScheme.onPrimary
+              : theme.colorScheme.onSurface,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _CircleIconButton extends StatelessWidget {
+  const _CircleIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+    this.foregroundColor,
+    super.key,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+  final Color? foregroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    final enabled = onPressed != null;
+
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon),
+      style: IconButton.styleFrom(
+        fixedSize: const Size(52, 52),
+        backgroundColor: swatches.paper3,
+        foregroundColor: enabled
+            ? foregroundColor ?? colors.onSurface
+            : colors.outlineVariant,
+        disabledForegroundColor: colors.outlineVariant,
+        side: BorderSide(
+          color: enabled ? colors.onSurface : colors.outlineVariant,
+          width: 2,
+        ),
+        shape: const CircleBorder(),
+      ),
+    );
+  }
+}
+
+class _AddPhotoCard extends StatelessWidget {
+  const _AddPhotoCard({
+    required this.remainingCount,
+    required this.hasImages,
+    required this.onPressed,
+  });
+
+  final int remainingCount;
+  final bool hasImages;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final radii = theme.extension<RadiusTheme>()!;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    final colors = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final label = hasImages
+        ? l10n.postComposeAddAnotherPhoto
+        : l10n.postComposeAddPhoto;
+    final subtitle = hasImages
+        ? l10n.postComposePhotosRemaining(remainingCount)
+        : l10n.postComposePhotosLimitHelper(mediaConfig.maxImages);
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: spacing.sp2),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: const Key('composer-add-image'),
+          borderRadius: BorderRadius.circular(24),
+          onTap: onPressed,
+          child: CustomPaint(
+            painter: _DashedBorderPainter(
+              color: colors.onSurface,
+              radius: radii.r4,
+              strokeWidth: 1.8,
+            ),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: spacing.sp4,
+                vertical: spacing.sp4,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: swatches.butter,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: colors.onSurface, width: 2),
+                    ),
+                    child: const Icon(Icons.add_rounded, size: 34),
+                  ),
+                  SizedBox(width: spacing.sp4),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          subtitle,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colors.outline,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  const _DashedBorderPainter({
+    required this.color,
+    required this.radius,
+    required this.strokeWidth,
+  });
+
+  final Color color;
+  final double radius;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const dashLength = 6.0;
+    const gapLength = 6.0;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+    final rect = Offset.zero & size;
+    final rrect = RRect.fromRectAndRadius(
+      rect.deflate(strokeWidth / 2),
+      Radius.circular(radius),
+    );
+    final path = Path()..addRRect(rrect);
+
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final end = (distance + dashLength).clamp(0, metric.length).toDouble();
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance = end + gapLength;
+      }
     }
   }
+
+  @override
+  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.radius != radius ||
+        oldDelegate.strokeWidth != strokeWidth;
+  }
+}
+
+double _previewAspectRatio(ComposerImageDraft image) {
+  final aspectRatio = switch (image.phase) {
+    ImageUploaded(:final uploaded) =>
+      uploaded.aspectRatio ?? image.previewAspectRatio,
+    _ => image.previewAspectRatio,
+  };
+  if (aspectRatio != null && aspectRatio.height > 0) {
+    return (aspectRatio.width / aspectRatio.height).clamp(0.7, 1.6);
+  }
+
+  return 1;
+}
+
+String _statusLabel(BuildContext context, ComposerImageDraft image) {
+  final l10n = AppLocalizations.of(context);
+  return switch (image.phase) {
+    ImageQueued() || ImageReading() => l10n.postComposeReadingImage,
+    ImagePreparing() => l10n.postComposePreparingImage,
+    ImageUploading() => l10n.postComposeUploadingImage,
+    ImageUploaded() => l10n.postComposeUploadedImage,
+    ImageFailed() => l10n.postComposeImageFailed,
+  };
+}
+
+_PreviewLoadingOverlay? _previewLoadingOverlay(
+  BuildContext context,
+  ComposerImageDraft image,
+) {
+  final l10n = AppLocalizations.of(context);
+  return switch (image.phase) {
+    ImageQueued() || ImageReading() => _PreviewLoadingOverlay(
+      label: l10n.postComposeReadingImage,
+    ),
+    ImagePreparing() => _PreviewLoadingOverlay(
+      label: l10n.postComposePreparingImage,
+    ),
+    ImageUploading(:final progress) => _uploadLoadingOverlay(l10n, progress),
+    ImageUploaded() || ImageFailed() => null,
+  };
+}
+
+_PreviewLoadingOverlay _uploadLoadingOverlay(
+  AppLocalizations l10n,
+  ImageTransferProgress progress,
+) {
+  if (_isProcessingUpload(progress)) {
+    return _PreviewLoadingOverlay(label: l10n.postComposeProcessingImage);
+  }
+
+  final value = progress.indicatorValue;
+  if (value == null) {
+    return _PreviewLoadingOverlay(label: l10n.postComposeUploadingImage);
+  }
+
+  final percent = (value * 100).round().clamp(0, 99);
+  return _PreviewLoadingOverlay(
+    label: l10n.postComposeUploadingProgress(percent),
+    value: value,
+  );
+}
+
+bool _isProcessingUpload(ImageTransferProgress progress) {
+  return switch (progress) {
+    TransferFinalizing() => true,
+    TransferBytes(:final sent, :final sendTotal) =>
+      sendTotal > 0 && sent >= sendTotal,
+    TransferStarting() => false,
+  };
+}
+
+class _PreviewLoadingOverlay {
+  const _PreviewLoadingOverlay({required this.label, this.value});
+
+  final String label;
+  final double? value;
 }
 
 class _ReplyTargetPreview extends StatelessWidget {
@@ -419,21 +1035,12 @@ class _PostAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (isSaving) {
-      return const SizedBox(
-        width: 48,
-        child: Center(
-          child: SizedBox(
-            width: 18,
-            height: 18,
-            child: StitchProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
-    }
     return TextButton(
       onPressed: onPressed,
-      child: Text(label),
+      style: TextButton.styleFrom(
+        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+      child: isSaving ? const StitchProgressIndicator(size: 18) : Text(label),
     );
   }
 }

@@ -29,46 +29,55 @@ type loginResponse struct {
 // The client (Flutter/CLI) opens this URL in the user's system browser.
 func (h *HTTPHandlers) LoginHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := ctxkeys.GetRunID(r.Context())
 		var req loginRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_body",
 				"request body could not be decoded",
-				ctxkeys.GetRunID(r.Context()), nil)
+				runID, nil)
 			return
 		}
 		req.Handle = strings.TrimPrefix(strings.TrimSpace(req.Handle), "@")
+		h.Logger.Debug("login: request decoded",
+			slog.String("handle", req.Handle),
+			slog.String("handoff_mode", req.HandoffMode),
+			slog.String("loopback_redirect_uri", req.LoopbackRedirectURI),
+			slog.String("run_id", runID))
 		if req.Handle == "" {
 			envelope.WriteError(w, http.StatusBadRequest, "handle_required",
 				"handle is required",
-				ctxkeys.GetRunID(r.Context()), nil)
+				runID, nil)
 			return
 		}
 		if _, err := syntax.ParseHandle(req.Handle); err != nil {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_handle",
 				"handle is malformed",
-				ctxkeys.GetRunID(r.Context()), nil)
+				runID, nil)
 			return
 		}
 		if req.HandoffMode != "deep_link" && req.HandoffMode != "loopback" {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_handoff_mode",
 				"handoffMode must be deep_link or loopback",
-				ctxkeys.GetRunID(r.Context()), nil)
+				runID, nil)
 			return
 		}
 		if req.HandoffMode == "loopback" {
 			if req.LoopbackRedirectURI == "" {
 				envelope.WriteError(w, http.StatusBadRequest, "loopback_redirect_uri_required",
 					"loopbackRedirectUri is required when handoffMode is loopback",
-					ctxkeys.GetRunID(r.Context()), nil)
+					runID, nil)
 				return
 			}
 			if !loopbackRedirectPattern.MatchString(req.LoopbackRedirectURI) {
 				envelope.WriteError(w, http.StatusBadRequest, "loopback_redirect_uri_invalid",
 					"loopbackRedirectUri must match http://127.0.0.1:<port>[/path]",
-					ctxkeys.GetRunID(r.Context()), nil)
+					runID, nil)
 				return
 			}
 		}
+		h.Logger.Debug("login: starting OAuth flow",
+			slog.String("handle", req.Handle),
+			slog.String("run_id", runID))
 
 		authURL, err := h.OAuth.StartAuthFlow(r.Context(), req.Handle)
 		if err != nil {
@@ -77,16 +86,20 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 				slog.String("err", err.Error()))
 			envelope.WriteError(w, http.StatusBadGateway, "authorization_server_unavailable",
 				"could not reach the authorization server",
-				ctxkeys.GetRunID(r.Context()), nil)
+				runID, nil)
 			return
 		}
+		h.Logger.Debug("login: OAuth flow started",
+			slog.String("handle", req.Handle),
+			slog.String("auth_url", authURL),
+			slog.String("run_id", runID))
 
 		requestURI, err := extractRequestURI(authURL)
 		if err != nil {
 			h.Logger.Error("extractRequestURI from StartAuthFlow URL", slog.String("err", err.Error()))
 			envelope.WriteError(w, http.StatusInternalServerError, "internal",
 				"internal error",
-				ctxkeys.GetRunID(r.Context()), nil)
+				runID, nil)
 			return
 		}
 		// Race note: StartAuthFlow already inserted the auth-request row.
@@ -101,6 +114,11 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 				slog.String("err", err.Error()))
 			// Continue: callback's loadHandoff falls back to deep_link.
 		}
+		h.Logger.Debug("login: handoff recorded",
+			slog.String("request_uri", requestURI),
+			slog.String("handoff_mode", req.HandoffMode),
+			slog.String("loopback_redirect_uri", req.LoopbackRedirectURI),
+			slog.String("run_id", runID))
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(loginResponse{AuthURL: authURL})
@@ -190,6 +208,7 @@ func authInfoFromCtx(ctx context.Context) (did syntax.DID, sid string, ok bool) 
 // defensive backstop in case AS-side revocation failed.
 func (h *HTTPHandlers) LogoutHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := ctxkeys.GetRunID(r.Context())
 		did, sid, ok := authInfoFromCtx(r.Context())
 		if !ok {
 			// Authenticated middleware should have rejected already;
@@ -197,7 +216,15 @@ func (h *HTTPHandlers) LogoutHandler() http.Handler {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if r.URL.Query().Get("all") == "true" {
+		all := r.URL.Query().Get("all") == "true"
+		token := bearerToken(r)
+		h.Logger.Debug("logout: request started",
+			slog.String("did", did.String()),
+			slog.String("session_id", sid),
+			slog.String("token", token),
+			slog.Bool("all", all),
+			slog.String("run_id", runID))
+		if all {
 			// Step 1: delete the OAuth session. Cascade removes
 			// craftsky_sessions rows on success.
 			if sid != "" {
@@ -219,14 +246,18 @@ func (h *HTTPHandlers) LogoutHandler() http.Handler {
 				return
 			}
 		} else {
-			token := bearerToken(r)
 			if err := h.CraftskySessions.Revoke(r.Context(), token); err != nil {
 				envelope.WriteError(w, http.StatusInternalServerError, "internal",
 					"internal error",
-					ctxkeys.GetRunID(r.Context()), nil)
+					runID, nil)
 				return
 			}
 		}
+		h.Logger.Debug("logout: revoked session",
+			slog.String("did", did.String()),
+			slog.String("session_id", sid),
+			slog.Bool("all", all),
+			slog.String("run_id", runID))
 		w.WriteHeader(http.StatusNoContent)
 	})
 }

@@ -17,7 +17,7 @@ final class PostCommentSectionProvider
         $AsyncNotifierProvider<PostCommentSection, model.PostCommentSection> {
   PostCommentSectionProvider._({
     required PostCommentSectionFamily super.from,
-    required (String, String, {model.CommentSort sort, String? focus})
+    required (Did, RecordKey, {model.CommentSort sort, AtUri? focus})
     super.argument,
   }) : super(
          retry: null,
@@ -53,7 +53,7 @@ final class PostCommentSectionProvider
 }
 
 String _$postCommentSectionHash() =>
-    r'36999f7a00c38f21eff48841c48bc88bae76462d';
+    r'5577893dc03edc8751f70d02f51701037c6df82c';
 
 final class PostCommentSectionFamily extends $Family
     with
@@ -62,7 +62,7 @@ final class PostCommentSectionFamily extends $Family
           AsyncValue<model.PostCommentSection>,
           model.PostCommentSection,
           FutureOr<model.PostCommentSection>,
-          (String, String, {model.CommentSort sort, String? focus})
+          (Did, RecordKey, {model.CommentSort sort, AtUri? focus})
         > {
   PostCommentSectionFamily._()
     : super(
@@ -74,10 +74,10 @@ final class PostCommentSectionFamily extends $Family
       );
 
   PostCommentSectionProvider call(
-    String did,
-    String rkey, {
+    Did did,
+    RecordKey rkey, {
     model.CommentSort sort = model.CommentSort.oldest,
-    String? focus,
+    AtUri? focus,
   }) => PostCommentSectionProvider._(
     argument: (did, rkey, sort: sort, focus: focus),
     from: this,
@@ -90,17 +90,17 @@ final class PostCommentSectionFamily extends $Family
 abstract class _$PostCommentSection
     extends $AsyncNotifier<model.PostCommentSection> {
   late final _$args =
-      ref.$arg as (String, String, {model.CommentSort sort, String? focus});
-  String get did => _$args.$1;
-  String get rkey => _$args.$2;
+      ref.$arg as (Did, RecordKey, {model.CommentSort sort, AtUri? focus});
+  Did get did => _$args.$1;
+  RecordKey get rkey => _$args.$2;
   model.CommentSort get sort => _$args.sort;
-  String? get focus => _$args.focus;
+  AtUri? get focus => _$args.focus;
 
   FutureOr<model.PostCommentSection> build(
-    String did,
-    String rkey, {
+    Did did,
+    RecordKey rkey, {
     model.CommentSort sort = model.CommentSort.oldest,
-    String? focus,
+    AtUri? focus,
   });
   @$mustCallSuper
   @override
@@ -136,7 +136,7 @@ final class PostCommentPageLoaderProvider
     extends $AsyncNotifierProvider<PostCommentPageLoader, void> {
   PostCommentPageLoaderProvider._({
     required PostCommentPageLoaderFamily super.from,
-    required (String, String, {model.CommentSort sort, String? focus})
+    required (Did, RecordKey, {model.CommentSort sort, AtUri? focus})
     super.argument,
   }) : super(
          retry: null,
@@ -172,7 +172,7 @@ final class PostCommentPageLoaderProvider
 }
 
 String _$postCommentPageLoaderHash() =>
-    r'729320674e544d388257a81577b6b62ab5de0a3b';
+    r'9f5c7f3d100529fd7fb0e046e790ffe4447324c6';
 
 final class PostCommentPageLoaderFamily extends $Family
     with
@@ -181,7 +181,7 @@ final class PostCommentPageLoaderFamily extends $Family
           AsyncValue<void>,
           void,
           FutureOr<void>,
-          (String, String, {model.CommentSort sort, String? focus})
+          (Did, RecordKey, {model.CommentSort sort, AtUri? focus})
         > {
   PostCommentPageLoaderFamily._()
     : super(
@@ -193,10 +193,10 @@ final class PostCommentPageLoaderFamily extends $Family
       );
 
   PostCommentPageLoaderProvider call(
-    String did,
-    String rkey, {
+    Did did,
+    RecordKey rkey, {
     model.CommentSort sort = model.CommentSort.oldest,
-    String? focus,
+    AtUri? focus,
   }) => PostCommentPageLoaderProvider._(
     argument: (did, rkey, sort: sort, focus: focus),
     from: this,
@@ -208,17 +208,17 @@ final class PostCommentPageLoaderFamily extends $Family
 
 abstract class _$PostCommentPageLoader extends $AsyncNotifier<void> {
   late final _$args =
-      ref.$arg as (String, String, {model.CommentSort sort, String? focus});
-  String get did => _$args.$1;
-  String get rkey => _$args.$2;
+      ref.$arg as (Did, RecordKey, {model.CommentSort sort, AtUri? focus});
+  Did get did => _$args.$1;
+  RecordKey get rkey => _$args.$2;
   model.CommentSort get sort => _$args.sort;
-  String? get focus => _$args.focus;
+  AtUri? get focus => _$args.focus;
 
   FutureOr<void> build(
-    String did,
-    String rkey, {
+    Did did,
+    RecordKey rkey, {
     model.CommentSort sort = model.CommentSort.oldest,
-    String? focus,
+    AtUri? focus,
   });
   @$mustCallSuper
   @override
@@ -247,11 +247,11 @@ final class PostCommentRepliesLoaderProvider
   PostCommentRepliesLoaderProvider._({
     required PostCommentRepliesLoaderFamily super.from,
     required (
-      String,
-      String, {
-      String commentUri,
+      Did,
+      RecordKey, {
+      AtUri commentUri,
       model.CommentSort sort,
-      String? focus,
+      AtUri? focus,
     })
     super.argument,
   }) : super(
@@ -289,7 +289,7 @@ final class PostCommentRepliesLoaderProvider
 }
 
 String _$postCommentRepliesLoaderHash() =>
-    r'94ab326360b188a56417de36ba6521f5f75f3928';
+    r'c833709b54f1225cb81734181c515e4269cce832';
 
 final class PostCommentRepliesLoaderFamily extends $Family
     with
@@ -299,11 +299,11 @@ final class PostCommentRepliesLoaderFamily extends $Family
           void,
           FutureOr<void>,
           (
-            String,
-            String, {
-            String commentUri,
+            Did,
+            RecordKey, {
+            AtUri commentUri,
             model.CommentSort sort,
-            String? focus,
+            AtUri? focus,
           })
         > {
   PostCommentRepliesLoaderFamily._()
@@ -316,11 +316,11 @@ final class PostCommentRepliesLoaderFamily extends $Family
       );
 
   PostCommentRepliesLoaderProvider call(
-    String did,
-    String rkey, {
-    required String commentUri,
+    Did did,
+    RecordKey rkey, {
+    required AtUri commentUri,
     model.CommentSort sort = model.CommentSort.oldest,
-    String? focus,
+    AtUri? focus,
   }) => PostCommentRepliesLoaderProvider._(
     argument: (did, rkey, commentUri: commentUri, sort: sort, focus: focus),
     from: this,
@@ -334,24 +334,24 @@ abstract class _$PostCommentRepliesLoader extends $AsyncNotifier<void> {
   late final _$args =
       ref.$arg
           as (
-            String,
-            String, {
-            String commentUri,
+            Did,
+            RecordKey, {
+            AtUri commentUri,
             model.CommentSort sort,
-            String? focus,
+            AtUri? focus,
           });
-  String get did => _$args.$1;
-  String get rkey => _$args.$2;
-  String get commentUri => _$args.commentUri;
+  Did get did => _$args.$1;
+  RecordKey get rkey => _$args.$2;
+  AtUri get commentUri => _$args.commentUri;
   model.CommentSort get sort => _$args.sort;
-  String? get focus => _$args.focus;
+  AtUri? get focus => _$args.focus;
 
   FutureOr<void> build(
-    String did,
-    String rkey, {
-    required String commentUri,
+    Did did,
+    RecordKey rkey, {
+    required AtUri commentUri,
     model.CommentSort sort = model.CommentSort.oldest,
-    String? focus,
+    AtUri? focus,
   });
   @$mustCallSuper
   @override

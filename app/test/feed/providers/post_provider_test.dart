@@ -2,6 +2,7 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -12,6 +13,8 @@ void main() {
 
   group('postProvider', () {
     test('returns the post fetched from the repository', () async {
+      final aliceDid = Did.parse('did:plc:alice');
+      final rkey = RecordKey.parse('3lf2abc');
       final fake = FakePostRepository(
         onFetch: (did, rkey) async => PostMapper.fromMap({
           'uri': 'at://did:plc:alice/social.craftsky.feed.post/$rkey',
@@ -35,13 +38,15 @@ void main() {
       );
 
       final post = await container.read(
-        postProvider('did:plc:alice', '3lf2abc').future,
+        postProvider(aliceDid, rkey).future,
       );
       expect(post.rkey, '3lf2abc');
       expect(post.author.did, 'did:plc:alice');
     });
 
     test('propagates repository errors as AsyncError', () async {
+      final aliceDid = Did.parse('did:plc:alice');
+      final rkey = RecordKey.parse('missing');
       final fake = FakePostRepository(
         onFetch: (_, _) async => throw Exception('boom'),
       );
@@ -53,7 +58,7 @@ void main() {
       // Listen to keep the provider alive while the future settles, then
       // assert on the resolved AsyncValue.
       final sub = container.listen(
-        postProvider('did:plc:alice', 'missing'),
+        postProvider(aliceDid, rkey),
         (_, $) {},
         fireImmediately: true,
       );

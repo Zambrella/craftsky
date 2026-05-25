@@ -112,6 +112,108 @@ abstract class AppLocalizations {
   /// **'v{version}'**
   String homeVersionLabel(String version);
 
+  /// Title for the main chronological feed page.
+  ///
+  /// In en, this message translates to:
+  /// **'Feed'**
+  String get feedTitle;
+
+  /// Title and main heading on the welcome page.
+  ///
+  /// In en, this message translates to:
+  /// **'Welcome'**
+  String get welcomeTitle;
+
+  /// Primary button label on the welcome page that opens sign-in.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in'**
+  String get welcomeSignInAction;
+
+  /// Secondary action on the welcome page for users who need a PDS account.
+  ///
+  /// In en, this message translates to:
+  /// **'Create account on a PDS'**
+  String get welcomeCreateAccountAction;
+
+  /// App-bar title on the sign-in page.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in'**
+  String get signInTitle;
+
+  /// Label for the handle input on the sign-in page.
+  ///
+  /// In en, this message translates to:
+  /// **'Handle'**
+  String get signInHandleLabel;
+
+  /// Primary button label on the sign-in page.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get signInContinueAction;
+
+  /// Snackbar error when submitting sign-in without a handle.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a handle.'**
+  String get signInHandleRequiredError;
+
+  /// Snackbar error when the sign-in handle is malformed or cannot be resolved.
+  ///
+  /// In en, this message translates to:
+  /// **'We couldn\'t recognise that handle.'**
+  String get signInInvalidHandleError;
+
+  /// Snackbar error when the auth server cannot be reached.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t reach the server. Please try again.'**
+  String get signInServerUnavailableError;
+
+  /// Snackbar error when OAuth sign-in cannot open the system browser.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t open the browser. Check that you have one installed.'**
+  String get signInBrowserLaunchError;
+
+  /// Fallback snackbar error for sign-in failures.
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong. Please try again.'**
+  String get signInGenericError;
+
+  /// Loading message shown while completing OAuth sign-in from a deep link.
+  ///
+  /// In en, this message translates to:
+  /// **'Signing in…'**
+  String get authCompleteSigningIn;
+
+  /// Error shown when the OAuth completion token has expired.
+  ///
+  /// In en, this message translates to:
+  /// **'That sign-in link expired. Please sign in again.'**
+  String get authCompleteTimedOutError;
+
+  /// Error shown when the OAuth callback has no matching pending sign-in.
+  ///
+  /// In en, this message translates to:
+  /// **'No sign-in is in progress. Please sign in again.'**
+  String get authCompleteNoPendingSignInError;
+
+  /// Error shown when the completed OAuth session cannot be saved.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save your session securely. Please sign in again.'**
+  String get authCompleteStorageError;
+
+  /// Fallback error shown when OAuth completion fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t complete sign-in. Please sign in again.'**
+  String get authCompleteGenericError;
+
   /// Default label for the primary action button on a CraftskyDialog confirm helper when the caller does not provide one.
   ///
   /// In en, this message translates to:
@@ -490,6 +592,12 @@ abstract class AppLocalizations {
   /// **'What are you making?'**
   String get postComposeHint;
 
+  /// Hint text inside the main post composer text field.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern, fabric, what went right, what didn\'t...'**
+  String get postComposeBodyHint;
+
   /// Title of the reply composer sheet.
   ///
   /// In en, this message translates to:
@@ -531,6 +639,240 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t post.'**
   String get postCreateError;
+
+  /// Title of the confirm-discard dialog shown when leaving the post composer with unsaved edits.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard draft?'**
+  String get postComposeDiscardTitle;
+
+  /// Body of the confirm-discard dialog shown when leaving the post composer with unsaved edits.
+  ///
+  /// In en, this message translates to:
+  /// **'Your draft won\'t be saved.'**
+  String get postComposeDiscardMessage;
+
+  /// Confirm action in the post-composer confirm-discard dialog — closes the composer without saving.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get postComposeDiscardConfirm;
+
+  /// Cancel action in the post-composer confirm-discard dialog — returns the user to the composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep editing'**
+  String get postComposeDiscardCancel;
+
+  /// Snackbar error shown when the post composer image limit is reached.
+  ///
+  /// In en, this message translates to:
+  /// **'You can add up to {maxImages} images'**
+  String postComposeImageLimitError(int maxImages);
+
+  /// Snackbar error shown when one or more selected composer images use an unsupported format.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Unsupported image type} other{{count} unsupported images}}'**
+  String postComposeUnsupportedImagesError(int count);
+
+  /// Snackbar error shown when the image picker cannot be opened.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open image picker'**
+  String get postComposeImagePickerError;
+
+  /// Title of the confirm dialog shown before posting images that are missing alt text.
+  ///
+  /// In en, this message translates to:
+  /// **'Some images do not have alt text'**
+  String get postComposeMissingAltTitle;
+
+  /// Body of the confirm dialog shown before posting images that are missing alt text.
+  ///
+  /// In en, this message translates to:
+  /// **'Do you wish to post anyway?'**
+  String get postComposeMissingAltMessage;
+
+  /// Confirm button label for posting despite missing image alt text.
+  ///
+  /// In en, this message translates to:
+  /// **'Post anyway'**
+  String get postComposeMissingAltConfirm;
+
+  /// Cancel button label for returning to the composer to add image alt text.
+  ///
+  /// In en, this message translates to:
+  /// **'Go back'**
+  String get postComposeMissingAltCancel;
+
+  /// Heading above the post composer photo attachment controls.
+  ///
+  /// In en, this message translates to:
+  /// **'Photos'**
+  String get postComposePhotosTitle;
+
+  /// Alt-text completion status shown before any composer photos are attached.
+  ///
+  /// In en, this message translates to:
+  /// **'0 described'**
+  String get postComposeNoImagesDescribed;
+
+  /// Alt-text completion status for attached composer photos.
+  ///
+  /// In en, this message translates to:
+  /// **'{describedCount} / {imageCount} described'**
+  String postComposeImagesDescribed(int describedCount, int imageCount);
+
+  /// Helper text under the photo heading before photos are attached.
+  ///
+  /// In en, this message translates to:
+  /// **'Up to {maxImages} photos'**
+  String postComposePhotosLimitHelper(int maxImages);
+
+  /// Helper text under the photo heading once photos are attached.
+  ///
+  /// In en, this message translates to:
+  /// **'{imageCount}/{maxImages} · drag to reorder · first is the cover'**
+  String postComposePhotosReorderHelper(int imageCount, int maxImages);
+
+  /// Tooltip for moving an attached composer image earlier in the order.
+  ///
+  /// In en, this message translates to:
+  /// **'Move image up'**
+  String get postComposeMoveImageUp;
+
+  /// Tooltip for moving an attached composer image later in the order.
+  ///
+  /// In en, this message translates to:
+  /// **'Move image down'**
+  String get postComposeMoveImageDown;
+
+  /// Tooltip for removing an attached composer image.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove image'**
+  String get postComposeRemoveImage;
+
+  /// Tooltip for the composer image drag handle.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag to reorder'**
+  String get postComposeDragToReorder;
+
+  /// Uppercase label above an attached image alt-text field.
+  ///
+  /// In en, this message translates to:
+  /// **'ALT TEXT'**
+  String get postComposeAltTextLabel;
+
+  /// Hint text inside an attached image alt-text field.
+  ///
+  /// In en, this message translates to:
+  /// **'Describe the image for someone who cannot see it, including the craft, materials, colors, and important details.'**
+  String get postComposeAltTextHint;
+
+  /// Status text shown beside an image alt-text field once alt text is present.
+  ///
+  /// In en, this message translates to:
+  /// **'Described'**
+  String get postComposeImageDescribed;
+
+  /// Status text shown beside an image alt-text field when alt text is missing.
+  ///
+  /// In en, this message translates to:
+  /// **'Help screen readers'**
+  String get postComposeImageNeedsAltText;
+
+  /// Label on the composer card for adding the first photo.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a photo'**
+  String get postComposeAddPhoto;
+
+  /// Label on the composer card for adding another photo.
+  ///
+  /// In en, this message translates to:
+  /// **'Add another photo'**
+  String get postComposeAddAnotherPhoto;
+
+  /// Subtitle on the add-photo card showing how many more photos can be attached.
+  ///
+  /// In en, this message translates to:
+  /// **'Up to {remainingCount} more'**
+  String postComposePhotosRemaining(int remainingCount);
+
+  /// Status shown while a composer image file is being read.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading image'**
+  String get postComposeReadingImage;
+
+  /// Status shown while a composer image is being resized or encoded.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing image'**
+  String get postComposePreparingImage;
+
+  /// Status shown while a composer image is uploading.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading image'**
+  String get postComposeUploadingImage;
+
+  /// Status shown after a composer image upload succeeds.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploaded'**
+  String get postComposeUploadedImage;
+
+  /// Status shown after a composer image upload fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed'**
+  String get postComposeImageFailed;
+
+  /// Overlay label shown while the server is finalizing a composer image upload.
+  ///
+  /// In en, this message translates to:
+  /// **'Processing'**
+  String get postComposeProcessingImage;
+
+  /// Overlay label showing composer image upload progress percentage.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading {percent}%'**
+  String postComposeUploadingProgress(int percent);
+
+  /// Tooltip for liking a post.
+  ///
+  /// In en, this message translates to:
+  /// **'Like'**
+  String get postLikeAction;
+
+  /// Tooltip for removing a like from a post.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlike'**
+  String get postUnlikeAction;
+
+  /// Tooltip and optional label for replying to a post.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply'**
+  String get postReplyAction;
+
+  /// Tooltip for reposting a post.
+  ///
+  /// In en, this message translates to:
+  /// **'Repost'**
+  String get postRepostAction;
+
+  /// Tooltip for removing a repost.
+  ///
+  /// In en, this message translates to:
+  /// **'Unrepost'**
+  String get postUnrepostAction;
 
   /// Tooltip and menu label for deleting a post.
   ///
@@ -688,11 +1030,23 @@ abstract class AppLocalizations {
   /// **'Pick the crafts you make'**
   String get editProfileCraftsHelper;
 
-  /// Caption shown over the avatar/banner area on the profile-edit page, indicating that photo upload isn't wired yet.
+  /// Tooltip/action label for choosing a new profile avatar image.
   ///
   /// In en, this message translates to:
-  /// **'Photo uploads coming soon'**
-  String get editProfilePhotosComingSoon;
+  /// **'Change avatar'**
+  String get editProfileChangeAvatar;
+
+  /// Action label for choosing a new profile cover/banner image.
+  ///
+  /// In en, this message translates to:
+  /// **'Change cover'**
+  String get editProfileChangeCover;
+
+  /// Snackbar shown when a selected profile avatar or cover image cannot be prepared or uploaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t upload that photo.'**
+  String get editProfilePhotoUploadError;
 
   /// Snackbar shown when the profile-edit save request fails.
   ///

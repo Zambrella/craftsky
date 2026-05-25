@@ -32,6 +32,12 @@ func ImageBlobUploadHandler(newPDS auth.PDSClientFactory, limits MediaLimits, lo
 			return
 		}
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+		logger.Debug("blob upload: request started",
+			slog.String("did", did.String()),
+			slog.String("session_id", sessionID),
+			slog.String("content_type", r.Header.Get("Content-Type")),
+			slog.Int64("content_length", r.ContentLength),
+			slog.String("run_id", runID))
 
 		uploadReq, payload, err := DecodeImageBlobUploadWithLimits(r.Header.Get("Content-Type"), r.Body, limits)
 		if err != nil {
@@ -51,6 +57,11 @@ func ImageBlobUploadHandler(newPDS auth.PDSClientFactory, limits MediaLimits, lo
 				"malformed_body", "could not parse body", runID, nil)
 			return
 		}
+		logger.Debug("blob upload: validated payload",
+			slog.String("did", did.String()),
+			slog.String("mime", uploadReq.ContentType),
+			slog.Int64("size", uploadReq.SizeBytes),
+			slog.String("run_id", runID))
 
 		pds, err := newPDS(r.Context(), did, sessionID)
 		if err != nil {
@@ -81,6 +92,13 @@ func ImageBlobUploadHandler(newPDS auth.PDSClientFactory, limits MediaLimits, lo
 			MIME: uploaded.MIME,
 			Size: uploaded.Size,
 		}
+		logger.Debug("blob upload: uploaded to PDS",
+			slog.String("did", did.String()),
+			slog.String("cid", uploaded.CID),
+			slog.String("mime", uploaded.MIME),
+			slog.Int64("size", uploaded.Size),
+			slog.Any("blob", uploaded.Raw),
+			slog.String("run_id", runID))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(resp)

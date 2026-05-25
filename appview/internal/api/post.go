@@ -56,6 +56,10 @@ func CreatePostHandler(
 			return
 		}
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+		logger.Debug("post create: request started",
+			slog.String("did", did.String()),
+			slog.String("session_id", sessionID),
+			slog.String("run_id", runID))
 
 		req, err := DecodePostCreate(r.Body)
 		if err != nil {
@@ -84,8 +88,16 @@ func CreatePostHandler(
 				"validation_failed", "validation failed", runID, nil)
 			return
 		}
+		logger.Debug("post create: validated request",
+			slog.String("did", did.String()),
+			slog.Any("request", req),
+			slog.String("run_id", runID))
 
 		body := lexiconRecordBody(req)
+		logger.Debug("post create: prepared PDS record",
+			slog.String("did", did.String()),
+			slog.Any("record", body),
+			slog.String("run_id", runID))
 
 		pds, err := newPDS(r.Context(), did, sessionID)
 		if err != nil {
@@ -105,6 +117,11 @@ func CreatePostHandler(
 				"pds_write_failed", "could not write post", runID, nil)
 			return
 		}
+		logger.Debug("post create: PDS record created",
+			slog.String("did", did.String()),
+			slog.String("uri", uri.String()),
+			slog.String("cid", string(cid)),
+			slog.String("run_id", runID))
 
 		row, err := syntheticPostRow(r, store, did, uri, cid, req)
 		if err != nil {
@@ -125,6 +142,11 @@ func CreatePostHandler(
 			return
 		}
 		resp := BuildPostResponse(row, handle)
+		logger.Debug("post create: response ready",
+			slog.String("did", did.String()),
+			slog.String("handle", handle.String()),
+			slog.Any("response", resp),
+			slog.String("run_id", runID))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(resp)
@@ -164,7 +186,9 @@ func lexiconRecordBody(req PostCreateRequest) map[string]any {
 		for _, img := range req.Images {
 			one := map[string]any{
 				"image": img.Image,
-				"alt":   img.Alt,
+			}
+			if strings.TrimSpace(img.Alt) != "" {
+				one["alt"] = strings.TrimSpace(img.Alt)
 			}
 			if img.AspectRatio != nil {
 				one["aspectRatio"] = map[string]any{
@@ -221,6 +245,13 @@ func syntheticPostRow(
 		row.QuoteURI = strPtr(req.Embed.Quote.URI)
 		row.QuoteCID = strPtr(req.Embed.Quote.CID)
 	}
+	if len(req.Images) > 0 {
+		imagesJSON, err := syntheticPostImagesJSON(req.Images)
+		if err != nil {
+			return nil, err
+		}
+		row.Images = imagesJSON
+	}
 
 	author, err := store.ReadAuthor(r.Context(), did.String())
 	if err != nil {
@@ -231,6 +262,39 @@ func syntheticPostRow(
 		row.AuthorAvatarCID = author.AvatarCID
 	}
 	return row, nil
+}
+
+func syntheticPostImagesJSON(images []PostImage) (json.RawMessage, error) {
+	out := make([]storedPostImage, 0, len(images))
+	for _, img := range images {
+		ref, _ := img.Image["ref"].(map[string]any)
+		cid, _ := ref["$link"].(string)
+		mime, _ := img.Image["mimeType"].(string)
+		out = append(out, storedPostImage{
+			CID:         cid,
+			MIME:        mime,
+			Size:        int64FromJSONNumber(img.Image["size"]),
+			Alt:         strings.TrimSpace(img.Alt),
+			AspectRatio: img.AspectRatio,
+		})
+	}
+	return json.Marshal(out)
+}
+
+func int64FromJSONNumber(value any) int64 {
+	switch n := value.(type) {
+	case float64:
+		return int64(n)
+	case int:
+		return int64(n)
+	case int64:
+		return n
+	case json.Number:
+		v, _ := n.Int64()
+		return v
+	default:
+		return 0
+	}
 }
 
 // extractRequestTags decodes the raw facets JSON into the indigo typed
@@ -262,6 +326,12 @@ func GetPostHandler(store PostReader, resolver HandleResolver, logger *slog.Logg
 			return
 		}
 		rkey := r.PathValue("rkey")
+		viewerDID, _ := middleware.GetDID(r.Context())
+		logger.Debug("post get: reading post",
+			slog.String("did", did.String()),
+			slog.String("rkey", rkey),
+			slog.String("viewer_did", viewerDID.String()),
+			slog.String("run_id", runID))
 		row, err := store.ReadOne(r.Context(), did.String(), rkey)
 		if errors.Is(err, ErrPostNotFound) {
 			envelope.WriteError(w, http.StatusNotFound,
@@ -278,7 +348,6 @@ func GetPostHandler(store PostReader, resolver HandleResolver, logger *slog.Logg
 				"internal_error", "post read failed", runID, nil)
 			return
 		}
-		viewerDID, _ := middleware.GetDID(r.Context())
 		summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), []string{row.URI})
 		if err != nil {
 			logger.Error("post: EngagementSummaries failed",
@@ -302,6 +371,12 @@ func GetPostHandler(store PostReader, resolver HandleResolver, logger *slog.Logg
 		}
 		resp := BuildPostResponse(row, handle)
 		applyEngagementSummary(resp, summaries[row.URI])
+		logger.Debug("post get: response ready",
+			slog.String("did", did.String()),
+			slog.String("rkey", rkey),
+			slog.String("uri", row.URI),
+			slog.Any("response", resp),
+			slog.String("run_id", runID))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(resp)
@@ -323,6 +398,10 @@ func ListCommentRepliesHandler(
 			return
 		}
 		rkey := r.PathValue("rkey")
+		logger.Debug("post replies: resolving target",
+			slog.String("did", did.String()),
+			slog.String("rkey", rkey),
+			slog.String("run_id", runID))
 		target, err := store.ReadOne(r.Context(), did.String(), rkey)
 		if errors.Is(err, ErrPostNotFound) {
 			envelope.WriteError(w, http.StatusNotFound,
@@ -347,6 +426,12 @@ func ListCommentRepliesHandler(
 
 		limit := parseCommentLimit(r.URL.Query().Get("limit"))
 		cursor := r.URL.Query().Get("cursor")
+		logger.Debug("post replies: listing branch replies",
+			slog.String("target_uri", target.URI),
+			slog.String("root_uri", *target.ReplyRootURI),
+			slog.Int("limit", limit),
+			slog.String("cursor", cursor),
+			slog.String("run_id", runID))
 		rows, nextCursor, err := store.ListCommentBranchReplies(r.Context(), target.URI, *target.ReplyRootURI, limit, cursor)
 		if err != nil {
 			if errors.Is(err, envelope.ErrInvalidCursor) {
@@ -426,6 +511,12 @@ func ListCommentRepliesHandler(
 			}
 		}
 		body := ReplyPage{Loaded: true, Items: items, Cursor: nextCursor}
+		logger.Debug("post replies: response ready",
+			slog.String("target_uri", target.URI),
+			slog.Int("rows", len(rows)),
+			slog.Int("items", len(items)),
+			slog.String("next_cursor", nextCursor),
+			slog.String("run_id", runID))
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -448,6 +539,10 @@ func GetPostCommentsHandler(
 			return
 		}
 		rkey := r.PathValue("rkey")
+		logger.Debug("post comments: resolving root",
+			slog.String("did", did.String()),
+			slog.String("rkey", rkey),
+			slog.String("run_id", runID))
 		root, err := store.ReadOne(r.Context(), did.String(), rkey)
 		if errors.Is(err, ErrPostNotFound) {
 			envelope.WriteError(w, http.StatusNotFound,
@@ -474,6 +569,14 @@ func GetPostCommentsHandler(
 		sortValue := parseCommentSort(r.URL.Query().Get("sort"))
 		limit := parseCommentLimit(r.URL.Query().Get("limit"))
 		cursor := r.URL.Query().Get("cursor")
+		logger.Debug("post comments: listing root comments",
+			slog.String("root_uri", root.URI),
+			slog.String("viewer_did", viewerDID.String()),
+			slog.String("sort", sortValue),
+			slog.Int("limit", limit),
+			slog.String("cursor", cursor),
+			slog.String("focus", r.URL.Query().Get("focus")),
+			slog.String("run_id", runID))
 		focus := (*FocusContext)(nil)
 		focusedURI := ""
 		var focusedCommentRow *PostRow
@@ -663,6 +766,13 @@ func GetPostCommentsHandler(
 			Sort:     sortValue,
 			Focus:    focus,
 		}
+		logger.Debug("post comments: response ready",
+			slog.String("root_uri", root.URI),
+			slog.Int("comments", len(comments)),
+			slog.Int("items", len(items)),
+			slog.String("next_cursor", nextCursor),
+			slog.Any("focus", focus),
+			slog.String("run_id", runID))
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -694,6 +804,12 @@ func DeletePostHandler(newPDS auth.PDSClientFactory, logger *slog.Logger) http.H
 		}
 		rkey := r.PathValue("rkey")
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+		logger.Debug("post delete: request started",
+			slog.String("caller", caller.String()),
+			slog.String("did", did.String()),
+			slog.String("rkey", rkey),
+			slog.String("session_id", sessionID),
+			slog.String("run_id", runID))
 		pds, err := newPDS(r.Context(), did, sessionID)
 		if err != nil {
 			logger.Error("post: newPDS failed",
@@ -705,6 +821,10 @@ func DeletePostHandler(newPDS auth.PDSClientFactory, logger *slog.Logger) http.H
 		}
 		if err := pds.DeleteRecord(r.Context(), did, craftskyPostNSID, rkey); err != nil {
 			if errors.Is(err, auth.ErrRecordNotFound) {
+				logger.Debug("post delete: record already absent",
+					slog.String("did", did.String()),
+					slog.String("rkey", rkey),
+					slog.String("run_id", runID))
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
@@ -717,6 +837,10 @@ func DeletePostHandler(newPDS auth.PDSClientFactory, logger *slog.Logger) http.H
 				"pds_unavailable", "PDS delete failed", runID, nil)
 			return
 		}
+		logger.Debug("post delete: PDS record deleted",
+			slog.String("did", did.String()),
+			slog.String("rkey", rkey),
+			slog.String("run_id", runID))
 		w.WriteHeader(http.StatusNoContent)
 	})
 }
@@ -742,7 +866,13 @@ func LikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *slog
 				"invalid_identifier", "did path segment is not a valid DID", runID, nil)
 			return
 		}
-		target, err := store.ResolvePostTarget(r.Context(), targetDID.String(), r.PathValue("rkey"))
+		rkey := r.PathValue("rkey")
+		logger.Debug("like: resolving target",
+			slog.String("caller", caller.String()),
+			slog.String("target_did", targetDID.String()),
+			slog.String("rkey", rkey),
+			slog.String("run_id", runID))
+		target, err := store.ResolvePostTarget(r.Context(), targetDID.String(), rkey)
 		if err != nil {
 			if errors.Is(err, ErrPostNotFound) {
 				envelope.WriteError(w, http.StatusNotFound,
@@ -758,6 +888,11 @@ func LikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *slog
 		}
 		active, err := store.FindActiveLike(r.Context(), caller.String(), target.URI)
 		if err == nil {
+			logger.Debug("like: active like already exists",
+				slog.String("caller", caller.String()),
+				slog.String("target_uri", target.URI),
+				slog.Any("interaction", active),
+				slog.String("run_id", runID))
 			writeInteractionResponse(w, http.StatusOK, interactionResponseFromRow(active))
 			return
 		}
@@ -773,6 +908,11 @@ func LikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *slog
 		createdAt := time.Now().UTC()
 		body := likeRecordBody(target, createdAt)
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+		logger.Debug("like: creating PDS record",
+			slog.String("caller", caller.String()),
+			slog.String("session_id", sessionID),
+			slog.Any("record", body),
+			slog.String("run_id", runID))
 		pds, err := newPDS(r.Context(), caller, sessionID)
 		if err != nil {
 			logger.Error("like: newPDS failed",
@@ -791,6 +931,12 @@ func LikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *slog
 				"pds_write_failed", "could not write like", runID, nil)
 			return
 		}
+		logger.Debug("like: PDS record created",
+			slog.String("caller", caller.String()),
+			slog.String("uri", uri.String()),
+			slog.String("cid", string(cid)),
+			slog.String("target_uri", target.URI),
+			slog.String("run_id", runID))
 		writeInteractionResponse(w, http.StatusCreated, &InteractionWriteResponse{
 			URI:       string(uri),
 			CID:       string(cid),
@@ -817,7 +963,13 @@ func UnlikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *sl
 				"invalid_identifier", "did path segment is not a valid DID", runID, nil)
 			return
 		}
-		target, err := store.ResolvePostTarget(r.Context(), targetDID.String(), r.PathValue("rkey"))
+		rkey := r.PathValue("rkey")
+		logger.Debug("unlike: resolving target",
+			slog.String("caller", caller.String()),
+			slog.String("target_did", targetDID.String()),
+			slog.String("rkey", rkey),
+			slog.String("run_id", runID))
+		target, err := store.ResolvePostTarget(r.Context(), targetDID.String(), rkey)
 		if err != nil {
 			if errors.Is(err, ErrPostNotFound) {
 				envelope.WriteError(w, http.StatusNotFound,
@@ -833,6 +985,10 @@ func UnlikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *sl
 		}
 		active, err := store.FindActiveLike(r.Context(), caller.String(), target.URI)
 		if errors.Is(err, ErrInteractionNotFound) {
+			logger.Debug("unlike: active like absent",
+				slog.String("caller", caller.String()),
+				slog.String("target_uri", target.URI),
+				slog.String("run_id", runID))
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -845,6 +1001,12 @@ func UnlikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *sl
 			return
 		}
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+		logger.Debug("unlike: deleting PDS record",
+			slog.String("caller", caller.String()),
+			slog.String("session_id", sessionID),
+			slog.String("like_rkey", active.Rkey),
+			slog.String("target_uri", target.URI),
+			slog.String("run_id", runID))
 		pds, err := newPDS(r.Context(), caller, sessionID)
 		if err != nil {
 			logger.Error("unlike: newPDS failed",
@@ -856,6 +1018,10 @@ func UnlikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *sl
 		}
 		if err := pds.DeleteRecord(r.Context(), caller, craftskyLikeNSID, active.Rkey); err != nil {
 			if errors.Is(err, auth.ErrRecordNotFound) {
+				logger.Debug("unlike: PDS record already absent",
+					slog.String("caller", caller.String()),
+					slog.String("like_rkey", active.Rkey),
+					slog.String("run_id", runID))
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
@@ -868,6 +1034,10 @@ func UnlikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *sl
 				"pds_unavailable", "PDS delete failed", runID, nil)
 			return
 		}
+		logger.Debug("unlike: PDS record deleted",
+			slog.String("caller", caller.String()),
+			slog.String("like_rkey", active.Rkey),
+			slog.String("run_id", runID))
 		w.WriteHeader(http.StatusNoContent)
 	})
 }
@@ -893,7 +1063,13 @@ func RepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger *
 				"invalid_identifier", "did path segment is not a valid DID", runID, nil)
 			return
 		}
-		target, err := store.ResolvePostTarget(r.Context(), targetDID.String(), r.PathValue("rkey"))
+		rkey := r.PathValue("rkey")
+		logger.Debug("repost: resolving target",
+			slog.String("caller", caller.String()),
+			slog.String("target_did", targetDID.String()),
+			slog.String("rkey", rkey),
+			slog.String("run_id", runID))
+		target, err := store.ResolvePostTarget(r.Context(), targetDID.String(), rkey)
 		if err != nil {
 			if errors.Is(err, ErrPostNotFound) {
 				envelope.WriteError(w, http.StatusNotFound,
@@ -909,6 +1085,11 @@ func RepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger *
 		}
 		active, err := store.FindActiveRepost(r.Context(), caller.String(), target.URI)
 		if err == nil {
+			logger.Debug("repost: active repost already exists",
+				slog.String("caller", caller.String()),
+				slog.String("target_uri", target.URI),
+				slog.Any("interaction", active),
+				slog.String("run_id", runID))
 			writeInteractionResponse(w, http.StatusOK, interactionResponseFromRow(active))
 			return
 		}
@@ -924,6 +1105,11 @@ func RepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger *
 		createdAt := time.Now().UTC()
 		body := repostRecordBody(target, createdAt)
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+		logger.Debug("repost: creating PDS record",
+			slog.String("caller", caller.String()),
+			slog.String("session_id", sessionID),
+			slog.Any("record", body),
+			slog.String("run_id", runID))
 		pds, err := newPDS(r.Context(), caller, sessionID)
 		if err != nil {
 			logger.Error("repost: newPDS failed",
@@ -942,6 +1128,12 @@ func RepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger *
 				"pds_write_failed", "could not write repost", runID, nil)
 			return
 		}
+		logger.Debug("repost: PDS record created",
+			slog.String("caller", caller.String()),
+			slog.String("uri", uri.String()),
+			slog.String("cid", string(cid)),
+			slog.String("target_uri", target.URI),
+			slog.String("run_id", runID))
 		writeInteractionResponse(w, http.StatusCreated, &InteractionWriteResponse{
 			URI:       string(uri),
 			CID:       string(cid),
@@ -968,7 +1160,13 @@ func UnrepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger
 				"invalid_identifier", "did path segment is not a valid DID", runID, nil)
 			return
 		}
-		target, err := store.ResolvePostTarget(r.Context(), targetDID.String(), r.PathValue("rkey"))
+		rkey := r.PathValue("rkey")
+		logger.Debug("unrepost: resolving target",
+			slog.String("caller", caller.String()),
+			slog.String("target_did", targetDID.String()),
+			slog.String("rkey", rkey),
+			slog.String("run_id", runID))
+		target, err := store.ResolvePostTarget(r.Context(), targetDID.String(), rkey)
 		if err != nil {
 			if errors.Is(err, ErrPostNotFound) {
 				envelope.WriteError(w, http.StatusNotFound,
@@ -984,6 +1182,10 @@ func UnrepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger
 		}
 		active, err := store.FindActiveRepost(r.Context(), caller.String(), target.URI)
 		if errors.Is(err, ErrInteractionNotFound) {
+			logger.Debug("unrepost: active repost absent",
+				slog.String("caller", caller.String()),
+				slog.String("target_uri", target.URI),
+				slog.String("run_id", runID))
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -996,6 +1198,12 @@ func UnrepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger
 			return
 		}
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+		logger.Debug("unrepost: deleting PDS record",
+			slog.String("caller", caller.String()),
+			slog.String("session_id", sessionID),
+			slog.String("repost_rkey", active.Rkey),
+			slog.String("target_uri", target.URI),
+			slog.String("run_id", runID))
 		pds, err := newPDS(r.Context(), caller, sessionID)
 		if err != nil {
 			logger.Error("unrepost: newPDS failed",
@@ -1007,6 +1215,10 @@ func UnrepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger
 		}
 		if err := pds.DeleteRecord(r.Context(), caller, craftskyRepostNSID, active.Rkey); err != nil {
 			if errors.Is(err, auth.ErrRecordNotFound) {
+				logger.Debug("unrepost: PDS record already absent",
+					slog.String("caller", caller.String()),
+					slog.String("repost_rkey", active.Rkey),
+					slog.String("run_id", runID))
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
@@ -1019,6 +1231,10 @@ func UnrepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger
 				"pds_unavailable", "PDS delete failed", runID, nil)
 			return
 		}
+		logger.Debug("unrepost: PDS record deleted",
+			slog.String("caller", caller.String()),
+			slog.String("repost_rkey", active.Rkey),
+			slog.String("run_id", runID))
 		w.WriteHeader(http.StatusNoContent)
 	})
 }
@@ -1100,6 +1316,9 @@ func listAuthorPostsHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
 		raw := strings.TrimPrefix(r.PathValue("handleOrDid"), "@")
+		logger.Debug(logLabel+": resolving author",
+			slog.String("input", raw),
+			slog.String("run_id", runID))
 		did, err := resolveToDID(r.Context(), raw, resolver)
 		if err != nil {
 			switch {
@@ -1118,6 +1337,14 @@ func listAuthorPostsHandler(
 		}
 		limit := parseLimit(r.URL.Query().Get("limit"))
 		cursor := r.URL.Query().Get("cursor")
+		viewerDID, _ := middleware.GetDID(r.Context())
+		logger.Debug(logLabel+": listing author records",
+			slog.String("input", raw),
+			slog.String("did", did.String()),
+			slog.String("viewer_did", viewerDID.String()),
+			slog.Int("limit", limit),
+			slog.String("cursor", cursor),
+			slog.String("run_id", runID))
 
 		rows, nextCursor, err := list(r.Context(), did.String(), limit, cursor)
 		if err != nil {
@@ -1137,7 +1364,6 @@ func listAuthorPostsHandler(
 
 		items := make([]*PostResponse, 0, len(rows))
 		if len(rows) > 0 {
-			viewerDID, _ := middleware.GetDID(r.Context())
 			postURIs := make([]string, 0, len(rows))
 			for _, row := range rows {
 				postURIs = append(postURIs, row.URI)
@@ -1173,6 +1399,12 @@ func listAuthorPostsHandler(
 			Items  []*PostResponse `json:"items"`
 			Cursor string          `json:"cursor,omitempty"`
 		}{Items: items, Cursor: nextCursor}
+		logger.Debug(logLabel+": response ready",
+			slog.String("did", did.String()),
+			slog.Int("rows", len(rows)),
+			slog.Int("items", len(items)),
+			slog.String("next_cursor", nextCursor),
+			slog.String("run_id", runID))
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)

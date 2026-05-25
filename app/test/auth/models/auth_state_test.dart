@@ -7,16 +7,16 @@ void main() {
   });
 
   test('SignedIn carries did, handle, token', () {
-    const s = SignedIn(did: 'did:plc:a', handle: 'a.bsky.social', token: 'tok');
+    final s = SignedIn(did: 'did:plc:a', handle: 'a.bsky.social', token: 'tok');
     expect(s.did, 'did:plc:a');
     expect(s.handle, 'a.bsky.social');
     expect(s.token, 'tok');
   });
 
   test('AuthState pattern-matches exhaustively', () {
-    const values = <AuthState>[
-      SignedOut(),
-      SignedIn(did: 'd', handle: 'h', token: 't'),
+    final values = <AuthState>[
+      const SignedOut(),
+      SignedIn(did: 'did:plc:test', handle: 'h.test', token: 't'),
     ];
     for (final v in values) {
       final label = switch (v) {

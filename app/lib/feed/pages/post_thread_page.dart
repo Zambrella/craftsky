@@ -14,6 +14,7 @@ import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -32,9 +33,9 @@ class PostThreadPage extends ConsumerStatefulWidget {
     super.key,
   });
 
-  final String did;
-  final String rkey;
-  final String? focus;
+  final Did did;
+  final RecordKey rkey;
+  final AtUri? focus;
   final craftsky_post.Post? initialCreatedPost;
 
   @override
@@ -44,8 +45,8 @@ class PostThreadPage extends ConsumerStatefulWidget {
 class _PostThreadPageState extends ConsumerState<PostThreadPage> {
   CommentSort _sort = CommentSort.oldest;
   PostCommentSection? _lastSection;
-  String? _createdTargetUri;
-  String? _consumedInitialCreatedPostUri;
+  AtUri? _createdTargetUri;
+  AtUri? _consumedInitialCreatedPostUri;
 
   @override
   Widget build(BuildContext context) {
@@ -54,20 +55,22 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
       SignedIn(:final did) => did,
       _ => null,
     };
-    final sectionProvider = postCommentSectionProvider(
-      widget.did,
-      widget.rkey,
-      sort: _sort,
-      focus: widget.focus,
+    final sectionAsync = ref.watch(
+      postCommentSectionProvider(
+        widget.did,
+        widget.rkey,
+        sort: _sort,
+        focus: widget.focus,
+      ),
     );
-    final sectionAsync = ref.watch(sectionProvider);
-    final pageLoader = postCommentPageLoaderProvider(
-      widget.did,
-      widget.rkey,
-      sort: _sort,
-      focus: widget.focus,
+    final pageLoaderAsync = ref.watch(
+      postCommentPageLoaderProvider(
+        widget.did,
+        widget.rkey,
+        sort: _sort,
+        focus: widget.focus,
+      ),
     );
-    final pageLoaderAsync = ref.watch(pageLoader);
     final formFactor = FormFactorWidget.of(context);
     final visibleSection = sectionAsync.value ?? _lastSection;
     if (sectionAsync case AsyncData(:final value)) {
@@ -99,12 +102,30 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
       ..listen(toggleLikePostProvider, (previous, next) {
         final post = next.value;
         if (post == null) return;
-        ref.read(sectionProvider.notifier).replacePost(post);
+        ref
+            .read(
+              postCommentSectionProvider(
+                widget.did,
+                widget.rkey,
+                sort: _sort,
+                focus: widget.focus,
+              ).notifier,
+            )
+            .replacePost(post);
       })
       ..listen(toggleRepostPostProvider, (previous, next) {
         final post = next.value;
         if (post == null) return;
-        ref.read(sectionProvider.notifier).replacePost(post);
+        ref
+            .read(
+              postCommentSectionProvider(
+                widget.did,
+                widget.rkey,
+                sort: _sort,
+                focus: widget.focus,
+              ).notifier,
+            )
+            .replacePost(post);
       });
     return Scaffold(
       appBar: AppBar(title: Text(l10n.postThreadTitle)),
@@ -119,7 +140,16 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
           showInlineComposer: formFactor.isLarge,
           isLoadingMoreComments: pageLoaderAsync.isLoading,
           isRefreshingComments: isRefreshingComments,
-          onNearEnd: () => ref.read(pageLoader.notifier).load(),
+          onNearEnd: () => ref
+              .read(
+                postCommentPageLoaderProvider(
+                  widget.did,
+                  widget.rkey,
+                  sort: _sort,
+                  focus: widget.focus,
+                ).notifier,
+              )
+              .load(),
           onCollapseReplies: (commentUri) => ref
               .read(
                 postCommentSectionProvider(
@@ -283,16 +313,16 @@ class _CommentSectionBody extends ConsumerStatefulWidget {
   });
 
   final PostCommentSection section;
-  final String did;
-  final String rkey;
-  final String? focus;
-  final String? createdTargetUri;
-  final String? viewerDid;
+  final Did did;
+  final RecordKey rkey;
+  final AtUri? focus;
+  final AtUri? createdTargetUri;
+  final Did? viewerDid;
   final bool showInlineComposer;
   final bool isLoadingMoreComments;
   final bool isRefreshingComments;
   final VoidCallback onNearEnd;
-  final void Function(String commentUri) onCollapseReplies;
+  final void Function(AtUri commentUri) onCollapseReplies;
   final CommentSort selectedSort;
   final ValueChanged<CommentSort> onSortChanged;
 
@@ -306,8 +336,8 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
   final GlobalKey _focusedTargetKey = GlobalKey(
     debugLabel: 'focusedCommentTarget',
   );
-  String? _scrolledTargetUri;
-  String? _highlightedTargetUri;
+  AtUri? _scrolledTargetUri;
+  AtUri? _highlightedTargetUri;
   bool _focusRevealScheduled = false;
   Timer? _clearHighlightTimer;
 
@@ -339,7 +369,7 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
     }
   }
 
-  String? _targetUri(_CommentSectionBody widget) {
+  AtUri? _targetUri(_CommentSectionBody widget) {
     if (widget.createdTargetUri != null) return widget.createdTargetUri;
     final focus = widget.section.focus;
     if (focus != null && focus.status == FocusStatus.included) {
@@ -404,7 +434,7 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
     });
   }
 
-  void _scheduleClearHighlight(String targetUri) {
+  void _scheduleClearHighlight(AtUri targetUri) {
     _clearHighlightTimer?.cancel();
     _clearHighlightTimer = Timer(const Duration(seconds: 3), () {
       if (!mounted || _highlightedTargetUri != targetUri) return;
@@ -534,19 +564,20 @@ class _CommentCard extends ConsumerWidget {
   });
 
   final CommentItem item;
-  final String did;
-  final String rkey;
+  final Did did;
+  final RecordKey rkey;
   final CommentSort sort;
-  final String? focus;
-  final String? targetUri;
-  final String? highlightedUri;
+  final AtUri? focus;
+  final AtUri? targetUri;
+  final AtUri? highlightedUri;
   final GlobalKey focusedTargetKey;
-  final String? viewerDid;
-  final void Function(String commentUri) onCollapseReplies;
+  final Did? viewerDid;
+  final void Function(AtUri commentUri) onCollapseReplies;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
     final targetComment = targetUri == item.post.uri;
     final repliesLoader = postCommentRepliesLoaderProvider(
       did,
@@ -647,10 +678,13 @@ class _CommentCard extends ConsumerWidget {
           ),
       ],
     );
-    return _FocusedTargetWrapper(
-      focusTargetKey: focusedTargetKey,
-      isFocused: targetComment,
-      child: column,
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: spacing.sp4),
+      child: _FocusedTargetWrapper(
+        focusTargetKey: focusedTargetKey,
+        isFocused: targetComment,
+        child: column,
+      ),
     );
   }
 
@@ -762,30 +796,32 @@ class _CommentSortButton extends StatelessWidget {
     );
     final l10n = AppLocalizations.of(context);
 
-    showCraftskyContextMenu(
-      context,
-      position: position,
-      groups: [
-        CraftskyContextMenuGroup(
-          items: [
-            _sortItem(
-              sort: CommentSort.newest,
-              text: l10n.postCommentsSortNewest,
-              description: l10n.postCommentsSortNewestDescription,
-            ),
-            _sortItem(
-              sort: CommentSort.oldest,
-              text: l10n.postCommentsSortOldest,
-              description: l10n.postCommentsSortOldestDescription,
-            ),
-            _sortItem(
-              sort: CommentSort.follows,
-              text: l10n.postCommentsSortFollows,
-              description: l10n.postCommentsSortFollowsDescription,
-            ),
-          ],
-        ),
-      ],
+    unawaited(
+      showCraftskyContextMenu(
+        context,
+        position: position,
+        groups: [
+          CraftskyContextMenuGroup(
+            items: [
+              _sortItem(
+                sort: CommentSort.newest,
+                text: l10n.postCommentsSortNewest,
+                description: l10n.postCommentsSortNewestDescription,
+              ),
+              _sortItem(
+                sort: CommentSort.oldest,
+                text: l10n.postCommentsSortOldest,
+                description: l10n.postCommentsSortOldestDescription,
+              ),
+              _sortItem(
+                sort: CommentSort.follows,
+                text: l10n.postCommentsSortFollows,
+                description: l10n.postCommentsSortFollowsDescription,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -839,12 +875,12 @@ class _CommentReplyControls extends StatelessWidget {
     this.showHide = true,
   });
 
-  final String commentUri;
+  final AtUri commentUri;
   final String? repliesCursor;
   final int replyCount;
   final bool isLoading;
   final bool showHide;
-  final void Function(String commentUri) onCollapseReplies;
+  final void Function(AtUri commentUri) onCollapseReplies;
   final VoidCallback onLoadMore;
 
   @override

@@ -8,73 +8,15 @@ part of 'auth_controller.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-
-@ProviderFor(launchAuthUrl)
-final launchAuthUrlProvider = LaunchAuthUrlProvider._();
-
-final class LaunchAuthUrlProvider
-    extends
-        $FunctionalProvider<AuthUrlLauncher, AuthUrlLauncher, AuthUrlLauncher>
-    with $Provider<AuthUrlLauncher> {
-  LaunchAuthUrlProvider._()
-    : super(
-        from: null,
-        argument: null,
-        retry: null,
-        name: r'launchAuthUrlProvider',
-        isAutoDispose: false,
-        dependencies: null,
-        $allTransitiveDependencies: null,
-      );
-
-  @override
-  String debugGetCreateSourceHash() => _$launchAuthUrlHash();
-
-  @$internal
-  @override
-  $ProviderElement<AuthUrlLauncher> $createElement($ProviderPointer pointer) =>
-      $ProviderElement(pointer);
-
-  @override
-  AuthUrlLauncher create(Ref ref) {
-    return launchAuthUrl(ref);
-  }
-
-  /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(AuthUrlLauncher value) {
-    return $ProviderOverride(
-      origin: this,
-      providerOverride: $SyncValueProvider<AuthUrlLauncher>(value),
-    );
-  }
-}
-
-String _$launchAuthUrlHash() => r'a1311cb31922e425e20601c8c71983c5a16025e7';
-
-/// Sign-in / sign-out orchestrator. Exposes `AsyncValue<void>`; pages
-/// listen for `AsyncError(AuthError)` transitions via `ref.listen`.
-///
-/// Tests that need to simulate a stale `PendingAuth` do so via
-/// `pendingAuthProvider.notifier.debugSet(...)` (defined on the
-/// `PendingAuth` notifier in Task 13), not through this controller.
+/// Sign-in / sign-out orchestrator.
 
 @ProviderFor(AuthController)
 final authControllerProvider = AuthControllerProvider._();
 
-/// Sign-in / sign-out orchestrator. Exposes `AsyncValue<void>`; pages
-/// listen for `AsyncError(AuthError)` transitions via `ref.listen`.
-///
-/// Tests that need to simulate a stale `PendingAuth` do so via
-/// `pendingAuthProvider.notifier.debugSet(...)` (defined on the
-/// `PendingAuth` notifier in Task 13), not through this controller.
+/// Sign-in / sign-out orchestrator.
 final class AuthControllerProvider
     extends $AsyncNotifierProvider<AuthController, void> {
-  /// Sign-in / sign-out orchestrator. Exposes `AsyncValue<void>`; pages
-  /// listen for `AsyncError(AuthError)` transitions via `ref.listen`.
-  ///
-  /// Tests that need to simulate a stale `PendingAuth` do so via
-  /// `pendingAuthProvider.notifier.debugSet(...)` (defined on the
-  /// `PendingAuth` notifier in Task 13), not through this controller.
+  /// Sign-in / sign-out orchestrator.
   AuthControllerProvider._()
     : super(
         from: null,
@@ -94,14 +36,9 @@ final class AuthControllerProvider
   AuthController create() => AuthController();
 }
 
-String _$authControllerHash() => r'd939de56867ee96a70dbcb09eab738e5ee097238';
+String _$authControllerHash() => r'83ad79da117273b5909e9edb48a225d6c879aea3';
 
-/// Sign-in / sign-out orchestrator. Exposes `AsyncValue<void>`; pages
-/// listen for `AsyncError(AuthError)` transitions via `ref.listen`.
-///
-/// Tests that need to simulate a stale `PendingAuth` do so via
-/// `pendingAuthProvider.notifier.debugSet(...)` (defined on the
-/// `PendingAuth` notifier in Task 13), not through this controller.
+/// Sign-in / sign-out orchestrator.
 
 abstract class _$AuthController extends $AsyncNotifier<void> {
   FutureOr<void> build();

@@ -13,6 +13,57 @@
     "placeholders": { "version": { "type": "String", "example": "1.0.0" } }
   },
 
+  "feedTitle": "Feed",
+  "@feedTitle": { "description": "Title for the main chronological feed page." },
+
+  "welcomeTitle": "Welcome",
+  "@welcomeTitle": { "description": "Title and main heading on the welcome page." },
+
+  "welcomeSignInAction": "Sign in",
+  "@welcomeSignInAction": { "description": "Primary button label on the welcome page that opens sign-in." },
+
+  "welcomeCreateAccountAction": "Create account on a PDS",
+  "@welcomeCreateAccountAction": { "description": "Secondary action on the welcome page for users who need a PDS account." },
+
+  "signInTitle": "Sign in",
+  "@signInTitle": { "description": "App-bar title on the sign-in page." },
+
+  "signInHandleLabel": "Handle",
+  "@signInHandleLabel": { "description": "Label for the handle input on the sign-in page." },
+
+  "signInContinueAction": "Continue",
+  "@signInContinueAction": { "description": "Primary button label on the sign-in page." },
+
+  "signInHandleRequiredError": "Please enter a handle.",
+  "@signInHandleRequiredError": { "description": "Snackbar error when submitting sign-in without a handle." },
+
+  "signInInvalidHandleError": "We couldn't recognise that handle.",
+  "@signInInvalidHandleError": { "description": "Snackbar error when the sign-in handle is malformed or cannot be resolved." },
+
+  "signInServerUnavailableError": "Couldn't reach the server. Please try again.",
+  "@signInServerUnavailableError": { "description": "Snackbar error when the auth server cannot be reached." },
+
+  "signInBrowserLaunchError": "Couldn't open the browser. Check that you have one installed.",
+  "@signInBrowserLaunchError": { "description": "Snackbar error when OAuth sign-in cannot open the system browser." },
+
+  "signInGenericError": "Something went wrong. Please try again.",
+  "@signInGenericError": { "description": "Fallback snackbar error for sign-in failures." },
+
+  "authCompleteSigningIn": "Signing in…",
+  "@authCompleteSigningIn": { "description": "Loading message shown while completing OAuth sign-in from a deep link." },
+
+  "authCompleteTimedOutError": "That sign-in link expired. Please sign in again.",
+  "@authCompleteTimedOutError": { "description": "Error shown when the OAuth completion token has expired." },
+
+  "authCompleteNoPendingSignInError": "No sign-in is in progress. Please sign in again.",
+  "@authCompleteNoPendingSignInError": { "description": "Error shown when the OAuth callback has no matching pending sign-in." },
+
+  "authCompleteStorageError": "Couldn't save your session securely. Please sign in again.",
+  "@authCompleteStorageError": { "description": "Error shown when the completed OAuth session cannot be saved." },
+
+  "authCompleteGenericError": "Couldn't complete sign-in. Please sign in again.",
+  "@authCompleteGenericError": { "description": "Fallback error shown when OAuth completion fails." },
+
   "dialogConfirmDefault": "Confirm",
   "@dialogConfirmDefault": { "description": "Default label for the primary action button on a CraftskyDialog confirm helper when the caller does not provide one." },
 
@@ -217,6 +268,9 @@
   "postComposeHint": "What are you making?",
   "@postComposeHint": { "description": "Label above the text field in the text-only post composer." },
 
+  "postComposeBodyHint": "Pattern, fabric, what went right, what didn't...",
+  "@postComposeBodyHint": { "description": "Hint text inside the main post composer text field." },
+
   "postComposeReplyTitle": "Reply",
   "@postComposeReplyTitle": { "description": "Title of the reply composer sheet." },
 
@@ -237,6 +291,150 @@
 
   "postCreateError": "Couldn't post.",
   "@postCreateError": { "description": "Snackbar shown when creating a post fails." },
+
+  "postComposeDiscardTitle": "Discard draft?",
+  "@postComposeDiscardTitle": { "description": "Title of the confirm-discard dialog shown when leaving the post composer with unsaved edits." },
+
+  "postComposeDiscardMessage": "Your draft won't be saved.",
+  "@postComposeDiscardMessage": { "description": "Body of the confirm-discard dialog shown when leaving the post composer with unsaved edits." },
+
+  "postComposeDiscardConfirm": "Discard",
+  "@postComposeDiscardConfirm": { "description": "Confirm action in the post-composer confirm-discard dialog — closes the composer without saving." },
+
+  "postComposeDiscardCancel": "Keep editing",
+  "@postComposeDiscardCancel": { "description": "Cancel action in the post-composer confirm-discard dialog — returns the user to the composer." },
+
+  "postComposeImageLimitError": "You can add up to {maxImages} images",
+  "@postComposeImageLimitError": {
+    "description": "Snackbar error shown when the post composer image limit is reached.",
+    "placeholders": { "maxImages": { "type": "int", "example": "4" } }
+  },
+
+  "postComposeUnsupportedImagesError": "{count, plural, =1{Unsupported image type} other{{count} unsupported images}}",
+  "@postComposeUnsupportedImagesError": {
+    "description": "Snackbar error shown when one or more selected composer images use an unsupported format.",
+    "placeholders": { "count": { "type": "int", "example": "2" } }
+  },
+
+  "postComposeImagePickerError": "Could not open image picker",
+  "@postComposeImagePickerError": { "description": "Snackbar error shown when the image picker cannot be opened." },
+
+  "postComposeMissingAltTitle": "Some images do not have alt text",
+  "@postComposeMissingAltTitle": { "description": "Title of the confirm dialog shown before posting images that are missing alt text." },
+
+  "postComposeMissingAltMessage": "Do you wish to post anyway?",
+  "@postComposeMissingAltMessage": { "description": "Body of the confirm dialog shown before posting images that are missing alt text." },
+
+  "postComposeMissingAltConfirm": "Post anyway",
+  "@postComposeMissingAltConfirm": { "description": "Confirm button label for posting despite missing image alt text." },
+
+  "postComposeMissingAltCancel": "Go back",
+  "@postComposeMissingAltCancel": { "description": "Cancel button label for returning to the composer to add image alt text." },
+
+  "postComposePhotosTitle": "Photos",
+  "@postComposePhotosTitle": { "description": "Heading above the post composer photo attachment controls." },
+
+  "postComposeNoImagesDescribed": "0 described",
+  "@postComposeNoImagesDescribed": { "description": "Alt-text completion status shown before any composer photos are attached." },
+
+  "postComposeImagesDescribed": "{describedCount} / {imageCount} described",
+  "@postComposeImagesDescribed": {
+    "description": "Alt-text completion status for attached composer photos.",
+    "placeholders": {
+      "describedCount": { "type": "int", "example": "2" },
+      "imageCount": { "type": "int", "example": "4" }
+    }
+  },
+
+  "postComposePhotosLimitHelper": "Up to {maxImages} photos",
+  "@postComposePhotosLimitHelper": {
+    "description": "Helper text under the photo heading before photos are attached.",
+    "placeholders": { "maxImages": { "type": "int", "example": "4" } }
+  },
+
+  "postComposePhotosReorderHelper": "{imageCount}/{maxImages} · drag to reorder · first is the cover",
+  "@postComposePhotosReorderHelper": {
+    "description": "Helper text under the photo heading once photos are attached.",
+    "placeholders": {
+      "imageCount": { "type": "int", "example": "2" },
+      "maxImages": { "type": "int", "example": "4" }
+    }
+  },
+
+  "postComposeMoveImageUp": "Move image up",
+  "@postComposeMoveImageUp": { "description": "Tooltip for moving an attached composer image earlier in the order." },
+
+  "postComposeMoveImageDown": "Move image down",
+  "@postComposeMoveImageDown": { "description": "Tooltip for moving an attached composer image later in the order." },
+
+  "postComposeRemoveImage": "Remove image",
+  "@postComposeRemoveImage": { "description": "Tooltip for removing an attached composer image." },
+
+  "postComposeDragToReorder": "Drag to reorder",
+  "@postComposeDragToReorder": { "description": "Tooltip for the composer image drag handle." },
+
+  "postComposeAltTextLabel": "ALT TEXT",
+  "@postComposeAltTextLabel": { "description": "Uppercase label above an attached image alt-text field." },
+
+  "postComposeAltTextHint": "Describe the image for someone who cannot see it, including the craft, materials, colors, and important details.",
+  "@postComposeAltTextHint": { "description": "Hint text inside an attached image alt-text field." },
+
+  "postComposeImageDescribed": "Described",
+  "@postComposeImageDescribed": { "description": "Status text shown beside an image alt-text field once alt text is present." },
+
+  "postComposeImageNeedsAltText": "Help screen readers",
+  "@postComposeImageNeedsAltText": { "description": "Status text shown beside an image alt-text field when alt text is missing." },
+
+  "postComposeAddPhoto": "Add a photo",
+  "@postComposeAddPhoto": { "description": "Label on the composer card for adding the first photo." },
+
+  "postComposeAddAnotherPhoto": "Add another photo",
+  "@postComposeAddAnotherPhoto": { "description": "Label on the composer card for adding another photo." },
+
+  "postComposePhotosRemaining": "Up to {remainingCount} more",
+  "@postComposePhotosRemaining": {
+    "description": "Subtitle on the add-photo card showing how many more photos can be attached.",
+    "placeholders": { "remainingCount": { "type": "int", "example": "3" } }
+  },
+
+  "postComposeReadingImage": "Reading image",
+  "@postComposeReadingImage": { "description": "Status shown while a composer image file is being read." },
+
+  "postComposePreparingImage": "Preparing image",
+  "@postComposePreparingImage": { "description": "Status shown while a composer image is being resized or encoded." },
+
+  "postComposeUploadingImage": "Uploading image",
+  "@postComposeUploadingImage": { "description": "Status shown while a composer image is uploading." },
+
+  "postComposeUploadedImage": "Uploaded",
+  "@postComposeUploadedImage": { "description": "Status shown after a composer image upload succeeds." },
+
+  "postComposeImageFailed": "Failed",
+  "@postComposeImageFailed": { "description": "Status shown after a composer image upload fails." },
+
+  "postComposeProcessingImage": "Processing",
+  "@postComposeProcessingImage": { "description": "Overlay label shown while the server is finalizing a composer image upload." },
+
+  "postComposeUploadingProgress": "Uploading {percent}%",
+  "@postComposeUploadingProgress": {
+    "description": "Overlay label showing composer image upload progress percentage.",
+    "placeholders": { "percent": { "type": "int", "example": "42" } }
+  },
+
+  "postLikeAction": "Like",
+  "@postLikeAction": { "description": "Tooltip for liking a post." },
+
+  "postUnlikeAction": "Unlike",
+  "@postUnlikeAction": { "description": "Tooltip for removing a like from a post." },
+
+  "postReplyAction": "Reply",
+  "@postReplyAction": { "description": "Tooltip and optional label for replying to a post." },
+
+  "postRepostAction": "Repost",
+  "@postRepostAction": { "description": "Tooltip for reposting a post." },
+
+  "postUnrepostAction": "Unrepost",
+  "@postUnrepostAction": { "description": "Tooltip for removing a repost." },
 
   "postDeleteAction": "Delete post",
   "@postDeleteAction": { "description": "Tooltip and menu label for deleting a post." },
@@ -316,8 +514,14 @@
   "editProfileCraftsHelper": "Pick the crafts you make",
   "@editProfileCraftsHelper": { "description": "Helper text below the crafts heading on the profile-edit page, hinting that the user should pick from the list." },
 
-  "editProfilePhotosComingSoon": "Photo uploads coming soon",
-  "@editProfilePhotosComingSoon": { "description": "Caption shown over the avatar/banner area on the profile-edit page, indicating that photo upload isn't wired yet." },
+  "editProfileChangeAvatar": "Change avatar",
+  "@editProfileChangeAvatar": { "description": "Tooltip/action label for choosing a new profile avatar image." },
+
+  "editProfileChangeCover": "Change cover",
+  "@editProfileChangeCover": { "description": "Action label for choosing a new profile cover/banner image." },
+
+  "editProfilePhotoUploadError": "Couldn't upload that photo.",
+  "@editProfilePhotoUploadError": { "description": "Snackbar shown when a selected profile avatar or cover image cannot be prepared or uploaded." },
 
   "editProfileSaveError": "Couldn't save your profile.",
   "@editProfileSaveError": { "description": "Snackbar shown when the profile-edit save request fails." },

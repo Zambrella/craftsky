@@ -109,7 +109,7 @@ func DecodePostCreate(body io.Reader) (PostCreateRequest, error) {
 
 // ValidatePostCreate enforces lexicon rules: non-empty text, ≤ 2000
 // graphemes (approximated by rune count, matching profile_request),
-// and AT-URI parseability on reply/quote pointers.
+// image blob shape, and AT-URI parseability on reply/quote pointers.
 func ValidatePostCreate(req PostCreateRequest) error {
 	return ValidatePostCreateWithLimits(req, DefaultMediaLimits())
 }
@@ -139,9 +139,6 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 			fields[prefix+".image"] = "must not be empty"
 		} else {
 			validatePostImageBlob(fields, prefix+".image", img.Image)
-		}
-		if strings.TrimSpace(img.Alt) == "" {
-			fields[prefix+".alt"] = "must not be empty"
 		}
 		if img.AspectRatio != nil {
 			if img.AspectRatio.Width <= 0 {

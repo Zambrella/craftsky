@@ -1,8 +1,10 @@
-import 'package:craftsky_app/feed/models/post.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/widgets/post_image_page_indicator.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pinch_zoom/pinch_zoom.dart';
 
 const _defaultFallbackHeight = 320.0;
 const _defaultMinHeight = 160.0;
@@ -30,20 +32,18 @@ class PostImageCarousel extends ConsumerStatefulWidget {
   const PostImageCarousel({
     required this.images,
     this.onImageTap,
-    this.heroTagBuilder,
     super.key,
   });
 
   final List<PostImage> images;
   final ValueChanged<int>? onImageTap;
-  final String Function(int index)? heroTagBuilder;
 
   @override
   ConsumerState<PostImageCarousel> createState() => _PostImageCarouselState();
 }
 
 class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
-  final _pageController = PageController();
+  final _pageController = PageController(keepPage: false);
   var _page = 0;
 
   @override
@@ -65,25 +65,52 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
         return Stack(
           key: const Key('post-image-carousel'),
           children: [
-            SizedBox(
-              height: height,
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: widget.images.length,
-                onPageChanged: (value) => setState(() => _page = value),
-                itemBuilder: (context, index) {
-                  final image = widget.images[index];
-                  final url = image.thumb ?? image.fullsize;
-                  final heroTag = widget.heroTagBuilder?.call(index);
-                  if (url == null) {
-                    final child = InteractiveViewer(
-                      minScale: 1,
+            DecoratedBox(
+              position: DecorationPosition.foreground,
+              decoration: const BoxDecoration(
+                border: Border.fromBorderSide(BorderSide()),
+              ),
+              child: SizedBox(
+                height: height,
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: widget.images.length,
+                  onPageChanged: (value) => setState(() => _page = value),
+                  itemBuilder: (context, index) {
+                    final image = widget.images[index];
+                    final url = image.thumb ?? image.fullsize;
+                    if (url == null) {
+                      final child = PinchZoom(
+                        maxScale: 4,
+                        child: Semantics(
+                          label: image.alt,
+                          child: const DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Color(0xFFEAEAEA),
+                            ),
+                          ),
+                        ),
+                      );
+
+                      return GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => widget.onImageTap?.call(index),
+                        child: child,
+                      );
+                    }
+
+                    final child = PinchZoom(
                       maxScale: 4,
-                      panEnabled: false,
                       child: Semantics(
                         label: image.alt,
-                        child: const DecoratedBox(
-                          decoration: BoxDecoration(color: Color(0xFFEAEAEA)),
+                        child: CachedNetworkImage(
+                          imageUrl: url,
+                          cacheManager: ref.watch(
+                            feedImageCacheManagerProvider,
+                          ),
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: height,
                         ),
                       ),
                     );
@@ -91,36 +118,10 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                     return GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () => widget.onImageTap?.call(index),
-                      child: heroTag == null
-                          ? child
-                          : Hero(tag: heroTag, child: child),
+                      child: child,
                     );
-                  }
-
-                  final child = InteractiveViewer(
-                    minScale: 1,
-                    maxScale: 4,
-                    panEnabled: false,
-                    child: Semantics(
-                      label: image.alt,
-                      child: CachedNetworkImage(
-                        imageUrl: url,
-                        cacheManager: ref.watch(feedImageCacheManagerProvider),
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: height,
-                      ),
-                    ),
-                  );
-
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => widget.onImageTap?.call(index),
-                    child: heroTag == null
-                        ? child
-                        : Hero(tag: heroTag, child: child),
-                  );
-                },
+                  },
+                ),
               ),
             ),
             if (widget.images.length > 1)
@@ -150,24 +151,10 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                 left: 0,
                 right: 0,
                 bottom: 8,
-                child: Row(
-                  key: const Key('post-image-dots'),
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(widget.images.length, (index) {
-                    final isActive = index == _page;
-                    return Container(
-                      width: 6,
-                      height: 6,
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      decoration: BoxDecoration(
-                        color: (isActive ? Colors.white : Colors.white70)
-                            .withValues(
-                              alpha: 0.95,
-                            ),
-                        shape: BoxShape.circle,
-                      ),
-                    );
-                  }),
+                child: PostImagePageIndicator(
+                  indicatorKey: const Key('post-image-dots'),
+                  controller: _pageController,
+                  count: widget.images.length,
                 ),
               ),
           ],

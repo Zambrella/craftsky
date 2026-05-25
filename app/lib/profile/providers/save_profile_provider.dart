@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'save_profile_provider.g.dart';
@@ -35,6 +36,10 @@ class SaveProfile extends _$SaveProfile {
     String? displayName,
     String? description,
     List<String>? crafts,
+    UploadedBlob? avatar,
+    bool clearAvatar = false,
+    UploadedBlob? banner,
+    bool clearBanner = false,
   }) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
@@ -43,6 +48,10 @@ class SaveProfile extends _$SaveProfile {
         displayName: displayName,
         description: description,
         crafts: crafts,
+        avatar: avatar,
+        clearAvatar: clearAvatar,
+        banner: banner,
+        clearBanner: clearBanner,
       );
       if (!ref.mounted) return null;
 

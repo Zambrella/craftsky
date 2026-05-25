@@ -21,7 +21,7 @@ Reads and writes flow through three authenticated v1 endpoints: `GET /v1/profile
 ## Non-goals
 
 - **Flutter app changes.** Out of scope per user direction. This spec stops at the HTTP wire.
-- **Avatar/banner blob upload.** Blob upload is already deferred in the API architecture spec. Avatar/banner are read-only in v1 — displayed if the user set them via another atproto client, but the Craftsky PUT body does not accept them (a body containing them is rejected with 400).
+- **Historical note: avatar/banner blob upload.** This was deferred when the profile endpoints first landed. The follow-up image-upload implementation keeps avatar/banner on `app.bsky.actor.profile`, reuses `POST /v1/blobs/images`, and allows `PUT /v1/profiles/me` to carry uploaded `avatar` and `banner` blob objects.
 - **`PATCH /v1/profiles/me`.** v1 is PUT-only. Adding PATCH later is additive.
 - **`*.craftsky.social` handles.** Would require operating a handle service — separate project.
 - **Counts** (followers, following, posts) on profile responses. Require indexers that don't exist yet.
@@ -332,7 +332,7 @@ Failures → `422 validation_failed` with a `fields` map.
 
 | Code | Status | Meaning |
 |---|---|---|
-| `unexpected_field` | 400 | Body contains `avatar` or `banner`. |
+| `unexpected_field` | 400 | Body contains an unknown field. |
 | `validation_failed` | 422 | Length / count violation. |
 | `pds_read_failed` | 502 | Couldn't read current Bluesky record for merge. |
 | `pds_write_partial` | 502 | One of the two writes failed. |
@@ -372,6 +372,8 @@ Used by all three endpoints' success responses:
 If the MIME type is not in this table, **omit the field** rather than emit a broken URL. The list is intentionally the set that the Bluesky CDN is known to serve as of v1; additions require touching this spec.
 
 **On `createdAt` for the PUT response:** omitted (see §5.3's "Note on the response"). The field is documented as `always present` for GET responses only.
+
+**Avatar/banner writes:** `PUT /v1/profiles/me` accepts optional `avatar` and `banner` fields using the raw atproto blob object returned by `POST /v1/blobs/images`. Omitting either field preserves the existing value, sending `null` clears it, and sending a blob object replaces it. The AppView validates the blob shape, MIME type, and configured image byte limit before writing the merged `app.bsky.actor.profile` record.
 
 ### 5.5 Code layout
 

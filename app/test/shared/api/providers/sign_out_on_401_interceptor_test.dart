@@ -12,7 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 class _SignedInFake extends AuthSession {
   @override
   Future<AuthState> build() async =>
-      const SignedIn(did: 'd', handle: 'h', token: 't');
+      SignedIn(did: 'did:plc:test', handle: 'h.test', token: 't');
 }
 
 class _RecordingStorage implements SecureTokenStorage {

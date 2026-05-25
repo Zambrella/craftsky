@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -18,9 +22,11 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref
-          .read(authControllerProvider.notifier)
-          .completeFromDeepLink(widget.token);
+      unawaited(
+        ref
+            .read(authControllerProvider.notifier)
+            .completeFromDeepLink(widget.token),
+      );
     });
   }
 
@@ -48,12 +54,15 @@ class _AuthCompleteLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    final l10n = AppLocalizations.of(context);
+    final spacing =
+        Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
+    return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        StitchProgressIndicator(),
-        SizedBox(height: 16),
-        Text('Signing in…'),
+        const StitchProgressIndicator(),
+        SizedBox(height: spacing.sp4),
+        Text(l10n.authCompleteSigningIn),
       ],
     );
   }
@@ -66,16 +75,18 @@ class _AuthCompleteError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final spacing =
+        Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
     final message = switch (error) {
-      SignInTimedOut() => 'That sign-in link expired. Please sign in again.',
-      NoPendingSignIn() => 'No sign-in is in progress. Please sign in again.',
-      StorageFailure() =>
-        "Couldn't save your session securely. Please sign in again.",
-      _ => "Couldn't complete sign-in. Please sign in again.",
+      SignInTimedOut() => l10n.authCompleteTimedOutError,
+      NoPendingSignIn() => l10n.authCompleteNoPendingSignInError,
+      StorageFailure() => l10n.authCompleteStorageError,
+      _ => l10n.authCompleteGenericError,
     };
 
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(spacing.sp5),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

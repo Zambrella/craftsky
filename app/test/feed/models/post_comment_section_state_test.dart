@@ -1,8 +1,11 @@
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  final viewerDid = Did.parse('did:plc:viewer');
+
   Post post(String did, String rkey, DateTime createdAt) => Post(
     uri: 'at://$did/social.craftsky.feed.post/$rkey',
     cid: 'bafy_$rkey',
@@ -51,7 +54,7 @@ void main() {
         expect(
           sortCommentItemsForViewer(
             items,
-            viewerDid: 'did:plc:viewer',
+            viewerDid: viewerDid,
             sort: CommentSort.oldest,
           ).map((item) => item.post.rkey),
           ['viewer-mid', 'viewer-late', 'other-early', 'other-late'],
@@ -59,7 +62,7 @@ void main() {
         expect(
           sortCommentItemsForViewer(
             items,
-            viewerDid: 'did:plc:viewer',
+            viewerDid: viewerDid,
             sort: CommentSort.follows,
           ).map((item) => item.post.rkey),
           ['viewer-mid', 'viewer-late', 'other-early', 'other-late'],
@@ -67,7 +70,7 @@ void main() {
         expect(
           sortCommentItemsForViewer(
             items,
-            viewerDid: 'did:plc:viewer',
+            viewerDid: viewerDid,
             sort: CommentSort.newest,
           ).map((item) => item.post.rkey),
           ['viewer-late', 'viewer-mid', 'other-late', 'other-early'],
@@ -408,7 +411,7 @@ void main() {
         final section = PostCommentSection(
           post: post('did:plc:alice', 'root', DateTime.utc(2026, 5, 1, 12)),
           sort: CommentSort.oldest,
-          focus: const FocusContext(
+          focus: FocusContext(
             uri: 'at://did:plc:other/social.craftsky.feed.post/focused',
             status: FocusStatus.included,
             kind: FocusKind.comment,
@@ -417,7 +420,7 @@ void main() {
         );
 
         final updated = section.changeCommentSortClearingFocus(
-          viewerDid: 'did:plc:viewer',
+          viewerDid: viewerDid,
           sort: CommentSort.newest,
         );
 

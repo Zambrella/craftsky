@@ -33,8 +33,7 @@ enum Craft {
   painting('painting'),
   drawing('drawing'),
   candleMaking('candlemaking'),
-  soapMaking('soapmaking')
-  ;
+  soapMaking('soapmaking');
 
   const Craft(this.id);
 

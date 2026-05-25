@@ -29,6 +29,7 @@ class ProfileStats extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
     return Row(
       children: [
         _ProfileStat(
@@ -36,16 +37,13 @@ class ProfileStats extends StatelessWidget {
           label: l10n.profileStatsFollowing,
           onTap: onFollowingTap,
         ),
-        // 20px sits between sp4(16) and sp5(24) — chosen deliberately
-        // for the count row's breathing room. Kept as a raw value
-        // because it doesn't map to a SpacingTheme token.
-        const SizedBox(width: 20),
+        SizedBox(width: spacing.sp4),
         _ProfileStat(
           count: followerCount,
           label: l10n.profileStatsFollowers,
           onTap: onFollowersTap,
         ),
-        const SizedBox(width: 20),
+        SizedBox(width: spacing.sp4),
         _ProfileStat(
           count: projectCount,
           label: l10n.profileStatsProjects,

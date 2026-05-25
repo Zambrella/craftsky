@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,8 @@ void main() {
       ProviderScope(
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: const WelcomePage(),
         ),
       ),
