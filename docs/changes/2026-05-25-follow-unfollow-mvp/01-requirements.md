@@ -31,6 +31,7 @@ The user asked for requirements for scope 1 from the recommended next feature: a
   - No new Craftsky lexicon should be introduced for follows; `app.bsky.graph.follow` is the planned standard follow record.
   - Reads must continue to come from the AppView; writes must go through the AppView to the user’s PDS.
   - The MVP must only allow following indexed Craftsky profiles.
+  - Historical `app.bsky.graph.follow` records authored by Craftsky members are relevant because they represent the user's existing Bluesky/atproto social graph. Tap-backed repo tracking should bring these events into the AppView read model so Craftsky can surface relationships between members without requiring users to re-follow everyone in Craftsky.
   - Home timeline, notifications, follow-list screens, blocks, mutes, and reports are outside this scope.
 - Test/build commands discovered:
   - AppView: `just test` runs Go tests on the host against compose Postgres.
@@ -118,6 +119,7 @@ Craftsky currently lets users create profiles and posts, but it lacks a real soc
 - G-004: Show whether the authenticated viewer follows a visited profile.
 - G-005: Preserve Craftsky’s architecture: PDS-backed public records, AppView-backed reads, and no PDS tokens in Flutter.
 - G-006: Establish graph persistence and indexing that can be reused by the later home timeline.
+- G-007: Bring a joining Craftsky member's existing atproto follow graph into the AppView so relationships between Craftsky members can be recognized from historical `app.bsky.graph.follow` records.
 
 ## 8. Non-Goals
 
@@ -129,7 +131,7 @@ Craftsky currently lets users create profiles and posts, but it lacks a real soc
 - NG-006: No ability to follow non-Craftsky profiles through Craftsky in this MVP.
 - NG-007: No profile project-count implementation; project counts may remain separate future work.
 - NG-008: No changes to PDS token storage or Flutter possession of PDS credentials.
-- NG-009: No automatic backfill requirement for historical follows unless the test-design/implementation stages explicitly identify an existing supported backfill pattern for this graph.
+- NG-009: No UI for importing, reviewing, or selectively approving an existing Bluesky/atproto social graph; historical follow ingestion is backend graph state only.
 
 ## 9. Users / Actors
 
@@ -156,15 +158,17 @@ An authenticated Craftsky user visiting another Craftsky profile can tap Follow.
 | BR-001 | Business | Must | Craftsky users must be able to follow and unfollow other Craftsky profiles from the profile surface. | Following is the social graph foundation for timeline and community discovery. | Prompt, user confirmation | AC-001, AC-002, AC-010 |
 | BR-002 | Business | Must | Profile screens must display real follow relationship state and real follower/following counts. | Removes placeholders and makes relationship state visible to users. | Codebase, profile spec | AC-003, AC-004, AC-011 |
 | BR-003 | Business | Should | The implementation should create graph data reusable by the future chronological followed-account feed. | Scope 2 depends on reliable follow graph data. | Discovery, roadmap | AC-005 |
-| FR-001 | Functional | Must | The AppView shall persist active and deleted `app.bsky.graph.follow` records in Postgres with enough data to derive follower counts, following counts, and viewer relationship state. | The AppView read model needs graph state for profiles and later timeline queries. | Discovery | AC-005, AC-006, AC-007 |
+| BR-004 | Business | Must | Craftsky should recognize existing atproto follow relationships authored by Craftsky members when those relationships connect to indexed Craftsky profiles. | Users should not have to rebuild their social graph if they already follow another Craftsky member through Bluesky/atproto. | Plannotator feedback | AC-016, AC-017 |
+| FR-001 | Functional | Must | The AppView shall persist active `app.bsky.graph.follow` records in Postgres with enough data to derive follower counts, following counts, and viewer relationship state. | The AppView read model needs graph state for profiles and later timeline queries. | Discovery | AC-005, AC-006, AC-007 |
 | FR-002 | Functional | Must | The AppView shall index `app.bsky.graph.follow` create and delete/tombstone events from the firehose idempotently. | Follow records are public PDS records; the AppView must consume them through the atproto indexing path. | Architecture, discovery | AC-006, AC-007 |
-| FR-003 | Functional | Must | The AppView shall expose `POST /v1/profiles/@{handleOrDid}/follows` for an authenticated viewer to follow a target Craftsky profile. | Matches the existing API architecture and enables Flutter follow actions. | API architecture spec | AC-001, AC-008, AC-012, AC-013 |
-| FR-004 | Functional | Must | The AppView shall expose `DELETE /v1/profiles/@{handleOrDid}/follows` for an authenticated viewer to unfollow a target Craftsky profile. | Matches the existing API architecture and enables Flutter unfollow actions. | API architecture spec | AC-002, AC-009, AC-012 |
+| FR-003 | Functional | Must | The AppView shall expose `POST /v1/profiles/@{handleOrDid}/follows` for an authenticated viewer to follow a target Craftsky profile, returning `204 No Content` on successful follow or idempotent already-following no-op. | Matches the existing API architecture and enables Flutter follow actions without introducing an unresolved response payload. | API architecture spec, Plannotator feedback | AC-001, AC-008, AC-012, AC-013 |
+| FR-004 | Functional | Must | The AppView shall expose `DELETE /v1/profiles/@{handleOrDid}/follows` for an authenticated viewer to unfollow a target Craftsky profile, returning `204 No Content` on successful unfollow or idempotent no-active-follow no-op. | Matches the existing API architecture and enables Flutter unfollow actions without introducing an unresolved response payload. | API architecture spec, Plannotator feedback | AC-002, AC-009, AC-012 |
 | FR-005 | Functional | Must | Follow and unfollow handlers shall write/delete `app.bsky.graph.follow` records through the AppView PDS client factory using the caller’s OAuth session. | Preserves Craftsky’s write-through-PDS model and avoids PDS tokens on the client. | AGENTS.md, API architecture | AC-001, AC-002, AC-014 |
 | FR-006 | Functional | Must | Profile API responses shall include `followingCount`, `followerCount`, and `viewerIsFollowing` using camelCase JSON. | Flutter needs these fields to render counts and button state. | Profile spec, user request | AC-003, AC-004, AC-011 |
 | FR-007 | Functional | Must | Flutter shall extend the profile data layer/model to consume the new profile relationship/count fields and call the follow/unfollow endpoints through the existing API client/repository/provider pattern. | Keeps client implementation aligned with established patterns. | Codebase patterns | AC-010, AC-011, AC-014 |
 | FR-008 | Functional | Must | Flutter shall replace the visitor profile “coming soon” Follow action with a real toggle that updates button label/state and relevant counts after successful follow/unfollow. | Delivers the user-visible MVP. | Codebase placeholder | AC-010, AC-011, AC-015 |
 | FR-009 | Functional | Should | Flutter should preserve a usable profile screen if a follow/unfollow request fails, surfacing an error message and leaving or restoring the last confirmed state. | Prevents misleading relationship state under network or PDS failure. | Existing messaging patterns | AC-015 |
+| FR-010 | Functional | Must | When the AppView/Tap begins tracking a Craftsky member repo, the follow graph indexer shall consume historical and live `app.bsky.graph.follow` events authored by that repo, subject to Tap's supported backfill/replay behavior. | Existing Bluesky/atproto follows are part of the user's social graph and should be available to Craftsky once both sides are Craftsky members. | Plannotator feedback | AC-016, AC-017 |
 | NFR-001 | Non-functional | Must | New `/v1/*` follow APIs must follow existing Craftsky API conventions for authentication, device ID, camelCase JSON, opaque request IDs, and error envelopes. | Maintains API consistency and testability. | AGENTS.md, API architecture | AC-008, AC-009, AC-012, AC-013 |
 | NFR-002 | Non-functional | Must | Follow graph indexing must be idempotent and safe for repeated firehose events for the same record URI/CID. | Firehose consumers may observe retries or duplicate events. | Indexer conventions | AC-006, AC-007 |
 | NFR-003 | Non-functional | Must | The Flutter app must not hold PDS access or refresh tokens for follow/unfollow operations. | Architectural security rule. | AGENTS.md | AC-014 |
@@ -174,18 +178,20 @@ An authenticated Craftsky user visiting another Craftsky profile can tap Follow.
 | RULE-003 | Business rule | Must | At most one active follow may exist per follower DID and target DID. Repeating follow should be idempotent from the caller’s perspective. | Prevents duplicate counts and supports retry behavior. | Discovery | AC-001, AC-006 |
 | RULE-004 | Business rule | Must | Unfollowing an already-unfollowed or never-followed target should be idempotent from the caller’s perspective. | Supports safe retries and simple UI behavior. | Existing delete/idempotency patterns | AC-002, AC-009 |
 | RULE-005 | Business rule | Must | Follower and following counts must count only active Craftsky-to-Craftsky follow relationships and must exclude deleted/inactive follows. | Keeps v1 count semantics clean and aligned with Craftsky-only targeting. | User answer, discovery | AC-003, AC-005, AC-007 |
+| RULE-006 | Business rule | Must | `viewerIsFollowing` must be present and `false` when the authenticated viewer fetches their own profile. | Self-follow is prohibited, and a stable non-null boolean avoids client branching while preserving existing self-profile action logic. | Plannotator feedback | AC-018 |
+| RULE-007 | Business rule | Must | AppView follow graph storage must represent currently active follows; delete/tombstone processing must remove the active row rather than preserving deleted follow history with `deletedAt`. | Deleted follow records do not persist on the PDS, and the MVP has no product need for retained follow history. | Plannotator feedback | AC-007, AC-019 |
 
 ## 13. Acceptance Criteria
 
 | ID | Requirement IDs | Acceptance Criterion |
 |---|---|---|
-| AC-001 | BR-001, FR-003, FR-005, RULE-003 | Given authenticated user A and indexed Craftsky profile B, when A follows B through `POST /v1/profiles/@{handleOrDid}/follows`, then the AppView writes an `app.bsky.graph.follow` record to A’s PDS and returns a successful response. |
-| AC-002 | BR-001, FR-004, FR-005, RULE-004 | Given authenticated user A actively follows indexed Craftsky profile B, when A unfollows B through `DELETE /v1/profiles/@{handleOrDid}/follows`, then the AppView deletes or deactivates the active PDS follow record and returns a successful response. |
+| AC-001 | BR-001, FR-003, FR-005, RULE-003 | Given authenticated user A and indexed Craftsky profile B, when A follows B through `POST /v1/profiles/@{handleOrDid}/follows`, then the AppView writes an `app.bsky.graph.follow` record to A’s PDS and returns `204 No Content`. |
+| AC-002 | BR-001, FR-004, FR-005, RULE-004 | Given authenticated user A actively follows indexed Craftsky profile B, when A unfollows B through `DELETE /v1/profiles/@{handleOrDid}/follows`, then the AppView deletes the active PDS follow record and returns `204 No Content`. |
 | AC-003 | BR-002, FR-001, FR-006, NFR-004, RULE-005 | Given profile B has active Craftsky followers, when an authenticated viewer fetches B’s profile, then `followerCount` equals the number of active Craftsky-to-Craftsky follows targeting B. |
 | AC-004 | BR-002, FR-006, NFR-004 | Given profile A actively follows other Craftsky profiles, when an authenticated viewer fetches A’s profile, then `followingCount` equals the number of active Craftsky-to-Craftsky follows authored by A. |
-| AC-005 | BR-003, FR-001, RULE-005 | Given the follow graph contains active and deleted follow records, when future feed work queries active followed DIDs, then the persistence model can identify the active targets followed by a viewer without consulting the PDS directly. |
+| AC-005 | BR-003, FR-001, RULE-005 | Given the follow graph contains active follow records, when future feed work queries active followed DIDs, then the persistence model can identify the active targets followed by a viewer without consulting the PDS directly. |
 | AC-006 | FR-001, FR-002, NFR-002, RULE-003 | Given the follow indexer receives the same active follow event more than once, when it handles the repeated event, then only one active relationship contributes to counts. |
-| AC-007 | FR-001, FR-002, NFR-002, RULE-005 | Given the follow indexer receives a delete/tombstone event for a previously indexed follow, when profile counts are read, then the deleted relationship no longer contributes to follower or following counts. |
+| AC-007 | FR-001, FR-002, NFR-002, RULE-005, RULE-007 | Given the follow indexer receives a delete/tombstone event for a previously indexed follow, when profile counts are read, then the relationship no longer exists as an active stored follow and does not contribute to follower or following counts. |
 | AC-008 | FR-003, NFR-001 | Given a follow request is missing authentication or required device ID, when it reaches the AppView, then it is rejected using existing `/v1/*` authentication/device-id error behavior. |
 | AC-009 | FR-004, NFR-001, RULE-004 | Given authenticated user A does not actively follow indexed Craftsky profile B, when A sends `DELETE /v1/profiles/@B/follows`, then the endpoint succeeds without creating a follow or decrementing counts below the active graph state. |
 | AC-010 | BR-001, FR-007, FR-008 | Given a visitor views another Craftsky profile in Flutter, when `viewerIsFollowing` is false, then the profile action shows Follow and tapping it calls the follow endpoint. |
@@ -194,6 +200,10 @@ An authenticated Craftsky user visiting another Craftsky profile can tap Follow.
 | AC-013 | FR-003, NFR-001, RULE-002 | Given authenticated user A targets A’s own profile, when A sends a follow request, then the AppView rejects the request with a documented validation error and does not write a PDS follow. |
 | AC-014 | FR-005, FR-007, NFR-003 | Given Flutter initiates follow/unfollow, when the operation is performed, then Flutter sends only the Craftsky session-authenticated API request and never receives or stores PDS tokens. |
 | AC-015 | FR-008, FR-009 | Given Flutter attempts follow/unfollow and the AppView returns an error or the request fails, when the operation completes, then the user sees an error message and the profile UI does not falsely persist an unconfirmed relationship/count state. |
+| AC-016 | BR-004, FR-010 | Given user A already has historical `app.bsky.graph.follow` records on their PDS before creating a Craftsky profile, when the AppView/Tap begins tracking A's repo, then those historical follow records are eligible to be indexed without A manually re-following through Craftsky. |
+| AC-017 | BR-004, FR-010 | Given user A has a historical active follow to user B and both A and B have indexed Craftsky profiles, when either profile is fetched after graph indexing catches up, then the relationship contributes to `viewerIsFollowing`, `followingCount`, and `followerCount` according to the same active Craftsky-to-Craftsky rules as newly created follows. |
+| AC-018 | FR-006, RULE-006 | Given authenticated user A fetches A's own profile, when the profile response is returned, then `viewerIsFollowing` is present and `false`. |
+| AC-019 | RULE-007 | Given the stored active follow row for A following B is removed by an unfollow delete/tombstone, when storage is inspected, then there is no retained deleted follow row for that relationship in the MVP follow graph table. |
 
 ## 14. Edge Cases
 
@@ -209,11 +219,13 @@ An authenticated Craftsky user visiting another Craftsky profile can tap Follow.
 | EC-008 | PDS delete fails during unfollow | Return `pds_write_failed` or equivalent documented error; Flutter surfaces failure and preserves/restores last confirmed state. | FR-005, FR-009 |
 | EC-009 | Firehose indexing lags after successful follow/unfollow | API/UI may update optimistically after successful write, but eventual profile reads converge to indexed graph state. | FR-001, FR-008 |
 | EC-010 | Follow delete/tombstone arrives for an unknown follow URI | Indexer handles safely without corrupting counts or failing the stream. | FR-002, NFR-002 |
+| EC-011 | Historical follow targets a non-Craftsky account | Store or observe the relationship only as needed for future convergence; do not include it in Craftsky profile counts or `viewerIsFollowing` until the target has an indexed Craftsky profile. | BR-004, RULE-005 |
+| EC-012 | Target becomes a Craftsky member after an already-indexed historical follow | Once both sides have indexed Craftsky profiles and graph/profile reads converge, the active relationship may contribute to Craftsky counts/state without a new follow write. | BR-004, FR-010 |
 
 ## 15. Data / Persistence Impact
 
 - New fields:
-  - A new AppView follow graph persistence model is required, expected to store at least follow record URI, follower DID, target DID/subject DID, rkey, CID, created/indexed timestamps, and deleted/inactive state.
+  - A new AppView follow graph persistence model is required, expected to store at least active follow record URI, follower DID, target DID/subject DID, rkey, CID, and created/indexed timestamps.
   - Profile API responses add `followingCount`, `followerCount`, and `viewerIsFollowing`.
 - Changed fields:
   - Existing profile response shape is additive; existing fields remain camelCase and retain existing semantics.
@@ -239,6 +251,7 @@ An authenticated Craftsky user visiting another Craftsky profile can tap Follow.
   - No dedicated CLI feature required. Existing `cli request` may be used for smoke testing if implementation supports it.
 - Background jobs:
   - Add/register an indexer for `app.bsky.graph.follow` firehose events.
+  - Ensure Craftsky member repos are tracked in a way that lets Tap deliver supported historical and live follow events for those repos.
 
 ## 17. Security / Privacy / Permissions
 
@@ -275,6 +288,7 @@ An authenticated Craftsky user visiting another Craftsky profile can tap Follow.
 | RISK-004 | Unfollow needs to know the active PDS record rkey/URI. | Delete may fail or delete the wrong record if active follow lookup is wrong. | Persist active follow URI/rkey and define idempotent no-active-follow behavior. |
 | RISK-005 | API response change and Flutter model change ship out of sync. | Flutter may fail to decode or display profile responses. | Keep API additions backward-compatible and test Flutter model decoding with the new fields. |
 | RISK-006 | This feature touches migration, firehose indexing, API writes, and UI. | Higher regression surface across appview and app. | Require review before test design/implementation and cover with acceptance, integration, and widget tests. |
+| RISK-007 | Tap historical event delivery semantics are misunderstood or insufficient for existing follow graph import. | Existing Bluesky/atproto relationships may not appear automatically for new Craftsky members. | Verify Tap repo-tracking/backfill behavior during test design and implementation; make historical import acceptance criteria explicit. |
 
 ## 20. Assumptions
 
@@ -284,42 +298,40 @@ An authenticated Craftsky user visiting another Craftsky profile can tap Follow.
 | ASM-002 | Current `PDSClient.CreateRecord` and `DeleteRecord` primitives are sufficient for follow/unfollow writes. | Requirements may need to add PDS client capability changes. |
 | ASM-003 | Craftsky-only follow targeting is acceptable for v1 even though atproto follows can target any account. | API behavior would need to widen and profile/count semantics would need redesign. |
 | ASM-004 | Existing Flutter messaging/snackbar patterns are sufficient for follow/unfollow failure UX. | Additional UI design requirements may be needed. |
-| ASM-005 | Historical follow backfill is not required for MVP; newly observed firehose events and direct API writes are sufficient. | If existing follow records must be imported, scope expands to include backfill design and tests. |
+| ASM-005 | Tap can provide historical `app.bsky.graph.follow` events for a newly tracked Craftsky member repo, consistent with the existing Tap-backed architecture. | If Tap cannot provide this, scope must add a separate PDS repo import/backfill design before implementation can meet historical graph requirements. |
 
 ## 21. Open Questions
 
-- [ ] Non-blocking: Should the follow/unfollow success response return a small relationship/count payload, the full updated profile, or no body? Test design should force a contract before implementation.
-- [ ] Non-blocking: Should `viewerIsFollowing` be `false` or omitted when the viewer fetches their own profile? Requirements prefer a stable boolean field, but exact self-profile semantics should be finalized in API tests.
-- [ ] Non-blocking: Should deleted follows remain as historical rows with `deletedAt` or be removed from storage? Requirements only require active counts and idempotent behavior; implementation can choose the storage strategy if tests preserve behavior.
+- [ ] Blocking: Confirm during test design whether Tap delivers historical `app.bsky.graph.follow` records for newly tracked Craftsky member repos as assumed. If not, add a separate import/backfill design before implementation.
 
 ## 22. Review Status
 
-Status: Draft
+Status: Reviewed
 
 Risk level: High
 
 Review recommended: Required
 
-Reviewer: TBD
+Reviewer: Plannotator
 
 Date: 2026-05-25
 
-Notes: Review is required before test design/implementation because this feature includes a database migration, firehose indexing, PDS write/delete operations, auth-protected API changes, and user-visible Flutter behavior.
+Notes: Plannotator feedback from 2026-05-25 has been applied. A second review pass is optional if the user wants to validate the historical graph/backfill clarification before test design.
 
 ## 23. Handoff To Test Design
 
 - Requirements file: `docs/changes/2026-05-25-follow-unfollow-mvp/01-requirements.md`
 - Next test specification: `02-acceptance-tests.md`
 - Must-cover requirement IDs:
-  - Business: BR-001, BR-002
-  - Functional: FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008
+  - Business: BR-001, BR-002, BR-004
+  - Functional: FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-010
   - Non-functional: NFR-001, NFR-002, NFR-003
-  - Rules: RULE-001, RULE-002, RULE-003, RULE-004, RULE-005
+  - Rules: RULE-001, RULE-002, RULE-003, RULE-004, RULE-005, RULE-006, RULE-007
 - Suggested test levels:
   - AppView handler tests for follow/unfollow success, validation, idempotency, auth/device-id failures, PDS failures, and non-Craftsky targets.
-  - AppView store/integration tests for counts, viewer relationship state, active/deleted relationships, and uniqueness.
+  - AppView store/integration tests for counts, viewer relationship state, active relationships, hard deletion, historical follows, and uniqueness.
   - Indexer tests for create, duplicate create, delete/tombstone, and unknown delete events.
   - Flutter model/API client/repository/provider tests for new fields and endpoint calls.
   - Flutter widget tests for Follow/Following button state, count rendering, success updates, and failure messaging.
-- Blocking open questions: None identified.
+- Blocking open questions: Confirm Tap historical follow delivery behavior before implementation.
 - Review gate: Because risk level is High and review is required, run Plannotator or equivalent document review before moving to test design unless the user explicitly accepts the risk and approves continuation.
