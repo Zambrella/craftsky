@@ -6,7 +6,7 @@ void main() {
   setUpAll(initializeMappers);
 
   test('StoredSession round-trips through JSON', () {
-    const original = StoredSession(
+    final original = StoredSession(
       token: 'tok',
       did: 'did:plc:a',
       handle: 'a.bsky.social',

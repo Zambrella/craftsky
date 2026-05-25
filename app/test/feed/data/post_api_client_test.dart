@@ -6,12 +6,18 @@ import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
 
 void main() {
   setUpAll(initializeMappers);
+
+  final aliceDid = Did.parse('did:plc:alice');
+  final bobDid = Did.parse('did:plc:bob');
+  final postRkey = RecordKey.parse('3lf2abc');
+  final missingRkey = RecordKey.parse('missing');
 
   Dio buildDio() {
     return Dio(BaseOptions(baseUrl: 'https://appview.example.com'))
@@ -323,7 +329,7 @@ void main() {
         (server) => server.reply(200, samplePost()),
       );
 
-      final post = await PostApiClient(dio).getPost('did:plc:alice', '3lf2abc');
+      final post = await PostApiClient(dio).getPost(aliceDid, postRkey);
       expect(post.rkey, '3lf2abc');
     });
 
@@ -335,7 +341,7 @@ void main() {
       );
 
       await expectLater(
-        () => PostApiClient(dio).getPost('did:plc:alice', 'missing'),
+        () => PostApiClient(dio).getPost(aliceDid, missingRkey),
         throwsA(
           isA<ApiBadRequest>().having((e) => e.code, 'code', 'post_not_found'),
         ),
@@ -351,7 +357,7 @@ void main() {
         (server) => server.reply(204, null),
       );
 
-      await PostApiClient(dio).deletePost('did:plc:alice', '3lf2abc');
+      await PostApiClient(dio).deletePost(aliceDid, postRkey);
     });
 
     test('403 forbidden surfaces as ApiBadRequest', () async {
@@ -362,7 +368,7 @@ void main() {
       );
 
       await expectLater(
-        () => PostApiClient(dio).deletePost('did:plc:bob', '3lf2abc'),
+        () => PostApiClient(dio).deletePost(bobDid, postRkey),
         throwsA(
           isA<ApiBadRequest>().having((e) => e.code, 'code', 'forbidden'),
         ),
@@ -469,8 +475,8 @@ void main() {
           await PostApiClient(
             dio,
           ).listCommentBranchReplies(
-            'did:plc:alice',
-            '3lf2abc',
+            aliceDid,
+            postRkey,
             cursor: 'c1',
             limit: 25,
           );
@@ -509,8 +515,8 @@ void main() {
         );
 
       final client = PostApiClient(dio);
-      final like = await client.likePost('did:plc:alice', '3lf2abc');
-      await client.unlikePost('did:plc:alice', '3lf2abc');
+      final like = await client.likePost(aliceDid, postRkey);
+      await client.unlikePost(aliceDid, postRkey);
 
       expect(like.rkey, 'like1');
       expect(adapter, isNotNull);
@@ -529,8 +535,8 @@ void main() {
         );
 
       final client = PostApiClient(dio);
-      final repost = await client.repostPost('did:plc:alice', '3lf2abc');
-      await client.unrepostPost('did:plc:alice', '3lf2abc');
+      final repost = await client.repostPost(aliceDid, postRkey);
+      await client.unrepostPost(aliceDid, postRkey);
 
       expect(repost.subject.cid, 'bafy123');
     });

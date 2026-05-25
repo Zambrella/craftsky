@@ -12,11 +12,6 @@ part of 'pending_auth_provider.dart';
 /// `AuthController.completeFromDeepLink` reject deep links that
 /// arrive without a prior `signIn()` or later than the 10-minute
 /// staleness window.
-///
-/// The notifier class is named `PendingAuth` — same identifier as
-/// the data class it holds, imported under the `model` prefix to
-/// dodge the collision inside this file. The generated provider is
-/// `pendingAuthProvider`.
 
 @ProviderFor(PendingAuth)
 final pendingAuthProvider = PendingAuthProvider._();
@@ -25,22 +20,12 @@ final pendingAuthProvider = PendingAuthProvider._();
 /// `AuthController.completeFromDeepLink` reject deep links that
 /// arrive without a prior `signIn()` or later than the 10-minute
 /// staleness window.
-///
-/// The notifier class is named `PendingAuth` — same identifier as
-/// the data class it holds, imported under the `model` prefix to
-/// dodge the collision inside this file. The generated provider is
-/// `pendingAuthProvider`.
 final class PendingAuthProvider
     extends $NotifierProvider<PendingAuth, model.PendingAuth?> {
   /// Tracks the in-flight sign-in attempt. Lets
   /// `AuthController.completeFromDeepLink` reject deep links that
   /// arrive without a prior `signIn()` or later than the 10-minute
   /// staleness window.
-  ///
-  /// The notifier class is named `PendingAuth` — same identifier as
-  /// the data class it holds, imported under the `model` prefix to
-  /// dodge the collision inside this file. The generated provider is
-  /// `pendingAuthProvider`.
   PendingAuthProvider._()
     : super(
         from: null,
@@ -74,11 +59,6 @@ String _$pendingAuthHash() => r'e8ae0a167e88045e997d6fc13408a4de2b609bfc';
 /// `AuthController.completeFromDeepLink` reject deep links that
 /// arrive without a prior `signIn()` or later than the 10-minute
 /// staleness window.
-///
-/// The notifier class is named `PendingAuth` — same identifier as
-/// the data class it holds, imported under the `model` prefix to
-/// dodge the collision inside this file. The generated provider is
-/// `pendingAuthProvider`.
 
 abstract class _$PendingAuth extends $Notifier<model.PendingAuth?> {
   model.PendingAuth? build();

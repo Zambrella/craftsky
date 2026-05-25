@@ -37,7 +37,7 @@ final class OnboardingStatusProvider
   /// `finish` reference `did` directly.
   OnboardingStatusProvider._({
     required OnboardingStatusFamily super.from,
-    required String super.argument,
+    required Did super.argument,
   }) : super(
          retry: null,
          name: r'onboardingStatusProvider',
@@ -79,7 +79,7 @@ final class OnboardingStatusProvider
   }
 }
 
-String _$onboardingStatusHash() => r'b40f1f002a2783d8e90ba7630c1f617f8999ddc4';
+String _$onboardingStatusHash() => r'30a86886e3dcb13cf4fdecfac271b23206cd797e';
 
 /// Per-DID onboarding completion flag. Backed by `SharedPreferences`;
 /// survives relaunch but not reinstall on Android (clear-app-data
@@ -90,7 +90,7 @@ String _$onboardingStatusHash() => r'b40f1f002a2783d8e90ba7630c1f617f8999ddc4';
 /// `finish` reference `did` directly.
 
 final class OnboardingStatusFamily extends $Family
-    with $ClassFamilyOverride<OnboardingStatus, bool, bool, bool, String> {
+    with $ClassFamilyOverride<OnboardingStatus, bool, bool, bool, Did> {
   OnboardingStatusFamily._()
     : super(
         retry: null,
@@ -108,7 +108,7 @@ final class OnboardingStatusFamily extends $Family
   /// (`did`) on the generated notifier base class, so both `build` and
   /// `finish` reference `did` directly.
 
-  OnboardingStatusProvider call(String did) =>
+  OnboardingStatusProvider call(Did did) =>
       OnboardingStatusProvider._(argument: did, from: this);
 
   @override
@@ -124,10 +124,10 @@ final class OnboardingStatusFamily extends $Family
 /// `finish` reference `did` directly.
 
 abstract class _$OnboardingStatus extends $Notifier<bool> {
-  late final _$args = ref.$arg as String;
-  String get did => _$args;
+  late final _$args = ref.$arg as Did;
+  Did get did => _$args;
 
-  bool build(String did);
+  bool build(Did did);
   @$mustCallSuper
   @override
   void runBuild() {

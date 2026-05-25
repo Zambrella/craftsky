@@ -6,10 +6,14 @@ import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart'
     hide PostCommentSection;
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes/fake_post_repository.dart';
+
+final _aliceDid = Did.parse('did:plc:alice');
+final _rootRkey = RecordKey.parse('root');
 
 Post _post(String did, String rkey, int minute) => Post(
   uri: 'at://$did/social.craftsky.feed.post/$rkey',
@@ -82,29 +86,29 @@ void main() {
           overrides: [postRepositoryProvider.overrideWithValue(fake)],
         );
         final subscription = container.listen(
-          postCommentSectionProvider('did:plc:alice', 'root'),
+          postCommentSectionProvider(_aliceDid, _rootRkey),
           (_, _) {},
         );
         addTearDown(subscription.close);
 
         final initial = await container.read(
-          postCommentSectionProvider('did:plc:alice', 'root').future,
+          postCommentSectionProvider(_aliceDid, _rootRkey).future,
         );
         expect(initial.comments.cursor, 'c1');
 
         final loaderSubscription = container.listen(
-          postCommentPageLoaderProvider('did:plc:alice', 'root'),
+          postCommentPageLoaderProvider(_aliceDid, _rootRkey),
           (_, _) {},
         );
         addTearDown(loaderSubscription.close);
         final firstLoad = container
             .read(
-              postCommentPageLoaderProvider('did:plc:alice', 'root').notifier,
+              postCommentPageLoaderProvider(_aliceDid, _rootRkey).notifier,
             )
             .load();
         final duplicateLoad = container
             .read(
-              postCommentPageLoaderProvider('did:plc:alice', 'root').notifier,
+              postCommentPageLoaderProvider(_aliceDid, _rootRkey).notifier,
             )
             .load();
 
@@ -115,13 +119,13 @@ void main() {
         ]);
         expect(
           container
-              .read(postCommentSectionProvider('did:plc:alice', 'root'))
+              .read(postCommentSectionProvider(_aliceDid, _rootRkey))
               .hasValue,
           isTrue,
         );
         expect(
           container
-              .read(postCommentPageLoaderProvider('did:plc:alice', 'root'))
+              .read(postCommentPageLoaderProvider(_aliceDid, _rootRkey))
               .isLoading,
           isTrue,
         );
@@ -132,7 +136,7 @@ void main() {
         await Future.wait([firstLoad, duplicateLoad]);
 
         final updated = container
-            .read(postCommentSectionProvider('did:plc:alice', 'root'))
+            .read(postCommentSectionProvider(_aliceDid, _rootRkey))
             .value!;
         expect(updated.comments.items.map((item) => item.post.rkey), [
           'comment-1',
@@ -170,18 +174,18 @@ void main() {
           overrides: [postRepositoryProvider.overrideWithValue(fake)],
         );
         final subscription = container.listen(
-          postCommentSectionProvider('did:plc:alice', 'root'),
+          postCommentSectionProvider(_aliceDid, _rootRkey),
           (_, _) {},
         );
         addTearDown(subscription.close);
 
         await container.read(
-          postCommentSectionProvider('did:plc:alice', 'root').future,
+          postCommentSectionProvider(_aliceDid, _rootRkey).future,
         );
         final loaderSubscription = container.listen(
           postCommentRepliesLoaderProvider(
-            'did:plc:alice',
-            'root',
+            _aliceDid,
+            _rootRkey,
             commentUri: commentA.post.uri,
           ),
           (_, _) {},
@@ -190,15 +194,15 @@ void main() {
         await container
             .read(
               postCommentRepliesLoaderProvider(
-                'did:plc:alice',
-                'root',
+                _aliceDid,
+                _rootRkey,
                 commentUri: commentA.post.uri,
               ).notifier,
             )
             .load();
 
         final updated = container
-            .read(postCommentSectionProvider('did:plc:alice', 'root'))
+            .read(postCommentSectionProvider(_aliceDid, _rootRkey))
             .value!;
         final updatedA = updated.comments.items.firstWhere(
           (item) => item.post.uri == commentA.post.uri,
@@ -243,26 +247,26 @@ void main() {
         overrides: [postRepositoryProvider.overrideWithValue(fake)],
       );
       final subscription = container.listen(
-        postCommentSectionProvider('did:plc:alice', 'root'),
+        postCommentSectionProvider(_aliceDid, _rootRkey),
         (_, _) {},
       );
       addTearDown(subscription.close);
 
       await container.read(
-        postCommentSectionProvider('did:plc:alice', 'root').future,
+        postCommentSectionProvider(_aliceDid, _rootRkey).future,
       );
       final loaderASubscription = container.listen(
         postCommentRepliesLoaderProvider(
-          'did:plc:alice',
-          'root',
+          _aliceDid,
+          _rootRkey,
           commentUri: commentA.post.uri,
         ),
         (_, _) {},
       );
       final loaderBSubscription = container.listen(
         postCommentRepliesLoaderProvider(
-          'did:plc:alice',
-          'root',
+          _aliceDid,
+          _rootRkey,
           commentUri: commentB.post.uri,
         ),
         (_, _) {},
@@ -273,8 +277,8 @@ void main() {
       final load = container
           .read(
             postCommentRepliesLoaderProvider(
-              'did:plc:alice',
-              'root',
+              _aliceDid,
+              _rootRkey,
               commentUri: commentA.post.uri,
             ).notifier,
           )
@@ -283,7 +287,7 @@ void main() {
 
       expect(
         container
-            .read(postCommentSectionProvider('did:plc:alice', 'root'))
+            .read(postCommentSectionProvider(_aliceDid, _rootRkey))
             .hasValue,
         isTrue,
       );
@@ -291,8 +295,8 @@ void main() {
         container
             .read(
               postCommentRepliesLoaderProvider(
-                'did:plc:alice',
-                'root',
+                _aliceDid,
+                _rootRkey,
                 commentUri: commentA.post.uri,
               ),
             )
@@ -303,8 +307,8 @@ void main() {
         container
             .read(
               postCommentRepliesLoaderProvider(
-                'did:plc:alice',
-                'root',
+                _aliceDid,
+                _rootRkey,
                 commentUri: commentB.post.uri,
               ),
             )
@@ -321,8 +325,8 @@ void main() {
         container
             .read(
               postCommentRepliesLoaderProvider(
-                'did:plc:alice',
-                'root',
+                _aliceDid,
+                _rootRkey,
                 commentUri: commentA.post.uri,
               ),
             )
@@ -330,7 +334,7 @@ void main() {
         isTrue,
       );
       final updated = container
-          .read(postCommentSectionProvider('did:plc:alice', 'root'))
+          .read(postCommentSectionProvider(_aliceDid, _rootRkey))
           .value!;
       final updatedA = updated.comments.items.firstWhere(
         (item) => item.post.uri == commentA.post.uri,

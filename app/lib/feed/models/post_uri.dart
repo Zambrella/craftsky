@@ -1,11 +1,13 @@
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
+
 class PostUriParts {
   const PostUriParts({required this.did, required this.rkey});
 
-  final String did;
-  final String rkey;
+  final Did did;
+  final RecordKey rkey;
 }
 
-PostUriParts? parseCraftskyPostUri(String uri) {
+PostUriParts? parseCraftskyPostUri(AtUri uri) {
   const prefix = 'at://';
   const collection = '/social.craftsky.feed.post/';
   if (!uri.startsWith(prefix)) return null;
@@ -17,5 +19,5 @@ PostUriParts? parseCraftskyPostUri(String uri) {
   if (did.isEmpty || rkey.isEmpty || rkey.contains('/')) {
     return null;
   }
-  return PostUriParts(did: did, rkey: rkey);
+  return PostUriParts(did: Did.parse(did), rkey: RecordKey.parse(rkey));
 }

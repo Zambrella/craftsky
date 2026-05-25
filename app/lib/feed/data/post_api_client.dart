@@ -4,6 +4,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/media/blob_api_client.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:dio/dio.dart';
@@ -54,20 +55,20 @@ class PostApiClient {
   });
 
   /// GET /v1/posts/{did}/{rkey}
-  Future<Post> getPost(String did, String rkey) => unwrapApi(() async {
+  Future<Post> getPost(Did did, RecordKey rkey) => unwrapApi(() async {
     final res = await _dio.get<Map<String, dynamic>>('/v1/posts/$did/$rkey');
     return PostMapper.fromMap(res.data!);
   });
 
   /// DELETE /v1/posts/{did}/{rkey} — idempotent per AppView spec.
-  Future<void> deletePost(String did, String rkey) => unwrapApi(() async {
+  Future<void> deletePost(Did did, RecordKey rkey) => unwrapApi(() async {
     await _dio.delete<void>('/v1/posts/$did/$rkey');
   });
 
   /// GET /v1/posts/{did}/{rkey}/replies — flattened comment branch replies.
   Future<ReplyPage> listCommentBranchReplies(
-    String did,
-    String rkey, {
+    Did did,
+    RecordKey rkey, {
     String? cursor,
     int? limit,
   }) => unwrapApi(() async {
@@ -83,11 +84,11 @@ class PostApiClient {
 
   /// GET /v1/posts/{did}/{rkey}/comments — root comment section.
   Future<PostCommentSection> getCommentSection(
-    String did,
-    String rkey, {
+    Did did,
+    RecordKey rkey, {
     String? cursor,
     CommentSort? sort,
-    String? focus,
+    AtUri? focus,
     int? limit,
   }) => unwrapApi(() async {
     final res = await _dio.get<Map<String, dynamic>>(
@@ -103,7 +104,7 @@ class PostApiClient {
   });
 
   /// POST /v1/posts/{did}/{rkey}/likes.
-  Future<InteractionWriteResponse> likePost(String did, String rkey) =>
+  Future<InteractionWriteResponse> likePost(Did did, RecordKey rkey) =>
       unwrapApi(() async {
         final res = await _dio.post<Map<String, dynamic>>(
           '/v1/posts/$did/$rkey/likes',
@@ -112,12 +113,12 @@ class PostApiClient {
       });
 
   /// DELETE /v1/posts/{did}/{rkey}/likes.
-  Future<void> unlikePost(String did, String rkey) => unwrapApi(() async {
+  Future<void> unlikePost(Did did, RecordKey rkey) => unwrapApi(() async {
     await _dio.delete<void>('/v1/posts/$did/$rkey/likes');
   });
 
   /// POST /v1/posts/{did}/{rkey}/reposts.
-  Future<InteractionWriteResponse> repostPost(String did, String rkey) =>
+  Future<InteractionWriteResponse> repostPost(Did did, RecordKey rkey) =>
       unwrapApi(() async {
         final res = await _dio.post<Map<String, dynamic>>(
           '/v1/posts/$did/$rkey/reposts',
@@ -126,7 +127,7 @@ class PostApiClient {
       });
 
   /// DELETE /v1/posts/{did}/{rkey}/reposts.
-  Future<void> unrepostPost(String did, String rkey) => unwrapApi(() async {
+  Future<void> unrepostPost(Did did, RecordKey rkey) => unwrapApi(() async {
     await _dio.delete<void>('/v1/posts/$did/$rkey/reposts');
   });
 

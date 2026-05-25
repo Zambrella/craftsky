@@ -8,11 +8,6 @@ part 'pending_auth_provider.g.dart';
 /// `AuthController.completeFromDeepLink` reject deep links that
 /// arrive without a prior `signIn()` or later than the 10-minute
 /// staleness window.
-///
-/// The notifier class is named `PendingAuth` — same identifier as
-/// the data class it holds, imported under the `model` prefix to
-/// dodge the collision inside this file. The generated provider is
-/// `pendingAuthProvider`.
 @Riverpod(keepAlive: true)
 class PendingAuth extends _$PendingAuth {
   @override

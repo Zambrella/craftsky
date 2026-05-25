@@ -24,7 +24,7 @@ final class PostProvider
   /// future routes (deep-link share, thread page).
   PostProvider._({
     required PostFamily super.from,
-    required (String, String) super.argument,
+    required (Did, RecordKey) super.argument,
   }) : super(
          retry: null,
          name: r'postProvider',
@@ -50,7 +50,7 @@ final class PostProvider
 
   @override
   FutureOr<Post> create(Ref ref) {
-    final argument = this.argument as (String, String);
+    final argument = this.argument as (Did, RecordKey);
     return post(ref, argument.$1, argument.$2);
   }
 
@@ -65,13 +65,13 @@ final class PostProvider
   }
 }
 
-String _$postHash() => r'a7f3ea41d0704a39c02d22783e67336a5a545a7c';
+String _$postHash() => r'35742733af659b0b0d0ab833bf5e9e77aba26860';
 
 /// Single-post read by `(did, rkey)`. No UI consumer in v1; exists for
 /// future routes (deep-link share, thread page).
 
 final class PostFamily extends $Family
-    with $FunctionalFamilyOverride<FutureOr<Post>, (String, String)> {
+    with $FunctionalFamilyOverride<FutureOr<Post>, (Did, RecordKey)> {
   PostFamily._()
     : super(
         retry: null,
@@ -84,7 +84,7 @@ final class PostFamily extends $Family
   /// Single-post read by `(did, rkey)`. No UI consumer in v1; exists for
   /// future routes (deep-link share, thread page).
 
-  PostProvider call(String did, String rkey) =>
+  PostProvider call(Did did, RecordKey rkey) =>
       PostProvider._(argument: (did, rkey), from: this);
 
   @override

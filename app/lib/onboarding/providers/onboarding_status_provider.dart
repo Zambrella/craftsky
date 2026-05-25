@@ -1,4 +1,5 @@
 import 'package:craftsky_app/app_dependencies.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'onboarding_status_provider.g.dart';
@@ -13,7 +14,7 @@ part 'onboarding_status_provider.g.dart';
 @riverpod
 class OnboardingStatus extends _$OnboardingStatus {
   @override
-  bool build(String did) {
+  bool build(Did did) {
     final prefs = ref.watch(sharedPreferencesProvider);
     return prefs.getBool(_keyFor(did)) ?? false;
   }
@@ -25,5 +26,5 @@ class OnboardingStatus extends _$OnboardingStatus {
     state = true;
   }
 
-  static String _keyFor(String did) => 'onboarded_$did';
+  static String _keyFor(Did did) => 'onboarded_$did';
 }

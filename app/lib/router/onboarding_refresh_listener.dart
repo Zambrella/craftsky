@@ -1,5 +1,6 @@
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,7 +18,7 @@ class OnboardingRefreshListener {
   final VoidCallback onChange;
 
   ProviderSubscription<bool>? _sub;
-  String? _currentDid;
+  Did? _currentDid;
 
   void update(AuthState? auth) {
     final newDid = switch (auth) {

@@ -3,6 +3,7 @@ import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 /// Read/write surface the post providers depend on. The production
 /// binding is `ApiPostRepository`; the test suite swaps in
@@ -17,40 +18,40 @@ abstract interface class PostRepository {
   });
 
   /// GET /v1/posts/{did}/{rkey}
-  Future<Post> fetch(String did, String rkey);
+  Future<Post> fetch(Did did, RecordKey rkey);
 
   /// DELETE /v1/posts/{did}/{rkey}. Idempotent.
-  Future<void> delete(String did, String rkey);
+  Future<void> delete(Did did, RecordKey rkey);
 
   /// GET /v1/posts/{did}/{rkey}/replies — comment branch replies.
   Future<ReplyPage> listCommentBranchReplies(
-    String did,
-    String rkey, {
+    Did did,
+    RecordKey rkey, {
     String? cursor,
     int? limit,
   });
 
   /// GET /v1/posts/{did}/{rkey}/comments — root comment section.
   Future<PostCommentSection> commentSection(
-    String did,
-    String rkey, {
+    Did did,
+    RecordKey rkey, {
     String? cursor,
     CommentSort? sort,
-    String? focus,
+    AtUri? focus,
     int? limit,
   });
 
   /// POST /v1/posts/{did}/{rkey}/likes.
-  Future<InteractionWriteResponse> like(String did, String rkey);
+  Future<InteractionWriteResponse> like(Did did, RecordKey rkey);
 
   /// DELETE /v1/posts/{did}/{rkey}/likes.
-  Future<void> unlike(String did, String rkey);
+  Future<void> unlike(Did did, RecordKey rkey);
 
   /// POST /v1/posts/{did}/{rkey}/reposts.
-  Future<InteractionWriteResponse> repost(String did, String rkey);
+  Future<InteractionWriteResponse> repost(Did did, RecordKey rkey);
 
   /// DELETE /v1/posts/{did}/{rkey}/reposts.
-  Future<void> unrepost(String did, String rkey);
+  Future<void> unrepost(Did did, RecordKey rkey);
 
   /// GET /v1/profiles/@{handleOrDid}/posts — newest-first, paginated.
   Future<PostPage> listByAuthor(

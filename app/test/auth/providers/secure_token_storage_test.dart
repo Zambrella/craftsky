@@ -22,7 +22,7 @@ void main() {
     final storage = SecureTokenStorage(const FlutterSecureStorage());
 
     await storage.write(
-      const StoredSession(
+      StoredSession(
         token: 'tok',
         did: 'did:plc:a',
         handle: 'a.bsky.social',
@@ -39,7 +39,7 @@ void main() {
     final storage = SecureTokenStorage(const FlutterSecureStorage());
 
     await storage.write(
-      const StoredSession(token: 't', did: 'd', handle: 'h'),
+      StoredSession(token: 't', did: 'did:plc:test', handle: 'h.test'),
     );
     await storage.clear();
 
@@ -60,7 +60,7 @@ void main() {
     () async {
       FlutterSecureStorage.setMockInitialValues({
         'craftsky_session': jsonEncode(
-          {'token': 't', 'did': 'd', 'handle': 'h'},
+          {'token': 't', 'did': 'did:plc:test', 'handle': 'h.test'},
         ),
       });
       final storage = SecureTokenStorage(const FlutterSecureStorage());

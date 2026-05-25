@@ -1,4 +1,5 @@
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
 part 'post_comment_section.mapper.dart';
@@ -99,7 +100,7 @@ class PostCommentSection with PostCommentSectionMappable {
 
   /// Replaces a comment branch with a loaded reply page.
   PostCommentSection setCommentReplies({
-    required String commentUri,
+    required AtUri commentUri,
     required List<ReplyItem> replies,
     String? cursor,
     bool incrementRootReplyCount = false,
@@ -117,7 +118,7 @@ class PostCommentSection with PostCommentSectionMappable {
   }
 
   /// Collapses a comment branch without retaining visible reply items.
-  PostCommentSection collapseCommentReplies({required String commentUri}) {
+  PostCommentSection collapseCommentReplies({required AtUri commentUri}) {
     return _mapComment(commentUri, (item) {
       return item.copyWith(
         replies: const ReplyPage(loaded: false, items: []),
@@ -127,7 +128,7 @@ class PostCommentSection with PostCommentSectionMappable {
 
   /// Inserts a newly-created reply into the nearest visible comment branch.
   PostCommentSection insertCreatedReplyIntoNearestBranch({
-    required String parentUri,
+    required AtUri parentUri,
     required ReplyItem reply,
   }) {
     for (final comment in comments.items) {
@@ -237,7 +238,7 @@ class PostCommentSection with PostCommentSectionMappable {
 
   /// Clears focus promotion and applies viewer grouping under a new sort.
   PostCommentSection changeCommentSortClearingFocus({
-    required String viewerDid,
+    required Did viewerDid,
     required CommentSort sort,
   }) {
     final normalized = [
@@ -262,7 +263,7 @@ class PostCommentSection with PostCommentSectionMappable {
   }
 
   PostCommentSection _mapComment(
-    String commentUri,
+    AtUri commentUri,
     CommentItem Function(CommentItem item) update,
   ) {
     return copyWith(
@@ -345,36 +346,41 @@ class ReplyItem with ReplyItemMappable {
   final ReplyingToAuthor? replyingTo;
 }
 
-@MappableClass()
+@MappableClass(
+  includeCustomMappers: [AtUriMapper(), DidMapper(), HandleMapper()],
+)
 /// Author metadata for the true parent when a deeper reply is flattened.
 class ReplyingToAuthor with ReplyingToAuthorMappable {
-  const ReplyingToAuthor({
-    required this.uri,
-    required this.did,
-    required this.handle,
+  ReplyingToAuthor({
+    required String uri,
+    required String did,
+    required String handle,
     this.displayName,
-  });
+  }) : uri = AtUri.parse(uri),
+       did = Did.parse(did),
+       handle = Handle.parse(handle);
 
-  final String uri;
-  final String did;
-  final String handle;
+  final AtUri uri;
+  final Did did;
+  final Handle handle;
   final String? displayName;
 }
 
-@MappableClass()
+@MappableClass(includeCustomMappers: [AtUriMapper()])
 /// Focus metadata returned with a comment-section response.
 class FocusContext with FocusContextMappable {
-  const FocusContext({
-    required this.uri,
+  FocusContext({
+    required String uri,
     required this.status,
     this.kind,
-    this.commentUri,
-  });
+    String? commentUri,
+  }) : uri = AtUri.parse(uri),
+       commentUri = commentUri == null ? null : AtUri.parse(commentUri);
 
-  final String uri;
+  final AtUri uri;
   final FocusStatus status;
   final FocusKind? kind;
-  final String? commentUri;
+  final AtUri? commentUri;
 }
 
 /// Reply graph edge used by state helpers to flatten backend nesting.
@@ -382,13 +388,13 @@ class ReplyTreeEdge {
   const ReplyTreeEdge({required this.item, required this.parentUri});
 
   final ReplyItem item;
-  final String parentUri;
+  final AtUri parentUri;
 }
 
 /// Sorts comments by product grouping: viewer-authored first, then sort order.
 List<CommentItem> sortCommentItemsForViewer(
   Iterable<CommentItem> items, {
-  required String viewerDid,
+  required Did viewerDid,
   required CommentSort sort,
 }) {
   final sorted = items.toList();
@@ -420,7 +426,7 @@ List<ReplyItem> sortReplyItems(
 
 /// Maps deeper backend replies into their nearest loaded comment branch.
 List<CommentItem> flattenRepliesToCommentBranches({
-  required String rootUri,
+  required AtUri rootUri,
   required Iterable<CommentItem> comments,
   required Iterable<ReplyTreeEdge> replies,
 }) {

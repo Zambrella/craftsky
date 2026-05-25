@@ -87,7 +87,7 @@ ProviderContainer _container({
     overrides: [
       secureTokenStorageProvider.overrideWithValue(storage),
       authApiClientProvider.overrideWithValue(api),
-      launchAuthUrlProvider.overrideWithValue(launch.launch),
+      authUrlLauncherProvider.overrideWithValue(launch.launch),
       // Override the handoff family for ANY (token, deviceId) — the
       // test passes a specific token and the override serves that.
       // riverpod_generator 4.x packs multi-arg families into a single
@@ -280,7 +280,7 @@ void main() {
     () async {
       final storage = _FakeStorage();
       await storage.write(
-        const StoredSession(token: 't', did: 'd', handle: 'h'),
+        StoredSession(token: 't', did: 'did:plc:test', handle: 'h.test'),
       );
       final container = _container(
         storage: storage,

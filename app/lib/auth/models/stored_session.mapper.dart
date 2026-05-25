@@ -15,6 +15,7 @@ class StoredSessionMapper extends ClassMapperBase<StoredSession> {
   static StoredSessionMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = StoredSessionMapper._());
+      MapperContainer.globals.useAll([DidMapper(), HandleMapper()]);
     }
     return _instance!;
   }
@@ -24,12 +25,19 @@ class StoredSessionMapper extends ClassMapperBase<StoredSession> {
 
   static String _$token(StoredSession v) => v.token;
   static const Field<StoredSession, String> _f$token = Field('token', _$token);
-  static String _$did(StoredSession v) => v.did;
-  static const Field<StoredSession, String> _f$did = Field('did', _$did);
-  static String _$handle(StoredSession v) => v.handle;
+  static Did _$did(StoredSession v) => v.did;
+  static dynamic _arg$did(f) => f<Did>();
+  static const Field<StoredSession, String> _f$did = Field(
+    'did',
+    _$did,
+    arg: _arg$did,
+  );
+  static Handle _$handle(StoredSession v) => v.handle;
+  static dynamic _arg$handle(f) => f<Handle>();
   static const Field<StoredSession, String> _f$handle = Field(
     'handle',
     _$handle,
+    arg: _arg$handle,
   );
 
   @override

@@ -11,6 +11,7 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
@@ -23,20 +24,15 @@ final _log = Logger('AuthController');
 /// the real system browser.
 typedef AuthUrlLauncher = Future<bool> Function(Uri uri);
 
-@Riverpod(keepAlive: true)
-AuthUrlLauncher launchAuthUrl(Ref ref) {
-  return (Uri uri) => url_launcher.launchUrl(
-    uri,
-    mode: url_launcher.LaunchMode.externalApplication,
-  );
-}
+final authUrlLauncherProvider = Provider<AuthUrlLauncher>(
+  (ref) =>
+      (uri) => url_launcher.launchUrl(
+        uri,
+        mode: url_launcher.LaunchMode.externalApplication,
+      ),
+);
 
-/// Sign-in / sign-out orchestrator. Exposes `AsyncValue<void>`; pages
-/// listen for `AsyncError(AuthError)` transitions via `ref.listen`.
-///
-/// Tests that need to simulate a stale `PendingAuth` do so via
-/// `pendingAuthProvider.notifier.debugSet(...)` (defined on the
-/// `PendingAuth` notifier in Task 13), not through this controller.
+/// Sign-in / sign-out orchestrator.
 @Riverpod(keepAlive: true)
 class AuthController extends _$AuthController {
   @override
@@ -66,7 +62,7 @@ class AuthController extends _$AuthController {
       if (!ref.mounted) return;
       ref.read(pendingAuthProvider.notifier).start(trimmed);
 
-      final launched = await ref.read(launchAuthUrlProvider)(
+      final launched = await ref.read(authUrlLauncherProvider)(
         Uri.parse(response.authUrl),
       );
       if (!launched) {

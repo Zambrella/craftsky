@@ -4,6 +4,7 @@ import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 /// Programmable [PostRepository] for unit tests. Each method delegates
 /// to an optional callback the test sets up; unstubbed methods complete
@@ -43,30 +44,30 @@ class FakePostRepository implements PostRepository {
     List<CreatePostImage>? images,
   })?
   onCreate;
-  final Future<Post> Function(String did, String rkey)? onFetch;
-  final Future<void> Function(String did, String rkey)? onDelete;
+  final Future<Post> Function(Did did, RecordKey rkey)? onFetch;
+  final Future<void> Function(Did did, RecordKey rkey)? onDelete;
   final Future<ReplyPage> Function(
-    String did,
-    String rkey, {
+    Did did,
+    RecordKey rkey, {
     String? cursor,
     int? limit,
   })?
   onListCommentBranchReplies;
   final Future<PostCommentSection> Function(
-    String did,
-    String rkey, {
+    Did did,
+    RecordKey rkey, {
     String? cursor,
     CommentSort? sort,
-    String? focus,
+    AtUri? focus,
     int? limit,
   })?
   onCommentSection;
-  final Future<InteractionWriteResponse> Function(String did, String rkey)?
+  final Future<InteractionWriteResponse> Function(Did did, RecordKey rkey)?
   onLike;
-  final Future<void> Function(String did, String rkey)? onUnlike;
-  final Future<InteractionWriteResponse> Function(String did, String rkey)?
+  final Future<void> Function(Did did, RecordKey rkey)? onUnlike;
+  final Future<InteractionWriteResponse> Function(Did did, RecordKey rkey)?
   onRepost;
-  final Future<void> Function(String did, String rkey)? onUnrepost;
+  final Future<void> Function(Did did, RecordKey rkey)? onUnrepost;
   final Future<PostPage> Function(
     String handleOrDid, {
     String? cursor,
@@ -90,19 +91,19 @@ class FakePostRepository implements PostRepository {
       Future<Post>.error(UnimplementedError('create not stubbed'));
 
   @override
-  Future<Post> fetch(String did, String rkey) =>
+  Future<Post> fetch(Did did, RecordKey rkey) =>
       onFetch?.call(did, rkey) ??
       Future<Post>.error(UnimplementedError('fetch not stubbed'));
 
   @override
-  Future<void> delete(String did, String rkey) =>
+  Future<void> delete(Did did, RecordKey rkey) =>
       onDelete?.call(did, rkey) ??
       Future<void>.error(UnimplementedError('delete not stubbed'));
 
   @override
   Future<ReplyPage> listCommentBranchReplies(
-    String did,
-    String rkey, {
+    Did did,
+    RecordKey rkey, {
     String? cursor,
     int? limit,
   }) =>
@@ -118,11 +119,11 @@ class FakePostRepository implements PostRepository {
 
   @override
   Future<PostCommentSection> commentSection(
-    String did,
-    String rkey, {
+    Did did,
+    RecordKey rkey, {
     String? cursor,
     CommentSort? sort,
-    String? focus,
+    AtUri? focus,
     int? limit,
   }) =>
       onCommentSection?.call(
@@ -138,26 +139,26 @@ class FakePostRepository implements PostRepository {
       );
 
   @override
-  Future<InteractionWriteResponse> like(String did, String rkey) =>
+  Future<InteractionWriteResponse> like(Did did, RecordKey rkey) =>
       onLike?.call(did, rkey) ??
       Future<InteractionWriteResponse>.error(
         UnimplementedError('like not stubbed'),
       );
 
   @override
-  Future<void> unlike(String did, String rkey) =>
+  Future<void> unlike(Did did, RecordKey rkey) =>
       onUnlike?.call(did, rkey) ??
       Future<void>.error(UnimplementedError('unlike not stubbed'));
 
   @override
-  Future<InteractionWriteResponse> repost(String did, String rkey) =>
+  Future<InteractionWriteResponse> repost(Did did, RecordKey rkey) =>
       onRepost?.call(did, rkey) ??
       Future<InteractionWriteResponse>.error(
         UnimplementedError('repost not stubbed'),
       );
 
   @override
-  Future<void> unrepost(String did, String rkey) =>
+  Future<void> unrepost(Did did, RecordKey rkey) =>
       onUnrepost?.call(did, rkey) ??
       Future<void>.error(UnimplementedError('unrepost not stubbed'));
 

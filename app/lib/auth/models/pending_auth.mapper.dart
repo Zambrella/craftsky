@@ -15,6 +15,7 @@ class PendingAuthMapper extends ClassMapperBase<PendingAuth> {
   static PendingAuthMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = PendingAuthMapper._());
+      MapperContainer.globals.useAll([HandleMapper()]);
     }
     return _instance!;
   }
@@ -22,8 +23,13 @@ class PendingAuthMapper extends ClassMapperBase<PendingAuth> {
   @override
   final String id = 'PendingAuth';
 
-  static String _$handle(PendingAuth v) => v.handle;
-  static const Field<PendingAuth, String> _f$handle = Field('handle', _$handle);
+  static Handle _$handle(PendingAuth v) => v.handle;
+  static dynamic _arg$handle(f) => f<Handle>();
+  static const Field<PendingAuth, String> _f$handle = Field(
+    'handle',
+    _$handle,
+    arg: _arg$handle,
+  );
   static DateTime _$startedAt(PendingAuth v) => v.startedAt;
   static const Field<PendingAuth, DateTime> _f$startedAt = Field(
     'startedAt',

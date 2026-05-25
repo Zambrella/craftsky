@@ -72,7 +72,11 @@ void main() {
   test('resolves to SignedIn when storage has a session', () async {
     final container = _container(
       storage: _FakeStorage(
-        initial: const StoredSession(token: 't', did: 'd', handle: 'h'),
+        initial: StoredSession(
+          token: 't',
+          did: 'did:plc:test',
+          handle: 'h.test',
+        ),
       ),
       api: _FakeApi(
         onWhoami: () async => WhoAmI(did: 'did:plc:test', handle: 'h.test'),
@@ -86,7 +90,7 @@ void main() {
 
   test('whoami 401 clears storage and flips to SignedOut', () async {
     final storage = _FakeStorage(
-      initial: const StoredSession(token: 't', did: 'd', handle: 'h'),
+      initial: StoredSession(token: 't', did: 'did:plc:test', handle: 'h.test'),
     );
     final container = _container(
       storage: storage,
@@ -101,7 +105,7 @@ void main() {
 
   test('whoami DID mismatch clears and flips to SignedOut', () async {
     final storage = _FakeStorage(
-      initial: const StoredSession(token: 't', did: 'd-old', handle: 'h'),
+      initial: StoredSession(token: 't', did: 'did:plc:old', handle: 'h.test'),
     );
     final container = _container(
       storage: storage,
@@ -118,7 +122,7 @@ void main() {
 
   test('whoami handle drift updates cache + state, keeps SignedIn', () async {
     final storage = _FakeStorage(
-      initial: const StoredSession(
+      initial: StoredSession(
         token: 't',
         did: 'did:plc:test',
         handle: 'old.bsky.social',
@@ -145,7 +149,11 @@ void main() {
     'whoami network error keeps cached SignedIn (offline tolerance)',
     () async {
       final storage = _FakeStorage(
-        initial: const StoredSession(token: 't', did: 'd', handle: 'h'),
+        initial: StoredSession(
+          token: 't',
+          did: 'did:plc:test',
+          handle: 'h.test',
+        ),
       );
       final container = _container(
         storage: storage,
@@ -167,7 +175,7 @@ void main() {
     container
         .read(authSessionProvider.notifier)
         .setSignedIn(
-          const SignedIn(did: 'd', handle: 'h', token: 't'),
+          SignedIn(did: 'did:plc:test', handle: 'h.test', token: 't'),
         );
     expect(container.read(authSessionProvider).value, isA<SignedIn>());
 

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart' as model;
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'post_comment_section_provider.g.dart';
@@ -13,10 +14,10 @@ class PostCommentSection extends _$PostCommentSection {
 
   @override
   Future<model.PostCommentSection> build(
-    String did,
-    String rkey, {
+    Did did,
+    RecordKey rkey, {
     model.CommentSort sort = model.CommentSort.oldest,
-    String? focus,
+    AtUri? focus,
   }) async {
     final repo = ref.watch(postRepositoryProvider);
     return repo.commentSection(did, rkey, sort: sort, focus: focus);
@@ -28,7 +29,7 @@ class PostCommentSection extends _$PostCommentSection {
   }
 
   void setRepliesForComment({
-    required String commentUri,
+    required AtUri commentUri,
     required List<model.ReplyItem> replies,
     String? cursor,
     bool incrementRootReplyCount = false,
@@ -44,7 +45,7 @@ class PostCommentSection extends _$PostCommentSection {
     );
   }
 
-  void collapseReplies(String commentUri) {
+  void collapseReplies(AtUri commentUri) {
     final current = state.requireValue;
     state = AsyncData(current.collapseCommentReplies(commentUri: commentUri));
   }
@@ -60,7 +61,7 @@ class PostCommentSection extends _$PostCommentSection {
     state = AsyncData(current.replacePost(post));
   }
 
-  void insertCreatedReply({required String parentUri, required Post post}) {
+  void insertCreatedReply({required AtUri parentUri, required Post post}) {
     final current = state.requireValue;
     state = AsyncData(
       current.insertCreatedReplyIntoNearestBranch(
@@ -75,10 +76,10 @@ class PostCommentSection extends _$PostCommentSection {
 class PostCommentPageLoader extends _$PostCommentPageLoader {
   @override
   FutureOr<void> build(
-    String did,
-    String rkey, {
+    Did did,
+    RecordKey rkey, {
     model.CommentSort sort = model.CommentSort.oldest,
-    String? focus,
+    AtUri? focus,
   }) {}
 
   Future<void> load() async {
@@ -119,11 +120,11 @@ class PostCommentPageLoader extends _$PostCommentPageLoader {
 class PostCommentRepliesLoader extends _$PostCommentRepliesLoader {
   @override
   FutureOr<void> build(
-    String did,
-    String rkey, {
-    required String commentUri,
+    Did did,
+    RecordKey rkey, {
+    required AtUri commentUri,
     model.CommentSort sort = model.CommentSort.oldest,
-    String? focus,
+    AtUri? focus,
   }) {}
 
   Future<void> load() async {

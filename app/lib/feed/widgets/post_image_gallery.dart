@@ -162,7 +162,7 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
               image: image,
               imageUrl: url,
               onZoomChanged: index == _currentIndex
-                  ? (isZoomed) => _setCurrentPageZoomed(isZoomed)
+                  ? _setCurrentPageZoomed
                   : null,
             );
           },
@@ -233,7 +233,7 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
 
     return Listener(
       behavior: HitTestBehavior.translucent,
-      onPointerDown: (event) => _handlePointerDown(event),
+      onPointerDown: _handlePointerDown,
       onPointerMove: (event) => _handlePointerMove(event, height),
       onPointerUp: (_) => _handlePointerEnd(context, height),
       onPointerCancel: (_) => _cancelDismissDrag(),
@@ -278,14 +278,14 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
     });
   }
 
-  void _handlePointerEnd(BuildContext context, double height) {
+  Future<void> _handlePointerEnd(BuildContext context, double height) async {
     final shouldDismiss = _dismissDragOffset > height * 0.18;
     _activePointers.clear();
     _dismissPointer = null;
     _dismissStartPosition = null;
 
     if (shouldDismiss) {
-      Navigator.of(context).maybePop();
+      await Navigator.of(context).maybePop();
       return;
     }
     _cancelDismissDrag();
@@ -350,7 +350,6 @@ class _ZoomableGalleryImageState extends ConsumerState<_ZoomableGalleryImage> {
     return InteractiveViewer(
       minScale: _galleryMinScale,
       maxScale: _galleryMaxScale,
-      panEnabled: true,
       transformationController: _transformationController,
       child: Semantics(
         label: widget.image.alt,

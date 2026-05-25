@@ -980,6 +980,11 @@ class ReplyingToAuthorMapper extends ClassMapperBase<ReplyingToAuthor> {
   static ReplyingToAuthorMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = ReplyingToAuthorMapper._());
+      MapperContainer.globals.useAll([
+        AtUriMapper(),
+        DidMapper(),
+        HandleMapper(),
+      ]);
     }
     return _instance!;
   }
@@ -987,14 +992,26 @@ class ReplyingToAuthorMapper extends ClassMapperBase<ReplyingToAuthor> {
   @override
   final String id = 'ReplyingToAuthor';
 
-  static String _$uri(ReplyingToAuthor v) => v.uri;
-  static const Field<ReplyingToAuthor, String> _f$uri = Field('uri', _$uri);
-  static String _$did(ReplyingToAuthor v) => v.did;
-  static const Field<ReplyingToAuthor, String> _f$did = Field('did', _$did);
-  static String _$handle(ReplyingToAuthor v) => v.handle;
+  static AtUri _$uri(ReplyingToAuthor v) => v.uri;
+  static dynamic _arg$uri(f) => f<AtUri>();
+  static const Field<ReplyingToAuthor, String> _f$uri = Field(
+    'uri',
+    _$uri,
+    arg: _arg$uri,
+  );
+  static Did _$did(ReplyingToAuthor v) => v.did;
+  static dynamic _arg$did(f) => f<Did>();
+  static const Field<ReplyingToAuthor, String> _f$did = Field(
+    'did',
+    _$did,
+    arg: _arg$did,
+  );
+  static Handle _$handle(ReplyingToAuthor v) => v.handle;
+  static dynamic _arg$handle(f) => f<Handle>();
   static const Field<ReplyingToAuthor, String> _f$handle = Field(
     'handle',
     _$handle,
+    arg: _arg$handle,
   );
   static String? _$displayName(ReplyingToAuthor v) => v.displayName;
   static const Field<ReplyingToAuthor, String> _f$displayName = Field(
@@ -1131,6 +1148,7 @@ class FocusContextMapper extends ClassMapperBase<FocusContext> {
   static FocusContextMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = FocusContextMapper._());
+      MapperContainer.globals.useAll([AtUriMapper()]);
       FocusStatusMapper.ensureInitialized();
       FocusKindMapper.ensureInitialized();
     }
@@ -1140,8 +1158,13 @@ class FocusContextMapper extends ClassMapperBase<FocusContext> {
   @override
   final String id = 'FocusContext';
 
-  static String _$uri(FocusContext v) => v.uri;
-  static const Field<FocusContext, String> _f$uri = Field('uri', _$uri);
+  static AtUri _$uri(FocusContext v) => v.uri;
+  static dynamic _arg$uri(f) => f<AtUri>();
+  static const Field<FocusContext, String> _f$uri = Field(
+    'uri',
+    _$uri,
+    arg: _arg$uri,
+  );
   static FocusStatus _$status(FocusContext v) => v.status;
   static const Field<FocusContext, FocusStatus> _f$status = Field(
     'status',
@@ -1153,11 +1176,13 @@ class FocusContextMapper extends ClassMapperBase<FocusContext> {
     _$kind,
     opt: true,
   );
-  static String? _$commentUri(FocusContext v) => v.commentUri;
+  static AtUri? _$commentUri(FocusContext v) => v.commentUri;
+  static dynamic _arg$commentUri(f) => f<AtUri>();
   static const Field<FocusContext, String> _f$commentUri = Field(
     'commentUri',
     _$commentUri,
     opt: true,
+    arg: _arg$commentUri,
   );
 
   @override

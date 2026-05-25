@@ -1,3 +1,4 @@
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
 part 'stored_session.mapper.dart';
@@ -6,17 +7,18 @@ part 'stored_session.mapper.dart';
 /// key `craftsky_session`. `did` and `handle` are cached so cold start
 /// can render an optimistic `SignedIn(did, handle)` without waiting
 /// for a `/whoami` round-trip — background validation reconciles them.
-@MappableClass()
+@MappableClass(includeCustomMappers: [DidMapper(), HandleMapper()])
 class StoredSession with StoredSessionMappable {
-  const StoredSession({
+  StoredSession({
     required this.token,
-    required this.did,
-    required this.handle,
-  });
+    required String did,
+    required String handle,
+  }) : did = Did.parse(did),
+       handle = Handle.parse(handle);
 
   final String token;
-  final String did;
-  final String handle;
+  final Did did;
+  final Handle handle;
 
   /// Never include the token in string form — the default mappable
   /// `toString` prints every field, which would land bearer tokens in

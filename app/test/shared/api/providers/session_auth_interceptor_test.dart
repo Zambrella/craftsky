@@ -12,7 +12,7 @@ class _SignedInFake extends AuthSession {
   final String token;
   @override
   Future<AuthState> build() async =>
-      SignedIn(did: 'd', handle: 'h', token: token);
+      SignedIn(did: 'did:plc:test', handle: 'h.test', token: token);
 }
 
 class _SignedOutFake extends AuthSession {
