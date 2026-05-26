@@ -13,14 +13,18 @@ import (
 // syntax.DID and syntax.Handle JSON-marshal via TextMarshaler — the
 // wire shape is the same plain-string JSON it always was.
 type ProfileResponse struct {
-	DID         syntax.DID    `json:"did"`
-	Handle      syntax.Handle `json:"handle"`
-	DisplayName *string       `json:"displayName,omitempty"`
-	Description *string       `json:"description,omitempty"`
-	Avatar      *string       `json:"avatar,omitempty"`
-	Banner      *string       `json:"banner,omitempty"`
-	Crafts      []string      `json:"crafts"`
-	CreatedAt   *time.Time    `json:"createdAt,omitempty"`
+	DID               syntax.DID    `json:"did"`
+	Handle            syntax.Handle `json:"handle"`
+	ViewerIsFollowing bool          `json:"viewerIsFollowing"`
+	IsCraftskyProfile bool          `json:"isCraftskyProfile"`
+	FollowingCount    *int          `json:"followingCount,omitempty"`
+	FollowerCount     *int          `json:"followerCount,omitempty"`
+	DisplayName       *string       `json:"displayName,omitempty"`
+	Description       *string       `json:"description,omitempty"`
+	Avatar            *string       `json:"avatar,omitempty"`
+	Banner            *string       `json:"banner,omitempty"`
+	Crafts            []string      `json:"crafts"`
+	CreatedAt         *time.Time    `json:"createdAt,omitempty"`
 }
 
 // mimeExt maps the MIME types we know Bluesky's CDN serves into the
@@ -47,11 +51,15 @@ func BuildProfileResponse(row *ProfileRow, handle syntax.Handle, includeCreatedA
 		crafts = []string{}
 	}
 	out := ProfileResponse{
-		DID:         syntax.DID(row.DID),
-		Handle:      handle,
-		DisplayName: row.DisplayName,
-		Description: row.Description,
-		Crafts:      crafts,
+		DID:               syntax.DID(row.DID),
+		Handle:            handle,
+		ViewerIsFollowing: row.ViewerIsFollowing,
+		IsCraftskyProfile: row.IsCraftskyProfile,
+		FollowingCount:    row.FollowingCount,
+		FollowerCount:     row.FollowerCount,
+		DisplayName:       row.DisplayName,
+		Description:       row.Description,
+		Crafts:            crafts,
 	}
 	if avatar := synthBlobURL("avatar", row.DID, row.AvatarCID, row.AvatarMime); avatar != "" {
 		out.Avatar = &avatar

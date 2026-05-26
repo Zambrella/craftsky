@@ -28,6 +28,18 @@ CREATE TABLE bluesky_profiles (
     record_cid   TEXT        NOT NULL,
     indexed_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE atproto_follows (
+    uri         TEXT        NOT NULL PRIMARY KEY,
+    did         TEXT        NOT NULL,
+    rkey        TEXT        NOT NULL,
+    cid         TEXT        NOT NULL,
+    subject_did TEXT        NOT NULL,
+    record      JSONB       NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL,
+    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (did, rkey),
+    UNIQUE (did, subject_did)
+);
 `
 
 func TestProfileStore_ReadByDID_MemberWithBothRows(t *testing.T) {
@@ -102,5 +114,84 @@ func TestProfileStore_ReadByDID_MemberWithoutBlueskyRow(t *testing.T) {
 	}
 	if len(got.Crafts) != 0 {
 		t.Errorf("Crafts = %v, want empty", got.Crafts)
+	}
+}
+
+func TestProfileStore_ReadByDID_CraftskyOnlyCounts(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, profileStoreDDL)
+	ctx := context.Background()
+
+	// Craftsky members.
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol"} {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES ($1, '{}', 'cid')`,
+			did,
+		); err != nil {
+			t.Fatalf("insert craftsky profile %s: %v", did, err)
+		}
+	}
+
+	// Active follows:
+	// - alice -> bob (counts)
+	// - alice -> dana (non-craftsky target, excluded from followingCount)
+	// - dana -> bob (non-craftsky follower, excluded from followerCount)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
+		VALUES
+			('at://did:plc:alice/app.bsky.graph.follow/f1', 'did:plc:alice', 'f1', 'c1', 'did:plc:bob', '{"subject":"did:plc:bob"}', now()),
+			('at://did:plc:alice/app.bsky.graph.follow/f2', 'did:plc:alice', 'f2', 'c2', 'did:plc:dana', '{"subject":"did:plc:dana"}', now()),
+			('at://did:plc:dana/app.bsky.graph.follow/f3', 'did:plc:dana', 'f3', 'c3', 'did:plc:bob', '{"subject":"did:plc:bob"}', now())
+	`); err != nil {
+		t.Fatalf("seed follows: %v", err)
+	}
+
+	store := api.NewProfileStore(pool)
+	bob, err := store.Read(ctx, "did:plc:bob")
+	if err != nil {
+		t.Fatalf("Read bob: %v", err)
+	}
+	alice, err := store.Read(ctx, "did:plc:alice")
+	if err != nil {
+		t.Fatalf("Read alice: %v", err)
+	}
+
+	if bob.FollowerCount == nil || *bob.FollowerCount != 1 {
+		t.Fatalf("bob followerCount = %v, want 1", bob.FollowerCount)
+	}
+	if alice.FollowingCount == nil || *alice.FollowingCount != 1 {
+		t.Fatalf("alice followingCount = %v, want 1", alice.FollowingCount)
+	}
+}
+
+func TestProfileStore_ReadByDID_NonCraftskyFromBlueskyCache(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, profileStoreDDL)
+	ctx := context.Background()
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO bluesky_profiles (did, display_name, description, record_cid)
+		VALUES ($1, $2, $3, $4)
+	`, "did:plc:carol", "Carol", "external account", "cid-bsky"); err != nil {
+		t.Fatalf("seed bluesky profile: %v", err)
+	}
+
+	store := api.NewProfileStore(pool)
+	got, err := store.Read(ctx, "did:plc:carol")
+	if err != nil {
+		t.Fatalf("Read non-craftsky: %v", err)
+	}
+
+	if got.IsCraftskyProfile {
+		t.Fatalf("isCraftskyProfile = true, want false")
+	}
+	if got.FollowerCount != nil || got.FollowingCount != nil {
+		t.Fatalf("counts = (%v,%v), want nil,nil", got.FollowerCount, got.FollowingCount)
+	}
+	if got.DisplayName == nil || *got.DisplayName != "Carol" {
+		t.Fatalf("displayName = %v, want Carol", got.DisplayName)
+	}
+	if got.Crafts == nil || len(got.Crafts) != 0 {
+		t.Fatalf("crafts = %v, want empty []", got.Crafts)
 	}
 }

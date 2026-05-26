@@ -158,6 +158,28 @@ func TestGetProfile_ResolveDIDError(t *testing.T) {
 	}
 }
 
+func TestGetProfile_CountsUnavailable(t *testing.T) {
+	t.Parallel()
+	h := api.GetProfileHandler(
+		&fakeStore{err: api.ErrProfileCountsUnavailable},
+		fakeResolver{didFor: "did:plc:xyz"},
+		nilLogger(),
+	)
+	req := httptest.NewRequest(http.MethodGet, "/v1/profiles/@alice.example", nil)
+	req.SetPathValue("handleOrDid", "alice.example")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d", rr.Code)
+	}
+	var env envelope.Error
+	_ = json.Unmarshal(rr.Body.Bytes(), &env)
+	if env.Error != "profile_counts_unavailable" {
+		t.Errorf("code = %q", env.Error)
+	}
+}
+
 func TestGetMeProfile_HappyPath(t *testing.T) {
 	t.Parallel()
 	row := &api.ProfileRow{DID: "did:plc:me", Crafts: []string{}, CreatedAt: time.Now()}

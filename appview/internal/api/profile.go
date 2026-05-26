@@ -95,6 +95,11 @@ func writeProfileResponse(
 				"profile_not_found", "profile not found", runID, nil)
 			return
 		}
+		if errors.Is(err, ErrProfileCountsUnavailable) {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"profile_counts_unavailable", "required profile counts unavailable", runID, nil)
+			return
+		}
 		logger.Error("profile: store read failed",
 			slog.String("did", did.String()),
 			slog.String("err", err.Error()),
@@ -117,7 +122,7 @@ func writeProfileResponse(
 			"identity_unavailable", "could not resolve handle", runID, nil)
 		return
 	}
-	resp := BuildProfileResponse(row, handle, true)
+	resp := BuildProfileResponse(row, handle, row.IsCraftskyProfile)
 	logger.Debug("profile: response ready",
 		slog.String("did", did.String()),
 		slog.String("handle", handle.String()),

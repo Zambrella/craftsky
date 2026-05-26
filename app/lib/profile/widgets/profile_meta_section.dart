@@ -12,8 +12,6 @@ import 'package:flutter/material.dart';
 /// collapse — this section is purely the column of textual metadata
 /// that flows below the bar and scrolls normally.
 ///
-/// Stats are hard-coded placeholders for now; counts plug in from the
-/// AppView once the relevant indexers land.
 class ProfileMetaSection extends StatelessWidget {
   const ProfileMetaSection({required this.profile, super.key});
 
@@ -35,6 +33,15 @@ class ProfileMetaSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (!profile.isCraftskyProfile) ...[
+            Text(
+              'Non Craftsky profile',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            SizedBox(height: spacing.sp3),
+          ],
           if (hasBio) ...[
             ProfileBio(description: profile.description),
             SizedBox(height: spacing.sp3),
@@ -43,11 +50,10 @@ class ProfileMetaSection extends StatelessWidget {
             ProfileCraftChips(crafts: profile.crafts),
             SizedBox(height: spacing.sp3),
           ],
-          // TODO(craftsky): wire real counts when follow / project
-          // indexers land. Numbers chosen to mirror the design mockup.
-          const ProfileStats(
-            followingCount: 342,
-            followerCount: 1200,
+          ProfileStats(
+            followingCount: profile.followingCount,
+            followerCount: profile.followerCount,
+            // Keep project stat independent of follow-metrics work.
             projectCount: 15,
           ),
         ],

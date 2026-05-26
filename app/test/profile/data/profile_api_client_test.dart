@@ -83,4 +83,32 @@ void main() {
       dio,
     ).updateMyProfile(clearAvatar: true, clearBanner: true);
   });
+
+  test('POST follow uses Craftsky endpoint and no token fields', () async {
+    final dio = buildDio();
+    DioAdapter(dio: dio).onPost(
+      '/v1/profiles/@bob.craftsky.social/follows',
+      (server) => server.reply(200, sampleProfile()),
+    );
+
+    final profile = await ProfileApiClient(
+      dio,
+    ).followProfile('bob.craftsky.social');
+
+    expect(profile.did.toString(), 'did:plc:alice');
+  });
+
+  test('DELETE unfollow uses Craftsky endpoint and no token fields', () async {
+    final dio = buildDio();
+    DioAdapter(dio: dio).onDelete(
+      '/v1/profiles/@bob.craftsky.social/follows',
+      (server) => server.reply(200, sampleProfile()),
+    );
+
+    final profile = await ProfileApiClient(
+      dio,
+    ).unfollowProfile('bob.craftsky.social');
+
+    expect(profile.did.toString(), 'did:plc:alice');
+  });
 }

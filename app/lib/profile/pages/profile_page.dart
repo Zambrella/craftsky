@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
+import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_meta_section.dart';
@@ -102,6 +103,17 @@ class _ProfileBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    ref.listen(toggleFollowProfileProvider, (previous, next) {
+      switch ((previous, next)) {
+        case (AsyncLoading(), AsyncError()):
+          context.showError(l10n.profileFollowToggleError);
+          ref.read(toggleFollowProfileProvider.notifier).reset();
+        case _:
+          break;
+      }
+    });
+
     return DefaultTabController(
       length: ProfileTab.values.length,
       child: _ProfileScrollView(
@@ -122,11 +134,20 @@ class _ProfileBody extends ConsumerWidget {
       );
     }
 
-    // Visitor follow state isn't wired through yet — placeholder
-    // false and a no-op so the button still demos correctly.
+    final toggleState = ref.watch(toggleFollowProfileProvider);
     return VisitorProfileActionSet(
-      isFollowing: false,
-      onFollowToggle: () => context.showInfo(l10n.profileFollowComingSoon),
+      isFollowing: profile.viewerIsFollowing,
+      isBusy: toggleState.isLoading,
+      onFollowToggle: () {
+        unawaited(
+          ref
+              .read(toggleFollowProfileProvider.notifier)
+              .toggle(
+                cacheKey: profile.handle.toString(),
+                profile: profile,
+              ),
+        );
+      },
       onShare: () => context.showInfo(l10n.profileShareComingSoon),
     );
   }

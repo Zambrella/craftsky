@@ -27,4 +27,10 @@ abstract interface class ProfileRepository {
     UploadedBlob? banner,
     bool clearBanner = false,
   });
+
+  /// Follows the target profile and returns the updated target profile.
+  Future<Profile> follow(String handleOrDid);
+
+  /// Unfollows the target profile and returns the updated target profile.
+  Future<Profile> unfollow(String handleOrDid);
 }

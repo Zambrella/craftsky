@@ -33,4 +33,11 @@ class ApiProfileRepository implements ProfileRepository {
     banner: banner,
     clearBanner: clearBanner,
   );
+
+  @override
+  Future<Profile> follow(String handleOrDid) => _api.followProfile(handleOrDid);
+
+  @override
+  Future<Profile> unfollow(String handleOrDid) =>
+      _api.unfollowProfile(handleOrDid);
 }

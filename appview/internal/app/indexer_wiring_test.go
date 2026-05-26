@@ -35,6 +35,18 @@ CREATE TABLE bluesky_profiles (
     record_cid   TEXT        NOT NULL,
     indexed_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE atproto_follows (
+    uri         TEXT        NOT NULL PRIMARY KEY,
+    did         TEXT        NOT NULL,
+    rkey        TEXT        NOT NULL,
+    cid         TEXT        NOT NULL,
+    subject_did TEXT        NOT NULL,
+    record      JSONB       NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL,
+    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (did, rkey),
+    UNIQUE (did, subject_did)
+);
 CREATE TABLE craftsky_posts (
     uri              TEXT        NOT NULL PRIMARY KEY,
     did              TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
@@ -149,6 +161,37 @@ func TestNewIndexerDispatcherRegistersCraftskyInteractions(t *testing.T) {
 				t.Errorf("%s count = %d, want 1", tc.table, count)
 			}
 		})
+	}
+}
+
+func TestNewIndexerDispatcherRegistersBlueskyFollow(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, indexerWiringDDL)
+	seedIndexerWiringData(t, pool)
+	dispatcher := newIndexerDispatcher(pool, noopPDSClient{}, slog.Default())
+
+	ev := tap.Event{
+		URI:        "at://did:plc:actor/app.bsky.graph.follow/follow1",
+		CID:        "bafyfollow1",
+		DID:        "did:plc:actor",
+		Collection: "app.bsky.graph.follow",
+		Rkey:       "follow1",
+		Action:     "create",
+		Record: json.RawMessage(`{
+			"subject": "did:plc:author",
+			"createdAt": "2026-05-04T12:00:00Z"
+		}`),
+	}
+	if err := dispatcher.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle through dispatcher: %v", err)
+	}
+
+	var count int
+	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM atproto_follows").Scan(&count); err != nil {
+		t.Fatalf("count follows: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("atproto_follows count = %d; want 1", count)
 	}
 }
 

@@ -24,11 +24,13 @@ final class SelfProfileActionSet extends ProfileActionSet {
 final class VisitorProfileActionSet extends ProfileActionSet {
   const VisitorProfileActionSet({
     required this.isFollowing,
+    required this.isBusy,
     required this.onFollowToggle,
     required this.onShare,
   });
 
   final bool isFollowing;
+  final bool isBusy;
   final VoidCallback onFollowToggle;
   final VoidCallback onShare;
 }
@@ -105,7 +107,7 @@ class _VisitorActions extends StatelessWidget {
       children: [
         Expanded(
           child: ChunkyButton(
-            onPressed: actions.onFollowToggle,
+            onPressed: actions.isBusy ? null : actions.onFollowToggle,
             backgroundColor: actions.isFollowing ? swatches.paper3 : null,
             foregroundColor: actions.isFollowing
                 ? theme.colorScheme.onSurface

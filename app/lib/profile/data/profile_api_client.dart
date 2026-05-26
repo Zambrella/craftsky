@@ -70,6 +70,22 @@ class ProfileApiClient {
     return ProfileMapper.fromMap(res.data!);
   });
 
+  /// POST /v1/profiles/@{handleOrDid}/follows — follow a profile.
+  Future<Profile> followProfile(String handleOrDid) => unwrapApi(() async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/v1/profiles/@$handleOrDid/follows',
+    );
+    return ProfileMapper.fromMap(res.data!);
+  });
+
+  /// DELETE /v1/profiles/@{handleOrDid}/follows — unfollow a profile.
+  Future<Profile> unfollowProfile(String handleOrDid) => unwrapApi(() async {
+    final res = await _dio.delete<Map<String, dynamic>>(
+      '/v1/profiles/@$handleOrDid/follows',
+    );
+    return ProfileMapper.fromMap(res.data!);
+  });
+
   Map<String, dynamic> _blobToMap(UploadedBlob blob) => {
     r'$type': blob.type,
     'ref': {r'$link': blob.ref.link},

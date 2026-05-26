@@ -50,7 +50,7 @@ services:
       # appview/internal/app/deps.go (dispatcher.Register calls).
       # Widening this requires a matching indexer on the appview side,
       # otherwise events hit index.NotImplemented{} and Tap retries forever.
-      TAP_COLLECTION_FILTERS: "social.craftsky.actor.profile,social.craftsky.feed.post,social.craftsky.feed.like,social.craftsky.feed.repost,app.bsky.actor.profile"
+      TAP_COLLECTION_FILTERS: "social.craftsky.actor.profile,social.craftsky.feed.post,social.craftsky.feed.like,social.craftsky.feed.repost,app.bsky.actor.profile,app.bsky.graph.follow"
       # Auto-discover any repo with a Craftsky profile record. Once a
       # user onboards (InitializeProfile writes social.craftsky.actor.profile
       # via the OAuth callback) the firehose event triggers Tap to add the

@@ -103,7 +103,7 @@
   "profileFollowAction": "Follow",
   "@profileFollowAction": { "description": "Label on the follow button on a visitor profile when the viewer is not yet following them." },
 
-  "profileFollowingAction": "Following",
+  "profileFollowingAction": "Unfollow",
   "@profileFollowingAction": { "description": "Label on the follow button on a visitor profile when the viewer is already following them." },
 
   "profileTabPosts": "Posts",
@@ -477,6 +477,9 @@
 
   "profileFollowComingSoon": "Follow coming soon.",
   "@profileFollowComingSoon": { "description": "Snackbar shown when tapping Follow while follow wiring isn't implemented yet." },
+
+  "profileFollowToggleError": "Could not update follow state.",
+  "@profileFollowToggleError": { "description": "Snackbar shown when a follow or unfollow request fails and the previous state is restored." },
 
   "profileShareComingSoon": "Share coming soon.",
   "@profileShareComingSoon": { "description": "Snackbar shown when tapping Share while share wiring isn't implemented yet." },

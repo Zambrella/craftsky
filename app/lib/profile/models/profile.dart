@@ -20,6 +20,10 @@ class Profile with ProfileMappable {
     this.avatar,
     this.banner,
     this.createdAt,
+    this.viewerIsFollowing = false,
+    this.isCraftskyProfile = true,
+    this.followerCount,
+    this.followingCount,
   }) : did = Did.parse(did),
        handle = Handle.parse(handle);
 
@@ -31,4 +35,8 @@ class Profile with ProfileMappable {
   final String? banner;
   final List<String> crafts;
   final DateTime? createdAt;
+  final bool viewerIsFollowing;
+  final bool isCraftskyProfile;
+  final int? followerCount;
+  final int? followingCount;
 }
