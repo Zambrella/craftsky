@@ -13,8 +13,8 @@ import (
 )
 
 // BlueskyProfile indexes app.bsky.actor.profile events into the
-// bluesky_profiles table, gated on Craftsky membership (presence in
-// craftsky_profiles). Required invariant: idempotent on (DID, CID).
+// bluesky_profiles table for Craftsky and non-Craftsky accounts.
+// Required invariant: idempotent on (DID, CID).
 type BlueskyProfile struct {
 	pool *pgxpool.Pool
 }

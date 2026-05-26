@@ -137,6 +137,54 @@ func TestBlueskyFollow_UpdateUpsertsByURI(t *testing.T) {
 	}
 }
 
+func TestBlueskyFollow_CollapsesDuplicateFollowerSubjectRows(t *testing.T) {
+	t.Parallel()
+
+	pool := testdb.WithSchema(t, atprotoFollowsDDL)
+	idx := index.NewBlueskyFollow(pool)
+
+	first := tap.Event{
+		URI:        "at://did:plc:alice/app.bsky.graph.follow/follow1",
+		CID:        "bafyfollow1",
+		DID:        "did:plc:alice",
+		Rkey:       "follow1",
+		Collection: "app.bsky.graph.follow",
+		Action:     "create",
+		Record: json.RawMessage(`{
+			"subject": "did:plc:bob",
+			"createdAt": "2026-05-25T12:00:00Z"
+		}`),
+	}
+	second := first
+	second.URI = "at://did:plc:alice/app.bsky.graph.follow/follow2"
+	second.Rkey = "follow2"
+	second.CID = "bafyfollow2"
+
+	if err := idx.Handle(context.Background(), first); err != nil {
+		t.Fatalf("first Handle: %v", err)
+	}
+	if err := idx.Handle(context.Background(), second); err != nil {
+		t.Fatalf("second duplicate pair Handle: %v", err)
+	}
+
+	var count int
+	var uri, rkey, cid string
+	err := pool.QueryRow(context.Background(), `
+		SELECT count(*), max(uri), max(rkey), max(cid)
+		FROM atproto_follows
+		WHERE did = 'did:plc:alice' AND subject_did = 'did:plc:bob'
+	`).Scan(&count, &uri, &rkey, &cid)
+	if err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("count = %d, want 1", count)
+	}
+	if uri != second.URI.String() || rkey != second.Rkey.String() || cid != second.CID.String() {
+		t.Fatalf("active row = (%s,%s,%s), want second event (%s,%s,%s)", uri, rkey, cid, second.URI, second.Rkey, second.CID)
+	}
+}
+
 func TestBlueskyFollow_DeleteRemovesRowAndUnknownDeleteIsNoop(t *testing.T) {
 	t.Parallel()
 

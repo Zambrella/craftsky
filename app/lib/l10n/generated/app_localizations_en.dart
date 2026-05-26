@@ -119,6 +119,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileFollowingAction => 'Unfollow';
 
   @override
+  String get profileNonCraftskyMarker => 'Non Craftsky profile';
+
+  @override
   String get profileTabPosts => 'Posts';
 
   @override

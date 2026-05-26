@@ -478,6 +478,44 @@
 - Notes:
   - Added explicit regression coverage for AC-016 historical delivery semantics.
 
+### Review Follow-Up: Handler Graph Persistence
+
+- Manual review question:
+  - Should `FollowProfileHandler` write the local `atproto_follows` projection directly, or should the Tap round trip handle durable graph convergence?
+- Resolution:
+  - Durable `atproto_follows` convergence belongs to Tap/indexer delivery after the PDS write/delete succeeds.
+  - The handler now avoids direct local graph upsert/delete and only overlays the immediate profile response with the requested `viewerIsFollowing` state and transient Craftsky follower-count adjustment when needed.
+- Tests updated:
+  - `TestFollowProfileHandler_WritesFollowRecordAndReturnsProfile` now asserts no local graph upsert.
+  - `TestUnfollowProfileHandler_DeletesActiveRecordAndReturnsProfile` now asserts no local graph delete.
+- Commands:
+  - `cd appview && TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api -run 'Test(FollowProfileHandler|UnfollowProfileHandler)_'`
+  - `cd appview && TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/routes -run 'TestRoutes_(PostProfileFollowRequiresAuth|PostProfileFollowRequiresDeviceID|DeleteProfileFollowRequiresAuth|DeleteProfileFollowRequiresDeviceID)'`
+  - `cd appview && TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/index -run TestBlueskyFollow_`
+
+### Review Follow-Up: Viewer State, Hydration, and Duplicate Collapse
+
+- Review findings addressed:
+  - `ProfileReader.Read` now accepts `profileDID` and `viewerDID`, and `ProfileStore.Read` calculates `viewerIsFollowing` from `atproto_follows` with self-profile forced false.
+  - Follow/unfollow response overlays now build on real store viewer state, so already-following follow responses do not double-count and active unfollow responses decrement before Tap delete convergence.
+  - `ProfileStore` can hydrate missing non-Craftsky `app.bsky.actor.profile/self` records through the AppView anonymous PDS client, upsert `bluesky_profiles`, and return the non-Craftsky profile without requiring `craftsky_profiles` membership.
+  - `BlueskyFollow` now collapses duplicate active rows for the same `(did, subject_did)` or `(did, rkey)` before upserting, matching the `FollowStore.UpsertActive` invariant and avoiding unique-constraint failures from duplicate follow records.
+  - `04-coding-plan.md` was updated to document Tap/indexer ownership of durable follow graph writes after the handler-persistence review decision.
+  - The stale `BlueskyProfile` membership-gate comment was corrected, and the `Non Craftsky profile` marker was moved into Flutter localization.
+- Tests added/updated:
+  - `ProfileStore` tests for Craftsky viewer state, self-profile false state, non-Craftsky cached viewer state, and non-Craftsky hydration.
+  - Real-store follow handler tests for already-following no-double-count and active-unfollow transient decrement behavior.
+  - `BlueskyFollow` duplicate follower/subject collapse regression test.
+- Commands:
+  - `cd appview && TEST_DATABASE_URL="postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable" go test ./internal/api -run 'Test(ProfileStore|FollowProfileHandler|UnfollowProfileHandler|GetProfile)'`
+  - `cd appview && TEST_DATABASE_URL="postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable" go test ./internal/index -run 'TestBlueskyFollow'`
+  - `cd app && flutter test test/profile/models/profile_test.dart test/profile/data/profile_api_client_test.dart test/profile/providers/toggle_follow_profile_provider_test.dart test/profile/profile_page_test.dart`
+- Broader test notes:
+  - `TestPostStore_EngagementSummaries_ViewerHasRepliedIsDirectChildOnly` was fixed by changing viewer-reply summary calculation: root posts count only direct viewer comments, while comment rows count viewer participation in their comment branch.
+  - `TestCraftskyPost_Create_WithImages_StoresSizeAndAspectRatio` was fixed by replacing the invalid test blob CID with a valid CID fixture now required by stricter blob decoding.
+  - `cd appview && TEST_DATABASE_URL="postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable" go test ./internal/api ./internal/index ./internal/routes ./internal/app` now passes.
+  - `cd app && flutter test test/profile` passes when run with a longer command timeout.
+
 ## Completion Checklist
 
 - [ ] All Must requirements covered by tests or documented gaps

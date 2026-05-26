@@ -11,10 +11,12 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/testdb"
 )
 
 type fakeFollowGraphStore struct {
@@ -82,11 +84,15 @@ func (f *fakeFollowPDS) UploadBlob(context.Context, string, []byte) (*auth.Uploa
 }
 
 type fakeFollowProfileStore struct {
-	row *api.ProfileRow
-	err error
+	row            *api.ProfileRow
+	err            error
+	lastProfileDID string
+	lastViewerDID  string
 }
 
-func (f *fakeFollowProfileStore) Read(_ context.Context, _ string) (*api.ProfileRow, error) {
+func (f *fakeFollowProfileStore) Read(_ context.Context, profileDID string, viewerDID string) (*api.ProfileRow, error) {
+	f.lastProfileDID = profileDID
+	f.lastViewerDID = viewerDID
 	return f.row, f.err
 }
 
@@ -131,8 +137,8 @@ func TestFollowProfileHandler_WritesFollowRecordAndReturnsProfile(t *testing.T) 
 	if subj, _ := pds.createRecord["subject"].(string); subj != "did:plc:bob" {
 		t.Fatalf("CreateRecord subject = %q, want did:plc:bob", subj)
 	}
-	if graph.lastUpsert == nil {
-		t.Fatal("expected follow graph upsert")
+	if graph.lastUpsert != nil {
+		t.Fatal("did not expect local follow graph upsert; Tap round trip should converge state")
 	}
 	if gotFactorySID != "sess-alice" {
 		t.Fatalf("newPDS sid = %q, want sess-alice", gotFactorySID)
@@ -146,6 +152,9 @@ func TestFollowProfileHandler_WritesFollowRecordAndReturnsProfile(t *testing.T) 
 	}
 	if _, ok := body["refreshToken"]; ok {
 		t.Fatal("response leaked refreshToken")
+	}
+	if following, ok := body["viewerIsFollowing"].(bool); !ok || !following {
+		t.Fatalf("viewerIsFollowing = %v (ok=%v), want true", body["viewerIsFollowing"], ok)
 	}
 }
 
@@ -186,8 +195,15 @@ func TestUnfollowProfileHandler_DeletesActiveRecordAndReturnsProfile(t *testing.
 	if pds.deleteRkey != "f1" {
 		t.Fatalf("DeleteRecord rkey = %q, want f1", pds.deleteRkey)
 	}
-	if graph.lastDelete != "at://did:plc:alice/app.bsky.graph.follow/f1" {
-		t.Fatalf("DeleteActiveByURI URI = %q, want at://did:plc:alice/app.bsky.graph.follow/f1", graph.lastDelete)
+	if graph.lastDelete != "" {
+		t.Fatalf("did not expect local follow graph delete; got %q", graph.lastDelete)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if following, ok := body["viewerIsFollowing"].(bool); !ok || following {
+		t.Fatalf("viewerIsFollowing = %v (ok=%v), want false", body["viewerIsFollowing"], ok)
 	}
 }
 
@@ -314,6 +330,114 @@ func TestFollowProfileHandler_AlreadyFollowingIsIdempotent(t *testing.T) {
 	}
 	if pds.createCollection != "" {
 		t.Fatalf("expected no CreateRecord call, got collection=%q", pds.createCollection)
+	}
+}
+
+func TestFollowProfileHandler_AlreadyFollowingResponseDoesNotDoubleCount(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, profileStoreDDL)
+	ctx := context.Background()
+	seedCraftskyProfilesForFollowHandler(t, pool, ctx)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
+		VALUES ('at://did:plc:alice/app.bsky.graph.follow/f1', 'did:plc:alice', 'f1', 'cid-follow', 'did:plc:bob', '{"subject":"did:plc:bob"}', now())
+	`); err != nil {
+		t.Fatalf("seed follow: %v", err)
+	}
+
+	graph := api.NewFollowStore(pool)
+	profiles := api.NewProfileStore(pool)
+	pds := &fakeFollowPDS{}
+	h := api.FollowProfileHandler(
+		graph,
+		profiles,
+		fakeResolver{didFor: "did:plc:bob", handleFor: "bob.craftsky.social"},
+		func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return pds, nil },
+		nilLogger(),
+	)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/profiles/@bob.craftsky.social/follows", nil)
+	req.SetPathValue("handleOrDid", "bob.craftsky.social")
+	req = req.WithContext(middleware.WithOAuthSessionID(middleware.WithDID(req.Context(), "did:plc:alice"), "sess-alice"))
+	rr := httptest.NewRecorder()
+
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.createCollection != "" {
+		t.Fatalf("expected no CreateRecord call, got collection=%q", pds.createCollection)
+	}
+	var body api.ProfileResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !body.ViewerIsFollowing {
+		t.Fatalf("viewerIsFollowing = false, want true")
+	}
+	if body.FollowerCount == nil || *body.FollowerCount != 1 {
+		t.Fatalf("followerCount = %v, want 1", body.FollowerCount)
+	}
+}
+
+func TestUnfollowProfileHandler_ActiveResponseSubtractsBeforeTapDelete(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, profileStoreDDL)
+	ctx := context.Background()
+	seedCraftskyProfilesForFollowHandler(t, pool, ctx)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
+		VALUES ('at://did:plc:alice/app.bsky.graph.follow/f1', 'did:plc:alice', 'f1', 'cid-follow', 'did:plc:bob', '{"subject":"did:plc:bob"}', now())
+	`); err != nil {
+		t.Fatalf("seed follow: %v", err)
+	}
+
+	graph := api.NewFollowStore(pool)
+	profiles := api.NewProfileStore(pool)
+	pds := &fakeFollowPDS{}
+	h := api.UnfollowProfileHandler(
+		graph,
+		profiles,
+		fakeResolver{didFor: "did:plc:bob", handleFor: "bob.craftsky.social"},
+		func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return pds, nil },
+		nilLogger(),
+	)
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/profiles/@bob.craftsky.social/follows", nil)
+	req.SetPathValue("handleOrDid", "bob.craftsky.social")
+	req = req.WithContext(middleware.WithOAuthSessionID(middleware.WithDID(req.Context(), "did:plc:alice"), "sess-alice"))
+	rr := httptest.NewRecorder()
+
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.deleteRkey != "f1" {
+		t.Fatalf("DeleteRecord rkey = %q, want f1", pds.deleteRkey)
+	}
+	var body api.ProfileResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.ViewerIsFollowing {
+		t.Fatalf("viewerIsFollowing = true, want false")
+	}
+	if body.FollowerCount == nil || *body.FollowerCount != 0 {
+		t.Fatalf("followerCount = %v, want 0", body.FollowerCount)
+	}
+}
+
+func seedCraftskyProfilesForFollowHandler(t *testing.T, pool *pgxpool.Pool, ctx context.Context) {
+	t.Helper()
+	for _, did := range []string{"did:plc:alice", "did:plc:bob"} {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES ($1, '{}', 'cid')`,
+			did,
+		); err != nil {
+			t.Fatalf("seed craftsky profile %s: %v", did, err)
+		}
 	}
 }
 

@@ -455,7 +455,7 @@ func TestCraftskyPost_Create_WithImages_StoresSizeAndAspectRatio(t *testing.T) {
 			"createdAt": "` + fixedCreatedAt + `",
 			"images": [
 				{
-					"image": {"$type":"blob","ref":{"$link":"bafkimgmeta"},"mimeType":"image/jpeg","size":253496},
+					"image": {"$type":"blob","ref":{"$link":"bafkreigxxxkul4e5rjz4fomqgn6ieeoxbcqeztmxjbrhnbpe7r44ya4ahe"},"mimeType":"image/jpeg","size":253496},
 					"alt": "project photo",
 					"aspectRatio": {"width":919,"height":2000}
 				}
@@ -479,7 +479,7 @@ func TestCraftskyPost_Create_WithImages_StoresSizeAndAspectRatio(t *testing.T) {
 	if len(images) != 1 {
 		t.Fatalf("len(images) = %d, want 1", len(images))
 	}
-	if images[0]["cid"] != "bafkimgmeta" || images[0]["mime"] != "image/jpeg" || images[0]["alt"] != "project photo" {
+	if images[0]["cid"] != "bafkreigxxxkul4e5rjz4fomqgn6ieeoxbcqeztmxjbrhnbpe7r44ya4ahe" || images[0]["mime"] != "image/jpeg" || images[0]["alt"] != "project photo" {
 		t.Fatalf("images[0] core fields = %v", images[0])
 	}
 	if images[0]["size"] != float64(253496) {

@@ -298,6 +298,12 @@ abstract class AppLocalizations {
   /// **'Unfollow'**
   String get profileFollowingAction;
 
+  /// Marker shown on a profile page for an atproto account that does not have a Craftsky profile record.
+  ///
+  /// In en, this message translates to:
+  /// **'Non Craftsky profile'**
+  String get profileNonCraftskyMarker;
+
   /// Tab label for the Posts tab on the profile screen.
   ///
   /// In en, this message translates to:

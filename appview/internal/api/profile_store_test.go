@@ -3,11 +3,48 @@ package api_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/testdb"
 )
+
+type fakeProfileHydrator struct {
+	record map[string]any
+	cid    string
+	err    error
+}
+
+func (f fakeProfileHydrator) GetRecord(_ context.Context, _ syntax.DID, _ string, _ string, out any) (string, error) {
+	if f.err != nil {
+		return "", f.err
+	}
+	*(out.(*map[string]any)) = f.record
+	if f.cid == "" {
+		return "cid-hydrated", nil
+	}
+	return f.cid, nil
+}
+
+func (f fakeProfileHydrator) PutRecord(context.Context, syntax.DID, string, string, any) error {
+	return errors.New("not implemented")
+}
+
+func (f fakeProfileHydrator) CreateRecord(context.Context, syntax.DID, string, any) (syntax.ATURI, syntax.CID, error) {
+	return "", "", errors.New("not implemented")
+}
+
+func (f fakeProfileHydrator) DeleteRecord(context.Context, syntax.DID, string, string) error {
+	return errors.New("not implemented")
+}
+
+func (f fakeProfileHydrator) UploadBlob(context.Context, string, []byte) (*auth.UploadedBlob, error) {
+	return nil, errors.New("not implemented")
+}
 
 const profileStoreDDL = `
 CREATE TABLE craftsky_profiles (
@@ -62,7 +99,7 @@ func TestProfileStore_ReadByDID_MemberWithBothRows(t *testing.T) {
 	}
 
 	store := api.NewProfileStore(pool)
-	got, err := store.Read(ctx, "did:plc:a")
+	got, err := store.Read(ctx, "did:plc:a", "did:plc:viewer")
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
@@ -87,7 +124,7 @@ func TestProfileStore_ReadByDID_NonMember(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, profileStoreDDL)
 	store := api.NewProfileStore(pool)
-	_, err := store.Read(context.Background(), "did:plc:nobody")
+	_, err := store.Read(context.Background(), "did:plc:nobody", "did:plc:viewer")
 	if err == nil {
 		t.Fatal("want error; got nil")
 	}
@@ -105,7 +142,7 @@ func TestProfileStore_ReadByDID_MemberWithoutBlueskyRow(t *testing.T) {
 		"did:plc:b", []string{}, "cid1")
 
 	store := api.NewProfileStore(pool)
-	got, err := store.Read(ctx, "did:plc:b")
+	got, err := store.Read(ctx, "did:plc:b", "did:plc:viewer")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,11 +184,11 @@ func TestProfileStore_ReadByDID_CraftskyOnlyCounts(t *testing.T) {
 	}
 
 	store := api.NewProfileStore(pool)
-	bob, err := store.Read(ctx, "did:plc:bob")
+	bob, err := store.Read(ctx, "did:plc:bob", "did:plc:alice")
 	if err != nil {
 		t.Fatalf("Read bob: %v", err)
 	}
-	alice, err := store.Read(ctx, "did:plc:alice")
+	alice, err := store.Read(ctx, "did:plc:alice", "did:plc:alice")
 	if err != nil {
 		t.Fatalf("Read alice: %v", err)
 	}
@@ -159,8 +196,14 @@ func TestProfileStore_ReadByDID_CraftskyOnlyCounts(t *testing.T) {
 	if bob.FollowerCount == nil || *bob.FollowerCount != 1 {
 		t.Fatalf("bob followerCount = %v, want 1", bob.FollowerCount)
 	}
+	if !bob.ViewerIsFollowing {
+		t.Fatalf("bob viewerIsFollowing = false, want true for alice viewer")
+	}
 	if alice.FollowingCount == nil || *alice.FollowingCount != 1 {
 		t.Fatalf("alice followingCount = %v, want 1", alice.FollowingCount)
+	}
+	if alice.ViewerIsFollowing {
+		t.Fatalf("alice viewerIsFollowing = true, want false for self profile")
 	}
 }
 
@@ -177,7 +220,7 @@ func TestProfileStore_ReadByDID_NonCraftskyFromBlueskyCache(t *testing.T) {
 	}
 
 	store := api.NewProfileStore(pool)
-	got, err := store.Read(ctx, "did:plc:carol")
+	got, err := store.Read(ctx, "did:plc:carol", "did:plc:alice")
 	if err != nil {
 		t.Fatalf("Read non-craftsky: %v", err)
 	}
@@ -193,5 +236,65 @@ func TestProfileStore_ReadByDID_NonCraftskyFromBlueskyCache(t *testing.T) {
 	}
 	if got.Crafts == nil || len(got.Crafts) != 0 {
 		t.Fatalf("crafts = %v, want empty []", got.Crafts)
+	}
+}
+
+func TestProfileStore_ReadByDID_NonCraftskyViewerStateFromGraph(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, profileStoreDDL)
+	ctx := context.Background()
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO bluesky_profiles (did, display_name, record_cid)
+		VALUES ($1, $2, $3)
+	`, "did:plc:carol", "Carol", "cid-bsky"); err != nil {
+		t.Fatalf("seed bluesky profile: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, now())
+	`, "at://did:plc:alice/app.bsky.graph.follow/f1", "did:plc:alice", "f1", "cid-follow", "did:plc:carol", `{"subject":"did:plc:carol"}`); err != nil {
+		t.Fatalf("seed follow: %v", err)
+	}
+
+	store := api.NewProfileStore(pool)
+	got, err := store.Read(ctx, "did:plc:carol", "did:plc:alice")
+	if err != nil {
+		t.Fatalf("Read non-craftsky: %v", err)
+	}
+	if !got.ViewerIsFollowing {
+		t.Fatalf("viewerIsFollowing = false, want true")
+	}
+}
+
+func TestProfileStore_ReadByDID_HydratesNonCraftskyWhenCacheMisses(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, profileStoreDDL)
+	ctx := context.Background()
+
+	store := api.NewProfileStore(pool, fakeProfileHydrator{
+		cid: "cid-carol",
+		record: map[string]any{
+			"displayName": "Carol",
+			"description": "external account",
+			"avatar": map[string]any{
+				"ref":      map[string]any{"$link": "baf-avatar"},
+				"mimeType": "image/jpeg",
+			},
+		},
+	})
+	got, err := store.Read(ctx, "did:plc:carol", "did:plc:alice")
+	if err != nil {
+		t.Fatalf("Read hydrated non-craftsky: %v", err)
+	}
+
+	if got.IsCraftskyProfile {
+		t.Fatalf("isCraftskyProfile = true, want false")
+	}
+	if got.DisplayName == nil || *got.DisplayName != "Carol" {
+		t.Fatalf("displayName = %v, want Carol", got.DisplayName)
+	}
+	if got.AvatarCID == nil || *got.AvatarCID != "baf-avatar" {
+		t.Fatalf("avatarCID = %v, want baf-avatar", got.AvatarCID)
 	}
 }

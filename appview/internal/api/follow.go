@@ -22,8 +22,6 @@ const blueskyFollowCollection = "app.bsky.graph.follow"
 // FollowGraphStore is the follow-graph read/write subset handlers need.
 type FollowGraphStore interface {
 	FindActiveFollow(ctx context.Context, did string, subjectDID string) (*FollowRow, error)
-	UpsertActive(ctx context.Context, row FollowRow, record json.RawMessage) error
-	DeleteActiveByURI(ctx context.Context, uri string) error
 }
 
 // FollowProfileHandler serves POST /v1/profiles/@{handleOrDid}/follows.
@@ -81,29 +79,15 @@ func FollowProfileHandler(
 					"pds_unavailable", "could not contact PDS", runID, nil)
 				return
 			}
-			uri, cid, err := pds.CreateRecord(r.Context(), caller, blueskyFollowCollection, record)
+			_, _, err = pds.CreateRecord(r.Context(), caller, blueskyFollowCollection, record)
 			if err != nil {
 				envelope.WriteError(w, http.StatusBadGateway,
 					"pds_write_failed", "could not write follow", runID, nil)
 				return
 			}
-			recJSON, _ := json.Marshal(record)
-			if err := graph.UpsertActive(r.Context(), FollowRow{
-				URI:        uri.String(),
-				DID:        caller.String(),
-				Rkey:       uri.RecordKey().String(),
-				CID:        string(cid),
-				SubjectDID: target.String(),
-				CreatedAt:  time.Now().UTC(),
-			}, recJSON); err != nil {
-				logger.Error("follow: upsert failed", slog.String("err", err.Error()))
-				envelope.WriteError(w, http.StatusInternalServerError,
-					"internal_error", "follow graph update failed", runID, nil)
-				return
-			}
 		}
 
-		writeFollowProfileResponse(w, r, profiles, resolver, target)
+		writeFollowProfileResponse(w, r, profiles, resolver, target, followingOverride(true))
 	})
 }
 
@@ -164,15 +148,9 @@ func UnfollowProfileHandler(
 					return
 				}
 			}
-			if err := graph.DeleteActiveByURI(r.Context(), active.URI); err != nil {
-				logger.Error("unfollow: delete active failed", slog.String("err", err.Error()))
-				envelope.WriteError(w, http.StatusInternalServerError,
-					"internal_error", "follow graph update failed", runID, nil)
-				return
-			}
 		}
 
-		writeFollowProfileResponse(w, r, profiles, resolver, target)
+		writeFollowProfileResponse(w, r, profiles, resolver, target, followingOverride(false))
 	})
 }
 
@@ -182,18 +160,31 @@ func writeFollowProfileResponse(
 	profiles ProfileReader,
 	resolver HandleResolver,
 	did syntax.DID,
+	overrides ...func(*ProfileRow),
 ) {
 	runID := middleware.GetRunID(r.Context())
-	row, err := profiles.Read(r.Context(), did.String())
+	viewerDID := ""
+	if viewer, ok := middleware.GetDID(r.Context()); ok {
+		viewerDID = viewer.String()
+	}
+	row, err := profiles.Read(r.Context(), did.String(), viewerDID)
 	if err != nil {
 		if errors.Is(err, ErrProfileNotFound) {
 			envelope.WriteError(w, http.StatusNotFound,
 				"profile_not_found", "profile not found", runID, nil)
 			return
 		}
+		if errors.Is(err, ErrProfileCountsUnavailable) {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"profile_counts_unavailable", "required profile counts unavailable", runID, nil)
+			return
+		}
 		envelope.WriteError(w, http.StatusInternalServerError,
 			"internal_error", "profile read failed", runID, nil)
 		return
+	}
+	for _, apply := range overrides {
+		apply(row)
 	}
 	handle, err := resolver.ResolveHandle(r.Context(), did)
 	if err != nil {
@@ -205,6 +196,27 @@ func writeFollowProfileResponse(
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func followingOverride(value bool) func(*ProfileRow) {
+	return func(row *ProfileRow) {
+		previous := row.ViewerIsFollowing
+		row.ViewerIsFollowing = value
+		if row.IsCraftskyProfile && previous != value {
+			if row.FollowerCount != nil {
+				if value {
+					next := *row.FollowerCount + 1
+					row.FollowerCount = &next
+				} else {
+					next := *row.FollowerCount
+					if next > 0 {
+						next--
+					}
+					row.FollowerCount = &next
+				}
+			}
+		}
+	}
 }
 
 func resolveFollowTargetDID(ctx context.Context, raw string, resolver HandleResolver) (syntax.DID, error) {

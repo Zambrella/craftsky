@@ -1,3 +1,4 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/widgets/profile_bio.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
@@ -19,6 +20,7 @@ class ProfileMetaSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final spacing = Theme.of(context).extension<SpacingTheme>()!;
     final hasBio = profile.description?.isNotEmpty ?? false;
     final hasCrafts = profile.crafts.isNotEmpty;
@@ -35,7 +37,7 @@ class ProfileMetaSection extends StatelessWidget {
         children: [
           if (!profile.isCraftskyProfile) ...[
             Text(
-              'Non Craftsky profile',
+              l10n.profileNonCraftskyMarker,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),

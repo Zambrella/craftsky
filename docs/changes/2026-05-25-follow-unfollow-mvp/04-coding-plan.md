@@ -168,7 +168,7 @@ Count-query failures for Craftsky profiles should return an error the handler ma
 
 ### AppView Follow Handlers
 
-Create `api.FollowStore` methods for handler-side active graph operations:
+Create `api.FollowStore` methods for active graph reads and Tap/indexer-owned writes:
 
 ```text
 type FollowRow struct {
@@ -180,11 +180,13 @@ type FollowRow struct {
   CreatedAt time.Time
 }
 
-FindActiveFollow(ctx, followerDID, subjectDID string) (*FollowRow, error)
-UpsertActiveFollow(ctx, row FollowRow, record json.RawMessage) error
-DeleteActiveFollowByURI(ctx, uri string) error
+FindActiveFollow(ctx, followerDID, subjectDID string) (*FollowRow, error) // handler read path
+UpsertActiveFollow(ctx, row FollowRow, record json.RawMessage) error      // Tap/indexer path
+DeleteActiveFollowByURI(ctx, uri string) error                            // Tap/indexer path
 ListActiveFollowedDIDs(ctx, followerDID string) ([]string, error)
 ```
+
+Review update: handlers must not durably write/delete `atproto_follows` after PDS success. The Tap firehose round trip is the source of truth for graph convergence. Handlers may overlay `viewerIsFollowing` and a transient Craftsky follower-count adjustment in the returned profile response so the Flutter UI updates immediately.
 
 POST data flow:
 
@@ -195,8 +197,9 @@ if local active row exists: return updated target ProfileResponse
 build app.bsky.graph.follow record with subject target DID and createdAt UTC
 new PDS client from authenticated DID + OAuth session ID
 CreateRecord(repo=viewerDID, collection=app.bsky.graph.follow, record)
-upsert returned uri/cid into atproto_follows before responding
+do not upsert atproto_follows here; wait for Tap/indexer convergence
 read target profile with viewer DID
+overlay viewerIsFollowing=true and increment Craftsky followerCount only if previous viewer state was false
 return 200 ProfileResponse
 ```
 
@@ -210,8 +213,9 @@ if none: return updated target ProfileResponse
 new PDS client
 DeleteRecord(repo=viewerDID, collection=app.bsky.graph.follow, rkey=active.rkey)
 if ErrRecordNotFound: treat as success
-delete local active row by uri
+do not delete atproto_follows here; wait for Tap/indexer convergence
 read target profile with viewer DID
+overlay viewerIsFollowing=false and decrement Craftsky followerCount only if previous viewer state was true
 return 200 ProfileResponse
 ```
 

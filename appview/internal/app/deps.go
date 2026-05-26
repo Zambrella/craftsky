@@ -147,7 +147,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		}
 	}
 
-	deps.ProfileStore = api.NewProfileStore(pool)
+	deps.ProfileStore = api.NewProfileStore(pool, anonPDS)
 	deps.FollowStore = api.NewFollowStore(pool)
 	deps.NewPDSClient = func(ctx context.Context, did syntax.DID, sid string) (auth.PDSClient, error) {
 		sess, err := oauthApp.ResumeSession(ctx, did, sid)

@@ -612,11 +612,27 @@ func (s *PostStore) ViewerReplyStates(ctx context.Context, viewerDID string, pos
 		return out, nil
 	}
 	const q = `
-		SELECT reply_parent_uri, true
-		FROM craftsky_posts
-		WHERE did = $1
-		  AND reply_parent_uri = ANY($2::text[])
-		GROUP BY reply_parent_uri
+		WITH RECURSIVE subjects(uri, reply_parent_uri) AS (
+			SELECT uri, reply_parent_uri
+			FROM craftsky_posts
+			WHERE uri = ANY($2::text[])
+		), descendants(subject_uri, uri, depth) AS (
+			SELECT subjects.uri, child.uri, 1
+			FROM subjects
+			JOIN craftsky_posts child ON child.reply_parent_uri = subjects.uri
+			UNION ALL
+			SELECT descendants.subject_uri, child.uri, descendants.depth + 1
+			FROM descendants
+			JOIN craftsky_posts child ON child.reply_parent_uri = descendants.uri
+			WHERE descendants.depth < 64
+		)
+		SELECT descendants.subject_uri, true
+		FROM descendants
+		JOIN subjects ON subjects.uri = descendants.subject_uri
+		JOIN craftsky_posts viewer_reply ON viewer_reply.uri = descendants.uri
+		WHERE viewer_reply.did = $1
+		  AND (subjects.reply_parent_uri IS NOT NULL OR descendants.depth = 1)
+		GROUP BY descendants.subject_uri
 	`
 	rows, err := s.pool.Query(ctx, q, viewerDID, postURIs)
 	if err != nil {

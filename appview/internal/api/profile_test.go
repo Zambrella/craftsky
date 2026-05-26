@@ -23,11 +23,15 @@ import (
 
 // fakeStore implements the subset of ProfileStore that handlers call.
 type fakeStore struct {
-	row *api.ProfileRow
-	err error
+	row            *api.ProfileRow
+	err            error
+	lastProfileDID string
+	lastViewerDID  string
 }
 
-func (f *fakeStore) Read(_ context.Context, _ string) (*api.ProfileRow, error) {
+func (f *fakeStore) Read(_ context.Context, profileDID string, viewerDID string) (*api.ProfileRow, error) {
+	f.lastProfileDID = profileDID
+	f.lastViewerDID = viewerDID
 	return f.row, f.err
 }
 

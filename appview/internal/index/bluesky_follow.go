@@ -51,23 +51,7 @@ func (b *BlueskyFollow) Handle(ctx context.Context, ev tap.Event) error {
 			return fmt.Errorf("parse createdAt %q on %s: %w", rec.CreatedAt, ev.URI, err)
 		}
 
-		const q = `
-			INSERT INTO atproto_follows
-				(uri, did, rkey, cid, subject_did, record, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
-			ON CONFLICT (uri) DO UPDATE SET
-				did = EXCLUDED.did,
-				rkey = EXCLUDED.rkey,
-				cid = EXCLUDED.cid,
-				subject_did = EXCLUDED.subject_did,
-				record = EXCLUDED.record,
-				created_at = EXCLUDED.created_at,
-				indexed_at = now()
-		`
-		if _, err := b.pool.Exec(ctx, q,
-			ev.URI, ev.DID, ev.Rkey, ev.CID,
-			rec.Subject, ev.Record, createdAt,
-		); err != nil {
+		if err := b.upsertActive(ctx, ev, rec.Subject, createdAt); err != nil {
 			return fmt.Errorf("upsert %s: %w", ev.URI, err)
 		}
 		return nil
@@ -80,4 +64,47 @@ func (b *BlueskyFollow) Handle(ctx context.Context, ev tap.Event) error {
 	default:
 		return fmt.Errorf("unknown action %q on %s", ev.Action, ev.URI)
 	}
+}
+
+func (b *BlueskyFollow) upsertActive(ctx context.Context, ev tap.Event, subject syntax.DID, createdAt time.Time) error {
+	tx, err := b.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM atproto_follows
+		WHERE did = $1 AND subject_did = $2 AND uri <> $3
+	`, ev.DID, subject, ev.URI); err != nil {
+		return fmt.Errorf("collapse duplicate pair: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM atproto_follows
+		WHERE did = $1 AND rkey = $2 AND uri <> $3
+	`, ev.DID, ev.Rkey, ev.URI); err != nil {
+		return fmt.Errorf("collapse duplicate rkey: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO atproto_follows
+			(uri, did, rkey, cid, subject_did, record, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		ON CONFLICT (uri) DO UPDATE SET
+			did = EXCLUDED.did,
+			rkey = EXCLUDED.rkey,
+			cid = EXCLUDED.cid,
+			subject_did = EXCLUDED.subject_did,
+			record = EXCLUDED.record,
+			created_at = EXCLUDED.created_at,
+			indexed_at = now()
+	`, ev.URI, ev.DID, ev.Rkey, ev.CID, subject, ev.Record, createdAt); err != nil {
+		return fmt.Errorf("insert: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
 }

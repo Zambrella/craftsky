@@ -20,7 +20,7 @@ import (
 // concrete production implementation is *ProfileStore. Tests inject a
 // fake.
 type ProfileReader interface {
-	Read(ctx context.Context, did string) (*ProfileRow, error)
+	Read(ctx context.Context, profileDID string, viewerDID string) (*ProfileRow, error)
 }
 
 // GetProfileHandler serves GET /v1/profiles/@{handleOrDid}.
@@ -88,7 +88,11 @@ func writeProfileResponse(
 	logger *slog.Logger,
 ) {
 	runID := middleware.GetRunID(r.Context())
-	row, err := store.Read(r.Context(), did.String())
+	viewerDID := ""
+	if viewer, ok := middleware.GetDID(r.Context()); ok {
+		viewerDID = viewer.String()
+	}
+	row, err := store.Read(r.Context(), did.String(), viewerDID)
 	if err != nil {
 		if errors.Is(err, ErrProfileNotFound) {
 			envelope.WriteError(w, http.StatusNotFound,
