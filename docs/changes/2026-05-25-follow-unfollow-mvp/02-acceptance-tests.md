@@ -8,7 +8,7 @@ Primary automation targets:
 
 - **AppView unit tests** for validation, response building, follow record decode/upsert/delete, and count/viewer-state logic.
 - **AppView integration tests** against the existing Postgres test harness for migrations, active graph persistence, counts, profile hydration, API handlers, routes, and dispatcher wiring.
-- **Flutter unit/widget tests** for model decoding, API client paths, repository/provider state transitions, Follow/Unfollow rendering, loading state, error recovery, non-Craftsky marker, and unknown non-Craftsky counts.
+- **Flutter unit/widget tests** for model decoding, API client paths, repository/provider state transitions, Follow/Unfollow rendering, loading state, error recovery, non-Craftsky marker, and unknown counts on non-Craftsky profiles.
 - **Manual checks** only for live Tap/PDS interoperability and end-to-end behavior that is impractical to prove in isolated tests.
 
 Tap historical delivery note: existing project docs and `docker-compose.yml` state that Tap can add repos and backfill existing records when a repo is tracked; the user confirmed during document review follow-up that Tap will deliver historical data. This test plan still includes an explicit live Tap/manual smoke check because isolated tests can prove indexer behavior for synthetic historical events (`Live=false`) but cannot prove the deployed Tap sidecar's end-to-end runtime wiring without running the stack.
@@ -42,7 +42,7 @@ Tap historical delivery note: existing project docs and `docker-compose.yml` sta
 | RULE-002 | AC-013 | AT-007, IT-004, IT-005, UT-002 | Acceptance / Integration / Unit | Yes |
 | RULE-003 | AC-001, AC-006 | IT-001, IT-004, UT-004, UT-010 | Integration / Unit | Yes |
 | RULE-004 | AC-002, AC-009, AC-013 | IT-005, UT-002, UT-011 | Integration / Unit | Yes |
-| RULE-005 | AC-003, AC-004, AC-005, AC-007, AC-025 | AT-004, AT-008, IT-001, IT-002, IT-003, UT-007, UT-008 | Acceptance / Integration / Unit | Yes |
+| RULE-005 | AC-003, AC-004, AC-007, AC-025 | AT-004, AT-008, IT-002, IT-003, UT-008 | Acceptance / Integration / Unit | Yes |
 | RULE-006 | AC-018 | AT-007, IT-006, UT-008 | Acceptance / Integration / Unit | Yes |
 | RULE-007 | AC-007, AC-019 | IT-001, UT-006 | Integration / Unit | Yes |
 | RULE-008 | AC-023 | AT-005, UT-013, UT-016 | Acceptance / Unit | Yes |
@@ -122,7 +122,7 @@ Feature: Non-Craftsky profiles
     And the AppView returns Carol's updated profile response
 ```
 
-### AT-004: Craftsky profile counts and relationship state come from indexed graph
+### AT-004: Craftsky profile counts include only Craftsky accounts
 
 Requirement IDs: BR-002, FR-001, FR-006, RULE-005  
 Acceptance Criteria: AC-003, AC-004, AC-011  
@@ -132,14 +132,18 @@ Automation Target: `appview/internal/api/profile_store_test.go`, `appview/intern
 
 ```gherkin
 Feature: Craftsky profile stats
-  Scenario: Profile stats show active indexed atproto follows
+  Scenario: Profile stats show active Craftsky-account follows
     Given Bob is a Craftsky profile
     And Alice and Dana actively follow Bob in the indexed graph
-    And Bob actively follows Carol in the indexed graph
+    And Alice is a Craftsky profile
+    And Dana is a non-Craftsky account
+    And Bob actively follows Carol and Erin in the indexed graph
+    And Carol is a Craftsky profile
+    And Erin is a non-Craftsky account
     When an authenticated viewer opens Bob's profile
-    Then Bob's followerCount is 2
+    Then Bob's followerCount is 1
     And Bob's followingCount is 1
-    And Flutter renders those values rather than placeholder stats
+    And Flutter renders those Craftsky-account values rather than placeholder or global atproto stats
 ```
 
 ### AT-005: Non-Craftsky profile counts are unknown rather than fake
@@ -219,7 +223,8 @@ Feature: Follow graph indexing
     And Tap delivers the record to the AppView follow indexer
     When the AppView handles the event
     Then the active relationship is stored in the follow graph
-    And applicable Craftsky profile counts and viewerIsFollowing state use that active relationship
+    And viewerIsFollowing state uses that active relationship
+    And Craftsky profile counts use that relationship only if both accounts have Craftsky profiles
     When Tap later delivers a delete event for the same follow URI
     Then the active relationship is removed from graph state
 ```
@@ -234,8 +239,8 @@ Feature: Follow graph indexing
 | UT-004 | FR-001, FR-002, NFR-002, RULE-003 | AC-006 | Follow indexer create is idempotent. | Same `app.bsky.graph.follow` create event delivered twice with same URI/CID. | One active row; count/viewer state contributes once. | `appview/internal/index/follow_test.go` |
 | UT-005 | FR-002, NFR-002 | AC-006 | Follow indexer update upserts by URI. | Update event for existing URI with new CID and same/different subject. | Stored row reflects latest CID/subject; no duplicate active URI row. | `appview/internal/index/follow_test.go` |
 | UT-006 | FR-001, FR-002, RULE-007 | AC-007, AC-019 | Follow indexer delete removes by URI/rkey and tolerates unknown deletes. | Delete event for existing URI; delete event for unknown URI. | Existing active row is hard-deleted; unknown delete is no-op; no deleted-history row is retained. | `appview/internal/index/follow_test.go` |
-| UT-007 | FR-001, BR-003, RULE-005 | AC-005 | Store exposes active followed target DIDs for timeline. | Follower DID with active follows, deleted follows, duplicate event attempts. | Returns only active target DIDs once, without PDS calls. | `appview/internal/api/follow_store_test.go` or `appview/internal/api/profile_store_test.go` |
-| UT-008 | FR-006, RULE-005, RULE-006 | AC-003, AC-004, AC-018 | Build/read Craftsky profile response with counts and viewer state. | Craftsky profile row, active follows, viewer DID equal/not equal profile DID. | `followerCount`, `followingCount`, `viewerIsFollowing`, and `isCraftskyProfile=true` are correct; self profile has `viewerIsFollowing=false`. | `appview/internal/api/profile_response_test.go`, `appview/internal/api/profile_store_test.go` |
+| UT-007 | FR-001, BR-003 | AC-005 | Store exposes active followed target DIDs for timeline. | Follower DID with active follows, deleted follows, duplicate event attempts. | Returns only active target DIDs once, without PDS calls. | `appview/internal/api/follow_store_test.go` or `appview/internal/api/profile_store_test.go` |
+| UT-008 | FR-006, RULE-005, RULE-006 | AC-003, AC-004, AC-018 | Build/read Craftsky profile response with Craftsky-account counts and viewer state. | Craftsky profile row, active follows where both accounts are Craftsky, active follows involving non-Craftsky accounts, viewer DID equal/not equal profile DID. | `followerCount` and `followingCount` count only Craftsky-account relationships; `viewerIsFollowing` and `isCraftskyProfile=true` are correct; self profile has `viewerIsFollowing=false`. | `appview/internal/api/profile_response_test.go`, `appview/internal/api/profile_store_test.go` |
 | UT-009 | RULE-009 | AC-026 | Profile count calculation failure is surfaced. | Fake store/count dependency returns error while reading Craftsky profile. | Handler returns documented error; no fake zero/placeholder counts. | `appview/internal/api/profile_test.go` |
 | UT-010 | FR-003, FR-005, RULE-003 | AC-001 | Follow handler writes correct PDS record shape. | Auth DID, target DID, fake PDS create response URI/CID. | Calls `CreateRecord` on auth DID repo, collection `app.bsky.graph.follow`, subject target DID, returns 200 profile response. | `appview/internal/api/follow_test.go` |
 | UT-011 | FR-004, FR-005, RULE-004 | AC-002, AC-009 | Unfollow handler deletes active PDS record or no-ops idempotently. | Active graph row with URI/rkey; no-active-row case. | Calls `DeleteRecord` with auth DID repo and active rkey when present; no-active case returns 200 without PDS delete. | `appview/internal/api/follow_test.go` |
@@ -243,7 +248,7 @@ Feature: Follow graph indexing
 | UT-013 | FR-012, RULE-008 | AC-021, AC-023 | Non-Craftsky profile hydration does not require membership. | Fake anonymous/PDS profile record for non-member; missing profile; cache hit. | Hydratable account returns profile; unavailable profile returns documented error; counts remain unknown without fake values. | `appview/internal/index/bluesky_profile_test.go`, new hydration tests |
 | UT-014 | FR-007, NFR-003 | AC-014 | Flutter API client uses Craftsky API only. | Follow/unfollow calls with `DioAdapter`. | POST/DELETE `/v1/profiles/@handle/follows`; no PDS URL/token fields exposed in request/response model. | `app/test/profile/data/profile_api_client_test.dart` |
 | UT-015 | FR-007 | AC-011, AC-021 | Flutter `Profile` model decodes new fields. | Craftsky JSON with counts; non-Craftsky JSON with null/missing counts. | Model exposes `viewerIsFollowing`, `isCraftskyProfile`, nullable counts, and existing fields. | `app/test/profile/models/profile_test.dart` |
-| UT-016 | FR-007, FR-008, RULE-008 | AC-010, AC-011, AC-021, AC-023 | Flutter widgets render Follow/Unfollow, counts, and non-Craftsky marker from model. | Profile models with following true/false, Craftsky/non-Craftsky, counts/null counts. | Correct labels, stats, and `Non Craftsky profile`; no fake count for null non-Craftsky counts. | `app/test/profile/profile_page_test.dart`, profile widget tests |
+| UT-016 | FR-007, FR-008, RULE-008 | AC-010, AC-011, AC-021, AC-023 | Flutter widgets render Follow/Unfollow, counts, and non-Craftsky marker from model. | Profile models with following true/false, Craftsky/non-Craftsky, counts/null counts. | Correct labels, stats, and `Non Craftsky profile`; no fake count for null counts on non-Craftsky profiles. | `app/test/profile/profile_page_test.dart`, profile widget tests |
 | UT-017 | FR-008 | AC-024 | Flutter disables/loading button during in-flight mutation. | Fake repository with delayed follow/unfollow Future. | Button cannot be tapped twice and shows existing loading/disabled affordance. | `app/test/profile/profile_page_test.dart` or provider test |
 | UT-018 | FR-008, FR-009 | AC-015 | Flutter restores last confirmed state on follow/unfollow failure. | Fake repository throws; initial following false/true. | Error message recorded; button/counts return to prior state. | `app/test/profile/profile_page_test.dart`, provider test |
 
@@ -252,8 +257,8 @@ Feature: Follow graph indexing
 | ID | Requirement IDs | Acceptance Criteria | Description | Setup | Action | Expected Result | Automation Target |
 |---|---|---|---|---|---|---|---|
 | IT-001 | FR-001, RULE-003, RULE-007 | AC-005, AC-006, AC-007, AC-019 | Follow graph migration/store enforces active graph semantics. | Real Postgres test DB with follow table migration. | Insert/upsert active follows, repeat same event, delete by URI. | Unique active relationship for counts; deleted row removed; active followed DID query works. | `appview/internal/api/follow_store_test.go` or migration/store tests |
-| IT-002 | FR-001, FR-002, RULE-005 | AC-003, AC-004, AC-007 | Counts reflect active indexed app-agnostic follows. | Craftsky profile rows for Alice/Bob; follow rows from Craftsky and external clients; deleted row. | Fetch profile counts through store. | Counts include active indexed follows regardless of client/app and exclude deleted/inactive rows. | `appview/internal/api/profile_store_test.go` |
-| IT-003 | BR-004, FR-002, RULE-005 | AC-017, AC-025 | External follow create/delete events update graph. | Real DB; follow indexer; synthetic Tap events with `Collection=app.bsky.graph.follow`. | Handle create from external client, then delete. | Graph state and profile counts converge on create/delete. | `appview/internal/index/follow_test.go` |
+| IT-002 | FR-001, FR-002, RULE-005 | AC-003, AC-004, AC-007 | Counts reflect active Craftsky-account follows only. | Craftsky profile rows for Alice/Bob/Carol; no Craftsky row for Dana/Erin; follow rows from Craftsky and external clients; deleted row. | Fetch profile counts through store. | Counts include active follows where both accounts are Craftsky and exclude deleted/inactive rows plus follows involving non-Craftsky accounts. | `appview/internal/api/profile_store_test.go` |
+| IT-003 | BR-004, FR-002, RULE-005 | AC-017, AC-025 | External follow create/delete events update graph and count only Craftsky-account relationships. | Real DB; follow indexer; synthetic Tap events with `Collection=app.bsky.graph.follow`; Craftsky and non-Craftsky actors/targets. | Handle create from external client, then delete. | Graph state converges on create/delete; Craftsky profile counts change only for Craftsky-to-Craftsky relationships. | `appview/internal/index/follow_test.go` |
 | IT-004 | FR-003, FR-005, RULE-001, RULE-002, RULE-003 | AC-001, AC-012, AC-013, AC-020, AC-022 | POST follow endpoint contract. | Handler with fake resolver, fake PDS, profile store/hydrator, authenticated DID/session context. | POST Craftsky target, non-Craftsky target, invalid target, self target, already-following target. | 200 updated profile for valid/idempotent cases; correct PDS create behavior; documented errors for invalid/self. | `appview/internal/api/follow_test.go` |
 | IT-005 | FR-004, FR-005, RULE-001, RULE-002, RULE-004 | AC-002, AC-009, AC-012, AC-013, AC-020, AC-022 | DELETE unfollow endpoint contract. | Handler with fake active follow lookup, fake PDS, resolver/profile hydrator, auth context. | DELETE active, no-active, non-Craftsky, invalid, and self targets. | Active delete calls PDS with stored rkey; no-active returns 200; self/invalid errors; updated profile response returned for valid targets. | `appview/internal/api/follow_test.go` |
 | IT-006 | BR-002, FR-006, NFR-004, RULE-006, RULE-009 | AC-003, AC-004, AC-011, AC-018, AC-026 | Profile GET includes required follow fields for Craftsky profiles and fails on count errors. | Real store or fake dependency; Craftsky profile row; viewer DID context; graph rows; count-error injection. | GET `/v1/profiles/@bob`, GET `/v1/profiles/me`. | Response has counts, `viewerIsFollowing`, `isCraftskyProfile=true`; self has false; count failure returns documented error. | `appview/internal/api/profile_test.go`, `profile_store_test.go` |
@@ -303,14 +308,14 @@ Feature: Follow graph indexing
 
 | ID | Gap / Risk | Affected Requirement IDs | Reason | Follow-Up |
 |---|---|---|---|---|
-| GAP-001 | Globally authoritative non-Craftsky counts are intentionally out of MVP. | RULE-008, ASM-006 | Requirements explicitly defer external graph/AppView count source. | Future design slice for global non-Craftsky profile counts if product needs them. |
+| GAP-001 | Globally authoritative atproto counts are intentionally out of MVP. | RULE-005, RULE-008, ASM-006 | Requirements intentionally define Craftsky profile counts as Craftsky-account-only and defer external graph/AppView count sources. | Future design slice for global atproto counts if product needs them. |
 | GAP-002 | Exact error code names are not all fixed in requirements. | NFR-001, FR-003, FR-004 | Requirements name examples and require documented envelopes but leave some code names to implementation. | Implementation plan should choose stable codes before writing handler tests; tests should lock them once chosen. |
 | GAP-003 | PDS duplicate follow records are assumed rare/invalid but can exist in the wider network. | RULE-003, RISK-002 | Requirements require one active relationship contributes to counts/state, but do not require deleting all duplicate PDS records on unfollow. | Store/indexer tests should collapse duplicates for counts; implementation plan should decide canonical delete behavior if multiple active URIs exist for same pair. |
 | GAP-004 | Non-Craftsky profile hydration failure UX is only specified at API behavior level. | FR-011, FR-012 | Requirements require hydratable profiles but do not specify exact Flutter error copy for unavailable profiles. | Use existing profile-load error UI; document exact copy during implementation if changed. |
 
 ## 10. Out Of Scope
 
-- Automated global Bluesky/atproto follower/following count verification for non-Craftsky profiles; MVP explicitly excludes globally authoritative non-Craftsky counts.
+- Automated global Bluesky/atproto follower/following count verification; MVP explicitly uses Craftsky-account-only counts for Craftsky profiles and excludes counts for non-Craftsky profiles.
 - Follower/following list screen tests; list screens are non-goals.
 - Timeline tests for `GET /v1/feed/timeline`; this feature only prepares graph data.
 - Notifications, blocks, mutes, reports, moderation workflow, and rate-limit tests.

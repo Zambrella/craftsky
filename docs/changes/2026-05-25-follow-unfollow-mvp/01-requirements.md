@@ -4,7 +4,7 @@
 
 The user asked for requirements for scope 1 from the recommended next feature: a Follow/Unfollow MVP that wires the existing profile Follow button, indexes the follow graph, exposes follow state/counts, and prepares the project for a later home timeline.
 
-After review and grilling, the scope was amended: follows must be interoperable `app.bsky.graph.follow` relationships, Craftsky must allow following/unfollowing non-Craftsky atproto accounts, Craftsky profiles should count indexed follows regardless of which app/client created them, and non-Craftsky profiles should be viewable with Bluesky profile information plus a visible `Non Craftsky profile` marker. For MVP, follower/following counts for non-Craftsky profiles are not required.
+After review and grilling, the scope was amended: follows must be interoperable `app.bsky.graph.follow` relationships, Craftsky must allow following/unfollowing non-Craftsky atproto accounts, Craftsky profile follower/following counts should count only Craftsky accounts, and non-Craftsky profiles should be viewable with Bluesky profile information plus a visible `Non Craftsky profile` marker. For MVP, follower/following counts for non-Craftsky profiles are not required.
 
 ## 2. Current Codebase Findings
 
@@ -40,9 +40,9 @@ After review and grilling, the scope was amended: follows must be interoperable 
   - Reads must continue to come from the AppView; writes must go through the AppView to the user’s PDS.
   - Follow/unfollow should be interoperable with Bluesky/atproto follows. A follow made in Craftsky is a normal public atproto follow; a follow made elsewhere can affect Craftsky state when indexed.
   - Follow/unfollow targets are not limited to Craftsky profiles. Any resolvable atproto account may be followed/unfollowed through Craftsky, subject to self-follow/self-unfollow rejection.
-  - For MVP, follower/following counts are required for Craftsky profiles but are not required for non-Craftsky profile pages.
-  - Directly asking a target user's PDS cannot provide globally authoritative `followerCount`, because follower records are authored in other users' repos. Accurate global follower counts require a graph index or external AppView/graph service; that broader count source is out of MVP scope for non-Craftsky profiles.
-  - Home timeline, notifications, follow-list screens, blocks, mutes, reports, and global non-Craftsky count sourcing are outside this scope.
+  - For MVP, follower/following counts are required for Craftsky profiles but must count only Craftsky accounts. Follows involving non-Craftsky accounts may drive relationship state, but they do not contribute to profile counts.
+  - Directly asking a target user's PDS cannot provide globally authoritative `followerCount`, because follower records are authored in other users' repos. Accurate global follower counts require a broad graph index or external AppView/graph service; that broader count source is out of MVP scope.
+  - Home timeline, notifications, follow-list screens, blocks, mutes, reports, global atproto count sourcing, and indexing the entire ATmosphere social graph solely for counts are outside this scope.
 - Test/build commands discovered:
   - AppView: `just test` runs Go tests on the host against compose Postgres.
   - Flutter: existing app tests live under `app/test`; exact command is typically `flutter test` from `app/`.
@@ -69,9 +69,9 @@ Decision / implication: Follow/unfollow endpoints should return updated profile 
 
 ### Q4: Should follows created outside Craftsky count?
 
-Answer: Yes. Follows created through Bluesky or other atproto clients should count when Tap picks them up and updates the AppView database.
+Answer: Yes, but only within Craftsky-account count semantics. Follows created through Bluesky or other atproto clients should affect Craftsky counts when Tap picks them up and both accounts have Craftsky profiles.
 
-Decision / implication: Follow indexing must not be limited to Craftsky-created records. It should index `app.bsky.graph.follow` events delivered by Tap regardless of the client/app that created them.
+Decision / implication: Follow indexing must not be limited to Craftsky-created records. It should index relevant `app.bsky.graph.follow` events delivered by Tap regardless of the client/app that created them, but profile counts only include Craftsky-to-Craftsky relationships.
 
 ### Q5: Should follow/unfollow support non-Craftsky accounts?
 
@@ -133,6 +133,12 @@ Answer: No. For MVP, do not worry about follower/following counts for non-Crafts
 
 Decision / implication: Non-Craftsky profile pages may omit/null follower and following counts or render them as unknown. Craftsky profile count behavior remains required.
 
+### Q15: Should Craftsky profile follower/following counts include non-Craftsky accounts?
+
+Answer: No. Following/follower counts should count only Craftsky accounts so Craftsky does not need to index a user's entire social graph across the ATmosphere.
+
+Decision / implication: Craftsky profile counts are Craftsky-to-Craftsky counts. A Craftsky user's follow to a non-Craftsky account can exist and can affect viewer relationship state, but it does not increment that Craftsky user's `followingCount`; a non-Craftsky account following a Craftsky account does not increment the Craftsky account's `followerCount` in this MVP.
+
 ## 4. Candidate Approaches
 
 ### Option A: Full Vertical Follow/Unfollow MVP With Craftsky-Only Targets
@@ -164,10 +170,10 @@ Pros:
 
 Cons:
 - Touches persistence, indexing, API, profile hydration, and Flutter UI/data layers.
-- Requires clear count semantics for non-Craftsky profiles and partially indexed external graph data.
+- Requires clear count semantics that separate interoperable follow state from Craftsky-only profile counts.
 
 Risks:
-- Users may expect global Bluesky-grade counts for non-Craftsky accounts, but MVP does not require those counts.
+- Users may expect global Bluesky-grade counts, but MVP counts only Craftsky accounts.
 - Current `bluesky_profiles` membership gate must be revisited for non-Craftsky profile display.
 
 ### Option C: Split Non-Craftsky Profiles And Global Counts Into A Later Slice
@@ -187,9 +193,9 @@ Risks:
 
 ## 5. Recommended Direction
 
-Recommended approach: Option B, full vertical interoperable Follow/Unfollow MVP, with MVP-limited count scope for non-Craftsky profile pages.
+Recommended approach: Option B, full vertical interoperable Follow/Unfollow MVP, with Craftsky-account-only counts for Craftsky profiles and optional/unknown counts for non-Craftsky profile pages.
 
-Why: The user explicitly changed the scope from Craftsky-only targeting to interoperable atproto follow behavior. The existing codebase already has profile UI, AppView auth/PDS-write primitives, API conventions, and post interaction patterns. A vertical slice removes placeholders, enables public atproto follows, supports non-Craftsky account navigation, and creates graph foundations needed for `GET /v1/feed/timeline`, without requiring globally accurate non-Craftsky counts in this MVP.
+Why: The user explicitly changed the scope from Craftsky-only targeting to interoperable atproto follow behavior while keeping profile counts Craftsky-only. The existing codebase already has profile UI, AppView auth/PDS-write primitives, API conventions, and post interaction patterns. A vertical slice removes placeholders, enables public atproto follows, supports non-Craftsky account navigation, and creates graph foundations needed for `GET /v1/feed/timeline`, without requiring globally accurate atproto counts or indexing the entire ATmosphere graph for counts in this MVP.
 
 ## 6. Problem / Opportunity
 
@@ -199,7 +205,7 @@ Craftsky currently lets users create profiles and posts, but it lacks a real soc
 
 - G-001: Let an authenticated Craftsky user follow another resolvable atproto account.
 - G-002: Let an authenticated Craftsky user unfollow a previously followed atproto account.
-- G-003: Show real follower/following counts on Craftsky profile screens.
+- G-003: Show real Craftsky-account follower/following counts on Craftsky profile screens.
 - G-004: Show whether the authenticated viewer follows a visited profile.
 - G-005: Preserve Craftsky’s architecture: PDS-backed public records, AppView-backed reads, and no PDS tokens in Flutter.
 - G-006: Establish graph persistence and indexing that can be reused by the later home timeline.
@@ -214,6 +220,7 @@ Craftsky currently lets users create profiles and posts, but it lacks a real soc
 - NG-004: No blocks, mutes, reports, or moderation workflow changes.
 - NG-005: No new Craftsky follow lexicon.
 - NG-006: No globally authoritative follower/following count source for non-Craftsky profile pages in this MVP.
+- NG-006A: No requirement to index the entire ATmosphere social graph solely to calculate follower/following counts.
 - NG-007: No profile project-count implementation; project counts may remain placeholder/future work.
 - NG-008: No changes to PDS token storage or Flutter possession of PDS credentials.
 - NG-009: No UI for importing, reviewing, or selectively approving an existing Bluesky/atproto social graph; historical follow ingestion is backend graph state only.
@@ -225,7 +232,7 @@ Craftsky currently lets users create profiles and posts, but it lacks a real soc
 | Actor | Description | Needs |
 |---|---|---|
 | Authenticated Craftsky user | A signed-in user with a Craftsky session and indexed Craftsky profile | Follow/unfollow Craftsky and non-Craftsky atproto accounts and see relationship state. |
-| Visited Craftsky profile owner | A Craftsky user whose profile is viewed by another user | Have their follower/following counts reflect active indexed atproto follow relationships. |
+| Visited Craftsky profile owner | A Craftsky user whose profile is viewed by another user | Have their follower/following counts reflect active Craftsky-account follow relationships. |
 | Visited non-Craftsky account | A resolvable atproto account without a Craftsky profile row | Be visible with Bluesky profile information and clearly marked as non-Craftsky. |
 | Flutter client | The Craftsky mobile app | Render profile relationship state, counts where available, non-Craftsky marker, and trigger follow/unfollow API calls without holding PDS tokens. |
 | AppView | Go service mediating reads, writes, profile hydration, and indexing | Write follow records to PDS, index follow graph events, expose graph-derived profile state, and serve profile data for Craftsky and non-Craftsky accounts. |
@@ -237,7 +244,7 @@ Visitor profile pages render a Follow button, but tapping it only shows a “com
 
 ## 11. Desired Behavior
 
-An authenticated Craftsky user visiting a profile can tap Follow. The AppView resolves the target as a current handle or DID, rejects self-targets, writes an interoperable `app.bsky.graph.follow` record to the caller’s PDS, and returns an updated profile response for the target. The Flutter UI updates from that response, showing Follow or Unfollow, a loading state during requests, real Craftsky profile counts where required, and a `Non Craftsky profile` marker for non-Craftsky accounts.
+An authenticated Craftsky user visiting a profile can tap Follow. The AppView resolves the target as a current handle or DID, rejects self-targets, writes an interoperable `app.bsky.graph.follow` record to the caller’s PDS, and returns an updated profile response for the target. The Flutter UI updates from that response, showing Follow or Unfollow, a loading state during requests, real Craftsky-account counts for Craftsky profiles, and a `Non Craftsky profile` marker for non-Craftsky accounts.
 
 The same user can tap Unfollow to remove the active atproto follow, with the AppView deleting the known active PDS follow record and returning an updated target profile response. Firehose/Tap indexing remains the durable source of truth for subsequent reads, and external Bluesky/atproto follow changes update Craftsky state when delivered through Tap.
 
@@ -246,16 +253,16 @@ The same user can tap Unfollow to remove the active atproto follow, with the App
 | ID | Type | Priority | Requirement | Rationale | Source | Acceptance Criteria |
 |---|---|---|---|---|---|---|
 | BR-001 | Business | Must | Craftsky users must be able to follow and unfollow resolvable atproto accounts from the profile surface. | Following is the social graph foundation for timeline and community discovery, and the amended scope requires non-Craftsky targets. | Prompt, user amendment | AC-001, AC-002, AC-010, AC-020 |
-| BR-002 | Business | Must | Craftsky profile screens must display real follow relationship state and real follower/following counts. | Removes placeholders and makes relationship state visible to users. | Codebase, profile spec | AC-003, AC-004, AC-011 |
+| BR-002 | Business | Must | Craftsky profile screens must display real follow relationship state and real Craftsky-account follower/following counts. | Removes placeholders and makes relationship state visible to users without requiring an all-ATmosphere graph for counts. | Codebase, profile spec, user amendment | AC-003, AC-004, AC-011 |
 | BR-003 | Business | Should | The implementation should create graph data reusable by the future chronological followed-account feed. | Scope 2 depends on reliable follow graph data. | Discovery, roadmap | AC-005 |
 | BR-004 | Business | Must | Craftsky should recognize existing and external atproto follow relationships when those `app.bsky.graph.follow` records are delivered by Tap. | Users should not have to rebuild their social graph if they already follow accounts through Bluesky/atproto. | User amendment | AC-016, AC-017, AC-025 |
 | BR-005 | Business | Must | Non-Craftsky atproto profiles must be viewable through Craftsky with Bluesky profile information and a visible non-Craftsky marker. | Users need context for non-Craftsky accounts they can follow/unfollow. | User amendment | AC-020, AC-021 |
-| FR-001 | Functional | Must | The AppView shall persist active `app.bsky.graph.follow` records in Postgres with enough data to derive follower counts, following counts, and viewer relationship state. | The AppView read model needs graph state for profiles and later timeline queries. | Discovery | AC-005, AC-006, AC-007 |
-| FR-002 | Functional | Must | The AppView shall index `app.bsky.graph.follow` create, update, and delete/tombstone events from Tap idempotently, without requiring either side to be a Craftsky profile. | Follow records are public interoperable PDS records; Craftsky must consume delivered graph events regardless of client/app origin. | Architecture, user amendment | AC-006, AC-007, AC-016, AC-017, AC-025 |
+| FR-001 | Functional | Must | The AppView shall persist active `app.bsky.graph.follow` records in Postgres with enough data to derive Craftsky-account follower/following counts, viewer relationship state, and future followed-target lookups. | The AppView read model needs graph state for profiles and later timeline queries, while counts remain Craftsky-only. | Discovery, user amendment | AC-005, AC-006, AC-007 |
+| FR-002 | Functional | Must | The AppView shall index relevant `app.bsky.graph.follow` create, update, and delete/tombstone events from Tap idempotently, including follows involving non-Craftsky targets when needed for relationship state, while filtering profile counts to Craftsky-to-Craftsky relationships. | Follow records are public interoperable PDS records; Craftsky must consume delivered graph events needed for relationship state without using them all for counts. | Architecture, user amendment | AC-006, AC-007, AC-016, AC-017, AC-025 |
 | FR-003 | Functional | Must | The AppView shall expose `POST /v1/profiles/@{handleOrDid}/follows` for an authenticated viewer to follow a target atproto account, returning `200 OK` with the updated target profile response on successful follow or idempotent already-following no-op. | Enables Flutter follow actions and lets the client update local state from the AppView response. | API architecture spec, user answer | AC-001, AC-008, AC-012, AC-013, AC-020, AC-022 |
 | FR-004 | Functional | Must | The AppView shall expose `DELETE /v1/profiles/@{handleOrDid}/follows` for an authenticated viewer to unfollow a target atproto account, returning `200 OK` with the updated target profile response on successful unfollow or idempotent no-active-follow no-op. | Enables Flutter unfollow actions and lets the client update local state from the AppView response. | API architecture spec, user answer | AC-002, AC-009, AC-012, AC-013, AC-020, AC-022 |
 | FR-005 | Functional | Must | Follow and unfollow handlers shall write/delete `app.bsky.graph.follow` records through the AppView PDS client factory using the caller’s OAuth session. | Preserves Craftsky’s write-through-PDS model and avoids PDS tokens on the client. | AGENTS.md, API architecture | AC-001, AC-002, AC-014 |
-| FR-006 | Functional | Must | Profile API responses shall include `viewerIsFollowing`, an `isCraftskyProfile` marker, and count fields using camelCase JSON; `followingCount` and `followerCount` are required for Craftsky profiles and may be omitted or null for non-Craftsky profiles in MVP. | Flutter needs relationship fields and profile-type state while count scope differs by profile type. | User amendment, profile spec | AC-003, AC-004, AC-011, AC-018, AC-021, AC-023 |
+| FR-006 | Functional | Must | Profile API responses shall include `viewerIsFollowing`, an `isCraftskyProfile` marker, and count fields using camelCase JSON; `followingCount` and `followerCount` are required for Craftsky profiles as Craftsky-account counts and may be omitted or null for non-Craftsky profiles in MVP. | Flutter needs relationship fields and profile-type state while count scope differs by profile type. | User amendment, profile spec | AC-003, AC-004, AC-011, AC-018, AC-021, AC-023 |
 | FR-007 | Functional | Must | Flutter shall extend the profile data layer/model to consume the new profile relationship/count/profile-type fields and call the follow/unfollow endpoints through the existing API client/repository/provider pattern. | Keeps client implementation aligned with established patterns. | Codebase patterns | AC-010, AC-011, AC-014, AC-021 |
 | FR-008 | Functional | Must | Flutter shall replace the visitor profile “coming soon” Follow action with a real Follow/Unfollow toggle that updates button label/state and relevant counts from the AppView response after successful follow/unfollow. | Delivers the user-visible MVP. | Codebase placeholder, user answer | AC-010, AC-011, AC-015, AC-022, AC-024 |
 | FR-009 | Functional | Should | Flutter should preserve a usable profile screen if a follow/unfollow request fails, surfacing an error message and leaving or restoring the last confirmed state. | Prevents misleading relationship state under network or PDS failure. | Existing messaging patterns | AC-015 |
@@ -270,10 +277,10 @@ The same user can tap Unfollow to remove the active atproto follow, with the App
 | RULE-002 | Business rule | Must | A user must not be allowed to follow or unfollow themself through the follow endpoints. | Self-follow has no product value and would distort relationship semantics. | User answer | AC-013 |
 | RULE-003 | Business rule | Must | At most one active relationship may contribute to counts or viewer state for a follower DID and target DID pair. Repeating follow should be idempotent from the caller’s perspective. | Prevents duplicate counts and supports retry behavior. | Discovery, user answer | AC-001, AC-006 |
 | RULE-004 | Business rule | Must | Unfollowing an already-unfollowed or never-followed target should be idempotent from the caller’s perspective, except self-targets remain validation errors. | Supports safe retries and simple UI behavior. | Existing delete/idempotency patterns, user answer | AC-002, AC-009, AC-013 |
-| RULE-005 | Business rule | Must | Craftsky profile follower/following counts must count active indexed `app.bsky.graph.follow` relationships regardless of whether the record was created by Craftsky, Bluesky, or another atproto client, and must exclude deleted/inactive follows. | Amended count semantics are app/client-agnostic for the indexed graph. | User amendment | AC-003, AC-004, AC-005, AC-007, AC-025 |
+| RULE-005 | Business rule | Must | Craftsky profile follower/following counts must count only active `app.bsky.graph.follow` relationships where both the follower DID and target DID have Craftsky profiles, regardless of whether the record was created by Craftsky, Bluesky, or another atproto client, and must exclude deleted/inactive follows. | Counts should be Craftsky-account-only so Craftsky does not need to index the entire ATmosphere social graph for counts. | User amendment | AC-003, AC-004, AC-007, AC-025 |
 | RULE-006 | Business rule | Must | `viewerIsFollowing` must be present and `false` when the authenticated viewer fetches their own profile. | Self-follow is prohibited, and a stable non-null boolean avoids client branching. | Plannotator feedback, user answer | AC-018 |
 | RULE-007 | Business rule | Must | AppView follow graph storage must represent currently active follows; delete/tombstone processing must remove the active row rather than preserving deleted follow history with `deletedAt`. | Deleted follow records do not persist on the PDS, and the MVP has no product need for retained follow history. | Plannotator feedback | AC-007, AC-019 |
-| RULE-008 | Business rule | Must | Non-Craftsky profile pages do not need follower/following counts in MVP; if unavailable, the UI must not render fake counts. | User explicitly scoped out non-Craftsky counts for MVP. | User plan feedback | AC-023 |
+| RULE-008 | Business rule | Must | Non-Craftsky profile pages do not need follower/following counts in MVP; if unavailable, the UI must not render fake counts. | User explicitly scoped out counts for non-Craftsky profile pages in MVP. | User plan feedback | AC-023 |
 | RULE-009 | Business rule | Must | Profile count calculation failures for required Craftsky profile counts must fail the profile read rather than silently returning fake, zero, or stale placeholder counts. | The user requested an error if count calculation fails. | User answer | AC-026 |
 
 ## 13. Acceptance Criteria
@@ -282,9 +289,9 @@ The same user can tap Unfollow to remove the active atproto follow, with the App
 |---|---|---|
 | AC-001 | BR-001, FR-003, FR-005, RULE-003 | Given authenticated user A and resolvable atproto profile B, when A follows B through `POST /v1/profiles/@{handleOrDid}/follows`, then the AppView writes an `app.bsky.graph.follow` record to A’s PDS and returns `200 OK` with B’s updated profile response. |
 | AC-002 | BR-001, FR-004, FR-005, RULE-004 | Given authenticated user A actively follows resolvable atproto profile B, when A unfollows B through `DELETE /v1/profiles/@{handleOrDid}/follows`, then the AppView deletes the known active PDS follow record and returns `200 OK` with B’s updated profile response. |
-| AC-003 | BR-002, FR-001, FR-006, NFR-004, RULE-005 | Given Craftsky profile B has active indexed followers, when an authenticated viewer fetches B’s profile, then `followerCount` equals the number of active indexed `app.bsky.graph.follow` relationships targeting B. |
-| AC-004 | BR-002, FR-006, NFR-004, RULE-005 | Given Craftsky profile A actively follows indexed targets, when an authenticated viewer fetches A’s profile, then `followingCount` equals the number of active indexed `app.bsky.graph.follow` relationships authored by A. |
-| AC-005 | BR-003, FR-001, RULE-005 | Given the follow graph contains active follow records, when future feed work queries active followed DIDs, then the persistence model can identify the active targets followed by a viewer without consulting the PDS directly. |
+| AC-003 | BR-002, FR-001, FR-006, NFR-004, RULE-005 | Given Craftsky profile B has active indexed followers, when an authenticated viewer fetches B’s profile, then `followerCount` equals the number of active `app.bsky.graph.follow` relationships targeting B where the follower also has a Craftsky profile. |
+| AC-004 | BR-002, FR-006, NFR-004, RULE-005 | Given Craftsky profile A actively follows indexed targets, when an authenticated viewer fetches A’s profile, then `followingCount` equals the number of active `app.bsky.graph.follow` relationships authored by A where the target also has a Craftsky profile. |
+| AC-005 | BR-003, FR-001 | Given the follow graph contains active follow records, when future feed work queries active followed DIDs, then the persistence model can identify the active targets followed by a viewer without consulting the PDS directly. |
 | AC-006 | FR-001, FR-002, NFR-002, RULE-003 | Given the follow indexer receives the same active follow event more than once, when it handles the repeated event, then only one active relationship contributes to counts and viewer state. |
 | AC-007 | FR-001, FR-002, NFR-002, RULE-005, RULE-007 | Given the follow indexer receives a delete/tombstone event for a previously indexed follow URI, when profile counts are read, then the relationship no longer exists as an active stored follow and does not contribute to follower or following counts. |
 | AC-008 | FR-003, NFR-001 | Given a follow request is missing authentication or required device ID, when it reaches the AppView, then it is rejected using existing `/v1/*` authentication/device-id error behavior. |
@@ -296,7 +303,7 @@ The same user can tap Unfollow to remove the active atproto follow, with the App
 | AC-014 | FR-005, FR-007, NFR-003 | Given Flutter initiates follow/unfollow, when the operation is performed, then Flutter sends only the Craftsky session-authenticated API request and never receives or stores PDS tokens. |
 | AC-015 | FR-008, FR-009 | Given Flutter attempts follow/unfollow and the AppView returns an error or the request fails, when the operation completes, then the user sees an error message and the profile UI does not falsely persist an unconfirmed relationship/count state. |
 | AC-016 | BR-004, FR-010 | Given user A already has historical `app.bsky.graph.follow` records on their PDS before creating a Craftsky profile, when the AppView/Tap begins tracking A's repo, then those historical follow records are eligible to be indexed without A manually re-following through Craftsky. |
-| AC-017 | BR-004, FR-010 | Given user A has a historical active follow to user B, when both profile/identity data and graph indexing are available, then the relationship contributes to `viewerIsFollowing` and applicable Craftsky profile counts according to the same active indexed graph rules as newly created follows. |
+| AC-017 | BR-004, FR-010 | Given user A has a historical active follow to user B, when both profile/identity data and graph indexing are available, then the relationship contributes to `viewerIsFollowing`; it contributes to Craftsky profile counts only when both A and B have Craftsky profiles. |
 | AC-018 | FR-006, RULE-006 | Given authenticated user A fetches A's own profile, when the profile response is returned, then `viewerIsFollowing` is present and `false`. |
 | AC-019 | RULE-007 | Given the stored active follow row for A following B is removed by an unfollow delete/tombstone, when storage is inspected, then there is no retained deleted follow row for that relationship in the MVP follow graph table. |
 | AC-020 | BR-001, BR-005, FR-003, FR-004, FR-011, FR-012, RULE-001 | Given B is a resolvable non-Craftsky atproto account, when authenticated user A visits or follows/unfollows B through Craftsky, then the AppView can return a profile response for B without requiring B to have a `craftsky_profiles` row. |
@@ -304,7 +311,7 @@ The same user can tap Unfollow to remove the active atproto follow, with the App
 | AC-022 | FR-003, FR-004, FR-008 | Given follow/unfollow succeeds, when Flutter receives the AppView response, then it updates local profile state from that response rather than waiting for a separate profile refetch. |
 | AC-023 | FR-006, RULE-008 | Given a non-Craftsky profile has unavailable follower/following counts in MVP, when Flutter renders the profile stats, then it omits them or renders them as unknown and does not show fake numeric values. |
 | AC-024 | FR-008 | Given a follow/unfollow request is in flight, when the profile action is rendered, then the button is disabled or shows loading state so duplicate taps are prevented. |
-| AC-025 | BR-004, FR-002, RULE-005 | Given an `app.bsky.graph.follow` record is created or deleted outside Craftsky and Tap delivers the event, when the follow indexer handles it, then the AppView graph state updates according to the same active/deleted rules as Craftsky-created follows. |
+| AC-025 | BR-004, FR-002, RULE-005 | Given an `app.bsky.graph.follow` record is created or deleted outside Craftsky and Tap delivers the event, when the follow indexer handles it, then the AppView graph state updates according to the same active/deleted rules as Craftsky-created follows, and Craftsky profile counts include the relationship only when both accounts have Craftsky profiles. |
 | AC-026 | RULE-009 | Given a Craftsky profile requires follower/following counts and the AppView cannot calculate them, when the profile is requested, then the profile request fails with a documented error instead of returning fake, zero, or stale placeholder counts. |
 
 ## 14. Edge Cases
@@ -322,7 +329,7 @@ The same user can tap Unfollow to remove the active atproto follow, with the App
 | EC-009 | PDS delete fails during unfollow | Return `pds_write_failed` or equivalent documented error; Flutter surfaces failure and preserves/restores last confirmed state. | FR-005, FR-009 |
 | EC-010 | Firehose indexing lags after successful follow/unfollow | API/UI update from the successful AppView response, but eventual profile reads converge to indexed graph state. | FR-001, FR-008 |
 | EC-011 | Follow delete/tombstone arrives for an unknown follow URI | Indexer handles safely without corrupting counts or failing the stream. | FR-002, NFR-002 |
-| EC-012 | Historical follow targets a non-Craftsky account | Store/index the active relationship if delivered by Tap; include it in the author’s Craftsky following count if the author has a Craftsky profile, but non-Craftsky target profile counts remain optional/unknown in MVP. | BR-004, RULE-005, RULE-008 |
+| EC-012 | Historical follow targets a non-Craftsky account | Store/index the active relationship if needed for relationship state, but do not include it in Craftsky follower/following counts unless the target also has a Craftsky profile. Non-Craftsky target profile counts remain optional/unknown in MVP. | BR-004, RULE-005, RULE-008 |
 | EC-013 | Target becomes a Craftsky member after an already-indexed historical follow | Once profile and graph reads converge, the active relationship may contribute to applicable Craftsky counts/state without a new follow write. | BR-004, FR-010 |
 | EC-014 | Same follow record URI arrives with a new CID | Indexer treats update as an upsert for that URI and converges counts/state to the latest active record. | FR-002, NFR-002 |
 | EC-015 | Delete event includes URI/rkey but no original record body | Indexer deletes by URI/rkey using stored active row data and does not require the tombstone to include target DID. | FR-002, RULE-007 |
@@ -343,7 +350,7 @@ The same user can tap Unfollow to remove the active atproto follow, with the App
   - Yes. A new migration is required for follow graph storage and indexes supporting active relationship lookup by follower DID, target DID, `(follower DID, target DID)`, and record URI.
 - Backwards compatibility:
   - Additive API fields should not break existing clients.
-  - The Flutter app version implementing this feature will require the new fields to render real state; non-Craftsky counts must be handled as nullable/unknown.
+  - The Flutter app version implementing this feature will require the new fields to render real state; counts on non-Craftsky profiles must be handled as nullable/unknown.
 
 ## 16. UI / API / CLI Impact
 
@@ -400,7 +407,7 @@ The same user can tap Unfollow to remove the active atproto follow, with the App
 |---|---|---|---|
 | RISK-001 | PDS write succeeds but firehose indexing lags. | Profile reads may temporarily show stale counts/state. | Return updated profile response for local UI update; document eventual consistency and verify convergence through indexer tests. |
 | RISK-002 | Duplicate follow events or repeated follow requests inflate counts. | Profile counts become wrong and timeline queries later duplicate authors. | Enforce/collapse one active relationship per follower-target pair for counts/state and make indexer idempotent. |
-| RISK-003 | Users expect global counts for non-Craftsky profiles. | Non-Craftsky profile pages may look incomplete versus Bluesky. | Explicitly scope non-Craftsky counts out of MVP and render unknown/omitted counts rather than fake values. |
+| RISK-003 | Users expect global atproto counts. | Craftsky profile counts may look lower than Bluesky or other atproto AppViews because they count only Craftsky accounts. | Explicitly define Craftsky-account-only counts and render non-Craftsky profile counts as unknown/omitted rather than fake values. |
 | RISK-004 | Unfollow needs to know the active PDS record rkey/URI. | Delete may fail or delete the wrong record if active follow lookup is wrong. | Persist active follow URI/rkey and define idempotent no-active-follow behavior. |
 | RISK-005 | API response change and Flutter model change ship out of sync. | Flutter may fail to decode or display profile responses. | Keep API additions backward-compatible and test Flutter model decoding with new nullable/non-nullable fields. |
 | RISK-006 | This feature touches migration, firehose indexing, API writes, profile hydration, and UI. | Higher regression surface across appview and app. | Require review before test design/implementation and cover with acceptance, integration, and widget tests. |
@@ -416,12 +423,12 @@ The same user can tap Unfollow to remove the active atproto follow, with the App
 | ASM-003 | Tap can provide historical and live `app.bsky.graph.follow` events for tracked repos, consistent with the existing Tap-backed architecture. The user confirmed this during document review follow-up. | If Tap behavior diverges during implementation, scope must add a separate import/backfill design before historical graph requirements can be fully met. |
 | ASM-004 | Existing Flutter messaging/snackbar patterns are sufficient for follow/unfollow failure UX. | Additional UI design requirements may be needed. |
 | ASM-005 | A non-Craftsky account's Bluesky profile data can be hydrated through AppView-side atproto/PDS reads or indexed Tap data without Flutter talking to the PDS directly. | Non-Craftsky profile display would require a separate profile hydration design. |
-| ASM-006 | MVP does not require globally authoritative follower/following counts for non-Craftsky profile pages. | A new external graph/AppView count source would need to be added before implementation. |
+| ASM-006 | MVP does not require globally authoritative follower/following counts for non-Craftsky profile pages or non-Craftsky accounts in Craftsky profile counts. | A new external graph/AppView count source and broader graph indexing strategy would need to be added before implementation. |
 
 ## 21. Open Questions
 
 - [x] Resolved: Tap historical `app.bsky.graph.follow` delivery for tracked repos has been confirmed by the user during document review follow-up.
-- [ ] Non-blocking for MVP: Decide in a later architecture/design slice whether Craftsky should use an external AppView/graph source for globally authoritative counts on non-Craftsky profiles.
+- [ ] Non-blocking for MVP: Decide in a later architecture/design slice whether Craftsky should use an external AppView/graph source for globally authoritative atproto counts.
 
 ## 22. Review Status
 
@@ -435,7 +442,7 @@ Reviewer: Plannotator and user feedback
 
 Date: 2026-05-25
 
-Notes: Plannotator feedback from 2026-05-25 was applied. A subsequent grilling/review changed the scope from Craftsky-only follows to interoperable atproto follow/unfollow with non-Craftsky profile navigation. The amendment plan was approved with the constraint that MVP does not need follower/following counts for non-Craftsky accounts. Document-review follow-up confirmed Tap historical follow delivery.
+Notes: Plannotator feedback from 2026-05-25 was applied. A subsequent grilling/review changed the scope from Craftsky-only follows to interoperable atproto follow/unfollow with non-Craftsky profile navigation. The amendment plan was approved with the constraint that MVP does not need follower/following counts for non-Craftsky accounts. Document-review follow-up confirmed Tap historical follow delivery. A later user amendment narrowed Craftsky profile counts to Craftsky accounts only.
 
 ## 23. Handoff To Test Design
 
@@ -448,10 +455,10 @@ Notes: Plannotator feedback from 2026-05-25 was applied. A subsequent grilling/r
   - Rules: RULE-001, RULE-002, RULE-003, RULE-004, RULE-005, RULE-006, RULE-007, RULE-008, RULE-009
 - Suggested test levels:
   - AppView handler tests for follow/unfollow success, validation, idempotency, auth/device-id failures, PDS failures, self-target rejection, current-handle resolution failures, Craftsky targets, and non-Craftsky targets.
-  - AppView profile tests for Craftsky profile counts, non-Craftsky profile responses, `isCraftskyProfile`, nullable/unknown non-Craftsky counts, viewer relationship state, and count calculation failure behavior.
+  - AppView profile tests for Craftsky profile counts, non-Craftsky profile responses, `isCraftskyProfile`, nullable/unknown counts on non-Craftsky profiles, viewer relationship state, and count calculation failure behavior.
   - AppView store/integration tests for counts, viewer relationship state, active relationships, hard deletion, historical follows, update/upsert, deletion by URI, and uniqueness/collapsing by follower-target pair.
   - Indexer tests for create, update, duplicate create, delete/tombstone, unknown delete, externally-created follows, and historical follows delivered by Tap/backfill.
-  - Flutter model/API client/repository/provider tests for new fields, nullable non-Craftsky counts, endpoint calls, and response-driven local state updates.
-  - Flutter widget tests for Follow/Unfollow button state, loading/disabled state, Craftsky count rendering, non-Craftsky marker, unknown non-Craftsky counts, success updates, and failure messaging.
+  - Flutter model/API client/repository/provider tests for new fields, nullable counts on non-Craftsky profiles, endpoint calls, and response-driven local state updates.
+  - Flutter widget tests for Follow/Unfollow button state, loading/disabled state, Craftsky count rendering, non-Craftsky marker, unknown counts on non-Craftsky profiles, success updates, and failure messaging.
 - Blocking open questions: None.
 - Review gate: Because risk level is High and review is required, run Plannotator or equivalent document review before moving to implementation unless the user explicitly accepts the risk and approves continuation.
