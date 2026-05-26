@@ -11,7 +11,7 @@ Primary automation targets:
 - **Flutter unit/widget tests** for model decoding, API client paths, repository/provider state transitions, Follow/Unfollow rendering, loading state, error recovery, non-Craftsky marker, and unknown non-Craftsky counts.
 - **Manual checks** only for live Tap/PDS interoperability and end-to-end behavior that is impractical to prove in isolated tests.
 
-Tap historical delivery note: existing project docs and `docker-compose.yml` state that Tap can add repos and backfill existing records when a repo is tracked; adding `app.bsky.graph.follow` to `TAP_COLLECTION_FILTERS` plus a registered indexer should make historical follows eligible. This test plan still includes an explicit live Tap/manual check because isolated tests can prove indexer behavior for synthetic historical events (`Live=false`) but cannot prove the deployed Tap sidecar's upstream behavior without running the stack.
+Tap historical delivery note: existing project docs and `docker-compose.yml` state that Tap can add repos and backfill existing records when a repo is tracked; the user confirmed during document review follow-up that Tap will deliver historical data. This test plan still includes an explicit live Tap/manual smoke check because isolated tests can prove indexer behavior for synthetic historical events (`Live=false`) but cannot prove the deployed Tap sidecar's end-to-end runtime wiring without running the stack.
 
 ## 2. Requirement Coverage Matrix
 
@@ -20,10 +20,10 @@ Tap historical delivery note: existing project docs and `docker-compose.yml` sta
 | BR-001 | AC-001, AC-002, AC-010, AC-020 | AT-001, AT-002, AT-003, IT-004, IT-005, UT-010, UT-011 | Acceptance / Integration / Unit | Yes |
 | BR-002 | AC-003, AC-004, AC-011 | AT-004, IT-002, IT-006, UT-008, UT-012 | Acceptance / Integration / Unit | Yes |
 | BR-003 | AC-005 | IT-001, UT-007 | Integration / Unit | Yes |
-| BR-004 | AC-016, AC-017, AC-025 | AT-008, IT-003, IT-008, MAN-001, GAP-001 | Acceptance / Integration / Manual | Partial |
+| BR-004 | AC-016, AC-017, AC-025 | AT-008, IT-003, IT-008, MAN-001 | Acceptance / Integration / Manual | Yes |
 | BR-005 | AC-020, AC-021 | AT-003, AT-005, IT-007, UT-012, UT-013 | Acceptance / Integration / Unit | Yes |
 | FR-001 | AC-005, AC-006, AC-007 | IT-001, IT-002, UT-004, UT-005, UT-006, UT-007 | Integration / Unit | Yes |
-| FR-002 | AC-006, AC-007, AC-016, AC-017, AC-025 | IT-003, IT-008, UT-004, UT-005, UT-006, MAN-001, GAP-001 | Integration / Unit / Manual | Partial |
+| FR-002 | AC-006, AC-007, AC-016, AC-017, AC-025 | IT-003, IT-008, UT-004, UT-005, UT-006, MAN-001 | Integration / Unit / Manual | Yes |
 | FR-003 | AC-001, AC-008, AC-012, AC-013, AC-020, AC-022 | AT-001, AT-003, IT-004, IT-009, UT-001, UT-002, UT-010 | Acceptance / Integration / Unit | Yes |
 | FR-004 | AC-002, AC-009, AC-012, AC-013, AC-020, AC-022 | AT-002, AT-003, IT-005, IT-009, UT-001, UT-002, UT-011 | Acceptance / Integration / Unit | Yes |
 | FR-005 | AC-001, AC-002, AC-014 | IT-004, IT-005, IT-010, UT-010, UT-011, REG-004 | Integration / Unit / Regression | Yes |
@@ -31,7 +31,7 @@ Tap historical delivery note: existing project docs and `docker-compose.yml` sta
 | FR-007 | AC-010, AC-011, AC-014, AC-021 | AT-001, AT-003, AT-005, UT-014, UT-015, UT-016, REG-005 | Acceptance / Unit / Regression | Yes |
 | FR-008 | AC-010, AC-011, AC-015, AC-022, AC-024 | AT-001, AT-002, AT-006, UT-016, UT-017, UT-018 | Acceptance / Unit | Yes |
 | FR-009 | AC-015 | AT-006, UT-018 | Acceptance / Unit | Yes |
-| FR-010 | AC-016, AC-017 | AT-008, IT-003, IT-008, MAN-001, GAP-001 | Acceptance / Integration / Manual | Partial |
+| FR-010 | AC-016, AC-017 | AT-008, IT-003, IT-008, MAN-001 | Acceptance / Integration / Manual | Yes |
 | FR-011 | AC-020, AC-021 | AT-003, AT-005, IT-007, UT-012, UT-013 | Acceptance / Integration / Unit | Yes |
 | FR-012 | AC-020, AC-021 | AT-003, AT-005, IT-007, IT-011, UT-013 | Acceptance / Integration / Unit | Yes |
 | NFR-001 | AC-008, AC-009, AC-012, AC-013 | IT-009, REG-001, REG-002 | Integration / Regression | Yes |
@@ -295,7 +295,7 @@ Feature: Follow graph indexing
 
 | ID | Requirement IDs | Check | Steps | Expected Result |
 |---|---|---|---|---|
-| MAN-001 | BR-004, FR-010 | Verify live Tap historical follow delivery after adding `app.bsky.graph.follow`. | Start stack with `just dev-d`; ensure Tap filter includes `app.bsky.graph.follow`; add a dev DID with existing follow records through `/repos/add` or signal collection; inspect AppView graph rows/logs after backfill. | Historical follow records are delivered with `Live=false` or equivalent backfill semantics and indexed into active graph state. |
+| MAN-001 | BR-004, FR-010 | Smoke-check live Tap historical follow delivery after adding `app.bsky.graph.follow`. | Start stack with `just dev-d`; ensure Tap filter includes `app.bsky.graph.follow`; add a dev DID with existing follow records through `/repos/add` or signal collection; inspect AppView graph rows/logs after backfill. | Historical follow records are delivered with `Live=false` or equivalent backfill semantics and indexed into active graph state. |
 | MAN-002 | BR-001, BR-005, FR-003, FR-004 | End-to-end follow/unfollow against dev PDS/Tap stack. | Sign in as a dev user; visit Craftsky and non-Craftsky profile routes; follow and unfollow; watch UI and AppView logs. | UI updates immediately from AppView response; graph converges after Tap events; no PDS tokens appear in Flutter logs/storage. |
 | MAN-003 | NFR-004 | Check profile count query plan after migration. | With representative follow rows in dev Postgres, run `EXPLAIN` for follower count, following count, viewerIsFollowing, and active-follow lookup queries. | Queries use indexes on follower DID, subject DID, `(follower DID, subject DID)`, and URI/rkey; no obvious N+1 behavior for a single profile response. |
 
@@ -303,11 +303,10 @@ Feature: Follow graph indexing
 
 | ID | Gap / Risk | Affected Requirement IDs | Reason | Follow-Up |
 |---|---|---|---|---|
-| GAP-001 | Live Tap historical delivery cannot be fully proven by isolated unit/integration tests. | BR-004, FR-002, FR-010 | Synthetic `tap.Event{Live:false}` tests prove AppView behavior, but not upstream Tap sidecar backfill behavior with real repos. | Run MAN-001 before implementation is considered complete; document result in PR/test notes. |
-| GAP-002 | Globally authoritative non-Craftsky counts are intentionally out of MVP. | RULE-008, ASM-006 | Requirements explicitly defer external graph/AppView count source. | Future design slice for global non-Craftsky profile counts if product needs them. |
-| GAP-003 | Exact error code names are not all fixed in requirements. | NFR-001, FR-003, FR-004 | Requirements name examples and require documented envelopes but leave some code names to implementation. | Implementation plan should choose stable codes before writing handler tests; tests should lock them once chosen. |
-| GAP-004 | PDS duplicate follow records are assumed rare/invalid but can exist in the wider network. | RULE-003, RISK-002 | Requirements require one active relationship contributes to counts/state, but do not require deleting all duplicate PDS records on unfollow. | Store/indexer tests should collapse duplicates for counts; implementation plan should decide canonical delete behavior if multiple active URIs exist for same pair. |
-| GAP-005 | Non-Craftsky profile hydration failure UX is only specified at API behavior level. | FR-011, FR-012 | Requirements require hydratable profiles but do not specify exact Flutter error copy for unavailable profiles. | Use existing profile-load error UI; document exact copy during implementation if changed. |
+| GAP-001 | Globally authoritative non-Craftsky counts are intentionally out of MVP. | RULE-008, ASM-006 | Requirements explicitly defer external graph/AppView count source. | Future design slice for global non-Craftsky profile counts if product needs them. |
+| GAP-002 | Exact error code names are not all fixed in requirements. | NFR-001, FR-003, FR-004 | Requirements name examples and require documented envelopes but leave some code names to implementation. | Implementation plan should choose stable codes before writing handler tests; tests should lock them once chosen. |
+| GAP-003 | PDS duplicate follow records are assumed rare/invalid but can exist in the wider network. | RULE-003, RISK-002 | Requirements require one active relationship contributes to counts/state, but do not require deleting all duplicate PDS records on unfollow. | Store/indexer tests should collapse duplicates for counts; implementation plan should decide canonical delete behavior if multiple active URIs exist for same pair. |
+| GAP-004 | Non-Craftsky profile hydration failure UX is only specified at API behavior level. | FR-011, FR-012 | Requirements require hydratable profiles but do not specify exact Flutter error copy for unavailable profiles. | Use existing profile-load error UI; document exact copy during implementation if changed. |
 
 ## 10. Out Of Scope
 
@@ -340,5 +339,5 @@ Feature: Follow graph indexing
   - Flutter full suite: `cd app && flutter test`.
   - Focused Flutter examples: `cd app && flutter test test/profile test/shared/api`.
 - Blocking gaps:
-  - `GAP-001`: live Tap historical follow delivery must be manually verified before implementation is accepted as complete.
+  - None. Tap historical delivery has been confirmed; `MAN-001` remains as an end-to-end smoke check.
 - Risk-based review recommendation: risk remains **High**. Run document review before coding unless the user explicitly skips review.

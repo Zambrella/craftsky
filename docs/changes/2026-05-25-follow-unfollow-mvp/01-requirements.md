@@ -413,14 +413,14 @@ The same user can tap Unfollow to remove the active atproto follow, with the App
 |---|---|---|
 | ASM-001 | `app.bsky.graph.follow` is the correct record type for Craftsky follow relationships. | A lexicon/ADR process would be required before implementation. |
 | ASM-002 | Current `PDSClient.CreateRecord` and `DeleteRecord` primitives are sufficient for follow/unfollow writes. | Requirements may need to add PDS client capability changes. |
-| ASM-003 | Tap can provide historical and live `app.bsky.graph.follow` events for tracked repos, consistent with the existing Tap-backed architecture. | If Tap cannot provide this, scope must add a separate import/backfill design before implementation can meet historical graph requirements. |
+| ASM-003 | Tap can provide historical and live `app.bsky.graph.follow` events for tracked repos, consistent with the existing Tap-backed architecture. The user confirmed this during document review follow-up. | If Tap behavior diverges during implementation, scope must add a separate import/backfill design before historical graph requirements can be fully met. |
 | ASM-004 | Existing Flutter messaging/snackbar patterns are sufficient for follow/unfollow failure UX. | Additional UI design requirements may be needed. |
 | ASM-005 | A non-Craftsky account's Bluesky profile data can be hydrated through AppView-side atproto/PDS reads or indexed Tap data without Flutter talking to the PDS directly. | Non-Craftsky profile display would require a separate profile hydration design. |
 | ASM-006 | MVP does not require globally authoritative follower/following counts for non-Craftsky profile pages. | A new external graph/AppView count source would need to be added before implementation. |
 
 ## 21. Open Questions
 
-- [ ] Blocking before implementation: Confirm during test design whether Tap delivers historical `app.bsky.graph.follow` records for newly tracked Craftsky member repos as assumed. The user believes Tap can do it, but requested verification.
+- [x] Resolved: Tap historical `app.bsky.graph.follow` delivery for tracked repos has been confirmed by the user during document review follow-up.
 - [ ] Non-blocking for MVP: Decide in a later architecture/design slice whether Craftsky should use an external AppView/graph source for globally authoritative counts on non-Craftsky profiles.
 
 ## 22. Review Status
@@ -435,7 +435,7 @@ Reviewer: Plannotator and user feedback
 
 Date: 2026-05-25
 
-Notes: Plannotator feedback from 2026-05-25 was applied. A subsequent grilling/review changed the scope from Craftsky-only follows to interoperable atproto follow/unfollow with non-Craftsky profile navigation. The amendment plan was approved with the constraint that MVP does not need follower/following counts for non-Craftsky accounts.
+Notes: Plannotator feedback from 2026-05-25 was applied. A subsequent grilling/review changed the scope from Craftsky-only follows to interoperable atproto follow/unfollow with non-Craftsky profile navigation. The amendment plan was approved with the constraint that MVP does not need follower/following counts for non-Craftsky accounts. Document-review follow-up confirmed Tap historical follow delivery.
 
 ## 23. Handoff To Test Design
 
@@ -453,5 +453,5 @@ Notes: Plannotator feedback from 2026-05-25 was applied. A subsequent grilling/r
   - Indexer tests for create, update, duplicate create, delete/tombstone, unknown delete, externally-created follows, and historical follows delivered by Tap/backfill.
   - Flutter model/API client/repository/provider tests for new fields, nullable non-Craftsky counts, endpoint calls, and response-driven local state updates.
   - Flutter widget tests for Follow/Unfollow button state, loading/disabled state, Craftsky count rendering, non-Craftsky marker, unknown non-Craftsky counts, success updates, and failure messaging.
-- Blocking open questions: Verify Tap historical follow delivery behavior before implementation.
+- Blocking open questions: None.
 - Review gate: Because risk level is High and review is required, run Plannotator or equivalent document review before moving to implementation unless the user explicitly accepts the risk and approves continuation.
