@@ -23,6 +23,12 @@ type ProfileReader interface {
 	Read(ctx context.Context, profileDID string, viewerDID string) (*ProfileRow, error)
 }
 
+type ProfileGraphReader interface {
+	ListMutualFollowers(ctx context.Context, viewerDID string, profileDID string, limit int, cursor string) ([]*ProfileAccountRow, string, int, error)
+	ListFollowers(ctx context.Context, subjectDID string, limit int, cursor string) ([]*ProfileAccountRow, string, int, error)
+	ListFollowing(ctx context.Context, did string, limit int, cursor string) ([]*ProfileAccountRow, string, int, error)
+}
+
 // GetProfileHandler serves GET /v1/profiles/@{handleOrDid}.
 //
 // The "{handleOrDid}" path segment arrives URL-decoded by net/http's
@@ -75,6 +81,155 @@ func GetMeProfileHandler(store ProfileReader, resolver HandleResolver, logger *s
 			slog.String("run_id", runID))
 		writeProfileResponse(w, r, store, resolver, did, logger)
 	})
+}
+
+// GetMutualFollowersHandler serves GET /v1/profiles/@{handleOrDid}/mutual-followers.
+func GetMutualFollowersHandler(store ProfileGraphReader, resolver HandleResolver, logger *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := middleware.GetRunID(r.Context())
+		viewerDID, ok := middleware.GetDID(r.Context())
+		if !ok {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "no did in context", runID, nil)
+			return
+		}
+
+		raw := strings.TrimPrefix(r.PathValue("handleOrDid"), "@")
+		profileDID, err := resolveToDID(r.Context(), raw, resolver)
+		if err != nil {
+			switch {
+			case errors.Is(err, errInvalidIdentifier):
+				envelope.WriteError(w, http.StatusBadRequest,
+					"invalid_identifier", "not a valid handle or DID", runID, nil)
+			default:
+				logger.Warn("profile mutual followers: ResolveDID failed",
+					slog.String("input", raw),
+					slog.String("err", err.Error()),
+					slog.String("run_id", runID))
+				envelope.WriteError(w, http.StatusBadGateway,
+					"identity_unavailable", "could not resolve identity", runID, nil)
+			}
+			return
+		}
+
+		limit := parseLimit(r.URL.Query().Get("limit"))
+		cursor := r.URL.Query().Get("cursor")
+		rows, nextCursor, total, err := store.ListMutualFollowers(r.Context(), viewerDID.String(), profileDID.String(), limit, cursor)
+		if err != nil {
+			if errors.Is(err, envelope.ErrInvalidCursor) {
+				envelope.WriteError(w, http.StatusBadRequest,
+					"invalid_cursor", "cursor could not be decoded", runID, nil)
+				return
+			}
+			logger.Error("profile mutual followers: list failed",
+				slog.String("profile_did", profileDID.String()),
+				slog.String("viewer_did", viewerDID.String()),
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "mutual followers list failed", runID, nil)
+			return
+		}
+
+		items, err := buildProfileAccountSummaries(r.Context(), rows, resolver)
+		if err != nil {
+			logger.Warn("profile mutual followers: ResolveHandle failed",
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusBadGateway,
+				"identity_unavailable", "could not resolve handle", runID, nil)
+			return
+		}
+		body := ProfileAccountPage{Items: items, TotalCount: total}
+		if nextCursor != "" {
+			body.Cursor = &nextCursor
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(body)
+	})
+}
+
+// GetMeFollowersHandler serves GET /v1/profiles/me/followers.
+func GetMeFollowersHandler(store ProfileGraphReader, resolver HandleResolver, logger *slog.Logger) http.Handler {
+	return getMeGraphListHandler("followers", store.ListFollowers, resolver, logger)
+}
+
+// GetMeFollowingHandler serves GET /v1/profiles/me/following.
+func GetMeFollowingHandler(store ProfileGraphReader, resolver HandleResolver, logger *slog.Logger) http.Handler {
+	return getMeGraphListHandler("following", store.ListFollowing, resolver, logger)
+}
+
+func getMeGraphListHandler(
+	label string,
+	list func(context.Context, string, int, string) ([]*ProfileAccountRow, string, int, error),
+	resolver HandleResolver,
+	logger *slog.Logger,
+) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := middleware.GetRunID(r.Context())
+		did, ok := middleware.GetDID(r.Context())
+		if !ok {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "no did in context", runID, nil)
+			return
+		}
+		limit := parseLimit(r.URL.Query().Get("limit"))
+		cursor := r.URL.Query().Get("cursor")
+		rows, nextCursor, total, err := list(r.Context(), did.String(), limit, cursor)
+		if err != nil {
+			if errors.Is(err, envelope.ErrInvalidCursor) {
+				envelope.WriteError(w, http.StatusBadRequest,
+					"invalid_cursor", "cursor could not be decoded", runID, nil)
+				return
+			}
+			logger.Error("profile "+label+": list failed",
+				slog.String("did", did.String()),
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", label+" list failed", runID, nil)
+			return
+		}
+		items, err := buildProfileAccountSummaries(r.Context(), rows, resolver)
+		if err != nil {
+			logger.Warn("profile "+label+": ResolveHandle failed",
+				slog.String("err", err.Error()),
+				slog.String("run_id", runID))
+			envelope.WriteError(w, http.StatusBadGateway,
+				"identity_unavailable", "could not resolve handle", runID, nil)
+			return
+		}
+		body := ProfileAccountPage{Items: items, TotalCount: total}
+		if nextCursor != "" {
+			body.Cursor = &nextCursor
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(body)
+	})
+}
+
+func buildProfileAccountSummaries(ctx context.Context, rows []*ProfileAccountRow, resolver HandleResolver) ([]ProfileAccountSummary, error) {
+	items := make([]ProfileAccountSummary, 0, len(rows))
+	handles := make(map[string]syntax.Handle)
+	for _, row := range rows {
+		handle, ok := handles[row.DID]
+		if !ok {
+			did, err := syntax.ParseDID(row.DID)
+			if err != nil {
+				return nil, err
+			}
+			handle, err = resolver.ResolveHandle(ctx, did)
+			if err != nil {
+				return nil, err
+			}
+			handles[row.DID] = handle
+		}
+		items = append(items, BuildProfileAccountSummary(row, handle))
+	}
+	return items, nil
 }
 
 // writeProfileResponse loads the row, resolves the current handle, and

@@ -13,18 +13,51 @@ import (
 // syntax.DID and syntax.Handle JSON-marshal via TextMarshaler — the
 // wire shape is the same plain-string JSON it always was.
 type ProfileResponse struct {
+	DID                 syntax.DID    `json:"did"`
+	Handle              syntax.Handle `json:"handle"`
+	ViewerIsFollowing   bool          `json:"viewerIsFollowing"`
+	IsCraftskyProfile   bool          `json:"isCraftskyProfile"`
+	FollowingCount      *int          `json:"followingCount,omitempty"`
+	FollowerCount       *int          `json:"followerCount,omitempty"`
+	MutualFollowerCount *int          `json:"mutualFollowerCount,omitempty"`
+	PostCount           *int          `json:"postCount,omitempty"`
+	PostsLast7Days      *int          `json:"postsLast7Days,omitempty"`
+	ProjectCount        *int          `json:"projectCount,omitempty"`
+	DisplayName         *string       `json:"displayName,omitempty"`
+	Description         *string       `json:"description,omitempty"`
+	Avatar              *string       `json:"avatar,omitempty"`
+	Banner              *string       `json:"banner,omitempty"`
+	Crafts              []string      `json:"crafts"`
+	CreatedAt           *time.Time    `json:"createdAt,omitempty"`
+}
+
+type ProfileAccountPage struct {
+	Items      []ProfileAccountSummary `json:"items"`
+	Cursor     *string                 `json:"cursor,omitempty"`
+	TotalCount int                     `json:"totalCount"`
+}
+
+type ProfileAccountSummary struct {
 	DID               syntax.DID    `json:"did"`
 	Handle            syntax.Handle `json:"handle"`
-	ViewerIsFollowing bool          `json:"viewerIsFollowing"`
-	IsCraftskyProfile bool          `json:"isCraftskyProfile"`
-	FollowingCount    *int          `json:"followingCount,omitempty"`
-	FollowerCount     *int          `json:"followerCount,omitempty"`
 	DisplayName       *string       `json:"displayName,omitempty"`
 	Description       *string       `json:"description,omitempty"`
 	Avatar            *string       `json:"avatar,omitempty"`
-	Banner            *string       `json:"banner,omitempty"`
-	Crafts            []string      `json:"crafts"`
-	CreatedAt         *time.Time    `json:"createdAt,omitempty"`
+	IsCraftskyProfile bool          `json:"isCraftskyProfile"`
+}
+
+func BuildProfileAccountSummary(row *ProfileAccountRow, handle syntax.Handle) ProfileAccountSummary {
+	out := ProfileAccountSummary{
+		DID:               syntax.DID(row.DID),
+		Handle:            handle,
+		DisplayName:       row.DisplayName,
+		Description:       row.Description,
+		IsCraftskyProfile: row.IsCraftskyProfile,
+	}
+	if avatar := synthBlobURL("avatar", row.DID, row.AvatarCID, row.AvatarMime); avatar != "" {
+		out.Avatar = &avatar
+	}
+	return out
 }
 
 // mimeExt maps the MIME types we know Bluesky's CDN serves into the
@@ -51,15 +84,19 @@ func BuildProfileResponse(row *ProfileRow, handle syntax.Handle, includeCreatedA
 		crafts = []string{}
 	}
 	out := ProfileResponse{
-		DID:               syntax.DID(row.DID),
-		Handle:            handle,
-		ViewerIsFollowing: row.ViewerIsFollowing,
-		IsCraftskyProfile: row.IsCraftskyProfile,
-		FollowingCount:    row.FollowingCount,
-		FollowerCount:     row.FollowerCount,
-		DisplayName:       row.DisplayName,
-		Description:       row.Description,
-		Crafts:            crafts,
+		DID:                 syntax.DID(row.DID),
+		Handle:              handle,
+		ViewerIsFollowing:   row.ViewerIsFollowing,
+		IsCraftskyProfile:   row.IsCraftskyProfile,
+		FollowingCount:      row.FollowingCount,
+		FollowerCount:       row.FollowerCount,
+		MutualFollowerCount: row.MutualFollowerCount,
+		PostCount:           row.PostCount,
+		PostsLast7Days:      row.PostsLast7Days,
+		ProjectCount:        row.ProjectCount,
+		DisplayName:         row.DisplayName,
+		Description:         row.Description,
+		Crafts:              crafts,
 	}
 	if avatar := synthBlobURL("avatar", row.DID, row.AvatarCID, row.AvatarMime); avatar != "" {
 		out.Avatar = &avatar

@@ -1,3 +1,4 @@
+import 'package:craftsky_app/settings/pages/follow_list_page.dart';
 import 'package:craftsky_app/settings/widgets/clear_image_cache_tile.dart';
 import 'package:craftsky_app/settings/widgets/sign_out_tile.dart';
 import 'package:flutter/material.dart';
@@ -20,10 +21,30 @@ class _SettingsPageBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return const Column(
+    return Column(
       children: [
-        ClearImageCacheTile(),
-        SignOutTile(),
+        ListTile(
+          leading: const Icon(Icons.group_outlined),
+          title: const Text('Followers'),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) =>
+                  const FollowListPage(kind: FollowListKind.followers),
+            ),
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.person_add_alt_outlined),
+          title: const Text('Following'),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) =>
+                  const FollowListPage(kind: FollowListKind.following),
+            ),
+          ),
+        ),
+        const ClearImageCacheTile(),
+        const SignOutTile(),
       ],
     );
   }

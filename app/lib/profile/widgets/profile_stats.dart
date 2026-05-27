@@ -1,108 +1,71 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
+import 'package:timeago/timeago.dart' as timeago;
 
-/// Following / followers / projects count row. Counts are nullable so
-/// callers can pass through whatever subset the AppView has surfaced;
-/// missing values render as `—`. Each cell is tappable so the page can
-/// later wire navigation to follower lists / project lists without
-/// changing this widget's API.
+String formatJoinedAge(DateTime createdAt, {DateTime? now}) {
+  return 'Joined ${timeago.format(createdAt, clock: now)}';
+}
+
+/// Profile summary row. Popularity metrics (followers/following) intentionally
+/// do not render here; those counts remain available in the API but are shown
+/// only one tap deeper from Settings.
 class ProfileStats extends StatelessWidget {
-  const ProfileStats({
-    this.followingCount,
-    this.followerCount,
-    this.projectCount,
-    this.onFollowingTap,
-    this.onFollowersTap,
-    this.onProjectsTap,
-    super.key,
-  });
+  const ProfileStats({required this.profile, super.key});
 
-  final int? followingCount;
-  final int? followerCount;
-  final int? projectCount;
-
-  final VoidCallback? onFollowingTap;
-  final VoidCallback? onFollowersTap;
-  final VoidCallback? onProjectsTap;
+  final Profile profile;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     final spacing = Theme.of(context).extension<SpacingTheme>()!;
-    return Row(
-      children: [
-        _ProfileStat(
-          count: followingCount,
-          label: l10n.profileStatsFollowing,
-          onTap: onFollowingTap,
-        ),
-        SizedBox(width: spacing.sp4),
-        _ProfileStat(
-          count: followerCount,
-          label: l10n.profileStatsFollowers,
-          onTap: onFollowersTap,
-        ),
-        SizedBox(width: spacing.sp4),
-        _ProfileStat(
-          count: projectCount,
-          label: l10n.profileStatsProjects,
-          onTap: onProjectsTap,
-        ),
-      ],
+    final stats = <String>[
+      if (profile.isCraftskyProfile && profile.createdAt != null)
+        formatJoinedAge(profile.createdAt!),
+      if (profile.postsLast7Days != null)
+        '${_formatCount(profile.postsLast7Days!)} posts in the last 7 days',
+      if (profile.postCount != null)
+        '${_formatCount(profile.postCount!)} posts',
+      if (profile.projectCount != null)
+        '${_formatCount(profile.projectCount!)} projects',
+    ];
+    if (stats.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Wrap(
+      spacing: spacing.sp4,
+      runSpacing: spacing.sp1,
+      children: [for (final stat in stats) _ProfileStat(label: stat)],
     );
   }
 }
 
 class _ProfileStat extends StatelessWidget {
-  const _ProfileStat({required this.count, required this.label, this.onTap});
+  const _ProfileStat({required this.label});
 
-  final int? count;
   final String label;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(spacing.sp1),
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: spacing.sp1),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text(
-              count == null ? '—' : _formatCount(count!),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-            SizedBox(width: spacing.sp1),
-            Text(
-              label,
-              // `onSurfaceVariant` carries the brand's ink2 (secondary
-              // text) per the ColorScheme override in app_theme.dart.
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: spacing.sp1),
+      child: Text(
+        label,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
+}
 
-  String _formatCount(int count) {
-    if (count < 1000) return '$count';
-    if (count < 10000) {
-      final thousands = count / 1000;
-      return '${thousands.toStringAsFixed(1)}k';
-    }
-    return '${(count / 1000).round()}k';
+String _formatCount(int count) {
+  if (count < 1000) return '$count';
+  if (count < 10000) {
+    final thousands = count / 1000;
+    return '${thousands.toStringAsFixed(1)}k';
   }
+  return '${(count / 1000).round()}k';
 }

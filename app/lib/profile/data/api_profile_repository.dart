@@ -1,6 +1,7 @@
 import 'package:craftsky_app/profile/data/profile_api_client.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
 /// Production [ProfileRepository] backed by the AppView HTTP API.
@@ -40,4 +41,19 @@ class ApiProfileRepository implements ProfileRepository {
   @override
   Future<Profile> unfollow(String handleOrDid) =>
       _api.unfollowProfile(handleOrDid);
+
+  @override
+  Future<ProfileAccountPage> listMutualFollowers(
+    String handleOrDid, {
+    int? limit,
+    String? cursor,
+  }) => _api.listMutualFollowers(handleOrDid, limit: limit, cursor: cursor);
+
+  @override
+  Future<ProfileAccountPage> listFollowersMe({int? limit, String? cursor}) =>
+      _api.listFollowersMe(limit: limit, cursor: cursor);
+
+  @override
+  Future<ProfileAccountPage> listFollowingMe({int? limit, String? cursor}) =>
+      _api.listFollowingMe(limit: limit, cursor: cursor);
 }

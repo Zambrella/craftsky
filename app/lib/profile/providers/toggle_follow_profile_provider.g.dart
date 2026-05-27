@@ -34,7 +34,7 @@ final class ToggleFollowProfileProvider
 }
 
 String _$toggleFollowProfileHash() =>
-    r'5f338d14c26436e2fc68692bed78afba601dd89e';
+    r'1a534a15522045b1622e26eb8e7ffd15ae04740c';
 
 abstract class _$ToggleFollowProfile extends $AsyncNotifier<Profile?> {
   FutureOr<Profile?> build();

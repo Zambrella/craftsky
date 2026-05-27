@@ -200,7 +200,12 @@ class _ProfileScrollView extends StatelessWidget {
                   alt: _profileImageAlt(profile, 'profile banner'),
                 ),
         ),
-        SliverToBoxAdapter(child: ProfileMetaSection(profile: profile)),
+        SliverToBoxAdapter(
+          child: ProfileMetaSection(
+            profile: profile,
+            isOwnProfile: isOwnProfile,
+          ),
+        ),
         const SliverPersistentHeader(
           pinned: true,
           delegate: ProfileTabBarDelegate(),

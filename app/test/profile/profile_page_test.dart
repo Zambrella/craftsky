@@ -6,6 +6,8 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_account_page.dart';
+import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
@@ -81,6 +83,11 @@ void main() {
         isCraftskyProfile: true,
         followingCount: 7,
         followerCount: 9,
+        mutualFollowerCount: 12,
+        postsLast7Days: 2,
+        postCount: 5,
+        projectCount: 0,
+        createdAt: DateTime.now().subtract(const Duration(days: 30)),
       );
       final repo = FakeProfileRepository(onFetch: (_) async => profile);
 
@@ -107,9 +114,65 @@ void main() {
       // the collapsed-state trailing slot.
       expect(find.byIcon(Icons.ios_share_outlined), findsWidgets);
       expect(find.text('Edit profile'), findsNothing);
-      expect(find.text('7'), findsOneWidget);
-      expect(find.text('9'), findsOneWidget);
+      expect(find.text('following'), findsNothing);
+      expect(find.text('followers'), findsNothing);
+      expect(find.text('2 posts in the last 7 days'), findsOneWidget);
+      expect(find.text('5 posts'), findsOneWidget);
+      expect(find.text('0 projects'), findsOneWidget);
+      expect(find.text('12 mutual followers'), findsOneWidget);
       expect(find.text('Non Craftsky profile'), findsNothing);
+    });
+
+    testWidgets('tapping mutual followers opens bottom sheet list', (
+      tester,
+    ) async {
+      final profile = Profile(
+        did: 'did:plc:other',
+        handle: 'bob.bsky.social',
+        displayName: 'Bob',
+        crafts: [],
+        viewerIsFollowing: false,
+        isCraftskyProfile: true,
+        mutualFollowerCount: 12,
+      );
+      final repo = FakeProfileRepository(
+        onFetch: (_) async => profile,
+        onListMutualFollowers: (_, {cursor, limit}) async => ProfileAccountPage(
+          totalCount: 12,
+          items: [
+            ProfileAccountSummary(
+              did: 'did:plc:carol',
+              handle: 'carol.craftsky.social',
+              displayName: 'Carol',
+              isCraftskyProfile: true,
+            ),
+          ],
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProfilePage(handle: 'bob.bsky.social'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('12 mutual followers'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mutual followers'), findsOneWidget);
+      expect(find.text('Carol'), findsOneWidget);
+      expect(find.text('@carol.craftsky.social'), findsOneWidget);
     });
 
     testWidgets('visitor profile renders Unfollow when already following', (
@@ -179,7 +242,9 @@ void main() {
       expect(find.text('Non Craftsky profile'), findsOneWidget);
       expect(find.text('342'), findsNothing);
       expect(find.text('1200'), findsNothing);
-      expect(find.text('—'), findsNWidgets(2));
+      expect(find.textContaining('Joined'), findsNothing);
+      expect(find.text('followers'), findsNothing);
+      expect(find.text('following'), findsNothing);
     });
 
     testWidgets('tapping Follow updates profile from repository response', (

@@ -47,8 +47,14 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		authN(deviceID(api.GetProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger))))
 	mux.Handle("GET /v1/profiles/me",
 		authN(deviceID(api.GetMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger))))
+	mux.Handle("GET /v1/profiles/me/followers",
+		authN(deviceID(api.GetMeFollowersHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger))))
+	mux.Handle("GET /v1/profiles/me/following",
+		authN(deviceID(api.GetMeFollowingHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger))))
 	mux.Handle("PUT /v1/profiles/me",
 		authN(deviceID(api.PutMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, mediaLimits, deps.Logger))))
+	mux.Handle("GET /v1/profiles/{handleOrDid}/mutual-followers",
+		authN(deviceID(api.GetMutualFollowersHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger))))
 	mux.Handle("POST /v1/profiles/{handleOrDid}/follows",
 		authN(deviceID(api.FollowProfileHandler(deps.FollowStore, deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger))))
 	mux.Handle("DELETE /v1/profiles/{handleOrDid}/follows",

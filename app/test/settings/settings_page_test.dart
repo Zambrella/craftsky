@@ -13,6 +13,10 @@ void main() {
         const ProviderScope(child: MaterialApp(home: SettingsPage())),
       );
       expect(find.text('Settings'), findsWidgets);
+      expect(find.text('Followers'), findsOneWidget);
+      expect(find.text('Following'), findsOneWidget);
+      expect(find.textContaining(RegExp(r'\d+ followers')), findsNothing);
+      expect(find.textContaining(RegExp(r'\d+ following')), findsNothing);
       expect(find.byType(ClearImageCacheTile), findsOneWidget);
       expect(find.byType(SignOutTile), findsOneWidget);
     },

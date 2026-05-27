@@ -1,5 +1,6 @@
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
 /// Programmable [ProfileRepository] for unit tests. Each method
@@ -25,6 +26,9 @@ class FakeProfileRepository implements ProfileRepository {
     this.onUpdateMe,
     this.onFollow,
     this.onUnfollow,
+    this.onListMutualFollowers,
+    this.onListFollowersMe,
+    this.onListFollowingMe,
   });
 
   final Future<Profile> Function(String handleOrDid)? onFetch;
@@ -41,6 +45,16 @@ class FakeProfileRepository implements ProfileRepository {
   onUpdateMe;
   final Future<Profile> Function(String handleOrDid)? onFollow;
   final Future<Profile> Function(String handleOrDid)? onUnfollow;
+  final Future<ProfileAccountPage> Function(
+    String handleOrDid, {
+    int? limit,
+    String? cursor,
+  })?
+  onListMutualFollowers;
+  final Future<ProfileAccountPage> Function({int? limit, String? cursor})?
+  onListFollowersMe;
+  final Future<ProfileAccountPage> Function({int? limit, String? cursor})?
+  onListFollowingMe;
 
   @override
   Future<Profile> fetch(String handleOrDid) =>
@@ -82,4 +96,33 @@ class FakeProfileRepository implements ProfileRepository {
   Future<Profile> unfollow(String handleOrDid) =>
       onUnfollow?.call(handleOrDid) ??
       Future<Profile>.error(UnimplementedError('unfollow not stubbed'));
+
+  @override
+  Future<ProfileAccountPage> listMutualFollowers(
+    String handleOrDid, {
+    int? limit,
+    String? cursor,
+  }) =>
+      onListMutualFollowers?.call(
+        handleOrDid,
+        limit: limit,
+        cursor: cursor,
+      ) ??
+      Future<ProfileAccountPage>.error(
+        UnimplementedError('listMutualFollowers not stubbed'),
+      );
+
+  @override
+  Future<ProfileAccountPage> listFollowersMe({int? limit, String? cursor}) =>
+      onListFollowersMe?.call(limit: limit, cursor: cursor) ??
+      Future<ProfileAccountPage>.error(
+        UnimplementedError('listFollowersMe not stubbed'),
+      );
+
+  @override
+  Future<ProfileAccountPage> listFollowingMe({int? limit, String? cursor}) =>
+      onListFollowingMe?.call(limit: limit, cursor: cursor) ??
+      Future<ProfileAccountPage>.error(
+        UnimplementedError('listFollowingMe not stubbed'),
+      );
 }

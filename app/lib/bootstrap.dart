@@ -17,6 +17,9 @@ import 'package:craftsky_app/feed/providers/user_comments_provider.dart'
     as user_comments_provider;
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart'
     as user_posts_provider;
+import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_account_page.dart';
+import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
@@ -190,4 +193,7 @@ void initializeMappers() {
   UploadedImageBlobMapper.ensureInitialized();
   UserPostsStateMapper.ensureInitialized();
   InteractionWriteResponseMapper.ensureInitialized();
+  ProfileMapper.ensureInitialized();
+  ProfileAccountSummaryMapper.ensureInitialized();
+  ProfileAccountPageMapper.ensureInitialized();
 }
