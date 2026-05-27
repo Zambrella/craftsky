@@ -295,8 +295,14 @@ abstract class AppLocalizations {
   /// Label on the follow button on a visitor profile when the viewer is already following them.
   ///
   /// In en, this message translates to:
-  /// **'Following'**
+  /// **'Unfollow'**
   String get profileFollowingAction;
+
+  /// Marker shown on a profile page for an atproto account that does not have a Craftsky profile record.
+  ///
+  /// In en, this message translates to:
+  /// **'Non Craftsky profile'**
+  String get profileNonCraftskyMarker;
 
   /// Tab label for the Posts tab on the profile screen.
   ///
@@ -957,6 +963,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Follow coming soon.'**
   String get profileFollowComingSoon;
+
+  /// Snackbar shown when a follow or unfollow request fails and the previous state is restored.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not update follow state.'**
+  String get profileFollowToggleError;
 
   /// Snackbar shown when tapping Share while share wiring isn't implemented yet.
   ///

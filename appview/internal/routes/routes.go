@@ -49,6 +49,10 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		authN(deviceID(api.GetMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger))))
 	mux.Handle("PUT /v1/profiles/me",
 		authN(deviceID(api.PutMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, mediaLimits, deps.Logger))))
+	mux.Handle("POST /v1/profiles/{handleOrDid}/follows",
+		authN(deviceID(api.FollowProfileHandler(deps.FollowStore, deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger))))
+	mux.Handle("DELETE /v1/profiles/{handleOrDid}/follows",
+		authN(deviceID(api.UnfollowProfileHandler(deps.FollowStore, deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger))))
 
 	// v1 — post handlers (authenticated + device-id required).
 	postStore := api.NewPostStore(deps.DB)

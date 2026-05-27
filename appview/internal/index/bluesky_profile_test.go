@@ -75,7 +75,7 @@ func TestBlueskyProfile_CreateForMember(t *testing.T) {
 	}
 }
 
-func TestBlueskyProfile_DropsForNonMember(t *testing.T) {
+func TestBlueskyProfile_CreatesForNonMember(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, craftskyProfilesDDL)
 	idx := index.NewBlueskyProfile(pool)
@@ -90,13 +90,13 @@ func TestBlueskyProfile_DropsForNonMember(t *testing.T) {
 		Record:     json.RawMessage(`{"displayName":"bob"}`),
 	}
 	if err := idx.Handle(context.Background(), ev); err != nil {
-		t.Errorf("Handle should drop non-members without error; got %v", err)
+		t.Errorf("Handle create for non-member: %v", err)
 	}
 	var count int
 	_ = pool.QueryRow(context.Background(),
 		`SELECT count(*) FROM bluesky_profiles WHERE did = $1`, ev.DID).Scan(&count)
-	if count != 0 {
-		t.Errorf("count = %d, want 0 (non-member must not be indexed)", count)
+	if count != 1 {
+		t.Errorf("count = %d, want 1 (non-member should be indexed)", count)
 	}
 }
 

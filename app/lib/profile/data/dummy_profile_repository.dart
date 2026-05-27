@@ -58,4 +58,16 @@ class DummyProfileRepository implements ProfileRepository {
       crafts: crafts ?? _profile.crafts,
     );
   }
+
+  @override
+  Future<Profile> follow(String handleOrDid) async {
+    await Future<void>.delayed(_latency);
+    return _profile = _profile.copyWith(viewerIsFollowing: true);
+  }
+
+  @override
+  Future<Profile> unfollow(String handleOrDid) async {
+    await Future<void>.delayed(_latency);
+    return _profile = _profile.copyWith(viewerIsFollowing: false);
+  }
 }

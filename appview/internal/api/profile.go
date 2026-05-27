@@ -20,7 +20,7 @@ import (
 // concrete production implementation is *ProfileStore. Tests inject a
 // fake.
 type ProfileReader interface {
-	Read(ctx context.Context, did string) (*ProfileRow, error)
+	Read(ctx context.Context, profileDID string, viewerDID string) (*ProfileRow, error)
 }
 
 // GetProfileHandler serves GET /v1/profiles/@{handleOrDid}.
@@ -88,11 +88,20 @@ func writeProfileResponse(
 	logger *slog.Logger,
 ) {
 	runID := middleware.GetRunID(r.Context())
-	row, err := store.Read(r.Context(), did.String())
+	viewerDID := ""
+	if viewer, ok := middleware.GetDID(r.Context()); ok {
+		viewerDID = viewer.String()
+	}
+	row, err := store.Read(r.Context(), did.String(), viewerDID)
 	if err != nil {
 		if errors.Is(err, ErrProfileNotFound) {
 			envelope.WriteError(w, http.StatusNotFound,
 				"profile_not_found", "profile not found", runID, nil)
+			return
+		}
+		if errors.Is(err, ErrProfileCountsUnavailable) {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"profile_counts_unavailable", "required profile counts unavailable", runID, nil)
 			return
 		}
 		logger.Error("profile: store read failed",
@@ -117,7 +126,7 @@ func writeProfileResponse(
 			"identity_unavailable", "could not resolve handle", runID, nil)
 		return
 	}
-	resp := BuildProfileResponse(row, handle, true)
+	resp := BuildProfileResponse(row, handle, row.IsCraftskyProfile)
 	logger.Debug("profile: response ready",
 		slog.String("did", did.String()),
 		slog.String("handle", handle.String()),

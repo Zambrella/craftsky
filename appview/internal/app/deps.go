@@ -49,6 +49,8 @@ type Deps struct {
 
 	// ProfileStore serves the /v1/profiles endpoints.
 	ProfileStore *api.ProfileStore
+	// FollowStore serves follow graph read/write operations for /v1/profiles/*/follows.
+	FollowStore *api.FollowStore
 	// NewPDSClient produces a PDSClient bound to an OAuth session. Shared
 	// by the OAuth callback's InitializeProfile step and the write-proxy
 	// handlers (today PUT /v1/profiles/me).
@@ -145,7 +147,8 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		}
 	}
 
-	deps.ProfileStore = api.NewProfileStore(pool)
+	deps.ProfileStore = api.NewProfileStore(pool, anonPDS)
+	deps.FollowStore = api.NewFollowStore(pool)
 	deps.NewPDSClient = func(ctx context.Context, did syntax.DID, sid string) (auth.PDSClient, error) {
 		sess, err := oauthApp.ResumeSession(ctx, did, sid)
 		if err != nil {
@@ -183,6 +186,8 @@ func newIndexerDispatcher(pool *pgxpool.Pool, anonPDS auth.PDSClient, logger *sl
 		index.NewCraftskyLike(pool, logger))
 	dispatcher.Register("social.craftsky.feed.repost",
 		index.NewCraftskyRepost(pool, logger))
+	dispatcher.Register("app.bsky.graph.follow",
+		index.NewBlueskyFollow(pool))
 	dispatcher.Register("app.bsky.actor.profile", blueskyIdx)
 	return dispatcher
 }

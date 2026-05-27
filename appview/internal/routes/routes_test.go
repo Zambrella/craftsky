@@ -444,3 +444,79 @@ func TestRoutes_PostPostsRequiresAuth(t *testing.T) {
 		t.Errorf("POST /v1/posts without auth: status = %d, want 401", rr.Code)
 	}
 }
+
+func TestRoutes_PostProfileFollowRequiresAuth(t *testing.T) {
+	t.Parallel()
+	deps := testDeps()
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/profiles/@bob.example/follows", nil)
+	req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("POST /v1/profiles/@{handleOrDid}/follows without auth: status = %d, want 401", rr.Code)
+	}
+}
+
+func TestRoutes_PostProfileFollowRequiresDeviceID(t *testing.T) {
+	t.Parallel()
+	deps := testDeps()
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/profiles/@bob.example/follows", nil)
+	req.Header.Set("Authorization", "Bearer anything")
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("POST /v1/profiles/@{handleOrDid}/follows without device: status = %d, want 400", rr.Code)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("body not valid JSON: %v", err)
+	}
+	if body["error"] != "missing_device_id" {
+		t.Errorf("error = %v, want missing_device_id", body["error"])
+	}
+	if _, ok := body["message"]; !ok {
+		t.Error("missing message field")
+	}
+	if _, ok := body["requestId"]; !ok {
+		t.Error("missing requestId field")
+	}
+}
+
+func TestRoutes_DeleteProfileFollowRequiresAuth(t *testing.T) {
+	t.Parallel()
+	deps := testDeps()
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/profiles/@bob.example/follows", nil)
+	req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("DELETE /v1/profiles/@{handleOrDid}/follows without auth: status = %d, want 401", rr.Code)
+	}
+}
+
+func TestRoutes_DeleteProfileFollowRequiresDeviceID(t *testing.T) {
+	t.Parallel()
+	deps := testDeps()
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/profiles/@bob.example/follows", nil)
+	req.Header.Set("Authorization", "Bearer anything")
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("DELETE /v1/profiles/@{handleOrDid}/follows without device: status = %d, want 400", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "missing_device_id") {
+		t.Errorf("body = %q, want containing 'missing_device_id'", rr.Body.String())
+	}
+}

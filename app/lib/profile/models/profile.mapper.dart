@@ -72,6 +72,32 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     _$createdAt,
     opt: true,
   );
+  static bool _$viewerIsFollowing(Profile v) => v.viewerIsFollowing;
+  static const Field<Profile, bool> _f$viewerIsFollowing = Field(
+    'viewerIsFollowing',
+    _$viewerIsFollowing,
+    opt: true,
+    def: false,
+  );
+  static bool _$isCraftskyProfile(Profile v) => v.isCraftskyProfile;
+  static const Field<Profile, bool> _f$isCraftskyProfile = Field(
+    'isCraftskyProfile',
+    _$isCraftskyProfile,
+    opt: true,
+    def: true,
+  );
+  static int? _$followerCount(Profile v) => v.followerCount;
+  static const Field<Profile, int> _f$followerCount = Field(
+    'followerCount',
+    _$followerCount,
+    opt: true,
+  );
+  static int? _$followingCount(Profile v) => v.followingCount;
+  static const Field<Profile, int> _f$followingCount = Field(
+    'followingCount',
+    _$followingCount,
+    opt: true,
+  );
 
   @override
   final MappableFields<Profile> fields = const {
@@ -83,6 +109,10 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     #avatar: _f$avatar,
     #banner: _f$banner,
     #createdAt: _f$createdAt,
+    #viewerIsFollowing: _f$viewerIsFollowing,
+    #isCraftskyProfile: _f$isCraftskyProfile,
+    #followerCount: _f$followerCount,
+    #followingCount: _f$followingCount,
   };
 
   static Profile _instantiate(DecodingData data) {
@@ -95,6 +125,10 @@ class ProfileMapper extends ClassMapperBase<Profile> {
       avatar: data.dec(_f$avatar),
       banner: data.dec(_f$banner),
       createdAt: data.dec(_f$createdAt),
+      viewerIsFollowing: data.dec(_f$viewerIsFollowing),
+      isCraftskyProfile: data.dec(_f$isCraftskyProfile),
+      followerCount: data.dec(_f$followerCount),
+      followingCount: data.dec(_f$followingCount),
     );
   }
 
@@ -165,6 +199,10 @@ abstract class ProfileCopyWith<$R, $In extends Profile, $Out>
     String? avatar,
     String? banner,
     DateTime? createdAt,
+    bool? viewerIsFollowing,
+    bool? isCraftskyProfile,
+    int? followerCount,
+    int? followingCount,
   });
   ProfileCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
@@ -194,6 +232,10 @@ class _ProfileCopyWithImpl<$R, $Out>
     Object? avatar = $none,
     Object? banner = $none,
     Object? createdAt = $none,
+    bool? viewerIsFollowing,
+    bool? isCraftskyProfile,
+    Object? followerCount = $none,
+    Object? followingCount = $none,
   }) => $apply(
     FieldCopyWithData({
       if (did != null) #did: did,
@@ -204,6 +246,10 @@ class _ProfileCopyWithImpl<$R, $Out>
       if (avatar != $none) #avatar: avatar,
       if (banner != $none) #banner: banner,
       if (createdAt != $none) #createdAt: createdAt,
+      if (viewerIsFollowing != null) #viewerIsFollowing: viewerIsFollowing,
+      if (isCraftskyProfile != null) #isCraftskyProfile: isCraftskyProfile,
+      if (followerCount != $none) #followerCount: followerCount,
+      if (followingCount != $none) #followingCount: followingCount,
     }),
   );
   @override
@@ -216,6 +262,16 @@ class _ProfileCopyWithImpl<$R, $Out>
     avatar: data.get(#avatar, or: $value.avatar),
     banner: data.get(#banner, or: $value.banner),
     createdAt: data.get(#createdAt, or: $value.createdAt),
+    viewerIsFollowing: data.get(
+      #viewerIsFollowing,
+      or: $value.viewerIsFollowing,
+    ),
+    isCraftskyProfile: data.get(
+      #isCraftskyProfile,
+      or: $value.isCraftskyProfile,
+    ),
+    followerCount: data.get(#followerCount, or: $value.followerCount),
+    followingCount: data.get(#followingCount, or: $value.followingCount),
   );
 
   @override

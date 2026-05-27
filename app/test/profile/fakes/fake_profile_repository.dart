@@ -19,7 +19,13 @@ import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 /// );
 /// ```
 class FakeProfileRepository implements ProfileRepository {
-  FakeProfileRepository({this.onFetch, this.onFetchMe, this.onUpdateMe});
+  FakeProfileRepository({
+    this.onFetch,
+    this.onFetchMe,
+    this.onUpdateMe,
+    this.onFollow,
+    this.onUnfollow,
+  });
 
   final Future<Profile> Function(String handleOrDid)? onFetch;
   final Future<Profile> Function()? onFetchMe;
@@ -33,6 +39,8 @@ class FakeProfileRepository implements ProfileRepository {
     bool clearBanner,
   })?
   onUpdateMe;
+  final Future<Profile> Function(String handleOrDid)? onFollow;
+  final Future<Profile> Function(String handleOrDid)? onUnfollow;
 
   @override
   Future<Profile> fetch(String handleOrDid) =>
@@ -64,4 +72,14 @@ class FakeProfileRepository implements ProfileRepository {
         clearBanner: clearBanner,
       ) ??
       Future<Profile>.error(UnimplementedError('updateMe not stubbed'));
+
+  @override
+  Future<Profile> follow(String handleOrDid) =>
+      onFollow?.call(handleOrDid) ??
+      Future<Profile>.error(UnimplementedError('follow not stubbed'));
+
+  @override
+  Future<Profile> unfollow(String handleOrDid) =>
+      onUnfollow?.call(handleOrDid) ??
+      Future<Profile>.error(UnimplementedError('unfollow not stubbed'));
 }

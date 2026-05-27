@@ -23,11 +23,15 @@ import (
 
 // fakeStore implements the subset of ProfileStore that handlers call.
 type fakeStore struct {
-	row *api.ProfileRow
-	err error
+	row            *api.ProfileRow
+	err            error
+	lastProfileDID string
+	lastViewerDID  string
 }
 
-func (f *fakeStore) Read(_ context.Context, _ string) (*api.ProfileRow, error) {
+func (f *fakeStore) Read(_ context.Context, profileDID string, viewerDID string) (*api.ProfileRow, error) {
+	f.lastProfileDID = profileDID
+	f.lastViewerDID = viewerDID
 	return f.row, f.err
 }
 
@@ -154,6 +158,28 @@ func TestGetProfile_ResolveDIDError(t *testing.T) {
 	var env envelope.Error
 	_ = json.Unmarshal(rr.Body.Bytes(), &env)
 	if env.Error != "identity_unavailable" {
+		t.Errorf("code = %q", env.Error)
+	}
+}
+
+func TestGetProfile_CountsUnavailable(t *testing.T) {
+	t.Parallel()
+	h := api.GetProfileHandler(
+		&fakeStore{err: api.ErrProfileCountsUnavailable},
+		fakeResolver{didFor: "did:plc:xyz"},
+		nilLogger(),
+	)
+	req := httptest.NewRequest(http.MethodGet, "/v1/profiles/@alice.example", nil)
+	req.SetPathValue("handleOrDid", "alice.example")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d", rr.Code)
+	}
+	var env envelope.Error
+	_ = json.Unmarshal(rr.Body.Bytes(), &env)
+	if env.Error != "profile_counts_unavailable" {
 		t.Errorf("code = %q", env.Error)
 	}
 }

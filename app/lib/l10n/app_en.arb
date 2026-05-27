@@ -103,8 +103,11 @@
   "profileFollowAction": "Follow",
   "@profileFollowAction": { "description": "Label on the follow button on a visitor profile when the viewer is not yet following them." },
 
-  "profileFollowingAction": "Following",
+  "profileFollowingAction": "Unfollow",
   "@profileFollowingAction": { "description": "Label on the follow button on a visitor profile when the viewer is already following them." },
+
+  "profileNonCraftskyMarker": "Non Craftsky profile",
+  "@profileNonCraftskyMarker": { "description": "Marker shown on a profile page for an atproto account that does not have a Craftsky profile record." },
 
   "profileTabPosts": "Posts",
   "@profileTabPosts": { "description": "Tab label for the Posts tab on the profile screen." },
@@ -477,6 +480,9 @@
 
   "profileFollowComingSoon": "Follow coming soon.",
   "@profileFollowComingSoon": { "description": "Snackbar shown when tapping Follow while follow wiring isn't implemented yet." },
+
+  "profileFollowToggleError": "Could not update follow state.",
+  "@profileFollowToggleError": { "description": "Snackbar shown when a follow or unfollow request fails and the previous state is restored." },
 
   "profileShareComingSoon": "Share coming soon.",
   "@profileShareComingSoon": { "description": "Snackbar shown when tapping Share while share wiring isn't implemented yet." },

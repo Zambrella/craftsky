@@ -116,7 +116,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileFollowAction => 'Follow';
 
   @override
-  String get profileFollowingAction => 'Following';
+  String get profileFollowingAction => 'Unfollow';
+
+  @override
+  String get profileNonCraftskyMarker => 'Non Craftsky profile';
 
   @override
   String get profileTabPosts => 'Posts';
@@ -486,6 +489,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileFollowComingSoon => 'Follow coming soon.';
+
+  @override
+  String get profileFollowToggleError => 'Could not update follow state.';
 
   @override
   String get profileShareComingSoon => 'Share coming soon.';

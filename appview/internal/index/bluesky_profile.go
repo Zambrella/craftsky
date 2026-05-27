@@ -13,8 +13,8 @@ import (
 )
 
 // BlueskyProfile indexes app.bsky.actor.profile events into the
-// bluesky_profiles table, gated on Craftsky membership (presence in
-// craftsky_profiles). Required invariant: idempotent on (DID, CID).
+// bluesky_profiles table for Craftsky and non-Craftsky accounts.
+// Required invariant: idempotent on (DID, CID).
 type BlueskyProfile struct {
 	pool *pgxpool.Pool
 }
@@ -46,15 +46,6 @@ type blueskyProfileRecord struct {
 
 func (b *BlueskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 	if ev.Collection != blueskyProfileNSID {
-		return nil
-	}
-	isMember, err := b.isMember(ctx, ev.DID)
-	if err != nil {
-		return fmt.Errorf("membership check %s: %w", ev.DID, err)
-	}
-	if !isMember {
-		// Drop silently — the user isn't on Craftsky, so we don't mirror
-		// their Bluesky profile.
 		return nil
 	}
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
@@ -75,6 +77,10 @@ void main() {
         handle: 'alice.bsky.social',
         displayName: 'Alice',
         crafts: [],
+        viewerIsFollowing: false,
+        isCraftskyProfile: true,
+        followingCount: 7,
+        followerCount: 9,
       );
       final repo = FakeProfileRepository(onFetch: (_) async => profile);
 
@@ -96,13 +102,17 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Follow'), findsOneWidget);
+      expect(find.text('Unfollow'), findsNothing);
       // Share is icon-only in the action row plus the share icon in
       // the collapsed-state trailing slot.
       expect(find.byIcon(Icons.ios_share_outlined), findsWidgets);
       expect(find.text('Edit profile'), findsNothing);
+      expect(find.text('7'), findsOneWidget);
+      expect(find.text('9'), findsOneWidget);
+      expect(find.text('Non Craftsky profile'), findsNothing);
     });
 
-    testWidgets('tapping Follow dispatches a coming-soon info', (
+    testWidgets('visitor profile renders Unfollow when already following', (
       tester,
     ) async {
       final profile = Profile(
@@ -110,8 +120,222 @@ void main() {
         handle: 'alice.bsky.social',
         displayName: 'Alice',
         crafts: [],
+        viewerIsFollowing: true,
+        isCraftskyProfile: true,
       );
       final repo = FakeProfileRepository(onFetch: (_) async => profile);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProfilePage(handle: 'alice.bsky.social'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Unfollow'), findsOneWidget);
+      expect(find.text('Follow'), findsNothing);
+    });
+
+    testWidgets('non-Craftsky profile shows marker and unknown counts', (
+      tester,
+    ) async {
+      final profile = Profile(
+        did: 'did:plc:other',
+        handle: 'carol.bsky.social',
+        displayName: 'Carol',
+        crafts: [],
+        viewerIsFollowing: false,
+        isCraftskyProfile: false,
+      );
+      final repo = FakeProfileRepository(onFetch: (_) async => profile);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProfilePage(handle: 'carol.bsky.social'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Non Craftsky profile'), findsOneWidget);
+      expect(find.text('342'), findsNothing);
+      expect(find.text('1200'), findsNothing);
+      expect(find.text('—'), findsNWidgets(2));
+    });
+
+    testWidgets('tapping Follow updates profile from repository response', (
+      tester,
+    ) async {
+      var followCalls = 0;
+      final profile = Profile(
+        did: 'did:plc:other',
+        handle: 'alice.bsky.social',
+        displayName: 'Alice',
+        crafts: [],
+        viewerIsFollowing: false,
+        isCraftskyProfile: true,
+      );
+      final repo = FakeProfileRepository(
+        onFetch: (_) async => profile,
+        onFollow: (_) async {
+          followCalls++;
+          return profile.copyWith(viewerIsFollowing: true);
+        },
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProfilePage(handle: 'alice.bsky.social'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Follow'));
+      await tester.pumpAndSettle();
+
+      expect(followCalls, 1);
+      expect(find.text('Unfollow'), findsOneWidget);
+      expect(find.text('Follow'), findsNothing);
+    });
+
+    testWidgets('tapping Unfollow updates profile from repository response', (
+      tester,
+    ) async {
+      var unfollowCalls = 0;
+      final profile = Profile(
+        did: 'did:plc:other',
+        handle: 'alice.bsky.social',
+        displayName: 'Alice',
+        crafts: [],
+        viewerIsFollowing: true,
+        isCraftskyProfile: true,
+      );
+      final repo = FakeProfileRepository(
+        onFetch: (_) async => profile,
+        onUnfollow: (_) async {
+          unfollowCalls++;
+          return profile.copyWith(viewerIsFollowing: false);
+        },
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProfilePage(handle: 'alice.bsky.social'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Unfollow'));
+      await tester.pumpAndSettle();
+
+      expect(unfollowCalls, 1);
+      expect(find.text('Follow'), findsOneWidget);
+      expect(find.text('Unfollow'), findsNothing);
+    });
+
+    testWidgets('follow button is not re-entrant while request is in flight', (
+      tester,
+    ) async {
+      final profile = Profile(
+        did: 'did:plc:other',
+        handle: 'alice.bsky.social',
+        displayName: 'Alice',
+        crafts: [],
+        viewerIsFollowing: false,
+        isCraftskyProfile: true,
+      );
+      var followCalls = 0;
+      final completer = Completer<Profile>();
+      final repo = FakeProfileRepository(
+        onFetch: (_) async => profile,
+        onFollow: (_) {
+          followCalls++;
+          return completer.future;
+        },
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProfilePage(handle: 'alice.bsky.social'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Follow'));
+      await tester.pump();
+      await tester.tap(find.text('Unfollow'));
+      await tester.pump();
+
+      expect(followCalls, 1);
+
+      completer.complete(profile.copyWith(viewerIsFollowing: true));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('failed follow restores previous state and shows error', (
+      tester,
+    ) async {
+      final profile = Profile(
+        did: 'did:plc:other',
+        handle: 'alice.bsky.social',
+        displayName: 'Alice',
+        crafts: [],
+        viewerIsFollowing: false,
+        isCraftskyProfile: true,
+      );
+      final repo = FakeProfileRepository(
+        onFetch: (_) async => profile,
+        onFollow: (_) async => throw Exception('boom'),
+      );
       final messenger = RecordingMessenger();
 
       await tester.pumpWidget(
@@ -135,9 +359,13 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Follow'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Follow'), findsOneWidget);
+      expect(find.text('Unfollow'), findsNothing);
       expect(messenger.calls.length, 1);
-      expect(messenger.calls.first.$1, 'info');
-      expect(messenger.calls.first.$2, 'Follow coming soon.');
+      expect(messenger.calls.first.$1, 'error');
+      expect(messenger.calls.first.$2, 'Could not update follow state.');
     });
 
     testWidgets('tapping Share dispatches a coming-soon info', (
