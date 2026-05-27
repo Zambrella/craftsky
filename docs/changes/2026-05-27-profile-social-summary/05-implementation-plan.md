@@ -246,3 +246,23 @@ Source review: `06-implementation-review.md` (`Changes required`).
 - `go test ./internal/api ./internal/routes` from `appview/` passed.
 - Dart analyzer via MCP on `app/lib`, `app/test/profile`, and `app/test/settings` reported no errors.
 - Remaining gaps: None known for IR-001 or IR-002. Manual large-list/device polish checks remain optional per `02-acceptance-tests.md` MAN-001/MAN-002.
+
+## Following Craftsky-Only Clarification Fix Plan
+Source clarification: user confirmed on 2026-05-27 that settings Following should exclude non-Craftsky followed accounts.
+
+| Fix Step | Test ID | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---|---|---|---|---|
+| CF-1 | IT-006 | FR-009, FR-010, FR-011, RULE-004 | AC-010, AC-011, AC-012 | Fails: `ProfileStore.ListFollowing` returns non-Craftsky followed accounts and counts them. |
+
+### CF-1: IT-006 / FR-009
+- Write failing test: Added `TestFollowAccountQueryConfig_FollowingRequiresCraftskyProfile` in `appview/internal/api/profile_store_query_test.go` and extended `TestProfileStore_ListFollowersAndFollowing_OrderNewestFirst` with non-Craftsky followed account Erin, expecting following totals/order to include Craftsky rows only.
+- Run command: `go test ./internal/api -run TestFollowAccountQueryConfig_FollowingRequiresCraftskyProfile -count=1` from `appview/`.
+- Confirmed failure: Build failed because `followAccountQueryConfig` did not exist. The existing DB-backed store test is skipped locally when `TEST_DATABASE_URL` / `DATABASE_URL` are unset, so the pure query-config test provides local red coverage for the Craftsky-only following predicate.
+- Implement: Added `followAccountQueryConfig` and updated `ProfileStore.listFollowAccounts` so `following` count and list queries join `craftsky_profiles` on `f.subject_did`; `followers` keeps its existing query shape.
+- Run command: `go test ./internal/api -run 'TestFollowAccountQueryConfig_FollowingRequiresCraftskyProfile|TestProfileStore_ListFollowersAndFollowing_OrderNewestFirst' -count=1 -v` passed, with the DB-backed store test skipped locally due missing database URL.
+- Refactor: Ran `gofmt` on touched Go files.
+- Notes: This implements the user clarification that settings Following excludes non-Craftsky followed accounts. Followers behavior was left unchanged.
+
+### Following Clarification Verification
+- `go test ./internal/api ./internal/routes` from `appview/` passed.
+- `flutter test test/settings/follow_list_page_test.dart` from `app/` passed.

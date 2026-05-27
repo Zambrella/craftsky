@@ -314,8 +314,9 @@ func TestProfileStore_ListFollowersAndFollowing_OrderNewestFirst(t *testing.T) {
 			('at://did:plc:dana/app.bsky.graph.follow/f3', 'did:plc:dana', 'f3', 'c3', 'did:plc:alice', '{"subject":"did:plc:alice"}', $3),
 			('at://did:plc:alice/app.bsky.graph.follow/f4', 'did:plc:alice', 'f4', 'c4', 'did:plc:bob', '{"subject":"did:plc:bob"}', $1),
 			('at://did:plc:alice/app.bsky.graph.follow/f5', 'did:plc:alice', 'f5', 'c5', 'did:plc:carol', '{"subject":"did:plc:carol"}', $2),
-			('at://did:plc:alice/app.bsky.graph.follow/f6', 'did:plc:alice', 'f6', 'c6', 'did:plc:dana', '{"subject":"did:plc:dana"}', $3)
-	`, base.Add(-3*time.Hour), base.Add(-2*time.Hour), base.Add(-1*time.Hour)); err != nil {
+			('at://did:plc:alice/app.bsky.graph.follow/f6', 'did:plc:alice', 'f6', 'c6', 'did:plc:dana', '{"subject":"did:plc:dana"}', $3),
+			('at://did:plc:alice/app.bsky.graph.follow/f7', 'did:plc:alice', 'f7', 'c7', 'did:plc:erin', '{"subject":"did:plc:erin"}', $4)
+	`, base.Add(-3*time.Hour), base.Add(-2*time.Hour), base.Add(-1*time.Hour), base.Add(-30*time.Minute)); err != nil {
 		t.Fatalf("seed follows: %v", err)
 	}
 
@@ -336,10 +337,10 @@ func TestProfileStore_ListFollowersAndFollowing_OrderNewestFirst(t *testing.T) {
 		t.Fatalf("ListFollowing: %v", err)
 	}
 	if followingTotal != 3 {
-		t.Fatalf("following total = %d, want 3", followingTotal)
+		t.Fatalf("following total = %d, want 3 Craftsky profiles only", followingTotal)
 	}
 	if got := []string{following[0].DID, following[1].DID, following[2].DID}; got[0] != "did:plc:dana" || got[1] != "did:plc:carol" || got[2] != "did:plc:bob" {
-		t.Fatalf("following order = %v, want dana,carol,bob", got)
+		t.Fatalf("following order = %v, want dana,carol,bob with non-Craftsky Erin excluded", got)
 	}
 }
 

@@ -260,21 +260,16 @@ func (s *ProfileStore) listFollowAccounts(ctx context.Context, kind string, did 
 		return nil, "", 0, err
 	}
 
-	accountExpr := "f.did"
-	whereExpr := "f.subject_did = $1"
-	if kind == "following" {
-		accountExpr = "f.subject_did"
-		whereExpr = "f.did = $1"
-	}
+	queryConfig := followAccountQueryConfig(kind)
 
 	var total int
-	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM atproto_follows f WHERE `+whereExpr, did).Scan(&total); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM atproto_follows f `+queryConfig.craftskyJoin+` WHERE `+queryConfig.whereExpr, did).Scan(&total); err != nil {
 		return nil, "", 0, fmt.Errorf("%s count %s: %w", kind, did, err)
 	}
 
 	q := `
 		SELECT
-			` + accountExpr + ` AS account_did,
+			` + queryConfig.accountExpr + ` AS account_did,
 			bp.display_name,
 			bp.description,
 			bp.avatar_cid,
@@ -283,9 +278,10 @@ func (s *ProfileStore) listFollowAccounts(ctx context.Context, kind string, did 
 			f.created_at,
 			f.uri
 		FROM atproto_follows f
-		LEFT JOIN bluesky_profiles bp ON bp.did = ` + accountExpr + `
-		LEFT JOIN craftsky_profiles cp ON cp.did = ` + accountExpr + `
-		WHERE ` + whereExpr + `
+		` + queryConfig.craftskyJoin + `
+		LEFT JOIN bluesky_profiles bp ON bp.did = ` + queryConfig.accountExpr + `
+		LEFT JOIN craftsky_profiles cp ON cp.did = ` + queryConfig.accountExpr + `
+		WHERE ` + queryConfig.whereExpr + `
 		  AND ($2::timestamptz IS NULL OR (f.created_at, f.uri) < ($2::timestamptz, $3::text))
 		ORDER BY f.created_at DESC, f.uri DESC
 		LIMIT $4
@@ -312,6 +308,26 @@ func (s *ProfileStore) listFollowAccounts(ctx context.Context, kind string, did 
 		return nil, "", 0, err
 	}
 	return out, next, total, nil
+}
+
+type followAccountQueryConfigSpec struct {
+	accountExpr  string
+	whereExpr    string
+	craftskyJoin string
+}
+
+func followAccountQueryConfig(kind string) followAccountQueryConfigSpec {
+	if kind == "following" {
+		return followAccountQueryConfigSpec{
+			accountExpr:  "f.subject_did",
+			whereExpr:    "f.did = $1",
+			craftskyJoin: "JOIN craftsky_profiles followed_cp ON followed_cp.did = f.subject_did",
+		}
+	}
+	return followAccountQueryConfigSpec{
+		accountExpr: "f.did",
+		whereExpr:   "f.subject_did = $1",
+	}
 }
 
 func scanProfileAccountRow(scanner pgx.Row) (*ProfileAccountRow, error) {
