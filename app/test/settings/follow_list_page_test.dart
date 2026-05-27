@@ -73,4 +73,72 @@ void main() {
     expect(find.text('Following (0)'), findsOneWidget);
     expect(find.text('You are not following anyone'), findsOneWidget);
   });
+
+  testWidgets('followers page loads and appends cursor pages', (tester) async {
+    final cursors = <String?>[];
+    final repo = FakeProfileRepository(
+      onListFollowersMe: ({cursor, limit}) async {
+        cursors.add(cursor);
+        if (cursor == 'next-followers') {
+          return ProfileAccountPage(
+            totalCount: 3,
+            items: [
+              ProfileAccountSummary(
+                did: 'did:plc:bob',
+                handle: 'bob.craftsky.social',
+                displayName: 'Bob',
+                isCraftskyProfile: true,
+              ),
+            ],
+          );
+        }
+        return ProfileAccountPage(
+          totalCount: 3,
+          cursor: 'next-followers',
+          items: [
+            ProfileAccountSummary(
+              did: 'did:plc:dana',
+              handle: 'dana.craftsky.social',
+              displayName: 'Dana',
+              isCraftskyProfile: true,
+            ),
+            ProfileAccountSummary(
+              did: 'did:plc:carol',
+              handle: 'carol.craftsky.social',
+              displayName: 'Carol',
+              isCraftskyProfile: true,
+            ),
+          ],
+        );
+      },
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: FollowListPage(kind: FollowListKind.followers),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(cursors, [isNull]);
+    expect(find.text('Dana'), findsOneWidget);
+    expect(find.text('Carol'), findsOneWidget);
+    expect(find.text('Load more'), findsOneWidget);
+
+    await tester.tap(find.text('Load more'));
+    await tester.pumpAndSettle();
+
+    expect(cursors, [isNull, 'next-followers']);
+    expect(find.text('Bob'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Carol')).dy,
+      lessThan(tester.getTopLeft(find.text('Bob')).dy),
+    );
+    expect(find.text('Load more'), findsNothing);
+  });
 }

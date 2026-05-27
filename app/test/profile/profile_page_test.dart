@@ -126,6 +126,7 @@ void main() {
     testWidgets('tapping mutual followers opens bottom sheet list', (
       tester,
     ) async {
+      final cursors = <String?>[];
       final profile = Profile(
         did: 'did:plc:other',
         handle: 'bob.bsky.social',
@@ -137,17 +138,34 @@ void main() {
       );
       final repo = FakeProfileRepository(
         onFetch: (_) async => profile,
-        onListMutualFollowers: (_, {cursor, limit}) async => ProfileAccountPage(
-          totalCount: 12,
-          items: [
-            ProfileAccountSummary(
-              did: 'did:plc:carol',
-              handle: 'carol.craftsky.social',
-              displayName: 'Carol',
-              isCraftskyProfile: true,
-            ),
-          ],
-        ),
+        onListMutualFollowers: (_, {cursor, limit}) async {
+          cursors.add(cursor);
+          if (cursor == 'next-mutuals') {
+            return ProfileAccountPage(
+              totalCount: 12,
+              items: [
+                ProfileAccountSummary(
+                  did: 'did:plc:dana',
+                  handle: 'dana.craftsky.social',
+                  displayName: 'Dana',
+                  isCraftskyProfile: true,
+                ),
+              ],
+            );
+          }
+          return ProfileAccountPage(
+            totalCount: 12,
+            cursor: 'next-mutuals',
+            items: [
+              ProfileAccountSummary(
+                did: 'did:plc:carol',
+                handle: 'carol.craftsky.social',
+                displayName: 'Carol',
+                isCraftskyProfile: true,
+              ),
+            ],
+          );
+        },
       );
 
       await tester.pumpWidget(
@@ -173,6 +191,16 @@ void main() {
       expect(find.text('Mutual followers'), findsOneWidget);
       expect(find.text('Carol'), findsOneWidget);
       expect(find.text('@carol.craftsky.social'), findsOneWidget);
+      expect(cursors, [isNull]);
+      expect(find.text('Load more'), findsOneWidget);
+
+      await tester.tap(find.text('Load more'));
+      await tester.pumpAndSettle();
+
+      expect(cursors, [isNull, 'next-mutuals']);
+      expect(find.text('Dana'), findsOneWidget);
+      expect(find.text('@dana.craftsky.social'), findsOneWidget);
+      expect(find.text('Load more'), findsNothing);
     });
 
     testWidgets('visitor profile renders Unfollow when already following', (

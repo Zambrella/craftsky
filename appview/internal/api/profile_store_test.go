@@ -4,6 +4,7 @@ package api_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -98,6 +99,13 @@ CREATE TABLE craftsky_posts (
     indexed_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (did, rkey)
 );
+CREATE INDEX atproto_follows_subject_created_uri_desc_idx
+    ON atproto_follows (subject_did, created_at DESC, uri DESC);
+CREATE INDEX atproto_follows_did_created_uri_desc_idx
+    ON atproto_follows (did, created_at DESC, uri DESC);
+CREATE INDEX craftsky_posts_root_did_created_idx
+    ON craftsky_posts (did, created_at DESC)
+    WHERE reply_root_uri IS NULL AND reply_parent_uri IS NULL;
 `
 
 func TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts(t *testing.T) {
@@ -332,6 +340,23 @@ func TestProfileStore_ListFollowersAndFollowing_OrderNewestFirst(t *testing.T) {
 	}
 	if got := []string{following[0].DID, following[1].DID, following[2].DID}; got[0] != "did:plc:dana" || got[1] != "did:plc:carol" || got[2] != "did:plc:bob" {
 		t.Fatalf("following order = %v, want dana,carol,bob", got)
+	}
+}
+
+func TestProfileStore_SocialSummaryIndexesCoverOrderedQueries(t *testing.T) {
+	wantFragments := []string{
+		"CREATE INDEX atproto_follows_subject_created_uri_desc_idx",
+		"ON atproto_follows (subject_did, created_at DESC, uri DESC)",
+		"CREATE INDEX atproto_follows_did_created_uri_desc_idx",
+		"ON atproto_follows (did, created_at DESC, uri DESC)",
+		"CREATE INDEX craftsky_posts_root_did_created_idx",
+		"ON craftsky_posts (did, created_at DESC)",
+		"WHERE reply_root_uri IS NULL AND reply_parent_uri IS NULL",
+	}
+	for _, fragment := range wantFragments {
+		if !strings.Contains(profileStoreDDL, fragment) {
+			t.Fatalf("profileStoreDDL missing index fragment %q", fragment)
+		}
 	}
 }
 

@@ -201,6 +201,48 @@ Mirrors `04-coding-plan.md` §9.
   - `flutter test` from `app/` passed.
   - Dart analyzer via MCP on `app/lib`, `app/test/profile`, and `app/test/settings` reported no errors.
 - Coverage notes:
-  - No database migration/index file was added; query/list boundedness is covered by handler limit caps and keyset query tests. Planner/index review remains a performance follow-up if manual large-list checks reveal issues.
+  - Review fix RF-3 added an approved index-only migration for ordered follow and root-post query shapes.
   - Settings follower/following pages are implemented with local `MaterialPageRoute` pushes from Settings rather than generated typed GoRouter routes; behavior matches acceptance criteria and keeps scope small.
-  - Mutual followers bottom sheet uses the repository-backed separate endpoint and a 0.9 height factor; pagination UI currently loads the first page only in this slice.
+  - Review fixes RF-1 and RF-2 added explicit cursor-driven `Load more` pagination to the settings follower/following pages and mutual followers bottom sheet.
+
+## Implementation Review Fix Plan
+Source review: `06-implementation-review.md` (`Changes required`).
+
+| Fix Step | Review Finding | Test ID | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---|---|---|---|---|---|
+| RF-1 | IR-001 | UT-010 | FR-008, FR-009, RULE-004 | AC-009, AC-010, AC-017 | Fails: `FollowListPage` ignores a non-null `cursor` and cannot append page 2 rows. |
+| RF-2 | IR-001 | AT-003 | BR-002, FR-013, FR-016 | AC-015, AC-019 | Fails: mutual followers bottom sheet ignores a non-null `cursor` and cannot append page 2 rows. |
+| RF-3 | IR-002 | IT-008 | NFR-002 | AC-014 | Fails/review gap: no supporting index migration exists for ordered follow/root-post query shapes. This step requires explicit migration approval before editing migration files. |
+
+### RF-1: UT-010 / IR-001
+- Write failing test: Added `followers page loads and appends cursor pages` in `app/test/settings/follow_list_page_test.dart`, returning a first followers page with `cursor: 'next-followers'` and asserting a second repository call with that opaque cursor appends Bob after existing rows.
+- Run command: `flutter test test/settings/follow_list_page_test.dart` from `app/`.
+- Confirmed failure: Test failed because no `Load more` control existed; `FollowListPage` loaded only the first page.
+- Implement: Reworked `FollowListPage` state to retain accumulated account rows, total count, next cursor, and loading-more state; added a `Load more` button row that calls the same repository method with the opaque cursor and appends page 2 rows.
+- Run command: `flutter test test/settings/follow_list_page_test.dart` passed.
+- Refactor: None yet; mutual bottom sheet pagination remains RF-2.
+- Notes: Covers UT-010 for follower/following presentation pagination while preserving app-bar total count and row order.
+
+### RF-2: AT-003 / IR-001
+- Write failing test: Extended `tapping mutual followers opens bottom sheet list` in `app/test/profile/profile_page_test.dart` so the first mutuals response returns `cursor: 'next-mutuals'`; the test taps `Load more` and asserts the repository receives that opaque cursor and appends Dana.
+- Run command: `flutter test test/profile/profile_page_test.dart` from `app/`.
+- Confirmed failure: Test failed because the bottom sheet had no `Load more` control and only rendered the first `ProfileAccountPage`.
+- Implement: Reworked `ProfileMutualFollowersSheet` to retain accumulated mutual account rows, next cursor, and loading-more state; added a `Load more` button row that calls `listMutualFollowers` with the opaque cursor and appends returned rows.
+- Run command: `flutter test test/profile/profile_page_test.dart` passed.
+- Refactor: Ran `dart format` on touched Flutter profile/settings/test files.
+- Notes: Covers AT-003 and IR-001 for the mutual bottom sheet while keeping the 0.9-height bottom sheet and separate endpoint behavior intact.
+
+### RF-3: IT-008 / IR-002
+- Write failing test: Added `TestProfileStore_SocialSummaryIndexesCoverOrderedQueries` in `appview/internal/api/profile_store_test.go`, asserting the test DDL includes the ordered follow and root-post index definitions from the coding plan.
+- Run command: `go test ./internal/api -run TestProfileStore_SocialSummaryIndexesCoverOrderedQueries -count=1` from `appview/`.
+- Confirmed failure: Test failed because `profileStoreDDL` was missing `atproto_follows_subject_created_uri_desc_idx` and the other supporting index fragments.
+- Implement: Added index definitions to the profile store test schema and created approved index-only migration files `appview/migrations/000013_profile_social_summary_indexes.up.sql` / `.down.sql` for `atproto_follows(subject_did, created_at DESC, uri DESC)`, `atproto_follows(did, created_at DESC, uri DESC)`, and partial root-post `craftsky_posts(did, created_at DESC)`.
+- Run command: Focused index coverage test passed.
+- Refactor: Ran `gofmt` on `appview/internal/api/profile_store_test.go`.
+- Notes: Explicit migration approval was obtained before touching migration files. This addresses IR-002 / NFR-002 without adding tables or changing durable data shape.
+
+### Review Fix Verification
+- `flutter test test/profile/profile_page_test.dart test/settings/follow_list_page_test.dart test/profile/data/profile_api_client_test.dart` from `app/` passed.
+- `go test ./internal/api ./internal/routes` from `appview/` passed.
+- Dart analyzer via MCP on `app/lib`, `app/test/profile`, and `app/test/settings` reported no errors.
+- Remaining gaps: None known for IR-001 or IR-002. Manual large-list/device polish checks remain optional per `02-acceptance-tests.md` MAN-001/MAN-002.

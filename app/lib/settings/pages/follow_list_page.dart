@@ -1,4 +1,5 @@
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
+import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
@@ -16,36 +17,66 @@ class FollowListPage extends ConsumerStatefulWidget {
 }
 
 class _FollowListPageState extends ConsumerState<FollowListPage> {
-  late final Future<ProfileAccountPage> _pageFuture;
+  final _items = <ProfileAccountSummary>[];
+  String? _cursor;
+  int _totalCount = 0;
+  var _isInitialLoading = true;
+  var _isLoadingMore = false;
 
   @override
   void initState() {
     super.initState();
+    _loadFirstPage();
+  }
+
+  Future<void> _loadFirstPage() async {
+    final page = await _fetchPage();
+    if (!mounted) return;
+    setState(() {
+      _items
+        ..clear()
+        ..addAll(page.items);
+      _cursor = page.cursor;
+      _totalCount = page.totalCount;
+      _isInitialLoading = false;
+    });
+  }
+
+  Future<void> _loadMore() async {
+    final cursor = _cursor;
+    if (cursor == null || _isLoadingMore) return;
+    setState(() => _isLoadingMore = true);
+    final page = await _fetchPage(cursor: cursor);
+    if (!mounted) return;
+    setState(() {
+      _items.addAll(page.items);
+      _cursor = page.cursor;
+      _totalCount = page.totalCount;
+      _isLoadingMore = false;
+    });
+  }
+
+  Future<ProfileAccountPage> _fetchPage({String? cursor}) {
     final repo = ref.read(profileRepositoryProvider);
-    _pageFuture = switch (widget.kind) {
-      FollowListKind.followers => repo.listFollowersMe(),
-      FollowListKind.following => repo.listFollowingMe(),
+    return switch (widget.kind) {
+      FollowListKind.followers => repo.listFollowersMe(cursor: cursor),
+      FollowListKind.following => repo.listFollowingMe(cursor: cursor),
     };
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<ProfileAccountPage>(
-      future: _pageFuture,
-      builder: (context, snapshot) {
-        final page = snapshot.data;
-        final count = page?.totalCount ?? 0;
-        return Scaffold(
-          appBar: AppBar(title: Text('${_title} ($count)')),
-          body: switch (snapshot.connectionState) {
-            ConnectionState.done => _FollowListBody(
+    return Scaffold(
+      appBar: AppBar(title: Text('$_title ($_totalCount)')),
+      body: _isInitialLoading
+          ? const Center(child: StitchProgressIndicator())
+          : _FollowListBody(
               kind: widget.kind,
-              page: page,
+              items: _items,
+              hasMore: _cursor != null,
+              isLoadingMore: _isLoadingMore,
+              onLoadMore: _loadMore,
             ),
-            _ => const Center(child: StitchProgressIndicator()),
-          },
-        );
-      },
     );
   }
 
@@ -56,14 +87,22 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
 }
 
 class _FollowListBody extends StatelessWidget {
-  const _FollowListBody({required this.kind, required this.page});
+  const _FollowListBody({
+    required this.kind,
+    required this.items,
+    required this.hasMore,
+    required this.isLoadingMore,
+    required this.onLoadMore,
+  });
 
   final FollowListKind kind;
-  final ProfileAccountPage? page;
+  final List<ProfileAccountSummary> items;
+  final bool hasMore;
+  final bool isLoadingMore;
+  final VoidCallback onLoadMore;
 
   @override
   Widget build(BuildContext context) {
-    final items = page?.items ?? [];
     if (items.isEmpty) {
       return Center(
         child: Text(
@@ -75,8 +114,21 @@ class _FollowListBody extends StatelessWidget {
       );
     }
     return ListView.builder(
-      itemCount: items.length,
+      itemCount: items.length + (hasMore ? 1 : 0),
       itemBuilder: (context, index) {
+        if (index == items.length) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: isLoadingMore
+                  ? const StitchProgressIndicator()
+                  : TextButton(
+                      onPressed: onLoadMore,
+                      child: const Text('Load more'),
+                    ),
+            ),
+          );
+        }
         final account = items[index];
         final title = account.displayName?.isNotEmpty ?? false
             ? account.displayName!
