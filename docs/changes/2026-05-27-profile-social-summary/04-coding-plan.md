@@ -7,7 +7,7 @@
 - Review notes resolved here:
   - DR-001 / GAP-001: route names are finalized in §5.
   - DR-002 / GAP-002: response field names are finalized in §5.
-  - DR-003 / GAP-003: Flutter account-age thresholds are finalized in §7.
+  - DR-003 / GAP-003: Flutter account-age formatting is delegated to `timeago` in §7.
   - DR-004 / GAP-004: query shapes and indexes are called out in §5 and §10.
 
 ## 2. Implementation Strategy
@@ -58,7 +58,8 @@ The first TDD slice should lock AppView summary semantics (`IT-001`, `UT-002`, `
 | `app/lib/settings/pages/settings_page.dart` | Change | Add followers/following entries without counts | FR-007, FR-012 | AT-005, UT-009, REG-005 |
 | `app/lib/settings/pages/followers_page.dart` / `following_page.dart` or one parameterized page | Create | Settings-owned list pages with counts in app bar titles | FR-008, FR-009, FR-014 | AT-006, AT-007, AT-008, UT-010 |
 | `app/lib/router/route_locations.dart`, `app/lib/router/router.dart`, generated route file | Change | Add typed routes under settings/profile branch for follow-list pages | FR-008, FR-009 | AT-006, AT-007, UT-010 |
-| `app/lib/l10n/app_en.arb` + generated localizations | Change | Add labels/copy for stats, mutuals, settings entries, empty states | FR-002, FR-004, FR-005, FR-006, FR-007, FR-014 | UT-004, UT-006, UT-008, UT-009, UT-010 |
+| `app/pubspec.yaml`, `app/pubspec.lock` | Change | Add `timeago` for account-age formatting | FR-004, FR-017, RULE-002 | UT-004, UT-006, AT-004, AT-009 |
+| `app/lib/l10n/app_en.arb` + generated localizations | Change | Add labels/copy for stats, mutuals, settings entries, empty states; do not hand-roll account-age unit strings that `timeago` owns | FR-002, FR-005, FR-006, FR-007, FR-014 | UT-006, UT-008, UT-009, UT-010 |
 | `app/test/profile/**`, `app/test/settings/**` | Change/Create | Flutter model/client/provider/widget tests from `02-acceptance-tests.md` | All UI/client requirements | AT-001-AT-009, UT-004, UT-006-UT-012, REG-001-REG-005 |
 
 ## 5. Services, Interfaces, And Data Flow
@@ -225,7 +226,7 @@ class ProfileAccountList extends _$ProfileAccountList {
 Provider behavior should mirror `UserPosts`:
 - First page loads in `build`.
 - `loadMore()` no-ops when loading, no data, or no cursor.
-- Use `AsyncLoading<T>().copyWithPrevious(state)` so lists stay visible while appending or retrying.
+- Rely on Riverpod's automatic previous-value preservation during async reloads so lists stay visible while appending or retrying; do not add manual `copyWithPrevious` plumbing for this new provider.
 - Keep cursor opaque; do not parse it client-side.
 
 ## 7. UI, Widgets, Routes, Or User-Facing Surfaces
@@ -249,18 +250,16 @@ ProfileMetaSection(profile, isOwnProfile)
 
 For non-Craftsky profiles, hide account age. If post/project summary values are omitted, do not invent Craftsky stats.
 
-### Account-age formatter thresholds
-Create a small formatter near profile widgets (or a lightweight utility) with testable thresholds:
+### Account-age formatter
+Use `package:timeago` for the relative account-age text instead of hand-rolled thresholds. Add the dependency to `app/pubspec.yaml` during implementation, then wrap it with a small profile-local formatter so tests can inject a fixed clock and the UI can keep the required `Joined <age> ago` prefix.
 
 ```text
-Duration age = now - createdAt
-if age < 24h: "Joined less than 1 day ago"
-else if days < 30: "Joined N day(s) ago"
-else if days < 365: "Joined N month(s) ago" where N = max(1, floor(days / 30))
-else: "Joined N year(s) ago" where N = max(1, floor(days / 365))
+String formatJoinedAge(DateTime createdAt, {DateTime? now}) {
+  return 'Joined ${timeago.format(createdAt, clock: now)}';
+}
 ```
 
-Use injectable/fixed `now` in unit tests rather than relying on wall-clock timing. Keep pluralization deterministic in tests.
+Use injectable/fixed `now` in unit tests rather than relying on wall-clock timing. Keep detailed relative-time wording aligned with `timeago` rather than duplicating its threshold rules in Craftsky code.
 
 ### Mutual followers bottom sheet
 `ProfileMutualFollowersLink` should render uncapped text such as `12 mutual followers` only when `mutualFollowerCount > 0`. On tap:
@@ -330,7 +329,7 @@ Rows should display `displayName ?? handle`, `@handle`, avatar placeholder using
 | 7 | IT-008 | `appview/internal/api/profile_store_test.go` | Request defaults/max limits; inspect deterministic bounded behavior | Limit cap/query may be missing |
 | 8 | UT-011 | `app/test/profile/models/profile_test.dart`, `app/test/profile/data/profile_api_client_test.dart` | JSON with `mutualFollowerCount`, `postCount`, `postsLast7Days`, `projectCount`, account summaries | Flutter models do not decode new fields |
 | 9 | UT-012 | `app/test/profile/data/profile_api_client_test.dart` | Mock Dio adapter; call each list method with limit/cursor | API client lacks routes/query params/page decode |
-| 10 | UT-004, UT-006, AT-001, AT-004, AT-009 | `app/test/profile/widgets/profile_stats_test.dart` or `profile_page_test.dart` | Craftsky/non-Craftsky `Profile` models with fixed dates and counts | Old stats render followers/following and hardcoded projects |
+| 10 | UT-004, UT-006, AT-001, AT-004, AT-009 | `app/test/profile/widgets/profile_stats_test.dart` or `profile_page_test.dart` | Craftsky/non-Craftsky `Profile` models with fixed dates and counts; `timeago` dependency available | Old stats render followers/following and hardcoded projects; account-age text not wrapped as `Joined <timeago text>` |
 | 11 | UT-007, AT-002, AT-003 | `app/test/profile/widgets/profile_mutual_followers_test.dart`, `profile_page_test.dart` | Visitor profile with count 12 and fake list repository | No clickable mutual link/bottom sheet/list load |
 | 12 | UT-009, AT-005, REG-005 | `app/test/settings/settings_page_test.dart` | Render settings | Social entries absent or counts accidentally shown |
 | 13 | UT-008, UT-010, AT-006, AT-007, AT-008 | `app/test/settings/followers_page_test.dart`, `following_page_test.dart` | Fake repository returns ordered rows, total counts, empty pages | Pages/providers/routes do not exist |
@@ -359,7 +358,7 @@ cd app && flutter test
   3. Add handlers/routes/auth tests.
   4. Add optional index migration if query shapes require ordered support.
 - Flutter sequence:
-  1. Extend profile and account-page models plus generated mappers.
+  1. Add `timeago`, then extend profile and account-page models plus generated mappers.
   2. Extend client/repository/fakes and providers.
   3. Update profile stats/mutual UI.
   4. Add settings entries/routes/list pages.
@@ -389,7 +388,7 @@ cd app && flutter test
 |---|---|---|---|---|
 | CPQ-001 | Non-blocking | Mutual/follower list queries may be expensive for large graphs | Slow profile/list loads | Use bounded pagination and ordered indexes in §5; verify with IT-008/MAN-002 |
 | CPQ-002 | Non-blocking | List response includes `totalCount` beyond base `items/cursor` shape | Slight API surface expansion | Chosen here to satisfy app-bar counts without extra profile fetch; keep camelCase and opaque cursor semantics |
-| CPQ-003 | Non-blocking | Account-age copy thresholds were unspecified | Test drift if not fixed | Thresholds finalized in §7; lock with UT-004 |
+| CPQ-003 | Non-blocking | Account-age copy thresholds were unspecified | Test drift if hand-rolled | Use `package:timeago` as the source of relative-time wording and lock Craftsky wrapper behavior with UT-004 |
 | CPQ-004 | Non-blocking | Non-Craftsky stats can be misinterpreted | UI could invent Craftsky data for external profiles | Omit/hide Craftsky-only stats when response fields are absent; explicitly test non-Craftsky age hiding |
 | CPQ-005 | Non-blocking | Route generation and mapper/l10n generation must be kept in sync | Compile failures if generated files are stale | TDD builder should run project generation commands used locally after model/router/l10n changes |
 
