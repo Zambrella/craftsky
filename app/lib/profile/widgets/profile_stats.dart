@@ -1,10 +1,14 @@
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
-import 'package:timeago/timeago.dart' as timeago;
 
 String formatJoinedAge(DateTime createdAt, {DateTime? now}) {
-  return 'Joined ${timeago.format(createdAt, clock: now)}';
+  final elapsed = (now ?? DateTime.now()).difference(createdAt);
+  final days = elapsed.inDays;
+  if (days <= 0) return 'today';
+  if (days < 31) return '${days}d';
+  if (days < 365) return '${days ~/ 30}mo';
+  return '${days ~/ 365}y';
 }
 
 /// Profile summary row. Popularity metrics (followers/following) intentionally
@@ -17,45 +21,100 @@ class ProfileStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final spacing = Theme.of(context).extension<SpacingTheme>()!;
-    final stats = <String>[
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final radius = theme.extension<RadiusTheme>()!;
+    final stats = <_ProfileStatData>[
       if (profile.isCraftskyProfile && profile.createdAt != null)
-        formatJoinedAge(profile.createdAt!),
+        _ProfileStatData(
+          value: formatJoinedAge(profile.createdAt!),
+          label: 'here',
+        ),
       if (profile.postsLast7Days != null)
-        '${_formatCount(profile.postsLast7Days!)} posts in the last 7 days',
-      if (profile.postCount != null)
-        '${_formatCount(profile.postCount!)} posts',
+        _ProfileStatData(
+          value: '${_formatCount(profile.postsLast7Days!)} posts',
+          label: '7 days',
+        ),
       if (profile.projectCount != null)
-        '${_formatCount(profile.projectCount!)} projects',
+        _ProfileStatData(
+          value: _formatCount(profile.projectCount!),
+          label: 'projects',
+        ),
     ];
     if (stats.isEmpty) {
       return const SizedBox.shrink();
     }
-    return Wrap(
-      spacing: spacing.sp4,
-      runSpacing: spacing.sp1,
-      children: [for (final stat in stats) _ProfileStat(label: stat)],
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border.all(color: theme.colorScheme.onSurface, width: 1.5),
+        borderRadius: BorderRadius.circular(radius.r3),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: spacing.sp2),
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              for (var i = 0; i < stats.length; i++) ...[
+                Expanded(child: _ProfileStat(stat: stats[i])),
+                if (i < stats.length - 1)
+                  VerticalDivider(
+                    width: 1,
+                    thickness: 1,
+                    color: theme.colorScheme.outlineVariant,
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
 
-class _ProfileStat extends StatelessWidget {
-  const _ProfileStat({required this.label});
+class _ProfileStatData {
+  const _ProfileStatData({required this.value, required this.label});
 
+  final String value;
   final String label;
+}
+
+class _ProfileStat extends StatelessWidget {
+  const _ProfileStat({required this.stat});
+
+  final _ProfileStatData stat;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: spacing.sp1),
-      child: Text(
-        label,
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-          fontWeight: FontWeight.w600,
-        ),
+      padding: EdgeInsets.symmetric(horizontal: spacing.sp2),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              stat.value,
+              maxLines: 1,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.colorScheme.onSurface,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          SizedBox(height: spacing.sp1),
+          Text(
+            stat.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ],
       ),
     );
   }

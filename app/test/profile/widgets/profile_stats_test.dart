@@ -7,11 +7,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('formatJoinedAge', () {
-    test('wraps timeago relative age with Joined prefix', () {
+    test('formats account age as a compact value', () {
       final joined = DateTime.utc(2025, 5, 27, 12);
       final now = DateTime.utc(2026, 5, 27, 12);
 
-      expect(formatJoinedAge(joined, now: now), 'Joined about a year ago');
+      expect(formatJoinedAge(joined, now: now), '1y');
     });
   });
 
@@ -41,10 +41,14 @@ void main() {
         ),
       );
 
-      expect(find.textContaining('Joined'), findsOneWidget);
-      expect(find.text('2 posts in the last 7 days'), findsOneWidget);
-      expect(find.text('5 posts'), findsOneWidget);
-      expect(find.text('0 projects'), findsOneWidget);
+      expect(find.text('1y'), findsOneWidget);
+      expect(find.text('here'), findsOneWidget);
+      expect(find.text('2 posts'), findsOneWidget);
+      expect(find.text('7 days'), findsOneWidget);
+      expect(find.text('5'), findsNothing);
+      expect(find.text('posts'), findsNothing);
+      expect(find.text('0'), findsOneWidget);
+      expect(find.text('projects'), findsOneWidget);
       expect(find.text('followers'), findsNothing);
       expect(find.text('following'), findsNothing);
       expect(find.text('9'), findsNothing);
@@ -69,7 +73,7 @@ void main() {
         ),
       );
 
-      expect(find.textContaining('Joined'), findsNothing);
+      expect(find.text('here'), findsNothing);
     });
   });
 }
