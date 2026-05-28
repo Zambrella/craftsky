@@ -6,6 +6,7 @@ import 'package:craftsky_app/settings/pages/follow_list_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import '../profile/fakes/fake_profile_repository.dart';
 
@@ -140,5 +141,60 @@ void main() {
       lessThan(tester.getTopLeft(find.text('Bob')).dy),
     );
     expect(find.text('Load more'), findsNothing);
+  });
+
+  testWidgets('tapping an account opens that user profile route', (
+    tester,
+  ) async {
+    String? routedHandle;
+    final router = GoRouter(
+      initialLocation: '/',
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const FollowListPage(
+            kind: FollowListKind.following,
+          ),
+        ),
+        GoRoute(
+          path: '/profile/:handle',
+          builder: (context, state) {
+            routedHandle = state.pathParameters['handle'];
+            return Text('Profile: $routedHandle');
+          },
+        ),
+      ],
+    );
+    final repo = FakeProfileRepository(
+      onListFollowingMe: ({cursor, limit}) async => ProfileAccountPage(
+        totalCount: 1,
+        items: [
+          ProfileAccountSummary(
+            did: 'did:plc:dana',
+            handle: 'dana.craftsky.social',
+            displayName: 'Dana',
+            isCraftskyProfile: true,
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+        child: MaterialApp.router(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Dana'));
+    await tester.pumpAndSettle();
+
+    expect(routedHandle, 'dana.craftsky.social');
+    expect(find.text('Profile: dana.craftsky.social'), findsOneWidget);
   });
 }
