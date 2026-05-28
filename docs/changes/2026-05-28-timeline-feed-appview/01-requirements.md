@@ -52,6 +52,12 @@ Answer: Confirm recommended.
 
 Decision / implication: Requirements target a direct read query over indexed posts joined to active follows. Materialised feed tables and a generic feed/search framework are deferred, but the design must avoid hard-coding assumptions that would block later project feeds, custom feeds from lists, search, or other feed sources.
 
+### Q3: When blocks, mutes, reports, and moderation labels land, which filters should apply to home timeline reads?
+
+Answer: All of them.
+
+Decision / implication: This AppView timeline chunk does not implement those moderation/privacy filters, but future moderation work should apply blocks, mutes, reports, and moderation labels to home timeline reads.
+
 ## 4. Candidate Approaches
 
 ### Option A: Direct Joined Timeline Query (Recommended)
@@ -230,7 +236,7 @@ The AppView exposes `GET /v1/feed/timeline` as an authenticated `/v1/` JSON endp
 - Authentication: Required through existing AppView auth middleware.
 - Authorization: The timeline is scoped to the authenticated viewer's active indexed follow graph. Callers cannot request another user's timeline by parameter in this chunk.
 - Sensitive data: The endpoint serves public indexed post/follow/profile data only; it must not expose PDS access/refresh tokens or private AppView state.
-- Abuse cases: This chunk does not implement blocks, mutes, reports, moderation labels, rate limits, or content takedown filtering. Those remain future moderation/rate-limit work and should be called out before public launch.
+- Abuse cases: This chunk does not implement blocks, mutes, reports, moderation labels, rate limits, or content takedown filtering. When those moderation/privacy systems land, all of blocks, mutes, reports, and moderation labels should apply to home timeline reads. Those remain future moderation/rate-limit work and should be called out before public launch.
 
 ## 18. Observability
 
@@ -247,7 +253,7 @@ The AppView exposes `GET /v1/feed/timeline` as an authenticated `/v1/` JSON endp
 | RISK-002 | Post-vs-conversation semantics are misunderstood during implementation. | Timeline includes comments or replies that are out of scope for this chunk. | Use `RULE-002` and acceptance tests with root post, top-level comment, and nested reply fixtures. |
 | RISK-003 | Handle resolution for many distinct authors causes latency or endpoint failure. | Timeline pages may fail with `identity_unavailable` or be slower than expected. | Batch unique author handling where possible; keep page sizes bounded; use existing resolver behavior and tests. |
 | RISK-004 | Firehose/indexing lag makes follows or posts appear stale. | Recently followed accounts or newly-created posts may not appear immediately. | Document AppView indexed state as the source of truth; future UX can handle eventual consistency. |
-| RISK-005 | Blocks/mutes/moderation filtering are absent. | Timeline may show content a later product version should suppress. | Keep out of this scope but record as future moderation work before public launch. |
+| RISK-005 | Blocks/mutes/reports/moderation-label filtering are absent. | Timeline may show content a later product version should suppress. | Keep out of this scope but record that all of these filters should apply to home timeline reads when those systems land. |
 | RISK-006 | Timeline-only implementation choices make future project/list/search feeds harder. | Later feed work requires rewrites or incompatible API changes. | Require a feed store/query boundary and preserve existing post response/cursor conventions. |
 
 ## 20. Assumptions
@@ -262,8 +268,7 @@ The AppView exposes `GET /v1/feed/timeline` as an authenticated `/v1/` JSON endp
 
 ## 21. Open Questions
 
-- [ ] Non-blocking: When blocks, mutes, reports, and moderation labels land, which filters should apply to home timeline reads?
-- [ ] Non-blocking: Should future repost support use a feed-item envelope with reasons, or continue returning only post-shaped items on timeline?
+- [ ] Non-blocking: Future repost timeline shape is undecided. Should repost support use a feed-item envelope with reasons, or continue returning only post-shaped items on timeline?
 - [ ] Non-blocking: What exact query/API shape should craft-specific project feeds, custom/list feeds, and search use?
 - [ ] Non-blocking: When project fields are materialised, should timeline support optional project filters directly, or should those live under separate feed/search endpoints?
 
