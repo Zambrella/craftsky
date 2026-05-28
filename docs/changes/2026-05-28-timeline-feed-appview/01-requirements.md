@@ -42,9 +42,9 @@ Implement the timeline/feed piece of work as an AppView-only chunk, including en
 
 ### Q1: For this AppView timeline chunk, what should “posts of all types” include?
 
-Answer: Top-level posts, project posts, quote posts, and comments, but not replies.
+Answer: Top-level posts, project posts, and quote posts. Comments and replies should not be included in the timeline.
 
-Decision / implication: Timeline inclusion is defined over `social.craftsky.feed.post` rows from followed accounts. It includes root/top-level posts, project posts because they are the same record type with `project` data, quote posts because they are post rows with `quote_*` fields, and top-level comments. It excludes nested replies/replies-to-comments. Repost records are not separate feed items in this chunk.
+Decision / implication: Timeline inclusion is defined over `social.craftsky.feed.post` rows from followed accounts. It includes root/top-level posts, project posts because they are the same record type with `project` data, and quote posts because they are post rows with `quote_*` fields. It excludes comments, nested replies/replies-to-comments, and repost records as separate feed items in this chunk.
 
 ### Q2: Should requirements use the direct joined timeline-query approach?
 
@@ -139,8 +139,8 @@ Craftsky has post creation, profile post lists, comments, likes, reposts, and fo
 
 | Actor | Description | Needs |
 |---|---|---|
-| Signed-in viewer | Authenticated Craftsky user requesting their home timeline. | See recent relevant posts/comments from accounts they follow. |
-| Followed author | Craftsky account followed by the viewer and authoring indexed posts/comments. | Have eligible content appear in followers' timelines after indexing. |
+| Signed-in viewer | Authenticated Craftsky user requesting their home timeline. | See recent relevant posts from accounts they follow. |
+| Followed author | Craftsky account followed by the viewer and authoring indexed posts. | Have eligible content appear in followers' timelines after indexing. |
 | AppView | Go API and Postgres read model. | Serve a bounded, chronological, paginated feed from indexed public data. |
 | Future Flutter client | Later consumer of this endpoint. | Receive a stable, existing post-shaped API contract it can render without PDS reads. |
 | Future feed/search work | Later AppView features such as project feeds, list feeds, search, and custom feeds. | Avoid being blocked by timeline-only abstractions introduced now. |
@@ -151,7 +151,7 @@ The AppView exposes post CRUD/read endpoints and profile-scoped post/comment lis
 
 ## 11. Desired Behavior
 
-The AppView exposes `GET /v1/feed/timeline` as an authenticated `/v1/` JSON endpoint. When called by a signed-in viewer, it returns a paginated page of post-shaped items from accounts the viewer actively follows. Items are ordered newest first by AppView index order. Eligible items include followed authors' top-level posts, project posts, quote posts, and top-level comments; nested replies and repost records are excluded. Each item uses the existing `PostResponse` shape with author display data and viewer engagement state. The response uses existing opaque cursor pagination and standard error handling. The implementation remains intentionally simple while using boundaries/naming that can support later feed sources and filters.
+The AppView exposes `GET /v1/feed/timeline` as an authenticated `/v1/` JSON endpoint. When called by a signed-in viewer, it returns a paginated page of post-shaped items from accounts the viewer actively follows. Items are ordered newest first by AppView index order. Eligible items include followed authors' top-level posts, project posts, and quote posts; comments, nested replies, and repost records are excluded. Each item uses the existing `PostResponse` shape with author display data and viewer engagement state. The response uses existing opaque cursor pagination and standard error handling. The implementation remains intentionally simple while using boundaries/naming that can support later feed sources and filters.
 
 ## 12. Requirements
 
@@ -161,8 +161,8 @@ The AppView exposes `GET /v1/feed/timeline` as an authenticated `/v1/` JSON endp
 | BR-002 | Business | Must | The timeline design must preserve room for future feed variants such as craft-specific project feeds, custom/list feeds, and search results. | The user explicitly requested avoiding rigid code/API design that would block likely future feed surfaces. | Prompt, Q2 | AC-010 |
 | FR-001 | Functional | Must | The AppView shall expose `GET /v1/feed/timeline` as an authenticated endpoint that also requires `X-Craftsky-Device-Id`. | Matches existing `/v1/` endpoint conventions and the API spec's reserved route. | API architecture spec, discovery | AC-001 |
 | FR-002 | Functional | Must | The timeline shall select content only from accounts actively followed by the authenticated viewer according to the AppView's indexed `atproto_follows` state. | Defines the basic followed-account feed and keeps reads inside AppView. | Prompt, reference doc, codebase | AC-002, AC-003 |
-| FR-003 | Functional | Must | The timeline shall return eligible indexed `social.craftsky.feed.post` rows from followed accounts: top-level posts, project posts, quote posts, and top-level comments. | Captures the clarified “posts of all types” scope. | Q1 | AC-004 |
-| FR-004 | Functional | Must | The timeline shall exclude nested replies/replies-to-comments and shall exclude repost records as separate timeline items. | Keeps the chunk bounded and avoids expanding the response shape to feed reasons. | Q1, non-goals | AC-004 |
+| FR-003 | Functional | Must | The timeline shall return eligible indexed `social.craftsky.feed.post` rows from followed accounts: top-level posts, project posts, and quote posts. | Captures the clarified “posts of all types” scope without comments. | Q1, review feedback | AC-004 |
+| FR-004 | Functional | Must | The timeline shall exclude comments, nested replies/replies-to-comments, and repost records as separate timeline items. | Keeps the chunk bounded and avoids expanding the response shape to feed reasons or conversation activity. | Q1, review feedback, non-goals | AC-004 |
 | FR-005 | Functional | Must | Timeline items shall be ordered by `indexed_at DESC` with a deterministic `uri DESC` tie-breaker. | Matches existing feed-indexing chronology rationale and prevents unstable pagination. | Feed indexing spec, discovery | AC-005, AC-006 |
 | FR-006 | Functional | Must | The timeline response shall use the existing list shape `{items, cursor}` with `cursor` omitted when there are no more results. | Maintains API consistency and gives the later Flutter client a familiar contract. | API architecture spec, existing handlers | AC-006, AC-008 |
 | FR-007 | Functional | Must | The timeline shall support `limit` and `cursor` query parameters with the existing default/max limit behavior and opaque cursor semantics. | Bounded pagination is required for list endpoints. | API architecture spec, existing post handlers | AC-006, AC-009 |
@@ -175,7 +175,7 @@ The AppView exposes `GET /v1/feed/timeline` as an authenticated `/v1/` JSON endp
 | NFR-002 | Non-functional | Should | The timeline query should remain bounded and should use existing or narrow supporting indexes for followed-author filtering and reverse chronological ordering. | Reduces risk of unbounded scans while avoiding premature materialised-feed work. | Discovery, reference doc | AC-013 |
 | NFR-003 | Non-functional | Should | Timeline code should introduce a clear feed store/query boundary rather than embedding timeline-specific SQL and response assembly directly in route registration. | Makes later feed variants and tests easier without building the whole future feed framework now. | Prompt, Q2, recommended approach | AC-010 |
 | RULE-001 | Business rule | Must | A followed account for this endpoint is an active `atproto_follows` row where `did` is the authenticated viewer and `subject_did` is the candidate author. | Defines follow semantics for the feed. | Existing follow schema, prompt | AC-002, AC-003 |
-| RULE-002 | Business rule | Must | A top-level post has no `reply_root_uri` and no `reply_parent_uri`; a top-level comment has both reply fields present and `reply_root_uri = reply_parent_uri`; a nested reply has both reply fields present and `reply_parent_uri <> reply_root_uri`. | Makes the user's “comments but not replies” decision testable against the existing schema. | Q1, codebase | AC-004 |
+| RULE-002 | Business rule | Must | An eligible top-level timeline post has no `reply_root_uri` and no `reply_parent_uri`; any row with either reply field present is excluded from this timeline chunk. | Makes the “no comments or replies” decision testable against the existing schema. | Q1, review feedback, codebase | AC-004 |
 | RULE-003 | Business rule | Must | Project posts and quote posts are not special feed item types in this chunk; they are eligible when their `craftsky_posts` row otherwise matches the followed-account and inclusion rules. | Keeps the response on existing `PostResponse` and avoids project/feed-reason expansion now. | Q1, lexicon, codebase | AC-004, AC-007 |
 | RULE-004 | Business rule | Must | Repost records in `craftsky_reposts` do not cause separate timeline items in this chunk. | Reposts need feed reasons/attribution that are out of scope for this basic feed. | Q1, non-goals | AC-004 |
 
@@ -186,7 +186,7 @@ The AppView exposes `GET /v1/feed/timeline` as an authenticated `/v1/` JSON endp
 | AC-001 | BR-001, FR-001, NFR-001 | Given a request to `GET /v1/feed/timeline`, when the request lacks valid authentication or the required device ID header, then AppView returns the existing authenticated-device error behavior; given both are valid, the request reaches the timeline handler. |
 | AC-002 | BR-001, FR-002, RULE-001 | Given the viewer follows author A but not author B, and both authors have eligible indexed posts, when the viewer requests the timeline, then items authored by A may appear and items authored by B do not appear. |
 | AC-003 | FR-002, RULE-001 | Given an `atproto_follows` row exists for a different follower or an inactive/deleted follow is absent from active follow storage, when the viewer requests the timeline, then that relationship does not make the candidate author's posts eligible. |
-| AC-004 | FR-003, FR-004, RULE-002, RULE-003, RULE-004 | Given a followed author has a root post, project post, quote post, top-level comment, nested reply, and repost record, when the viewer requests the timeline, then the root/project/quote/comment rows are included according to ordering and pagination, while the nested reply and repost record are excluded. |
+| AC-004 | FR-003, FR-004, RULE-002, RULE-003, RULE-004 | Given a followed author has a root post, project post, quote post, top-level comment, nested reply, and repost record, when the viewer requests the timeline, then the root/project/quote rows are included according to ordering and pagination, while the top-level comment, nested reply, and repost record are excluded. |
 | AC-005 | BR-001, FR-005 | Given multiple eligible timeline rows with different `indexed_at` values and at least two rows sharing the same `indexed_at`, when the timeline is returned, then rows are ordered by `indexed_at` descending and ties by `uri` descending. |
 | AC-006 | FR-005, FR-006, FR-007, NFR-001 | Given more eligible rows exist than the requested `limit`, when the viewer requests the first page and then requests the returned `cursor`, then the second page continues after the last item of the first page without duplicates or skipped eligible rows under the same dataset. |
 | AC-007 | FR-008, RULE-003 | Given eligible rows include author display data, images, tags, reply/quote fields, and engagement state, when the timeline response is built, then each item uses the existing `PostResponse` field names and values consistent with other post endpoints. |
@@ -202,8 +202,8 @@ The AppView exposes `GET /v1/feed/timeline` as an authenticated `/v1/` JSON endp
 | ID | Case | Expected Behavior | Requirement IDs |
 |---|---|---|---|
 | EC-001 | Viewer follows no accounts. | Return `200` with `items: []` and no `cursor`. | FR-011 |
-| EC-002 | Viewer follows accounts with only nested replies. | Return no items for those nested replies. | FR-004, RULE-002 |
-| EC-003 | Followed author has a top-level comment on an indexed post. | Include the comment as a normal `PostResponse` item. | FR-003, RULE-002 |
+| EC-002 | Viewer follows accounts with only comments or nested replies. | Return no items for those comment/reply rows. | FR-004, RULE-002 |
+| EC-003 | Followed author has a top-level comment on an indexed post. | Exclude the comment from the timeline. | FR-004, RULE-002 |
 | EC-004 | Followed author has a project post whose project fields are not materialised in response columns. | Include the row as a normal `PostResponse`; project-specific response fields are not added in this chunk. | FR-003, RULE-003 |
 | EC-005 | Followed author reposts someone else's post. | Do not create a separate timeline item for the repost record. | FR-004, RULE-004 |
 | EC-006 | Cursor is syntactically invalid or has the wrong payload shape. | Return `400 invalid_cursor`. | FR-010 |
@@ -244,7 +244,7 @@ The AppView exposes `GET /v1/feed/timeline` as an authenticated `/v1/` JSON endp
 | ID | Risk | Impact | Mitigation |
 |---|---|---|---|
 | RISK-001 | Direct joined query becomes slow for users with large follow graphs or high-volume followed accounts. | Timeline endpoint latency increases as data grows. | Keep pages bounded, use indexed predicates/order keys, and defer materialised feed tables until volume proves need. |
-| RISK-002 | Comment-vs-reply semantics are misunderstood during implementation. | Timeline includes too many nested replies or excludes desired top-level comments. | Use `RULE-002` and acceptance tests with root post, top-level comment, and nested reply fixtures. |
+| RISK-002 | Post-vs-conversation semantics are misunderstood during implementation. | Timeline includes comments or replies that are out of scope for this chunk. | Use `RULE-002` and acceptance tests with root post, top-level comment, and nested reply fixtures. |
 | RISK-003 | Handle resolution for many distinct authors causes latency or endpoint failure. | Timeline pages may fail with `identity_unavailable` or be slower than expected. | Batch unique author handling where possible; keep page sizes bounded; use existing resolver behavior and tests. |
 | RISK-004 | Firehose/indexing lag makes follows or posts appear stale. | Recently followed accounts or newly-created posts may not appear immediately. | Document AppView indexed state as the source of truth; future UX can handle eventual consistency. |
 | RISK-005 | Blocks/mutes/moderation filtering are absent. | Timeline may show content a later product version should suppress. | Keep out of this scope but record as future moderation work before public launch. |
@@ -255,7 +255,7 @@ The AppView exposes `GET /v1/feed/timeline` as an authenticated `/v1/` JSON endp
 | ID | Assumption | Impact If Wrong |
 |---|---|---|
 | ASM-001 | `atproto_follows` represents the active follow graph needed for the basic home timeline. | Timeline would need a different graph source or active/deleted-state model. |
-| ASM-002 | Top-level comments are represented by rows where `reply_root_uri = reply_parent_uri`; nested replies have a different parent than root. | Inclusion/exclusion SQL and tests would need to change. |
+| ASM-002 | Any row with reply metadata is conversation activity rather than an eligible home-timeline post for this chunk. | Inclusion/exclusion SQL and tests would need to change. |
 | ASM-003 | Project posts and quote posts can be rendered with the current `PostResponse` without new project-specific or quote-expanded fields. | The API response shape would need additional fields and possibly project-field materialisation. |
 | ASM-004 | Repost activity should not appear as a separate timeline item until feed reasons/attribution are designed. | A larger feed-item envelope would be needed sooner. |
 | ASM-005 | AppView-only requirements are sufficient for this chunk; Flutter consumption will be handled by a later workflow stage/change. | Scope would need to expand to include app models, API client, providers, and UI tests. |
@@ -287,7 +287,7 @@ Notes: Medium risk because this adds a new user-visible API endpoint and feed se
   - `RULE-001` through `RULE-004`
 - Suggested test levels:
   - Unit tests for cursor handling, inclusion/exclusion classification, and response assembly.
-  - Store/query integration tests against Postgres fixtures for followed/unfollowed authors, comments vs replies, ordering, and pagination.
+  - Store/query integration tests against Postgres fixtures for followed/unfollowed authors, root posts vs comments/replies, ordering, and pagination.
   - Handler/route tests for auth/device requirements, response envelope behavior, invalid cursors, empty timelines, and happy-path response shape.
   - Regression tests ensuring existing post/profile routes still return the same `PostResponse` shape.
 - Blocking open questions: None.
