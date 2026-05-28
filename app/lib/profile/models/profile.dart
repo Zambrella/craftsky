@@ -24,6 +24,10 @@ class Profile with ProfileMappable {
     this.isCraftskyProfile = true,
     this.followerCount,
     this.followingCount,
+    this.mutualFollowerCount,
+    this.postCount,
+    this.postsLast7Days,
+    this.projectCount,
   }) : did = Did.parse(did),
        handle = Handle.parse(handle);
 
@@ -39,4 +43,8 @@ class Profile with ProfileMappable {
   final bool isCraftskyProfile;
   final int? followerCount;
   final int? followingCount;
+  final int? mutualFollowerCount;
+  final int? postCount;
+  final int? postsLast7Days;
+  final int? projectCount;
 }

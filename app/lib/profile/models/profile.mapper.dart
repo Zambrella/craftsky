@@ -98,6 +98,30 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     _$followingCount,
     opt: true,
   );
+  static int? _$mutualFollowerCount(Profile v) => v.mutualFollowerCount;
+  static const Field<Profile, int> _f$mutualFollowerCount = Field(
+    'mutualFollowerCount',
+    _$mutualFollowerCount,
+    opt: true,
+  );
+  static int? _$postCount(Profile v) => v.postCount;
+  static const Field<Profile, int> _f$postCount = Field(
+    'postCount',
+    _$postCount,
+    opt: true,
+  );
+  static int? _$postsLast7Days(Profile v) => v.postsLast7Days;
+  static const Field<Profile, int> _f$postsLast7Days = Field(
+    'postsLast7Days',
+    _$postsLast7Days,
+    opt: true,
+  );
+  static int? _$projectCount(Profile v) => v.projectCount;
+  static const Field<Profile, int> _f$projectCount = Field(
+    'projectCount',
+    _$projectCount,
+    opt: true,
+  );
 
   @override
   final MappableFields<Profile> fields = const {
@@ -113,6 +137,10 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     #isCraftskyProfile: _f$isCraftskyProfile,
     #followerCount: _f$followerCount,
     #followingCount: _f$followingCount,
+    #mutualFollowerCount: _f$mutualFollowerCount,
+    #postCount: _f$postCount,
+    #postsLast7Days: _f$postsLast7Days,
+    #projectCount: _f$projectCount,
   };
 
   static Profile _instantiate(DecodingData data) {
@@ -129,6 +157,10 @@ class ProfileMapper extends ClassMapperBase<Profile> {
       isCraftskyProfile: data.dec(_f$isCraftskyProfile),
       followerCount: data.dec(_f$followerCount),
       followingCount: data.dec(_f$followingCount),
+      mutualFollowerCount: data.dec(_f$mutualFollowerCount),
+      postCount: data.dec(_f$postCount),
+      postsLast7Days: data.dec(_f$postsLast7Days),
+      projectCount: data.dec(_f$projectCount),
     );
   }
 
@@ -203,6 +235,10 @@ abstract class ProfileCopyWith<$R, $In extends Profile, $Out>
     bool? isCraftskyProfile,
     int? followerCount,
     int? followingCount,
+    int? mutualFollowerCount,
+    int? postCount,
+    int? postsLast7Days,
+    int? projectCount,
   });
   ProfileCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
@@ -236,6 +272,10 @@ class _ProfileCopyWithImpl<$R, $Out>
     bool? isCraftskyProfile,
     Object? followerCount = $none,
     Object? followingCount = $none,
+    Object? mutualFollowerCount = $none,
+    Object? postCount = $none,
+    Object? postsLast7Days = $none,
+    Object? projectCount = $none,
   }) => $apply(
     FieldCopyWithData({
       if (did != null) #did: did,
@@ -250,6 +290,11 @@ class _ProfileCopyWithImpl<$R, $Out>
       if (isCraftskyProfile != null) #isCraftskyProfile: isCraftskyProfile,
       if (followerCount != $none) #followerCount: followerCount,
       if (followingCount != $none) #followingCount: followingCount,
+      if (mutualFollowerCount != $none)
+        #mutualFollowerCount: mutualFollowerCount,
+      if (postCount != $none) #postCount: postCount,
+      if (postsLast7Days != $none) #postsLast7Days: postsLast7Days,
+      if (projectCount != $none) #projectCount: projectCount,
     }),
   );
   @override
@@ -272,6 +317,13 @@ class _ProfileCopyWithImpl<$R, $Out>
     ),
     followerCount: data.get(#followerCount, or: $value.followerCount),
     followingCount: data.get(#followingCount, or: $value.followingCount),
+    mutualFollowerCount: data.get(
+      #mutualFollowerCount,
+      or: $value.mutualFollowerCount,
+    ),
+    postCount: data.get(#postCount, or: $value.postCount),
+    postsLast7Days: data.get(#postsLast7Days, or: $value.postsLast7Days),
+    projectCount: data.get(#projectCount, or: $value.projectCount),
   );
 
   @override

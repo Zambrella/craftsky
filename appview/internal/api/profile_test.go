@@ -24,15 +24,42 @@ import (
 // fakeStore implements the subset of ProfileStore that handlers call.
 type fakeStore struct {
 	row            *api.ProfileRow
+	accountRows    []*api.ProfileAccountRow
+	accountCursor  string
+	accountTotal   int
 	err            error
 	lastProfileDID string
 	lastViewerDID  string
+	lastLimit      int
+	lastCursor     string
 }
 
 func (f *fakeStore) Read(_ context.Context, profileDID string, viewerDID string) (*api.ProfileRow, error) {
 	f.lastProfileDID = profileDID
 	f.lastViewerDID = viewerDID
 	return f.row, f.err
+}
+
+func (f *fakeStore) ListMutualFollowers(_ context.Context, viewerDID string, profileDID string, limit int, cursor string) ([]*api.ProfileAccountRow, string, int, error) {
+	f.lastViewerDID = viewerDID
+	f.lastProfileDID = profileDID
+	f.lastLimit = limit
+	f.lastCursor = cursor
+	return f.accountRows, f.accountCursor, f.accountTotal, f.err
+}
+
+func (f *fakeStore) ListFollowers(_ context.Context, subjectDID string, limit int, cursor string) ([]*api.ProfileAccountRow, string, int, error) {
+	f.lastProfileDID = subjectDID
+	f.lastLimit = limit
+	f.lastCursor = cursor
+	return f.accountRows, f.accountCursor, f.accountTotal, f.err
+}
+
+func (f *fakeStore) ListFollowing(_ context.Context, did string, limit int, cursor string) ([]*api.ProfileAccountRow, string, int, error) {
+	f.lastProfileDID = did
+	f.lastLimit = limit
+	f.lastCursor = cursor
+	return f.accountRows, f.accountCursor, f.accountTotal, f.err
 }
 
 // fakeResolver implements api.HandleResolver.
@@ -209,6 +236,106 @@ func TestGetMeProfile_NoDIDInContext(t *testing.T) {
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d", rr.Code)
+	}
+}
+
+func TestGetMutualFollowers_ReturnsPaginatedAccountRows(t *testing.T) {
+	t.Parallel()
+	displayName := "Carol"
+	description := "quilts"
+	store := &fakeStore{
+		accountRows: []*api.ProfileAccountRow{{
+			DID:               "did:plc:carol",
+			DisplayName:       &displayName,
+			Description:       &description,
+			IsCraftskyProfile: true,
+		}},
+		accountCursor: "next-cursor",
+		accountTotal:  12,
+	}
+	h := api.GetMutualFollowersHandler(
+		store,
+		fakeResolver{
+			didFor: "did:plc:bob",
+			handlesByDID: map[string]syntax.Handle{
+				"did:plc:carol": "carol.example",
+			},
+		},
+		nilLogger(),
+	)
+	req := httptest.NewRequest(http.MethodGet, "/v1/profiles/@bob.example/mutual-followers?limit=2&cursor=opaque", nil)
+	req.SetPathValue("handleOrDid", "bob.example")
+	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:viewer"))
+	rr := httptest.NewRecorder()
+
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if store.lastViewerDID != "did:plc:viewer" || store.lastProfileDID != "did:plc:bob" {
+		t.Fatalf("store called with viewer/profile %q/%q", store.lastViewerDID, store.lastProfileDID)
+	}
+	if store.lastLimit != 2 || store.lastCursor != "opaque" {
+		t.Fatalf("limit/cursor = %d/%q, want 2/opaque", store.lastLimit, store.lastCursor)
+	}
+	var body api.ProfileAccountPage
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.TotalCount != 12 || body.Cursor == nil || *body.Cursor != "next-cursor" {
+		t.Fatalf("page total/cursor = %d/%v", body.TotalCount, body.Cursor)
+	}
+	if len(body.Items) != 1 || body.Items[0].DID != "did:plc:carol" || body.Items[0].Handle != "carol.example" {
+		t.Fatalf("items = %+v", body.Items)
+	}
+	if body.Items[0].DisplayName == nil || *body.Items[0].DisplayName != "Carol" {
+		t.Fatalf("displayName = %v", body.Items[0].DisplayName)
+	}
+}
+
+func TestGetMeFollowersAndFollowing_ReturnPaginatedAccountRows(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name       string
+		path       string
+		newHandler func(api.ProfileGraphReader, api.HandleResolver, *slog.Logger) http.Handler
+	}{
+		{"followers", "/v1/profiles/me/followers?limit=3", api.GetMeFollowersHandler},
+		{"following", "/v1/profiles/me/following?limit=3", api.GetMeFollowingHandler},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			displayName := "Bob"
+			store := &fakeStore{
+				accountRows: []*api.ProfileAccountRow{{
+					DID:               "did:plc:bob",
+					DisplayName:       &displayName,
+					IsCraftskyProfile: true,
+				}},
+				accountTotal: 7,
+			}
+			h := tc.newHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{"did:plc:bob": "bob.example"}}, nilLogger())
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:alice"))
+			rr := httptest.NewRecorder()
+
+			h.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusOK {
+				t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+			}
+			if store.lastProfileDID != "did:plc:alice" || store.lastLimit != 3 {
+				t.Fatalf("store profile/limit = %q/%d", store.lastProfileDID, store.lastLimit)
+			}
+			var body api.ProfileAccountPage
+			if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode body: %v", err)
+			}
+			if body.TotalCount != 7 || len(body.Items) != 1 || body.Items[0].Handle != "bob.example" {
+				t.Fatalf("body = %+v", body)
+			}
+		})
 	}
 }
 

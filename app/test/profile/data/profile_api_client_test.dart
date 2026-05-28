@@ -111,4 +111,57 @@ void main() {
 
     expect(profile.did.toString(), 'did:plc:alice');
   });
+
+  test('GET mutual followers sends pagination and decodes page', () async {
+    final dio = buildDio();
+    DioAdapter(dio: dio).onGet(
+      '/v1/profiles/@bob.craftsky.social/mutual-followers',
+      (server) => server.reply(200, {
+        'items': [
+          {
+            'did': 'did:plc:carol',
+            'handle': 'carol.craftsky.social',
+            'displayName': 'Carol',
+            'isCraftskyProfile': true,
+          },
+        ],
+        'cursor': 'next',
+        'totalCount': 12,
+      }),
+      queryParameters: {'limit': 2, 'cursor': 'opaque'},
+    );
+
+    final page = await ProfileApiClient(dio).listMutualFollowers(
+      'bob.craftsky.social',
+      limit: 2,
+      cursor: 'opaque',
+    );
+
+    expect(page.totalCount, 12);
+    expect(page.cursor, 'next');
+    expect(page.items.single.handle.toString(), 'carol.craftsky.social');
+  });
+
+  test('GET self followers and following use me endpoints', () async {
+    final dio = buildDio();
+    final adapter = DioAdapter(dio: dio)
+      ..onGet(
+        '/v1/profiles/me/followers',
+        (server) => server.reply(200, {'items': [], 'totalCount': 0}),
+        queryParameters: {'limit': 50},
+      )
+      ..onGet(
+        '/v1/profiles/me/following',
+        (server) => server.reply(200, {'items': [], 'totalCount': 0}),
+        queryParameters: {'limit': 25, 'cursor': 'next'},
+      );
+
+    final api = ProfileApiClient(dio);
+    final followers = await api.listFollowersMe(limit: 50);
+    final following = await api.listFollowingMe(limit: 25, cursor: 'next');
+
+    expect(followers.totalCount, 0);
+    expect(following.totalCount, 0);
+    expect(adapter, isNotNull);
+  });
 }

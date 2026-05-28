@@ -283,6 +283,43 @@ func TestRoutes_GetProfileMeRequiresAuth(t *testing.T) {
 	}
 }
 
+func TestRoutes_ProfileSocialGraphEndpointsRequireAuthenticatedDevice(t *testing.T) {
+	t.Parallel()
+	for _, path := range []string{
+		"/v1/profiles/@alice.example/mutual-followers",
+		"/v1/profiles/me/followers",
+		"/v1/profiles/me/following",
+	} {
+		t.Run(path+" requires auth", func(t *testing.T) {
+			t.Parallel()
+			mux := http.NewServeMux()
+			AddRoutes(context.Background(), mux, testDeps())
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+			rr := httptest.NewRecorder()
+			mux.ServeHTTP(rr, req)
+			if rr.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want 401", rr.Code)
+			}
+		})
+		t.Run(path+" requires device", func(t *testing.T) {
+			t.Parallel()
+			mux := http.NewServeMux()
+			AddRoutes(context.Background(), mux, testDeps())
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.Header.Set("Authorization", "Bearer anything")
+			rr := httptest.NewRecorder()
+			mux.ServeHTTP(rr, req)
+			if rr.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400", rr.Code)
+			}
+			if !strings.Contains(rr.Body.String(), "missing_device_id") {
+				t.Errorf("body = %q, want containing 'missing_device_id'", rr.Body.String())
+			}
+		})
+	}
+}
+
 func TestRoutes_PutProfileMeRequiresAuth(t *testing.T) {
 	t.Parallel()
 	deps := testDeps()

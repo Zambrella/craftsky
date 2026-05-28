@@ -4,7 +4,9 @@ package api_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -77,7 +79,287 @@ CREATE TABLE atproto_follows (
     UNIQUE (did, rkey),
     UNIQUE (did, subject_did)
 );
+CREATE TABLE craftsky_posts (
+    uri              TEXT        NOT NULL PRIMARY KEY,
+    did              TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    rkey             TEXT        NOT NULL,
+    cid              TEXT        NOT NULL,
+    text             TEXT        NOT NULL,
+    facets           JSONB,
+    images           JSONB,
+    reply_root_uri   TEXT,
+    reply_root_cid   TEXT,
+    reply_parent_uri TEXT,
+    reply_parent_cid TEXT,
+    quote_uri        TEXT,
+    quote_cid        TEXT,
+    tags             TEXT[]      NOT NULL DEFAULT '{}',
+    record           JSONB       NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL,
+    indexed_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (did, rkey)
+);
+CREATE INDEX atproto_follows_subject_created_uri_desc_idx
+    ON atproto_follows (subject_did, created_at DESC, uri DESC);
+CREATE INDEX atproto_follows_did_created_uri_desc_idx
+    ON atproto_follows (did, created_at DESC, uri DESC);
+CREATE INDEX craftsky_posts_root_did_created_idx
+    ON craftsky_posts (did, created_at DESC)
+    WHERE reply_root_uri IS NULL AND reply_parent_uri IS NULL;
 `
+
+func TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, profileStoreDDL)
+	ctx := context.Background()
+	now := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
+
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES ($1, '{}', 'cid')`,
+		"did:plc:alice",
+	); err != nil {
+		t.Fatalf("seed craftsky profile: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_posts (
+			uri, did, rkey, cid, text, reply_root_uri, reply_root_cid,
+			reply_parent_uri, reply_parent_cid, record, created_at
+		)
+		VALUES
+			($1, 'did:plc:alice', 'root-recent', 'cid1', 'recent root', NULL, NULL, NULL, NULL, '{}', $2),
+			($3, 'did:plc:alice', 'root-old', 'cid2', 'old root', NULL, NULL, NULL, NULL, '{}', $4),
+			($5, 'did:plc:alice', 'reply-recent', 'cid3', 'reply', $1, 'cid1', $1, 'cid1', '{}', $2),
+			($6, 'did:plc:alice', 'quote-recent', 'cid4', 'quote root', NULL, NULL, NULL, NULL, '{}', $2)
+	`,
+		"at://did:plc:alice/social.craftsky.feed.post/root-recent", now.Add(-24*time.Hour),
+		"at://did:plc:alice/social.craftsky.feed.post/root-old", now.Add(-8*24*time.Hour),
+		"at://did:plc:alice/social.craftsky.feed.post/reply-recent",
+		"at://did:plc:alice/social.craftsky.feed.post/quote-recent",
+	); err != nil {
+		t.Fatalf("seed posts: %v", err)
+	}
+
+	store := api.NewProfileStore(pool)
+	got, err := store.Read(ctx, "did:plc:alice", "did:plc:viewer")
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+
+	if got.PostCount == nil || *got.PostCount != 3 {
+		t.Fatalf("postCount = %v, want 3 root posts", got.PostCount)
+	}
+	if got.PostsLast7Days == nil || *got.PostsLast7Days != 2 {
+		t.Fatalf("postsLast7Days = %v, want 2 recent root posts", got.PostsLast7Days)
+	}
+	if got.ProjectCount == nil || *got.ProjectCount != 0 {
+		t.Fatalf("projectCount = %v, want data-driven zero", got.ProjectCount)
+	}
+}
+
+func TestProfileStore_ReadByDID_MutualFollowerCountUsesViewerGraph(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, profileStoreDDL)
+	ctx := context.Background()
+
+	for _, did := range []string{
+		"did:plc:viewer",
+		"did:plc:profile",
+		"did:plc:mutual",
+		"did:plc:viewer-only",
+		"did:plc:profile-only",
+	} {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES ($1, '{}', 'cid')`,
+			did,
+		); err != nil {
+			t.Fatalf("seed craftsky profile %s: %v", did, err)
+		}
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
+		VALUES
+			('at://did:plc:viewer/app.bsky.graph.follow/f1', 'did:plc:viewer', 'f1', 'c1', 'did:plc:mutual', '{"subject":"did:plc:mutual"}', now()),
+			('at://did:plc:mutual/app.bsky.graph.follow/f2', 'did:plc:mutual', 'f2', 'c2', 'did:plc:profile', '{"subject":"did:plc:profile"}', now()),
+			('at://did:plc:viewer/app.bsky.graph.follow/f3', 'did:plc:viewer', 'f3', 'c3', 'did:plc:viewer-only', '{"subject":"did:plc:viewer-only"}', now()),
+			('at://did:plc:profile-only/app.bsky.graph.follow/f4', 'did:plc:profile-only', 'f4', 'c4', 'did:plc:profile', '{"subject":"did:plc:profile"}', now())
+	`); err != nil {
+		t.Fatalf("seed follows: %v", err)
+	}
+
+	store := api.NewProfileStore(pool)
+	got, err := store.Read(ctx, "did:plc:profile", "did:plc:viewer")
+	if err != nil {
+		t.Fatalf("Read visitor profile: %v", err)
+	}
+	if got.MutualFollowerCount == nil || *got.MutualFollowerCount != 1 {
+		t.Fatalf("mutualFollowerCount = %v, want 1", got.MutualFollowerCount)
+	}
+
+	self, err := store.Read(ctx, "did:plc:viewer", "did:plc:viewer")
+	if err != nil {
+		t.Fatalf("Read self profile: %v", err)
+	}
+	if self.MutualFollowerCount != nil {
+		t.Fatalf("self mutualFollowerCount = %v, want nil", self.MutualFollowerCount)
+	}
+}
+
+func TestProfileStore_ListMutualFollowers_PaginatesDisplayRows(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, profileStoreDDL)
+	ctx := context.Background()
+	base := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
+
+	for _, did := range []string{
+		"did:plc:viewer",
+		"did:plc:profile",
+		"did:plc:newest",
+		"did:plc:middle",
+		"did:plc:oldest",
+		"did:plc:not-mutual",
+	} {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES ($1, '{}', 'cid')`,
+			did,
+		); err != nil {
+			t.Fatalf("seed craftsky profile %s: %v", did, err)
+		}
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO bluesky_profiles (did, display_name, description, avatar_cid, avatar_mime, record_cid)
+		VALUES
+			('did:plc:newest', 'Newest', 'new desc', 'bafnew', 'image/jpeg', 'cid-bp-1'),
+			('did:plc:middle', 'Middle', NULL, NULL, NULL, 'cid-bp-2'),
+			('did:plc:oldest', 'Oldest', NULL, NULL, NULL, 'cid-bp-3')
+	`); err != nil {
+		t.Fatalf("seed bluesky profiles: %v", err)
+	}
+
+	followRows := []struct {
+		uri     string
+		did     string
+		rkey    string
+		subject string
+		created time.Time
+	}{
+		{"at://did:plc:viewer/app.bsky.graph.follow/v1", "did:plc:viewer", "v1", "did:plc:newest", base.Add(-1 * time.Hour)},
+		{"at://did:plc:viewer/app.bsky.graph.follow/v2", "did:plc:viewer", "v2", "did:plc:middle", base.Add(-2 * time.Hour)},
+		{"at://did:plc:viewer/app.bsky.graph.follow/v3", "did:plc:viewer", "v3", "did:plc:oldest", base.Add(-3 * time.Hour)},
+		{"at://did:plc:newest/app.bsky.graph.follow/m1", "did:plc:newest", "m1", "did:plc:profile", base.Add(-10 * time.Minute)},
+		{"at://did:plc:middle/app.bsky.graph.follow/m2", "did:plc:middle", "m2", "did:plc:profile", base.Add(-20 * time.Minute)},
+		{"at://did:plc:oldest/app.bsky.graph.follow/m3", "did:plc:oldest", "m3", "did:plc:profile", base.Add(-30 * time.Minute)},
+		{"at://did:plc:viewer/app.bsky.graph.follow/v4", "did:plc:viewer", "v4", "did:plc:not-mutual", base.Add(-4 * time.Hour)},
+	}
+	for _, row := range followRows {
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
+			VALUES ($1, $2, $3, 'cid', $4, jsonb_build_object('subject', $4::text), $5)
+		`, row.uri, row.did, row.rkey, row.subject, row.created); err != nil {
+			t.Fatalf("seed follow %s: %v", row.uri, err)
+		}
+	}
+
+	store := api.NewProfileStore(pool)
+	first, cursor, total, err := store.ListMutualFollowers(ctx, "did:plc:viewer", "did:plc:profile", 2, "")
+	if err != nil {
+		t.Fatalf("ListMutualFollowers first page: %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("total = %d, want 3", total)
+	}
+	if cursor == "" {
+		t.Fatal("cursor = empty, want next page cursor")
+	}
+	if got := []string{first[0].DID, first[1].DID}; got[0] != "did:plc:newest" || got[1] != "did:plc:middle" {
+		t.Fatalf("first page DIDs = %v, want newest,middle", got)
+	}
+	if first[0].DisplayName == nil || *first[0].DisplayName != "Newest" {
+		t.Fatalf("displayName = %v, want Newest", first[0].DisplayName)
+	}
+	if !first[0].IsCraftskyProfile {
+		t.Fatalf("isCraftskyProfile = false, want true")
+	}
+
+	second, next, total, err := store.ListMutualFollowers(ctx, "did:plc:viewer", "did:plc:profile", 2, cursor)
+	if err != nil {
+		t.Fatalf("ListMutualFollowers second page: %v", err)
+	}
+	if total != 3 || next != "" {
+		t.Fatalf("second total,next = %d,%q; want 3,empty", total, next)
+	}
+	if len(second) != 1 || second[0].DID != "did:plc:oldest" {
+		t.Fatalf("second page = %+v, want oldest only", second)
+	}
+}
+
+func TestProfileStore_ListFollowersAndFollowing_OrderNewestFirst(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, profileStoreDDL)
+	ctx := context.Background()
+	base := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
+
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol", "did:plc:dana"} {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES ($1, '{}', 'cid')`,
+			did,
+		); err != nil {
+			t.Fatalf("seed craftsky profile %s: %v", did, err)
+		}
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
+		VALUES
+			('at://did:plc:bob/app.bsky.graph.follow/f1', 'did:plc:bob', 'f1', 'c1', 'did:plc:alice', '{"subject":"did:plc:alice"}', $1),
+			('at://did:plc:carol/app.bsky.graph.follow/f2', 'did:plc:carol', 'f2', 'c2', 'did:plc:alice', '{"subject":"did:plc:alice"}', $2),
+			('at://did:plc:dana/app.bsky.graph.follow/f3', 'did:plc:dana', 'f3', 'c3', 'did:plc:alice', '{"subject":"did:plc:alice"}', $3),
+			('at://did:plc:alice/app.bsky.graph.follow/f4', 'did:plc:alice', 'f4', 'c4', 'did:plc:bob', '{"subject":"did:plc:bob"}', $1),
+			('at://did:plc:alice/app.bsky.graph.follow/f5', 'did:plc:alice', 'f5', 'c5', 'did:plc:carol', '{"subject":"did:plc:carol"}', $2),
+			('at://did:plc:alice/app.bsky.graph.follow/f6', 'did:plc:alice', 'f6', 'c6', 'did:plc:dana', '{"subject":"did:plc:dana"}', $3),
+			('at://did:plc:alice/app.bsky.graph.follow/f7', 'did:plc:alice', 'f7', 'c7', 'did:plc:erin', '{"subject":"did:plc:erin"}', $4)
+	`, base.Add(-3*time.Hour), base.Add(-2*time.Hour), base.Add(-1*time.Hour), base.Add(-30*time.Minute)); err != nil {
+		t.Fatalf("seed follows: %v", err)
+	}
+
+	store := api.NewProfileStore(pool)
+	followers, _, followerTotal, err := store.ListFollowers(ctx, "did:plc:alice", 10, "")
+	if err != nil {
+		t.Fatalf("ListFollowers: %v", err)
+	}
+	if followerTotal != 3 {
+		t.Fatalf("follower total = %d, want 3", followerTotal)
+	}
+	if got := []string{followers[0].DID, followers[1].DID, followers[2].DID}; got[0] != "did:plc:dana" || got[1] != "did:plc:carol" || got[2] != "did:plc:bob" {
+		t.Fatalf("followers order = %v, want dana,carol,bob", got)
+	}
+
+	following, _, followingTotal, err := store.ListFollowing(ctx, "did:plc:alice", 10, "")
+	if err != nil {
+		t.Fatalf("ListFollowing: %v", err)
+	}
+	if followingTotal != 3 {
+		t.Fatalf("following total = %d, want 3 Craftsky profiles only", followingTotal)
+	}
+	if got := []string{following[0].DID, following[1].DID, following[2].DID}; got[0] != "did:plc:dana" || got[1] != "did:plc:carol" || got[2] != "did:plc:bob" {
+		t.Fatalf("following order = %v, want dana,carol,bob with non-Craftsky Erin excluded", got)
+	}
+}
+
+func TestProfileStore_SocialSummaryIndexesCoverOrderedQueries(t *testing.T) {
+	wantFragments := []string{
+		"CREATE INDEX atproto_follows_subject_created_uri_desc_idx",
+		"ON atproto_follows (subject_did, created_at DESC, uri DESC)",
+		"CREATE INDEX atproto_follows_did_created_uri_desc_idx",
+		"ON atproto_follows (did, created_at DESC, uri DESC)",
+		"CREATE INDEX craftsky_posts_root_did_created_idx",
+		"ON craftsky_posts (did, created_at DESC)",
+		"WHERE reply_root_uri IS NULL AND reply_parent_uri IS NULL",
+	}
+	for _, fragment := range wantFragments {
+		if !strings.Contains(profileStoreDDL, fragment) {
+			t.Fatalf("profileStoreDDL missing index fragment %q", fragment)
+		}
+	}
+}
 
 func TestProfileStore_ReadByDID_MemberWithBothRows(t *testing.T) {
 	t.Parallel()

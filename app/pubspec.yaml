@@ -40,6 +40,7 @@ dependencies:
   riverpod_annotation: ^4.0.2
   shared_preferences: ^2.5.4
   smooth_page_indicator: ^2.0.1
+  timeago: ^3.7.1
   url_launcher: ^6.3.1
   uuid: ^4.5.1
 

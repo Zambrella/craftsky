@@ -1,4 +1,5 @@
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:dio/dio.dart';
@@ -85,6 +86,41 @@ class ProfileApiClient {
     );
     return ProfileMapper.fromMap(res.data!);
   });
+
+  Future<ProfileAccountPage> listMutualFollowers(
+    String handleOrDid, {
+    int? limit,
+    String? cursor,
+  }) => unwrapApi(() async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/profiles/@$handleOrDid/mutual-followers',
+      queryParameters: _pageQuery(limit: limit, cursor: cursor),
+    );
+    return ProfileAccountPageMapper.fromMap(res.data!);
+  });
+
+  Future<ProfileAccountPage> listFollowersMe({int? limit, String? cursor}) =>
+      unwrapApi(() async {
+        final res = await _dio.get<Map<String, dynamic>>(
+          '/v1/profiles/me/followers',
+          queryParameters: _pageQuery(limit: limit, cursor: cursor),
+        );
+        return ProfileAccountPageMapper.fromMap(res.data!);
+      });
+
+  Future<ProfileAccountPage> listFollowingMe({int? limit, String? cursor}) =>
+      unwrapApi(() async {
+        final res = await _dio.get<Map<String, dynamic>>(
+          '/v1/profiles/me/following',
+          queryParameters: _pageQuery(limit: limit, cursor: cursor),
+        );
+        return ProfileAccountPageMapper.fromMap(res.data!);
+      });
+
+  Map<String, dynamic> _pageQuery({int? limit, String? cursor}) => {
+    'limit': ?limit,
+    'cursor': ?cursor,
+  };
 
   Map<String, dynamic> _blobToMap(UploadedBlob blob) => {
     r'$type': blob.type,

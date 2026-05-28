@@ -154,6 +154,7 @@ cursor keys: { "createdAt": RFC3339Nano, "uri": followURI }
 
 // following: accounts did follows, newest follow first
 WHERE f.did = $did
+  AND EXISTS (SELECT 1 FROM craftsky_profiles cp WHERE cp.did = f.subject_did)
   AND (cursor empty OR (f.created_at, f.uri) < ($createdAt, $uri))
 ORDER BY f.created_at DESC, f.uri DESC
 LIMIT $limit
@@ -166,7 +167,7 @@ WHERE viewer_follow.did = $viewerDID
 ORDER BY mutual_follow.created_at DESC, mutual_follow.uri DESC
 ```
 
-Account rows should join `bluesky_profiles` for display fields and `craftsky_profiles` for `isCraftskyProfile`. Handle resolution can be performed per unique DID in the handler using `HandleResolver`, matching existing response-building patterns.
+Account rows should join `bluesky_profiles` for display fields and `craftsky_profiles` for `isCraftskyProfile`. The settings following query is scoped to followed Craftsky profiles only, so it should require a matching `craftsky_profiles` row for `f.subject_did`; follower and mutual lists keep their existing behavior. Handle resolution can be performed per unique DID in the handler using `HandleResolver`, matching existing response-building patterns.
 
 ### Index migration guidance
 If the initial implementation uses these ordered predicates, create `000013_profile_social_summary_indexes` with indexes such as:

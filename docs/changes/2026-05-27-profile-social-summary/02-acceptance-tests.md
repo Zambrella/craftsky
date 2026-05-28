@@ -162,11 +162,13 @@ Automation Target: `app/test/settings/following_page_test.dart` or equivalent ne
 
 ```gherkin
 Feature: Following list
-  Scenario: Following page shows newest followed accounts first
-    Given Alice follows Bob, Carol, and Dana at different times
+  Scenario: Following page shows newest followed Craftsky accounts first
+    Given Alice follows Craftsky accounts Bob, Carol, and Dana at different times
+    And Alice follows non-Craftsky account Erin
     When Alice opens Settings and taps Following
-    Then the following page app bar title includes the following count
+    Then the following page app bar title includes the following count for Craftsky accounts only
     And following rows are ordered by newest follow first
+    And Erin is not shown
     And each row displays account identity from AppView data
 ```
 
@@ -229,7 +231,7 @@ Feature: Non-Craftsky profile summary
 | IT-003 | FR-012, FR-015 | AC-016, AC-019 | Profile response contract includes graph counts and excludes embedded mutual preview. | Fake/store row with followerCount, followingCount, mutualFollowerCount. | GET `/v1/profiles/@{handle}`. | JSON has followerCount, followingCount, mutualFollowerCount; no preview array. | `appview/internal/api/profile_test.go`, `profile_response_test.go` |
 | IT-004 | FR-010, FR-011, FR-016, NFR-001 | AC-011, AC-012, AC-015, AC-019 | Mutual followers endpoint returns paginated display-ready rows. | Seed > limit mutuals with handles/profile display data and follow edges. | GET mutual followers endpoint with limit/cursor. | Rows include DID, handle, optional display fields; next cursor is opaque; second page works. | `appview/internal/api/profile_store_test.go`, `appview/internal/api/profile_test.go` |
 | IT-005 | BR-003, FR-008, FR-010, FR-011, RULE-004 | AC-009, AC-011, AC-012 | Followers endpoint orders by newest follower first and paginates. | Seed followers with different `created_at`; > limit rows. | GET followers endpoint with limit/cursor. | Page order is `created_at DESC`; account rows display-ready; cursor paginates. | `appview/internal/api/profile_store_test.go`, `appview/internal/api/profile_test.go` |
-| IT-006 | BR-003, FR-009, FR-010, FR-011, RULE-004 | AC-010, AC-011, AC-012 | Following endpoint orders by newest followed first and paginates. | Seed signed-in DID follows with different `created_at`; > limit rows. | GET following endpoint with limit/cursor. | Page order is `created_at DESC`; account rows display-ready; cursor paginates. | `appview/internal/api/profile_store_test.go`, `appview/internal/api/profile_test.go` |
+| IT-006 | BR-003, FR-009, FR-010, FR-011, RULE-004 | AC-010, AC-011, AC-012 | Following endpoint orders followed Craftsky profiles by newest follow first, excludes non-Craftsky followed accounts, and paginates. | Seed signed-in DID follows with different `created_at`, including at least one non-Craftsky followed account; > limit Craftsky rows. | GET following endpoint with limit/cursor. | Page order is `created_at DESC` for Craftsky rows; non-Craftsky followed accounts are excluded; total count and cursor pagination use Craftsky rows only. | `appview/internal/api/profile_store_test.go`, `appview/internal/api/profile_test.go` |
 | IT-007 | NFR-001 | AC-013 | New social graph endpoints enforce auth and device ID. | Unauthenticated requests and authenticated requests missing device ID. | Call mutual/followers/following endpoints. | Existing 401/400 error behavior applies with standard error envelope. | `appview/internal/routes/routes_test.go` |
 | IT-008 | NFR-002 | AC-014 | Summary/list queries remain bounded. | Seed large follow and post sets; request default and max limits. | Call profile summary and graph list endpoints. | List responses respect bounded limit; no unbounded list returned; query order/filter behavior is deterministic. | `appview/internal/api/profile_store_test.go` |
 
@@ -250,7 +252,7 @@ Feature: Non-Craftsky profile summary
 |---|---|---|---|
 | TD-001 | Mutual graph inclusion/exclusion | DIDs: viewer Alice, profile Bob, mutual Carol; non-mutuals Dana (viewer follows only), Erin (follows Bob only). Follow edges Alice→Carol, Carol→Bob, Alice→Dana, Erin→Bob. | AT-002, AT-003, IT-002, IT-004, UT-001 |
 | TD-002 | Follower recency order | Bob, Carol, Dana follow Alice at T-1h, T-2h, T-3h. | AT-006, IT-005, UT-010 |
-| TD-003 | Following recency order | Alice follows Bob, Carol, Dana at T-1h, T-2h, T-3h. | AT-007, IT-006, UT-010 |
+| TD-003 | Following recency order | Alice follows Craftsky accounts Bob, Carol, Dana at T-1h, T-2h, T-3h, and non-Craftsky Erin at T-30m. | AT-007, IT-006, UT-010 |
 | TD-004 | Post summary filtering | Alice has top-level posts at now-1d and now-8d, replies/comments at now-1d, and repost interactions at now-1d. | AT-004, IT-001, UT-002, UT-003 |
 | TD-005 | Profile response scalar fields | Craftsky profile with `createdAt`, followerCount 9, followingCount 7, mutualFollowerCount 12, postCount 5, postsLast7Days 2, projectCount 0. | AT-001, AT-002, AT-004, IT-003, UT-005, UT-006, UT-011 |
 | TD-006 | Non-Craftsky profile | Bluesky-only profile with display name/avatar and no Craftsky profile row. | AT-009, REG-003, UT-006 |

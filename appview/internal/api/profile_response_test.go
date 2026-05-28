@@ -2,6 +2,7 @@
 package api_test
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -109,6 +110,69 @@ func TestBuildProfileResponse_IncludesFollowStateAndCraftskyCounts(t *testing.T)
 	}
 	if out.FollowingCount == nil || *out.FollowingCount != 7 {
 		t.Fatalf("followingCount = %v, want 7", out.FollowingCount)
+	}
+}
+
+func TestBuildProfileResponse_IncludesSummaryCountsWithoutMutualPreview(t *testing.T) {
+	t.Parallel()
+	followerCount := 3
+	followingCount := 7
+	mutualFollowerCount := 12
+	postCount := 5
+	postsLast7Days := 2
+	projectCount := 0
+	row := &api.ProfileRow{
+		DID:                 "did:plc:xyz",
+		Crafts:              []string{"knitting"},
+		CreatedAt:           time.Now(),
+		FollowerCount:       &followerCount,
+		FollowingCount:      &followingCount,
+		MutualFollowerCount: &mutualFollowerCount,
+		PostCount:           &postCount,
+		PostsLast7Days:      &postsLast7Days,
+		ProjectCount:        &projectCount,
+		IsCraftskyProfile:   true,
+	}
+
+	out := api.BuildProfileResponse(row, "alice.example", true)
+	if out.MutualFollowerCount == nil || *out.MutualFollowerCount != 12 {
+		t.Fatalf("mutualFollowerCount = %v, want 12", out.MutualFollowerCount)
+	}
+	if out.PostCount == nil || *out.PostCount != 5 {
+		t.Fatalf("postCount = %v, want 5", out.PostCount)
+	}
+	if out.PostsLast7Days == nil || *out.PostsLast7Days != 2 {
+		t.Fatalf("postsLast7Days = %v, want 2", out.PostsLast7Days)
+	}
+	if out.ProjectCount == nil || *out.ProjectCount != 0 {
+		t.Fatalf("projectCount = %v, want 0", out.ProjectCount)
+	}
+
+	raw, err := json.Marshal(out)
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	for _, key := range []string{
+		"followerCount",
+		"followingCount",
+		"mutualFollowerCount",
+		"postCount",
+		"postsLast7Days",
+		"projectCount",
+	} {
+		if _, ok := body[key]; !ok {
+			t.Fatalf("JSON missing %q in %v", key, body)
+		}
+	}
+	if _, ok := body["mutualFollowers"]; ok {
+		t.Fatalf("JSON included mutualFollowers preview: %v", body["mutualFollowers"])
+	}
+	if _, ok := body["mutualFollowerPreview"]; ok {
+		t.Fatalf("JSON included mutualFollowerPreview: %v", body["mutualFollowerPreview"])
 	}
 }
 

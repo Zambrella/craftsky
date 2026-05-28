@@ -1,108 +1,130 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
-/// Following / followers / projects count row. Counts are nullable so
-/// callers can pass through whatever subset the AppView has surfaced;
-/// missing values render as `—`. Each cell is tappable so the page can
-/// later wire navigation to follower lists / project lists without
-/// changing this widget's API.
-class ProfileStats extends StatelessWidget {
-  const ProfileStats({
-    this.followingCount,
-    this.followerCount,
-    this.projectCount,
-    this.onFollowingTap,
-    this.onFollowersTap,
-    this.onProjectsTap,
-    super.key,
-  });
-
-  final int? followingCount;
-  final int? followerCount;
-  final int? projectCount;
-
-  final VoidCallback? onFollowingTap;
-  final VoidCallback? onFollowersTap;
-  final VoidCallback? onProjectsTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final spacing = Theme.of(context).extension<SpacingTheme>()!;
-    return Row(
-      children: [
-        _ProfileStat(
-          count: followingCount,
-          label: l10n.profileStatsFollowing,
-          onTap: onFollowingTap,
-        ),
-        SizedBox(width: spacing.sp4),
-        _ProfileStat(
-          count: followerCount,
-          label: l10n.profileStatsFollowers,
-          onTap: onFollowersTap,
-        ),
-        SizedBox(width: spacing.sp4),
-        _ProfileStat(
-          count: projectCount,
-          label: l10n.profileStatsProjects,
-          onTap: onProjectsTap,
-        ),
-      ],
-    );
-  }
+String formatJoinedAge(DateTime createdAt, {DateTime? now}) {
+  final elapsed = (now ?? DateTime.now()).difference(createdAt);
+  final days = elapsed.inDays;
+  if (days <= 0) return 'today';
+  if (days < 31) return '${days}d';
+  if (days < 365) return '${days ~/ 30}mo';
+  return '${days ~/ 365}y';
 }
 
-class _ProfileStat extends StatelessWidget {
-  const _ProfileStat({required this.count, required this.label, this.onTap});
+/// Profile summary row. Popularity metrics (followers/following) intentionally
+/// do not render here; those counts remain available in the API but are shown
+/// only one tap deeper from Settings.
+class ProfileStats extends StatelessWidget {
+  const ProfileStats({required this.profile, super.key});
 
-  final int? count;
-  final String label;
-  final VoidCallback? onTap;
+  final Profile profile;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(spacing.sp1),
+    final radius = theme.extension<RadiusTheme>()!;
+    final stats = <_ProfileStatData>[
+      if (profile.isCraftskyProfile && profile.createdAt != null)
+        _ProfileStatData(
+          value: formatJoinedAge(profile.createdAt!),
+          label: 'here',
+        ),
+      if (profile.postsLast7Days != null)
+        _ProfileStatData(
+          value: '${_formatCount(profile.postsLast7Days!)} posts',
+          label: '7 days',
+        ),
+      if (profile.projectCount != null)
+        _ProfileStatData(
+          value: _formatCount(profile.projectCount!),
+          label: 'projects',
+        ),
+    ];
+    if (stats.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border.all(color: theme.colorScheme.onSurface, width: 1.5),
+        borderRadius: BorderRadius.circular(radius.r3),
+      ),
       child: Padding(
-        padding: EdgeInsets.symmetric(vertical: spacing.sp1),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text(
-              count == null ? '—' : _formatCount(count!),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-            SizedBox(width: spacing.sp1),
-            Text(
-              label,
-              // `onSurfaceVariant` carries the brand's ink2 (secondary
-              // text) per the ColorScheme override in app_theme.dart.
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
+        padding: EdgeInsets.symmetric(vertical: spacing.sp2),
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              for (var i = 0; i < stats.length; i++) ...[
+                Expanded(child: _ProfileStat(stat: stats[i])),
+                if (i < stats.length - 1)
+                  VerticalDivider(
+                    width: 1,
+                    thickness: 1,
+                    color: theme.colorScheme.outlineVariant,
+                  ),
+              ],
+            ],
+          ),
         ),
       ),
     );
   }
+}
 
-  String _formatCount(int count) {
-    if (count < 1000) return '$count';
-    if (count < 10000) {
-      final thousands = count / 1000;
-      return '${thousands.toStringAsFixed(1)}k';
-    }
-    return '${(count / 1000).round()}k';
+class _ProfileStatData {
+  const _ProfileStatData({required this.value, required this.label});
+
+  final String value;
+  final String label;
+}
+
+class _ProfileStat extends StatelessWidget {
+  const _ProfileStat({required this.stat});
+
+  final _ProfileStatData stat;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: spacing.sp2),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              stat.value,
+              maxLines: 1,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.colorScheme.onSurface,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          SizedBox(height: spacing.sp1),
+          Text(
+            stat.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ],
+      ),
+    );
   }
+}
+
+String _formatCount(int count) {
+  if (count < 1000) return '$count';
+  if (count < 10000) {
+    final thousands = count / 1000;
+    return '${thousands.toStringAsFixed(1)}k';
+  }
+  return '${(count / 1000).round()}k';
 }

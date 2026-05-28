@@ -2,6 +2,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/widgets/profile_bio.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
+import 'package:craftsky_app/profile/widgets/profile_mutual_followers_link.dart';
 import 'package:craftsky_app/profile/widgets/profile_stats.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -14,9 +15,14 @@ import 'package:flutter/material.dart';
 /// that flows below the bar and scrolls normally.
 ///
 class ProfileMetaSection extends StatelessWidget {
-  const ProfileMetaSection({required this.profile, super.key});
+  const ProfileMetaSection({
+    required this.profile,
+    required this.isOwnProfile,
+    super.key,
+  });
 
   final Profile profile;
+  final bool isOwnProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -52,12 +58,14 @@ class ProfileMetaSection extends StatelessWidget {
             ProfileCraftChips(crafts: profile.crafts),
             SizedBox(height: spacing.sp3),
           ],
-          ProfileStats(
-            followingCount: profile.followingCount,
-            followerCount: profile.followerCount,
-            // Keep project stat independent of follow-metrics work.
-            projectCount: 15,
-          ),
+          if (!isOwnProfile && (profile.mutualFollowerCount ?? 0) > 0) ...[
+            ProfileMutualFollowersLink(
+              count: profile.mutualFollowerCount!,
+              targetHandleOrDid: profile.handle.toString(),
+            ),
+            SizedBox(height: spacing.sp2),
+          ],
+          ProfileStats(profile: profile),
         ],
       ),
     );

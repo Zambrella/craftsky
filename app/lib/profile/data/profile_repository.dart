@@ -1,4 +1,5 @@
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
 /// Read/write surface the profile providers depend on. The production
@@ -33,4 +34,14 @@ abstract interface class ProfileRepository {
 
   /// Unfollows the target profile and returns the updated target profile.
   Future<Profile> unfollow(String handleOrDid);
+
+  Future<ProfileAccountPage> listMutualFollowers(
+    String handleOrDid, {
+    int? limit,
+    String? cursor,
+  });
+
+  Future<ProfileAccountPage> listFollowersMe({int? limit, String? cursor});
+
+  Future<ProfileAccountPage> listFollowingMe({int? limit, String? cursor});
 }
