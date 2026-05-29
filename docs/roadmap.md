@@ -16,7 +16,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Tap firehose integration — [`2026-04-17-tap-integration-design.md`](superpowers/specs/2026-04-17-tap-integration-design.md)
 - [x] OAuth BFF (client auth, session storage) — [`2026-04-18-appview-oauth-bff-design.md`](superpowers/specs/2026-04-18-appview-oauth-bff-design.md)
 - [x] API architecture (REST, `/v1/` prefix, auth headers, error envelope, pagination) — [`2026-04-21-appview-api-architecture-design.md`](superpowers/specs/2026-04-21-appview-api-architecture-design.md)
-- [ ] Feed: `GET /v1/feed/timeline` → own spec
+- [x] Feed: `GET /v1/feed/timeline` → own spec
 - [x] Profiles: `GET /v1/profiles/@{handleOrDid}`, `GET /v1/profiles/@{handleOrDid}/posts`, `PATCH /v1/profiles/me`, `PUT /v1/profiles/me`, follow/unfollow → own spec (writes go via a shared DPoP-signed PDS helper built on `indigo/atproto/auth/oauth`; spec it as part of the first write endpoint that lands, reuse thereafter)
 - [x] Posts: `GET /v1/posts/{did}/{rkey}`, thread, create, delete, like, unlike → own spec (splits into reads / writes if it gets big; writes use the same shared PDS helper)
 - [ ] Notifications: `GET /v1/notifications` → own spec
@@ -43,7 +43,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] OAuth login flow (handle entry, browser handoff, deep-link return, session persistence) → own spec
 - [x] Device-id generation and persistence (for `X-Craftsky-Device-Id` header)
 - [x] API client layer (thin wrapper that injects auth headers, handles errors, decodes envelopes)
-- [ ] Feed screen (timeline consumption + pagination)
+- [x] Feed screen (timeline consumption + pagination)
 - [x] Profile screen (view + edit)
 - [x] Post composer (text-only first; image attach lands with blob upload)
 - [x] Post detail / thread view
