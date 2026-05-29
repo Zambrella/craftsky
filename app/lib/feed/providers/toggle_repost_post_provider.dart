@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -23,6 +24,7 @@ class ToggleRepostPost extends _$ToggleRepostPost {
 
     updateLiveUserPostCaches(ref, next);
     updateLiveUserCommentCaches(ref, next);
+    updateLiveTimelineCache(ref, next);
     state = AsyncData(next);
 
     try {
@@ -36,6 +38,7 @@ class ToggleRepostPost extends _$ToggleRepostPost {
       if (!ref.mounted) return;
       updateLiveUserPostCaches(ref, post);
       updateLiveUserCommentCaches(ref, post);
+      updateLiveTimelineCache(ref, post);
       state = AsyncData(post);
       state = AsyncError<Post?>(error, stackTrace);
     }

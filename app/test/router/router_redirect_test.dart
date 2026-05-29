@@ -3,6 +3,7 @@ import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
+import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
@@ -123,6 +124,12 @@ void main() {
           onboardingStatusProvider.overrideWith2(
             (_) => CompletedOnboardingStatus(),
           ),
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onListTimeline: ({cursor, limit}) async =>
+                  const PostPage(items: []),
+            ),
+          ),
         ],
       );
       await _pumpRouter(tester, container);
@@ -137,6 +144,12 @@ void main() {
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             onboardingStatusProvider.overrideWith2(
               (_) => CompletedOnboardingStatus(),
+            ),
+            postRepositoryProvider.overrideWithValue(
+              FakePostRepository(
+                onListTimeline: ({cursor, limit}) async =>
+                    const PostPage(items: []),
+              ),
             ),
           ],
         );

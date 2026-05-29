@@ -151,6 +151,19 @@ class PostApiClient {
     return PostPageMapper.fromMap(res.data!);
   });
 
+  /// GET /v1/feed/timeline — authenticated home timeline.
+  Future<PostPage> listTimeline({String? cursor, int? limit}) =>
+      unwrapApi(() async {
+        final res = await _dio.get<Map<String, dynamic>>(
+          '/v1/feed/timeline',
+          queryParameters: {
+            'cursor': ?cursor,
+            'limit': ?limit?.toString(),
+          },
+        );
+        return PostPageMapper.fromMap(res.data!);
+      });
+
   /// GET /v1/profiles/@{handleOrDid}/comments — newest-first.
   Future<PostPage> listCommentsByAuthor(
     String handleOrDid, {

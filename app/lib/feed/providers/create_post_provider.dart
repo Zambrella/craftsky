@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -48,6 +49,7 @@ class CreatePost extends _$CreatePost {
       if (!ref.mounted) return null;
 
       if (reply == null) {
+        prependLiveTimelineCache(ref, post);
         for (final id in <String>{post.author.handle, post.author.did}) {
           if (ref.exists(userPostsProvider(id))) {
             ref.read(userPostsProvider(id).notifier).prepend(post);

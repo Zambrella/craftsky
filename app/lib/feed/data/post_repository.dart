@@ -60,6 +60,9 @@ abstract interface class PostRepository {
     int? limit,
   });
 
+  /// GET /v1/feed/timeline — authenticated home timeline, paginated.
+  Future<PostPage> listTimeline({String? cursor, int? limit});
+
   /// GET /v1/profiles/@{handleOrDid}/comments — newest-first, paginated.
   Future<PostPage> listCommentsByAuthor(
     String handleOrDid, {
