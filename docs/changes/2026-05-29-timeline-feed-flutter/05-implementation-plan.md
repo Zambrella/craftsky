@@ -223,6 +223,41 @@
 - Some widget test adjustments were test-harness corrections rather than production changes: lazy sliver assertions scroll to relevant rows/affordances, and feed compose tests include `MessengerScope` because the existing composer reports through the messenger stack.
 - Full-suite verification currently has one failing profile-page test unrelated to this change; focused timeline and planned regression suites are green.
 
+## Implementation Review Fixes
+
+### Review Fix 1: IR-001 / AT-009 / UT-009
+
+- Requirement IDs: `FR-012`, `RULE-003`
+- Acceptance Criteria: `AC-012`
+- Target: `app/test/feed/feed_page_test.dart`
+- Planned failing test: Strengthen the existing timeline reply widget test to inspect live `timelineProvider` state after reply creation and assert the root row has `replyCount + 1`, `viewerHasReplied == true`, and the created reply URI is absent as a top-level timeline row.
+- Run command: `flutter test test/feed/feed_page_test.dart --plain-name "FeedPage reply opens focused thread and updates root row"`
+- Confirmed failure: No production red failure; the source already updated the timeline row correctly. This was the review-identified missing assertion/traceability gap.
+- Implement: Strengthened the widget test to keep and inspect the same `ProviderContainer`, assert the focused thread route still opens, and verify live `timelineProvider` contains only the root row with `replyCount` incremented from `3` to `4` and `viewerHasReplied == true`.
+- Green command: `flutter test test/feed/feed_page_test.dart --plain-name "FeedPage reply opens focused thread and updates root row"` → `+1 All tests passed`.
+- Notes: Covers `AT-009` / `UT-009` without adding production behavior; reply URI absence is asserted against top-level timeline items.
+
+### Review Fix 2: IR-002 / AT-010
+
+- Requirement IDs: `FR-013`
+- Acceptance Criteria: `AC-015`
+- Target: `app/test/feed/feed_page_test.dart`
+- Planned failing test: Strengthen the existing delete widget test to explicitly open/check the non-owned row menu and verify `Delete post` is absent before deleting the owned row.
+- Run command: `flutter test test/feed/feed_page_test.dart --plain-name "FeedPage only exposes delete for own rows and removes row"`
+- Confirmed failure: No production red failure; the existing `FeedPage` DID gate already hid delete for non-owned rows. This was a non-blocking assertion-strengthening request.
+- Implement: Extended the delete widget test to open the non-owned row menu first and assert `Delete post` is absent, then dismiss it and continue through owned-row delete confirmation/removal.
+- Green command: `flutter test test/feed/feed_page_test.dart --plain-name "FeedPage only exposes delete for own rows and removes row"` → `+1 All tests passed`.
+- Notes: No production code changed.
+
+### Review Fix Verification
+
+- Focused command: `flutter test test/feed/feed_page_test.dart test/feed/providers/timeline_provider_test.dart test/feed/providers/create_post_provider_test.dart`
+- Result: `+29 All tests passed`.
+- Broader command: `flutter test test/feed/providers/toggle_post_interactions_provider_test.dart test/feed/data/post_api_client_test.dart test/feed/data/post_repository_test.dart`
+- Result: `+32 All tests passed`.
+- Analyzer: Dart MCP `analyze_files` on `test/feed/feed_page_test.dart` → no errors.
+- Scope review: Changes are limited to `app/test/feed/feed_page_test.dart` test coverage and this implementation log. No production code, generated files, dependencies, AppView/Go, lexicon, migration, API contract, PDS-read-through, or generic feed-framework changes were made for these review fixes.
+
 ## Completion Checklist
 
 - [x] All Must requirements covered by tests or documented gaps.

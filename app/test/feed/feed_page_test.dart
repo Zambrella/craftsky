@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -24,6 +25,8 @@ Map<String, dynamic> _postMap({
   required String rkey,
   String did = 'did:plc:alice',
   String handle = 'alice.craftsky.social',
+  int replyCount = 3,
+  bool viewerHasReplied = false,
 }) => {
   'uri': 'at://$did/social.craftsky.feed.post/$rkey',
   'cid': 'bafy_$rkey',
@@ -32,9 +35,10 @@ Map<String, dynamic> _postMap({
   'tags': <String>[],
   'likeCount': 1,
   'repostCount': 2,
-  'replyCount': 3,
+  'replyCount': replyCount,
   'viewerHasLiked': false,
   'viewerHasReposted': false,
+  'viewerHasReplied': viewerHasReplied,
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',
   'author': {'did': did, 'handle': handle},
@@ -44,7 +48,17 @@ Post _post(
   String rkey, {
   String did = 'did:plc:alice',
   String handle = 'alice.craftsky.social',
-}) => PostMapper.fromMap(_postMap(rkey: rkey, did: did, handle: handle));
+  int replyCount = 3,
+  bool viewerHasReplied = false,
+}) => PostMapper.fromMap(
+  _postMap(
+    rkey: rkey,
+    did: did,
+    handle: handle,
+    replyCount: replyCount,
+    viewerHasReplied: viewerHasReplied,
+  ),
+);
 
 InteractionWriteResponse _interaction(Post post) => InteractionWriteResponse(
   uri: 'at://did:plc:viewer/social.craftsky.feed.like/like1',
@@ -315,8 +329,21 @@ void main() {
     tester,
   ) async {
     GoRouterState? threadState;
-    final root = _post('root');
+    final root = _post('root', replyCount: 3);
     final created = _post('created');
+    final container = ProviderContainer.test(
+      overrides: [
+        postRepositoryProvider.overrideWithValue(
+          FakePostRepository(
+            onListTimeline: ({cursor, limit}) async => PostPage(items: [root]),
+            onCreate: ({required text, reply, images}) async => created,
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final timelineSub = container.listen(timelineProvider, (_, _) {});
+    addTearDown(timelineSub.close);
     final router = GoRouter(
       initialLocation: '/',
       routes: [
@@ -332,16 +359,8 @@ void main() {
     );
 
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          postRepositoryProvider.overrideWithValue(
-            FakePostRepository(
-              onListTimeline: ({cursor, limit}) async =>
-                  PostPage(items: [root]),
-              onCreate: ({required text, reply, images}) async => created,
-            ),
-          ),
-        ],
+      UncontrolledProviderScope(
+        container: container,
         child: MessengerScope(
           messenger: RecordingMessenger(),
           child: MaterialApp.router(
@@ -368,6 +387,13 @@ void main() {
     expect(threadState?.uri.queryParameters['focus'], created.uri);
     expect(threadState?.extra, isA<Post>());
     expect((threadState!.extra! as Post).uri, created.uri);
+
+    final timeline = container.read(timelineProvider).value!;
+    expect(timeline.items, hasLength(1));
+    expect(timeline.items.single.uri, root.uri);
+    expect(timeline.items.single.replyCount, 4);
+    expect(timeline.items.single.viewerHasReplied, isTrue);
+    expect(timeline.items.any((post) => post.uri == created.uri), isFalse);
   });
 
   testWidgets('FeedPage only exposes delete for own rows and removes row', (
@@ -409,6 +435,12 @@ void main() {
 
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.more_horiz), findsNWidgets(2));
+
+    await tester.tap(find.byIcon(Icons.more_horiz).last);
+    await tester.pumpAndSettle();
+    expect(find.text('Delete post'), findsNothing);
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.more_horiz).first);
     await tester.pumpAndSettle();
