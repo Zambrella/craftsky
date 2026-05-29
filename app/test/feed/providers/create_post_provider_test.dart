@@ -3,6 +3,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -194,6 +195,49 @@ void main() {
             'CreatePost must not call ref.exists() in a way that '
             'auto-instantiates the family entry',
       );
+    });
+
+    test('top-level success prepends into live timeline provider', () async {
+      final fake = FakePostRepository(
+        onListTimeline: ({cursor, limit}) async =>
+            PostPage(items: [_post(rkey: 'old')]),
+        onCreate: ({required text, reply, images}) async => _post(rkey: 'new'),
+      );
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      await container.read(timelineProvider.future);
+
+      await container.read(createPostProvider.notifier).create(text: 'hi');
+
+      final timeline = container.read(timelineProvider).value!;
+      expect(timeline.items.map((p) => p.rkey), ['new', 'old']);
+    });
+
+    test('reply success does not insert reply as timeline row', () async {
+      final target = _post(rkey: 'target');
+      final replyRef = PostReply(
+        root: PostRef(uri: target.uri, cid: target.cid),
+        parent: PostRef(uri: target.uri, cid: target.cid),
+      );
+      final fake = FakePostRepository(
+        onListTimeline: ({cursor, limit}) async => PostPage(items: [target]),
+        onCreate: ({required text, reply, images}) async =>
+            _post(rkey: 'reply', reply: replyRef),
+      );
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      await container.read(timelineProvider.future);
+
+      await container
+          .read(createPostProvider.notifier)
+          .create(text: 'reply', reply: replyRef);
+
+      final timeline = container.read(timelineProvider).value!;
+      expect(timeline.items.map((p) => p.rkey), ['target']);
     });
 
     test('reset() returns to AsyncData(null)', () async {

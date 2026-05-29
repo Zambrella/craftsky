@@ -95,6 +95,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get retryButton => 'Retry';
 
   @override
+  String get feedEmpty => 'Your feed is quiet.';
+
+  @override
+  String get feedLoadError => 'Feed didn\'t load.';
+
+  @override
   String get messengerDismiss => 'Dismiss';
 
   @override

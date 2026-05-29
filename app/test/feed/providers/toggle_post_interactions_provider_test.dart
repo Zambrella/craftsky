@@ -3,6 +3,7 @@ import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
@@ -142,6 +143,38 @@ void main() {
       expect(current.viewerHasLiked, isFalse);
       expect(current.likeCount, 2);
     });
+
+    test('patches and rolls back live timeline entries', () async {
+      final post = _post(rkey: 'a', likeCount: 2);
+      var shouldFail = false;
+      final fake = FakePostRepository(
+        onListTimeline: ({cursor, limit}) async => PostPage(items: [post]),
+        onLike: (did, rkey) async {
+          if (shouldFail) throw Exception('boom');
+          return _interaction(post);
+        },
+      );
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      await container.read(timelineProvider.future);
+      await container.read(toggleLikePostProvider.notifier).toggle(post: post);
+
+      var current = container.read(timelineProvider).value!.items.single;
+      expect(current.viewerHasLiked, isTrue);
+      expect(current.likeCount, 3);
+
+      shouldFail = true;
+      await container
+          .read(toggleLikePostProvider.notifier)
+          .toggle(post: current);
+
+      current = container.read(timelineProvider).value!.items.single;
+      expect(container.read(toggleLikePostProvider).hasError, isTrue);
+      expect(current.viewerHasLiked, isTrue);
+      expect(current.likeCount, 3);
+    });
   });
 
   group('ToggleRepostPost', () {
@@ -223,6 +256,40 @@ void main() {
       expect(container.read(toggleRepostPostProvider).hasError, isTrue);
       expect(current.viewerHasReposted, isFalse);
       expect(current.repostCount, 1);
+    });
+
+    test('patches and rolls back live timeline entries', () async {
+      final post = _post(rkey: 'a', repostCount: 1);
+      var shouldFail = false;
+      final fake = FakePostRepository(
+        onListTimeline: ({cursor, limit}) async => PostPage(items: [post]),
+        onRepost: (did, rkey) async {
+          if (shouldFail) throw Exception('boom');
+          return _interaction(post);
+        },
+      );
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      await container.read(timelineProvider.future);
+      await container
+          .read(toggleRepostPostProvider.notifier)
+          .toggle(post: post);
+
+      var current = container.read(timelineProvider).value!.items.single;
+      expect(current.viewerHasReposted, isTrue);
+      expect(current.repostCount, 2);
+
+      shouldFail = true;
+      await container
+          .read(toggleRepostPostProvider.notifier)
+          .toggle(post: current);
+
+      current = container.read(timelineProvider).value!.items.single;
+      expect(container.read(toggleRepostPostProvider).hasError, isTrue);
+      expect(current.viewerHasReposted, isTrue);
+      expect(current.repostCount, 2);
     });
   });
 }

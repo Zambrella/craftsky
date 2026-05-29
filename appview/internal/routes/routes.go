@@ -62,6 +62,8 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 
 	// v1 — post handlers (authenticated + device-id required).
 	postStore := api.NewPostStore(deps.DB)
+	mux.Handle("GET /v1/feed/timeline",
+		authN(deviceID(api.ListTimelineHandler(postStore, deps.HandleResolver, deps.Logger))))
 	mux.Handle("POST /v1/blobs/images",
 		authN(deviceID(api.ImageBlobUploadHandler(deps.NewPDSClient, mediaLimits, deps.Logger))))
 	mux.Handle("POST /v1/posts",

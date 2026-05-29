@@ -250,6 +250,18 @@ abstract class AppLocalizations {
   /// **'Retry'**
   String get retryButton;
 
+  /// Empty state shown on the main chronological Feed tab when the home timeline has no posts.
+  ///
+  /// In en, this message translates to:
+  /// **'Your feed is quiet.'**
+  String get feedEmpty;
+
+  /// Error title shown on the main chronological Feed tab when timeline fetching fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Feed didn\'t load.'**
+  String get feedLoadError;
+
   /// Semantics label and tooltip on the close icon shown on sticky warning/error messages dispatched via AppMessenger.
   ///
   /// In en, this message translates to:

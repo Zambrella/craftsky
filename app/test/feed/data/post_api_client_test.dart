@@ -410,6 +410,73 @@ void main() {
     });
   });
 
+  group('PostApiClient.listTimeline', () {
+    test('GETs /v1/feed/timeline with no cursor and parses PostPage', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onGet(
+        '/v1/feed/timeline',
+        (server) => server.reply(200, {
+          'items': [samplePost()],
+          'cursor': 'next-cursor',
+        }),
+      );
+
+      final page = await PostApiClient(dio).listTimeline();
+
+      expect(page.items, hasLength(1));
+      expect(page.items.single.text, 'hello');
+      expect(page.cursor, 'next-cursor');
+    });
+
+    test('passes cursor and limit as query params', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onGet(
+        '/v1/feed/timeline',
+        (server) => server.reply(200, {'items': <Map<String, dynamic>>[]}),
+        queryParameters: {'cursor': 'opaque:abc', 'limit': '20'},
+      );
+
+      final page = await PostApiClient(
+        dio,
+      ).listTimeline(cursor: 'opaque:abc', limit: 20);
+
+      expect(page.items, isEmpty);
+      expect(page.cursor, isNull);
+    });
+
+    test('parses an empty page without a cursor', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onGet(
+        '/v1/feed/timeline',
+        (server) => server.reply(200, {'items': <Map<String, dynamic>>[]}),
+      );
+
+      final page = await PostApiClient(dio).listTimeline();
+
+      expect(page.items, isEmpty);
+      expect(page.cursor, isNull);
+    });
+
+    test('maps error envelopes through the shared ApiException path', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onGet(
+        '/v1/feed/timeline',
+        (server) => server.reply(500, {'error': 'timeline_unavailable'}),
+      );
+
+      await expectLater(
+        () => PostApiClient(dio).listTimeline(),
+        throwsA(
+          isA<ApiServerError>().having(
+            (e) => e.message,
+            'message',
+            'http_500',
+          ),
+        ),
+      );
+    });
+  });
+
   group('PostApiClient.listCommentsByAuthor', () {
     test('GETs /v1/profiles/@{handleOrDid}/comments', () async {
       final dio = buildDio();

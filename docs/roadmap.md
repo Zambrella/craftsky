@@ -47,7 +47,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Profile screen (view + edit)
 - [x] Post composer (text-only first; image attach lands with blob upload)
 - [x] Post detail / thread view
-- [ ] Follow / unfollow interactions
+- [x] Follow / unfollow interactions
 - [ ] Notifications screen
 - [ ] Error-handling UX (how do we surface `error` codes from the envelope to users?)
 - [ ] Rich text — facets, mentions, links, hashtags

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -39,6 +40,7 @@ class DeletePost extends _$DeletePost {
           ref.read(userPostsProvider(id).notifier).removeByRkey(post.rkey);
         }
       }
+      removeFromLiveTimelineCache(ref, post.uri);
 
       return post;
     });
