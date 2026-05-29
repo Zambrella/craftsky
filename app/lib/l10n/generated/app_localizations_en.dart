@@ -23,6 +23,38 @@ class AppLocalizationsEn extends AppLocalizations {
   String get feedTitle => 'Feed';
 
   @override
+  String get notificationsTitle => 'Notifications';
+
+  @override
+  String get notificationsEmpty => 'No notifications yet.';
+
+  @override
+  String get notificationsLoadError => 'Notifications didn\'t load.';
+
+  @override
+  String get notificationsLoadMore => 'Load more';
+
+  @override
+  String notificationFollowRow(String actor) {
+    return '$actor followed you';
+  }
+
+  @override
+  String notificationLikeRow(String actor) {
+    return '$actor liked your post';
+  }
+
+  @override
+  String notificationRepostRow(String actor) {
+    return '$actor reposted your post';
+  }
+
+  @override
+  String notificationReplyRow(String actor) {
+    return '$actor replied to your post';
+  }
+
+  @override
   String get welcomeTitle => 'Welcome';
 
   @override

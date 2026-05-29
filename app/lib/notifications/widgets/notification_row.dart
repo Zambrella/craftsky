@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:flutter/material.dart';
@@ -11,19 +12,20 @@ class NotificationRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final actor = notification.actor.displayLabel;
     final (title, subtitle) = switch (notification) {
-      FollowNotification() => ('$actor followed you', null),
+      FollowNotification() => (l10n.notificationFollowRow(actor), null),
       LikeNotification(:final subjectPost) => (
-        '$actor liked your post',
+        l10n.notificationLikeRow(actor),
         subjectPost.text,
       ),
       RepostNotification(:final subjectPost) => (
-        '$actor reposted your post',
+        l10n.notificationRepostRow(actor),
         subjectPost.text,
       ),
       ReplyNotification(:final subjectPost) => (
-        '$actor replied to your post',
+        l10n.notificationReplyRow(actor),
         subjectPost.text,
       ),
     };

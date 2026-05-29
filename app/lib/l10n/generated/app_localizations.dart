@@ -118,6 +118,54 @@ abstract class AppLocalizations {
   /// **'Feed'**
   String get feedTitle;
 
+  /// Title for the in-app notifications page.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get notificationsTitle;
+
+  /// Empty state shown on the notifications tab when there is no social activity.
+  ///
+  /// In en, this message translates to:
+  /// **'No notifications yet.'**
+  String get notificationsEmpty;
+
+  /// Error title shown on the notifications tab when notification fetching fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications didn\'t load.'**
+  String get notificationsLoadError;
+
+  /// Button label for loading the next page of notifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more'**
+  String get notificationsLoadMore;
+
+  /// Notification row title for a follow activity.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} followed you'**
+  String notificationFollowRow(String actor);
+
+  /// Notification row title for a like activity on the viewer's post.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} liked your post'**
+  String notificationLikeRow(String actor);
+
+  /// Notification row title for a repost activity on the viewer's post.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} reposted your post'**
+  String notificationRepostRow(String actor);
+
+  /// Notification row title for a reply activity on the viewer's post.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} replied to your post'**
+  String notificationReplyRow(String actor);
+
   /// Title and main heading on the welcome page.
   ///
   /// In en, this message translates to:

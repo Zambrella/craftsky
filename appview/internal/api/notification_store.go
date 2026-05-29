@@ -21,9 +21,9 @@ const (
 )
 
 type NotificationReplyRef struct {
-	URI  string
-	CID  string
-	Rkey string
+	URI  string `json:"uri"`
+	CID  string `json:"cid"`
+	Rkey string `json:"rkey"`
 }
 
 type NotificationRow struct {

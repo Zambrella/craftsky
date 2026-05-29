@@ -16,6 +16,42 @@
   "feedTitle": "Feed",
   "@feedTitle": { "description": "Title for the main chronological feed page." },
 
+  "notificationsTitle": "Notifications",
+  "@notificationsTitle": { "description": "Title for the in-app notifications page." },
+
+  "notificationsEmpty": "No notifications yet.",
+  "@notificationsEmpty": { "description": "Empty state shown on the notifications tab when there is no social activity." },
+
+  "notificationsLoadError": "Notifications didn't load.",
+  "@notificationsLoadError": { "description": "Error title shown on the notifications tab when notification fetching fails." },
+
+  "notificationsLoadMore": "Load more",
+  "@notificationsLoadMore": { "description": "Button label for loading the next page of notifications." },
+
+  "notificationFollowRow": "{actor} followed you",
+  "@notificationFollowRow": {
+    "description": "Notification row title for a follow activity.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
+  "notificationLikeRow": "{actor} liked your post",
+  "@notificationLikeRow": {
+    "description": "Notification row title for a like activity on the viewer's post.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
+  "notificationRepostRow": "{actor} reposted your post",
+  "@notificationRepostRow": {
+    "description": "Notification row title for a repost activity on the viewer's post.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
+  "notificationReplyRow": "{actor} replied to your post",
+  "@notificationReplyRow": {
+    "description": "Notification row title for a reply activity on the viewer's post.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
   "welcomeTitle": "Welcome",
   "@welcomeTitle": { "description": "Title and main heading on the welcome page." },
 

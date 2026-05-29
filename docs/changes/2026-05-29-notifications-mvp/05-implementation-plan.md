@@ -211,4 +211,57 @@
 - [x] Relevant regression tests passing where runnable
 - [x] No unlinked behavior implemented
 - [x] Docs updated
-- [ ] Review completed or explicitly skipped
+- [x] Review completed or explicitly skipped
+
+## Review Fix Loops
+
+Source review: `06-implementation-review.md` (`Changes required`).
+
+| Step | Finding | Test IDs | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---|---|---|---|---|---|
+| RF-1 | IR-001 | UT-006, UT-009 | FR-009, FR-011, FR-012 | AC-007, AC-011, AC-012 | Reply focus JSON casing mismatch untested. |
+| RF-2 | IR-002 | UT-014, AT-005 | FR-013, FR-014 | AC-016 | Page does not render loaded-list load-more progress/retry states. |
+| RF-3 | IR-003, IR-004 | UT-014, UT-016, AT-002 | BR-001, FR-009, FR-014 | AC-010 | Mixed row/fallback/localized-copy widget coverage incomplete. |
+| RF-4 | IR-003 | UT-015, AT-003 | BR-001, FR-011, FR-015 | AC-011 | Row navigation widget coverage incomplete. |
+
+### RF-1: UT-006, UT-009 / IR-001
+- Write failing test: Extended `TestNotificationsHandler_ReturnsCamelCaseNotificationPage` with a reply notification and raw JSON assertions for `reply.uri`, `reply.cid`, and `reply.rkey` without Go field-name keys.
+- Run command: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api -run TestNotificationsHandler_ReturnsCamelCaseNotificationPage`
+- Confirmed failure: Reply JSON encoded as `URI`, `CID`, and `Rkey`, proving the AppView/Flutter contract mismatch from `IR-001`.
+- Implement: Added JSON tags to `NotificationReplyRef` so reply focus identity encodes as camelCase.
+- Run command: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api -run TestNotificationsHandler_ReturnsCamelCaseNotificationPage`
+- Refactor: None.
+- Notes: Flutter model tests already decode the intended camelCase reply shape; final verification reruns them.
+
+### RF-2: UT-014, AT-005 / IR-002
+- Write failing test: Added `NotificationsPage` widget coverage proving rows remain visible during load-more progress, a bottom progress indicator appears, a bottom retry appears after load-more failure, and retry reuses the preserved cursor.
+- Run command: `flutter test test/notifications/notifications_page_test.dart`
+- Confirmed failure: The page did not render a loaded-list `StitchProgressIndicator` for load-more progress.
+- Implement: Reworked `NotificationsPage` into a sliver-based loaded/error/loading structure that preserves loaded rows during `AsyncLoading`/`AsyncError` with previous data and renders bottom progress/retry controls.
+- Run command: `flutter test test/notifications/notifications_page_test.dart`
+- Refactor: Added a test-local localized `MaterialApp` wrapper because `StitchProgressIndicator` uses app localization.
+- Notes: Kept explicit `Load more` affordance; automatic threshold loading is not required by acceptance criteria and would make small test lists immediately request a pending next page.
+
+### RF-3: UT-014, UT-016, AT-002 / IR-003, IR-004
+- Write failing test: Expanded `notifications_page_test.dart` to assert localized title access, mixed follow/like/repost/reply rows, subject context for post-subject rows, and actor handle fallback when display name is absent.
+- Run command: `flutter test test/notifications/notifications_page_test.dart`
+- Confirmed failure: Compilation failed because `AppLocalizations.notificationsTitle` did not exist.
+- Implement: Added notification title/empty/error/load-more/row-copy keys to `app_en.arb`, regenerated localization files, and updated `NotificationsPage`/`NotificationRow` to use localized copy and existing `StitchProgressIndicator` patterns.
+- Run command: `flutter test test/notifications/notifications_page_test.dart`
+- Refactor: None.
+- Notes: Mixed rows and fallback identity now have widget coverage.
+
+### RF-4: UT-015, AT-003 / IR-003
+- Write failing test: Added a GoRouter-backed widget test covering follow profile navigation, like/repost subject-thread navigation, reply focus navigation, and reply-without-focus fallback.
+- Run command: `flutter test test/notifications/notifications_page_test.dart`
+- Confirmed failure: No production failure; the newly added navigation coverage passed against the existing `NotificationRow` route intents after the RF-2/RF-3 page/test harness updates.
+- Implement: No production code change required for navigation.
+- Run command: `flutter test test/notifications/notifications_page_test.dart`
+- Refactor: None.
+- Notes: This loop closed the missing-test finding rather than a behavior defect.
+
+### Review Fix Verification
+- AppView focused command: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api ./internal/routes` — passed.
+- Flutter focused command: `flutter test test/notifications/models/notification_test.dart test/notifications/data/notification_api_client_test.dart test/notifications/providers/notifications_provider_test.dart test/notifications/notifications_page_test.dart` — passed.
+- Flutter analyzer: `flutter analyze` — still fails on the known unrelated `lib/profile/data/dummy_profile_repository.dart` missing `ProfileRepository` methods. Analyzer also reports existing info/warning items and notification model/provider info-level lints from the prior implementation style; no blocking notification errors were observed after generated l10n refresh.
+- Notes: `docs/roadmap.md` remains an unrelated unstaged working-tree change and is intentionally excluded from this review-fix scope.

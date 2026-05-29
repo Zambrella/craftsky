@@ -84,6 +84,11 @@ func TestNotificationsHandler_ReturnsCamelCaseNotificationPage(t *testing.T) {
 			Type: api.NotificationTypeLike, URI: "at://did:plc:alice/social.craftsky.feed.like/like1", CID: "bafylike", Rkey: "like1",
 			ActorDID: "did:plc:alice", CreatedAt: subject.CreatedAt, IndexedAt: subject.IndexedAt, SubjectPost: subject,
 		},
+		{
+			Type: api.NotificationTypeReply, URI: "at://did:plc:alice/social.craftsky.feed.post/reply1", CID: "bafyreply", Rkey: "reply1",
+			ActorDID: "did:plc:alice", CreatedAt: subject.CreatedAt, IndexedAt: subject.IndexedAt, SubjectPost: subject,
+			Reply: &api.NotificationReplyRef{URI: "at://did:plc:alice/social.craftsky.feed.post/reply1", CID: "bafyreply", Rkey: "reply1"},
+		},
 	}, cursor: "next-cursor"}
 	handler := api.ListNotificationsHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
 		"did:plc:alice":  "alice.example",
@@ -107,12 +112,32 @@ func TestNotificationsHandler_ReturnsCamelCaseNotificationPage(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &page); err != nil {
 		t.Fatalf("body not notification page: %v", err)
 	}
-	if page.Cursor != "next-cursor" || len(page.Items) != 1 {
-		t.Fatalf("page = %+v, want one item and cursor", page)
+	if page.Cursor != "next-cursor" || len(page.Items) != 2 {
+		t.Fatalf("page = %+v, want two items and cursor", page)
 	}
 	item := page.Items[0]
 	if item.Type != api.NotificationTypeLike || item.Actor.Handle != "alice.example" || item.SubjectPost == nil || item.SubjectPost.URI != subject.URI {
 		t.Fatalf("item = %+v, want like with actor handle and subject post", item)
+	}
+	var body struct {
+		Items []map[string]json.RawMessage `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("body not raw notification page: %v", err)
+	}
+	var replyRaw map[string]json.RawMessage
+	if err := json.Unmarshal(body.Items[1]["reply"], &replyRaw); err != nil {
+		t.Fatalf("reply not object: %v", err)
+	}
+	for _, key := range []string{"uri", "cid", "rkey"} {
+		if _, ok := replyRaw[key]; !ok {
+			t.Fatalf("reply raw = %v, want camelCase key %q", replyRaw, key)
+		}
+	}
+	for _, key := range []string{"URI", "CID", "Rkey"} {
+		if _, ok := replyRaw[key]; ok {
+			t.Fatalf("reply raw = %v, must not contain Go field key %q", replyRaw, key)
+		}
 	}
 }
 
