@@ -38,13 +38,14 @@ func (s *PostStore) ListTimeline(ctx context.Context, viewerDID string, limit in
 		ORDER BY p.indexed_at DESC, p.uri DESC
 		LIMIT $4
 	`
-	rows, err := s.pool.Query(ctx, q, viewerDID, curIndexedAt, curURI, limit)
+	queryLimit := limit + 1
+	rows, err := s.pool.Query(ctx, q, viewerDID, curIndexedAt, curURI, queryLimit)
 	if err != nil {
 		return nil, "", fmt.Errorf("timeline list %s: %w", viewerDID, err)
 	}
 	defer rows.Close()
 
-	out := make([]*PostRow, 0, limit)
+	out := make([]*PostRow, 0, queryLimit)
 	for rows.Next() {
 		row, scanErr := scanPostRow(rows)
 		if scanErr != nil {
@@ -55,9 +56,10 @@ func (s *PostStore) ListTimeline(ctx context.Context, viewerDID string, limit in
 	if err := rows.Err(); err != nil {
 		return nil, "", fmt.Errorf("timeline list iter: %w", err)
 	}
-	if len(out) < limit {
+	if len(out) <= limit {
 		return out, "", nil
 	}
+	out = out[:limit]
 	last := out[len(out)-1]
 	next, err := envelope.EncodeCursor(map[string]any{
 		"indexedAt": last.IndexedAt.UTC().Format(time.RFC3339Nano),

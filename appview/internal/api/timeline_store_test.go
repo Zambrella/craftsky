@@ -207,6 +207,31 @@ func TestTimelineStore_ListTimeline_PaginatesWithOpaqueSeekCursor(t *testing.T) 
 	}
 }
 
+func TestTimelineStore_ListTimeline_OmitsCursorWhenExactFullFinalPage(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	base := time.Date(2026, 5, 28, 15, 30, 0, 0, time.UTC)
+
+	seedMember(t, pool, "did:plc:viewer")
+	seedMember(t, pool, "did:plc:alice")
+	seedFollow(t, pool, "did:plc:viewer", "did:plc:alice", "follow-alice")
+
+	post1 := seedPost(t, pool, "did:plc:alice", "post-1", "post 1", base.Add(time.Minute))
+	post2 := seedPost(t, pool, "did:plc:alice", "post-2", "post 2", base)
+
+	store := api.NewPostStore(pool)
+	rows, cursor, err := store.ListTimeline(context.Background(), "did:plc:viewer", 2, "")
+	if err != nil {
+		t.Fatalf("ListTimeline: %v", err)
+	}
+	if got, want := timelineURIs(rows), []string{post1, post2}; !slices.Equal(got, want) {
+		t.Fatalf("timeline URIs = %v, want %v", got, want)
+	}
+	if cursor != "" {
+		t.Fatalf("cursor = %q, want empty when final page exactly fills requested limit", cursor)
+	}
+}
+
 func TestTimelineStore_ListTimeline_IncludesOwnPostWithoutSelfFollowAndDeduplicatesSelfFollow(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, timelineStoreDDL)
@@ -231,6 +256,48 @@ func TestTimelineStore_ListTimeline_IncludesOwnPostWithoutSelfFollowAndDeduplica
 	}
 	if got, want := timelineURIs(withSelfFollow), []string{own}; !slices.Equal(got, want) {
 		t.Fatalf("with self-follow timeline = %v, want exactly one own post %v", got, want)
+	}
+}
+
+func TestTimelineStore_ListTimeline_UsesCurrentFollowGraphOnEachPage(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	base := time.Date(2026, 5, 28, 16, 30, 0, 0, time.UTC)
+
+	seedMember(t, pool, "did:plc:viewer")
+	seedMember(t, pool, "did:plc:alice")
+	seedFollow(t, pool, "did:plc:viewer", "did:plc:alice", "follow-alice")
+
+	aliceNewest := seedPost(t, pool, "did:plc:alice", "alice-newest", "alice newest", base.Add(3*time.Minute))
+	aliceOlder := seedPost(t, pool, "did:plc:alice", "alice-older", "alice older", base.Add(2*time.Minute))
+	viewerOwn := seedPost(t, pool, "did:plc:viewer", "own", "own post", base.Add(time.Minute))
+
+	store := api.NewPostStore(pool)
+	first, cursor, err := store.ListTimeline(context.Background(), "did:plc:viewer", 1, "")
+	if err != nil {
+		t.Fatalf("ListTimeline first: %v", err)
+	}
+	if cursor == "" {
+		t.Fatal("first cursor = empty, want next page cursor")
+	}
+	if got, want := timelineURIs(first), []string{aliceNewest}; !slices.Equal(got, want) {
+		t.Fatalf("first page = %v, want %v", got, want)
+	}
+
+	if _, err := pool.Exec(context.Background(), `DELETE FROM atproto_follows WHERE did = $1 AND subject_did = $2`, "did:plc:viewer", "did:plc:alice"); err != nil {
+		t.Fatalf("delete follow: %v", err)
+	}
+
+	second, _, err := store.ListTimeline(context.Background(), "did:plc:viewer", 20, cursor)
+	if err != nil {
+		t.Fatalf("ListTimeline second: %v", err)
+	}
+	got := timelineURIs(second)
+	if slices.Contains(got, aliceOlder) {
+		t.Fatalf("second page = %v, must not include formerly-followed author after follow removal", got)
+	}
+	if got, want := got, []string{viewerOwn}; !slices.Equal(got, want) {
+		t.Fatalf("second page = %v, want current-graph eligible rows %v", got, want)
 	}
 }
 

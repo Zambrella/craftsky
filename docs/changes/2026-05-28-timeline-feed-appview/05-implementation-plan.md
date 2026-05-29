@@ -35,6 +35,31 @@
 
 ## Implementation Steps
 
+### Review Remediation: IR-001 and IR-002
+- Source review: `06-implementation-review.md` found two blocking issues to fix: `IR-001` exact-full final pages returned a cursor, and `IR-002` `IT-005` current-follow-graph pagination coverage was missing.
+- Remediation test order:
+  1. `IT-003 / FR-006, FR-007, AC-006, AC-016`: add an exact-full final page cursor omission test, then fix pagination detection.
+  2. `IT-005 / FR-002, RULE-001, AC-003`: add current-follow-graph-on-each-page coverage.
+- Out of scope: `IR-003` roadmap edit is unrelated and will not be staged or changed by this remediation.
+
+#### Remediation Step A: IT-003 exact-full final page cursor omission
+- Write failing test: Added `TestTimelineStore_ListTimeline_OmitsCursorWhenExactFullFinalPage` in `appview/internal/api/timeline_store_test.go`.
+- Run command: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api -run TestTimelineStore_ListTimeline_OmitsCursorWhenExactFullFinalPage`.
+- Confirmed failure: The store returned an encoded cursor for a two-row final page requested with `limit=2`.
+- Implement: Changed `PostStore.ListTimeline` to fetch `limit + 1` rows, return only the requested `limit`, and encode a next cursor only when the extra row proves more eligible rows exist.
+- Run command: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api -run 'TestTimelineStore_ListTimeline_(OmitsCursorWhenExactFullFinalPage|PaginatesWithOpaqueSeekCursor)'`.
+- Refactor: Ran `gofmt` on touched Go files.
+- Notes: Focused pagination tests passed. This resolves `IR-001` for `FR-006`, `FR-007`, `AC-006`, and `AC-016`.
+
+#### Remediation Step B: IT-005 current follow graph on each page
+- Write failing test: Added `TestTimelineStore_ListTimeline_UsesCurrentFollowGraphOnEachPage` in `appview/internal/api/timeline_store_test.go`.
+- Run command: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api -run TestTimelineStore_ListTimeline_UsesCurrentFollowGraphOnEachPage`.
+- Confirmed failure: The test passed immediately because the existing query already evaluates `atproto_follows` on each call; the review issue was missing coverage rather than missing behavior.
+- Implement: No additional production code required for current-follow-graph semantics.
+- Run command: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api -run 'TestTimelineStore_ListTimeline_(OmitsCursorWhenExactFullFinalPage|PaginatesWithOpaqueSeekCursor|UsesCurrentFollowGraphOnEachPage)'`.
+- Refactor: Ran `gofmt` on touched Go files.
+- Notes: Focused remediation tests passed. This resolves `IR-002` for `FR-002`, `RULE-001`, and `AC-003`.
+
 ### Step 1: IT-001
 - Write failing test: Added `TestTimelineStore_ListTimeline_ReturnsOwnAndFollowedEligiblePostsOnly` in `appview/internal/api/timeline_store_test.go`.
 - Run command: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api -run TestTimelineStore_ListTimeline_ReturnsOwnAndFollowedEligiblePostsOnly`.
@@ -175,6 +200,13 @@
 - Focused routes package: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/routes` — passed.
 - Full AppView suite: `just test` — passed.
 - Supporting dev stack: `just dev-d` was started to provide the compose Postgres required for integration tests.
+
+## Remediation Verification Results
+- Focused remediation tests: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api -run 'TestTimelineStore_ListTimeline_(OmitsCursorWhenExactFullFinalPage|PaginatesWithOpaqueSeekCursor|UsesCurrentFollowGraphOnEachPage)'` — passed.
+- Focused API package: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api` — passed.
+- Focused routes package: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/routes` — passed.
+- Full AppView suite: `just test` — passed.
+- Review findings addressed: `IR-001` and `IR-002` fixed. `IR-003` was explicitly excluded by the user and remains unstaged/unmodified by this remediation.
 
 ## Completion Checklist
 - [x] All Must requirements covered by tests or documented gaps
