@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Craftsky Ozone Labeler Lifecycle</title>
+  <style>
+    :root {
+      --background: oklch(0.97 0.005 260);
+      --foreground: oklch(0.18 0.02 260);
+      --card: oklch(1 0 0);
+      --card-foreground: oklch(0.18 0.02 260);
+      --muted: oklch(0.92 0.01 260);
+      --muted-foreground: oklch(0.40 0.02 260);
+      --primary: oklch(0.50 0.25 280);
+      --primary-foreground: oklch(1 0 0);
+      --secondary: oklch(0.50 0.18 180);
+      --accent: oklch(0.60 0.22 50);
+      --destructive: oklch(0.50 0.25 25);
+      --success: oklch(0.45 0.20 150);
+      --warning: oklch(0.55 0.18 85);
+      --border: oklch(0.88 0.01 260);
+      --code-bg: oklch(0.92 0.01 260);
+      --ring: oklch(0.50 0.25 280);
+      --radius: 0.625rem;
+      --font-sans: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+      --font-display: ui-serif, Georgia, "Times New Roman", serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --background: oklch(0.15 0.02 260);
+        --foreground: oklch(0.90 0.01 260);
+        --card: oklch(0.22 0.02 260);
+        --card-foreground: oklch(0.90 0.01 260);
+        --muted: oklch(0.26 0.02 260);
+        --muted-foreground: oklch(0.72 0.02 260);
+        --primary: oklch(0.75 0.18 280);
+        --primary-foreground: oklch(0.15 0.02 260);
+        --accent: oklch(0.70 0.20 60);
+        --border: oklch(0.35 0.02 260);
+        --code-bg: oklch(0.26 0.02 260);
+        --destructive: oklch(0.65 0.20 25);
+        --success: oklch(0.72 0.17 150);
+        --warning: oklch(0.75 0.15 85);
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background:
+        radial-gradient(circle at 12% 8%, color-mix(in oklab, var(--accent) 16%, transparent), transparent 32rem),
+        radial-gradient(circle at 88% 18%, color-mix(in oklab, var(--secondary) 16%, transparent), transparent 28rem),
+        linear-gradient(180deg, var(--background), color-mix(in oklab, var(--muted) 30%, var(--background)));
+      color: var(--foreground);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 64px 24px 80px;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted-foreground);
+      margin-bottom: 12px;
+    }
+
+    h1, h2, h3 {
+      font-family: var(--font-display);
+      font-weight: 500;
+      line-height: 1.12;
+      margin: 0;
+      color: var(--foreground);
+    }
+
+    h1 {
+      max-width: 880px;
+      font-size: clamp(2.3rem, 6vw, 5rem);
+      letter-spacing: -0.04em;
+    }
+
+    h2 { font-size: clamp(1.6rem, 3vw, 2.3rem); }
+    h3 { font-size: 1.28rem; }
+
+    p { margin: 0; }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 34px;
+    }
+
+    .hero-copy {
+      max-width: 760px;
+      color: var(--muted-foreground);
+      font-size: 1.04rem;
+      margin-top: 22px;
+    }
+
+    .summary {
+      display: grid;
+      gap: 12px;
+    }
+
+    .metric {
+      background: color-mix(in oklab, var(--card) 92%, var(--primary) 8%);
+      border: 1.5px solid color-mix(in oklab, var(--border) 70%, var(--primary));
+      border-radius: calc(var(--radius) + 6px);
+      padding: 18px;
+      box-shadow: 0 14px 42px color-mix(in oklab, var(--primary) 8%, transparent);
+    }
+
+    .metric strong {
+      display: block;
+      font-family: var(--font-display);
+      font-size: 2rem;
+      line-height: 1;
+      margin-bottom: 7px;
+    }
+
+    .metric span {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted-foreground);
+    }
+
+    .section {
+      margin-top: 54px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 22px;
+      padding-bottom: 10px;
+      border-bottom: 1.5px solid var(--border);
+    }
+
+    .section-number {
+      font-family: var(--font-mono);
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .ve-card {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: calc(var(--radius) + 8px);
+      padding: 22px;
+      box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 7%, transparent);
+    }
+
+    .ve-card--recessed {
+      background: color-mix(in oklab, var(--muted) 74%, var(--card));
+      box-shadow: inset 0 1px 4px color-mix(in oklab, var(--foreground) 5%, transparent);
+    }
+
+    .ve-card--hero {
+      background: color-mix(in oklab, var(--primary) 5%, var(--card));
+      border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
+      box-shadow: 0 18px 54px color-mix(in oklab, var(--primary) 10%, transparent);
+    }
+
+    .diagram-shell {
+      overflow-x: auto;
+      padding: 18px;
+    }
+
+    .diagram-shell svg {
+      display: block;
+      min-width: 1080px;
+      width: 100%;
+      height: auto;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 16px;
+      color: var(--muted-foreground);
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: var(--primary);
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .card-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--muted-foreground);
+      margin-bottom: 12px;
+    }
+
+    .card-label::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .card-label.primary { color: var(--primary); }
+    .card-label.success { color: var(--success); }
+    .card-label.warning { color: var(--warning); }
+    .card-label.destructive { color: var(--destructive); }
+    .card-label.accent { color: var(--accent); }
+
+    .ve-card p,
+    .ve-card li {
+      color: var(--muted-foreground);
+      font-size: 0.94rem;
+    }
+
+    .ve-card ul {
+      margin: 12px 0 0;
+      padding-left: 18px;
+    }
+
+    .ve-card li + li { margin-top: 7px; }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--muted);
+      color: var(--muted-foreground);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      white-space: nowrap;
+    }
+
+    .lifecycle {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(150px, 1fr));
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+    }
+
+    .step {
+      position: relative;
+      min-height: 174px;
+      padding: 16px;
+      border-radius: calc(var(--radius) + 4px);
+      border: 1.5px solid var(--border);
+      background: var(--card);
+    }
+
+    .step::after {
+      content: "";
+      position: absolute;
+      right: -12px;
+      top: 50%;
+      width: 12px;
+      height: 1.5px;
+      background: var(--border);
+    }
+
+    .step:last-child::after { display: none; }
+
+    .step-num {
+      display: inline-grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: color-mix(in oklab, var(--primary) 12%, transparent);
+      color: var(--primary);
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .step h3 {
+      font-family: var(--font-sans);
+      font-size: 0.98rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 8px;
+    }
+
+    .step p {
+      color: var(--muted-foreground);
+      font-size: 0.86rem;
+      margin: 0;
+    }
+
+    .policy-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+      overflow: hidden;
+      border-radius: var(--radius);
+    }
+
+    .policy-table th,
+    .policy-table td {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .policy-table th {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted-foreground);
+      background: var(--muted);
+    }
+
+    .policy-table tr:last-child td { border-bottom: 0; }
+    .policy-table td { color: var(--muted-foreground); }
+    .policy-table strong { color: var(--foreground); }
+
+    .note {
+      margin-top: 16px;
+      padding: 16px 18px;
+      border-radius: var(--radius);
+      border: 1.5px solid color-mix(in oklab, var(--warning) 45%, var(--border));
+      background: color-mix(in oklab, var(--warning) 10%, var(--card));
+      color: color-mix(in oklab, var(--foreground) 80%, var(--warning));
+      font-size: 0.93rem;
+    }
+
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.86em;
+      background: var(--code-bg);
+      color: var(--foreground);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 0.12em 0.36em;
+    }
+
+    @media (max-width: 900px) {
+      .hero,
+      .grid-3,
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+
+      .summary {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 640px) {
+      .page { padding: 38px 16px 56px; }
+      .summary { grid-template-columns: 1fr; }
+      .metric strong { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div>
+        <span class="eyebrow">Craftsky moderation architecture</span>
+        <h1>Ozone labeler lifecycle, from user report to enforced action</h1>
+        <p class="hero-copy">This diagram treats Ozone as Craftsky's moderation back office and labeler. Craftsky still owns product reads through the AppView, while reports and moderation decisions flow through atproto's labeler model.</p>
+      </div>
+      <aside class="summary" aria-label="Lifecycle summary">
+        <div class="metric"><strong>2</strong><span>control planes</span></div>
+        <div class="metric"><strong>3</strong><span>critical loops</span></div>
+        <div class="metric"><strong>0</strong><span>PDS deletes by AppView</span></div>
+      </aside>
+    </header>
+
+    <section class="section">
+      <div class="section-header">
+        <span class="section-number">01</span>
+        <h2>Whole-System Data Flow</h2>
+      </div>
+
+      <div class="ve-card ve-card--hero diagram-shell" aria-label="Ozone report and label flow diagram">
+        <svg viewBox="0 0 1180 690" role="img" aria-labelledby="flow-title flow-desc" xmlns="http://www.w3.org/2000/svg">
+          <title id="flow-title">Craftsky Ozone report and label data flow</title>
+          <desc id="flow-desc">A user reports content in Flutter, Craftsky AppView forwards the report through the user's PDS to Ozone, moderators action it, Ozone emits labels, and Craftsky AppView enforces those labels in reads.</desc>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--muted-foreground)" />
+            </marker>
+            <marker id="arrow-primary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--primary)" />
+            </marker>
+            <marker id="arrow-success" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--success)" />
+            </marker>
+            <marker id="arrow-warning" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--warning)" />
+            </marker>
+            <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="6" stdDeviation="9" flood-color="var(--primary)" flood-opacity="0.11" />
+            </filter>
+          </defs>
+
+          <style>
+            .zone { fill: color-mix(in oklab, var(--muted) 48%, transparent); stroke: var(--border); stroke-width: 1.5; stroke-dasharray: 8 6; }
+            .zone-label { font-family: var(--font-mono); font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; fill: var(--muted-foreground); }
+            .box { fill: var(--card); stroke: var(--border); stroke-width: 1.5; filter: url(#shadow); }
+            .box-primary { fill: color-mix(in oklab, var(--primary) 9%, var(--card)); stroke: var(--primary); stroke-width: 2; }
+            .box-success { fill: color-mix(in oklab, var(--success) 10%, var(--card)); stroke: var(--success); stroke-width: 2; }
+            .box-warning { fill: color-mix(in oklab, var(--warning) 12%, var(--card)); stroke: var(--warning); stroke-width: 2; }
+            .box-destructive { fill: color-mix(in oklab, var(--destructive) 10%, var(--card)); stroke: var(--destructive); stroke-width: 2; }
+            .node-title { font-family: var(--font-sans); font-size: 18px; font-weight: 800; fill: var(--foreground); }
+            .node-sub { font-family: var(--font-mono); font-size: 12px; fill: var(--muted-foreground); }
+            .edge { fill: none; stroke: var(--muted-foreground); stroke-width: 2; marker-end: url(#arrow); }
+            .edge-primary { fill: none; stroke: var(--primary); stroke-width: 2.5; marker-end: url(#arrow-primary); }
+            .edge-success { fill: none; stroke: var(--success); stroke-width: 2.5; marker-end: url(#arrow-success); }
+            .edge-warning { fill: none; stroke: var(--warning); stroke-width: 2.5; marker-end: url(#arrow-warning); }
+            .edge-dashed { stroke-dasharray: 7 6; }
+            .edge-label { font-family: var(--font-mono); font-size: 11px; fill: var(--muted-foreground); }
+            .edge-label-bg { fill: var(--card); stroke: var(--border); stroke-width: 1; rx: 5; }
+            .badge { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: .05em; fill: var(--primary); }
+          </style>
+
+          <rect class="zone" x="30" y="64" width="500" height="270" rx="22" />
+          <text class="zone-label" x="56" y="94">Craftsky product surface</text>
+
+          <rect class="zone" x="650" y="64" width="500" height="270" rx="22" />
+          <text class="zone-label" x="676" y="94">Atproto report routing</text>
+
+          <rect class="zone" x="30" y="406" width="1120" height="220" rx="22" />
+          <text class="zone-label" x="56" y="436">Moderation decision and enforcement loop</text>
+
+          <g transform="translate(64 130)">
+            <rect class="box" width="170" height="86" rx="16" />
+            <text class="node-title" x="85" y="32" text-anchor="middle">Flutter App</text>
+            <text class="node-sub" x="85" y="53" text-anchor="middle">Report post UI</text>
+            <text class="node-sub" x="85" y="70" text-anchor="middle">session token only</text>
+          </g>
+
+          <g transform="translate(326 130)">
+            <rect class="box-primary" width="170" height="86" rx="16" />
+            <text class="node-title" x="85" y="32" text-anchor="middle">Craftsky</text>
+            <text class="node-sub" x="85" y="53" text-anchor="middle">AppView API</text>
+            <text class="node-sub" x="85" y="70" text-anchor="middle">validates subject</text>
+          </g>
+
+          <g transform="translate(688 130)">
+            <rect class="box-warning" width="170" height="86" rx="16" />
+            <text class="node-title" x="85" y="32" text-anchor="middle">User PDS</text>
+            <text class="node-sub" x="85" y="53" text-anchor="middle">createReport</text>
+            <text class="node-sub" x="85" y="70" text-anchor="middle">proxied to labeler</text>
+          </g>
+
+          <g transform="translate(952 130)">
+            <rect class="box-success" width="170" height="86" rx="16" />
+            <text class="node-title" x="85" y="32" text-anchor="middle">Ozone</text>
+            <text class="node-sub" x="85" y="53" text-anchor="middle">labeler service</text>
+            <text class="node-sub" x="85" y="70" text-anchor="middle">unreviewed queue</text>
+          </g>
+
+          <path class="edge-primary" d="M234 173 C270 173 287 173 326 173" />
+          <rect class="edge-label-bg" x="253" y="145" width="58" height="22" />
+          <text class="edge-label" x="282" y="160" text-anchor="middle">POST /v1</text>
+
+          <path class="edge-warning" d="M496 173 C574 173 609 173 688 173" />
+          <rect class="edge-label-bg" x="546" y="145" width="92" height="22" />
+          <text class="edge-label" x="592" y="160" text-anchor="middle">server-held OAuth</text>
+
+          <path class="edge-success" d="M858 173 C895 173 916 173 952 173" />
+          <rect class="edge-label-bg" x="881" y="145" width="51" height="22" />
+          <text class="edge-label" x="906" y="160" text-anchor="middle">report</text>
+
+          <g transform="translate(72 482)">
+            <rect class="box-success" width="190" height="86" rx="16" />
+            <text class="node-title" x="95" y="32" text-anchor="middle">Moderator</text>
+            <text class="node-sub" x="95" y="53" text-anchor="middle">acknowledge, label,</text>
+            <text class="node-sub" x="95" y="70" text-anchor="middle">escalate, takedown</text>
+          </g>
+
+          <g transform="translate(354 482)">
+            <rect class="box-success" width="190" height="86" rx="16" />
+            <text class="node-title" x="95" y="32" text-anchor="middle">Ozone Labels</text>
+            <text class="node-sub" x="95" y="53" text-anchor="middle">label stream</text>
+            <text class="node-sub" x="95" y="70" text-anchor="middle">uri, cid, value</text>
+          </g>
+
+          <g transform="translate(636 482)">
+            <rect class="box-primary" width="190" height="86" rx="16" />
+            <text class="node-title" x="95" y="32" text-anchor="middle">AppView Index</text>
+            <text class="node-sub" x="95" y="53" text-anchor="middle">stores active labels</text>
+            <text class="node-sub" x="95" y="70" text-anchor="middle">computes visibility</text>
+          </g>
+
+          <g transform="translate(918 482)">
+            <rect class="box-destructive" width="190" height="86" rx="16" />
+            <text class="node-title" x="95" y="32" text-anchor="middle">Craftsky Reads</text>
+            <text class="node-sub" x="95" y="53" text-anchor="middle">hide, blur, warn,</text>
+            <text class="node-sub" x="95" y="70" text-anchor="middle">or unavailable</text>
+          </g>
+
+          <path class="edge-success" d="M1037 216 C1037 350 167 350 167 482" />
+          <rect class="edge-label-bg" x="508" y="337" width="143" height="22" />
+          <text class="edge-label" x="579" y="352" text-anchor="middle">queue appears in Ozone UI</text>
+
+          <path class="edge-success" d="M262 525 C296 525 318 525 354 525" />
+          <rect class="edge-label-bg" x="290" y="497" width="36" height="22" />
+          <text class="edge-label" x="308" y="512" text-anchor="middle">action</text>
+
+          <path class="edge-primary" d="M544 525 C580 525 599 525 636 525" />
+          <rect class="edge-label-bg" x="566" y="497" width="49" height="22" />
+          <text class="edge-label" x="590" y="512" text-anchor="middle">subscribe</text>
+
+          <path class="edge-destructive edge-primary" d="M826 525 C862 525 881 525 918 525" />
+          <rect class="edge-label-bg" x="842" y="497" width="60" height="22" />
+          <text class="edge-label" x="872" y="512" text-anchor="middle">enforce</text>
+
+          <path class="edge edge-dashed" d="M918 568 C700 646 248 646 142 216" />
+          <rect class="edge-label-bg" x="432" y="630" width="246" height="22" />
+          <text class="edge-label" x="555" y="645" text-anchor="middle">next app read shows filtered or warned result</text>
+
+          <text class="badge" x="64" y="262">No PDS token on device</text>
+          <text class="badge" x="687" y="262">PDS data remains user-owned</text>
+          <text class="badge" x="636" y="604">Reach changes in Craftsky AppView</text>
+        </svg>
+
+        <div class="legend" aria-label="Diagram legend">
+          <span class="legend-item"><span class="swatch" style="background: var(--primary)"></span>Craftsky-controlled product path</span>
+          <span class="legend-item"><span class="swatch" style="background: var(--warning)"></span>User PDS and atproto report routing</span>
+          <span class="legend-item"><span class="swatch" style="background: var(--success)"></span>Ozone moderation workflow</span>
+          <span class="legend-item"><span class="swatch" style="background: var(--destructive)"></span>User-visible enforcement</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <span class="section-number">02</span>
+        <h2>Lifecycle Stages</h2>
+      </div>
+
+      <div class="lifecycle" aria-label="Report lifecycle stages">
+        <article class="step">
+          <span class="step-num">1</span>
+          <h3>User reports content</h3>
+          <p>Flutter collects reason and optional details, then calls Craftsky AppView with only the Craftsky session token.</p>
+        </article>
+        <article class="step">
+          <span class="step-num">2</span>
+          <h3>AppView validates</h3>
+          <p>AppView confirms the subject exists, maps the reason, and keeps PDS OAuth tokens server-side.</p>
+        </article>
+        <article class="step">
+          <span class="step-num">3</span>
+          <h3>PDS routes report</h3>
+          <p>AppView calls <code>com.atproto.moderation.createReport</code> with proxy headers for the Craftsky labeler.</p>
+        </article>
+        <article class="step">
+          <span class="step-num">4</span>
+          <h3>Ozone queues subject</h3>
+          <p>Ozone stores the report as a private event and moves the subject into the unresolved review queue.</p>
+        </article>
+        <article class="step">
+          <span class="step-num">5</span>
+          <h3>Moderator actions</h3>
+          <p>A moderator acknowledges, comments, tags, escalates, labels, mutes, or marks the subject as taken down.</p>
+        </article>
+        <article class="step">
+          <span class="step-num">6</span>
+          <h3>Craftsky enforces reach</h3>
+          <p>AppView indexes labels/status and applies policy when serving timelines, profiles, threads, and notifications.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <span class="section-number">03</span>
+        <h2>What Each System Owns</h2>
+      </div>
+
+      <div class="grid-3">
+        <article class="ve-card">
+          <span class="card-label primary">Craftsky AppView</span>
+          <h3>Product boundary and enforcement</h3>
+          <ul>
+            <li>Authenticates the Craftsky session.</li>
+            <li>Validates report subjects against indexed records.</li>
+            <li>Uses stored PDS OAuth tokens for report forwarding.</li>
+            <li>Indexes labels and decides what Craftsky surfaces.</li>
+          </ul>
+        </article>
+
+        <article class="ve-card">
+          <span class="card-label warning">User PDS</span>
+          <h3>User-owned speech layer</h3>
+          <ul>
+            <li>Stores user posts, profiles, likes, follows, and blobs.</li>
+            <li>Receives the report call from the server-held user session.</li>
+            <li>Routes the report to the configured labeler service.</li>
+            <li>Is not deleted from by Craftsky moderation actions.</li>
+          </ul>
+        </article>
+
+        <article class="ve-card">
+          <span class="card-label success">Ozone Labeler</span>
+          <h3>Moderation back office</h3>
+          <ul>
+            <li>Stores private report and action events.</li>
+            <li>Shows queues and subject history to moderators.</li>
+            <li>Publishes labels from the Craftsky labeler DID.</li>
+            <li>Provides audit trail and team workflow.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <span class="section-number">04</span>
+        <h2>Action Outcomes</h2>
+      </div>
+
+      <div class="ve-card">
+        <table class="policy-table">
+          <thead>
+            <tr>
+              <th>Ozone action</th>
+              <th>What it means</th>
+              <th>Craftsky enforcement</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Acknowledge</strong></td>
+              <td>Report was reviewed and closed without a visible moderation label.</td>
+              <td>No product change, but the report remains in Ozone history.</td>
+            </tr>
+            <tr>
+              <td><strong>Escalate</strong></td>
+              <td>Subject needs a higher-confidence review or policy decision.</td>
+              <td>No automatic user-visible change unless Craftsky adds an escalation hold policy.</td>
+            </tr>
+            <tr>
+              <td><strong>Label</strong></td>
+              <td>Ozone publishes metadata such as spam, adult, harassment, or hide.</td>
+              <td>AppView applies the configured policy: hide, blur, warn, or leave visible.</td>
+            </tr>
+            <tr>
+              <td><strong>Mute in Ozone</strong></td>
+              <td>Temporarily keeps noisy repeated reports out of moderator queues.</td>
+              <td>Moderator workflow only. It should not be confused with user-facing mutes.</td>
+            </tr>
+            <tr>
+              <td><strong>Takedown</strong></td>
+              <td>Marks the subject as taken down by the Craftsky moderation service.</td>
+              <td>Craftsky should stop surfacing the subject, while the PDS record still exists.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <span class="section-number">05</span>
+        <h2>Implementation Cut Lines</h2>
+      </div>
+
+      <div class="grid-2">
+        <article class="ve-card ve-card--recessed">
+          <span class="card-label accent">First slice</span>
+          <h3>Report post to Ozone MVP</h3>
+          <ul>
+            <li>Deploy dev or staging Ozone.</li>
+            <li>Configure Craftsky labeler DID.</li>
+            <li>Add Flutter report-post UX.</li>
+            <li>Add AppView report endpoint.</li>
+            <li>Forward reports with <code>atproto-proxy</code> to the labeler.</li>
+            <li>Verify reports appear in the Ozone unresolved queue.</li>
+          </ul>
+        </article>
+
+        <article class="ve-card ve-card--recessed">
+          <span class="card-label destructive">Second slice</span>
+          <h3>Label enforcement MVP</h3>
+          <ul>
+            <li>Subscribe to Ozone label stream.</li>
+            <li>Index active labels in AppView Postgres.</li>
+            <li>Define per-label visibility policy.</li>
+            <li>Filter or warn in timeline, profile posts, threads, and notifications.</li>
+            <li>Handle negated and expired labels.</li>
+            <li>Keep direct-post unavailable behavior consistent.</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="note">
+        <strong>Important:</strong> Ozone does not automatically remove Craftsky content from the user's PDS. It creates moderation decisions and labels. Craftsky's AppView must consume those decisions and change reach in product APIs.
+      </div>
+    </section>
+  </main>
+</body>
+</html>
