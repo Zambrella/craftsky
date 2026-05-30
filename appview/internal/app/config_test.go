@@ -47,7 +47,9 @@ func testConfigFile(t *testing.T, contents string) string {
 		"OAUTH_HOSTNAME", "OAUTH_CLIENT_SECRET_KEY", "OAUTH_CLIENT_SECRET_KEY_ID",
 		"OAUTH_SCOPES", "OAUTH_SESSION_EXPIRY", "OAUTH_SESSION_INACTIVITY",
 		"OAUTH_AUTH_REQUEST_EXPIRY", "CRAFTSKY_SESSION_LAST_SEEN_THROTTLE",
-		"MAX_POST_IMAGES", "MAX_IMAGE_UPLOAD_BYTES"} {
+		"MAX_POST_IMAGES", "MAX_IMAGE_UPLOAD_BYTES", "APPVIEW_ENABLE_DEV_MODERATION",
+		"APPVIEW_DEV_MODERATION_TOKEN", "CRAFTSKY_DEV_LABELER_DID",
+		"APPVIEW_TRUSTED_MODERATION_SOURCE_DIDS"} {
 		// Snapshot for restoration, then unset.
 		prior, had := os.LookupEnv(k)
 		_ = os.Unsetenv(k)
@@ -70,6 +72,48 @@ func testConfigFile(t *testing.T, contents string) string {
 		t.Fatalf("close temp: %v", err)
 	}
 	return f.Name()
+}
+
+func TestLoadConfig_DevModerationRequiresTokenWhenEnabled(t *testing.T) {
+	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nAPPVIEW_ENABLE_DEV_MODERATION=true\n")
+	_, err := LoadConfig(EnvDev, path)
+	if err == nil {
+		t.Fatal("expected dev moderation token error")
+	}
+	if !strings.Contains(err.Error(), "APPVIEW_DEV_MODERATION_TOKEN") {
+		t.Fatalf("error = %v, want APPVIEW_DEV_MODERATION_TOKEN", err)
+	}
+}
+
+func TestLoadConfig_DevModerationConfig(t *testing.T) {
+	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nAPPVIEW_ENABLE_DEV_MODERATION=true\nAPPVIEW_DEV_MODERATION_TOKEN=secret-token\nCRAFTSKY_DEV_LABELER_DID=did:plc:labeler\nAPPVIEW_TRUSTED_MODERATION_SOURCE_DIDS=did:plc:ozone,did:plc:labeler\n")
+	cfg, err := LoadConfig(EnvDev, path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if !cfg.EnableDevModeration {
+		t.Fatal("EnableDevModeration = false, want true")
+	}
+	if cfg.DevModerationToken != "secret-token" {
+		t.Fatalf("DevModerationToken = %q", cfg.DevModerationToken)
+	}
+	if cfg.DevLabelerDID != "did:plc:labeler" {
+		t.Fatalf("DevLabelerDID = %q", cfg.DevLabelerDID)
+	}
+	if got := cfg.TrustedModerationSourceDIDs; len(got) != 2 || got[0] != "did:plc:ozone" || got[1] != "did:plc:labeler" {
+		t.Fatalf("TrustedModerationSourceDIDs = %v", got)
+	}
+}
+
+func TestLoadConfig_ProdClearsDevModerationFields(t *testing.T) {
+	path := testConfigFile(t, "DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://a.example\nTAP_WS_URL=ws://tap:2480/channel\nAPPVIEW_ENABLE_DEV_MODERATION=true\nAPPVIEW_DEV_MODERATION_TOKEN=secret-token\nCRAFTSKY_DEV_LABELER_DID=did:plc:labeler\nAPPVIEW_TRUSTED_MODERATION_SOURCE_DIDS=did:plc:ozone\n")
+	cfg, err := LoadConfig(EnvProd, path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.EnableDevModeration || cfg.DevModerationToken != "" || cfg.DevLabelerDID != "" || len(cfg.TrustedModerationSourceDIDs) != 0 {
+		t.Fatalf("prod dev moderation fields not cleared: %+v", cfg)
+	}
 }
 
 func TestLoadConfig_DevValid(t *testing.T) {

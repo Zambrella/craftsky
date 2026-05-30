@@ -3,6 +3,7 @@ package api_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -204,5 +205,41 @@ func TestBuildProfileResponse_NonCraftskyProfileHasNilCounts(t *testing.T) {
 	}
 	if out.Crafts == nil || len(out.Crafts) != 0 {
 		t.Fatalf("crafts = %v, want empty []", out.Crafts)
+	}
+}
+
+func TestBuildProfileResponse_ModerationWarningMetadataIsGeneric(t *testing.T) {
+	t.Parallel()
+	row := &api.ProfileRow{
+		DID:                   "did:plc:xyz",
+		Crafts:                []string{},
+		CreatedAt:             time.Now(),
+		ModerationWarningKind: strPtr("profile"),
+	}
+
+	out := api.BuildProfileResponse(row, "alice.example", true)
+	if out.Moderation == nil || out.Moderation.WarningKind != "profile" {
+		t.Fatalf("moderation = %+v, want profile warning", out.Moderation)
+	}
+
+	data, err := json.Marshal(out)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(data, &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	moderation, ok := body["moderation"].(map[string]any)
+	if !ok {
+		t.Fatalf("moderation missing or wrong type in %s", data)
+	}
+	if len(moderation) != 1 || moderation["warningKind"] != "profile" {
+		t.Fatalf("moderation payload = %#v, want only warningKind", moderation)
+	}
+	for _, forbidden := range []string{"raw unsafe reason fixture", "internalReason", "sourceDid", "outputId", "reportCount"} {
+		if strings.Contains(string(data), forbidden) {
+			t.Fatalf("moderation response leaked %q in %s", forbidden, data)
+		}
 	}
 }

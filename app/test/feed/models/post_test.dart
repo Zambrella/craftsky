@@ -57,6 +57,7 @@ void main() {
           'displayName': 'Alice',
           'avatarCid': 'bafyA',
         },
+        'moderation': {'warningKind': 'post'},
       };
 
       final post = PostMapper.fromMap(json);
@@ -72,6 +73,7 @@ void main() {
       expect(post.viewerHasReplied, isTrue);
       expect(post.author.handle, 'alice.craftsky.social');
       expect(post.author.avatarCid, 'bafyA');
+      expect(post.moderation?.warningKind, 'post');
       expect(post.images, hasLength(2));
       expect(post.images!.first.cid, 'bafkimage1');
       expect(post.images!.first.mime, 'image/jpeg');

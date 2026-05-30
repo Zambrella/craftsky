@@ -3,10 +3,13 @@ package api_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api"
@@ -79,6 +82,21 @@ CREATE TABLE craftsky_reposts (
     deleted_at  TIMESTAMPTZ,
     UNIQUE (did, rkey)
 );
+CREATE TABLE moderation_outputs (
+    id                  TEXT        NOT NULL PRIMARY KEY,
+    source_did          TEXT        NOT NULL,
+    subject_type        TEXT        NOT NULL CHECK (subject_type IN ('post', 'account')),
+    subject_did         TEXT        NOT NULL,
+    subject_collection  TEXT,
+    subject_rkey        TEXT,
+    subject_uri         TEXT,
+    value               TEXT        NOT NULL CHECK (value IN ('hide', 'takedown', 'warn')),
+    action              TEXT        NOT NULL CHECK (action IN ('apply', 'negate')),
+    internal_reason     TEXT,
+    expires_at          TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    indexed_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `
 
 func seedMember(t *testing.T, pool *pgxpool.Pool, did string) {
@@ -141,6 +159,23 @@ func seedInteraction(t *testing.T, pool *pgxpool.Pool, table, did, rkey, subject
 	return uri
 }
 
+func seedModerationOutput(t *testing.T, pool *pgxpool.Pool, subjectType, subjectDID, subjectURI, value string, createdAt time.Time) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO moderation_outputs (
+			id, source_did, subject_type, subject_did, subject_collection,
+			subject_rkey, subject_uri, value, action, created_at, indexed_at
+		)
+		VALUES (
+			$1, 'did:plc:labeler', $2, $3,
+			CASE WHEN $2 = 'post' THEN 'social.craftsky.feed.post' ELSE NULL END,
+			CASE WHEN $2 = 'post' THEN split_part($4, '/', 5) ELSE NULL END,
+			NULLIF($4, ''), $5, 'apply', $6, $6
+		)`, "mod-"+subjectType+"-"+subjectDID+"-"+value+"-"+createdAt.Format("150405.000000000"), subjectType, subjectDID, subjectURI, value, createdAt); err != nil {
+		t.Fatalf("seed moderation output: %v", err)
+	}
+}
+
 func TestPostStore_ReadOne_HappyPath(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)
@@ -180,6 +215,66 @@ func TestPostStore_ReadOne_NoBlueskyMirror(t *testing.T) {
 	}
 	if row.AuthorAvatarCID != nil {
 		t.Errorf("expected nil avatarCID, got %v", *row.AuthorAvatarCID)
+	}
+}
+
+func TestPostStore_ReadOne_AttachesWarningMetadataWithoutRawReason(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name        string
+		subjectType string
+		subjectURI  string
+		wantKind    string
+	}{
+		{name: "post warn", subjectType: "post", wantKind: "post"},
+		{name: "author warn", subjectType: "account", wantKind: "author"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			pool := testdb.WithSchema(t, postStoreDDL)
+			seedMember(t, pool, "did:plc:bob")
+			uri := seedPost(t, pool, "did:plc:bob", "rk1", "warned but visible", now)
+			subjectURI := ""
+			if tc.subjectType == "post" {
+				subjectURI = uri
+			}
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO moderation_outputs (
+					id, source_did, subject_type, subject_did, subject_collection,
+					subject_rkey, subject_uri, value, action, internal_reason, created_at, indexed_at
+				)
+				VALUES (
+					$1, 'did:plc:labeler', $2, 'did:plc:bob',
+					CASE WHEN $2 = 'post' THEN 'social.craftsky.feed.post' ELSE NULL END,
+					CASE WHEN $2 = 'post' THEN 'rk1' ELSE NULL END,
+					NULLIF($3, ''), 'warn', 'apply', 'raw unsafe reason fixture', $4, $4
+				)`, "warn-"+tc.subjectType, tc.subjectType, subjectURI, now); err != nil {
+				t.Fatalf("seed warn output: %v", err)
+			}
+
+			row, err := api.NewPostStore(pool).ReadOne(ctx, "did:plc:bob", "rk1")
+			if err != nil {
+				t.Fatalf("ReadOne: %v", err)
+			}
+			if row.ModerationWarningKind == nil || *row.ModerationWarningKind != tc.wantKind {
+				t.Fatalf("ModerationWarningKind = %v, want %q", row.ModerationWarningKind, tc.wantKind)
+			}
+			resp := api.BuildPostResponse(row, syntax.Handle("bob.example"))
+			data, err := json.Marshal(resp)
+			if err != nil {
+				t.Fatalf("marshal response: %v", err)
+			}
+			if !strings.Contains(string(data), `"warningKind":"`+tc.wantKind+`"`) {
+				t.Fatalf("response missing warning kind %q: %s", tc.wantKind, data)
+			}
+			if strings.Contains(string(data), "raw unsafe reason fixture") || strings.Contains(string(data), "internalReason") {
+				t.Fatalf("response leaked raw moderation reason: %s", data)
+			}
+		})
 	}
 }
 
@@ -231,6 +326,36 @@ func TestPostStore_ReadOne_NotFound(t *testing.T) {
 	_, err := store.ReadOne(context.Background(), "did:plc:alice", "missing")
 	if !errors.Is(err, api.ErrPostNotFound) {
 		t.Fatalf("want ErrPostNotFound, got %v", err)
+	}
+}
+
+func TestPostStore_ReadOne_HiddenPostOrHiddenAuthorReturnsNotFound(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name       string
+		moderation func(t *testing.T, pool *pgxpool.Pool, uri string)
+	}{
+		{name: "post hide", moderation: func(t *testing.T, pool *pgxpool.Pool, uri string) {
+			seedModerationOutput(t, pool, "post", "did:plc:bob", uri, "hide", time.Now())
+		}},
+		{name: "author takedown", moderation: func(t *testing.T, pool *pgxpool.Pool, uri string) {
+			seedModerationOutput(t, pool, "account", "did:plc:bob", "", "takedown", time.Now())
+		}},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			pool := testdb.WithSchema(t, postStoreDDL)
+			seedMember(t, pool, "did:plc:bob")
+			uri := seedPost(t, pool, "did:plc:bob", "rk1", "hidden", time.Now())
+			tc.moderation(t, pool, uri)
+
+			store := api.NewPostStore(pool)
+			_, err := store.ReadOne(context.Background(), "did:plc:bob", "rk1")
+			if !errors.Is(err, api.ErrPostNotFound) {
+				t.Fatalf("want ErrPostNotFound, got %v", err)
+			}
+		})
 	}
 }
 

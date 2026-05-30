@@ -66,6 +66,12 @@ type Config struct {
 	// env overrides may lower but not raise these ceilings.
 	MaxPostImages       int   // default 4, maximum 4
 	MaxImageUploadBytes int64 // default 15MB, maximum 15MB
+
+	// Dev-only synthetic moderation controls. These fields are cleared in prod.
+	EnableDevModeration         bool
+	DevModerationToken          string
+	DevLabelerDID               string
+	TrustedModerationSourceDIDs []string
 }
 
 // LoadConfig reads environments/<env>.env from envFilePath, layers os.Getenv
@@ -144,6 +150,15 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if cfg.MaxImageUploadBytes, err = boundedInt64Env("MAX_IMAGE_UPLOAD_BYTES", api.DefaultMaxImageUploadBytes, 1, api.DefaultMaxImageUploadBytes); err != nil {
 		return Config{}, err
 	}
+	if cfg.EnableDevModeration, err = boolEnv("APPVIEW_ENABLE_DEV_MODERATION", false); err != nil {
+		return Config{}, err
+	}
+	if env == EnvDev {
+		cfg.DevModerationToken = os.Getenv("APPVIEW_DEV_MODERATION_TOKEN")
+		cfg.DevLabelerDID = getEnvWithDefault("CRAFTSKY_DEV_LABELER_DID", "did:plc:labeler")
+		cfg.TrustedModerationSourceDIDs = splitCommaEnv("APPVIEW_TRUSTED_MODERATION_SOURCE_DIDS")
+		cfg.TrustedModerationSourceDIDs = appendUniqueNonEmpty(cfg.TrustedModerationSourceDIDs, cfg.DevLabelerDID)
+	}
 
 	// Required everywhere.
 	if cfg.DatabaseURL == "" {
@@ -164,6 +179,13 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	// accidentally use a leftover value.
 	if env == EnvProd {
 		cfg.DevDID = ""
+		cfg.EnableDevModeration = false
+		cfg.DevModerationToken = ""
+		cfg.DevLabelerDID = ""
+		cfg.TrustedModerationSourceDIDs = nil
+	}
+	if env == EnvDev && cfg.EnableDevModeration && strings.TrimSpace(cfg.DevModerationToken) == "" {
+		return Config{}, fmt.Errorf("APPVIEW_DEV_MODERATION_TOKEN is required when APPVIEW_ENABLE_DEV_MODERATION=true")
 	}
 
 	// Prod validation: if hostname is set, confidential client requires the key.
@@ -218,4 +240,44 @@ func boundedInt64Env(key string, def, min, max int64) (int64, error) {
 		return 0, fmt.Errorf("%s: must be integer between %d and %d, got %q", key, min, max, raw)
 	}
 	return n, nil
+}
+
+func boolEnv(key string, def bool) (bool, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return def, nil
+	}
+	parsed, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, fmt.Errorf("%s: must be boolean, got %q", key, raw)
+	}
+	return parsed, nil
+}
+
+func splitCommaEnv(key string) []string {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return nil
+	}
+	out := []string{}
+	for _, item := range strings.Split(raw, ",") {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func appendUniqueNonEmpty(values []string, value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return values
+	}
+	for _, existing := range values {
+		if existing == value {
+			return values
+		}
+	}
+	return append(values, value)
 }

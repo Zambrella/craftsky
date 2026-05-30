@@ -26,6 +26,7 @@ class PostMapper extends ClassMapperBase<Post> {
       PostImageMapper.ensureInitialized();
       PostReplyMapper.ensureInitialized();
       PostRefMapper.ensureInitialized();
+      ModerationMetadataMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -115,6 +116,12 @@ class PostMapper extends ClassMapperBase<Post> {
     _$quote,
     opt: true,
   );
+  static ModerationMetadata? _$moderation(Post v) => v.moderation;
+  static const Field<Post, ModerationMetadata> _f$moderation = Field(
+    'moderation',
+    _$moderation,
+    opt: true,
+  );
 
   @override
   final MappableFields<Post> fields = const {
@@ -136,6 +143,7 @@ class PostMapper extends ClassMapperBase<Post> {
     #facets: _f$facets,
     #reply: _f$reply,
     #quote: _f$quote,
+    #moderation: _f$moderation,
   };
   @override
   final bool ignoreNull = true;
@@ -160,6 +168,7 @@ class PostMapper extends ClassMapperBase<Post> {
       facets: data.dec(_f$facets),
       reply: data.dec(_f$reply),
       quote: data.dec(_f$quote),
+      moderation: data.dec(_f$moderation),
     );
   }
 
@@ -221,6 +230,8 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
   get facets;
   PostReplyCopyWith<$R, PostReply, PostReply>? get reply;
   PostRefCopyWith<$R, PostRef, PostRef>? get quote;
+  ModerationMetadataCopyWith<$R, ModerationMetadata, ModerationMetadata>?
+  get moderation;
   $R call({
     String? uri,
     String? cid,
@@ -240,6 +251,7 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
     List<Map<String, dynamic>>? facets,
     PostReply? reply,
     PostRef? quote,
+    ModerationMetadata? moderation,
   });
   PostCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
@@ -289,6 +301,10 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
   PostRefCopyWith<$R, PostRef, PostRef>? get quote =>
       $value.quote?.copyWith.$chain((v) => call(quote: v));
   @override
+  ModerationMetadataCopyWith<$R, ModerationMetadata, ModerationMetadata>?
+  get moderation =>
+      $value.moderation?.copyWith.$chain((v) => call(moderation: v));
+  @override
   $R call({
     String? uri,
     String? cid,
@@ -308,6 +324,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     Object? facets = $none,
     Object? reply = $none,
     Object? quote = $none,
+    Object? moderation = $none,
   }) => $apply(
     FieldCopyWithData({
       if (uri != null) #uri: uri,
@@ -328,6 +345,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       if (facets != $none) #facets: facets,
       if (reply != $none) #reply: reply,
       if (quote != $none) #quote: quote,
+      if (moderation != $none) #moderation: moderation,
     }),
   );
   @override
@@ -353,6 +371,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     facets: data.get(#facets, or: $value.facets),
     reply: data.get(#reply, or: $value.reply),
     quote: data.get(#quote, or: $value.quote),
+    moderation: data.get(#moderation, or: $value.moderation),
   );
 
   @override

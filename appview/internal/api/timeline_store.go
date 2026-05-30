@@ -33,6 +33,7 @@ func (s *PostStore) ListTimeline(ctx context.Context, viewerDID string, limit in
 				WHERE f.did = $1 AND f.subject_did = p.did
 			)
 		  )
+		` + postVisibleModerationPredicate + `
 		  AND ($2::timestamptz IS NULL
 		       OR (p.indexed_at, p.uri) < ($2::timestamptz, $3::text))
 		ORDER BY p.indexed_at DESC, p.uri DESC

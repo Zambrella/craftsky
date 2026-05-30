@@ -16,6 +16,7 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = ProfileMapper._());
       MapperContainer.globals.useAll([DidMapper(), HandleMapper()]);
+      ModerationMetadataMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -122,6 +123,12 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     _$projectCount,
     opt: true,
   );
+  static ModerationMetadata? _$moderation(Profile v) => v.moderation;
+  static const Field<Profile, ModerationMetadata> _f$moderation = Field(
+    'moderation',
+    _$moderation,
+    opt: true,
+  );
 
   @override
   final MappableFields<Profile> fields = const {
@@ -141,6 +148,7 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     #postCount: _f$postCount,
     #postsLast7Days: _f$postsLast7Days,
     #projectCount: _f$projectCount,
+    #moderation: _f$moderation,
   };
 
   static Profile _instantiate(DecodingData data) {
@@ -161,6 +169,7 @@ class ProfileMapper extends ClassMapperBase<Profile> {
       postCount: data.dec(_f$postCount),
       postsLast7Days: data.dec(_f$postsLast7Days),
       projectCount: data.dec(_f$projectCount),
+      moderation: data.dec(_f$moderation),
     );
   }
 
@@ -222,6 +231,8 @@ extension ProfileValueCopy<$R, $Out> on ObjectCopyWith<$R, Profile, $Out> {
 abstract class ProfileCopyWith<$R, $In extends Profile, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get crafts;
+  ModerationMetadataCopyWith<$R, ModerationMetadata, ModerationMetadata>?
+  get moderation;
   $R call({
     String? did,
     String? handle,
@@ -239,6 +250,7 @@ abstract class ProfileCopyWith<$R, $In extends Profile, $Out>
     int? postCount,
     int? postsLast7Days,
     int? projectCount,
+    ModerationMetadata? moderation,
   });
   ProfileCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
@@ -259,6 +271,10 @@ class _ProfileCopyWithImpl<$R, $Out>
         (v) => call(crafts: v),
       );
   @override
+  ModerationMetadataCopyWith<$R, ModerationMetadata, ModerationMetadata>?
+  get moderation =>
+      $value.moderation?.copyWith.$chain((v) => call(moderation: v));
+  @override
   $R call({
     String? did,
     String? handle,
@@ -276,6 +292,7 @@ class _ProfileCopyWithImpl<$R, $Out>
     Object? postCount = $none,
     Object? postsLast7Days = $none,
     Object? projectCount = $none,
+    Object? moderation = $none,
   }) => $apply(
     FieldCopyWithData({
       if (did != null) #did: did,
@@ -295,6 +312,7 @@ class _ProfileCopyWithImpl<$R, $Out>
       if (postCount != $none) #postCount: postCount,
       if (postsLast7Days != $none) #postsLast7Days: postsLast7Days,
       if (projectCount != $none) #projectCount: projectCount,
+      if (moderation != $none) #moderation: moderation,
     }),
   );
   @override
@@ -324,6 +342,7 @@ class _ProfileCopyWithImpl<$R, $Out>
     postCount: data.get(#postCount, or: $value.postCount),
     postsLast7Days: data.get(#postsLast7Days, or: $value.postsLast7Days),
     projectCount: data.get(#projectCount, or: $value.projectCount),
+    moderation: data.get(#moderation, or: $value.moderation),
   );
 
   @override

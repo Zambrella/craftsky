@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/auth_state.dart';
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
@@ -8,6 +10,7 @@ import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -88,6 +91,10 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final spacing = Theme.of(context).extension<SpacingTheme>()!;
+    final viewerDid = switch (ref.watch(authSessionProvider).value) {
+      SignedIn(:final did) => did,
+      _ => null,
+    };
 
     return SliverMainAxisGroup(
       slivers: [
@@ -144,6 +151,9 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
                     .toggle(post: post),
                 onDelete: isOwnProfile
                     ? () => _confirmDelete(context, ref, post, isReply: isReply)
+                    : null,
+                onReport: viewerDid != null && post.author.did != viewerDid
+                    ? () => showPostReportSheet(context, ref, post)
                     : null,
               );
             },

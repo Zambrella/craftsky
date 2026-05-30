@@ -13,22 +13,23 @@ import (
 // syntax.DID and syntax.Handle JSON-marshal via TextMarshaler — the
 // wire shape is the same plain-string JSON it always was.
 type ProfileResponse struct {
-	DID                 syntax.DID    `json:"did"`
-	Handle              syntax.Handle `json:"handle"`
-	ViewerIsFollowing   bool          `json:"viewerIsFollowing"`
-	IsCraftskyProfile   bool          `json:"isCraftskyProfile"`
-	FollowingCount      *int          `json:"followingCount,omitempty"`
-	FollowerCount       *int          `json:"followerCount,omitempty"`
-	MutualFollowerCount *int          `json:"mutualFollowerCount,omitempty"`
-	PostCount           *int          `json:"postCount,omitempty"`
-	PostsLast7Days      *int          `json:"postsLast7Days,omitempty"`
-	ProjectCount        *int          `json:"projectCount,omitempty"`
-	DisplayName         *string       `json:"displayName,omitempty"`
-	Description         *string       `json:"description,omitempty"`
-	Avatar              *string       `json:"avatar,omitempty"`
-	Banner              *string       `json:"banner,omitempty"`
-	Crafts              []string      `json:"crafts"`
-	CreatedAt           *time.Time    `json:"createdAt,omitempty"`
+	DID                 syntax.DID          `json:"did"`
+	Handle              syntax.Handle       `json:"handle"`
+	ViewerIsFollowing   bool                `json:"viewerIsFollowing"`
+	IsCraftskyProfile   bool                `json:"isCraftskyProfile"`
+	FollowingCount      *int                `json:"followingCount,omitempty"`
+	FollowerCount       *int                `json:"followerCount,omitempty"`
+	MutualFollowerCount *int                `json:"mutualFollowerCount,omitempty"`
+	PostCount           *int                `json:"postCount,omitempty"`
+	PostsLast7Days      *int                `json:"postsLast7Days,omitempty"`
+	ProjectCount        *int                `json:"projectCount,omitempty"`
+	DisplayName         *string             `json:"displayName,omitempty"`
+	Description         *string             `json:"description,omitempty"`
+	Avatar              *string             `json:"avatar,omitempty"`
+	Banner              *string             `json:"banner,omitempty"`
+	Crafts              []string            `json:"crafts"`
+	CreatedAt           *time.Time          `json:"createdAt,omitempty"`
+	Moderation          *ModerationMetadata `json:"moderation,omitempty"`
 }
 
 type ProfileAccountPage struct {
@@ -107,6 +108,9 @@ func BuildProfileResponse(row *ProfileRow, handle syntax.Handle, includeCreatedA
 	if includeCreatedAt {
 		t := row.CreatedAt
 		out.CreatedAt = &t
+	}
+	if row.ModerationWarningKind != nil && *row.ModerationWarningKind != "" {
+		out.Moderation = &ModerationMetadata{WarningKind: *row.ModerationWarningKind}
 	}
 	return out
 }

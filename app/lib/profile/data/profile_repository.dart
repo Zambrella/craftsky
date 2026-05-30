@@ -1,3 +1,5 @@
+import 'package:craftsky_app/moderation/models/report_result.dart';
+import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
@@ -34,6 +36,12 @@ abstract interface class ProfileRepository {
 
   /// Unfollows the target profile and returns the updated target profile.
   Future<Profile> unfollow(String handleOrDid);
+
+  /// POST /v1/profiles/{handleOrDid}/reports.
+  Future<ReportResult> report(
+    String handleOrDid,
+    ReportSubmission submission,
+  );
 
   Future<ProfileAccountPage> listMutualFollowers(
     String handleOrDid, {

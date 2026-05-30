@@ -41,24 +41,33 @@ type ResponseReply struct {
 // PostResponse is the canonical wire shape returned by every
 // post-shaped endpoint (POST, GET single, list items).
 type PostResponse struct {
-	URI               string             `json:"uri"`
-	CID               string             `json:"cid"`
-	Rkey              string             `json:"rkey"`
-	Text              string             `json:"text"`
-	Images            []PostImageView    `json:"images,omitempty"`
-	Facets            json.RawMessage    `json:"facets"`
-	Tags              []string           `json:"tags"`
-	LikeCount         int                `json:"likeCount"`
-	RepostCount       int                `json:"repostCount"`
-	ReplyCount        int                `json:"replyCount"`
-	ViewerHasLiked    bool               `json:"viewerHasLiked"`
-	ViewerHasReposted bool               `json:"viewerHasReposted"`
-	ViewerHasReplied  bool               `json:"viewerHasReplied"`
-	Reply             *ResponseReply     `json:"reply"`
-	Quote             *ResponseStrongRef `json:"quote"`
-	CreatedAt         time.Time          `json:"createdAt"`
-	IndexedAt         time.Time          `json:"indexedAt"`
-	Author            PostAuthor         `json:"author"`
+	URI               string              `json:"uri"`
+	CID               string              `json:"cid"`
+	Rkey              string              `json:"rkey"`
+	Text              string              `json:"text"`
+	Images            []PostImageView     `json:"images,omitempty"`
+	Facets            json.RawMessage     `json:"facets"`
+	Tags              []string            `json:"tags"`
+	LikeCount         int                 `json:"likeCount"`
+	RepostCount       int                 `json:"repostCount"`
+	ReplyCount        int                 `json:"replyCount"`
+	ViewerHasLiked    bool                `json:"viewerHasLiked"`
+	ViewerHasReposted bool                `json:"viewerHasReposted"`
+	ViewerHasReplied  bool                `json:"viewerHasReplied"`
+	Reply             *ResponseReply      `json:"reply"`
+	Quote             *ResponseStrongRef  `json:"quote"`
+	CreatedAt         time.Time           `json:"createdAt"`
+	IndexedAt         time.Time           `json:"indexedAt"`
+	Author            PostAuthor          `json:"author"`
+	Moderation        *ModerationMetadata `json:"moderation,omitempty"`
+}
+
+// ModerationMetadata is the safe, generic moderation response shape shared by
+// post and profile responses. It intentionally carries only a warning intent
+// for Flutter localization, never raw report details, internal reasons, source
+// DIDs, output IDs, or counts.
+type ModerationMetadata struct {
+	WarningKind string `json:"warningKind"`
 }
 
 type PostImageView struct {
@@ -172,6 +181,9 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle) *PostResponse {
 			URI: *row.QuoteURI,
 			CID: derefOrEmpty(row.QuoteCID),
 		}
+	}
+	if row.ModerationWarningKind != nil && *row.ModerationWarningKind != "" {
+		resp.Moderation = &ModerationMetadata{WarningKind: *row.ModerationWarningKind}
 	}
 	return resp
 }

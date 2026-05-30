@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
@@ -149,6 +150,7 @@ class _ProfileBody extends ConsumerWidget {
         );
       },
       onShare: () => context.showInfo(l10n.profileShareComingSoon),
+      onReport: () => showProfileReportSheet(context, ref, profile.handle),
     );
   }
 }

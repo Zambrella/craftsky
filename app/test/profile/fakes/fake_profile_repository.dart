@@ -1,3 +1,5 @@
+import 'package:craftsky_app/moderation/models/report_result.dart';
+import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
@@ -26,6 +28,7 @@ class FakeProfileRepository implements ProfileRepository {
     this.onUpdateMe,
     this.onFollow,
     this.onUnfollow,
+    this.onReport,
     this.onListMutualFollowers,
     this.onListFollowersMe,
     this.onListFollowingMe,
@@ -45,6 +48,11 @@ class FakeProfileRepository implements ProfileRepository {
   onUpdateMe;
   final Future<Profile> Function(String handleOrDid)? onFollow;
   final Future<Profile> Function(String handleOrDid)? onUnfollow;
+  final Future<ReportResult> Function(
+    String handleOrDid,
+    ReportSubmission submission,
+  )?
+  onReport;
   final Future<ProfileAccountPage> Function(
     String handleOrDid, {
     int? limit,
@@ -96,6 +104,14 @@ class FakeProfileRepository implements ProfileRepository {
   Future<Profile> unfollow(String handleOrDid) =>
       onUnfollow?.call(handleOrDid) ??
       Future<Profile>.error(UnimplementedError('unfollow not stubbed'));
+
+  @override
+  Future<ReportResult> report(
+    String handleOrDid,
+    ReportSubmission submission,
+  ) =>
+      onReport?.call(handleOrDid, submission) ??
+      Future<ReportResult>.error(UnimplementedError('report not stubbed'));
 
   @override
   Future<ProfileAccountPage> listMutualFollowers(

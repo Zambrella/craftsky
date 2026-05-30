@@ -490,6 +490,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postDeleteAction => 'Delete post';
 
   @override
+  String get postReportAction => 'Report post';
+
+  @override
   String get postMoreActions => 'More actions';
 
   @override
@@ -533,6 +536,70 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileShareComingSoon => 'Share coming soon.';
+
+  @override
+  String get profileReportAction => 'Report profile';
+
+  @override
+  String get moderationWarningPost =>
+      'This post may not follow Craftsky community guidelines.';
+
+  @override
+  String get moderationWarningProfile =>
+      'This profile may not follow Craftsky community guidelines.';
+
+  @override
+  String get moderationWarningAuthor =>
+      'This author may not follow Craftsky community guidelines.';
+
+  @override
+  String get reportSubmit => 'Submit';
+
+  @override
+  String get reportSubmitting => 'Submitting…';
+
+  @override
+  String get reportSubmitSuccess => 'Thanks — your report was submitted.';
+
+  @override
+  String get reportSubmitError => 'Couldn\'t submit report. Please try again.';
+
+  @override
+  String get reportDetailsLabel => 'Details (optional)';
+
+  @override
+  String get reportDetailsTooLong =>
+      'Details must be 1000 characters or fewer.';
+
+  @override
+  String get reportReasonHarassment => 'Harassment';
+
+  @override
+  String get reportReasonHate => 'Hate';
+
+  @override
+  String get reportReasonSpam => 'Spam';
+
+  @override
+  String get reportReasonMisleading => 'Misleading';
+
+  @override
+  String get reportReasonSuspectedAiGenerated => 'Suspected AI-generated';
+
+  @override
+  String get reportReasonAdultOrGraphic => 'Adult or graphic';
+
+  @override
+  String get reportReasonImpersonation => 'Impersonation';
+
+  @override
+  String get reportReasonOffTopic => 'Off-topic';
+
+  @override
+  String get reportReasonIntellectualProperty => 'Intellectual property';
+
+  @override
+  String get reportReasonOther => 'Other';
 
   @override
   String get editProfileTitle => 'Edit profile';

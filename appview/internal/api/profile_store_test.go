@@ -3,6 +3,7 @@ package api_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -106,6 +107,21 @@ CREATE INDEX atproto_follows_did_created_uri_desc_idx
 CREATE INDEX craftsky_posts_root_did_created_idx
     ON craftsky_posts (did, created_at DESC)
     WHERE reply_root_uri IS NULL AND reply_parent_uri IS NULL;
+CREATE TABLE moderation_outputs (
+    id                  TEXT        NOT NULL PRIMARY KEY,
+    source_did          TEXT        NOT NULL,
+    subject_type        TEXT        NOT NULL CHECK (subject_type IN ('post', 'account')),
+    subject_did         TEXT        NOT NULL,
+    subject_collection  TEXT,
+    subject_rkey        TEXT,
+    subject_uri         TEXT,
+    value               TEXT        NOT NULL CHECK (value IN ('hide', 'takedown', 'warn')),
+    action              TEXT        NOT NULL CHECK (action IN ('apply', 'negate')),
+    internal_reason     TEXT,
+    expires_at          TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    indexed_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `
 
 func TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts(t *testing.T) {
@@ -153,6 +169,65 @@ func TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts(t *testing.T) {
 	}
 	if got.ProjectCount == nil || *got.ProjectCount != 0 {
 		t.Fatalf("projectCount = %v, want data-driven zero", got.ProjectCount)
+	}
+}
+
+func TestProfileStore_ReadByDID_HiddenAccountReturnsNotFound(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, profileStoreDDL)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES ('did:plc:bob', '{}', 'cid')`); err != nil {
+		t.Fatalf("seed profile: %v", err)
+	}
+	seedModerationOutput(t, pool, "account", "did:plc:bob", "", "hide", time.Now())
+
+	store := api.NewProfileStore(pool)
+	_, err := store.Read(ctx, "did:plc:bob", "did:plc:viewer")
+	if !errors.Is(err, api.ErrProfileNotFound) {
+		t.Fatalf("want ErrProfileNotFound, got %v", err)
+	}
+}
+
+func TestProfileStore_Read_AttachesWarningMetadataWithoutRawReason(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, profileStoreDDL)
+	ctx := context.Background()
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES ($1, '{}', 'cid')`,
+		"did:plc:bob",
+	); err != nil {
+		t.Fatalf("seed profile: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_outputs (
+			id, source_did, subject_type, subject_did, value, action, internal_reason, created_at, indexed_at
+		)
+		VALUES (
+			'warn-profile', 'did:plc:labeler', 'account', 'did:plc:bob', 'warn', 'apply', 'raw unsafe reason fixture', $1, $1
+		)`, now); err != nil {
+		t.Fatalf("seed warning: %v", err)
+	}
+
+	row, err := api.NewProfileStore(pool).Read(ctx, "did:plc:bob", "did:plc:viewer")
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if row.ModerationWarningKind == nil || *row.ModerationWarningKind != "profile" {
+		t.Fatalf("ModerationWarningKind = %v, want profile", row.ModerationWarningKind)
+	}
+
+	out := api.BuildProfileResponse(row, "bob.example", true)
+	data, err := json.Marshal(out)
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+	if !strings.Contains(string(data), `"warningKind":"profile"`) {
+		t.Fatalf("response missing profile warning: %s", data)
+	}
+	if strings.Contains(string(data), "raw unsafe reason fixture") || strings.Contains(string(data), "internalReason") {
+		t.Fatalf("response leaked raw moderation reason: %s", data)
 	}
 }
 

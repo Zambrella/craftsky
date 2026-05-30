@@ -946,6 +946,12 @@ abstract class AppLocalizations {
   /// **'Delete post'**
   String get postDeleteAction;
 
+  /// Menu label for reporting a post.
+  ///
+  /// In en, this message translates to:
+  /// **'Report post'**
+  String get postReportAction;
+
   /// Tooltip for opening a post, comment, or reply context menu when no destructive action label applies.
   ///
   /// In en, this message translates to:
@@ -1035,6 +1041,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Share coming soon.'**
   String get profileShareComingSoon;
+
+  /// Tooltip/action label for reporting a visitor profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Report profile'**
+  String get profileReportAction;
+
+  /// Generic inline warning copy for a warned post.
+  ///
+  /// In en, this message translates to:
+  /// **'This post may not follow Craftsky community guidelines.'**
+  String get moderationWarningPost;
+
+  /// Generic inline warning copy for a warned profile.
+  ///
+  /// In en, this message translates to:
+  /// **'This profile may not follow Craftsky community guidelines.'**
+  String get moderationWarningProfile;
+
+  /// Generic inline warning copy for posts by a warned author.
+  ///
+  /// In en, this message translates to:
+  /// **'This author may not follow Craftsky community guidelines.'**
+  String get moderationWarningAuthor;
+
+  /// Primary action label in the report dialog/sheet.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit'**
+  String get reportSubmit;
+
+  /// Primary action label while a report submission is in flight.
+  ///
+  /// In en, this message translates to:
+  /// **'Submitting…'**
+  String get reportSubmitting;
+
+  /// Snackbar shown after a report submission succeeds.
+  ///
+  /// In en, this message translates to:
+  /// **'Thanks — your report was submitted.'**
+  String get reportSubmitSuccess;
+
+  /// Inline error shown when a report submission fails and can be retried.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t submit report. Please try again.'**
+  String get reportSubmitError;
+
+  /// Label for optional private details text field in the report dialog/sheet.
+  ///
+  /// In en, this message translates to:
+  /// **'Details (optional)'**
+  String get reportDetailsLabel;
+
+  /// Validation error when optional report details exceed the maximum length.
+  ///
+  /// In en, this message translates to:
+  /// **'Details must be 1000 characters or fewer.'**
+  String get reportDetailsTooLong;
+
+  /// Report reason label for harassment.
+  ///
+  /// In en, this message translates to:
+  /// **'Harassment'**
+  String get reportReasonHarassment;
+
+  /// Report reason label for hate.
+  ///
+  /// In en, this message translates to:
+  /// **'Hate'**
+  String get reportReasonHate;
+
+  /// Report reason label for spam.
+  ///
+  /// In en, this message translates to:
+  /// **'Spam'**
+  String get reportReasonSpam;
+
+  /// Report reason label for misleading content.
+  ///
+  /// In en, this message translates to:
+  /// **'Misleading'**
+  String get reportReasonMisleading;
+
+  /// Report reason label for suspected AI-generated content.
+  ///
+  /// In en, this message translates to:
+  /// **'Suspected AI-generated'**
+  String get reportReasonSuspectedAiGenerated;
+
+  /// Report reason label for adult or graphic content.
+  ///
+  /// In en, this message translates to:
+  /// **'Adult or graphic'**
+  String get reportReasonAdultOrGraphic;
+
+  /// Report reason label for impersonation.
+  ///
+  /// In en, this message translates to:
+  /// **'Impersonation'**
+  String get reportReasonImpersonation;
+
+  /// Report reason label for off-topic content.
+  ///
+  /// In en, this message translates to:
+  /// **'Off-topic'**
+  String get reportReasonOffTopic;
+
+  /// Report reason label for intellectual-property concerns.
+  ///
+  /// In en, this message translates to:
+  /// **'Intellectual property'**
+  String get reportReasonIntellectualProperty;
+
+  /// Report reason label for other concerns.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get reportReasonOther;
 
   /// App-bar title on the profile-edit page.
   ///

@@ -27,12 +27,14 @@ final class VisitorProfileActionSet extends ProfileActionSet {
     required this.isBusy,
     required this.onFollowToggle,
     required this.onShare,
+    required this.onReport,
   });
 
   final bool isFollowing;
   final bool isBusy;
   final VoidCallback onFollowToggle;
   final VoidCallback onShare;
+  final VoidCallback onReport;
 }
 
 class ProfileActions extends StatelessWidget {
@@ -124,6 +126,12 @@ class _VisitorActions extends StatelessWidget {
           onPressed: actions.onShare,
           icon: Icons.ios_share_outlined,
           tooltip: l10n.profileShareAction,
+        ),
+        SizedBox(width: spacing.sp3),
+        ChunkyIconButton(
+          onPressed: actions.onReport,
+          icon: Icons.flag_outlined,
+          tooltip: l10n.profileReportAction,
         ),
       ],
     );

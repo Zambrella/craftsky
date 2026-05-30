@@ -98,6 +98,76 @@ func TestTimelineStore_ListTimeline_ReturnsOwnAndFollowedEligiblePostsOnly(t *te
 	}
 }
 
+func TestTimelineStore_ListTimeline_FiltersHiddenPostsAndAuthors(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	base := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
+
+	for _, did := range []string{"did:plc:viewer", "did:plc:alice", "did:plc:bob", "did:plc:carol"} {
+		seedMember(t, pool, did)
+		seedFollow(t, pool, "did:plc:viewer", did, "follow-"+did[len("did:plc:"):])
+	}
+	visible := seedPost(t, pool, "did:plc:alice", "visible", "visible", base.Add(4*time.Minute))
+	hiddenPost := seedPost(t, pool, "did:plc:bob", "hidden-post", "hidden post", base.Add(3*time.Minute))
+	hiddenAuthorPost := seedPost(t, pool, "did:plc:carol", "hidden-author", "hidden author", base.Add(2*time.Minute))
+	seedModerationOutput(t, pool, "post", "did:plc:bob", hiddenPost, "hide", base.Add(time.Minute))
+	seedModerationOutput(t, pool, "account", "did:plc:carol", "", "takedown", base.Add(time.Minute))
+
+	store := api.NewPostStore(pool)
+	rows, cursor, err := store.ListTimeline(context.Background(), "did:plc:viewer", 20, "")
+	if err != nil {
+		t.Fatalf("ListTimeline: %v", err)
+	}
+	if cursor != "" {
+		t.Fatalf("cursor = %q, want empty", cursor)
+	}
+	got := timelineURIs(rows)
+	if !slices.Contains(got, visible) {
+		t.Fatalf("timeline URIs = %v, want visible %s", got, visible)
+	}
+	if slices.Contains(got, hiddenPost) || slices.Contains(got, hiddenAuthorPost) {
+		t.Fatalf("timeline URIs = %v, leaked hidden rows", got)
+	}
+}
+
+func TestTimelineStore_ListTimeline_FiltersBeforeLimitForDeterministicPagination(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	base := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
+
+	for _, did := range []string{"did:plc:viewer", "did:plc:alice"} {
+		seedMember(t, pool, did)
+	}
+	seedFollow(t, pool, "did:plc:viewer", "did:plc:alice", "follow-alice")
+	hiddenNewest := seedPost(t, pool, "did:plc:alice", "hidden-newest", "hidden newest", base.Add(5*time.Minute))
+	visibleFirst := seedPost(t, pool, "did:plc:alice", "visible-first", "visible first", base.Add(4*time.Minute))
+	visibleSecond := seedPost(t, pool, "did:plc:alice", "visible-second", "visible second", base.Add(3*time.Minute))
+	visibleThird := seedPost(t, pool, "did:plc:alice", "visible-third", "visible third", base.Add(2*time.Minute))
+	seedModerationOutput(t, pool, "post", "did:plc:alice", hiddenNewest, "hide", base.Add(time.Minute))
+
+	store := api.NewPostStore(pool)
+	rows, cursor, err := store.ListTimeline(context.Background(), "did:plc:viewer", 2, "")
+	if err != nil {
+		t.Fatalf("ListTimeline: %v", err)
+	}
+	if got := timelineURIs(rows); !slices.Equal(got, []string{visibleFirst, visibleSecond}) {
+		t.Fatalf("page1 URIs = %v, want first two visible rows", got)
+	}
+	if cursor == "" {
+		t.Fatal("cursor = empty, want next page cursor")
+	}
+	page2, cursor2, err := store.ListTimeline(context.Background(), "did:plc:viewer", 2, cursor)
+	if err != nil {
+		t.Fatalf("ListTimeline page2: %v", err)
+	}
+	if got := timelineURIs(page2); !slices.Equal(got, []string{visibleThird}) {
+		t.Fatalf("page2 URIs = %v, want final visible row", got)
+	}
+	if cursor2 != "" {
+		t.Fatalf("cursor2 = %q, want empty", cursor2)
+	}
+}
+
 func TestTimelineStore_ListTimeline_ExcludesConversationAndRepostActivity(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, timelineStoreDDL)

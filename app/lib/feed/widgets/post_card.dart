@@ -4,6 +4,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
@@ -26,8 +27,10 @@ class PostCard extends StatelessWidget {
     this.onLike,
     this.onRepost,
     this.onDelete,
+    this.onReport,
     this.deleteTooltip,
     this.deleteLabel,
+    this.reportLabel,
     this.replyTooltip,
     this.showRepostAction = true,
     this.showReplyCount = true,
@@ -42,8 +45,10 @@ class PostCard extends StatelessWidget {
   final VoidCallback? onLike;
   final VoidCallback? onRepost;
   final VoidCallback? onDelete;
+  final VoidCallback? onReport;
   final String? deleteTooltip;
   final String? deleteLabel;
+  final String? reportLabel;
   final String? replyTooltip;
   final bool showRepostAction;
   final bool showReplyCount;
@@ -135,6 +140,10 @@ class PostCard extends StatelessWidget {
                       ),
                       SizedBox(height: spacing.sp3),
                     ],
+                    if (post.moderation?.warningKind case final kind?) ...[
+                      ModerationWarningBanner(warningKind: kind),
+                      SizedBox(height: spacing.sp3),
+                    ],
                     Text(post.text, style: theme.textTheme.bodyLarge),
                     SizedBox(height: spacing.sp2),
                     if (!isFlat) const CraftskyDivider(),
@@ -181,8 +190,10 @@ class PostCard extends StatelessWidget {
                         const Spacer(),
                         _PostCardMenu(
                           onDelete: onDelete,
+                          onReport: onReport,
                           tooltip: deleteTooltip,
                           label: deleteLabel,
+                          reportLabel: reportLabel,
                         ),
                       ],
                     ),
@@ -279,11 +290,19 @@ class _PostCardTime extends StatelessWidget {
 }
 
 class _PostCardMenu extends StatelessWidget {
-  const _PostCardMenu({required this.onDelete, this.tooltip, this.label});
+  const _PostCardMenu({
+    required this.onDelete,
+    required this.onReport,
+    this.tooltip,
+    this.label,
+    this.reportLabel,
+  });
 
   final VoidCallback? onDelete;
+  final VoidCallback? onReport;
   final String? tooltip;
   final String? label;
+  final String? reportLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -295,6 +314,12 @@ class _PostCardMenu extends StatelessWidget {
         groups: [
           CraftskyContextMenuGroup(
             items: [
+              if (onReport != null)
+                CraftskyContextMenuItem(
+                  text: reportLabel ?? l10n.postReportAction,
+                  icon: Icons.flag_outlined,
+                  onPressed: onReport,
+                ),
               if (onDelete != null)
                 CraftskyContextMenuItem(
                   text: label ?? l10n.postDeleteAction,

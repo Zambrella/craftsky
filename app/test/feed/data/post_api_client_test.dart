@@ -4,6 +4,7 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -606,6 +607,52 @@ void main() {
       await client.unrepostPost(aliceDid, postRkey);
 
       expect(repost.subject.cid, 'bafy123');
+    });
+  });
+
+  group('PostApiClient.reportPost', () {
+    test('POSTs report body and parses accepted response', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onPost(
+        '/v1/posts/did:plc:alice/3lf2abc/reports',
+        (server) => server.reply(201, {
+          'reportId': 'report-post-1',
+          'status': 'accepted',
+        }),
+        data: {'reasonType': 'spam', 'details': 'private details'},
+      );
+
+      final result = await PostApiClient(dio).reportPost(
+        aliceDid,
+        postRkey,
+        const ReportSubmission(
+          reasonType: 'spam',
+          details: 'private details',
+        ),
+      );
+
+      expect(result.reportId, 'report-post-1');
+      expect(result.status, 'accepted');
+    });
+
+    test('omits details when report details are absent', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onPost(
+        '/v1/posts/did:plc:alice/3lf2abc/reports',
+        (server) => server.reply(201, {
+          'reportId': 'report-post-2',
+          'status': 'accepted',
+        }),
+        data: {'reasonType': 'other'},
+      );
+
+      final result = await PostApiClient(dio).reportPost(
+        aliceDid,
+        postRkey,
+        const ReportSubmission(reasonType: 'other'),
+      );
+
+      expect(result.status, 'accepted');
     });
   });
 }

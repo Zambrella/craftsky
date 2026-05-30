@@ -1,4 +1,5 @@
 import 'package:craftsky_app/bootstrap.dart';
+import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/data/profile_api_client.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
@@ -163,5 +164,28 @@ void main() {
     expect(followers.totalCount, 0);
     expect(following.totalCount, 0);
     expect(adapter, isNotNull);
+  });
+
+  test('POST profile report body and parses accepted response', () async {
+    final dio = buildDio();
+    DioAdapter(dio: dio).onPost(
+      '/v1/profiles/@bob.craftsky.social/reports',
+      (server) => server.reply(201, {
+        'reportId': 'report-profile-1',
+        'status': 'accepted',
+      }),
+      data: {'reasonType': 'impersonation', 'details': 'private details'},
+    );
+
+    final result = await ProfileApiClient(dio).reportProfile(
+      'bob.craftsky.social',
+      const ReportSubmission(
+        reasonType: 'impersonation',
+        details: 'private details',
+      ),
+    );
+
+    expect(result.reportId, 'report-profile-1');
+    expect(result.status, 'accepted');
   });
 }

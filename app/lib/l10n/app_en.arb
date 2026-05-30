@@ -484,6 +484,9 @@
   "postDeleteAction": "Delete post",
   "@postDeleteAction": { "description": "Tooltip and menu label for deleting a post." },
 
+  "postReportAction": "Report post",
+  "@postReportAction": { "description": "Menu label for reporting a post." },
+
   "postMoreActions": "More actions",
   "@postMoreActions": { "description": "Tooltip for opening a post, comment, or reply context menu when no destructive action label applies." },
 
@@ -528,6 +531,66 @@
 
   "profileShareComingSoon": "Share coming soon.",
   "@profileShareComingSoon": { "description": "Snackbar shown when tapping Share while share wiring isn't implemented yet." },
+
+  "profileReportAction": "Report profile",
+  "@profileReportAction": { "description": "Tooltip/action label for reporting a visitor profile." },
+
+  "moderationWarningPost": "This post may not follow Craftsky community guidelines.",
+  "@moderationWarningPost": { "description": "Generic inline warning copy for a warned post." },
+
+  "moderationWarningProfile": "This profile may not follow Craftsky community guidelines.",
+  "@moderationWarningProfile": { "description": "Generic inline warning copy for a warned profile." },
+
+  "moderationWarningAuthor": "This author may not follow Craftsky community guidelines.",
+  "@moderationWarningAuthor": { "description": "Generic inline warning copy for posts by a warned author." },
+
+  "reportSubmit": "Submit",
+  "@reportSubmit": { "description": "Primary action label in the report dialog/sheet." },
+
+  "reportSubmitting": "Submitting…",
+  "@reportSubmitting": { "description": "Primary action label while a report submission is in flight." },
+
+  "reportSubmitSuccess": "Thanks — your report was submitted.",
+  "@reportSubmitSuccess": { "description": "Snackbar shown after a report submission succeeds." },
+
+  "reportSubmitError": "Couldn't submit report. Please try again.",
+  "@reportSubmitError": { "description": "Inline error shown when a report submission fails and can be retried." },
+
+  "reportDetailsLabel": "Details (optional)",
+  "@reportDetailsLabel": { "description": "Label for optional private details text field in the report dialog/sheet." },
+
+  "reportDetailsTooLong": "Details must be 1000 characters or fewer.",
+  "@reportDetailsTooLong": { "description": "Validation error when optional report details exceed the maximum length." },
+
+  "reportReasonHarassment": "Harassment",
+  "@reportReasonHarassment": { "description": "Report reason label for harassment." },
+
+  "reportReasonHate": "Hate",
+  "@reportReasonHate": { "description": "Report reason label for hate." },
+
+  "reportReasonSpam": "Spam",
+  "@reportReasonSpam": { "description": "Report reason label for spam." },
+
+  "reportReasonMisleading": "Misleading",
+  "@reportReasonMisleading": { "description": "Report reason label for misleading content." },
+
+  "reportReasonSuspectedAiGenerated": "Suspected AI-generated",
+  "@reportReasonSuspectedAiGenerated": { "description": "Report reason label for suspected AI-generated content." },
+
+  "reportReasonAdultOrGraphic": "Adult or graphic",
+  "@reportReasonAdultOrGraphic": { "description": "Report reason label for adult or graphic content." },
+
+  "reportReasonImpersonation": "Impersonation",
+  "@reportReasonImpersonation": { "description": "Report reason label for impersonation." },
+
+  "reportReasonOffTopic": "Off-topic",
+  "@reportReasonOffTopic": { "description": "Report reason label for off-topic content." },
+
+  "reportReasonIntellectualProperty": "Intellectual property",
+  "@reportReasonIntellectualProperty": { "description": "Report reason label for intellectual-property concerns." },
+
+  "reportReasonOther": "Other",
+  "@reportReasonOther": { "description": "Report reason label for other concerns." },
 
   "editProfileTitle": "Edit profile",
   "@editProfileTitle": { "description": "App-bar title on the profile-edit page." },

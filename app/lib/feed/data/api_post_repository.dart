@@ -5,6 +5,8 @@ import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/moderation/models/report_result.dart';
+import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 /// Production [PostRepository] backed by the AppView HTTP API.
@@ -25,6 +27,13 @@ class ApiPostRepository implements PostRepository {
 
   @override
   Future<void> delete(Did did, RecordKey rkey) => _api.deletePost(did, rkey);
+
+  @override
+  Future<ReportResult> report(
+    Did did,
+    RecordKey rkey,
+    ReportSubmission submission,
+  ) => _api.reportPost(did, rkey, submission);
 
   @override
   Future<ReplyPage> listCommentBranchReplies(

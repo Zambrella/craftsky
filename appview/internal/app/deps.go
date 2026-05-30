@@ -51,6 +51,10 @@ type Deps struct {
 	ProfileStore *api.ProfileStore
 	// FollowStore serves follow graph read/write operations for /v1/profiles/*/follows.
 	FollowStore *api.FollowStore
+	// ReportStore persists AppView-private moderation report intake.
+	ReportStore *api.ReportStore
+	// ReportForwarder prepares future report forwarding metadata without live PDS/Ozone submission.
+	ReportForwarder api.ReportForwarder
 	// NewPDSClient produces a PDSClient bound to an OAuth session. Shared
 	// by the OAuth callback's InitializeProfile step and the write-proxy
 	// handlers (today PUT /v1/profiles/me).
@@ -149,6 +153,8 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 
 	deps.ProfileStore = api.NewProfileStore(pool, anonPDS)
 	deps.FollowStore = api.NewFollowStore(pool)
+	deps.ReportStore = api.NewReportStore(pool)
+	deps.ReportForwarder = api.NewPlaceholderReportForwarder(time.Now)
 	deps.NewPDSClient = func(ctx context.Context, did syntax.DID, sid string) (auth.PDSClient, error) {
 		sess, err := oauthApp.ResumeSession(ctx, did, sid)
 		if err != nil {
