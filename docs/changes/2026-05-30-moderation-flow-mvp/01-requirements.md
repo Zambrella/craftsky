@@ -95,6 +95,18 @@ Answer: Configurable `CRAFTSKY_DEV_LABELER_DID`, with a safe local default only 
 
 Decision / implication: The synthetic endpoint should accept or default the source DID only within dev/test constraints.
 
+### Q11: Should server-side direct self-report requests be rejected?
+
+Answer: Yes.
+
+Decision / implication: AppView should reject post/profile report submissions where the authenticated reporter DID is the reported post author or reported account, even though Flutter also hides self-report actions.
+
+### Q12: How should notifications referencing hidden/taken-down subjects or actors behave?
+
+Answer: Omit them.
+
+Decision / implication: Notification list APIs should filter out notifications whose subject or actor is hidden/taken down by active moderation output, rather than returning unavailable placeholder notifications.
+
 ## 4. Candidate Approaches
 
 ### Option A: Local report queue + synthetic labels + enforcement
@@ -212,12 +224,12 @@ After the change, signed-in users can report posts and profiles/accounts. AppVie
 | BR-001 | Business | Must | Craftsky shall provide a user-facing report flow for posts and profiles/accounts. | Users need a safety intake path before broader testing. | Prompt / User feedback | AC-001, AC-002, AC-021 |
 | BR-002 | Business | Must | Craftsky shall keep report submissions private in AppView Postgres and shall not write report records to user PDS repositories in this MVP. | Reports are private-by-intent and PDS data is public. | AGENTS.md / Reference doc / Prompt | AC-003, AC-004, AC-022 |
 | BR-003 | Business | Must | Craftsky shall preserve future Ozone/PDS integration seams without performing live Ozone or PDS report submission. | Allows staged implementation without blocking on Ozone. | Prompt | AC-005, AC-006 |
-| BR-004 | Business | Must | Craftsky shall enforce indexed hide/takedown moderation outputs in product read APIs. | Ozone-like actions must affect reach once indexed. | User answer | AC-012, AC-013, AC-014, AC-015, AC-016 |
+| BR-004 | Business | Must | Craftsky shall enforce indexed hide/takedown moderation outputs in product read APIs. | Ozone-like actions must affect reach once indexed. | User answer | AC-012, AC-013, AC-014, AC-015, AC-016, AC-033 |
 | BR-005 | Business | Must | Craftsky shall support warning moderation outputs without exposing raw report or label reason text to users. | Users need context, but raw reasons may be sensitive. | User answer | AC-017, AC-018 |
 | FR-001 | Functional | Must | The AppView shall expose `POST /v1/posts/{did}/{rkey}/reports` for authenticated post reports. | Post reporting is core moderation intake. | Recommended direction | AC-001, AC-003, AC-007 |
 | FR-002 | Functional | Must | The AppView shall expose `POST /v1/profiles/{handleOrDid}/reports` for authenticated profile/account reports. | Profile/account reporting is in scope. | User feedback | AC-002, AC-003, AC-008 |
 | FR-003 | Functional | Must | Report endpoints shall require the existing authenticated + device-id middleware stack. | Matches API conventions for product write endpoints. | Codebase / API spec | AC-009 |
-| FR-004 | Functional | Must | Report request validation shall reject malformed JSON, invalid path identifiers, unsupported reason types, and report details longer than 1,000 characters. | Prevents bad data and oversized private text. | User answer / API spec | AC-010, AC-011 |
+| FR-004 | Functional | Must | Report request validation shall reject malformed JSON, invalid path identifiers, unsupported reason types, report details longer than 1,000 characters, and direct self-report attempts. | Prevents bad data, oversized private text, and appeal/self-report complexity. | User answer / API spec | AC-010, AC-011, AC-034 |
 | FR-005 | Functional | Must | AppView shall validate that a reported post exists in the AppView index before storing a post report. | Prevents reports for unknown post targets. | Codebase / Discovery | AC-007 |
 | FR-006 | Functional | Must | AppView shall resolve and validate a reported profile/account target before storing an account report. | Prevents malformed or unresolvable account targets. | User feedback / Codebase | AC-008 |
 | FR-007 | Functional | Must | AppView shall persist report submissions with reporter DID, subject identity, reason type, optional details, optional device ID, timestamps, and forwarding status. | Provides a private audit/intake queue and future forwarding state. | Recommended direction | AC-003, AC-004 |
@@ -238,6 +250,7 @@ After the change, signed-in users can report posts and profiles/accounts. AppVie
 | FR-022 | Functional | Must | Flutter shall render generic localized warning copy for warned posts/profiles and must not render raw server-side reason text. | Protects sensitive moderation context. | User answer | AC-017, AC-018, AC-030 |
 | FR-023 | Functional | Should | AppView shall support negated moderation outputs cancelling prior matching active outputs. | Needed for reversible synthetic/Ozone decisions. | Recommended direction | AC-024 |
 | FR-024 | Functional | Should | AppView shall treat expired moderation outputs as inactive. | Future-compatible label semantics. | Recommended direction | AC-024 |
+| FR-025 | Functional | Must | Notification list APIs shall omit notifications whose subject or actor is hidden/taken down by active moderation output. | Prevents moderated subjects and actors from leaking through notifications. | User feedback | AC-033 |
 | NFR-001 | Non-functional | Must | The synthetic moderation endpoint shall be impossible to register in production configuration. | Prevents production abuse. | User answer / Risk review | AC-020 |
 | NFR-002 | Non-functional | Must | Report details and synthetic/internal reasons shall not be surfaced as end-user copy. | Protects reporter/moderator privacy. | User answer | AC-030 |
 | NFR-003 | Non-functional | Should | Moderation enforcement should be applied in store/query paths rather than only in Flutter. | Prevents hidden content from leaking across clients. | Architecture | AC-012, AC-013, AC-014, AC-015, AC-016 |
@@ -283,6 +296,8 @@ After the change, signed-in users can report posts and profiles/accounts. AppVie
 | AC-030 | FR-022, NFR-002 | Given moderation metadata includes internal reason text, when Flutter renders warnings, then user-visible copy is generic/localized and raw reason text is not displayed. |
 | AC-031 | NFR-004 | Given a paginated read returns multiple posts/profiles, when moderation policy is applied, then implementation avoids per-row remote calls and uses local indexed state. |
 | AC-032 | RULE-001 | Given different users report the same post/profile or the same user reports a subject again later, when requests are valid, then the server does not reject them solely due to an existing report row. |
+| AC-033 | BR-004, FR-025, NFR-003 | Given a notification references a hidden/taken-down subject or actor, when notification list APIs are requested, then that notification is omitted. |
+| AC-034 | FR-004 | Given a user directly submits a report request for their own post or own profile/account, when AppView validates the request, then AppView rejects it with the standard error envelope and does not persist a report. |
 
 ## 14. Edge Cases
 
@@ -299,7 +314,7 @@ After the change, signed-in users can report posts and profiles/accounts. AppVie
 | EC-009 | Synthetic output expires. | Expired output is not enforced. | FR-024 |
 | EC-010 | Account-level hide applies to an author with otherwise visible posts. | Author profile direct read returns 404 and their posts are omitted from enforced list/direct read surfaces. | FR-014, FR-016 |
 | EC-011 | Account-level warn applies to an author. | Profile page and authored post cards show generic warning copy. | FR-018, FR-022 |
-| EC-012 | Notification references hidden/taken-down post or actor. | Notification subject is omitted or handled with unavailable-safe behavior; exact tests should lock the chosen implementation. | FR-013, FR-014 |
+| EC-012 | Notification references hidden/taken-down post or actor. | Notification is omitted from notification list API results. | FR-025 |
 
 ## 15. Data / Persistence Impact
 
@@ -340,8 +355,8 @@ After the change, signed-in users can report posts and profiles/accounts. AppVie
   - Synthetic endpoint must be dev-only and explicit-flag-gated.
 - Authorization:
   - Users may report other users' posts/profiles.
+  - AppView rejects direct self-report requests for the authenticated user's own post/profile.
   - Flutter should not offer report actions for own posts/profiles in this MVP.
-  - Server may still reject self-reports if submitted directly; test design should decide and cover the chosen behavior.
 - Sensitive data:
   - Report details and internal synthetic reasons are private AppView data.
   - Raw reasons must not be displayed in Flutter warning UI.
@@ -390,19 +405,17 @@ After the change, signed-in users can report posts and profiles/accounts. AppVie
 
 ## 21. Open Questions
 
-- [ ] Non-blocking: Should server-side direct self-report requests be rejected even though Flutter hides self-report actions?
-- [ ] Non-blocking: For notifications referencing hidden/taken-down subjects or actors, should the endpoint omit them or return an unavailable-safe notification shape?
 - [ ] Non-blocking: Should `forwarding_payload` be persisted, partially persisted, or recomputed later to minimize private-data retention?
 - [ ] Non-blocking: What exact generic warning copy should appear for warned posts vs warned accounts?
 
 ## 22. Review Status
 
-Status: Approved direction; requirements draft
+Status: Approved direction; requirements draft with annotation updates
 Risk level: High
 Review recommended: Required
 Reviewer: User plan review via planning gate
 Date: 2026-05-30
-Notes: The plan was approved with changes: include profile/account reports, apply hide/takedown enforcement to post/profile read APIs, return 404 for hidden direct post/profile fetches, gate synthetic endpoint by dev env plus explicit config, allow multiple reports, cap report details at 1,000 characters, and use generic localized warning copy.
+Notes: The plan was approved with changes: include profile/account reports, apply hide/takedown enforcement to post/profile read APIs, return 404 for hidden direct post/profile fetches, gate synthetic endpoint by dev env plus explicit config, allow multiple reports, cap report details at 1,000 characters, use generic localized warning copy, reject direct self-report attempts server-side, and omit notifications that reference hidden/taken-down subjects or actors.
 
 ## 23. Handoff To Test Design
 
@@ -410,7 +423,7 @@ Notes: The plan was approved with changes: include profile/account reports, appl
 - Next test specification: `02-acceptance-tests.md`
 - Must-cover requirement IDs:
   - Business: `BR-001` through `BR-005`
-  - Functional: `FR-001` through `FR-022`
+  - Functional: `FR-001` through `FR-025`
   - Non-functional: `NFR-001`, `NFR-002`
   - Rules: `RULE-001` through `RULE-004`
 - Suggested test levels:
