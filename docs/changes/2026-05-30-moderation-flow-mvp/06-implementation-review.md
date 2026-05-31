@@ -3,59 +3,60 @@
 ## Verdict
 Status: Changes required
 Reviewer: gpt-5.5 implementation reviewer
-Date: 2026-05-30
+Date: 2026-05-31
 Risk level: High
 
 ## Summary
-The implementation covers a large part of the planned AppView and Flutter surface, and the focused AppView and Flutter test commands pass. However, several Must requirements are not actually implemented or not protected by tests. The most significant gaps are that the dev synthetic moderation endpoint still returns `501 not_implemented` for valid requests, profile reports submitted by handle fail server-side even though Flutter sends handles, and several post/profile/thread list surfaces still leak hide/takedown-moderated posts or authors.
+Re-reviewed the implementation after the review-fix commit `553a038 fix: address moderation flow review`. The previous blocking findings are largely addressed: the dev synthetic moderation route now persists valid trusted outputs, handle-based profile reports for indexed Craftsky profiles are covered, profile-authored post/comment and thread/comment filtering gained tests, and the focused AppView, full AppView, and focused Flutter test commands pass.
 
-Because these gaps affect required moderation intake, required synthetic ingestion, and required server-side read enforcement, the change is not ready for merge or handoff as complete.
+However, a Must profile-enforcement gap remains. `ProfileStore.Read` applies account hide/takedown filtering only to the `craftsky_profiles` query, then falls back to `readNonCraftsky` when that filtered query returns no rows. A hidden/taken-down Craftsky account that also has a `bluesky_profiles` cache row, or a hidden/taken-down non-Craftsky account, can therefore still be returned as a non-Craftsky profile. The same fallback path also misses account-level warn metadata. Related profile report eligibility is still limited to `craftsky_profiles`, even though the profile page can display non-Craftsky profiles from `bluesky_profiles`/hydration.
+
+Because this affects required direct profile hide/takedown behavior and account-level profile warnings, the implementation is not ready to merge as complete.
 
 ## Findings
 | ID | Severity | Area | Finding | References | Required Action |
 |---|---|---|---|---|---|
-| IR-001 | Critical | Behavior / Tests | `POST /v1/dev/moderation/ozone-events` is registered behind the dev/token gate, but a valid dev-token request returns `501 not_implemented` and never decodes or persists the moderation output. This leaves the required synthetic Ozone-like ingestion seam unusable. Existing tests cover config/token gating plus request/store units, but not the valid route-to-persistence path. | `FR-009` through `FR-012`, `AC-019`, `AC-023`, `AC-036`; `02-acceptance-tests.md` `AT-006`, `IT-017`; `appview/internal/api/moderation.go`; `appview/internal/routes/routes.go`; `appview/internal/app/deps.go` | Wire a `ModerationStore` and moderation request config into deps/routes; update the dev handler to validate one request, enforce trusted/default source DID, insert the output, and return `201 {"outputId":"...","status":"indexed"}`. Add a handler/route test proving a valid fully-enabled request persists exactly one output and invalid/untrusted requests do not mutate state. |
-| IR-002 | Critical | Behavior / Traceability | Profile report flow does not work for handles. Flutter submits `/v1/profiles/@{handle}/reports`, but `ProfileStore.ResolveAccountReportTarget` only parses DIDs and returns `ErrProfileNotFound` for handles, and `ReportProfileHandler` is not given a handle resolver. This violates the handle-or-DID profile report contract and the primary profile report UX. | `FR-002`, `FR-006`, `AC-002`, `AC-008`, `AC-044`; `04-coding-plan.md` §5.2; `app/lib/profile/data/profile_api_client.dart`; `app/lib/profile/pages/profile_page.dart`; `appview/internal/api/profile_store.go`; `appview/internal/api/report.go`; `appview/internal/routes/routes.go` | Add handle-or-DID resolution for profile reports before persistence, canonicalize to the target DID, keep the submitted-handle snapshot when applicable, and preserve hidden-but-indexed report eligibility. Add integration tests with a real resolver/store path for reporting by handle, reporting by DID, malformed identifiers, unresolvable profiles, and hidden-but-indexed accounts. |
-| IR-003 | Critical | Behavior / Risk | Hide/takedown enforcement is incomplete on required list surfaces. `ListByAuthor` and `ListCommentsByAuthor` do not apply `postVisibleModerationPredicate`, `ListRootComments` does not apply moderation filtering, `ListCommentBranchReplies` / `ListCommentBranchRepliesAround` filter after the recursive page `LIMIT`, and `ReadPostByURI` can return hidden rows for focus/parent hydration. Hidden posts or posts by hidden authors can therefore appear in profile post/comment tabs and thread/comment APIs, and pagination can skip visible rows after hidden rows. | `BR-004`, `FR-013`, `FR-014`, `FR-015`, `NFR-003`, `NFR-004`, `RULE-003`; `AC-012`, `AC-013`, `AC-014`, `AC-040`; `02-acceptance-tests.md` `AT-007`, `IT-010`, `IT-011`, `IT-019`; `appview/internal/api/post_store.go` | Apply hide/takedown predicates before cursor/ordering/limit on all profile-authored and thread/comment list queries. Ensure focus/parent URI hydration cannot reintroduce hidden/taken-down rows into responses. Add failing tests for profile posts, profile comments, root comments, branch replies, focus-on-hidden targets, account-level hide, and pagination where hidden rows precede visible rows. |
-| IR-004 | Important | Tests / Traceability | The implementation plan marks all Must tests complete, but the current automated suite does not cover the gaps above: no valid synthetic route ingestion test, no profile-report-by-handle server integration test, and no moderation enforcement tests for profile authored lists or root/branch comment lists. The passing test evidence is therefore insufficient for the Must acceptance criteria. | `05-implementation-plan.md` Steps 8, 10, 17, 18; `02-acceptance-tests.md` `AT-002`, `AT-006`, `AT-007`, `IT-010`, `IT-011`, `IT-017`, `IT-019` | Extend the red phase before fixing each behavior gap. Update `05-implementation-plan.md` only if needed to accurately record the additional TDD loops and final evidence. |
+| IR-005 | Critical | Behavior / Risk | Direct profile moderation can be bypassed through the non-Craftsky fallback path. `ProfileStore.Read` filters hidden/taken-down `craftsky_profiles`, but on `pgx.ErrNoRows` it calls `readNonCraftsky`; if a hidden Craftsky account has a `bluesky_profiles` row, or an account-level output targets a non-Craftsky profile, the profile can be returned instead of `404 profile_not_found`. Warn-only account outputs also are not attached to non-Craftsky profile rows. | `BR-004`, `BR-005`, `FR-016`, `FR-018`, `AC-016`, `AC-018`, `AC-039`; `appview/internal/api/profile_store.go` `Read`, `readNonCraftsky`, `readNonCraftskyCached`; existing `TestProfileStore_ReadByDID_HiddenAccountReturnsNotFound` lacks a `bluesky_profiles` row/fallback case. | Check active account moderation before falling back to non-Craftsky profile reads/hydration. Return `ErrProfileNotFound` for active hide/takedown regardless of Craftsky-vs-Bluesky profile source, and attach generic `profile` warning metadata for warn-only non-Craftsky profiles. Add tests for hidden Craftsky profile with a Bluesky cache row, hidden/taken-down non-Craftsky profile, and warn-only non-Craftsky profile metadata. |
+| IR-006 | Important | Behavior / Traceability | Profile report target resolution remains narrower than the profile surface: `ResolveAccountReportTarget` only accepts DIDs present in `craftsky_profiles`. A user can view a non-Craftsky profile through the existing profile read fallback, but reporting that profile by handle/DID will still return `profile_not_found`. | `BR-001`, `FR-002`, `FR-006`, `RULE-005`, `AC-002`, `AC-008`, `AC-044`; `appview/internal/api/profile_store.go` `ResolveAccountReportTarget`, `ProfileReportTargetResolver`; `04-coding-plan.md` §5.2. | Expand report-target validation to the same account-existence sources the profile page can display, while still bypassing moderation visibility for stale/race reports and preserving the submitted handle snapshot. Add tests for reporting a cached/hydratable non-Craftsky profile by handle and DID, plus unresolvable identity failure behavior. |
 
 ## Requirement And Test Traceability
-- Requirements implemented: Private report persistence, report request validation/detail normalization, placeholder forwarding metadata without PDS submission, report response privacy, report route middleware, dev moderation config/token gating, moderation output store/policy units, timeline/direct post/direct profile/notification hide filtering, warning metadata, Flutter report entry points/providers/sheet, and generic warning rendering are partially or fully implemented.
-- Tests implemented: Focused AppView API/routes/app tests and focused Flutter feed/profile/moderation/notifications tests are present and passing for the covered paths.
-- Unplanned behavior: None identified as an intentional product expansion; the main issue is incomplete planned behavior.
-- Remaining gaps: Valid synthetic route ingestion, profile reports by handle, full read-path hide/takedown enforcement for profile-authored and thread/comment list surfaces, and related regression tests.
+- Requirements implemented: Private report persistence, report validation/detail normalization, placeholder forwarding metadata, report route middleware, minimal report responses, dev moderation config/token gating, valid synthetic route persistence, moderation output store/policy semantics, post/timeline/thread/notification hide filtering, warning metadata for Craftsky post/profile responses, Flutter report flows, duplicate-submit prevention, and generic warning rendering.
+- Tests implemented: The review-fix loops added coverage for prior findings IR-001 through IR-004: valid synthetic route-to-store persistence, profile report handle resolution for indexed Craftsky profiles, and additional profile-authored/thread/comment filtering tests.
+- Unplanned behavior: None identified as a deliberate product expansion.
+- Remaining gaps: Account-level profile moderation is incomplete for `readNonCraftsky` fallback paths, and profile reports do not cover profiles that are readable only through the non-Craftsky profile path.
 
 ## Test Evidence
-- Commands reviewed:
-  - `TEST_DATABASE_URL='postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable' go test ./internal/api ./internal/routes ./internal/app` from `appview/`
-  - `flutter test test/feed test/profile test/moderation test/notifications` from `app/`
-  - Recorded implementation evidence in `05-implementation-plan.md`
+- Commands reviewed and run:
+  - From `appview/`: `TEST_DATABASE_URL='postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable' go test ./internal/api ./internal/routes ./internal/app`
+  - From repo root: `just test`
+  - From `app/`: `flutter test test/feed test/profile test/moderation test/notifications`
+  - Repository state/history: `git status --short`, `git log --oneline -10`, `git show --stat HEAD`
 - Passing evidence:
-  - AppView focused command passed.
-  - Flutter focused command passed (`All tests passed!`).
+  - Focused AppView packages passed.
+  - Full AppView `just test` race suite passed.
+  - Focused Flutter feed/profile/moderation/notifications tests passed.
 - Failing or skipped tests:
-  - No current automated test fails, but coverage is missing for the blocking behavior gaps above.
-  - Manual checks `MAN-001` through `MAN-004` were documented as not run; rerun or complete them after blocking fixes.
+  - No automated test failed during review.
+  - Coverage is missing for the profile fallback moderation gaps above.
+  - Manual checks `MAN-001` through `MAN-004` remain not run by this agent and should stay as human/local follow-up.
 
 ## Risk Review
 - Risk level: High
-- Risk notes: This change affects private safety data, dev-only mutation controls, and server-side content suppression. The incomplete synthetic endpoint prevents local/dev moderation-output ingestion, and incomplete read-path filtering can leak hidden content through existing product APIs.
-- Approval notes: Do not approve until the missing Must behavior and tests are addressed. The existing privacy boundaries for report response bodies and warning metadata look directionally correct, but they need to be re-verified after the required fixes.
+- Risk notes: This feature controls private safety reports, dev-only moderation mutation, and server-side content suppression. The previous synthetic ingestion and post-list filtering blockers are fixed, but direct profile enforcement still has a bypass for cached/hydrated non-Craftsky profile rows.
+- Approval notes: Do not approve until account-level hide/takedown and warn behavior is applied consistently across Craftsky and non-Craftsky profile read paths, and profile report eligibility is aligned with the readable profile surface.
 
 ## UI Polish Recommendation
 - Recommendation: Optional
-- Reason: The implementation includes user-facing report UI and warning banners. The blocking findings are behavioral/server-side, not polish-level UI defects.
-- Suggested polish notes: After the required fixes pass, a small polish pass could review the report sheet layout, accessibility semantics, in-flight state affordance, and warning banner visual treatment. Do not run polish before the blocking behavior issues are fixed unless the user explicitly chooses to do so.
+- Reason: The feature includes user-facing report sheets and warning banners. The current blocking issues are AppView behavior/traceability issues, not polish-level UI defects.
+- Suggested polish notes: After behavioral fixes, a small polish pass could review report sheet spacing, button affordance while submitting, long reason-list scrolling, and warning banner color/contrast. Do not use polish to change report behavior or acceptance criteria.
 
 ## Handoff Back To TDD Builder
 - Required fixes:
-  1. Complete valid dev synthetic moderation ingestion through the registered route.
-  2. Fix profile report handle-or-DID resolution and persistence snapshots.
-  3. Complete hide/takedown filtering before pagination for profile-authored and thread/comment read surfaces, including focus/parent hydration paths.
-  4. Add regression tests that fail before each fix and pass after.
-- Suggested next failing test: Start with `IT-017`/`AT-006` route-level coverage proving a valid `POST /v1/dev/moderation/ozone-events` persists one output and returns `201 indexed`.
+  1. Apply account-level hide/takedown and warn policy before or inside `readNonCraftsky` fallback so direct profile reads cannot bypass moderation.
+  2. Add tests for hidden/taken-down Craftsky profiles with Bluesky cache rows, hidden/taken-down non-Craftsky profiles, and warn-only non-Craftsky profiles.
+  3. Expand profile report target resolution/tests to cover profiles readable through the non-Craftsky profile path.
+- Suggested next failing test: `TestProfileStore_ReadByDID_HiddenAccountWithBlueskyProfileReturnsNotFound`, followed by a non-Craftsky warn metadata test.
 - Verification to rerun:
   - From `appview/`: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api ./internal/routes ./internal/app`
   - From repo root: `just test`
   - From `app/`: `flutter test test/feed test/profile test/moderation test/notifications`
-  - Complete/manual-review `MAN-001` through `MAN-004` after automated fixes pass.
