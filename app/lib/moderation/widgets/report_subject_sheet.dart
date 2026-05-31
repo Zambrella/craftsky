@@ -1,6 +1,9 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/report_reason.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
+import 'package:craftsky_app/theme/brand_text_field.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
@@ -13,10 +16,16 @@ class ReportSubjectSheet extends StatefulWidget {
     required this.subjectType,
     required this.onSubmit,
     super.key,
+    this.isSubmitting = false,
+    this.submitError,
+    this.onChanged,
   });
 
   final ReportSubjectType subjectType;
-  final Future<void> Function(ReportSubmission submission) onSubmit;
+  final void Function(ReportSubmission submission) onSubmit;
+  final bool isSubmitting;
+  final String? submitError;
+  final VoidCallback? onChanged;
 
   @override
   State<ReportSubjectSheet> createState() => _ReportSubjectSheetState();
@@ -30,20 +39,26 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
   final _formKey = GlobalKey<FormBuilderState>();
   ReportReason? _reason;
   String _details = '';
-  bool _isSubmitting = false;
-  String? _submitError;
 
   bool get _detailsTooLong => _details.length > _detailsMaxLength;
-  bool get _canSubmit => _reason != null && !_detailsTooLong && !_isSubmitting;
+  bool get _canSubmit =>
+      _reason != null && !_detailsTooLong && !widget.isSubmitting;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     return SafeArea(
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(spacing.sp4),
+        key: const ValueKey('reportSubjectSheetScrollView'),
+        padding: EdgeInsets.fromLTRB(
+          spacing.sp4,
+          spacing.sp4,
+          spacing.sp4,
+          spacing.sp4 + keyboardInset,
+        ),
         child: FormBuilder(
           key: _formKey,
           autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -62,10 +77,11 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
               SizedBox(height: spacing.sp3),
               FormBuilderRadioGroup<ReportReason>(
                 name: _reasonField,
-                enabled: !_isSubmitting,
+                enabled: !widget.isSubmitting,
                 decoration: const InputDecoration(
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.zero,
+                  filled: false,
                 ),
                 options: [
                   for (final reason in ReportReason.values)
@@ -77,18 +93,28 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
                 validator: FormBuilderValidators.required(),
               ),
               SizedBox(height: spacing.sp3),
-              FormBuilderTextField(
+              FormBuilderField<String>(
                 name: _detailsField,
-                maxLines: 4,
-                enabled: !_isSubmitting,
-                decoration: InputDecoration(labelText: l10n.reportDetailsLabel),
+                enabled: !widget.isSubmitting,
+                initialValue: '',
                 validator: FormBuilderValidators.maxLength(
                   _detailsMaxLength,
                   errorText: l10n.reportDetailsTooLong,
                   checkNullOrEmpty: false,
                 ),
+                builder: (field) => BrandTextField(
+                  label: l10n.reportDetailsLabel,
+                  initialValue: field.value ?? '',
+                  minLines: 4,
+                  maxLines: 4,
+                  keyboardType: TextInputType.multiline,
+                  textInputAction: TextInputAction.newline,
+                  enabled: !widget.isSubmitting,
+                  onChanged: field.didChange,
+                  errorText: field.errorText,
+                ),
               ),
-              if (_submitError case final error?) ...[
+              if (widget.submitError case final error?) ...[
                 SizedBox(height: spacing.sp2),
                 Text(
                   error,
@@ -98,11 +124,11 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
                 ),
               ],
               SizedBox(height: spacing.sp4),
-              FilledButton(
+              ChunkyButton(
                 onPressed: _canSubmit ? _submit : null,
-                child: Text(
-                  _isSubmitting ? l10n.reportSubmitting : l10n.reportSubmit,
-                ),
+                child: widget.isSubmitting
+                    ? const StitchProgressIndicator(size: 18)
+                    : Text(l10n.reportSubmit),
               ),
             ],
           ),
@@ -117,11 +143,11 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
     setState(() {
       _reason = values[_reasonField] as ReportReason?;
       _details = values[_detailsField] as String? ?? '';
-      _submitError = null;
     });
+    widget.onChanged?.call();
   }
 
-  Future<void> _submit() async {
+  void _submit() {
     if (!_canSubmit || !(_formKey.currentState?.saveAndValidate() ?? false)) {
       return;
     }
@@ -129,26 +155,12 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
     final reason = values[_reasonField]! as ReportReason;
     final details = values[_detailsField] as String? ?? '';
 
-    setState(() {
-      _isSubmitting = true;
-      _submitError = null;
-    });
-    try {
-      final trimmed = details.trim();
-      await widget.onSubmit(
-        ReportSubmission(
-          reasonType: reason.reasonType,
-          details: trimmed.isEmpty ? null : trimmed,
-        ),
-      );
-    } catch (_) {
-      if (mounted) {
-        setState(
-          () => _submitError = AppLocalizations.of(context).reportSubmitError,
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
-    }
+    final trimmed = details.trim();
+    widget.onSubmit(
+      ReportSubmission(
+        reasonType: reason.reasonType,
+        details: trimmed.isEmpty ? null : trimmed,
+      ),
+    );
   }
 }

@@ -16,6 +16,7 @@ import 'package:craftsky_app/profile/providers/profile_repository_provider.dart'
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -207,8 +208,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Spam'));
       await tester.pump();
-      await tester.ensureVisible(find.widgetWithText(FilledButton, 'Submit'));
-      await tester.tap(find.widgetWithText(FilledButton, 'Submit'));
+      await tester.ensureVisible(find.widgetWithText(ChunkyButton, 'Submit'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
       await tester.pumpAndSettle();
 
       expect(submittedTarget, 'alice.bsky.social');

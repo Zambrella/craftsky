@@ -98,7 +98,7 @@ class ProfileApiClient {
       '/v1/profiles/@$handleOrDid/reports',
       data: submission.toMap(),
     );
-    return ReportResultMapper.fromMap(res.data!);
+    return _reportResultFromMap(res.data!);
   });
 
   Future<ProfileAccountPage> listMutualFollowers(
@@ -142,4 +142,11 @@ class ProfileApiClient {
     'mimeType': blob.mimeType,
     'size': blob.size,
   };
+
+  ReportResult _reportResultFromMap(Map<String, dynamic> data) {
+    return ReportResult(
+      reportId: data['reportId'] as String,
+      status: data['status'] as String,
+    );
+  }
 }
