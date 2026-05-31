@@ -62,19 +62,20 @@ Future<void> _submitPostReport({
   required ReportSubmission submission,
   required String successMessage,
 }) async {
-  final notifier = ref.read(reportPostProvider.notifier);
-  await notifier.submit(
-    did: post.author.did,
-    rkey: post.rkey,
-    submission: submission,
-  );
+  await ref
+      .read(reportPostProvider.notifier)
+      .submit(
+        did: post.author.did,
+        rkey: post.rkey,
+        submission: submission,
+      );
   switch (ref.read(reportPostProvider)) {
     case AsyncError(:final error):
       throw error;
     case AsyncData(value: != null):
       if (sheetContext.mounted) Navigator.of(sheetContext).pop();
       if (context.mounted) context.showInfo(successMessage);
-      notifier.reset();
+      ref.read(reportPostProvider.notifier).reset();
     case _:
       break;
   }
@@ -88,15 +89,16 @@ Future<void> _submitProfileReport({
   required ReportSubmission submission,
   required String successMessage,
 }) async {
-  final notifier = ref.read(reportProfileProvider.notifier);
-  await notifier.submit(handleOrDid: handleOrDid, submission: submission);
+  await ref
+      .read(reportProfileProvider.notifier)
+      .submit(handleOrDid: handleOrDid, submission: submission);
   switch (ref.read(reportProfileProvider)) {
     case AsyncError(:final error):
       throw error;
     case AsyncData(value: != null):
       if (sheetContext.mounted) Navigator.of(sheetContext).pop();
       if (context.mounted) context.showInfo(successMessage);
-      notifier.reset();
+      ref.read(reportProfileProvider.notifier).reset();
     case _:
       break;
   }

@@ -98,7 +98,7 @@ class ProfileApiClient {
       '/v1/profiles/@$handleOrDid/reports',
       data: submission.toMap(),
     );
-    return ReportResult.fromMap(res.data!);
+    return ReportResultMapper.fromMap(res.data!);
   });
 
   Future<ProfileAccountPage> listMutualFollowers(

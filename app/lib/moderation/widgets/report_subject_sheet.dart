@@ -1,7 +1,10 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/report_reason.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_form_builder/flutter_form_builder.dart';
+import 'package:form_builder_validators/form_builder_validators.dart';
 
 enum ReportSubjectType { post, profile }
 
@@ -20,91 +23,118 @@ class ReportSubjectSheet extends StatefulWidget {
 }
 
 class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
+  static const _reasonField = 'reason';
+  static const _detailsField = 'details';
+  static const _detailsMaxLength = 1000;
+
+  final _formKey = GlobalKey<FormBuilderState>();
   ReportReason? _reason;
   String _details = '';
   bool _isSubmitting = false;
   String? _submitError;
 
-  bool get _detailsTooLong => _details.length > 1000;
+  bool get _detailsTooLong => _details.length > _detailsMaxLength;
   bool get _canSubmit => _reason != null && !_detailsTooLong && !_isSubmitting;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     return SafeArea(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              switch (widget.subjectType) {
-                ReportSubjectType.post => l10n.postReportAction,
-                ReportSubjectType.profile => l10n.profileReportAction,
-              },
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            for (final reason in ReportReason.values)
-              RadioListTile<ReportReason>(
-                title: Text(reason.label(l10n)),
-                value: reason,
-                groupValue: _reason,
-                onChanged: _isSubmitting
-                    ? null
-                    : (value) => setState(() {
-                        _reason = value;
-                        _submitError = null;
-                      }),
-              ),
-            const SizedBox(height: 12),
-            TextField(
-              maxLines: 4,
-              enabled: !_isSubmitting,
-              decoration: InputDecoration(
-                labelText: l10n.reportDetailsLabel,
-                errorText: _detailsTooLong ? l10n.reportDetailsTooLong : null,
-              ),
-              onChanged: (value) => setState(() {
-                _details = value;
-                _submitError = null;
-              }),
-            ),
-            if (_submitError case final error?) ...[
-              const SizedBox(height: 8),
+        padding: EdgeInsets.all(spacing.sp4),
+        child: FormBuilder(
+          key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          onChanged: _syncFormState,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
               Text(
-                error,
-                style:
-                    Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
+                switch (widget.subjectType) {
+                  ReportSubjectType.post => l10n.postReportAction,
+                  ReportSubjectType.profile => l10n.profileReportAction,
+                },
+                style: theme.textTheme.titleLarge,
+              ),
+              SizedBox(height: spacing.sp3),
+              FormBuilderRadioGroup<ReportReason>(
+                name: _reasonField,
+                enabled: !_isSubmitting,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                options: [
+                  for (final reason in ReportReason.values)
+                    FormBuilderFieldOption<ReportReason>(
+                      value: reason,
+                      child: Text(reason.label(l10n)),
                     ),
+                ],
+                validator: FormBuilderValidators.required(),
+              ),
+              SizedBox(height: spacing.sp3),
+              FormBuilderTextField(
+                name: _detailsField,
+                maxLines: 4,
+                enabled: !_isSubmitting,
+                decoration: InputDecoration(labelText: l10n.reportDetailsLabel),
+                validator: FormBuilderValidators.maxLength(
+                  _detailsMaxLength,
+                  errorText: l10n.reportDetailsTooLong,
+                  checkNullOrEmpty: false,
+                ),
+              ),
+              if (_submitError case final error?) ...[
+                SizedBox(height: spacing.sp2),
+                Text(
+                  error,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+              ],
+              SizedBox(height: spacing.sp4),
+              FilledButton(
+                onPressed: _canSubmit ? _submit : null,
+                child: Text(
+                  _isSubmitting ? l10n.reportSubmitting : l10n.reportSubmit,
+                ),
               ),
             ],
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _canSubmit ? _submit : null,
-              child: Text(
-                _isSubmitting ? l10n.reportSubmitting : l10n.reportSubmit,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
+  void _syncFormState() {
+    _formKey.currentState?.save();
+    final values = _formKey.currentState?.value ?? const <String, dynamic>{};
+    setState(() {
+      _reason = values[_reasonField] as ReportReason?;
+      _details = values[_detailsField] as String? ?? '';
+      _submitError = null;
+    });
+  }
+
   Future<void> _submit() async {
-    final reason = _reason;
-    if (reason == null || !_canSubmit) return;
+    if (!_canSubmit || !(_formKey.currentState?.saveAndValidate() ?? false)) {
+      return;
+    }
+    final values = _formKey.currentState!.value;
+    final reason = values[_reasonField]! as ReportReason;
+    final details = values[_detailsField] as String? ?? '';
+
     setState(() {
       _isSubmitting = true;
       _submitError = null;
     });
     try {
-      final trimmed = _details.trim();
+      final trimmed = details.trim();
       await widget.onSubmit(
         ReportSubmission(
           reasonType: reason.reasonType,

@@ -77,7 +77,7 @@ class PostApiClient {
       '/v1/posts/$did/$rkey/reports',
       data: submission.toMap(),
     );
-    return ReportResult.fromMap(res.data!);
+    return ReportResultMapper.fromMap(res.data!);
   });
 
   /// GET /v1/posts/{did}/{rkey}/replies — flattened comment branch replies.

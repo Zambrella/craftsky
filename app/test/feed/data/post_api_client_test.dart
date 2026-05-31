@@ -4,6 +4,7 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
@@ -611,6 +612,27 @@ void main() {
   });
 
   group('PostApiClient.reportPost', () {
+    test('report wire models use dart mappable serialization', () {
+      expect(
+        const ReportSubmission(
+          reasonType: 'spam',
+          details: 'private details',
+        ).toMap(),
+        {'reasonType': 'spam', 'details': 'private details'},
+      );
+      expect(
+        const ReportSubmission(reasonType: 'other').toMap(),
+        {'reasonType': 'other'},
+      );
+
+      final result = ReportResultMapper.fromMap({
+        'reportId': 'report-post-1',
+        'status': 'accepted',
+      });
+      expect(result.reportId, 'report-post-1');
+      expect(result.status, 'accepted');
+    });
+
     test('POSTs report body and parses accepted response', () async {
       final dio = buildDio();
       DioAdapter(dio: dio).onPost(

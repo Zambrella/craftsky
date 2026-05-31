@@ -5,9 +5,8 @@ import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
 /// Read/write surface the profile providers depend on. The production
-/// binding is `ApiProfileRepository`; `DummyProfileRepository` provides
-/// canned responses for running the app without a backend, and the
-/// test suite swaps in `FakeProfileRepository` (under `test/`).
+/// binding is `ApiProfileRepository`, and the test suite swaps in
+/// `FakeProfileRepository` (under `test/`).
 abstract interface class ProfileRepository {
   /// Fetches any user's profile by handle or DID.
   Future<Profile> fetch(String handleOrDid);

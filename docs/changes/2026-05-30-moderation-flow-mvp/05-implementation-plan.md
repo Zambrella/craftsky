@@ -404,3 +404,71 @@
 - [x] Focused Flutter verification passed.
 - [x] Dart MCP analyzer reports no Flutter syntax/analyzer errors.
 - [x] Stage completion commit created for second review fixes: `fix: address profile moderation review`.
+
+## Third Implementation Review Fix Plan
+
+| Step | Review Feedback | Test IDs | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---:|---|---|---|---|---|
+| RF-6 | Use dart mappable for report wire models | IT-013 / UT-008 | FR-021, FR-026 | AC-001, AC-002, AC-046 | `ReportSubmission` / `ReportResult` use hand-written map helpers. |
+| RF-7 | Follow Riverpod rules in `report_flow.dart` | UT-014 / AT-012 | FR-021, RULE-002 | AC-028, AC-029, AC-045 | Report flow stores notifier in a local variable before submit/reset. |
+| RF-8 | Use `flutter_form_builder` for report sheet validation | UT-012 / AT-012 | FR-021 | AC-027 | Report sheet hand-rolls reason/detail validation state. |
+| RF-9 | Use theme extensions for spacing/theming | UT-012 / UT-013 | FR-021, FR-022 | AC-027, AC-039 | Report sheet uses literal spacing values. |
+| RF-10 | Delete obsolete dummy profile repository | Cleanup | FR-021 | AC-045 | `DummyProfileRepository` is not referenced by providers/tests. |
+
+### Review Fix RF-6: IT-013 / UT-008
+- Linked review feedback: `report_result.dart` and `report_submission.dart` file comments: “Use dart mappable here”.
+- Linked requirements: FR-021, FR-026
+- Acceptance criteria: AC-001, AC-002, AC-046
+- Write failing test: Added API-client coverage asserting report submission/result wire models use generated dart_mappable serialization/parsing and preserve omitted optional `details`.
+- Run command: `flutter test test/feed/data/post_api_client_test.dart`
+- Confirmed failure: Red failure was meaningful compile failure because `ReportSubmissionMapper` and `ReportResultMapper` did not exist for the hand-written models.
+- Implement: Added `@MappableClass` models, generated `report_result.mapper.dart` and `report_submission.mapper.dart`, registered both mappers in `initializeMappers`, and switched API clients to `ReportResultMapper.fromMap` while retaining generated `submission.toMap()`.
+- Run command: `flutter test test/feed/data/post_api_client_test.dart` passed.
+- Refactor: Ran `dart format lib test`.
+
+### Review Fix RF-7: UT-014 / AT-012
+- Linked review feedback: `report_flow.dart` lines 65-70: “Don't assign a notifier to a variable like this. See riverpod rules”.
+- Linked requirements: FR-021, RULE-002
+- Acceptance criteria: AC-028, AC-029, AC-045
+- Write failing test: Existing provider/report-flow tests already cover submit, duplicate-submit prevention, retry, and success confirmation; no new behavior test was needed because the requested change is Riverpod usage style.
+- Implement: Replaced local notifier variables with direct `ref.read(...Provider.notifier).submit(...)` and direct reset calls after successful reads.
+- Run command: Focused Flutter moderation/report tests passed as part of final verification.
+- Refactor: None beyond formatting.
+
+### Review Fix RF-8 / RF-9: UT-012 / AT-012
+- Linked review feedback: `report_subject_sheet.dart` file comments: “Use flutter_form_builder to simplify validation here” and “Also, use theme extensions for spacing values (and other theming)”.
+- Linked requirements: FR-021, FR-022
+- Acceptance criteria: AC-027, AC-039
+- Write failing test: Existing `ReportSubjectSheet` widget tests cover approved reason display, disabled submit until valid, 1,000-character validation, and retryable failure state with preserved input.
+- Implement: Migrated the sheet to `FormBuilder`, `FormBuilderRadioGroup`, and `FormBuilderTextField` with `FormBuilderValidators.required` / `maxLength`; replaced hard-coded spacing with `SpacingTheme` extension values and reused the active `ThemeData` for text/error styles.
+- Run command: `flutter test test/moderation/widgets/report_subject_sheet_test.dart` passed.
+- Refactor: Kept local state only for submit-button enablement, in-flight state, and retry error copy while validation is now owned by the form builder fields.
+
+### Review Fix RF-10: Cleanup
+- Linked review feedback: `dummy_profile_repository.dart` file comment: “Is this even needed anymore? If not, delete.”
+- Linked requirements: FR-021
+- Acceptance criteria: AC-045
+- Inspect: Searched app source for `DummyProfileRepository`; only the file itself and a `ProfileRepository` doc comment referenced it. Production binding already uses `ApiProfileRepository`, and tests use `FakeProfileRepository` overrides.
+- Implement: Deleted `app/lib/profile/data/dummy_profile_repository.dart` and updated the repository doc comment to remove the obsolete dummy reference.
+- Run command: Broader Flutter feed/profile/moderation/notifications tests passed as part of final verification.
+
+### Third Review Fix Final Verification
+- Linked requirements: FR-021, FR-022, FR-026, RULE-002.
+- Run command: `flutter test test/feed/data/post_api_client_test.dart test/profile/data/profile_api_client_test.dart test/moderation/widgets/report_subject_sheet_test.dart test/feed/providers/report_post_provider_test.dart test/profile/providers/report_profile_provider_test.dart`
+- Result: Passed (`All tests passed!`).
+- Run command: Dart MCP analyzer on changed Flutter files.
+- Result: No errors.
+- Run command: `flutter test test/feed test/profile test/moderation test/notifications`
+- Result: Passed (`All tests passed!`).
+- Remaining gaps: Manual checks `MAN-001` through `MAN-004` were not run by this agent and remain human/local follow-up as previously documented.
+
+## Third Review Fix Completion Checklist
+- [x] Report wire models use dart_mappable and generated mapper files.
+- [x] Report flow no longer stores Riverpod notifiers in local variables.
+- [x] Report sheet uses flutter_form_builder validation.
+- [x] Report sheet uses theme extension spacing/theming instead of literal spacing values.
+- [x] Obsolete dummy profile repository removed.
+- [x] Focused Flutter verification passed.
+- [x] Broader Flutter feed/profile/moderation/notifications verification passed.
+- [x] Dart MCP analyzer reports no errors for changed Flutter files.
+- [x] Stage completion commit created for third review fixes: `fix: address moderation flutter review`.

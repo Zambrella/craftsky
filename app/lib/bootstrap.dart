@@ -18,6 +18,8 @@ import 'package:craftsky_app/feed/providers/user_comments_provider.dart'
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart'
     as user_posts_provider;
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
+import 'package:craftsky_app/moderation/models/report_result.dart';
+import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
@@ -195,6 +197,8 @@ void initializeMappers() {
   UserPostsStateMapper.ensureInitialized();
   InteractionWriteResponseMapper.ensureInitialized();
   ModerationMetadataMapper.ensureInitialized();
+  ReportResultMapper.ensureInitialized();
+  ReportSubmissionMapper.ensureInitialized();
   ProfileMapper.ensureInitialized();
   ProfileAccountSummaryMapper.ensureInitialized();
   ProfileAccountPageMapper.ensureInitialized();
