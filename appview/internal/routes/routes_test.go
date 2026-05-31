@@ -14,7 +14,26 @@ import (
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/testdb"
 )
+
+const routeModerationDDL = `
+CREATE TABLE moderation_outputs (
+    id                 TEXT PRIMARY KEY,
+    source_did         TEXT NOT NULL,
+    subject_type       TEXT NOT NULL,
+    subject_did        TEXT NOT NULL,
+    subject_collection TEXT,
+    subject_rkey       TEXT,
+    subject_uri        TEXT,
+    value              TEXT NOT NULL,
+    action             TEXT NOT NULL,
+    internal_reason    TEXT,
+    expires_at         TIMESTAMPTZ,
+    created_at         TIMESTAMPTZ NOT NULL,
+    indexed_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+`
 
 // stubResolver is a minimal api.HandleResolver used by the routing
 // tests so they don't depend on the real PLC directory.
@@ -444,6 +463,99 @@ func TestRoutes_DevModerationRouteRequiresToken(t *testing.T) {
 				t.Fatalf("body = %q, want invalid_dev_moderation_token", rr.Body.String())
 			}
 		})
+	}
+}
+
+func TestRoutes_DevModerationRoutePersistsValidOutput(t *testing.T) {
+	pool := testdb.WithSchema(t, routeModerationDDL)
+	deps := testDeps()
+	deps.DB = pool
+	deps.ModerationStore = api.NewModerationStore(pool)
+	deps.Config = app.Config{
+		Env:                         app.EnvDev,
+		EnableDevModeration:         true,
+		DevModerationToken:          "secret-token",
+		DevLabelerDID:               "did:plc:labeler",
+		TrustedModerationSourceDIDs: []string{"did:plc:labeler"},
+	}
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/dev/moderation/ozone-events", strings.NewReader(`{
+		"subject":{"type":"post","did":"did:plc:bob","rkey":"3lf2abc"},
+		"value":"hide",
+		"action":"apply",
+		"internalReason":"private fixture"
+	}`))
+	req.Header.Set("Authorization", "Bearer anything")
+	req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+	req.Header.Set("X-Craftsky-Dev-Moderation-Token", "secret-token")
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201; body = %s", rr.Code, rr.Body.String())
+	}
+	var body struct {
+		OutputID string `json:"outputId"`
+		Status   string `json:"status"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("body not valid JSON: %v", err)
+	}
+	if body.OutputID == "" || body.Status != "indexed" {
+		t.Fatalf("body = %+v, want outputId and indexed status", body)
+	}
+
+	var count int
+	var subjectURI, internalReason string
+	if err := pool.QueryRow(context.Background(), `SELECT count(*)::int, max(subject_uri), max(internal_reason) FROM moderation_outputs`).Scan(&count, &subjectURI, &internalReason); err != nil {
+		t.Fatalf("query persisted output: %v", err)
+	}
+	if count != 1 || subjectURI != "at://did:plc:bob/social.craftsky.feed.post/3lf2abc" || internalReason != "private fixture" {
+		t.Fatalf("persisted count=%d subjectURI=%q internalReason=%q", count, subjectURI, internalReason)
+	}
+}
+
+func TestRoutes_DevModerationRouteRejectsInvalidWithoutMutation(t *testing.T) {
+	pool := testdb.WithSchema(t, routeModerationDDL)
+	deps := testDeps()
+	deps.DB = pool
+	deps.ModerationStore = api.NewModerationStore(pool)
+	deps.Config = app.Config{
+		Env:                         app.EnvDev,
+		EnableDevModeration:         true,
+		DevModerationToken:          "secret-token",
+		DevLabelerDID:               "did:plc:labeler",
+		TrustedModerationSourceDIDs: []string{"did:plc:labeler"},
+	}
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/dev/moderation/ozone-events", strings.NewReader(`{
+		"sourceDid":"did:plc:untrusted",
+		"subject":{"type":"account","did":"did:plc:bob"},
+		"value":"warn",
+		"action":"apply"
+	}`))
+	req.Header.Set("Authorization", "Bearer anything")
+	req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+	req.Header.Set("X-Craftsky-Dev-Moderation-Token", "secret-token")
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403; body = %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "untrusted_moderation_source") {
+		t.Fatalf("body = %q, want untrusted_moderation_source", rr.Body.String())
+	}
+	var count int
+	if err := pool.QueryRow(context.Background(), `SELECT count(*)::int FROM moderation_outputs`).Scan(&count); err != nil {
+		t.Fatalf("count moderation outputs: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("stored outputs = %d, want 0", count)
 	}
 }
 

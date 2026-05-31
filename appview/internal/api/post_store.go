@@ -127,6 +127,7 @@ func (s *PostStore) ReadPostByURI(ctx context.Context, uri string) (*PostRow, er
 		FROM craftsky_posts p
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.uri = $1
+		` + postVisibleModerationPredicate + `
 	`
 	row, err := scanPostRow(s.pool.QueryRow(ctx, q, uri))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -158,6 +159,7 @@ func (s *PostStore) ListRootComments(ctx context.Context, rootURI, viewerDID, so
 		FROM craftsky_posts p
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.reply_parent_uri = $1
+		` + postVisibleModerationPredicate + `
 		  AND ($2::timestamptz IS NULL
 		       OR (p.created_at, p.uri) ` + seekComparator + ` ($2::timestamptz, $3::text))
 		ORDER BY CASE WHEN p.did = $5 THEN 0 ELSE 1 END ASC, p.created_at ` + orderDirection + `, p.uri ` + orderDirection + `
@@ -211,7 +213,9 @@ func (s *PostStore) commentBranchHasRepliesAfter(ctx context.Context, commentURI
 		SELECT EXISTS (
 			SELECT 1
 			FROM branch
-			WHERE (created_at, uri) > ($3::timestamptz, $4::text)
+			JOIN craftsky_posts p ON p.uri = branch.uri
+			WHERE (branch.created_at, branch.uri) > ($3::timestamptz, $4::text)
+			` + postVisibleModerationPredicate + `
 		)
 	`
 	var hasMore bool
@@ -381,6 +385,7 @@ func (s *PostStore) ListByAuthor(ctx context.Context, did string, limit int, cur
 		WHERE p.did = $1
 		  AND p.reply_root_uri IS NULL
 		  AND p.reply_parent_uri IS NULL
+		` + postVisibleModerationPredicate + `
 		  AND ($2::timestamptz IS NULL
 		       OR (p.indexed_at, p.uri) < ($2::timestamptz, $3::text))
 		ORDER BY p.indexed_at DESC, p.uri DESC
@@ -433,6 +438,7 @@ func (s *PostStore) ListCommentsByAuthor(ctx context.Context, did string, limit 
 		WHERE p.did = $1
 		  AND p.reply_root_uri IS NOT NULL
 		  AND p.reply_parent_uri IS NOT NULL
+		` + postVisibleModerationPredicate + `
 		  AND ($2::timestamptz IS NULL
 		       OR (p.indexed_at, p.uri) < ($2::timestamptz, $3::text))
 		ORDER BY p.indexed_at DESC, p.uri DESC
@@ -809,11 +815,13 @@ func (s *PostStore) ListCommentBranchReplies(ctx context.Context, commentURI, ro
 			WHERE child.reply_root_uri = $2
 			  AND parent.depth < 64
 		), page AS (
-			SELECT uri, created_at
+			SELECT branch.uri, branch.created_at
 			FROM branch
+			JOIN craftsky_posts p ON p.uri = branch.uri
 			WHERE ($3::timestamptz IS NULL
-			       OR (created_at, uri) > ($3::timestamptz, $4::text))
-			ORDER BY created_at ASC, uri ASC
+			       OR (branch.created_at, branch.uri) > ($3::timestamptz, $4::text))
+			` + postVisibleModerationPredicate + `
+			ORDER BY branch.created_at ASC, branch.uri ASC
 			LIMIT $5
 		)
 		SELECT ` + postSelectColumns + `
@@ -879,7 +887,9 @@ func (s *PostStore) ListCommentBranchRepliesAround(ctx context.Context, commentU
 			SELECT branch.uri, branch.created_at
 			FROM branch
 			JOIN focus ON true
+			JOIN craftsky_posts p ON p.uri = branch.uri
 			WHERE (branch.created_at, branch.uri) <= (focus.created_at, focus.uri)
+			` + postVisibleModerationPredicate + `
 			ORDER BY branch.created_at DESC, branch.uri DESC
 			LIMIT $4
 		), ordered_page AS (

@@ -286,3 +286,69 @@
 - 2026-05-30: Completed UT-013 Flutter warning banner slice. Post/profile models decode optional moderation metadata and generic inline warning banners render for post, profile, and author warnings without raw reason text.
 - 2026-05-30: Completed AT-001/AT-002/AT-012 Flutter report-flow gap closure. Feed and profile pages now open the report sheet, submit through providers/repositories, show transient success, and preserve retryable input after failures.
 - 2026-05-30: Completed REG-001 through REG-008 automated regression/final verification. Focused AppView API/routes/app tests, broader `just test` race suite, and Flutter feed/profile/moderation/notifications tests all passed. Manual checks MAN-001 through MAN-004 were not run in-agent and are documented as human follow-up.
+- 2026-05-31: Read `06-implementation-review.md` and reopened TDD implementation for required review fixes IR-001 through IR-004. Added review-fix loops for valid synthetic route ingestion, profile report handle-or-DID resolution, and remaining read-path hide/takedown enforcement gaps. Prior completion checklist above reflects the pre-review implementation state and will be superseded by the review-fix completion notes below.
+
+## Implementation Review Fix Plan
+
+| Step | Review Finding | Test IDs | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---:|---|---|---|---|---|
+| RF-1 | IR-001 | IT-017 / AT-006 | FR-009, FR-010, FR-011, FR-012, RULE-006 | AC-019, AC-023, AC-036, AC-038 | Valid dev route returns `501`; no route-to-store persistence test |
+| RF-2 | IR-002 | IT-007 / UT-010 / AT-002 | FR-002, FR-006, RULE-005 | AC-002, AC-008, AC-044 | Handle-based profile reports do not resolve to canonical DID |
+| RF-3 | IR-003 | IT-010 / IT-011 / IT-019 / AT-007 | BR-004, FR-013, FR-014, FR-015, NFR-003, NFR-004, RULE-003 | AC-012, AC-013, AC-014, AC-040 | Profile authored lists and thread/comment paths can leak moderated rows |
+
+### Review Fix RF-1: IT-017 / AT-006
+- Linked review finding: IR-001
+- Linked requirements: FR-009, FR-010, FR-011, FR-012, RULE-006
+- Acceptance criteria: AC-019, AC-023, AC-036, AC-038
+- Write failing test: Add route-level coverage for a fully enabled dev synthetic moderation request that persists one trusted output and returns `201 indexed`, plus invalid/untrusted requests that do not mutate state.
+- Run command: `go test ./internal/routes -run 'TestRoutes_DevModerationRoute(PersistsValidOutput|RejectsInvalidWithoutMutation)'`
+- Confirmed failure: Red failure was meaningful compile failure because `app.Deps` had no `ModerationStore` and the registered dev route handler accepted only the token, so the route had no persistence dependency. This matches IR-001's missing route-to-store seam.
+- Implement: Added `ModerationStore` to app deps and initialized it in `newDeps`; wired `ModerationRequestConfig` plus `ModerationStore` into dev route registration; updated `DevModerationOzoneEventsHandler` to validate the dev token, decode one trusted synthetic request, persist it through `InsertOutput`, map malformed/untrusted/validation errors to documented envelopes, and return `201 {"outputId":"...","status":"indexed"}`.
+- Run command: `go test ./internal/routes -run 'TestRoutes_DevModerationRoute(PersistsValidOutput|RejectsInvalidWithoutMutation)'` passed.
+- Refactor: Ran `gofmt` on touched Go files.
+- Notes: This closes the current `501 not_implemented` seam and adds negative-path mutation protection for untrusted sources.
+
+### Review Fix RF-2: IT-007 / UT-010 / AT-002
+- Linked review finding: IR-002
+- Linked requirements: FR-002, FR-006, RULE-005
+- Acceptance criteria: AC-002, AC-008, AC-044
+- Write failing test: Add DB-backed profile report target tests for handle and DID resolution, submitted handle snapshots, malformed/unresolvable identifiers, and hidden-but-indexed eligibility.
+- Run command: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api -run 'TestProfileStore_ResolveAccountReportTarget|TestReportProfileHandler'`
+- Confirmed failure: Red failure was meaningful compile failure because `api.NewProfileReportTargetResolver` did not exist; the production route only injected `ProfileStore`, whose `ResolveAccountReportTarget` accepted DID inputs but not handles.
+- Implement: Added `ProfileReportTargetResolver`, which strips optional `@`, accepts direct DIDs through the store path, resolves handles via the configured `HandleResolver`, checks indexed profile existence without applying profile visibility filtering, canonicalizes to DID, and records the submitted handle snapshot. Updated profile report route wiring to use this resolver wrapper.
+- Run command: `go test ./internal/api -run 'TestProfile(Store_ResolveAccountReportTarget|ReportTargetResolver)'` passed.
+- Refactor: Ran `gofmt` on touched files.
+- Notes: The added handle test seeds an active account hide output and still resolves the indexed account for report eligibility, preserving RULE-005 / AC-044.
+
+### Review Fix RF-3: IT-010 / IT-011 / IT-019 / AT-007
+- Linked review finding: IR-003
+- Linked requirements: BR-004, FR-013, FR-014, FR-015, NFR-003, NFR-004, RULE-003
+- Acceptance criteria: AC-012, AC-013, AC-014, AC-040
+- Write failing test: Add store tests for profile posts, profile comments, root comments, branch replies, branch-around focus, hidden parent/focus hydration, account-level hide, and pagination where hidden rows precede visible rows.
+- Run command: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api -run 'TestPostStore_.*Moderation|TestPostStore_List.*Filters'`
+- Confirmed failure: Red failures were meaningful behavior failures against Postgres: `ListByAuthor`, `ListCommentsByAuthor`, and `ListRootComments` returned hidden rows; `ListCommentBranchReplies` filtered after its recursive page limit and returned a short page when a hidden row preceded visible rows.
+- Implement: Applied `postVisibleModerationPredicate` to `ReadPostByURI`, profile-authored post/comment lists, root comment lists, branch pagination CTEs before `LIMIT`, branch-around CTEs before `LIMIT`, and the branch `hasMore` cursor check so focus/parent hydration and pagination use visible rows only.
+- Run command: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api -run 'TestPostStore_(List.*FiltersModeratedRowsBeforeLimit|ReadPostByURI_HiddenPostReturnsNotFound)'` passed.
+- Refactor: Ran `gofmt` on touched Go files.
+- Notes: Added coverage for profile-authored posts, profile-authored comments, root comments, branch replies, and URI hydration of hidden posts. Account-level filtering is covered through the shared predicate and existing direct/list tests.
+
+### Review Fix Final Verification
+- Linked review finding: IR-004
+- Linked requirements: All requirements touched by IR-001 through IR-003.
+- Run command: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api ./internal/routes ./internal/app`
+- Result: Passed.
+- Run command: `just test`
+- Result: Passed (`go test -race ./...` under `appview/`).
+- Run command: from `app/`, `flutter test test/feed test/profile test/moderation test/notifications`
+- Result: Passed (`All tests passed!`).
+- Remaining gaps: Manual checks `MAN-001` through `MAN-004` were not run by this agent and remain human/local follow-up as previously documented.
+
+## Review Fix Completion Checklist
+- [x] IR-001 fixed with route-to-persistence coverage for valid synthetic moderation ingestion.
+- [x] IR-002 fixed with handle-or-DID profile report target resolution and hidden-indexed eligibility coverage.
+- [x] IR-003 fixed with store-level moderation filtering coverage for profile-authored and thread/comment surfaces plus URI hydration.
+- [x] IR-004 addressed with red-phase regression tests and updated implementation evidence.
+- [x] Focused AppView verification passed.
+- [x] Full AppView `just test` verification passed.
+- [x] Focused Flutter verification passed.
+- [x] Stage completion commit created for review fixes: `fix: address moderation flow review`.

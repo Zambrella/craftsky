@@ -9,9 +9,27 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/testdb"
 )
+
+type fakeAccountReportResolver struct {
+	dids map[string]syntax.DID
+	err  error
+}
+
+func (f fakeAccountReportResolver) ResolveHandle(context.Context, syntax.DID) (syntax.Handle, error) {
+	return "", nil
+}
+
+func (f fakeAccountReportResolver) ResolveDID(_ context.Context, handle syntax.Handle) (syntax.DID, error) {
+	if f.err != nil {
+		return "", f.err
+	}
+	return f.dids[handle.String()], nil
+}
 
 const reportStoreBaseDDL = `
 CREATE TABLE craftsky_profiles (
@@ -203,6 +221,32 @@ func TestProfileStore_ResolveAccountReportTarget_CanonicalizesIndexedProfile(t *
 	}
 	if target.DID != "did:plc:bob" || target.SubmittedHandleSnapshot != "" {
 		t.Fatalf("target = %+v", target)
+	}
+}
+
+func TestProfileReportTargetResolver_ResolvesHandleToCanonicalIndexedProfile(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, profileStoreDDL)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles (did, record_cid) VALUES ('did:plc:bob', 'seed')`); err != nil {
+		t.Fatalf("seed profile: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_outputs (id, source_did, subject_type, subject_did, value, action, created_at)
+		VALUES ('hide-bob', 'did:plc:labeler', 'account', 'did:plc:bob', 'hide', 'apply', now())
+	`); err != nil {
+		t.Fatalf("seed moderation output: %v", err)
+	}
+
+	resolver := api.NewProfileReportTargetResolver(api.NewProfileStore(pool), fakeAccountReportResolver{
+		dids: map[string]syntax.DID{"bob.craftsky.social": "did:plc:bob"},
+	})
+	target, err := resolver.ResolveAccountReportTarget(ctx, "@bob.craftsky.social")
+	if err != nil {
+		t.Fatalf("ResolveAccountReportTarget handle: %v", err)
+	}
+	if target.DID != "did:plc:bob" || target.SubmittedHandleSnapshot != "bob.craftsky.social" {
+		t.Fatalf("target = %+v, want canonical DID with submitted handle snapshot", target)
 	}
 }
 

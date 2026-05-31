@@ -94,6 +94,42 @@ type ProfileStore struct {
 	blueskyHydrator auth.PDSClient
 }
 
+type ProfileReportTargetResolver struct {
+	store    *ProfileStore
+	resolver HandleResolver
+}
+
+func NewProfileReportTargetResolver(store *ProfileStore, resolver HandleResolver) ProfileReportTargetResolver {
+	return ProfileReportTargetResolver{store: store, resolver: resolver}
+}
+
+func (r ProfileReportTargetResolver) ResolveAccountReportTarget(ctx context.Context, handleOrDID string) (*AccountReportTarget, error) {
+	raw := strings.TrimPrefix(strings.TrimSpace(handleOrDID), "@")
+	if raw == "" {
+		return nil, ErrProfileNotFound
+	}
+	if strings.HasPrefix(raw, "did:") {
+		return r.store.ResolveAccountReportTarget(ctx, raw)
+	}
+	if r.resolver == nil {
+		return nil, ErrProfileNotFound
+	}
+	handle, err := syntax.ParseHandle(raw)
+	if err != nil {
+		return nil, ErrProfileNotFound
+	}
+	did, err := r.resolver.ResolveDID(ctx, handle)
+	if err != nil || did.String() == "" {
+		return nil, ErrProfileNotFound
+	}
+	target, err := r.store.ResolveAccountReportTarget(ctx, did.String())
+	if err != nil {
+		return nil, err
+	}
+	target.SubmittedHandleSnapshot = handle.String()
+	return target, nil
+}
+
 func NewProfileStore(pool *pgxpool.Pool, blueskyHydrator ...auth.PDSClient) *ProfileStore {
 	store := &ProfileStore{pool: pool}
 	if len(blueskyHydrator) > 0 {
