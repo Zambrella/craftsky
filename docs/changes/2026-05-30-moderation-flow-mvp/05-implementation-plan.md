@@ -352,3 +352,55 @@
 - [x] Full AppView `just test` verification passed.
 - [x] Focused Flutter verification passed.
 - [x] Stage completion commit created for review fixes: `fix: address moderation flow review`.
+
+## Second Implementation Review Fix Plan
+
+| Step | Review Finding | Test IDs | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---:|---|---|---|---|---|
+| RF-4 | IR-005 | IT-010 / UT-007 / REG-004 | BR-004, BR-005, FR-016, FR-018, RULE-003 | AC-016, AC-018, AC-039, AC-040 | `readNonCraftsky` fallback bypasses account hide/takedown and misses warn metadata. |
+| RF-5 | IR-006 | IT-007 / UT-010 / AT-002 | BR-001, FR-002, FR-006, RULE-005 | AC-002, AC-008, AC-044 | Profile report target resolution only accepts `craftsky_profiles` rows. |
+
+### Review Fix RF-4: IT-010 / UT-007 / REG-004
+- Linked review finding: IR-005
+- Linked requirements: BR-004, BR-005, FR-016, FR-018, RULE-003
+- Acceptance criteria: AC-016, AC-018, AC-039, AC-040
+- Write failing test: Added profile-store tests for a hidden Craftsky account with a `bluesky_profiles` cache row, a hidden/taken-down non-Craftsky account, and a warn-only non-Craftsky account with private raw reason fixture.
+- Run command: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api -run 'TestProfileStore_ReadByDID_(HiddenCraftskyAccountWithBlueskyCacheReturnsNotFound|HiddenNonCraftskyAccountReturnsNotFound|WarnedNonCraftskyAccountAttachesWarningMetadata)' -v`
+- Confirmed failure: Red failures were meaningful behavior failures: hidden Craftsky and non-Craftsky profiles returned visible rows through fallback, and warn-only non-Craftsky profile rows had `ModerationWarningKind = nil`.
+- Implement: Added account-level moderation policy lookup before non-Craftsky cached/hydrated reads; `hide`/`takedown` now returns `ErrProfileNotFound` before fallback/hydration, and warn-only fallback profiles attach generic `profile` warning metadata without raw reason fields.
+- Run command: Focused RF-4 command passed. Nearby `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api -run 'TestProfileStore|TestProfileReportTargetResolver|TestReportProfileHandler'` passed.
+- Refactor: Ran `gofmt` on touched Go files.
+- Notes: Hidden/taken-down profile responses still use the same not-found path and do not reveal moderation-vs-absence. Warning metadata remains limited to `warningKind: profile`.
+
+### Review Fix RF-5: IT-007 / UT-010 / AT-002
+- Linked review finding: IR-006
+- Linked requirements: BR-001, FR-002, FR-006, RULE-005
+- Acceptance criteria: AC-002, AC-008, AC-044
+- Write failing test: Added report-target tests for cached non-Craftsky DID resolution, cached non-Craftsky handle resolution with submitted handle snapshot, hydratable non-Craftsky handle resolution, and unresolvable non-Craftsky failure behavior.
+- Run command: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api -run 'TestProfile(Store_ResolveAccountReportTarget|ReportTargetResolver)' -v`
+- Confirmed failure: Red failures were meaningful behavior failures: cached and hydratable non-Craftsky profile report targets returned `profile: not found` because resolution checked only `craftsky_profiles`.
+- Implement: Expanded account report target existence checks to accept `craftsky_profiles` or `bluesky_profiles`, and to hydrate a non-Craftsky profile through the existing profile hydration seam before deciding not-found. Kept moderation visibility out of report eligibility and preserved canonical DID plus submitted handle snapshots.
+- Run command: Focused RF-5 command passed. Nearby profile/report command passed.
+- Refactor: Ran `gofmt` on touched Go files.
+- Notes: Malformed/unresolvable identities still fail with `ErrProfileNotFound`; hidden-but-indexed eligibility remains independent from read visibility.
+
+### Second Review Fix Final Verification
+- Linked review findings: IR-005, IR-006
+- Linked requirements: All requirements touched by RF-4 and RF-5.
+- Run command: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/api ./internal/routes ./internal/app`
+- Result: Passed.
+- Run command: `just test`
+- Result: Passed (`go test -race ./...` under `appview/`).
+- Run command: from `app/`, `flutter test test/feed test/profile test/moderation test/notifications`
+- Result: Passed (`All tests passed!`).
+- Dart MCP analyzer: Ran over the Flutter app root. Initial run found one analyzer error in `app/lib/profile/data/dummy_profile_repository.dart` because it had not implemented newer `ProfileRepository` methods; fixed by adding dummy report and social-list implementations. Re-run reported no Dart analyzer errors/syntax errors; remaining diagnostics are existing infos/warnings only.
+- Remaining gaps: Manual checks `MAN-001` through `MAN-004` were not run by this agent and remain human/local follow-up as previously documented.
+
+## Second Review Fix Completion Checklist
+- [x] IR-005 fixed with non-Craftsky fallback hide/takedown enforcement and warning metadata coverage.
+- [x] IR-006 fixed with cached/hydratable non-Craftsky profile report target coverage.
+- [x] Focused AppView verification passed.
+- [x] Full AppView `just test` verification passed.
+- [x] Focused Flutter verification passed.
+- [x] Dart MCP analyzer reports no Flutter syntax/analyzer errors.
+- [x] Stage completion commit created for second review fixes: `fix: address profile moderation review`.

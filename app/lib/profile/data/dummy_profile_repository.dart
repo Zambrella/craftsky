@@ -1,5 +1,8 @@
+import 'package:craftsky_app/moderation/models/report_result.dart';
+import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
 /// Canned [ProfileRepository] for running the app against no backend —
@@ -69,5 +72,45 @@ class DummyProfileRepository implements ProfileRepository {
   Future<Profile> unfollow(String handleOrDid) async {
     await Future<void>.delayed(_latency);
     return _profile = _profile.copyWith(viewerIsFollowing: false);
+  }
+
+  @override
+  Future<ReportResult> report(
+    String handleOrDid,
+    ReportSubmission submission,
+  ) async {
+    await Future<void>.delayed(_latency);
+    return const ReportResult(
+      reportId: 'dummy-profile-report',
+      status: 'accepted',
+    );
+  }
+
+  @override
+  Future<ProfileAccountPage> listMutualFollowers(
+    String handleOrDid, {
+    int? limit,
+    String? cursor,
+  }) async {
+    await Future<void>.delayed(_latency);
+    return const ProfileAccountPage(items: [], totalCount: 0);
+  }
+
+  @override
+  Future<ProfileAccountPage> listFollowersMe({
+    int? limit,
+    String? cursor,
+  }) async {
+    await Future<void>.delayed(_latency);
+    return const ProfileAccountPage(items: [], totalCount: 0);
+  }
+
+  @override
+  Future<ProfileAccountPage> listFollowingMe({
+    int? limit,
+    String? cursor,
+  }) async {
+    await Future<void>.delayed(_latency);
+    return const ProfileAccountPage(items: [], totalCount: 0);
   }
 }
