@@ -20,7 +20,9 @@ class ApiPostRepository implements PostRepository {
     required String text,
     PostReply? reply,
     List<CreatePostImage>? images,
-  }) => _api.createPost(text: text, reply: reply, images: images);
+    List<Map<String, dynamic>>? facets,
+  }) =>
+      _api.createPost(text: text, reply: reply, images: images, facets: facets);
 
   @override
   Future<Post> fetch(Did did, RecordKey rkey) => _api.getPost(did, rkey);

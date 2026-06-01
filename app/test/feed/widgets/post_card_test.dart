@@ -11,6 +11,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Post _post({
+  String text = 'Cast on for the Hitchhiker shawl tonight.',
+  List<Map<String, dynamic>>? facets,
   String? displayName,
   int likeCount = 0,
   int repostCount = 0,
@@ -26,7 +28,8 @@ Post _post({
     uri: 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
     cid: 'bafy123',
     rkey: '3lf2abc',
-    text: 'Cast on for the Hitchhiker shawl tonight.',
+    text: text,
+    facets: facets,
     tags: const [],
     likeCount: likeCount,
     repostCount: repostCount,
@@ -99,6 +102,42 @@ void main() {
       expect(replyIcon.color, BrandColors.ink2);
       expect(likeIcon.color, BrandColors.ink2);
       expect(repostIcon.color, BrandColors.ink2);
+    });
+
+    testWidgets('AT-005 styles valid post facets with theme primary color', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            text: 'Hi @alice #Lace',
+            facets: [
+              _facet(3, 9, {
+                r'$type': 'app.bsky.richtext.facet#mention',
+                'did': 'did:plc:alice',
+              }),
+              _facet(10, 15, {
+                r'$type': 'app.bsky.richtext.facet#tag',
+                'tag': 'Lace',
+              }),
+            ],
+          ),
+        ),
+      );
+
+      final body = tester.widget<Text>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Text &&
+              widget.textSpan?.toPlainText() == 'Hi @alice #Lace',
+        ),
+      );
+      final spans = _leafTextSpans(body.textSpan! as TextSpan);
+
+      expect(spans.map((span) => span.text), ['Hi ', '@alice', ' ', '#Lace']);
+      expect(spans[1].style?.color, BrandColors.cobalt);
+      expect(spans[3].style?.color, BrandColors.cobalt);
     });
 
     testWidgets('renders engagement counts and selected colours', (
@@ -732,4 +771,33 @@ void main() {
       expect(find.byType(PostImageGallery), findsNothing);
     });
   });
+}
+
+List<TextSpan> _leafTextSpans(TextSpan root) {
+  final leaves = <TextSpan>[];
+
+  void visit(TextSpan span) {
+    final children = span.children;
+    if (children == null || children.isEmpty) {
+      leaves.add(span);
+      return;
+    }
+    for (final child in children) {
+      if (child is TextSpan) visit(child);
+    }
+  }
+
+  visit(root);
+  return leaves;
+}
+
+Map<String, dynamic> _facet(
+  int byteStart,
+  int byteEnd,
+  Map<String, dynamic> feature,
+) {
+  return {
+    'index': {'byteStart': byteStart, 'byteEnd': byteEnd},
+    'features': [feature],
+  };
 }

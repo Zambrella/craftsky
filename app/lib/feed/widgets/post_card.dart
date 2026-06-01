@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
@@ -144,7 +145,11 @@ class PostCard extends StatelessWidget {
                       ModerationWarningBanner(warningKind: kind),
                       SizedBox(height: spacing.sp3),
                     ],
-                    Text(post.text, style: theme.textTheme.bodyLarge),
+                    FacetedText(
+                      text: post.text,
+                      facets: post.facets,
+                      style: theme.textTheme.bodyLarge,
+                    ),
                     SizedBox(height: spacing.sp2),
                     if (!isFlat) const CraftskyDivider(),
                     Row(

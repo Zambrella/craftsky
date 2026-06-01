@@ -23,6 +23,7 @@ abstract interface class ProfileRepository {
   Future<Profile> updateMe({
     String? displayName,
     String? description,
+    List<Map<String, dynamic>>? descriptionFacets,
     List<String>? crafts,
     UploadedBlob? avatar,
     bool clearAvatar = false,

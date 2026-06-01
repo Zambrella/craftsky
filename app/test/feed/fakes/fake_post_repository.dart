@@ -28,6 +28,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 class FakePostRepository implements PostRepository {
   FakePostRepository({
     this.onCreate,
+    this.onCreateWithFacets,
     this.onFetch,
     this.onDelete,
     this.onReport,
@@ -48,6 +49,13 @@ class FakePostRepository implements PostRepository {
     List<CreatePostImage>? images,
   })?
   onCreate;
+  final Future<Post> Function({
+    required String text,
+    PostReply? reply,
+    List<CreatePostImage>? images,
+    List<Map<String, dynamic>>? facets,
+  })?
+  onCreateWithFacets;
   final Future<Post> Function(Did did, RecordKey rkey)? onFetch;
   final Future<void> Function(Did did, RecordKey rkey)? onDelete;
   final Future<ReportResult> Function(
@@ -97,7 +105,14 @@ class FakePostRepository implements PostRepository {
     required String text,
     PostReply? reply,
     List<CreatePostImage>? images,
+    List<Map<String, dynamic>>? facets,
   }) =>
+      onCreateWithFacets?.call(
+        text: text,
+        reply: reply,
+        images: images,
+        facets: facets,
+      ) ??
       onCreate?.call(text: text, reply: reply, images: images) ??
       Future<Post>.error(UnimplementedError('create not stubbed'));
 

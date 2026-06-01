@@ -85,6 +85,37 @@ void main() {
     ).updateMyProfile(clearAvatar: true, clearBanner: true);
   });
 
+  test('IT-004 includes descriptionFacets in profile update body', () async {
+    final dio = buildDio();
+    final descriptionFacets = [
+      {
+        'index': {'byteStart': 14, 'byteEnd': 22},
+        'features': [
+          {r'$type': 'app.bsky.richtext.facet#tag', 'tag': 'Mending'},
+        ],
+      },
+    ];
+    DioAdapter(dio: dio).onPut(
+      '/v1/profiles/me',
+      (server) => server.reply(200, sampleProfile()),
+      data: {
+        'displayName': 'Alice',
+        'description': 'textile person #Mending',
+        'crafts': ['sewing'],
+        'descriptionFacets': descriptionFacets,
+      },
+    );
+
+    final profile = await ProfileApiClient(dio).updateMyProfile(
+      displayName: 'Alice',
+      description: 'textile person #Mending',
+      crafts: ['sewing'],
+      descriptionFacets: descriptionFacets,
+    );
+
+    expect(profile.handle.toString(), 'alice.craftsky.social');
+  });
+
   test('POST follow uses Craftsky endpoint and no token fields', () async {
     final dio = buildDio();
     DioAdapter(dio: dio).onPost(
@@ -148,12 +179,18 @@ void main() {
     final adapter = DioAdapter(dio: dio)
       ..onGet(
         '/v1/profiles/me/followers',
-        (server) => server.reply(200, {'items': [], 'totalCount': 0}),
+        (server) => server.reply(200, {
+          'items': <Map<String, dynamic>>[],
+          'totalCount': 0,
+        }),
         queryParameters: {'limit': 50},
       )
       ..onGet(
         '/v1/profiles/me/following',
-        (server) => server.reply(200, {'items': [], 'totalCount': 0}),
+        (server) => server.reply(200, {
+          'items': <Map<String, dynamic>>[],
+          'totalCount': 0,
+        }),
         queryParameters: {'limit': 25, 'cursor': 'next'},
       );
 

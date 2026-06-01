@@ -56,7 +56,10 @@ class ProfileMetaSection extends StatelessWidget {
             SizedBox(height: spacing.sp3),
           ],
           if (hasBio) ...[
-            ProfileBio(description: profile.description),
+            ProfileBio(
+              description: profile.description,
+              descriptionFacets: profile.descriptionFacets,
+            ),
             SizedBox(height: spacing.sp3),
           ],
           if (hasCrafts) ...[

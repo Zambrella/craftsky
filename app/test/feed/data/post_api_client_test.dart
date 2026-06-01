@@ -110,6 +110,29 @@ void main() {
       expect(post.text, 'top-level');
     });
 
+    test('includes facets in create body when provided', () async {
+      final dio = buildDio();
+      final facets = [
+        {
+          'index': {'byteStart': 0, 'byteEnd': 6},
+          'features': [
+            {r'$type': 'app.bsky.richtext.facet#tag', 'tag': 'Mending'},
+          ],
+        },
+      ];
+      DioAdapter(dio: dio).onPost(
+        '/v1/posts',
+        (server) => server.reply(201, samplePost(text: '#Mending')),
+        data: {'text': '#Mending', 'facets': facets},
+      );
+
+      final post = await PostApiClient(
+        dio,
+      ).createPost(text: '#Mending', facets: facets);
+
+      expect(post.text, '#Mending');
+    });
+
     test('sends nested root and parent refs when reply is provided', () async {
       final dio = buildDio();
       final reply = PostReply(

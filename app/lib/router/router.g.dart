@@ -106,10 +106,16 @@ mixin $FeedRoute on GoRouteData {
 }
 
 mixin $SearchRoute on GoRouteData {
-  static SearchRoute _fromState(GoRouterState state) => const SearchRoute();
+  static SearchRoute _fromState(GoRouterState state) =>
+      SearchRoute(tag: state.uri.queryParameters['tag']);
+
+  SearchRoute get _self => this as SearchRoute;
 
   @override
-  String get location => GoRouteData.$location('/search');
+  String get location => GoRouteData.$location(
+    '/search',
+    queryParams: {if (_self.tag != null) 'tag': _self.tag},
+  );
 
   @override
   void go(BuildContext context) => context.go(location);
