@@ -161,7 +161,7 @@ Post text and profile descriptions are plain strings in the Flutter UI. The post
 
 ## 11. Desired Behavior
 
-Flutter should provide a shared rich-text/facet experience for posts and profile descriptions. While composing post text or editing a profile bio, users should see debounced autocomplete suggestions for active `@` and `#` tokens from mock repositories. Mention suggestions should include Craftsky-only accounts and prioritize followed accounts. Hashtag suggestions should include popularity counts for the last 28 days. On submit/save, Flutter should generate valid AT Protocol facet JSON for recognized mentions, links, and hashtags and pass it through repository/API calls. Post facets should be compatible with the existing AppView post create contract. Profile `descriptionFacets` should be sent by Flutter by design, with the known live incompatibility documented for a follow-up AppView/API slice.
+Flutter should provide a shared rich-text/facet experience for posts and profile descriptions. While composing post text or editing a profile bio, users should see debounced autocomplete suggestions for active `@` and `#` tokens from mock repositories. Mention suggestions should include Craftsky-only accounts, prioritize followed accounts, and show avatar, display name, and handle. Hashtag suggestions should include popularity counts for the last 28 days. Faceted text should use the theme's primary color in editable composer/profile fields and rendered post/profile surfaces. On submit/save, Flutter should generate valid AT Protocol facet JSON for recognized mentions, links, and hashtags and pass it through repository/API calls. Tapped mention, link, and hashtag facets should navigate to profile pages, open with `url_launcher`, and navigate to the search page respectively. Post facets should be compatible with the existing AppView post create contract. Profile `descriptionFacets` should be sent by Flutter by design, with the known live incompatibility documented for a follow-up AppView/API slice.
 
 ## 12. Requirements
 
@@ -172,20 +172,21 @@ Flutter should provide a shared rich-text/facet experience for posts and profile
 | FR-001 | Functional | Must | The system shall detect and generate AT Protocol-compatible facet JSON for mentions, web links, and hashtags in post composer text. | Post writes need structured facets, and AppView already accepts `facets`. | Prompt, Codebase | AC-001, AC-008, AC-009 |
 | FR-002 | Functional | Must | The post create flow shall pass generated post `facets` through the Flutter post repository/API/fake seams when submitting a post or reply. | Confirms the user's decision to pass facets now. | User answer Q1 | AC-008, AC-010 |
 | FR-003 | Functional | Must | The profile edit flow shall detect and generate profile-description facets and pass them as `descriptionFacets` through the Flutter profile repository/API/fake seams when saving a bio. | Confirms the user's decision to risk live profile facet sends. | User answer Q2 | AC-011, AC-012 |
-| FR-004 | Functional | Must | The system shall render post text with facet-aware styling and interactions when post facet metadata is available, while safely rendering plain text when facets are absent or invalid. | Existing `Post.facets` is raw JSON and post text currently renders plain. | Codebase | AC-002, AC-013, AC-014 |
-| FR-005 | Functional | Must | The system shall render profile descriptions with facet-aware styling and interactions when profile description facet metadata is available, while safely rendering plain text when facets are absent or invalid. | Profile descriptions are in scope but current profile model lacks facet metadata. | Prompt, Codebase | AC-003, AC-013, AC-014 |
+| FR-004 | Functional | Must | The system shall render post text with facet-aware styling and interactions when post facet metadata is available, while safely rendering plain text when facets are absent or invalid. Faceted post-card text ranges shall use the theme's primary color. | Existing `Post.facets` is raw JSON and post text currently renders plain. | Codebase, Review feedback | AC-002, AC-013, AC-014 |
+| FR-005 | Functional | Must | The system shall render profile descriptions with facet-aware styling and interactions when profile description facet metadata is available, while safely rendering plain text when facets are absent or invalid. Faceted profile-description text ranges shall use the theme's primary color. | Profile descriptions are in scope but current profile model lacks facet metadata. | Prompt, Codebase, Review feedback | AC-003, AC-013, AC-014 |
 | FR-006 | Functional | Must | The post composer shall show mention autocomplete when the caret is in an active `@` token and shall allow selecting a suggestion to replace the active token with the selected handle. | Supports the requested post composer mention flow. | Prompt | AC-005, AC-015, AC-016 |
 | FR-007 | Functional | Must | The profile bio editor shall show mention autocomplete when the caret is in an active `@` token and shall allow selecting a suggestion to replace the active token with the selected handle. | User confirmed profile descriptions are in scope and mentioned profile mention debouncing. | Prompt | AC-005, AC-015, AC-016 |
 | FR-008 | Functional | Must | The post composer and profile bio editor shall show hashtag autocomplete when the caret is in an active `#` token and shall allow selecting a suggestion to replace the active token with the selected hashtag. | Supports requested hashtag discovery in text-entry surfaces. | Prompt | AC-006, AC-015, AC-017 |
 | FR-009 | Functional | Must | Hashtag autocomplete suggestions shall display an indication of popularity as post count over the last 28 days. | User requested popularity indication and suggested the 28-day count. | Prompt | AC-006, AC-017 |
-| FR-010 | Functional | Must | Mention autocomplete suggestions shall include only mock accounts marked as Craftsky accounts and shall sort followed accounts ahead of otherwise matching accounts. | User requested Craftsky-only accounts with followed accounts prioritized. | Prompt | AC-005, AC-018 |
+| FR-010 | Functional | Must | Mention autocomplete suggestions shall include only mock accounts marked as Craftsky accounts, shall sort followed accounts ahead of otherwise matching accounts, and shall display each suggested profile's avatar, display name, and handle. | User requested Craftsky-only accounts with followed accounts prioritized; review feedback added visible suggestion fields. | Prompt, Review feedback | AC-005, AC-018, AC-025 |
 | FR-011 | Functional | Must | Autocomplete repositories/providers shall be mock-backed in this slice and shaped so production AppView-backed repositories can replace them later without changing editor behavior. | Keeps the slice Flutter-only while avoiding throwaway UI. | Prompt, Discovery | AC-007, AC-019 |
 | FR-012 | Functional | Must | Link facets shall be generated for recognized web links without showing an autocomplete dropdown. | Links are facets but do not require suggestion UI. | Prompt, AT Protocol docs | AC-004, AC-009 |
-| FR-013 | Functional | Should | Selecting rendered mention, link, or hashtag facets should route through existing or clearly-seamed navigation/launch handlers where available and use safe no-op or placeholder behavior where destinations are not implemented. | Rendering should not crash or imply backend features that do not exist yet. | Discovery | AC-020 |
+| FR-013 | Functional | Must | Tapping rendered facets shall invoke the appropriate destination behavior: mentions navigate to the profile page, links open with `url_launcher`, and hashtags navigate to the search page with the hashtag context even though hashtag search results are not implemented yet. | Review feedback specified concrete destination behavior for rendered facets. | Review feedback | AC-020, AC-026, AC-027, AC-028 |
 | NFR-001 | Non-functional | Must | Facet generation shall use UTF-8 byte offsets and avoid overlapping facet ranges. | AT Protocol facets require byte-index correctness. | AT Protocol docs | AC-009, AC-014 |
 | NFR-002 | Non-functional | Must | Mention and hashtag suggestion lookups shall be debounced with a testable default delay before querying the mock repository. | User explicitly requested debouncing. | Prompt | AC-015 |
 | NFR-003 | Non-functional | Should | The autocomplete dropdown should be keyboard- and screen-reader-friendly enough for widget tests to identify options by visible text/semantics. | Composer/profile editors are core input flows and should remain accessible. | Discovery | AC-016, AC-017 |
 | NFR-004 | Non-functional | Must | The feature shall not regress existing post composer validation, image attachment, reply, discard-confirmation, or profile-save dirty/validation behavior. | Existing composer/profile flows have tests and should remain stable. | Codebase | AC-021, AC-022 |
+| NFR-005 | Non-functional | Must | Faceted text ranges in both editable composer/profile fields and rendered post/profile surfaces shall use the theme's primary color. | Review feedback specified the visual treatment. | Review feedback | AC-002, AC-003, AC-029 |
 | RULE-001 | Business rule | Must | Flutter shall not call a PDS or external atproto identity service directly for autocomplete or mention resolution in this slice. | Preserves Craftsky architecture: Flutter talks to AppView and only uses mock data here. | AGENTS.md, Prompt | AC-007, AC-023 |
 | RULE-002 | Business rule | Must | A mention facet shall only be generated when the mentioned handle can be mapped to a DID by the local/mock suggestion data or another injected Craftsky resolver seam in Flutter tests. | Mention facets require DIDs; unknown typed handles should not produce invalid mention facets. | AT Protocol docs, Discovery | AC-009, AC-024 |
 | RULE-003 | Business rule | Must | Hashtag facet `tag` values shall exclude the leading `#` while preserving the displayed text in the user-entered body. | Matches `app.bsky.richtext.facet#tag` shape. | AT Protocol docs | AC-009, AC-017 |
@@ -196,8 +197,8 @@ Flutter should provide a shared rich-text/facet experience for posts and profile
 | ID | Requirement IDs | Acceptance Criterion |
 |---|---|---|
 | AC-001 | BR-001, FR-001 | Given a user types post text containing a selected mention, a web link, and a hashtag, when the post is prepared for submission, then generated facets include mention, link, and tag entries for the correct text ranges. |
-| AC-002 | BR-001, FR-004 | Given a post contains valid facets, when the post card renders, then faceted text ranges are visually distinguishable from non-faceted text. |
-| AC-003 | BR-001, FR-005 | Given a profile description contains valid description facet metadata, when the profile bio renders, then faceted text ranges are visually distinguishable from non-faceted text. |
+| AC-002 | BR-001, FR-004, NFR-005 | Given a post contains valid facets, when the post card renders, then faceted text ranges are visually distinguishable from non-faceted text and use the theme's primary color. |
+| AC-003 | BR-001, FR-005, NFR-005 | Given a profile description contains valid description facet metadata, when the profile bio renders, then faceted text ranges are visually distinguishable from non-faceted text and use the theme's primary color. |
 | AC-004 | BR-001, FR-012 | Given text contains a recognized web URL, when facets are generated, then a link facet is included and no link autocomplete dropdown is shown. |
 | AC-005 | BR-002, FR-006, FR-007, FR-010 | Given the caret is in an active `@` token, when the debounce period completes, then the editor shows matching mock Craftsky account suggestions with followed accounts before non-followed matches. |
 | AC-006 | BR-002, FR-008, FR-009 | Given the caret is in an active `#` token, when the debounce period completes, then the editor shows matching mock hashtag suggestions with each suggestion displaying a 28-day post count. |
@@ -214,11 +215,16 @@ Flutter should provide a shared rich-text/facet experience for posts and profile
 | AC-017 | FR-008, FR-009, RULE-003, NFR-003 | Given hashtag suggestions are visible, when the user selects a suggestion, then the active token is replaced with the selected `#tag`, the popularity indicator was visible before selection, and generated tag facets store the tag without the `#`. |
 | AC-018 | FR-010 | Given mock suggestions include non-Craftsky accounts and followed/non-followed Craftsky accounts, when an account query runs, then non-Craftsky accounts are excluded and followed matching accounts sort before non-followed matching accounts. |
 | AC-019 | FR-011 | Given tests override the autocomplete repositories/providers, when composer/profile editors request suggestions, then the UI uses the override without changing editor widget code. |
-| AC-020 | FR-013 | Given a rendered facet is tapped, when a destination handler exists, then the handler is invoked with the facet target; when no destination exists, then the app does not crash. |
+| AC-020 | FR-013 | Given a rendered mention facet is tapped, when the mention target can be resolved from facet/rendering data, then Flutter navigates to that user's profile page. |
 | AC-021 | NFR-004 | Given existing post composer flows for empty text, overlong text, replies, images, alt-text warning, and discard confirmation, when facet UI is added, then those behaviors continue to pass existing expectations. |
 | AC-022 | NFR-004 | Given existing profile edit flows for seeded values, dirty state, validation, image drafts, and successful saves, when facet UI is added, then those behaviors continue to pass existing expectations except for the documented live `descriptionFacets` backend incompatibility. |
 | AC-023 | RULE-001 | Given a test environment without network access, when facet autocomplete and facet generation are exercised with mock data, then tests can pass without external network calls. |
 | AC-024 | RULE-002 | Given a user manually types an `@unknown.example` handle that is not present in mock/injected Craftsky resolver data, when facets are generated, then no mention facet is generated for that unknown handle and the text remains unchanged. |
+| AC-025 | FR-010 | Given mention suggestions are visible, when the dropdown renders, then each suggestion displays the suggested profile's avatar, display name, and handle. |
+| AC-026 | FR-013 | Given a rendered link facet is tapped, when the URL is valid, then Flutter opens it using the existing `url_launcher` package. |
+| AC-027 | FR-013 | Given a rendered hashtag facet is tapped, when the search route is available, then Flutter navigates to the search page with the hashtag context even though hashtag search results are not implemented yet. |
+| AC-028 | FR-013 | Given a rendered facet is tapped and its destination action cannot complete, when the failure occurs, then the app does not crash. |
+| AC-029 | NFR-005 | Given a mention or hashtag is active in the post composer or profile bio editor, when the text is displayed in the editable field, then the faceted token uses the theme's primary color. |
 
 ## 14. Edge Cases
 
@@ -226,7 +232,8 @@ Flutter should provide a shared rich-text/facet experience for posts and profile
 |---|---|---|---|
 | EC-001 | User types `@` or `#` in the middle of a word or email/URL-like string. | Autocomplete should not activate unless the token boundary rules identify an active mention/hashtag token. | FR-006, FR-008 |
 | EC-002 | User moves the caret away from an active token while a debounce timer is pending. | Pending suggestions should be ignored or hidden if they no longer match the active token/caret position. | FR-006, FR-008, NFR-002 |
-| EC-003 | Mock repository returns an empty suggestion list. | Dropdown should hide or show an intentional empty state without blocking typing. | FR-006, FR-008, FR-011 |
+| EC-003 | Mock account repository returns an empty suggestion list. | Mention dropdown should display `No result` without blocking typing. | FR-006, FR-011 |
+| EC-011 | Mock hashtag repository returns an empty suggestion list. | Hashtag dropdown should not be shown. | FR-008, FR-011 |
 | EC-004 | Selected mention/hashtag replaces a partial token such as `@ali` or `#vog`. | Only the active token is replaced; surrounding text and selection are preserved. | FR-006, FR-008 |
 | EC-005 | Text contains emoji or non-Latin characters before a facet. | Facet byte offsets remain correct. | NFR-001 |
 | EC-006 | Text contains overlapping detected entities, such as a hashtag inside a URL fragment. | Generated/rendered facets avoid overlaps; link handling should not create invalid overlapping tag facets. | NFR-001 |
@@ -255,8 +262,11 @@ Flutter should provide a shared rich-text/facet experience for posts and profile
 - UI:
   - Post composer gains mention and hashtag autocomplete dropdowns.
   - Profile bio editor gains mention and hashtag autocomplete dropdowns.
+  - Mention suggestions display avatar, display name, and handle.
   - Post cards render facet-aware text when facet metadata is available.
   - Profile bio renders facet-aware text when facet metadata is available.
+  - Faceted text uses the theme's primary color in composer/profile editors and rendered post/profile text.
+  - Rendered mention facets navigate to profile pages, link facets open through `url_launcher`, and hashtag facets navigate to the search page.
 - API:
   - Flutter `POST /v1/posts` request body gains optional `facets` from the client.
   - Flutter `PUT /v1/profiles/me` request body gains optional `descriptionFacets` from the client, ahead of current AppView support.
@@ -313,9 +323,6 @@ Flutter should provide a shared rich-text/facet experience for posts and profile
 
 ## 21. Open Questions
 
-- [ ] Non-blocking: What exact visual style should faceted text use for mentions, links, and hashtags beyond being distinguishable and theme-compliant?
-- [ ] Non-blocking: Should tapping a hashtag navigate to a future hashtag page or remain a no-op/placeholder until hashtag search exists?
-- [ ] Non-blocking: Should tapping a mention in profile/post text navigate to a profile route immediately when the facet has a DID/handle, or wait for a richer identity-resolution flow?
 - [ ] Non-blocking: What exact debounce duration should implementation choose? Requirements assume a testable default delay, commonly around 300 ms.
 - [ ] Blocking for live profile usability, but not for this Flutter-only requirements stage: AppView must add profile `descriptionFacets` request/response support before live profile saves with facets can succeed.
 
@@ -334,13 +341,13 @@ Notes: Review is required before implementation because the confirmed direction 
 - Next test specification: `02-acceptance-tests.md`
 - Must-cover requirement IDs:
   - `BR-001`, `BR-002`
-  - `FR-001` through `FR-012`
-  - `NFR-001`, `NFR-002`, `NFR-004`
+  - `FR-001` through `FR-013`
+  - `NFR-001`, `NFR-002`, `NFR-004`, `NFR-005`
   - `RULE-001` through `RULE-004`
 - Suggested test levels:
   - Unit tests for facet parsing/generation, UTF-8 byte offsets, overlap handling, unknown mention handling, and suggestion filtering/sorting.
   - Provider/repository tests for mock autocomplete seams and post/profile facet payload propagation.
-  - Widget tests for post composer autocomplete, profile bio autocomplete, selection/caret behavior, debounce behavior with fake async where practical, rich text rendering fallback, and existing composer/profile regression flows.
+  - Widget tests for post composer autocomplete, profile bio autocomplete, suggestion display fields, empty-state behavior, selection/caret behavior, debounce behavior with fake async where practical, primary-color facet styling, destination actions, rich text rendering fallback, and existing composer/profile regression flows.
   - API-client tests for `facets` and `descriptionFacets` JSON body inclusion.
 - Blocking open questions:
   - None for test design of this Flutter slice.
