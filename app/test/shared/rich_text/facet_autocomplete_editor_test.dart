@@ -12,7 +12,7 @@ void main() {
     testWidgets(
       'AT-003 shows mention suggestions and inserts selected handle',
       (tester) async {
-        final controller = TextEditingController();
+        final controller = FacetTextEditingController();
         final focusNode = FocusNode();
         addTearDown(controller.dispose);
         addTearDown(focusNode.dispose);
@@ -96,7 +96,7 @@ void main() {
     testWidgets(
       'AT-004 shows hashtag suggestions with counts and inserts canonical tag',
       (tester) async {
-        final controller = TextEditingController();
+        final controller = FacetTextEditingController();
         final focusNode = FocusNode();
         addTearDown(controller.dispose);
         addTearDown(focusNode.dispose);
@@ -140,7 +140,74 @@ void main() {
         expect(focusNode.hasFocus, isTrue);
       },
     );
+
+    testWidgets(
+      'IR-001 styles active mention and hashtag tokens with theme primary '
+      'color',
+      (tester) async {
+        final controller = FacetTextEditingController();
+        final focusNode = FocusNode();
+        addTearDown(controller.dispose);
+        addTearDown(focusNode.dispose);
+
+        await tester.pumpWidget(
+          _wrap(
+            overrides: const [],
+            child: FacetAutocompleteEditor(
+              label: 'Body',
+              controller: controller,
+              focusNode: focusNode,
+            ),
+          ),
+        );
+
+        await tester.enterText(find.byType(TextField), 'Hello @ali');
+        final context = tester.element(find.byType(TextField));
+        final theme = Theme.of(context);
+        final mentionSpan = controller.buildTextSpan(
+          context: context,
+          style: theme.textTheme.bodyLarge,
+          withComposing: false,
+        );
+
+        expect(
+          _spanForText(mentionSpan, '@ali')?.style?.color,
+          theme.colorScheme.primary,
+        );
+
+        await tester.enterText(find.byType(TextField), 'Casting on #sock');
+        final hashtagSpan = controller.buildTextSpan(
+          context: context,
+          style: theme.textTheme.bodyLarge,
+          withComposing: false,
+        );
+
+        expect(
+          _spanForText(hashtagSpan, '#sock')?.style?.color,
+          theme.colorScheme.primary,
+        );
+      },
+    );
   });
+}
+
+TextSpan? _spanForText(TextSpan root, String text) {
+  if (root.text == text) {
+    return root;
+  }
+  final children = root.children;
+  if (children == null) {
+    return null;
+  }
+  for (final child in children) {
+    if (child is TextSpan) {
+      final match = _spanForText(child, text);
+      if (match != null) {
+        return match;
+      }
+    }
+  }
+  return null;
 }
 
 Widget _wrap({

@@ -7,6 +7,57 @@ import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+/// Text controller that colors the active editable mention/hashtag token.
+class FacetTextEditingController extends TextEditingController {
+  /// Creates a facet-aware editing controller.
+  FacetTextEditingController({super.text});
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    required bool withComposing,
+    TextStyle? style,
+  }) {
+    final activeToken = FacetAutocompleteController.detectActiveToken(value);
+    if (activeToken == null) {
+      return super.buildTextSpan(
+        context: context,
+        style: style,
+        withComposing: withComposing,
+      );
+    }
+
+    final text = value.text;
+    if (activeToken.start < 0 ||
+        activeToken.end > text.length ||
+        activeToken.start >= activeToken.end) {
+      return super.buildTextSpan(
+        context: context,
+        style: style,
+        withComposing: withComposing,
+      );
+    }
+
+    final baseStyle = style ?? DefaultTextStyle.of(context).style;
+    final facetStyle = baseStyle.copyWith(
+      color: Theme.of(context).colorScheme.primary,
+    );
+    return TextSpan(
+      style: baseStyle,
+      children: [
+        if (activeToken.start > 0)
+          TextSpan(text: text.substring(0, activeToken.start)),
+        TextSpan(
+          text: text.substring(activeToken.start, activeToken.end),
+          style: facetStyle,
+        ),
+        if (activeToken.end < text.length)
+          TextSpan(text: text.substring(activeToken.end)),
+      ],
+    );
+  }
+}
+
 /// Reusable editor with mention/hashtag autocomplete support.
 class FacetAutocompleteEditor extends ConsumerStatefulWidget {
   /// Creates an autocomplete editor around the app's branded text field.
@@ -31,7 +82,7 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
   final String label;
 
   /// Text controller owned by the parent surface.
-  final TextEditingController controller;
+  final FacetTextEditingController controller;
 
   /// Optional focus node owned by the parent surface.
   final FocusNode? focusNode;

@@ -44,7 +44,7 @@ class PostComposerSheet extends ConsumerStatefulWidget {
 class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
   static const _imageListAnimationDuration = Duration(milliseconds: 220);
 
-  final _controller = TextEditingController();
+  final _controller = FacetTextEditingController();
   final _focusNode = FocusNode(debugLabel: 'postComposerText');
   late final String _composerId;
   String _initialText = '';

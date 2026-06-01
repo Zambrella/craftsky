@@ -140,7 +140,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   /// an `initialValue` parameter. The form value is kept in sync via
   /// each field's `onChanged: field.didChange`.
   late final TextEditingController _displayNameController;
-  late final TextEditingController _bioController;
+  late final FacetTextEditingController _bioController;
 
   /// Focus nodes are owned at the page level and handed to **both** the
   /// [FormBuilderField] and the [BrandTextField] for each text input.
@@ -174,7 +174,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     _displayNameController = TextEditingController(
       text: widget.profile.displayName,
     );
-    _bioController = TextEditingController(
+    _bioController = FacetTextEditingController(
       text: widget.profile.description,
     );
     _displayNameFocusNode = FocusNode(debugLabel: _fieldDisplayName);

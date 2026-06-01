@@ -282,9 +282,40 @@
 - `cd app && flutter test test/shared/rich_text/faceted_text_actions_test.dart test/search/search_page_test.dart test/shared/rich_text/faceted_text_test.dart test/feed/widgets/post_card_test.dart test/profile/widgets/profile_bio_test.dart` — passed (`+39`).
 - `cd app && flutter test test/shared/rich_text test/feed/data/post_api_client_test.dart test/feed/data/post_repository_test.dart test/feed/providers/create_post_provider_test.dart test/feed/widgets/post_composer_sheet_discard_test.dart test/feed/widgets/post_composer_sheet_facets_test.dart test/feed/widgets/post_card_test.dart test/profile/data/profile_api_client_test.dart test/profile/edit_profile_dialog_test.dart test/profile/edit_profile_dialog_facets_test.dart test/profile/widgets/profile_bio_test.dart test/search/search_page_test.dart` — passed (`+119`).
 - `cd app && flutter test` — passed (`+486`).
+- Review-fix command: `cd app && flutter test test/shared/rich_text/facet_autocomplete_editor_test.dart` — first failed to compile because `FacetTextEditingController` did not exist; passed after implementation (`+3`).
+- Review-fix command: `cd app && flutter test test/profile/data/profile_api_client_test.dart` — passed (`+9`) with current-AppView `unexpected_field` rejection mapped as `ApiBadRequest`.
+- Review-fix command: `cd app && flutter test test/profile/edit_profile_dialog_facets_test.dart` — passed (`+2`) with the `descriptionFacets` rejection flowing through the existing save-error snackbar path.
+- Review-fix command: `cd app && dart analyze lib/shared/rich_text lib/feed/widgets/post_card.dart lib/feed/widgets/post_composer_sheet.dart lib/profile/models/profile.dart lib/profile/pages/edit_profile_dialog.dart lib/profile/providers/save_profile_provider.dart lib/profile/widgets/profile_bio.dart lib/profile/widgets/profile_meta_section.dart lib/router/router.dart lib/search/pages/search_page.dart test/shared/rich_text test/feed/widgets/post_card_test.dart test/feed/widgets/post_composer_sheet_facets_test.dart test/profile/edit_profile_dialog_facets_test.dart test/profile/widgets/profile_bio_test.dart test/search/search_page_test.dart` — passed with no issues after fixing two lint/info findings introduced during the review-fix pass.
+- Review-fix command: `cd app && flutter test test/shared/rich_text test/feed/data/post_api_client_test.dart test/feed/data/post_repository_test.dart test/feed/providers/create_post_provider_test.dart test/feed/widgets/post_composer_sheet_facets_test.dart test/feed/widgets/post_card_test.dart test/profile/data/profile_api_client_test.dart test/profile/edit_profile_dialog_test.dart test/profile/edit_profile_dialog_facets_test.dart test/profile/widgets/profile_bio_test.dart test/search/search_page_test.dart` — passed (`+118`).
+- Review-fix command: `cd app && flutter test` — passed (`+489`).
 
 ## Remaining Planned Work
-- None for the implementation stage. Implementation review remains the next workflow stage.
+- None for the requested review-fix pass. `IR-001` and `IR-002` are addressed with passing tests. `IR-003` remains intentionally skipped per explicit user instruction because the current debounce implementation works for this slice.
+
+## Implementation Review Fixes
+
+### Step 26: IR-001 / UT-016 editable primary-color token styling
+- Write failing test: added `app/test/shared/rich_text/facet_autocomplete_editor_test.dart` coverage that keeps `@ali` and `#sock` active in the editable field and inspects the editable controller text span color.
+- Run command: `cd app && flutter test test/shared/rich_text/facet_autocomplete_editor_test.dart`
+- Confirmed failure: compilation failed because `FacetTextEditingController` did not exist.
+- Implement: added `FacetTextEditingController` overriding `buildTextSpan` to color the detected active mention/hashtag token with `Theme.colorScheme.primary`; required `FacetAutocompleteEditor` callers to use it; updated post composer/profile bio controllers and shared editor tests.
+- Run command: `cd app && flutter test test/shared/rich_text/facet_autocomplete_editor_test.dart` — passed (`+3`).
+- Notes: Covers NFR-005 and AC-029 for editable composer/profile token styling through the shared editor and production composer/profile controllers.
+
+### Step 27: IR-002 / IT-006 descriptionFacets rejection path
+- Write failing test: added `app/test/profile/data/profile_api_client_test.dart` coverage simulating the current AppView `unexpected_field` 400 response when `descriptionFacets` is present, and added `app/test/profile/edit_profile_dialog_facets_test.dart` coverage where the fake profile repository throws `ApiBadRequest('unexpected_field')` after receiving generated `descriptionFacets`.
+- Run command: `cd app && flutter test test/profile/data/profile_api_client_test.dart`
+- Confirmed failure: no red failure; existing error mapping already converted the simulated 400 response to `ApiBadRequest('unexpected_field')`.
+- Implement: no production code change required for the API-client error mapping.
+- Run command: `cd app && flutter test test/profile/data/profile_api_client_test.dart` — passed (`+9`).
+- Additional run command: `cd app && flutter test test/profile/edit_profile_dialog_facets_test.dart`
+- Confirmed result: passed (`+2`); the existing save-error listener surfaced `Couldn't save your profile.`, stayed on the edit page, and did not add a Flutter compatibility gate that strips `descriptionFacets`.
+- Notes: Covers FR-003/RULE-004 and AC-012 for the known current-AppView `descriptionFacets` incompatibility without adding a Flutter compatibility gate. The follow-up backend/API requirement remains visible in the test name/comment.
+
+### Skipped Review Finding: IR-003 debounce/provider deviation
+- Status: skipped by explicit user instruction: “apart from the debounce issue as the current implementation works.”
+- Linked requirements/tests: NFR-002 / AC-015 / AT-007.
+- Notes: No debounce implementation changes are planned in this review-fix pass.
 
 ## Completion Checklist
 - [x] All Must requirements covered by tests or documented gaps
