@@ -565,11 +565,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportSubmitError => 'Couldn\'t submit report. Please try again.';
 
   @override
-  String get reportDetailsLabel => 'Details (optional)';
+  String get reportDetailsLabel => 'Details';
 
   @override
   String get reportDetailsTooLong =>
       'Details must be 1000 characters or fewer.';
+
+  @override
+  String get reportReasonTitle => 'Reason';
 
   @override
   String get reportReasonHarassment => 'Harassment';

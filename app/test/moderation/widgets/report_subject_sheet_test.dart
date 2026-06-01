@@ -4,7 +4,6 @@ import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/moderation/widgets/report_subject_sheet.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
@@ -47,11 +46,12 @@ void main() {
       );
 
       expect(find.text('Report post'), findsOneWidget);
+      expect(find.text('Reason'), findsOneWidget);
       expect(find.text('Spam'), findsOneWidget);
       expect(find.text('Other'), findsOneWidget);
       expect(
         tester
-            .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Submit'))
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Submit'))
             .onPressed,
         isNull,
       );
@@ -60,13 +60,12 @@ void main() {
       await tester.pump();
       expect(
         tester
-            .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Submit'))
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Submit'))
             .onPressed,
         isNotNull,
       );
 
-      await tester.ensureVisible(find.widgetWithText(ChunkyButton, 'Submit'));
-      await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
+      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
       await tester.pump();
 
       expect(submitted?.reasonType, ReportReason.spam.reasonType);
@@ -92,7 +91,7 @@ void main() {
       );
       expect(
         tester
-            .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Submit'))
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Submit'))
             .onPressed,
         isNull,
       );
@@ -114,6 +113,7 @@ void main() {
       );
 
       expect(group.decoration.filled, isFalse);
+      expect(group.orientation, OptionsOrientation.vertical);
     });
 
     testWidgets('details input uses the shared brand text field', (
@@ -128,12 +128,52 @@ void main() {
       );
 
       expect(
-        find.widgetWithText(BrandTextField, 'Details (optional)'),
+        find.widgetWithText(BrandTextField, 'Details'),
         findsOneWidget,
       );
+      expect(find.text('0/1000'), findsOneWidget);
     });
 
-    testWidgets('submit uses chunky primary button with loading state', (
+    testWidgets('details input shows a live character count', (tester) async {
+      await _pump(
+        tester,
+        ReportSubjectSheet(
+          subjectType: ReportSubjectType.profile,
+          onSubmit: (_) async {},
+        ),
+      );
+
+      await tester.enterText(find.byType(TextField), 'private details');
+      await tester.pump();
+
+      expect(find.text('15/1000'), findsOneWidget);
+    });
+
+    testWidgets('details input keeps focus while character count updates', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        ReportSubjectSheet(
+          subjectType: ReportSubjectType.profile,
+          onSubmit: (_) async {},
+        ),
+      );
+
+      final textField = find.byType(TextField);
+      await tester.ensureVisible(textField);
+      await tester.showKeyboard(textField);
+      await tester.pump();
+      expect(tester.widget<TextField>(textField).focusNode?.hasFocus, isTrue);
+
+      tester.testTextInput.enterText('a');
+      await tester.pump();
+
+      expect(find.text('1/1000'), findsOneWidget);
+      expect(tester.widget<TextField>(textField).focusNode?.hasFocus, isTrue);
+    });
+
+    testWidgets('submit uses app bar action with loading state', (
       tester,
     ) async {
       await _pump(
@@ -145,7 +185,7 @@ void main() {
         ),
       );
 
-      expect(find.byType(ChunkyButton), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Submit'), findsNothing);
       expect(find.byType(StitchProgressIndicator), findsOneWidget);
       expect(find.text('Submitting…'), findsNothing);
     });
@@ -165,8 +205,7 @@ void main() {
       await tester.tap(find.text('Spam'));
       await tester.enterText(find.byType(TextField), 'private details');
       await tester.pump();
-      await tester.ensureVisible(find.widgetWithText(ChunkyButton, 'Submit'));
-      await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
+      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
       await tester.pumpAndSettle();
 
       expect(calls, 1);
@@ -186,7 +225,7 @@ void main() {
       );
       expect(find.text('private details'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
+      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
       await tester.pumpAndSettle();
 
       expect(calls, 2);
@@ -205,19 +244,20 @@ void main() {
       );
     });
 
-    testWidgets('adds keyboard inset below scrollable content', (tester) async {
+    testWidgets('uses full-screen route spacing for scrollable content', (
+      tester,
+    ) async {
       await _pump(
         tester,
         ReportSubjectSheet(
           subjectType: ReportSubjectType.post,
           onSubmit: (_) async {},
         ),
-        viewInsets: const EdgeInsets.only(bottom: 300),
       );
 
       final scrollView = tester
           .widgetList<SingleChildScrollView>(
-            find.byKey(const ValueKey('reportSubjectSheetScrollView')),
+            find.byKey(const ValueKey('reportSubjectRouteScrollView')),
           )
           .single;
       final padding = scrollView.padding! as EdgeInsets;
@@ -225,7 +265,7 @@ void main() {
       expect(padding.left, 16);
       expect(padding.top, 16);
       expect(padding.right, 16);
-      expect(padding.bottom, 316);
+      expect(padding.bottom, 32);
     });
   });
 }

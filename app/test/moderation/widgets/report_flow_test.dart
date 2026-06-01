@@ -7,12 +7,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _RecordingNavigatorObserver extends NavigatorObserver {
-  final pushedPopupRoutes = <Route<dynamic>>[];
+  final pushedRoutes = <Route<dynamic>>[];
 
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
     super.didPush(route, previousRoute);
-    if (route is PopupRoute) pushedPopupRoutes.add(route);
+    pushedRoutes.add(route);
   }
 }
 
@@ -82,13 +82,24 @@ void main() {
           showSheet: (context, ref) =>
               showPostReportSheet(context, ref, _post()),
         );
+        rootObserver.pushedRoutes.clear();
+        nestedObserver.pushedRoutes.clear();
 
         await tester.tap(find.text('Open report sheet'));
         await tester.pumpAndSettle();
 
         expect(find.text('Report post'), findsOneWidget);
-        expect(rootObserver.pushedPopupRoutes, hasLength(1));
-        expect(nestedObserver.pushedPopupRoutes, isEmpty);
+        expect(rootObserver.pushedRoutes, hasLength(1));
+        expect(
+          rootObserver.pushedRoutes.single,
+          isA<MaterialPageRoute<void>>(),
+        );
+        expect(
+          (rootObserver.pushedRoutes.single as MaterialPageRoute<void>)
+              .fullscreenDialog,
+          isTrue,
+        );
+        expect(nestedObserver.pushedRoutes, isEmpty);
       },
     );
 
@@ -108,13 +119,24 @@ void main() {
             'bob.craftsky.social',
           ),
         );
+        rootObserver.pushedRoutes.clear();
+        nestedObserver.pushedRoutes.clear();
 
         await tester.tap(find.text('Open report sheet'));
         await tester.pumpAndSettle();
 
         expect(find.text('Report profile'), findsOneWidget);
-        expect(rootObserver.pushedPopupRoutes, hasLength(1));
-        expect(nestedObserver.pushedPopupRoutes, isEmpty);
+        expect(rootObserver.pushedRoutes, hasLength(1));
+        expect(
+          rootObserver.pushedRoutes.single,
+          isA<MaterialPageRoute<void>>(),
+        );
+        expect(
+          (rootObserver.pushedRoutes.single as MaterialPageRoute<void>)
+              .fullscreenDialog,
+          isTrue,
+        );
+        expect(nestedObserver.pushedRoutes, isEmpty);
       },
     );
   });

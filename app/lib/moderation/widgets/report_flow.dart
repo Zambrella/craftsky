@@ -17,48 +17,48 @@ Future<void> showPostReportSheet(
 ) {
   final successMessage = AppLocalizations.of(context).reportSubmitSuccess;
   ref.read(reportPostProvider.notifier).reset();
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useRootNavigator: true,
-    builder: (sheetContext) => Consumer(
-      builder: (sheetContext, sheetRef, _) {
-        final submitState = sheetRef.watch(reportPostProvider);
-        sheetRef.listen<AsyncValue<ReportResult?>>(reportPostProvider, (
-          _,
-          next,
-        ) {
-          _handleAcceptedReport(
-            context: context,
-            sheetContext: sheetContext,
-            successMessage: successMessage,
-            reset: () => sheetRef.read(reportPostProvider.notifier).reset(),
-            state: next,
-          );
-        });
-
-        return ReportSubjectSheet(
-          subjectType: ReportSubjectType.post,
-          isSubmitting: submitState.isLoading,
-          submitError: submitState.hasError
-              ? AppLocalizations.of(sheetContext).reportSubmitError
-              : null,
-          onChanged: submitState.hasError
-              ? () => sheetRef.read(reportPostProvider.notifier).reset()
-              : null,
-          onSubmit: (submission) {
-            unawaited(
-              sheetRef
-                  .read(reportPostProvider.notifier)
-                  .submit(
-                    did: post.author.did,
-                    rkey: post.rkey,
-                    submission: submission,
-                  ),
+  return Navigator.of(context, rootNavigator: true).push<void>(
+    MaterialPageRoute<void>(
+      fullscreenDialog: true,
+      builder: (routeContext) => Consumer(
+        builder: (routeContext, routeRef, _) {
+          final submitState = routeRef.watch(reportPostProvider);
+          routeRef.listen<AsyncValue<ReportResult?>>(reportPostProvider, (
+            _,
+            next,
+          ) {
+            _handleAcceptedReport(
+              context: context,
+              routeContext: routeContext,
+              successMessage: successMessage,
+              reset: () => routeRef.read(reportPostProvider.notifier).reset(),
+              state: next,
             );
-          },
-        );
-      },
+          });
+
+          return ReportSubjectSheet(
+            subjectType: ReportSubjectType.post,
+            isSubmitting: submitState.isLoading,
+            submitError: submitState.hasError
+                ? AppLocalizations.of(routeContext).reportSubmitError
+                : null,
+            onChanged: submitState.hasError
+                ? () => routeRef.read(reportPostProvider.notifier).reset()
+                : null,
+            onSubmit: (submission) {
+              unawaited(
+                routeRef
+                    .read(reportPostProvider.notifier)
+                    .submit(
+                      did: post.author.did,
+                      rkey: post.rkey,
+                      submission: submission,
+                    ),
+              );
+            },
+          );
+        },
+      ),
     ),
   );
 }
@@ -70,71 +70,72 @@ Future<void> showProfileReportSheet(
 ) {
   final successMessage = AppLocalizations.of(context).reportSubmitSuccess;
   ref.read(reportProfileProvider.notifier).reset();
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useRootNavigator: true,
-    builder: (sheetContext) => Consumer(
-      builder: (sheetContext, sheetRef, _) {
-        final submitState = sheetRef.watch(reportProfileProvider);
-        sheetRef.listen<AsyncValue<ReportResult?>>(reportProfileProvider, (
-          _,
-          next,
-        ) {
-          _handleAcceptedReport(
-            context: context,
-            sheetContext: sheetContext,
-            successMessage: successMessage,
-            reset: () => sheetRef.read(reportProfileProvider.notifier).reset(),
-            state: next,
-          );
-        });
-
-        return ReportSubjectSheet(
-          subjectType: ReportSubjectType.profile,
-          isSubmitting: submitState.isLoading,
-          submitError: submitState.hasError
-              ? AppLocalizations.of(sheetContext).reportSubmitError
-              : null,
-          onChanged: submitState.hasError
-              ? () => sheetRef.read(reportProfileProvider.notifier).reset()
-              : null,
-          onSubmit: (submission) {
-            unawaited(
-              sheetRef
-                  .read(reportProfileProvider.notifier)
-                  .submit(
-                    handleOrDid: handleOrDid,
-                    submission: submission,
-                  ),
+  return Navigator.of(context, rootNavigator: true).push<void>(
+    MaterialPageRoute<void>(
+      fullscreenDialog: true,
+      builder: (routeContext) => Consumer(
+        builder: (routeContext, routeRef, _) {
+          final submitState = routeRef.watch(reportProfileProvider);
+          routeRef.listen<AsyncValue<ReportResult?>>(reportProfileProvider, (
+            _,
+            next,
+          ) {
+            _handleAcceptedReport(
+              context: context,
+              routeContext: routeContext,
+              successMessage: successMessage,
+              reset: () =>
+                  routeRef.read(reportProfileProvider.notifier).reset(),
+              state: next,
             );
-          },
-        );
-      },
+          });
+
+          return ReportSubjectSheet(
+            subjectType: ReportSubjectType.profile,
+            isSubmitting: submitState.isLoading,
+            submitError: submitState.hasError
+                ? AppLocalizations.of(routeContext).reportSubmitError
+                : null,
+            onChanged: submitState.hasError
+                ? () => routeRef.read(reportProfileProvider.notifier).reset()
+                : null,
+            onSubmit: (submission) {
+              unawaited(
+                routeRef
+                    .read(reportProfileProvider.notifier)
+                    .submit(
+                      handleOrDid: handleOrDid,
+                      submission: submission,
+                    ),
+              );
+            },
+          );
+        },
+      ),
     ),
   );
 }
 
 void _handleAcceptedReport({
   required BuildContext context,
-  required BuildContext sheetContext,
+  required BuildContext routeContext,
   required String successMessage,
   required VoidCallback reset,
   required AsyncValue<ReportResult?> state,
 }) {
   if (state case AsyncData(value: != null)) {
     reset();
-    if (sheetContext.mounted) _dismissReportSheet(sheetContext);
+    if (routeContext.mounted) _dismissReportRoute(routeContext);
     if (context.mounted) _showReportSuccess(context, successMessage);
   }
 }
 
-void _dismissReportSheet(BuildContext sheetContext) {
+void _dismissReportRoute(BuildContext routeContext) {
   try {
-    Navigator.of(sheetContext, rootNavigator: true).pop();
+    Navigator.of(routeContext, rootNavigator: true).pop();
   } on Object {
     // The report has already been accepted. Do not turn a best-effort UI
-    // dismissal problem into a false submission failure in the sheet.
+    // dismissal problem into a false submission failure in the route.
   }
 }
 

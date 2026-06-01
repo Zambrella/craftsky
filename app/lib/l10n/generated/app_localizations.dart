@@ -1090,10 +1090,10 @@ abstract class AppLocalizations {
   /// **'Couldn\'t submit report. Please try again.'**
   String get reportSubmitError;
 
-  /// Label for optional private details text field in the report dialog/sheet.
+  /// Label for private optional details text field in the report dialog/sheet.
   ///
   /// In en, this message translates to:
-  /// **'Details (optional)'**
+  /// **'Details'**
   String get reportDetailsLabel;
 
   /// Validation error when optional report details exceed the maximum length.
@@ -1101,6 +1101,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Details must be 1000 characters or fewer.'**
   String get reportDetailsTooLong;
+
+  /// Section title above the report reason choices.
+  ///
+  /// In en, this message translates to:
+  /// **'Reason'**
+  String get reportReasonTitle;
 
   /// Report reason label for harassment.
   ///

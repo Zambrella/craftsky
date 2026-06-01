@@ -1,4 +1,5 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 class ModerationWarningBanner extends StatelessWidget {
@@ -16,22 +17,24 @@ class ModerationWarningBanner extends StatelessWidget {
       _ => l10n.moderationWarningPost,
     };
     final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final radii = theme.extension<RadiusTheme>()!;
     return Semantics(
       label: text,
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.all(spacing.sp3),
         decoration: BoxDecoration(
           color: theme.colorScheme.secondaryContainer,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(radii.r3),
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(
               Icons.info_outline,
               color: theme.colorScheme.onSecondaryContainer,
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: spacing.sp2),
             Expanded(
               child: Text(
                 text,

@@ -556,11 +556,14 @@
   "reportSubmitError": "Couldn't submit report. Please try again.",
   "@reportSubmitError": { "description": "Inline error shown when a report submission fails and can be retried." },
 
-  "reportDetailsLabel": "Details (optional)",
-  "@reportDetailsLabel": { "description": "Label for optional private details text field in the report dialog/sheet." },
+  "reportDetailsLabel": "Details",
+  "@reportDetailsLabel": { "description": "Label for private optional details text field in the report dialog/sheet." },
 
   "reportDetailsTooLong": "Details must be 1000 characters or fewer.",
   "@reportDetailsTooLong": { "description": "Validation error when optional report details exceed the maximum length." },
+
+  "reportReasonTitle": "Reason",
+  "@reportReasonTitle": { "description": "Section title above the report reason choices." },
 
   "reportReasonHarassment": "Harassment",
   "@reportReasonHarassment": { "description": "Report reason label for harassment." },
