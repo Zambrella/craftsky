@@ -64,6 +64,7 @@
 
     window.posthog.init(POSTHOG_KEY, {
       api_host: POSTHOG_HOST,
+      ui_host: 'https://eu.posthog.com',
       persistence: 'memory',
       autocapture: false,
       disable_session_recording: true,
