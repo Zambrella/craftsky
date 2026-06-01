@@ -30,7 +30,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [ ] Observability — request logging format, request-ID propagation into downstream calls, metrics, tracing → own spec
 - [ ] Search — posts by text, tag, craft type, materials (Postgres FTS vs separate service) → own spec
 - [ ] Reposts — `POST /v1/posts/{did}/{rkey}/reposts` etc. Lexicon already defined. Folds into Posts spec unless it grows.
-- [ ] Blocks, mutes, reports — moderation endpoints → own spec (overlaps the v1 "report a post" moderation plan; reconcile when scoping)
+- [x] Blocks, mutes, reports — moderation endpoints → own spec (overlaps the v1 "report a post" moderation plan; reconcile when scoping)
 - [ ] Push notification registration — `POST /v1/notifications/devices` etc. → own spec
 - [ ] How to handle different languages
 
@@ -48,7 +48,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Post composer (text-only first; image attach lands with blob upload)
 - [x] Post detail / thread view
 - [x] Follow / unfollow interactions
-- [ ] Notifications screen
+- [x] Notifications screen
 - [ ] Error-handling UX (how do we surface `error` codes from the envelope to users?)
 - [ ] Rich text — facets, mentions, links, hashtags
 - [ ] Quote posts
@@ -81,7 +81,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 ### Product / community
 
 - [ ] Handle suffix decision (users get `<name>.craftsky.social`? Some other domain? Use bsky.social handles?)
-- [ ] Initial moderation plan — even MVP needs a "report a post" path, even if the backend is just "email an inbox"
+- [x] Initial moderation plan — even MVP needs a "report a post" path, even if the backend is just "email an inbox"
 - [ ] Ozone moderation backend — self-hosted Ozone instance for triaging reports, labelling, and takedowns (see https://atproto.com/guides/using-ozone) → own spec
 - [ ] Legal read (UK Online Safety Act implications per reference doc)
 - [ ] Terms of service & privacy policy — drafted copy, linked from app + landing page (legal read informs this but is separate)
