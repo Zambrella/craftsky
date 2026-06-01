@@ -288,6 +288,9 @@
 - Review-fix command: `cd app && dart analyze lib/shared/rich_text lib/feed/widgets/post_card.dart lib/feed/widgets/post_composer_sheet.dart lib/profile/models/profile.dart lib/profile/pages/edit_profile_dialog.dart lib/profile/providers/save_profile_provider.dart lib/profile/widgets/profile_bio.dart lib/profile/widgets/profile_meta_section.dart lib/router/router.dart lib/search/pages/search_page.dart test/shared/rich_text test/feed/widgets/post_card_test.dart test/feed/widgets/post_composer_sheet_facets_test.dart test/profile/edit_profile_dialog_facets_test.dart test/profile/widgets/profile_bio_test.dart test/search/search_page_test.dart` — passed with no issues after fixing two lint/info findings introduced during the review-fix pass.
 - Review-fix command: `cd app && flutter test test/shared/rich_text test/feed/data/post_api_client_test.dart test/feed/data/post_repository_test.dart test/feed/providers/create_post_provider_test.dart test/feed/widgets/post_composer_sheet_facets_test.dart test/feed/widgets/post_card_test.dart test/profile/data/profile_api_client_test.dart test/profile/edit_profile_dialog_test.dart test/profile/edit_profile_dialog_facets_test.dart test/profile/widgets/profile_bio_test.dart test/search/search_page_test.dart` — passed (`+118`).
 - Review-fix command: `cd app && flutter test` — passed (`+489`).
+- Follow-up styling command: `cd app && flutter test test/shared/rich_text/facet_autocomplete_editor_test.dart` — first failed because `@ali` was no longer primary-colored after the caret moved to the end of `Hello @ali and #sock done`; passed after persistent editable token range styling (`+3`).
+- Follow-up styling command: `cd app && dart analyze lib/shared/rich_text/widgets/facet_autocomplete_editor.dart test/shared/rich_text/facet_autocomplete_editor_test.dart` — passed with no issues.
+- Follow-up styling command: `cd app && flutter test test/shared/rich_text/facet_autocomplete_editor_test.dart test/feed/widgets/post_composer_sheet_facets_test.dart test/profile/edit_profile_dialog_facets_test.dart` — passed (`+6`).
 
 ## Remaining Planned Work
 - None for the requested review-fix pass. `IR-001` and `IR-002` are addressed with passing tests. `IR-003` remains intentionally skipped per explicit user instruction because the current debounce implementation works for this slice.
@@ -316,6 +319,16 @@
 - Status: skipped by explicit user instruction: “apart from the debounce issue as the current implementation works.”
 - Linked requirements/tests: NFR-002 / AC-015 / AT-007.
 - Notes: No debounce implementation changes are planned in this review-fix pass.
+
+### Step 28: Follow-up / persistent editable facet styling
+- User feedback: composer facet text only uses the primary theme color while the caret is inside the token; it should remain primary-colored throughout editing after the caret leaves the token.
+- Write failing test: extended `app/test/shared/rich_text/facet_autocomplete_editor_test.dart` to type `Hello @ali and #sock done`, leaving the caret outside both facet tokens, and assert both `@ali` and `#sock` spans still use `Theme.colorScheme.primary`.
+- Run command: `cd app && flutter test test/shared/rich_text/facet_autocomplete_editor_test.dart`
+- Confirmed failure: `@ali` span color was `null` instead of the theme primary color because `FacetTextEditingController` only styled the active autocomplete token under the caret.
+- Implement: changed `FacetTextEditingController.buildTextSpan` to scan the whole editable text for boundary-valid mention and hashtag token ranges, then build primary-colored spans for all detected ranges while preserving normal style for surrounding text.
+- Run command: `cd app && flutter test test/shared/rich_text/facet_autocomplete_editor_test.dart` — passed (`+3`).
+- Nearby verification: `cd app && dart analyze lib/shared/rich_text/widgets/facet_autocomplete_editor.dart test/shared/rich_text/facet_autocomplete_editor_test.dart` — passed with no issues; `cd app && flutter test test/shared/rich_text/facet_autocomplete_editor_test.dart test/feed/widgets/post_composer_sheet_facets_test.dart test/profile/edit_profile_dialog_facets_test.dart` — passed (`+6`).
+- Notes: Extends the `IR-001` / `UT-016` / `NFR-005` / `AC-029` fix so editable mention/hashtag facet tokens are styled persistently, not only when they are the active autocomplete token.
 
 ## Completion Checklist
 - [x] All Must requirements covered by tests or documented gaps

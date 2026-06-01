@@ -186,6 +186,25 @@ void main() {
           _spanForText(hashtagSpan, '#sock')?.style?.color,
           theme.colorScheme.primary,
         );
+
+        await tester.enterText(
+          find.byType(TextField),
+          'Hello @ali and #sock done',
+        );
+        final persistentSpan = controller.buildTextSpan(
+          context: context,
+          style: theme.textTheme.bodyLarge,
+          withComposing: false,
+        );
+
+        expect(
+          _spanForText(persistentSpan, '@ali')?.style?.color,
+          theme.colorScheme.primary,
+        );
+        expect(
+          _spanForText(persistentSpan, '#sock')?.style?.color,
+          theme.colorScheme.primary,
+        );
       },
     );
   });

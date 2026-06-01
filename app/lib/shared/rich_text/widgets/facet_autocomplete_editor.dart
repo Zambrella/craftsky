@@ -18,8 +18,8 @@ class FacetTextEditingController extends TextEditingController {
     required bool withComposing,
     TextStyle? style,
   }) {
-    final activeToken = FacetAutocompleteController.detectActiveToken(value);
-    if (activeToken == null) {
+    final ranges = _editableFacetTokenRanges(value.text);
+    if (ranges.isEmpty) {
       return super.buildTextSpan(
         context: context,
         style: style,
@@ -28,35 +28,90 @@ class FacetTextEditingController extends TextEditingController {
     }
 
     final text = value.text;
-    if (activeToken.start < 0 ||
-        activeToken.end > text.length ||
-        activeToken.start >= activeToken.end) {
-      return super.buildTextSpan(
-        context: context,
-        style: style,
-        withComposing: withComposing,
-      );
-    }
-
     final baseStyle = style ?? DefaultTextStyle.of(context).style;
     final facetStyle = baseStyle.copyWith(
       color: Theme.of(context).colorScheme.primary,
     );
-    return TextSpan(
-      style: baseStyle,
-      children: [
-        if (activeToken.start > 0)
-          TextSpan(text: text.substring(0, activeToken.start)),
+    final children = <InlineSpan>[];
+    var cursor = 0;
+    for (final range in ranges) {
+      if (range.start > cursor) {
+        children.add(TextSpan(text: text.substring(cursor, range.start)));
+      }
+      children.add(
         TextSpan(
-          text: text.substring(activeToken.start, activeToken.end),
+          text: text.substring(range.start, range.end),
           style: facetStyle,
         ),
-        if (activeToken.end < text.length)
-          TextSpan(text: text.substring(activeToken.end)),
-      ],
+      );
+      cursor = range.end;
+    }
+    if (cursor < text.length) {
+      children.add(TextSpan(text: text.substring(cursor)));
+    }
+
+    return TextSpan(
+      style: baseStyle,
+      children: children,
     );
   }
 }
+
+class _EditableFacetTokenRange {
+  const _EditableFacetTokenRange({required this.start, required this.end});
+
+  final int start;
+  final int end;
+}
+
+List<_EditableFacetTokenRange> _editableFacetTokenRanges(String text) {
+  final ranges = <_EditableFacetTokenRange>[];
+  var index = 0;
+  while (index < text.length) {
+    final trigger = text[index];
+    if ((trigger == '@' || trigger == '#') &&
+        _hasEditableTokenBoundary(text, index)) {
+      final end = _editableTokenEnd(text, index + 1, trigger);
+      if (end > index + 1) {
+        ranges.add(_EditableFacetTokenRange(start: index, end: end));
+        index = end;
+        continue;
+      }
+    }
+    index++;
+  }
+  return ranges;
+}
+
+int _editableTokenEnd(String text, int start, String trigger) {
+  var index = start;
+  while (index < text.length) {
+    final iterator = text.substring(index).runes.iterator;
+    if (!iterator.moveNext()) return index;
+    final char = String.fromCharCode(iterator.current);
+    final isValid = trigger == '@'
+        ? _editableMentionChar.hasMatch(char)
+        : _editableHashtagChar.hasMatch(char);
+    if (!isValid) {
+      return index;
+    }
+    index += char.length;
+  }
+  return index;
+}
+
+bool _hasEditableTokenBoundary(String text, int triggerIndex) {
+  if (triggerIndex == 0) {
+    return true;
+  }
+  final previous = text[triggerIndex - 1];
+  return previous.trim().isEmpty ||
+      _editableOpeningPunctuation.contains(previous);
+}
+
+const _editableOpeningPunctuation = {'(', '[', '{'};
+final _editableMentionChar = RegExp(r'^[A-Za-z0-9._-]$');
+final _editableHashtagChar = RegExp(r'^[\p{L}\p{N}_]$', unicode: true);
 
 /// Reusable editor with mention/hashtag autocomplete support.
 class FacetAutocompleteEditor extends ConsumerStatefulWidget {
