@@ -59,6 +59,8 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		authN(deviceID(api.FollowProfileHandler(deps.FollowStore, deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger))))
 	mux.Handle("DELETE /v1/profiles/{handleOrDid}/follows",
 		authN(deviceID(api.UnfollowProfileHandler(deps.FollowStore, deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger))))
+	mux.Handle("POST /v1/profiles/{handleOrDid}/reports",
+		authN(deviceID(api.ReportProfileHandler(api.NewProfileReportTargetResolver(deps.ProfileStore, deps.HandleResolver), deps.ReportStore, deps.ReportForwarder, deps.Logger))))
 
 	// v1 — post handlers (authenticated + device-id required).
 	postStore := api.NewPostStore(deps.DB)
@@ -86,6 +88,20 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		authN(deviceID(api.UnrepostPostHandler(postStore, deps.NewPDSClient, deps.Logger))))
 	mux.Handle("DELETE /v1/posts/{did}/{rkey}",
 		authN(deviceID(api.DeletePostHandler(deps.NewPDSClient, deps.Logger))))
+	mux.Handle("POST /v1/posts/{did}/{rkey}/reports",
+		authN(deviceID(api.ReportPostHandler(postStore, deps.ReportStore, deps.ReportForwarder, deps.Logger))))
+	if deps.Config.Env == app.EnvDev && deps.Config.EnableDevModeration && deps.Config.DevModerationToken != "" {
+		mux.Handle("POST /v1/dev/moderation/ozone-events",
+			api.DevModerationOzoneEventsHandler(
+				deps.Config.DevModerationToken,
+				api.ModerationRequestConfig{
+					DefaultSourceDID:  deps.Config.DevLabelerDID,
+					TrustedSourceDIDs: deps.Config.TrustedModerationSourceDIDs,
+				},
+				deps.ModerationStore,
+				deps.Logger,
+			))
+	}
 	mux.Handle("GET /v1/profiles/{handleOrDid}/posts",
 		authN(deviceID(api.ListPostsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger))))
 	mux.Handle("GET /v1/profiles/{handleOrDid}/comments",

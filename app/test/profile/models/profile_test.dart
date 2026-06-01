@@ -23,6 +23,7 @@ void main() {
         'postCount': 8,
         'postsLast7Days': 2,
         'projectCount': 0,
+        'moderation': {'warningKind': 'profile'},
       };
 
       final profile = ProfileMapper.fromMap(json);
@@ -35,6 +36,7 @@ void main() {
       expect(profile.postCount, 8);
       expect(profile.postsLast7Days, 2);
       expect(profile.projectCount, 0);
+      expect(profile.moderation?.warningKind, 'profile');
     });
 
     test('allows non-Craftsky profiles with unknown counts', () {

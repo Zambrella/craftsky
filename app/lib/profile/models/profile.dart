@@ -1,3 +1,4 @@
+import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
@@ -28,6 +29,7 @@ class Profile with ProfileMappable {
     this.postCount,
     this.postsLast7Days,
     this.projectCount,
+    this.moderation,
   }) : did = Did.parse(did),
        handle = Handle.parse(handle);
 
@@ -47,4 +49,5 @@ class Profile with ProfileMappable {
   final int? postCount;
   final int? postsLast7Days;
   final int? projectCount;
+  final ModerationMetadata? moderation;
 }

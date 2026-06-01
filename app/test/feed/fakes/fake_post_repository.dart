@@ -4,6 +4,8 @@ import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/moderation/models/report_result.dart';
+import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 /// Programmable [PostRepository] for unit tests. Each method delegates
@@ -28,6 +30,7 @@ class FakePostRepository implements PostRepository {
     this.onCreate,
     this.onFetch,
     this.onDelete,
+    this.onReport,
     this.onListCommentBranchReplies,
     this.onCommentSection,
     this.onLike,
@@ -47,6 +50,12 @@ class FakePostRepository implements PostRepository {
   onCreate;
   final Future<Post> Function(Did did, RecordKey rkey)? onFetch;
   final Future<void> Function(Did did, RecordKey rkey)? onDelete;
+  final Future<ReportResult> Function(
+    Did did,
+    RecordKey rkey,
+    ReportSubmission submission,
+  )?
+  onReport;
   final Future<ReplyPage> Function(
     Did did,
     RecordKey rkey, {
@@ -101,6 +110,15 @@ class FakePostRepository implements PostRepository {
   Future<void> delete(Did did, RecordKey rkey) =>
       onDelete?.call(did, rkey) ??
       Future<void>.error(UnimplementedError('delete not stubbed'));
+
+  @override
+  Future<ReportResult> report(
+    Did did,
+    RecordKey rkey,
+    ReportSubmission submission,
+  ) =>
+      onReport?.call(did, rkey, submission) ??
+      Future<ReportResult>.error(UnimplementedError('report not stubbed'));
 
   @override
   Future<ReplyPage> listCommentBranchReplies(

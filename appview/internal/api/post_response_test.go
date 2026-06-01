@@ -186,3 +186,47 @@ func TestBuildPostResponse_ImageMetadataIncludesAspectRatioAndSize(t *testing.T)
 		t.Fatalf("aspectRatio = %+v", img.AspectRatio)
 	}
 }
+
+func TestBuildPostResponse_ModerationWarningMetadataIsGeneric(t *testing.T) {
+	t.Parallel()
+	row := baseRow()
+	row.ModerationWarningKind = ptrStr("post")
+
+	resp := api.BuildPostResponse(row, syntax.Handle("alice.example"))
+	if resp.Moderation == nil || resp.Moderation.WarningKind != "post" {
+		t.Fatalf("moderation = %+v, want post warning", resp.Moderation)
+	}
+
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(data, &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	moderation, ok := body["moderation"].(map[string]any)
+	if !ok {
+		t.Fatalf("moderation missing or wrong type in %s", data)
+	}
+	if len(moderation) != 1 || moderation["warningKind"] != "post" {
+		t.Fatalf("moderation payload = %#v, want only warningKind", moderation)
+	}
+	for _, forbidden := range []string{"raw unsafe reason fixture", "internalReason", "sourceDid", "outputId", "reportCount"} {
+		if strings.Contains(string(data), forbidden) {
+			t.Fatalf("moderation response leaked %q in %s", forbidden, data)
+		}
+	}
+}
+
+func TestBuildPostResponse_OmitsModerationWhenUnwarned(t *testing.T) {
+	t.Parallel()
+	resp := api.BuildPostResponse(baseRow(), syntax.Handle("alice.example"))
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(data), "moderation") {
+		t.Fatalf("unwarned post must omit moderation metadata: %s", data)
+	}
+}

@@ -113,6 +113,49 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		LEFT JOIN bluesky_profiles sbp ON sbp.did = sp.did
 		WHERE ($2::timestamptz IS NULL
 		       OR (e.indexed_at, e.uri) < ($2::timestamptz, $3::text))
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM moderation_outputs mo
+			WHERE mo.action = 'apply'
+			  AND mo.subject_type = 'account'
+			  AND mo.subject_did = e.actor_did
+			  AND mo.value IN ('hide', 'takedown')
+			  AND (mo.expires_at IS NULL OR mo.expires_at > now())
+			  AND NOT EXISTS (
+				SELECT 1
+				FROM moderation_outputs neg
+				WHERE neg.action = 'negate'
+				  AND neg.source_did = mo.source_did
+				  AND neg.subject_type = mo.subject_type
+				  AND neg.subject_did = mo.subject_did
+				  AND neg.value = mo.value
+				  AND (neg.expires_at IS NULL OR neg.expires_at > now())
+				  AND neg.indexed_at > mo.indexed_at
+			  )
+		  )
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM moderation_outputs mo
+			WHERE mo.action = 'apply'
+			  AND mo.value IN ('hide', 'takedown')
+			  AND (mo.expires_at IS NULL OR mo.expires_at > now())
+			  AND (
+				(mo.subject_type = 'post' AND mo.subject_uri = e.subject_uri)
+				OR (mo.subject_type = 'account' AND sp.did IS NOT NULL AND mo.subject_did = sp.did)
+			  )
+			  AND NOT EXISTS (
+				SELECT 1
+				FROM moderation_outputs neg
+				WHERE neg.action = 'negate'
+				  AND neg.source_did = mo.source_did
+				  AND neg.subject_type = mo.subject_type
+				  AND neg.subject_did = mo.subject_did
+				  AND neg.value = mo.value
+				  AND (neg.expires_at IS NULL OR neg.expires_at > now())
+				  AND neg.indexed_at > mo.indexed_at
+				  AND (mo.subject_type = 'account' OR neg.subject_uri = mo.subject_uri)
+			  )
+		  )
 		ORDER BY e.indexed_at DESC, e.uri DESC
 		LIMIT $4
 	`

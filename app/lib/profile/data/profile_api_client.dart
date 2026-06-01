@@ -1,3 +1,5 @@
+import 'package:craftsky_app/moderation/models/report_result.dart';
+import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
@@ -87,6 +89,18 @@ class ProfileApiClient {
     return ProfileMapper.fromMap(res.data!);
   });
 
+  /// POST /v1/profiles/@{handleOrDid}/reports — private AppView report intake.
+  Future<ReportResult> reportProfile(
+    String handleOrDid,
+    ReportSubmission submission,
+  ) => unwrapApi(() async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/v1/profiles/@$handleOrDid/reports',
+      data: submission.toMap(),
+    );
+    return _reportResultFromMap(res.data!);
+  });
+
   Future<ProfileAccountPage> listMutualFollowers(
     String handleOrDid, {
     int? limit,
@@ -128,4 +142,11 @@ class ProfileApiClient {
     'mimeType': blob.mimeType,
     'size': blob.size,
   };
+
+  ReportResult _reportResultFromMap(Map<String, dynamic> data) {
+    return ReportResult(
+      reportId: data['reportId'] as String,
+      status: data['status'] as String,
+    );
+  }
 }

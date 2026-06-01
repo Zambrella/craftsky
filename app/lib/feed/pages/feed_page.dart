@@ -10,6 +10,7 @@ import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -127,6 +128,10 @@ class _FeedLoadedSlivers extends ConsumerWidget {
                 onDelete:
                     auth is SignedIn && posts[index].author.did == auth.did
                     ? () => _confirmDelete(context, ref, posts[index])
+                    : null,
+                onReport:
+                    auth is SignedIn && posts[index].author.did != auth.did
+                    ? () => showPostReportSheet(context, ref, posts[index])
                     : null,
                 replyTooltip: l10n.postCommentAction,
               );

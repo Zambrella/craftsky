@@ -5,6 +5,9 @@ import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
+import 'package:craftsky_app/moderation/models/report_result.dart';
+import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
@@ -116,11 +119,104 @@ void main() {
       expect(find.text('Edit profile'), findsNothing);
       expect(find.text('following'), findsNothing);
       expect(find.text('followers'), findsNothing);
-      expect(find.text('2 posts in the last 7 days'), findsOneWidget);
-      expect(find.text('5 posts'), findsOneWidget);
-      expect(find.text('0 projects'), findsOneWidget);
+      await tester.ensureVisible(find.text('2 posts'));
+      expect(find.text('2 posts'), findsOneWidget);
+      expect(find.text('7 days'), findsOneWidget);
+      expect(find.text('0'), findsOneWidget);
+      expect(find.text('projects'), findsOneWidget);
       expect(find.text('12 mutual followers'), findsOneWidget);
       expect(find.text('Non Craftsky profile'), findsNothing);
+    });
+
+    testWidgets('warned profile shows generic warning copy', (tester) async {
+      final profile = Profile(
+        did: 'did:plc:other',
+        handle: 'alice.bsky.social',
+        displayName: 'Alice',
+        crafts: [],
+        moderation: const ModerationMetadata(warningKind: 'profile'),
+      );
+      final repo = FakeProfileRepository(onFetch: (_) async => profile);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProfilePage(handle: 'alice.bsky.social'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('This profile may not follow Craftsky community guidelines.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('raw unsafe reason fixture'), findsNothing);
+    });
+
+    testWidgets('visitor profile report action submits through report sheet', (
+      tester,
+    ) async {
+      final profile = Profile(
+        did: 'did:plc:other',
+        handle: 'alice.bsky.social',
+        displayName: 'Alice',
+        crafts: [],
+      );
+      String? submittedTarget;
+      ReportSubmission? submitted;
+      final messenger = RecordingMessenger();
+      final repo = FakeProfileRepository(
+        onFetch: (_) async => profile,
+        onReport: (handleOrDid, submission) async {
+          submittedTarget = handleOrDid;
+          submitted = submission;
+          return const ReportResult(reportId: 'report-1', status: 'accepted');
+        },
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MessengerScope(
+            messenger: messenger,
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const ProfilePage(handle: 'alice.bsky.social'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Report profile'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Spam'));
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+      await tester.pumpAndSettle();
+
+      expect(submittedTarget, 'alice.bsky.social');
+      expect(submitted?.reasonType, 'spam');
+      expect(find.text('Report profile'), findsNothing);
+      expect(
+        messenger.calls,
+        contains(('info', 'Thanks — your report was submitted.', null)),
+      );
     });
 
     testWidgets('tapping mutual followers opens bottom sheet list', (

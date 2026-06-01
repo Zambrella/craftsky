@@ -14,6 +14,7 @@ import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
@@ -467,6 +468,7 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
                   .read(toggleRepostPostProvider.notifier)
                   .toggle(post: widget.section.post),
               onDelete: _deleteIfViewerOwned(widget.section.post),
+              onReport: _reportIfViewerNotOwner(widget.section.post),
             ),
           ),
         ),
@@ -532,6 +534,13 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
   VoidCallback? _deleteIfViewerOwned(craftsky_post.Post post) {
     if (widget.viewerDid != post.author.did) return null;
     return () => _confirmDelete(context, post);
+  }
+
+  VoidCallback? _reportIfViewerNotOwner(craftsky_post.Post post) {
+    if (widget.viewerDid == null || widget.viewerDid == post.author.did) {
+      return null;
+    }
+    return () => showPostReportSheet(context, ref, post);
   }
 
   Future<void> _confirmDelete(
@@ -610,6 +619,7 @@ class _CommentCard extends ConsumerWidget {
             title: l10n.commentDeleteTitle,
             message: l10n.commentDeleteMessage,
           ),
+          onReport: _reportIfViewerNotOwner(context, ref, item.post),
         ),
         if (item.replies.loaded)
           _CommentReplyControls(
@@ -652,6 +662,7 @@ class _CommentCard extends ConsumerWidget {
                       title: l10n.replyDeleteTitle,
                       message: l10n.replyDeleteMessage,
                     ),
+                    onReport: _reportIfViewerNotOwner(context, ref, reply.post),
                   ),
                 ),
             ],
@@ -698,6 +709,15 @@ class _CommentCard extends ConsumerWidget {
     if (viewerDid != post.author.did) return null;
     return () =>
         _confirmDelete(context, ref, post, title: title, message: message);
+  }
+
+  VoidCallback? _reportIfViewerNotOwner(
+    BuildContext context,
+    WidgetRef ref,
+    craftsky_post.Post post,
+  ) {
+    if (viewerDid == null || viewerDid == post.author.did) return null;
+    return () => showPostReportSheet(context, ref, post);
   }
 
   Future<void> _confirmDelete(

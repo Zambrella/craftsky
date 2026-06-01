@@ -3,10 +3,13 @@ package api_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api"
@@ -79,6 +82,21 @@ CREATE TABLE craftsky_reposts (
     deleted_at  TIMESTAMPTZ,
     UNIQUE (did, rkey)
 );
+CREATE TABLE moderation_outputs (
+    id                  TEXT        NOT NULL PRIMARY KEY,
+    source_did          TEXT        NOT NULL,
+    subject_type        TEXT        NOT NULL CHECK (subject_type IN ('post', 'account')),
+    subject_did         TEXT        NOT NULL,
+    subject_collection  TEXT,
+    subject_rkey        TEXT,
+    subject_uri         TEXT,
+    value               TEXT        NOT NULL CHECK (value IN ('hide', 'takedown', 'warn')),
+    action              TEXT        NOT NULL CHECK (action IN ('apply', 'negate')),
+    internal_reason     TEXT,
+    expires_at          TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    indexed_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `
 
 func seedMember(t *testing.T, pool *pgxpool.Pool, did string) {
@@ -141,6 +159,39 @@ func seedInteraction(t *testing.T, pool *pgxpool.Pool, table, did, rkey, subject
 	return uri
 }
 
+func seedModerationOutput(t *testing.T, pool *pgxpool.Pool, subjectType, subjectDID, subjectURI, value string, createdAt time.Time) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO moderation_outputs (
+			id, source_did, subject_type, subject_did, subject_collection,
+			subject_rkey, subject_uri, value, action, created_at, indexed_at
+		)
+		VALUES (
+			$1, 'did:plc:labeler', $2, $3,
+			CASE WHEN $2 = 'post' THEN 'social.craftsky.feed.post' ELSE NULL END,
+			CASE WHEN $2 = 'post' THEN split_part($4, '/', 5) ELSE NULL END,
+			NULLIF($4, ''), $5, 'apply', $6, $6
+		)`, "mod-"+subjectType+"-"+subjectDID+"-"+value+"-"+createdAt.Format("150405.000000000"), subjectType, subjectDID, subjectURI, value, createdAt); err != nil {
+		t.Fatalf("seed moderation output: %v", err)
+	}
+}
+
+func postRowURIs(rows []*api.PostRow) []string {
+	out := make([]string, len(rows))
+	for i, row := range rows {
+		out[i] = row.URI
+	}
+	return out
+}
+
+func assertPostRowURIs(t *testing.T, rows []*api.PostRow, want []string) {
+	t.Helper()
+	got := postRowURIs(rows)
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("rows = %v, want %v", got, want)
+	}
+}
+
 func TestPostStore_ReadOne_HappyPath(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)
@@ -180,6 +231,66 @@ func TestPostStore_ReadOne_NoBlueskyMirror(t *testing.T) {
 	}
 	if row.AuthorAvatarCID != nil {
 		t.Errorf("expected nil avatarCID, got %v", *row.AuthorAvatarCID)
+	}
+}
+
+func TestPostStore_ReadOne_AttachesWarningMetadataWithoutRawReason(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name        string
+		subjectType string
+		subjectURI  string
+		wantKind    string
+	}{
+		{name: "post warn", subjectType: "post", wantKind: "post"},
+		{name: "author warn", subjectType: "account", wantKind: "author"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			pool := testdb.WithSchema(t, postStoreDDL)
+			seedMember(t, pool, "did:plc:bob")
+			uri := seedPost(t, pool, "did:plc:bob", "rk1", "warned but visible", now)
+			subjectURI := ""
+			if tc.subjectType == "post" {
+				subjectURI = uri
+			}
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO moderation_outputs (
+					id, source_did, subject_type, subject_did, subject_collection,
+					subject_rkey, subject_uri, value, action, internal_reason, created_at, indexed_at
+				)
+				VALUES (
+					$1, 'did:plc:labeler', $2, 'did:plc:bob',
+					CASE WHEN $2 = 'post' THEN 'social.craftsky.feed.post' ELSE NULL END,
+					CASE WHEN $2 = 'post' THEN 'rk1' ELSE NULL END,
+					NULLIF($3, ''), 'warn', 'apply', 'raw unsafe reason fixture', $4, $4
+				)`, "warn-"+tc.subjectType, tc.subjectType, subjectURI, now); err != nil {
+				t.Fatalf("seed warn output: %v", err)
+			}
+
+			row, err := api.NewPostStore(pool).ReadOne(ctx, "did:plc:bob", "rk1")
+			if err != nil {
+				t.Fatalf("ReadOne: %v", err)
+			}
+			if row.ModerationWarningKind == nil || *row.ModerationWarningKind != tc.wantKind {
+				t.Fatalf("ModerationWarningKind = %v, want %q", row.ModerationWarningKind, tc.wantKind)
+			}
+			resp := api.BuildPostResponse(row, syntax.Handle("bob.example"))
+			data, err := json.Marshal(resp)
+			if err != nil {
+				t.Fatalf("marshal response: %v", err)
+			}
+			if !strings.Contains(string(data), `"warningKind":"`+tc.wantKind+`"`) {
+				t.Fatalf("response missing warning kind %q: %s", tc.wantKind, data)
+			}
+			if strings.Contains(string(data), "raw unsafe reason fixture") || strings.Contains(string(data), "internalReason") {
+				t.Fatalf("response leaked raw moderation reason: %s", data)
+			}
+		})
 	}
 }
 
@@ -234,6 +345,51 @@ func TestPostStore_ReadOne_NotFound(t *testing.T) {
 	}
 }
 
+func TestPostStore_ReadOne_HiddenPostOrHiddenAuthorReturnsNotFound(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name       string
+		moderation func(t *testing.T, pool *pgxpool.Pool, uri string)
+	}{
+		{name: "post hide", moderation: func(t *testing.T, pool *pgxpool.Pool, uri string) {
+			seedModerationOutput(t, pool, "post", "did:plc:bob", uri, "hide", time.Now())
+		}},
+		{name: "author takedown", moderation: func(t *testing.T, pool *pgxpool.Pool, uri string) {
+			seedModerationOutput(t, pool, "account", "did:plc:bob", "", "takedown", time.Now())
+		}},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			pool := testdb.WithSchema(t, postStoreDDL)
+			seedMember(t, pool, "did:plc:bob")
+			uri := seedPost(t, pool, "did:plc:bob", "rk1", "hidden", time.Now())
+			tc.moderation(t, pool, uri)
+
+			store := api.NewPostStore(pool)
+			_, err := store.ReadOne(context.Background(), "did:plc:bob", "rk1")
+			if !errors.Is(err, api.ErrPostNotFound) {
+				t.Fatalf("want ErrPostNotFound, got %v", err)
+			}
+		})
+	}
+}
+
+func TestPostStore_ReadPostByURI_HiddenPostReturnsNotFound(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	store := api.NewPostStore(pool)
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	uri := seedPost(t, pool, "did:plc:alice", "hidden-uri", "hidden", now)
+	seedModerationOutput(t, pool, "post", "did:plc:alice", uri, "hide", now.Add(time.Minute))
+
+	_, err := store.ReadPostByURI(context.Background(), uri)
+	if !errors.Is(err, api.ErrPostNotFound) {
+		t.Fatalf("ReadPostByURI err = %v, want ErrPostNotFound", err)
+	}
+}
+
 func TestPostStore_ListByAuthor_OrdersByIndexedAtDesc(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)
@@ -258,6 +414,50 @@ func TestPostStore_ListByAuthor_OrdersByIndexedAtDesc(t *testing.T) {
 	}
 	if rows[0].Rkey != "rk3" || rows[1].Rkey != "rk2" || rows[2].Rkey != "rk1" {
 		t.Errorf("ordering wrong: %s,%s,%s", rows[0].Rkey, rows[1].Rkey, rows[2].Rkey)
+	}
+}
+
+func TestPostStore_ListByAuthor_FiltersModeratedRowsBeforeLimit(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	store := api.NewPostStore(pool)
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	hiddenURI := seedPost(t, pool, "did:plc:alice", "hidden", "hidden", now.Add(3*time.Minute))
+	visible1 := seedPost(t, pool, "did:plc:alice", "visible1", "visible 1", now.Add(2*time.Minute))
+	visible2 := seedPost(t, pool, "did:plc:alice", "visible2", "visible 2", now.Add(time.Minute))
+	seedModerationOutput(t, pool, "post", "did:plc:alice", hiddenURI, "hide", now.Add(4*time.Minute))
+
+	rows, cursor, err := store.ListByAuthor(context.Background(), "did:plc:alice", 2, "")
+	if err != nil {
+		t.Fatalf("ListByAuthor: %v", err)
+	}
+	assertPostRowURIs(t, rows, []string{visible1, visible2})
+	if cursor == "" {
+		t.Fatal("cursor is empty, want deterministic full page after filtering")
+	}
+}
+
+func TestPostStore_ListCommentsByAuthor_FiltersModeratedRowsBeforeLimit(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	seedMember(t, pool, "did:plc:bob")
+	store := api.NewPostStore(pool)
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:bob", "root", "root", now)
+	hiddenURI := seedReplyPost(t, pool, "did:plc:alice", "hidden-comment", "hidden", root, root, now.Add(3*time.Minute))
+	visible1 := seedReplyPost(t, pool, "did:plc:alice", "visible-comment-1", "visible 1", root, root, now.Add(2*time.Minute))
+	visible2 := seedReplyPost(t, pool, "did:plc:alice", "visible-comment-2", "visible 2", root, root, now.Add(time.Minute))
+	seedModerationOutput(t, pool, "post", "did:plc:alice", hiddenURI, "takedown", now.Add(4*time.Minute))
+
+	rows, cursor, err := store.ListCommentsByAuthor(context.Background(), "did:plc:alice", 2, "")
+	if err != nil {
+		t.Fatalf("ListCommentsByAuthor: %v", err)
+	}
+	assertPostRowURIs(t, rows, []string{visible1, visible2})
+	if cursor == "" {
+		t.Fatal("cursor is empty, want deterministic full page after filtering")
 	}
 }
 
@@ -755,6 +955,53 @@ func TestPostStore_ListRootComments_PaginatesOpaqueCursorOldestFirst(t *testing.
 	}
 	if cursor2 != "" {
 		t.Fatalf("want final cursor empty, got %q", cursor2)
+	}
+}
+
+func TestPostStore_ListRootComments_FiltersModeratedRowsBeforeLimit(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	seedMember(t, pool, "did:plc:bob")
+	store := api.NewPostStore(pool)
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:bob", "root", "root", now)
+	hidden := seedReplyPost(t, pool, "did:plc:alice", "hidden-root-comment", "hidden", root, root, now.Add(time.Minute))
+	visible1 := seedReplyPost(t, pool, "did:plc:alice", "visible-root-comment-1", "visible 1", root, root, now.Add(2*time.Minute))
+	visible2 := seedReplyPost(t, pool, "did:plc:alice", "visible-root-comment-2", "visible 2", root, root, now.Add(3*time.Minute))
+	seedModerationOutput(t, pool, "post", "did:plc:alice", hidden, "hide", now.Add(4*time.Minute))
+
+	rows, cursor, err := store.ListRootComments(context.Background(), root, "did:plc:viewer", "oldest", 2, "")
+	if err != nil {
+		t.Fatalf("ListRootComments: %v", err)
+	}
+	assertPostRowURIs(t, rows, []string{visible1, visible2})
+	if cursor == "" {
+		t.Fatal("cursor is empty, want deterministic full page after filtering")
+	}
+}
+
+func TestPostStore_ListCommentBranchReplies_FiltersModeratedRowsBeforeLimit(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	seedMember(t, pool, "did:plc:bob")
+	store := api.NewPostStore(pool)
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:bob", "root", "root", now)
+	comment := seedReplyPost(t, pool, "did:plc:alice", "comment", "comment", root, root, now.Add(time.Minute))
+	hidden := seedReplyPost(t, pool, "did:plc:alice", "hidden-branch", "hidden", root, comment, now.Add(2*time.Minute))
+	visible1 := seedReplyPost(t, pool, "did:plc:alice", "visible-branch-1", "visible 1", root, comment, now.Add(3*time.Minute))
+	visible2 := seedReplyPost(t, pool, "did:plc:alice", "visible-branch-2", "visible 2", root, comment, now.Add(4*time.Minute))
+	seedModerationOutput(t, pool, "post", "did:plc:alice", hidden, "hide", now.Add(5*time.Minute))
+
+	rows, cursor, err := store.ListCommentBranchReplies(context.Background(), comment, root, 2, "")
+	if err != nil {
+		t.Fatalf("ListCommentBranchReplies: %v", err)
+	}
+	assertPostRowURIs(t, rows, []string{visible1, visible2})
+	if cursor == "" {
+		t.Fatal("cursor is empty, want deterministic full page after filtering")
 	}
 }
 

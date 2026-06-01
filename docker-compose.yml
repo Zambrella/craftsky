@@ -105,6 +105,8 @@ services:
         condition: service_healthy
       tap-bootstrap:
         condition: service_completed_successfully
+    env_file:
+      - ./appview/environments/dev.env
     environment:
       APPVIEW_ENV: dev
       DATABASE_URL: postgres://craftsky:dev@postgres:5432/craftsky_dev?sslmode=disable

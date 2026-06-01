@@ -9,6 +9,8 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/moderation/models/report_result.dart';
+import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -68,12 +70,20 @@ InteractionWriteResponse _interaction(Post post) => InteractionWriteResponse(
   createdAt: DateTime.parse('2026-05-04T18:25:00.000Z'),
 );
 
-Future<void> _pump(WidgetTester tester, FakePostRepository repo) async {
+Future<void> _pump(
+  WidgetTester tester,
+  FakePostRepository repo, {
+  List<dynamic> overrides = const [],
+  RecordingMessenger? messenger,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [postRepositoryProvider.overrideWithValue(repo)],
+      overrides: List.from([
+        postRepositoryProvider.overrideWithValue(repo),
+        ...overrides,
+      ]),
       child: MessengerScope(
-        messenger: RecordingMessenger(),
+        messenger: messenger ?? RecordingMessenger(),
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -452,6 +462,55 @@ void main() {
     expect(deleted, ['did:plc:alice/own']);
     expect(find.text('timeline post own'), findsNothing);
     expect(find.text('timeline post other'), findsOneWidget);
+  });
+
+  testWidgets('FeedPage reports another user post through the report sheet', (
+    tester,
+  ) async {
+    ReportSubmission? submitted;
+    String? submittedTarget;
+    final messenger = RecordingMessenger();
+
+    await _pump(
+      tester,
+      FakePostRepository(
+        onListTimeline: ({cursor, limit}) async => PostPage(
+          items: [
+            _post('other', did: 'did:plc:bob', handle: 'bob.craftsky.social'),
+          ],
+        ),
+        onReport: (did, rkey, submission) async {
+          submittedTarget = '$did/$rkey';
+          submitted = submission;
+          return const ReportResult(reportId: 'report-1', status: 'accepted');
+        },
+      ),
+      overrides: [
+        authSessionProvider.overrideWith(
+          () => SignedInAuthSession(did: 'did:plc:viewer'),
+        ),
+      ],
+      messenger: messenger,
+    );
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Report post'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Spam'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+    await tester.pumpAndSettle();
+
+    expect(submittedTarget, 'did:plc:bob/other');
+    expect(submitted?.reasonType, 'spam');
+    expect(find.text('Report post'), findsNothing);
+    expect(
+      messenger.calls,
+      contains(('info', 'Thanks — your report was submitted.', null)),
+    );
   });
 
   testWidgets('FeedPage compose creates top-level post and prepends it', (

@@ -2,6 +2,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
@@ -19,6 +20,7 @@ Post _post({
   bool viewerHasReplied = false,
   List<PostImage>? images,
   DateTime? createdAt,
+  ModerationMetadata? moderation,
 }) {
   return Post(
     uri: 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
@@ -40,6 +42,7 @@ Post _post({
       handle: 'alice.craftsky.social',
       displayName: displayName,
     ),
+    moderation: moderation,
   );
 }
 
@@ -356,6 +359,47 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Delete post'));
       expect(tapped, isTrue);
+    });
+
+    testWidgets('shows report action only when callback is supplied', (
+      tester,
+    ) async {
+      var reports = 0;
+      await _pump(
+        tester,
+        PostCard(post: _post(), onReport: () => reports++),
+      );
+
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Report post'));
+
+      expect(reports, 1);
+
+      await _pump(tester, PostCard(post: _post()));
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Report post'), findsNothing);
+    });
+
+    testWidgets('renders generic warning copy without raw reason text', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            moderation: const ModerationMetadata(warningKind: 'author'),
+          ),
+        ),
+      );
+
+      expect(
+        find.text('This author may not follow Craftsky community guidelines.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('raw unsafe reason fixture'), findsNothing);
     });
 
     testWidgets('uses custom delete label when supplied', (tester) async {

@@ -1,3 +1,5 @@
+import 'package:craftsky_app/moderation/models/report_result.dart';
+import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/data/profile_api_client.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
@@ -41,6 +43,12 @@ class ApiProfileRepository implements ProfileRepository {
   @override
   Future<Profile> unfollow(String handleOrDid) =>
       _api.unfollowProfile(handleOrDid);
+
+  @override
+  Future<ReportResult> report(
+    String handleOrDid,
+    ReportSubmission submission,
+  ) => _api.reportProfile(handleOrDid, submission);
 
   @override
   Future<ProfileAccountPage> listMutualFollowers(

@@ -30,23 +30,24 @@ var ErrProfileCountsUnavailable = errors.New("profile: counts unavailable")
 // bluesky_profiles for a single DID. Nullable bluesky fields are pointers
 // so "present but empty string" and "absent entirely" are distinguishable.
 type ProfileRow struct {
-	DID                 string
-	Crafts              []string
-	CreatedAt           time.Time
-	FollowerCount       *int
-	FollowingCount      *int
-	MutualFollowerCount *int
-	PostCount           *int
-	PostsLast7Days      *int
-	ProjectCount        *int
-	ViewerIsFollowing   bool
-	IsCraftskyProfile   bool
-	DisplayName         *string
-	Description         *string
-	AvatarCID           *string
-	AvatarMime          *string
-	BannerCID           *string
-	BannerMime          *string
+	DID                   string
+	Crafts                []string
+	CreatedAt             time.Time
+	FollowerCount         *int
+	FollowingCount        *int
+	MutualFollowerCount   *int
+	PostCount             *int
+	PostsLast7Days        *int
+	ProjectCount          *int
+	ViewerIsFollowing     bool
+	IsCraftskyProfile     bool
+	DisplayName           *string
+	Description           *string
+	AvatarCID             *string
+	AvatarMime            *string
+	BannerCID             *string
+	BannerMime            *string
+	ModerationWarningKind *string
 }
 
 // ProfileAccountRow is the display-ready account summary used by social graph
@@ -62,6 +63,29 @@ type ProfileAccountRow struct {
 	FollowURI         string
 }
 
+const profileVisibleModerationPredicate = `
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM moderation_outputs mo
+			WHERE mo.action = 'apply'
+			  AND mo.subject_type = 'account'
+			  AND mo.subject_did = cp.did
+			  AND mo.value IN ('hide', 'takedown')
+			  AND (mo.expires_at IS NULL OR mo.expires_at > now())
+			  AND NOT EXISTS (
+				SELECT 1
+				FROM moderation_outputs neg
+				WHERE neg.action = 'negate'
+				  AND neg.source_did = mo.source_did
+				  AND neg.subject_type = mo.subject_type
+				  AND neg.subject_did = mo.subject_did
+				  AND neg.value = mo.value
+				  AND (neg.expires_at IS NULL OR neg.expires_at > now())
+				  AND neg.indexed_at > mo.indexed_at
+			  )
+		  )
+`
+
 // ProfileStore is the Postgres-backed read/write surface used by the
 // /v1/profiles/* handlers. It owns no business logic; merges, validation,
 // and URL synthesis live in the handler layer.
@@ -70,12 +94,89 @@ type ProfileStore struct {
 	blueskyHydrator auth.PDSClient
 }
 
+type ProfileReportTargetResolver struct {
+	store    *ProfileStore
+	resolver HandleResolver
+}
+
+func NewProfileReportTargetResolver(store *ProfileStore, resolver HandleResolver) ProfileReportTargetResolver {
+	return ProfileReportTargetResolver{store: store, resolver: resolver}
+}
+
+func (r ProfileReportTargetResolver) ResolveAccountReportTarget(ctx context.Context, handleOrDID string) (*AccountReportTarget, error) {
+	raw := strings.TrimPrefix(strings.TrimSpace(handleOrDID), "@")
+	if raw == "" {
+		return nil, ErrProfileNotFound
+	}
+	if strings.HasPrefix(raw, "did:") {
+		return r.store.ResolveAccountReportTarget(ctx, raw)
+	}
+	if r.resolver == nil {
+		return nil, ErrProfileNotFound
+	}
+	handle, err := syntax.ParseHandle(raw)
+	if err != nil {
+		return nil, ErrProfileNotFound
+	}
+	did, err := r.resolver.ResolveDID(ctx, handle)
+	if err != nil || did.String() == "" {
+		return nil, ErrProfileNotFound
+	}
+	target, err := r.store.ResolveAccountReportTarget(ctx, did.String())
+	if err != nil {
+		return nil, err
+	}
+	target.SubmittedHandleSnapshot = handle.String()
+	return target, nil
+}
+
 func NewProfileStore(pool *pgxpool.Pool, blueskyHydrator ...auth.PDSClient) *ProfileStore {
 	store := &ProfileStore{pool: pool}
 	if len(blueskyHydrator) > 0 {
 		store.blueskyHydrator = blueskyHydrator[0]
 	}
 	return store
+}
+
+// ResolveAccountReportTarget returns a canonical account DID snapshot for
+// report eligibility. It checks the same local/hydratable profile sources that
+// profile reads can display, without applying moderation visibility filters.
+func (s *ProfileStore) ResolveAccountReportTarget(ctx context.Context, handleOrDID string) (*AccountReportTarget, error) {
+	did, err := syntax.ParseDID(strings.TrimPrefix(handleOrDID, "@"))
+	if err != nil {
+		return nil, ErrProfileNotFound
+	}
+	exists, err := s.accountProfileExists(ctx, did.String())
+	if err != nil {
+		return nil, fmt.Errorf("profile report target %s: %w", did.String(), err)
+	}
+	if !exists && s.blueskyHydrator != nil {
+		if hydrateErr := s.hydrateNonCraftsky(ctx, did.String()); hydrateErr != nil {
+			if errors.Is(hydrateErr, ErrProfileNotFound) {
+				return nil, ErrProfileNotFound
+			}
+			return nil, hydrateErr
+		}
+		exists, err = s.accountProfileExists(ctx, did.String())
+		if err != nil {
+			return nil, fmt.Errorf("profile report target %s after hydrate: %w", did.String(), err)
+		}
+	}
+	if !exists {
+		return nil, ErrProfileNotFound
+	}
+	return &AccountReportTarget{DID: did.String()}, nil
+}
+
+func (s *ProfileStore) accountProfileExists(ctx context.Context, did string) (bool, error) {
+	var exists bool
+	if err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM craftsky_profiles WHERE did = $1)
+		    OR EXISTS (SELECT 1 FROM bluesky_profiles WHERE did = $1)
+	`, did).Scan(&exists); err != nil {
+		return false, err
+	}
+	return exists, nil
 }
 
 // Read returns the joined profile for profileDID and relationship state from
@@ -134,10 +235,34 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 			END AS viewer_is_following,
 			bp.display_name, bp.description,
 			bp.avatar_cid, bp.avatar_mime,
-			bp.banner_cid, bp.banner_mime
+			bp.banner_cid, bp.banner_mime,
+			CASE
+				WHEN EXISTS (
+					SELECT 1
+					FROM moderation_outputs mo
+					WHERE mo.action = 'apply'
+					  AND mo.subject_type = 'account'
+					  AND mo.subject_did = cp.did
+					  AND mo.value = 'warn'
+					  AND (mo.expires_at IS NULL OR mo.expires_at > now())
+					  AND NOT EXISTS (
+						SELECT 1
+						FROM moderation_outputs neg
+						WHERE neg.action = 'negate'
+						  AND neg.source_did = mo.source_did
+						  AND neg.subject_type = mo.subject_type
+						  AND neg.subject_did = mo.subject_did
+						  AND neg.value = mo.value
+						  AND (neg.expires_at IS NULL OR neg.expires_at > now())
+						  AND neg.indexed_at > mo.indexed_at
+					  )
+				) THEN 'profile'
+				ELSE NULL
+			END AS moderation_warning_kind
 		FROM craftsky_profiles cp
 		LEFT JOIN bluesky_profiles bp ON bp.did = cp.did
 		WHERE cp.did = $1
+		` + profileVisibleModerationPredicate + `
 	`
 	row := s.pool.QueryRow(ctx, q, profileDID, viewerDID)
 	out := &ProfileRow{}
@@ -156,6 +281,7 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 		&out.DisplayName, &out.Description,
 		&out.AvatarCID, &out.AvatarMime,
 		&out.BannerCID, &out.BannerMime,
+		&out.ModerationWarningKind,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return s.readNonCraftsky(ctx, profileDID, viewerDID)
@@ -361,14 +487,80 @@ func encodeProfileAccountCursor(rows []*ProfileAccountRow, limit int) (string, e
 }
 
 func (s *ProfileStore) readNonCraftsky(ctx context.Context, profileDID string, viewerDID string) (*ProfileRow, error) {
+	policy, err := s.activeAccountProfilePolicy(ctx, profileDID)
+	if err != nil {
+		return nil, err
+	}
+	if policy.Hidden {
+		return nil, ErrProfileNotFound
+	}
 	out, err := s.readNonCraftskyCached(ctx, profileDID, viewerDID)
 	if errors.Is(err, ErrProfileNotFound) && s.blueskyHydrator != nil {
 		if hydrateErr := s.hydrateNonCraftsky(ctx, profileDID); hydrateErr != nil {
 			return nil, hydrateErr
 		}
-		return s.readNonCraftskyCached(ctx, profileDID, viewerDID)
+		out, err = s.readNonCraftskyCached(ctx, profileDID, viewerDID)
+	}
+	if err == nil && policy.Warned {
+		warningKind := "profile"
+		out.ModerationWarningKind = &warningKind
 	}
 	return out, err
+}
+
+type accountProfilePolicy struct {
+	Hidden bool
+	Warned bool
+}
+
+func (s *ProfileStore) activeAccountProfilePolicy(ctx context.Context, profileDID string) (accountProfilePolicy, error) {
+	var policy accountProfilePolicy
+	if err := s.pool.QueryRow(ctx, `
+		SELECT
+			EXISTS (
+				SELECT 1
+				FROM moderation_outputs mo
+				WHERE mo.action = 'apply'
+				  AND mo.subject_type = 'account'
+				  AND mo.subject_did = $1
+				  AND mo.value IN ('hide', 'takedown')
+				  AND (mo.expires_at IS NULL OR mo.expires_at > now())
+				  AND NOT EXISTS (
+					SELECT 1
+					FROM moderation_outputs neg
+					WHERE neg.action = 'negate'
+					  AND neg.source_did = mo.source_did
+					  AND neg.subject_type = mo.subject_type
+					  AND neg.subject_did = mo.subject_did
+					  AND neg.value = mo.value
+					  AND (neg.expires_at IS NULL OR neg.expires_at > now())
+					  AND neg.indexed_at > mo.indexed_at
+				  )
+			) AS hidden,
+			EXISTS (
+				SELECT 1
+				FROM moderation_outputs mo
+				WHERE mo.action = 'apply'
+				  AND mo.subject_type = 'account'
+				  AND mo.subject_did = $1
+				  AND mo.value = 'warn'
+				  AND (mo.expires_at IS NULL OR mo.expires_at > now())
+				  AND NOT EXISTS (
+					SELECT 1
+					FROM moderation_outputs neg
+					WHERE neg.action = 'negate'
+					  AND neg.source_did = mo.source_did
+					  AND neg.subject_type = mo.subject_type
+					  AND neg.subject_did = mo.subject_did
+					  AND neg.value = mo.value
+					  AND (neg.expires_at IS NULL OR neg.expires_at > now())
+					  AND neg.indexed_at > mo.indexed_at
+				  )
+			) AS warned
+	`, profileDID).Scan(&policy.Hidden, &policy.Warned); err != nil {
+		return accountProfilePolicy{}, fmt.Errorf("profile account moderation policy %s: %w", profileDID, err)
+	}
+	return policy, nil
 }
 
 func (s *ProfileStore) readNonCraftskyCached(ctx context.Context, profileDID string, viewerDID string) (*ProfileRow, error) {

@@ -7,7 +7,7 @@ This specification covers the moderation-flow MVP described in `01-requirements.
 Recommended approach:
 
 - Start with AppView store and migration tests for private reports, forwarding metadata, and indexed moderation outputs.
-- Add AppView handler and route tests for report intake, validation, auth/device requirements, minimal response bodies, and synthetic endpoint gating.
+- Add AppView handler and route tests for report intake, validation, report auth/device requirements, minimal response bodies, and synthetic endpoint gating.
 - Add AppView read-path tests at the store/query and handler level for timeline, profile posts/comments, direct post, direct profile, thread/comment, and notification enforcement.
 - Add Flutter API client, repository/provider, and widget tests for report submission, validation, retry states, duplicate-submit prevention, report action visibility, and warning rendering.
 - Add regression tests proving unmoderated content and existing response compatibility remain unchanged.
@@ -172,9 +172,9 @@ Feature: Dev moderation endpoint gating
     When AppView starts
     Then startup fails with a clear configuration error
 
-  Scenario: Token and auth are required when the route is registered
+  Scenario: Dev token is required when the route is registered
     Given the route is registered in dev with a configured token
-    When a request lacks auth, device ID, or a valid X-Craftsky-Dev-Moderation-Token
+    When a request lacks a valid X-Craftsky-Dev-Moderation-Token
     Then AppView rejects the request and moderation state is unchanged
 ```
 
@@ -190,7 +190,7 @@ Automation Target: AppView handler/store tests in `appview/internal/api/moderati
 Feature: Synthetic moderation ingestion
   Scenario Outline: Dev caller ingests one trusted moderation output
     Given AppView is in dev with synthetic moderation enabled
-    And the request includes valid auth, device ID, and dev moderation token
+    And the request includes a valid dev moderation token
     When the caller submits one <subject type> output with <value> and <action> from a trusted source DID
     Then AppView persists the output with source DID, subject identity, value, action/negation state, timestamps, and optional internal reason
 
@@ -399,7 +399,7 @@ Feature: Flutter report user experience
 | REG-003 | Warn-only subjects remain visible and do not become soft-hidden/interstitial-gated. | BR-005, FR-017, FR-018, FR-022 | Verify warned post/profile content is rendered inline with one warning banner and normal actions/content remain present. |
 | REG-004 | Direct missing post/profile behavior remains not-found and hidden subjects use the same not-found style. | FR-015, FR-016 | Compare unknown target and hidden target response status/error codes. |
 | REG-005 | Notification list retains existing camelCase response shape and viewer handling when no moderation applies. | FR-025 | Existing notification tests pass with moderation absent; visible notifications still include actor/subject data. |
-| REG-006 | Existing authenticated/device middleware behavior remains consistent for product routes. | FR-003, FR-009, NFR-001 | Report and synthetic routes use existing error-envelope behavior for missing auth/device while existing routes still pass current route tests. |
+| REG-006 | Existing authenticated/device middleware behavior remains consistent for product routes. | FR-003, FR-009, NFR-001 | Report routes use existing error-envelope behavior for missing auth/device, the synthetic dev route does not require auth/device, and existing route tests still pass. |
 | REG-007 | No PDS write/delete/report submission occurs for moderation-report MVP. | BR-002, BR-003, RULE-004 | Fake PDS call counters remain zero during report and synthetic-output flows. |
 | REG-008 | Flutter post/profile pages continue showing existing action menus, follow/share/edit controls, and engagement counts for unmoderated content. | FR-019, FR-020, FR-021 | Existing widget tests continue to pass, with added report actions only where expected. |
 

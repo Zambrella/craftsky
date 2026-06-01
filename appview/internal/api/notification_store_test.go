@@ -278,6 +278,36 @@ func TestNotificationStore_ListNotifications_ExcludesDeletedLikesAndReposts(t *t
 	}
 }
 
+func TestNotificationStore_ListNotifications_FiltersHiddenActorsAndSubjects(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, notificationStoreDDL)
+	base := time.Date(2026, 5, 28, 14, 45, 0, 0, time.UTC)
+
+	for _, did := range []string{"did:plc:viewer", "did:plc:alice", "did:plc:bob", "did:plc:carol"} {
+		seedMember(t, pool, did)
+	}
+	viewerPost := seedPost(t, pool, "did:plc:viewer", "viewer-root", "viewer post", base)
+	hiddenSubject := seedPost(t, pool, "did:plc:viewer", "hidden-subject", "hidden subject", base.Add(time.Minute))
+	visibleLike := seedInteraction(t, pool, "like", "did:plc:alice", "like-visible", viewerPost, false)
+	hiddenActorLike := seedInteraction(t, pool, "like", "did:plc:bob", "like-hidden-actor", viewerPost, false)
+	hiddenSubjectLike := seedInteraction(t, pool, "like", "did:plc:carol", "like-hidden-subject", hiddenSubject, false)
+	seedModerationOutput(t, pool, "account", "did:plc:bob", "", "hide", base)
+	seedModerationOutput(t, pool, "post", "did:plc:viewer", hiddenSubject, "takedown", base)
+
+	store := api.NewPostStore(pool)
+	rows, _, err := store.ListNotifications(context.Background(), "did:plc:viewer", 20, "")
+	if err != nil {
+		t.Fatalf("ListNotifications: %v", err)
+	}
+	got := notificationURIs(rows)
+	if !slices.Contains(got, visibleLike) {
+		t.Fatalf("notification URIs = %v, want visible like %s", got, visibleLike)
+	}
+	if slices.Contains(got, hiddenActorLike) || slices.Contains(got, hiddenSubjectLike) {
+		t.Fatalf("notification URIs = %v, leaked hidden actor/subject", got)
+	}
+}
+
 func TestNotificationStore_ListNotifications_OrdersMixedTypesByIndexedAtThenURIDesc(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, notificationStoreDDL)

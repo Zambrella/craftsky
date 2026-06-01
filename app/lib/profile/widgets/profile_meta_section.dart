@@ -1,4 +1,5 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/widgets/profile_bio.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
@@ -48,6 +49,10 @@ class ProfileMetaSection extends StatelessWidget {
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
+            SizedBox(height: spacing.sp3),
+          ],
+          if (profile.moderation?.warningKind case final kind?) ...[
+            ModerationWarningBanner(warningKind: kind),
             SizedBox(height: spacing.sp3),
           ],
           if (hasBio) ...[

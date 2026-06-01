@@ -3,6 +3,8 @@ import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/moderation/models/report_result.dart';
+import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/media/blob_api_client.dart';
@@ -63,6 +65,19 @@ class PostApiClient {
   /// DELETE /v1/posts/{did}/{rkey} — idempotent per AppView spec.
   Future<void> deletePost(Did did, RecordKey rkey) => unwrapApi(() async {
     await _dio.delete<void>('/v1/posts/$did/$rkey');
+  });
+
+  /// POST /v1/posts/{did}/{rkey}/reports — private AppView report intake.
+  Future<ReportResult> reportPost(
+    Did did,
+    RecordKey rkey,
+    ReportSubmission submission,
+  ) => unwrapApi(() async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/v1/posts/$did/$rkey/reports',
+      data: submission.toMap(),
+    );
+    return _reportResultFromMap(res.data!);
   });
 
   /// GET /v1/posts/{did}/{rkey}/replies — flattened comment branch replies.
@@ -179,4 +194,11 @@ class PostApiClient {
     );
     return PostPageMapper.fromMap(res.data!);
   });
+
+  ReportResult _reportResultFromMap(Map<String, dynamic> data) {
+    return ReportResult(
+      reportId: data['reportId'] as String,
+      status: data['status'] as String,
+    );
+  }
 }

@@ -3,6 +3,8 @@ import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/moderation/models/report_result.dart';
+import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 /// Read/write surface the post providers depend on. The production
@@ -22,6 +24,13 @@ abstract interface class PostRepository {
 
   /// DELETE /v1/posts/{did}/{rkey}. Idempotent.
   Future<void> delete(Did did, RecordKey rkey);
+
+  /// POST /v1/posts/{did}/{rkey}/reports.
+  Future<ReportResult> report(
+    Did did,
+    RecordKey rkey,
+    ReportSubmission submission,
+  );
 
   /// GET /v1/posts/{did}/{rkey}/replies — comment branch replies.
   Future<ReplyPage> listCommentBranchReplies(

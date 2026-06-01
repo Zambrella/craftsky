@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -43,6 +44,8 @@ type PostRow struct {
 
 	AuthorDisplayName *string
 	AuthorAvatarCID   *string
+
+	ModerationWarningKind *string
 }
 
 func (row *PostRow) IsRoot() bool {
@@ -124,6 +127,7 @@ func (s *PostStore) ReadPostByURI(ctx context.Context, uri string) (*PostRow, er
 		FROM craftsky_posts p
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.uri = $1
+		` + postVisibleModerationPredicate + `
 	`
 	row, err := scanPostRow(s.pool.QueryRow(ctx, q, uri))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -155,6 +159,7 @@ func (s *PostStore) ListRootComments(ctx context.Context, rootURI, viewerDID, so
 		FROM craftsky_posts p
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.reply_parent_uri = $1
+		` + postVisibleModerationPredicate + `
 		  AND ($2::timestamptz IS NULL
 		       OR (p.created_at, p.uri) ` + seekComparator + ` ($2::timestamptz, $3::text))
 		ORDER BY CASE WHEN p.did = $5 THEN 0 ELSE 1 END ASC, p.created_at ` + orderDirection + `, p.uri ` + orderDirection + `
@@ -208,7 +213,9 @@ func (s *PostStore) commentBranchHasRepliesAfter(ctx context.Context, commentURI
 		SELECT EXISTS (
 			SELECT 1
 			FROM branch
-			WHERE (created_at, uri) > ($3::timestamptz, $4::text)
+			JOIN craftsky_posts p ON p.uri = branch.uri
+			WHERE (branch.created_at, branch.uri) > ($3::timestamptz, $4::text)
+			` + postVisibleModerationPredicate + `
 		)
 	`
 	var hasMore bool
@@ -231,7 +238,77 @@ const postSelectColumns = `
 	p.uri, p.did, p.rkey, p.cid, p.text, p.facets, p.images,
 	p.reply_root_uri, p.reply_root_cid, p.reply_parent_uri, p.reply_parent_cid,
 	p.quote_uri, p.quote_cid, p.tags, p.created_at, p.indexed_at,
-	bp.display_name, bp.avatar_cid
+	bp.display_name, bp.avatar_cid,
+	CASE
+		WHEN EXISTS (
+			SELECT 1
+			FROM moderation_outputs mo
+			WHERE mo.action = 'apply'
+			  AND mo.subject_type = 'post'
+			  AND mo.subject_uri = p.uri
+			  AND mo.value = 'warn'
+			  AND (mo.expires_at IS NULL OR mo.expires_at > now())
+			  AND NOT EXISTS (
+				SELECT 1
+				FROM moderation_outputs neg
+				WHERE neg.action = 'negate'
+				  AND neg.source_did = mo.source_did
+				  AND neg.subject_type = mo.subject_type
+				  AND neg.subject_did = mo.subject_did
+				  AND neg.subject_uri = mo.subject_uri
+				  AND neg.value = mo.value
+				  AND (neg.expires_at IS NULL OR neg.expires_at > now())
+				  AND neg.indexed_at > mo.indexed_at
+			  )
+		) THEN 'post'
+		WHEN EXISTS (
+			SELECT 1
+			FROM moderation_outputs mo
+			WHERE mo.action = 'apply'
+			  AND mo.subject_type = 'account'
+			  AND mo.subject_did = p.did
+			  AND mo.value = 'warn'
+			  AND (mo.expires_at IS NULL OR mo.expires_at > now())
+			  AND NOT EXISTS (
+				SELECT 1
+				FROM moderation_outputs neg
+				WHERE neg.action = 'negate'
+				  AND neg.source_did = mo.source_did
+				  AND neg.subject_type = mo.subject_type
+				  AND neg.subject_did = mo.subject_did
+				  AND neg.value = mo.value
+				  AND (neg.expires_at IS NULL OR neg.expires_at > now())
+				  AND neg.indexed_at > mo.indexed_at
+			  )
+		) THEN 'author'
+		ELSE NULL
+	END AS moderation_warning_kind
+`
+
+const postVisibleModerationPredicate = `
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM moderation_outputs mo
+			WHERE mo.action = 'apply'
+			  AND mo.value IN ('hide', 'takedown')
+			  AND (mo.expires_at IS NULL OR mo.expires_at > now())
+			  AND (
+				(mo.subject_type = 'post' AND mo.subject_uri = p.uri)
+				OR (mo.subject_type = 'account' AND mo.subject_did = p.did)
+			  )
+			  AND NOT EXISTS (
+				SELECT 1
+				FROM moderation_outputs neg
+				WHERE neg.action = 'negate'
+				  AND neg.source_did = mo.source_did
+				  AND neg.subject_type = mo.subject_type
+				  AND neg.subject_did = mo.subject_did
+				  AND neg.value = mo.value
+				  AND (neg.expires_at IS NULL OR neg.expires_at > now())
+				  AND neg.indexed_at > mo.indexed_at
+				  AND (mo.subject_type = 'account' OR neg.subject_uri = mo.subject_uri)
+			  )
+		  )
 `
 
 func scanPostRow(scanner pgx.Row) (*PostRow, error) {
@@ -240,7 +317,7 @@ func scanPostRow(scanner pgx.Row) (*PostRow, error) {
 		&out.URI, &out.DID, &out.Rkey, &out.CID, &out.Text, &out.Facets, &out.Images,
 		&out.ReplyRootURI, &out.ReplyRootCID, &out.ReplyParentURI, &out.ReplyParentCID,
 		&out.QuoteURI, &out.QuoteCID, &out.Tags, &out.CreatedAt, &out.IndexedAt,
-		&out.AuthorDisplayName, &out.AuthorAvatarCID,
+		&out.AuthorDisplayName, &out.AuthorAvatarCID, &out.ModerationWarningKind,
 	)
 	return out, err
 }
@@ -279,6 +356,7 @@ func (s *PostStore) ReadOne(ctx context.Context, did, rkey string) (*PostRow, er
 		FROM craftsky_posts p
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.did = $1 AND p.rkey = $2
+		` + postVisibleModerationPredicate + `
 	`
 	row, err := scanPostRow(s.pool.QueryRow(ctx, q, did, rkey))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -307,6 +385,7 @@ func (s *PostStore) ListByAuthor(ctx context.Context, did string, limit int, cur
 		WHERE p.did = $1
 		  AND p.reply_root_uri IS NULL
 		  AND p.reply_parent_uri IS NULL
+		` + postVisibleModerationPredicate + `
 		  AND ($2::timestamptz IS NULL
 		       OR (p.indexed_at, p.uri) < ($2::timestamptz, $3::text))
 		ORDER BY p.indexed_at DESC, p.uri DESC
@@ -359,6 +438,7 @@ func (s *PostStore) ListCommentsByAuthor(ctx context.Context, did string, limit 
 		WHERE p.did = $1
 		  AND p.reply_root_uri IS NOT NULL
 		  AND p.reply_parent_uri IS NOT NULL
+		` + postVisibleModerationPredicate + `
 		  AND ($2::timestamptz IS NULL
 		       OR (p.indexed_at, p.uri) < ($2::timestamptz, $3::text))
 		ORDER BY p.indexed_at DESC, p.uri DESC
@@ -434,6 +514,23 @@ func (s *PostStore) ResolvePostTarget(ctx context.Context, did, rkey string) (*P
 		return nil, fmt.Errorf("post resolve target %s/%s: %w", did, rkey, err)
 	}
 	return out, nil
+}
+
+// ResolvePostReportTarget returns the canonical indexed post snapshot used for
+// report eligibility and private report persistence. It intentionally checks
+// indexed existence only; moderation visibility filters must not make stale or
+// race report submissions ineligible.
+func (s *PostStore) ResolvePostReportTarget(ctx context.Context, did syntax.DID, rkey syntax.RecordKey) (*PostReportTarget, error) {
+	ref, err := s.ResolvePostTarget(ctx, did.String(), rkey.String())
+	if err != nil {
+		return nil, err
+	}
+	return &PostReportTarget{
+		DID:         did.String(),
+		Rkey:        rkey.String(),
+		URI:         ref.URI,
+		CIDSnapshot: ref.CID,
+	}, nil
 }
 
 func scanInteractionRow(scanner pgx.Row) (*InteractionRow, error) {
@@ -718,17 +815,21 @@ func (s *PostStore) ListCommentBranchReplies(ctx context.Context, commentURI, ro
 			WHERE child.reply_root_uri = $2
 			  AND parent.depth < 64
 		), page AS (
-			SELECT uri, created_at
+			SELECT branch.uri, branch.created_at
 			FROM branch
+			JOIN craftsky_posts p ON p.uri = branch.uri
 			WHERE ($3::timestamptz IS NULL
-			       OR (created_at, uri) > ($3::timestamptz, $4::text))
-			ORDER BY created_at ASC, uri ASC
+			       OR (branch.created_at, branch.uri) > ($3::timestamptz, $4::text))
+			` + postVisibleModerationPredicate + `
+			ORDER BY branch.created_at ASC, branch.uri ASC
 			LIMIT $5
 		)
 		SELECT ` + postSelectColumns + `
 		FROM page
 		JOIN craftsky_posts p ON p.uri = page.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
+		WHERE true
+		` + postVisibleModerationPredicate + `
 		ORDER BY page.created_at ASC, page.uri ASC
 	`
 	rows, err := s.pool.Query(ctx, q, commentURI, rootURI, curCreatedAt, curURI, limit)
@@ -786,7 +887,9 @@ func (s *PostStore) ListCommentBranchRepliesAround(ctx context.Context, commentU
 			SELECT branch.uri, branch.created_at
 			FROM branch
 			JOIN focus ON true
+			JOIN craftsky_posts p ON p.uri = branch.uri
 			WHERE (branch.created_at, branch.uri) <= (focus.created_at, focus.uri)
+			` + postVisibleModerationPredicate + `
 			ORDER BY branch.created_at DESC, branch.uri DESC
 			LIMIT $4
 		), ordered_page AS (
@@ -798,6 +901,8 @@ func (s *PostStore) ListCommentBranchRepliesAround(ctx context.Context, commentU
 		FROM ordered_page
 		JOIN craftsky_posts p ON p.uri = ordered_page.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
+		WHERE true
+		` + postVisibleModerationPredicate + `
 		ORDER BY ordered_page.created_at ASC, ordered_page.uri ASC
 	`
 	rows, err := s.pool.Query(ctx, q, commentURI, rootURI, focusURI, limit)
