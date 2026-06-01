@@ -138,4 +138,3 @@ class _ReportResultCopyWithImpl<$R, $Out>
     Then<$Out2, $R2> t,
   ) => _ReportResultCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-
