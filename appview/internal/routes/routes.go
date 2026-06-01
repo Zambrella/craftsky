@@ -92,7 +92,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		authN(deviceID(api.ReportPostHandler(postStore, deps.ReportStore, deps.ReportForwarder, deps.Logger))))
 	if deps.Config.Env == app.EnvDev && deps.Config.EnableDevModeration && deps.Config.DevModerationToken != "" {
 		mux.Handle("POST /v1/dev/moderation/ozone-events",
-			authN(deviceID(api.DevModerationOzoneEventsHandler(
+			api.DevModerationOzoneEventsHandler(
 				deps.Config.DevModerationToken,
 				api.ModerationRequestConfig{
 					DefaultSourceDID:  deps.Config.DevLabelerDID,
@@ -100,7 +100,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 				},
 				deps.ModerationStore,
 				deps.Logger,
-			))))
+			))
 	}
 	mux.Handle("GET /v1/profiles/{handleOrDid}/posts",
 		authN(deviceID(api.ListPostsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger))))

@@ -217,9 +217,9 @@ Decision / implication: Responses must not include private details, prepared for
 
 ### Q31: What route/auth model should the synthetic endpoint use?
 
-Answer: Use `POST /v1/dev/moderation/ozone-events`, registered only in dev with the explicit enable flag, and require existing auth/device middleware plus a dedicated dev moderation token header such as `X-Craftsky-Dev-Moderation-Token`.
+Answer: Use `POST /v1/dev/moderation/ozone-events`, registered only in dev with the explicit enable flag, and require a dedicated dev moderation token header such as `X-Craftsky-Dev-Moderation-Token`. Do not require product auth or device middleware for this local/dev synthetic route.
 
-Decision / implication: Normal user auth alone must not be enough to mutate synthetic moderation state. The route should still follow `/v1/` API conventions.
+Decision / implication: Normal user auth is neither required nor sufficient to mutate synthetic moderation state. The route should still follow `/v1/` API conventions and rely on dev-only registration plus the dedicated dev token.
 
 ### Q32: How is the dev moderation token configured?
 
@@ -335,7 +335,7 @@ The AppView has no report API, no moderation report table, no moderation label/o
 
 ## 11. Desired Behavior
 
-After the change, signed-in users can report posts and profiles/accounts. AppView stores those reports privately and prepares but does not submit or fully persist a future atproto/Ozone report payload. Dev/test callers with auth/device headers and a configured dev moderation token can synthesize one Ozone-like moderation output per request when explicitly enabled in dev. AppView indexes trusted-source outputs and enforces hide/takedown by filtering posts/authors/notifications from read APIs and returning 404 for direct hidden post/profile fetches. Warn outputs keep subjects visible but add moderation metadata so Flutter can show generic localized inline warnings.
+After the change, signed-in users can report posts and profiles/accounts. AppView stores those reports privately and prepares but does not submit or fully persist a future atproto/Ozone report payload. Dev/test callers with a configured dev moderation token can synthesize one Ozone-like moderation output per request when explicitly enabled in dev. AppView indexes trusted-source outputs and enforces hide/takedown by filtering posts/authors/notifications from read APIs and returning 404 for direct hidden post/profile fetches. Warn outputs keep subjects visible but add moderation metadata so Flutter can show generic localized inline warnings.
 
 ## 12. Requirements
 
@@ -354,7 +354,7 @@ After the change, signed-in users can report posts and profiles/accounts. AppVie
 | FR-006 | Functional | Must | AppView shall resolve and validate a reported profile/account target before storing an account report, regardless of whether that account is currently visible after moderation filtering. | Prevents malformed or unresolvable account targets while allowing stale/race reports against already moderated accounts. | User feedback / Codebase / Grill review | AC-008, AC-044 |
 | FR-007 | Functional | Must | AppView shall persist report submissions with reporter DID, canonical subject identity, reason type, normalized optional details, optional device ID, timestamps, forwarding status, and safe audit snapshots. | Provides a private audit/intake queue and future forwarding state. | Recommended direction / Grill review | AC-003, AC-004, AC-042 |
 | FR-008 | Functional | Must | AppView shall call a placeholder report-forwarding interface that prepares future atproto/Ozone payload data but does not perform the final PDS network submission or persist the full prepared payload. | Keeps future seam while honoring no-live-PDS and data-minimization constraints. | Prompt / Grill review | AC-005, AC-006, AC-035 |
-| FR-009 | Functional | Must | The AppView shall expose `POST /v1/dev/moderation/ozone-events` only when `APPVIEW_ENV=dev`, an explicit enable flag, and a non-empty dev moderation token are configured; accepted requests shall require existing auth/device middleware plus the dev moderation token header. | Synthetic controls must not be available in prod or to ordinary authenticated users. | User answer / Grill review | AC-019, AC-020, AC-036, AC-037 |
+| FR-009 | Functional | Must | The AppView shall expose `POST /v1/dev/moderation/ozone-events` only when `APPVIEW_ENV=dev`, an explicit enable flag, and a non-empty dev moderation token are configured; accepted requests shall require the dev moderation token header and shall not require product auth/device middleware. | Synthetic controls must not be available in prod or without the explicit dev token. | User answer / Grill review | AC-019, AC-020, AC-036, AC-037 |
 | FR-010 | Functional | Must | Synthetic moderation output ingestion shall support `post` and `account` subject types. | Tests must cover content and author/profile decisions. | User feedback | AC-019, AC-023 |
 | FR-011 | Functional | Must | Synthetic moderation output ingestion shall support `hide`, `takedown`, and `warn` values with `apply` and `negate` actions, one moderation output per request. | Covers minimal enforcement and reversal semantics with simple validation. | Recommended direction / Grill review | AC-019, AC-024, AC-038 |
 | FR-012 | Functional | Must | AppView shall persist moderation outputs with trusted source DID, subject identity, value, negation, optional expiry, optional internal reason, created timestamp, and indexed timestamp. | Supports enforcement, future Ozone ingestion, and tests. | Recommended direction / Grill review | AC-023, AC-024, AC-038 |
@@ -424,7 +424,7 @@ After the change, signed-in users can report posts and profiles/accounts. AppVie
 | AC-033 | BR-004, FR-025, NFR-003 | Given a notification references a hidden/taken-down subject or actor, when notification list APIs are requested, then that notification is omitted. |
 | AC-034 | FR-004 | Given a user directly submits a report request for their own post or own profile/account, when AppView validates the request, then AppView rejects it with the standard error envelope and does not persist a report. |
 | AC-035 | BR-003, FR-008, NFR-005 | Given a report is accepted and the placeholder forwarder prepares future payload data, when persisted forwarding state is inspected, then the full prepared forwarding payload is not stored; only safe status/metadata such as non-submitted status, timestamps, and optional schema marker are stored. |
-| AC-036 | FR-009, RULE-006 | Given the synthetic endpoint is registered, when a request lacks valid auth/device headers or omits/provides an invalid `X-Craftsky-Dev-Moderation-Token`, then AppView rejects the request and does not mutate moderation state. |
+| AC-036 | FR-009, RULE-006 | Given the synthetic endpoint is registered, when a request omits or provides an invalid `X-Craftsky-Dev-Moderation-Token`, then AppView rejects the request and does not mutate moderation state; product auth/device headers are not required for this dev route. |
 | AC-037 | FR-009, NFR-001 | Given `APPVIEW_ENABLE_DEV_MODERATION=true` and `APPVIEW_ENV=dev` but `APPVIEW_DEV_MODERATION_TOKEN` is empty, when AppView starts, then startup fails with a clear configuration error. |
 | AC-038 | FR-011, FR-012, FR-023 | Given a `negate` output is ingested, when active policy is computed, then all prior active outputs from the same source DID with the same subject type, subject identity, and value are inactive, while outputs from other trusted sources remain active. |
 | AC-039 | BR-005, FR-017, FR-018, FR-022 | Given a warned post/profile/author is rendered without active hide/takedown, when Flutter displays moderation UI, then content remains visible with one inline localized warning using the approved generic copy and no raw reason text. |
@@ -507,13 +507,13 @@ After the change, signed-in users can report posts and profiles/accounts. AppVie
 
 - Authentication:
   - Report endpoints require existing authenticated + device-id middleware.
-  - Synthetic endpoint must be dev-only, explicit-flag-gated, protected by existing auth/device middleware, and additionally protected by `X-Craftsky-Dev-Moderation-Token` or equivalent dedicated dev token header.
+  - Synthetic endpoint must be dev-only, explicit-flag-gated, and protected by `X-Craftsky-Dev-Moderation-Token` or equivalent dedicated dev token header; it intentionally does not require product auth/device middleware.
   - If `APPVIEW_ENABLE_DEV_MODERATION=true` without non-empty `APPVIEW_DEV_MODERATION_TOKEN`, AppView should fail startup with a clear configuration error.
 - Authorization:
   - Users may report other users' posts/profiles.
   - AppView rejects direct self-report requests for the authenticated user's own post/profile.
   - Flutter should not offer report actions for own posts/profiles in this MVP.
-  - Normal user auth/device headers alone must not be enough to mutate synthetic moderation state.
+  - Normal user auth/device headers are not required for the synthetic route and are not enough to mutate synthetic moderation state without the dev token.
   - Synthetic moderation ingestion must reject untrusted source DIDs.
 - Sensitive data:
   - Report details and internal synthetic reasons are private AppView data.

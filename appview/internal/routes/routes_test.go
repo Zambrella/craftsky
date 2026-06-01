@@ -420,8 +420,6 @@ func TestRoutes_DevModerationRouteUnavailableUnlessEnabled(t *testing.T) {
 			AddRoutes(context.Background(), mux, deps)
 
 			req := httptest.NewRequest(http.MethodPost, "/v1/dev/moderation/ozone-events", strings.NewReader(`{"subject":{"type":"post","did":"did:plc:bob","rkey":"rk"},"value":"hide","action":"apply"}`))
-			req.Header.Set("Authorization", "Bearer anything")
-			req.Header.Set("X-Craftsky-Device-Id", "dev-test")
 			req.Header.Set("X-Craftsky-Dev-Moderation-Token", "secret")
 			rr := httptest.NewRecorder()
 			mux.ServeHTTP(rr, req)
@@ -448,8 +446,6 @@ func TestRoutes_DevModerationRouteRequiresToken(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/v1/dev/moderation/ozone-events", strings.NewReader(`{"subject":{"type":"post","did":"did:plc:bob","rkey":"rk"},"value":"hide","action":"apply"}`))
-			req.Header.Set("Authorization", "Bearer anything")
-			req.Header.Set("X-Craftsky-Device-Id", "dev-test")
 			if tc.token != "" {
 				req.Header.Set("X-Craftsky-Dev-Moderation-Token", tc.token)
 			}
@@ -487,8 +483,6 @@ func TestRoutes_DevModerationRoutePersistsValidOutput(t *testing.T) {
 		"action":"apply",
 		"internalReason":"private fixture"
 	}`))
-	req.Header.Set("Authorization", "Bearer anything")
-	req.Header.Set("X-Craftsky-Device-Id", "dev-test")
 	req.Header.Set("X-Craftsky-Dev-Moderation-Token", "secret-token")
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
@@ -538,8 +532,6 @@ func TestRoutes_DevModerationRouteRejectsInvalidWithoutMutation(t *testing.T) {
 		"value":"warn",
 		"action":"apply"
 	}`))
-	req.Header.Set("Authorization", "Bearer anything")
-	req.Header.Set("X-Craftsky-Device-Id", "dev-test")
 	req.Header.Set("X-Craftsky-Dev-Moderation-Token", "secret-token")
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)

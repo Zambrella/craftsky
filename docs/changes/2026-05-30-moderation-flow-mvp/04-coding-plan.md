@@ -16,7 +16,7 @@ Build Option A from the requirements as a staged, test-first AppView + Flutter c
 
 1. Anchor the private data model first with migrations and AppView store tests for reports, forwarding metadata, and moderation outputs.
 2. Add report request validation, canonical subject resolution, private persistence, and a placeholder forwarder that prepares but never submits future PDS/Ozone payloads.
-3. Add dev-only synthetic moderation ingestion behind config, route registration, auth/device middleware, and a dedicated token header.
+3. Add dev-only synthetic moderation ingestion behind config, route registration, and a dedicated token header.
 4. Enforce active hide/takedown policy in AppView store/query paths, not Flutter, so alternate clients cannot see suppressed rows.
 5. Add warning-only response metadata that contains generic warning intent only, never raw report details or internal moderation reasons.
 6. Add Flutter report submission methods, mutation providers, report UI, action-menu entry points, and warning banners using existing Dio repository + Riverpod + localized-copy patterns.
@@ -214,7 +214,7 @@ Rules:
 - Register `POST /v1/dev/moderation/ozone-events` only when `Env == dev`, `EnableDevModeration == true`, and `DevModerationToken` is non-empty.
 - If `Env == dev` and `EnableDevModeration == true` but token is empty, `LoadConfig` returns a clear error.
 - In prod, clear/ignore dev moderation fields and never register the route.
-- The route uses existing auth/device middleware and additionally validates `X-Craftsky-Dev-Moderation-Token` against `DevModerationToken`.
+- The route validates `X-Craftsky-Dev-Moderation-Token` against `DevModerationToken` and intentionally does not use product auth/device middleware.
 
 #### Request body
 One object per request; arrays/batches are invalid.
@@ -270,7 +270,6 @@ Error mapping:
 |---|---:|---|
 | Route not registered | 404 | default not found |
 | Missing/invalid dev token | 403 | `invalid_dev_moderation_token` |
-| Missing auth/device | Existing middleware status | Existing code |
 | Malformed JSON or batch array | 400 | `malformed_body` |
 | Invalid shape/value/action/expiry | 422 | `validation_failed` |
 | Untrusted source DID | 403 | `untrusted_moderation_source` |
