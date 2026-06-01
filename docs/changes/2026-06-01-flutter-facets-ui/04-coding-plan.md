@@ -54,8 +54,8 @@ No stronger dependency ordering was found than the acceptance-test order. Use it
 | `app/lib/shared/rich_text/providers/facet_action_providers.dart` | Create | Provider for link launcher callback backed by `url_launcher.launchUrl`; tests override it | FR-013 | IT-010, AT-006 |
 | `app/lib/shared/rich_text/data/facet_suggestion_repository.dart` | Create | Interfaces for account suggestions, hashtag suggestions, and handle resolution | FR-011, RULE-001, RULE-002 | UT-017, IT-007, AT-008 |
 | `app/lib/shared/rich_text/data/mock_facet_suggestion_repository.dart` | Create | Flutter-only mock data, filtering/sorting, hashtag counts, and local DID resolution | BR-002, FR-010, FR-011, RULE-001 | UT-012, UT-013, IT-005, IT-007, AT-008 |
-| `app/lib/shared/rich_text/providers/facet_suggestion_providers.dart` and `.g.dart` | Create | Riverpod provider graph for suggestion repositories, resolver, generator, and debounce duration | FR-011, NFR-002, RULE-001 | IT-005, IT-007, AT-008 |
-| `app/lib/shared/rich_text/facet_autocomplete_controller.dart` | Create | Pure Dart controller/helpers for active-token detection, 300 ms debounce, no stale result application, and token replacement | FR-006, FR-007, FR-008, NFR-002, RULE-005, RULE-006 | UT-011, UT-015, UT-019, UT-020, AT-007 |
+| `app/lib/shared/rich_text/providers/facet_suggestion_providers.dart` and `.g.dart` | Create | Riverpod provider graph for suggestion repositories, resolver, generator, debounce duration, and auto-disposed debounced suggestion request families | FR-011, NFR-002, RULE-001 | IT-005, IT-007, AT-008 |
+| `app/lib/shared/rich_text/facet_autocomplete_controller.dart` | Create | Pure Dart controller/helpers for active-token detection, stale-token guards, and token replacement; async debounce belongs in Riverpod suggestion providers | FR-006, FR-007, FR-008, NFR-002, RULE-005, RULE-006 | UT-011, UT-015, UT-019, UT-020, AT-007 |
 | `app/lib/shared/rich_text/widgets/facet_autocomplete_editor.dart` | Create | Reusable editor that composes `BrandTextField`, a facet-aware text controller, and visible/semantic suggestion dropdown | FR-006, FR-007, FR-008, FR-009, FR-010, NFR-003, NFR-005 | AT-003, AT-004, AT-007, IT-005 |
 | `app/lib/shared/rich_text/widgets/facet_suggestion_tiles.dart` | Create | Account tile with avatar/display name/handle and hashtag tile with 28-day count label; mention no-results state | FR-009, FR-010, NFR-003 | UT-012, UT-013, AT-003, AT-004 |
 | `app/lib/feed/widgets/post_composer_sheet.dart` | Change | Use autocomplete editor for body; generate facets on submit from final text; preserve image/reply/discard behavior | FR-001, FR-002, FR-006, FR-008, NFR-004 | AT-001, AT-003, AT-004, IT-012, REG-001 through REG-003 |
@@ -221,7 +221,9 @@ class FacetActionHandler {
 
 ## 6. State, Providers, Controllers, Or DI
 
-Use existing Riverpod provider conventions (`@riverpod`, generated `.g.dart`) for shared services and mocks. Suggested graph:
+Use existing Riverpod provider conventions (`@riverpod`, generated `.g.dart`) for shared services and mocks. For async autocomplete lookups, follow Riverpod's official debounce/cancel pattern from `https://riverpod.dev/docs/how_to/cancel#debouncing-requests`: use auto-disposed provider-family requests, `ref.onDispose`, an awaited debounce delay, and cancellation before the repository call starts if the provider was disposed during the delay.
+
+Suggested graph:
 
 ```text
 facetAutocompleteDebounceProvider -> Duration(milliseconds: 300)
@@ -232,14 +234,43 @@ mentionResolverProvider -> accountSuggestionRepositoryProvider
 
 facetGeneratorProvider -> FacetGenerator(mentionResolverProvider)
 facetUrlLauncherProvider -> (Uri uri) => url_launcher.launchUrl(uri, ...)
+
+accountSuggestionsProvider(query) -> auto-disposed debounced repository search
+hashtagSuggestionsProvider(query) -> auto-disposed debounced repository search
 ```
 
 Provider choices:
 
 - Use `Provider`/`@Riverpod(keepAlive: true)` for repositories and stateless services.
-- Avoid `AsyncNotifier` for autocomplete unless the editor needs provider-owned async state. A local `StatefulWidget`/controller is simpler because autocomplete depends on a `TextEditingController`, caret selection, focus node, and debounce timer.
-- Keep the debounce duration provider overrideable in widget tests.
+- Use `FutureProvider`/generated `Future` provider families for `accountSuggestions(query)` and `hashtagSuggestions(query)` so each active query has its own auto-disposed request lifecycle.
+- Keep `FacetAutocompleteEditor` local state responsible for caret/token detection, selected active query, focus, and rendering the current `AsyncValue`; let Riverpod own async debounce/cancel for suggestion lookups.
+- Keep the debounce duration provider overrideable in widget tests. Tests can set it to a short duration or zero where appropriate.
 - Do not inject `Dio`, AppView clients, PDS clients, or atproto identity clients into suggestion/resolver providers for this slice.
+
+Debounced suggestion provider sketch:
+
+```text
+@riverpod
+Future<List<AccountSuggestion>> accountSuggestions(
+  Ref ref,
+  String query,
+) async {
+  var didDispose = false;
+  ref.onDispose(() => didDispose = true);
+
+  await Future<void>.delayed(ref.watch(facetAutocompleteDebounceProvider));
+  if (didDispose) throw Exception('Cancelled');
+
+  return ref.watch(accountSuggestionRepositoryProvider).searchAccounts(query);
+}
+```
+
+Notes for implementation:
+
+- The provider should not be `keepAlive`; disposal is how superseded queries and unmounted editors are cancelled.
+- Throwing after disposal is acceptable per the Riverpod docs; Riverpod will ignore that disposed provider result.
+- Because repositories are mock/local in this slice, no HTTP client cancellation is needed, but the same `ref.onDispose` pattern prevents stale lookups from applying.
+- If future AppView-backed autocomplete is added, this provider is where request cancellation should be attached to the network client/cancel token.
 
 Autocomplete controller responsibilities:
 
@@ -257,7 +288,7 @@ Detection rules:
 - Activate only at start of text or after whitespace/opening punctuation such as `(`.
 - Require at least one query character after `@`/`#`.
 - Do not activate inside words, email addresses, URL fragments, or bare trigger characters.
-- Hide/ignore stale results when caret or token changes before debounce completes.
+- Hide/ignore stale results when caret or token changes before debounce completes; the editor should stop watching the old provider family key and watch the new/empty key so Riverpod disposes the old request.
 
 Editable primary-color token styling:
 
@@ -359,7 +390,7 @@ class SearchRoute extends GoRouteData with $SearchRoute {
 |---|---|---|---|
 | Bare `@` or `#` | No query and no dropdown | RULE-005 | UT-011, UT-019, AT-007 |
 | Trigger inside word/email/URL fragment | No query and no dropdown | RULE-005 | UT-011, UT-019, AT-007 |
-| Caret moves while debounce pending | Ignore pending result and hide stale dropdown | NFR-002 | UT-015, AT-007 |
+| Caret moves while debounce pending | Editor watches a different/no provider-family key, causing Riverpod to dispose the old debounced request; hide stale dropdown | NFR-002 | UT-015, AT-007 |
 | Mention query has no results | Show visible/semantic `No results`; do not block typing | FR-006, FR-011 | AT-003 |
 | Hashtag query has no results | Hide dropdown; allow free typed hashtag | FR-008, FR-011 | AT-004 |
 | Unknown manually typed mention | No mention facet, text unchanged, no warning/block | RULE-002 | UT-001, UT-007, AT-001, AT-002 |
@@ -390,7 +421,7 @@ Use the suggested order from `02-acceptance-tests.md`.
 | 8 | UT-010 | Same | Bad byte range into emoji plus good range | Invalid facet not isolated |
 | 9 | UT-016 | `app/test/shared/rich_text/faceted_text_span_builder_test.dart` | Theme primary color and sample normalized ranges | Faceted spans not styled primary |
 | 10 | UT-011 | `app/test/shared/rich_text/facet_autocomplete_controller_test.dart` | Boundary/minimum query cases | Token detection absent/incorrect |
-| 11 | UT-015 | Same | Fake/injected debounce and rapid edits | Queries fire too early/often |
+| 11 | UT-015 | Same plus provider tests where useful | Fake/injected debounce and rapid edits using Riverpod auto-dispose provider families | Queries fire too early/often or disposed queries still apply |
 | 12 | UT-020 | Same | Token replacement in middle/end of text | Replacement changes surrounding text or caret |
 | 13 | UT-012 | `app/test/shared/rich_text/mock_account_suggestion_repository_test.dart` | Followed/non-followed/non-Craftsky accounts | Filtering/sorting/display data missing |
 | 14 | UT-013 | `app/test/shared/rich_text/mock_hashtag_suggestion_repository_test.dart` | Hashtags with 28-day counts | Count/casing unavailable |
@@ -432,7 +463,7 @@ cd app && dart run build_runner build --delete-conflicting-outputs
   1. Shared facet models/interfaces.
   2. Facet generation.
   3. Renderer normalization and span styling.
-  4. Autocomplete token/debounce/replacement and mock repositories.
+  4. Autocomplete token detection/replacement, Riverpod debounced suggestion providers, and mock repositories.
   5. Post/profile repository/API/provider/fake payload propagation.
   6. Post/profile editor widgets.
   7. Rendered surfaces and tap actions.
@@ -444,6 +475,7 @@ cd app && dart run build_runner build --delete-conflicting-outputs
   - Do not use `bluesky_text.Entity.toFacet()` or any helper path that can resolve handles externally; construct facets manually from local entity byte indices and injected resolver data.
   - Keep raw facet payloads camelCase where AppView JSON expects it (`facets`, `descriptionFacets`, `byteStart`, `byteEnd`).
   - Recompute facets from current final text at submit/save time.
+  - Implement autocomplete debounce/cancel through Riverpod auto-disposed provider families using `ref.onDispose`, not only ad hoc widget timers.
   - Preserve existing image/reply/profile atomic-update semantics.
   - Keep `descriptionFacets` live-send incompatibility visible in test names/comments and implementation review.
 - Out of scope:
@@ -466,6 +498,7 @@ cd app && dart run build_runner build --delete-conflicting-outputs
 | CPQ-005 | Non-blocking risk | Gesture recognizers in `FacetedText` inside tappable post cards may compete with card tap | Facet taps may also navigate to thread or fail to invoke facet action | Add widget tests for facet tap vs card tap; adjust recognizers/InkWell composition if needed |
 | CPQ-006 | Non-blocking risk | Search route tag context is ahead of real search results | Users may land on a placeholder search page | Only preserve route/query context in this slice; search results remain follow-up work |
 | CPQ-007 | Non-blocking risk | Model/provider/router changes require generated files | Build/test failures if codegen is missed | Run `dart run build_runner build --delete-conflicting-outputs` after modifying `@riverpod`, `@TypedGoRoute`, or `@MappableClass` files |
+| CPQ-008 | Non-blocking risk | Debounce implemented only in widget-local timers instead of Riverpod request lifecycle | Stale autocomplete requests may apply after caret changes/unmounts and diverge from project Riverpod patterns | Use Riverpod's documented `ref.onDispose` debounce/cancel approach for suggestion provider families; keep widget/controller code limited to token state and rendering |
 
 ## 12. Implementation-Review Checklist
 
