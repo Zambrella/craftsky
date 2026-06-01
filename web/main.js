@@ -20,7 +20,7 @@
   // -----------------------------------------------------------------------
 
   const POSTHOG_KEY = 'phc_p9bFRYQRYLhWMjUFpznyKVjXLdZccJFZceEJztFuCFyv';
-  const POSTHOG_HOST = 'https://eu.i.posthog.com';
+  const POSTHOG_HOST = 'https://t.craftsky.social';
 
   // -----------------------------------------------------------------------
   // PostHog init (DNT-aware, key-aware)
