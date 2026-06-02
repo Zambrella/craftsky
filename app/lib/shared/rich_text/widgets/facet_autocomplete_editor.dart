@@ -5,6 +5,7 @@ import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Text controller that colors the active editable mention/hashtag token.
@@ -80,7 +81,38 @@ List<_EditableFacetTokenRange> _editableFacetTokenRanges(String text) {
     }
     index++;
   }
-  return ranges;
+
+  for (final match in _editableLinkPattern.allMatches(text)) {
+    final prefix = match.group(1) ?? '';
+    final visibleLink = _trimEditableLinkText(match.group(2)!);
+    if (visibleLink.isEmpty) {
+      continue;
+    }
+    final start = match.start + prefix.length;
+    ranges.add(
+      _EditableFacetTokenRange(start: start, end: start + visibleLink.length),
+    );
+  }
+
+  ranges.sort((a, b) {
+    final startComparison = a.start.compareTo(b.start);
+    if (startComparison != 0) {
+      return startComparison;
+    }
+    return b.end.compareTo(a.end);
+  });
+
+  final nonOverlappingRanges = <_EditableFacetTokenRange>[];
+  var previousEnd = -1;
+  for (final range in ranges) {
+    if (range.start < previousEnd) {
+      continue;
+    }
+    nonOverlappingRanges.add(range);
+    previousEnd = range.end;
+  }
+
+  return nonOverlappingRanges;
 }
 
 int _editableTokenEnd(String text, int start, String trigger) {
@@ -112,6 +144,40 @@ bool _hasEditableTokenBoundary(String text, int triggerIndex) {
 const _editableOpeningPunctuation = {'(', '[', '{'};
 final _editableMentionChar = RegExp(r'^[A-Za-z0-9._-]$');
 final _editableHashtagChar = RegExp(r'^[\p{L}\p{N}_]$', unicode: true);
+final _editableLinkPattern = RegExp(
+  r'(^|[\s(\[{])((?:https?://)?(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}(?:/[^\s]*)?)',
+);
+const _editableTrailingSentencePunctuation = {'.', ',', '!', '?', ';', ':'};
+
+String _trimEditableLinkText(String link) {
+  var trimmed = link;
+  while (trimmed.isNotEmpty &&
+      _editableTrailingSentencePunctuation.contains(
+        trimmed[trimmed.length - 1],
+      )) {
+    trimmed = trimmed.substring(0, trimmed.length - 1);
+  }
+  while (trimmed.endsWith(')') &&
+      _countEditableCharacters(trimmed, ')') >
+          _countEditableCharacters(trimmed, '(')) {
+    trimmed = trimmed.substring(0, trimmed.length - 1);
+  }
+  while (trimmed.endsWith(']') &&
+      _countEditableCharacters(trimmed, ']') >
+          _countEditableCharacters(trimmed, '[')) {
+    trimmed = trimmed.substring(0, trimmed.length - 1);
+  }
+  while (trimmed.endsWith('}') &&
+      _countEditableCharacters(trimmed, '}') >
+          _countEditableCharacters(trimmed, '{')) {
+    trimmed = trimmed.substring(0, trimmed.length - 1);
+  }
+  return trimmed;
+}
+
+int _countEditableCharacters(String text, String character) {
+  return character.allMatches(text).length;
+}
 
 /// Reusable editor with mention/hashtag autocomplete support.
 class FacetAutocompleteEditor extends ConsumerStatefulWidget {
@@ -179,7 +245,10 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
 
 class _FacetAutocompleteEditorState
     extends ConsumerState<FacetAutocompleteEditor> {
+  final _textFieldKey = GlobalKey();
   Timer? _debounceTimer;
+  OverlayEntry? _suggestionOverlay;
+  _SuggestionOverlayGeometry? _suggestionOverlayGeometry;
   ActiveFacetToken? _activeToken;
   List<AccountSuggestion>? _accountSuggestions;
   List<HashtagSuggestion>? _hashtagSuggestions;
@@ -187,6 +256,7 @@ class _FacetAutocompleteEditorState
   @override
   void dispose() {
     _debounceTimer?.cancel();
+    _removeSuggestionOverlay();
     super.dispose();
   }
 
@@ -202,6 +272,7 @@ class _FacetAutocompleteEditorState
         _accountSuggestions = null;
         _hashtagSuggestions = null;
       });
+      _removeSuggestionOverlay();
       return;
     }
 
@@ -210,6 +281,7 @@ class _FacetAutocompleteEditorState
       _accountSuggestions = null;
       _hashtagSuggestions = null;
     });
+    _removeSuggestionOverlay();
 
     final debounce = ref.read(facetAutocompleteDebounceProvider);
     _debounceTimer = Timer(debounce, () async {
@@ -221,6 +293,7 @@ class _FacetAutocompleteEditorState
           return;
         }
         setState(() => _accountSuggestions = suggestions);
+        _updateSuggestionOverlay();
       } else {
         final suggestions = await ref
             .read(hashtagSuggestionRepositoryProvider)
@@ -229,6 +302,7 @@ class _FacetAutocompleteEditorState
           return;
         }
         setState(() => _hashtagSuggestions = suggestions);
+        _updateSuggestionOverlay();
       }
     });
   }
@@ -250,6 +324,7 @@ class _FacetAutocompleteEditorState
       _accountSuggestions = null;
       _hashtagSuggestions = null;
     });
+    _removeSuggestionOverlay();
   }
 
   void _selectHashtag(HashtagSuggestion hashtag) {
@@ -269,6 +344,106 @@ class _FacetAutocompleteEditorState
       _accountSuggestions = null;
       _hashtagSuggestions = null;
     });
+    _removeSuggestionOverlay();
+  }
+
+  bool get _hasSuggestionSurface {
+    return switch (_activeToken?.kind) {
+      ActiveFacetTokenKind.mention => _accountSuggestions != null,
+      ActiveFacetTokenKind.hashtag =>
+        _hashtagSuggestions != null && _hashtagSuggestions!.isNotEmpty,
+      null => false,
+    };
+  }
+
+  void _updateSuggestionOverlay() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_hasSuggestionSurface) {
+        _removeSuggestionOverlay();
+        return;
+      }
+
+      final geometry = _computeSuggestionOverlayGeometry();
+      if (geometry == null) {
+        _removeSuggestionOverlay();
+        return;
+      }
+
+      _suggestionOverlayGeometry = geometry;
+      final overlay = Overlay.of(context);
+      if (_suggestionOverlay == null) {
+        _suggestionOverlay = OverlayEntry(
+          builder: (_) => _SuggestionOverlay(
+            geometry: _suggestionOverlayGeometry!,
+            child: _buildSuggestionList(),
+          ),
+        );
+        overlay.insert(_suggestionOverlay!);
+      } else {
+        _suggestionOverlay!.markNeedsBuild();
+      }
+    });
+  }
+
+  void _removeSuggestionOverlay() {
+    _suggestionOverlay?.remove();
+    _suggestionOverlay = null;
+    _suggestionOverlayGeometry = null;
+  }
+
+  _SuggestionOverlayGeometry? _computeSuggestionOverlayGeometry() {
+    final token = _activeToken;
+    final textFieldContext = _textFieldKey.currentContext;
+    final overlayBox = Overlay.of(context).context.findRenderObject();
+    final textFieldBox = textFieldContext?.findRenderObject();
+    if (token == null ||
+        overlayBox is! RenderBox ||
+        textFieldBox is! RenderBox) {
+      return null;
+    }
+
+    final renderEditable = _findRenderEditable(textFieldBox);
+    if (renderEditable == null) {
+      return null;
+    }
+
+    final caretRect = renderEditable.getLocalRectForCaret(
+      TextPosition(offset: token.start),
+    );
+    final tokenStart = overlayBox.globalToLocal(
+      renderEditable.localToGlobal(caretRect.bottomLeft),
+    );
+    final overlayWidth = overlayBox.size.width;
+    const viewportPadding = 8.0;
+    final width = textFieldBox.size.width
+        .clamp(
+          0.0,
+          overlayWidth - (viewportPadding * 2),
+        )
+        .toDouble();
+    final maxLeft = overlayWidth - viewportPadding - width;
+    final left = tokenStart.dx.clamp(viewportPadding, maxLeft).toDouble();
+
+    return _SuggestionOverlayGeometry(
+      left: left,
+      top: tokenStart.dy + viewportPadding,
+      width: width,
+      maxHeight: overlayBox.size.height - tokenStart.dy - (viewportPadding * 2),
+    );
+  }
+
+  Widget _buildSuggestionList() {
+    return switch (_activeToken?.kind) {
+      ActiveFacetTokenKind.mention => _MentionSuggestionList(
+        suggestions: _accountSuggestions ?? const [],
+        onSelected: _selectMention,
+      ),
+      ActiveFacetTokenKind.hashtag => _HashtagSuggestionList(
+        suggestions: _hashtagSuggestions ?? const [],
+        onSelected: _selectHashtag,
+      ),
+      null => const SizedBox.shrink(),
+    };
   }
 
   @override
@@ -278,6 +453,7 @@ class _FacetAutocompleteEditorState
       children: [
         BrandTextField(
           label: widget.label,
+          textFieldKey: _textFieldKey,
           controller: widget.controller,
           focusNode: widget.focusNode,
           hintText: widget.hintText,
@@ -291,20 +467,52 @@ class _FacetAutocompleteEditorState
           textInputAction: widget.textInputAction,
           onChanged: _onChanged,
         ),
-        if (_activeToken?.kind == ActiveFacetTokenKind.mention &&
-            _accountSuggestions != null)
-          _MentionSuggestionList(
-            suggestions: _accountSuggestions!,
-            onSelected: _selectMention,
-          ),
-        if (_activeToken?.kind == ActiveFacetTokenKind.hashtag &&
-            _hashtagSuggestions != null &&
-            _hashtagSuggestions!.isNotEmpty)
-          _HashtagSuggestionList(
-            suggestions: _hashtagSuggestions!,
-            onSelected: _selectHashtag,
-          ),
       ],
+    );
+  }
+}
+
+RenderEditable? _findRenderEditable(RenderObject root) {
+  if (root is RenderEditable) {
+    return root;
+  }
+  RenderEditable? match;
+  root.visitChildren((child) {
+    match ??= _findRenderEditable(child);
+  });
+  return match;
+}
+
+class _SuggestionOverlayGeometry {
+  const _SuggestionOverlayGeometry({
+    required this.left,
+    required this.top,
+    required this.width,
+    required this.maxHeight,
+  });
+
+  final double left;
+  final double top;
+  final double width;
+  final double maxHeight;
+}
+
+class _SuggestionOverlay extends StatelessWidget {
+  const _SuggestionOverlay({required this.geometry, required this.child});
+
+  final _SuggestionOverlayGeometry geometry;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: geometry.left,
+      top: geometry.top,
+      width: geometry.width,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: geometry.maxHeight),
+        child: SingleChildScrollView(child: child),
+      ),
     );
   }
 }
@@ -322,14 +530,17 @@ class _MentionSuggestionList extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     if (suggestions.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: Text('No results', style: theme.textTheme.bodyMedium),
+      return Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text('No results', style: theme.textTheme.bodyMedium),
+        ),
       );
     }
 
     return Card(
-      margin: const EdgeInsets.only(top: 8),
+      margin: EdgeInsets.zero,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -390,7 +601,7 @@ class _HashtagSuggestionList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(top: 8),
+      margin: EdgeInsets.zero,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

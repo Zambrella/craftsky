@@ -4,6 +4,7 @@ import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_provide
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -207,6 +208,156 @@ void main() {
         );
       },
     );
+
+    testWidgets('styles valid web URLs with theme primary color', (
+      tester,
+    ) async {
+      final controller = FacetTextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        _wrap(
+          overrides: const [],
+          child: FacetAutocompleteEditor(
+            label: 'Body',
+            controller: controller,
+            focusNode: focusNode,
+          ),
+        ),
+      );
+
+      await tester.enterText(find.byType(TextField), 'See craftsky.social');
+      final context = tester.element(find.byType(TextField));
+      final theme = Theme.of(context);
+      final validUrlSpan = controller.buildTextSpan(
+        context: context,
+        style: theme.textTheme.bodyLarge,
+        withComposing: false,
+      );
+
+      expect(
+        _spanForText(validUrlSpan, 'craftsky.social')?.style?.color,
+        theme.colorScheme.primary,
+      );
+
+      await tester.enterText(find.byType(TextField), 'See craftsky');
+      final partialUrlSpan = controller.buildTextSpan(
+        context: context,
+        style: theme.textTheme.bodyLarge,
+        withComposing: false,
+      );
+
+      expect(_spanForText(partialUrlSpan, 'craftsky')?.style?.color, isNull);
+    });
+
+    testWidgets('positions suggestions below the active token start', (
+      tester,
+    ) async {
+      final controller = FacetTextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        _wrap(
+          overrides: [
+            facetAutocompleteDebounceProvider.overrideWithValue(Duration.zero),
+            accountSuggestionRepositoryProvider.overrideWithValue(
+              const MockAccountSuggestionRepository(
+                accounts: [
+                  AccountSuggestion(
+                    did: 'did:plc:alice',
+                    handle: 'alice.craftsky.social',
+                    displayName: 'Alice',
+                    avatar: null,
+                    isCraftskyProfile: true,
+                    viewerIsFollowing: false,
+                  ),
+                ],
+              ),
+            ),
+          ],
+          child: SizedBox(
+            width: 480,
+            child: FacetAutocompleteEditor(
+              label: 'Body',
+              controller: controller,
+              focusNode: focusNode,
+            ),
+          ),
+        ),
+      );
+
+      const text = 'Leading words @ali';
+      await tester.enterText(find.byType(TextField), text);
+      await tester.pumpAndSettle();
+
+      final tokenStart = _tokenStartGlobalOffset(tester, text.indexOf('@'));
+      final cardTopLeft = tester.getTopLeft(find.byType(Card));
+
+      expect(cardTopLeft.dx, closeTo(tokenStart.dx, 1));
+      expect(cardTopLeft.dy, greaterThan(tokenStart.dy));
+    });
+
+    testWidgets('shifts suggestions left when needed to avoid overflow', (
+      tester,
+    ) async {
+      await _withSurfaceSize(
+        tester,
+        const Size(400, 600),
+        () async {
+          final controller = FacetTextEditingController();
+          final focusNode = FocusNode();
+          addTearDown(controller.dispose);
+          addTearDown(focusNode.dispose);
+
+          await tester.pumpWidget(
+            _wrap(
+              overrides: [
+                facetAutocompleteDebounceProvider.overrideWithValue(
+                  Duration.zero,
+                ),
+                accountSuggestionRepositoryProvider.overrideWithValue(
+                  const MockAccountSuggestionRepository(
+                    accounts: [
+                      AccountSuggestion(
+                        did: 'did:plc:alice',
+                        handle: 'alice.craftsky.social',
+                        displayName: 'Alice',
+                        avatar: null,
+                        isCraftskyProfile: true,
+                        viewerIsFollowing: false,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              child: SizedBox(
+                width: 352,
+                child: FacetAutocompleteEditor(
+                  label: 'Body',
+                  controller: controller,
+                  focusNode: focusNode,
+                ),
+              ),
+            ),
+          );
+
+          const text = 'Long leading words before @ali';
+          await tester.enterText(find.byType(TextField), text);
+          await tester.pumpAndSettle();
+
+          final tokenStart = _tokenStartGlobalOffset(tester, text.indexOf('@'));
+          final cardRect = tester.getRect(find.byType(Card));
+
+          expect(cardRect.left, lessThan(tokenStart.dx));
+          expect(cardRect.right, lessThanOrEqualTo(392));
+          expect(cardRect.left, closeTo(392 - cardRect.width, 1));
+        },
+      );
+    });
   });
 }
 
@@ -227,6 +378,44 @@ TextSpan? _spanForText(TextSpan root, String text) {
     }
   }
   return null;
+}
+
+Offset _tokenStartGlobalOffset(WidgetTester tester, int tokenStart) {
+  final editableRoot = tester.renderObject<RenderObject>(
+    find.byType(EditableText),
+  );
+  final renderEditable = _findRenderEditable(editableRoot)!;
+  final caret = renderEditable.getLocalRectForCaret(
+    TextPosition(offset: tokenStart),
+  );
+  return renderEditable.localToGlobal(caret.bottomLeft);
+}
+
+RenderEditable? _findRenderEditable(RenderObject root) {
+  if (root is RenderEditable) {
+    return root;
+  }
+  RenderEditable? match;
+  root.visitChildren((child) {
+    match ??= _findRenderEditable(child);
+  });
+  return match;
+}
+
+Future<void> _withSurfaceSize(
+  WidgetTester tester,
+  Size size,
+  Future<void> Function() body,
+) async {
+  final previousSize = tester.view.physicalSize;
+  final previousDevicePixelRatio = tester.view.devicePixelRatio;
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1;
+  addTearDown(() {
+    tester.view.physicalSize = previousSize;
+    tester.view.devicePixelRatio = previousDevicePixelRatio;
+  });
+  await body();
 }
 
 Widget _wrap({
