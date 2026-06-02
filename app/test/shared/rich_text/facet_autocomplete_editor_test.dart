@@ -349,6 +349,47 @@ void main() {
       expect(tester.getRect(find.byType(Card)).width, closeTo(450, 1));
     });
 
+    testWidgets('shows only the first five suggestions for long result sets', (
+      tester,
+    ) async {
+      final controller = FacetTextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        _wrap(
+          overrides: [
+            facetAutocompleteDebounceProvider.overrideWithValue(Duration.zero),
+            hashtagSuggestionRepositoryProvider.overrideWithValue(
+              MockHashtagSuggestionRepository(
+                hashtags: [
+                  for (var index = 1; index <= 10; index += 1)
+                    HashtagSuggestion(
+                      tag: 'example$index',
+                      postsLast28Days: index,
+                    ),
+                ],
+              ),
+            ),
+          ],
+          child: FacetAutocompleteEditor(
+            label: 'Body',
+            controller: controller,
+            focusNode: focusNode,
+          ),
+        ),
+      );
+
+      await tester.enterText(find.byType(TextField), '#example');
+      await tester.pumpAndSettle();
+
+      for (var index = 1; index <= 5; index += 1) {
+        expect(find.text('#example$index'), findsOneWidget);
+      }
+      expect(find.text('#example6'), findsNothing);
+    });
+
     testWidgets('shifts suggestions left when needed to avoid overflow', (
       tester,
     ) async {

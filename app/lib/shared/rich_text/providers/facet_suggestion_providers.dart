@@ -9,37 +9,52 @@ final facetAutocompleteDebounceProvider = Provider<Duration>(
 );
 
 /// Mock-backed account suggestions for this Flutter-only slice.
-final accountSuggestionRepositoryProvider =
-    Provider<AccountSuggestionRepository>(
-      (ref) => const MockAccountSuggestionRepository(
-        accounts: [
-          AccountSuggestion(
-            did: 'did:plc:alice',
-            handle: 'alice.craftsky.social',
-            displayName: 'Alice',
-            avatar: null,
-            isCraftskyProfile: true,
-            viewerIsFollowing: true,
-          ),
-          AccountSuggestion(
-            did: 'did:plc:alicia',
-            handle: 'alicia.craftsky.social',
-            displayName: 'Alicia',
-            avatar: null,
-            isCraftskyProfile: true,
-            viewerIsFollowing: false,
-          ),
-        ],
+final accountSuggestionRepositoryProvider = Provider<AccountSuggestionRepository>(
+  (ref) => MockAccountSuggestionRepository(
+    accounts: [
+      const AccountSuggestion(
+        did: 'did:plc:alice',
+        handle: 'alice.craftsky.social',
+        displayName: 'Alice',
+        avatar: null,
+        isCraftskyProfile: true,
+        viewerIsFollowing: true,
       ),
-    );
+      const AccountSuggestion(
+        did: 'did:plc:alicia',
+        handle: 'alicia.craftsky.social',
+        displayName: 'Alicia',
+        avatar: null,
+        isCraftskyProfile: true,
+        viewerIsFollowing: false,
+      ),
+      const AccountSuggestion(
+        did: 'did:plc:long-display-name',
+        handle: 'longname.craftsky.social',
+        displayName:
+            'This Is An Extremely Long Display Name For Visual Overflow Testing In The Composer Suggestions',
+        avatar: null,
+        isCraftskyProfile: true,
+        viewerIsFollowing: false,
+      ),
+    ],
+  ),
+);
 
 /// Mock-backed hashtag suggestions for this Flutter-only slice.
 final hashtagSuggestionRepositoryProvider =
     Provider<HashtagSuggestionRepository>(
-      (ref) => const MockHashtagSuggestionRepository(
+      (ref) => MockHashtagSuggestionRepository(
         hashtags: [
-          HashtagSuggestion(tag: 'SockKAL', postsLast28Days: 128),
-          HashtagSuggestion(tag: 'sockmending', postsLast28Days: 12),
+          const HashtagSuggestion(tag: 'SockKAL', postsLast28Days: 128),
+          const HashtagSuggestion(tag: 'sockmending', postsLast28Days: 12),
+          ...List.generate(
+            50,
+            (index) => HashtagSuggestion(
+              tag: 'example${index + 1}',
+              postsLast28Days: 50 - index,
+            ),
+          ),
         ],
       ),
     );

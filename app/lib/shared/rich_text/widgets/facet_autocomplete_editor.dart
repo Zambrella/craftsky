@@ -247,6 +247,7 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
 class _FacetAutocompleteEditorState
     extends ConsumerState<FacetAutocompleteEditor> {
   static const _suggestionOverlayBaseWidth = 300.0;
+  static const _maxDisplayedSuggestions = 5;
 
   final _textFieldKey = GlobalKey();
   FocusNode? _internalFocusNode;
@@ -476,11 +477,15 @@ class _FacetAutocompleteEditorState
   Widget _buildSuggestionList() {
     return switch (_activeToken?.kind) {
       ActiveFacetTokenKind.mention => _MentionSuggestionList(
-        suggestions: _accountSuggestions ?? const [],
+        suggestions: (_accountSuggestions ?? const [])
+            .take(_maxDisplayedSuggestions)
+            .toList(),
         onSelected: _selectMention,
       ),
       ActiveFacetTokenKind.hashtag => _HashtagSuggestionList(
-        suggestions: _hashtagSuggestions ?? const [],
+        suggestions: (_hashtagSuggestions ?? const [])
+            .take(_maxDisplayedSuggestions)
+            .toList(),
         onSelected: _selectHashtag,
       ),
       null => const SizedBox.shrink(),
