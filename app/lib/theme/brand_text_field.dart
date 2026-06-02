@@ -26,6 +26,7 @@ class BrandTextField extends StatefulWidget {
     this.labelStyle,
     this.helperStyle,
     this.helperAlignment = AlignmentDirectional.centerStart,
+    this.textFieldKey,
     this.prefixIcon,
     this.suffixIcon,
     this.maxLines = 1,
@@ -53,6 +54,7 @@ class BrandTextField extends StatefulWidget {
   final TextStyle? labelStyle;
   final TextStyle? helperStyle;
   final AlignmentGeometry helperAlignment;
+  final Key? textFieldKey;
   final Widget? prefixIcon;
   final Widget? suffixIcon;
   final int? maxLines;
@@ -175,6 +177,7 @@ class _BrandTextFieldState extends State<BrandTextField> {
           borderRadius: BorderRadius.circular(radii.r3),
           duration: durations.fast,
           child: TextField(
+            key: widget.textFieldKey,
             controller: _controller,
             focusNode: _focusNode,
             enabled: widget.enabled,

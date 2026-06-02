@@ -45,6 +45,7 @@ class ProfileApiClient {
   Future<Profile> updateMyProfile({
     String? displayName,
     String? description,
+    List<Map<String, dynamic>>? descriptionFacets,
     List<String>? crafts,
     UploadedBlob? avatar,
     bool clearAvatar = false,
@@ -54,6 +55,7 @@ class ProfileApiClient {
     final body = <String, dynamic>{
       'displayName': ?displayName,
       'description': ?description,
+      'descriptionFacets': ?descriptionFacets,
       'crafts': ?crafts,
     };
     if (clearAvatar) {

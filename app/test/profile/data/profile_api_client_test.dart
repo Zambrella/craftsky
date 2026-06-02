@@ -1,6 +1,7 @@
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/data/profile_api_client.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:dio/dio.dart';
@@ -85,6 +86,78 @@ void main() {
     ).updateMyProfile(clearAvatar: true, clearBanner: true);
   });
 
+  test('IT-004 includes descriptionFacets in profile update body', () async {
+    final dio = buildDio();
+    final descriptionFacets = [
+      {
+        'index': {'byteStart': 14, 'byteEnd': 22},
+        'features': [
+          {r'$type': 'app.bsky.richtext.facet#tag', 'tag': 'Mending'},
+        ],
+      },
+    ];
+    DioAdapter(dio: dio).onPut(
+      '/v1/profiles/me',
+      (server) => server.reply(200, sampleProfile()),
+      data: {
+        'displayName': 'Alice',
+        'description': 'textile person #Mending',
+        'crafts': ['sewing'],
+        'descriptionFacets': descriptionFacets,
+      },
+    );
+
+    final profile = await ProfileApiClient(dio).updateMyProfile(
+      displayName: 'Alice',
+      description: 'textile person #Mending',
+      crafts: ['sewing'],
+      descriptionFacets: descriptionFacets,
+    );
+
+    expect(profile.handle.toString(), 'alice.craftsky.social');
+  });
+
+  test(
+    'IT-006 maps current AppView descriptionFacets rejection as expected gap',
+    () async {
+      final dio = buildDio();
+      final descriptionFacets = [
+        {
+          'index': {'byteStart': 15, 'byteEnd': 20},
+          'features': [
+            {r'$type': 'app.bsky.richtext.facet#tag', 'tag': 'Lace'},
+          ],
+        },
+      ];
+      DioAdapter(dio: dio).onPut(
+        '/v1/profiles/me',
+        (server) => server.reply(400, {
+          'error': 'unexpected_field',
+          'message': 'unexpected field descriptionFacets',
+          'requestId': 'req-description-facets-gap',
+        }),
+        data: {
+          'description': 'Knitting with #Lace',
+          'descriptionFacets': descriptionFacets,
+        },
+      );
+
+      await expectLater(
+        ProfileApiClient(dio).updateMyProfile(
+          description: 'Knitting with #Lace',
+          descriptionFacets: descriptionFacets,
+        ),
+        throwsA(
+          isA<ApiBadRequest>().having(
+            (error) => error.code,
+            'known current backend gap code',
+            'unexpected_field',
+          ),
+        ),
+      );
+    },
+  );
+
   test('POST follow uses Craftsky endpoint and no token fields', () async {
     final dio = buildDio();
     DioAdapter(dio: dio).onPost(
@@ -148,12 +221,18 @@ void main() {
     final adapter = DioAdapter(dio: dio)
       ..onGet(
         '/v1/profiles/me/followers',
-        (server) => server.reply(200, {'items': [], 'totalCount': 0}),
+        (server) => server.reply(200, {
+          'items': <Map<String, dynamic>>[],
+          'totalCount': 0,
+        }),
         queryParameters: {'limit': 50},
       )
       ..onGet(
         '/v1/profiles/me/following',
-        (server) => server.reply(200, {'items': [], 'totalCount': 0}),
+        (server) => server.reply(200, {
+          'items': <Map<String, dynamic>>[],
+          'totalCount': 0,
+        }),
         queryParameters: {'limit': 25, 'cursor': 'next'},
       );
 

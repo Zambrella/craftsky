@@ -44,6 +44,7 @@ class PostApiClient {
     required String text,
     PostReply? reply,
     List<CreatePostImage>? images,
+    List<Map<String, dynamic>>? facets,
   }) => unwrapApi(() async {
     final res = await _dio.post<Map<String, dynamic>>(
       '/v1/posts',
@@ -51,6 +52,7 @@ class PostApiClient {
         'text': text,
         'reply': ?reply?.toMap(),
         'images': ?images?.map((image) => image.toMap()).toList(),
+        'facets': ?facets,
       },
     );
     return PostMapper.fromMap(res.data!);

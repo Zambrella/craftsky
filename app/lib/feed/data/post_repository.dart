@@ -17,6 +17,7 @@ abstract interface class PostRepository {
     required String text,
     PostReply? reply,
     List<CreatePostImage>? images,
+    List<Map<String, dynamic>>? facets,
   });
 
   /// GET /v1/posts/{did}/{rkey}

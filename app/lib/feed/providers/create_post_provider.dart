@@ -34,6 +34,7 @@ class CreatePost extends _$CreatePost {
     required String text,
     PostReply? reply,
     List<CreatePostImage>? images,
+    List<Map<String, dynamic>>? facets,
   }) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
@@ -42,6 +43,7 @@ class CreatePost extends _$CreatePost {
         text: text,
         reply: reply,
         images: images,
+        facets: facets,
       );
       final post = reply != null && created.reply == null
           ? created.copyWith(reply: reply)

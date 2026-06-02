@@ -35,6 +35,7 @@ class SaveProfile extends _$SaveProfile {
   Future<void> save({
     String? displayName,
     String? description,
+    List<Map<String, dynamic>>? descriptionFacets,
     List<String>? crafts,
     UploadedBlob? avatar,
     bool clearAvatar = false,
@@ -47,6 +48,7 @@ class SaveProfile extends _$SaveProfile {
       final updated = await repo.updateMe(
         displayName: displayName,
         description: description,
+        descriptionFacets: descriptionFacets,
         crafts: crafts,
         avatar: avatar,
         clearAvatar: clearAvatar,

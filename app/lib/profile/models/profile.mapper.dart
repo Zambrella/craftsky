@@ -55,6 +55,10 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     _$description,
     opt: true,
   );
+  static List<Map<String, dynamic>>? _$descriptionFacets(Profile v) =>
+      v.descriptionFacets;
+  static const Field<Profile, List<Map<String, dynamic>>> _f$descriptionFacets =
+      Field('descriptionFacets', _$descriptionFacets, opt: true);
   static String? _$avatar(Profile v) => v.avatar;
   static const Field<Profile, String> _f$avatar = Field(
     'avatar',
@@ -137,6 +141,7 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     #crafts: _f$crafts,
     #displayName: _f$displayName,
     #description: _f$description,
+    #descriptionFacets: _f$descriptionFacets,
     #avatar: _f$avatar,
     #banner: _f$banner,
     #createdAt: _f$createdAt,
@@ -158,6 +163,7 @@ class ProfileMapper extends ClassMapperBase<Profile> {
       crafts: data.dec(_f$crafts),
       displayName: data.dec(_f$displayName),
       description: data.dec(_f$description),
+      descriptionFacets: data.dec(_f$descriptionFacets),
       avatar: data.dec(_f$avatar),
       banner: data.dec(_f$banner),
       createdAt: data.dec(_f$createdAt),
@@ -231,6 +237,12 @@ extension ProfileValueCopy<$R, $Out> on ObjectCopyWith<$R, Profile, $Out> {
 abstract class ProfileCopyWith<$R, $In extends Profile, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get crafts;
+  ListCopyWith<
+    $R,
+    Map<String, dynamic>,
+    ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>
+  >?
+  get descriptionFacets;
   ModerationMetadataCopyWith<$R, ModerationMetadata, ModerationMetadata>?
   get moderation;
   $R call({
@@ -239,6 +251,7 @@ abstract class ProfileCopyWith<$R, $In extends Profile, $Out>
     List<String>? crafts,
     String? displayName,
     String? description,
+    List<Map<String, dynamic>>? descriptionFacets,
     String? avatar,
     String? banner,
     DateTime? createdAt,
@@ -271,6 +284,19 @@ class _ProfileCopyWithImpl<$R, $Out>
         (v) => call(crafts: v),
       );
   @override
+  ListCopyWith<
+    $R,
+    Map<String, dynamic>,
+    ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>
+  >?
+  get descriptionFacets => $value.descriptionFacets != null
+      ? ListCopyWith(
+          $value.descriptionFacets!,
+          (v, t) => ObjectCopyWith(v, $identity, t),
+          (v) => call(descriptionFacets: v),
+        )
+      : null;
+  @override
   ModerationMetadataCopyWith<$R, ModerationMetadata, ModerationMetadata>?
   get moderation =>
       $value.moderation?.copyWith.$chain((v) => call(moderation: v));
@@ -281,6 +307,7 @@ class _ProfileCopyWithImpl<$R, $Out>
     List<String>? crafts,
     Object? displayName = $none,
     Object? description = $none,
+    Object? descriptionFacets = $none,
     Object? avatar = $none,
     Object? banner = $none,
     Object? createdAt = $none,
@@ -300,6 +327,7 @@ class _ProfileCopyWithImpl<$R, $Out>
       if (crafts != null) #crafts: crafts,
       if (displayName != $none) #displayName: displayName,
       if (description != $none) #description: description,
+      if (descriptionFacets != $none) #descriptionFacets: descriptionFacets,
       if (avatar != $none) #avatar: avatar,
       if (banner != $none) #banner: banner,
       if (createdAt != $none) #createdAt: createdAt,
@@ -322,6 +350,10 @@ class _ProfileCopyWithImpl<$R, $Out>
     crafts: data.get(#crafts, or: $value.crafts),
     displayName: data.get(#displayName, or: $value.displayName),
     description: data.get(#description, or: $value.description),
+    descriptionFacets: data.get(
+      #descriptionFacets,
+      or: $value.descriptionFacets,
+    ),
     avatar: data.get(#avatar, or: $value.avatar),
     banner: data.get(#banner, or: $value.banner),
     createdAt: data.get(#createdAt, or: $value.createdAt),

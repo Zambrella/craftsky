@@ -212,9 +212,13 @@ class FeedRoute extends GoRouteData with $FeedRoute {
 }
 
 class SearchRoute extends GoRouteData with $SearchRoute {
-  const SearchRoute();
+  const SearchRoute({this.tag});
+
+  final String? tag;
+
   @override
-  Widget build(BuildContext context, GoRouterState state) => const SearchPage();
+  Widget build(BuildContext context, GoRouterState state) =>
+      SearchPage(tag: tag);
 }
 
 class NotificationsRoute extends GoRouteData with $NotificationsRoute {

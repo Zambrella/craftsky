@@ -74,6 +74,36 @@ void main() {
       expect(transitions.last.value?.rkey, 'new');
     });
 
+    test('IT-003 passes facets to the post repository', () async {
+      List<Map<String, dynamic>>? capturedFacets;
+      final facets = [
+        {
+          'index': {'byteStart': 0, 'byteEnd': 6},
+          'features': [
+            {r'$type': 'app.bsky.richtext.facet#tag', 'tag': 'Mending'},
+          ],
+        },
+      ];
+      final fake = FakePostRepository(
+        onCreateWithFacets: ({required text, reply, images, facets}) async {
+          capturedFacets = facets;
+          return _post(rkey: 'new');
+        },
+      );
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      await container
+          .read(createPostProvider.notifier)
+          .create(
+            text: '#Mending',
+            facets: facets,
+          );
+
+      expect(capturedFacets, facets);
+    });
+
     test('root post reply uses target uri/cid for root and parent', () async {
       final target = _post(rkey: 'target');
       PostReply? capturedReply;

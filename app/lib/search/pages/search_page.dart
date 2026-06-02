@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class SearchPage extends ConsumerWidget {
-  const SearchPage({super.key});
+  const SearchPage({super.key, this.tag});
+
+  final String? tag;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -10,7 +12,7 @@ class SearchPage extends ConsumerWidget {
     // when real UI lands.
     return Scaffold(
       appBar: AppBar(title: const Text('Search')),
-      body: const Center(child: Text('Search')),
+      body: Center(child: Text(tag == null ? 'Search' : '#$tag')),
     );
   }
 }

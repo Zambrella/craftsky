@@ -7,6 +7,8 @@ import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
+import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -42,7 +44,7 @@ class PostComposerSheet extends ConsumerStatefulWidget {
 class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
   static const _imageListAnimationDuration = Duration(milliseconds: 220);
 
-  final _controller = TextEditingController();
+  final _controller = FacetTextEditingController();
   final _focusNode = FocusNode(debugLabel: 'postComposerText');
   late final String _composerId;
   String _initialText = '';
@@ -173,7 +175,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                   _ReplyTargetPreview(post: replyTarget),
                   SizedBox(height: spacing.sp4),
                 ],
-                BrandTextField(
+                FacetAutocompleteEditor(
                   label: isReply
                       ? l10n.postComposeReplyHint
                       : l10n.postComposeHint,
@@ -349,6 +351,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
       if (!shouldPost || !mounted) return;
     }
 
+    final facets = await ref.read(facetGeneratorProvider).generate(trimmedText);
+
     await ref
         .read(createPostProvider.notifier)
         .create(
@@ -357,6 +361,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
           images: widget.replyTarget == null
               ? imagesState.toCreatePostImages()
               : null,
+          facets: facets.isEmpty ? null : facets,
         );
   }
 }

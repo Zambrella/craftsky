@@ -22,6 +22,7 @@ class ApiProfileRepository implements ProfileRepository {
   Future<Profile> updateMe({
     String? displayName,
     String? description,
+    List<Map<String, dynamic>>? descriptionFacets,
     List<String>? crafts,
     UploadedBlob? avatar,
     bool clearAvatar = false,
@@ -30,6 +31,7 @@ class ApiProfileRepository implements ProfileRepository {
   }) => _api.updateMyProfile(
     displayName: displayName,
     description: description,
+    descriptionFacets: descriptionFacets,
     crafts: crafts,
     avatar: avatar,
     clearAvatar: clearAvatar,
