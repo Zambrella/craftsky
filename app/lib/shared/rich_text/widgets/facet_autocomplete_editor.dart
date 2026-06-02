@@ -600,6 +600,11 @@ class _HashtagSuggestionList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final popularityStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+
     return Card(
       margin: EdgeInsets.zero,
       child: Column(
@@ -613,8 +618,20 @@ class _HashtagSuggestionList extends StatelessWidget {
                 child: Row(
                   children: [
                     Expanded(child: Text('#${suggestion.tag}')),
-                    Text(
-                      '${suggestion.postsLast28Days} posts in the last 28 days',
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.show_chart,
+                          size: 16,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${suggestion.postsLast28Days} posts',
+                          style: popularityStyle,
+                        ),
+                      ],
                     ),
                   ],
                 ),

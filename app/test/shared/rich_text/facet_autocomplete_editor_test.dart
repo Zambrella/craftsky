@@ -129,9 +129,11 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('#SockKAL'), findsOneWidget);
-        expect(find.text('128 posts in the last 28 days'), findsOneWidget);
+        expect(find.text('128 posts'), findsOneWidget);
         expect(find.text('#sockmending'), findsOneWidget);
-        expect(find.text('12 posts in the last 28 days'), findsOneWidget);
+        expect(find.text('12 posts'), findsOneWidget);
+        expect(find.textContaining('in the last 28 days'), findsNothing);
+        expect(find.byIcon(Icons.show_chart), findsNWidgets(2));
 
         await tester.tap(find.text('#SockKAL'));
         await tester.pump();
