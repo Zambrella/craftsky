@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
@@ -245,7 +246,11 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
 
 class _FacetAutocompleteEditorState
     extends ConsumerState<FacetAutocompleteEditor> {
+  static const _suggestionOverlayBaseWidth = 300.0;
+
   final _textFieldKey = GlobalKey();
+  FocusNode? _internalFocusNode;
+  late FocusNode _focusNode;
   Timer? _debounceTimer;
   OverlayEntry? _suggestionOverlay;
   _SuggestionOverlayGeometry? _suggestionOverlayGeometry;
@@ -254,10 +259,42 @@ class _FacetAutocompleteEditorState
   List<HashtagSuggestion>? _hashtagSuggestions;
 
   @override
+  void initState() {
+    super.initState();
+    _focusNode = widget.focusNode ?? (_internalFocusNode = FocusNode());
+    _focusNode.addListener(_onFocusChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant FacetAutocompleteEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode != widget.focusNode) {
+      _focusNode.removeListener(_onFocusChanged);
+      _focusNode = widget.focusNode ?? (_internalFocusNode ??= FocusNode());
+      _focusNode.addListener(_onFocusChanged);
+    }
+  }
+
+  @override
   void dispose() {
     _debounceTimer?.cancel();
+    _focusNode.removeListener(_onFocusChanged);
+    _internalFocusNode?.dispose();
     _removeSuggestionOverlay();
     super.dispose();
+  }
+
+  void _onFocusChanged() {
+    if (_focusNode.hasFocus) {
+      return;
+    }
+    _debounceTimer?.cancel();
+    setState(() {
+      _activeToken = null;
+      _accountSuggestions = null;
+      _hashtagSuggestions = null;
+    });
+    _removeSuggestionOverlay();
   }
 
   Future<void> _onChanged(String text) async {
@@ -318,7 +355,7 @@ class _FacetAutocompleteEditorState
       replacementWithSingleTrailingSpace: '@${account.handle} ',
     );
     widget.onChanged?.call(widget.controller.text);
-    widget.focusNode?.requestFocus();
+    _focusNode.requestFocus();
     setState(() {
       _activeToken = null;
       _accountSuggestions = null;
@@ -338,7 +375,7 @@ class _FacetAutocompleteEditorState
       replacementWithSingleTrailingSpace: '#${hashtag.tag} ',
     );
     widget.onChanged?.call(widget.controller.text);
-    widget.focusNode?.requestFocus();
+    _focusNode.requestFocus();
     setState(() {
       _activeToken = null;
       _accountSuggestions = null;
@@ -415,14 +452,18 @@ class _FacetAutocompleteEditorState
     );
     final overlayWidth = overlayBox.size.width;
     const viewportPadding = 8.0;
-    final width = textFieldBox.size.width
-        .clamp(
-          0.0,
-          overlayWidth - (viewportPadding * 2),
-        )
-        .toDouble();
+    final availableWidth = math.max(
+      0.0,
+      overlayWidth - (viewportPadding * 2),
+    );
+    final width = math.min(
+      MediaQuery.textScalerOf(context).scale(_suggestionOverlayBaseWidth),
+      availableWidth,
+    );
     final maxLeft = overlayWidth - viewportPadding - width;
-    final left = tokenStart.dx.clamp(viewportPadding, maxLeft).toDouble();
+    final left = tokenStart.dx
+        .clamp(math.min(viewportPadding, maxLeft), maxLeft)
+        .toDouble();
 
     return _SuggestionOverlayGeometry(
       left: left,
@@ -455,7 +496,7 @@ class _FacetAutocompleteEditorState
           label: widget.label,
           textFieldKey: _textFieldKey,
           controller: widget.controller,
-          focusNode: widget.focusNode,
+          focusNode: _focusNode,
           hintText: widget.hintText,
           minLines: widget.minLines,
           maxLines: widget.maxLines,

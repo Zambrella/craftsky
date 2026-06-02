@@ -301,6 +301,52 @@ void main() {
 
       expect(cardTopLeft.dx, closeTo(tokenStart.dx, 1));
       expect(cardTopLeft.dy, greaterThan(tokenStart.dy));
+      expect(tester.getRect(find.byType(Card)).width, closeTo(300, 1));
+    });
+
+    testWidgets('scales suggestion width with the current text scaler', (
+      tester,
+    ) async {
+      final controller = FacetTextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        _wrap(
+          textScaler: TextScaler.linear(1.5),
+          overrides: [
+            facetAutocompleteDebounceProvider.overrideWithValue(Duration.zero),
+            accountSuggestionRepositoryProvider.overrideWithValue(
+              const MockAccountSuggestionRepository(
+                accounts: [
+                  AccountSuggestion(
+                    did: 'did:plc:alice',
+                    handle: 'alice.craftsky.social',
+                    displayName: 'Alice',
+                    avatar: null,
+                    isCraftskyProfile: true,
+                    viewerIsFollowing: false,
+                  ),
+                ],
+              ),
+            ),
+          ],
+          child: SizedBox(
+            width: 560,
+            child: FacetAutocompleteEditor(
+              label: 'Body',
+              controller: controller,
+              focusNode: focusNode,
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(find.byType(TextField), '@ali');
+      await tester.pumpAndSettle();
+
+      expect(tester.getRect(find.byType(Card)).width, closeTo(450, 1));
     });
 
     testWidgets('shifts suggestions left when needed to avoid overflow', (
@@ -359,6 +405,52 @@ void main() {
           expect(cardRect.left, closeTo(392 - cardRect.width, 1));
         },
       );
+    });
+
+    testWidgets('closes suggestions when the text field loses focus', (
+      tester,
+    ) async {
+      final controller = FacetTextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        _wrap(
+          overrides: [
+            facetAutocompleteDebounceProvider.overrideWithValue(Duration.zero),
+            accountSuggestionRepositoryProvider.overrideWithValue(
+              const MockAccountSuggestionRepository(
+                accounts: [
+                  AccountSuggestion(
+                    did: 'did:plc:alice',
+                    handle: 'alice.craftsky.social',
+                    displayName: 'Alice',
+                    avatar: null,
+                    isCraftskyProfile: true,
+                    viewerIsFollowing: false,
+                  ),
+                ],
+              ),
+            ),
+          ],
+          child: FacetAutocompleteEditor(
+            label: 'Body',
+            controller: controller,
+            focusNode: focusNode,
+          ),
+        ),
+      );
+
+      await tester.enterText(find.byType(TextField), '@ali');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Card), findsOneWidget);
+
+      focusNode.unfocus();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Card), findsNothing);
     });
   });
 }
@@ -423,13 +515,21 @@ Future<void> _withSurfaceSize(
 Widget _wrap({
   required Widget child,
   required List<dynamic> overrides,
+  TextScaler? textScaler,
 }) {
   return ProviderScope(
     overrides: List.from(overrides),
     child: MaterialApp(
       theme: AppTheme.lightThemeData,
       home: Scaffold(
-        body: Padding(padding: const EdgeInsets.all(24), child: child),
+        body: Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: textScaler ?? TextScaler.noScaling,
+            ),
+            child: Padding(padding: const EdgeInsets.all(24), child: child),
+          ),
+        ),
       ),
     ),
   );
