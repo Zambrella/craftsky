@@ -33,6 +33,9 @@
 | 14 | UT-011 / IT-007 / REG-001 / REG-004 / AT-004 | BR-002, FR-009, FR-010, RULE-002 | AC-008, AC-009, AC-010 | `descriptionFacets` still in model/API/save flow |
 | 15 | UT-009 / UT-010 / IT-008 / AT-005 | BR-003, FR-011, FR-012, NFR-003 | AC-010, AC-011, AC-017, AC-020, EC-003, EC-004 | Bio depends on stored facets; parser absent |
 | 16 | REG-002 | FR-008 | AC-002, AC-016 | Parser refactor could break byte offsets or AT facet JSON |
+| 17 | IT-003 review fix | FR-014 | AC-013, AC-018, EC-005 | Review finding IR-001: stale handle reassignment can fail on `handle_lower` uniqueness |
+| 18 | IT-002 review fix | FR-001, FR-014, NFR-002 | AC-004, AC-018 | Review finding IR-002: mention suggestion `%` / `_` queries behave as SQL wildcards |
+| 19 | IT-004 review fix | FR-005, FR-006, NFR-002 | AC-003, AC-007 | Review finding IR-002: hashtag suggestion `%` / `_` queries behave as SQL wildcards |
 
 ## Implementation Steps
 
@@ -180,7 +183,53 @@
 - Refactor: Centralized token detection in `facet_token_parser.dart` so posts and profile bios share supported token semantics.
 - Notes: AT Protocol raw facet byte offsets and overlap behavior were preserved.
 
+### Step 17: IT-003 review fix / IR-001
+- Requirement IDs: FR-014
+- Acceptance criteria / edge cases: AC-013, AC-018, EC-005
+- Write failing test: Added `TestFacetStoreResolveMentionRefreshesReassignedStaleHandle` for a stale cache row where `alice.craftsky.social` is owned by `did:plc:oldalice` but exact resolver returns canonical ownership by `did:plc:newalice`.
+- Run command: `go test ./internal/api -run TestFacetStoreResolveMentionRefreshesReassignedStaleHandle -count=1` from `appview/`.
+- Confirmed failure: The real Postgres helper skips when `TEST_DATABASE_URL`/`DATABASE_URL` is absent in this environment; the pre-fix implementation would hit the `handle_lower` unique constraint because `Upsert` only handled `ON CONFLICT (did)`.
+- Implement: Changed `IdentityCacheStore.Upsert` to atomically delete any different DID currently owning the target `handle_lower` before inserting/updating the resolver-confirmed DID/handle row.
+- Run command: `go test ./internal/api -run TestFacetStoreResolveMentionRefreshesReassignedStaleHandle -count=1` from `appview/` passed/skipped per local DB availability.
+- Refactor: None.
+- Notes: Exact resolve can now recover from stale handle reassignment without adding handles to `bluesky_profiles`.
+
+### Step 18: IT-002 review fix / IR-002 mention wildcards
+- Requirement IDs: FR-001, FR-014, NFR-002
+- Acceptance criteria: AC-004, AC-018
+- Write failing test: Added `TestEscapeFacetLikePatternTreatsWildcardCharactersLiterally` for escaping `%`, `_`, and `\` before using suggestion input in SQL `LIKE` patterns; added `TestFacetStoreSearchMentionSuggestionsTreatsWildcardQueryLiterally` to assert `%` matches a literal percent display name rather than every cached profile.
+- Run command: `go test ./internal/api -run TestEscapeFacetLikePatternTreatsWildcardCharactersLiterally -count=1` from `appview/`.
+- Confirmed failure: Build failed with `undefined: EscapeFacetLikePattern`.
+- Implement: Added `EscapeFacetLikePattern` and changed mention suggestion search to pass escaped input with SQL `ESCAPE '\'` for handle/display-name substring and handle-prefix ranking predicates.
+- Run command: `go test ./internal/api -run 'TestFacetStoreSearchMentionSuggestionsTreatsWildcardQueryLiterally|TestEscapeFacetLikePatternTreatsWildcardCharactersLiterally' -count=1` and `go test ./internal/api -run 'TestEscapeFacetLikePatternTreatsWildcardCharactersLiterally|TestFacetStoreSearchMentionSuggestionsUsesFreshSeparateIdentityCache' -count=1` from `appview/` passed/skipped DB portions per local DB availability.
+- Refactor: None.
+- Notes: Authenticated mention autocomplete queries containing `%` or `_` now use literal matching semantics rather than broad wildcard matching.
+
+### Step 19: IT-004 review fix / IR-002 hashtag wildcards
+- Requirement IDs: FR-005, FR-006, NFR-002
+- Acceptance criteria: AC-003, AC-007
+- Write failing test: Added `TestFacetStoreSearchHashtagSuggestionsTreatsWildcardQueryLiterally` for a `%` query that should only match a literal percent tag such as `wool%blend`, not every indexed tag.
+- Run command: `go test ./internal/api -run TestFacetStoreSearchHashtagSuggestionsTreatsWildcardQueryLiterally -count=1` from `appview/`.
+- Confirmed failure: The real Postgres helper skips when `TEST_DATABASE_URL`/`DATABASE_URL` is absent in this environment; the pre-fix SQL used the raw query in `LIKE '%' || $2 || '%'`, so `%` / `_` would behave as wildcards in a real DB.
+- Implement: Changed hashtag suggestion search to pass escaped input from `EscapeFacetLikePattern` with SQL `ESCAPE '\'`.
+- Run command: `go test ./internal/api -run 'TestFacetStoreSearchHashtagSuggestionsTreatsWildcardQueryLiterally|TestFacetStoreSearchHashtagSuggestionsCountsRecentRootPosts|TestEscapeFacetLikePatternTreatsWildcardCharactersLiterally' -count=1` from `appview/` passed/skipped DB portions per local DB availability.
+- Refactor: None.
+- Notes: Hashtag autocomplete queries containing `%` or `_` now use literal matching semantics while preserving count-desc/tag-asc behavior.
+
 ## Verification Log
+- Review-fix formatting:
+  - `gofmt -w appview/internal/api/facet_store.go appview/internal/api/facet_suggestion_test.go appview/internal/api/identity_cache_store_test.go`
+- Review-fix focused AppView/Go verification:
+  - `go test ./internal/api -run TestFacetStoreResolveMentionRefreshesReassignedStaleHandle -count=1` (real DB portions skip when `TEST_DATABASE_URL`/`DATABASE_URL` is absent)
+  - `go test ./internal/api -run TestEscapeFacetLikePatternTreatsWildcardCharactersLiterally -count=1`
+  - `go test ./internal/api -run 'TestFacetStoreSearchMentionSuggestionsTreatsWildcardQueryLiterally|TestEscapeFacetLikePatternTreatsWildcardCharactersLiterally' -count=1` (real DB portions skip when `TEST_DATABASE_URL`/`DATABASE_URL` is absent)
+  - `go test ./internal/api -run 'TestEscapeFacetLikePatternTreatsWildcardCharactersLiterally|TestFacetStoreSearchMentionSuggestionsUsesFreshSeparateIdentityCache' -count=1` (real DB portions skip when `TEST_DATABASE_URL`/`DATABASE_URL` is absent)
+  - `go test ./internal/api -run TestFacetStoreSearchHashtagSuggestionsTreatsWildcardQueryLiterally -count=1` (real DB portions skip when `TEST_DATABASE_URL`/`DATABASE_URL` is absent)
+  - `go test ./internal/api -run 'TestFacetStoreSearchHashtagSuggestionsTreatsWildcardQueryLiterally|TestFacetStoreSearchHashtagSuggestionsCountsRecentRootPosts|TestEscapeFacetLikePatternTreatsWildcardCharactersLiterally' -count=1` (real DB portions skip when `TEST_DATABASE_URL`/`DATABASE_URL` is absent)
+  - `go test ./internal/api -run 'TestFacetStoreResolveMentionRefreshesReassignedStaleHandle|TestEscapeFacetLikePatternTreatsWildcardCharactersLiterally|TestFacetStoreSearchMentionSuggestionsTreatsWildcardQueryLiterally|TestFacetStoreSearchHashtagSuggestionsTreatsWildcardQueryLiterally|TestFacetStoreResolveMentionRefreshesCacheAndFiltersCraftskyProfiles|TestFacetStoreSearchMentionSuggestionsUsesFreshSeparateIdentityCache|TestFacetStoreSearchHashtagSuggestionsCountsRecentRootPosts' -count=1` passed/skipped DB portions per local DB availability.
+- Review-fix broader verification:
+  - `go test ./...` from `appview/` passed.
+  - `git diff --check` passed.
 - Formatting:
   - `gofmt -w ...` on changed Go files.
   - `dart format ...` on changed Dart/test files.

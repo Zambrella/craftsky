@@ -73,6 +73,10 @@ func (s *IdentityCacheStore) FreshByHandle(ctx context.Context, handle syntax.Ha
 
 func (s *IdentityCacheStore) Upsert(ctx context.Context, did syntax.DID, handle syntax.Handle, resolvedAt time.Time) error {
 	_, err := s.pool.Exec(ctx, `
+		WITH removed_stale_handle_owner AS (
+			DELETE FROM atproto_identity_cache
+			WHERE handle_lower = $3 AND did <> $1
+		)
 		INSERT INTO atproto_identity_cache (did, handle, handle_lower, resolved_at, updated_at)
 		VALUES ($1, $2, $3, $4, now())
 		ON CONFLICT (did) DO UPDATE SET

@@ -68,11 +68,17 @@ func NormalizeHashtagSuggestionRows(rows []HashtagSuggestionRow) []HashtagSugges
 	return out
 }
 
+func EscapeFacetLikePattern(query string) string {
+	replacer := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return replacer.Replace(query)
+}
+
 func (s *FacetStore) SearchMentionSuggestions(ctx context.Context, viewerDID syntax.DID, query string, limit int, now time.Time) ([]MentionSuggestionRow, error) {
 	queryLower := strings.ToLower(strings.TrimSpace(query))
 	if queryLower == "" || limit <= 0 {
 		return []MentionSuggestionRow{}, nil
 	}
+	likeQuery := EscapeFacetLikePattern(queryLower)
 	rows, err := s.pool.Query(ctx, `
 		SELECT
 			ic.did,
@@ -89,18 +95,18 @@ func (s *FacetStore) SearchMentionSuggestions(ctx context.Context, viewerDID syn
 		LEFT JOIN bluesky_profiles bp ON bp.did = ic.did
 		WHERE ic.resolved_at >= $2
 		  AND (
-			ic.handle_lower LIKE '%' || $3 || '%'
-			OR lower(coalesce(bp.display_name, '')) LIKE '%' || $3 || '%'
+			ic.handle_lower LIKE '%' || $3 || '%' ESCAPE '\'
+			OR lower(coalesce(bp.display_name, '')) LIKE '%' || $3 || '%' ESCAPE '\'
 		  )
 		ORDER BY
 			EXISTS (
 				SELECT 1 FROM atproto_follows f
 				WHERE f.did = $1 AND f.subject_did = ic.did
 			) DESC,
-			CASE WHEN ic.handle_lower LIKE $3 || '%' THEN 0 ELSE 1 END ASC,
+			CASE WHEN ic.handle_lower LIKE $3 || '%' ESCAPE '\' THEN 0 ELSE 1 END ASC,
 			ic.handle_lower ASC
 		LIMIT $4
-	`, viewerDID.String(), now.Add(-identityCacheFreshness), queryLower, limit)
+	`, viewerDID.String(), now.Add(-identityCacheFreshness), likeQuery, limit)
 	if err != nil {
 		return nil, fmt.Errorf("facet mention suggestions: %w", err)
 	}
@@ -126,6 +132,7 @@ func (s *FacetStore) SearchHashtagSuggestions(ctx context.Context, query string,
 	if queryLower == "" || limit <= 0 {
 		return []HashtagSuggestionRow{}, nil
 	}
+	likeQuery := EscapeFacetLikePattern(queryLower)
 	rows, err := s.pool.Query(ctx, `
 		SELECT lower(trim(tag.raw_tag)) AS tag, COUNT(DISTINCT p.uri)::int AS posts_last_28_days
 		FROM craftsky_posts p
@@ -134,11 +141,11 @@ func (s *FacetStore) SearchHashtagSuggestions(ctx context.Context, query string,
 		  AND p.reply_parent_uri IS NULL
 		  AND p.created_at >= $1
 		  AND trim(tag.raw_tag) <> ''
-		  AND lower(trim(tag.raw_tag)) LIKE '%' || $2 || '%'
+		  AND lower(trim(tag.raw_tag)) LIKE '%' || $2 || '%' ESCAPE '\'
 		GROUP BY lower(trim(tag.raw_tag))
 		ORDER BY posts_last_28_days DESC, tag ASC
 		LIMIT $3
-	`, now.Add(-28*24*time.Hour), queryLower, limit)
+	`, now.Add(-28*24*time.Hour), likeQuery, limit)
 	if err != nil {
 		return nil, fmt.Errorf("facet hashtag suggestions: %w", err)
 	}

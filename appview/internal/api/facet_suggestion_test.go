@@ -55,3 +55,13 @@ func TestNormalizeHashtagSuggestionRowsLowercaseCountsAndSorts(t *testing.T) {
 		}
 	}
 }
+
+func TestEscapeFacetLikePatternTreatsWildcardCharactersLiterally(t *testing.T) {
+	t.Parallel()
+
+	got := EscapeFacetLikePattern(`50%_wool\craft`)
+	want := `50\%\_wool\\craft`
+	if got != want {
+		t.Fatalf("escaped pattern = %q, want %q", got, want)
+	}
+}

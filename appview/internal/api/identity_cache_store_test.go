@@ -142,6 +142,43 @@ func TestFacetStoreSearchMentionSuggestionsUsesFreshSeparateIdentityCache(t *tes
 	}
 }
 
+func TestFacetStoreSearchMentionSuggestionsTreatsWildcardQueryLiterally(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, facetStoreDDL)
+	ctx := context.Background()
+	now := time.Date(2026, 6, 4, 12, 0, 0, 0, time.UTC)
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES
+			('did:plc:percent', '{}', 'cid-percent'),
+			('did:plc:plain', '{}', 'cid-plain')
+	`); err != nil {
+		t.Fatalf("seed craftsky profiles: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO bluesky_profiles (did, display_name, record_cid) VALUES
+			('did:plc:percent', '100% Wool', 'cid-bsky-percent'),
+			('did:plc:plain', 'Plain Wool', 'cid-bsky-plain')
+	`); err != nil {
+		t.Fatalf("seed bluesky profiles: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_identity_cache (did, handle, handle_lower, resolved_at) VALUES
+			('did:plc:percent', 'percent.craftsky.social', 'percent.craftsky.social', $1),
+			('did:plc:plain', 'plain.craftsky.social', 'plain.craftsky.social', $1)
+	`, now); err != nil {
+		t.Fatalf("seed identity cache: %v", err)
+	}
+
+	rows, err := api.NewFacetStore(pool).SearchMentionSuggestions(ctx, syntax.DID("did:plc:viewer"), "%", 10, now)
+	if err != nil {
+		t.Fatalf("SearchMentionSuggestions wildcard: %v", err)
+	}
+	if len(rows) != 1 || rows[0].Handle != "percent.craftsky.social" {
+		t.Fatalf("rows = %#v, want only literal percent display name", rows)
+	}
+}
+
 func TestFacetStoreResolveMentionRefreshesCacheAndFiltersCraftskyProfiles(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, facetStoreDDL)
@@ -201,6 +238,57 @@ func TestFacetStoreResolveMentionRefreshesCacheAndFiltersCraftskyProfiles(t *tes
 	}
 }
 
+func TestFacetStoreResolveMentionRefreshesReassignedStaleHandle(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, facetStoreDDL)
+	ctx := context.Background()
+	now := time.Date(2026, 6, 4, 12, 0, 0, 0, time.UTC)
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES
+			('did:plc:oldalice', '{}', 'cid-old-alice'),
+			('did:plc:newalice', '{}', 'cid-new-alice')
+	`); err != nil {
+		t.Fatalf("seed craftsky profiles: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_identity_cache (did, handle, handle_lower, resolved_at) VALUES
+			('did:plc:oldalice', 'alice.craftsky.social', 'alice.craftsky.social', $1)
+	`, now.Add(-25*time.Hour)); err != nil {
+		t.Fatalf("seed stale reassigned cache: %v", err)
+	}
+	resolver := exactResolveFakeResolver{
+		didByHandle: map[string]syntax.DID{
+			"alice.craftsky.social": syntax.DID("did:plc:newalice"),
+		},
+		handleByDID: map[string]syntax.Handle{
+			"did:plc:newalice": syntax.Handle("alice.craftsky.social"),
+		},
+	}
+	store := api.NewFacetStore(pool, resolver)
+
+	row, err := store.ResolveMention(ctx, syntax.Handle("alice.craftsky.social"), now)
+	if err != nil {
+		t.Fatalf("ResolveMention reassigned handle: %v", err)
+	}
+	if row.DID.String() != "did:plc:newalice" || row.Handle.String() != "alice.craftsky.social" {
+		t.Fatalf("row = %+v", row)
+	}
+
+	var did string
+	var count int
+	if err := pool.QueryRow(ctx, `
+		SELECT min(did), count(*)::int
+		FROM atproto_identity_cache
+		WHERE handle_lower = 'alice.craftsky.social'
+	`).Scan(&did, &count); err != nil {
+		t.Fatalf("read reassigned cache row: %v", err)
+	}
+	if count != 1 || did != "did:plc:newalice" {
+		t.Fatalf("handle owner count=%d did=%q, want count=1 did=did:plc:newalice", count, did)
+	}
+}
+
 func TestFacetStoreSearchHashtagSuggestionsCountsRecentRootPosts(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, facetStoreDDL+`
@@ -256,5 +344,51 @@ CREATE TABLE craftsky_posts (
 		if rows[i] != want[i] {
 			t.Fatalf("row %d = %#v, want %#v; all=%#v", i, rows[i], want[i], rows)
 		}
+	}
+}
+
+func TestFacetStoreSearchHashtagSuggestionsTreatsWildcardQueryLiterally(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, facetStoreDDL+`
+CREATE TABLE craftsky_posts (
+    uri              TEXT        NOT NULL PRIMARY KEY,
+    did              TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    rkey             TEXT        NOT NULL,
+    cid              TEXT        NOT NULL,
+    text             TEXT        NOT NULL,
+    facets           JSONB,
+    images           JSONB,
+    reply_root_uri   TEXT,
+    reply_root_cid   TEXT,
+    reply_parent_uri TEXT,
+    reply_parent_cid TEXT,
+    quote_uri        TEXT,
+    quote_cid        TEXT,
+    tags             TEXT[]      NOT NULL DEFAULT '{}',
+    record           JSONB       NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL,
+    indexed_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (did, rkey)
+);
+`)
+	ctx := context.Background()
+	now := time.Date(2026, 6, 4, 12, 0, 0, 0, time.UTC)
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES ('did:plc:alice', '{}', 'cid')`); err != nil {
+		t.Fatalf("seed profile: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_posts (uri, did, rkey, cid, text, tags, record, created_at) VALUES
+			('at://did:plc:alice/social.craftsky.feed.post/percent', 'did:plc:alice', 'percent', 'cid1', 'literal percent', ARRAY['wool%blend'], '{}', $1),
+			('at://did:plc:alice/social.craftsky.feed.post/plain', 'did:plc:alice', 'plain', 'cid2', 'plain', ARRAY['woolblend'], '{}', $1)
+	`, now); err != nil {
+		t.Fatalf("seed posts: %v", err)
+	}
+
+	rows, err := api.NewFacetStore(pool).SearchHashtagSuggestions(ctx, "%", 10, now)
+	if err != nil {
+		t.Fatalf("SearchHashtagSuggestions wildcard: %v", err)
+	}
+	if len(rows) != 1 || rows[0].Tag != "wool%blend" {
+		t.Fatalf("rows = %#v, want only literal percent tag", rows)
 	}
 }
