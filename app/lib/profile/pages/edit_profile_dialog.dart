@@ -14,8 +14,6 @@ import 'package:craftsky_app/profile/widgets/edit_profile_crafts_picker.dart';
 import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
-import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
-import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -140,7 +138,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   /// an `initialValue` parameter. The form value is kept in sync via
   /// each field's `onChanged: field.didChange`.
   late final TextEditingController _displayNameController;
-  late final FacetTextEditingController _bioController;
+  late final TextEditingController _bioController;
 
   /// Focus nodes are owned at the page level and handed to **both** the
   /// [FormBuilderField] and the [BrandTextField] for each text input.
@@ -174,7 +172,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     _displayNameController = TextEditingController(
       text: widget.profile.displayName,
     );
-    _bioController = FacetTextEditingController(
+    _bioController = TextEditingController(
       text: widget.profile.description,
     );
     _displayNameFocusNode = FocusNode(debugLabel: _fieldDisplayName);
@@ -257,9 +255,6 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
       ..._unknownCrafts,
     ];
     final description = (values[_fieldBio] as String? ?? '').trim();
-    final descriptionFacets = await ref
-        .read(facetGeneratorProvider)
-        .generate(description);
 
     unawaited(
       ref
@@ -267,9 +262,6 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
           .save(
             displayName: (values[_fieldDisplayName] as String? ?? '').trim(),
             description: description,
-            descriptionFacets: descriptionFacets.isEmpty
-                ? null
-                : descriptionFacets,
             crafts: craftsPayload,
             avatar: _avatarDraft.uploaded?.blob,
             banner: _bannerDraft.uploaded?.blob,
@@ -475,7 +467,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                           errorText: l10n.editProfileBioTooLong,
                           checkNullOrEmpty: false,
                         ),
-                        builder: (field) => FacetAutocompleteEditor(
+                        builder: (field) => BrandTextField(
                           label: l10n.editProfileBioLabel,
                           controller: _bioController,
                           focusNode: _bioFocusNode,

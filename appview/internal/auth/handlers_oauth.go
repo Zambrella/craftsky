@@ -22,7 +22,8 @@ type HTTPHandlers struct {
 	DevMode          bool // emits the session token in the callback HTML when true
 	// NewPDSClient builds a PDSClient scoped to the given OAuth session.
 	// Injected so tests can supply a mock without standing up indigo.
-	NewPDSClient PDSClientFactory
+	NewPDSClient         PDSClientFactory
+	IdentityCacheUpdater IdentityCacheUpdater
 }
 
 func NewHTTPHandlers(
@@ -32,14 +33,20 @@ func NewHTTPHandlers(
 	logger *slog.Logger,
 	devMode bool,
 	newPDSClient PDSClientFactory,
+	identityCacheUpdater ...IdentityCacheUpdater,
 ) *HTTPHandlers {
+	var updater IdentityCacheUpdater
+	if len(identityCacheUpdater) > 0 {
+		updater = identityCacheUpdater[0]
+	}
 	return &HTTPHandlers{
-		OAuth:            oauthApp,
-		CraftskySessions: craftskyStore,
-		Pool:             pool,
-		Logger:           logger,
-		DevMode:          devMode,
-		NewPDSClient:     newPDSClient,
+		OAuth:                oauthApp,
+		CraftskySessions:     craftskyStore,
+		Pool:                 pool,
+		Logger:               logger,
+		DevMode:              devMode,
+		NewPDSClient:         newPDSClient,
+		IdentityCacheUpdater: updater,
 	}
 }
 
@@ -111,7 +118,7 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 				"Sign-in succeeded but we couldn't initialise your profile. Please try again.")
 			return
 		}
-		if err := InitializeProfile(r.Context(), pdsClient, sessData.AccountDID); err != nil {
+		if err := InitializeProfileAndIdentityCache(r.Context(), pdsClient, sessData.AccountDID, h.IdentityCacheUpdater, h.Logger); err != nil {
 			h.Logger.Warn("InitializeProfile failed",
 				slog.String("did", sessData.AccountDID.String()),
 				slog.String("err", err.Error()))

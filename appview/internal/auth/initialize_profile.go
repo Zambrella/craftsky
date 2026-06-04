@@ -5,9 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
+
+type IdentityCacheUpdater interface {
+	UpsertCurrentHandle(ctx context.Context, did syntax.DID) error
+}
 
 // ErrProfileInitFailed wraps any non-404 PDS failure during onboarding-
 // on-login. Callers surface this as a profile_init_failed error page.
@@ -67,6 +72,23 @@ func InitializeProfile(ctx context.Context, client PDSClient, did syntax.DID) er
 	default:
 		return fmt.Errorf("%w: get %s: %v", ErrProfileInitFailed, craftskyProfileNSID, err)
 	}
+}
+
+func InitializeProfileAndIdentityCache(ctx context.Context, client PDSClient, did syntax.DID, updater IdentityCacheUpdater, logger *slog.Logger) error {
+	if err := InitializeProfile(ctx, client, did); err != nil {
+		return err
+	}
+	if updater == nil {
+		return nil
+	}
+	if err := updater.UpsertCurrentHandle(ctx, did); err != nil {
+		if logger != nil {
+			logger.Warn("identity cache upsert after profile initialization failed",
+				slog.String("did", did.String()),
+				slog.String("err", err.Error()))
+		}
+	}
+	return nil
 }
 
 // validateCraftskyProfile does a minimal shape check against

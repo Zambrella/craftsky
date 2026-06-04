@@ -18,7 +18,6 @@ class Profile with ProfileMappable {
     required this.crafts,
     this.displayName,
     this.description,
-    this.descriptionFacets,
     this.avatar,
     this.banner,
     this.createdAt,
@@ -38,7 +37,6 @@ class Profile with ProfileMappable {
   final Handle handle;
   final String? displayName;
   final String? description;
-  final List<Map<String, dynamic>>? descriptionFacets;
   final String? avatar;
   final String? banner;
   final List<String> crafts;

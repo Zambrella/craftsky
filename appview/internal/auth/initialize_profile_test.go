@@ -4,12 +4,24 @@ package auth_test
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/auth"
 )
+
+type fakeIdentityCacheUpdater struct {
+	dids []syntax.DID
+	err  error
+}
+
+func (f *fakeIdentityCacheUpdater) UpsertCurrentHandle(_ context.Context, did syntax.DID) error {
+	f.dids = append(f.dids, did)
+	return f.err
+}
 
 type mockPDS struct {
 	getCalls []getCall
@@ -118,6 +130,52 @@ func TestInitializeProfile_NewUserWritesEmptyCraftsky(t *testing.T) {
 	}
 	if len(m.putCalls) != 1 {
 		t.Errorf("putCalls = %d, want 1", len(m.putCalls))
+	}
+}
+
+func TestInitializeProfileAndIdentityCacheUpsertsAfterSuccessfulInitialization(t *testing.T) {
+	t.Parallel()
+	m := &mockPDS{
+		getRecord: func(coll, _ string, out any) (string, error) {
+			if coll == bskyNSID {
+				*(out.(*map[string]any)) = map[string]any{"displayName": "Alice"}
+				return "", nil
+			}
+			return "", auth.ErrRecordNotFound
+		},
+		putRecord: func(_, _ string, _ any) error { return nil },
+	}
+	updater := &fakeIdentityCacheUpdater{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, syntax.DID("did:plc:new"), updater, logger); err != nil {
+		t.Fatalf("InitializeProfileAndIdentityCache: %v", err)
+	}
+	if len(updater.dids) != 1 || updater.dids[0].String() != "did:plc:new" {
+		t.Fatalf("upserted DIDs = %v, want did:plc:new", updater.dids)
+	}
+}
+
+func TestInitializeProfileAndIdentityCacheLogsAndContinuesWhenUpsertFails(t *testing.T) {
+	t.Parallel()
+	m := &mockPDS{
+		getRecord: func(coll, _ string, out any) (string, error) {
+			if coll == bskyNSID {
+				*(out.(*map[string]any)) = map[string]any{"displayName": "Alice"}
+				return "", nil
+			}
+			return "", auth.ErrRecordNotFound
+		},
+		putRecord: func(_, _ string, _ any) error { return nil },
+	}
+	updater := &fakeIdentityCacheUpdater{err: errors.New("identity unavailable")}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, syntax.DID("did:plc:new"), updater, logger); err != nil {
+		t.Fatalf("InitializeProfileAndIdentityCache should continue on updater failure: %v", err)
+	}
+	if len(updater.dids) != 1 {
+		t.Fatalf("updater calls = %d, want 1", len(updater.dids))
 	}
 }
 

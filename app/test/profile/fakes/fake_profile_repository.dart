@@ -26,7 +26,6 @@ class FakeProfileRepository implements ProfileRepository {
     this.onFetch,
     this.onFetchMe,
     this.onUpdateMe,
-    this.onUpdateMeWithFacets,
     this.onFollow,
     this.onUnfollow,
     this.onReport,
@@ -47,17 +46,6 @@ class FakeProfileRepository implements ProfileRepository {
     bool clearBanner,
   })?
   onUpdateMe;
-  final Future<Profile> Function({
-    String? displayName,
-    String? description,
-    List<Map<String, dynamic>>? descriptionFacets,
-    List<String>? crafts,
-    UploadedBlob? avatar,
-    bool clearAvatar,
-    UploadedBlob? banner,
-    bool clearBanner,
-  })?
-  onUpdateMeWithFacets;
   final Future<Profile> Function(String handleOrDid)? onFollow;
   final Future<Profile> Function(String handleOrDid)? onUnfollow;
   final Future<ReportResult> Function(
@@ -90,23 +78,12 @@ class FakeProfileRepository implements ProfileRepository {
   Future<Profile> updateMe({
     String? displayName,
     String? description,
-    List<Map<String, dynamic>>? descriptionFacets,
     List<String>? crafts,
     UploadedBlob? avatar,
     bool clearAvatar = false,
     UploadedBlob? banner,
     bool clearBanner = false,
   }) =>
-      onUpdateMeWithFacets?.call(
-        displayName: displayName,
-        description: description,
-        descriptionFacets: descriptionFacets,
-        crafts: crafts,
-        avatar: avatar,
-        clearAvatar: clearAvatar,
-        banner: banner,
-        clearBanner: clearBanner,
-      ) ??
       onUpdateMe?.call(
         displayName: displayName,
         description: description,

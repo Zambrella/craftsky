@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('ProfileBio', () {
     testWidgets(
-      'AT-005 styles valid description facets with theme primary color',
+      'AT-005 detects and styles plain bio tokens with theme primary color',
       (
         tester,
       ) async {
@@ -18,13 +18,8 @@ void main() {
               theme: AppTheme.lightThemeData,
               home: Scaffold(
                 body: ProfileBio(
-                  description: 'Knitting #Lace',
-                  descriptionFacets: [
-                    _facet(9, 14, {
-                      r'$type': 'app.bsky.richtext.facet#tag',
-                      'tag': 'Lace',
-                    }),
-                  ],
+                  description:
+                      'Visit craftsky.social @alice.craftsky.social #Lace',
                 ),
               ),
             ),
@@ -35,17 +30,27 @@ void main() {
           find.byWidgetPredicate(
             (widget) =>
                 widget is Text &&
-                widget.textSpan?.toPlainText() == 'Knitting #Lace',
+                widget.textSpan?.toPlainText() ==
+                    'Visit craftsky.social @alice.craftsky.social #Lace',
           ),
         );
         final spans = _leafTextSpans(body.textSpan! as TextSpan);
 
-        expect(spans.map((span) => span.text), ['Knitting ', '#Lace']);
+        expect(spans.map((span) => span.text), [
+          'Visit ',
+          'craftsky.social',
+          ' ',
+          '@alice.craftsky.social',
+          ' ',
+          '#Lace',
+        ]);
         expect(spans[1].style?.color, BrandColors.cobalt);
+        expect(spans[3].style?.color, BrandColors.cobalt);
+        expect(spans[5].style?.color, BrandColors.cobalt);
       },
     );
 
-    testWidgets('AT-005 safely renders plain bio when facets are invalid', (
+    testWidgets('UT-009 leaves unsupported schemes and URL fragments safe', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -54,20 +59,29 @@ void main() {
             theme: AppTheme.lightThemeData,
             home: Scaffold(
               body: ProfileBio(
-                description: 'Knitting #Lace',
-                descriptionFacets: [
-                  _facet(200, 220, {
-                    r'$type': 'app.bsky.richtext.facet#tag',
-                    'tag': 'bad',
-                  }),
-                ],
+                description:
+                    'mailto:x@y.example https://craftsky.social/#lace #lace',
               ),
             ),
           ),
         ),
       );
 
-      expect(find.text('Knitting #Lace'), findsOneWidget);
+      final body = tester.widget<Text>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Text &&
+              widget.textSpan?.toPlainText() ==
+                  'mailto:x@y.example https://craftsky.social/#lace #lace',
+        ),
+      );
+      final spans = _leafTextSpans(body.textSpan! as TextSpan);
+      expect(spans.map((span) => span.text), [
+        'mailto:x@y.example ',
+        'https://craftsky.social/#lace',
+        ' ',
+        '#lace',
+      ]);
       expect(tester.takeException(), isNull);
     });
   });
@@ -89,15 +103,4 @@ List<TextSpan> _leafTextSpans(TextSpan root) {
 
   visit(root);
   return leaves;
-}
-
-Map<String, dynamic> _facet(
-  int byteStart,
-  int byteEnd,
-  Map<String, dynamic> feature,
-) {
-  return {
-    'index': {'byteStart': byteStart, 'byteEnd': byteEnd},
-    'features': [feature],
-  };
 }

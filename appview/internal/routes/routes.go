@@ -24,6 +24,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		deps.Logger,
 		deps.Config.Env == app.EnvDev,
 		deps.NewPDSClient,
+		deps.IdentityCacheUpdater,
 	)
 	mux.Handle("GET /oauth/client-metadata.json", oauthHandlers.ClientMetadataHandler())
 	mux.Handle("GET /oauth/jwks.json", oauthHandlers.JWKSHandler())
@@ -41,7 +42,14 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		MaxPostImages:       deps.Config.MaxPostImages,
 		MaxImageUploadBytes: deps.Config.MaxImageUploadBytes,
 	}
+	facetStore := api.NewFacetStore(deps.DB, deps.HandleResolver)
 	mux.Handle("GET /v1/whoami", authN(deviceID(api.WhoAmIHandler(deps.HandleResolver, deps.Logger))))
+	mux.Handle("GET /v1/facets/mentions",
+		authN(deviceID(api.ListFacetMentionSuggestionsHandler(facetStore, deps.Logger))))
+	mux.Handle("GET /v1/facets/mentions/resolve",
+		authN(deviceID(api.ResolveFacetMentionHandler(facetStore, deps.Logger))))
+	mux.Handle("GET /v1/facets/hashtags",
+		authN(deviceID(api.ListFacetHashtagSuggestionsHandler(facetStore, deps.Logger))))
 	mux.Handle("POST /v1/auth/logout", authN(deviceID(oauthHandlers.LogoutHandler())))
 	mux.Handle("GET /v1/profiles/{handleOrDid}",
 		authN(deviceID(api.GetProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger))))
