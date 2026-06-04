@@ -9,12 +9,13 @@
   - DR-002: bounded backfill command is `cli identity-cache backfill`, default limit `100`, with `--limit <n>`.
   - DR-003: profile-bio parsing targets Craftsky-supported token rules, not full Bluesky parity; fixture coverage must be explicit.
   - DR-004: AppView exact-resolve endpoint tests and Flutter “no facet emitted but continue” tests remain separate.
+  - Manual post-review update: newly created/initialized Craftsky users must be upserted into the identity cache immediately; backfill is only for existing profiles.
 
 ## 2. Implementation Strategy
 
 Implement this as an additive AppView API/persistence change plus a Flutter data/UI cleanup.
 
-On the AppView, add authenticated `/v1/facets/*` read endpoints under the existing `authN(deviceID(...))` route stack. Back mention suggestions with a separate identity/handle cache table, not `bluesky_profiles`, and join that cache to existing `craftsky_profiles`, `bluesky_profiles`, and `atproto_follows` tables for Craftsky-only suggestion rows. Exact mention resolution should use the existing `api.HandleResolver` seam, refresh missing/stale cache rows, and return `404 mention_not_found` for non-Craftsky or unresolved handles. Hashtag suggestions should use indexed `craftsky_posts.tags` data from recent root posts.
+On the AppView, add authenticated `/v1/facets/*` read endpoints under the existing `authN(deviceID(...))` route stack. Back mention suggestions with a separate identity/handle cache table, not `bluesky_profiles`, and join that cache to existing `craftsky_profiles`, `bluesky_profiles`, and `atproto_follows` tables for Craftsky-only suggestion rows. Exact mention resolution should use the existing `api.HandleResolver` seam, refresh missing/stale cache rows, and return `404 mention_not_found` for non-Craftsky or unresolved handles. Also wire the AppView profile creation/initialization path so a newly created/initialized Craftsky user gets their current DID/handle upserted into the identity cache immediately, without waiting for the bounded backfill command. Hashtag suggestions should use indexed `craftsky_posts.tags` data from recent root posts.
 
 On Flutter, replace the production mock facet repositories with AppView-backed Dio repositories while keeping mock implementations as test fixtures. Use exact AppView-backed mention resolution only during final post facet generation via the existing `MentionResolver` seam. Remove `descriptionFacets` from the profile model, repository/API update signatures, save flow, and `ProfileBio` API. Replace the profile-bio editor’s autocomplete field with a plain branded text field. Preserve clickable bio rendering by parsing plain description text at render time with token rules centralized from, or explicitly shared with, the post facet generator.
 
@@ -26,7 +27,8 @@ The first TDD slice should be AppView route/API contract coverage (`IT-001` and 
 |---|---|---|---|---|
 | AppView facet routes | `routes.go` registers `/v1/*` handlers with `authN(deviceID(...))`; handlers live in `internal/api` | Add `GET /v1/facets/mentions`, `GET /v1/facets/mentions/resolve`, and `GET /v1/facets/hashtags` | FR-001, FR-003, FR-005, NFR-001 | IT-001, UT-001, UT-004, UT-013, REG-003 |
 | AppView request/response contracts | Small DTO files such as `profile_request.go` / `profile_response.go`; camelCase JSON; `envelope.WriteError` | Add facet request validation and response DTOs with wrapped `items` for suggestions and minimal resolve object | FR-002, FR-003, FR-005, NFR-001, NFR-002 | UT-001, UT-002, UT-004, UT-013, IT-001 |
-| AppView identity cache | Handles currently resolved on demand through `HandleResolver`; no searchable handle cache | Add separate identity cache migration/store with 24h freshness; no handle column on `bluesky_profiles` | FR-001, FR-013, FR-014, FR-015 | IT-002, IT-003, IT-005, REG-005 |
+| AppView identity cache | Handles currently resolved on demand through `HandleResolver`; no searchable handle cache | Add separate identity cache migration/store with 24h freshness; no handle column on `bluesky_profiles` | FR-001, FR-013, FR-014, FR-015, FR-016 | IT-002, IT-003, IT-005, IT-009, REG-005, REG-006 |
+| AppView profile initialization | OAuth callback calls `auth.InitializeProfile` to create/ensure Craftsky profile records; no identity-cache side effect exists | After successful profile creation/initialization, resolve current handle and upsert identity cache for the authenticated DID | FR-016 | IT-009, REG-006, MAN-004 |
 | AppView mention suggestions/resolution | Profile reads resolve handles per DID; no account autocomplete endpoint | Search fresh cached Craftsky handles/display names; exact resolve refreshes cache and filters to Craftsky profiles | FR-001, FR-002, FR-003, FR-004, RULE-001 | AT-001, AT-002, UT-003, UT-004, IT-001, IT-002, IT-003 |
 | AppView hashtag suggestions | `craftsky_posts.tags` has normalized tag array and GIN index | Count matching lowercase tags on recent root posts only, sorted by count desc then tag asc | FR-005, FR-006, RULE-003 | AT-003, UT-005, IT-004 |
 | AppView CLI | Cobra root command with subcommands in `appview/cmd/cli`; DB-using commands call `loadDeps` | Add `identity-cache backfill` command with default limit 100 and explicit `--limit` | FR-015 | IT-005, MAN-002 |
@@ -39,18 +41,21 @@ The first TDD slice should be AppView route/API contract coverage (`IT-001` and 
 
 | Path / Module | Create / Change | Purpose | Requirement IDs | Test IDs |
 |---|---|---|---|---|
-| `appview/migrations/000015_identity_handle_cache.up.sql` / `.down.sql` | Create | Separate identity/handle cache schema and indexes; no network work | FR-013, FR-014, FR-015 | IT-002, IT-005, REG-005 |
+| `appview/migrations/000015_identity_handle_cache.up.sql` / `.down.sql` | Create | Separate identity/handle cache schema and indexes; no network work | FR-013, FR-014, FR-015, FR-016 | IT-002, IT-005, IT-009, REG-005, REG-006 |
 | `appview/internal/api/facet_request.go` | Create | Parse/validate `q`, `limit`, and `handle` query params; enforce default 10, max 25, max query length 64 | FR-001, FR-003, FR-005, NFR-002 | UT-001, UT-004, UT-013 |
 | `appview/internal/api/facet_response.go` | Create | DTOs for mention suggestions, exact mention resolve, hashtag suggestions, and `{items:[...]}` wrappers | FR-002, FR-003, FR-005, NFR-001 | UT-002, UT-004, IT-001 |
-| `appview/internal/api/identity_cache_store.go` | Create | Read/write identity cache rows; freshness checks; upsert by DID/canonical handle | FR-013, FR-014, FR-015 | IT-002, IT-003, IT-005 |
+| `appview/internal/api/identity_cache_store.go` | Create | Read/write identity cache rows; freshness checks; upsert by DID/canonical handle; expose a narrow current-handle upsert service usable by auth wiring without package cycles | FR-013, FR-014, FR-015, FR-016 | IT-002, IT-003, IT-005, IT-009 |
 | `appview/internal/api/facet_store.go` | Create | Query mention suggestions and hashtag suggestions; check Craftsky membership for exact resolve | FR-001, FR-002, FR-004, FR-005, FR-006 | UT-003, UT-005, IT-002, IT-003, IT-004 |
 | `appview/internal/api/facet.go` | Create | HTTP handlers for `/v1/facets/*`; error mapping and response encoding | FR-001, FR-003, FR-005, NFR-001, RULE-001 | IT-001, UT-004, UT-013 |
 | `appview/internal/routes/routes.go` | Change | Register new facet endpoints behind auth/device middleware | NFR-001 | IT-001, REG-003 |
-| `appview/internal/app/deps.go` | Change | Wire `IdentityCacheStore` / `FacetStore` dependencies if stored on `Deps`, or construct in `routes.go` from `deps.DB` | FR-001, FR-005, FR-014 | IT-001, IT-002, IT-004 |
+| `appview/internal/app/deps.go` | Change | Wire `IdentityCacheStore` / `FacetStore` dependencies if stored on `Deps`, or construct in `routes.go` from `deps.DB`; make profile initialization cache updater available to OAuth handlers | FR-001, FR-005, FR-014, FR-016 | IT-001, IT-002, IT-004, IT-009 |
+| `appview/internal/auth/handlers_oauth.go` | Change | After `InitializeProfile` succeeds, call injected identity-cache updater for the authenticated DID | FR-016 | IT-009, REG-006 |
+| `appview/internal/auth/initialize_profile.go` | Change if needed | Keep PDS profile initialization behavior; avoid direct DB coupling unless using a narrow injected interface | FR-016 | IT-009 |
+| `appview/internal/auth/*_test.go` | Change | Assert profile initialization/callback path upserts identity cache for new users and handles resolver failure without partial cache rows | FR-016 | IT-009, REG-006 |
 | `appview/cmd/cli/identity_cache.go` | Create | Add `identity-cache backfill` Cobra command using `loadDeps` and `HandleResolver` | FR-015 | IT-005, MAN-002 |
 | `appview/cmd/cli/main.go` | Change | Add the identity-cache command to the root command tree | FR-015 | IT-005 |
 | `appview/internal/api/*facet*_test.go` | Create | Handler, request, response, ranking, and error-envelope tests | FR-001-FR-006, NFR-001, NFR-002, RULE-001, RULE-003 | UT-001-UT-005, UT-013, IT-001 |
-| `appview/internal/api/identity_cache_store_test.go` | Create | Cache freshness/search/refresh tests with fake resolver inputs | FR-013, FR-014, FR-015 | IT-002, IT-003, IT-005, REG-005 |
+| `appview/internal/api/identity_cache_store_test.go` | Create | Cache freshness/search/refresh/backfill/profile-initialization upsert tests with fake resolver inputs | FR-013, FR-014, FR-015, FR-016 | IT-002, IT-003, IT-005, IT-009, REG-005, REG-006 |
 | `appview/internal/routes/routes_test.go` | Change | Auth/device regression coverage for new `/v1/facets/*` routes | NFR-001 | IT-001, REG-003 |
 | `app/lib/shared/rich_text/data/appview_facet_suggestion_repository.dart` | Create | Dio-backed account suggestion, exact mention resolve, and hashtag suggestion implementation | FR-007, FR-008, NFR-001 | UT-006, UT-007, UT-008, AT-001-AT-003 |
 | `app/lib/shared/rich_text/data/facet_suggestion_repository.dart` | Change | Keep interfaces; add optional `limit` parameters only if tests need explicit bounds, otherwise repositories use default 10 internally | FR-007, FR-008 | UT-006, UT-008, IT-006 |
@@ -150,6 +155,7 @@ func (s *FacetStore) IsCraftskyProfile(ctx context.Context, did syntax.DID) (boo
 func (s *IdentityCacheStore) FreshByHandle(ctx, handle syntax.Handle, now time.Time) (*IdentityCacheRow, error)
 func (s *IdentityCacheStore) Upsert(ctx, did syntax.DID, handle syntax.Handle, resolvedAt time.Time) error
 func (s *IdentityCacheStore) BackfillCandidateDIDs(ctx, limit int) ([]syntax.DID, error)
+func (s *IdentityCacheService) UpsertCurrentHandle(ctx context.Context, did syntax.DID, now time.Time) error
 ```
 
 Mention suggestion query shape:
@@ -203,6 +209,32 @@ if resolver fails or did has no craftsky_profiles row:
 IdentityCacheStore.Upsert(ctx, did, canonicalHandle, now)
 return {did, handle: canonicalHandle, isCraftskyProfile: true}
 ```
+
+### Profile initialization cache flow
+
+New Craftsky users must not depend on an operator running backfill before they can appear in mention autocomplete. Add a narrow identity-cache updater to the OAuth/profile initialization wiring.
+
+```text
+OAuth callback / profile initialization
+  -> InitializeProfile(ctx, pdsClient, did) succeeds
+  -> IdentityCacheUpdater.UpsertCurrentHandle(ctx, did)
+       ResolveHandle(ctx, did) -> canonical handle
+       Upsert(ctx, did, canonical handle, now)
+  -> continue creating Craftsky session / returning token
+```
+
+Implementation guardrail for package boundaries:
+- Avoid making `internal/auth` import `internal/api`, because `internal/api` already imports `internal/auth` in several files.
+- Prefer an interface defined in `internal/auth`, implemented by an AppView/api identity-cache service and injected from `routes.go`/`deps.go`:
+
+```text
+// in internal/auth or a neutral package
+type IdentityCacheUpdater interface {
+  UpsertCurrentHandle(ctx context.Context, did syntax.DID) error
+}
+```
+
+If the upsert fails because handle resolution is transiently unavailable, do not create a partial row and do not store anything on `bluesky_profiles`. Log the failure; exact resolve and `cli identity-cache backfill` remain recovery paths. Tests should lock this behavior without using live identity network calls.
 
 ### CLI backfill flow
 
@@ -289,7 +321,8 @@ mux.Handle("GET /v1/facets/hashtags",
   authN(deviceID(api.ListFacetHashtagSuggestionsHandler(facetStore, deps.Logger))))
 ```
 
-- If stores are placed on `app.Deps`, wire them in `newDeps` after `deps.ProfileStore` and keep the fields specific (`FacetStore`, `IdentityCacheStore`).
+- If stores are placed on `app.Deps`, wire them in `newDeps` after `deps.ProfileStore` and keep the fields specific (`FacetStore`, `IdentityCacheStore` / `IdentityCacheUpdater`).
+- Pass the identity-cache updater into OAuth handlers so `CallbackHandler` can upsert the authenticated user's current handle after `InitializeProfile` succeeds.
 - CLI `identity-cache backfill` should call `loadDeps(ctx)` and reuse `deps.DB`, `deps.HandleResolver`, and `deps.Logger`.
 
 ### Flutter Riverpod provider graph
@@ -350,6 +383,8 @@ Provider guardrails:
 | Mention suggestion account lacks display/avatar | Include row with required fields; omit optional fields | FR-002 | AT-001, UT-002, IT-001, AC-015 |
 | Mention cache stale/missing in autocomplete | Autocomplete only uses fresh cache; no network fan-out while typing | FR-014 | IT-002, AC-018 |
 | Mention cache stale/missing in exact resolve | Resolve through `HandleResolver`; upsert cache on successful Craftsky resolve | FR-014 | IT-003, AC-018 |
+| Newly initialized Craftsky user | Profile initialization/callback path resolves the current handle and upserts identity cache without waiting for backfill | FR-016 | IT-009, AC-021, REG-006 |
+| Profile initialization handle resolution failure | Do not store a partial cache row or write handles to `bluesky_profiles`; log and allow later exact resolve/backfill recovery | FR-016 | IT-009, EC-008 |
 | Exact handle invalid, non-Craftsky, unknown, or resolver failure | AppView returns `404 mention_not_found`; Flutter maps to `null`/no mention facet and continues | FR-003, FR-004, FR-008, RULE-001 | UT-004, UT-007, IT-003, AT-002 |
 | Hashtag no matches | Return `200 {"items":[]}` | FR-006 | UT-005, IT-004, EC-002 |
 | Repeated tags in one post | Count each lowercase canonical tag once per root post via `COUNT(DISTINCT p.uri)` | FR-006, RULE-003 | IT-004, AC-007 |
@@ -370,14 +405,15 @@ Provider guardrails:
 | 6 | IT-002 | `appview/internal/api/identity_cache_store_test.go` or `facet_store_test.go` | Test DB with fresh/stale cache, `craftsky_profiles`, `bluesky_profiles`, follows | Cache schema/store missing |
 | 7 | IT-003 | `appview/internal/api/facet_store_test.go`, `facet_test.go` | Fake resolver for Alice/Mallory/unknown and DB Craftsky membership | Refresh/filter exact resolve flow missing |
 | 8 | IT-004 / UT-005 | `appview/internal/api/facet_store_test.go`, `facet_suggestion_test.go` | Seed root/reply/old/duplicate/empty tag posts | Hashtag query/count method missing |
-| 9 | IT-005 | `appview/cmd/cli/identity_cache*_test.go` | Fake bounded resolver; existing Craftsky rows; default and explicit limits | CLI command missing |
-| 10 | UT-006 / UT-008 | `app/test/shared/rich_text/facet_suggestion_repository_test.dart` | Dio mock endpoints with wrapped `items` | AppView repository classes missing |
-| 11 | UT-007 / AT-002 | `app/test/shared/rich_text/facet_generator_test.dart`, `app/test/feed/providers/create_post_provider_test.dart` | Dio success for Alice, 404 `mention_not_found` for unknown | Exact AppView resolver not wired to generator |
-| 12 | IT-006 / AT-001 / AT-003 / AT-006 | `app/test/shared/rich_text/facet_autocomplete_editor_test.dart` | Provider overrides with AppView repo fakes and zero debounce | Production providers still mock-backed / error handling not locked |
-| 13 | UT-011 / IT-007 / REG-001 / REG-004 / AT-004 | `app/test/profile/models/profile_test.dart`, `profile_api_client_test.dart`, `edit_profile_dialog_test.dart` | Profile JSON with description only; save rich-looking text | `descriptionFacets` still in model/API/save flow |
-| 14 | UT-009 / UT-010 / IT-008 / AT-005 | `app/test/profile/widgets/profile_bio_test.dart`, `app/test/shared/rich_text/faceted_text_actions_test.dart` | TD-005 token fixtures, fake router/launcher | Bio depends on stored facets; parser absent |
-| 15 | REG-002 | `app/test/shared/rich_text/facet_generator_test.dart` | Existing emoji/link/tag/overlap fixtures | Refactor can break byte offsets or AT facet JSON |
-| 16 | MAN-001-MAN-003 | Manual dev smoke | `just dev-d`, backfill command, composer/profile flows | Manual only after automated tests pass |
+| 9 | IT-009 | `appview/internal/auth/*_test.go`, `appview/internal/api/identity_cache_store_test.go` | Fake authenticated DID/handle resolver and cache writer/store; resolver failure variant | Profile initialization path does not update identity cache |
+| 10 | IT-005 | `appview/cmd/cli/identity_cache*_test.go` | Fake bounded resolver; existing Craftsky rows; default and explicit limits | CLI command missing |
+| 11 | UT-006 / UT-008 | `app/test/shared/rich_text/facet_suggestion_repository_test.dart` | Dio mock endpoints with wrapped `items` | AppView repository classes missing |
+| 12 | UT-007 / AT-002 | `app/test/shared/rich_text/facet_generator_test.dart`, `app/test/feed/providers/create_post_provider_test.dart` | Dio success for Alice, 404 `mention_not_found` for unknown | Exact AppView resolver not wired to generator |
+| 13 | IT-006 / AT-001 / AT-003 / AT-006 | `app/test/shared/rich_text/facet_autocomplete_editor_test.dart` | Provider overrides with AppView repo fakes and zero debounce | Production providers still mock-backed / error handling not locked |
+| 14 | UT-011 / IT-007 / REG-001 / REG-004 / AT-004 | `app/test/profile/models/profile_test.dart`, `profile_api_client_test.dart`, `edit_profile_dialog_test.dart` | Profile JSON with description only; save rich-looking text | `descriptionFacets` still in model/API/save flow |
+| 15 | UT-009 / UT-010 / IT-008 / AT-005 | `app/test/profile/widgets/profile_bio_test.dart`, `app/test/shared/rich_text/faceted_text_actions_test.dart` | TD-005 token fixtures, fake router/launcher | Bio depends on stored facets; parser absent |
+| 16 | REG-002 | `app/test/shared/rich_text/facet_generator_test.dart` | Existing emoji/link/tag/overlap fixtures | Refactor can break byte offsets or AT facet JSON |
+| 17 | MAN-001-MAN-004 | Manual dev smoke | `just dev-d`, backfill command, new-user initialization, composer/profile flows | Manual only after automated tests pass |
 
 Focused commands:
 - AppView: `just test` from repo root after compose Postgres is running via `just dev-d`.
@@ -392,12 +428,13 @@ Focused commands:
   1. AppView route skeleton, request validation, DTOs, and handler contracts.
   2. Identity cache migration/store and mention suggestion/exact resolve store logic.
   3. Hashtag suggestion query logic.
-  4. CLI identity-cache backfill command.
-  5. Flutter AppView-backed repositories and provider wiring.
-  6. Flutter final post mention-resolution fallback tests and facet-generator parser refactor.
-  7. Remove profile `descriptionFacets` from model/API/save/editor.
-  8. Plain profile-bio render-time parser/tap behavior.
-  9. Run focused and full relevant test commands; perform manual smoke checks.
+  4. Profile initialization identity-cache upsert for newly created/initialized Craftsky users.
+  5. CLI identity-cache backfill command for existing users.
+  6. Flutter AppView-backed repositories and provider wiring.
+  7. Flutter final post mention-resolution fallback tests and facet-generator parser refactor.
+  8. Remove profile `descriptionFacets` from model/API/save/editor.
+  9. Plain profile-bio render-time parser/tap behavior.
+  10. Run focused and full relevant test commands; perform manual smoke checks.
 - Dependencies between work items:
   - Flutter repository endpoint tests depend on final AppView URL/JSON shapes in §5.
   - Profile-bio parser should land before refactoring `FacetGenerator` if the implementation centralizes token detection.
@@ -406,6 +443,7 @@ Focused commands:
   - Do not modify `lexicon/`; no ADR or lexgen is required for this change.
   - Do not store handles on `bluesky_profiles`.
   - Do not add SQL migration-time network work.
+  - Do not rely on `cli identity-cache backfill` for newly created/initialized users; profile initialization must upsert their identity cache row.
   - Do not broaden to general account search, non-Craftsky mention targets, or background refresh jobs.
   - Do not put PDS tokens or atproto credentials in Flutter.
   - Do not reintroduce `descriptionFacets` in AppView profile request/response contracts or Flutter profile models.
@@ -426,6 +464,7 @@ Focused commands:
 | CPQ-002 | Non-blocking | Resolver transient failures are intentionally collapsed to `mention_not_found` for exact mention endpoint contract | Users may miss a mention facet during transient identity outage rather than seeing a hard post failure | Matches AC-006/EC-006; log server-side without exposing tokens or resolver internals |
 | CPQ-003 | Non-blocking | Refactoring `FacetGenerator` to share parser logic may change overlap ordering accidentally | Could break post facets while fixing bios | Keep existing `facet_generator_test.dart` fixtures and add REG-002 before refactor |
 | CPQ-004 | Non-blocking | `descriptionFacets` removal touches generated Dart mapper/provider code and several fakes | Partial removal could leave stale generated fields or test-only APIs | Update generated files and fakes in the same TDD slice; REG-004 fails if any profile model/render API still accepts facets |
+| CPQ-005 | Non-blocking | Adding identity-cache upsert to OAuth/profile initialization crosses package boundaries between `auth` and AppView API/cache services | A careless implementation could create an import cycle or make auth depend directly on API internals | Use a narrow injected interface/closure for cache upsert; keep `auth` independent of `api` concrete types |
 
 Blocking open questions: None identified.
 
@@ -437,4 +476,4 @@ Blocking open questions: None identified.
 - Focused first command: `just test` after `just dev-d` is running, or narrower Go package execution from `appview/` if the TDD builder chooses a focused loop.
 - Notes:
   - Treat `01-requirements.md`, `02-acceptance-tests.md`, `03-document-review.md`, and this file as source of truth.
-  - Preserve resolved decisions: over-limit rejects with `400 validation_error`; backfill command is `cli identity-cache backfill`; bios are plain text with render-time clickable parsing; exact resolve endpoint and Flutter no-facet fallback are distinct contracts.
+  - Preserve resolved decisions: over-limit rejects with `400 validation_error`; backfill command is `cli identity-cache backfill`; newly created/initialized Craftsky users upsert identity-cache rows as part of profile initialization; bios are plain text with render-time clickable parsing; exact resolve endpoint and Flutter no-facet fallback are distinct contracts.

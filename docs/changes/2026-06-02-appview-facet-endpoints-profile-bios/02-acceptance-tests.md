@@ -6,7 +6,7 @@ This feature is medium risk because it crosses AppView API/routes, persistence, 
 
 - **Acceptance/widget tests:** user-visible composer autocomplete, post submit mention resolution, plain profile bio editing, and plain bio rendering/tap behavior.
 - **Unit tests:** endpoint validation/ranking/response shaping, Flutter repository mapping/error handling, bio token parsing/tap dispatch, and removal of `descriptionFacets` from Flutter models/save paths.
-- **Integration/store tests:** identity cache search/freshness/refresh, exact Craftsky-only mention resolution, hashtag 28-day root-post counts, auth/device enforcement through routes, and bounded identity-cache backfill.
+- **Integration/store tests:** identity cache search/freshness/refresh, profile-initialization identity-cache upsert, exact Craftsky-only mention resolution, hashtag 28-day root-post counts, auth/device enforcement through routes, and bounded identity-cache backfill.
 - **Regression tests:** profile save must not reintroduce `descriptionFacets`; post facet generation must continue emitting valid AT Protocol post facets.
 - **Manual checks:** limited to a short end-to-end smoke pass for UX confidence after automated tests pass.
 
@@ -34,6 +34,7 @@ Risk-based review recommendation: **Review recommended before implementation, bu
 | FR-013 | AC-004, AC-013 | IT-002, REG-005 | Integration / Regression | Yes |
 | FR-014 | AC-013, AC-018, EC-005 | IT-002, IT-003 | Integration | Yes |
 | FR-015 | AC-019 | IT-005, MAN-002 | Integration / Manual | Yes + Manual smoke |
+| FR-016 | AC-021 | IT-009, MAN-004 | Integration | Yes + Manual smoke |
 | NFR-001 | AC-012 | AT-001, AT-003, UT-013, IT-001, REG-003 | Acceptance / Unit / Integration / Regression | Yes |
 | NFR-002 | AC-005, AC-007, AC-014, EC-007 | UT-001, UT-003, UT-005, IT-001, IT-004 | Unit / Integration | Yes |
 | NFR-003 | AC-010, AC-020, EC-003, EC-004 | AT-005, UT-009, UT-010, IT-008 | Acceptance / Unit / Integration | Yes |
@@ -192,6 +193,7 @@ Feature: Autocomplete resilience
 | IT-006 | FR-007, BR-001 | AC-001, AC-003 | Composer autocomplete keeps current insertion behavior with repository overrides. | Widget test with provider overrides for real repository interface/fake data and zero debounce. | Type `@ali`, select account; type `#sock`, select tag. | Suggestions display, order is honored by repository result, selected mention/tag inserts token and preserves focus/selection behavior. | `app/test/shared/rich_text/facet_autocomplete_editor_test.dart` |
 | IT-007 | BR-002, FR-009, FR-010, RULE-002 | AC-008, AC-009 | Edit-profile dialog and API client save plain bio only. | Widget/repository fake captures profile update args; Dio adapter captures `PUT /v1/profiles/me`. | Type bio with `@handle`, `#tag`, URL; save. | No autocomplete overlay appears; captured update has description only; request body has no `descriptionFacets`. | `app/test/profile/edit_profile_dialog_test.dart`, `app/test/profile/data/profile_api_client_test.dart` |
 | IT-008 | BR-003, FR-011, FR-012, NFR-003 | AC-010, AC-011, AC-017, AC-020 | Plain profile bio rendering/taps work without facets. | Pump profile bio with plain description and fake navigation/launcher hooks. | Inspect spans and tap detected link/mention/hashtag. | Tokens are styled and clickable; bare domain uses HTTPS; unsupported schemes plain; mention navigation uses visible handle without pre-resolve. | `app/test/profile/widgets/profile_bio_test.dart`, `app/test/shared/rich_text/faceted_text_actions_test.dart` |
+| IT-009 | FR-016 | AC-021 | Profile initialization upserts the new Craftsky user's identity cache row. | OAuth/profile-initialization handler test with fake authenticated DID, fake handle resolver returning a canonical handle, and identity cache writer/store spy. | Complete the profile initialization / callback path that creates or ensures the Craftsky profile. | The user's DID and canonical handle are upserted into the separate identity cache; no handle column on `bluesky_profiles` is required; failed handle resolution does not create a partial cache row. | `appview/internal/auth/*_test.go`, `appview/internal/api/identity_cache_store_test.go` |
 
 ## 6. Regression Tests
 
@@ -202,6 +204,7 @@ Feature: Autocomplete resilience
 | REG-003 | `/v1/*` authenticated endpoints require Craftsky session auth and `X-Craftsky-Device-Id`. | NFR-001 | Route/middleware tests prove new `/v1/facets/*` endpoints are not accidentally public and return standard errors when auth/device is missing. |
 | REG-004 | Flutter profile model/render APIs should not silently preserve generated mapper fields for removed bio facets. | FR-010, RULE-002 | Profile model/mapper tests fail if `descriptionFacets` remains accepted, copied, serialized, or passed into `ProfileBio`. |
 | REG-005 | Handles remain identity metadata rather than Bluesky profile record metadata. | FR-013 | Schema/store tests fail if mention autocomplete requires a handle column on `bluesky_profiles` instead of the separate identity cache. |
+| REG-006 | New Craftsky users should not be absent from mention autocomplete until an operator backfill runs. | FR-016 | Profile initialization/callback tests fail if successful new-user initialization does not upsert the identity cache. |
 
 ## 7. Test Data
 
@@ -215,6 +218,7 @@ Feature: Autocomplete resilience
 | TD-006 | Query and limit bounds | `q=""`, `q="   "`, 64-char query, 65-char query, `limit=10`, `limit=25`, `limit=26`. | UT-001, IT-001 |
 | TD-007 | Identity cache freshness | Cache row resolved at now minus 23h59m, now minus exactly 24h, now minus 24h01m, and missing row. | IT-002, IT-003 |
 | TD-008 | Profile save body | Description containing rich-looking tokens with display name/crafts/avatar/banner fields preserved. | AT-004, UT-011, IT-007, REG-001 |
+| TD-009 | New-user identity-cache upsert | New authenticated DID `did:plc:new`, canonical handle `new.craftsky.social`, empty/missing identity cache before profile initialization, and fake resolver failure variant. | IT-009, REG-006, MAN-004 |
 
 ## 8. Manual Checks
 
@@ -223,6 +227,7 @@ Feature: Autocomplete resilience
 | MAN-001 | BR-001, FR-007, FR-008 | Composer UX smoke with real AppView-backed suggestions. | Start dev stack, sign in, type `@` and `#` queries in composer, select suggestions, manually type a valid handle, submit. | Suggestions feel like the existing mock UX; selected and manually typed tokens submit successfully with valid post facets. |
 | MAN-002 | FR-015 | Identity-cache backfill operator smoke. | Run `docker compose exec appview /app/cli identity-cache backfill` and one explicit bounded run such as `--limit 10` in a dev database with pre-existing Craftsky profiles. | Command reports bounded progress, respects default limit 100 and explicit limits, does not run from SQL migration, and autocomplete can find backfilled handles. |
 | MAN-003 | BR-002, BR-003, FR-009, FR-011, FR-012 | Profile bio edit/render smoke. | Edit a bio containing `@handle`, `#tag`, and links; save; view profile; tap each detected token. | Bio editor has no autocomplete; saved bio is plain text; rendered bio tokens are clickable and route/launch correctly. |
+| MAN-004 | FR-016 | New-user identity-cache smoke. | In a dev database with the identity-cache migration applied, sign in or initialize a Craftsky user whose cache row does not exist, then type that handle in mention autocomplete. | The new user's handle has an identity-cache row without running `cli identity-cache backfill`, and autocomplete can find it after normal profile initialization/indexing delay. |
 
 ## 9. Resolved Review Decisions, Test Gaps And Risks
 
@@ -230,6 +235,7 @@ Feature: Autocomplete resilience
 |---|---|---|---|---|
 | RES-001 | Resolved: over-limit requests reject. | NFR-002 | Post-review decision: `limit > 25` returns standard `400 validation_error`; empty/whitespace query still returns `{items:[]}`. | Coding plan should assert this exact behavior in UT-001 and route/integration tests. |
 | RES-002 | Resolved: identity-cache backfill command is named. | FR-015 | Post-review decision: use `cli identity-cache backfill`, default batch limit 100, configurable `--limit <n>`. | Coding plan should wire IT-005/MAN-002 to this command and avoid network work in SQL migrations. |
+| RES-003 | Resolved: new Craftsky users populate identity cache immediately. | FR-016 | Manual post-plan feedback identified that backfill alone leaves newly created Craftsky users out of autocomplete until an operator action. | Coding plan should add an identity-cache upsert to the AppView profile creation/initialization path and cover it with IT-009/REG-006. |
 | GAP-003 | Plaintext bio parsing intentionally targets supported token rules, not full Bluesky parity. | FR-011, NFR-003 | Requirements ask to mirror existing post facet generator rules and safely treat malformed/ambiguous tokens as plain text. | Document parser fixtures in UT-009; defer any broader Bluesky parser parity to future work. |
 | GAP-004 | No automated live network identity freshness test. | FR-014 | Tests should fake the identity resolver to keep the suite deterministic and avoid live atproto dependencies. | Use fake resolver integration tests; rely on manual/dev smoke for operational confidence. |
 
@@ -240,7 +246,7 @@ Blocking gaps: **None identified.**
 - Non-Craftsky account autocomplete or exact mention facets.
 - General account search, profile discovery, or broad hashtag search pages.
 - Lexicon changes or storing facets on `app.bsky.actor.profile.description`.
-- Background identity refresh jobs beyond exact resolve refresh and bounded backfill.
+- Background identity refresh jobs beyond profile-initialization cache upsert, exact resolve refresh, and bounded backfill.
 - Live atproto network tests in automated CI; fake resolvers should cover deterministic behavior.
 - Direct device storage or exposure of PDS tokens in Flutter.
 
@@ -253,16 +259,16 @@ Blocking gaps: **None identified.**
 - Recommended first failing test for implementation: `IT-001` for authenticated `GET /v1/facets/mentions` returning `{items:[...]}` and enforcing session/device/error-envelope conventions.
 - Suggested test order for implementation:
   1. `IT-001`, `UT-001`, `UT-002`, `UT-003`, `UT-004` for AppView handler contracts and validation.
-  2. `IT-002`, `IT-003`, `IT-004`, `IT-005` for identity cache persistence, exact resolve refresh, hashtag counts, and backfill.
+  2. `IT-002`, `IT-003`, `IT-004`, `IT-005`, `IT-009` for identity cache persistence, exact resolve refresh, hashtag counts, backfill, and new-user profile-initialization cache upsert.
   3. `UT-006`, `UT-007`, `UT-008`, `IT-006`, `AT-001`, `AT-002`, `AT-003` for Flutter facet repositories/composer behavior.
   4. `UT-011`, `IT-007`, `REG-001`, `REG-004`, `AT-004` for removing profile `descriptionFacets`.
   5. `UT-009`, `UT-010`, `IT-008`, `AT-005`, `REG-002` for plain bio parsing/taps and post facet regression.
-  6. Manual checks `MAN-001` through `MAN-003` after automated tests pass.
+  6. Manual checks `MAN-001` through `MAN-004` after automated tests pass.
 - Commands discovered:
   - Go/AppView tests: `just test` from repo root after compose Postgres is running via `just dev-d` or equivalent.
   - Go format/vet: `just fmt`.
   - Focused Flutter tests from `app/`: `flutter test test/shared/rich_text test/profile test/feed/providers/create_post_provider_test.dart`.
   - Focused Flutter API-client tests from `app/`: `flutter test test/profile/data/profile_api_client_test.dart test/shared/rich_text/facet_generator_test.dart`.
 - Blocking gaps: None identified.
-- Review decisions applied: over-limit requests reject with `400 validation_error`; identity-cache backfill command is `cli identity-cache backfill`; profile bio parsing targets Craftsky-supported token fixtures rather than full Bluesky parity; AppView exact-resolve tests remain separate from Flutter no-facet fallback tests.
+- Review decisions applied: over-limit requests reject with `400 validation_error`; identity-cache backfill command is `cli identity-cache backfill`; newly created/initialized Craftsky users upsert identity-cache rows without waiting for backfill; profile bio parsing targets Craftsky-supported token fixtures rather than full Bluesky parity; AppView exact-resolve tests remain separate from Flutter no-facet fallback tests.
 - Review recommendation: Medium-risk change; document review is recommended before implementation, though the user may explicitly skip it.

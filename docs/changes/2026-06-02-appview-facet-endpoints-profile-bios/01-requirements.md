@@ -11,6 +11,7 @@ Replace the Flutter app's fake mention and hashtag facet endpoints with real App
   - Flutter facet generation/rendering: `app/lib/shared/rich_text/facet_generator.dart`, `app/lib/shared/rich_text/widgets/faceted_text.dart`, `app/lib/shared/rich_text/faceted_text_model.dart`, `app/lib/shared/rich_text/facet_action_handler.dart`.
   - Flutter profile bio edit/render: `app/lib/profile/pages/edit_profile_dialog.dart`, `app/lib/profile/models/profile.dart`, `app/lib/profile/widgets/profile_bio.dart`, `app/lib/profile/data/profile_api_client.dart`.
   - AppView routes/API/profile/post storage: `appview/internal/routes/routes.go`, `appview/internal/api/profile_request.go`, `appview/internal/api/profile_response.go`, `appview/internal/api/profile_store.go`, `appview/internal/api/post_store.go`, `appview/internal/api/handle_resolver.go`.
+  - AppView profile initialization path: `appview/internal/auth/initialize_profile.go`, `appview/internal/auth/handlers_oauth.go`.
   - AppView data model: `appview/migrations/000008_craftsky_profiles.up.sql`, `appview/migrations/000009_bluesky_profiles.up.sql`, `appview/migrations/000010_craftsky_posts.up.sql`, `appview/migrations/000013_profile_social_summary_indexes.up.sql`.
   - API conventions: `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`.
 - Existing patterns:
@@ -25,6 +26,7 @@ Replace the Flutter app's fake mention and hashtag facet endpoints with real App
   - Profile edit currently generates `descriptionFacets` client-side, but AppView `PUT /v1/profiles/me` does not accept `descriptionFacets`.
   - Profile bio rendering currently depends on explicit facets to make ranges clickable.
   - AppView stores DIDs and profile fields but does not store handles; profile endpoints resolve handles on demand for known DIDs.
+  - OAuth callback/profile initialization ensures Craftsky profile records exist for signed-in users, but this requirements slice must also ensure the new identity cache is populated for newly created/initialized Craftsky users.
 - Constraints discovered:
   - Partial handle autocomplete cannot be implemented reliably through the atproto identity resolver alone; it needs a local searchable handle cache because identity resolution is exact-handle/DID oriented, not prefix search.
   - Lexicon changes are not required for this scope; profile description should remain the Bluesky plain `description` field.
@@ -198,6 +200,12 @@ Answer: Keep AppView endpoint behavior and Flutter facet-generation fallback beh
 
 Decision / implication: AppView handler/store tests assert success objects or `404 mention_not_found` envelopes. Flutter facet-generator tests assert that `mention_not_found` maps to no emitted mention facet while post submission continues for the rest of the text.
 
+### Q28: Should a newly created/initialized Craftsky user be inserted into the identity cache immediately?
+
+Answer: Yes.
+
+Decision / implication: The AppView profile creation/initialization path for an authenticated Craftsky user must resolve and upsert that user's current DID/handle into the separate identity cache. The bounded backfill command remains necessary for pre-existing Craftsky profiles, but new users should not wait for backfill before appearing in mention autocomplete. This cache write must not store handles on `bluesky_profiles` and must not perform network work inside SQL migrations.
+
 ## 4. Candidate Approaches
 
 ### Option A: Dedicated facet endpoints plus separate identity cache
@@ -249,9 +257,9 @@ Risks:
 
 ## 5. Recommended Direction
 
-Recommended approach: Option A, with a separate AppView identity/handle cache table.
+Recommended approach: Option A, with a separate AppView identity/handle cache table and an immediate identity-cache upsert from the profile creation/initialization path.
 
-Why: It is the smallest approach that preserves the current user-facing composer autocomplete behavior, supports exact mention facets for manually typed handles, uses indexed post tags for hashtag suggestions, and makes profile descriptions plain text without expanding into general profile search.
+Why: It is the smallest approach that preserves the current user-facing composer autocomplete behavior, supports exact mention facets for manually typed handles, uses indexed post tags for hashtag suggestions, makes profile descriptions plain text without expanding into general profile search, and prevents newly onboarded Craftsky users from being absent from autocomplete until an operator backfill runs.
 
 ## 6. Problem / Opportunity
 
@@ -289,7 +297,7 @@ The post composer uses mock account and hashtag repositories. Account suggestion
 
 ## 11. Desired Behavior
 
-The post composer calls real AppView endpoints for Craftsky-only mention suggestions, final-submit exact handle resolution, and hashtag suggestions. AppView supports partial mention search through a separate identity/handle cache table and returns bounded, authenticated JSON responses. Hashtag suggestions come from indexed root-post tags and include lowercase canonical tags with `postsLast28Days`. Profile bio editing is a plain text field and profile updates do not send or model `descriptionFacets`. Profile bio display parses plain text at render time, detects supported `@handle`, `#hashtag`, and HTTP/S link ranges using rules that mirror post facet generation, styles them as clickable, and dispatches the same destinations as existing facet rendering where applicable.
+The post composer calls real AppView endpoints for Craftsky-only mention suggestions, final-submit exact handle resolution, and hashtag suggestions. AppView supports partial mention search through a separate identity/handle cache table and returns bounded, authenticated JSON responses. Existing Craftsky profiles can be populated through bounded backfill, while newly created/initialized Craftsky users are inserted into the identity cache as part of the AppView profile initialization path. Hashtag suggestions come from indexed root-post tags and include lowercase canonical tags with `postsLast28Days`. Profile bio editing is a plain text field and profile updates do not send or model `descriptionFacets`. Profile bio display parses plain text at render time, detects supported `@handle`, `#hashtag`, and HTTP/S link ranges using rules that mirror post facet generation, styles them as clickable, and dispatches the same destinations as existing facet rendering where applicable.
 
 ## 12. Requirements
 
@@ -313,6 +321,7 @@ The post composer calls real AppView endpoints for Craftsky-only mention suggest
 | FR-013 | Functional | Must | The AppView shall maintain a separate identity/handle cache table rather than storing handles directly on `bluesky_profiles`. | Handles are identity metadata, not profile record metadata. | Q6 | AC-004, AC-013 |
 | FR-014 | Functional | Must | The identity cache shall treat entries as fresh for autocomplete for 24 hours, and exact resolve shall refresh missing or stale entries. | Reduces stale-handle risk with a concrete testable freshness rule. | Q9 | AC-013, AC-018, EC-005 |
 | FR-015 | Functional | Must | The AppView shall provide `cli identity-cache backfill` as a bounded identity-cache population path for existing Craftsky profiles, separate from SQL migration-time network work. | Ensures autocomplete works for existing accounts without broad per-query network fan-out. | Q17, Q25 | AC-019 |
+| FR-016 | Functional | Must | The AppView shall upsert the authenticated user's current DID/handle into the separate identity cache when it creates or initializes that user's Craftsky profile. | Prevents newly created Craftsky users from being absent from real mention autocomplete until an operator backfill runs. | User feedback, Q28 | AC-021 |
 | NFR-001 | Non-functional | Must | New AppView endpoints shall follow existing `/v1` API conventions for auth, device ID, camelCase JSON, and error envelopes. | Maintains API consistency. | AGENTS.md, API spec | AC-012 |
 | NFR-002 | Non-functional | Should | Suggestion endpoints should apply default limit 10, maximum limit 25, query length bounds, and deterministic ordering suitable for autocomplete. | Prevents slow/noisy autocomplete responses. | Q10, Q18, Q19, discovery risk | AC-005, AC-007, AC-014 |
 | NFR-003 | Non-functional | Should | Profile bio plaintext detection should be render-safe, allow only HTTP/S link targets, normalize bare domains to HTTPS, and drop malformed or unsafe ranges without crashing. | Matches existing `FacetedText` safety posture and avoids unsafe link schemes. | Q21, codebase discovery | AC-010, AC-020, EC-003, EC-004 |
@@ -344,6 +353,7 @@ The post composer calls real AppView endpoints for Craftsky-only mention suggest
 | AC-018 | FR-014 | Given a cached identity entry is less than or equal to 24 hours old, when autocomplete searches it, then the entry is considered fresh; given exact resolve sees a missing or stale entry, then it refreshes the cache on successful resolution. |
 | AC-019 | FR-015 | Given existing Craftsky profile rows predate the identity cache, when `cli identity-cache backfill` runs with its default batch limit of 100 or an explicit `--limit <n>`, then it resolves and stores handles for existing Craftsky profiles within the bound without performing network work inside the SQL migration. |
 | AC-020 | NFR-003 | Given a profile bio contains an explicit HTTP/S URL or bare domain, when rendered, then the link target is HTTP/S with bare domains normalized to HTTPS; given another URI scheme, then it remains plain text. |
+| AC-021 | FR-016 | Given the AppView successfully creates or initializes a Craftsky profile for an authenticated user, when that flow completes, then the user's current DID and canonical handle are upserted into the separate identity cache so mention autocomplete can find the user without waiting for `cli identity-cache backfill`. |
 
 ## 14. Edge Cases
 
@@ -356,6 +366,7 @@ The post composer calls real AppView endpoints for Craftsky-only mention suggest
 | EC-005 | Cached handle is stale after a user changes handle | Exact resolution should refresh or invalidate cache for correctness; stale autocomplete display is acceptable only within the documented cache freshness window. | FR-014, RISK-001 |
 | EC-006 | Network/API error during autocomplete | Composer remains usable; suggestions can fail closed without blocking typing or post submission except where exact mention resolution is needed for facets. | FR-007, FR-008 |
 | EC-007 | Suggestion endpoint receives `limit` greater than 25 | AppView rejects the request with a standard `400 validation_error` envelope and never returns more than 25 items. | NFR-002 |
+| EC-008 | Profile initialization succeeds but current handle resolution for identity-cache upsert fails transiently | The profile creation/initialization path should not store a partial cache row or store a handle on `bluesky_profiles`; the failure is logged, and exact resolve or bounded backfill can populate the cache later. | FR-016, FR-014, RISK-006 |
 
 ## 15. Data / Persistence Impact
 
@@ -365,7 +376,7 @@ The post composer calls real AppView endpoints for Craftsky-only mention suggest
   - Flutter profile model/update/render flow should remove `descriptionFacets` entirely for profile bios.
   - AppView profile records should remain plain `description`; no `descriptionFacets` should be introduced.
 - Migration required: Yes, for the identity/handle cache table and any supporting indexes.
-- Data population required: Yes, `cli identity-cache backfill` should populate the identity cache for existing Craftsky profiles with a default batch limit of 100 and configurable `--limit <n>`. SQL migrations must not perform network handle resolution.
+- Data population required: Yes. The AppView profile creation/initialization path should upsert the identity cache for newly created/initialized Craftsky users. `cli identity-cache backfill` should populate the identity cache for existing Craftsky profiles with a default batch limit of 100 and configurable `--limit <n>`. SQL migrations must not perform network handle resolution.
 - Backwards compatibility:
   - Additive AppView endpoints are compatible with existing `/v1` conventions.
   - Removing client-sent `descriptionFacets` aligns Flutter with the existing AppView profile request contract.
@@ -382,8 +393,9 @@ The post composer calls real AppView endpoints for Craftsky-only mention suggest
   - New authenticated `GET /v1/facets/mentions/resolve?handle=<handle>` endpoint for exact mention handle resolution during final post facet generation. Success response shape: `{did, handle, isCraftskyProfile}`. Failure: `404 mention_not_found` using the standard error envelope.
   - New authenticated `GET /v1/facets/hashtags?q=<query>&limit=<n>` endpoint for hashtag suggestions. Response shape: `{items:[...]}`.
   - Endpoints must follow camelCase JSON and existing error-envelope conventions.
+- Profile initialization: when the AppView creates or initializes an authenticated user's Craftsky profile, it must resolve and upsert that user's current DID/handle into the identity cache.
 - CLI: `cli identity-cache backfill` is expected for existing Craftsky profiles, with default batch limit 100 and configurable `--limit <n>`.
-- Background jobs: None required by the current direction; opportunistic cache refresh plus CLI/bootstrap backfill is preferred. A future continuous background refresh job is not in scope.
+- Background jobs: None required by the current direction; profile-initialization cache upsert, opportunistic exact-resolve refresh, and CLI/bootstrap backfill are preferred. A future continuous background refresh job is not in scope.
 
 ## 17. Security / Privacy / Permissions
 
@@ -411,7 +423,7 @@ The post composer calls real AppView endpoints for Craftsky-only mention suggest
 | RISK-003 | Autocomplete performance | Unbounded searches over profiles/tags could degrade typing responsiveness. | Require limits, indexes, and deterministic ordering. |
 | RISK-004 | Plaintext bio parsing differences from Bluesky | Rendered clickable ranges may not exactly match Bluesky edge cases. | Define supported token patterns in tests and safely treat ambiguous cases as plain text. |
 | RISK-005 | Existing client/server mismatch for `descriptionFacets` | Current Flutter may send a field AppView rejects when non-empty. | Remove `descriptionFacets` from profile save path as part of this change. |
-| RISK-006 | Sparse handle cache after migration | Mention autocomplete may miss existing Craftsky profiles until handles are populated. | Require bounded CLI/ops/bootstrap backfill for existing Craftsky profiles. |
+| RISK-006 | Sparse handle cache after migration or profile initialization | Mention autocomplete may miss existing or newly created Craftsky profiles until handles are populated. | Require immediate identity-cache upsert on profile creation/initialization plus bounded CLI/ops/bootstrap backfill for existing Craftsky profiles. |
 
 ## 20. Assumptions
 
@@ -448,12 +460,12 @@ Notes: Medium risk because this is user-visible, introduces new AppView API endp
 - Next test specification: `02-acceptance-tests.md`
 - Must-cover requirement IDs:
   - Business: BR-001, BR-002, BR-003
-  - Functional: FR-001 through FR-015
+  - Functional: FR-001 through FR-016
   - Non-functional: NFR-001
   - Rules: RULE-001, RULE-002, RULE-003
 - Suggested test levels:
   - AppView handler tests for mention suggestion, exact mention resolution, hashtag suggestion, auth/device enforcement, error envelopes.
-  - AppView store/integration tests for identity cache search/refresh and hashtag 28-day counts.
+  - AppView store/integration tests for identity cache search/refresh, profile-initialization identity-cache upsert, and hashtag 28-day counts.
   - Flutter repository tests with Dio/mock adapter for real endpoint mapping and error handling.
   - Flutter widget tests for composer autocomplete retaining behavior with repository overrides.
   - Flutter widget/unit tests for plain bio editor and plaintext bio rendering/tap dispatch.
