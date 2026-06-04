@@ -22,6 +22,15 @@ This remains a medium-risk change because it crosses AppView API routes, persist
 | DR-003 | Suggestion | UI / Parser behavior | Plain bio parsing deliberately targets supported token rules rather than full Bluesky parity. This is aligned with the requirements, but fixtures must be explicit to avoid accidental behavior drift. | `01-requirements.md` FR-011, NFR-003, EC-003, EC-004, RISK-004; `02-acceptance-tests.md` UT-009, GAP-003, TD-005 | Implementation should centralize or clearly mirror post facet token fixtures and document malformed/overlapping token expectations in tests. |
 | DR-004 | Suggestion | Test clarity | Exact mention resolution tests cover both AppView endpoint behavior and Flutter facet-generator behavior. The distinction between endpoint `404 mention_not_found` and Flutter's “emit no facet but continue” behavior should stay explicit. | `01-requirements.md` FR-003, FR-004, FR-008, AC-006, AC-016; `02-acceptance-tests.md` AT-002, UT-004, UT-007, IT-003 | Coding planner should keep handler tests and Flutter generator tests separate enough that both contracts are independently verified. |
 
+## Resolution Notes
+
+| Finding ID | Resolution |
+|---|---|
+| DR-001 | Resolved to reject `limit > 25` with `400 validation_error` using the standard AppView `{error, message, requestId}` envelope. Empty or whitespace-only `q` still returns `{items:[]}`. `01-requirements.md` and `02-acceptance-tests.md` were updated to assert this exact behavior. |
+| DR-002 | Resolved to name the bounded identity-cache population command `cli identity-cache backfill`, run in dev as `docker compose exec appview /app/cli identity-cache backfill`. The command defaults to batch limit 100 and supports `--limit <n>`. `01-requirements.md` and `02-acceptance-tests.md` were updated accordingly. |
+| DR-003 | Resolved to defer full Bluesky parser parity. Implementation should centralize or explicitly mirror Craftsky's existing post facet generator token rules and lock fixtures for dotted handles, Unicode hashtags, HTTP/S URLs, bare domains normalized to HTTPS, unsupported schemes, malformed handles/URLs, and overlapping URL fragment/hashtag cases. |
+| DR-004 | Resolved by keeping two separate test contracts: AppView handler/store tests assert success objects or `404 mention_not_found`; Flutter facet-generation tests assert `mention_not_found` maps to no emitted mention facet while submission continues. |
+
 ## Traceability Review
 
 - Planning to requirements: The clarified decisions in `01-requirements.md` Q1-Q23 are carried into the recommended direction, goals/non-goals, requirements, edge cases, risks, and data/API/UI impacts. The workflow folder does not contain `00-initial-prompt.md`; the initial request and planning decisions are embedded in `01-requirements.md` §§1-5.
@@ -31,14 +40,14 @@ This remains a medium-risk change because it crosses AppView API routes, persist
 ## Coverage Review
 
 - Must requirements covered: Yes. `BR-001` through `BR-003`, `FR-001` through `FR-015`, `NFR-001`, and `RULE-001` through `RULE-003` are covered by automated acceptance/unit/integration/regression tests, with manual smoke checks only as supplemental validation.
-- Missing or weak coverage: No blocking gaps identified. Non-blocking gaps are already disclosed in `02-acceptance-tests.md` GAP-001 through GAP-004 and reflected in findings DR-001 through DR-004.
+- Missing or weak coverage: No blocking gaps identified. DR-001 and DR-002 are now resolved design decisions in `02-acceptance-tests.md`; remaining non-blocking gaps/risks are disclosed as GAP-003 and GAP-004.
 - Manual-only coverage: None for Must behavior. MAN-001 through MAN-003 are justified as smoke/operator checks after automated tests pass, especially for end-to-end UX and the identity-cache backfill operation.
 
 ## Risk And Approval Review
 
 - Risk level: Medium, matching both documents. The risk is appropriate because the change spans AppView API contracts, database schema/backfill, identity-cache freshness, Flutter repositories, composer UX, and profile bio rendering.
 - Review requirement: Document review is recommended before implementation and has been completed by this artifact.
-- Approval notes: Implementation may proceed if the coding plan resolves the non-blocking design choices called out in the findings. No requirement or test rewrite is required before coding planning.
+- Approval notes: Implementation may proceed. The non-blocking design choices called out in DR-001 through DR-004 have been resolved or explicitly deferred in the workflow documents.
 
 ## Coding Plan Readiness
 
@@ -50,6 +59,6 @@ This remains a medium-risk change because it crosses AppView API routes, persist
 
 - Treat `01-requirements.md`, `02-acceptance-tests.md`, and this review as source of truth.
 - Preserve the documented scope boundaries: no lexicon changes, no profile `descriptionFacets`, no general account search, no non-Craftsky mention targets, and no PDS tokens in Flutter.
-- Choose and document the concrete over-limit behavior for `limit > 25` before implementing validation tests.
-- Name the bounded identity-cache backfill command/path during coding planning and keep network resolution out of SQL migrations.
+- Implement over-limit behavior as `400 validation_error` for `limit > 25`.
+- Implement the bounded identity-cache backfill path as `cli identity-cache backfill`, default limit 100, configurable with `--limit <n>`, and keep network resolution out of SQL migrations.
 - Keep AppView handler tests separate from Flutter facet-generator tests where endpoint errors map to client-side “no facet emitted” behavior.

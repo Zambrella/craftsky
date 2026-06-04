@@ -174,6 +174,30 @@ Answer: For final post facet generation, not per-keystroke autocomplete or profi
 
 Decision / implication: Autocomplete uses the suggestion endpoint while typing; exact resolve is used by the post facet generator when final submitted text is converted into mention facets.
 
+### Q24: How should suggestion endpoints handle `limit > 25`?
+
+Answer: Reject with validation error.
+
+Decision / implication: `limit` values greater than 25 return a standard AppView `400 validation_error` envelope. Empty or whitespace-only queries still return `{items:[]}` rather than an error.
+
+### Q25: What concrete identity-cache backfill command should be planned?
+
+Answer: `cli identity-cache backfill`.
+
+Decision / implication: The bounded AppView CLI path for existing Craftsky profiles is `cli identity-cache backfill`, run in dev via the appview container as `docker compose exec appview /app/cli identity-cache backfill`. It defaults to a batch limit of 100 and supports `--limit <n>` for bounded runs.
+
+### Q26: Should profile bio parsing target full Bluesky parity?
+
+Answer: No, not for this change.
+
+Decision / implication: Plain bio rendering should use Craftsky's supported token behavior by centralizing or mirroring the existing post facet generator rules. Tests must lock explicit fixtures for dotted handles, Unicode hashtags, HTTP/S URLs, bare domains normalized to HTTPS, unsupported schemes, malformed handles/URLs, and overlapping URL fragment/hashtag cases. Full Bluesky parser parity is deferred out of scope.
+
+### Q27: How should exact mention resolution test contracts be separated?
+
+Answer: Keep AppView endpoint behavior and Flutter facet-generation fallback behavior separate.
+
+Decision / implication: AppView handler/store tests assert success objects or `404 mention_not_found` envelopes. Flutter facet-generator tests assert that `mention_not_found` maps to no emitted mention facet while post submission continues for the rest of the text.
+
 ## 4. Candidate Approaches
 
 ### Option A: Dedicated facet endpoints plus separate identity cache
@@ -288,7 +312,7 @@ The post composer calls real AppView endpoints for Craftsky-only mention suggest
 | FR-012 | Functional | Must | Click actions for detected profile bio mentions, hashtags, and links shall route consistently with existing facet click actions where the same destination exists, with mention taps navigating optimistically by visible handle. | Avoids duplicate navigation semantics and avoids network work during bio rendering/taps. | Q20, codebase discovery | AC-011, AC-017 |
 | FR-013 | Functional | Must | The AppView shall maintain a separate identity/handle cache table rather than storing handles directly on `bluesky_profiles`. | Handles are identity metadata, not profile record metadata. | Q6 | AC-004, AC-013 |
 | FR-014 | Functional | Must | The identity cache shall treat entries as fresh for autocomplete for 24 hours, and exact resolve shall refresh missing or stale entries. | Reduces stale-handle risk with a concrete testable freshness rule. | Q9 | AC-013, AC-018, EC-005 |
-| FR-015 | Functional | Must | The AppView shall provide a bounded CLI/ops/bootstrap identity-cache population path for existing Craftsky profiles, separate from SQL migration-time network work. | Ensures autocomplete works for existing accounts without broad per-query network fan-out. | Q17 | AC-019 |
+| FR-015 | Functional | Must | The AppView shall provide `cli identity-cache backfill` as a bounded identity-cache population path for existing Craftsky profiles, separate from SQL migration-time network work. | Ensures autocomplete works for existing accounts without broad per-query network fan-out. | Q17, Q25 | AC-019 |
 | NFR-001 | Non-functional | Must | New AppView endpoints shall follow existing `/v1` API conventions for auth, device ID, camelCase JSON, and error envelopes. | Maintains API consistency. | AGENTS.md, API spec | AC-012 |
 | NFR-002 | Non-functional | Should | Suggestion endpoints should apply default limit 10, maximum limit 25, query length bounds, and deterministic ordering suitable for autocomplete. | Prevents slow/noisy autocomplete responses. | Q10, Q18, Q19, discovery risk | AC-005, AC-007, AC-014 |
 | NFR-003 | Non-functional | Should | Profile bio plaintext detection should be render-safe, allow only HTTP/S link targets, normalize bare domains to HTTPS, and drop malformed or unsafe ranges without crashing. | Matches existing `FacetedText` safety posture and avoids unsafe link schemes. | Q21, codebase discovery | AC-010, AC-020, EC-003, EC-004 |
@@ -318,7 +342,7 @@ The post composer calls real AppView endpoints for Craftsky-only mention suggest
 | AC-016 | FR-003, FR-008 | Given a user types or edits final post text containing `@handle`, when the post submit flow generates facets, then exact resolve is used during final generation and not on each autocomplete keystroke. |
 | AC-017 | FR-012 | Given a detected profile bio mention is tapped, when the visible handle is syntactically valid, then the app navigates to that handle's profile route without pre-resolving it. |
 | AC-018 | FR-014 | Given a cached identity entry is less than or equal to 24 hours old, when autocomplete searches it, then the entry is considered fresh; given exact resolve sees a missing or stale entry, then it refreshes the cache on successful resolution. |
-| AC-019 | FR-015 | Given existing Craftsky profile rows predate the identity cache, when the bounded CLI/ops/bootstrap population path runs, then it resolves and stores handles for existing Craftsky profiles without performing network work inside the SQL migration. |
+| AC-019 | FR-015 | Given existing Craftsky profile rows predate the identity cache, when `cli identity-cache backfill` runs with its default batch limit of 100 or an explicit `--limit <n>`, then it resolves and stores handles for existing Craftsky profiles within the bound without performing network work inside the SQL migration. |
 | AC-020 | NFR-003 | Given a profile bio contains an explicit HTTP/S URL or bare domain, when rendered, then the link target is HTTP/S with bare domains normalized to HTTPS; given another URI scheme, then it remains plain text. |
 
 ## 14. Edge Cases
@@ -331,7 +355,7 @@ The post composer calls real AppView endpoints for Craftsky-only mention suggest
 | EC-004 | Plaintext bio token detection ranges overlap, such as a URL containing `#fragment` | Renderer chooses a deterministic non-overlapping interpretation and leaves skipped overlapping text safe/plain. | FR-011, NFR-003 |
 | EC-005 | Cached handle is stale after a user changes handle | Exact resolution should refresh or invalidate cache for correctness; stale autocomplete display is acceptable only within the documented cache freshness window. | FR-014, RISK-001 |
 | EC-006 | Network/API error during autocomplete | Composer remains usable; suggestions can fail closed without blocking typing or post submission except where exact mention resolution is needed for facets. | FR-007, FR-008 |
-| EC-007 | Suggestion endpoint receives `limit` greater than 25 | AppView clamps to 25 or rejects with validation according to endpoint design, but must never return more than 25 items. | NFR-002 |
+| EC-007 | Suggestion endpoint receives `limit` greater than 25 | AppView rejects the request with a standard `400 validation_error` envelope and never returns more than 25 items. | NFR-002 |
 
 ## 15. Data / Persistence Impact
 
@@ -341,7 +365,7 @@ The post composer calls real AppView endpoints for Craftsky-only mention suggest
   - Flutter profile model/update/render flow should remove `descriptionFacets` entirely for profile bios.
   - AppView profile records should remain plain `description`; no `descriptionFacets` should be introduced.
 - Migration required: Yes, for the identity/handle cache table and any supporting indexes.
-- Data population required: Yes, a bounded CLI/ops/bootstrap task or equivalent should populate the identity cache for existing Craftsky profiles. SQL migrations must not perform network handle resolution.
+- Data population required: Yes, `cli identity-cache backfill` should populate the identity cache for existing Craftsky profiles with a default batch limit of 100 and configurable `--limit <n>`. SQL migrations must not perform network handle resolution.
 - Backwards compatibility:
   - Additive AppView endpoints are compatible with existing `/v1` conventions.
   - Removing client-sent `descriptionFacets` aligns Flutter with the existing AppView profile request contract.
@@ -358,7 +382,7 @@ The post composer calls real AppView endpoints for Craftsky-only mention suggest
   - New authenticated `GET /v1/facets/mentions/resolve?handle=<handle>` endpoint for exact mention handle resolution during final post facet generation. Success response shape: `{did, handle, isCraftskyProfile}`. Failure: `404 mention_not_found` using the standard error envelope.
   - New authenticated `GET /v1/facets/hashtags?q=<query>&limit=<n>` endpoint for hashtag suggestions. Response shape: `{items:[...]}`.
   - Endpoints must follow camelCase JSON and existing error-envelope conventions.
-- CLI: A bounded identity-cache backfill command or equivalent bootstrap/ops task is expected for existing Craftsky profiles.
+- CLI: `cli identity-cache backfill` is expected for existing Craftsky profiles, with default batch limit 100 and configurable `--limit <n>`.
 - Background jobs: None required by the current direction; opportunistic cache refresh plus CLI/bootstrap backfill is preferred. A future continuous background refresh job is not in scope.
 
 ## 17. Security / Privacy / Permissions
@@ -402,7 +426,7 @@ The post composer calls real AppView endpoints for Craftsky-only mention suggest
 ## 21. Open Questions
 
 - None blocking.
-- Non-blocking for later design: exact SQL table/column names, whether over-limit requests are clamped or rejected, and the exact CLI command name should be finalized during technical design/test design while preserving the requirements above.
+- Non-blocking for later design: exact SQL table/column names should be finalized during technical design while preserving the requirements above.
 
 ## 22. Review Status
 
