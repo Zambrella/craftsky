@@ -6,6 +6,9 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
+import 'package:craftsky_app/shared/rich_text/data/mock_facet_suggestion_repository.dart';
+import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
@@ -69,7 +72,22 @@ Future<void> _pumpCommentSection(
 
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [postRepositoryProvider.overrideWithValue(repo)],
+      overrides: [
+        postRepositoryProvider.overrideWithValue(repo),
+        accountSuggestionRepositoryProvider.overrideWithValue(
+          const MockAccountSuggestionRepository(
+            accounts: [
+              AccountSuggestion(
+                did: 'did:plc:carol',
+                handle: 'carol.craftsky.social',
+                displayName: null,
+                avatar: null,
+                isCraftskyProfile: true,
+              ),
+            ],
+          ),
+        ),
+      ],
       child: MessengerScope(
         messenger: messenger ?? RecordingMessenger(),
         child: MaterialApp(
