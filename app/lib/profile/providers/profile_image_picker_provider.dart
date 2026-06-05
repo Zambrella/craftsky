@@ -18,12 +18,10 @@ final profileImagePickerProvider = Provider<ProfileImagePicker>((ref) {
 
 class ProfileImagePicker {
   const ProfileImagePicker({
-    required ImagePicker picker,
-    required ComposerImageMediaService media,
-    required BlobApiClient blobApi,
-  }) : _picker = picker,
-       _media = media,
-       _blobApi = blobApi;
+    required this._picker,
+    required this._media,
+    required this._blobApi,
+  });
 
   final ImagePicker _picker;
   final ComposerImageMediaService _media;

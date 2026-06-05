@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
+import 'package:craftsky_app/shared/rich_text/facet_syntax.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:flutter/material.dart';
@@ -72,7 +73,7 @@ List<_EditableFacetTokenRange> _editableFacetTokenRanges(String text) {
   while (index < text.length) {
     final trigger = text[index];
     if ((trigger == '@' || trigger == '#') &&
-        _hasEditableTokenBoundary(text, index)) {
+        hasFacetTokenBoundary(text, index)) {
       final end = _editableTokenEnd(text, index + 1, trigger);
       if (end > index + 1) {
         ranges.add(_EditableFacetTokenRange(start: index, end: end));
@@ -83,9 +84,9 @@ List<_EditableFacetTokenRange> _editableFacetTokenRanges(String text) {
     index++;
   }
 
-  for (final match in _editableLinkPattern.allMatches(text)) {
+  for (final match in facetLinkPattern.allMatches(text)) {
     final prefix = match.group(1) ?? '';
-    final visibleLink = _trimEditableLinkText(match.group(2)!);
+    final visibleLink = trimFacetLinkText(match.group(2)!);
     if (visibleLink.isEmpty) {
       continue;
     }
@@ -123,61 +124,14 @@ int _editableTokenEnd(String text, int start, String trigger) {
     if (!iterator.moveNext()) return index;
     final char = String.fromCharCode(iterator.current);
     final isValid = trigger == '@'
-        ? _editableMentionChar.hasMatch(char)
-        : _editableHashtagChar.hasMatch(char);
+        ? isEditableMentionChar(char)
+        : isEditableHashtagChar(char);
     if (!isValid) {
       return index;
     }
     index += char.length;
   }
   return index;
-}
-
-bool _hasEditableTokenBoundary(String text, int triggerIndex) {
-  if (triggerIndex == 0) {
-    return true;
-  }
-  final previous = text[triggerIndex - 1];
-  return previous.trim().isEmpty ||
-      _editableOpeningPunctuation.contains(previous);
-}
-
-const _editableOpeningPunctuation = {'(', '[', '{'};
-final _editableMentionChar = RegExp(r'^[A-Za-z0-9._-]$');
-final _editableHashtagChar = RegExp(r'^[\p{L}\p{N}_]$', unicode: true);
-final _editableLinkPattern = RegExp(
-  r'(^|[\s(\[{])((?:https?://)?(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}(?:/[^\s]*)?)',
-);
-const _editableTrailingSentencePunctuation = {'.', ',', '!', '?', ';', ':'};
-
-String _trimEditableLinkText(String link) {
-  var trimmed = link;
-  while (trimmed.isNotEmpty &&
-      _editableTrailingSentencePunctuation.contains(
-        trimmed[trimmed.length - 1],
-      )) {
-    trimmed = trimmed.substring(0, trimmed.length - 1);
-  }
-  while (trimmed.endsWith(')') &&
-      _countEditableCharacters(trimmed, ')') >
-          _countEditableCharacters(trimmed, '(')) {
-    trimmed = trimmed.substring(0, trimmed.length - 1);
-  }
-  while (trimmed.endsWith(']') &&
-      _countEditableCharacters(trimmed, ']') >
-          _countEditableCharacters(trimmed, '[')) {
-    trimmed = trimmed.substring(0, trimmed.length - 1);
-  }
-  while (trimmed.endsWith('}') &&
-      _countEditableCharacters(trimmed, '}') >
-          _countEditableCharacters(trimmed, '{')) {
-    trimmed = trimmed.substring(0, trimmed.length - 1);
-  }
-  return trimmed;
-}
-
-int _countEditableCharacters(String text, String character) {
-  return character.allMatches(text).length;
 }
 
 /// Reusable editor with mention/hashtag autocomplete support.
@@ -249,7 +203,7 @@ class _FacetAutocompleteEditorState
   static const _suggestionOverlayBaseWidth = 300.0;
   static const _maxDisplayedSuggestions = 5;
 
-  final _textFieldKey = GlobalKey();
+  final GlobalKey _textFieldKey = GlobalKey();
   FocusNode? _internalFocusNode;
   late FocusNode _focusNode;
   Timer? _debounceTimer;
@@ -453,8 +407,8 @@ class _FacetAutocompleteEditorState
     );
     final overlayWidth = overlayBox.size.width;
     const viewportPadding = 8.0;
-    final availableWidth = math.max(
-      0.0,
+    final availableWidth = math.max<double>(
+      0,
       overlayWidth - (viewportPadding * 2),
     );
     final width = math.min(

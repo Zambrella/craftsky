@@ -4,6 +4,8 @@
 import 'dart:convert';
 
 import 'package:craftsky_app/shared/rich_text/facet_generator.dart';
+import 'package:craftsky_app/shared/rich_text/facet_token_parser.dart';
+import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -76,6 +78,38 @@ void main() {
         expect(text, contains('@unknown.example'));
       },
     );
+
+    test('detects typed facet token variants before generation', () {
+      const text = 'Hi @alice.craftsky.social craftsky.social #SockKAL';
+
+      final tokens = detectSupportedFacetTokens(text);
+
+      expect(tokens, hasLength(3));
+      expect(
+        tokens[0],
+        isA<MentionFacetToken>().having(
+          (token) => token.handle,
+          'handle',
+          'alice.craftsky.social',
+        ),
+      );
+      expect(
+        tokens[1],
+        isA<LinkFacetToken>().having(
+          (token) => token.uri,
+          'uri',
+          'https://craftsky.social',
+        ),
+      );
+      expect(
+        tokens[2],
+        isA<TagFacetToken>().having((token) => token.tag, 'tag', 'SockKAL'),
+      );
+      expect(tokens[1].toRawFeature(), {
+        r'$type': FacetFeatureType.link,
+        'uri': 'https://craftsky.social',
+      });
+    });
 
     test('UT-004 recognizes HTTP, HTTPS, and bare-domain links', () async {
       const text = 'http://a.example https://b.example craftsky.social';

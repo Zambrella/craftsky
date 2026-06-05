@@ -641,6 +641,54 @@ func TestAddRoutes_ImageBlobUploadRouteRegistered(t *testing.T) {
 	}
 }
 
+func TestAddRoutes_FacetRoutesRegisteredAndRequireAuthenticatedDevice(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		path string
+	}{
+		{name: "mention suggestions", path: "/v1/facets/mentions?q=ali"},
+		{name: "mention resolve", path: "/v1/facets/mentions/resolve?handle=alice.craftsky.social"},
+		{name: "hashtag suggestions", path: "/v1/facets/hashtags?q=sock"},
+	} {
+		t.Run(tc.name+" registered", func(t *testing.T) {
+			mux := http.NewServeMux()
+			AddRoutes(context.Background(), mux, testDeps())
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			_, pattern := mux.Handler(req)
+			if pattern == "/" || pattern == "" {
+				t.Fatalf("pattern = %q; %s must be registered", pattern, tc.path)
+			}
+		})
+
+		t.Run(tc.name+" requires auth", func(t *testing.T) {
+			mux := http.NewServeMux()
+			AddRoutes(context.Background(), mux, testDeps())
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+			rr := httptest.NewRecorder()
+			mux.ServeHTTP(rr, req)
+			if rr.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want 401", rr.Code)
+			}
+		})
+
+		t.Run(tc.name+" requires device", func(t *testing.T) {
+			mux := http.NewServeMux()
+			AddRoutes(context.Background(), mux, testDeps())
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			req.Header.Set("Authorization", "Bearer anything")
+			rr := httptest.NewRecorder()
+			mux.ServeHTTP(rr, req)
+			if rr.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400", rr.Code)
+			}
+			if !strings.Contains(rr.Body.String(), "missing_device_id") {
+				t.Errorf("body = %q, want containing 'missing_device_id'", rr.Body.String())
+			}
+		})
+	}
+}
+
 func TestAddRoutes_ImageBlobUploadRequiresAuth(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, testDeps())

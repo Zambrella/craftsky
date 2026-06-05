@@ -3,12 +3,8 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
-import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
-import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
-import 'package:craftsky_app/shared/rich_text/data/mock_facet_suggestion_repository.dart';
-import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,23 +22,20 @@ final _seedProfile = Profile(
 );
 
 void main() {
-  group('EditProfileDialog facets', () {
+  group('EditProfileDialog plain bio', () {
     testWidgets(
-      'AT-002 sends generated descriptionFacets while preserving profile '
-      'save fields',
+      'AT-004 saves description as plain text and shows no autocomplete',
       (tester) async {
         String? capturedDisplayName;
         String? capturedDescription;
         List<String>? capturedCrafts;
-        List<Map<String, dynamic>>? capturedDescriptionFacets;
 
         final repo = FakeProfileRepository(
           onFetch: (_) async => _seedProfile,
-          onUpdateMeWithFacets:
+          onUpdateMe:
               ({
                 displayName,
                 description,
-                descriptionFacets,
                 crafts,
                 avatar,
                 clearAvatar = false,
@@ -52,37 +45,18 @@ void main() {
                 capturedDisplayName = displayName;
                 capturedDescription = description;
                 capturedCrafts = crafts;
-                capturedDescriptionFacets = descriptionFacets;
                 return _seedProfile.copyWith(description: description);
               },
         );
 
-        await _pumpEditDialog(
-          tester,
-          repo: repo,
-          overrides: [
-            accountSuggestionRepositoryProvider.overrideWithValue(
-              const MockAccountSuggestionRepository(
-                accounts: [
-                  AccountSuggestion(
-                    did: 'did:plc:alice',
-                    handle: 'alice.craftsky.social',
-                    displayName: 'Alice',
-                    avatar: null,
-                    isCraftskyProfile: true,
-                    viewerIsFollowing: true,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
+        await _pumpEditDialog(tester, repo: repo);
 
         await tester.enterText(
           find.widgetWithText(TextField, 'Sewist in Bristol'),
           'Knitting with @alice.craftsky.social #Lace',
         );
         await tester.pump();
+        expect(find.text('Alice'), findsNothing);
         await tester.tap(find.widgetWithText(TextButton, 'Save'));
         await tester.pumpAndSettle();
 
@@ -92,92 +66,6 @@ void main() {
           'Knitting with @alice.craftsky.social #Lace',
         );
         expect(capturedCrafts, ['sewing', 'quilting']);
-
-        // Flutter intentionally sends descriptionFacets even though the current
-        // live AppView may reject the field until backend support lands.
-        expect(capturedDescriptionFacets, isNotNull);
-        final features = capturedDescriptionFacets!
-            .expand((facet) => facet['features']! as List<dynamic>)
-            .cast<Map<String, dynamic>>()
-            .toList();
-        expect(
-          features,
-          anyElement(
-            allOf(
-              containsPair(r'$type', 'app.bsky.richtext.facet#mention'),
-              containsPair('did', 'did:plc:alice'),
-            ),
-          ),
-        );
-        expect(
-          features,
-          anyElement(
-            allOf(
-              containsPair(r'$type', 'app.bsky.richtext.facet#tag'),
-              containsPair('tag', 'Lace'),
-            ),
-          ),
-        );
-      },
-    );
-
-    testWidgets(
-      'IT-006 current AppView descriptionFacets rejection uses save-error path',
-      (tester) async {
-        List<Map<String, dynamic>>? capturedDescriptionFacets;
-
-        final repo = FakeProfileRepository(
-          onFetch: (_) async => _seedProfile,
-          onUpdateMeWithFacets:
-              ({
-                displayName,
-                description,
-                descriptionFacets,
-                crafts,
-                avatar,
-                clearAvatar = false,
-                banner,
-                clearBanner = false,
-              }) async {
-                capturedDescriptionFacets = descriptionFacets;
-                // Current live AppView rejects descriptionFacets until the
-                // follow-up backend/API slice adds profile-facet support.
-                throw const ApiBadRequest('unexpected_field');
-              },
-        );
-
-        await _pumpEditDialog(
-          tester,
-          repo: repo,
-          overrides: [
-            accountSuggestionRepositoryProvider.overrideWithValue(
-              const MockAccountSuggestionRepository(
-                accounts: [
-                  AccountSuggestion(
-                    did: 'did:plc:alice',
-                    handle: 'alice.craftsky.social',
-                    displayName: 'Alice',
-                    avatar: null,
-                    isCraftskyProfile: true,
-                    viewerIsFollowing: true,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-
-        await tester.enterText(
-          find.widgetWithText(TextField, 'Sewist in Bristol'),
-          'Knitting with @alice.craftsky.social #Lace',
-        );
-        await tester.pump();
-        await tester.tap(find.widgetWithText(TextButton, 'Save'));
-        await tester.pumpAndSettle();
-
-        expect(capturedDescriptionFacets, isNotNull);
-        expect(find.text("Couldn't save your profile."), findsOneWidget);
-        expect(find.text('Open'), findsNothing);
       },
     );
   });

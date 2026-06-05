@@ -56,13 +56,25 @@ void main() {
       expect(ranges, hasLength(2));
       expect(ranges[0].charStart, text.indexOf('@alice'));
       expect(ranges[0].charEnd, text.indexOf('@alice') + '@alice'.length);
-      expect(ranges[0].feature.kind, FacetFeatureKind.mention);
-      expect(ranges[0].feature.did, 'did:plc:alice');
+      expect(
+        ranges[0].feature,
+        isA<MentionFacetFeature>().having(
+          (feature) => feature.did,
+          'did',
+          'did:plc:alice',
+        ),
+      );
 
       expect(ranges[1].charStart, text.indexOf('#SockKAL'));
       expect(ranges[1].charEnd, text.indexOf('#SockKAL') + '#SockKAL'.length);
-      expect(ranges[1].feature.kind, FacetFeatureKind.tag);
-      expect(ranges[1].feature.tag, 'SockKAL');
+      expect(
+        ranges[1].feature,
+        isA<TagFacetFeature>().having(
+          (feature) => feature.tag,
+          'tag',
+          'SockKAL',
+        ),
+      );
     });
 
     test('UT-010 drops only ranges that split multibyte characters', () {
@@ -89,8 +101,14 @@ void main() {
 
       expect(ranges, hasLength(1));
       expect(ranges.single.charStart, text.indexOf('#SockKAL'));
-      expect(ranges.single.feature.kind, FacetFeatureKind.tag);
-      expect(ranges.single.feature.tag, 'SockKAL');
+      expect(
+        ranges.single.feature,
+        isA<TagFacetFeature>().having(
+          (feature) => feature.tag,
+          'tag',
+          'SockKAL',
+        ),
+      );
     });
   });
 }

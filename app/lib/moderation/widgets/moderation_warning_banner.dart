@@ -28,7 +28,6 @@ class ModerationWarningBanner extends StatelessWidget {
           borderRadius: BorderRadius.circular(radii.r3),
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(
               Icons.info_outline,

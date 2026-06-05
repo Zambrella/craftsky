@@ -22,8 +22,7 @@ class Timeline extends _$Timeline {
     final current = state.value;
     if (current == null || !current.hasMore || state.isLoading) return;
 
-    // ignore: invalid_use_of_internal_member
-    state = const AsyncLoading<TimelineState>().copyWithPrevious(state);
+    state = const AsyncLoading<TimelineState>();
 
     final next = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
@@ -38,8 +37,7 @@ class Timeline extends _$Timeline {
     });
 
     if (!ref.mounted) return;
-    // ignore: invalid_use_of_internal_member
-    state = next.copyWithPrevious(state);
+    state = next;
   }
 
   void prepend(Post post) {

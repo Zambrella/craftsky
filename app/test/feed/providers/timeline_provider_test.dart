@@ -1,6 +1,6 @@
-import 'package:craftsky_app/bootstrap.dart';
 import 'dart:async';
 
+import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
@@ -201,9 +201,9 @@ void main() {
 
         await container.read(timelineProvider.future);
 
-        final notifier = container.read(timelineProvider.notifier);
-        notifier.prepend(_samplePost(rkey: 'new'));
-        notifier.prepend(old);
+        container.read(timelineProvider.notifier)
+          ..prepend(_samplePost(rkey: 'new'))
+          ..prepend(old);
 
         final state = container.read(timelineProvider).value!;
         expect(state.items.map((p) => p.rkey), ['new', 'old']);
@@ -251,9 +251,9 @@ void main() {
         );
 
         await container.read(timelineProvider.future);
-        final notifier = container.read(timelineProvider.notifier);
-        notifier.removeByUri(a.uri);
-        notifier.removeByUri(a.uri);
+        container.read(timelineProvider.notifier)
+          ..removeByUri(a.uri)
+          ..removeByUri(a.uri);
 
         final state = container.read(timelineProvider).value!;
         expect(state.items.map((p) => p.rkey), ['b']);

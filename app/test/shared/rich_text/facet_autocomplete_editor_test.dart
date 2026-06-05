@@ -33,14 +33,12 @@ void main() {
                       displayName: 'Alicia',
                       avatar: 'https://example.com/alicia.jpg',
                       isCraftskyProfile: true,
-                      viewerIsFollowing: false,
                     ),
                     AccountSuggestion(
                       did: 'did:plc:mallory',
                       handle: 'alice.elsewhere.example',
                       displayName: 'Mallory',
                       avatar: 'https://example.com/mallory.jpg',
-                      isCraftskyProfile: false,
                       viewerIsFollowing: true,
                     ),
                     AccountSuggestion(
@@ -275,7 +273,6 @@ void main() {
                     displayName: 'Alice',
                     avatar: null,
                     isCraftskyProfile: true,
-                    viewerIsFollowing: false,
                   ),
                 ],
               ),
@@ -314,7 +311,7 @@ void main() {
 
       await tester.pumpWidget(
         _wrap(
-          textScaler: TextScaler.linear(1.5),
+          textScaler: const TextScaler.linear(1.5),
           overrides: [
             facetAutocompleteDebounceProvider.overrideWithValue(Duration.zero),
             accountSuggestionRepositoryProvider.overrideWithValue(
@@ -326,7 +323,6 @@ void main() {
                     displayName: 'Alice',
                     avatar: null,
                     isCraftskyProfile: true,
-                    viewerIsFollowing: false,
                   ),
                 ],
               ),
@@ -417,7 +413,6 @@ void main() {
                         displayName: 'Alice',
                         avatar: null,
                         isCraftskyProfile: true,
-                        viewerIsFollowing: false,
                       ),
                     ],
                   ),
@@ -469,7 +464,6 @@ void main() {
                     displayName: 'Alice',
                     avatar: null,
                     isCraftskyProfile: true,
-                    viewerIsFollowing: false,
                   ),
                 ],
               ),

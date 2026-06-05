@@ -1,3 +1,4 @@
+import 'package:craftsky_app/shared/rich_text/facet_token_parser.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:flutter/material.dart';
 
@@ -8,11 +9,9 @@ class ProfileBio extends StatelessWidget {
   const ProfileBio({
     required this.description,
     super.key,
-    this.descriptionFacets,
   });
 
   final String? description;
-  final List<Map<String, dynamic>>? descriptionFacets;
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +20,7 @@ class ProfileBio extends StatelessWidget {
     final theme = Theme.of(context);
     return FacetedText(
       text: text,
-      facets: descriptionFacets,
+      facets: rawFacetsForPlainText(text),
       style: theme.textTheme.bodyMedium?.copyWith(
         color: theme.colorScheme.onSurface,
       ),

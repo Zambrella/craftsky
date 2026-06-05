@@ -119,20 +119,20 @@ final class NotificationActor {
        handle = Handle.parse(handle),
        avatarCid = avatarCid == null ? null : Cid.parse(avatarCid);
 
-  final Did did;
-  final Handle handle;
-  final String? displayName;
-  final Cid? avatarCid;
-
-  String get displayLabel => displayName ?? handle.toString();
-
-  static NotificationActor fromMap(Map<String, dynamic> map) =>
+  factory NotificationActor.fromMap(Map<String, dynamic> map) =>
       NotificationActor(
         did: map['did'] as String,
         handle: map['handle'] as String,
         displayName: map['displayName'] as String?,
         avatarCid: map['avatarCid'] as String?,
       );
+
+  final Did did;
+  final Handle handle;
+  final String? displayName;
+  final Cid? avatarCid;
+
+  String get displayLabel => displayName ?? handle.toString();
 }
 
 final class NotificationReplyRef {
@@ -144,16 +144,16 @@ final class NotificationReplyRef {
        cid = Cid.parse(cid),
        rkey = RecordKey.parse(rkey);
 
-  final AtUri uri;
-  final Cid cid;
-  final RecordKey rkey;
-
-  static NotificationReplyRef fromMap(Map<String, dynamic> map) =>
+  factory NotificationReplyRef.fromMap(Map<String, dynamic> map) =>
       NotificationReplyRef(
         uri: map['uri'] as String,
         cid: map['cid'] as String,
         rkey: map['rkey'] as String,
       );
+
+  final AtUri uri;
+  final Cid cid;
+  final RecordKey rkey;
 }
 
 final class NotificationCommon {
@@ -166,14 +166,7 @@ final class NotificationCommon {
     required this.indexedAt,
   });
 
-  final AtUri uri;
-  final Cid cid;
-  final RecordKey rkey;
-  final NotificationActor actor;
-  final DateTime createdAt;
-  final DateTime indexedAt;
-
-  static NotificationCommon fromMap(Map<String, dynamic> map) =>
+  factory NotificationCommon.fromMap(Map<String, dynamic> map) =>
       NotificationCommon(
         uri: AtUri.parse(map['uri'] as String),
         cid: Cid.parse(map['cid'] as String),
@@ -182,4 +175,11 @@ final class NotificationCommon {
         createdAt: DateTime.parse(map['createdAt'] as String),
         indexedAt: DateTime.parse(map['indexedAt'] as String),
       );
+
+  final AtUri uri;
+  final Cid cid;
+  final RecordKey rkey;
+  final NotificationActor actor;
+  final DateTime createdAt;
+  final DateTime indexedAt;
 }

@@ -1,6 +1,7 @@
+import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/rich_text/facet_syntax.dart';
 import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 /// Launches a URL for a link facet. Tests override this seam.
 typedef FacetUrlLauncher = Future<bool> Function(Uri uri);
@@ -20,23 +21,19 @@ class FacetActionHandler {
     required String visibleText,
   }) async {
     try {
-      switch (feature.kind) {
-        case FacetFeatureKind.mention:
+      switch (feature) {
+        case MentionFacetFeature():
           final handle = _visibleMentionHandle(visibleText);
           if (handle == null) return;
-          await GoRouter.of(context).push<void>('/profile/$handle');
-        case FacetFeatureKind.link:
-          final uriText = feature.uri;
-          if (uriText == null) return;
+          await UserProfileRoute(handle: handle).push<void>(context);
+        case LinkFacetFeature(uri: final uriText):
+          if (uriText.isEmpty) return;
           final uri = Uri.tryParse(uriText);
           if (uri == null) return;
           await launchUrl(uri);
-        case FacetFeatureKind.tag:
-          final tag = feature.tag ?? _visibleTag(visibleText);
-          if (tag == null || tag.isEmpty) return;
-          GoRouter.of(context).go(
-            Uri(path: '/search', queryParameters: {'tag': tag}).toString(),
-          );
+        case TagFacetFeature(:final tag):
+          if (tag.isEmpty) return;
+          await SearchRoute(tag: tag).push<void>(context);
       }
     } on Object {
       // Destination failures must not crash rendered text surfaces.
@@ -47,11 +44,5 @@ class FacetActionHandler {
 String? _visibleMentionHandle(String visibleText) {
   if (!visibleText.startsWith('@')) return null;
   final handle = visibleText.substring(1);
-  final valid = RegExp(r'^[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z][A-Za-z0-9-]*$');
-  return valid.hasMatch(handle) ? handle : null;
-}
-
-String? _visibleTag(String visibleText) {
-  if (!visibleText.startsWith('#')) return null;
-  return visibleText.substring(1);
+  return isValidMentionHandle(handle) ? handle : null;
 }

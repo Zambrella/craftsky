@@ -18,14 +18,12 @@ void main() {
               displayName: 'Alicia',
               avatar: 'https://example.com/alicia.jpg',
               isCraftskyProfile: true,
-              viewerIsFollowing: false,
             ),
             AccountSuggestion(
               did: 'did:plc:mallory',
               handle: 'alice.elsewhere.example',
               displayName: 'Mallory',
               avatar: null,
-              isCraftskyProfile: false,
               viewerIsFollowing: true,
             ),
             AccountSuggestion(

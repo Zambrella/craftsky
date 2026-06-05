@@ -49,6 +49,8 @@ type Deps struct {
 
 	// ProfileStore serves the /v1/profiles endpoints.
 	ProfileStore *api.ProfileStore
+	// IdentityCacheUpdater upserts authenticated users' current handles after profile initialization.
+	IdentityCacheUpdater auth.IdentityCacheUpdater
 	// FollowStore serves follow graph read/write operations for /v1/profiles/*/follows.
 	FollowStore *api.FollowStore
 	// ReportStore persists AppView-private moderation report intake.
@@ -154,6 +156,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	}
 
 	deps.ProfileStore = api.NewProfileStore(pool, anonPDS)
+	deps.IdentityCacheUpdater = api.NewIdentityCacheService(pool, deps.HandleResolver, time.Now)
 	deps.FollowStore = api.NewFollowStore(pool)
 	deps.ReportStore = api.NewReportStore(pool)
 	deps.ReportForwarder = api.NewPlaceholderReportForwarder(time.Now)

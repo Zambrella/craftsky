@@ -3,6 +3,9 @@
 // ignore_for_file: one_member_abstracts
 
 import 'package:craftsky_app/shared/rich_text/facet_generator.dart';
+import 'package:dart_mappable/dart_mappable.dart';
+
+part 'facet_suggestion_repository.mapper.dart';
 
 /// Repository for local/mock Craftsky account suggestions.
 abstract interface class AccountSuggestionRepository
@@ -18,15 +21,16 @@ abstract interface class HashtagSuggestionRepository {
 }
 
 /// Account data needed by mention autocomplete and local mention resolution.
-class AccountSuggestion {
+@MappableClass()
+class AccountSuggestion with AccountSuggestionMappable {
   /// Creates an account suggestion.
   const AccountSuggestion({
     required this.did,
     required this.handle,
     required this.displayName,
     required this.avatar,
-    required this.isCraftskyProfile,
-    required this.viewerIsFollowing,
+    this.isCraftskyProfile = false,
+    this.viewerIsFollowing = false,
   });
 
   /// Account DID.
@@ -49,9 +53,10 @@ class AccountSuggestion {
 }
 
 /// Hashtag data needed by hashtag autocomplete.
-class HashtagSuggestion {
+@MappableClass()
+class HashtagSuggestion with HashtagSuggestionMappable {
   /// Creates a hashtag suggestion.
-  const HashtagSuggestion({required this.tag, required this.postsLast28Days});
+  const HashtagSuggestion({required this.tag, this.postsLast28Days = 0});
 
   /// Repository display/canonical tag casing, without leading `#`.
   final String tag;

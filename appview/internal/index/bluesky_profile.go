@@ -99,11 +99,3 @@ func (b *BlueskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 		return fmt.Errorf("unknown action %q on %s", ev.Action, ev.URI)
 	}
 }
-
-func (b *BlueskyProfile) isMember(ctx context.Context, did syntax.DID) (bool, error) {
-	var exists bool
-	err := b.pool.QueryRow(ctx,
-		`SELECT EXISTS (SELECT 1 FROM craftsky_profiles WHERE did = $1)`, did).
-		Scan(&exists)
-	return exists, err
-}
