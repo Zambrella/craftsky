@@ -1,39 +1,45 @@
 import 'dart:convert';
 
-/// Supported rich-text facet feature kinds for rendering.
-enum FacetFeatureKind { mention, link, tag }
-
 /// A supported facet feature selected from raw incoming facet metadata.
-class FacetFeature {
+sealed class FacetFeature {
+  /// Creates a supported facet feature.
+  const FacetFeature();
+
   /// Creates a mention feature.
-  const FacetFeature.mention(this.did)
-    : kind = FacetFeatureKind.mention,
-      uri = null,
-      tag = null;
+  const factory FacetFeature.mention(String did) = MentionFacetFeature;
 
   /// Creates a link feature.
-  const FacetFeature.link(this.uri)
-    : kind = FacetFeatureKind.link,
-      did = null,
-      tag = null;
+  const factory FacetFeature.link(String uri) = LinkFacetFeature;
 
   /// Creates a hashtag feature.
-  const FacetFeature.tag(this.tag)
-    : kind = FacetFeatureKind.tag,
-      did = null,
-      uri = null;
+  const factory FacetFeature.tag(String tag) = TagFacetFeature;
+}
 
-  /// The feature kind.
-  final FacetFeatureKind kind;
+/// Mention facet feature data.
+final class MentionFacetFeature extends FacetFeature {
+  /// Creates mention facet feature data.
+  const MentionFacetFeature(this.did);
 
-  /// Mention DID for [FacetFeatureKind.mention].
-  final String? did;
+  /// Mention DID.
+  final String did;
+}
 
-  /// Link URI for [FacetFeatureKind.link].
-  final String? uri;
+/// Link facet feature data.
+final class LinkFacetFeature extends FacetFeature {
+  /// Creates link facet feature data.
+  const LinkFacetFeature(this.uri);
 
-  /// Hashtag value for [FacetFeatureKind.tag].
-  final String? tag;
+  /// Link URI.
+  final String uri;
+}
+
+/// Hashtag facet feature data.
+final class TagFacetFeature extends FacetFeature {
+  /// Creates hashtag facet feature data.
+  const TagFacetFeature(this.tag);
+
+  /// Hashtag value.
+  final String tag;
 }
 
 /// A facet range normalized to Dart string character indices.

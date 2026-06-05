@@ -1,6 +1,9 @@
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
 import 'package:dio/dio.dart';
+import 'package:logging/logging.dart';
+
+final _log = Logger('AppViewFacetSuggestionRepository');
 
 /// Dio-backed account suggestions from authenticated AppView facet endpoints.
 class AppViewAccountSuggestionRepository
@@ -17,16 +20,16 @@ class AppViewAccountSuggestionRepository
         '/v1/facets/mentions',
         queryParameters: {'q': query, 'limit': 10},
       );
-      final items = res.data?['items'];
-      if (items is! List) return const [];
-      return items
-          .whereType<Map>()
-          .map((item) => item.cast<String, dynamic>())
-          .map(_accountFromMap)
-          .toList();
-    } on ApiException {
+      return _decodeSuggestionItems(
+        data: res.data,
+        endpoint: '/v1/facets/mentions',
+        decode: AccountSuggestionMapper.fromMap,
+      );
+    } on ApiException catch (error, stackTrace) {
+      _log.warning('mention suggestions API error', error, stackTrace);
       return const [];
-    } on DioException {
+    } on DioException catch (error, stackTrace) {
+      _log.warning('mention suggestions network error', error, stackTrace);
       return const [];
     }
   }
@@ -39,26 +42,23 @@ class AppViewAccountSuggestionRepository
         queryParameters: {'handle': handle},
       );
       final did = res.data?['did'];
-      return did is String && did.isNotEmpty ? did : null;
-    } on ApiBadRequest catch (error) {
+      if (did is String && did.isNotEmpty) return did;
+      _log.warning(
+        'unexpected /v1/facets/mentions/resolve response shape: '
+        'did=${did.runtimeType}',
+      );
+      return null;
+    } on ApiBadRequest catch (error, stackTrace) {
       if (error.code == 'mention_not_found') return null;
+      _log.warning('mention resolve API error', error, stackTrace);
       return null;
-    } on ApiException {
+    } on ApiException catch (error, stackTrace) {
+      _log.warning('mention resolve API error', error, stackTrace);
       return null;
-    } on DioException {
+    } on DioException catch (error, stackTrace) {
+      _log.warning('mention resolve network error', error, stackTrace);
       return null;
     }
-  }
-
-  AccountSuggestion _accountFromMap(Map<String, dynamic> item) {
-    return AccountSuggestion(
-      did: item['did'] as String,
-      handle: item['handle'] as String,
-      displayName: item['displayName'] as String?,
-      avatar: item['avatar'] as String?,
-      isCraftskyProfile: item['isCraftskyProfile'] as bool? ?? false,
-      viewerIsFollowing: item['viewerIsFollowing'] as bool? ?? false,
-    );
   }
 }
 
@@ -77,22 +77,52 @@ class AppViewHashtagSuggestionRepository
         '/v1/facets/hashtags',
         queryParameters: {'q': query, 'limit': 10},
       );
-      final items = res.data?['items'];
-      if (items is! List) return const [];
-      return items
-          .whereType<Map>()
-          .map((item) => item.cast<String, dynamic>())
-          .map(
-            (item) => HashtagSuggestion(
-              tag: item['tag'] as String,
-              postsLast28Days: item['postsLast28Days'] as int? ?? 0,
-            ),
-          )
-          .toList();
-    } on ApiException {
+      return _decodeSuggestionItems(
+        data: res.data,
+        endpoint: '/v1/facets/hashtags',
+        decode: HashtagSuggestionMapper.fromMap,
+      );
+    } on ApiException catch (error, stackTrace) {
+      _log.warning('hashtag suggestions API error', error, stackTrace);
       return const [];
-    } on DioException {
+    } on DioException catch (error, stackTrace) {
+      _log.warning('hashtag suggestions network error', error, stackTrace);
       return const [];
     }
   }
+}
+
+List<T> _decodeSuggestionItems<T>({
+  required Map<String, dynamic>? data,
+  required String endpoint,
+  required T Function(Map<String, dynamic> item) decode,
+}) {
+  final items = data?['items'];
+  if (items is! List) {
+    _log.warning(
+      'unexpected $endpoint response shape: items=${items.runtimeType}',
+    );
+    return const [];
+  }
+
+  final decoded = <T>[];
+  for (final (index, item) in items.indexed) {
+    if (item is! Map<String, dynamic>) {
+      _log.warning(
+        'unexpected $endpoint item shape at index $index: ${item.runtimeType}',
+      );
+      continue;
+    }
+
+    try {
+      decoded.add(decode(item));
+    } on Object catch (error, stackTrace) {
+      _log.warning(
+        'failed to decode $endpoint item at index $index',
+        error,
+        stackTrace,
+      );
+    }
+  }
+  return decoded;
 }

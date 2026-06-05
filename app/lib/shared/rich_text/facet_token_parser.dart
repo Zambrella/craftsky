@@ -38,9 +38,9 @@ class FacetToken {
       case FacetTokenKind.mention:
         return const FacetFeature.mention('');
       case FacetTokenKind.link:
-        return FacetFeature.link(uri);
+        return FacetFeature.link(uri!);
       case FacetTokenKind.tag:
-        return FacetFeature.tag(tag);
+        return FacetFeature.tag(tag!);
     }
   }
 

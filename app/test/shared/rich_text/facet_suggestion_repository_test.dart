@@ -25,6 +25,12 @@ void main() {
               'isCraftskyProfile': true,
               'viewerIsFollowing': true,
             },
+            {
+              'did': 'did:plc:alicia',
+              'handle': 'alicia.craftsky.social',
+              'displayName': null,
+              'avatar': null,
+            },
           ],
         }),
         queryParameters: {'q': 'ali', 'limit': 10},
@@ -34,13 +40,16 @@ void main() {
         dio,
       ).searchAccounts('ali');
 
-      expect(items, hasLength(1));
-      expect(items.single.did, 'did:plc:alice');
-      expect(items.single.handle, 'alice.craftsky.social');
-      expect(items.single.displayName, 'Alice');
-      expect(items.single.avatar, isNull);
-      expect(items.single.isCraftskyProfile, isTrue);
-      expect(items.single.viewerIsFollowing, isTrue);
+      expect(items, hasLength(2));
+      expect(items.first.did, 'did:plc:alice');
+      expect(items.first.handle, 'alice.craftsky.social');
+      expect(items.first.displayName, 'Alice');
+      expect(items.first.avatar, isNull);
+      expect(items.first.isCraftskyProfile, isTrue);
+      expect(items.first.viewerIsFollowing, isTrue);
+      expect(items.last.did, 'did:plc:alicia');
+      expect(items.last.isCraftskyProfile, isFalse);
+      expect(items.last.viewerIsFollowing, isFalse);
     },
   );
 
@@ -53,6 +62,7 @@ void main() {
         (server) => server.reply(200, {
           'items': [
             {'tag': 'sockkal', 'postsLast28Days': 12},
+            {'tag': 'knitting'},
           ],
         }),
         queryParameters: {'q': 'sock', 'limit': 10},
@@ -62,9 +72,11 @@ void main() {
         dio,
       ).searchHashtags('sock');
 
-      expect(items, hasLength(1));
-      expect(items.single.tag, 'sockkal');
-      expect(items.single.postsLast28Days, 12);
+      expect(items, hasLength(2));
+      expect(items.first.tag, 'sockkal');
+      expect(items.first.postsLast28Days, 12);
+      expect(items.last.tag, 'knitting');
+      expect(items.last.postsLast28Days, 0);
     },
   );
 
@@ -72,25 +84,25 @@ void main() {
     'UT-007 exact resolve maps success and mention_not_found to final facets',
     () async {
       final dio = buildDio();
-      final adapter = DioAdapter(dio: dio);
-      adapter.onGet(
-        '/v1/facets/mentions/resolve',
-        (server) => server.reply(200, {
-          'did': 'did:plc:alice',
-          'handle': 'alice.craftsky.social',
-          'isCraftskyProfile': true,
-        }),
-        queryParameters: {'handle': 'alice.craftsky.social'},
-      );
-      adapter.onGet(
-        '/v1/facets/mentions/resolve',
-        (server) => server.reply(404, {
-          'error': 'mention_not_found',
-          'message': 'mention not found',
-          'requestId': 'req-1',
-        }),
-        queryParameters: {'handle': 'unknown.example'},
-      );
+      DioAdapter(dio: dio)
+        ..onGet(
+          '/v1/facets/mentions/resolve',
+          (server) => server.reply(200, {
+            'did': 'did:plc:alice',
+            'handle': 'alice.craftsky.social',
+            'isCraftskyProfile': true,
+          }),
+          queryParameters: {'handle': 'alice.craftsky.social'},
+        )
+        ..onGet(
+          '/v1/facets/mentions/resolve',
+          (server) => server.reply(404, {
+            'error': 'mention_not_found',
+            'message': 'mention not found',
+            'requestId': 'req-1',
+          }),
+          queryParameters: {'handle': 'unknown.example'},
+        );
 
       final repository = AppViewAccountSuggestionRepository(dio);
       final facets = await FacetGenerator(
