@@ -95,7 +95,7 @@ func ListFacetHashtagSuggestionsHandler(store FacetSuggestionReader, logger *slo
 		}
 		items := make([]FacetHashtagSuggestion, 0, len(rows))
 		for _, row := range rows {
-			items = append(items, FacetHashtagSuggestion{Tag: row.Tag, PostsLast28Days: row.PostsLast28Days})
+			items = append(items, FacetHashtagSuggestion(row))
 		}
 		writeJSON(w, http.StatusOK, FacetHashtagSuggestionsResponse{Items: items})
 	})

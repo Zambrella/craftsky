@@ -24,7 +24,6 @@ void main() {
         handle: 'alice.craftsky.social',
         crafts: [],
         createdAt: DateTime.now().subtract(const Duration(days: 370)),
-        isCraftskyProfile: true,
         followerCount: 9,
         followingCount: 7,
         postsLast7Days: 2,

@@ -67,7 +67,7 @@ var migrateDownCmd = &cobra.Command{
 		if len(args) == 1 {
 			v, err := strconv.Atoi(args[0])
 			if err != nil || v <= 0 {
-				return fmt.Errorf("N must be a positive integer, got %q", args[0])
+				return fmt.Errorf("n must be a positive integer, got %q", args[0])
 			}
 			n = v
 		}

@@ -1,7 +1,6 @@
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/data/profile_api_client.dart';
-import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:dio/dio.dart';

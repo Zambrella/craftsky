@@ -20,8 +20,7 @@ class Notifications extends AsyncNotifier<NotificationsState> {
     final current = state.value;
     if (current == null || !current.hasMore || state.isLoading) return;
 
-    // ignore: invalid_use_of_internal_member
-    state = const AsyncLoading<NotificationsState>().copyWithPrevious(state);
+    state = const AsyncLoading<NotificationsState>();
 
     final next = await AsyncValue.guard(() async {
       final repo = ref.read(notificationRepositoryProvider);
@@ -36,8 +35,7 @@ class Notifications extends AsyncNotifier<NotificationsState> {
     });
 
     if (!ref.mounted) return;
-    // ignore: invalid_use_of_internal_member
-    state = next.copyWithPrevious(state);
+    state = next;
   }
 }
 

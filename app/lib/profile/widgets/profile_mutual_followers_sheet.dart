@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
@@ -28,7 +30,7 @@ class _ProfileMutualFollowersSheetState
   @override
   void initState() {
     super.initState();
-    _loadFirstPage();
+    unawaited(_loadFirstPage());
   }
 
   Future<void> _loadFirstPage() async {

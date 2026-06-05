@@ -21,7 +21,7 @@ void main() {
       ProviderScope(
         overrides: [
           notificationRepositoryProvider.overrideWithValue(
-            _FakeNotificationRepository(const NotificationPage(items: [])),
+            const _FakeNotificationRepository(NotificationPage(items: [])),
           ),
         ],
         child: const _TestApp(home: NotificationsPage()),

@@ -19,8 +19,6 @@ void main() {
           handle: 'bob.craftsky.social',
           displayName: 'Bob',
           crafts: const [],
-          viewerIsFollowing: false,
-          isCraftskyProfile: true,
           followerCount: 4,
           followingCount: 2,
         );
@@ -71,8 +69,6 @@ void main() {
         handle: 'bob.craftsky.social',
         displayName: 'Bob',
         crafts: const [],
-        viewerIsFollowing: false,
-        isCraftskyProfile: true,
         followerCount: 4,
         followingCount: 2,
       );
@@ -109,7 +105,6 @@ void main() {
           displayName: 'Bob',
           crafts: const [],
           viewerIsFollowing: true,
-          isCraftskyProfile: true,
           followerCount: 4,
           followingCount: 2,
         );

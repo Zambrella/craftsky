@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -7,7 +8,6 @@ import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
-import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
@@ -19,9 +19,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
-import 'fakes/fake_post_repository.dart';
 import '../fakes/auth_session_fakes.dart';
 import '../fakes/recording_messenger.dart';
+import 'fakes/fake_post_repository.dart';
 
 Map<String, dynamic> _postMap({
   required String rkey,
@@ -339,7 +339,7 @@ void main() {
     tester,
   ) async {
     GoRouterState? threadState;
-    final root = _post('root', replyCount: 3);
+    final root = _post('root');
     final created = _post('created');
     final container = ProviderContainer.test(
       overrides: [

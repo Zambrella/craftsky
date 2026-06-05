@@ -16,7 +16,7 @@ void main() {
           ProviderScope(
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              home: Scaffold(
+              home: const Scaffold(
                 body: ProfileBio(
                   description:
                       'Visit craftsky.social @alice.craftsky.social #Lace',
@@ -57,7 +57,7 @@ void main() {
         ProviderScope(
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            home: Scaffold(
+            home: const Scaffold(
               body: ProfileBio(
                 description:
                     'mailto:x@y.example https://craftsky.social/#lace #lace',

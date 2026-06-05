@@ -1,5 +1,5 @@
-import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/shared/rich_text/facet_token_parser.dart';
+import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:flutter/material.dart';
 
 /// Profile bio text. Renders nothing when [description] is null or

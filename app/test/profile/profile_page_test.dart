@@ -82,8 +82,6 @@ void main() {
         handle: 'alice.bsky.social',
         displayName: 'Alice',
         crafts: [],
-        viewerIsFollowing: false,
-        isCraftskyProfile: true,
         followingCount: 7,
         followerCount: 9,
         mutualFollowerCount: 12,
@@ -228,8 +226,6 @@ void main() {
         handle: 'bob.bsky.social',
         displayName: 'Bob',
         crafts: [],
-        viewerIsFollowing: false,
-        isCraftskyProfile: true,
         mutualFollowerCount: 12,
       );
       final repo = FakeProfileRepository(
@@ -308,7 +304,6 @@ void main() {
         displayName: 'Alice',
         crafts: [],
         viewerIsFollowing: true,
-        isCraftskyProfile: true,
       );
       final repo = FakeProfileRepository(onFetch: (_) async => profile);
 
@@ -341,7 +336,6 @@ void main() {
         handle: 'carol.bsky.social',
         displayName: 'Carol',
         crafts: [],
-        viewerIsFollowing: false,
         isCraftskyProfile: false,
       );
       final repo = FakeProfileRepository(onFetch: (_) async => profile);
@@ -380,8 +374,6 @@ void main() {
         handle: 'alice.bsky.social',
         displayName: 'Alice',
         crafts: [],
-        viewerIsFollowing: false,
-        isCraftskyProfile: true,
       );
       final repo = FakeProfileRepository(
         onFetch: (_) async => profile,
@@ -426,7 +418,6 @@ void main() {
         displayName: 'Alice',
         crafts: [],
         viewerIsFollowing: true,
-        isCraftskyProfile: true,
       );
       final repo = FakeProfileRepository(
         onFetch: (_) async => profile,
@@ -469,8 +460,6 @@ void main() {
         handle: 'alice.bsky.social',
         displayName: 'Alice',
         crafts: [],
-        viewerIsFollowing: false,
-        isCraftskyProfile: true,
       );
       var followCalls = 0;
       final completer = Completer<Profile>();
@@ -518,8 +507,6 @@ void main() {
         handle: 'alice.bsky.social',
         displayName: 'Alice',
         crafts: [],
-        viewerIsFollowing: false,
-        isCraftskyProfile: true,
       );
       final repo = FakeProfileRepository(
         onFetch: (_) async => profile,

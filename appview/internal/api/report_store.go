@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -154,29 +153,4 @@ func (s *ReportStore) CreateReport(ctx context.Context, input CreateReportInput)
 	}
 	out.SubjectType = ReportSubjectType(subjectType)
 	return out, nil
-}
-
-func scanReportRow(scanner pgx.Row) (*ReportRow, error) {
-	out := &ReportRow{}
-	var subjectType string
-	err := scanner.Scan(
-		&out.ID,
-		&out.ReporterDID,
-		&subjectType,
-		&out.SubjectDID,
-		&out.SubjectCollection,
-		&out.SubjectRkey,
-		&out.SubjectURI,
-		&out.SubjectCIDSnapshot,
-		&out.SubmittedHandleSnapshot,
-		&out.ReasonType,
-		&out.Details,
-		&out.DeviceID,
-		&out.ForwardingStatus,
-		&out.ForwardingSchemaVersion,
-		&out.ForwardingPreparedAt,
-		&out.CreatedAt,
-	)
-	out.SubjectType = ReportSubjectType(subjectType)
-	return out, err
 }

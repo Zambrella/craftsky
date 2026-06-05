@@ -1,7 +1,6 @@
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
-import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
