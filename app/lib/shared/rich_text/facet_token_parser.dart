@@ -1,97 +1,114 @@
 import 'dart:convert';
 
+import 'package:craftsky_app/shared/rich_text/facet_syntax.dart';
 import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 
-/// Supported render/generation token kind.
-enum FacetTokenKind { mention, link, tag }
-
 /// Plain-text token detected by Craftsky's supported facet rules.
-class FacetToken {
+sealed class FacetToken {
   const FacetToken({
-    required this.kind,
     required this.charStart,
     required this.charEnd,
-    this.handle,
-    this.uri,
-    this.tag,
   });
 
-  final FacetTokenKind kind;
+  /// Inclusive Dart string index start.
   final int charStart;
-  final int charEnd;
-  final String? handle;
-  final String? uri;
-  final String? tag;
 
-  Map<String, dynamic> toRawFacet(String text) {
+  /// Exclusive Dart string index end.
+  final int charEnd;
+
+  /// Converts this token to raw AT Protocol facet JSON for [text].
+  Map<String, dynamic> toRawFacet(String text, {String? did}) {
     return {
       'index': {
         'byteStart': _byteOffset(text, charStart),
         'byteEnd': _byteOffset(text, charEnd),
       },
-      'features': [toFeature()],
+      'features': [toRawFeature(did: did)],
     };
   }
 
-  FacetFeature toFeature() {
-    switch (kind) {
-      case FacetTokenKind.mention:
-        return const FacetFeature.mention('');
-      case FacetTokenKind.link:
-        return FacetFeature.link(uri!);
-      case FacetTokenKind.tag:
-        return FacetFeature.tag(tag!);
-    }
-  }
-
+  /// Converts this token to raw AT Protocol facet feature metadata.
   Map<String, dynamic> toRawFeature({String? did}) {
-    switch (kind) {
-      case FacetTokenKind.mention:
-        return {r'$type': 'app.bsky.richtext.facet#mention', 'did': did ?? ''};
-      case FacetTokenKind.link:
-        return {r'$type': 'app.bsky.richtext.facet#link', 'uri': uri};
-      case FacetTokenKind.tag:
-        return {r'$type': 'app.bsky.richtext.facet#tag', 'tag': tag};
-    }
+    return switch (this) {
+      MentionFacetToken() => FacetFeature.mention(did ?? '').toRawFeature(),
+      LinkFacetToken(:final uri) => FacetFeature.link(uri).toRawFeature(),
+      TagFacetToken(:final tag) => FacetFeature.tag(tag).toRawFeature(),
+    };
   }
+}
+
+/// Plain-text mention token detected before the handle is resolved to a DID.
+final class MentionFacetToken extends FacetToken {
+  /// Creates a plain-text mention token.
+  const MentionFacetToken({
+    required super.charStart,
+    required super.charEnd,
+    required this.handle,
+  });
+
+  /// Mention handle without leading `@`.
+  final String handle;
+}
+
+/// Plain-text link token detected before publish.
+final class LinkFacetToken extends FacetToken {
+  /// Creates a plain-text link token.
+  const LinkFacetToken({
+    required super.charStart,
+    required super.charEnd,
+    required this.uri,
+  });
+
+  /// Link URI written to the raw facet.
+  final String uri;
+}
+
+/// Plain-text hashtag token detected before publish.
+final class TagFacetToken extends FacetToken {
+  /// Creates a plain-text hashtag token.
+  const TagFacetToken({
+    required super.charStart,
+    required super.charEnd,
+    required this.tag,
+  });
+
+  /// Hashtag value without leading `#`.
+  final String tag;
 }
 
 List<FacetToken> detectSupportedFacetTokens(String text) {
   final tokens = <FacetToken>[];
-  for (final match in _mentionPattern.allMatches(text)) {
+  for (final match in facetMentionPattern.allMatches(text)) {
     final prefix = match.group(1) ?? '';
     final handle = match.group(2)!;
     final charStart = match.start + prefix.length;
     tokens.add(
-      FacetToken(
-        kind: FacetTokenKind.mention,
+      MentionFacetToken(
         charStart: charStart,
         charEnd: charStart + handle.length + 1,
         handle: handle,
       ),
     );
   }
-  for (final match in _linkPattern.allMatches(text)) {
+  for (final match in facetLinkPattern.allMatches(text)) {
     final prefix = match.group(1) ?? '';
-    final visibleLink = _trimLinkText(match.group(2)!);
+    final visibleLink = trimFacetLinkText(match.group(2)!);
     if (visibleLink.isEmpty) continue;
     final charStart = match.start + prefix.length;
     tokens.add(
-      FacetToken(
-        kind: FacetTokenKind.link,
+      LinkFacetToken(
         charStart: charStart,
         charEnd: charStart + visibleLink.length,
         uri: _linkUri(visibleLink),
       ),
     );
   }
-  for (final match in _hashtagPattern.allMatches(text)) {
+  for (final match in facetHashtagPattern.allMatches(text)) {
     final prefix = match.group(1) ?? '';
     final tag = match.group(2)!;
     final charStart = match.start + prefix.length;
     tokens.add(
-      FacetToken(
-        kind: FacetTokenKind.tag,
+      TagFacetToken(
         charStart: charStart,
         charEnd: charStart + tag.length + 1,
         tag: tag,
@@ -116,29 +133,10 @@ List<FacetToken> detectSupportedFacetTokens(String text) {
 }
 
 List<Map<String, dynamic>> rawFacetsForPlainText(String text) {
-  return detectSupportedFacetTokens(text).map((token) {
-    return {
-      'index': {
-        'byteStart': _byteOffset(text, token.charStart),
-        'byteEnd': _byteOffset(text, token.charEnd),
-      },
-      'features': [token.toRawFeature()],
-    };
-  }).toList();
+  return detectSupportedFacetTokens(
+    text,
+  ).map((token) => token.toRawFacet(text)).toList();
 }
-
-final _mentionPattern = RegExp(
-  r'(^|[\s(\[{])@([A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z][A-Za-z0-9.-]*)',
-);
-
-final _linkPattern = RegExp(
-  r'(^|[\s(\[{])((?:https?://)?(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}(?:/[^\s]*)?)',
-);
-
-final _hashtagPattern = RegExp(
-  r'(^|[^\p{L}\p{N}_])#([\p{L}\p{N}_]+)',
-  unicode: true,
-);
 
 int _byteOffset(String text, int charIndex) {
   return utf8.encode(text.substring(0, charIndex)).length;
@@ -150,25 +148,3 @@ String _linkUri(String visibleLink) {
   }
   return 'https://$visibleLink';
 }
-
-String _trimLinkText(String link) {
-  var trimmed = link;
-  while (trimmed.isNotEmpty &&
-      _trailingSentencePunctuation.contains(trimmed[trimmed.length - 1])) {
-    trimmed = trimmed.substring(0, trimmed.length - 1);
-  }
-  while (trimmed.endsWith(')') && _count(trimmed, ')') > _count(trimmed, '(')) {
-    trimmed = trimmed.substring(0, trimmed.length - 1);
-  }
-  while (trimmed.endsWith(']') && _count(trimmed, ']') > _count(trimmed, '[')) {
-    trimmed = trimmed.substring(0, trimmed.length - 1);
-  }
-  while (trimmed.endsWith('}') && _count(trimmed, '}') > _count(trimmed, '{')) {
-    trimmed = trimmed.substring(0, trimmed.length - 1);
-  }
-  return trimmed;
-}
-
-const _trailingSentencePunctuation = {'.', ',', '!', '?', ';', ':'};
-
-int _count(String text, String character) => character.allMatches(text).length;

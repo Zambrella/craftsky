@@ -1,4 +1,5 @@
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/rich_text/facet_syntax.dart';
 import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:flutter/material.dart';
 
@@ -43,6 +44,5 @@ class FacetActionHandler {
 String? _visibleMentionHandle(String visibleText) {
   if (!visibleText.startsWith('@')) return null;
   final handle = visibleText.substring(1);
-  final valid = RegExp(r'^[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z][A-Za-z0-9-]*$');
-  return valid.hasMatch(handle) ? handle : null;
+  return isValidMentionHandle(handle) ? handle : null;
 }

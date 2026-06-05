@@ -1,3 +1,4 @@
+import 'package:craftsky_app/shared/rich_text/facet_syntax.dart';
 import 'package:flutter/widgets.dart';
 
 /// Active autocomplete token kind.
@@ -49,18 +50,18 @@ class FacetAutocompleteController {
     }
 
     final trigger = value.text[triggerIndex];
-    if (!_hasValidBoundary(value.text, triggerIndex)) {
+    if (!hasFacetTokenBoundary(value.text, triggerIndex)) {
       return null;
     }
 
     final query = value.text.substring(triggerIndex + 1, caret);
-    if (query.isEmpty || query.contains(RegExp(r'\s'))) {
+    if (query.isEmpty || containsFacetWhitespace(query)) {
       return null;
     }
-    if (trigger == '#' && !_validHashtagQuery.hasMatch(query)) {
+    if (trigger == '#' && !isValidHashtagQuery(query)) {
       return null;
     }
-    if (trigger == '@' && !_validMentionQuery.hasMatch(query)) {
+    if (trigger == '@' && !isValidMentionQuery(query)) {
       return null;
     }
 
@@ -110,16 +111,3 @@ class DebouncedFacetLookup<T> {
     return lookup();
   }
 }
-
-bool _hasValidBoundary(String text, int triggerIndex) {
-  if (triggerIndex == 0) {
-    return true;
-  }
-  final previous = text[triggerIndex - 1];
-  return previous.trim().isEmpty || _openingPunctuation.contains(previous);
-}
-
-const _openingPunctuation = {'(', '[', '{'};
-
-final _validMentionQuery = RegExp(r'^[A-Za-z0-9._-]+$');
-final _validHashtagQuery = RegExp(r'^[\p{L}\p{N}_]+$', unicode: true);

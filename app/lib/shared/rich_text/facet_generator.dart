@@ -2,8 +2,6 @@
 // seams.
 // ignore_for_file: one_member_abstracts, prefer_initializing_formals
 
-import 'dart:convert';
-
 import 'package:craftsky_app/shared/rich_text/facet_token_parser.dart';
 
 /// Resolves visible Craftsky handles to DIDs without network access.
@@ -26,38 +24,20 @@ class FacetGenerator {
     final facets = <Map<String, dynamic>>[];
 
     for (final token in detectSupportedFacetTokens(text)) {
-      switch (token.kind) {
-        case FacetTokenKind.mention:
-          final did = await _mentionResolver.didForHandle(token.handle!);
+      switch (token) {
+        case MentionFacetToken(:final handle):
+          final did = await _mentionResolver.didForHandle(handle);
           if (did == null) {
             continue;
           }
-          facets.add(_rawFacet(text, token, token.toRawFeature(did: did)));
-        case FacetTokenKind.link:
-          facets.add(_rawFacet(text, token, token.toRawFeature()));
-        case FacetTokenKind.tag:
-          facets.add(_rawFacet(text, token, token.toRawFeature()));
+          facets.add(token.toRawFacet(text, did: did));
+        case LinkFacetToken():
+          facets.add(token.toRawFacet(text));
+        case TagFacetToken():
+          facets.add(token.toRawFacet(text));
       }
     }
 
     return facets;
   }
-}
-
-Map<String, dynamic> _rawFacet(
-  String text,
-  FacetToken token,
-  Map<String, dynamic> feature,
-) {
-  return {
-    'index': {
-      'byteStart': _byteOffset(text, token.charStart),
-      'byteEnd': _byteOffset(text, token.charEnd),
-    },
-    'features': [feature],
-  };
-}
-
-int _byteOffset(String text, int charIndex) {
-  return utf8.encode(text.substring(0, charIndex)).length;
 }

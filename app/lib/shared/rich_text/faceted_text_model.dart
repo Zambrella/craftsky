@@ -1,5 +1,17 @@
 import 'dart:convert';
 
+/// AT Protocol rich-text facet feature type constants supported by Craftsky.
+abstract final class FacetFeatureType {
+  /// Mention facet feature type.
+  static const mention = 'app.bsky.richtext.facet#mention';
+
+  /// Link facet feature type.
+  static const link = 'app.bsky.richtext.facet#link';
+
+  /// Hashtag facet feature type.
+  static const tag = 'app.bsky.richtext.facet#tag';
+}
+
 /// A supported facet feature selected from raw incoming facet metadata.
 sealed class FacetFeature {
   /// Creates a supported facet feature.
@@ -13,6 +25,46 @@ sealed class FacetFeature {
 
   /// Creates a hashtag feature.
   const factory FacetFeature.tag(String tag) = TagFacetFeature;
+
+  /// Creates the first supported feature represented by [raw], or `null`.
+  static FacetFeature? fromRaw(Map<dynamic, dynamic> raw) {
+    switch (raw[r'$type']) {
+      case FacetFeatureType.mention:
+        final did = raw['did'];
+        if (did is String) {
+          return FacetFeature.mention(did);
+        }
+      case FacetFeatureType.link:
+        final uri = raw['uri'];
+        if (uri is String) {
+          return FacetFeature.link(uri);
+        }
+      case FacetFeatureType.tag:
+        final tag = raw['tag'];
+        if (tag is String) {
+          return FacetFeature.tag(tag);
+        }
+    }
+    return null;
+  }
+
+  /// Converts this feature to raw AT Protocol rich-text facet metadata.
+  Map<String, dynamic> toRawFeature() {
+    return switch (this) {
+      MentionFacetFeature(:final did) => {
+        r'$type': FacetFeatureType.mention,
+        'did': did,
+      },
+      LinkFacetFeature(:final uri) => {
+        r'$type': FacetFeatureType.link,
+        'uri': uri,
+      },
+      TagFacetFeature(:final tag) => {
+        r'$type': FacetFeatureType.tag,
+        'tag': tag,
+      },
+    };
+  }
 }
 
 /// Mention facet feature data.
@@ -143,26 +195,9 @@ _OrderedRange? _rangeFromRaw(
 
 FacetFeature? _firstSupportedFeature(List<dynamic> features) {
   for (final feature in features) {
-    if (feature is! Map) {
-      continue;
-    }
-    final type = feature[r'$type'];
-    switch (type) {
-      case 'app.bsky.richtext.facet#mention':
-        final did = feature['did'];
-        if (did is String) {
-          return FacetFeature.mention(did);
-        }
-      case 'app.bsky.richtext.facet#link':
-        final uri = feature['uri'];
-        if (uri is String) {
-          return FacetFeature.link(uri);
-        }
-      case 'app.bsky.richtext.facet#tag':
-        final tag = feature['tag'];
-        if (tag is String) {
-          return FacetFeature.tag(tag);
-        }
+    if (feature is Map) {
+      final parsed = FacetFeature.fromRaw(feature);
+      if (parsed != null) return parsed;
     }
   }
   return null;
