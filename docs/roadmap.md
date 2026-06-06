@@ -50,7 +50,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Follow / unfollow interactions
 - [x] Notifications screen
 - [ ] Error-handling UX (how do we surface `error` codes from the envelope to users?)
-- [ ] Rich text — facets, mentions, links, hashtags
+- [x] Rich text — facets, mentions, links, hashtags
 - [ ] Quote posts
 - [ ] Profile settings screen — handle change, avatar upload, privacy controls
 
