@@ -51,10 +51,53 @@ CREATE TABLE craftsky_posts (
     quote_uri        TEXT,
     quote_cid        TEXT,
     tags             TEXT[]      NOT NULL DEFAULT '{}',
+    is_project       BOOLEAN     NOT NULL DEFAULT false,
+    project_craft_type TEXT,
     record           JSONB       NOT NULL,
     created_at       TIMESTAMPTZ NOT NULL,
     indexed_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (did, rkey)
+);
+CREATE TABLE craftsky_project_posts (
+    uri TEXT PRIMARY KEY REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
+    raw_project JSONB NOT NULL,
+    common_craft_type TEXT NOT NULL,
+    common_status TEXT,
+    common_title TEXT,
+    common_duration TEXT,
+    pattern_url TEXT,
+    pattern_name TEXT,
+    pattern_difficulty TEXT,
+    pattern_designer TEXT,
+    pattern_publisher TEXT,
+    materials TEXT[] NOT NULL DEFAULT '{}',
+    colors TEXT[] NOT NULL DEFAULT '{}',
+    design_tags TEXT[] NOT NULL DEFAULT '{}',
+    project_tags TEXT[] NOT NULL DEFAULT '{}',
+    details_type TEXT,
+    raw_details JSONB,
+    knitting_project_type TEXT,
+    knitting_project_subtype TEXT,
+    knitting_yarn_weight TEXT,
+    knitting_needle_size_mm TEXT,
+    knitting_gauge JSONB,
+    knitting_finished_size TEXT,
+    crochet_project_type TEXT,
+    crochet_project_subtype TEXT,
+    crochet_yarn_weight TEXT,
+    crochet_hook_size_mm TEXT,
+    crochet_gauge JSONB,
+    crochet_finished_size TEXT,
+    quilting_project_type TEXT,
+    quilting_project_subtype TEXT,
+    quilting_piecing_technique TEXT,
+    quilting_quilting_method TEXT,
+    quilting_size TEXT,
+    sewing_project_type TEXT,
+    sewing_project_subtype TEXT,
+    sewing_size_made TEXT,
+    sewing_fit_notes TEXT,
+    indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE craftsky_likes (
     uri         TEXT        NOT NULL PRIMARY KEY,
@@ -126,6 +169,18 @@ func seedPost(t *testing.T, pool *pgxpool.Pool, did, rkey, text string, indexedA
 		t.Fatalf("seed post: %v", err)
 	}
 	return uri
+}
+
+func seedProjectMaterialization(t *testing.T, pool *pgxpool.Pool, uri, craftType, title string) {
+	t.Helper()
+	rawProject := `{"common":{"craftType":"` + craftType + `","title":"` + title + `"}}`
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE craftsky_posts SET is_project = true, project_craft_type = $2 WHERE uri = $1;
+		INSERT INTO craftsky_project_posts (uri, raw_project, common_craft_type, common_title)
+		VALUES ($1, $3::jsonb, $2, $4)
+	`, uri, craftType, rawProject, title); err != nil {
+		t.Fatalf("seed project materialization: %v", err)
+	}
 }
 
 func seedReplyPost(t *testing.T, pool *pgxpool.Pool, did, rkey, text, rootURI, parentURI string, createdAt time.Time) string {
@@ -212,6 +267,40 @@ func TestPostStore_ReadOne_HappyPath(t *testing.T) {
 	}
 	if row.AuthorAvatarCID == nil || *row.AuthorAvatarCID != "bafyavatar" {
 		t.Errorf("avatarCID = %v", row.AuthorAvatarCID)
+	}
+}
+
+func TestPostStore_ReadOne_HydratesProjectFromMaterialization(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	uri := seedPost(t, pool, "did:plc:alice", "rk1", "project", time.Now())
+	seedProjectMaterialization(t, pool, uri, "social.craftsky.feed.defs#knitting", "Hitchhiker Shawl")
+
+	row, err := api.NewPostStore(pool).ReadOne(context.Background(), "did:plc:alice", "rk1")
+	if err != nil {
+		t.Fatalf("ReadOne: %v", err)
+	}
+	if !row.IsProject || row.ProjectCraftType == nil || *row.ProjectCraftType != "social.craftsky.feed.defs#knitting" {
+		t.Fatalf("project flags = (%v, %v)", row.IsProject, row.ProjectCraftType)
+	}
+	if row.Project == nil || row.Project.Common.Title == nil || *row.Project.Common.Title != "Hitchhiker Shawl" {
+		t.Fatalf("project = %+v", row.Project)
+	}
+}
+
+func TestPostStore_ReadOne_GeneralPostOmitsProject(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	seedPost(t, pool, "did:plc:alice", "rk1", "general", time.Now())
+
+	row, err := api.NewPostStore(pool).ReadOne(context.Background(), "did:plc:alice", "rk1")
+	if err != nil {
+		t.Fatalf("ReadOne: %v", err)
+	}
+	if row.IsProject || row.ProjectCraftType != nil || row.Project != nil {
+		t.Fatalf("general project fields = isProject=%v craft=%v project=%+v", row.IsProject, row.ProjectCraftType, row.Project)
 	}
 }
 
@@ -479,6 +568,29 @@ func TestPostStore_ListByAuthor_ExcludesCommentsAndReplies(t *testing.T) {
 	}
 	if len(rows) != 1 || rows[0].Rkey != "root" {
 		t.Fatalf("rows = %v, want only root", replyRkeys(rows))
+	}
+}
+
+func TestPostStore_ListProjectsByAuthor_ReturnsOnlyTopLevelProjects(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
+	projectRoot := seedPost(t, pool, "did:plc:alice", "project-root", "project", now)
+	seedProjectMaterialization(t, pool, projectRoot, "social.craftsky.feed.defs#knitting", "Root Project")
+	generalRoot := seedPost(t, pool, "did:plc:alice", "general-root", "general", now.Add(-time.Minute))
+	projectReply := seedReplyPost(t, pool, "did:plc:alice", "project-reply", "reply project", generalRoot, generalRoot, now.Add(-2*time.Minute))
+	seedProjectMaterialization(t, pool, projectReply, "social.craftsky.feed.defs#knitting", "Reply Project")
+
+	rows, cursor, err := api.NewPostStore(pool).ListProjectsByAuthor(context.Background(), "did:plc:alice", 50, "")
+	if err != nil {
+		t.Fatalf("ListProjectsByAuthor: %v", err)
+	}
+	if cursor != "" {
+		t.Fatalf("cursor = %q, want empty", cursor)
+	}
+	if len(rows) != 1 || rows[0].URI != projectRoot || rows[0].Project == nil {
+		t.Fatalf("rows = %+v, want only root project", rows)
 	}
 }
 

@@ -208,7 +208,7 @@ When a `social.craftsky.feed.post` contains a valid `project` object, the AppVie
   - `profile.projectCount` changes from hardcoded zero to data-driven project-post count.
 - Migration required:
   - Yes. Add a new numbered migration and corresponding down migration.
-  - Migration/backfill should derive project materialization from existing `craftsky_posts.record JSONB` so previously indexed project records, if any, become queryable without PDS fetches.
+  - Historical backfill is not required in this stage. New and updated Tap events after the migration populate project materialization; previously indexed rows may remain unmaterialized until reindexed or handled by a future explicit backfill task.
 - Backwards compatibility:
   - General posts remain `social.craftsky.feed.post` records.
   - General post responses should omit `project` to minimize response shape changes for existing clients.
@@ -271,7 +271,7 @@ When a `social.craftsky.feed.post` contains a valid `project` object, the AppVie
 | ASM-001 | The updated project lexicon shape is accepted as the source of truth for this AppView slice. | Requirements would need revision and possibly lexicon-skill/ADR work before AppView implementation. |
 | ASM-002 | A one-to-one project materialization table plus minimal base flags satisfies the prior ADR/spec commitment to queryable project dimensions. | If strict interpretation requires all columns on `craftsky_posts`, schema direction would need revisiting. |
 | ASM-003 | Profile project lists should include top-level project posts only, matching existing profile post count semantics. | If replies with project metadata should count as projects, profile counts/lists and tests would change. |
-| ASM-004 | Existing `record JSONB` contains enough data to backfill project materialization for any already-indexed project records. | Backfill would require PDS refetch or accepting only future project materialization. |
+| ASM-004 | Historical backfill is out of scope for this stage even though `record JSONB` may contain enough data for a future explicit backfill task. | Already-indexed project records may remain unmaterialized until reindexed or backfilled later. |
 | ASM-005 | Returning a lexicon-shaped `project` object is preferable to inventing a separate flattened API-only project response shape in this slice. | Flutter/client model requirements may need adjustment if a flattened shape is desired. |
 
 ## 21. Open Questions
@@ -299,7 +299,7 @@ Notes: High risk because this changes AppView persistence, indexing, PDS write r
   - Rules: RULE-001 through RULE-003
   - Non-functional: NFR-001, NFR-002, NFR-004
 - Suggested test levels:
-  - Migration/schema tests or migration review for base flags, child table, indexes, cascade, and backfill behavior.
+  - Migration/schema tests or migration review for base flags, child table, indexes, cascade, and confirmation that no historical backfill is required.
   - Indexer integration tests using test DB fixtures for create/update/delete, known craft details, unknown details, tag merging, and idempotency.
   - API handler/store tests for create validation/write body, synthetic response, read/list hydration, profile project count, profile projects endpoint, general-post compatibility, and moderation filtering.
   - Route tests for the new profile projects route and auth/device wrapping.

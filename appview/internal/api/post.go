@@ -200,6 +200,9 @@ func lexiconRecordBody(req PostCreateRequest) map[string]any {
 		}
 		body["images"] = images
 	}
+	if req.Project != nil {
+		body["project"] = req.Project
+	}
 	return body
 }
 
@@ -228,9 +231,10 @@ func syntheticPostRow(
 		Rkey:      path.Base(string(uri)),
 		CID:       string(cid),
 		Text:      req.Text,
-		Tags:      extractRequestTags(req.Facets),
+		Tags:      postutil.MergeTags(extractRequestTags(req.Facets), requestProjectTags(req.Project)),
 		CreatedAt: now,
 		IndexedAt: now,
+		Project:   req.Project,
 	}
 	if len(req.Facets) > 0 {
 		row.Facets = req.Facets
@@ -262,6 +266,13 @@ func syntheticPostRow(
 		row.AuthorAvatarCID = author.AvatarCID
 	}
 	return row, nil
+}
+
+func requestProjectTags(project *Project) []string {
+	if project == nil {
+		return nil
+	}
+	return project.Common.Tags
 }
 
 func syntheticPostImagesJSON(images []PostImage) (json.RawMessage, error) {
@@ -1295,6 +1306,15 @@ func ListPostsByAuthorHandler(
 	logger *slog.Logger,
 ) http.Handler {
 	return listAuthorPostsHandler(store, resolver, logger, "post list", store.ListByAuthor)
+}
+
+// ListProjectsByAuthorHandler serves GET /v1/profiles/{handleOrDid}/projects.
+func ListProjectsByAuthorHandler(
+	store PostReader,
+	resolver HandleResolver,
+	logger *slog.Logger,
+) http.Handler {
+	return listAuthorPostsHandler(store, resolver, logger, "project list", store.ListProjectsByAuthor)
 }
 
 // ListCommentsByAuthorHandler serves GET /v1/profiles/{handleOrDid}/comments.

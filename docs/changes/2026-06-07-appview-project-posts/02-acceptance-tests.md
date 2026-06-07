@@ -6,7 +6,7 @@ This specification verifies AppView support for project posts from persistence t
 
 Test design follows the implementation sequence requested in `01-requirements.md`:
 
-1. Persistence and migration coverage for minimal base project flags, one-to-one `craftsky_project_posts`, backfill, cascade, and supporting indexes.
+1. Persistence and migration coverage for minimal base project flags, one-to-one `craftsky_project_posts`, cascade, and supporting indexes. Historical backfill is explicitly out of scope for this stage.
 2. Indexer/store coverage for create, update, delete, tag merging, idempotency, known craft details, and future unknown detail variants.
 3. API coverage for `POST /v1/posts`, `PostResponse` hydration across existing post-shaped surfaces, profile `projectCount`, and the new profile project list route.
 
@@ -331,7 +331,7 @@ Feature: Project query performance
 
 | ID | Requirement IDs | Acceptance Criteria | Description | Setup | Action | Expected Result | Automation Target |
 |---|---|---|---|---|---|---|---|
-| IT-001 | BR-001, FR-001, FR-002, NFR-003 | AC-001, AC-013 | Apply migration and assert project schema, constraints, cascade, backfill, and indexes. | Real test DB or migration harness with pre-existing `craftsky_posts.record` project JSON. | Run migration chain/up migration and inspect catalogs/data. | Base flags/table exist; FK/cascade works; backfill materializes existing project record; supporting indexes exist. | `appview/cmd/cli/migrate_test.go` or DB migration test suite |
+| IT-001 | BR-001, FR-001, FR-002, NFR-003 | AC-001, AC-013 | Apply migration and assert project schema, constraints, cascade, and indexes. | Real test DB or migration harness with existing `craftsky_posts` schema. | Run migration chain/up migration and inspect catalogs/data. | Base flags/table exist; FK/cascade works; no historical backfill is required; supporting indexes exist. | `appview/cmd/cli/migrate_test.go` or DB migration test suite |
 | IT-002 | FR-001, FR-004, RULE-001 | AC-002 | Index create events for general and project posts. | `testdb.WithSchema` updated with project tables and seeded member profile. | Handle create events with and without `project.common`. | General post has no project row; project post has base flags plus project row. | `appview/internal/index/craftsky_post_test.go` |
 | IT-003 | FR-002, FR-003, FR-006 | AC-003, AC-011 | Index full known craft project payload. | Project post JSON with common fields, pattern, materials/colors/designTags/tags, hashtag facets, knitting details. | Handle create event. | Project table has raw/materialized fields and `craftsky_posts.tags` has merged normalized tags. | `appview/internal/index/craftsky_post_test.go` |
 | IT-004 | FR-004, NFR-002 | AC-004 | Same URI/CID replay is idempotent. | Seed member and project create event. | Handle event twice. | Exactly one `craftsky_posts` row and one `craftsky_project_posts` row exist with stable values. | `appview/internal/index/craftsky_post_test.go` |
@@ -389,7 +389,7 @@ Feature: Project query performance
 |---|---|---|---|---|
 | GAP-001 | Automated query-plan assertions may be brittle or unavailable. | NFR-003 | PostgreSQL planner choices can vary by data size/version, and the repo may not have an existing stable EXPLAIN assertion convention. | Assert indexes structurally in migration tests; perform MAN-002 before implementation approval; document any intentionally deferred filters. |
 | GAP-002 | Unknown open-union detail behavior depends on generated lexicon unmarshalling and fallback implementation choices. | FR-005 | The current generated types may reject unknown variants unless the indexer preserves/parses raw JSON before typed decoding. | Add UT-003/IT-005 early; if implementation cannot preserve unknown details with current generated types, pause for requirements/design review rather than dropping records. |
-| GAP-003 | Full migration backfill coverage depends on having a migration-chain test harness. | FR-001, FR-002 | Existing tests often use inline DDL fixtures rather than applying every migration. | Prefer adding migration-chain coverage; if not feasible, create an isolated migration SQL test plus MAN-002/manual backfill inspection. |
+| GAP-003 | Full migration-chain coverage depends on having a migration-chain test harness. | FR-001, FR-002 | Existing tests often use inline DDL fixtures rather than applying every migration. Historical backfill is out of scope. | Prefer adding migration-chain coverage; if not feasible, create an isolated migration SQL test plus MAN-002/manual schema inspection. |
 
 ## 10. Out Of Scope
 
@@ -407,10 +407,10 @@ Feature: Project query performance
 - Next review artifact: `03-document-review.md`
 - External Plannotator review, if the user initiates it outside this agent: `docs/changes/2026-06-07-appview-project-posts/`
 - Risk level carried forward: High.
-- Risk-based review recommendation: Required before implementation. This test design exposes significant risks around schema/backfill, unknown details handling, and consistent response hydration across every `PostResponse` path.
-- Recommended first failing test for implementation: `IT-001` — migration/schema test proving minimal base project flags, `craftsky_project_posts`, FK/cascade, backfill from `record JSONB`, and supporting indexes.
+- Risk-based review recommendation: Required before implementation. This test design exposes significant risks around schema migration, unknown details handling, and consistent response hydration across every `PostResponse` path.
+- Recommended first failing test for implementation: `IT-001` — migration/schema test proving minimal base project flags, `craftsky_project_posts`, FK/cascade, no required historical backfill, and supporting indexes.
 - Suggested test order for implementation:
-  1. `IT-001` migration/schema/backfill/index coverage.
+  1. `IT-001` migration/schema/index coverage without historical backfill.
   2. `IT-002`, `IT-003`, `UT-001`, `UT-002`, `UT-011` for core project indexing and materialization.
   3. `IT-004`, `IT-005`, `UT-003` for idempotency, update/delete convergence, and unknown details.
   4. `UT-004`, `UT-005`, `UT-006`, `UT-012`, `IT-006`, `IT-007` for create request/PDS write behavior.

@@ -22,6 +22,7 @@ func (s *PostStore) ListTimeline(ctx context.Context, viewerDID string, limit in
 	q := `
 		SELECT ` + postSelectColumns + `
 		FROM craftsky_posts p
+		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.reply_root_uri IS NULL
 		  AND p.reply_parent_uri IS NULL

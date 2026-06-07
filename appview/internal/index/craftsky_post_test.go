@@ -44,11 +44,55 @@ CREATE TABLE craftsky_posts (
 
     tags             TEXT[]      NOT NULL DEFAULT '{}',
 
+    is_project       BOOLEAN     NOT NULL DEFAULT false,
+    project_craft_type TEXT,
+
     record           JSONB       NOT NULL,
     created_at       TIMESTAMPTZ NOT NULL,
     indexed_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     UNIQUE (did, rkey)
+);
+CREATE TABLE craftsky_project_posts (
+    uri TEXT PRIMARY KEY REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
+    raw_project JSONB NOT NULL,
+    common_craft_type TEXT NOT NULL,
+    common_status TEXT,
+    common_title TEXT,
+    common_duration TEXT,
+    pattern_url TEXT,
+    pattern_name TEXT,
+    pattern_difficulty TEXT,
+    pattern_designer TEXT,
+    pattern_publisher TEXT,
+    materials TEXT[] NOT NULL DEFAULT '{}',
+    colors TEXT[] NOT NULL DEFAULT '{}',
+    design_tags TEXT[] NOT NULL DEFAULT '{}',
+    project_tags TEXT[] NOT NULL DEFAULT '{}',
+    details_type TEXT,
+    raw_details JSONB,
+    knitting_project_type TEXT,
+    knitting_project_subtype TEXT,
+    knitting_yarn_weight TEXT,
+    knitting_needle_size_mm TEXT,
+    knitting_gauge JSONB,
+    knitting_finished_size TEXT,
+    crochet_project_type TEXT,
+    crochet_project_subtype TEXT,
+    crochet_yarn_weight TEXT,
+    crochet_hook_size_mm TEXT,
+    crochet_gauge JSONB,
+    crochet_finished_size TEXT,
+    quilting_project_type TEXT,
+    quilting_project_subtype TEXT,
+    quilting_piecing_technique TEXT,
+    quilting_quilting_method TEXT,
+    quilting_size TEXT,
+    sewing_project_type TEXT,
+    sewing_project_subtype TEXT,
+    sewing_size_made TEXT,
+    sewing_fit_notes TEXT,
+    indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 `
 
@@ -210,7 +254,7 @@ func TestCraftskyPost_Create_PlainText(t *testing.T) {
 	}
 }
 
-func TestCraftskyPost_Create_WithProjectPayload_StoredInRecordOnly(t *testing.T) {
+func TestCraftskyPost_Create_WithProjectPayload_MaterializesProject(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, craftskyPostsDDL)
 	seedCraftskyMember(t, pool, "did:plc:p")
@@ -243,20 +287,48 @@ func TestCraftskyPost_Create_WithProjectPayload_StoredInRecordOnly(t *testing.T)
 		t.Fatalf("Handle: %v", err)
 	}
 
-	// The materialised columns must NOT carry project data this pass —
-	// `tags` is from facets only, the read endpoint will not see project
-	// fields until the project-fields spec lands.
 	var (
-		tags   []string
-		recRaw string
+		isProject        bool
+		projectCraftType *string
+		tags             []string
+		recRaw           string
 	)
 	if err := pool.QueryRow(context.Background(),
-		`SELECT tags, record::text FROM craftsky_posts WHERE uri = $1`, ev.URI).
-		Scan(&tags, &recRaw); err != nil {
+		`SELECT is_project, project_craft_type, tags, record::text FROM craftsky_posts WHERE uri = $1`, ev.URI).
+		Scan(&isProject, &projectCraftType, &tags, &recRaw); err != nil {
 		t.Fatalf("select: %v", err)
 	}
-	if len(tags) != 0 {
-		t.Errorf("tags = %v, want empty (project tags are not yet materialised)", tags)
+	if !isProject {
+		t.Fatalf("is_project = false, want true")
+	}
+	if projectCraftType == nil || *projectCraftType != "social.craftsky.feed.defs#knitting" {
+		t.Fatalf("project_craft_type = %v", projectCraftType)
+	}
+	if len(tags) != 1 || tags[0] != "fair-isle" {
+		t.Errorf("tags = %v, want [fair-isle]", tags)
+	}
+
+	var (
+		commonCraftType string
+		commonStatus    *string
+		commonTitle     *string
+		projectTags     []string
+		rawProject      string
+	)
+	if err := pool.QueryRow(context.Background(), `
+		SELECT common_craft_type, common_status, common_title, project_tags, raw_project::text
+		FROM craftsky_project_posts WHERE uri = $1`, ev.URI).
+		Scan(&commonCraftType, &commonStatus, &commonTitle, &projectTags, &rawProject); err != nil {
+		t.Fatalf("select project: %v", err)
+	}
+	if commonCraftType != "social.craftsky.feed.defs#knitting" || commonStatus == nil || *commonStatus != "social.craftsky.feed.defs#finished" || commonTitle == nil || *commonTitle != "Hitchhiker Shawl" {
+		t.Fatalf("project common = craft=%q status=%v title=%v", commonCraftType, commonStatus, commonTitle)
+	}
+	if len(projectTags) != 1 || projectTags[0] != "fair-isle" {
+		t.Fatalf("project_tags = %v, want [fair-isle]", projectTags)
+	}
+	if rawProject == "" {
+		t.Fatalf("raw_project empty")
 	}
 
 	// The raw record column must round-trip the project payload byte-for-meaning.
@@ -277,6 +349,42 @@ func TestCraftskyPost_Create_WithProjectPayload_StoredInRecordOnly(t *testing.T)
 	}
 	if common["title"] != "Hitchhiker Shawl" {
 		t.Errorf("title = %v", common["title"])
+	}
+}
+
+func TestCraftskyPost_Create_GeneralPostHasNoProjectRow(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:g")
+	idx := index.NewCraftskyPost(pool, testLogger())
+
+	ev := tap.Event{
+		URI:        "at://did:plc:g/social.craftsky.feed.post/r",
+		CID:        "bafyG",
+		DID:        "did:plc:g",
+		Rkey:       "r",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record:     json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"general","createdAt":"` + fixedCreatedAt + `"}`),
+	}
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+
+	var isProject bool
+	var projectCraftType *string
+	if err := pool.QueryRow(context.Background(), `SELECT is_project, project_craft_type FROM craftsky_posts WHERE uri = $1`, ev.URI).Scan(&isProject, &projectCraftType); err != nil {
+		t.Fatalf("select base flags: %v", err)
+	}
+	if isProject || projectCraftType != nil {
+		t.Fatalf("general post flags = (%v, %v), want false nil", isProject, projectCraftType)
+	}
+	var childCount int
+	if err := pool.QueryRow(context.Background(), `SELECT COUNT(*) FROM craftsky_project_posts WHERE uri = $1`, ev.URI).Scan(&childCount); err != nil {
+		t.Fatalf("count child rows: %v", err)
+	}
+	if childCount != 0 {
+		t.Fatalf("project child rows = %d, want 0", childCount)
 	}
 }
 

@@ -107,6 +107,46 @@ func TestBuildPostResponse_JSONIncludesEngagementFields(t *testing.T) {
 	}
 }
 
+func TestBuildPostResponse_IncludesProjectForProjectRows(t *testing.T) {
+	t.Parallel()
+	title := "Hitchhiker Shawl"
+	row := baseRow()
+	row.Project = &api.Project{
+		Common: api.ProjectCommon{
+			CraftType: "social.craftsky.feed.defs#knitting",
+			Title:     &title,
+		},
+		Details: json.RawMessage(`{"$type":"social.craftsky.project.knitting#details","projectType":"shawl"}`),
+	}
+
+	resp := api.BuildPostResponse(row, syntax.Handle("alice.example"))
+	if resp.Project == nil || resp.Project.Common.Title == nil || *resp.Project.Common.Title != title {
+		t.Fatalf("project = %+v", resp.Project)
+	}
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(data), `"project"`) || !strings.Contains(string(data), `"craftType"`) {
+		t.Fatalf("project/camelCase fields missing from %s", data)
+	}
+	if strings.Contains(string(data), "craft_type") {
+		t.Fatalf("snake_case project field leaked in %s", data)
+	}
+}
+
+func TestBuildPostResponse_OmitsProjectForGeneralRows(t *testing.T) {
+	t.Parallel()
+	resp := api.BuildPostResponse(baseRow(), syntax.Handle("alice.example"))
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(data), `"project"`) {
+		t.Fatalf("general post response should omit project: %s", data)
+	}
+}
+
 func TestBuildPostResponse_WithAuthorDisplayFields(t *testing.T) {
 	t.Parallel()
 	row := baseRow()

@@ -224,7 +224,37 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 				  AND p.reply_parent_uri IS NULL
 				  AND p.created_at >= now() - interval '7 days'
 			) AS posts_last_7_days,
-			0 AS project_count,
+			(
+				SELECT COUNT(*)
+				FROM craftsky_posts p
+				WHERE p.did = cp.did
+				  AND p.is_project = true
+				  AND p.reply_root_uri IS NULL
+				  AND p.reply_parent_uri IS NULL
+				  AND NOT EXISTS (
+					SELECT 1
+					FROM moderation_outputs mo
+					WHERE mo.action = 'apply'
+					  AND mo.value IN ('hide', 'takedown')
+					  AND (mo.expires_at IS NULL OR mo.expires_at > now())
+					  AND (
+						(mo.subject_type = 'post' AND mo.subject_uri = p.uri)
+						OR (mo.subject_type = 'account' AND mo.subject_did = p.did)
+					  )
+					  AND NOT EXISTS (
+						SELECT 1
+						FROM moderation_outputs neg
+						WHERE neg.action = 'negate'
+						  AND neg.source_did = mo.source_did
+						  AND neg.subject_type = mo.subject_type
+						  AND neg.subject_did = mo.subject_did
+						  AND neg.value = mo.value
+						  AND (neg.expires_at IS NULL OR neg.expires_at > now())
+						  AND neg.indexed_at > mo.indexed_at
+						  AND (mo.subject_type = 'account' OR neg.subject_uri = mo.subject_uri)
+					  )
+				  )
+			) AS project_count,
 			CASE
 				WHEN $2 = '' OR $2 = cp.did THEN false
 				ELSE EXISTS (

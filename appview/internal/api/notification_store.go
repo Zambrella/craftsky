@@ -106,10 +106,12 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			sp.uri, sp.did, sp.rkey, sp.cid, sp.text, sp.facets, sp.images,
 			sp.reply_root_uri, sp.reply_root_cid, sp.reply_parent_uri, sp.reply_parent_cid,
 			sp.quote_uri, sp.quote_cid, sp.tags, sp.created_at, sp.indexed_at,
+			sp.is_project, sp.project_craft_type, spp.raw_project,
 			sbp.display_name, sbp.avatar_cid
 		FROM events e
 		LEFT JOIN bluesky_profiles actor_bp ON actor_bp.did = e.actor_did
 		LEFT JOIN craftsky_posts sp ON sp.uri = e.subject_uri
+		LEFT JOIN craftsky_project_posts spp ON spp.uri = sp.uri
 		LEFT JOIN bluesky_profiles sbp ON sbp.did = sp.did
 		WHERE ($2::timestamptz IS NULL
 		       OR (e.indexed_at, e.uri) < ($2::timestamptz, $3::text))
@@ -179,6 +181,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			&subject.URI, &subject.DID, &subject.Rkey, &subject.CID, &subject.Text, &subject.Facets, &subject.Images,
 			&subject.ReplyRootURI, &subject.ReplyRootCID, &subject.ReplyParentURI, &subject.ReplyParentCID,
 			&subject.QuoteURI, &subject.QuoteCID, &subject.Tags, &subject.CreatedAt, &subject.IndexedAt,
+			&subject.IsProject, &subject.ProjectCraftType, &subject.RawProject,
 			&subject.AuthorDisplayName, &subject.AuthorAvatarCID,
 		); err != nil {
 			return nil, "", fmt.Errorf("notification list scan: %w", err)
@@ -211,29 +214,32 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 }
 
 type notificationSubjectScan struct {
-	URI            sql.NullString
-	DID            sql.NullString
-	Rkey           sql.NullString
-	CID            sql.NullString
-	Text           sql.NullString
-	Facets         json.RawMessage
-	Images         json.RawMessage
-	ReplyRootURI   *string
-	ReplyRootCID   *string
-	ReplyParentURI *string
-	ReplyParentCID *string
-	QuoteURI       *string
-	QuoteCID       *string
-	Tags           []string
-	CreatedAt      sql.NullTime
-	IndexedAt      sql.NullTime
+	URI              sql.NullString
+	DID              sql.NullString
+	Rkey             sql.NullString
+	CID              sql.NullString
+	Text             sql.NullString
+	Facets           json.RawMessage
+	Images           json.RawMessage
+	ReplyRootURI     *string
+	ReplyRootCID     *string
+	ReplyParentURI   *string
+	ReplyParentCID   *string
+	QuoteURI         *string
+	QuoteCID         *string
+	Tags             []string
+	CreatedAt        sql.NullTime
+	IndexedAt        sql.NullTime
+	IsProject        sql.NullBool
+	ProjectCraftType *string
+	RawProject       *json.RawMessage
 
 	AuthorDisplayName *string
 	AuthorAvatarCID   *string
 }
 
 func (s notificationSubjectScan) postRow() *PostRow {
-	return &PostRow{
+	row := &PostRow{
 		URI:               s.URI.String,
 		DID:               s.DID.String,
 		Rkey:              s.Rkey.String,
@@ -253,4 +259,14 @@ func (s notificationSubjectScan) postRow() *PostRow {
 		AuthorDisplayName: s.AuthorDisplayName,
 		AuthorAvatarCID:   s.AuthorAvatarCID,
 	}
+	row.IsProject = s.IsProject.Valid && s.IsProject.Bool
+	row.ProjectCraftType = s.ProjectCraftType
+	if s.RawProject != nil && len(*s.RawProject) > 0 {
+		row.RawProject = append(json.RawMessage(nil), (*s.RawProject)...)
+		var project Project
+		if err := json.Unmarshal(*s.RawProject, &project); err == nil {
+			row.Project = &project
+		}
+	}
+	return row
 }

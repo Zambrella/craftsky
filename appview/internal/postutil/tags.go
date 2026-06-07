@@ -40,3 +40,26 @@ func ExtractTags(facets []*appbsky.RichtextFacet) []string {
 	}
 	return out
 }
+
+// MergeTags lowercases, trims, drops empties, and dedupes multiple tag sets
+// while preserving first-seen order. It always returns a non-nil slice so
+// callers can store the result in NOT NULL array columns and JSON responses can
+// serialize empty tags as [].
+func MergeTags(tagSets ...[]string) []string {
+	out := []string{}
+	seen := map[string]struct{}{}
+	for _, tags := range tagSets {
+		for _, raw := range tags {
+			tag := strings.ToLower(strings.TrimSpace(raw))
+			if tag == "" {
+				continue
+			}
+			if _, ok := seen[tag]; ok {
+				continue
+			}
+			seen[tag] = struct{}{}
+			out = append(out, tag)
+		}
+	}
+	return out
+}
