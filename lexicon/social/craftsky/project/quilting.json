@@ -1,0 +1,100 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.project.quilting",
+  "description": "Quilting-specific fields for a craft project post. Referenced from social.craftsky.feed.post#project.details as one variant of the open union. This file defines a referenced type (#details) only; no main record.",
+  "defs": {
+    "details": {
+      "type": "object",
+      "description": "Quilting-specific fields attached to a project post when craftType is quilting.",
+      "properties": {
+        "projectType": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "The kind of quilt.",
+          "knownValues": [
+            "social.craftsky.project.defs#quilt",
+            "social.craftsky.project.defs#homeGoods",
+            "social.craftsky.project.defs#accessory",
+            "social.craftsky.project.defs#garment",
+            "social.craftsky.project.defs#toyHobby",
+            "social.craftsky.project.defs#pet",
+            "social.craftsky.project.defs#component",
+            "social.craftsky.project.defs#other"
+          ]
+        },
+        "projectSubtype": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "More specific quilting project category. Clients choose valid subtypes based on projectType; the lexicon keeps this open for forward compatibility.",
+          "knownValues": [
+            "social.craftsky.project.quilting.defs#bedQuilt",
+            "social.craftsky.project.quilting.defs#babyQuilt",
+            "social.craftsky.project.quilting.defs#throwQuilt",
+            "social.craftsky.project.quilting.defs#wallHanging",
+            "social.craftsky.project.quilting.defs#miniQuilt",
+            "social.craftsky.project.quilting.defs#artQuilt",
+            "social.craftsky.project.quilting.defs#memoryQuilt",
+            "social.craftsky.project.quilting.defs#samplerQuilt",
+            "social.craftsky.project.quilting.defs#medallionQuilt",
+            "social.craftsky.project.quilting.defs#wholeclothQuilt",
+            "social.craftsky.project.quilting.defs#tableRunner",
+            "social.craftsky.project.quilting.defs#placemat",
+            "social.craftsky.project.quilting.defs#pillow",
+            "social.craftsky.project.quilting.defs#potholder",
+            "social.craftsky.project.quilting.defs#coaster",
+            "social.craftsky.project.quilting.defs#rug",
+            "social.craftsky.project.quilting.defs#curtain",
+            "social.craftsky.project.quilting.defs#bedding",
+            "social.craftsky.project.quilting.defs#bag",
+            "social.craftsky.project.quilting.defs#tote",
+            "social.craftsky.project.quilting.defs#pouch",
+            "social.craftsky.project.quilting.defs#jacket",
+            "social.craftsky.project.quilting.defs#vest",
+            "social.craftsky.project.quilting.defs#softToy",
+            "social.craftsky.project.quilting.defs#playMat",
+            "social.craftsky.project.quilting.defs#petBedding",
+            "social.craftsky.project.quilting.defs#quiltBlock",
+            "social.craftsky.project.quilting.defs#applique",
+            "social.craftsky.project.quilting.defs#patch",
+            "social.craftsky.project.quilting.defs#binding",
+            "social.craftsky.project.quilting.defs#quiltTop",
+            "social.craftsky.project.quilting.defs#sampleBlock"
+          ]
+        },
+        "size": {
+          "type": "string",
+          "maxLength": 500,
+          "maxGraphemes": 100,
+          "description": "Free-text description of finished dimensions, e.g. '60in x 80in', 'queen', or 'throw, ~50in square'. Not range-queryable."
+        },
+        "piecingTechnique": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "How the quilt top is pieced.",
+          "knownValues": [
+            "social.craftsky.project.quilting.defs#traditional",
+            "social.craftsky.project.quilting.defs#foundationPaperPiecing",
+            "social.craftsky.project.quilting.defs#englishPaperPiecing",
+            "social.craftsky.project.quilting.defs#improv",
+            "social.craftsky.project.quilting.defs#applique"
+          ]
+        },
+        "quiltingMethod": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "How the quilt layers are quilted or secured together.",
+          "knownValues": [
+            "social.craftsky.project.quilting.defs#handQuilted",
+            "social.craftsky.project.quilting.defs#machineQuilted",
+            "social.craftsky.project.quilting.defs#longarm",
+            "social.craftsky.project.quilting.defs#tied"
+          ]
+        }
+      }
+    }
+  }
+}

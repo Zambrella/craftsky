@@ -30,6 +30,10 @@ func main() {
 		craftsky.FeedPost_ProjectCommon{},
 		craftsky.FeedPost_QuoteEmbed{},
 		craftsky.FeedPost_ReplyRef{},
+		craftsky.ProjectCrochet_Details{},
+		craftsky.ProjectDefs_Gauge{},
+		craftsky.ProjectKnitting_Details{},
+		craftsky.ProjectQuilting_Details{},
 		craftsky.ProjectSewing_Details{},
 	); err != nil {
 		panic(err)

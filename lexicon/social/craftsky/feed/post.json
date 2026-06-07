@@ -85,7 +85,10 @@
         "details": {
           "type": "union",
           "refs": [
-            "social.craftsky.project.sewing#details"
+            "social.craftsky.project.sewing#details",
+            "social.craftsky.project.quilting#details",
+            "social.craftsky.project.crochet#details",
+            "social.craftsky.project.knitting#details"
           ],
           "description": "Optional craft-specific fields. Open union — new crafts add new variants here without breaking existing records."
         }
@@ -148,6 +151,73 @@
           },
           "description": "Materials used in the project, as free-form tags. Indexed for search, e.g. 'show me all projects using linen'. Structure per material is intentionally free-form because every craft uses different material descriptors."
         },
+        "colors": {
+          "type": "array",
+          "maxLength": 10,
+          "items": {
+            "type": "string",
+            "maxLength": 64,
+            "maxGraphemes": 64,
+            "knownValues": [
+              "black",
+              "white",
+              "gray",
+              "brown",
+              "beige",
+              "red",
+              "orange",
+              "yellow",
+              "green",
+              "blue",
+              "purple",
+              "pink",
+              "cream",
+              "gold",
+              "silver",
+              "multicolor",
+              "natural"
+            ]
+          },
+          "description": "Primary colors used in the project, normalized by clients for search and filtering. knownValues are open suggestions; clients may write other bounded color strings when needed."
+        },
+        "designTags": {
+          "type": "array",
+          "maxLength": 10,
+          "items": {
+            "type": "string",
+            "maxLength": 64,
+            "maxGraphemes": 64,
+            "knownValues": [
+              "social.craftsky.project.defs#floral",
+              "social.craftsky.project.defs#botanical",
+              "social.craftsky.project.defs#animal",
+              "social.craftsky.project.defs#geometric",
+              "social.craftsky.project.defs#abstract",
+              "social.craftsky.project.defs#stripes",
+              "social.craftsky.project.defs#colorblock",
+              "social.craftsky.project.defs#plaid",
+              "social.craftsky.project.defs#checkerboard",
+              "social.craftsky.project.defs#lettering",
+              "social.craftsky.project.defs#novelty",
+              "social.craftsky.project.defs#holiday",
+              "social.craftsky.project.defs#seasonal",
+              "social.craftsky.project.defs#traditional",
+              "social.craftsky.project.defs#modern",
+              "social.craftsky.project.defs#vintage",
+              "social.craftsky.project.defs#minimalist",
+              "social.craftsky.project.defs#maximalist",
+              "social.craftsky.project.defs#whimsical",
+              "social.craftsky.project.defs#folk",
+              "social.craftsky.project.defs#boho",
+              "social.craftsky.project.defs#cottagecore",
+              "social.craftsky.project.defs#gothic",
+              "social.craftsky.project.defs#romantic",
+              "social.craftsky.project.defs#nautical",
+              "social.craftsky.project.defs#sporty"
+            ]
+          },
+          "description": "Visual design, motif, or aesthetic tags for the project, normalized by clients for cross-craft search and filtering. knownValues are open suggestions; clients may write other bounded design strings when needed."
+        },
         "tags": {
           "type": "array",
           "maxLength": 10,
@@ -186,6 +256,18 @@
             "social.craftsky.feed.defs#advanced",
             "social.craftsky.feed.defs#expert"
           ]
+        },
+        "designer": {
+          "type": "string",
+          "maxLength": 500,
+          "maxGraphemes": 200,
+          "description": "The person or people who designed the pattern. Free text so physical patterns, indie designers, and multiple-designer credits can be represented without account references."
+        },
+        "publisher": {
+          "type": "string",
+          "maxLength": 500,
+          "maxGraphemes": 200,
+          "description": "The person, company, or entity that published the pattern. Optional and free text because pattern publishing differs across crafts and eras."
         }
       }
     },

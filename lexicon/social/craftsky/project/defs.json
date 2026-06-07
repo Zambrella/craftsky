@@ -1,0 +1,223 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.project.defs",
+  "description": "Shared tokens for craft project details. These are used by multiple social.craftsky.project.* detail lexicons.",
+  "defs": {
+    "garment": {
+      "type": "token",
+      "description": "Clothing worn on the body."
+    },
+    "accessory": {
+      "type": "token",
+      "description": "Worn or carried accessories."
+    },
+    "homeGoods": {
+      "type": "token",
+      "description": "Household items and decor."
+    },
+    "toyHobby": {
+      "type": "token",
+      "description": "Toys, hobby objects, games, dolls, and play items."
+    },
+    "pet": {
+      "type": "token",
+      "description": "Pet clothing, bedding, toys, and accessories."
+    },
+    "medical": {
+      "type": "token",
+      "description": "Medical, adaptive, support, or care-related projects."
+    },
+    "component": {
+      "type": "token",
+      "description": "Motifs, swatches, parts, trims, blocks, appliques, or other components."
+    },
+    "quilt": {
+      "type": "token",
+      "description": "Quilts as a primary project category."
+    },
+    "alteration": {
+      "type": "token",
+      "description": "Mending, repair, refashioning, or adjustment of an existing item."
+    },
+    "costume": {
+      "type": "token",
+      "description": "Costume, cosplay, theatre, or fancy-dress projects."
+    },
+    "other": {
+      "type": "token",
+      "description": "Intentionally uncategorized or not covered by the current vocabulary."
+    },
+    "lace": {
+      "type": "token",
+      "description": "Lace weight yarn."
+    },
+    "fingering": {
+      "type": "token",
+      "description": "Fingering weight yarn."
+    },
+    "sport": {
+      "type": "token",
+      "description": "Sport weight yarn."
+    },
+    "dk": {
+      "type": "token",
+      "description": "DK weight yarn."
+    },
+    "worsted": {
+      "type": "token",
+      "description": "Worsted weight yarn."
+    },
+    "aran": {
+      "type": "token",
+      "description": "Aran weight yarn."
+    },
+    "bulky": {
+      "type": "token",
+      "description": "Bulky weight yarn."
+    },
+    "superBulky": {
+      "type": "token",
+      "description": "Super bulky weight yarn."
+    },
+    "floral": {
+      "type": "token",
+      "description": "Floral design, motif, or aesthetic."
+    },
+    "botanical": {
+      "type": "token",
+      "description": "Botanical, leaf, plant, or garden-inspired design."
+    },
+    "animal": {
+      "type": "token",
+      "description": "Animal-themed design or motif."
+    },
+    "geometric": {
+      "type": "token",
+      "description": "Geometric design, motif, or layout."
+    },
+    "abstract": {
+      "type": "token",
+      "description": "Abstract or non-representational design."
+    },
+    "stripes": {
+      "type": "token",
+      "description": "Striped design."
+    },
+    "colorblock": {
+      "type": "token",
+      "description": "Color-blocked design."
+    },
+    "plaid": {
+      "type": "token",
+      "description": "Plaid or tartan-inspired design."
+    },
+    "checkerboard": {
+      "type": "token",
+      "description": "Checkerboard or checked design."
+    },
+    "lettering": {
+      "type": "token",
+      "description": "Design featuring lettering, words, initials, or typography."
+    },
+    "novelty": {
+      "type": "token",
+      "description": "Novelty or playful themed design."
+    },
+    "holiday": {
+      "type": "token",
+      "description": "Holiday-themed design."
+    },
+    "seasonal": {
+      "type": "token",
+      "description": "Seasonal design or aesthetic."
+    },
+    "traditional": {
+      "type": "token",
+      "description": "Traditional design or aesthetic."
+    },
+    "modern": {
+      "type": "token",
+      "description": "Modern design or aesthetic."
+    },
+    "vintage": {
+      "type": "token",
+      "description": "Vintage or retro-inspired design."
+    },
+    "minimalist": {
+      "type": "token",
+      "description": "Minimalist design or aesthetic."
+    },
+    "maximalist": {
+      "type": "token",
+      "description": "Maximalist design or aesthetic."
+    },
+    "whimsical": {
+      "type": "token",
+      "description": "Whimsical or fanciful design."
+    },
+    "folk": {
+      "type": "token",
+      "description": "Folk-inspired design or aesthetic."
+    },
+    "boho": {
+      "type": "token",
+      "description": "Boho or bohemian-inspired design."
+    },
+    "cottagecore": {
+      "type": "token",
+      "description": "Cottagecore design or aesthetic."
+    },
+    "gothic": {
+      "type": "token",
+      "description": "Gothic design or aesthetic."
+    },
+    "romantic": {
+      "type": "token",
+      "description": "Romantic design or aesthetic."
+    },
+    "nautical": {
+      "type": "token",
+      "description": "Nautical or maritime-inspired design."
+    },
+    "sporty": {
+      "type": "token",
+      "description": "Sporty or athletic-inspired design."
+    },
+    "gauge": {
+      "type": "object",
+      "description": "Structured stitch gauge measured over a stated distance. Rows are optional because many crafters record only stitch gauge.",
+      "required": [
+        "stitches",
+        "measurement",
+        "unit"
+      ],
+      "properties": {
+        "stitches": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of stitches measured across the gauge swatch."
+        },
+        "rows": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of rows or rounds measured, when recorded."
+        },
+        "measurement": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Measurement distance for the gauge swatch, interpreted with unit."
+        },
+        "unit": {
+          "type": "string",
+          "maxLength": 10,
+          "maxGraphemes": 10,
+          "knownValues": [
+            "cm",
+            "in"
+          ],
+          "description": "Measurement unit for the gauge swatch."
+        }
+      }
+    }
+  }
+}

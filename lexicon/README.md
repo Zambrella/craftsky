@@ -17,8 +17,15 @@ Lexicons are JSON schemas that define the shape of records stored on user PDSes.
 | `social.craftsky.feed.repost` | A repost of a Craftsky post |
 | `social.craftsky.feed.like` | A like on a Craftsky post (distinct NSID for firehose-filter efficiency) |
 | `social.craftsky.actor.profile` | Craftsky-specific profile extension (single record, key `self`); signals active Craftsky users and stores craft preferences |
+| `social.craftsky.project.defs` | Shared project-detail definitions used by multiple craft detail lexicons, including broad project type tokens, yarn weight tokens, and the structured `#gauge` object. |
 | `social.craftsky.project.sewing` | Sewing-specific `#details` referenced from `feed.post#project.details`. Defines a referenced type only — no `main` record. |
-| `social.craftsky.project.sewing.defs` | Sewing sub-domain tokens (`garment`, `homeGoods`, `accessory`, `softToy`, `costume`, `alteration`). |
+| `social.craftsky.project.sewing.defs` | Sewing project subtype tokens. |
+| `social.craftsky.project.quilting` | Quilting-specific `#details` referenced from `feed.post#project.details`. Defines a referenced type only — no `main` record. |
+| `social.craftsky.project.quilting.defs` | Quilting subtype tokens plus piecing technique and quilting method tokens. |
+| `social.craftsky.project.crochet` | Crochet-specific `#details` referenced from `feed.post#project.details`. Defines a referenced type only — no `main` record. |
+| `social.craftsky.project.crochet.defs` | Crochet project subtype tokens. |
+| `social.craftsky.project.knitting` | Knitting-specific `#details` referenced from `feed.post#project.details`. Defines a referenced type only — no `main` record. |
+| `social.craftsky.project.knitting.defs` | Knitting project subtype tokens. |
 
 **Reused from `app.bsky.*` (not redefined here):**
 

@@ -1441,13 +1441,21 @@ func (t *FeedPost_Pattern) MarshalCBOR(w io.Writer) error {
 	}
 
 	cw := cbg.NewCborWriter(w)
-	fieldCount := 3
+	fieldCount := 5
+
+	if t.Designer == nil {
+		fieldCount--
+	}
 
 	if t.Difficulty == nil {
 		fieldCount--
 	}
 
 	if t.Name == nil {
+		fieldCount--
+	}
+
+	if t.Publisher == nil {
 		fieldCount--
 	}
 
@@ -1518,6 +1526,70 @@ func (t *FeedPost_Pattern) MarshalCBOR(w io.Writer) error {
 				return err
 			}
 			if _, err := cw.WriteString(string(*t.Name)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// t.Designer (string) (string)
+	if t.Designer != nil {
+
+		if len("designer") > 1000000 {
+			return xerrors.Errorf("Value in field \"designer\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("designer"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("designer")); err != nil {
+			return err
+		}
+
+		if t.Designer == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.Designer) > 1000000 {
+				return xerrors.Errorf("Value in field t.Designer was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.Designer))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.Designer)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// t.Publisher (string) (string)
+	if t.Publisher != nil {
+
+		if len("publisher") > 1000000 {
+			return xerrors.Errorf("Value in field \"publisher\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("publisher"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("publisher")); err != nil {
+			return err
+		}
+
+		if t.Publisher == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.Publisher) > 1000000 {
+				return xerrors.Errorf("Value in field t.Publisher was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.Publisher))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.Publisher)); err != nil {
 				return err
 			}
 		}
@@ -1638,6 +1710,48 @@ func (t *FeedPost_Pattern) UnmarshalCBOR(r io.Reader) (err error) {
 					}
 
 					t.Name = (*string)(&sval)
+				}
+			}
+			// t.Designer (string) (string)
+		case "designer":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.Designer = (*string)(&sval)
+				}
+			}
+			// t.Publisher (string) (string)
+		case "publisher":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.Publisher = (*string)(&sval)
 				}
 			}
 			// t.Difficulty (string) (string)
@@ -1825,7 +1939,15 @@ func (t *FeedPost_ProjectCommon) MarshalCBOR(w io.Writer) error {
 	}
 
 	cw := cbg.NewCborWriter(w)
-	fieldCount := 7
+	fieldCount := 9
+
+	if t.Colors == nil {
+		fieldCount--
+	}
+
+	if t.DesignTags == nil {
+		fieldCount--
+	}
 
 	if t.Duration == nil {
 		fieldCount--
@@ -1920,6 +2042,42 @@ func (t *FeedPost_ProjectCommon) MarshalCBOR(w io.Writer) error {
 			if _, err := cw.WriteString(string(*t.Title)); err != nil {
 				return err
 			}
+		}
+	}
+
+	// t.Colors ([]string) (slice)
+	if t.Colors != nil {
+
+		if len("colors") > 1000000 {
+			return xerrors.Errorf("Value in field \"colors\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("colors"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("colors")); err != nil {
+			return err
+		}
+
+		if len(t.Colors) > 8192 {
+			return xerrors.Errorf("Slice value in field t.Colors was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajArray, uint64(len(t.Colors))); err != nil {
+			return err
+		}
+		for _, v := range t.Colors {
+			if len(v) > 1000000 {
+				return xerrors.Errorf("Value in field v was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(v))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(v)); err != nil {
+				return err
+			}
+
 		}
 	}
 
@@ -2064,6 +2222,42 @@ func (t *FeedPost_ProjectCommon) MarshalCBOR(w io.Writer) error {
 
 		}
 	}
+
+	// t.DesignTags ([]string) (slice)
+	if t.DesignTags != nil {
+
+		if len("designTags") > 1000000 {
+			return xerrors.Errorf("Value in field \"designTags\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("designTags"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("designTags")); err != nil {
+			return err
+		}
+
+		if len(t.DesignTags) > 8192 {
+			return xerrors.Errorf("Slice value in field t.DesignTags was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajArray, uint64(len(t.DesignTags))); err != nil {
+			return err
+		}
+		for _, v := range t.DesignTags {
+			if len(v) > 1000000 {
+				return xerrors.Errorf("Value in field v was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(v))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(v)); err != nil {
+				return err
+			}
+
+		}
+	}
 	return nil
 }
 
@@ -2092,7 +2286,7 @@ func (t *FeedPost_ProjectCommon) UnmarshalCBOR(r io.Reader) (err error) {
 
 	n := extra
 
-	nameBuf := make([]byte, 9)
+	nameBuf := make([]byte, 10)
 	for i := uint64(0); i < n; i++ {
 		nameLen, ok, err := cbg.ReadFullStringIntoBuf(cr, nameBuf, 1000000)
 		if err != nil {
@@ -2167,6 +2361,46 @@ func (t *FeedPost_ProjectCommon) UnmarshalCBOR(r io.Reader) (err error) {
 					}
 
 					t.Title = (*string)(&sval)
+				}
+			}
+			// t.Colors ([]string) (slice)
+		case "colors":
+
+			maj, extra, err = cr.ReadHeader()
+			if err != nil {
+				return err
+			}
+
+			if extra > 8192 {
+				return fmt.Errorf("t.Colors: array too large (%d)", extra)
+			}
+
+			if maj != cbg.MajArray {
+				return fmt.Errorf("expected cbor array")
+			}
+
+			if extra > 0 {
+				t.Colors = make([]string, extra)
+			}
+
+			for i := 0; i < int(extra); i++ {
+				{
+					var maj byte
+					var extra uint64
+					var err error
+					_ = maj
+					_ = extra
+					_ = err
+
+					{
+						sval, err := cbg.ReadStringWithMax(cr, 1000000)
+						if err != nil {
+							return err
+						}
+
+						t.Colors[i] = string(sval)
+					}
+
 				}
 			}
 			// t.Status (string) (string)
@@ -2278,6 +2512,46 @@ func (t *FeedPost_ProjectCommon) UnmarshalCBOR(r io.Reader) (err error) {
 						}
 
 						t.Materials[i] = string(sval)
+					}
+
+				}
+			}
+			// t.DesignTags ([]string) (slice)
+		case "designTags":
+
+			maj, extra, err = cr.ReadHeader()
+			if err != nil {
+				return err
+			}
+
+			if extra > 8192 {
+				return fmt.Errorf("t.DesignTags: array too large (%d)", extra)
+			}
+
+			if maj != cbg.MajArray {
+				return fmt.Errorf("expected cbor array")
+			}
+
+			if extra > 0 {
+				t.DesignTags = make([]string, extra)
+			}
+
+			for i := 0; i < int(extra); i++ {
+				{
+					var maj byte
+					var extra uint64
+					var err error
+					_ = maj
+					_ = extra
+					_ = err
+
+					{
+						sval, err := cbg.ReadStringWithMax(cr, 1000000)
+						if err != nil {
+							return err
+						}
+
+						t.DesignTags[i] = string(sval)
 					}
 
 				}
@@ -2563,16 +2837,36 @@ func (t *FeedPost_ReplyRef) UnmarshalCBOR(r io.Reader) (err error) {
 
 	return nil
 }
-func (t *ProjectSewing_Details) MarshalCBOR(w io.Writer) error {
+func (t *ProjectCrochet_Details) MarshalCBOR(w io.Writer) error {
 	if t == nil {
 		_, err := w.Write(cbg.CborNull)
 		return err
 	}
 
 	cw := cbg.NewCborWriter(w)
-	fieldCount := 2
+	fieldCount := 7
+
+	if t.FinishedSize == nil {
+		fieldCount--
+	}
+
+	if t.Gauge == nil {
+		fieldCount--
+	}
+
+	if t.HookSizeMm == nil {
+		fieldCount--
+	}
+
+	if t.ProjectSubtype == nil {
+		fieldCount--
+	}
 
 	if t.ProjectType == nil {
+		fieldCount--
+	}
+
+	if t.YarnWeight == nil {
 		fieldCount--
 	}
 
@@ -2592,10 +2886,1158 @@ func (t *ProjectSewing_Details) MarshalCBOR(w io.Writer) error {
 		return err
 	}
 
-	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("social.craftsky.project.sewing#details"))); err != nil {
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("social.craftsky.project.crochet#details"))); err != nil {
 		return err
 	}
-	if _, err := cw.WriteString(string("social.craftsky.project.sewing#details")); err != nil {
+	if _, err := cw.WriteString(string("social.craftsky.project.crochet#details")); err != nil {
+		return err
+	}
+
+	// t.Gauge (craftsky.ProjectDefs_Gauge) (struct)
+	if t.Gauge != nil {
+
+		if len("gauge") > 1000000 {
+			return xerrors.Errorf("Value in field \"gauge\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("gauge"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("gauge")); err != nil {
+			return err
+		}
+
+		if err := t.Gauge.MarshalCBOR(cw); err != nil {
+			return err
+		}
+	}
+
+	// t.HookSizeMm (string) (string)
+	if t.HookSizeMm != nil {
+
+		if len("hookSizeMm") > 1000000 {
+			return xerrors.Errorf("Value in field \"hookSizeMm\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("hookSizeMm"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("hookSizeMm")); err != nil {
+			return err
+		}
+
+		if t.HookSizeMm == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.HookSizeMm) > 1000000 {
+				return xerrors.Errorf("Value in field t.HookSizeMm was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.HookSizeMm))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.HookSizeMm)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// t.YarnWeight (string) (string)
+	if t.YarnWeight != nil {
+
+		if len("yarnWeight") > 1000000 {
+			return xerrors.Errorf("Value in field \"yarnWeight\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("yarnWeight"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("yarnWeight")); err != nil {
+			return err
+		}
+
+		if t.YarnWeight == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.YarnWeight) > 1000000 {
+				return xerrors.Errorf("Value in field t.YarnWeight was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.YarnWeight))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.YarnWeight)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// t.ProjectType (string) (string)
+	if t.ProjectType != nil {
+
+		if len("projectType") > 1000000 {
+			return xerrors.Errorf("Value in field \"projectType\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("projectType"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("projectType")); err != nil {
+			return err
+		}
+
+		if t.ProjectType == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.ProjectType) > 1000000 {
+				return xerrors.Errorf("Value in field t.ProjectType was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.ProjectType))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.ProjectType)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// t.FinishedSize (string) (string)
+	if t.FinishedSize != nil {
+
+		if len("finishedSize") > 1000000 {
+			return xerrors.Errorf("Value in field \"finishedSize\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("finishedSize"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("finishedSize")); err != nil {
+			return err
+		}
+
+		if t.FinishedSize == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.FinishedSize) > 1000000 {
+				return xerrors.Errorf("Value in field t.FinishedSize was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.FinishedSize))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.FinishedSize)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// t.ProjectSubtype (string) (string)
+	if t.ProjectSubtype != nil {
+
+		if len("projectSubtype") > 1000000 {
+			return xerrors.Errorf("Value in field \"projectSubtype\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("projectSubtype"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("projectSubtype")); err != nil {
+			return err
+		}
+
+		if t.ProjectSubtype == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.ProjectSubtype) > 1000000 {
+				return xerrors.Errorf("Value in field t.ProjectSubtype was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.ProjectSubtype))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.ProjectSubtype)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (t *ProjectCrochet_Details) UnmarshalCBOR(r io.Reader) (err error) {
+	*t = ProjectCrochet_Details{}
+
+	cr := cbg.NewCborReader(r)
+
+	maj, extra, err := cr.ReadHeader()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
+	}()
+
+	if maj != cbg.MajMap {
+		return fmt.Errorf("cbor input should be of type map")
+	}
+
+	if extra > cbg.MaxLength {
+		return fmt.Errorf("ProjectCrochet_Details: map struct too large (%d)", extra)
+	}
+
+	n := extra
+
+	nameBuf := make([]byte, 14)
+	for i := uint64(0); i < n; i++ {
+		nameLen, ok, err := cbg.ReadFullStringIntoBuf(cr, nameBuf, 1000000)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			// Field doesn't exist on this type, so ignore it
+			if err := cbg.ScanForLinks(cr, func(cid.Cid) {}); err != nil {
+				return err
+			}
+			continue
+		}
+
+		switch string(nameBuf[:nameLen]) {
+		// t.LexiconTypeID (string) (string)
+		case "$type":
+
+			{
+				sval, err := cbg.ReadStringWithMax(cr, 1000000)
+				if err != nil {
+					return err
+				}
+
+				t.LexiconTypeID = string(sval)
+			}
+			// t.Gauge (craftsky.ProjectDefs_Gauge) (struct)
+		case "gauge":
+
+			{
+
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+					t.Gauge = new(ProjectDefs_Gauge)
+					if err := t.Gauge.UnmarshalCBOR(cr); err != nil {
+						return xerrors.Errorf("unmarshaling t.Gauge pointer: %w", err)
+					}
+				}
+
+			}
+			// t.HookSizeMm (string) (string)
+		case "hookSizeMm":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.HookSizeMm = (*string)(&sval)
+				}
+			}
+			// t.YarnWeight (string) (string)
+		case "yarnWeight":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.YarnWeight = (*string)(&sval)
+				}
+			}
+			// t.ProjectType (string) (string)
+		case "projectType":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.ProjectType = (*string)(&sval)
+				}
+			}
+			// t.FinishedSize (string) (string)
+		case "finishedSize":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.FinishedSize = (*string)(&sval)
+				}
+			}
+			// t.ProjectSubtype (string) (string)
+		case "projectSubtype":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.ProjectSubtype = (*string)(&sval)
+				}
+			}
+
+		default:
+			// Field doesn't exist on this type, so ignore it
+			if err := cbg.ScanForLinks(r, func(cid.Cid) {}); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+func (t *ProjectDefs_Gauge) MarshalCBOR(w io.Writer) error {
+	if t == nil {
+		_, err := w.Write(cbg.CborNull)
+		return err
+	}
+
+	cw := cbg.NewCborWriter(w)
+	fieldCount := 4
+
+	if t.Rows == nil {
+		fieldCount--
+	}
+
+	if _, err := cw.Write(cbg.CborEncodeMajorType(cbg.MajMap, uint64(fieldCount))); err != nil {
+		return err
+	}
+
+	// t.Rows (int64) (int64)
+	if t.Rows != nil {
+
+		if len("rows") > 1000000 {
+			return xerrors.Errorf("Value in field \"rows\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("rows"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("rows")); err != nil {
+			return err
+		}
+
+		if t.Rows == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if *t.Rows >= 0 {
+				if err := cw.WriteMajorTypeHeader(cbg.MajUnsignedInt, uint64(*t.Rows)); err != nil {
+					return err
+				}
+			} else {
+				if err := cw.WriteMajorTypeHeader(cbg.MajNegativeInt, uint64(-*t.Rows-1)); err != nil {
+					return err
+				}
+			}
+		}
+
+	}
+
+	// t.Unit (string) (string)
+	if len("unit") > 1000000 {
+		return xerrors.Errorf("Value in field \"unit\" was too long")
+	}
+
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("unit"))); err != nil {
+		return err
+	}
+	if _, err := cw.WriteString(string("unit")); err != nil {
+		return err
+	}
+
+	if len(t.Unit) > 1000000 {
+		return xerrors.Errorf("Value in field t.Unit was too long")
+	}
+
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(t.Unit))); err != nil {
+		return err
+	}
+	if _, err := cw.WriteString(string(t.Unit)); err != nil {
+		return err
+	}
+
+	// t.Stitches (int64) (int64)
+	if len("stitches") > 1000000 {
+		return xerrors.Errorf("Value in field \"stitches\" was too long")
+	}
+
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("stitches"))); err != nil {
+		return err
+	}
+	if _, err := cw.WriteString(string("stitches")); err != nil {
+		return err
+	}
+
+	if t.Stitches >= 0 {
+		if err := cw.WriteMajorTypeHeader(cbg.MajUnsignedInt, uint64(t.Stitches)); err != nil {
+			return err
+		}
+	} else {
+		if err := cw.WriteMajorTypeHeader(cbg.MajNegativeInt, uint64(-t.Stitches-1)); err != nil {
+			return err
+		}
+	}
+
+	// t.Measurement (int64) (int64)
+	if len("measurement") > 1000000 {
+		return xerrors.Errorf("Value in field \"measurement\" was too long")
+	}
+
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("measurement"))); err != nil {
+		return err
+	}
+	if _, err := cw.WriteString(string("measurement")); err != nil {
+		return err
+	}
+
+	if t.Measurement >= 0 {
+		if err := cw.WriteMajorTypeHeader(cbg.MajUnsignedInt, uint64(t.Measurement)); err != nil {
+			return err
+		}
+	} else {
+		if err := cw.WriteMajorTypeHeader(cbg.MajNegativeInt, uint64(-t.Measurement-1)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (t *ProjectDefs_Gauge) UnmarshalCBOR(r io.Reader) (err error) {
+	*t = ProjectDefs_Gauge{}
+
+	cr := cbg.NewCborReader(r)
+
+	maj, extra, err := cr.ReadHeader()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
+	}()
+
+	if maj != cbg.MajMap {
+		return fmt.Errorf("cbor input should be of type map")
+	}
+
+	if extra > cbg.MaxLength {
+		return fmt.Errorf("ProjectDefs_Gauge: map struct too large (%d)", extra)
+	}
+
+	n := extra
+
+	nameBuf := make([]byte, 11)
+	for i := uint64(0); i < n; i++ {
+		nameLen, ok, err := cbg.ReadFullStringIntoBuf(cr, nameBuf, 1000000)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			// Field doesn't exist on this type, so ignore it
+			if err := cbg.ScanForLinks(cr, func(cid.Cid) {}); err != nil {
+				return err
+			}
+			continue
+		}
+
+		switch string(nameBuf[:nameLen]) {
+		// t.Rows (int64) (int64)
+		case "rows":
+			{
+
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+					maj, extra, err := cr.ReadHeader()
+					if err != nil {
+						return err
+					}
+					var extraI int64
+					switch maj {
+					case cbg.MajUnsignedInt:
+						extraI = int64(extra)
+						if extraI < 0 {
+							return fmt.Errorf("int64 positive overflow")
+						}
+					case cbg.MajNegativeInt:
+						extraI = int64(extra)
+						if extraI < 0 {
+							return fmt.Errorf("int64 negative overflow")
+						}
+						extraI = -1 - extraI
+					default:
+						return fmt.Errorf("wrong type for int64 field: %d", maj)
+					}
+
+					t.Rows = (*int64)(&extraI)
+				}
+			}
+			// t.Unit (string) (string)
+		case "unit":
+
+			{
+				sval, err := cbg.ReadStringWithMax(cr, 1000000)
+				if err != nil {
+					return err
+				}
+
+				t.Unit = string(sval)
+			}
+			// t.Stitches (int64) (int64)
+		case "stitches":
+			{
+				maj, extra, err := cr.ReadHeader()
+				if err != nil {
+					return err
+				}
+				var extraI int64
+				switch maj {
+				case cbg.MajUnsignedInt:
+					extraI = int64(extra)
+					if extraI < 0 {
+						return fmt.Errorf("int64 positive overflow")
+					}
+				case cbg.MajNegativeInt:
+					extraI = int64(extra)
+					if extraI < 0 {
+						return fmt.Errorf("int64 negative overflow")
+					}
+					extraI = -1 - extraI
+				default:
+					return fmt.Errorf("wrong type for int64 field: %d", maj)
+				}
+
+				t.Stitches = int64(extraI)
+			}
+			// t.Measurement (int64) (int64)
+		case "measurement":
+			{
+				maj, extra, err := cr.ReadHeader()
+				if err != nil {
+					return err
+				}
+				var extraI int64
+				switch maj {
+				case cbg.MajUnsignedInt:
+					extraI = int64(extra)
+					if extraI < 0 {
+						return fmt.Errorf("int64 positive overflow")
+					}
+				case cbg.MajNegativeInt:
+					extraI = int64(extra)
+					if extraI < 0 {
+						return fmt.Errorf("int64 negative overflow")
+					}
+					extraI = -1 - extraI
+				default:
+					return fmt.Errorf("wrong type for int64 field: %d", maj)
+				}
+
+				t.Measurement = int64(extraI)
+			}
+
+		default:
+			// Field doesn't exist on this type, so ignore it
+			if err := cbg.ScanForLinks(r, func(cid.Cid) {}); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+func (t *ProjectKnitting_Details) MarshalCBOR(w io.Writer) error {
+	if t == nil {
+		_, err := w.Write(cbg.CborNull)
+		return err
+	}
+
+	cw := cbg.NewCborWriter(w)
+	fieldCount := 7
+
+	if t.FinishedSize == nil {
+		fieldCount--
+	}
+
+	if t.Gauge == nil {
+		fieldCount--
+	}
+
+	if t.NeedleSizeMm == nil {
+		fieldCount--
+	}
+
+	if t.ProjectSubtype == nil {
+		fieldCount--
+	}
+
+	if t.ProjectType == nil {
+		fieldCount--
+	}
+
+	if t.YarnWeight == nil {
+		fieldCount--
+	}
+
+	if _, err := cw.Write(cbg.CborEncodeMajorType(cbg.MajMap, uint64(fieldCount))); err != nil {
+		return err
+	}
+
+	// t.LexiconTypeID (string) (string)
+	if len("$type") > 1000000 {
+		return xerrors.Errorf("Value in field \"$type\" was too long")
+	}
+
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("$type"))); err != nil {
+		return err
+	}
+	if _, err := cw.WriteString(string("$type")); err != nil {
+		return err
+	}
+
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("social.craftsky.project.knitting#details"))); err != nil {
+		return err
+	}
+	if _, err := cw.WriteString(string("social.craftsky.project.knitting#details")); err != nil {
+		return err
+	}
+
+	// t.Gauge (craftsky.ProjectDefs_Gauge) (struct)
+	if t.Gauge != nil {
+
+		if len("gauge") > 1000000 {
+			return xerrors.Errorf("Value in field \"gauge\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("gauge"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("gauge")); err != nil {
+			return err
+		}
+
+		if err := t.Gauge.MarshalCBOR(cw); err != nil {
+			return err
+		}
+	}
+
+	// t.YarnWeight (string) (string)
+	if t.YarnWeight != nil {
+
+		if len("yarnWeight") > 1000000 {
+			return xerrors.Errorf("Value in field \"yarnWeight\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("yarnWeight"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("yarnWeight")); err != nil {
+			return err
+		}
+
+		if t.YarnWeight == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.YarnWeight) > 1000000 {
+				return xerrors.Errorf("Value in field t.YarnWeight was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.YarnWeight))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.YarnWeight)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// t.ProjectType (string) (string)
+	if t.ProjectType != nil {
+
+		if len("projectType") > 1000000 {
+			return xerrors.Errorf("Value in field \"projectType\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("projectType"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("projectType")); err != nil {
+			return err
+		}
+
+		if t.ProjectType == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.ProjectType) > 1000000 {
+				return xerrors.Errorf("Value in field t.ProjectType was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.ProjectType))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.ProjectType)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// t.FinishedSize (string) (string)
+	if t.FinishedSize != nil {
+
+		if len("finishedSize") > 1000000 {
+			return xerrors.Errorf("Value in field \"finishedSize\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("finishedSize"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("finishedSize")); err != nil {
+			return err
+		}
+
+		if t.FinishedSize == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.FinishedSize) > 1000000 {
+				return xerrors.Errorf("Value in field t.FinishedSize was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.FinishedSize))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.FinishedSize)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// t.NeedleSizeMm (string) (string)
+	if t.NeedleSizeMm != nil {
+
+		if len("needleSizeMm") > 1000000 {
+			return xerrors.Errorf("Value in field \"needleSizeMm\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("needleSizeMm"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("needleSizeMm")); err != nil {
+			return err
+		}
+
+		if t.NeedleSizeMm == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.NeedleSizeMm) > 1000000 {
+				return xerrors.Errorf("Value in field t.NeedleSizeMm was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.NeedleSizeMm))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.NeedleSizeMm)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// t.ProjectSubtype (string) (string)
+	if t.ProjectSubtype != nil {
+
+		if len("projectSubtype") > 1000000 {
+			return xerrors.Errorf("Value in field \"projectSubtype\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("projectSubtype"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("projectSubtype")); err != nil {
+			return err
+		}
+
+		if t.ProjectSubtype == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.ProjectSubtype) > 1000000 {
+				return xerrors.Errorf("Value in field t.ProjectSubtype was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.ProjectSubtype))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.ProjectSubtype)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (t *ProjectKnitting_Details) UnmarshalCBOR(r io.Reader) (err error) {
+	*t = ProjectKnitting_Details{}
+
+	cr := cbg.NewCborReader(r)
+
+	maj, extra, err := cr.ReadHeader()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
+	}()
+
+	if maj != cbg.MajMap {
+		return fmt.Errorf("cbor input should be of type map")
+	}
+
+	if extra > cbg.MaxLength {
+		return fmt.Errorf("ProjectKnitting_Details: map struct too large (%d)", extra)
+	}
+
+	n := extra
+
+	nameBuf := make([]byte, 14)
+	for i := uint64(0); i < n; i++ {
+		nameLen, ok, err := cbg.ReadFullStringIntoBuf(cr, nameBuf, 1000000)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			// Field doesn't exist on this type, so ignore it
+			if err := cbg.ScanForLinks(cr, func(cid.Cid) {}); err != nil {
+				return err
+			}
+			continue
+		}
+
+		switch string(nameBuf[:nameLen]) {
+		// t.LexiconTypeID (string) (string)
+		case "$type":
+
+			{
+				sval, err := cbg.ReadStringWithMax(cr, 1000000)
+				if err != nil {
+					return err
+				}
+
+				t.LexiconTypeID = string(sval)
+			}
+			// t.Gauge (craftsky.ProjectDefs_Gauge) (struct)
+		case "gauge":
+
+			{
+
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+					t.Gauge = new(ProjectDefs_Gauge)
+					if err := t.Gauge.UnmarshalCBOR(cr); err != nil {
+						return xerrors.Errorf("unmarshaling t.Gauge pointer: %w", err)
+					}
+				}
+
+			}
+			// t.YarnWeight (string) (string)
+		case "yarnWeight":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.YarnWeight = (*string)(&sval)
+				}
+			}
+			// t.ProjectType (string) (string)
+		case "projectType":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.ProjectType = (*string)(&sval)
+				}
+			}
+			// t.FinishedSize (string) (string)
+		case "finishedSize":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.FinishedSize = (*string)(&sval)
+				}
+			}
+			// t.NeedleSizeMm (string) (string)
+		case "needleSizeMm":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.NeedleSizeMm = (*string)(&sval)
+				}
+			}
+			// t.ProjectSubtype (string) (string)
+		case "projectSubtype":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.ProjectSubtype = (*string)(&sval)
+				}
+			}
+
+		default:
+			// Field doesn't exist on this type, so ignore it
+			if err := cbg.ScanForLinks(r, func(cid.Cid) {}); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+func (t *ProjectQuilting_Details) MarshalCBOR(w io.Writer) error {
+	if t == nil {
+		_, err := w.Write(cbg.CborNull)
+		return err
+	}
+
+	cw := cbg.NewCborWriter(w)
+	fieldCount := 6
+
+	if t.PiecingTechnique == nil {
+		fieldCount--
+	}
+
+	if t.ProjectSubtype == nil {
+		fieldCount--
+	}
+
+	if t.ProjectType == nil {
+		fieldCount--
+	}
+
+	if t.QuiltingMethod == nil {
+		fieldCount--
+	}
+
+	if t.Size == nil {
+		fieldCount--
+	}
+
+	if _, err := cw.Write(cbg.CborEncodeMajorType(cbg.MajMap, uint64(fieldCount))); err != nil {
+		return err
+	}
+
+	// t.Size (string) (string)
+	if t.Size != nil {
+
+		if len("size") > 1000000 {
+			return xerrors.Errorf("Value in field \"size\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("size"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("size")); err != nil {
+			return err
+		}
+
+		if t.Size == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.Size) > 1000000 {
+				return xerrors.Errorf("Value in field t.Size was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.Size))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.Size)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// t.LexiconTypeID (string) (string)
+	if len("$type") > 1000000 {
+		return xerrors.Errorf("Value in field \"$type\" was too long")
+	}
+
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("$type"))); err != nil {
+		return err
+	}
+	if _, err := cw.WriteString(string("$type")); err != nil {
+		return err
+	}
+
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("social.craftsky.project.quilting#details"))); err != nil {
+		return err
+	}
+	if _, err := cw.WriteString(string("social.craftsky.project.quilting#details")); err != nil {
 		return err
 	}
 
@@ -2630,11 +4072,107 @@ func (t *ProjectSewing_Details) MarshalCBOR(w io.Writer) error {
 			}
 		}
 	}
+
+	// t.ProjectSubtype (string) (string)
+	if t.ProjectSubtype != nil {
+
+		if len("projectSubtype") > 1000000 {
+			return xerrors.Errorf("Value in field \"projectSubtype\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("projectSubtype"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("projectSubtype")); err != nil {
+			return err
+		}
+
+		if t.ProjectSubtype == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.ProjectSubtype) > 1000000 {
+				return xerrors.Errorf("Value in field t.ProjectSubtype was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.ProjectSubtype))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.ProjectSubtype)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// t.QuiltingMethod (string) (string)
+	if t.QuiltingMethod != nil {
+
+		if len("quiltingMethod") > 1000000 {
+			return xerrors.Errorf("Value in field \"quiltingMethod\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("quiltingMethod"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("quiltingMethod")); err != nil {
+			return err
+		}
+
+		if t.QuiltingMethod == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.QuiltingMethod) > 1000000 {
+				return xerrors.Errorf("Value in field t.QuiltingMethod was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.QuiltingMethod))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.QuiltingMethod)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// t.PiecingTechnique (string) (string)
+	if t.PiecingTechnique != nil {
+
+		if len("piecingTechnique") > 1000000 {
+			return xerrors.Errorf("Value in field \"piecingTechnique\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("piecingTechnique"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("piecingTechnique")); err != nil {
+			return err
+		}
+
+		if t.PiecingTechnique == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.PiecingTechnique) > 1000000 {
+				return xerrors.Errorf("Value in field t.PiecingTechnique was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.PiecingTechnique))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.PiecingTechnique)); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
-func (t *ProjectSewing_Details) UnmarshalCBOR(r io.Reader) (err error) {
-	*t = ProjectSewing_Details{}
+func (t *ProjectQuilting_Details) UnmarshalCBOR(r io.Reader) (err error) {
+	*t = ProjectQuilting_Details{}
 
 	cr := cbg.NewCborReader(r)
 
@@ -2653,12 +4191,12 @@ func (t *ProjectSewing_Details) UnmarshalCBOR(r io.Reader) (err error) {
 	}
 
 	if extra > cbg.MaxLength {
-		return fmt.Errorf("ProjectSewing_Details: map struct too large (%d)", extra)
+		return fmt.Errorf("ProjectQuilting_Details: map struct too large (%d)", extra)
 	}
 
 	n := extra
 
-	nameBuf := make([]byte, 11)
+	nameBuf := make([]byte, 16)
 	for i := uint64(0); i < n; i++ {
 		nameLen, ok, err := cbg.ReadFullStringIntoBuf(cr, nameBuf, 1000000)
 		if err != nil {
@@ -2674,7 +4212,28 @@ func (t *ProjectSewing_Details) UnmarshalCBOR(r io.Reader) (err error) {
 		}
 
 		switch string(nameBuf[:nameLen]) {
-		// t.LexiconTypeID (string) (string)
+		// t.Size (string) (string)
+		case "size":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.Size = (*string)(&sval)
+				}
+			}
+			// t.LexiconTypeID (string) (string)
 		case "$type":
 
 			{
@@ -2704,6 +4263,394 @@ func (t *ProjectSewing_Details) UnmarshalCBOR(r io.Reader) (err error) {
 					}
 
 					t.ProjectType = (*string)(&sval)
+				}
+			}
+			// t.ProjectSubtype (string) (string)
+		case "projectSubtype":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.ProjectSubtype = (*string)(&sval)
+				}
+			}
+			// t.QuiltingMethod (string) (string)
+		case "quiltingMethod":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.QuiltingMethod = (*string)(&sval)
+				}
+			}
+			// t.PiecingTechnique (string) (string)
+		case "piecingTechnique":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.PiecingTechnique = (*string)(&sval)
+				}
+			}
+
+		default:
+			// Field doesn't exist on this type, so ignore it
+			if err := cbg.ScanForLinks(r, func(cid.Cid) {}); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+func (t *ProjectSewing_Details) MarshalCBOR(w io.Writer) error {
+	if t == nil {
+		_, err := w.Write(cbg.CborNull)
+		return err
+	}
+
+	cw := cbg.NewCborWriter(w)
+	fieldCount := 5
+
+	if t.FitNotes == nil {
+		fieldCount--
+	}
+
+	if t.ProjectSubtype == nil {
+		fieldCount--
+	}
+
+	if t.ProjectType == nil {
+		fieldCount--
+	}
+
+	if t.SizeMade == nil {
+		fieldCount--
+	}
+
+	if _, err := cw.Write(cbg.CborEncodeMajorType(cbg.MajMap, uint64(fieldCount))); err != nil {
+		return err
+	}
+
+	// t.LexiconTypeID (string) (string)
+	if len("$type") > 1000000 {
+		return xerrors.Errorf("Value in field \"$type\" was too long")
+	}
+
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("$type"))); err != nil {
+		return err
+	}
+	if _, err := cw.WriteString(string("$type")); err != nil {
+		return err
+	}
+
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("social.craftsky.project.sewing#details"))); err != nil {
+		return err
+	}
+	if _, err := cw.WriteString(string("social.craftsky.project.sewing#details")); err != nil {
+		return err
+	}
+
+	// t.FitNotes (string) (string)
+	if t.FitNotes != nil {
+
+		if len("fitNotes") > 1000000 {
+			return xerrors.Errorf("Value in field \"fitNotes\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("fitNotes"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("fitNotes")); err != nil {
+			return err
+		}
+
+		if t.FitNotes == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.FitNotes) > 1000000 {
+				return xerrors.Errorf("Value in field t.FitNotes was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.FitNotes))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.FitNotes)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// t.SizeMade (string) (string)
+	if t.SizeMade != nil {
+
+		if len("sizeMade") > 1000000 {
+			return xerrors.Errorf("Value in field \"sizeMade\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("sizeMade"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("sizeMade")); err != nil {
+			return err
+		}
+
+		if t.SizeMade == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.SizeMade) > 1000000 {
+				return xerrors.Errorf("Value in field t.SizeMade was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.SizeMade))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.SizeMade)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// t.ProjectType (string) (string)
+	if t.ProjectType != nil {
+
+		if len("projectType") > 1000000 {
+			return xerrors.Errorf("Value in field \"projectType\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("projectType"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("projectType")); err != nil {
+			return err
+		}
+
+		if t.ProjectType == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.ProjectType) > 1000000 {
+				return xerrors.Errorf("Value in field t.ProjectType was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.ProjectType))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.ProjectType)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// t.ProjectSubtype (string) (string)
+	if t.ProjectSubtype != nil {
+
+		if len("projectSubtype") > 1000000 {
+			return xerrors.Errorf("Value in field \"projectSubtype\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("projectSubtype"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("projectSubtype")); err != nil {
+			return err
+		}
+
+		if t.ProjectSubtype == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.ProjectSubtype) > 1000000 {
+				return xerrors.Errorf("Value in field t.ProjectSubtype was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.ProjectSubtype))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.ProjectSubtype)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (t *ProjectSewing_Details) UnmarshalCBOR(r io.Reader) (err error) {
+	*t = ProjectSewing_Details{}
+
+	cr := cbg.NewCborReader(r)
+
+	maj, extra, err := cr.ReadHeader()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
+	}()
+
+	if maj != cbg.MajMap {
+		return fmt.Errorf("cbor input should be of type map")
+	}
+
+	if extra > cbg.MaxLength {
+		return fmt.Errorf("ProjectSewing_Details: map struct too large (%d)", extra)
+	}
+
+	n := extra
+
+	nameBuf := make([]byte, 14)
+	for i := uint64(0); i < n; i++ {
+		nameLen, ok, err := cbg.ReadFullStringIntoBuf(cr, nameBuf, 1000000)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			// Field doesn't exist on this type, so ignore it
+			if err := cbg.ScanForLinks(cr, func(cid.Cid) {}); err != nil {
+				return err
+			}
+			continue
+		}
+
+		switch string(nameBuf[:nameLen]) {
+		// t.LexiconTypeID (string) (string)
+		case "$type":
+
+			{
+				sval, err := cbg.ReadStringWithMax(cr, 1000000)
+				if err != nil {
+					return err
+				}
+
+				t.LexiconTypeID = string(sval)
+			}
+			// t.FitNotes (string) (string)
+		case "fitNotes":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.FitNotes = (*string)(&sval)
+				}
+			}
+			// t.SizeMade (string) (string)
+		case "sizeMade":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.SizeMade = (*string)(&sval)
+				}
+			}
+			// t.ProjectType (string) (string)
+		case "projectType":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.ProjectType = (*string)(&sval)
+				}
+			}
+			// t.ProjectSubtype (string) (string)
+		case "projectSubtype":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.ProjectSubtype = (*string)(&sval)
 				}
 			}
 
