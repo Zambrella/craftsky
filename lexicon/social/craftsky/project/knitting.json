@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "social.craftsky.project.knitting",
-  "description": "Knitting-specific fields for a craft project post. Referenced from social.craftsky.feed.post#project.details as one variant of the open union. This file defines a referenced type (#details) only; no main record.",
+  "description": "Knitting-specific fields for a craft project post. Referenced from social.craftsky.project.defs#project.details as one variant of the open union. This file defines a referenced type (#details) only; no main record.",
   "defs": {
     "details": {
       "type": "object",

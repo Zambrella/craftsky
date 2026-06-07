@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "social.craftsky.feed.defs",
-  "description": "Shared tokens for cross-craft values in social.craftsky.feed.post. Tokens are referenced from #projectCommon.craftType, #projectCommon.status, and #pattern.difficulty via knownValues. knownValues is open: new tokens can be added here without breaking existing records.",
+  "description": "Shared tokens for feed and project metadata. Tokens are referenced from social.craftsky.project.defs#projectCommon.craftType, social.craftsky.project.defs#projectCommon.status, and social.craftsky.project.defs#pattern.difficulty via knownValues. knownValues is open: new tokens can be added here without breaking existing records.",
   "defs": {
     "knitting": {
       "type": "token",

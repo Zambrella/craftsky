@@ -13,18 +13,18 @@ Lexicons are JSON schemas that define the shape of records stored on user PDSes.
 | Lexicon | Purpose |
 |---|---|
 | `social.craftsky.feed.post` | A post — general or a craft project (via optional `project` sub-object with `common` + open-union `details`). Supports replies, up to 4 images, rich-text facets (reusing `app.bsky.richtext.facet`), and quote embeds. |
-| `social.craftsky.feed.defs` | Shared tokens for cross-craft values in `#projectCommon` (`craftType`, `status`) and `#pattern` (`difficulty`). |
+| `social.craftsky.feed.defs` | Shared feed/project tokens for craft type, project status, and pattern difficulty. |
 | `social.craftsky.feed.repost` | A repost of a Craftsky post |
 | `social.craftsky.feed.like` | A like on a Craftsky post (distinct NSID for firehose-filter efficiency) |
 | `social.craftsky.actor.profile` | Craftsky-specific profile extension (single record, key `self`); signals active Craftsky users and stores craft preferences |
-| `social.craftsky.project.defs` | Shared project-detail definitions used by multiple craft detail lexicons, including broad project type tokens, yarn weight tokens, and the structured `#gauge` object. |
-| `social.craftsky.project.sewing` | Sewing-specific `#details` referenced from `feed.post#project.details`. Defines a referenced type only — no `main` record. |
+| `social.craftsky.project.defs` | Shared project metadata definitions used by `feed.post.project` and craft detail lexicons, including `#project`, `#projectCommon`, `#pattern`, broad project type tokens, design tags, yarn weight tokens, and the structured `#gauge` object. |
+| `social.craftsky.project.sewing` | Sewing-specific `#details` referenced from `project.defs#project.details`. Defines a referenced type only — no `main` record. |
 | `social.craftsky.project.sewing.defs` | Sewing project subtype tokens. |
-| `social.craftsky.project.quilting` | Quilting-specific `#details` referenced from `feed.post#project.details`. Defines a referenced type only — no `main` record. |
+| `social.craftsky.project.quilting` | Quilting-specific `#details` referenced from `project.defs#project.details`. Defines a referenced type only — no `main` record. |
 | `social.craftsky.project.quilting.defs` | Quilting subtype tokens plus piecing technique and quilting method tokens. |
-| `social.craftsky.project.crochet` | Crochet-specific `#details` referenced from `feed.post#project.details`. Defines a referenced type only — no `main` record. |
+| `social.craftsky.project.crochet` | Crochet-specific `#details` referenced from `project.defs#project.details`. Defines a referenced type only — no `main` record. |
 | `social.craftsky.project.crochet.defs` | Crochet project subtype tokens. |
-| `social.craftsky.project.knitting` | Knitting-specific `#details` referenced from `feed.post#project.details`. Defines a referenced type only — no `main` record. |
+| `social.craftsky.project.knitting` | Knitting-specific `#details` referenced from `project.defs#project.details`. Defines a referenced type only — no `main` record. |
 | `social.craftsky.project.knitting.defs` | Knitting project subtype tokens. |
 
 **Reused from `app.bsky.*` (not redefined here):**
@@ -38,7 +38,7 @@ Lexicons are JSON schemas that define the shape of records stored on user PDSes.
 
 Note: comments are not a separate record type — a "comment" is a `social.craftsky.feed.post` with its `reply` field set. Quote posts are regular posts whose `embed` carries a `#quoteEmbed` wrapping a strongRef to the quoted record.
 
-Per-craft `#details` lexicons live under the `social.craftsky.project.*` branch (one file per craft). They define a `#details` object type only — they are referenced types, not standalone records. See [ADR 001](../adr/001-post-lexicon-project-extensibility.md) for the extensibility rationale.
+Project metadata lives under `social.craftsky.project.defs`; `social.craftsky.feed.post.project` references `project.defs#project`. Per-craft `#details` lexicons live under the `social.craftsky.project.*` branch (one file per craft). They define a `#details` object type only — they are referenced types, not standalone records. See [ADR 001](../adr/001-post-lexicon-project-extensibility.md) for the extensibility rationale.
 
 ## References
 

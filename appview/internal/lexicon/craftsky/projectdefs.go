@@ -4,6 +4,16 @@
 
 package craftsky
 
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+
+	lexutil "github.com/bluesky-social/indigo/lex/util"
+	cbg "github.com/whyrusleeping/cbor-gen"
+)
+
 // ProjectDefs_Gauge is a "gauge" in the social.craftsky.project.defs schema.
 //
 // Structured stitch gauge measured over a stated distance. Rows are optional because many crafters record only stitch gauge.
@@ -16,4 +26,151 @@ type ProjectDefs_Gauge struct {
 	Stitches int64 `json:"stitches" cborgen:"stitches"`
 	// unit: Measurement unit for the gauge swatch.
 	Unit string `json:"unit" cborgen:"unit"`
+}
+
+// ProjectDefs_Pattern is a "pattern" in the social.craftsky.project.defs schema.
+//
+// Optional reference to the pattern used. Every field optional — 'Simplicity 8265' (name only), 'https://ravelry.com/patterns/library/hitchhiker' (URL only), or both plus difficulty are all valid.
+type ProjectDefs_Pattern struct {
+	// designer: The person or people who designed the pattern. Free text so physical patterns, indie designers, and multiple-designer credits can be represented without account references.
+	Designer *string `json:"designer,omitempty" cborgen:"designer,omitempty"`
+	// difficulty: Pattern difficulty as rated by the designer. A property of the pattern, not the post — self-drafted or free-formed projects should leave this empty. knownValues are tokens.
+	Difficulty *string `json:"difficulty,omitempty" cborgen:"difficulty,omitempty"`
+	// name: Pattern name, e.g. 'Simplicity 8265' or 'Hitchhiker Shawl'. Useful when there is no URL (e.g. a physical pattern), or alongside a URL as a display label.
+	Name *string `json:"name,omitempty" cborgen:"name,omitempty"`
+	// publisher: The person, company, or entity that published the pattern. Optional and free text because pattern publishing differs across crafts and eras.
+	Publisher *string `json:"publisher,omitempty" cborgen:"publisher,omitempty"`
+	// url: Link to the pattern.
+	Url *string `json:"url,omitempty" cborgen:"url,omitempty"`
+}
+
+// ProjectDefs_Project is a "project" in the social.craftsky.project.defs schema.
+//
+// Wraps a craft project's shared fields (#projectCommon) and optional craft-specific fields (#details, open union). The wrapper exists so shared fields live in one place (common) while per-craft specialisations are added additively via the union. See ADR 001.
+type ProjectDefs_Project struct {
+	// common: Shared project fields that apply across all crafts.
+	Common *ProjectDefs_ProjectCommon `json:"common" cborgen:"common"`
+	// details: Optional craft-specific fields. Open union — new crafts add new variants here without breaking existing records.
+	Details *ProjectDefs_Project_Details `json:"details,omitempty" cborgen:"details,omitempty"`
+}
+
+// ProjectDefs_ProjectCommon is a "projectCommon" in the social.craftsky.project.defs schema.
+//
+// Project fields shared across every craft. A post with project.common present but no project.details is a valid craft-tagged project post without specialised fields — useful when craftType references a craft that has no #details lexicon yet.
+type ProjectDefs_ProjectCommon struct {
+	// colors: Primary colors used in the project, normalized by clients for search and filtering. knownValues are open suggestions; clients may write other bounded color strings when needed.
+	Colors []string `json:"colors,omitempty" cborgen:"colors,omitempty"`
+	// craftType: The craft this project belongs to. Required — a project post without a craft type is meaningless. knownValues are tokens; new crafts can be added to feed.defs without breaking old clients.
+	CraftType string `json:"craftType" cborgen:"craftType"`
+	// designTags: Visual design, motif, or aesthetic tags for the project, normalized by clients for cross-craft search and filtering. knownValues are open suggestions; clients may write other bounded design strings when needed.
+	DesignTags []string `json:"designTags,omitempty" cborgen:"designTags,omitempty"`
+	// duration: Free-text description of how long the project took, e.g. '3 weeks', 'a weekend', '6 months of evenings'. Deliberately unstructured — crafters describe duration informally. Not range-queryable.
+	Duration *string `json:"duration,omitempty" cborgen:"duration,omitempty"`
+	// materials: Materials used in the project, as free-form tags. Indexed for search, e.g. 'show me all projects using linen'. Structure per material is intentionally free-form because every craft uses different material descriptors.
+	Materials []string `json:"materials,omitempty" cborgen:"materials,omitempty"`
+	// pattern: Optional pattern reference.
+	Pattern *ProjectDefs_Pattern `json:"pattern,omitempty" cborgen:"pattern,omitempty"`
+	// status: Whether the project is in progress or finished at the time this post was created. Snapshot — not a mutable lifecycle flag. knownValues are tokens so new statuses (e.g. planned, frogged) can be added without breaking old clients.
+	Status *string `json:"status,omitempty" cborgen:"status,omitempty"`
+	// tags: Structured search tags. Composer responsibility to normalise to ASCII kebab-case (pattern ^[a-z0-9]+(-[a-z0-9]+)*$) and to merge any inline #hashtag facets from text into this field. AppView indexer materialises this as a multi-value searchable column.
+	Tags []string `json:"tags,omitempty" cborgen:"tags,omitempty"`
+	// title: Optional project name, e.g. 'Hitchhiker Shawl' or 'Linen Summer Dress'. Clients showing grid/card views should fall back to truncated text when title is absent.
+	Title *string `json:"title,omitempty" cborgen:"title,omitempty"`
+}
+
+// Optional craft-specific fields. Open union — new crafts add new variants here without breaking existing records.
+type ProjectDefs_Project_Details struct {
+	ProjectSewing_Details   *ProjectSewing_Details
+	ProjectQuilting_Details *ProjectQuilting_Details
+	ProjectCrochet_Details  *ProjectCrochet_Details
+	ProjectKnitting_Details *ProjectKnitting_Details
+}
+
+func (t *ProjectDefs_Project_Details) MarshalJSON() ([]byte, error) {
+	if t.ProjectSewing_Details != nil {
+		t.ProjectSewing_Details.LexiconTypeID = "social.craftsky.project.sewing#details"
+		return json.Marshal(t.ProjectSewing_Details)
+	}
+	if t.ProjectQuilting_Details != nil {
+		t.ProjectQuilting_Details.LexiconTypeID = "social.craftsky.project.quilting#details"
+		return json.Marshal(t.ProjectQuilting_Details)
+	}
+	if t.ProjectCrochet_Details != nil {
+		t.ProjectCrochet_Details.LexiconTypeID = "social.craftsky.project.crochet#details"
+		return json.Marshal(t.ProjectCrochet_Details)
+	}
+	if t.ProjectKnitting_Details != nil {
+		t.ProjectKnitting_Details.LexiconTypeID = "social.craftsky.project.knitting#details"
+		return json.Marshal(t.ProjectKnitting_Details)
+	}
+	return nil, fmt.Errorf("can not marshal empty union as JSON")
+}
+
+func (t *ProjectDefs_Project_Details) UnmarshalJSON(b []byte) error {
+	typ, err := lexutil.TypeExtract(b)
+	if err != nil {
+		return err
+	}
+
+	switch typ {
+	case "social.craftsky.project.sewing#details":
+		t.ProjectSewing_Details = new(ProjectSewing_Details)
+		return json.Unmarshal(b, t.ProjectSewing_Details)
+	case "social.craftsky.project.quilting#details":
+		t.ProjectQuilting_Details = new(ProjectQuilting_Details)
+		return json.Unmarshal(b, t.ProjectQuilting_Details)
+	case "social.craftsky.project.crochet#details":
+		t.ProjectCrochet_Details = new(ProjectCrochet_Details)
+		return json.Unmarshal(b, t.ProjectCrochet_Details)
+	case "social.craftsky.project.knitting#details":
+		t.ProjectKnitting_Details = new(ProjectKnitting_Details)
+		return json.Unmarshal(b, t.ProjectKnitting_Details)
+	default:
+		return nil
+	}
+}
+
+func (t *ProjectDefs_Project_Details) MarshalCBOR(w io.Writer) error {
+
+	if t == nil {
+		_, err := w.Write(cbg.CborNull)
+		return err
+	}
+	if t.ProjectSewing_Details != nil {
+		return t.ProjectSewing_Details.MarshalCBOR(w)
+	}
+	if t.ProjectQuilting_Details != nil {
+		return t.ProjectQuilting_Details.MarshalCBOR(w)
+	}
+	if t.ProjectCrochet_Details != nil {
+		return t.ProjectCrochet_Details.MarshalCBOR(w)
+	}
+	if t.ProjectKnitting_Details != nil {
+		return t.ProjectKnitting_Details.MarshalCBOR(w)
+	}
+	return fmt.Errorf("can not marshal empty union as CBOR")
+}
+
+func (t *ProjectDefs_Project_Details) UnmarshalCBOR(r io.Reader) error {
+	typ, b, err := lexutil.CborTypeExtractReader(r)
+	if err != nil {
+		return err
+	}
+
+	switch typ {
+	case "social.craftsky.project.sewing#details":
+		t.ProjectSewing_Details = new(ProjectSewing_Details)
+		return t.ProjectSewing_Details.UnmarshalCBOR(bytes.NewReader(b))
+	case "social.craftsky.project.quilting#details":
+		t.ProjectQuilting_Details = new(ProjectQuilting_Details)
+		return t.ProjectQuilting_Details.UnmarshalCBOR(bytes.NewReader(b))
+	case "social.craftsky.project.crochet#details":
+		t.ProjectCrochet_Details = new(ProjectCrochet_Details)
+		return t.ProjectCrochet_Details.UnmarshalCBOR(bytes.NewReader(b))
+	case "social.craftsky.project.knitting#details":
+		t.ProjectKnitting_Details = new(ProjectKnitting_Details)
+		return t.ProjectKnitting_Details.UnmarshalCBOR(bytes.NewReader(b))
+	default:
+		return nil
+	}
 }

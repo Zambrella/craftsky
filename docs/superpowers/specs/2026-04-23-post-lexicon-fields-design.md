@@ -59,7 +59,7 @@ lexicon/social/craftsky/
     └── sewing.defs.json   (NEW — sewing sub-domain tokens)
 ```
 
-`#projectCommon`, `#project`, `#pattern`, `#image`, `#quoteEmbed`, and `#replyRef` are all local defs inside `feed/post.json` — they are conceptually part of the post record's shape, not reusable across other record types.
+`#image`, `#quoteEmbed`, and `#replyRef` are local defs inside `feed/post.json` because they are post/media concerns. Project metadata is reusable and lives under `social.craftsky.project.defs`: `#project`, `#projectCommon`, and `#pattern`.
 
 Per-craft `#details` (e.g. sewing) live under `social.craftsky.project.<craft>` — a new NSID branch per ADR 001. These files declare a `#details` object def only; they do not declare a `main` record.
 
@@ -71,17 +71,17 @@ Top-level shape:
 |---|---|---|---|
 | `text` | string | yes | `maxGraphemes: 2000, maxLength: 20000`. Bumped from 300/3000 — crafters write longer write-ups than Bluesky/Twitter posts. |
 | `facets` | `array<app.bsky.richtext.facet>` | no | Byte-range annotations over `text` for mentions, links, inline hashtags. Reused as-is. |
-| `project` | `#project` | no | Present iff this post is a project post. |
+| `project` | `social.craftsky.project.defs#project` | no | Present iff this post is a project post. |
 | `images` | `array<#image>` | no | `maxLength: 4`. Top-level, not inside `embed` — see [Alternatives considered](#alternatives-considered). |
 | `embed` | `union<#quoteEmbed>` | no | Open union; today only quote embeds. |
 | `reply` | `#replyRef` | no | If present, this post is a reply. |
 | `createdAt` | `string<datetime>` | yes | Client-declared creation timestamp. |
 
-### `#project` (local def)
+### `social.craftsky.project.defs#project`
 
 ```
 #project {
-  common: #projectCommon    (required)
+  common: social.craftsky.project.defs#projectCommon    (required)
   details?: union<
     social.craftsky.project.sewing#details
     // additional per-craft #details lexicons added here as they are defined
@@ -89,11 +89,11 @@ Top-level shape:
 }
 ```
 
-A post with `project` present but no `project.details` is a valid craft-tagged project post with no specialised fields. This lets `craftType` (on `#projectCommon`) grow its known-values enum ahead of defining per-craft `#details` lexicons, so a user can post about basketweaving before we write `social.craftsky.project.basketweaving`.
+A post with `project` present but no `project.details` is a valid craft-tagged project post with no specialised fields. This lets `craftType` (on `social.craftsky.project.defs#projectCommon`) grow its known-values enum ahead of defining per-craft `#details` lexicons, so a user can post about basketweaving before we write `social.craftsky.project.basketweaving`.
 
 The union on `details` is open (no `closed: true`). Adding a new craft is purely additive: new file under `project/`, new token in `feed.defs`, new entry in the union. No existing records break.
 
-### `#projectCommon` (local def)
+### `social.craftsky.project.defs#projectCommon`
 
 | Field | Type | Required | Constraints | Notes |
 |---|---|---|---|---|
@@ -101,11 +101,11 @@ The union on `details` is open (no `closed: true`). Adding a new craft is purely
 | `status` | string | no | `knownValues` → `feed.defs` tokens (`wip`, `finished`) | Token-backed, extensible. Future values like `planned`, `frogged`, `abandoned` can be added. Optional — crafters posting finished work don't need to think about it. |
 | `title` | string | no | `maxGraphemes: 200, maxLength: 500` | Optional project name. Not required — matches the casual Instagram-style "finished this!" posting pattern. Clients wanting grid/card views fall back to truncated `text` when title is absent. |
 | `duration` | string | no | `maxGraphemes: 100, maxLength: 500` | Free-text description of how long the project took ("3 weeks", "a weekend", "6 months of evenings"). Deliberately unstructured — crafters describe duration informally. Not queryable by range as a result. |
-| `pattern` | `#pattern` | no | | Optional pattern reference. See [`#pattern`](#pattern-local-def). |
+| `pattern` | `social.craftsky.project.defs#pattern` | no | | Optional pattern reference. See [`#pattern`](#socialcraftskyprojectdefspattern). |
 | `materials` | `array<string>` | no | Each `maxGraphemes: 100, maxLength: 100`. Array `maxLength: 20` | Free-form tags for materials used. Indexed as a multi-value column on the AppView side. See [Materials design rationale](#materials). |
 | `tags` | `array<string>` | no | Each `maxGraphemes: 64, maxLength: 64`. Array `maxLength: 10`. Per-entry pattern `^[a-z0-9]+(-[a-z0-9]+)*$` | Structured search tags. Composer-side normalised. See [Tags design rationale](#tags). |
 
-### `#pattern` (local def)
+### `social.craftsky.project.defs#pattern`
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
@@ -132,7 +132,7 @@ Unchanged from the current lexicon.
 
 ### `social.craftsky.feed.defs`
 
-Shared tokens referenced by `#projectCommon` and `#pattern`. One file, clearly-named tokens avoid NSID collisions between categories.
+Shared tokens referenced by `social.craftsky.project.defs#projectCommon` and `social.craftsky.project.defs#pattern`. One file, clearly-named tokens avoid NSID collisions between categories.
 
 - **`craftType` tokens:** `knitting`, `crochet`, `sewing`, `embroidery`, `quilting`. Initial set; more added as the craft taxonomy settles.
 - **`status` tokens:** `wip`, `finished`.

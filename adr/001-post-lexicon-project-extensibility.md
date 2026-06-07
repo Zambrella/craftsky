@@ -54,12 +54,12 @@ Not chosen.
 
 ### What I decided
 
-**Option 1.** One post lexicon. Optional `project` sub-object structured as `{ common: #projectCommon, details?: union<per-craft #details> }`. Per-craft `#details` lexicons live at `social.craftsky.project.<craft>`, parallel to `feed`, `actor`, `graph`.
+**Option 1.** One post lexicon with an optional `project` sub-object structured as `{ common: project.defs#projectCommon, details?: union<per-craft #details> }`. The reusable project wrapper/common/pattern objects live at `social.craftsky.project.defs`; per-craft `#details` lexicons live at `social.craftsky.project.<craft>`, parallel to `feed`, `actor`, `graph`.
 
 **Why:**
 
 - Extensibility without migration is the hard constraint (roadmap's open questions about taxonomy + atproto's "changing a lexicon is painful" reality). Option 1 adds new crafts without touching existing ones and without forcing PDS data migration.
-- Shared fields need to be defined once. Option 1 puts them in `#projectCommon`; Option 2 would duplicate them across N craft lexicons.
+- Shared fields need to be defined once. Option 1 puts them in `social.craftsky.project.defs#projectCommon`; Option 2 would duplicate them across N craft lexicons.
 - Atproto's open-union semantics give us forward compatibility for free — old clients see new-craft posts as "generic project post, unknown details" rather than breaking.
 - Preserves the architectural precedent already in the codebase (posts are one type; variants are expressed by optional sub-objects).
 
@@ -74,7 +74,7 @@ Not chosen.
 
 **Bad:**
 - Two-level nesting at read time: `post.project.common.craftType` instead of `post.project.craftType`. Cosmetic, but real — every consumer of the project shape pays this cost.
-- The `feed.post` lexicon becomes the registry of known crafts (via the `details` union). Adding a craft requires editing `feed.post`, not just publishing the new craft lexicon in isolation. This is additive and non-breaking, but it means `feed.post` itself has to evolve over time.
+- The `social.craftsky.project.defs` lexicon becomes the registry of known craft detail variants (via the `details` union). Adding a craft requires editing `project.defs`, not just publishing the new craft lexicon in isolation. This is additive and non-breaking, but it means the shared project defs evolve over time.
 - `#projectCommon` will accumulate fields as we learn what "common" really means. Some field we put there today may later turn out to be craft-specific, and moving it out is the kind of change the atproto spec warns about. We mitigate by keeping `#projectCommon` conservative — only fields that are genuinely craft-independent.
 - If a future craft truly cannot be expressed as "common + specialised details" (e.g. it needs a fundamentally different top-level shape), this pattern will strain. We accept the bet that most crafts fit the mould.
 
