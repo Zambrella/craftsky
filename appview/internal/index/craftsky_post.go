@@ -278,7 +278,7 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 		patternDesigner = common.Pattern.Designer
 		patternPublisher = common.Pattern.Publisher
 	}
-	d := project.Details.Map
+	detailCols := craftDetailColumnsFor(project)
 	const q = `
 		INSERT INTO craftsky_project_posts (
 			uri, raw_project, common_craft_type, common_status, common_title, common_duration,
@@ -343,15 +343,78 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 		uri, project.RawProject, common.CraftType, common.Status, common.Title, common.Duration,
 		patternURL, patternName, patternDifficulty, patternDesigner, patternPublisher,
 		nonNilStrings(common.Materials), nonNilStrings(common.Colors), nonNilStrings(common.DesignTags), nonNilStrings(common.Tags), nullableString(project.Details.Type), nullableJSON(project.RawDetails),
-		jsonString(d, "projectType"), jsonString(d, "projectSubtype"), jsonString(d, "yarnWeight"), jsonString(d, "needleSizeMm"), jsonRaw(d, "gauge"), jsonString(d, "finishedSize"),
-		jsonString(d, "projectType"), jsonString(d, "projectSubtype"), jsonString(d, "yarnWeight"), jsonString(d, "hookSizeMm"), jsonRaw(d, "gauge"), jsonString(d, "finishedSize"),
-		jsonString(d, "projectType"), jsonString(d, "projectSubtype"), jsonString(d, "piecingTechnique"), jsonString(d, "quiltingMethod"), jsonString(d, "size"),
-		jsonString(d, "projectType"), jsonString(d, "projectSubtype"), jsonString(d, "sizeMade"), jsonString(d, "fitNotes"),
+		detailCols.knittingProjectType, detailCols.knittingProjectSubtype, detailCols.knittingYarnWeight, detailCols.knittingNeedleSizeMM, detailCols.knittingGauge, detailCols.knittingFinishedSize,
+		detailCols.crochetProjectType, detailCols.crochetProjectSubtype, detailCols.crochetYarnWeight, detailCols.crochetHookSizeMM, detailCols.crochetGauge, detailCols.crochetFinishedSize,
+		detailCols.quiltingProjectType, detailCols.quiltingProjectSubtype, detailCols.quiltingPiecingTechnique, detailCols.quiltingQuiltingMethod, detailCols.quiltingSize,
+		detailCols.sewingProjectType, detailCols.sewingProjectSubtype, detailCols.sewingSizeMade, detailCols.sewingFitNotes,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert project %s: %w", uri, err)
 	}
 	return nil
+}
+
+type craftDetailColumns struct {
+	knittingProjectType    any
+	knittingProjectSubtype any
+	knittingYarnWeight     any
+	knittingNeedleSizeMM   any
+	knittingGauge          any
+	knittingFinishedSize   any
+
+	crochetProjectType    any
+	crochetProjectSubtype any
+	crochetYarnWeight     any
+	crochetHookSizeMM     any
+	crochetGauge          any
+	crochetFinishedSize   any
+
+	quiltingProjectType      any
+	quiltingProjectSubtype   any
+	quiltingPiecingTechnique any
+	quiltingQuiltingMethod   any
+	quiltingSize             any
+
+	sewingProjectType    any
+	sewingProjectSubtype any
+	sewingSizeMade       any
+	sewingFitNotes       any
+}
+
+func craftDetailColumnsFor(project *indexedProject) craftDetailColumns {
+	var cols craftDetailColumns
+	if project == nil {
+		return cols
+	}
+	d := project.Details.Map
+	switch project.Details.Type {
+	case "social.craftsky.project.knitting#details":
+		cols.knittingProjectType = jsonString(d, "projectType")
+		cols.knittingProjectSubtype = jsonString(d, "projectSubtype")
+		cols.knittingYarnWeight = jsonString(d, "yarnWeight")
+		cols.knittingNeedleSizeMM = jsonString(d, "needleSizeMm")
+		cols.knittingGauge = jsonRaw(d, "gauge")
+		cols.knittingFinishedSize = jsonString(d, "finishedSize")
+	case "social.craftsky.project.crochet#details":
+		cols.crochetProjectType = jsonString(d, "projectType")
+		cols.crochetProjectSubtype = jsonString(d, "projectSubtype")
+		cols.crochetYarnWeight = jsonString(d, "yarnWeight")
+		cols.crochetHookSizeMM = jsonString(d, "hookSizeMm")
+		cols.crochetGauge = jsonRaw(d, "gauge")
+		cols.crochetFinishedSize = jsonString(d, "finishedSize")
+	case "social.craftsky.project.quilting#details":
+		cols.quiltingProjectType = jsonString(d, "projectType")
+		cols.quiltingProjectSubtype = jsonString(d, "projectSubtype")
+		cols.quiltingPiecingTechnique = jsonString(d, "piecingTechnique")
+		cols.quiltingQuiltingMethod = jsonString(d, "quiltingMethod")
+		cols.quiltingSize = jsonString(d, "size")
+	case "social.craftsky.project.sewing#details":
+		cols.sewingProjectType = jsonString(d, "projectType")
+		cols.sewingProjectSubtype = jsonString(d, "projectSubtype")
+		cols.sewingSizeMade = jsonString(d, "sizeMade")
+		cols.sewingFitNotes = jsonString(d, "fitNotes")
+	}
+	return cols
 }
 
 func nonNilStrings(in []string) []string {

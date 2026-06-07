@@ -272,6 +272,46 @@ func TestAddRoutes_ProfileCommentsRequiresDeviceID(t *testing.T) {
 	}
 }
 
+func TestAddRoutes_ProfileProjectsRequiresAuthenticatedDevice(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		headers    map[string]string
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:       "requires auth",
+			headers:    map[string]string{"X-Craftsky-Device-Id": "dev-test"},
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "requires device",
+			headers:    map[string]string{"Authorization": "Bearer anything"},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "missing_device_id",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mux := http.NewServeMux()
+			AddRoutes(context.Background(), mux, testDeps())
+
+			req := httptest.NewRequest("GET", "/v1/profiles/@alice.example/projects", nil)
+			for name, value := range tc.headers {
+				req.Header.Set(name, value)
+			}
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d; body = %s", rec.Code, tc.wantStatus, rec.Body.String())
+			}
+			if tc.wantBody != "" && !strings.Contains(rec.Body.String(), tc.wantBody) {
+				t.Fatalf("body = %q, want containing %q", rec.Body.String(), tc.wantBody)
+			}
+		})
+	}
+}
+
 func TestAddRoutes_V1LoginWithoutDeviceIDReturns400(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, testDeps())

@@ -121,6 +121,48 @@ func TestExtractProjectForIndex_PreservesKnownAndUnknownDetails(t *testing.T) {
 	}
 }
 
+func TestCraftDetailColumnsFor_OnlyPopulatesMatchingCraftFamily(t *testing.T) {
+	t.Parallel()
+
+	project, err := extractProjectForIndex(json.RawMessage(`{
+		"project": {
+			"common": {"craftType":"social.craftsky.feed.defs#knitting"},
+			"details": {
+				"$type":"social.craftsky.project.knitting#details",
+				"projectType":"sweater",
+				"projectSubtype":"cardigan",
+				"yarnWeight":"dk",
+				"needleSizeMm":"4.5",
+				"gauge":{"stitches":22,"measurement":10,"unit":"cm"},
+				"finishedSize":"M",
+				"hookSizeMm":"5.0",
+				"piecingTechnique":"strip",
+				"quiltingMethod":"hand",
+				"size":"throw",
+				"sizeMade":"12",
+				"fitNotes":"snug"
+			}
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("extractProjectForIndex: %v", err)
+	}
+
+	cols := craftDetailColumnsFor(project)
+	if cols.knittingProjectType != "sweater" || cols.knittingProjectSubtype != "cardigan" || cols.knittingYarnWeight != "dk" || cols.knittingNeedleSizeMM != "4.5" || cols.knittingGauge == nil || cols.knittingFinishedSize != "M" {
+		t.Fatalf("knitting columns not populated from knitting details: %+v", cols)
+	}
+	if cols.crochetProjectType != nil || cols.crochetProjectSubtype != nil || cols.crochetYarnWeight != nil || cols.crochetHookSizeMM != nil || cols.crochetGauge != nil || cols.crochetFinishedSize != nil {
+		t.Fatalf("crochet columns populated for knitting details: %+v", cols)
+	}
+	if cols.quiltingProjectType != nil || cols.quiltingProjectSubtype != nil || cols.quiltingPiecingTechnique != nil || cols.quiltingQuiltingMethod != nil || cols.quiltingSize != nil {
+		t.Fatalf("quilting columns populated for knitting details: %+v", cols)
+	}
+	if cols.sewingProjectType != nil || cols.sewingProjectSubtype != nil || cols.sewingSizeMade != nil || cols.sewingFitNotes != nil {
+		t.Fatalf("sewing columns populated for knitting details: %+v", cols)
+	}
+}
+
 func TestFlattenImages_DefaultsMissingAltToEmptyString(t *testing.T) {
 	t.Parallel()
 	refCID, err := cid.Parse("bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a")

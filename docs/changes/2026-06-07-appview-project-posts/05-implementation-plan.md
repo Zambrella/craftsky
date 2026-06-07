@@ -31,8 +31,19 @@
 | 12 | UT-009 / IT-010 | FR-011, RULE-003 | AC-009 | Fails: projectCount hardcoded zero |
 | 13 | UT-010 / IT-011 / IT-013 | FR-012, NFR-004 | AC-010 | Fails: profile projects endpoint absent |
 | 14 | IT-014 / REG-* | RULE-002 | AC-012 | Fails if existing post flows regress |
+| 15 | UT-002 / IT-003 review fix | FR-003, NFR-003 | AC-003, AC-013 | Fails: craft-specific detail columns may populate unrelated craft families |
+| 16 | IT-005 review fix | FR-004, FR-005, NFR-002 | AC-004 | Fails: missing explicit DB coverage for project removal/delete/unknown details convergence |
+| 17 | IT-013 review fix | FR-012, NFR-004 | AC-010 | Fails: missing route auth/device coverage for profile projects route |
 
 ## Implementation Steps
+
+### Review Fix Scope: IR-001 through IR-003
+- Source: `06-implementation-review.md` (`Changes required`).
+- Planned TDD loops:
+  - Step 15: add a DB-backed indexer test proving a knitting details payload populates only knitting columns and leaves crochet/quilting/sewing columns NULL; then branch craft-specific materialization by `details.$type`.
+  - Step 16: add DB-backed indexer tests for project update removal, post delete cascade of project materialization, and unknown future details through the full indexer path; then fix only behavior needed for green.
+  - Step 17: add route tests proving `GET /v1/profiles/{handleOrDid}/projects` is registered under the authenticated + device-id route stack; then fix route registration if needed.
+- Verification target: focused index/routes tests, `go test ./...`, and `just test` with compose Postgres if available; otherwise document the environment blocker.
 
 ### Step 0: Documentation clarification
 - Write failing test: N/A.
@@ -169,6 +180,33 @@
 - Refactor: None.
 - Notes: `go test ./...` passes without `TEST_DATABASE_URL`. `just test` is documented as environment-blocked until `just dev-d`/compose Postgres is running.
 
+### Step 15: UT-002 / IT-003 review fix (IR-001)
+- Write failing test: Added `TestCraftDetailColumnsFor_OnlyPopulatesMatchingCraftFamily` to prove a knitting details payload, even with overlapping keys used by other crafts, populates only knitting detail columns. Added DB-backed `TestCraftskyPost_Create_KnittingDetailsPopulatesOnlyKnittingColumns` to assert persisted materialization keeps unrelated craft column families NULL.
+- Run command: `go test ./internal/index -run TestCraftDetailColumnsFor_OnlyPopulatesMatchingCraftFamily -count=1`
+- Confirmed failure: `undefined: craftDetailColumnsFor` before the fix.
+- Implement: Added `craftDetailColumnsFor` and changed `upsertProjectMaterialization` to branch by `details.$type` before passing craft-specific columns to SQL.
+- Run command: `go test ./internal/index -run 'TestCraftskyPost_Create_KnittingDetailsPopulatesOnlyKnittingColumns|TestCraftDetailColumnsFor_OnlyPopulatesMatchingCraftFamily' -count=1`
+- Refactor: Kept raw details/common materialization unchanged; normalized only detail-column assignment.
+- Notes: Focused tests pass in this environment; DB-backed assertion skips if no test database is configured by `testdb.WithSchema`.
+
+### Step 16: IT-005 review fix (IR-002)
+- Write failing test: Added DB-backed `TestCraftskyPost_ProjectUpdateRemovalUnknownDetailsAndDeleteConverge` covering project update to general post, stale child-row removal, unknown future `details.$type` through `CraftskyPost.Handle`, preservation of raw details, unrelated known craft columns staying NULL, and delete removing base/project rows.
+- Run command: `go test ./internal/index -run TestCraftskyPost_ProjectUpdateRemovalUnknownDetailsAndDeleteConverge -count=1`
+- Confirmed failure: Coverage gap from `06-implementation-review.md` IR-002; the behavior was already green in the focused command after prior implementation, so no production code change was needed for this specific loop.
+- Implement: No behavior change required beyond the IR-001 detail-family branch already added; existing transactional upsert/delete and FK cascade satisfy this test.
+- Run command: `go test ./internal/index -run TestCraftskyPost_ProjectUpdateRemovalUnknownDetailsAndDeleteConverge -count=1`
+- Refactor: Added a small test helper `assertProjectChildCount`.
+- Notes: Focused command passes in this environment; DB-backed assertions depend on `testdb.WithSchema` database availability.
+
+### Step 17: IT-013 review fix (IR-002)
+- Write failing test: Added `TestAddRoutes_ProfileProjectsRequiresAuthenticatedDevice` to prove `GET /v1/profiles/{handleOrDid}/projects` is under the authenticated + device-id route stack.
+- Run command: `go test ./internal/routes -run TestAddRoutes_ProfileProjectsRequiresAuthenticatedDevice -count=1`
+- Confirmed failure: Coverage gap from `06-implementation-review.md` IR-002; route registration was already present, so the new focused route coverage passed without production code changes.
+- Implement: No route code change needed.
+- Run command: `go test ./internal/routes -run TestAddRoutes_ProfileProjectsRequiresAuthenticatedDevice -count=1`
+- Refactor: None.
+- Notes: Focused route test passes.
+
 ## Verification
 - Focused commands:
   - `go test ./internal/db -run TestProjectPostsMigrationCreatesSchemaAndIndexes -count=1`
@@ -182,6 +220,10 @@
   - `go test ./internal/api -run TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts -count=1`
   - `go test ./internal/api -run 'TestListProjectsByAuthor_HappyPath|TestPostStore_ListProjectsByAuthor_ReturnsOnlyTopLevelProjects' -count=1`
   - `go test ./internal/routes -count=1`
+  - `go test ./internal/index -run TestCraftDetailColumnsFor_OnlyPopulatesMatchingCraftFamily -count=1` — failed before IR-001 fix with `undefined: craftDetailColumnsFor`; passed after the fix.
+  - `go test ./internal/index -run 'TestCraftskyPost_Create_KnittingDetailsPopulatesOnlyKnittingColumns|TestCraftDetailColumnsFor_OnlyPopulatesMatchingCraftFamily' -count=1` — passed after IR-001 fix.
+  - `go test ./internal/index -run TestCraftskyPost_ProjectUpdateRemovalUnknownDetailsAndDeleteConverge -count=1` — passed; adds IR-002 DB-backed convergence coverage where the test DB is available.
+  - `go test ./internal/routes -run TestAddRoutes_ProfileProjectsRequiresAuthenticatedDevice -count=1` — passed.
 - Broader commands:
   - `gofmt -w ...changed Go files`
   - `just fmt` — passed (`gofmt -w . && go vet ./...`).
@@ -192,7 +234,8 @@
   - MAN-003: Response/create tests assert lexicon-shaped `project`, general omission, and camelCase keys.
   - MAN-004: Shared `scanPostRow` hydrates project for single read, profile posts/projects, timeline, comments/replies; notification subject hydration is explicit.
 - Blocked commands:
-  - `just test` — blocked because compose Postgres at `localhost:5433` was not running; failures were connection refused before test schemas could be created.
+  - `just test` — still blocked because compose Postgres at `localhost:5433` was not running; failures were connection refused before test schemas could be created.
+  - `just dev-d` — attempted twice to start compose Postgres/AppView for DB-backed verification; both attempts timed out while Docker was pulling/building images (`postgres:16` pull / Dockerfile frontend resolution), so `just test` could not be rerun to completion in this environment.
 
 ## Completion Checklist
 - [x] All Must requirements covered by tests or documented gaps
