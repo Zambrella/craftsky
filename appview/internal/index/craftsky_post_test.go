@@ -441,6 +441,68 @@ func TestCraftskyPost_Create_KnittingDetailsPopulatesOnlyKnittingColumns(t *test
 	}
 }
 
+func TestCraftskyPost_Create_ProjectReplyOrQuoteIsOrdinaryPost(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:standalone")
+	idx := index.NewCraftskyPost(pool, testLogger())
+
+	cases := []tap.Event{
+		{
+			URI:        "at://did:plc:standalone/social.craftsky.feed.post/reply-project",
+			CID:        "bafyReplyProject",
+			DID:        "did:plc:standalone",
+			Rkey:       "reply-project",
+			Collection: "social.craftsky.feed.post",
+			Action:     "create",
+			Record: json.RawMessage(`{
+				"$type":"social.craftsky.feed.post",
+				"text":"reply project",
+				"createdAt":"` + fixedCreatedAt + `",
+				"reply": {
+					"root": {"uri":"at://did:plc:other/social.craftsky.feed.post/root", "cid":"bafyRoot"},
+					"parent": {"uri":"at://did:plc:other/social.craftsky.feed.post/root", "cid":"bafyRoot"}
+				},
+				"project":{"common":{"craftType":"social.craftsky.feed.defs#knitting","tags":["project-tag"]}}
+			}`),
+		},
+		{
+			URI:        "at://did:plc:standalone/social.craftsky.feed.post/quote-project",
+			CID:        "bafyQuoteProject",
+			DID:        "did:plc:standalone",
+			Rkey:       "quote-project",
+			Collection: "social.craftsky.feed.post",
+			Action:     "create",
+			Record: json.RawMessage(`{
+				"$type":"social.craftsky.feed.post",
+				"text":"quote project",
+				"createdAt":"` + fixedCreatedAt + `",
+				"embed": {
+					"$type":"social.craftsky.feed.post#quoteEmbed",
+					"record": {"uri":"at://did:plc:other/social.craftsky.feed.post/orig", "cid":"bafyOrig"}
+				},
+				"project":{"common":{"craftType":"social.craftsky.feed.defs#knitting","tags":["project-tag"]}}
+			}`),
+		},
+	}
+
+	for _, ev := range cases {
+		if err := idx.Handle(context.Background(), ev); err != nil {
+			t.Fatalf("Handle %s: %v", ev.Rkey, err)
+		}
+		var isProject bool
+		var projectCraftType *string
+		var tags []string
+		if err := pool.QueryRow(context.Background(), `SELECT is_project, project_craft_type, tags FROM craftsky_posts WHERE uri = $1`, ev.URI).Scan(&isProject, &projectCraftType, &tags); err != nil {
+			t.Fatalf("select base %s: %v", ev.Rkey, err)
+		}
+		if isProject || projectCraftType != nil || len(tags) != 0 {
+			t.Fatalf("%s project state = isProject=%v craft=%v tags=%v, want ordinary post", ev.Rkey, isProject, projectCraftType, tags)
+		}
+		assertProjectChildCount(t, pool, ev.URI.String(), 0)
+	}
+}
+
 func TestCraftskyPost_Create_GeneralPostHasNoProjectRow(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, craftskyPostsDDL)

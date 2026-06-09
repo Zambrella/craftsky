@@ -88,6 +88,61 @@ func TestValidatePostCreate_AcceptsMinimalProject(t *testing.T) {
 	}
 }
 
+func TestValidatePostCreate_RejectsProjectWithReplyQuoteOrUnsupportedCraft(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		req  api.PostCreateRequest
+		key  string
+	}{
+		{
+			name: "reply",
+			req: api.PostCreateRequest{
+				Text:    "hi",
+				Project: &api.Project{Common: api.ProjectCommon{CraftType: api.ProjectCraftTypeKnitting}},
+				Reply: &api.ReplyRef{
+					Root:   api.StrongRef{URI: "at://did:plc:abc/social.craftsky.feed.post/rk1", CID: "bafy1"},
+					Parent: api.StrongRef{URI: "at://did:plc:abc/social.craftsky.feed.post/rk2", CID: "bafy2"},
+				},
+			},
+			key: "project",
+		},
+		{
+			name: "quote",
+			req: api.PostCreateRequest{
+				Text:    "hi",
+				Project: &api.Project{Common: api.ProjectCommon{CraftType: api.ProjectCraftTypeKnitting}},
+				Embed:   &api.EmbedRequest{Quote: &api.StrongRef{URI: "at://did:plc:abc/social.craftsky.feed.post/rk1", CID: "bafy1"}},
+			},
+			key: "project",
+		},
+		{
+			name: "unsupported craft type",
+			req: api.PostCreateRequest{
+				Text:    "hi",
+				Project: &api.Project{Common: api.ProjectCommon{CraftType: "social.craftsky.feed.defs#future"}},
+			},
+			key: "project.common.craftType",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := api.ValidatePostCreate(tc.req)
+			var fe *api.FieldError
+			if !errors.As(err, &fe) || fe.Code != "validation_failed" {
+				t.Fatalf("want validation_failed, got %v", err)
+			}
+			if _, ok := fe.Fields[tc.key]; !ok {
+				t.Fatalf("fields = %v, want %s", fe.Fields, tc.key)
+			}
+		})
+	}
+}
+
 func TestValidatePostCreate_RejectsProjectWithoutCraftType(t *testing.T) {
 	t.Parallel()
 	err := api.ValidatePostCreate(api.PostCreateRequest{

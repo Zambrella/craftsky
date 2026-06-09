@@ -130,7 +130,7 @@ func TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, profileStoreDDL)
 	ctx := context.Background()
-	now := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
+	now := time.Now().UTC().Truncate(time.Second)
 
 	if _, err := pool.Exec(ctx,
 		`INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES ($1, '{}', 'cid')`,
@@ -148,17 +148,20 @@ func TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts(t *testing.T) {
 			($3, 'did:plc:alice', 'root-old', 'cid2', 'old root', NULL, NULL, NULL, NULL, false, NULL, '{}', $4),
 			($5, 'did:plc:alice', 'reply-recent', 'cid3', 'reply', $1, 'cid1', $1, 'cid1', true, 'social.craftsky.feed.defs#knitting', '{}', $2),
 			($6, 'did:plc:alice', 'quote-recent', 'cid4', 'quote root', NULL, NULL, NULL, NULL, false, NULL, '{}', $2),
-			($7, 'did:plc:alice', 'hidden-project', 'cid5', 'hidden project', NULL, NULL, NULL, NULL, true, 'social.craftsky.feed.defs#knitting', '{}', $2)
+			($7, 'did:plc:alice', 'hidden-project', 'cid5', 'hidden project', NULL, NULL, NULL, NULL, true, 'social.craftsky.feed.defs#knitting', '{}', $2),
+			($8, 'did:plc:alice', 'hidden-general', 'cid6', 'hidden general', NULL, NULL, NULL, NULL, false, NULL, '{}', $2)
 	`,
 		"at://did:plc:alice/social.craftsky.feed.post/root-recent", now.Add(-24*time.Hour),
 		"at://did:plc:alice/social.craftsky.feed.post/root-old", now.Add(-8*24*time.Hour),
 		"at://did:plc:alice/social.craftsky.feed.post/reply-recent",
 		"at://did:plc:alice/social.craftsky.feed.post/quote-recent",
 		"at://did:plc:alice/social.craftsky.feed.post/hidden-project",
+		"at://did:plc:alice/social.craftsky.feed.post/hidden-general",
 	); err != nil {
 		t.Fatalf("seed posts: %v", err)
 	}
 	seedModerationOutput(t, pool, "post", "did:plc:alice", "at://did:plc:alice/social.craftsky.feed.post/hidden-project", "hide", now)
+	seedModerationOutput(t, pool, "post", "did:plc:alice", "at://did:plc:alice/social.craftsky.feed.post/hidden-general", "hide", now)
 
 	store := api.NewProfileStore(pool)
 	got, err := store.Read(ctx, "did:plc:alice", "did:plc:viewer")
@@ -166,11 +169,11 @@ func TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts(t *testing.T) {
 		t.Fatalf("Read: %v", err)
 	}
 
-	if got.PostCount == nil || *got.PostCount != 4 {
-		t.Fatalf("postCount = %v, want 4 root posts", got.PostCount)
+	if got.PostCount == nil || *got.PostCount != 2 {
+		t.Fatalf("postCount = %v, want 2 non-project root posts", got.PostCount)
 	}
-	if got.PostsLast7Days == nil || *got.PostsLast7Days != 2 {
-		t.Fatalf("postsLast7Days = %v, want 2 recent root posts", got.PostsLast7Days)
+	if got.PostsLast7Days == nil || *got.PostsLast7Days != 1 {
+		t.Fatalf("postsLast7Days = %v, want 1 recent non-project root post", got.PostsLast7Days)
 	}
 	if got.ProjectCount == nil || *got.ProjectCount != 1 {
 		t.Fatalf("projectCount = %v, want one visible top-level project", got.ProjectCount)

@@ -151,8 +151,17 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 		}
 	}
 	if req.Project != nil {
-		if strings.TrimSpace(req.Project.Common.CraftType) == "" {
+		craftType := strings.TrimSpace(req.Project.Common.CraftType)
+		if craftType == "" {
 			fields["project.common.craftType"] = "must not be empty"
+		} else if !IsSupportedProjectCraftType(craftType) {
+			fields["project.common.craftType"] = "must be a supported craft type"
+		}
+		if req.Reply != nil {
+			fields["project"] = "project posts must be standalone and cannot be replies"
+		}
+		if req.Embed != nil && req.Embed.Quote != nil {
+			fields["project"] = "project posts must be standalone and cannot quote another post"
 		}
 	}
 	if len(fields) > 0 {

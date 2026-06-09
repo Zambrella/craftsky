@@ -8,7 +8,8 @@ Test design follows the implementation sequence requested in `01-requirements.md
 
 1. Persistence and migration coverage for minimal base project flags, one-to-one `craftsky_project_posts`, cascade, and supporting indexes. Historical backfill is explicitly out of scope for this stage.
 2. Indexer/store coverage for create, update, delete, tag merging, idempotency, known craft details, and future unknown detail variants.
-3. API coverage for `POST /v1/posts`, `PostResponse` hydration across existing post-shaped surfaces, profile `projectCount`, and the new profile project list route.
+3. API coverage for `POST /v1/posts`, `PostResponse` hydration across project-eligible post-shaped surfaces, separated profile `postCount`/`projectCount`, and the new profile project list route.
+4. Clarification from 2026-06-09 grill-me review: profile Posts and Projects are separate tabs. Profile post counts/lists exclude projects; profile project counts/lists include standalone project posts only; the main timeline/feed still includes projects.
 
 Most checks should be automated in Go tests under `appview/internal/index`, `appview/internal/api`, `appview/internal/routes`, and migration/CLI or DB test suites. Manual checks are limited to query-plan/index inspection and final review of API shape where automated assertions may not prove performance intent.
 
@@ -83,12 +84,15 @@ Automation Target: `appview/internal/index/craftsky_post_test.go`
 Feature: Project post indexing
   Scenario: Indexer distinguishes general posts from project posts
     Given a Craftsky member profile exists
-    When the indexer handles a social.craftsky.feed.post create without project.common
+    When the indexer handles a social.craftsky.feed.post create without project.common.craftType
     Then craftsky_posts records the post as non-project
     And no craftsky_project_posts row exists for that URI
-    When the indexer handles a social.craftsky.feed.post create with project.common
+    When the indexer handles a standalone social.craftsky.feed.post create with project.common.craftType
     Then craftsky_posts records the post as a project
     And a matching craftsky_project_posts row exists for that URI
+    When the indexer handles a social.craftsky.feed.post create with project plus reply or quote
+    Then craftsky_posts records it as non-project
+    And no craftsky_project_posts row exists for that URI
 ```
 
 ### AT-003: Project Fields And Tags Are Materialized
@@ -171,7 +175,10 @@ Feature: Validate project post create requests
       | malformed project JSON |
       | project.common missing |
       | project.common.craftType missing |
+      | unsupported create-time project.common.craftType |
       | wrong field types inside project |
+      | project with reply |
+      | project with quote embed |
       | client-supplied createdAt |
 ```
 
@@ -196,8 +203,7 @@ Feature: Read project posts from AppView
       | endpoint_surface |
       | single post read |
       | timeline |
-      | profile posts |
-      | comments or replies |
+      | profile projects |
       | notifications |
       | create response |
 ```
@@ -229,12 +235,12 @@ Automation Target: `appview/internal/api/profile_store_test.go`, `appview/intern
 
 ```gherkin
 Feature: Profile project summary
-  Scenario: Profile read reports visible top-level project count
-    Given a profile has top-level general posts, top-level project posts, project replies, and moderated hidden project posts
+  Scenario: Profile read reports separated visible post and project counts
+    Given a profile has root general posts, standalone project posts, project replies, project quotes, and moderated hidden posts
     When the profile is read
-    Then projectCount equals only visible top-level project posts
-    And project replies are excluded from projectCount
-    And general posts are excluded from projectCount
+    Then projectCount equals only visible standalone project posts
+    And postCount equals only visible non-project root posts
+    And project replies and project quotes are excluded from projectCount
 ```
 
 ### AT-010: Profile Projects Endpoint Lists Only Top-Level Project Posts
@@ -248,9 +254,9 @@ Automation Target: `appview/internal/api/post_store_test.go`, `appview/internal/
 ```gherkin
 Feature: Profile project post lists
   Scenario: Client pages through a profile's project posts
-    Given a profile has visible project posts, general posts, project replies, and hidden project posts
+    Given a profile has visible standalone project posts, general posts, project replies, project quotes, and hidden project posts
     When an authenticated client requests GET /v1/profiles/{handleOrDid}/projects with a page limit
-    Then the response contains only visible top-level project PostResponse items
+    Then the response contains only visible standalone project PostResponse items
     And each item includes project metadata
     And an opaque cursor is returned when more project rows remain
     And the AppView does not read through to the PDS to hydrate project metadata
@@ -317,13 +323,13 @@ Feature: Project query performance
 | UT-002 | FR-003 | AC-003, AC-010 | Map known craft detail variants into raw/details-type/materialized fields. | Knitting, crochet, quilting, sewing detail JSON with representative fields. | Details `$type`, raw JSON, and known detail columns are populated consistently. | `appview/internal/index/craftsky_post_internal_test.go` |
 | UT-003 | FR-005 | AC-004, EC-003 | Extract common fields without rejecting unknown open-union details. | Project JSON with `common.craftType` and `details.$type` for a future NSID. | Common fields and raw JSON can be retained; no parser poison-pill solely from unknown details. | `appview/internal/index/craftsky_post_internal_test.go` |
 | UT-004 | FR-007, FR-008, NFR-004 | AC-006 | Decode post create allows `project` but still rejects `createdAt` and malformed bodies. | JSON bodies with valid project, malformed project, and `createdAt`. | Valid project decodes; malformed body and `createdAt` return standard `FieldError` codes. | `appview/internal/api/post_request_test.go` |
-| UT-005 | FR-007 | AC-005, AC-006 | Validate minimal valid project create shape. | `project.common.craftType` with optional common/detail fields. | Request passes validation without requiring client-supplied `createdAt`. | `appview/internal/api/post_request_test.go` |
-| UT-006 | FR-008 | AC-006, EC-004 | Reject invalid project request structures. | Missing `project.common`, missing `craftType`, wrong field types. | Validation fails with field-specific standard error and no write path is invoked. | `appview/internal/api/post_request_test.go` |
+| UT-005 | FR-007 | AC-005, AC-006 | Validate minimal valid standalone project create shape. | Supported `project.common.craftType` with optional common/detail fields and no reply/quote. | Request passes validation without requiring client-supplied `createdAt`. | `appview/internal/api/post_request_test.go` |
+| UT-006 | FR-008 | AC-006, EC-004 | Reject invalid project request structures and non-standalone projects. | Missing `project.common`, missing `craftType`, unsupported craft type, wrong field types, project with reply, project with quote. | Validation fails with field-specific standard error and no write path is invoked. | `appview/internal/api/post_request_test.go` |
 | UT-007 | FR-009, NFR-004 | AC-007 | Build `PostResponse` with lexicon-shaped project object for project rows. | `PostRow` or project-bearing row with raw/materialized project metadata. | Marshaled JSON includes camelCase `project` with `common` and optional `details`. | `appview/internal/api/post_response_test.go` |
 | UT-008 | FR-009, FR-010 | AC-008 | Omit `project` from general post responses. | `PostRow` for a non-project post. | Marshaled JSON omits `project` while preserving existing fields. | `appview/internal/api/post_response_test.go` |
-| UT-009 | FR-011, RULE-003 | AC-009 | Count predicate includes only top-level project posts. | Rows for top-level project, project reply, general post, hidden project. | Count logic includes visible top-level project posts only. | `appview/internal/api/profile_store_test.go` helper/query assertions |
+| UT-009 | FR-011, RULE-003 | AC-009 | Count predicates separate profile posts from projects. | Rows for standalone project, project reply, project quote, general post, hidden posts. | `projectCount` includes visible standalone projects only; `postCount` includes visible non-project roots only. | `appview/internal/api/profile_store_test.go` helper/query assertions |
 | UT-010 | FR-012, NFR-004 | AC-010 | Decode profile project list pagination parameters consistently with existing list endpoints. | `limit`, absent cursor, valid opaque cursor, invalid cursor. | Limit caps and cursor errors match existing envelope conventions. | `appview/internal/api/post_test.go` or pagination helper tests |
-| UT-011 | RULE-001 | AC-001, AC-002 | Determine project-ness from presence of `project.common`. | Records with no `project`, empty `project`, and `project.common.craftType`. | Only records containing valid `project.common` are treated as project posts. | `appview/internal/index/craftsky_post_internal_test.go` |
+| UT-011 | RULE-001 | AC-001, AC-002 | Determine project-ness from standalone records with `project.common.craftType`. | Records with no `project`, empty `project`, `project.common.craftType`, and project plus reply/quote. | Only standalone records containing valid `project.common.craftType` are treated as project posts. | `appview/internal/index/craftsky_post_internal_test.go` / `craftsky_post_test.go` |
 | UT-012 | BR-002, FR-007 | AC-005 | Build PDS createRecord body with server-stamped `createdAt` and client project payload. | Authenticated post create request with text, images, reply/quote, project. | PDS body includes all allowed fields and project; client `createdAt` cannot override server timestamp. | `appview/internal/api/post_test.go` |
 | UT-013 | NFR-004 | AC-006, AC-007, AC-010 | Verify new/changed JSON fields use camelCase. | Serialized create errors, project post response, profile projects page. | No snake_case keys in `/v1/*` JSON bodies. | `appview/internal/api/*_test.go` |
 
@@ -338,11 +344,11 @@ Feature: Project query performance
 | IT-005 | FR-004, FR-005, NFR-002 | AC-004, EC-003 | Updates, project removal, delete, and unknown details converge. | Seed member and create/update/delete events for same URI. | Handle project create, CID-changing update, general-post update, unknown-details project, delete. | Updated values replace old ones; project row removed when project removed; unknown details do not poison-pill; delete cascades/removes rows. | `appview/internal/index/craftsky_post_test.go` |
 | IT-006 | BR-002, FR-007, NFR-004 | AC-005, AC-006 | Create handler sends project-bearing record to PDS and returns 201. | Fake authenticated request context and fake PDS client. | POST valid project request. | Fake PDS receives project payload in `social.craftsky.feed.post`; response is 201 with `project`. | `appview/internal/api/post_test.go` |
 | IT-007 | FR-008 | AC-006, EC-004 | Create handler rejects invalid project without PDS write. | Fake authenticated request and fake PDS recording call count. | POST malformed or invalid project body. | Standard error envelope; PDS create call count remains zero. | `appview/internal/api/post_test.go` |
-| IT-008 | FR-009, FR-010, NFR-001 | AC-007 | Store/read hydrates project metadata on single read and author list. | DB with project materialization joined to `craftsky_posts`. | Read single post and profile posts list. | Rows/responses include project metadata from Postgres only. | `appview/internal/api/post_store_test.go` |
+| IT-008 | FR-009, FR-010, NFR-001 | AC-007 | Store/read hydrates project metadata on single read and profile project list. | DB with project materialization joined to `craftsky_posts`. | Read single post and profile projects list. | Rows/responses include project metadata from Postgres only. | `appview/internal/api/post_store_test.go` |
 | IT-009 | FR-009, FR-010 | AC-008 | General post read/list responses omit project. | DB with general post and no project row. | Read single/list endpoints. | Project field absent; existing response compatibility preserved. | `appview/internal/api/post_store_test.go`, `post_response_test.go` |
-| IT-010 | FR-011, RULE-003 | AC-009 | Profile read computes projectCount with moderation and top-level predicates. | DB with visible project roots, project replies, general roots, hidden project roots. | `ProfileStore.Read`. | `ProjectCount` equals visible top-level project roots only; `PostCount` still includes project posts as posts. | `appview/internal/api/profile_store_test.go` |
-| IT-011 | FR-002, FR-003, FR-012, RULE-003, NFR-001, NFR-004 | AC-010 | Profile projects store method returns paginated project `PostResponse` rows. | DB with mixed posts and project rows for one profile, plus moderation output. | List profile projects with page size/cursor. | Only visible top-level project posts returned in existing order with project metadata and opaque cursor. | `appview/internal/api/post_store_test.go` or new project store tests |
-| IT-012 | FR-010 | AC-007 | Timeline, comments/replies, and notifications hydrate project rows consistently. | DB/fake stores seeded with project posts in each surface. | Call `ListTimeline`, comments/replies list methods, notification hydration paths. | Every returned project post carries project metadata; general posts still omit it. | `timeline_store_test.go`, `post_store_test.go`, `notification_store_test.go` |
+| IT-010 | FR-011, RULE-003 | AC-009 | Profile read computes separated post/project counts with moderation and standalone predicates. | DB with visible standalone project roots, project replies, project quotes, general roots, hidden posts. | `ProfileStore.Read`. | `ProjectCount` equals visible standalone project roots only; `PostCount` equals visible non-project roots only. | `appview/internal/api/profile_store_test.go` |
+| IT-011 | FR-002, FR-003, FR-012, RULE-003, NFR-001, NFR-004 | AC-010 | Profile projects store method returns paginated project `PostResponse` rows. | DB with mixed posts and project rows for one profile, plus moderation output. | List profile projects with page size/cursor. | Only visible standalone project posts returned in existing order with project metadata and opaque cursor. | `appview/internal/api/post_store_test.go` or new project store tests |
+| IT-012 | FR-010 | AC-007 | Timeline/feed and notifications hydrate project rows consistently. | DB/fake stores seeded with project posts in each eligible surface. | Call `ListTimeline` and notification hydration paths. | Every returned project post carries project metadata; general posts still omit it. | `timeline_store_test.go`, `post_store_test.go`, `notification_store_test.go` |
 | IT-013 | FR-012, NFR-004 | AC-010 | New route is authenticated, requires device ID, resolves handle/DID, and uses existing envelope conventions. | Routes mux with fake deps. | Request `GET /v1/profiles/{handleOrDid}/projects` with missing auth, missing device, invalid identifier, valid request. | 401/400 errors match route stack; valid request calls handler and returns paginated JSON. | `appview/internal/routes/routes_test.go`, `appview/internal/api/post_test.go` |
 | IT-014 | RULE-002 | AC-012 | Existing interaction/report/moderation/delete flows work on project posts. | Seed project post row plus interaction/report/moderation fixtures. | Like, repost, reply, report, moderate, delete/read via existing flows. | Existing flows treat URI as ordinary post; response hydration is the only project-specific behavior. | Existing interaction, report, post, timeline, moderation tests |
 | IT-015 | BR-002, NFR-001 | AC-007, AC-010 | Read paths do not invoke PDS clients for project hydration. | Fake PDS or hydrator that fails if called; DB has project rows. | Exercise read/list/project list handlers. | Requests succeed without any PDS hydration call. | Handler/store tests with fake PDS/hydrator |
@@ -355,22 +361,22 @@ Feature: Project query performance
 | REG-002 | General post create remains valid when `project` is absent. | FR-007, FR-008 | `POST /v1/posts` with text-only or image post succeeds exactly as before and omits project in response. |
 | REG-003 | Client-supplied `createdAt` remains disallowed. | FR-008 | Existing `DecodePostCreate_RejectsCreatedAtField` behavior remains, including when a project object is also present. |
 | REG-004 | AppView preserves full `record JSONB` for debugging/backfill. | FR-005 | Indexed general and project posts store the complete source record JSON including unknown or future project fields. |
-| REG-005 | Existing post-shaped surfaces keep pagination/order/moderation behavior. | FR-010 | Profile posts, timeline, comments/replies, and notifications return the same rows/order as before, with project hydration added only where applicable. |
+| REG-005 | Existing post-shaped surfaces keep pagination/order/moderation behavior. | FR-010 | Timeline, comments/replies, and notifications return the same rows/order as before, with project hydration added only where applicable; profile posts intentionally exclude projects under the clarified product rule. |
 | REG-006 | Like/repost/reply/report/delete flows operate on all posts by URI. | RULE-002 | Existing interaction and moderation tests pass when the target post has project materialization. |
-| REG-007 | Profile `postCount` still counts root project posts as posts. | RULE-003 | Profile summary keeps `postCount` semantics while adding independent `projectCount`. |
+| REG-007 | Profile `postCount` aligns with the Posts tab. | RULE-003 | Profile summary excludes project posts from `postCount` and reports them through independent `projectCount`. |
 
 ## 7. Test Data
 
 | ID | Purpose | Data | Used By |
 |---|---|---|---|
 | TD-001 | Minimal general post | `social.craftsky.feed.post` with text and server/indexed `createdAt`, no `project`. | AT-002, AT-008, IT-002, IT-009, REG-002 |
-| TD-002 | Minimal project post | Text plus `project.common.craftType = social.craftsky.feed.defs#knitting`. | AT-002, IT-002, UT-011 |
+| TD-002 | Minimal project post | Text plus `project.common.craftType = social.craftsky.feed.defs#knitting`, no reply, no quote. | AT-002, IT-002, UT-011 |
 | TD-003 | Full knitting project | Common fields: craftType, status, title, duration, pattern URL/name/difficulty/designer/publisher, materials, colors, designTags, tags; details `$type = social.craftsky.project.knitting#details`, projectType, projectSubtype, yarnWeight, needleSizeMm, gauge, finishedSize. | AT-003, AT-005, AT-007, IT-003, IT-006 |
 | TD-004 | Other known craft detail variants | Sewing, quilting, and crochet detail payloads with one representative materialized field per variant. | UT-002, IT-003, IT-011 |
 | TD-005 | Unknown future details variant | `project.common.craftType` plus `details.$type = social.craftsky.project.future#details` and arbitrary detail fields. | AT-004, UT-003, IT-005, REG-004 |
 | TD-006 | Tag normalization set | Facet tags and `project.common.tags` containing mixed case, whitespace, duplicates, and unique tags. | AT-011, UT-001, IT-003 |
-| TD-007 | Profile mixed post set | Top-level general post, top-level project posts, project reply/comment, quote project root, hidden project post. | AT-009, AT-010, IT-010, IT-011, REG-007 |
-| TD-008 | Invalid create bodies | Malformed JSON; project without common; common without craftType; wrong field types; client `createdAt`. | AT-006, UT-004, UT-006, IT-007 |
+| TD-007 | Profile mixed post set | Root general post, standalone project posts, project reply/comment, project quote, hidden project post. | AT-009, AT-010, IT-010, IT-011, REG-007 |
+| TD-008 | Invalid create bodies | Malformed JSON; project without common; common without craftType; unsupported craftType; project with reply; project with quote; wrong field types; client `createdAt`. | AT-006, UT-004, UT-006, IT-007 |
 | TD-009 | Tap convergence event stream | Same URI/CID replay, CID-changing project update, update removing project, delete event. | AT-004, IT-004, IT-005 |
 | TD-010 | Auth and route variants | Valid bearer/device headers; missing auth; missing `X-Craftsky-Device-Id`; invalid handle/DID. | AT-010, IT-013 |
 
@@ -399,6 +405,7 @@ Feature: Project query performance
 - Cross-post project identity, mutable project lifecycle records, or separate project collection tests are out of scope (NG-004, NG-006).
 - Unauthenticated access and direct PDS read-through tests are out of scope except negative checks that new routes remain authenticated and read paths do not fetch PDS records (NG-005).
 - Post edit/update endpoint tests are out of scope unless an existing endpoint independently supports updates; indexer update convergence is still in scope because Tap events can update records (NG-007).
+- Profile post-list tests should assert projects are excluded from `/posts` while timeline/feed tests assert projects remain included in mixed chronological surfaces.
 
 ## 11. Handoff To Document Review
 

@@ -407,6 +407,7 @@ func (s *PostStore) ListByAuthor(ctx context.Context, did string, limit int, cur
 		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.did = $1
+		  AND p.is_project = false
 		  AND p.reply_root_uri IS NULL
 		  AND p.reply_parent_uri IS NULL
 		` + postVisibleModerationPredicate + `
@@ -464,6 +465,7 @@ func (s *PostStore) ListProjectsByAuthor(ctx context.Context, did string, limit 
 		  AND p.is_project = true
 		  AND p.reply_root_uri IS NULL
 		  AND p.reply_parent_uri IS NULL
+		  AND p.quote_uri IS NULL
 		` + postVisibleModerationPredicate + `
 		  AND ($2::timestamptz IS NULL
 		       OR (p.indexed_at, p.uri) < ($2::timestamptz, $3::text))

@@ -213,16 +213,20 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 				SELECT COUNT(*)
 				FROM craftsky_posts p
 				WHERE p.did = cp.did
+				  AND p.is_project = false
 				  AND p.reply_root_uri IS NULL
 				  AND p.reply_parent_uri IS NULL
+				` + postVisibleModerationPredicate + `
 			) AS post_count,
 			(
 				SELECT COUNT(*)
 				FROM craftsky_posts p
 				WHERE p.did = cp.did
+				  AND p.is_project = false
 				  AND p.reply_root_uri IS NULL
 				  AND p.reply_parent_uri IS NULL
 				  AND p.created_at >= now() - interval '7 days'
+				` + postVisibleModerationPredicate + `
 			) AS posts_last_7_days,
 			(
 				SELECT COUNT(*)
@@ -231,6 +235,7 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 				  AND p.is_project = true
 				  AND p.reply_root_uri IS NULL
 				  AND p.reply_parent_uri IS NULL
+				  AND p.quote_uri IS NULL
 				  AND NOT EXISTS (
 					SELECT 1
 					FROM moderation_outputs mo

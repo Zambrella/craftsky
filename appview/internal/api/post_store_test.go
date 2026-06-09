@@ -175,7 +175,11 @@ func seedProjectMaterialization(t *testing.T, pool *pgxpool.Pool, uri, craftType
 	t.Helper()
 	rawProject := `{"common":{"craftType":"` + craftType + `","title":"` + title + `"}}`
 	if _, err := pool.Exec(context.Background(), `
-		UPDATE craftsky_posts SET is_project = true, project_craft_type = $2 WHERE uri = $1;
+		UPDATE craftsky_posts SET is_project = true, project_craft_type = $2 WHERE uri = $1
+	`, uri, craftType); err != nil {
+		t.Fatalf("seed project base flags: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO craftsky_project_posts (uri, raw_project, common_craft_type, common_title)
 		VALUES ($1, $3::jsonb, $2, $4)
 	`, uri, craftType, rawProject, title); err != nil {
@@ -226,7 +230,7 @@ func seedModerationOutput(t *testing.T, pool *pgxpool.Pool, subjectType, subject
 			CASE WHEN $2 = 'post' THEN 'social.craftsky.feed.post' ELSE NULL END,
 			CASE WHEN $2 = 'post' THEN split_part($4, '/', 5) ELSE NULL END,
 			NULLIF($4, ''), $5, 'apply', $6, $6
-		)`, "mod-"+subjectType+"-"+subjectDID+"-"+value+"-"+createdAt.Format("150405.000000000"), subjectType, subjectDID, subjectURI, value, createdAt); err != nil {
+		)`, "mod-"+subjectType+"-"+subjectDID+"-"+subjectURI+"-"+value+"-"+createdAt.Format("150405.000000000"), subjectType, subjectDID, subjectURI, value, createdAt); err != nil {
 		t.Fatalf("seed moderation output: %v", err)
 	}
 }
@@ -550,7 +554,7 @@ func TestPostStore_ListCommentsByAuthor_FiltersModeratedRowsBeforeLimit(t *testi
 	}
 }
 
-func TestPostStore_ListByAuthor_ExcludesCommentsAndReplies(t *testing.T) {
+func TestPostStore_ListByAuthor_ExcludesCommentsRepliesAndProjects(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)
 	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol"} {
@@ -558,6 +562,8 @@ func TestPostStore_ListByAuthor_ExcludesCommentsAndReplies(t *testing.T) {
 	}
 	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
+	projectRoot := seedPost(t, pool, "did:plc:alice", "project-root", "project", base.Add(3*time.Minute))
+	seedProjectMaterialization(t, pool, projectRoot, "social.craftsky.feed.defs#knitting", "Project Root")
 	comment := seedReplyPost(t, pool, "did:plc:alice", "comment", "comment", root, root, base.Add(time.Minute))
 	seedReplyPost(t, pool, "did:plc:alice", "nested", "nested", root, comment, base.Add(2*time.Minute))
 
@@ -567,7 +573,7 @@ func TestPostStore_ListByAuthor_ExcludesCommentsAndReplies(t *testing.T) {
 		t.Fatalf("ListByAuthor: %v", err)
 	}
 	if len(rows) != 1 || rows[0].Rkey != "root" {
-		t.Fatalf("rows = %v, want only root", replyRkeys(rows))
+		t.Fatalf("rows = %v, want only non-project root", replyRkeys(rows))
 	}
 }
 
@@ -581,6 +587,11 @@ func TestPostStore_ListProjectsByAuthor_ReturnsOnlyTopLevelProjects(t *testing.T
 	generalRoot := seedPost(t, pool, "did:plc:alice", "general-root", "general", now.Add(-time.Minute))
 	projectReply := seedReplyPost(t, pool, "did:plc:alice", "project-reply", "reply project", generalRoot, generalRoot, now.Add(-2*time.Minute))
 	seedProjectMaterialization(t, pool, projectReply, "social.craftsky.feed.defs#knitting", "Reply Project")
+	projectQuote := seedPost(t, pool, "did:plc:alice", "project-quote", "quote project", now.Add(-3*time.Minute))
+	seedProjectMaterialization(t, pool, projectQuote, "social.craftsky.feed.defs#knitting", "Quote Project")
+	if _, err := pool.Exec(context.Background(), `UPDATE craftsky_posts SET quote_uri = $2, quote_cid = 'bafyQuote' WHERE uri = $1`, projectQuote, generalRoot); err != nil {
+		t.Fatalf("mark project quote: %v", err)
+	}
 
 	rows, cursor, err := api.NewPostStore(pool).ListProjectsByAuthor(context.Background(), "did:plc:alice", 50, "")
 	if err != nil {

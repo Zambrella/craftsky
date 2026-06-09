@@ -45,3 +45,12 @@ The approval is with notes because the work remains high risk: the migration/sch
 - Front-load unknown details tests before broad API work so parser limitations are discovered early.
 - Prefer shared post response hydration so single post reads, profile lists, timeline, comments/replies, notifications, and create responses cannot drift.
 - Preserve architecture rules: writes go through PDS, reads come from AppView Postgres, `/v1/*` JSON stays camelCase, and public project data remains PDS-backed with AppView materialization as the read model.
+
+## 2026-06-09 Clarification Addendum
+
+The grill-me review after implementation changed the product rules for profile surfaces. The updated requirements and tests supersede any earlier review language that implied profile post lists or comments/replies should hydrate project metadata.
+
+- Project posts are standalone only: no reply pointer and no quote embed.
+- Profile `postCount` and profile post lists exclude projects.
+- Profile `projectCount` and `/v1/profiles/{handleOrDid}/projects` include visible standalone project posts only.
+- Timeline/feed surfaces still include project posts.

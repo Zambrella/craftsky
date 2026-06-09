@@ -21,7 +21,7 @@
 
 Implement the AppView slice in the same order as the approved test specification, adjusted by review feedback: migration/schema first, then indexing/materialization, then create API, shared response hydration, and finally profile project count/list routing. This matches the existing Go/AppView architecture: raw `pgx` SQL, inline test DDL fixtures, `PostStore` as the read-side boundary, handler factories in `appview/internal/api`, route registration in `appview/internal/routes/routes.go`, and Tap indexer registration already present in `appview/internal/app/deps.go`.
 
-Use Option B from `01-requirements.md`: keep `social.craftsky.feed.post` as the only post collection, add minimal project indicators to `craftsky_posts`, and create a one-to-one `craftsky_project_posts` table keyed by post URI. Hydrate `PostResponse.project` from typed project materialization with raw JSON preservation for unknown details, not from normalized search columns and not by PDS read-through.
+Use Option B from `01-requirements.md`: keep `social.craftsky.feed.post` as the only post collection, add minimal project indicators to `craftsky_posts`, and create a one-to-one `craftsky_project_posts` table keyed by post URI. Hydrate `PostResponse.project` from typed project materialization with raw JSON preservation for unknown details, not from normalized search columns and not by PDS read-through. After the 2026-06-09 grill-me clarification, only standalone records can be project posts: no reply pointer and no quote embed. Profile Posts and Projects are split tabs, so profile post counts/lists exclude project posts while the main timeline/feed still includes them.
 
 Risk sequencing from `03-document-review.md` is mandatory:
 
@@ -29,7 +29,7 @@ Risk sequencing from `03-document-review.md` is mandatory:
 2. Choose the migration-chain strategy first. Add a small migration test/helper that applies real migration SQL into an isolated `testdb.WithSchema` schema; if that becomes impractical because existing migrations assume `public` or external migration state, fall back to an isolated SQL test that executes `000016_project_posts.up.sql` after a minimal pre-state and records the fallback in test comments.
 3. Front-load `UT-003`/`IT-005` unknown open-union details before broad API work.
 4. Introduce typed project DTOs for API/indexer boundaries instead of passing project payloads as unstructured `json.RawMessage` everywhere. Preserve raw JSON in storage for forward compatibility and exact authored response reconstruction when needed.
-5. Centralize post response hydration so single post, profile posts, profile projects, timeline, comments/replies, notifications, and create responses do not drift.
+5. Centralize post response hydration so project-eligible surfaces such as single post, profile projects, timeline/feed, notifications, and create responses do not drift.
 
 ## 3. Affected Areas
 
@@ -38,11 +38,11 @@ Risk sequencing from `03-document-review.md` is mandatory:
 | Migrations / persistence | Numbered SQL migrations in `appview/migrations`; tests often use inline DDL with `testdb.WithSchema` | Add `000016_project_posts.up/down.sql` with base flags, one-to-one project table, no historical backfill, and indexes | FR-001, FR-002, FR-003, NFR-003, RULE-001 | AT-001, AT-013, IT-001, MAN-002 |
 | Post indexer | `CraftskyPost` unmarshals generated `FeedPost`, upserts `craftsky_posts`, idempotent on URI/CID | Extract project raw/common/details before typed loss, merge project tags, maintain project child row on upsert/delete/removal | FR-004, FR-005, FR-006, NFR-002 | AT-002, AT-003, AT-004, AT-011, UT-001, UT-002, UT-003, UT-011, IT-002, IT-003, IT-004, IT-005 |
 | Post utilities | `postutil.ExtractTags` handles facet tags only | Add merge/normalize helper for facet tags + `project.common.tags`, preserving non-null output | FR-006 | AT-011, UT-001, REG-001 |
-| Create post API | `POST /v1/posts` rejects `project`; `lexiconRecordBody` writes allowed fields to PDS | Allow optional typed `project`, validate minimal shape, include in PDS createRecord body and synthetic response | FR-007, FR-008, BR-002, NFR-004 | AT-005, AT-006, UT-004, UT-005, UT-006, UT-012, IT-006, IT-007, REG-002, REG-003 |
+| Create post API | `POST /v1/posts` rejects `project`; `lexiconRecordBody` writes allowed fields to PDS | Allow optional typed standalone `project`, validate minimal shape plus supported create-time craft type and no reply/quote, include in PDS createRecord body and synthetic response | FR-007, FR-008, BR-002, NFR-004 | AT-005, AT-006, UT-004, UT-005, UT-006, UT-012, IT-006, IT-007, REG-002, REG-003 |
 | Post read store / row model | `PostRow` contains base post fields and author display fields; `postSelectColumns` reused by many queries | Extend `PostRow` with typed project DTO plus raw storage JSON and base flags; join project table in all post-shaped stores | FR-009, FR-010, NFR-001 | AT-007, AT-008, IT-008, IT-009, IT-012, IT-015, REG-005 |
 | Post response builder | `BuildPostResponse` centralizes post wire shape | Add optional lexicon-shaped typed `project` field sourced from project materialization with raw authored data preserved for unknown details | FR-009, NFR-004 | AT-007, AT-008, UT-007, UT-008, UT-013, MAN-003 |
-| Profile summary | `ProfileStore.Read` hardcodes `project_count` to zero | Count visible top-level project posts from indexed base flags/materialization | FR-011, RULE-003 | AT-009, UT-009, IT-010, REG-007 |
-| Profile project list | Existing profile posts/comments handlers share `listAuthorPostsHandler` | Add authenticated `GET /v1/profiles/{handleOrDid}/projects`, store method filters root visible project posts | FR-012, RULE-003, NFR-001, NFR-004 | AT-010, UT-010, IT-011, IT-013 |
+| Profile summary | `ProfileStore.Read` hardcodes `project_count` to zero | Count visible standalone project posts for `projectCount`; count visible non-project root posts for `postCount`/recent post counts | FR-011, RULE-003 | AT-009, UT-009, IT-010, REG-007 |
+| Profile project list | Existing profile posts/comments handlers share `listAuthorPostsHandler` | Add authenticated `GET /v1/profiles/{handleOrDid}/projects`, store method filters visible standalone project posts; profile post lists filter projects out | FR-012, RULE-003, NFR-001, NFR-004 | AT-010, UT-010, IT-011, IT-013 |
 | Routes | `routes.go` registers authenticated + device wrapped `/v1/*` routes | Register profile projects route with same auth/device stack as posts/comments | FR-012, NFR-004 | AT-010, IT-013 |
 | Regression flows | Likes/reposts/replies/reports/delete operate by post URI | Avoid project-specific branches except response hydration; preserve ordinary post semantics | RULE-002 | AT-012, IT-014, REG-006 |
 
@@ -147,7 +147,7 @@ Do not split knitting, crochet, quilting, and sewing details into separate table
 
 Index guardrails:
 
-- Add a partial profile-project ordering index on `craftsky_posts(did, indexed_at DESC, uri DESC)` where `is_project` and root-post predicates are true.
+- Add a partial profile-project ordering index on `craftsky_posts(did, indexed_at DESC, uri DESC)` where `is_project`, root-post predicates, and `quote_uri IS NULL` are true.
 - Add a btree index for `craftsky_posts(project_craft_type)` or a compound index where useful for root project filters.
 - Add GIN indexes for project arrays that are committed query dimensions: `materials`, `colors`, `design_tags`, `project_tags`.
 - Add btree indexes for `common_craft_type`, `common_status`, and `pattern_difficulty` in `craftsky_project_posts`.
@@ -204,7 +204,7 @@ func deleteProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 
 Important extraction rules:
 
-- A project post is detected by `project.common` with non-empty `craftType` (RULE-001).
+- A project post is detected by `project.common` with non-empty `craftType` on a standalone record only. If the record has `reply` or a quote embed, preserve the raw post record but do not set `is_project`, write project materialization, merge project tags, or return `project` (RULE-001).
 - Unknown details are not an error if `project.common.craftType` exists. Store `raw_project`, `raw_details`, and `details_type`; known detail typed columns may remain NULL.
 - The typed `Project` DTO should live in AppView API/indexing code, not in generated lexicon code. Generated lexicon types remain consumed as validation/decode inputs, while the DTO gives handlers/tests a stable, typed JSON wire shape.
 - Use a transaction for base `craftsky_posts` upsert plus child row upsert/delete so updates that remove `project` cannot leave stale child rows.
@@ -252,6 +252,9 @@ ValidatePostCreateWithLimits:
     unmarshal to map/object
     require project.common object
     require non-empty string project.common.craftType
+    require craftType to be one of the current lexicon knownValues for first-party create
+    reject when reply is present
+    reject when embed.quote is present
     fail wrong JSON types as validation_failed / malformed_body per existing FieldError conventions
 ```
 
@@ -319,10 +322,11 @@ User-facing HTTP changes:
   - Include the same object in the PDS `createRecord` body.
   - Return HTTP 201 with `project` in the `PostResponse` for project posts.
 - Existing post-shaped responses
-  - Include `project` for project posts on single read, timeline, profile posts, comments/replies, notifications, and create response.
+  - Include `project` for project posts on project-eligible surfaces such as single read, timeline/feed, profile projects, notifications, and create response.
   - Omit `project` for general posts.
 - `GET /v1/profiles/{handleOrDid}`
   - Return real `projectCount` for Craftsky profiles.
+  - Return `postCount`/recent post counts for non-project root posts only.
 - New `GET /v1/profiles/{handleOrDid}/projects`
   - Authenticated + device-id required.
   - Resolve handle/DID like existing profile posts/comments routes.
@@ -345,12 +349,14 @@ No CLI changes are expected beyond the new migration files.
 | General post has no `project` | `is_project=false`, `project_craft_type=NULL`, no child row, response omits `project` | FR-001, FR-009, RULE-001 | AT-002, AT-008, IT-002, IT-009, UT-008 |
 | Project post has `project.common.craftType` | Base flags set, child row upserted, response includes typed lexicon-shaped project | FR-001, FR-002, FR-009 | AT-002, AT-003, AT-007, UT-007, IT-003, IT-008 |
 | Project object missing `common` or `craftType` on create | Reject before PDS write with existing `FieldError`/standard envelope | FR-008, RULE-001 | AT-006, UT-006, IT-007 |
-| Indexed invalid project event lacks common/craftType | Treat as invalid/malformed generated-record behavior; do not create child materialization | FR-004, RULE-001 | AT-002, UT-011 |
+| Project create uses unsupported craft type | Reject before PDS write; the indexer remains permissive for external future craft types | FR-008, RULE-001 | AT-006, UT-006, IT-007 |
+| Project create includes reply or quote | Reject before PDS write because first-party project posts must be standalone | FR-008, RULE-001, RULE-003 | AT-006, UT-006, IT-007 |
+| Indexed invalid project event lacks common/craftType or has project plus reply/quote | Treat as ordinary post indexing; do not create child materialization or expose `project` in AppView responses | FR-004, RULE-001 | AT-002, UT-011 |
 | Unknown future details variant | Store common/raw project/raw details/details type; known details columns NULL; do not poison-pill solely because details type is unknown | FR-005 | AT-004, UT-003, IT-005, REG-004 |
 | Update removes `project` | Base flags reset and child row deleted in same transaction | FR-004 | AT-004, IT-005, EC-002 |
 | Delete project post | Delete base row; child row removed by FK cascade or explicit delete | FR-004 | AT-004, IT-005 |
 | Duplicate same URI/CID replay | No duplicate rows; no unintended `indexed_at` churn | NFR-002 | AT-004, IT-004 |
-| Project post is a reply/comment | Response includes project where read as a comment/reply; profile project count/list exclude it | RULE-002, RULE-003 | AT-007, AT-009, AT-010, EC-005 |
+| Firehose record has project plus reply/comment/quote | Preserve raw record but treat as non-project everywhere in AppView | RULE-001, RULE-002, RULE-003 | AT-002, AT-009, AT-010, EC-005 |
 | Moderation hides project post or author | Same visibility predicates as ordinary posts; project count/list exclude hidden/takedown rows | RULE-002, RULE-003 | AT-009, AT-010, IT-010, IT-011 |
 | Empty profile projects page | Return `items: []`, omit cursor, no PDS calls | FR-012, NFR-001 | AT-010, IT-011, IT-015 |
 | Invalid profile projects cursor | Return 400 `invalid_cursor` using standard error envelope | FR-012, NFR-004 | UT-010, IT-013 |
@@ -370,7 +376,7 @@ No CLI changes are expected beyond the new migration files.
 | 9 | UT-007 / UT-008 / UT-013 | `appview/internal/api/post_response_test.go` | Project-bearing `PostRow`, general `PostRow`, JSON marshal checks | `PostResponse` has no project field / wrong omission behavior |
 | 10 | IT-008 / IT-009 | `appview/internal/api/post_store_test.go` | DB rows with/without `craftsky_project_posts` | Store rows do not hydrate project or general posts leak empty field |
 | 11 | IT-012 | `timeline_store_test.go`, `notification_store_test.go`, comment/read tests | Project posts returned through timeline/comments/notifications | One surface misses project due to custom select scan |
-| 12 | UT-009 / IT-010 | `profile_store_test.go` | Top-level project, project reply, general root, hidden project | `projectCount` hardcoded 0 or includes replies/hidden rows |
+| 12 | UT-009 / IT-010 | `profile_store_test.go` | Standalone project, project reply, project quote, general root, hidden posts | `projectCount` hardcoded 0, includes non-standalone projects, or `postCount` includes projects |
 | 13 | UT-010 / IT-011 / IT-013 | `post_store_test.go`, `post_test.go`, `routes_test.go` | Mixed profile posts and route auth/device variants | No profile projects store method/handler/route |
 | 14 | IT-014 / REG-* | Existing interaction/report/moderation/delete suites | Project post rows as targets | Special-case regressions or missing hydration in existing flows |
 | 15 | MAN-001 through MAN-004 | Manual implementation review | Search for PDS read-through, inspect schema indexes/query plans, sample JSON | Any undocumented index deferral, non-camelCase shape, or hydration drift |

@@ -56,7 +56,7 @@ CREATE TABLE craftsky_project_posts (
 
 CREATE INDEX craftsky_posts_profile_projects_idx
     ON craftsky_posts (did, indexed_at DESC, uri DESC)
-    WHERE is_project = true AND reply_root_uri IS NULL AND reply_parent_uri IS NULL;
+    WHERE is_project = true AND reply_root_uri IS NULL AND reply_parent_uri IS NULL AND quote_uri IS NULL;
 
 CREATE INDEX craftsky_posts_project_craft_type_idx
     ON craftsky_posts (project_craft_type)

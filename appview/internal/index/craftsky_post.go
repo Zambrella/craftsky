@@ -93,8 +93,6 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	if err != nil {
 		return fmt.Errorf("extract project %s: %w", ev.URI, err)
 	}
-	tags := postutil.MergeTags(postutil.ExtractTags(rec.Facets), projectSearchTags(project))
-
 	// Reply and quote pointers are typed `any` (not `string`) so absent
 	// fields stay nil and pgx writes SQL NULL. An empty string would still
 	// satisfy the partial indexes' `WHERE ... IS NOT NULL` predicate and
@@ -120,6 +118,10 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		quoteURI = rec.Embed.FeedPost_QuoteEmbed.Record.Uri
 		quoteCID = rec.Embed.FeedPost_QuoteEmbed.Record.Cid
 	}
+	if project != nil && (rec.Reply != nil || quoteURI != nil) {
+		project = nil
+	}
+	tags := postutil.MergeTags(postutil.ExtractTags(rec.Facets), projectSearchTags(project))
 
 	var isProject bool
 	var projectCraftType any

@@ -34,6 +34,7 @@
 | 15 | UT-002 / IT-003 review fix | FR-003, NFR-003 | AC-003, AC-013 | Fails: craft-specific detail columns may populate unrelated craft families |
 | 16 | IT-005 review fix | FR-004, FR-005, NFR-002 | AC-004 | Fails: missing explicit DB coverage for project removal/delete/unknown details convergence |
 | 17 | IT-013 review fix | FR-012, NFR-004 | AC-010 | Fails: missing route auth/device coverage for profile projects route |
+| 18 | Grill-me clarification fix | FR-008, FR-010, FR-011, FR-012, RULE-001, RULE-003 | AC-002, AC-006, AC-009, AC-010 | Fails: profile post counts/lists include projects, create allows project replies/quotes/unknown craft type, indexer materializes non-standalone project records |
 
 ## Implementation Steps
 
@@ -154,7 +155,7 @@
 - Notes: API package tests pass without DB; DB-backed notification/timeline/comment tests require compose Postgres.
 
 ### Step 12: UT-009 / IT-010
-- Write failing test: Updated profile summary test to include top-level project, project reply, general roots, and hidden project post.
+- Write failing test: Updated profile summary test to include standalone project, project reply, general roots, and hidden project post.
 - Run command: `go test ./internal/api -run TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts -count=1`
 - Confirmed failure: Existing implementation returned hardcoded `0 AS project_count` (DB-backed test requires compose Postgres).
 - Implement: Replaced hardcoded zero with visible top-level `craftsky_posts.is_project = true` count using existing moderation hide/takedown predicate shape.
@@ -207,6 +208,13 @@
 - Refactor: None.
 - Notes: Focused route test passes.
 
+### Step 18: Grill-me clarification fix
+- Source: 2026-06-09 grill-me decisions after Step 17.
+- Write failing tests: Add create validation coverage for unsupported craft types and `project` combined with reply/quote; add profile list/count coverage for excluding projects from profile Posts; add indexer coverage proving project replies/quotes are preserved as ordinary posts with no project materialization.
+- Implement: Treat project posts as standalone records only. Reject project create requests with reply or quote, reject unsupported create-time craft types, keep the indexer permissive for unknown future craft types on standalone external records, exclude project posts from profile `postCount`/recent counts and profile post lists, exclude quote rows from profile project lists/counts, and keep timeline/feed behavior mixed.
+- Run command: `go test ./internal/api -run 'TestValidatePostCreate_RejectsProjectWithReplyQuoteOrUnsupportedCraft|TestPostStore_ListByAuthor_ExcludesCommentsRepliesAndProjects|TestPostStore_ListProjectsByAuthor_ReturnsOnlyTopLevelProjects|TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts' -count=1`; `go test ./internal/index -run 'TestCraftskyPost_Create_ProjectReplyOrQuoteIsOrdinaryPost|TestCraftskyPost_Create_WithProjectPayload_MaterializesProject' -count=1`; `go test ./internal/db -run TestProjectPostsMigrationCreatesSchemaAndIndexes -count=1`; `go test ./...`; `just fmt`; `just test`.
+- Result: Focused tests, `go test ./...`, `just fmt`, and `just test` passed after compose Postgres was started. The compose-backed run also exposed unrelated/fixture-sensitive DB issues that were fixed: project materialization test seeding now uses separate statements, moderation fixture IDs include the subject URI, identity-cache handle reassignment uses an explicit transaction, and profile recent-count fixture dates are relative to current time.
+
 ## Verification
 - Focused commands:
   - `go test ./internal/db -run TestProjectPostsMigrationCreatesSchemaAndIndexes -count=1`
@@ -224,17 +232,21 @@
   - `go test ./internal/index -run 'TestCraftskyPost_Create_KnittingDetailsPopulatesOnlyKnittingColumns|TestCraftDetailColumnsFor_OnlyPopulatesMatchingCraftFamily' -count=1` — passed after IR-001 fix.
   - `go test ./internal/index -run TestCraftskyPost_ProjectUpdateRemovalUnknownDetailsAndDeleteConverge -count=1` — passed; adds IR-002 DB-backed convergence coverage where the test DB is available.
   - `go test ./internal/routes -run TestAddRoutes_ProfileProjectsRequiresAuthenticatedDevice -count=1` — passed.
+  - `go test ./internal/api -run 'TestValidatePostCreate_RejectsProjectWithReplyQuoteOrUnsupportedCraft|TestPostStore_ListByAuthor_ExcludesCommentsRepliesAndProjects|TestPostStore_ListProjectsByAuthor_ReturnsOnlyTopLevelProjects|TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts' -count=1` — passed after the 2026-06-09 clarification fix.
+  - `go test ./internal/index -run 'TestCraftskyPost_Create_ProjectReplyOrQuoteIsOrdinaryPost|TestCraftskyPost_Create_WithProjectPayload_MaterializesProject' -count=1` — passed after the 2026-06-09 clarification fix.
+  - `go test ./internal/db -run TestProjectPostsMigrationCreatesSchemaAndIndexes -count=1` — passed after the profile-project index predicate was tightened to exclude quotes.
 - Broader commands:
   - `gofmt -w ...changed Go files`
   - `just fmt` — passed (`gofmt -w . && go vet ./...`).
-  - `go test ./...` from `appview/` without `TEST_DATABASE_URL` — passed.
+  - `go test ./...` from `appview/` without `TEST_DATABASE_URL` — passed after the 2026-06-09 clarification fix.
 - Manual checks:
   - MAN-001: Reviewed read/list code paths; project hydration comes from `craftsky_project_posts` joins/raw JSON, not PDS clients.
   - MAN-002: Migration includes explicit profile-project, project craft type, common craft/status/difficulty, and array GIN indexes; no craft-detail-specific indexes beyond documented v1/common dimensions.
   - MAN-003: Response/create tests assert lexicon-shaped `project`, general omission, and camelCase keys.
-  - MAN-004: Shared `scanPostRow` hydrates project for single read, profile posts/projects, timeline, comments/replies; notification subject hydration is explicit.
+  - MAN-004: Shared `scanPostRow` hydrates project for eligible read paths including single read, profile projects, and timeline/feed; notification subject hydration is explicit.
 - Blocked commands:
-  - `just test` — still blocked because compose Postgres at `localhost:5433` was not running; failures were connection refused before test schemas could be created.
+  - `just test` — initially blocked because compose Postgres at `localhost:5433` was not running; passed after the container was started.
+  - `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test -race ./internal/api -run 'TestPostStore_ReadOne_HydratesProjectFromMaterialization|TestPostStore_ListProjectsByAuthor_ReturnsOnlyTopLevelProjects|TestPostStore_ListByAuthor_ExcludesCommentsRepliesAndProjects|TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts|TestFacetStoreResolveMentionRefreshesReassignedStaleHandle' -count=1` — passed after DB-backed fixture/store fixes.
   - `just dev-d` — attempted twice to start compose Postgres/AppView for DB-backed verification; both attempts timed out while Docker was pulling/building images (`postgres:16` pull / Dockerfile frontend resolution), so `just test` could not be rerun to completion in this environment.
 
 ## Completion Checklist
