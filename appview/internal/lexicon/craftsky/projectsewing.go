@@ -9,6 +9,12 @@ package craftsky
 // Sewing-specific fields attached to a project post when craftType is sewing.
 type ProjectSewing_Details struct {
 	LexiconTypeID string `json:"$type" cborgen:"$type,const=social.craftsky.project.sewing#details"`
+	// fitNotes: Free-text notes about garment fit and adjustments, e.g. 'Good through the bust but tight at the upper arm. Added 2cm bicep adjustment.'
+	FitNotes *string `json:"fitNotes,omitempty" cborgen:"fitNotes,omitempty"`
+	// projectSubtype: More specific sewing project category. Clients choose valid subtypes based on projectType; the lexicon keeps this open for forward compatibility.
+	ProjectSubtype *string `json:"projectSubtype,omitempty" cborgen:"projectSubtype,omitempty"`
 	// projectType: The kind of sewing project. Helps discovery so readers can filter on, e.g., only garment projects.
 	ProjectType *string `json:"projectType,omitempty" cborgen:"projectType,omitempty"`
+	// sizeMade: Free-text garment size made, e.g. 'UK 20', 'US 14', 'EU 46', 'M', or 'custom self-drafted'.
+	SizeMade *string `json:"sizeMade,omitempty" cborgen:"sizeMade,omitempty"`
 }

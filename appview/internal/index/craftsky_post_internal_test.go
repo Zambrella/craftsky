@@ -1,6 +1,7 @@
 package index
 
 import (
+	"encoding/json"
 	"testing"
 
 	lexutil "github.com/bluesky-social/indigo/lex/util"
@@ -47,6 +48,118 @@ func TestFlattenImages_IncludesSizeAndAspectRatio(t *testing.T) {
 	}
 	if aspect["width"] != int64(919) || aspect["height"] != int64(2000) {
 		t.Fatalf("aspectRatio = %+v", aspect)
+	}
+}
+
+func TestExtractProjectForIndex_ProjectnessRequiresCommonCraftType(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		raw  string
+		want bool
+	}{
+		{name: "no project", raw: `{"text":"general"}`, want: false},
+		{name: "empty project", raw: `{"project":{}}`, want: false},
+		{name: "common without craft type", raw: `{"project":{"common":{}}}`, want: false},
+		{name: "common with craft type", raw: `{"project":{"common":{"craftType":"social.craftsky.feed.defs#knitting"}}}`, want: true},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			project, err := extractProjectForIndex(json.RawMessage(tc.raw))
+			if err != nil {
+				t.Fatalf("extractProjectForIndex: %v", err)
+			}
+			got := project != nil
+			if got != tc.want {
+				t.Fatalf("project present = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestExtractProjectForIndex_PreservesKnownAndUnknownDetails(t *testing.T) {
+	t.Parallel()
+
+	known, err := extractProjectForIndex(json.RawMessage(`{
+		"project": {
+			"common": {"craftType":"social.craftsky.feed.defs#knitting", "tags":[" FairIsle "]},
+			"details": {
+				"$type":"social.craftsky.project.knitting#details",
+				"projectType":"sweater",
+				"needleSizeMm":"4.5",
+				"gauge":{"stitches":22,"measurement":10,"unit":"cm"}
+			}
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("extract known: %v", err)
+	}
+	if known == nil || known.Details.Type != "social.craftsky.project.knitting#details" {
+		t.Fatalf("known details type = %+v", known)
+	}
+	if got := jsonString(known.Details.Map, "projectType"); got != "sweater" {
+		t.Fatalf("projectType = %v, want sweater", got)
+	}
+	if got := jsonRaw(known.Details.Map, "gauge"); got == nil {
+		t.Fatalf("gauge raw missing")
+	}
+
+	unknown, err := extractProjectForIndex(json.RawMessage(`{
+		"project": {
+			"common": {"craftType":"social.craftsky.feed.defs#future"},
+			"details": {"$type":"social.craftsky.project.future#details", "newField":"kept"}
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("extract unknown: %v", err)
+	}
+	if unknown == nil || unknown.Details.Type != "social.craftsky.project.future#details" || len(unknown.RawDetails) == 0 {
+		t.Fatalf("unknown details not preserved: %+v", unknown)
+	}
+}
+
+func TestCraftDetailColumnsFor_OnlyPopulatesMatchingCraftFamily(t *testing.T) {
+	t.Parallel()
+
+	project, err := extractProjectForIndex(json.RawMessage(`{
+		"project": {
+			"common": {"craftType":"social.craftsky.feed.defs#knitting"},
+			"details": {
+				"$type":"social.craftsky.project.knitting#details",
+				"projectType":"sweater",
+				"projectSubtype":"cardigan",
+				"yarnWeight":"dk",
+				"needleSizeMm":"4.5",
+				"gauge":{"stitches":22,"measurement":10,"unit":"cm"},
+				"finishedSize":"M",
+				"hookSizeMm":"5.0",
+				"piecingTechnique":"strip",
+				"quiltingMethod":"hand",
+				"size":"throw",
+				"sizeMade":"12",
+				"fitNotes":"snug"
+			}
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("extractProjectForIndex: %v", err)
+	}
+
+	cols := craftDetailColumnsFor(project)
+	if cols.knittingProjectType != "sweater" || cols.knittingProjectSubtype != "cardigan" || cols.knittingYarnWeight != "dk" || cols.knittingNeedleSizeMM != "4.5" || cols.knittingGauge == nil || cols.knittingFinishedSize != "M" {
+		t.Fatalf("knitting columns not populated from knitting details: %+v", cols)
+	}
+	if cols.crochetProjectType != nil || cols.crochetProjectSubtype != nil || cols.crochetYarnWeight != nil || cols.crochetHookSizeMM != nil || cols.crochetGauge != nil || cols.crochetFinishedSize != nil {
+		t.Fatalf("crochet columns populated for knitting details: %+v", cols)
+	}
+	if cols.quiltingProjectType != nil || cols.quiltingProjectSubtype != nil || cols.quiltingPiecingTechnique != nil || cols.quiltingQuiltingMethod != nil || cols.quiltingSize != nil {
+		t.Fatalf("quilting columns populated for knitting details: %+v", cols)
+	}
+	if cols.sewingProjectType != nil || cols.sewingProjectSubtype != nil || cols.sewingSizeMade != nil || cols.sewingFitNotes != nil {
+		t.Fatalf("sewing columns populated for knitting details: %+v", cols)
 	}
 }
 

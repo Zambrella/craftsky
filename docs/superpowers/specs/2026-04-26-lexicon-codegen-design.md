@@ -190,15 +190,15 @@ There is no CI workflow in this repo yet. The `just lexgen-check` recipe is comm
 For reference (taken from the prototype, output verified to compile and JSON-round-trip on every interesting case):
 
 - **`ActorProfile`** — single field (`Crafts []string`), `$type` const tag, `key: literal:self` produces no special handling (just a normal record struct).
-- **`FeedPost`** — top-level struct with nested `FeedPost_Project`, `FeedPost_ProjectCommon`, `FeedPost_Pattern`, `FeedPost_Image`, `FeedPost_QuoteEmbed`, `FeedPost_ReplyRef` types in the same file. Cross-package refs (`*appbsky.RichtextFacet`, `*comatproto.RepoStrongRef`) emit correctly.
-- **Open union dispatch** — for `FeedPost.Embed` and `FeedPost.Project.Details`, the generator emits a wrapper struct with one `*Variant` field per known union member plus `MarshalJSON` / `UnmarshalJSON` methods that switch on the `$type` discriminator. Unknown variants unmarshal silently to nil — the open-union semantics we want.
+- **`FeedPost`** — top-level struct with nested post/media types (`FeedPost_Image`, `FeedPost_QuoteEmbed`, `FeedPost_ReplyRef`) plus external project metadata refs such as `ProjectDefs_Project`. Cross-package refs (`*appbsky.RichtextFacet`, `*comatproto.RepoStrongRef`) emit correctly.
+- **Open union dispatch** — for `FeedPost.Embed` and `ProjectDefs_Project.Details`, the generator emits a wrapper struct with one `*Variant` field per known union member plus `MarshalJSON` / `UnmarshalJSON` methods that switch on the `$type` discriminator. Unknown variants unmarshal silently to nil — the open-union semantics we want.
 - **Empty `defs` files** — `feed.defs` and `project.sewing.defs` contain only `token` types; they generate empty `.go` files (just the package clause). Harmless.
 
 ## 4. Trade-offs
 
 ### 4.1 Generated naming
 
-Type names are mechanical — `FeedPost_Project_Details`, `FeedPost_QuoteEmbed`, `ProjectSewing_Details`. This is uglier than what we would write by hand. We accept it because: (a) the names appear only in indexer code, not in HTTP responses, (b) IDE auto-import smooths the verbosity at use sites, and (c) the alternative is a hand-maintained translation table between lexicon NSIDs and Go names — exactly the drift we are trying to eliminate.
+Type names are mechanical — `ProjectDefs_Project_Details`, `FeedPost_QuoteEmbed`, `ProjectSewing_Details`. This is uglier than what we would write by hand. We accept it because: (a) the names appear only in indexer code, not in HTTP responses, (b) IDE auto-import smooths the verbosity at use sites, and (c) the alternative is a hand-maintained translation table between lexicon NSIDs and Go names — exactly the drift we are trying to eliminate.
 
 If a particular name becomes painful, the indexer can introduce a local type alias (`type ActorProfile = craftskylex.ActorProfile`) to shorten it without modifying the generated code.
 

@@ -25,27 +25,32 @@ var ErrInteractionNotFound = errors.New("interaction: not found")
 // from bluesky_profiles. Reply/quote pointers are kept as separate
 // pointers so handlers can decide nesting at the JSON layer.
 type PostRow struct {
-	URI            string
-	DID            string
-	Rkey           string
-	CID            string
-	Text           string
-	Facets         json.RawMessage
-	Images         json.RawMessage
-	ReplyRootURI   *string
-	ReplyRootCID   *string
-	ReplyParentURI *string
-	ReplyParentCID *string
-	QuoteURI       *string
-	QuoteCID       *string
-	Tags           []string
-	CreatedAt      time.Time
-	IndexedAt      time.Time
+	URI              string
+	DID              string
+	Rkey             string
+	CID              string
+	Text             string
+	Facets           json.RawMessage
+	Images           json.RawMessage
+	ReplyRootURI     *string
+	ReplyRootCID     *string
+	ReplyParentURI   *string
+	ReplyParentCID   *string
+	QuoteURI         *string
+	QuoteCID         *string
+	Tags             []string
+	CreatedAt        time.Time
+	IndexedAt        time.Time
+	IsProject        bool
+	ProjectCraftType *string
+	RawProject       json.RawMessage
 
 	AuthorDisplayName *string
 	AuthorAvatarCID   *string
 
 	ModerationWarningKind *string
+
+	Project *Project
 }
 
 func (row *PostRow) IsRoot() bool {
@@ -111,6 +116,7 @@ type PostReader interface {
 	ReadOne(ctx context.Context, did, rkey string) (*PostRow, error)
 	ReadPostByURI(ctx context.Context, uri string) (*PostRow, error)
 	ListByAuthor(ctx context.Context, did string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
+	ListProjectsByAuthor(ctx context.Context, did string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
 	ListCommentsByAuthor(ctx context.Context, did string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
 	ResolvePostTarget(ctx context.Context, did, rkey string) (*PostTargetRef, error)
 	ListRootComments(ctx context.Context, rootURI, viewerDID, sort string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
@@ -125,6 +131,7 @@ func (s *PostStore) ReadPostByURI(ctx context.Context, uri string) (*PostRow, er
 	q := `
 		SELECT ` + postSelectColumns + `
 		FROM craftsky_posts p
+		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.uri = $1
 		` + postVisibleModerationPredicate + `
@@ -157,6 +164,7 @@ func (s *PostStore) ListRootComments(ctx context.Context, rootURI, viewerDID, so
 	q := `
 		SELECT ` + postSelectColumns + `
 		FROM craftsky_posts p
+		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.reply_parent_uri = $1
 		` + postVisibleModerationPredicate + `
@@ -238,6 +246,7 @@ const postSelectColumns = `
 	p.uri, p.did, p.rkey, p.cid, p.text, p.facets, p.images,
 	p.reply_root_uri, p.reply_root_cid, p.reply_parent_uri, p.reply_parent_cid,
 	p.quote_uri, p.quote_cid, p.tags, p.created_at, p.indexed_at,
+	p.is_project, p.project_craft_type, pp.raw_project,
 	bp.display_name, bp.avatar_cid,
 	CASE
 		WHEN EXISTS (
@@ -313,12 +322,25 @@ const postVisibleModerationPredicate = `
 
 func scanPostRow(scanner pgx.Row) (*PostRow, error) {
 	out := &PostRow{}
+	var rawProject *json.RawMessage
 	err := scanner.Scan(
 		&out.URI, &out.DID, &out.Rkey, &out.CID, &out.Text, &out.Facets, &out.Images,
 		&out.ReplyRootURI, &out.ReplyRootCID, &out.ReplyParentURI, &out.ReplyParentCID,
 		&out.QuoteURI, &out.QuoteCID, &out.Tags, &out.CreatedAt, &out.IndexedAt,
+		&out.IsProject, &out.ProjectCraftType, &rawProject,
 		&out.AuthorDisplayName, &out.AuthorAvatarCID, &out.ModerationWarningKind,
 	)
+	if err != nil {
+		return out, err
+	}
+	if rawProject != nil && len(*rawProject) > 0 {
+		out.RawProject = append(json.RawMessage(nil), (*rawProject)...)
+		var project Project
+		if err := json.Unmarshal(*rawProject, &project); err != nil {
+			return out, err
+		}
+		out.Project = &project
+	}
 	return out, err
 }
 
@@ -354,6 +376,7 @@ func (s *PostStore) ReadOne(ctx context.Context, did, rkey string) (*PostRow, er
 	q := `
 		SELECT ` + postSelectColumns + `
 		FROM craftsky_posts p
+		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.did = $1 AND p.rkey = $2
 		` + postVisibleModerationPredicate + `
@@ -381,8 +404,10 @@ func (s *PostStore) ListByAuthor(ctx context.Context, did string, limit int, cur
 	q := `
 		SELECT ` + postSelectColumns + `
 		FROM craftsky_posts p
+		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.did = $1
+		  AND p.is_project = false
 		  AND p.reply_root_uri IS NULL
 		  AND p.reply_parent_uri IS NULL
 		` + postVisibleModerationPredicate + `
@@ -423,6 +448,61 @@ func (s *PostStore) ListByAuthor(ctx context.Context, did string, limit int, cur
 	return out, next, nil
 }
 
+// ListProjectsByAuthor returns root project posts authored by did, ordered by
+// (indexed_at DESC, uri DESC), starting after the cursor if non-empty.
+func (s *PostStore) ListProjectsByAuthor(ctx context.Context, did string, limit int, cursor string) ([]*PostRow, string, error) {
+	curIndexedAt, curURI, err := decodeSeekCursor(cursor, "indexedAt")
+	if err != nil {
+		return nil, "", err
+	}
+
+	q := `
+		SELECT ` + postSelectColumns + `
+		FROM craftsky_posts p
+		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
+		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
+		WHERE p.did = $1
+		  AND p.is_project = true
+		  AND p.reply_root_uri IS NULL
+		  AND p.reply_parent_uri IS NULL
+		  AND p.quote_uri IS NULL
+		` + postVisibleModerationPredicate + `
+		  AND ($2::timestamptz IS NULL
+		       OR (p.indexed_at, p.uri) < ($2::timestamptz, $3::text))
+		ORDER BY p.indexed_at DESC, p.uri DESC
+		LIMIT $4
+	`
+	rows, err := s.pool.Query(ctx, q, did, curIndexedAt, curURI, limit)
+	if err != nil {
+		return nil, "", fmt.Errorf("project list %s: %w", did, err)
+	}
+	defer rows.Close()
+
+	out := make([]*PostRow, 0, limit)
+	for rows.Next() {
+		row, scanErr := scanPostRow(rows)
+		if scanErr != nil {
+			return nil, "", fmt.Errorf("project list scan: %w", scanErr)
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", fmt.Errorf("project list iter: %w", err)
+	}
+	if len(out) < limit {
+		return out, "", nil
+	}
+	last := out[len(out)-1]
+	next, err := envelope.EncodeCursor(map[string]any{
+		"indexedAt": last.IndexedAt.UTC().Format(time.RFC3339Nano),
+		"uri":       last.URI,
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("encode project cursor: %w", err)
+	}
+	return out, next, nil
+}
+
 // ListCommentsByAuthor returns authored comments and nested replies, ordered by
 // (indexed_at DESC, uri DESC), starting after the cursor if non-empty.
 func (s *PostStore) ListCommentsByAuthor(ctx context.Context, did string, limit int, cursor string) ([]*PostRow, string, error) {
@@ -434,6 +514,7 @@ func (s *PostStore) ListCommentsByAuthor(ctx context.Context, did string, limit 
 	q := `
 		SELECT ` + postSelectColumns + `
 		FROM craftsky_posts p
+		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.did = $1
 		  AND p.reply_root_uri IS NOT NULL
@@ -827,6 +908,7 @@ func (s *PostStore) ListCommentBranchReplies(ctx context.Context, commentURI, ro
 		SELECT ` + postSelectColumns + `
 		FROM page
 		JOIN craftsky_posts p ON p.uri = page.uri
+		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE true
 		` + postVisibleModerationPredicate + `
@@ -900,6 +982,7 @@ func (s *PostStore) ListCommentBranchRepliesAround(ctx context.Context, commentU
 		SELECT ` + postSelectColumns + `
 		FROM ordered_page
 		JOIN craftsky_posts p ON p.uri = ordered_page.uri
+		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE true
 		` + postVisibleModerationPredicate + `

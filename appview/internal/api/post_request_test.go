@@ -33,16 +33,15 @@ func TestDecodePostCreate_AcceptsImagesField(t *testing.T) {
 	}
 }
 
-func TestDecodePostCreate_RejectsProjectField(t *testing.T) {
+func TestDecodePostCreate_AcceptsProjectField(t *testing.T) {
 	t.Parallel()
-	body := strings.NewReader(`{"text":"hi","project":{}}`)
-	_, err := api.DecodePostCreate(body)
-	var fe *api.FieldError
-	if !errors.As(err, &fe) || fe.Code != "unexpected_field" {
-		t.Fatalf("want unexpected_field, got %v", err)
+	body := strings.NewReader(`{"text":"hi","project":{"common":{"craftType":"social.craftsky.feed.defs#knitting"}}}`)
+	req, err := api.DecodePostCreate(body)
+	if err != nil {
+		t.Fatalf("DecodePostCreate: %v", err)
 	}
-	if _, ok := fe.Fields["project"]; !ok {
-		t.Errorf("expected project in fields")
+	if req.Project == nil || req.Project.Common.CraftType != "social.craftsky.feed.defs#knitting" {
+		t.Fatalf("project = %+v", req.Project)
 	}
 }
 
@@ -75,6 +74,87 @@ func TestValidatePostCreate_RejectsEmptyText(t *testing.T) {
 	}
 	if _, ok := fe.Fields["text"]; !ok {
 		t.Errorf("expected text in fields")
+	}
+}
+
+func TestValidatePostCreate_AcceptsMinimalProject(t *testing.T) {
+	t.Parallel()
+	err := api.ValidatePostCreate(api.PostCreateRequest{
+		Text:    "hi",
+		Project: &api.Project{Common: api.ProjectCommon{CraftType: "social.craftsky.feed.defs#knitting"}},
+	})
+	if err != nil {
+		t.Fatalf("ValidatePostCreate: %v", err)
+	}
+}
+
+func TestValidatePostCreate_RejectsProjectWithReplyQuoteOrUnsupportedCraft(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		req  api.PostCreateRequest
+		key  string
+	}{
+		{
+			name: "reply",
+			req: api.PostCreateRequest{
+				Text:    "hi",
+				Project: &api.Project{Common: api.ProjectCommon{CraftType: api.ProjectCraftTypeKnitting}},
+				Reply: &api.ReplyRef{
+					Root:   api.StrongRef{URI: "at://did:plc:abc/social.craftsky.feed.post/rk1", CID: "bafy1"},
+					Parent: api.StrongRef{URI: "at://did:plc:abc/social.craftsky.feed.post/rk2", CID: "bafy2"},
+				},
+			},
+			key: "project",
+		},
+		{
+			name: "quote",
+			req: api.PostCreateRequest{
+				Text:    "hi",
+				Project: &api.Project{Common: api.ProjectCommon{CraftType: api.ProjectCraftTypeKnitting}},
+				Embed:   &api.EmbedRequest{Quote: &api.StrongRef{URI: "at://did:plc:abc/social.craftsky.feed.post/rk1", CID: "bafy1"}},
+			},
+			key: "project",
+		},
+		{
+			name: "unsupported craft type",
+			req: api.PostCreateRequest{
+				Text:    "hi",
+				Project: &api.Project{Common: api.ProjectCommon{CraftType: "social.craftsky.feed.defs#future"}},
+			},
+			key: "project.common.craftType",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := api.ValidatePostCreate(tc.req)
+			var fe *api.FieldError
+			if !errors.As(err, &fe) || fe.Code != "validation_failed" {
+				t.Fatalf("want validation_failed, got %v", err)
+			}
+			if _, ok := fe.Fields[tc.key]; !ok {
+				t.Fatalf("fields = %v, want %s", fe.Fields, tc.key)
+			}
+		})
+	}
+}
+
+func TestValidatePostCreate_RejectsProjectWithoutCraftType(t *testing.T) {
+	t.Parallel()
+	err := api.ValidatePostCreate(api.PostCreateRequest{
+		Text:    "hi",
+		Project: &api.Project{Common: api.ProjectCommon{}},
+	})
+	var fe *api.FieldError
+	if !errors.As(err, &fe) || fe.Code != "validation_failed" {
+		t.Fatalf("want validation_failed, got %v", err)
+	}
+	if _, ok := fe.Fields["project.common.craftType"]; !ok {
+		t.Fatalf("fields = %v, want project.common.craftType", fe.Fields)
 	}
 }
 

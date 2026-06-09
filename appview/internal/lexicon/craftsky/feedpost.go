@@ -33,7 +33,7 @@ type FeedPost struct {
 	// langs: Indicates human language of post primary text content.
 	Langs []string `json:"langs,omitempty" cborgen:"langs,omitempty"`
 	// project: If present, this post is a craft project post. Absence means it's a general social post.
-	Project *FeedPost_Project `json:"project,omitempty" cborgen:"project,omitempty"`
+	Project *ProjectDefs_Project `json:"project,omitempty" cborgen:"project,omitempty"`
 	// reply: If present, this post is a reply to another post.
 	Reply *FeedPost_ReplyRef `json:"reply,omitempty" cborgen:"reply,omitempty"`
 	// text: The primary text content of the post. Plain text; rich-text annotations live in 'facets'. Craftsky allows longer posts than Bluesky (2000 graphemes vs 300) because crafters write fuller project write-ups.
@@ -112,103 +112,6 @@ type FeedPost_Image struct {
 	// aspectRatio: Optional aspect ratio metadata for rendering.
 	AspectRatio *FeedPost_AspectRatio `json:"aspectRatio,omitempty" cborgen:"aspectRatio,omitempty"`
 	Image       *lexutil.LexBlob      `json:"image" cborgen:"image"`
-}
-
-// FeedPost_Pattern is a "pattern" in the social.craftsky.feed.post schema.
-//
-// Optional reference to the pattern used. Every field optional — 'Simplicity 8265' (name only), 'https://ravelry.com/patterns/library/hitchhiker' (URL only), or both plus difficulty are all valid.
-type FeedPost_Pattern struct {
-	// difficulty: Pattern difficulty as rated by the designer. A property of the pattern, not the post — self-drafted or free-formed projects should leave this empty. knownValues are tokens.
-	Difficulty *string `json:"difficulty,omitempty" cborgen:"difficulty,omitempty"`
-	// name: Pattern name, e.g. 'Simplicity 8265' or 'Hitchhiker Shawl'. Useful when there is no URL (e.g. a physical pattern), or alongside a URL as a display label.
-	Name *string `json:"name,omitempty" cborgen:"name,omitempty"`
-	// url: Link to the pattern.
-	Url *string `json:"url,omitempty" cborgen:"url,omitempty"`
-}
-
-// FeedPost_Project is a "project" in the social.craftsky.feed.post schema.
-//
-// Wraps a craft project's shared fields (#projectCommon) and optional craft-specific fields (#details, open union). The wrapper exists so shared fields live in one place (common) while per-craft specialisations are added additively via the union. See ADR 001.
-type FeedPost_Project struct {
-	// common: Shared project fields that apply across all crafts.
-	Common *FeedPost_ProjectCommon `json:"common" cborgen:"common"`
-	// details: Optional craft-specific fields. Open union — new crafts add new variants here without breaking existing records.
-	Details *FeedPost_Project_Details `json:"details,omitempty" cborgen:"details,omitempty"`
-}
-
-// FeedPost_ProjectCommon is a "projectCommon" in the social.craftsky.feed.post schema.
-//
-// Project fields shared across every craft. A post with project.common present but no project.details is a valid craft-tagged project post without specialised fields — useful when craftType references a craft that has no #details lexicon yet.
-type FeedPost_ProjectCommon struct {
-	// craftType: The craft this project belongs to. Required — a project post without a craft type is meaningless. knownValues are tokens; new crafts can be added to feed.defs without breaking old clients.
-	CraftType string `json:"craftType" cborgen:"craftType"`
-	// duration: Free-text description of how long the project took, e.g. '3 weeks', 'a weekend', '6 months of evenings'. Deliberately unstructured — crafters describe duration informally. Not range-queryable.
-	Duration *string `json:"duration,omitempty" cborgen:"duration,omitempty"`
-	// materials: Materials used in the project, as free-form tags. Indexed for search, e.g. 'show me all projects using linen'. Structure per material is intentionally free-form because every craft uses different material descriptors.
-	Materials []string `json:"materials,omitempty" cborgen:"materials,omitempty"`
-	// pattern: Optional pattern reference.
-	Pattern *FeedPost_Pattern `json:"pattern,omitempty" cborgen:"pattern,omitempty"`
-	// status: Whether the project is in progress or finished at the time this post was created. Snapshot — not a mutable lifecycle flag. knownValues are tokens so new statuses (e.g. planned, frogged) can be added without breaking old clients.
-	Status *string `json:"status,omitempty" cborgen:"status,omitempty"`
-	// tags: Structured search tags. Composer responsibility to normalise to ASCII kebab-case (pattern ^[a-z0-9]+(-[a-z0-9]+)*$) and to merge any inline #hashtag facets from text into this field. AppView indexer materialises this as a multi-value searchable column.
-	Tags []string `json:"tags,omitempty" cborgen:"tags,omitempty"`
-	// title: Optional project name, e.g. 'Hitchhiker Shawl' or 'Linen Summer Dress'. Clients showing grid/card views should fall back to truncated text when title is absent.
-	Title *string `json:"title,omitempty" cborgen:"title,omitempty"`
-}
-
-// Optional craft-specific fields. Open union — new crafts add new variants here without breaking existing records.
-type FeedPost_Project_Details struct {
-	ProjectSewing_Details *ProjectSewing_Details
-}
-
-func (t *FeedPost_Project_Details) MarshalJSON() ([]byte, error) {
-	if t.ProjectSewing_Details != nil {
-		t.ProjectSewing_Details.LexiconTypeID = "social.craftsky.project.sewing#details"
-		return json.Marshal(t.ProjectSewing_Details)
-	}
-	return nil, fmt.Errorf("can not marshal empty union as JSON")
-}
-
-func (t *FeedPost_Project_Details) UnmarshalJSON(b []byte) error {
-	typ, err := lexutil.TypeExtract(b)
-	if err != nil {
-		return err
-	}
-
-	switch typ {
-	case "social.craftsky.project.sewing#details":
-		t.ProjectSewing_Details = new(ProjectSewing_Details)
-		return json.Unmarshal(b, t.ProjectSewing_Details)
-	default:
-		return nil
-	}
-}
-
-func (t *FeedPost_Project_Details) MarshalCBOR(w io.Writer) error {
-
-	if t == nil {
-		_, err := w.Write(cbg.CborNull)
-		return err
-	}
-	if t.ProjectSewing_Details != nil {
-		return t.ProjectSewing_Details.MarshalCBOR(w)
-	}
-	return fmt.Errorf("can not marshal empty union as CBOR")
-}
-
-func (t *FeedPost_Project_Details) UnmarshalCBOR(r io.Reader) error {
-	typ, b, err := lexutil.CborTypeExtractReader(r)
-	if err != nil {
-		return err
-	}
-
-	switch typ {
-	case "social.craftsky.project.sewing#details":
-		t.ProjectSewing_Details = new(ProjectSewing_Details)
-		return t.ProjectSewing_Details.UnmarshalCBOR(bytes.NewReader(b))
-	default:
-		return nil
-	}
 }
 
 // FeedPost_QuoteEmbed is a "quoteEmbed" in the social.craftsky.feed.post schema.

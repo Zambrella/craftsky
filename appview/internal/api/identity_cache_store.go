@@ -72,11 +72,21 @@ func (s *IdentityCacheStore) FreshByHandle(ctx context.Context, handle syntax.Ha
 }
 
 func (s *IdentityCacheStore) Upsert(ctx context.Context, did syntax.DID, handle syntax.Handle, resolvedAt time.Time) error {
-	_, err := s.pool.Exec(ctx, `
-		WITH removed_stale_handle_owner AS (
-			DELETE FROM atproto_identity_cache
-			WHERE handle_lower = $3 AND did <> $1
-		)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("identity cache begin upsert %s: %w", did.String(), err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	handleLower := strings.ToLower(handle.String())
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM atproto_identity_cache
+		WHERE handle_lower = $2 AND did <> $1
+	`, did.String(), handleLower); err != nil {
+		return fmt.Errorf("identity cache delete stale handle owner %s: %w", did.String(), err)
+	}
+
+	_, err = tx.Exec(ctx, `
 		INSERT INTO atproto_identity_cache (did, handle, handle_lower, resolved_at, updated_at)
 		VALUES ($1, $2, $3, $4, now())
 		ON CONFLICT (did) DO UPDATE SET
@@ -84,9 +94,12 @@ func (s *IdentityCacheStore) Upsert(ctx context.Context, did syntax.DID, handle 
 			handle_lower = EXCLUDED.handle_lower,
 			resolved_at = EXCLUDED.resolved_at,
 			updated_at = now()
-	`, did.String(), handle.String(), strings.ToLower(handle.String()), resolvedAt)
+	`, did.String(), handle.String(), handleLower, resolvedAt)
 	if err != nil {
 		return fmt.Errorf("identity cache upsert %s: %w", did.String(), err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("identity cache commit upsert %s: %w", did.String(), err)
 	}
 	return nil
 }

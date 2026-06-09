@@ -36,7 +36,7 @@ type EmbedRequest struct {
 }
 
 // PostCreateRequest is the decoded body of POST /v1/posts.
-// createdAt is server-stamped; project is not writable in this pass.
+// createdAt is server-stamped.
 type PostCreateRequest struct {
 	Text string `json:"text"`
 	// Facets is opaque raw JSON deliberately. The lexicon's
@@ -45,10 +45,11 @@ type PostCreateRequest struct {
 	// pass-through to the PDS, which validates it. The tag-extraction
 	// path in the create handler does its own non-strict decode for the
 	// synthetic response.
-	Facets json.RawMessage `json:"facets,omitempty"`
-	Reply  *ReplyRef       `json:"reply,omitempty"`
-	Embed  *EmbedRequest   `json:"embed,omitempty"`
-	Images []PostImage     `json:"images,omitempty"`
+	Facets  json.RawMessage `json:"facets,omitempty"`
+	Reply   *ReplyRef       `json:"reply,omitempty"`
+	Embed   *EmbedRequest   `json:"embed,omitempty"`
+	Images  []PostImage     `json:"images,omitempty"`
+	Project *Project        `json:"project,omitempty"`
 }
 
 type PostImage struct {
@@ -63,7 +64,7 @@ type PostImageAspectRatio struct {
 }
 
 // rejectedPostFields enumerates wire fields that are NOT writable here.
-var rejectedPostFields = []string{"project", "createdAt"}
+var rejectedPostFields = []string{"createdAt"}
 
 // DecodePostCreate reads a JSON body into PostCreateRequest. Rejects
 // any of rejectedPostFields and any unknown keys with code
@@ -147,6 +148,20 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 			if img.AspectRatio.Height <= 0 {
 				fields[prefix+".aspectRatio.height"] = "must be a positive integer"
 			}
+		}
+	}
+	if req.Project != nil {
+		craftType := strings.TrimSpace(req.Project.Common.CraftType)
+		if craftType == "" {
+			fields["project.common.craftType"] = "must not be empty"
+		} else if !IsSupportedProjectCraftType(craftType) {
+			fields["project.common.craftType"] = "must be a supported craft type"
+		}
+		if req.Reply != nil {
+			fields["project"] = "project posts must be standalone and cannot be replies"
+		}
+		if req.Embed != nil && req.Embed.Quote != nil {
+			fields["project"] = "project posts must be standalone and cannot quote another post"
 		}
 	}
 	if len(fields) > 0 {

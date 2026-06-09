@@ -95,6 +95,8 @@ CREATE TABLE craftsky_posts (
     quote_uri        TEXT,
     quote_cid        TEXT,
     tags             TEXT[]      NOT NULL DEFAULT '{}',
+    is_project       BOOLEAN     NOT NULL DEFAULT false,
+    project_craft_type TEXT,
     record           JSONB       NOT NULL,
     created_at       TIMESTAMPTZ NOT NULL,
     indexed_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -128,7 +130,7 @@ func TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, profileStoreDDL)
 	ctx := context.Background()
-	now := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
+	now := time.Now().UTC().Truncate(time.Second)
 
 	if _, err := pool.Exec(ctx,
 		`INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES ($1, '{}', 'cid')`,
@@ -139,21 +141,27 @@ func TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts(t *testing.T) {
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO craftsky_posts (
 			uri, did, rkey, cid, text, reply_root_uri, reply_root_cid,
-			reply_parent_uri, reply_parent_cid, record, created_at
+			reply_parent_uri, reply_parent_cid, is_project, project_craft_type, record, created_at
 		)
 		VALUES
-			($1, 'did:plc:alice', 'root-recent', 'cid1', 'recent root', NULL, NULL, NULL, NULL, '{}', $2),
-			($3, 'did:plc:alice', 'root-old', 'cid2', 'old root', NULL, NULL, NULL, NULL, '{}', $4),
-			($5, 'did:plc:alice', 'reply-recent', 'cid3', 'reply', $1, 'cid1', $1, 'cid1', '{}', $2),
-			($6, 'did:plc:alice', 'quote-recent', 'cid4', 'quote root', NULL, NULL, NULL, NULL, '{}', $2)
+			($1, 'did:plc:alice', 'root-recent', 'cid1', 'recent root', NULL, NULL, NULL, NULL, true, 'social.craftsky.feed.defs#knitting', '{}', $2),
+			($3, 'did:plc:alice', 'root-old', 'cid2', 'old root', NULL, NULL, NULL, NULL, false, NULL, '{}', $4),
+			($5, 'did:plc:alice', 'reply-recent', 'cid3', 'reply', $1, 'cid1', $1, 'cid1', true, 'social.craftsky.feed.defs#knitting', '{}', $2),
+			($6, 'did:plc:alice', 'quote-recent', 'cid4', 'quote root', NULL, NULL, NULL, NULL, false, NULL, '{}', $2),
+			($7, 'did:plc:alice', 'hidden-project', 'cid5', 'hidden project', NULL, NULL, NULL, NULL, true, 'social.craftsky.feed.defs#knitting', '{}', $2),
+			($8, 'did:plc:alice', 'hidden-general', 'cid6', 'hidden general', NULL, NULL, NULL, NULL, false, NULL, '{}', $2)
 	`,
 		"at://did:plc:alice/social.craftsky.feed.post/root-recent", now.Add(-24*time.Hour),
 		"at://did:plc:alice/social.craftsky.feed.post/root-old", now.Add(-8*24*time.Hour),
 		"at://did:plc:alice/social.craftsky.feed.post/reply-recent",
 		"at://did:plc:alice/social.craftsky.feed.post/quote-recent",
+		"at://did:plc:alice/social.craftsky.feed.post/hidden-project",
+		"at://did:plc:alice/social.craftsky.feed.post/hidden-general",
 	); err != nil {
 		t.Fatalf("seed posts: %v", err)
 	}
+	seedModerationOutput(t, pool, "post", "did:plc:alice", "at://did:plc:alice/social.craftsky.feed.post/hidden-project", "hide", now)
+	seedModerationOutput(t, pool, "post", "did:plc:alice", "at://did:plc:alice/social.craftsky.feed.post/hidden-general", "hide", now)
 
 	store := api.NewProfileStore(pool)
 	got, err := store.Read(ctx, "did:plc:alice", "did:plc:viewer")
@@ -161,14 +169,14 @@ func TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts(t *testing.T) {
 		t.Fatalf("Read: %v", err)
 	}
 
-	if got.PostCount == nil || *got.PostCount != 3 {
-		t.Fatalf("postCount = %v, want 3 root posts", got.PostCount)
+	if got.PostCount == nil || *got.PostCount != 2 {
+		t.Fatalf("postCount = %v, want 2 non-project root posts", got.PostCount)
 	}
-	if got.PostsLast7Days == nil || *got.PostsLast7Days != 2 {
-		t.Fatalf("postsLast7Days = %v, want 2 recent root posts", got.PostsLast7Days)
+	if got.PostsLast7Days == nil || *got.PostsLast7Days != 1 {
+		t.Fatalf("postsLast7Days = %v, want 1 recent non-project root post", got.PostsLast7Days)
 	}
-	if got.ProjectCount == nil || *got.ProjectCount != 0 {
-		t.Fatalf("projectCount = %v, want data-driven zero", got.ProjectCount)
+	if got.ProjectCount == nil || *got.ProjectCount != 1 {
+		t.Fatalf("projectCount = %v, want one visible top-level project", got.ProjectCount)
 	}
 }
 

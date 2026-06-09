@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -116,6 +117,9 @@ type fakePostStore struct {
 	listRows               []*api.PostRow
 	listCursor             string
 	listErr                error
+	projectListRows        []*api.PostRow
+	projectListCursor      string
+	projectListErr         error
 	commentListRows        []*api.PostRow
 	commentListCursor      string
 	commentListErr         error
@@ -146,6 +150,9 @@ type fakePostStore struct {
 	lastListCommentsDID    string
 	lastListCommentsLimit  int
 	lastListCommentsCursor string
+	lastListProjectsDID    string
+	lastListProjectsLimit  int
+	lastListProjectsCursor string
 	lastEngagementViewer   string
 	lastEngagementURIs     []string
 	engagementCalls        int
@@ -174,6 +181,12 @@ func (f *fakePostStore) ReadOne(_ context.Context, did, rkey string) (*api.PostR
 }
 func (f *fakePostStore) ListByAuthor(_ context.Context, _ string, _ int, _ string) ([]*api.PostRow, string, error) {
 	return f.listRows, f.listCursor, f.listErr
+}
+func (f *fakePostStore) ListProjectsByAuthor(_ context.Context, did string, limit int, cursor string) ([]*api.PostRow, string, error) {
+	f.lastListProjectsDID = did
+	f.lastListProjectsLimit = limit
+	f.lastListProjectsCursor = cursor
+	return f.projectListRows, f.projectListCursor, f.projectListErr
 }
 func (f *fakePostStore) ListCommentsByAuthor(_ context.Context, did string, limit int, cursor string) ([]*api.PostRow, string, error) {
 	f.lastListCommentsDID = did
@@ -1028,6 +1041,67 @@ func TestCreatePost_TagsExtractedFromFacets(t *testing.T) {
 	_ = json.NewDecoder(rr.Body).Decode(&resp)
 	if len(resp.Tags) != 1 || resp.Tags[0] != "knitting" {
 		t.Errorf("tags = %v, want [knitting]", resp.Tags)
+	}
+}
+
+func TestCreatePost_WithProject_WritesProjectToPDSAndResponse(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{}
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
+	body := `{
+		"text":"finished shawl #FairIsle",
+		"facets":[{"index":{"byteStart":15,"byteEnd":24},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"FairIsle"}]}],
+		"project":{
+			"common":{
+				"craftType":"social.craftsky.feed.defs#knitting",
+				"title":"Hitchhiker Shawl",
+				"tags":[" fairisle ", "WIP"]
+			},
+			"details":{"$type":"social.craftsky.project.knitting#details","projectType":"shawl"}
+		}
+	}`
+	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+
+	rec, _ := pds.lastCreateRec.(map[string]any)
+	project, _ := rec["project"].(*api.Project)
+	if project == nil || project.Common.CraftType != "social.craftsky.feed.defs#knitting" || project.Common.Title == nil || *project.Common.Title != "Hitchhiker Shawl" {
+		t.Fatalf("PDS project = %#v", rec["project"])
+	}
+	if _, ok := rec["createdAt"].(string); !ok {
+		t.Fatalf("createdAt missing from PDS record: %#v", rec)
+	}
+
+	var resp api.PostResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Project == nil || resp.Project.Common.Title == nil || *resp.Project.Common.Title != "Hitchhiker Shawl" {
+		t.Fatalf("response project = %+v", resp.Project)
+	}
+	wantTags := []string{"fairisle", "wip"}
+	if !reflect.DeepEqual(resp.Tags, wantTags) {
+		t.Fatalf("response tags = %v, want %v", resp.Tags, wantTags)
+	}
+}
+
+func TestCreatePost_InvalidProjectDoesNotWritePDS(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	h := api.CreatePostHandler(&fakePostStore{}, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
+	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hi","project":{"common":{}}}`, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.createCalls != 0 {
+		t.Fatalf("PDS create calls = %d, want 0", pds.createCalls)
 	}
 }
 
@@ -2187,6 +2261,50 @@ func TestListPosts_WithImages_ReturnsRenderReadyMetadata(t *testing.T) {
 	img := resp.Items[0].Images[0]
 	if img.CID != "bafkimage" || img.Thumb == "" || img.Fullsize == "" {
 		t.Fatalf("image = %+v", img)
+	}
+}
+
+func TestListProjectsByAuthor_HappyPath(t *testing.T) {
+	t.Parallel()
+	title := "Hitchhiker Shawl"
+	rows := []*api.PostRow{
+		{
+			URI:     "at://did:plc:alice/social.craftsky.feed.post/project1",
+			DID:     "did:plc:alice",
+			Rkey:    "project1",
+			CID:     "bafyproject",
+			Text:    "project",
+			Project: &api.Project{Common: api.ProjectCommon{CraftType: "social.craftsky.feed.defs#knitting", Title: &title}},
+		},
+	}
+	store := &fakePostStore{
+		projectListRows:   rows,
+		projectListCursor: "next-projects",
+		engagement:        map[string]api.EngagementSummary{rows[0].URI: {LikeCount: 2}},
+	}
+	h := api.ListProjectsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/projects?limit=2", "", "did:plc:viewer")
+	req.SetPathValue("handleOrDid", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp struct {
+		Items  []api.PostResponse `json:"items"`
+		Cursor string             `json:"cursor,omitempty"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Items) != 1 || resp.Items[0].Project == nil || resp.Items[0].Project.Common.Title == nil || *resp.Items[0].Project.Common.Title != title {
+		t.Fatalf("items = %+v", resp.Items)
+	}
+	if resp.Items[0].LikeCount != 2 || resp.Cursor != "next-projects" {
+		t.Fatalf("engagement/cursor = %+v cursor=%q", resp.Items[0], resp.Cursor)
+	}
+	if store.lastListProjectsDID != "did:plc:alice" || store.lastListProjectsLimit != 2 || store.lastListProjectsCursor != "" {
+		t.Fatalf("project list call did=%q limit=%d cursor=%q", store.lastListProjectsDID, store.lastListProjectsLimit, store.lastListProjectsCursor)
 	}
 }
 

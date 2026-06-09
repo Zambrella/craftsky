@@ -60,6 +60,7 @@ type PostResponse struct {
 	IndexedAt         time.Time           `json:"indexedAt"`
 	Author            PostAuthor          `json:"author"`
 	Moderation        *ModerationMetadata `json:"moderation,omitempty"`
+	Project           *Project            `json:"project,omitempty"`
 }
 
 // ModerationMetadata is the safe, generic moderation response shape shared by
@@ -163,6 +164,7 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle) *PostResponse {
 			DisplayName: row.AuthorDisplayName,
 			AvatarCID:   row.AuthorAvatarCID,
 		},
+		Project: row.Project,
 	}
 	if row.ReplyRootURI != nil && row.ReplyParentURI != nil {
 		resp.Reply = &ResponseReply{

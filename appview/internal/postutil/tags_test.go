@@ -48,3 +48,25 @@ func TestExtractTags_IgnoresNonTagFeaturesAndEmpty(t *testing.T) {
 		t.Fatalf("want empty slice, got %#v", got)
 	}
 }
+
+func TestMergeTags_LowercasesTrimsDedupesAndPreservesFirstSeenOrder(t *testing.T) {
+	t.Parallel()
+
+	got := postutil.MergeTags(
+		[]string{"FairIsle", "wip"},
+		[]string{" fairisle ", "WIP", "linen", ""},
+	)
+	want := []string{"fairisle", "wip", "linen"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("MergeTags = %#v, want %#v", got, want)
+	}
+}
+
+func TestMergeTags_ReturnsNonNilEmptySlice(t *testing.T) {
+	t.Parallel()
+
+	got := postutil.MergeTags(nil, []string{" ", ""})
+	if !reflect.DeepEqual(got, []string{}) {
+		t.Fatalf("MergeTags = %#v, want empty slice", got)
+	}
+}
