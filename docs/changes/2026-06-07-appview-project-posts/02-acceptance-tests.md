@@ -55,10 +55,10 @@ Existing relevant test conventions:
 
 ### AT-001: Project Persistence Schema Exists
 
-Requirement IDs: BR-001, FR-001, FR-002, RULE-001  
-Acceptance Criteria: AC-001  
-Priority: Must  
-Level: Acceptance  
+Requirement IDs: BR-001, FR-001, FR-002, RULE-001
+Acceptance Criteria: AC-001
+Priority: Must
+Level: Acceptance
 Automation Target: migration/schema test near `appview/cmd/cli/migrate_test.go` or `appview/internal/db/*_test.go`
 
 ```gherkin
@@ -74,10 +74,10 @@ Feature: AppView project post persistence
 
 ### AT-002: General And Project Creates Index Differently
 
-Requirement IDs: FR-001, FR-004, RULE-001  
-Acceptance Criteria: AC-002  
-Priority: Must  
-Level: Acceptance  
+Requirement IDs: FR-001, FR-004, RULE-001
+Acceptance Criteria: AC-002
+Priority: Must
+Level: Acceptance
 Automation Target: `appview/internal/index/craftsky_post_test.go`
 
 ```gherkin
@@ -97,10 +97,10 @@ Feature: Project post indexing
 
 ### AT-003: Project Fields And Tags Are Materialized
 
-Requirement IDs: FR-002, FR-003, FR-006  
-Acceptance Criteria: AC-003  
-Priority: Must  
-Level: Acceptance  
+Requirement IDs: FR-002, FR-003, FR-006
+Acceptance Criteria: AC-003
+Priority: Must
+Level: Acceptance
 Automation Target: `appview/internal/index/craftsky_post_test.go`
 
 ```gherkin
@@ -114,10 +114,10 @@ Feature: Project metadata materialization
 
 ### AT-004: Indexing Converges Under Replays Updates Deletes And Unknown Details
 
-Requirement IDs: FR-004, FR-005, NFR-002  
-Acceptance Criteria: AC-004  
-Priority: Must  
-Level: Acceptance  
+Requirement IDs: FR-004, FR-005, NFR-002
+Acceptance Criteria: AC-004
+Priority: Must
+Level: Acceptance
 Automation Target: `appview/internal/index/craftsky_post_test.go`
 
 ```gherkin
@@ -136,10 +136,10 @@ Feature: Idempotent project indexing
 
 ### AT-005: Create Project Post Writes Lexicon-Shaped Project To PDS
 
-Requirement IDs: BR-001, BR-002, FR-007  
-Acceptance Criteria: AC-005  
-Priority: Must  
-Level: Acceptance  
+Requirement IDs: BR-001, BR-002, FR-007
+Acceptance Criteria: AC-005
+Priority: Must
+Level: Acceptance
 Automation Target: `appview/internal/api/post_test.go`
 
 ```gherkin
@@ -155,10 +155,10 @@ Feature: Create project posts through AppView
 
 ### AT-006: Malformed Project Create Requests Fail Before PDS Write
 
-Requirement IDs: BR-002, FR-007, FR-008, NFR-004  
-Acceptance Criteria: AC-006  
-Priority: Must  
-Level: Acceptance  
+Requirement IDs: BR-002, FR-007, FR-008, NFR-004
+Acceptance Criteria: AC-006
+Priority: Must
+Level: Acceptance
 Automation Target: `appview/internal/api/post_request_test.go`, `appview/internal/api/post_test.go`
 
 ```gherkin
@@ -184,10 +184,10 @@ Feature: Validate project post create requests
 
 ### AT-007: Project Metadata Is Hydrated On Post-Shaped Read Surfaces
 
-Requirement IDs: FR-009, FR-010, RULE-002, NFR-001, NFR-004  
-Acceptance Criteria: AC-007  
-Priority: Must  
-Level: Acceptance  
+Requirement IDs: FR-009, FR-010, RULE-002, NFR-001, NFR-004
+Acceptance Criteria: AC-007
+Priority: Must
+Level: Acceptance
 Automation Target: `appview/internal/api/post_store_test.go`, `timeline_store_test.go`, `notifications_test.go`, `post_response_test.go`
 
 ```gherkin
@@ -210,10 +210,10 @@ Feature: Read project posts from AppView
 
 ### AT-008: General Post Responses Stay Compatible
 
-Requirement IDs: FR-009, FR-010  
-Acceptance Criteria: AC-008  
-Priority: Must  
-Level: Acceptance  
+Requirement IDs: FR-009, FR-010
+Acceptance Criteria: AC-008
+Priority: Must
+Level: Acceptance
 Automation Target: `appview/internal/api/post_response_test.go`, `appview/internal/api/post_store_test.go`
 
 ```gherkin
@@ -227,10 +227,10 @@ Feature: General post response compatibility
 
 ### AT-009: Profile Project Count Uses Top-Level Visible Project Posts
 
-Requirement IDs: BR-001, FR-011, RULE-003  
-Acceptance Criteria: AC-009  
-Priority: Must  
-Level: Acceptance  
+Requirement IDs: BR-001, FR-011, RULE-003
+Acceptance Criteria: AC-009
+Priority: Must
+Level: Acceptance
 Automation Target: `appview/internal/api/profile_store_test.go`, `appview/internal/api/profile_response_test.go`
 
 ```gherkin
@@ -245,10 +245,10 @@ Feature: Profile project summary
 
 ### AT-010: Profile Projects Endpoint Lists Only Top-Level Project Posts
 
-Requirement IDs: FR-002, FR-003, FR-012, RULE-003, NFR-001, NFR-004  
-Acceptance Criteria: AC-010  
-Priority: Must  
-Level: Acceptance  
+Requirement IDs: FR-002, FR-003, FR-012, RULE-003, NFR-001, NFR-004
+Acceptance Criteria: AC-010
+Priority: Must
+Level: Acceptance
 Automation Target: `appview/internal/api/post_store_test.go`, `appview/internal/api/post_test.go`, `appview/internal/routes/routes_test.go`
 
 ```gherkin
@@ -264,10 +264,10 @@ Feature: Profile project post lists
 
 ### AT-011: Facet And Project Tags Merge Deterministically
 
-Requirement IDs: FR-006  
-Acceptance Criteria: AC-011  
-Priority: Must  
-Level: Acceptance  
+Requirement IDs: FR-006
+Acceptance Criteria: AC-011
+Priority: Must
+Level: Acceptance
 Automation Target: `appview/internal/postutil/tags_test.go`, `appview/internal/index/craftsky_post_test.go`
 
 ```gherkin
@@ -283,10 +283,10 @@ Feature: Searchable project tags
 
 ### AT-012: Project Posts Behave As Ordinary Posts For Interactions And Moderation
 
-Requirement IDs: RULE-002  
-Acceptance Criteria: AC-012  
-Priority: Must  
-Level: Acceptance  
+Requirement IDs: RULE-002
+Acceptance Criteria: AC-012
+Priority: Must
+Level: Acceptance
 Automation Target: `appview/internal/api/post_store_test.go`, `report_test.go`, `timeline_store_test.go`, `appview/internal/index/craftsky_interaction_test.go`
 
 ```gherkin
@@ -300,10 +300,10 @@ Feature: Project posts keep ordinary post semantics
 
 ### AT-013: Project Query Paths Have Supporting Indexes
 
-Requirement IDs: NFR-003  
-Acceptance Criteria: AC-013  
-Priority: Should  
-Level: Acceptance / Manual Review  
+Requirement IDs: NFR-003
+Acceptance Criteria: AC-013
+Priority: Should
+Level: Acceptance / Manual Review
 Automation Target: migration/schema assertions plus manual `EXPLAIN` review if no stable automated plan test exists
 
 ```gherkin
