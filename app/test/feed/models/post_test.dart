@@ -1,5 +1,6 @@
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/projects/models/project.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -117,6 +118,67 @@ void main() {
       expect(post.author.avatarCid, isNull);
       expect(post.images, isNull);
       expect(post.tags, isEmpty);
+      expect(post.toMap(), json);
+    });
+
+    test('UT-008 exposes optional project metadata for project posts', () {
+      final json = {
+        'uri': 'at://did:plc:alice/social.craftsky.feed.post/3lf2project',
+        'cid': 'bafyproject',
+        'rkey': '3lf2project',
+        'text': 'Finished my shawl.',
+        'tags': <String>[],
+        'likeCount': 0,
+        'repostCount': 0,
+        'replyCount': 0,
+        'viewerHasLiked': false,
+        'viewerHasReposted': false,
+        'viewerHasReplied': false,
+        'createdAt': '2026-05-04T18:23:45.000Z',
+        'indexedAt': '2026-05-04T18:23:47.000Z',
+        'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
+        'project': {
+          'common': {
+            'craftType': 'social.craftsky.feed.defs#knitting',
+            'title': 'Hitchhiker Shawl',
+          },
+          'details': {
+            r'$type': knittingProjectDetailsType,
+            'needleSizeMm': '4.0mm',
+          },
+        },
+      };
+
+      final post = PostMapper.fromMap(json);
+
+      expect(post.project, isA<Project>());
+      expect(post.project?.common.title, 'Hitchhiker Shawl');
+      expect(post.project?.details, isA<KnittingProjectDetails>());
+      expect(post.toMap(), json);
+    });
+
+    test('UT-009 general posts omit project when absent', () {
+      final json = {
+        'uri': 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
+        'cid': 'bafy123',
+        'rkey': '3lf2abc',
+        'text': 'hello',
+        'tags': <String>[],
+        'likeCount': 0,
+        'repostCount': 0,
+        'replyCount': 0,
+        'viewerHasLiked': false,
+        'viewerHasReposted': false,
+        'viewerHasReplied': false,
+        'createdAt': '2026-05-04T18:23:45.000Z',
+        'indexedAt': '2026-05-04T18:23:47.000Z',
+        'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
+      };
+
+      final post = PostMapper.fromMap(json);
+
+      expect(post.project, isNull);
+      expect(post.toMap(), isNot(contains('project')));
       expect(post.toMap(), json);
     });
   });

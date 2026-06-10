@@ -2,7 +2,9 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/data/api_post_repository.dart';
 import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/data/post_repository.dart';
+import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/projects/models/project.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
@@ -52,6 +54,84 @@ void main() {
       ).create(text: '#Mending', facets: facets);
 
       expect(post.text, '#Mending');
+    });
+
+    test('IT-003 forwards project through repository interface', () async {
+      const project = Project(
+        common: ProjectCommon(
+          craftType: 'social.craftsky.feed.defs#embroidery',
+        ),
+      );
+      Project? capturedProject;
+      final repo = FakePostRepository(
+        onCreateWithFacets:
+            ({required text, reply, project, images, facets}) async {
+              capturedProject = project;
+              return PostMapper.fromMap(
+                samplePost(text: text)..['project'] = project?.toMap(),
+              );
+            },
+      );
+
+      final asInterface = repo as PostRepository;
+      final post = await asInterface.create(text: 'project', project: project);
+
+      expect(capturedProject, project);
+      expect(post.project, project);
+    });
+
+    test('IT-002 repository rejects project-plus-reply', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://appview.example.com'));
+      const project = Project(
+        common: ProjectCommon(
+          craftType: 'social.craftsky.feed.defs#embroidery',
+        ),
+      );
+      final reply = PostReply(
+        root: PostRef(
+          uri: 'at://did:plc:alice/social.craftsky.feed.post/root',
+          cid: 'bafy_root',
+        ),
+        parent: PostRef(
+          uri: 'at://did:plc:alice/social.craftsky.feed.post/parent',
+          cid: 'bafy_parent',
+        ),
+      );
+
+      await expectLater(
+        () => ApiPostRepository(
+          PostApiClient(dio),
+        ).create(text: 'invalid', project: project, reply: reply),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+  });
+
+  group('PostRepository.listProjectsByAuthor', () {
+    test('IT-006 fake exposes projects method with cursor and limit', () async {
+      String? seenHandle;
+      String? seenCursor;
+      int? seenLimit;
+      final repo = FakePostRepository(
+        onListProjectsByAuthor: (handleOrDid, {cursor, limit}) async {
+          seenHandle = handleOrDid;
+          seenCursor = cursor;
+          seenLimit = limit;
+          return const PostPage(items: [], cursor: 'next-projects');
+        },
+      );
+
+      final asInterface = repo as PostRepository;
+      final page = await asInterface.listProjectsByAuthor(
+        'alice.craftsky.social',
+        cursor: 'c1',
+        limit: 10,
+      );
+
+      expect(seenHandle, 'alice.craftsky.social');
+      expect(seenCursor, 'c1');
+      expect(seenLimit, 10);
+      expect(page.cursor, 'next-projects');
     });
   });
 

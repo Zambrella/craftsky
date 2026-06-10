@@ -5,6 +5,7 @@ import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
+import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 /// Read/write surface the post providers depend on. The production
@@ -16,6 +17,7 @@ abstract interface class PostRepository {
   Future<Post> create({
     required String text,
     PostReply? reply,
+    Project? project,
     List<CreatePostImage>? images,
     List<Map<String, dynamic>>? facets,
   });
@@ -65,6 +67,13 @@ abstract interface class PostRepository {
 
   /// GET /v1/profiles/@{handleOrDid}/posts — newest-first, paginated.
   Future<PostPage> listByAuthor(
+    String handleOrDid, {
+    String? cursor,
+    int? limit,
+  });
+
+  /// GET /v1/profiles/@{handleOrDid}/projects — newest-first, paginated.
+  Future<PostPage> listProjectsByAuthor(
     String handleOrDid, {
     String? cursor,
     int? limit,

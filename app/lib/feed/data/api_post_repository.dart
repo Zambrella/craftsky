@@ -7,6 +7,7 @@ import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
+import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 /// Production [PostRepository] backed by the AppView HTTP API.
@@ -19,10 +20,19 @@ class ApiPostRepository implements PostRepository {
   Future<Post> create({
     required String text,
     PostReply? reply,
+    Project? project,
     List<CreatePostImage>? images,
     List<Map<String, dynamic>>? facets,
-  }) =>
-      _api.createPost(text: text, reply: reply, images: images, facets: facets);
+  }) {
+    assertProjectCreateIsTopLevel(project: project, reply: reply);
+    return _api.createPost(
+      text: text,
+      reply: reply,
+      project: project,
+      images: images,
+      facets: facets,
+    );
+  }
 
   @override
   Future<Post> fetch(Did did, RecordKey rkey) => _api.getPost(did, rkey);
@@ -83,6 +93,13 @@ class ApiPostRepository implements PostRepository {
     String? cursor,
     int? limit,
   }) => _api.listPostsByAuthor(handleOrDid, cursor: cursor, limit: limit);
+
+  @override
+  Future<PostPage> listProjectsByAuthor(
+    String handleOrDid, {
+    String? cursor,
+    int? limit,
+  }) => _api.listProjectsByAuthor(handleOrDid, cursor: cursor, limit: limit);
 
   @override
   Future<PostPage> listTimeline({String? cursor, int? limit}) =>

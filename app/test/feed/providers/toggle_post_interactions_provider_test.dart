@@ -7,6 +7,8 @@ import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
+import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -18,6 +20,7 @@ Map<String, dynamic> _postMap({
   int repostCount = 0,
   bool viewerHasLiked = false,
   bool viewerHasReposted = false,
+  Project? project,
 }) => {
   'uri': 'at://did:plc:alice/social.craftsky.feed.post/$rkey',
   'cid': 'bafy_$rkey',
@@ -32,6 +35,7 @@ Map<String, dynamic> _postMap({
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',
   'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
+  if (project != null) 'project': project.toMap(),
 };
 
 Post _post({
@@ -40,6 +44,7 @@ Post _post({
   int repostCount = 0,
   bool viewerHasLiked = false,
   bool viewerHasReposted = false,
+  Project? project,
 }) => PostMapper.fromMap(
   _postMap(
     rkey: rkey,
@@ -47,7 +52,12 @@ Post _post({
     repostCount: repostCount,
     viewerHasLiked: viewerHasLiked,
     viewerHasReposted: viewerHasReposted,
+    project: project,
   ),
+);
+
+const _project = Project(
+  common: ProjectCommon(craftType: 'social.craftsky.feed.defs#embroidery'),
 );
 
 InteractionWriteResponse _interaction(Post post) => InteractionWriteResponse(
@@ -175,6 +185,50 @@ void main() {
       expect(current.viewerHasLiked, isTrue);
       expect(current.likeCount, 3);
     });
+
+    test(
+      'IT-009 patches project caches and does not pollute user posts',
+      () async {
+        final post = _post(rkey: 'a', likeCount: 2, project: _project);
+        final fake = FakePostRepository(
+          onListByAuthor: (id, {cursor, limit}) async =>
+              PostPage(items: [_post(rkey: 'general')]),
+          onListProjectsByAuthor: (id, {cursor, limit}) async =>
+              PostPage(items: [post]),
+          onLike: (did, rkey) async => _interaction(post),
+        );
+        final container = ProviderContainer.test(
+          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        );
+        await container.read(userPostsProvider('alice.craftsky.social').future);
+        await container.read(
+          userProjectsProvider('alice.craftsky.social').future,
+        );
+
+        await container
+            .read(toggleLikePostProvider.notifier)
+            .toggle(post: post);
+
+        expect(
+          container
+              .read(userProjectsProvider('alice.craftsky.social'))
+              .value!
+              .items
+              .single
+              .viewerHasLiked,
+          isTrue,
+        );
+        expect(
+          container
+              .read(userPostsProvider('alice.craftsky.social'))
+              .value!
+              .items
+              .single
+              .rkey,
+          'general',
+        );
+      },
+    );
   });
 
   group('ToggleRepostPost', () {
@@ -291,5 +345,49 @@ void main() {
       expect(current.viewerHasReposted, isTrue);
       expect(current.repostCount, 2);
     });
+
+    test(
+      'IT-009 patches project repost caches and does not pollute user posts',
+      () async {
+        final post = _post(rkey: 'a', repostCount: 1, project: _project);
+        final fake = FakePostRepository(
+          onListByAuthor: (id, {cursor, limit}) async =>
+              PostPage(items: [_post(rkey: 'general')]),
+          onListProjectsByAuthor: (id, {cursor, limit}) async =>
+              PostPage(items: [post]),
+          onRepost: (did, rkey) async => _interaction(post),
+        );
+        final container = ProviderContainer.test(
+          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        );
+        await container.read(userPostsProvider('alice.craftsky.social').future);
+        await container.read(
+          userProjectsProvider('alice.craftsky.social').future,
+        );
+
+        await container
+            .read(toggleRepostPostProvider.notifier)
+            .toggle(post: post);
+
+        expect(
+          container
+              .read(userProjectsProvider('alice.craftsky.social'))
+              .value!
+              .items
+              .single
+              .viewerHasReposted,
+          isTrue,
+        );
+        expect(
+          container
+              .read(userPostsProvider('alice.craftsky.social'))
+              .value!
+              .items
+              .single
+              .rkey,
+          'general',
+        );
+      },
+    );
   });
 }

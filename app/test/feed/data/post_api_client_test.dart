@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
+import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -43,6 +44,12 @@ void main() {
       'indexedAt': '2026-05-04T18:23:47.000Z',
       'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
     };
+  }
+
+  Project commonOnlyProject() {
+    return const Project(
+      common: ProjectCommon(craftType: 'social.craftsky.feed.defs#embroidery'),
+    );
   }
 
   group('PostApiClient.uploadImage', () {
@@ -344,6 +351,67 @@ void main() {
 
       expect(post.text, 'ordered images');
     });
+
+    test('IT-001 sends project JSON for top-level project creates', () async {
+      final dio = buildDio();
+      final project = commonOnlyProject();
+      final response = samplePost(text: 'project')
+        ..['project'] = project.toMap();
+      DioAdapter(dio: dio).onPost(
+        '/v1/posts',
+        (server) => server.reply(201, response),
+        data: {'text': 'project', 'project': project.toCreateMap()},
+      );
+
+      final post = await PostApiClient(
+        dio,
+      ).createPost(text: 'project', project: project);
+
+      expect(post.text, 'project');
+      expect(
+        post.project?.common.craftType,
+        'social.craftsky.feed.defs#embroidery',
+      );
+    });
+
+    test('REG-002 omits project from general create bodies', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onPost(
+        '/v1/posts',
+        (server) => server.reply(201, samplePost(text: 'plain')),
+        data: {'text': 'plain'},
+      );
+
+      final post = await PostApiClient(dio).createPost(text: 'plain');
+
+      expect(post.project, isNull);
+    });
+
+    test('IT-002 fails fast for project-plus-reply before HTTP', () async {
+      final dio = buildDio();
+      final reply = PostReply(
+        root: PostRef(
+          uri: 'at://did:plc:alice/social.craftsky.feed.post/root',
+          cid: 'bafy_root',
+        ),
+        parent: PostRef(
+          uri: 'at://did:plc:alice/social.craftsky.feed.post/parent',
+          cid: 'bafy_parent',
+        ),
+      );
+
+      await expectLater(
+        () =>
+            PostApiClient(
+              dio,
+            ).createPost(
+              text: 'invalid',
+              project: commonOnlyProject(),
+              reply: reply,
+            ),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
   });
 
   group('PostApiClient.getPost', () {
@@ -430,6 +498,45 @@ void main() {
       final page = await PostApiClient(
         dio,
       ).listPostsByAuthor('alice.craftsky.social', cursor: 'c1', limit: 50);
+      expect(page.items, isEmpty);
+      expect(page.cursor, isNull);
+    });
+  });
+
+  group('PostApiClient.listProjectsByAuthor', () {
+    test('IT-004 GETs /v1/profiles/@{handleOrDid}/projects', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onGet(
+        '/v1/profiles/@alice.craftsky.social/projects',
+        (server) => server.reply(200, {
+          'items': [samplePost()..['project'] = commonOnlyProject().toMap()],
+          'cursor': 'next-cursor',
+        }),
+      );
+
+      final page = await PostApiClient(
+        dio,
+      ).listProjectsByAuthor('alice.craftsky.social');
+
+      expect(page.items, hasLength(1));
+      expect(page.items.single.project, isNotNull);
+      expect(page.cursor, 'next-cursor');
+    });
+
+    test('IT-005 passes cursor and limit as query params', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onGet(
+        '/v1/profiles/@alice.craftsky.social/projects',
+        (server) => server.reply(200, {'items': <Map<String, dynamic>>[]}),
+        queryParameters: {'cursor': 'c1', 'limit': '50'},
+      );
+
+      final page = await PostApiClient(dio).listProjectsByAuthor(
+        'alice.craftsky.social',
+        cursor: 'c1',
+        limit: 50,
+      );
+
       expect(page.items, isEmpty);
       expect(page.cursor, isNull);
     });

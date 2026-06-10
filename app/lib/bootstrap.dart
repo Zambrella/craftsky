@@ -23,6 +23,10 @@ import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
+import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/projects/models/user_projects_state.dart';
+import 'package:craftsky_app/projects/providers/user_projects_provider.dart'
+    as user_projects_provider;
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
@@ -107,6 +111,8 @@ String _formatDataValue(Object provider, Object? value) {
       user_posts_provider.UserPosts.formatLogValue(value),
     user_comments_provider.UserCommentsProvider() =>
       user_comments_provider.UserComments.formatLogValue(value),
+    user_projects_provider.UserProjectsProvider() =>
+      user_projects_provider.UserProjects.formatLogValue(value),
     post_comment_section_provider.PostCommentSectionProvider() =>
       post_comment_section_provider.PostCommentSection.formatLogValue(value),
     _ when value is Iterable<Object?> =>
@@ -200,6 +206,8 @@ void initializeMappers() {
   ModerationMetadataMapper.ensureInitialized();
   ReportResultMapper.ensureInitialized();
   ReportSubmissionMapper.ensureInitialized();
+  ProjectMapper.ensureInitialized();
+  UserProjectsStateMapper.ensureInitialized();
   ProfileMapper.ensureInitialized();
   ProfileAccountSummaryMapper.ensureInitialized();
   ProfileAccountPageMapper.ensureInitialized();

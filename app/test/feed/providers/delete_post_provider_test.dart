@@ -4,6 +4,8 @@ import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
+import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -13,6 +15,7 @@ Map<String, dynamic> _postMap({
   required String rkey,
   String did = 'did:plc:alice',
   String handle = 'alice.craftsky.social',
+  Project? project,
 }) => {
   'uri': 'at://$did/social.craftsky.feed.post/$rkey',
   'cid': 'bafy_$rkey',
@@ -27,13 +30,21 @@ Map<String, dynamic> _postMap({
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',
   'author': {'did': did, 'handle': handle},
+  if (project != null) 'project': project.toMap(),
 };
 
 Post _post({
   required String rkey,
   String did = 'did:plc:alice',
   String handle = 'alice.craftsky.social',
-}) => PostMapper.fromMap(_postMap(rkey: rkey, did: did, handle: handle));
+  Project? project,
+}) => PostMapper.fromMap(
+  _postMap(rkey: rkey, did: did, handle: handle, project: project),
+);
+
+const _project = Project(
+  common: ProjectCommon(craftType: 'social.craftsky.feed.defs#embroidery'),
+);
 
 void main() {
   setUpAll(initializeMappers);
@@ -118,6 +129,46 @@ void main() {
 
       container.read(deletePostProvider.notifier).reset();
       expect(container.read(deletePostProvider).value, isNull);
+    });
+
+    test('IT-008 removes project posts from project caches only', () async {
+      final fake = FakePostRepository(
+        onListByAuthor: (id, {cursor, limit}) async =>
+            PostPage(items: [_post(rkey: 'a')]),
+        onListProjectsByAuthor: (id, {cursor, limit}) async => PostPage(
+          items: [_post(rkey: 'project', project: _project)],
+        ),
+        onDelete: (did, rkey) async {},
+      );
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+      await container.read(userPostsProvider('alice.craftsky.social').future);
+      await container.read(
+        userProjectsProvider('alice.craftsky.social').future,
+      );
+
+      await container
+          .read(deletePostProvider.notifier)
+          .delete(
+            post: _post(rkey: 'project', project: _project),
+          );
+
+      expect(
+        container
+            .read(userProjectsProvider('alice.craftsky.social'))
+            .value!
+            .items,
+        isEmpty,
+      );
+      expect(
+        container
+            .read(userPostsProvider('alice.craftsky.social'))
+            .value!
+            .items
+            .map((post) => post.rkey),
+        ['a'],
+      );
     });
   });
 }

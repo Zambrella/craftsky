@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
+import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 /// Programmable [PostRepository] for unit tests. Each method delegates
@@ -39,6 +40,7 @@ class FakePostRepository implements PostRepository {
     this.onRepost,
     this.onUnrepost,
     this.onListByAuthor,
+    this.onListProjectsByAuthor,
     this.onListTimeline,
     this.onListCommentsByAuthor,
   });
@@ -52,6 +54,7 @@ class FakePostRepository implements PostRepository {
   final Future<Post> Function({
     required String text,
     PostReply? reply,
+    Project? project,
     List<CreatePostImage>? images,
     List<Map<String, dynamic>>? facets,
   })?
@@ -92,6 +95,12 @@ class FakePostRepository implements PostRepository {
     int? limit,
   })?
   onListByAuthor;
+  final Future<PostPage> Function(
+    String handleOrDid, {
+    String? cursor,
+    int? limit,
+  })?
+  onListProjectsByAuthor;
   final Future<PostPage> Function({String? cursor, int? limit})? onListTimeline;
   final Future<PostPage> Function(
     String handleOrDid, {
@@ -104,16 +113,22 @@ class FakePostRepository implements PostRepository {
   Future<Post> create({
     required String text,
     PostReply? reply,
+    Project? project,
     List<CreatePostImage>? images,
     List<Map<String, dynamic>>? facets,
   }) =>
       onCreateWithFacets?.call(
         text: text,
         reply: reply,
+        project: project,
         images: images,
         facets: facets,
       ) ??
-      onCreate?.call(text: text, reply: reply, images: images) ??
+      onCreate?.call(
+        text: text,
+        reply: reply,
+        images: images,
+      ) ??
       Future<Post>.error(UnimplementedError('create not stubbed'));
 
   @override
@@ -205,6 +220,17 @@ class FakePostRepository implements PostRepository {
   }) =>
       onListByAuthor?.call(handleOrDid, cursor: cursor, limit: limit) ??
       Future<PostPage>.error(UnimplementedError('listByAuthor not stubbed'));
+
+  @override
+  Future<PostPage> listProjectsByAuthor(
+    String handleOrDid, {
+    String? cursor,
+    int? limit,
+  }) =>
+      onListProjectsByAuthor?.call(handleOrDid, cursor: cursor, limit: limit) ??
+      Future<PostPage>.error(
+        UnimplementedError('listProjectsByAuthor not stubbed'),
+      );
 
   @override
   Future<PostPage> listTimeline({String? cursor, int? limit}) =>
