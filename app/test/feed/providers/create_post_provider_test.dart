@@ -351,7 +351,7 @@ void main() {
     );
 
     test(
-      'IT-007 project create updates timeline and project caches only',
+      'IT-007 project create updates timeline and did/handle project caches only',
       () async {
         final fake = FakePostRepository(
           onListTimeline: ({cursor, limit}) async =>
@@ -369,7 +369,9 @@ void main() {
           overrides: [postRepositoryProvider.overrideWithValue(fake)],
         );
         await container.read(timelineProvider.future);
+        await container.read(userPostsProvider('did:plc:alice').future);
         await container.read(userPostsProvider('alice.craftsky.social').future);
+        await container.read(userProjectsProvider('did:plc:alice').future);
         await container.read(
           userProjectsProvider('alice.craftsky.social').future,
         );
@@ -387,6 +389,17 @@ void main() {
         );
         expect(
           container
+              .read(userProjectsProvider('did:plc:alice'))
+              .value!
+              .items
+              .map((p) => p.rkey),
+          [
+            'new-project',
+            'old-project',
+          ],
+        );
+        expect(
+          container
               .read(userProjectsProvider('alice.craftsky.social'))
               .value!
               .items
@@ -394,6 +407,16 @@ void main() {
           [
             'new-project',
             'old-project',
+          ],
+        );
+        expect(
+          container
+              .read(userPostsProvider('did:plc:alice'))
+              .value!
+              .items
+              .map((p) => p.rkey),
+          [
+            'old-post',
           ],
         );
         expect(

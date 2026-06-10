@@ -131,44 +131,61 @@ void main() {
       expect(container.read(deletePostProvider).value, isNull);
     });
 
-    test('IT-008 removes project posts from project caches only', () async {
-      final fake = FakePostRepository(
-        onListByAuthor: (id, {cursor, limit}) async =>
-            PostPage(items: [_post(rkey: 'a')]),
-        onListProjectsByAuthor: (id, {cursor, limit}) async => PostPage(
-          items: [_post(rkey: 'project', project: _project)],
-        ),
-        onDelete: (did, rkey) async {},
-      );
-      final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
-      );
-      await container.read(userPostsProvider('alice.craftsky.social').future);
-      await container.read(
-        userProjectsProvider('alice.craftsky.social').future,
-      );
+    test(
+      'IT-008 removes project posts from did/handle project caches only',
+      () async {
+        final fake = FakePostRepository(
+          onListByAuthor: (id, {cursor, limit}) async =>
+              PostPage(items: [_post(rkey: 'a')]),
+          onListProjectsByAuthor: (id, {cursor, limit}) async => PostPage(
+            items: [_post(rkey: 'project', project: _project)],
+          ),
+          onDelete: (did, rkey) async {},
+        );
+        final container = ProviderContainer.test(
+          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        );
+        await container.read(userPostsProvider('did:plc:alice').future);
+        await container.read(userPostsProvider('alice.craftsky.social').future);
+        await container.read(userProjectsProvider('did:plc:alice').future);
+        await container.read(
+          userProjectsProvider('alice.craftsky.social').future,
+        );
 
-      await container
-          .read(deletePostProvider.notifier)
-          .delete(
-            post: _post(rkey: 'project', project: _project),
-          );
+        await container
+            .read(deletePostProvider.notifier)
+            .delete(
+              post: _post(rkey: 'project', project: _project),
+            );
 
-      expect(
-        container
-            .read(userProjectsProvider('alice.craftsky.social'))
-            .value!
-            .items,
-        isEmpty,
-      );
-      expect(
-        container
-            .read(userPostsProvider('alice.craftsky.social'))
-            .value!
-            .items
-            .map((post) => post.rkey),
-        ['a'],
-      );
-    });
+        expect(
+          container.read(userProjectsProvider('did:plc:alice')).value!.items,
+          isEmpty,
+        );
+        expect(
+          container
+              .read(userProjectsProvider('alice.craftsky.social'))
+              .value!
+              .items,
+          isEmpty,
+        );
+        expect(
+          container
+              .read(userPostsProvider('did:plc:alice'))
+              .value!
+              .items
+              .map((post) => post.rkey),
+          ['a'],
+        );
+        expect(
+          container
+              .read(userPostsProvider('alice.craftsky.social'))
+              .value!
+              .items
+              .map((post) => post.rkey),
+          ['a'],
+        );
+      },
+    );
   });
 }

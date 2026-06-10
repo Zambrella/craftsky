@@ -203,3 +203,59 @@
 - Created initial implementation plan from approved workflow documents on 2026-06-10.
 - Implemented project post plumbing across Flutter model, API, repository, provider, and cache layers without UI/AppView/lexicon/dependency changes.
 - The approved test order was preserved; a few closely related tests were implemented in the same source files when shared scaffolding already existed from earlier red/green loops.
+
+## Implementation Review Fix Plan
+
+Source review: `06-implementation-review.md` — `Changes required` with `IR-001` requesting additional Must test coverage for `FR-009` / `AC-008` / `AC-013` project cache mutation behavior.
+
+### Review Fix Test Order
+
+| Step | Test ID | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---|---|---|---|---|
+| RF-1 | IT-007 | FR-009, RULE-002 | AC-008 | Coverage gap: project create tests only covered handle-keyed project cache, not DID and handle together. |
+| RF-2 | IT-008 | FR-009 | AC-013 | Coverage gap: project delete tests only covered handle-keyed project cache, not DID and handle together. |
+| RF-3 | IT-009 | FR-009 | AC-013 | Coverage gap: project like/unlike tests did not cover both cache keys, unlike direction, or project rollback on failure. |
+| RF-4 | IT-009 | FR-009 | AC-013 | Coverage gap: project repost/unrepost tests did not cover both cache keys, unrepost direction, or project rollback on failure. |
+
+### Review Fix Step RF-1: IT-007
+- Write failing test: Extended `app/test/feed/providers/create_post_provider_test.dart` project-create cache test to pre-instantiate both DID-keyed and handle-keyed `userProjectsProvider` and `userPostsProvider` entries.
+- Run command: `cd app && flutter test test/feed/providers/create_post_provider_test.dart`
+- Confirmed failure: No production red; this was a review-requested coverage gap and the existing implementation already updated both DID and handle project caches while skipping profile Posts caches.
+- Implement: No production code change required.
+- Run command: `cd app && flutter test test/feed/providers/create_post_provider_test.dart` — passed.
+- Refactor: None.
+- Notes: Covers `IR-001` for project create cache fan-out across both live key forms.
+
+### Review Fix Step RF-2: IT-008
+- Write failing test: Extended `app/test/feed/providers/delete_post_provider_test.dart` project-delete cache test to pre-instantiate both DID-keyed and handle-keyed `userProjectsProvider` and `userPostsProvider` entries.
+- Run command: `cd app && flutter test test/feed/providers/delete_post_provider_test.dart`
+- Confirmed failure: No production red; this was a review-requested coverage gap and the existing implementation already removed project posts from both project cache keys while leaving profile Posts caches untouched.
+- Implement: No production code change required.
+- Run command: `cd app && flutter test test/feed/providers/delete_post_provider_test.dart` — passed.
+- Refactor: None.
+- Notes: Covers `IR-001` for project delete cache removal across both live key forms.
+
+### Review Fix Step RF-3: IT-009 like/unlike
+- Write failing test: Expanded `app/test/feed/providers/toggle_post_interactions_provider_test.dart` project-like coverage to pre-instantiate DID-keyed and handle-keyed `userProjectsProvider` and `userPostsProvider` entries, then exercise successful like, successful unlike, and failed like rollback.
+- Run command: `cd app && flutter test test/feed/providers/toggle_post_interactions_provider_test.dart`
+- Confirmed failure: Test setup initially failed to compile because helper functions were local declarations after first use; fixed helper placement before evaluating production behavior. After setup fix, no production red; the existing implementation already handled the required project cache updates and rollback.
+- Implement: No production code change required.
+- Run command: `cd app && flutter test test/feed/providers/toggle_post_interactions_provider_test.dart` — passed.
+- Refactor: Moved shared cache assertion helpers to top-level test helpers for reuse.
+- Notes: Covers `IR-001` for project like/unlike cache updates, rollback, both live key forms, and profile Posts non-pollution.
+
+### Review Fix Step RF-4: IT-009 repost/unrepost
+- Write failing test: Expanded `app/test/feed/providers/toggle_post_interactions_provider_test.dart` project-repost coverage to pre-instantiate DID-keyed and handle-keyed `userProjectsProvider` and `userPostsProvider` entries, then exercise successful repost, successful unrepost, and failed repost rollback.
+- Run command: `cd app && flutter test test/feed/providers/toggle_post_interactions_provider_test.dart`
+- Confirmed failure: No production red; this was a review-requested coverage gap and the existing implementation already handled the required project cache updates and rollback.
+- Implement: No production code change required.
+- Run command: `cd app && flutter test test/feed/providers/toggle_post_interactions_provider_test.dart` — passed.
+- Refactor: Added a top-level repost cache assertion helper alongside the like/profile cache helpers.
+- Notes: Covers `IR-001` for project repost/unrepost cache updates, rollback, both live key forms, and profile Posts non-pollution.
+
+### Review Fix Verification
+- Focused verification: `cd app && flutter test test/feed/providers/create_post_provider_test.dart test/feed/providers/delete_post_provider_test.dart test/feed/providers/toggle_post_interactions_provider_test.dart` — passed as part of the final chained verification command.
+- Static analysis: `cd app && flutter analyze` — passed as part of the final chained verification command.
+- Broader verification: `cd app && flutter test` — passed with `+527: All tests passed!`.
+- Remaining review gaps: None for `IR-001`. `IR-002` was non-blocking and did not require implementation in this fix pass.
+- Notes: The review fix only added/expanded tests and implementation notes; no production code changes were required because the existing cache helper implementation already satisfied the newly asserted behavior.
