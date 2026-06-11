@@ -134,7 +134,7 @@ void main() {
     expect((chipCenter.dy - fieldCenter.dy).abs(), lessThanOrEqualTo(8));
     expect(
       tester.getSize(find.byKey(const Key('designTags-search-input'))).width,
-      greaterThan(240),
+      greaterThan(320),
     );
   });
 

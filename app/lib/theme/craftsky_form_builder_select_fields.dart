@@ -399,26 +399,15 @@ class _CraftskyMultiSelectBodyState<T>
                     ),
                   ),
                 Expanded(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: 32),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextField(
-                        key: Key('${widget.name}-search-input'),
-                        controller: _searchController,
-                        enabled: _enabled,
-                        decoration: InputDecoration(
-                          hintText: widget.searchHintText,
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          disabledBorder: InputBorder.none,
-                          isDense: true,
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                        onChanged: (value) => setState(() => _query = value),
-                      ),
+                  child: TextField(
+                    key: Key('${widget.name}-search-input'),
+                    controller: _searchController,
+                    enabled: _enabled,
+                    textAlignVertical: TextAlignVertical.center,
+                    decoration: InputDecoration.collapsed(
+                      hintText: widget.searchHintText,
                     ),
+                    onChanged: (value) => setState(() => _query = value),
                   ),
                 ),
               ],
