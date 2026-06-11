@@ -75,13 +75,10 @@ void main() {
     );
 
     await tester.enterText(
-      find.byType(TextField).first,
+      _bodyTextField(),
       'Finished my hoop #embroidery',
     );
-    await tester.tap(find.byType(DropdownButton<String>).first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Embroidery').last);
-    await tester.pumpAndSettle();
+    await _selectCraft(tester, 'Embroidery');
     await _pumpUntilPostEnabled(tester);
 
     await tester.tap(find.widgetWithText(TextButton, 'Post'));
@@ -164,11 +161,8 @@ void main() {
       ),
     );
 
-    await tester.enterText(find.byType(TextField).first, 'Finished a dress');
-    await tester.tap(find.byType(DropdownButton<String>).first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Sewing').last);
-    await tester.pumpAndSettle();
+    await tester.enterText(_bodyTextField(), 'Finished a dress');
+    await _selectCraft(tester, 'Sewing');
 
     await tester.ensureVisible(
       find.byKey(const Key('${ProjectComposerFields.materials}-custom-input')),
@@ -248,6 +242,23 @@ Future<void> _pumpUntilPostEnabled(WidgetTester tester) async {
     if (button.onPressed != null) return;
   }
   fail('Timed out waiting for Post button to be enabled');
+}
+
+Finder _bodyTextField() {
+  return find.descendant(
+    of: find.byKey(const Key('project-composer-body-editor')),
+    matching: find.byType(TextField),
+  );
+}
+
+Future<void> _selectCraft(WidgetTester tester, String craftLabel) async {
+  final craftDropdown = find.byType(DropdownButton<String>).first;
+  await tester.ensureVisible(craftDropdown);
+  await tester.pumpAndSettle();
+  await tester.tap(craftDropdown);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(craftLabel).last);
+  await tester.pumpAndSettle();
 }
 
 Post _post({required String text, Project? project}) {

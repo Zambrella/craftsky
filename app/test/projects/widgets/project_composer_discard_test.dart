@@ -97,7 +97,10 @@ void main() {
   ) async {
     await _openProjectComposer(tester);
 
-    await tester.tap(find.byType(DropdownButton<String>).first);
+    final craftDropdown = find.byType(DropdownButton<String>).first;
+    await tester.ensureVisible(craftDropdown);
+    await tester.pumpAndSettle();
+    await tester.tap(craftDropdown);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Embroidery').last);
     await tester.pumpAndSettle();

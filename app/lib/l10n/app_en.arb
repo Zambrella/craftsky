@@ -337,6 +337,21 @@
   "projectComposerMaterialsLabel": "Materials",
   "@projectComposerMaterialsLabel": { "description": "Label for the project composer materials field." },
 
+  "projectComposerMaterialsAddHint": "Add material",
+  "@projectComposerMaterialsAddHint": { "description": "Hint text for the free-text materials entry in the project composer." },
+
+  "projectComposerMaterialsAddAction": "Add material",
+  "@projectComposerMaterialsAddAction": { "description": "Button label for adding a typed material in the project composer." },
+
+  "projectComposerFieldDisabledLabel": "Disabled",
+  "@projectComposerFieldDisabledLabel": { "description": "Small helper label shown by reusable project fields while create is loading and controls are disabled." },
+
+  "projectComposerMultiSelectMaxSelectedError": "You can choose up to {maxSelected}.",
+  "@projectComposerMultiSelectMaxSelectedError": {
+    "description": "Validation helper shown when a project multi-select field reaches its configured maximum.",
+    "placeholders": { "maxSelected": { "type": "int", "example": "10" } }
+  },
+
   "projectComposerColoursLabel": "Colours",
   "@projectComposerColoursLabel": { "description": "Label for the project composer colours field." },
 

@@ -2,6 +2,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
+import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/projects/composer/project_composer_draft_state.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
@@ -174,28 +175,24 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  l10n.postComposePhotosTitle,
-                  style: theme.textTheme.titleMedium,
+                ComposerImageAttachmentSection(
+                  imagesState: imagesState,
+                  enabled: controlsEnabled,
+                  validationErrorText: photoErrorText,
+                  onAddImages: () =>
+                      ref.read(imagesProvider.notifier).addImages(),
+                  onAltTextChanged: (imageId, value) => ref
+                      .read(imagesProvider.notifier)
+                      .setAltText(imageId, value),
+                  onRemove: (imageId) =>
+                      ref.read(imagesProvider.notifier).remove(imageId),
+                  onReorder: (fromIndex, toIndex) => ref
+                      .read(imagesProvider.notifier)
+                      .reorder(fromIndex: fromIndex, toIndex: toIndex),
                 ),
-                Text(l10n.postComposePhotosLimitHelper(4)),
-                SizedBox(height: spacing.sp4),
-                OutlinedButton.icon(
-                  onPressed: null,
-                  icon: const Icon(Icons.add_photo_alternate_outlined),
-                  label: Text(l10n.postComposeAddPhoto),
-                ),
-                if (photoErrorText != null) ...[
-                  SizedBox(height: spacing.sp2),
-                  Text(
-                    photoErrorText,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
                 SizedBox(height: spacing.sp6),
                 FacetAutocompleteEditor(
+                  key: const Key('project-composer-body-editor'),
                   label: l10n.postComposeHint,
                   hintText: l10n.postComposeBodyHint,
                   controller: _bodyController,
@@ -287,6 +284,13 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                         label: l10n.projectComposerMaterialsLabel,
                         allowCustomValues: true,
                         maxSelected: 20,
+                        customValueHintText:
+                            l10n.projectComposerMaterialsAddHint,
+                        addCustomValueLabel:
+                            l10n.projectComposerMaterialsAddAction,
+                        disabledText: l10n.projectComposerFieldDisabledLabel,
+                        maxSelectedErrorText: l10n
+                            .projectComposerMultiSelectMaxSelectedError(20),
                         enabled: controlsEnabled,
                       ),
                       SizedBox(height: spacing.sp4),
@@ -295,6 +299,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                         label: l10n.projectComposerColoursLabel,
                         options: _selectOptions(ProjectOptionCatalogs.colours),
                         maxSelected: 10,
+                        disabledText: l10n.projectComposerFieldDisabledLabel,
+                        maxSelectedErrorText: l10n
+                            .projectComposerMultiSelectMaxSelectedError(10),
                         enabled: controlsEnabled,
                       ),
                       SizedBox(height: spacing.sp4),
@@ -305,6 +312,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                           ProjectOptionCatalogs.designTags,
                         ),
                         maxSelected: 10,
+                        disabledText: l10n.projectComposerFieldDisabledLabel,
+                        maxSelectedErrorText: l10n
+                            .projectComposerMultiSelectMaxSelectedError(10),
                         enabled: controlsEnabled,
                       ),
                       SizedBox(height: spacing.sp4),

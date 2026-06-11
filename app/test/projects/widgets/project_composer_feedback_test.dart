@@ -8,6 +8,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -66,11 +67,8 @@ void main() {
         ),
       );
 
-      await tester.enterText(find.byType(TextField).first, 'Finished project');
-      await tester.tap(find.byType(DropdownButton<String>).first);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Embroidery').last);
-      await tester.pumpAndSettle();
+      await tester.enterText(_bodyTextField(), 'Finished project');
+      await _selectEmbroidery(tester);
 
       await tester.tap(find.widgetWithText(TextButton, 'Post'));
       await tester.pumpAndSettle();
@@ -132,11 +130,8 @@ void main() {
       ),
     );
 
-    await tester.enterText(find.byType(TextField).first, 'Finished project');
-    await tester.tap(find.byType(DropdownButton<String>).first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Embroidery').last);
-    await tester.pumpAndSettle();
+    await tester.enterText(_bodyTextField(), 'Finished project');
+    await _selectEmbroidery(tester);
 
     await tester.tap(find.widgetWithText(TextButton, 'Post'));
     await tester.pump();
@@ -148,8 +143,31 @@ void main() {
       isNull,
     );
     expect(
-      tester.widget<TextField>(find.byType(TextField).first).enabled,
+      tester.widget<TextField>(_bodyTextField()).enabled,
       isFalse,
+    );
+    expect(
+      tester.widget<InkWell>(find.byKey(const Key('composer-add-image'))).onTap,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<BrandTextField>(
+            find.byKey(const Key('composer-alt-image-1')),
+          )
+          .enabled,
+      isFalse,
+    );
+    expect(
+      tester
+          .widget<IconButton>(
+            find.descendant(
+              of: find.byKey(const Key('composer-remove-image-1')),
+              matching: find.byType(IconButton),
+            ),
+          )
+          .onPressed,
+      isNull,
     );
     expect(
       tester
@@ -228,11 +246,8 @@ void main() {
 
     await tester.tap(find.text('Open composer'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).first, 'Finished project');
-    await tester.tap(find.byType(DropdownButton<String>).first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Embroidery').last);
-    await tester.pumpAndSettle();
+    await tester.enterText(_bodyTextField(), 'Finished project');
+    await _selectEmbroidery(tester);
 
     await tester.tap(find.widgetWithText(TextButton, 'Post'));
     await tester.pumpAndSettle();
@@ -312,11 +327,8 @@ void main() {
 
       await tester.tap(find.text('Open composer'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField).first, 'Finished project');
-      await tester.tap(find.byType(DropdownButton<String>).first);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Embroidery').last);
-      await tester.pumpAndSettle();
+      await tester.enterText(_bodyTextField(), 'Finished project');
+      await _selectEmbroidery(tester);
 
       await tester.tap(find.widgetWithText(TextButton, 'Post'));
       await tester.pumpAndSettle();
@@ -332,6 +344,23 @@ void main() {
       expect(messenger.calls, contains(('info', 'Posted.', null)));
     },
   );
+}
+
+Finder _bodyTextField() {
+  return find.descendant(
+    of: find.byKey(const Key('project-composer-body-editor')),
+    matching: find.byType(TextField),
+  );
+}
+
+Future<void> _selectEmbroidery(WidgetTester tester) async {
+  final craftDropdown = find.byType(DropdownButton<String>).first;
+  await tester.ensureVisible(craftDropdown);
+  await tester.pumpAndSettle();
+  await tester.tap(craftDropdown);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Embroidery').last);
+  await tester.pumpAndSettle();
 }
 
 Post _post(String text) {

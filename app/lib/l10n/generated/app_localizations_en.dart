@@ -350,6 +350,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerMaterialsLabel => 'Materials';
 
   @override
+  String get projectComposerMaterialsAddHint => 'Add material';
+
+  @override
+  String get projectComposerMaterialsAddAction => 'Add material';
+
+  @override
+  String get projectComposerFieldDisabledLabel => 'Disabled';
+
+  @override
+  String projectComposerMultiSelectMaxSelectedError(int maxSelected) {
+    return 'You can choose up to $maxSelected.';
+  }
+
+  @override
   String get projectComposerColoursLabel => 'Colours';
 
   @override

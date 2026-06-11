@@ -706,6 +706,30 @@ abstract class AppLocalizations {
   /// **'Materials'**
   String get projectComposerMaterialsLabel;
 
+  /// Hint text for the free-text materials entry in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Add material'**
+  String get projectComposerMaterialsAddHint;
+
+  /// Button label for adding a typed material in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Add material'**
+  String get projectComposerMaterialsAddAction;
+
+  /// Small helper label shown by reusable project fields while create is loading and controls are disabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get projectComposerFieldDisabledLabel;
+
+  /// Validation helper shown when a project multi-select field reaches its configured maximum.
+  ///
+  /// In en, this message translates to:
+  /// **'You can choose up to {maxSelected}.'**
+  String projectComposerMultiSelectMaxSelectedError(int maxSelected);
+
   /// Label for the project composer colours field.
   ///
   /// In en, this message translates to:

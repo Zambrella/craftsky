@@ -126,7 +126,10 @@ Future<void> _openDetailsForCraft(WidgetTester tester, String craft) async {
     ),
   );
 
-  await tester.tap(find.byType(DropdownButton<String>).first);
+  final craftDropdown = find.byType(DropdownButton<String>).first;
+  await tester.ensureVisible(craftDropdown);
+  await tester.pumpAndSettle();
+  await tester.tap(craftDropdown);
   await tester.pumpAndSettle();
   await tester.tap(find.text(craft).last);
   await tester.pumpAndSettle();

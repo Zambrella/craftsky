@@ -88,6 +88,10 @@ class CraftskyFormBuilderMultiSelectField<T> extends StatelessWidget {
     this.onChanged,
     this.allowCustomValues = false,
     this.maxSelected,
+    this.customValueHintText,
+    this.addCustomValueLabel,
+    this.disabledText,
+    this.maxSelectedErrorText,
   });
 
   final String name;
@@ -100,6 +104,10 @@ class CraftskyFormBuilderMultiSelectField<T> extends StatelessWidget {
   final ValueChanged<List<T>>? onChanged;
   final bool allowCustomValues;
   final int? maxSelected;
+  final String? customValueHintText;
+  final String? addCustomValueLabel;
+  final String? disabledText;
+  final String? maxSelectedErrorText;
 
   @override
   Widget build(BuildContext context) {
@@ -117,6 +125,10 @@ class CraftskyFormBuilderMultiSelectField<T> extends StatelessWidget {
           helperText: helperText,
           allowCustomValues: allowCustomValues,
           maxSelected: maxSelected,
+          customValueHintText: customValueHintText,
+          addCustomValueLabel: addCustomValueLabel,
+          disabledText: disabledText,
+          maxSelectedErrorText: maxSelectedErrorText,
           onChanged: onChanged,
         );
       },
@@ -203,6 +215,10 @@ class _CraftskyMultiSelectBody<T> extends StatefulWidget {
     required this.helperText,
     required this.allowCustomValues,
     required this.maxSelected,
+    required this.customValueHintText,
+    required this.addCustomValueLabel,
+    required this.disabledText,
+    required this.maxSelectedErrorText,
     required this.onChanged,
   });
 
@@ -213,6 +229,10 @@ class _CraftskyMultiSelectBody<T> extends StatefulWidget {
   final String? helperText;
   final bool allowCustomValues;
   final int? maxSelected;
+  final String? customValueHintText;
+  final String? addCustomValueLabel;
+  final String? disabledText;
+  final String? maxSelectedErrorText;
   final ValueChanged<List<T>>? onChanged;
 
   @override
@@ -252,9 +272,10 @@ class _CraftskyMultiSelectBodyState<T>
   }
 
   void _showLimit() {
-    final max = widget.maxSelected;
-    if (max == null) return;
-    setState(() => _limitText = 'You can choose up to $max.');
+    if (widget.maxSelected == null || widget.maxSelectedErrorText == null) {
+      return;
+    }
+    setState(() => _limitText = widget.maxSelectedErrorText);
   }
 
   void _toggle(T value) {
@@ -357,21 +378,23 @@ class _CraftskyMultiSelectBodyState<T>
                     key: Key('${widget.name}-custom-input'),
                     controller: _customController,
                     enabled: _enabled,
-                    decoration: const InputDecoration(hintText: 'Add item'),
+                    decoration: InputDecoration(
+                      hintText: widget.customValueHintText,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 TextButton(
                   key: Key('${widget.name}-add-custom'),
                   onPressed: _enabled ? _addCustom : null,
-                  child: const Text('Add'),
+                  child: Text(widget.addCustomValueLabel ?? ''),
                 ),
               ],
             ),
           ],
-          if (!_enabled)
+          if (!_enabled && widget.disabledText != null)
             Text(
-              'Disabled',
+              widget.disabledText!,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.outline,
               ),

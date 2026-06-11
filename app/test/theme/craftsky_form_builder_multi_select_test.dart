@@ -20,10 +20,15 @@ void main() {
             helperText: 'Add up to 2 materials',
             allowCustomValues: true,
             maxSelected: 2,
+            customValueHintText: 'Add material',
+            addCustomValueLabel: 'Add material',
+            maxSelectedErrorText: 'Choose no more than 2 materials.',
           ),
         ),
       ),
     );
+
+    expect(find.text('Add material'), findsNWidgets(2));
 
     await _addCustom(tester, 'materials', 'linen');
     await _addCustom(tester, 'materials', 'cotton');
@@ -35,7 +40,7 @@ void main() {
     ]);
     expect(find.text('linen'), findsOneWidget);
     expect(find.text('cotton'), findsOneWidget);
-    expect(find.text('You can choose up to 2.'), findsOneWidget);
+    expect(find.text('Choose no more than 2 materials.'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('materials-remove-linen')));
     await tester.pump();
@@ -75,6 +80,26 @@ void main() {
     await tester.tap(find.byKey(const Key('colours-option-blue')));
     await tester.pump();
     expect(formKey.currentState!.instantValue['colours'], ['cream']);
+  });
+
+  testWidgets('UT-016 multi-select disabled copy is supplied by caller', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const _Harness(
+        child: FormBuilder(
+          child: CraftskyFormBuilderMultiSelectField<String>(
+            name: 'materials',
+            label: 'Materials',
+            enabled: false,
+            disabledText: 'Unavailable',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Unavailable'), findsOneWidget);
+    expect(find.text('Disabled'), findsNothing);
   });
 }
 

@@ -85,8 +85,11 @@ void main() {
       ),
     );
 
-    await tester.enterText(find.byType(TextField).first, 'Finished swatch');
-    await tester.tap(find.byType(DropdownButton<String>).first);
+    await tester.enterText(_bodyTextField(), 'Finished swatch');
+    final craftDropdown = find.byType(DropdownButton<String>).first;
+    await tester.ensureVisible(craftDropdown);
+    await tester.pumpAndSettle();
+    await tester.tap(craftDropdown);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Knitting').last);
     await tester.pumpAndSettle();
@@ -107,6 +110,13 @@ void main() {
     expect(find.text('Complete the gauge or clear it.'), findsOneWidget);
     expect(createCalls, 0);
   });
+}
+
+Finder _bodyTextField() {
+  return find.descendant(
+    of: find.byKey(const Key('project-composer-body-editor')),
+    matching: find.byType(TextField),
+  );
 }
 
 Post _post(String text) {

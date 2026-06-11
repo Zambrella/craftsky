@@ -122,13 +122,23 @@ Future<void> _pumpComposer(
 }
 
 Future<void> _submitValidEmbroideryProject(WidgetTester tester) async {
-  await tester.enterText(find.byType(TextField).first, 'Finished project');
-  await tester.tap(find.byType(DropdownButton<String>).first);
+  await tester.enterText(_bodyTextField(), 'Finished project');
+  final craftDropdown = find.byType(DropdownButton<String>).first;
+  await tester.ensureVisible(craftDropdown);
+  await tester.pumpAndSettle();
+  await tester.tap(craftDropdown);
   await tester.pumpAndSettle();
   await tester.tap(find.text('Embroidery').last);
   await tester.pumpAndSettle();
   await tester.tap(find.widgetWithText(TextButton, 'Post'));
   await tester.pumpAndSettle();
+}
+
+Finder _bodyTextField() {
+  return find.descendant(
+    of: find.byKey(const Key('project-composer-body-editor')),
+    matching: find.byType(TextField),
+  );
 }
 
 Post _post(String text) {
