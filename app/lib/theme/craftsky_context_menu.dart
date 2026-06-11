@@ -20,7 +20,7 @@ class CraftskyContextMenuItem {
 
   final String text;
   final IconData icon;
-  final VoidCallback? onPressed;
+  final FutureOr<void> Function()? onPressed;
   final String? description;
   final bool isSelected;
   final CraftskyContextMenuItemStyle style;
@@ -91,6 +91,7 @@ Future<void> showCraftskyContextMenu(
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final radius = BorderRadius.vertical(top: Radius.circular(radii.r4));
 
+    var selectedAction = Future<void>.value();
     await showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
@@ -102,8 +103,17 @@ Future<void> showCraftskyContextMenu(
         borderRadius: radius,
         side: BorderSide(color: theme.colorScheme.onSurface, width: 1.5),
       ),
-      builder: (_) => _CraftskyContextMenuSheet(groups: groups),
+      builder: (_) => _CraftskyContextMenuSheet(
+        groups: groups,
+        onSelected: (item) {
+          Navigator.of(context, rootNavigator: true).pop();
+          selectedAction = Future<void>.microtask(() async {
+            await item.onPressed?.call();
+          });
+        },
+      ),
     );
+    await selectedAction;
     return;
   }
 
@@ -122,7 +132,7 @@ Future<void> showCraftskyContextMenu(
     ),
     items: _popupEntries(groups),
   );
-  selected?.onPressed?.call();
+  await selected?.onPressed?.call();
 }
 
 List<PopupMenuEntry<CraftskyContextMenuItem>> _popupEntries(
@@ -151,9 +161,13 @@ List<PopupMenuEntry<CraftskyContextMenuItem>> _popupEntries(
 }
 
 class _CraftskyContextMenuSheet extends StatelessWidget {
-  const _CraftskyContextMenuSheet({required this.groups});
+  const _CraftskyContextMenuSheet({
+    required this.groups,
+    required this.onSelected,
+  });
 
   final List<CraftskyContextMenuGroup> groups;
+  final void Function(CraftskyContextMenuItem item) onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -184,12 +198,7 @@ class _CraftskyContextMenuSheet extends StatelessWidget {
         children.add(
           _CraftskyContextMenuRow(
             item: item,
-            onTap: item.onPressed == null
-                ? null
-                : () {
-                    Navigator.of(context).pop();
-                    item.onPressed?.call();
-                  },
+            onTap: item.onPressed == null ? null : () => onSelected(item),
           ),
         );
       }

@@ -9,6 +9,7 @@ import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
+import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -87,9 +88,20 @@ class _FeedLoadedSlivers extends ConsumerWidget {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: ChunkyButton(
-              onPressed: () => showPostComposerSheet(context),
-              child: Text(l10n.postComposeAction),
+            child: Builder(
+              builder: (buttonContext) {
+                return ChunkyButton(
+                  onPressed: () {
+                    unawaited(
+                      showTopLevelPostComposerChooser(
+                        buttonContext,
+                        position: _contextMenuPosition(buttonContext),
+                      ),
+                    );
+                  },
+                  child: Text(l10n.postComposeAction),
+                );
+              },
             ),
           ),
         ),
@@ -156,6 +168,26 @@ class _FeedLoadedSlivers extends ConsumerWidget {
             ),
           ),
       ],
+    );
+  }
+
+  RelativeRect _contextMenuPosition(BuildContext context) {
+    final renderObject = context.findRenderObject();
+    final overlayObject = Overlay.of(context).context.findRenderObject();
+    if (renderObject is! RenderBox || overlayObject is! RenderBox) {
+      return RelativeRect.fill;
+    }
+    final topLeft = renderObject.localToGlobal(
+      Offset.zero,
+      ancestor: overlayObject,
+    );
+    final bottomRight = renderObject.localToGlobal(
+      renderObject.size.bottomRight(Offset.zero),
+      ancestor: overlayObject,
+    );
+    return RelativeRect.fromRect(
+      Rect.fromPoints(topLeft, bottomRight),
+      Offset.zero & overlayObject.size,
     );
   }
 

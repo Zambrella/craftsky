@@ -321,6 +321,129 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postComposeTitle => 'New post';
 
   @override
+  String get postTypeRegularLabel => 'Regular post';
+
+  @override
+  String get postTypeRegularDescription =>
+      'Share a quick update, thought or question.';
+
+  @override
+  String get postTypeProjectLabel => 'Project post';
+
+  @override
+  String get postTypeProjectDescription =>
+      'Add photos and structured project details.';
+
+  @override
+  String get projectComposerTitle => 'Project post';
+
+  @override
+  String get projectComposerProjectTitleLabel => 'Project title';
+
+  @override
+  String get projectComposerCraftTypeLabel => 'Craft type';
+
+  @override
+  String get projectComposerStatusLabel => 'Status';
+
+  @override
+  String get projectComposerMaterialsLabel => 'Materials';
+
+  @override
+  String get projectComposerColoursLabel => 'Colours';
+
+  @override
+  String get projectComposerDesignTagsLabel => 'Design tags';
+
+  @override
+  String get projectComposerAddPatternAction => 'Add pattern';
+
+  @override
+  String get projectComposerMoreDetailsLabel => 'More project details';
+
+  @override
+  String get projectComposerSewingProjectTypeLabel => 'Sewing project type';
+
+  @override
+  String get projectComposerProjectSubtypeLabel => 'Project subtype';
+
+  @override
+  String get projectComposerSizeMadeLabel => 'Size made';
+
+  @override
+  String get projectComposerFitNotesLabel => 'Fit notes';
+
+  @override
+  String get projectComposerKnittingProjectTypeLabel => 'Knitting project type';
+
+  @override
+  String get projectComposerCrochetProjectTypeLabel => 'Crochet project type';
+
+  @override
+  String get projectComposerQuiltingProjectTypeLabel => 'Quilting project type';
+
+  @override
+  String get projectComposerYarnWeightLabel => 'Yarn weight';
+
+  @override
+  String get projectComposerNeedleSizeLabel => 'Needle size';
+
+  @override
+  String get projectComposerHookSizeLabel => 'Hook size';
+
+  @override
+  String get projectComposerGaugeStitchesLabel => 'Gauge stitches';
+
+  @override
+  String get projectComposerGaugeRowsLabel => 'Gauge rows';
+
+  @override
+  String get projectComposerGaugeMeasurementLabel => 'Gauge measurement';
+
+  @override
+  String get projectComposerGaugeUnitLabel => 'Gauge unit';
+
+  @override
+  String get projectComposerFinishedSizeLabel => 'Finished size';
+
+  @override
+  String get projectComposerSizeLabel => 'Size';
+
+  @override
+  String get projectComposerPiecingTechniqueLabel => 'Piecing technique';
+
+  @override
+  String get projectComposerQuiltingMethodLabel => 'Quilting method';
+
+  @override
+  String get projectComposerBodyRequiredError => 'Add body text.';
+
+  @override
+  String get projectComposerCraftRequiredError => 'Choose a craft type.';
+
+  @override
+  String get projectComposerPhotoRequiredError => 'Add at least one photo.';
+
+  @override
+  String get projectComposerGaugeInvalidError =>
+      'Complete the gauge or clear it.';
+
+  @override
+  String get projectComposerPatternNameLabel => 'Pattern name';
+
+  @override
+  String get projectComposerPatternUrlLabel => 'Pattern URL';
+
+  @override
+  String get projectComposerPatternDifficultyLabel => 'Pattern difficulty';
+
+  @override
+  String get projectComposerPatternDesignerLabel => 'Designer';
+
+  @override
+  String get projectComposerPatternPublisherLabel => 'Publisher';
+
+  @override
   String get postComposeHint => 'What are you making?';
 
   @override

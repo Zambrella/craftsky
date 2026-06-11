@@ -652,6 +652,246 @@ abstract class AppLocalizations {
   /// **'New post'**
   String get postComposeTitle;
 
+  /// Label for the regular-post option in the top-level post-type chooser.
+  ///
+  /// In en, this message translates to:
+  /// **'Regular post'**
+  String get postTypeRegularLabel;
+
+  /// Brief description for the regular-post option in the top-level post-type chooser.
+  ///
+  /// In en, this message translates to:
+  /// **'Share a quick update, thought or question.'**
+  String get postTypeRegularDescription;
+
+  /// Label for the project-post option in the top-level post-type chooser.
+  ///
+  /// In en, this message translates to:
+  /// **'Project post'**
+  String get postTypeProjectLabel;
+
+  /// Brief description for the project-post option in the top-level post-type chooser.
+  ///
+  /// In en, this message translates to:
+  /// **'Add photos and structured project details.'**
+  String get postTypeProjectDescription;
+
+  /// Title of the project composer sheet.
+  ///
+  /// In en, this message translates to:
+  /// **'Project post'**
+  String get projectComposerTitle;
+
+  /// Label for the optional project-title field in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Project title'**
+  String get projectComposerProjectTitleLabel;
+
+  /// Label for the project composer craft-type field.
+  ///
+  /// In en, this message translates to:
+  /// **'Craft type'**
+  String get projectComposerCraftTypeLabel;
+
+  /// Label for the project composer status field.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get projectComposerStatusLabel;
+
+  /// Label for the project composer materials field.
+  ///
+  /// In en, this message translates to:
+  /// **'Materials'**
+  String get projectComposerMaterialsLabel;
+
+  /// Label for the project composer colours field.
+  ///
+  /// In en, this message translates to:
+  /// **'Colours'**
+  String get projectComposerColoursLabel;
+
+  /// Label for the project composer design-tags field.
+  ///
+  /// In en, this message translates to:
+  /// **'Design tags'**
+  String get projectComposerDesignTagsLabel;
+
+  /// Action that reveals optional project pattern fields in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Add pattern'**
+  String get projectComposerAddPatternAction;
+
+  /// Disclosure label for optional craft-specific project detail fields.
+  ///
+  /// In en, this message translates to:
+  /// **'More project details'**
+  String get projectComposerMoreDetailsLabel;
+
+  /// Label for the sewing project-type field in project details.
+  ///
+  /// In en, this message translates to:
+  /// **'Sewing project type'**
+  String get projectComposerSewingProjectTypeLabel;
+
+  /// Label for the craft-specific project subtype field in project details.
+  ///
+  /// In en, this message translates to:
+  /// **'Project subtype'**
+  String get projectComposerProjectSubtypeLabel;
+
+  /// Label for the sewing size-made detail field.
+  ///
+  /// In en, this message translates to:
+  /// **'Size made'**
+  String get projectComposerSizeMadeLabel;
+
+  /// Label for the sewing fit-notes detail field.
+  ///
+  /// In en, this message translates to:
+  /// **'Fit notes'**
+  String get projectComposerFitNotesLabel;
+
+  /// Label for the knitting project-type field in project details.
+  ///
+  /// In en, this message translates to:
+  /// **'Knitting project type'**
+  String get projectComposerKnittingProjectTypeLabel;
+
+  /// Label for the crochet project-type field in project details.
+  ///
+  /// In en, this message translates to:
+  /// **'Crochet project type'**
+  String get projectComposerCrochetProjectTypeLabel;
+
+  /// Label for the quilting project-type field in project details.
+  ///
+  /// In en, this message translates to:
+  /// **'Quilting project type'**
+  String get projectComposerQuiltingProjectTypeLabel;
+
+  /// Label for yarn-weight detail fields.
+  ///
+  /// In en, this message translates to:
+  /// **'Yarn weight'**
+  String get projectComposerYarnWeightLabel;
+
+  /// Label for the knitting needle-size detail field.
+  ///
+  /// In en, this message translates to:
+  /// **'Needle size'**
+  String get projectComposerNeedleSizeLabel;
+
+  /// Label for the crochet hook-size detail field.
+  ///
+  /// In en, this message translates to:
+  /// **'Hook size'**
+  String get projectComposerHookSizeLabel;
+
+  /// Label for gauge stitches input in project details.
+  ///
+  /// In en, this message translates to:
+  /// **'Gauge stitches'**
+  String get projectComposerGaugeStitchesLabel;
+
+  /// Label for optional gauge rows input in project details.
+  ///
+  /// In en, this message translates to:
+  /// **'Gauge rows'**
+  String get projectComposerGaugeRowsLabel;
+
+  /// Label for gauge measurement input in project details.
+  ///
+  /// In en, this message translates to:
+  /// **'Gauge measurement'**
+  String get projectComposerGaugeMeasurementLabel;
+
+  /// Label for gauge unit selection in project details.
+  ///
+  /// In en, this message translates to:
+  /// **'Gauge unit'**
+  String get projectComposerGaugeUnitLabel;
+
+  /// Label for finished-size detail fields.
+  ///
+  /// In en, this message translates to:
+  /// **'Finished size'**
+  String get projectComposerFinishedSizeLabel;
+
+  /// Label for the quilting size detail field.
+  ///
+  /// In en, this message translates to:
+  /// **'Size'**
+  String get projectComposerSizeLabel;
+
+  /// Label for the quilting piecing-technique detail field.
+  ///
+  /// In en, this message translates to:
+  /// **'Piecing technique'**
+  String get projectComposerPiecingTechniqueLabel;
+
+  /// Label for the quilting method detail field.
+  ///
+  /// In en, this message translates to:
+  /// **'Quilting method'**
+  String get projectComposerQuiltingMethodLabel;
+
+  /// Validation error shown when submitting a project post without body text.
+  ///
+  /// In en, this message translates to:
+  /// **'Add body text.'**
+  String get projectComposerBodyRequiredError;
+
+  /// Validation error shown when submitting a project post without selecting a craft type.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a craft type.'**
+  String get projectComposerCraftRequiredError;
+
+  /// Validation error shown when submitting a project post without a photo.
+  ///
+  /// In en, this message translates to:
+  /// **'Add at least one photo.'**
+  String get projectComposerPhotoRequiredError;
+
+  /// Validation error shown when gauge values are partial, missing a unit, or not positive whole numbers.
+  ///
+  /// In en, this message translates to:
+  /// **'Complete the gauge or clear it.'**
+  String get projectComposerGaugeInvalidError;
+
+  /// Label for the optional pattern-name field in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern name'**
+  String get projectComposerPatternNameLabel;
+
+  /// Label for the optional pattern URL field in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern URL'**
+  String get projectComposerPatternUrlLabel;
+
+  /// Label for the optional pattern difficulty field in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern difficulty'**
+  String get projectComposerPatternDifficultyLabel;
+
+  /// Label for the optional pattern designer field in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Designer'**
+  String get projectComposerPatternDesignerLabel;
+
+  /// Label for the optional pattern publisher field in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Publisher'**
+  String get projectComposerPatternPublisherLabel;
+
   /// Label above the text field in the text-only post composer.
   ///
   /// In en, this message translates to:

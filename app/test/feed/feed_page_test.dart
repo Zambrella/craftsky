@@ -386,6 +386,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.chat_bubble_outline));
     await tester.pumpAndSettle();
+    expect(find.text('Regular post'), findsNothing);
+    expect(find.text('Project post'), findsNothing);
     await tester.enterText(find.byType(TextField), 'new comment');
     await tester.pump();
     await tester.tap(find.widgetWithText(TextButton, 'Reply'));
@@ -517,20 +519,25 @@ void main() {
     tester,
   ) async {
     PostReply? capturedReply;
+    Object? capturedProject;
     await _pump(
       tester,
       FakePostRepository(
         onListTimeline: ({cursor, limit}) async =>
             PostPage(items: [_post('old')]),
-        onCreate: ({required text, reply, images}) async {
-          capturedReply = reply;
-          return _post('new');
-        },
+        onCreateWithFacets:
+            ({required text, reply, project, images, facets}) async {
+              capturedReply = reply;
+              capturedProject = project;
+              return _post('new');
+            },
       ),
     );
 
     await tester.pumpAndSettle();
     await tester.tap(find.text('New post'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Regular post'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'top-level');
     await tester.pump();
@@ -538,6 +545,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(capturedReply, isNull);
+    expect(capturedProject, isNull);
     expect(find.text('timeline post new'), findsOneWidget);
     expect(find.text('timeline post old'), findsOneWidget);
   });
