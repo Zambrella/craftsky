@@ -77,9 +77,15 @@ Decision / implication: Requirements use the separate project composer MVP appro
 
 ### Q7: What decisions came out of the requirements review annotations?
 
-Answer: The user confirmed that generated token catalogs and project hashtag-to-tag merging should be deferred. The user also confirmed the composer choice surface should use the same presentation style as the existing post composer.
+Answer: The user confirmed that generated token catalogs and project hashtag-to-tag merging should be deferred. A later grill-me review superseded the original entry-picker visual decision.
 
-Decision / implication: Requirements keep token generation and hashtag/tag normalization out of this MVP. The entry picker is no longer an open visual-treatment question; it should use the existing full-screen composer/task presentation pattern rather than a bottom sheet, dialog or separate permanent page.
+Decision / implication: Requirements keep token generation and hashtag/tag normalization out of this MVP. This decision was superseded by the later grill-me review for the entry picker visual treatment; the entry picker should use the existing responsive context-menu pattern rather than a full-screen route.
+
+### Q8: What decisions came out of the grill-me requirements review?
+
+Answer: The user confirmed that the top-level post-type chooser should use the existing responsive context-menu presentation: bottom sheet on compact screens and anchored popup/menu on larger screens. Selecting an option should dismiss/replace the chooser and open the selected composer; the chooser should return the created `Post?`; reply flows should bypass the chooser and keep using the regular composer directly. The user also confirmed that project title is optional; pattern fields are hidden behind an “Add pattern” affordance; colours and design tags are in scope as optional known-option-only common metadata fields near materials; project subtype depends on project type; the post body remains the existing facet-aware composer field outside FormBuilder; gauge is valid only when empty or when stitches, measurement and unit are present with optional rows; status defaults to Finished; project posts require both body text and at least one photo; alt text uses the existing missing-alt confirmation rather than hard validation; chooser labels should be “Regular post” and “Project post” with brief descriptions; and materials/colours/design-tags max counts should be enforced in the UI.
+
+Decision / implication: Requirements now treat the chooser as a lightweight responsive context-menu entry surface, not a full-screen task. The full-screen routes are the existing regular composer and the new project composer. Project composer validation now requires body text, craft type and at least one photo. Structured metadata is FormBuilder-managed, while body text/media retain existing composer-specific state. Colours and design tags remain in the MVP and must be tested alongside materials. Status is initialized to the `social.craftsky.feed.defs#finished` token with user-visible copy “Finished”.
 
 ## 4. Candidate Approaches
 
@@ -181,7 +187,7 @@ Flutter shows “New post” actions in the feed and own-profile Posts tab. Acti
 
 ## 11. Desired Behavior
 
-Activating a top-level post entry point shall offer a choice between a regular post and a project post. Choosing regular post shall preserve the existing regular composer. Choosing project post shall open a full-screen project composer wrapped in `FormBuilder`. The project composer shall use Craftsky-styled, Material-based accessible inputs; collect photos, body text, title, craft type, status, pattern and materials; expose a collapsible “More project details” section; render appropriate craft-specific detail fields for knitting, crochet, sewing and quilting; and submit a top-level project post through the existing `CreatePost` provider. UI token option catalogs shall provide labels and values for known lexicon tokens while producing strings for the existing DTOs.
+Activating a top-level post entry point shall offer a lightweight responsive choice between a regular post and a project post, using the existing Craftsky context-menu presentation: bottom sheet on compact screens and anchored popup/menu on larger screens. Choosing regular post shall dismiss the chooser and preserve the existing regular composer. Choosing project post shall dismiss the chooser and open a full-screen project composer whose structured metadata is wrapped in `FormBuilder`. The project composer shall use Craftsky-styled, Material-based accessible inputs; require body text, craft type and at least one photo; collect status defaulted to Finished; collect optional title, pattern, materials, colours and design tags; expose a collapsible “More project details” section; render appropriate craft-specific detail fields for knitting, crochet, sewing and quilting; and submit a top-level project post through the existing `CreatePost` provider. UI token option catalogs shall provide labels and values for known lexicon tokens while producing strings for the existing DTOs.
 
 ## 12. Requirements
 
@@ -195,10 +201,10 @@ Activating a top-level post entry point shall offer a choice between a regular p
 | FR-003 | Functional | Must | The reusable field components shall integrate with `FormBuilder` so form values can be saved, validated, reset and read by field name. | The project composer must extract values and validation state through FormBuilder. | Prompt | AC-004, AC-006 |
 | FR-004 | Functional | Must | The system shall add UI-facing project option catalogs/classes for craft type, status, pattern difficulty, project type, project subtype, yarn weight, needle size, hook size, gauge unit, quilting piecing technique, quilting method, colours and design tags where applicable. | Labels, filtering and token values should be centralized without changing DTO wire fields. | Q2, lexicon findings | AC-008, AC-009 |
 | FR-005 | Functional | Must | Option catalog selections shall map to the existing string-backed `Project`, `ProjectCommon`, `ProjectPattern` and `ProjectDetails` model fields at submit time. | Preserves AppView DTO compatibility and open-token behavior. | Q2, previous requirements | AC-009, AC-012 |
-| FR-006 | Functional | Must | The top-level post composer entry points in feed and own-profile Posts tab shall open a post-type choice surface, presented with the same full-screen root-navigator composer/task pattern as the existing post composer, with regular post and project post options. | Users need a clear way to choose post type without introducing a different modal pattern. | Q3, Q7, current entry discovery | AC-001, AC-002 |
+| FR-006 | Functional | Must | The top-level post composer entry points in feed and own-profile Posts tab shall open a responsive Craftsky context-menu choice surface, presented as a bottom sheet on compact screens and an anchored popup/menu on larger screens, with “Regular post” and “Project post” options and brief descriptions. | Users need a clear lightweight way to choose post type while reusing the app's existing context-menu interaction language. | Q3, Q7, Q8, context-menu discovery | AC-001, AC-002 |
 | FR-007 | Functional | Must | Choosing regular post from the entry picker shall open the existing regular composer and preserve existing text, photo, facet, reply and submit behavior. | Prevents regressions to existing posting. | Q3, current composer discovery | AC-002, AC-014 |
 | FR-008 | Functional | Must | Choosing project post from the entry picker shall open a full-screen project composer route/sheet on the root navigator, visually consistent with the existing composer and shell-covering modal task screens. | Project composition is a temporary task and should cover shell navigation like existing composers. | Current composer/router discovery | AC-001, AC-007 |
-| FR-009 | Functional | Must | The project composer shall be wrapped in `FormBuilder` and shall collect body text, photos with alt text, project title, craft type, status, pattern information and materials. | These are the top-level project-post UX fields requested. | Prompt, Q1 | AC-006, AC-007, AC-012 |
+| FR-009 | Functional | Must | The project composer shall collect body text with the existing facet-aware editor, at least one photo with alt text controls, and `FormBuilder`-managed project metadata including project title, craft type, status, pattern information, materials, colours and design tags. | These are the top-level project-post UX fields requested, while preserving the existing rich-text/facet composer architecture. | Prompt, Q1, Q8 | AC-006, AC-007, AC-012, AC-025 |
 | FR-010 | Functional | Must | The project composer shall include an expandable/collapsible “More project details” section for craft-specific fields and keep the primary composer fields usable when details are collapsed. | Rich metadata should not overwhelm the main compose flow. | Prompt examples | AC-010 |
 | FR-011 | Functional | Must | When craft type is sewing, the project details section shall collect sewing project type, project subtype, size made and fit notes, and construct `SewingProjectDetails` only when applicable detail values are present. | Matches the requested sewing UX and existing model. | Prompt, lexicon findings | AC-011, AC-012 |
 | FR-012 | Functional | Must | When craft type is knitting, the project details section shall collect knitting project type, project subtype, yarn weight, needle size, gauge stitches/rows/measurement/unit and finished size, and construct `KnittingProjectDetails` only when applicable detail values are present. | Matches the requested knitting UX and existing model. | Prompt, lexicon findings | AC-011, AC-012 |
@@ -208,13 +214,18 @@ Activating a top-level post entry point shall offer a choice between a regular p
 | FR-016 | Functional | Must | On submit, the project composer shall generate rich-text facets from body text using the existing facet generator, convert image state to create images, build a typed `Project` payload, and call `CreatePost.create` with `project` and no `reply`. | Reuses existing data plumbing and keeps writes through AppView. | Current composer/create discovery | AC-012, AC-015 |
 | FR-017 | Functional | Must | The project composer shall handle create loading, success, error, image notices and missing-alt confirmation consistently with the regular composer. | Provides coherent feedback and preserves accessibility expectations. | Current composer discovery | AC-015, AC-016 |
 | FR-018 | Functional | Must | The project composer shall detect unsaved project drafts, including text, images and form-field changes, and ask for discard confirmation before closing when changes would be lost. | Prevents accidental data loss. | Current composer discovery | AC-017 |
-| FR-019 | Functional | Should | Materials should be collected as an optional multi-value free-text field with visible selected chips/items and saved as `ProjectCommon.materials`, omitting the field when empty. | Materials are free-form in the lexicon and prominent in the requested UX. | Prompt example, lexicon findings | AC-018 |
-| FR-020 | Functional | Should | Pattern input should be grouped behind an “Add pattern” action or compact expandable area and save only non-empty `ProjectPattern` fields. | Pattern fields are optional and should not dominate the primary compose flow. | Prompt example, lexicon findings | AC-019 |
-| FR-021 | Functional | Must | The project composer shall enforce UI-safe validation before submit: body text and craft type are required, existing/practical text length limits are enforced, gauge numeric fields are positive whole numbers when present, and invalid fields show field-level errors. | Gives users useful feedback without turning DTO constructors into strict lexicon validators. | Q5 | AC-023 |
+| FR-019 | Functional | Should | Materials should be collected as an optional multi-value free-text field with visible selected chips/items, a maximum of 20 values, and saved as `ProjectCommon.materials`, omitting the field when empty. | Materials are free-form in the lexicon and prominent in the requested UX. | Prompt example, lexicon findings, Q8 | AC-018, AC-026 |
+| FR-020 | Functional | Must | Pattern input shall be discoverable through an “Add pattern” action or compact expandable area, hide the actual pattern fields until activated, and save only non-empty `ProjectPattern` fields. | Pattern fields are optional and should not dominate the primary compose flow. | Prompt example, lexicon findings, Q8 | AC-019 |
+| FR-021 | Functional | Must | The project composer shall enforce UI-safe validation before submit: body text, craft type and at least one photo are required; existing/practical text length limits are enforced; gauge is either entirely omitted or includes positive whole-number stitches and measurement plus a selected unit, with optional positive whole-number rows; and invalid fields show field-level errors. | Gives users useful feedback without turning DTO constructors into strict lexicon validators, and reflects the product rule that project posts are visual. | Q5, Q8 | AC-023 |
+| FR-022 | Functional | Must | Craft-specific project subtype controls shall depend on the selected project type: no project type means no subtype selection, subtype options are filtered to the active type, and changing project type clears subtype values that are no longer valid. | Prevents mismatched metadata and makes large subtype catalogs usable. | Q8, lexicon findings | AC-024 |
+| FR-023 | Functional | Must | The project composer shall collect optional colours and design tags as common metadata using known-option-only multi-select controls with visible selected chips/items, a maximum of 10 values each, and map selections to `ProjectCommon.colors` and `ProjectCommon.designTags`, omitting each field when empty. | Colours and design tags are in-scope cross-craft metadata and should support future discovery/search without allowing custom-value UX in this MVP. | Q8, lexicon findings | AC-025, AC-026 |
+| FR-024 | Functional | Must | The project composer shall default status to the user-visible “Finished” option backed by the `social.craftsky.feed.defs#finished` token, while still allowing the user to choose another known status. | Finished is the desired default, and token mapping must remain compatible with the current lexicon. | Q8, feed defs discovery | AC-027 |
+| FR-025 | Functional | Must | The top-level chooser flow shall forward the selected composer's `Post?` result to its caller, and reply actions shall bypass the chooser by continuing to invoke the regular composer directly. | Preserves existing reply navigation behavior and keeps the top-level chooser API flexible for future created-post navigation. | Q8, current composer discovery | AC-028 |
 | RULE-001 | Business rule | Must | Project posts created by this UI shall always be top-level posts and shall never include `reply`. | AppView and existing Flutter create plumbing disallow project replies. | Previous slice, Q3 | AC-012, AC-015 |
 | RULE-002 | Business rule | Must | DTO/project model fields shall remain string-backed; UI option catalogs shall not require changing project models to enums. | Preserves open lexicon known-values and prior data-layer requirements. | Q2 | AC-009, AC-012 |
 | RULE-003 | Business rule | Must | Lexicon known-values are open suggestions; the UI may constrain selectable known options for MVP fields but shall not make the data layer reject future/open token strings. | atproto lexicon evolution requires open compatibility. | Lexicon findings, Q2 | AC-008, AC-013 |
 | RULE-004 | Business rule | Must | Empty optional project fields shall be omitted or left null in the created `Project` rather than serialized as meaningless empty strings or empty detail objects. | Keeps AppView payloads clean and compatible with previous `toCreateMap` behavior. | Q5, previous slice | AC-012, AC-018, AC-019 |
+| RULE-005 | Business rule | Must | Project posts created by this UI shall include at least one photo even though the backend/lexicon can represent image-less posts. | Project posts should be visual in the product UX, while regular posts remain available for text-only posting. | Q8, feed post lexicon discovery | AC-012, AC-023 |
 | NFR-001 | Non-functional | Must | New input components shall preserve Material semantics/accessibility for labels, focus, enabled/disabled state, validation errors, keyboard navigation and tap targets wherever possible. | The prompt specifically asks to use Material input styles for accessibility benefits. | Prompt | AC-003, AC-005, AC-020 |
 | NFR-002 | Non-functional | Must | New UI shall use existing dependencies, theme extensions, localization patterns and code generation tools without adding packages. | Keeps the slice constrained and consistent with the app. | Discovery | AC-021 |
 | NFR-003 | Non-functional | Must | New user-visible copy shall use app localization resources and follow Craftsky voice conventions. | Maintains localization/test patterns and product tone. | Design docs, discovery | AC-022 |
@@ -225,35 +236,40 @@ Activating a top-level post entry point shall offer a choice between a regular p
 
 | ID | Requirement IDs | Acceptance Criterion |
 |---|---|---|
-| AC-001 | BR-001, FR-006, FR-008 | Given an authenticated user taps a top-level “New post” action in feed or own-profile Posts tab, when the full-screen composer choice surface is shown and the user chooses project post, then a full-screen project composer opens. |
-| AC-002 | BR-002, FR-006, FR-007 | Given the same full-screen composer choice surface, when the user chooses regular post, then the existing regular post composer opens and can create a non-project post as before. |
+| AC-001 | BR-001, FR-006, FR-008 | Given an authenticated user taps a top-level “New post” action in feed or own-profile Posts tab, when the responsive composer choice surface is shown as a compact bottom sheet or larger-screen anchored menu and the user chooses project post, then the chooser is dismissed and a full-screen project composer opens. |
+| AC-002 | BR-002, FR-006, FR-007 | Given the same responsive composer choice surface, when the user chooses regular post, then the chooser is dismissed, the existing regular post composer opens, and it can create a non-project post as before. |
 | AC-003 | FR-001, FR-002, NFR-001 | Given the reusable Craftsky text, multiline, dropdown, multi-select and radio fields are rendered, when inspected in widget tests, then they expose labels, values, helper/error text, enabled state and use Material focus/semantics/tap behavior appropriate to the control. |
 | AC-004 | FR-001, FR-003 | Given a Craftsky text or multiline field is used inside `FormBuilder`, when the user edits, saves, validates and resets the form, then the field value and error state flow through the named FormBuilder field. |
 | AC-005 | FR-002, NFR-001 | Given Craftsky dropdown, multi-select and radio fields are used inside `FormBuilder`, when the user changes selection, validates and resets the form, then selected string values or value lists are reflected by FormBuilder and validation errors are visible/accessibility-exposed. |
-| AC-006 | FR-003, FR-009 | Given the project composer form contains required and optional fields, when the form is saved, then body/project form values can be extracted by field name and converted into a create request without reading widget internals. |
-| AC-007 | BR-001, FR-008, FR-009 | Given the project composer opens, then the primary visible flow includes add photos, body text, project title, craft type, status, pattern, materials, more-details disclosure and a submit action consistent with the requested UX. |
+| AC-006 | FR-003, FR-009 | Given the project composer contains body/media state and required/optional metadata fields, when the metadata form is saved, then project metadata values can be extracted by field name and combined with body text and image state to build a create request without reading widget internals. |
+| AC-007 | BR-001, FR-008, FR-009 | Given the project composer opens, then the primary visible flow includes add photos, body text, project title, craft type, status, materials, colours, design tags, an add-pattern affordance, more-details disclosure and a submit action consistent with the requested UX. |
 | AC-008 | FR-004, RULE-003 | Given option catalogs are used by composer controls, then options expose user-facing labels and underlying token strings for known craft/status/detail values, and catalog code is centralized enough for tests to verify representative token values. |
 | AC-009 | FR-004, FR-005, RULE-002 | Given a user selects known token options, when the project payload is built, then the resulting `Project`/`ProjectDetails` fields contain the expected AppView string token values and no DTO enum conversion is required. |
 | AC-010 | BR-003, FR-010 | Given the user expands and collapses “More project details”, then craft-specific fields are hidden or shown without losing existing primary field values or entered detail values for the active craft. |
 | AC-011 | BR-003, FR-011, FR-012, FR-013, FR-014 | Given the user selects sewing, knitting, crochet or quilting, then the more-details section displays fields appropriate to that craft and not fields belonging only to unrelated crafts. |
-| AC-012 | BR-001, FR-005, FR-009, FR-011, FR-012, FR-013, FR-014, FR-016, RULE-001, RULE-004 | Given valid project composer input, when the user submits, then `CreatePost.create` is called with non-empty body text, `reply == null`, images/facets as applicable, and a typed `Project` containing common fields and the matching detail variant only when detail values exist. |
-| AC-013 | FR-015, RULE-003 | Given the user selects a craft with no implemented detail schema such as embroidery, when they submit valid common fields, then the create call includes `project.common.craftType` and no required `details` payload. |
+| AC-012 | BR-001, FR-005, FR-009, FR-011, FR-012, FR-013, FR-014, FR-016, RULE-001, RULE-004, RULE-005 | Given valid project composer input, when the user submits, then `CreatePost.create` is called with non-empty body text, `reply == null`, at least one image, facets as applicable, and a typed `Project` containing common fields and the matching detail variant only when detail values exist. |
+| AC-013 | FR-015, RULE-003 | Given the user selects a craft with no implemented detail schema such as embroidery, when they submit valid required/common fields including at least one photo, then the create call includes `project.common.craftType` and no required `details` payload. |
 | AC-014 | BR-002, FR-007, NFR-004 | Given existing regular composer widget tests run after this change, then regular text, photo, facet, reply and discard behavior still passes without requiring project fields. |
 | AC-015 | FR-016, FR-017, RULE-001 | Given project submission is in progress, succeeds or fails, then submit loading state, successful close/snackbar, error snackbar and provider reset behavior are consistent with the regular composer, and project create never sends a reply. |
-| AC-016 | FR-017, NFR-004 | Given project images include missing alt text or image provider notices, when the user submits or selects images, then the same missing-alt confirmation and image notice behavior as the regular composer is available. |
+| AC-016 | FR-017, NFR-004 | Given required project images include missing alt text or image provider notices, when the user submits or selects images, then the same missing-alt confirmation and image notice behavior as the regular composer is available rather than hard-blocking on alt text. |
 | AC-017 | FR-018 | Given the user has changed body text, selected images or changed project form fields, when they attempt to close the project composer, then a discard confirmation appears; given there are no changes or create is loading, close behavior matches the existing composer rules. |
-| AC-018 | FR-019, RULE-004 | Given the user adds materials, when the project payload is built, then materials are serialized as a non-empty list of strings; given no materials are added, then `materials` is omitted/null. |
-| AC-019 | FR-020, RULE-004 | Given the user adds pattern data, when the project payload is built, then only non-empty pattern fields are included; given all pattern fields are empty, then `pattern` is omitted/null. |
+| AC-018 | FR-019, RULE-004 | Given the user adds materials, when the project payload is built, then materials are serialized as a non-empty list of strings up to the configured maximum; given no materials are added, then `materials` is omitted/null. |
+| AC-019 | FR-020, RULE-004 | Given the project composer first opens, then pattern fields are hidden behind an “Add pattern” affordance; given the user adds pattern data, when the project payload is built, then only non-empty pattern fields are included; given all pattern fields are empty, then `pattern` is omitted/null. |
 | AC-020 | NFR-001 | Given controls are disabled during create loading, then text inputs, selection controls, image actions and submit affordances cannot be interacted with and expose disabled visual/semantic state. |
 | AC-021 | NFR-002, NFR-005 | Given code generation has run if required, when `flutter analyze` and relevant/full Flutter tests run, then they pass without dependency changes. |
 | AC-022 | NFR-003 | Given new composer/field strings are user-visible, then they come from app localization resources, use sentence case and avoid emoji in app chrome. |
-| AC-023 | FR-021 | Given the project composer has missing required body text or craft type, over-limit text, partial gauge input, or non-positive/non-integer gauge numbers, when the user attempts to submit or validation runs, then submit is blocked and field-level validation errors identify what to fix. |
+| AC-023 | FR-021, RULE-005 | Given the project composer has missing required body text, missing craft type, no photo, over-limit text, partial gauge input, missing gauge unit when gauge values are present, or non-positive/non-integer gauge numbers, when the user attempts to submit or validation runs, then submit is blocked and field-level validation errors identify what to fix. |
+| AC-024 | FR-022 | Given a craft-specific details section has project type and subtype controls, when no project type is selected then subtype cannot be selected; when a project type is selected then only relevant subtype options are available; and when project type changes then an invalid existing subtype is cleared before submit. |
+| AC-025 | FR-009, FR-023 | Given the project composer renders colours and design tags, when the user selects known options, then visible selected chips/items are shown and the project payload maps those selections to `ProjectCommon.colors` and `ProjectCommon.designTags` string values; given neither field has selections, then the corresponding payload fields are omitted/null. |
+| AC-026 | FR-019, FR-023 | Given materials, colours or design tags reach their maximum selected count, when the user tries to add/select more values, then the UI prevents additional values, explains the limit, and still allows existing selected values to be removed. |
+| AC-027 | FR-024 | Given the project composer opens, then status is initially selected as user-visible “Finished” backed by `social.craftsky.feed.defs#finished`; when the user changes status, then the selected known status token is submitted instead. |
+| AC-028 | FR-025 | Given a caller opens the top-level chooser and the chosen composer creates a post, then the chooser flow resolves with that created `Post`; given the chooser or composer is dismissed without creating, then it resolves null; given the user taps a reply action, then no post-type chooser appears. |
 
 ## 14. Edge Cases
 
 | ID | Case | Expected Behavior | Requirement IDs |
 |---|---|---|---|
-| EC-001 | User opens the full-screen entry picker and dismisses it | No composer opens and no draft/provider state is changed. | FR-006 |
+| EC-001 | User opens the responsive entry picker and dismisses it | No composer opens, no post is returned, and no draft/provider state is changed. | FR-006 |
 | EC-002 | User switches craft type after entering detail fields | The composer prevents stale detail fields from being submitted for the newly selected craft; preserving or clearing per-craft drafts may be implementation-defined but the submitted payload must match the active craft. | FR-010, FR-011, FR-012, FR-013, FR-014 |
 | EC-003 | Detail section is collapsed while detail fields contain values | Entered active-craft detail values remain part of the form and may be submitted unless the user clears them. | FR-010 |
 | EC-004 | Gauge rows are omitted but stitches/measurement/unit are present | Gauge can be submitted without rows. | FR-012, FR-013 |
@@ -262,8 +278,10 @@ Activating a top-level post entry point shall offer a choice between a regular p
 | EC-007 | Optional text fields contain only whitespace | Values are treated as empty and omitted/null in the payload. | RULE-004 |
 | EC-008 | Image upload is still processing | Submit remains disabled until images can be submitted, consistent with the existing composer. | FR-017 |
 | EC-009 | AppView returns an error from create | Composer remains open, shows an error message and allows the user to retry after provider reset. | FR-017 |
-| EC-010 | User creates a project with body text and craft type only | Submit succeeds with a common-only project if validation passes. | FR-015, RULE-004 |
+| EC-010 | User creates a project with body text, craft type and one photo only | Submit succeeds with a common-only project if validation passes. | FR-015, RULE-004, RULE-005 |
 | EC-011 | User chooses regular post after the new entry picker is added | No project defaults or form validation affect regular composer behavior. | BR-002, FR-007 |
+| EC-012 | User chooses project post but has not added a photo | Submit is blocked with a field-level or form-level validation message explaining that project posts need at least one photo. | FR-021, RULE-005 |
+| EC-013 | User selects the maximum allowed colours or design tags | Additional selections are disabled or rejected with clear helper/error text while removal remains available. | FR-023 |
 
 ## 15. Data / Persistence Impact
 
@@ -276,8 +294,9 @@ Activating a top-level post entry point shall offer a choice between a regular p
 
 - UI:
   - Add reusable Craftsky FormBuilder field components.
-  - Add post-type choice surface at top-level composer entry points.
+  - Add responsive context-menu post-type choice surface at top-level composer entry points.
   - Add project composer full-screen UI with primary fields and expandable details.
+  - Add optional common metadata controls for materials, colours and design tags.
   - Add localized strings for new labels, helpers, errors and actions.
 - API:
   - No AppView API changes.
@@ -308,6 +327,7 @@ Activating a top-level post entry point shall offer a choice between a regular p
 | RISK-003 | Making DTOs enums would conflict with open lexicon known-values. | Future/open token strings could become unreadable/unwritable. | Keep DTOs string-backed and map UI options to strings only at form boundaries. |
 | RISK-004 | All craft detail variants may make the composer too dense. | Users may feel overwhelmed. | Keep details behind a “More project details” disclosure and keep primary fields usable without details. |
 | RISK-005 | Shared composer extraction could destabilize existing post/photo/facet behavior. | Existing regular post creation could break. | Extract only low-risk shared pieces; rely on existing regular composer tests and add regression coverage. |
+| RISK-006 | Required photos plus colours/design-tags metadata increase composer friction and test surface. | Users may abandon project creation or implementation may miss validation/count-limit cases. | Keep metadata optional except photo/body/craft, use compact chip/multi-select UI, and add focused validation/count-limit tests. |
 
 ## 20. Assumptions
 
@@ -315,9 +335,10 @@ Activating a top-level post entry point shall offer a choice between a regular p
 |---|---|---|
 | ASM-001 | Existing `CreatePost.create` project plumbing is the correct submit boundary for project composer UI. | Requirements would need API/repository updates beyond UI. |
 | ASM-002 | The MVP can hand-maintain UI option catalogs from current lexicon known-values. | A generated token pipeline may become a separate future feature. |
-| ASM-003 | Body text remains required for project posts, matching current composer behavior and feed post lexicon requirements. | Requirements would need to redefine submit enabling for title/photo-only projects. |
+| ASM-003 | Body text and at least one photo remain required for project posts, matching current composer text behavior plus the confirmed visual project-post product rule. | Requirements would need to redefine submit enabling for title-only, text-only or photo-only projects. |
 | ASM-004 | Materials are free-form user-entered strings rather than a closed known-value catalog. | The materials field might need to become a searchable picker or catalog-backed multi-select later. |
 | ASM-005 | The first UI slice does not need to render the created project differently in feed/profile after submission. | A project may initially appear as an ordinary post card until a later rendering slice. |
+| ASM-006 | Colours and design tags can be limited to known catalog options in the MVP while the string-backed models remain open-compatible. | Custom colour/tag entry would require additional normalization, validation and duplicate-handling requirements. |
 
 ## 21. Open Questions
 
@@ -330,7 +351,7 @@ Risk level: Medium
 Review recommended: Yes  
 Reviewer: User annotation review  
 Date: 2026-06-11  
-Notes: User annotations addressed. Generated token catalogs and hashtag-to-project-tag merging are deferred. The entry picker should use the same full-screen composer/task presentation pattern as the existing post composer. Medium risk remains because this is user-visible UI touching the composer, validation, image/facet reuse and create submission.
+Notes: User annotations and grill-me review addressed. Generated token catalogs and hashtag-to-project-tag merging are deferred. The entry picker should use the existing responsive Craftsky context-menu pattern rather than a full-screen chooser. Project posts require body text, craft type and at least one photo; alt text keeps the existing confirmation behaviour. Colours and design tags remain in scope as known-option-only optional common metadata. Medium risk remains because this is user-visible UI touching the composer, validation, image/facet reuse, option catalogs and create submission.
 
 ## 23. Handoff To Test Design
 
@@ -338,13 +359,13 @@ Notes: User annotations addressed. Generated token catalogs and hashtag-to-proje
 - Next test specification: `02-acceptance-tests.md`
 - Must-cover requirement IDs:
   - Business: `BR-001`, `BR-002`, `BR-003`
-  - Functional: `FR-001` through `FR-018`, `FR-021`
-  - Rules: `RULE-001` through `RULE-004`
+  - Functional: `FR-001` through `FR-025`
+  - Rules: `RULE-001` through `RULE-005`
   - Non-functional: `NFR-001`, `NFR-002`, `NFR-003`, `NFR-005`
 - Suggested test levels:
   - Widget tests for field components and FormBuilder integration.
-  - Widget tests for entry picker regular/project branches.
-  - Widget tests for project composer craft switching, validation, discard and submit payloads.
+  - Widget tests for responsive entry picker regular/project branches.
+  - Widget tests for project composer craft switching, subtype filtering, required-photo validation, metadata count limits, discard and submit payloads.
   - Provider/repository fake integration tests for `CreatePost.create` arguments from project composer.
   - Regression tests for existing regular composer facets/photos/replies/discard behavior.
   - Static checks for localization, no dependency changes and analysis.
