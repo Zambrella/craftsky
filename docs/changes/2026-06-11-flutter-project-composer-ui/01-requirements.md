@@ -75,6 +75,12 @@ Answer: Confirm Option A.
 
 Decision / implication: Requirements use the separate project composer MVP approach with shared FormBuilder field kit, token option catalogs and entry picker.
 
+### Q7: What decisions came out of the requirements review annotations?
+
+Answer: The user confirmed that generated token catalogs and project hashtag-to-tag merging should be deferred. The user also confirmed the composer choice surface should use the same presentation style as the existing post composer.
+
+Decision / implication: Requirements keep token generation and hashtag/tag normalization out of this MVP. The entry picker is no longer an open visual-treatment question; it should use the existing full-screen composer/task presentation pattern rather than a bottom sheet, dialog or separate permanent page.
+
 ## 4. Candidate Approaches
 
 ### Option A: Separate Project Composer Plus Shared FormBuilder Field Kit
@@ -155,8 +161,9 @@ Craftsky project posts can now be represented and created by Flutter plumbing, b
 - NG-003: Do not change project DTO/model fields from strings to enums.
 - NG-004: Do not add dependencies.
 - NG-005: Do not support project replies, quote posts, drafts, autosave or scheduled posting.
-- NG-006: Do not implement a full lexicon codegen-to-UI-token pipeline; token catalogs may be hand-maintained for this slice.
+- NG-006: Do not implement a full lexicon codegen-to-UI-token pipeline; token catalogs may be hand-maintained for this slice and generated catalogs can be considered later.
 - NG-007: Do not implement advanced search/filter UI for project metadata.
+- NG-008: Do not merge project body hashtags into `project.common.tags` in this MVP; preserve existing facet generation only.
 
 ## 9. Users / Actors
 
@@ -188,7 +195,7 @@ Activating a top-level post entry point shall offer a choice between a regular p
 | FR-003 | Functional | Must | The reusable field components shall integrate with `FormBuilder` so form values can be saved, validated, reset and read by field name. | The project composer must extract values and validation state through FormBuilder. | Prompt | AC-004, AC-006 |
 | FR-004 | Functional | Must | The system shall add UI-facing project option catalogs/classes for craft type, status, pattern difficulty, project type, project subtype, yarn weight, needle size, hook size, gauge unit, quilting piecing technique, quilting method, colours and design tags where applicable. | Labels, filtering and token values should be centralized without changing DTO wire fields. | Q2, lexicon findings | AC-008, AC-009 |
 | FR-005 | Functional | Must | Option catalog selections shall map to the existing string-backed `Project`, `ProjectCommon`, `ProjectPattern` and `ProjectDetails` model fields at submit time. | Preserves AppView DTO compatibility and open-token behavior. | Q2, previous requirements | AC-009, AC-012 |
-| FR-006 | Functional | Must | The top-level post composer entry points in feed and own-profile Posts tab shall open a post-type choice surface with regular post and project post options. | Users need a clear way to choose post type. | Q3, current entry discovery | AC-001, AC-002 |
+| FR-006 | Functional | Must | The top-level post composer entry points in feed and own-profile Posts tab shall open a post-type choice surface, presented with the same full-screen root-navigator composer/task pattern as the existing post composer, with regular post and project post options. | Users need a clear way to choose post type without introducing a different modal pattern. | Q3, Q7, current entry discovery | AC-001, AC-002 |
 | FR-007 | Functional | Must | Choosing regular post from the entry picker shall open the existing regular composer and preserve existing text, photo, facet, reply and submit behavior. | Prevents regressions to existing posting. | Q3, current composer discovery | AC-002, AC-014 |
 | FR-008 | Functional | Must | Choosing project post from the entry picker shall open a full-screen project composer route/sheet on the root navigator, visually consistent with the existing composer and shell-covering modal task screens. | Project composition is a temporary task and should cover shell navigation like existing composers. | Current composer/router discovery | AC-001, AC-007 |
 | FR-009 | Functional | Must | The project composer shall be wrapped in `FormBuilder` and shall collect body text, photos with alt text, project title, craft type, status, pattern information and materials. | These are the top-level project-post UX fields requested. | Prompt, Q1 | AC-006, AC-007, AC-012 |
@@ -218,8 +225,8 @@ Activating a top-level post entry point shall offer a choice between a regular p
 
 | ID | Requirement IDs | Acceptance Criterion |
 |---|---|---|
-| AC-001 | BR-001, FR-006, FR-008 | Given an authenticated user taps a top-level “New post” action in feed or own-profile Posts tab, when the choice surface is shown and the user chooses project post, then a full-screen project composer opens. |
-| AC-002 | BR-002, FR-006, FR-007 | Given the same entry point, when the user chooses regular post, then the existing regular post composer opens and can create a non-project post as before. |
+| AC-001 | BR-001, FR-006, FR-008 | Given an authenticated user taps a top-level “New post” action in feed or own-profile Posts tab, when the full-screen composer choice surface is shown and the user chooses project post, then a full-screen project composer opens. |
+| AC-002 | BR-002, FR-006, FR-007 | Given the same full-screen composer choice surface, when the user chooses regular post, then the existing regular post composer opens and can create a non-project post as before. |
 | AC-003 | FR-001, FR-002, NFR-001 | Given the reusable Craftsky text, multiline, dropdown, multi-select and radio fields are rendered, when inspected in widget tests, then they expose labels, values, helper/error text, enabled state and use Material focus/semantics/tap behavior appropriate to the control. |
 | AC-004 | FR-001, FR-003 | Given a Craftsky text or multiline field is used inside `FormBuilder`, when the user edits, saves, validates and resets the form, then the field value and error state flow through the named FormBuilder field. |
 | AC-005 | FR-002, NFR-001 | Given Craftsky dropdown, multi-select and radio fields are used inside `FormBuilder`, when the user changes selection, validates and resets the form, then selected string values or value lists are reflected by FormBuilder and validation errors are visible/accessibility-exposed. |
@@ -246,7 +253,7 @@ Activating a top-level post entry point shall offer a choice between a regular p
 
 | ID | Case | Expected Behavior | Requirement IDs |
 |---|---|---|---|
-| EC-001 | User opens entry picker and dismisses it | No composer opens and no draft/provider state is changed. | FR-006 |
+| EC-001 | User opens the full-screen entry picker and dismisses it | No composer opens and no draft/provider state is changed. | FR-006 |
 | EC-002 | User switches craft type after entering detail fields | The composer prevents stale detail fields from being submitted for the newly selected craft; preserving or clearing per-craft drafts may be implementation-defined but the submitted payload must match the active craft. | FR-010, FR-011, FR-012, FR-013, FR-014 |
 | EC-003 | Detail section is collapsed while detail fields contain values | Entered active-craft detail values remain part of the form and may be submitted unless the user clears them. | FR-010 |
 | EC-004 | Gauge rows are omitted but stitches/measurement/unit are present | Gauge can be submitted without rows. | FR-012, FR-013 |
@@ -314,18 +321,16 @@ Activating a top-level post entry point shall offer a choice between a regular p
 
 ## 21. Open Questions
 
-- [ ] Non-blocking: Should a later slice add generated token catalogs from lexicon JSON to avoid hand-maintained drift?
-- [ ] Non-blocking: Should project body hashtags be merged into `project.common.tags` in this or a later search-focused composer enhancement? This MVP must preserve existing facet generation but does not require new tag-normalization behavior unless chosen during test design.
-- [ ] Non-blocking: Should the final visual treatment use a modal bottom-sheet picker, dialog or dedicated choice page? Requirements only require a lightweight choice surface with both options.
+- None.
 
 ## 22. Review Status
 
-Status: Draft  
+Status: Reviewed  
 Risk level: Medium  
 Review recommended: Yes  
-Reviewer:  
+Reviewer: User annotation review  
 Date: 2026-06-11  
-Notes: Medium risk because this is user-visible UI touching the composer, validation, image/facet reuse and create submission. Review is recommended before test design but not required by policy.
+Notes: User annotations addressed. Generated token catalogs and hashtag-to-project-tag merging are deferred. The entry picker should use the same full-screen composer/task presentation pattern as the existing post composer. Medium risk remains because this is user-visible UI touching the composer, validation, image/facet reuse and create submission.
 
 ## 23. Handoff To Test Design
 
