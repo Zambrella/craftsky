@@ -173,7 +173,7 @@ void main() {
       expect(
         mid.value?.items.map((p) => p.rkey),
         ['a'],
-        reason: 'previous data preserved via copyWithPrevious',
+        reason: 'previous data preserved by Riverpod',
       );
       expect(mid.value?.cursor, 'c1', reason: 'cursor unchanged on failure');
 

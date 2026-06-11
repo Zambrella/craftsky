@@ -1,4 +1,5 @@
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
+import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
@@ -47,6 +48,7 @@ class Post with PostMappable {
     this.reply,
     this.quote,
     this.moderation,
+    this.project,
   }) : uri = AtUri.parse(uri),
        cid = Cid.parse(cid),
        rkey = RecordKey.parse(rkey);
@@ -70,6 +72,7 @@ class Post with PostMappable {
   final bool viewerHasReplied;
   final List<PostImage>? images;
   final ModerationMetadata? moderation;
+  final Project? project;
 }
 
 @MappableClass(ignoreNull: true, includeCustomMappers: [CidMapper()])

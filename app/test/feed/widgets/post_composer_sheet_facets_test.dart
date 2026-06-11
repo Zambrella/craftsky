@@ -23,10 +23,11 @@ void main() {
     ) async {
       List<Map<String, dynamic>>? capturedFacets;
       final repo = FakePostRepository(
-        onCreateWithFacets: ({required text, reply, images, facets}) async {
-          capturedFacets = facets;
-          return _post(text);
-        },
+        onCreateWithFacets:
+            ({required text, reply, project, images, facets}) async {
+              capturedFacets = facets;
+              return _post(text);
+            },
       );
 
       await _openComposer(

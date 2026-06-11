@@ -5,6 +5,8 @@ import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
+import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -15,6 +17,7 @@ Map<String, dynamic> _postMap({
   String did = 'did:plc:alice',
   String handle = 'alice.craftsky.social',
   PostReply? reply,
+  Project? project,
 }) => {
   'uri': 'at://$did/social.craftsky.feed.post/$rkey',
   'cid': 'bafy_$rkey',
@@ -30,6 +33,7 @@ Map<String, dynamic> _postMap({
   'indexedAt': '2026-05-04T18:23:47.000Z',
   'author': {'did': did, 'handle': handle},
   if (reply != null) 'reply': reply.toMap(),
+  if (project != null) 'project': project.toMap(),
 };
 
 Post _post({
@@ -37,8 +41,19 @@ Post _post({
   String did = 'did:plc:alice',
   String handle = 'alice.craftsky.social',
   PostReply? reply,
+  Project? project,
 }) => PostMapper.fromMap(
-  _postMap(rkey: rkey, did: did, handle: handle, reply: reply),
+  _postMap(
+    rkey: rkey,
+    did: did,
+    handle: handle,
+    reply: reply,
+    project: project,
+  ),
+);
+
+const _project = Project(
+  common: ProjectCommon(craftType: 'social.craftsky.feed.defs#embroidery'),
 );
 
 void main() {
@@ -85,10 +100,11 @@ void main() {
         },
       ];
       final fake = FakePostRepository(
-        onCreateWithFacets: ({required text, reply, images, facets}) async {
-          capturedFacets = facets;
-          return _post(rkey: 'new');
-        },
+        onCreateWithFacets:
+            ({required text, reply, project, images, facets}) async {
+              capturedFacets = facets;
+              return _post(rkey: 'new');
+            },
       );
       final container = ProviderContainer.test(
         overrides: [postRepositoryProvider.overrideWithValue(fake)],
@@ -304,5 +320,150 @@ void main() {
       final list = container.read(userPostsProvider('did:plc:alice')).value!;
       expect(list.items.map((p) => p.rkey), ['old']);
     });
+
+    test(
+      'UT-012 rejects project-plus-reply without calling repository',
+      () async {
+        var calls = 0;
+        final target = _post(rkey: 'target');
+        final reply = PostReply(
+          root: PostRef(uri: target.uri, cid: target.cid),
+          parent: PostRef(uri: target.uri, cid: target.cid),
+        );
+        final fake = FakePostRepository(
+          onCreateWithFacets:
+              ({required text, reply, project, images, facets}) async {
+                calls++;
+                return _post(rkey: 'should-not-call');
+              },
+        );
+        final container = ProviderContainer.test(
+          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        );
+
+        await container
+            .read(createPostProvider.notifier)
+            .create(text: 'invalid', project: _project, reply: reply);
+
+        expect(container.read(createPostProvider).hasError, isTrue);
+        expect(calls, 0);
+      },
+    );
+
+    test(
+      'IT-007 project create updates timeline and did/handle project caches only',
+      () async {
+        final fake = FakePostRepository(
+          onListTimeline: ({cursor, limit}) async =>
+              PostPage(items: [_post(rkey: 'old')]),
+          onListByAuthor: (id, {cursor, limit}) async =>
+              PostPage(items: [_post(rkey: 'old-post')]),
+          onListProjectsByAuthor: (id, {cursor, limit}) async => PostPage(
+            items: [_post(rkey: 'old-project', project: _project)],
+          ),
+          onCreateWithFacets:
+              ({required text, reply, project, images, facets}) async =>
+                  _post(rkey: 'new-project', project: project),
+        );
+        final container = ProviderContainer.test(
+          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        );
+        await container.read(timelineProvider.future);
+        await container.read(userPostsProvider('did:plc:alice').future);
+        await container.read(userPostsProvider('alice.craftsky.social').future);
+        await container.read(userProjectsProvider('did:plc:alice').future);
+        await container.read(
+          userProjectsProvider('alice.craftsky.social').future,
+        );
+
+        await container
+            .read(createPostProvider.notifier)
+            .create(text: 'project', project: _project);
+
+        expect(
+          container.read(timelineProvider).value!.items.map((p) => p.rkey),
+          [
+            'new-project',
+            'old',
+          ],
+        );
+        expect(
+          container
+              .read(userProjectsProvider('did:plc:alice'))
+              .value!
+              .items
+              .map((p) => p.rkey),
+          [
+            'new-project',
+            'old-project',
+          ],
+        );
+        expect(
+          container
+              .read(userProjectsProvider('alice.craftsky.social'))
+              .value!
+              .items
+              .map((p) => p.rkey),
+          [
+            'new-project',
+            'old-project',
+          ],
+        );
+        expect(
+          container
+              .read(userPostsProvider('did:plc:alice'))
+              .value!
+              .items
+              .map((p) => p.rkey),
+          [
+            'old-post',
+          ],
+        );
+        expect(
+          container
+              .read(userPostsProvider('alice.craftsky.social'))
+              .value!
+              .items
+              .map((p) => p.rkey),
+          [
+            'old-post',
+          ],
+        );
+      },
+    );
+
+    test(
+      'UT-019 patches omitted project in synthetic create response',
+      () async {
+        final fake = FakePostRepository(
+          onCreateWithFacets:
+              ({required text, reply, project, images, facets}) async =>
+                  _post(rkey: 'new-project'),
+          onListProjectsByAuthor: (id, {cursor, limit}) async =>
+              const PostPage(items: []),
+        );
+        final container = ProviderContainer.test(
+          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        );
+        await container.read(
+          userProjectsProvider('alice.craftsky.social').future,
+        );
+
+        await container
+            .read(createPostProvider.notifier)
+            .create(text: 'project', project: _project);
+
+        expect(container.read(createPostProvider).value?.project, _project);
+        expect(
+          container
+              .read(userProjectsProvider('alice.craftsky.social'))
+              .value!
+              .items
+              .single
+              .project,
+          _project,
+        );
+      },
+    );
   });
 }

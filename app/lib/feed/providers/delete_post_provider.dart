@@ -4,6 +4,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
+import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'delete_post_provider.g.dart';
@@ -35,10 +36,14 @@ class DeletePost extends _$DeletePost {
       await repo.delete(post.author.did, post.rkey);
       if (!ref.mounted) return null;
 
-      for (final id in <String>{post.author.did, post.author.handle}) {
-        if (ref.exists(userPostsProvider(id))) {
-          ref.read(userPostsProvider(id).notifier).removeByRkey(post.rkey);
+      if (post.project == null) {
+        for (final id in <String>{post.author.did, post.author.handle}) {
+          if (ref.exists(userPostsProvider(id))) {
+            ref.read(userPostsProvider(id).notifier).removeByRkey(post.rkey);
+          }
         }
+      } else {
+        removeFromLiveUserProjectCaches(ref, post);
       }
       removeFromLiveTimelineCache(ref, post.uri);
 

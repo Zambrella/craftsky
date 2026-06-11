@@ -27,20 +27,15 @@ class UserPosts extends _$UserPosts {
   ///   - we've reached the end (`!hasMore`),
   ///   - or a `loadMore` is already in flight (`state.isLoading`).
   ///
-  /// On success, appends items and advances cursor. On failure, the
-  /// state becomes `AsyncError` but `state.value` still returns the
-  /// previous list (via `copyWithPrevious`) so the UI keeps showing
-  /// items; the cursor is unchanged so a retry uses the same cursor.
+  /// On success, appends items and advances cursor. Riverpod preserves
+  /// previous data across loading/error transitions so retry can use the
+  /// same cursor after a load-more failure.
   Future<void> loadMore() async {
-    final current = state.value;
-    if (current == null || !current.hasMore || state.isLoading) return;
+    if (!state.hasValue || state.isLoading) return;
+    final current = state.requireValue;
+    if (!current.hasMore) return;
 
-    // copyWithPrevious is the only public-facing mechanism in Riverpod 3.x for
-    // preserving previous data during a loading/error transition. The @internal
-    // annotation is a package-boundary guard, not a stability concern; Riverpod
-    // uses this pattern in its own generated code.
-    // ignore: invalid_use_of_internal_member
-    state = const AsyncLoading<UserPostsState>().copyWithPrevious(state);
+    state = const AsyncLoading<UserPostsState>();
 
     final next = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
@@ -56,10 +51,7 @@ class UserPosts extends _$UserPosts {
     });
 
     if (!ref.mounted) return;
-    // Same rationale as above: copyWithPrevious keeps previous items visible
-    // when guard returns an AsyncError, enabling retry with the same cursor.
-    // ignore: invalid_use_of_internal_member
-    state = next.copyWithPrevious(state);
+    state = next;
   }
 
   /// Cache helper. Inserts [post] at the head of the items list. No-op
@@ -103,6 +95,7 @@ class UserPosts extends _$UserPosts {
 }
 
 void updateLiveUserPostCaches(Ref ref, Post post) {
+  if (post.project != null) return;
   for (final id in <String>{post.author.did, post.author.handle}) {
     if (ref.exists(userPostsProvider(id))) {
       ref.read(userPostsProvider(id).notifier).replace(post);

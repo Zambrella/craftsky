@@ -27,6 +27,7 @@ class PostMapper extends ClassMapperBase<Post> {
       PostReplyMapper.ensureInitialized();
       PostRefMapper.ensureInitialized();
       ModerationMetadataMapper.ensureInitialized();
+      ProjectMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -122,6 +123,12 @@ class PostMapper extends ClassMapperBase<Post> {
     _$moderation,
     opt: true,
   );
+  static Project? _$project(Post v) => v.project;
+  static const Field<Post, Project> _f$project = Field(
+    'project',
+    _$project,
+    opt: true,
+  );
 
   @override
   final MappableFields<Post> fields = const {
@@ -144,6 +151,7 @@ class PostMapper extends ClassMapperBase<Post> {
     #reply: _f$reply,
     #quote: _f$quote,
     #moderation: _f$moderation,
+    #project: _f$project,
   };
   @override
   final bool ignoreNull = true;
@@ -169,6 +177,7 @@ class PostMapper extends ClassMapperBase<Post> {
       reply: data.dec(_f$reply),
       quote: data.dec(_f$quote),
       moderation: data.dec(_f$moderation),
+      project: data.dec(_f$project),
     );
   }
 
@@ -232,6 +241,7 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
   PostRefCopyWith<$R, PostRef, PostRef>? get quote;
   ModerationMetadataCopyWith<$R, ModerationMetadata, ModerationMetadata>?
   get moderation;
+  ProjectCopyWith<$R, Project, Project>? get project;
   $R call({
     String? uri,
     String? cid,
@@ -252,6 +262,7 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
     PostReply? reply,
     PostRef? quote,
     ModerationMetadata? moderation,
+    Project? project,
   });
   PostCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
@@ -305,6 +316,9 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
   get moderation =>
       $value.moderation?.copyWith.$chain((v) => call(moderation: v));
   @override
+  ProjectCopyWith<$R, Project, Project>? get project =>
+      $value.project?.copyWith.$chain((v) => call(project: v));
+  @override
   $R call({
     String? uri,
     String? cid,
@@ -325,6 +339,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     Object? reply = $none,
     Object? quote = $none,
     Object? moderation = $none,
+    Object? project = $none,
   }) => $apply(
     FieldCopyWithData({
       if (uri != null) #uri: uri,
@@ -346,6 +361,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       if (reply != $none) #reply: reply,
       if (quote != $none) #quote: quote,
       if (moderation != $none) #moderation: moderation,
+      if (project != $none) #project: project,
     }),
   );
   @override
@@ -372,6 +388,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     reply: data.get(#reply, or: $value.reply),
     quote: data.get(#quote, or: $value.quote),
     moderation: data.get(#moderation, or: $value.moderation),
+    project: data.get(#project, or: $value.project),
   );
 
   @override

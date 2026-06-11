@@ -5,6 +5,7 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
+import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'toggle_like_post_provider.g.dart';
@@ -23,6 +24,7 @@ class ToggleLikePost extends _$ToggleLikePost {
     );
 
     updateLiveUserPostCaches(ref, next);
+    updateLiveUserProjectCaches(ref, next);
     updateLiveUserCommentCaches(ref, next);
     updateLiveTimelineCache(ref, next);
     state = AsyncData(next);
@@ -37,6 +39,7 @@ class ToggleLikePost extends _$ToggleLikePost {
     } on Object catch (error, stackTrace) {
       if (!ref.mounted) return;
       updateLiveUserPostCaches(ref, post);
+      updateLiveUserProjectCaches(ref, post);
       updateLiveUserCommentCaches(ref, post);
       updateLiveTimelineCache(ref, post);
       state = AsyncData(post);
