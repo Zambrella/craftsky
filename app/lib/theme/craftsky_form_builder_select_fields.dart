@@ -284,22 +284,22 @@ class _CraftskyMultiSelectBodyState<T>
     setState(() => _limitText = widget.maxSelectedErrorText);
   }
 
-  void _toggle(T value) {
+  void _selectKnownOption(T value) {
     if (!_enabled) return;
     final selected = _selected;
-    if (selected.contains(value)) {
-      selected.remove(value);
-      setState(() => _limitText = null);
-      _setSelected(selected);
-      return;
-    }
     if (_atLimit(selected)) {
       _showLimit();
       return;
     }
-    selected.add(value);
-    setState(() => _limitText = null);
-    _setSelected(selected);
+    if (!selected.contains(value)) {
+      selected.add(value);
+      _setSelected(selected);
+    }
+    _searchController.clear();
+    setState(() {
+      _query = '';
+      _limitText = null;
+    });
   }
 
   void _addCustom() {
@@ -355,7 +355,7 @@ class _CraftskyMultiSelectBodyState<T>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (selected.isNotEmpty)
+          if (widget.options.isEmpty && selected.isNotEmpty)
             Wrap(
               spacing: 8,
               runSpacing: 4,
@@ -372,31 +372,55 @@ class _CraftskyMultiSelectBodyState<T>
               ],
             ),
           if (widget.options.isNotEmpty)
-            TextField(
-              key: Key('${widget.name}-search-input'),
-              controller: _searchController,
-              enabled: _enabled,
-              decoration: InputDecoration(
-                hintText: widget.searchHintText,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                disabledBorder: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
-              ),
-              onChanged: (value) => setState(() => _query = value),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                for (final value in selected)
+                  InputChip(
+                    label: Text(optionLabelByValue[value] ?? value.toString()),
+                    onDeleted: _enabled ? () => _remove(value) : null,
+                    deleteIcon: Icon(
+                      Icons.close,
+                      key: Key('${widget.name}-remove-$value'),
+                    ),
+                  ),
+                SizedBox(
+                  width: 180,
+                  child: TextField(
+                    key: Key('${widget.name}-search-input'),
+                    controller: _searchController,
+                    enabled: _enabled,
+                    decoration: InputDecoration(
+                      hintText: widget.searchHintText,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    onChanged: (value) => setState(() => _query = value),
+                  ),
+                ),
+              ],
             ),
           if (matchingOptions.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Column(
                 children: [
+                  const Divider(height: 1),
                   for (final option in matchingOptions)
                     ListTile(
                       key: Key('${widget.name}-option-${option.value}'),
                       contentPadding: EdgeInsets.zero,
                       title: Text(option.label),
-                      onTap: _enabled ? () => _toggle(option.value) : null,
+                      dense: true,
+                      onTap: _enabled
+                          ? () => _selectKnownOption(option.value)
+                          : null,
                     ),
                 ],
               ),

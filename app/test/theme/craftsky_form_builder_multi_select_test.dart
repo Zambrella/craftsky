@@ -90,6 +90,10 @@ void main() {
     await tester.tap(find.byKey(const Key('colours-option-cream')));
     await tester.pump();
     expect(formKey.currentState!.instantValue['colours'], ['blue', 'cream']);
+    final searchField = tester.widget<TextField>(
+      find.byKey(const Key('colours-search-input')),
+    );
+    expect(searchField.controller?.text, isEmpty);
 
     await tester.enterText(
       find.byKey(const Key('colours-search-input')),
