@@ -325,6 +325,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                       ExpansionTile(
                         tilePadding: EdgeInsets.zero,
                         maintainState: true,
+                        childrenPadding: EdgeInsets.only(bottom: spacing.sp3),
                         title: Text(l10n.projectComposerPatternSectionLabel),
                         children: [
                           CraftskyFormBuilderTextField(
@@ -371,6 +372,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                       SizedBox(height: spacing.sp2),
                       ExpansionTile(
                         tilePadding: EdgeInsets.zero,
+                        childrenPadding: EdgeInsets.only(bottom: spacing.sp3),
                         title: Text(l10n.projectComposerMoreDetailsLabel),
                         children: _detailFields(l10n, spacing, controlsEnabled),
                       ),

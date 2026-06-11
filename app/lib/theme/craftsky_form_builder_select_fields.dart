@@ -339,9 +339,11 @@ class _CraftskyMultiSelectBodyState<T>
         ? <CraftskySelectOption<T>>[]
         : widget.options
               .where(
-                (option) => option.label.toLowerCase().contains(
-                  _query.trim().toLowerCase(),
-                ),
+                (option) =>
+                    !selected.contains(option.value) &&
+                    option.label.toLowerCase().contains(
+                      _query.trim().toLowerCase(),
+                    ),
               )
               .toList();
 
@@ -387,18 +389,14 @@ class _CraftskyMultiSelectBodyState<T>
           if (matchingOptions.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 4,
+              child: Column(
                 children: [
                   for (final option in matchingOptions)
-                    FilterChip(
+                    ListTile(
                       key: Key('${widget.name}-option-${option.value}'),
-                      label: Text(option.label),
-                      selected: selected.contains(option.value),
-                      onSelected: _enabled
-                          ? (_) => _toggle(option.value)
-                          : null,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(option.label),
+                      onTap: _enabled ? () => _toggle(option.value) : null,
                     ),
                 ],
               ),
@@ -477,9 +475,12 @@ class _CraftskySelectFrame extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             enabled: enabled,
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: child,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 56),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: child,
+            ),
           ),
         ),
         if (belowText != null) ...[

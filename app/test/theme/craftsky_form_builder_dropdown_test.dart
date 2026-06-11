@@ -15,17 +15,23 @@ void main() {
       _Harness(
         child: FormBuilder(
           key: formKey,
-          child: CraftskyFormBuilderDropdownField<String>(
-            name: 'craftType',
-            label: 'Craft type',
-            helperText: 'Choose the closest craft',
-            initialValue: 'knitting',
-            options: const [
-              CraftskySelectOption(value: 'knitting', label: 'Knitting'),
-              CraftskySelectOption(value: 'crochet', label: 'Crochet'),
+          child: Column(
+            children: [
+              const TextField(),
+              const SizedBox(height: 24),
+              CraftskyFormBuilderDropdownField<String>(
+                name: 'craftType',
+                label: 'Craft type',
+                helperText: 'Choose the closest craft',
+                initialValue: 'knitting',
+                options: const [
+                  CraftskySelectOption(value: 'knitting', label: 'Knitting'),
+                  CraftskySelectOption(value: 'crochet', label: 'Crochet'),
+                ],
+                validator: (value) => value == null ? 'Choose a craft' : null,
+                onChanged: (value) => changed = value,
+              ),
             ],
-            validator: (value) => value == null ? 'Choose a craft' : null,
-            onChanged: (value) => changed = value,
           ),
         ),
       ),
@@ -34,10 +40,15 @@ void main() {
     expect(find.text('Craft type'), findsOneWidget);
     expect(find.text('Choose the closest craft'), findsOneWidget);
     final decorator = tester.widget<InputDecorator>(
-      find.byType(InputDecorator),
+      find.byType(InputDecorator).last,
     );
     expect(decorator.decoration.labelText, isNull);
     expect(decorator.decoration.contentPadding, EdgeInsets.zero);
+    final textFieldHeight = tester.getSize(find.byType(TextField).first).height;
+    final dropdownHeight = tester
+        .getSize(find.byType(InputDecorator).last)
+        .height;
+    expect((dropdownHeight - textFieldHeight).abs(), lessThanOrEqualTo(4));
     expect(formKey.currentState!.instantValue['craftType'], 'knitting');
 
     await tester.tap(find.text('Knitting'));

@@ -85,10 +85,18 @@ void main() {
     await tester.pump();
     expect(find.byKey(const Key('colours-option-cream')), findsOneWidget);
     expect(find.byKey(const Key('colours-option-red')), findsNothing);
+    expect(find.byType(ListTile), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('colours-option-cream')));
     await tester.pump();
     expect(formKey.currentState!.instantValue['colours'], ['blue', 'cream']);
+
+    await tester.enterText(
+      find.byKey(const Key('colours-search-input')),
+      'blue',
+    );
+    await tester.pump();
+    expect(find.byKey(const Key('colours-option-blue')), findsNothing);
 
     await tester.tap(find.byKey(const Key('colours-remove-blue')));
     await tester.pump();
