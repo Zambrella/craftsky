@@ -107,6 +107,37 @@ void main() {
     expect(formKey.currentState!.instantValue['colours'], ['cream']);
   });
 
+  testWidgets('UT-004 inline known-option search stays centred with chips', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const _Harness(
+        child: FormBuilder(
+          child: CraftskyFormBuilderMultiSelectField<String>(
+            name: 'designTags',
+            label: 'Design tags',
+            initialValue: ['floral'],
+            searchHintText: 'Search design tags',
+            options: [
+              CraftskySelectOption(value: 'floral', label: 'Floral'),
+              CraftskySelectOption(value: 'striped', label: 'Striped'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final chipCenter = tester.getCenter(find.byType(InputChip));
+    final fieldCenter = tester.getCenter(
+      find.byKey(const Key('designTags-search-input')),
+    );
+    expect((chipCenter.dy - fieldCenter.dy).abs(), lessThanOrEqualTo(8));
+    expect(
+      tester.getSize(find.byKey(const Key('designTags-search-input'))).width,
+      greaterThan(240),
+    );
+  });
+
   testWidgets('UT-016 multi-select disabled copy is supplied by caller', (
     tester,
   ) async {

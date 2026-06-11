@@ -372,36 +372,53 @@ class _CraftskyMultiSelectBodyState<T>
               ],
             ),
           if (widget.options.isNotEmpty)
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            Row(
               children: [
-                for (final value in selected)
-                  InputChip(
-                    label: Text(optionLabelByValue[value] ?? value.toString()),
-                    onDeleted: _enabled ? () => _remove(value) : null,
-                    deleteIcon: Icon(
-                      Icons.close,
-                      key: Key('${widget.name}-remove-$value'),
+                if (selected.isNotEmpty)
+                  Flexible(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final value in selected) ...[
+                            InputChip(
+                              label: Text(
+                                optionLabelByValue[value] ?? value.toString(),
+                              ),
+                              onDeleted: _enabled ? () => _remove(value) : null,
+                              deleteIcon: Icon(
+                                Icons.close,
+                                key: Key('${widget.name}-remove-$value'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
-                SizedBox(
-                  width: 180,
-                  child: TextField(
-                    key: Key('${widget.name}-search-input'),
-                    controller: _searchController,
-                    enabled: _enabled,
-                    decoration: InputDecoration(
-                      hintText: widget.searchHintText,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      disabledBorder: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.zero,
+                Expanded(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 32),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextField(
+                        key: Key('${widget.name}-search-input'),
+                        controller: _searchController,
+                        enabled: _enabled,
+                        decoration: InputDecoration(
+                          hintText: widget.searchHintText,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        onChanged: (value) => setState(() => _query = value),
+                      ),
                     ),
-                    onChanged: (value) => setState(() => _query = value),
                   ),
                 ),
               ],
