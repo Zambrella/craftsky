@@ -18,6 +18,7 @@ void main() {
       'postTypeProjectDescription',
       'projectComposerTitle',
       'projectComposerProjectTitleLabel',
+      'projectComposerProjectTitleHint',
       'projectComposerCraftTypeLabel',
       'projectComposerStatusLabel',
       'projectComposerMaterialsLabel',
@@ -26,13 +27,25 @@ void main() {
       'projectComposerFieldDisabledLabel',
       'projectComposerMultiSelectMaxSelectedError',
       'projectComposerColoursLabel',
+      'projectComposerColoursSearchHint',
       'projectComposerDesignTagsLabel',
-      'projectComposerAddPatternAction',
+      'projectComposerDesignTagsSearchHint',
+      'projectComposerPatternSectionLabel',
       'projectComposerMoreDetailsLabel',
       'projectComposerSewingProjectTypeLabel',
       'projectComposerKnittingProjectTypeLabel',
       'projectComposerCrochetProjectTypeLabel',
       'projectComposerQuiltingProjectTypeLabel',
+      'projectComposerSizeMadeHint',
+      'projectComposerFitNotesHint',
+      'projectComposerGaugeStitchesHint',
+      'projectComposerGaugeRowsHint',
+      'projectComposerGaugeMeasurementHint',
+      'projectComposerFinishedSizeHint',
+      'projectComposerPatternNameHint',
+      'projectComposerPatternUrlHint',
+      'projectComposerPatternDesignerHint',
+      'projectComposerPatternPublisherHint',
       'projectComposerGaugeInvalidError',
       'projectComposerPhotoRequiredError',
     ];
@@ -50,6 +63,7 @@ void main() {
     }
 
     expect(arb['projectComposerColoursLabel'], 'Colours');
+    expect(arb['projectComposerColoursSearchHint'], 'Search colours');
     expect(arb['projectComposerPhotoRequiredError'], 'Add at least one photo.');
   });
 }

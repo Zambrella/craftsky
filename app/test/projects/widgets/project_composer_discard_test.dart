@@ -34,7 +34,8 @@ void main() {
   ) async {
     await _openProjectComposer(tester);
 
-    await tester.enterText(find.byType(TextField).first, 'A finished hoop');
+    await tester.ensureVisible(_bodyTextField());
+    await tester.enterText(_bodyTextField(), 'A finished hoop');
     await tester.pump();
 
     await tester.tap(find.byType(CloseButton));
@@ -110,6 +111,13 @@ void main() {
 
     expect(find.text('Discard draft?'), findsOneWidget);
   });
+}
+
+Finder _bodyTextField() {
+  return find.descendant(
+    of: find.byKey(const Key('project-composer-body-editor')),
+    matching: find.byType(TextField),
+  );
 }
 
 Future<void> _openProjectComposer(

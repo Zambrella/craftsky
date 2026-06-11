@@ -33,6 +33,11 @@ void main() {
 
     expect(find.text('Craft type'), findsOneWidget);
     expect(find.text('Choose the closest craft'), findsOneWidget);
+    final decorator = tester.widget<InputDecorator>(
+      find.byType(InputDecorator),
+    );
+    expect(decorator.decoration.labelText, isNull);
+    expect(decorator.decoration.contentPadding, EdgeInsets.zero);
     expect(formKey.currentState!.instantValue['craftType'], 'knitting');
 
     await tester.tap(find.text('Knitting'));

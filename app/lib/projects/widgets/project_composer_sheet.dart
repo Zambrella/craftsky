@@ -56,7 +56,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   String? _quiltingProjectType;
   bool _attemptedSubmit = false;
   String? _formValidationError;
-  bool _showPatternFields = false;
   int? _lastImageNoticeId;
 
   @override
@@ -165,12 +164,13 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         ),
         body: SafeArea(
           top: false,
+          bottom: false,
           child: SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
               spacing.sp4,
               spacing.sp5,
               spacing.sp4,
-              spacing.sp7,
+              0,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -191,24 +191,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                       .reorder(fromIndex: fromIndex, toIndex: toIndex),
                 ),
                 SizedBox(height: spacing.sp6),
-                FacetAutocompleteEditor(
-                  key: const Key('project-composer-body-editor'),
-                  label: l10n.postComposeHint,
-                  hintText: l10n.postComposeBodyHint,
-                  controller: _bodyController,
-                  focusNode: _bodyFocusNode,
-                  minLines: 3,
-                  maxLines: 12,
-                  enabled: controlsEnabled,
-                  textInputAction: TextInputAction.newline,
-                  keyboardType: TextInputType.multiline,
-                  errorText: bodyErrorText,
-                  helperText:
-                      '${_bodyText.length}/${ProjectComposerSheet.maxCharacters}',
-                  helperAlignment: AlignmentDirectional.centerEnd,
-                  onChanged: (value) => setState(() => _bodyText = value),
-                ),
-                SizedBox(height: spacing.sp6),
                 if (_formValidationError case final formValidationError?) ...[
                   Text(
                     formValidationError,
@@ -226,6 +208,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                       CraftskyFormBuilderTextField(
                         name: ProjectComposerFields.title,
                         label: l10n.projectComposerProjectTitleLabel,
+                        hintText: l10n.projectComposerProjectTitleHint,
                         enabled: controlsEnabled,
                       ),
                       SizedBox(height: spacing.sp4),
@@ -271,7 +254,25 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                         },
                       ),
                       SizedBox(height: spacing.sp4),
-                      CraftskyFormBuilderRadioField<String>(
+                      FacetAutocompleteEditor(
+                        key: const Key('project-composer-body-editor'),
+                        label: l10n.postComposeHint,
+                        hintText: l10n.postComposeBodyHint,
+                        controller: _bodyController,
+                        focusNode: _bodyFocusNode,
+                        minLines: 3,
+                        maxLines: 12,
+                        enabled: controlsEnabled,
+                        textInputAction: TextInputAction.newline,
+                        keyboardType: TextInputType.multiline,
+                        errorText: bodyErrorText,
+                        helperText:
+                            '${_bodyText.length}/${ProjectComposerSheet.maxCharacters}',
+                        helperAlignment: AlignmentDirectional.centerEnd,
+                        onChanged: (value) => setState(() => _bodyText = value),
+                      ),
+                      SizedBox(height: spacing.sp4),
+                      CraftskyFormBuilderDropdownField<String>(
                         name: ProjectComposerFields.status,
                         label: l10n.projectComposerStatusLabel,
                         initialValue: ProjectOptionCatalogs.finishedStatusToken,
@@ -299,6 +300,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                         label: l10n.projectComposerColoursLabel,
                         options: _selectOptions(ProjectOptionCatalogs.colours),
                         maxSelected: 10,
+                        searchHintText: l10n.projectComposerColoursSearchHint,
                         disabledText: l10n.projectComposerFieldDisabledLabel,
                         maxSelectedErrorText: l10n
                             .projectComposerMultiSelectMaxSelectedError(10),
@@ -312,62 +314,60 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                           ProjectOptionCatalogs.designTags,
                         ),
                         maxSelected: 10,
+                        searchHintText:
+                            l10n.projectComposerDesignTagsSearchHint,
                         disabledText: l10n.projectComposerFieldDisabledLabel,
                         maxSelectedErrorText: l10n
                             .projectComposerMultiSelectMaxSelectedError(10),
                         enabled: controlsEnabled,
                       ),
                       SizedBox(height: spacing.sp4),
-                      Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: TextButton.icon(
-                          onPressed: _showPatternFields
-                              ? null
-                              : controlsEnabled
-                              ? () => setState(() => _showPatternFields = true)
-                              : null,
-                          icon: const Icon(Icons.add),
-                          label: Text(l10n.projectComposerAddPatternAction),
-                        ),
-                      ),
-                      if (_showPatternFields) ...[
-                        SizedBox(height: spacing.sp4),
-                        CraftskyFormBuilderTextField(
-                          name: ProjectComposerFields.patternName,
-                          label: l10n.projectComposerPatternNameLabel,
-                          textFieldKey: const Key('pattern-name-input'),
-                          enabled: controlsEnabled,
-                        ),
-                        SizedBox(height: spacing.sp4),
-                        CraftskyFormBuilderTextField(
-                          name: ProjectComposerFields.patternUrl,
-                          label: l10n.projectComposerPatternUrlLabel,
-                          keyboardType: TextInputType.url,
-                          textFieldKey: const Key('pattern-url-input'),
-                          enabled: controlsEnabled,
-                        ),
-                        SizedBox(height: spacing.sp4),
-                        CraftskyFormBuilderDropdownField<String>(
-                          name: ProjectComposerFields.patternDifficulty,
-                          label: l10n.projectComposerPatternDifficultyLabel,
-                          options: _selectOptions(
-                            ProjectOptionCatalogs.patternDifficulties,
+                      ExpansionTile(
+                        tilePadding: EdgeInsets.zero,
+                        maintainState: true,
+                        title: Text(l10n.projectComposerPatternSectionLabel),
+                        children: [
+                          CraftskyFormBuilderTextField(
+                            name: ProjectComposerFields.patternName,
+                            label: l10n.projectComposerPatternNameLabel,
+                            hintText: l10n.projectComposerPatternNameHint,
+                            textFieldKey: const Key('pattern-name-input'),
+                            enabled: controlsEnabled,
                           ),
-                          enabled: controlsEnabled,
-                        ),
-                        SizedBox(height: spacing.sp4),
-                        CraftskyFormBuilderTextField(
-                          name: ProjectComposerFields.patternDesigner,
-                          label: l10n.projectComposerPatternDesignerLabel,
-                          enabled: controlsEnabled,
-                        ),
-                        SizedBox(height: spacing.sp4),
-                        CraftskyFormBuilderTextField(
-                          name: ProjectComposerFields.patternPublisher,
-                          label: l10n.projectComposerPatternPublisherLabel,
-                          enabled: controlsEnabled,
-                        ),
-                      ],
+                          SizedBox(height: spacing.sp4),
+                          CraftskyFormBuilderTextField(
+                            name: ProjectComposerFields.patternUrl,
+                            label: l10n.projectComposerPatternUrlLabel,
+                            hintText: l10n.projectComposerPatternUrlHint,
+                            keyboardType: TextInputType.url,
+                            textFieldKey: const Key('pattern-url-input'),
+                            enabled: controlsEnabled,
+                          ),
+                          SizedBox(height: spacing.sp4),
+                          CraftskyFormBuilderDropdownField<String>(
+                            name: ProjectComposerFields.patternDifficulty,
+                            label: l10n.projectComposerPatternDifficultyLabel,
+                            options: _selectOptions(
+                              ProjectOptionCatalogs.patternDifficulties,
+                            ),
+                            enabled: controlsEnabled,
+                          ),
+                          SizedBox(height: spacing.sp4),
+                          CraftskyFormBuilderTextField(
+                            name: ProjectComposerFields.patternDesigner,
+                            label: l10n.projectComposerPatternDesignerLabel,
+                            hintText: l10n.projectComposerPatternDesignerHint,
+                            enabled: controlsEnabled,
+                          ),
+                          SizedBox(height: spacing.sp4),
+                          CraftskyFormBuilderTextField(
+                            name: ProjectComposerFields.patternPublisher,
+                            label: l10n.projectComposerPatternPublisherLabel,
+                            hintText: l10n.projectComposerPatternPublisherHint,
+                            enabled: controlsEnabled,
+                          ),
+                        ],
+                      ),
                       SizedBox(height: spacing.sp2),
                       ExpansionTile(
                         tilePadding: EdgeInsets.zero,
@@ -376,6 +376,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                       ),
                     ],
                   ),
+                ),
+                SizedBox(
+                  key: const Key('project-composer-bottom-safe-space'),
+                  height: spacing.sp7 + MediaQuery.paddingOf(context).bottom,
                 ),
               ],
             ),
@@ -503,12 +507,14 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       CraftskyFormBuilderTextField(
         name: ProjectComposerFields.sewingSizeMade,
         label: l10n.projectComposerSizeMadeLabel,
+        hintText: l10n.projectComposerSizeMadeHint,
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
       CraftskyFormBuilderMultilineTextField(
         name: ProjectComposerFields.sewingFitNotes,
         label: l10n.projectComposerFitNotesLabel,
+        hintText: l10n.projectComposerFitNotesHint,
         enabled: controlsEnabled,
       ),
     ];
@@ -568,6 +574,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       CraftskyFormBuilderTextField(
         name: ProjectComposerFields.knittingGaugeStitches,
         label: l10n.projectComposerGaugeStitchesLabel,
+        hintText: l10n.projectComposerGaugeStitchesHint,
         keyboardType: TextInputType.number,
         textFieldKey: const Key('knitting-gauge-stitches-input'),
         enabled: controlsEnabled,
@@ -576,6 +583,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       CraftskyFormBuilderTextField(
         name: ProjectComposerFields.knittingGaugeRows,
         label: l10n.projectComposerGaugeRowsLabel,
+        hintText: l10n.projectComposerGaugeRowsHint,
         keyboardType: TextInputType.number,
         enabled: controlsEnabled,
       ),
@@ -583,6 +591,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       CraftskyFormBuilderTextField(
         name: ProjectComposerFields.knittingGaugeMeasurement,
         label: l10n.projectComposerGaugeMeasurementLabel,
+        hintText: l10n.projectComposerGaugeMeasurementHint,
         keyboardType: TextInputType.number,
         enabled: controlsEnabled,
       ),
@@ -597,6 +606,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       CraftskyFormBuilderTextField(
         name: ProjectComposerFields.knittingFinishedSize,
         label: l10n.projectComposerFinishedSizeLabel,
+        hintText: l10n.projectComposerFinishedSizeHint,
         enabled: controlsEnabled,
       ),
     ];
@@ -656,6 +666,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       CraftskyFormBuilderTextField(
         name: ProjectComposerFields.crochetGaugeStitches,
         label: l10n.projectComposerGaugeStitchesLabel,
+        hintText: l10n.projectComposerGaugeStitchesHint,
         keyboardType: TextInputType.number,
         enabled: controlsEnabled,
       ),
@@ -663,6 +674,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       CraftskyFormBuilderTextField(
         name: ProjectComposerFields.crochetGaugeRows,
         label: l10n.projectComposerGaugeRowsLabel,
+        hintText: l10n.projectComposerGaugeRowsHint,
         keyboardType: TextInputType.number,
         enabled: controlsEnabled,
       ),
@@ -670,6 +682,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       CraftskyFormBuilderTextField(
         name: ProjectComposerFields.crochetGaugeMeasurement,
         label: l10n.projectComposerGaugeMeasurementLabel,
+        hintText: l10n.projectComposerGaugeMeasurementHint,
         keyboardType: TextInputType.number,
         enabled: controlsEnabled,
       ),
@@ -684,6 +697,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       CraftskyFormBuilderTextField(
         name: ProjectComposerFields.crochetFinishedSize,
         label: l10n.projectComposerFinishedSizeLabel,
+        hintText: l10n.projectComposerFinishedSizeHint,
         enabled: controlsEnabled,
       ),
     ];
@@ -729,6 +743,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       CraftskyFormBuilderTextField(
         name: ProjectComposerFields.quiltingSize,
         label: l10n.projectComposerSizeLabel,
+        hintText: l10n.projectComposerFinishedSizeHint,
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),

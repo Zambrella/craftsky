@@ -49,7 +49,7 @@ void main() {
     expect(find.text('linen'), findsNothing);
   });
 
-  testWidgets('UT-004 known-option multi-select saves and removes strings', (
+  testWidgets('UT-004 known-option multi-select searches and saves strings', (
     tester,
   ) async {
     final formKey = GlobalKey<FormBuilderState>();
@@ -63,9 +63,11 @@ void main() {
             label: 'Colours',
             initialValue: ['blue'],
             maxSelected: 2,
+            searchHintText: 'Search colours',
             options: [
               CraftskySelectOption(value: 'blue', label: 'Blue'),
               CraftskySelectOption(value: 'cream', label: 'Cream'),
+              CraftskySelectOption(value: 'red', label: 'Red'),
             ],
           ),
         ),
@@ -73,11 +75,22 @@ void main() {
     );
 
     expect(formKey.currentState!.instantValue['colours'], ['blue']);
+    expect(find.text('Search colours'), findsOneWidget);
+    expect(find.byKey(const Key('colours-option-red')), findsNothing);
+
+    await tester.enterText(
+      find.byKey(const Key('colours-search-input')),
+      'cre',
+    );
+    await tester.pump();
+    expect(find.byKey(const Key('colours-option-cream')), findsOneWidget);
+    expect(find.byKey(const Key('colours-option-red')), findsNothing);
+
     await tester.tap(find.byKey(const Key('colours-option-cream')));
     await tester.pump();
     expect(formKey.currentState!.instantValue['colours'], ['blue', 'cream']);
 
-    await tester.tap(find.byKey(const Key('colours-option-blue')));
+    await tester.tap(find.byKey(const Key('colours-remove-blue')));
     await tester.pump();
     expect(formKey.currentState!.instantValue['colours'], ['cream']);
   });

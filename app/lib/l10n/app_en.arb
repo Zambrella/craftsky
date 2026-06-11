@@ -328,6 +328,9 @@
   "projectComposerProjectTitleLabel": "Project title",
   "@projectComposerProjectTitleLabel": { "description": "Label for the optional project-title field in the project composer." },
 
+  "projectComposerProjectTitleHint": "Add a short project title",
+  "@projectComposerProjectTitleHint": { "description": "Placeholder text for the optional project-title field in the project composer." },
+
   "projectComposerCraftTypeLabel": "Craft type",
   "@projectComposerCraftTypeLabel": { "description": "Label for the project composer craft-type field." },
 
@@ -355,11 +358,20 @@
   "projectComposerColoursLabel": "Colours",
   "@projectComposerColoursLabel": { "description": "Label for the project composer colours field." },
 
+  "projectComposerColoursSearchHint": "Search colours",
+  "@projectComposerColoursSearchHint": { "description": "Placeholder text for searching known colour options in the project composer." },
+
   "projectComposerDesignTagsLabel": "Design tags",
   "@projectComposerDesignTagsLabel": { "description": "Label for the project composer design-tags field." },
 
+  "projectComposerDesignTagsSearchHint": "Search design tags",
+  "@projectComposerDesignTagsSearchHint": { "description": "Placeholder text for searching known design-tag options in the project composer." },
+
   "projectComposerAddPatternAction": "Add pattern",
   "@projectComposerAddPatternAction": { "description": "Action that reveals optional project pattern fields in the project composer." },
+
+  "projectComposerPatternSectionLabel": "Pattern",
+  "@projectComposerPatternSectionLabel": { "description": "Disclosure label for the optional pattern section in the project composer." },
 
   "projectComposerMoreDetailsLabel": "More project details",
   "@projectComposerMoreDetailsLabel": { "description": "Disclosure label for optional craft-specific project detail fields." },
@@ -373,8 +385,14 @@
   "projectComposerSizeMadeLabel": "Size made",
   "@projectComposerSizeMadeLabel": { "description": "Label for the sewing size-made detail field." },
 
+  "projectComposerSizeMadeHint": "e.g. Medium or custom measurements",
+  "@projectComposerSizeMadeHint": { "description": "Placeholder text for the sewing size-made detail field." },
+
   "projectComposerFitNotesLabel": "Fit notes",
   "@projectComposerFitNotesLabel": { "description": "Label for the sewing fit-notes detail field." },
+
+  "projectComposerFitNotesHint": "Add fit notes",
+  "@projectComposerFitNotesHint": { "description": "Placeholder text for the sewing fit-notes detail field." },
 
   "projectComposerKnittingProjectTypeLabel": "Knitting project type",
   "@projectComposerKnittingProjectTypeLabel": { "description": "Label for the knitting project-type field in project details." },
@@ -397,17 +415,29 @@
   "projectComposerGaugeStitchesLabel": "Gauge stitches",
   "@projectComposerGaugeStitchesLabel": { "description": "Label for gauge stitches input in project details." },
 
+  "projectComposerGaugeStitchesHint": "Stitches",
+  "@projectComposerGaugeStitchesHint": { "description": "Placeholder text for gauge stitch count fields." },
+
   "projectComposerGaugeRowsLabel": "Gauge rows",
   "@projectComposerGaugeRowsLabel": { "description": "Label for optional gauge rows input in project details." },
 
+  "projectComposerGaugeRowsHint": "Rows",
+  "@projectComposerGaugeRowsHint": { "description": "Placeholder text for optional gauge row count fields." },
+
   "projectComposerGaugeMeasurementLabel": "Gauge measurement",
   "@projectComposerGaugeMeasurementLabel": { "description": "Label for gauge measurement input in project details." },
+
+  "projectComposerGaugeMeasurementHint": "Measurement",
+  "@projectComposerGaugeMeasurementHint": { "description": "Placeholder text for gauge measurement fields." },
 
   "projectComposerGaugeUnitLabel": "Gauge unit",
   "@projectComposerGaugeUnitLabel": { "description": "Label for gauge unit selection in project details." },
 
   "projectComposerFinishedSizeLabel": "Finished size",
   "@projectComposerFinishedSizeLabel": { "description": "Label for finished-size detail fields." },
+
+  "projectComposerFinishedSizeHint": "Add finished size",
+  "@projectComposerFinishedSizeHint": { "description": "Placeholder text for finished-size detail fields." },
 
   "projectComposerSizeLabel": "Size",
   "@projectComposerSizeLabel": { "description": "Label for the quilting size detail field." },
@@ -433,8 +463,14 @@
   "projectComposerPatternNameLabel": "Pattern name",
   "@projectComposerPatternNameLabel": { "description": "Label for the optional pattern-name field in the project composer." },
 
+  "projectComposerPatternNameHint": "Add pattern name",
+  "@projectComposerPatternNameHint": { "description": "Placeholder text for the optional pattern-name field in the project composer." },
+
   "projectComposerPatternUrlLabel": "Pattern URL",
   "@projectComposerPatternUrlLabel": { "description": "Label for the optional pattern URL field in the project composer." },
+
+  "projectComposerPatternUrlHint": "https://example.com/pattern",
+  "@projectComposerPatternUrlHint": { "description": "Placeholder text for the optional pattern URL field in the project composer." },
 
   "projectComposerPatternDifficultyLabel": "Pattern difficulty",
   "@projectComposerPatternDifficultyLabel": { "description": "Label for the optional pattern difficulty field in the project composer." },
@@ -442,8 +478,14 @@
   "projectComposerPatternDesignerLabel": "Designer",
   "@projectComposerPatternDesignerLabel": { "description": "Label for the optional pattern designer field in the project composer." },
 
+  "projectComposerPatternDesignerHint": "Add designer",
+  "@projectComposerPatternDesignerHint": { "description": "Placeholder text for the optional pattern designer field in the project composer." },
+
   "projectComposerPatternPublisherLabel": "Publisher",
   "@projectComposerPatternPublisherLabel": { "description": "Label for the optional pattern publisher field in the project composer." },
+
+  "projectComposerPatternPublisherHint": "Add publisher",
+  "@projectComposerPatternPublisherHint": { "description": "Placeholder text for the optional pattern publisher field in the project composer." },
 
   "postComposeHint": "What are you making?",
   "@postComposeHint": { "description": "Label above the text field in the text-only post composer." },

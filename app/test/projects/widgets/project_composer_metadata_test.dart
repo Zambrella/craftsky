@@ -11,7 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../fakes/recording_messenger.dart';
 
 void main() {
-  testWidgets('AT-007 hides pattern fields until Add pattern is tapped', (
+  testWidgets('AT-007 hides pattern fields until Pattern expands', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -28,16 +28,16 @@ void main() {
       ),
     );
 
-    expect(find.text('Add pattern'), findsOneWidget);
+    expect(find.text('Pattern'), findsOneWidget);
     expect(find.text('Pattern name'), findsNothing);
     expect(find.text('Pattern URL'), findsNothing);
     expect(find.text('Pattern difficulty'), findsNothing);
     expect(find.text('Designer'), findsNothing);
     expect(find.text('Publisher'), findsNothing);
 
-    await tester.ensureVisible(find.text('Add pattern'));
+    await tester.ensureVisible(find.text('Pattern'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Add pattern'));
+    await tester.tap(find.text('Pattern'));
     await tester.pumpAndSettle();
 
     expect(find.text('Pattern name'), findsOneWidget);
@@ -68,13 +68,16 @@ void main() {
     final eleventh = ProjectOptionCatalogs.colours[10];
 
     await tester.ensureVisible(
-      find.byKey(
-        Key('${ProjectComposerFields.colours}-option-${firstTen.first.value}'),
-      ),
+      find.byKey(const Key('${ProjectComposerFields.colours}-search-input')),
     );
     await tester.pumpAndSettle();
 
     for (final option in firstTen) {
+      await tester.enterText(
+        find.byKey(const Key('${ProjectComposerFields.colours}-search-input')),
+        option.label,
+      );
+      await tester.pumpAndSettle();
       await tester.tap(
         find.byKey(
           Key('${ProjectComposerFields.colours}-option-${option.value}'),
@@ -85,6 +88,11 @@ void main() {
 
     expect(find.text(firstTen.first.label), findsWidgets);
 
+    await tester.enterText(
+      find.byKey(const Key('${ProjectComposerFields.colours}-search-input')),
+      eleventh.label,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(
       find.byKey(
         Key('${ProjectComposerFields.colours}-option-${eleventh.value}'),
@@ -93,7 +101,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('You can choose up to 10.'), findsOneWidget);
-    expect(find.text(eleventh.label), findsOneWidget);
+    expect(find.text(eleventh.label), findsWidgets);
 
     await tester.tap(
       find.byKey(
@@ -102,6 +110,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.enterText(
+      find.byKey(const Key('${ProjectComposerFields.colours}-search-input')),
+      eleventh.label,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(
       find.byKey(
         Key('${ProjectComposerFields.colours}-option-${eleventh.value}'),

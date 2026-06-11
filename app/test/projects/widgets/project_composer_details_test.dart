@@ -79,14 +79,16 @@ void main() {
   ) async {
     await _openDetailsForCraft(tester, 'Sewing');
 
-    await tester.tap(find.byType(DropdownButton<String>).at(1));
+    await tester.ensureVisible(find.byType(DropdownButton<String>).at(2));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButton<String>).at(2));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Garment').last);
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.byType(DropdownButton<String>).at(2));
+    await tester.ensureVisible(find.byType(DropdownButton<String>).at(3));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButton<String>).at(2));
+    await tester.tap(find.byType(DropdownButton<String>).at(3));
     await tester.pumpAndSettle();
     expect(find.text('Dress'), findsOneWidget);
     expect(find.text('Bag'), findsNothing);
@@ -94,17 +96,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Dress'), findsOneWidget);
 
-    await tester.ensureVisible(find.byType(DropdownButton<String>).at(1));
+    await tester.ensureVisible(find.byType(DropdownButton<String>).at(2));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButton<String>).at(1));
+    await tester.tap(find.byType(DropdownButton<String>).at(2));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Accessory').last);
     await tester.pumpAndSettle();
 
     expect(find.text('Dress'), findsNothing);
-    await tester.ensureVisible(find.byType(DropdownButton<String>).at(2));
+    await tester.ensureVisible(find.byType(DropdownButton<String>).at(3));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButton<String>).at(2));
+    await tester.tap(find.byType(DropdownButton<String>).at(3));
     await tester.pumpAndSettle();
     expect(find.text('Bag'), findsOneWidget);
     expect(find.text('Dress'), findsNothing);

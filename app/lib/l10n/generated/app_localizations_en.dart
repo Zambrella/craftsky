@@ -341,6 +341,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerProjectTitleLabel => 'Project title';
 
   @override
+  String get projectComposerProjectTitleHint => 'Add a short project title';
+
+  @override
   String get projectComposerCraftTypeLabel => 'Craft type';
 
   @override
@@ -367,10 +370,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerColoursLabel => 'Colours';
 
   @override
+  String get projectComposerColoursSearchHint => 'Search colours';
+
+  @override
   String get projectComposerDesignTagsLabel => 'Design tags';
 
   @override
+  String get projectComposerDesignTagsSearchHint => 'Search design tags';
+
+  @override
   String get projectComposerAddPatternAction => 'Add pattern';
+
+  @override
+  String get projectComposerPatternSectionLabel => 'Pattern';
 
   @override
   String get projectComposerMoreDetailsLabel => 'More project details';
@@ -385,7 +397,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerSizeMadeLabel => 'Size made';
 
   @override
+  String get projectComposerSizeMadeHint =>
+      'e.g. Medium or custom measurements';
+
+  @override
   String get projectComposerFitNotesLabel => 'Fit notes';
+
+  @override
+  String get projectComposerFitNotesHint => 'Add fit notes';
 
   @override
   String get projectComposerKnittingProjectTypeLabel => 'Knitting project type';
@@ -409,16 +428,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerGaugeStitchesLabel => 'Gauge stitches';
 
   @override
+  String get projectComposerGaugeStitchesHint => 'Stitches';
+
+  @override
   String get projectComposerGaugeRowsLabel => 'Gauge rows';
 
   @override
+  String get projectComposerGaugeRowsHint => 'Rows';
+
+  @override
   String get projectComposerGaugeMeasurementLabel => 'Gauge measurement';
+
+  @override
+  String get projectComposerGaugeMeasurementHint => 'Measurement';
 
   @override
   String get projectComposerGaugeUnitLabel => 'Gauge unit';
 
   @override
   String get projectComposerFinishedSizeLabel => 'Finished size';
+
+  @override
+  String get projectComposerFinishedSizeHint => 'Add finished size';
 
   @override
   String get projectComposerSizeLabel => 'Size';
@@ -446,7 +477,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerPatternNameLabel => 'Pattern name';
 
   @override
+  String get projectComposerPatternNameHint => 'Add pattern name';
+
+  @override
   String get projectComposerPatternUrlLabel => 'Pattern URL';
+
+  @override
+  String get projectComposerPatternUrlHint => 'https://example.com/pattern';
 
   @override
   String get projectComposerPatternDifficultyLabel => 'Pattern difficulty';
@@ -455,7 +492,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerPatternDesignerLabel => 'Designer';
 
   @override
+  String get projectComposerPatternDesignerHint => 'Add designer';
+
+  @override
   String get projectComposerPatternPublisherLabel => 'Publisher';
+
+  @override
+  String get projectComposerPatternPublisherHint => 'Add publisher';
 
   @override
   String get postComposeHint => 'What are you making?';

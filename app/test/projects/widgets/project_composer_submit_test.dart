@@ -181,7 +181,12 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.ensureVisible(
-      find.byKey(const Key('${ProjectComposerFields.colours}-option-blue')),
+      find.byKey(const Key('${ProjectComposerFields.colours}-search-input')),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('${ProjectComposerFields.colours}-search-input')),
+      'Blue',
     );
     await tester.pumpAndSettle();
     await tester.tap(
@@ -189,12 +194,12 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.ensureVisible(
-      find.byKey(
-        const Key(
-          '${ProjectComposerFields.designTags}-option-'
-          'social.craftsky.project.defs#floral',
-        ),
-      ),
+      find.byKey(const Key('${ProjectComposerFields.designTags}-search-input')),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('${ProjectComposerFields.designTags}-search-input')),
+      'Floral',
     );
     await tester.pumpAndSettle();
     await tester.tap(
@@ -207,8 +212,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Add pattern'));
-    await tester.tap(find.text('Add pattern'));
+    await tester.ensureVisible(find.text('Pattern'));
+    await tester.tap(find.text('Pattern'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('pattern-name-input')),

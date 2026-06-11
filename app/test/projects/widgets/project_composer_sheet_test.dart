@@ -30,27 +30,42 @@ void main() {
     expect(find.text('Project post'), findsOneWidget);
     expect(find.text('Photos'), findsOneWidget);
     expect(find.text('Add a photo'), findsOneWidget);
-    expect(find.text('What are you making?'), findsOneWidget);
     expect(find.text('Project title'), findsOneWidget);
+    expect(find.text('Add a short project title'), findsOneWidget);
     expect(find.text('Craft type'), findsOneWidget);
+    expect(find.text('What are you making?'), findsOneWidget);
     expect(find.text('Status'), findsOneWidget);
     expect(find.text('Finished'), findsOneWidget);
     expect(find.text('Materials'), findsOneWidget);
+    expect(find.text('Search colours'), findsOneWidget);
     expect(find.text('Colours'), findsOneWidget);
+    expect(find.text('Search design tags'), findsOneWidget);
     expect(find.text('Design tags'), findsOneWidget);
-    expect(find.text('Add pattern'), findsOneWidget);
+    expect(find.text('Pattern'), findsOneWidget);
     expect(find.text('More project details'), findsOneWidget);
     expect(find.text('Post'), findsOneWidget);
 
-    const finishedStatusKey = Key(
-      'status-radio-social.craftsky.feed.defs#finished',
+    final craftTop = tester.getTopLeft(find.text('Craft type')).dy;
+    final bodyTop = tester.getTopLeft(find.text('What are you making?')).dy;
+    final statusTop = tester.getTopLeft(find.text('Status')).dy;
+    expect(bodyTop, greaterThan(craftTop));
+    expect(bodyTop, lessThan(statusTop));
+
+    final statusDropdown = tester.widget<DropdownButton<String>>(
+      find
+          .ancestor(
+            of: find.text('Finished'),
+            matching: find.byType(DropdownButton<String>),
+          )
+          .last,
     );
-    final finishedRadio = tester.widget<RadioListTile<String>>(
-      find.byKey(finishedStatusKey),
+    expect(statusDropdown.value, ProjectOptionCatalogs.finishedStatusToken);
+
+    final safeArea = tester.widget<SafeArea>(find.byType(SafeArea).first);
+    expect(safeArea.bottom, isFalse);
+    expect(
+      find.byKey(const Key('project-composer-bottom-safe-space')),
+      findsOneWidget,
     );
-    // Flutter's RadioGroup replacement is still migrating; this verifies the
-    // current RadioListTile-backed field keeps the Finished token selected.
-    // ignore: deprecated_member_use
-    expect(finishedRadio.groupValue, ProjectOptionCatalogs.finishedStatusToken);
   });
 }

@@ -43,17 +43,16 @@ class CraftskyFormBuilderDropdownField<T> extends StatelessWidget {
       enabled: enabled,
       validator: validator,
       builder: (field) {
-        return InputDecorator(
-          decoration: InputDecoration(
-            labelText: label,
-            helperText: field.errorText == null ? helperText : null,
-            errorText: field.errorText,
-          ),
-          isEmpty: field.value == null,
+        return _CraftskySelectFrame(
+          label: label,
+          helperText: field.errorText == null ? helperText : null,
+          errorText: field.errorText,
+          enabled: field.widget.enabled,
           child: DropdownButtonHideUnderline(
             child: DropdownButton<T>(
               value: field.value,
               isExpanded: true,
+              padding: EdgeInsets.zero,
               items: [
                 for (final option in options)
                   DropdownMenuItem<T>(
@@ -88,6 +87,7 @@ class CraftskyFormBuilderMultiSelectField<T> extends StatelessWidget {
     this.onChanged,
     this.allowCustomValues = false,
     this.maxSelected,
+    this.searchHintText,
     this.customValueHintText,
     this.addCustomValueLabel,
     this.disabledText,
@@ -104,6 +104,7 @@ class CraftskyFormBuilderMultiSelectField<T> extends StatelessWidget {
   final ValueChanged<List<T>>? onChanged;
   final bool allowCustomValues;
   final int? maxSelected;
+  final String? searchHintText;
   final String? customValueHintText;
   final String? addCustomValueLabel;
   final String? disabledText;
@@ -125,6 +126,7 @@ class CraftskyFormBuilderMultiSelectField<T> extends StatelessWidget {
           helperText: helperText,
           allowCustomValues: allowCustomValues,
           maxSelected: maxSelected,
+          searchHintText: searchHintText,
           customValueHintText: customValueHintText,
           addCustomValueLabel: addCustomValueLabel,
           disabledText: disabledText,
@@ -166,13 +168,11 @@ class CraftskyFormBuilderRadioField<T> extends StatelessWidget {
       enabled: enabled,
       validator: validator,
       builder: (field) {
-        return InputDecorator(
-          decoration: InputDecoration(
-            labelText: label,
-            helperText: field.errorText == null ? helperText : null,
-            errorText: field.errorText,
-            enabled: field.widget.enabled,
-          ),
+        return _CraftskySelectFrame(
+          label: label,
+          helperText: field.errorText == null ? helperText : null,
+          errorText: field.errorText,
+          enabled: field.widget.enabled,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -215,6 +215,7 @@ class _CraftskyMultiSelectBody<T> extends StatefulWidget {
     required this.helperText,
     required this.allowCustomValues,
     required this.maxSelected,
+    required this.searchHintText,
     required this.customValueHintText,
     required this.addCustomValueLabel,
     required this.disabledText,
@@ -229,6 +230,7 @@ class _CraftskyMultiSelectBody<T> extends StatefulWidget {
   final String? helperText;
   final bool allowCustomValues;
   final int? maxSelected;
+  final String? searchHintText;
   final String? customValueHintText;
   final String? addCustomValueLabel;
   final String? disabledText;
@@ -243,17 +245,21 @@ class _CraftskyMultiSelectBody<T> extends StatefulWidget {
 class _CraftskyMultiSelectBodyState<T>
     extends State<_CraftskyMultiSelectBody<T>> {
   late final TextEditingController _customController;
+  late final TextEditingController _searchController;
   String? _limitText;
+  String _query = '';
 
   @override
   void initState() {
     super.initState();
     _customController = TextEditingController();
+    _searchController = TextEditingController();
   }
 
   @override
   void dispose() {
     _customController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -329,14 +335,21 @@ class _CraftskyMultiSelectBodyState<T>
     final optionLabelByValue = {
       for (final option in widget.options) option.value: option.label,
     };
+    final matchingOptions = _query.trim().isEmpty
+        ? <CraftskySelectOption<T>>[]
+        : widget.options
+              .where(
+                (option) => option.label.toLowerCase().contains(
+                  _query.trim().toLowerCase(),
+                ),
+              )
+              .toList();
 
-    return InputDecorator(
-      decoration: InputDecoration(
-        labelText: widget.label,
-        helperText: errorText == null ? widget.helperText : null,
-        errorText: errorText,
-        enabled: _enabled,
-      ),
+    return _CraftskySelectFrame(
+      label: widget.label,
+      helperText: errorText == null ? widget.helperText : null,
+      errorText: errorText,
+      enabled: _enabled,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -357,17 +370,38 @@ class _CraftskyMultiSelectBodyState<T>
               ],
             ),
           if (widget.options.isNotEmpty)
-            Wrap(
-              spacing: 8,
-              children: [
-                for (final option in widget.options)
-                  FilterChip(
-                    key: Key('${widget.name}-option-${option.value}'),
-                    label: Text(option.label),
-                    selected: selected.contains(option.value),
-                    onSelected: _enabled ? (_) => _toggle(option.value) : null,
-                  ),
-              ],
+            TextField(
+              key: Key('${widget.name}-search-input'),
+              controller: _searchController,
+              enabled: _enabled,
+              decoration: InputDecoration(
+                hintText: widget.searchHintText,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+              ),
+              onChanged: (value) => setState(() => _query = value),
+            ),
+          if (matchingOptions.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  for (final option in matchingOptions)
+                    FilterChip(
+                      key: Key('${widget.name}-option-${option.value}'),
+                      label: Text(option.label),
+                      selected: selected.contains(option.value),
+                      onSelected: _enabled
+                          ? (_) => _toggle(option.value)
+                          : null,
+                    ),
+                ],
+              ),
             ),
           if (widget.allowCustomValues) ...[
             const SizedBox(height: 8),
@@ -401,6 +435,63 @@ class _CraftskyMultiSelectBodyState<T>
             ),
         ],
       ),
+    );
+  }
+}
+
+class _CraftskySelectFrame extends StatelessWidget {
+  const _CraftskySelectFrame({
+    required this.label,
+    required this.child,
+    required this.enabled,
+    this.helperText,
+    this.errorText,
+  });
+
+  final String label;
+  final Widget child;
+  final bool enabled;
+  final String? helperText;
+  final String? errorText;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final hasError = errorText != null;
+    final belowText = errorText ?? helperText;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: hasError ? colors.error : colors.onSurface,
+          ),
+        ),
+        const SizedBox(height: 8),
+        InputDecorator(
+          decoration: InputDecoration(
+            contentPadding: EdgeInsets.zero,
+            enabled: enabled,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: child,
+          ),
+        ),
+        if (belowText != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            belowText,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: hasError ? colors.error : colors.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

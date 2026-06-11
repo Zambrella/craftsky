@@ -688,6 +688,12 @@ abstract class AppLocalizations {
   /// **'Project title'**
   String get projectComposerProjectTitleLabel;
 
+  /// Placeholder text for the optional project-title field in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a short project title'**
+  String get projectComposerProjectTitleHint;
+
   /// Label for the project composer craft-type field.
   ///
   /// In en, this message translates to:
@@ -736,17 +742,35 @@ abstract class AppLocalizations {
   /// **'Colours'**
   String get projectComposerColoursLabel;
 
+  /// Placeholder text for searching known colour options in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Search colours'**
+  String get projectComposerColoursSearchHint;
+
   /// Label for the project composer design-tags field.
   ///
   /// In en, this message translates to:
   /// **'Design tags'**
   String get projectComposerDesignTagsLabel;
 
+  /// Placeholder text for searching known design-tag options in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Search design tags'**
+  String get projectComposerDesignTagsSearchHint;
+
   /// Action that reveals optional project pattern fields in the project composer.
   ///
   /// In en, this message translates to:
   /// **'Add pattern'**
   String get projectComposerAddPatternAction;
+
+  /// Disclosure label for the optional pattern section in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern'**
+  String get projectComposerPatternSectionLabel;
 
   /// Disclosure label for optional craft-specific project detail fields.
   ///
@@ -772,11 +796,23 @@ abstract class AppLocalizations {
   /// **'Size made'**
   String get projectComposerSizeMadeLabel;
 
+  /// Placeholder text for the sewing size-made detail field.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. Medium or custom measurements'**
+  String get projectComposerSizeMadeHint;
+
   /// Label for the sewing fit-notes detail field.
   ///
   /// In en, this message translates to:
   /// **'Fit notes'**
   String get projectComposerFitNotesLabel;
+
+  /// Placeholder text for the sewing fit-notes detail field.
+  ///
+  /// In en, this message translates to:
+  /// **'Add fit notes'**
+  String get projectComposerFitNotesHint;
 
   /// Label for the knitting project-type field in project details.
   ///
@@ -820,17 +856,35 @@ abstract class AppLocalizations {
   /// **'Gauge stitches'**
   String get projectComposerGaugeStitchesLabel;
 
+  /// Placeholder text for gauge stitch count fields.
+  ///
+  /// In en, this message translates to:
+  /// **'Stitches'**
+  String get projectComposerGaugeStitchesHint;
+
   /// Label for optional gauge rows input in project details.
   ///
   /// In en, this message translates to:
   /// **'Gauge rows'**
   String get projectComposerGaugeRowsLabel;
 
+  /// Placeholder text for optional gauge row count fields.
+  ///
+  /// In en, this message translates to:
+  /// **'Rows'**
+  String get projectComposerGaugeRowsHint;
+
   /// Label for gauge measurement input in project details.
   ///
   /// In en, this message translates to:
   /// **'Gauge measurement'**
   String get projectComposerGaugeMeasurementLabel;
+
+  /// Placeholder text for gauge measurement fields.
+  ///
+  /// In en, this message translates to:
+  /// **'Measurement'**
+  String get projectComposerGaugeMeasurementHint;
 
   /// Label for gauge unit selection in project details.
   ///
@@ -843,6 +897,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Finished size'**
   String get projectComposerFinishedSizeLabel;
+
+  /// Placeholder text for finished-size detail fields.
+  ///
+  /// In en, this message translates to:
+  /// **'Add finished size'**
+  String get projectComposerFinishedSizeHint;
 
   /// Label for the quilting size detail field.
   ///
@@ -892,11 +952,23 @@ abstract class AppLocalizations {
   /// **'Pattern name'**
   String get projectComposerPatternNameLabel;
 
+  /// Placeholder text for the optional pattern-name field in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Add pattern name'**
+  String get projectComposerPatternNameHint;
+
   /// Label for the optional pattern URL field in the project composer.
   ///
   /// In en, this message translates to:
   /// **'Pattern URL'**
   String get projectComposerPatternUrlLabel;
+
+  /// Placeholder text for the optional pattern URL field in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com/pattern'**
+  String get projectComposerPatternUrlHint;
 
   /// Label for the optional pattern difficulty field in the project composer.
   ///
@@ -910,11 +982,23 @@ abstract class AppLocalizations {
   /// **'Designer'**
   String get projectComposerPatternDesignerLabel;
 
+  /// Placeholder text for the optional pattern designer field in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Add designer'**
+  String get projectComposerPatternDesignerHint;
+
   /// Label for the optional pattern publisher field in the project composer.
   ///
   /// In en, this message translates to:
   /// **'Publisher'**
   String get projectComposerPatternPublisherLabel;
+
+  /// Placeholder text for the optional pattern publisher field in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Add publisher'**
+  String get projectComposerPatternPublisherHint;
 
   /// Label above the text field in the text-only post composer.
   ///
