@@ -82,6 +82,25 @@ Future<Item> itemDetail(Ref ref, int itemId) async {
 
 ### Mutations (Create/Update/Delete)
 
+**Do not call `AsyncValue.copyWithPrevious()`:**
+
+Riverpod 3 preserves previous data across loading/error transitions automatically. Do not use `.copyWithPrevious()` or suppress `invalid_use_of_internal_member` for it.
+
+For paginated notifier methods, read existing loaded state with `state.requireValue` after guarding loading/no-value states, then assign plain `AsyncLoading` and the guarded result:
+
+```dart
+Future<void> loadMore() async {
+  if (!state.hasValue || state.isLoading) return;
+  final current = state.requireValue;
+  if (!current.hasMore) return;
+
+  state = const AsyncLoading<PageState>();
+  final next = await AsyncValue.guard(() async => fetchNext(current.cursor));
+  if (!ref.mounted) return;
+  state = next;
+}
+```
+
 **Use `FutureOr<T>` for providers that don't load initially:**
 
 When a provider starts in an idle state (not loading), use `FutureOr<T> build() => null` instead of `Future<T> build() async {}`. An async build method causes Riverpod to transition from loading -> data on initialization, which can trigger `ref.listen` callbacks unexpectedly.

@@ -23,13 +23,11 @@ class UserComments extends _$UserComments {
   }
 
   Future<void> loadMore() async {
-    final current = state.value;
-    if (current == null || !current.hasMore || state.isLoading) return;
+    if (!state.hasValue || state.isLoading) return;
+    final current = state.requireValue;
+    if (!current.hasMore) return;
 
-    // copyWithPrevious keeps the existing comments visible while the next page
-    // loads; Riverpod marks it internal but generated providers use it too.
-    // ignore: invalid_use_of_internal_member
-    state = const AsyncLoading<UserPostsState>().copyWithPrevious(state);
+    state = const AsyncLoading<UserPostsState>();
 
     final next = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
@@ -45,10 +43,7 @@ class UserComments extends _$UserComments {
     });
 
     if (!ref.mounted) return;
-    // Preserve the previous comment list when pagination fails so retry can use
-    // the same cursor without blanking the tab.
-    // ignore: invalid_use_of_internal_member
-    state = next.copyWithPrevious(state);
+    state = next;
   }
 
   void prependOrReplace(Post post) {

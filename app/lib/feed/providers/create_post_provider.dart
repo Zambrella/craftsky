@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
@@ -43,7 +42,10 @@ class CreatePost extends _$CreatePost {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
-      assertProjectCreateIsTopLevel(project: project, reply: reply);
+      assert(
+        project == null || reply == null,
+        'Project posts cannot be replies',
+      );
       final created = await repo.create(
         text: text,
         reply: reply,

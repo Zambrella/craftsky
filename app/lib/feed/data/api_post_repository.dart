@@ -24,7 +24,10 @@ class ApiPostRepository implements PostRepository {
     List<CreatePostImage>? images,
     List<Map<String, dynamic>>? facets,
   }) {
-    assertProjectCreateIsTopLevel(project: project, reply: reply);
+    assert(
+      project == null || reply == null,
+      'Project posts cannot be replies',
+    );
     return _api.createPost(
       text: text,
       reply: reply,

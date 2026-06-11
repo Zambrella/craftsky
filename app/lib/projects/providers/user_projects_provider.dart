@@ -22,13 +22,11 @@ class UserProjects extends _$UserProjects {
   }
 
   Future<void> loadMore() async {
-    final current = state.value;
-    if (current == null || !current.hasMore || state.isLoading) return;
+    if (!state.hasValue || state.isLoading) return;
+    final current = state.requireValue;
+    if (!current.hasMore) return;
 
-    // Riverpod exposes copyWithPrevious as the supported way to keep previous
-    // page data visible during pagination loading/error transitions.
-    // ignore: invalid_use_of_internal_member
-    state = const AsyncLoading<UserProjectsState>().copyWithPrevious(state);
+    state = const AsyncLoading<UserProjectsState>();
 
     final next = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
@@ -44,10 +42,7 @@ class UserProjects extends _$UserProjects {
     });
 
     if (!ref.mounted) return;
-    // Preserve the previous list when a pagination request fails so callers can
-    // retry with the same cursor while still showing loaded projects.
-    // ignore: invalid_use_of_internal_member
-    state = next.copyWithPrevious(state);
+    state = next;
   }
 
   void prepend(Post post) {

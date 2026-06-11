@@ -7,14 +7,11 @@ part 'user_posts_state.mapper.dart';
 /// list-by-author provider). `cursor` is the *next* cursor to fetch
 /// with — `null` once we've reached the end. `hasMore` is derived.
 ///
-/// Loading state lives on the surrounding `AsyncValue`, not on this
-/// class — the notifier sets
-/// `state = AsyncLoading<UserPostsState>().copyWithPrevious(state)`
-/// while a `loadMore` is in flight, which means `state.value` keeps
-/// returning the previous (non-null) instance and `state.isLoading`
-/// is `true`. UI consumers do `(value != null, isLoading)` pattern
-/// matching to decide between "full-page spinner" and "list + bottom
-/// spinner".
+/// Loading state lives on the surrounding `AsyncValue`, not on this class.
+/// Riverpod preserves previous data across loading/error transitions, and
+/// `state.isLoading` indicates when a `loadMore` is in flight. UI consumers do
+/// `(value != null, isLoading)` pattern matching to decide between
+/// "full-page spinner" and "list + bottom spinner".
 @MappableClass()
 class UserPostsState with UserPostsStateMappable {
   const UserPostsState({required this.items, this.cursor});

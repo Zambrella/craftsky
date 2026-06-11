@@ -102,7 +102,7 @@ void main() {
         () => ApiPostRepository(
           PostApiClient(dio),
         ).create(text: 'invalid', project: project, reply: reply),
-        throwsA(isA<ArgumentError>()),
+        throwsA(isA<AssertionError>()),
       );
     });
   });
