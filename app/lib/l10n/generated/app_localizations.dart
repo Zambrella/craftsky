@@ -682,6 +682,24 @@ abstract class AppLocalizations {
   /// **'Project post'**
   String get projectComposerTitle;
 
+  /// Button label for advancing to the next project composer page.
+  ///
+  /// In en, this message translates to:
+  /// **'Next'**
+  String get projectComposerNextAction;
+
+  /// Short helper text shown above the project title on the first project composer page.
+  ///
+  /// In en, this message translates to:
+  /// **'Fill in the details about your project'**
+  String get projectComposerDetailsPrompt;
+
+  /// Short helper text shown at the top of the optional details page in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'This information is optional but will help others find your project'**
+  String get projectComposerOptionalDetailsPrompt;
+
   /// Label for the optional project-title field in the project composer.
   ///
   /// In en, this message translates to:
@@ -784,6 +802,12 @@ abstract class AppLocalizations {
   /// **'Pattern'**
   String get projectComposerPatternSectionLabel;
 
+  /// Section title shown above optional pattern details after a pattern tag or name is entered.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern info'**
+  String get projectComposerPatternInfoSectionLabel;
+
   /// Disclosure label for optional craft-specific project detail fields.
   ///
   /// In en, this message translates to:
@@ -799,7 +823,7 @@ abstract class AppLocalizations {
   /// Label for the sewing project-type field in project details.
   ///
   /// In en, this message translates to:
-  /// **'Sewing project type'**
+  /// **'Project type'**
   String get projectComposerSewingProjectTypeLabel;
 
   /// Label for the craft-specific project subtype field in project details.
@@ -835,19 +859,19 @@ abstract class AppLocalizations {
   /// Label for the knitting project-type field in project details.
   ///
   /// In en, this message translates to:
-  /// **'Knitting project type'**
+  /// **'Project type'**
   String get projectComposerKnittingProjectTypeLabel;
 
   /// Label for the crochet project-type field in project details.
   ///
   /// In en, this message translates to:
-  /// **'Crochet project type'**
+  /// **'Project type'**
   String get projectComposerCrochetProjectTypeLabel;
 
   /// Label for the quilting project-type field in project details.
   ///
   /// In en, this message translates to:
-  /// **'Quilting project type'**
+  /// **'Project type'**
   String get projectComposerQuiltingProjectTypeLabel;
 
   /// Label for yarn-weight detail fields.
@@ -964,10 +988,10 @@ abstract class AppLocalizations {
   /// **'Complete the gauge or clear it.'**
   String get projectComposerGaugeInvalidError;
 
-  /// Label for the optional pattern-name field in the project composer.
+  /// Label for the optional pattern tag-or-name field in the project composer.
   ///
   /// In en, this message translates to:
-  /// **'Name'**
+  /// **'Pattern tag or name'**
   String get projectComposerPatternNameLabel;
 
   /// Placeholder text for the optional pattern-name field in the project composer.

@@ -325,6 +325,15 @@
   "projectComposerTitle": "Project post",
   "@projectComposerTitle": { "description": "Title of the project composer sheet." },
 
+  "projectComposerNextAction": "Next",
+  "@projectComposerNextAction": { "description": "Button label for advancing to the next project composer page." },
+
+  "projectComposerDetailsPrompt": "Fill in the details about your project",
+  "@projectComposerDetailsPrompt": { "description": "Short helper text shown above the project title on the first project composer page." },
+
+  "projectComposerOptionalDetailsPrompt": "This information is optional but will help others find your project",
+  "@projectComposerOptionalDetailsPrompt": { "description": "Short helper text shown at the top of the optional details page in the project composer." },
+
   "projectComposerProjectTitleLabel": "Project title",
   "@projectComposerProjectTitleLabel": { "description": "Label for the optional project-title field in the project composer." },
 
@@ -379,13 +388,16 @@
   "projectComposerPatternSectionLabel": "Pattern",
   "@projectComposerPatternSectionLabel": { "description": "Disclosure label for the optional pattern section in the project composer." },
 
+  "projectComposerPatternInfoSectionLabel": "Pattern info",
+  "@projectComposerPatternInfoSectionLabel": { "description": "Section title shown above optional pattern details after a pattern tag or name is entered." },
+
   "projectComposerMoreDetailsLabel": "More project details",
   "@projectComposerMoreDetailsLabel": { "description": "Disclosure label for optional craft-specific project detail fields." },
 
   "projectComposerSelectCraftTypeEmptyState": "Select Craft Type",
   "@projectComposerSelectCraftTypeEmptyState": { "description": "Empty-state text shown in the craft-specific project details section before a craft type is selected." },
 
-  "projectComposerSewingProjectTypeLabel": "Sewing project type",
+  "projectComposerSewingProjectTypeLabel": "Project type",
   "@projectComposerSewingProjectTypeLabel": { "description": "Label for the sewing project-type field in project details." },
 
   "projectComposerProjectSubtypeLabel": "Project subtype",
@@ -403,13 +415,13 @@
   "projectComposerFitNotesHint": "Add fit notes",
   "@projectComposerFitNotesHint": { "description": "Placeholder text for the sewing fit-notes detail field." },
 
-  "projectComposerKnittingProjectTypeLabel": "Knitting project type",
+  "projectComposerKnittingProjectTypeLabel": "Project type",
   "@projectComposerKnittingProjectTypeLabel": { "description": "Label for the knitting project-type field in project details." },
 
-  "projectComposerCrochetProjectTypeLabel": "Crochet project type",
+  "projectComposerCrochetProjectTypeLabel": "Project type",
   "@projectComposerCrochetProjectTypeLabel": { "description": "Label for the crochet project-type field in project details." },
 
-  "projectComposerQuiltingProjectTypeLabel": "Quilting project type",
+  "projectComposerQuiltingProjectTypeLabel": "Project type",
   "@projectComposerQuiltingProjectTypeLabel": { "description": "Label for the quilting project-type field in project details." },
 
   "projectComposerYarnWeightLabel": "Yarn weight",
@@ -469,8 +481,8 @@
   "projectComposerGaugeInvalidError": "Complete the gauge or clear it.",
   "@projectComposerGaugeInvalidError": { "description": "Validation error shown when gauge values are partial, missing a unit, or not positive whole numbers." },
 
-  "projectComposerPatternNameLabel": "Name",
-  "@projectComposerPatternNameLabel": { "description": "Label for the optional pattern-name field in the project composer." },
+  "projectComposerPatternNameLabel": "Pattern tag or name",
+  "@projectComposerPatternNameLabel": { "description": "Label for the optional pattern tag-or-name field in the project composer." },
 
   "projectComposerPatternNameHint": "Add pattern name",
   "@projectComposerPatternNameHint": { "description": "Placeholder text for the optional pattern-name field in the project composer." },

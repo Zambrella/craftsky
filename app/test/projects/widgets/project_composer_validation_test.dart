@@ -14,7 +14,7 @@ import '../../fakes/recording_messenger.dart';
 import '../../feed/fakes/fake_post_repository.dart';
 
 void main() {
-  testWidgets('AT-006 blocks empty required project submission', (
+  testWidgets('AT-006 blocks page one next until required fields are filled', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -31,12 +31,47 @@ void main() {
       ),
     );
 
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Choose a craft type.'), findsOneWidget);
+    expect(find.text('Add at least one photo.'), findsOneWidget);
+    expect(find.text('Materials'), findsNothing);
+  });
+
+  testWidgets('AT-006 blocks final submission without caption text', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          composerImagesProvider('body-validation-composer').overrideWithValue(
+            _readyImagesState,
+          ),
+        ],
+        child: MessengerScope(
+          messenger: RecordingMessenger(),
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProjectComposerSheet(
+              composerId: 'body-validation-composer',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await _selectCraft(tester, 'Embroidery');
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Post'));
     await tester.pumpAndSettle();
 
     expect(find.text('Add body text.'), findsOneWidget);
-    expect(find.text('Choose a craft type.'), findsOneWidget);
-    expect(find.text('Add at least one photo.'), findsOneWidget);
   });
 
   testWidgets('AT-006 blocks partial knitting gauge input', (tester) async {
@@ -85,17 +120,8 @@ void main() {
       ),
     );
 
-    await tester.enterText(_bodyTextField(), 'Finished swatch');
-    final craftDropdown = find.byType(DropdownButton<String>).first;
-    await tester.ensureVisible(craftDropdown);
-    await tester.pumpAndSettle();
-    await tester.tap(craftDropdown);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Knitting').last);
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('More project details'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('More project details'));
+    await _selectCraft(tester, 'Knitting');
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(
       find.byKey(const Key('knitting-gauge-stitches-input')),
@@ -104,12 +130,40 @@ void main() {
       find.byKey(const Key('knitting-gauge-stitches-input')),
       '20',
     );
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
+    await tester.enterText(_bodyTextField(), 'Finished swatch');
+    await _pumpUntilPostEnabled(tester);
     await tester.tap(find.widgetWithText(TextButton, 'Post'));
     await tester.pumpAndSettle();
 
     expect(find.text('Complete the gauge or clear it.'), findsOneWidget);
     expect(createCalls, 0);
   });
+}
+
+const _readyImagesState = ComposerImagesState(
+  images: [
+    ComposerImageDraft(
+      id: 'image-1',
+      fileName: 'project.jpg',
+      mimeType: 'image/jpeg',
+      altText: 'Finished project photo',
+      phase: ImageUploaded(
+        UploadedDraftImage(cid: 'bafkimage', mime: 'image/jpeg', size: 123),
+      ),
+    ),
+  ],
+);
+
+Future<void> _selectCraft(WidgetTester tester, String craftLabel) async {
+  final craftDropdown = find.byKey(const Key('craftType-select-button'));
+  await tester.ensureVisible(craftDropdown);
+  await tester.pumpAndSettle();
+  await tester.tap(craftDropdown);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(craftLabel).last);
+  await tester.pumpAndSettle();
 }
 
 Finder _bodyTextField() {
@@ -136,4 +190,15 @@ Post _post(String text) {
     viewerHasLiked: false,
     viewerHasReposted: false,
   );
+}
+
+Future<void> _pumpUntilPostEnabled(WidgetTester tester) async {
+  for (var i = 0; i < 200; i += 1) {
+    await tester.pump(const Duration(milliseconds: 20));
+    final button = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Post'),
+    );
+    if (button.onPressed != null) return;
+  }
+  fail('Timed out waiting for Post button to be enabled');
 }

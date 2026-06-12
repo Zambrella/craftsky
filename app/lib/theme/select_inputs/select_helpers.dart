@@ -81,14 +81,12 @@ class _CraftskyOptionsPanel extends StatelessWidget {
 class _AnchoredSelectOverlay extends StatelessWidget {
   const _AnchoredSelectOverlay({
     required this.anchorKey,
-    required this.layerLink,
     required this.onDismiss,
     required this.onEscape,
     required this.child,
   });
 
   final GlobalKey anchorKey;
-  final LayerLink layerLink;
   final VoidCallback onDismiss;
   final VoidCallback onEscape;
   final Widget child;
@@ -102,6 +100,21 @@ class _AnchoredSelectOverlay extends StatelessWidget {
 
     const gap = 4.0;
     const preferredMaxHeight = 280.0;
+    final anchorRect = anchorBox.localToGlobal(Offset.zero) & anchorBox.size;
+    final mediaQuery = MediaQuery.of(context);
+    final usableTop = mediaQuery.padding.top;
+    final usableBottom =
+        mediaQuery.size.height -
+        mediaQuery.padding.bottom -
+        mediaQuery.viewInsets.bottom;
+    final availableAbove = anchorRect.top - usableTop - gap;
+    final availableBelow = usableBottom - anchorRect.bottom - gap;
+    final openAbove =
+        availableBelow < preferredMaxHeight && availableAbove > availableBelow;
+    final maxHeight = (openAbove ? availableAbove : availableBelow).clamp(
+      0.0,
+      preferredMaxHeight,
+    );
 
     return Stack(
       children: [
@@ -111,30 +124,29 @@ class _AnchoredSelectOverlay extends StatelessWidget {
             onTap: onDismiss,
           ),
         ),
-        Positioned.fill(
-          child: CompositedTransformFollower(
-            link: layerLink,
-            targetAnchor: Alignment.bottomLeft,
-            offset: const Offset(0, gap),
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: SizedBox(
-                width: anchorBox.size.width,
-                child: Focus(
-                  onKeyEvent: (_, event) {
-                    if (event is KeyDownEvent &&
-                        event.logicalKey == LogicalKeyboardKey.escape) {
-                      onEscape();
-                      return KeyEventResult.handled;
-                    }
-                    return KeyEventResult.ignored;
-                  },
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxHeight: preferredMaxHeight,
-                    ),
-                    child: child,
-                  ),
+        Positioned(
+          left: anchorRect.left,
+          top: openAbove
+              ? anchorRect.top - gap - maxHeight
+              : anchorRect.bottom + gap,
+          width: anchorBox.size.width,
+          height: maxHeight,
+          child: Align(
+            alignment: openAbove ? Alignment.bottomLeft : Alignment.topLeft,
+            child: SizedBox(
+              width: anchorBox.size.width,
+              child: Focus(
+                onKeyEvent: (_, event) {
+                  if (event is KeyDownEvent &&
+                      event.logicalKey == LogicalKeyboardKey.escape) {
+                    onEscape();
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: maxHeight),
+                  child: child,
                 ),
               ),
             ),

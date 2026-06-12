@@ -274,7 +274,7 @@ int? _positiveInt(Object? value) {
 ProjectPattern? _patternFrom(Map<String, dynamic> values) {
   final pattern = ProjectPattern(
     url: _stringValue(values[ProjectComposerFields.patternUrl]),
-    name: _stringValue(values[ProjectComposerFields.patternName]),
+    name: _patternNameValue(values[ProjectComposerFields.patternName]),
     difficulty: _stringValue(values[ProjectComposerFields.patternDifficulty]),
     designer: _stringValue(values[ProjectComposerFields.patternDesigner]),
     publisher: _stringValue(values[ProjectComposerFields.patternPublisher]),
@@ -288,6 +288,11 @@ ProjectPattern? _patternFrom(Map<String, dynamic> values) {
     return null;
   }
   return pattern;
+}
+
+String? _patternNameValue(Object? value) {
+  final text = _stringValue(value);
+  return text == '#' ? null : text;
 }
 
 String? _stringValue(Object? value) {

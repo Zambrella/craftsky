@@ -11,6 +11,7 @@ import 'package:craftsky_app/projects/composer/project_composer_submit_adapter.d
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -46,10 +47,24 @@ class ProjectComposerSheet extends ConsumerStatefulWidget {
 
 class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   final _formKey = GlobalKey<FormBuilderState>();
+  final _scrollController = ScrollController();
   final _bodyController = FacetTextEditingController();
   final _bodyFocusNode = FocusNode(debugLabel: 'projectComposerBody');
+  final _patternNameController = FacetTextEditingController(text: '#');
+  final _patternDesignerController = FacetTextEditingController();
+  final _patternPublisherController = FacetTextEditingController();
+  final _patternNameFocusNode = FocusNode(debugLabel: 'projectPatternName');
+  final _patternDesignerFocusNode = FocusNode(
+    debugLabel: 'projectPatternDesigner',
+  );
+  final _patternPublisherFocusNode = FocusNode(
+    debugLabel: 'projectPatternPublisher',
+  );
   late final String _composerId;
+  int _currentPage = 0;
   String _bodyText = '';
+  String _patternNameText = '';
+  bool _attemptedPageOneNext = false;
   String? _activeCraftType;
   String? _sewingProjectType;
   String? _knittingProjectType;
@@ -67,8 +82,15 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _bodyController.dispose();
     _bodyFocusNode.dispose();
+    _patternNameController.dispose();
+    _patternDesignerController.dispose();
+    _patternPublisherController.dispose();
+    _patternNameFocusNode.dispose();
+    _patternDesignerFocusNode.dispose();
+    _patternPublisherFocusNode.dispose();
     super.dispose();
   }
 
@@ -90,7 +112,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       _ when tooLong => l10n.postComposeTooLong,
       _ => null,
     };
-    final photoErrorText = _attemptedSubmit && imagesState.images.isEmpty
+    final photoErrorText =
+        (_attemptedSubmit || _attemptedPageOneNext) &&
+            imagesState.images.isEmpty
         ? l10n.projectComposerPhotoRequiredError
         : null;
     final hasDraft = ProjectComposerDraftState.hasDraft(
@@ -99,11 +123,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       imageCount: imagesState.images.length,
       formValues: _formKey.currentState?.instantValue ?? const {},
     );
-    final detailSectionTitleStyle = theme.textTheme.titleLarge?.copyWith(
-      fontWeight: FontWeight.w900,
-      color: theme.colorScheme.onSurface,
-    );
-
     ref
       ..listen(createPostProvider, (previous, next) {
         switch ((previous, next)) {
@@ -141,9 +160,13 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     }
 
     return PopScope<Post?>(
-      canPop: !hasDraft || createState.isLoading,
+      canPop: _currentPage == 0 && (!hasDraft || createState.isLoading),
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
+        if (_currentPage > 0) {
+          _setCurrentPage(_currentPage - 1);
+          return;
+        }
         final discard = await _confirmDiscard();
         if (!discard || !context.mounted) return;
         Navigator.of(context).pop();
@@ -151,6 +174,15 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       child: Scaffold(
         backgroundColor: swatches.paper,
         appBar: AppBar(
+          leading: _currentPage == 0
+              ? null
+              : IconButton(
+                  icon: const BackButtonIcon(),
+                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                  onPressed: createState.isLoading
+                      ? null
+                      : () => _setCurrentPage(_currentPage - 1),
+                ),
           title: Text(
             l10n.projectComposerTitle,
             style: theme.textTheme.titleLarge,
@@ -159,10 +191,16 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
             Padding(
               padding: EdgeInsets.only(right: spacing.sp4),
               child: TextButton(
-                onPressed: canSubmit
-                    ? () => _submitProject(trimmedBody: trimmedBody)
-                    : null,
-                child: Text(l10n.postComposeSubmit),
+                onPressed: _currentPage < 2
+                    ? (controlsEnabled ? _goToNextPage : null)
+                    : (canSubmit
+                          ? () => _submitProject(trimmedBody: trimmedBody)
+                          : null),
+                child: Text(
+                  _currentPage < 2
+                      ? l10n.projectComposerNextAction
+                      : l10n.postComposeSubmit,
+                ),
               ),
             ),
           ],
@@ -174,6 +212,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
             top: false,
             bottom: false,
             child: SingleChildScrollView(
+              controller: _scrollController,
               padding: EdgeInsets.fromLTRB(
                 spacing.sp4,
                 spacing.sp5,
@@ -183,22 +222,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ComposerImageAttachmentSection(
-                    imagesState: imagesState,
-                    enabled: controlsEnabled,
-                    validationErrorText: photoErrorText,
-                    onAddImages: () =>
-                        ref.read(imagesProvider.notifier).addImages(),
-                    onAltTextChanged: (imageId, value) => ref
-                        .read(imagesProvider.notifier)
-                        .setAltText(imageId, value),
-                    onRemove: (imageId) =>
-                        ref.read(imagesProvider.notifier).remove(imageId),
-                    onReorder: (fromIndex, toIndex) => ref
-                        .read(imagesProvider.notifier)
-                        .reorder(fromIndex: fromIndex, toIndex: toIndex),
-                  ),
-                  SizedBox(height: spacing.sp6),
                   if (_formValidationError case final formValidationError?) ...[
                     Text(
                       formValidationError,
@@ -210,200 +233,40 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                   ],
                   FormBuilder(
                     key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                    child: _MountedWizardPages(
+                      currentPage: _currentPage,
                       children: [
-                        CraftskyFormBuilderTextField(
-                          name: ProjectComposerFields.title,
-                          label: l10n.projectComposerProjectTitleLabel,
-                          hintText: l10n.projectComposerProjectTitleHint,
-                          enabled: controlsEnabled,
+                        _pageOne(
+                          l10n: l10n,
+                          theme: theme,
+                          spacing: spacing,
+                          imagesState: imagesState,
+                          controlsEnabled: controlsEnabled,
+                          photoErrorText: photoErrorText,
+                          patternInfoTitle:
+                              l10n.projectComposerPatternInfoSectionLabel,
+                          onAddImages: () =>
+                              ref.read(imagesProvider.notifier).addImages(),
+                          onAltTextChanged: (imageId, value) => ref
+                              .read(imagesProvider.notifier)
+                              .setAltText(imageId, value),
+                          onRemoveImage: (imageId) =>
+                              ref.read(imagesProvider.notifier).remove(imageId),
+                          onReorderImages: (fromIndex, toIndex) => ref
+                              .read(imagesProvider.notifier)
+                              .reorder(fromIndex: fromIndex, toIndex: toIndex),
                         ),
-                        SizedBox(height: spacing.sp4),
-                        CraftskyFormBuilderDropdownField<String>(
-                          name: ProjectComposerFields.craftType,
-                          label: l10n.projectComposerCraftTypeLabel,
-                          options: _selectOptions(
-                            ProjectOptionCatalogs.craftTypes,
-                          ),
-                          enabled: controlsEnabled,
-                          validator: (value) => value == null
-                              ? l10n.projectComposerCraftRequiredError
-                              : null,
-                          onChanged: (value) {
-                            setState(() {
-                              _activeCraftType = value;
-                              _formValidationError = null;
-                              _sewingProjectType = null;
-                              _knittingProjectType = null;
-                              _crochetProjectType = null;
-                              _quiltingProjectType = null;
-                              _formKey
-                                  .currentState
-                                  ?.fields[ProjectComposerFields
-                                      .sewingProjectSubtype]
-                                  ?.didChange(null);
-                              _formKey
-                                  .currentState
-                                  ?.fields[ProjectComposerFields
-                                      .knittingProjectSubtype]
-                                  ?.didChange(null);
-                              _formKey
-                                  .currentState
-                                  ?.fields[ProjectComposerFields
-                                      .crochetProjectSubtype]
-                                  ?.didChange(null);
-                              _formKey
-                                  .currentState
-                                  ?.fields[ProjectComposerFields
-                                      .quiltingProjectSubtype]
-                                  ?.didChange(null);
-                            });
-                          },
+                        _pageTwo(
+                          l10n: l10n,
+                          theme: theme,
+                          spacing: spacing,
+                          controlsEnabled: controlsEnabled,
                         ),
-                        SizedBox(height: spacing.sp4),
-                        FacetAutocompleteEditor(
-                          key: const Key('project-composer-body-editor'),
-                          label: l10n.projectComposerDescriptionLabel,
-                          hintText: l10n.projectComposerDescriptionHint,
-                          controller: _bodyController,
-                          focusNode: _bodyFocusNode,
-                          minLines: 3,
-                          maxLines: 12,
-                          enabled: controlsEnabled,
-                          textInputAction: TextInputAction.newline,
-                          keyboardType: TextInputType.multiline,
-                          errorText: bodyErrorText,
-                          helperText:
-                              '${_bodyText.length}/${ProjectComposerSheet.maxCharacters}',
-                          helperAlignment: AlignmentDirectional.centerEnd,
-                          onChanged: (value) =>
-                              setState(() => _bodyText = value),
-                        ),
-                        SizedBox(height: spacing.sp4),
-                        CraftskyFormBuilderDropdownField<String>(
-                          name: ProjectComposerFields.status,
-                          label: l10n.projectComposerStatusLabel,
-                          initialValue:
-                              ProjectOptionCatalogs.finishedStatusToken,
-                          options: _selectOptions(
-                            ProjectOptionCatalogs.statuses,
-                          ),
-                          enabled: controlsEnabled,
-                        ),
-                        SizedBox(height: spacing.sp4),
-                        CraftskyFormBuilderMultiSelectField<String>(
-                          name: ProjectComposerFields.materials,
-                          label: l10n.projectComposerMaterialsLabel,
-                          allowCustomValues: true,
-                          maxSelected: 20,
-                          customValueHintText:
-                              l10n.projectComposerMaterialsAddHint,
-                          addCustomValueLabel:
-                              l10n.projectComposerMaterialsAddAction,
-                          disabledText: l10n.projectComposerFieldDisabledLabel,
-                          maxSelectedErrorText: l10n
-                              .projectComposerMultiSelectMaxSelectedError(20),
-                          enabled: controlsEnabled,
-                        ),
-                        SizedBox(height: spacing.sp4),
-                        CraftskyFormBuilderMultiSelectField<String>(
-                          name: ProjectComposerFields.colours,
-                          label: l10n.projectComposerColoursLabel,
-                          options: _selectOptions(
-                            ProjectOptionCatalogs.colours,
-                          ),
-                          maxSelected: 10,
-                          searchHintText: l10n.projectComposerColoursSearchHint,
-                          disabledText: l10n.projectComposerFieldDisabledLabel,
-                          maxSelectedErrorText: l10n
-                              .projectComposerMultiSelectMaxSelectedError(10),
-                          enabled: controlsEnabled,
-                        ),
-                        SizedBox(height: spacing.sp4),
-                        CraftskyFormBuilderMultiSelectField<String>(
-                          name: ProjectComposerFields.designTags,
-                          label: l10n.projectComposerDesignTagsLabel,
-                          options: _selectOptions(
-                            ProjectOptionCatalogs.designTags,
-                          ),
-                          maxSelected: 10,
-                          searchHintText:
-                              l10n.projectComposerDesignTagsSearchHint,
-                          disabledText: l10n.projectComposerFieldDisabledLabel,
-                          maxSelectedErrorText: l10n
-                              .projectComposerMultiSelectMaxSelectedError(10),
-                          enabled: controlsEnabled,
-                        ),
-                        SizedBox(height: spacing.sp4),
-                        ExpansionTile(
-                          tilePadding: EdgeInsets.zero,
-                          maintainState: true,
-                          shape: const Border(),
-                          collapsedShape: const Border(),
-                          childrenPadding: EdgeInsets.only(bottom: spacing.sp3),
-                          title: Text(
-                            l10n.projectComposerPatternSectionLabel,
-                            style: detailSectionTitleStyle,
-                          ),
-                          children: [
-                            CraftskyFormBuilderTextField(
-                              name: ProjectComposerFields.patternName,
-                              label: l10n.projectComposerPatternNameLabel,
-                              hintText: l10n.projectComposerPatternNameHint,
-                              textFieldKey: const Key('pattern-name-input'),
-                              enabled: controlsEnabled,
-                            ),
-                            SizedBox(height: spacing.sp4),
-                            CraftskyFormBuilderTextField(
-                              name: ProjectComposerFields.patternUrl,
-                              label: l10n.projectComposerPatternUrlLabel,
-                              hintText: l10n.projectComposerPatternUrlHint,
-                              keyboardType: TextInputType.url,
-                              textFieldKey: const Key('pattern-url-input'),
-                              enabled: controlsEnabled,
-                            ),
-                            SizedBox(height: spacing.sp4),
-                            CraftskyFormBuilderDropdownField<String>(
-                              name: ProjectComposerFields.patternDifficulty,
-                              label: l10n.projectComposerPatternDifficultyLabel,
-                              options: _selectOptions(
-                                ProjectOptionCatalogs.patternDifficulties,
-                              ),
-                              enabled: controlsEnabled,
-                            ),
-                            SizedBox(height: spacing.sp4),
-                            CraftskyFormBuilderTextField(
-                              name: ProjectComposerFields.patternDesigner,
-                              label: l10n.projectComposerPatternDesignerLabel,
-                              hintText: l10n.projectComposerPatternDesignerHint,
-                              enabled: controlsEnabled,
-                            ),
-                            SizedBox(height: spacing.sp4),
-                            CraftskyFormBuilderTextField(
-                              name: ProjectComposerFields.patternPublisher,
-                              label: l10n.projectComposerPatternPublisherLabel,
-                              hintText:
-                                  l10n.projectComposerPatternPublisherHint,
-                              enabled: controlsEnabled,
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: spacing.sp2),
-                        ExpansionTile(
-                          tilePadding: EdgeInsets.zero,
-                          shape: const Border(),
-                          collapsedShape: const Border(),
-                          childrenPadding: EdgeInsets.only(bottom: spacing.sp3),
-                          title: Text(
-                            l10n.projectComposerMoreDetailsLabel,
-                            style: detailSectionTitleStyle,
-                          ),
-                          children: _detailFields(
-                            l10n,
-                            spacing,
-                            controlsEnabled,
-                          ),
+                        _pageThree(
+                          l10n: l10n,
+                          spacing: spacing,
+                          controlsEnabled: controlsEnabled,
+                          bodyErrorText: bodyErrorText,
                         ),
                       ],
                     ),
@@ -467,6 +330,319 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
           description: option.description,
         ),
     ];
+  }
+
+  Widget _pageOne({
+    required AppLocalizations l10n,
+    required ThemeData theme,
+    required SpacingTheme spacing,
+    required ComposerImagesState imagesState,
+    required bool controlsEnabled,
+    required String? photoErrorText,
+    required String patternInfoTitle,
+    required Future<void> Function()? onAddImages,
+    required void Function(String imageId, String value) onAltTextChanged,
+    required ValueChanged<String> onRemoveImage,
+    required void Function(int fromIndex, int toIndex) onReorderImages,
+  }) {
+    final showPatternDetails = _hasMeaningfulPatternName(_patternNameText);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ComposerImageAttachmentSection(
+          imagesState: imagesState,
+          enabled: controlsEnabled,
+          validationErrorText: photoErrorText,
+          onAddImages: onAddImages,
+          onAltTextChanged: onAltTextChanged,
+          onRemove: onRemoveImage,
+          onReorder: onReorderImages,
+        ),
+        SizedBox(height: spacing.sp6),
+        CraftskyFormBuilderDropdownField<String>(
+          name: ProjectComposerFields.craftType,
+          label: l10n.projectComposerCraftTypeLabel,
+          options: _selectOptions(ProjectOptionCatalogs.craftTypes),
+          enabled: controlsEnabled,
+          validator: (value) =>
+              value == null ? l10n.projectComposerCraftRequiredError : null,
+          onChanged: _onCraftTypeChanged,
+        ),
+        SizedBox(height: spacing.sp4),
+        Text(
+          l10n.projectComposerDetailsPrompt,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        SizedBox(height: spacing.sp3),
+        CraftskyFormBuilderTextField(
+          name: ProjectComposerFields.title,
+          label: l10n.projectComposerProjectTitleLabel,
+          hintText: l10n.projectComposerProjectTitleHint,
+          enabled: controlsEnabled,
+        ),
+        SizedBox(height: spacing.sp4),
+        CraftskyFormBuilderDropdownField<String>(
+          name: ProjectComposerFields.status,
+          label: l10n.projectComposerStatusLabel,
+          initialValue: ProjectOptionCatalogs.finishedStatusToken,
+          options: _selectOptions(ProjectOptionCatalogs.statuses),
+          enabled: controlsEnabled,
+        ),
+        SizedBox(height: spacing.sp4),
+        _FacetFormBuilderTextField(
+          name: ProjectComposerFields.patternName,
+          key: const Key('project-composer-pattern-name-field'),
+          editorKey: const Key('project-composer-pattern-name-editor'),
+          label: l10n.projectComposerPatternNameLabel,
+          hintText: l10n.projectComposerPatternNameHint,
+          controller: _patternNameController,
+          focusNode: _patternNameFocusNode,
+          enabled: controlsEnabled,
+          initialDisplayText: '#',
+          allowedTokenKinds: const {ActiveFacetTokenKind.hashtag},
+          normalizeValue: _patternFormValue,
+          onChanged: _onPatternNameChanged,
+        ),
+        if (showPatternDetails) ...[
+          SizedBox(height: spacing.sp4),
+          Text(
+            patternInfoTitle,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          SizedBox(height: spacing.sp3),
+          _FacetFormBuilderTextField(
+            name: ProjectComposerFields.patternDesigner,
+            key: const Key('project-composer-pattern-designer-field'),
+            editorKey: const Key('project-composer-pattern-designer-editor'),
+            label: l10n.projectComposerPatternDesignerLabel,
+            hintText: l10n.projectComposerPatternDesignerHint,
+            controller: _patternDesignerController,
+            focusNode: _patternDesignerFocusNode,
+            enabled: controlsEnabled,
+            allowedTokenKinds: const {ActiveFacetTokenKind.mention},
+          ),
+          SizedBox(height: spacing.sp4),
+          _FacetFormBuilderTextField(
+            name: ProjectComposerFields.patternPublisher,
+            key: const Key('project-composer-pattern-publisher-field'),
+            editorKey: const Key('project-composer-pattern-publisher-editor'),
+            label: l10n.projectComposerPatternPublisherLabel,
+            hintText: l10n.projectComposerPatternPublisherHint,
+            controller: _patternPublisherController,
+            focusNode: _patternPublisherFocusNode,
+            enabled: controlsEnabled,
+            allowedTokenKinds: const {ActiveFacetTokenKind.mention},
+          ),
+          SizedBox(height: spacing.sp4),
+          CraftskyFormBuilderTextField(
+            name: ProjectComposerFields.patternUrl,
+            label: l10n.projectComposerPatternUrlLabel,
+            hintText: l10n.projectComposerPatternUrlHint,
+            keyboardType: TextInputType.url,
+            textFieldKey: const Key('pattern-url-input'),
+            enabled: controlsEnabled,
+          ),
+          SizedBox(height: spacing.sp4),
+          CraftskyFormBuilderDropdownField<String>(
+            name: ProjectComposerFields.patternDifficulty,
+            label: l10n.projectComposerPatternDifficultyLabel,
+            options: _selectOptions(ProjectOptionCatalogs.patternDifficulties),
+            enabled: controlsEnabled,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _pageTwo({
+    required AppLocalizations l10n,
+    required ThemeData theme,
+    required SpacingTheme spacing,
+    required bool controlsEnabled,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          l10n.projectComposerOptionalDetailsPrompt,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        SizedBox(height: spacing.sp4),
+        CraftskyFormBuilderMultiSelectField<String>(
+          name: ProjectComposerFields.materials,
+          label: l10n.projectComposerMaterialsLabel,
+          allowCustomValues: true,
+          maxSelected: 20,
+          customValueHintText: l10n.projectComposerMaterialsAddHint,
+          addCustomValueLabel: l10n.projectComposerMaterialsAddAction,
+          disabledText: l10n.projectComposerFieldDisabledLabel,
+          maxSelectedErrorText: l10n.projectComposerMultiSelectMaxSelectedError(
+            20,
+          ),
+          enabled: controlsEnabled,
+        ),
+        SizedBox(height: spacing.sp4),
+        CraftskyFormBuilderMultiSelectField<String>(
+          name: ProjectComposerFields.colours,
+          label: l10n.projectComposerColoursLabel,
+          options: _selectOptions(ProjectOptionCatalogs.colours),
+          maxSelected: 10,
+          searchHintText: l10n.projectComposerColoursSearchHint,
+          disabledText: l10n.projectComposerFieldDisabledLabel,
+          maxSelectedErrorText: l10n.projectComposerMultiSelectMaxSelectedError(
+            10,
+          ),
+          enabled: controlsEnabled,
+        ),
+        SizedBox(height: spacing.sp4),
+        CraftskyFormBuilderMultiSelectField<String>(
+          name: ProjectComposerFields.designTags,
+          label: l10n.projectComposerDesignTagsLabel,
+          options: _selectOptions(ProjectOptionCatalogs.designTags),
+          maxSelected: 10,
+          searchHintText: l10n.projectComposerDesignTagsSearchHint,
+          disabledText: l10n.projectComposerFieldDisabledLabel,
+          maxSelectedErrorText: l10n.projectComposerMultiSelectMaxSelectedError(
+            10,
+          ),
+          enabled: controlsEnabled,
+        ),
+        SizedBox(height: spacing.sp4),
+        ..._detailFields(l10n, spacing, controlsEnabled),
+      ],
+    );
+  }
+
+  Widget _pageThree({
+    required AppLocalizations l10n,
+    required SpacingTheme spacing,
+    required bool controlsEnabled,
+    required String? bodyErrorText,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FacetAutocompleteEditor(
+          key: const Key('project-composer-body-editor'),
+          label: l10n.projectComposerDescriptionLabel,
+          hintText: l10n.projectComposerDescriptionHint,
+          controller: _bodyController,
+          focusNode: _bodyFocusNode,
+          minLines: 6,
+          maxLines: 12,
+          enabled: controlsEnabled,
+          textInputAction: TextInputAction.newline,
+          keyboardType: TextInputType.multiline,
+          errorText: bodyErrorText,
+          helperText:
+              '${_bodyText.length}/${ProjectComposerSheet.maxCharacters}',
+          helperAlignment: AlignmentDirectional.centerEnd,
+          onChanged: (value) => setState(() => _bodyText = value),
+        ),
+        SizedBox(height: spacing.sp4),
+      ],
+    );
+  }
+
+  void _onCraftTypeChanged(String? value) {
+    setState(() {
+      _activeCraftType = value;
+      _formValidationError = null;
+      _sewingProjectType = null;
+      _knittingProjectType = null;
+      _crochetProjectType = null;
+      _quiltingProjectType = null;
+      _formKey.currentState?.fields[ProjectComposerFields.sewingProjectSubtype]
+          ?.didChange(null);
+      _formKey
+          .currentState
+          ?.fields[ProjectComposerFields.knittingProjectSubtype]
+          ?.didChange(null);
+      _formKey.currentState?.fields[ProjectComposerFields.crochetProjectSubtype]
+          ?.didChange(null);
+      _formKey
+          .currentState
+          ?.fields[ProjectComposerFields.quiltingProjectSubtype]
+          ?.didChange(null);
+    });
+  }
+
+  void _goToNextPage() {
+    if (_currentPage != 0) {
+      _setCurrentPage(_currentPage + 1);
+      return;
+    }
+
+    setState(() {
+      _attemptedPageOneNext = true;
+      _formValidationError = null;
+    });
+    final craftField =
+        _formKey.currentState?.fields[ProjectComposerFields.craftType];
+    final isCraftValid = craftField?.validate() ?? false;
+    final hasRequiredPhoto = ref
+        .read(composerImagesProvider(_composerId))
+        .images
+        .isNotEmpty;
+    if (!isCraftValid || !hasRequiredPhoto) {
+      return;
+    }
+
+    setState(() => _attemptedPageOneNext = false);
+    _setCurrentPage(1);
+  }
+
+  void _setCurrentPage(int page) {
+    if (_currentPage == page) {
+      _scrollToTop();
+      return;
+    }
+    setState(() => _currentPage = page);
+    _scrollToTop();
+  }
+
+  void _scrollToTop() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.jumpTo(0);
+    });
+  }
+
+  void _onPatternNameChanged(String value) {
+    final nextValue = _patternFormValue(value);
+    final hadDetails = _hasMeaningfulPatternName(_patternNameText);
+    final hasDetails = _hasMeaningfulPatternName(nextValue ?? '');
+    setState(() => _patternNameText = nextValue ?? '');
+    if (hadDetails && !hasDetails) {
+      _patternDesignerController.clear();
+      _patternPublisherController.clear();
+      _formKey.currentState?.fields[ProjectComposerFields.patternDesigner]
+          ?.didChange(null);
+      _formKey.currentState?.fields[ProjectComposerFields.patternPublisher]
+          ?.didChange(null);
+      _formKey.currentState?.fields[ProjectComposerFields.patternUrl]
+          ?.didChange(null);
+      _formKey.currentState?.fields[ProjectComposerFields.patternDifficulty]
+          ?.didChange(null);
+    }
+  }
+
+  static bool _hasMeaningfulPatternName(String value) {
+    final trimmed = value.trim();
+    return trimmed.isNotEmpty && trimmed != '#';
+  }
+
+  static String? _patternFormValue(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty || trimmed == '#') return null;
+    return trimmed;
   }
 
   List<Widget> _detailFields(
@@ -824,6 +1000,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         !hasRequiredBody ||
         !hasRequiredPhoto ||
         !isBodyLengthValid) {
+      _showFirstInvalidPage(
+        isFormValid: isFormValid,
+        hasRequiredBody: hasRequiredBody,
+        hasRequiredPhoto: hasRequiredPhoto,
+        isBodyLengthValid: isBodyLengthValid,
+      );
       return;
     }
 
@@ -839,6 +1021,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
             ? AppLocalizations.of(context).projectComposerGaugeInvalidError
             : null;
       });
+      _setCurrentPage(1);
       return;
     }
 
@@ -870,5 +1053,130 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
           images: args.images,
           facets: args.facets,
         );
+  }
+
+  void _showFirstInvalidPage({
+    required bool isFormValid,
+    required bool hasRequiredBody,
+    required bool hasRequiredPhoto,
+    required bool isBodyLengthValid,
+  }) {
+    final craftField =
+        _formKey.currentState?.fields[ProjectComposerFields.craftType];
+    final page = switch ((
+      !hasRequiredPhoto || craftField?.hasError == true,
+      !isFormValid,
+      !hasRequiredBody || !isBodyLengthValid,
+    )) {
+      (true, _, _) => 0,
+      (_, true, _) => 1,
+      (_, _, true) => 2,
+      _ => _currentPage,
+    };
+    _setCurrentPage(page);
+  }
+}
+
+class _MountedWizardPages extends StatelessWidget {
+  const _MountedWizardPages({
+    required this.currentPage,
+    required this.children,
+  });
+
+  final int currentPage;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final (index, child) in children.indexed)
+          Offstage(
+            offstage: index != currentPage,
+            child: TickerMode(
+              enabled: index == currentPage,
+              child: Focus(
+                descendantsAreFocusable: index == currentPage,
+                descendantsAreTraversable: index == currentPage,
+                child: child,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _FacetFormBuilderTextField extends StatefulWidget {
+  const _FacetFormBuilderTextField({
+    required this.name,
+    required this.label,
+    required this.controller,
+    super.key,
+    this.editorKey,
+    this.focusNode,
+    this.hintText,
+    this.enabled = true,
+    this.initialDisplayText,
+    this.allowedTokenKinds,
+    this.normalizeValue,
+    this.onChanged,
+  });
+
+  final String name;
+  final String label;
+  final FacetTextEditingController controller;
+  final Key? editorKey;
+  final FocusNode? focusNode;
+  final String? hintText;
+  final bool enabled;
+  final String? initialDisplayText;
+  final Set<ActiveFacetTokenKind>? allowedTokenKinds;
+  final String? Function(String value)? normalizeValue;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  State<_FacetFormBuilderTextField> createState() =>
+      _FacetFormBuilderTextFieldState();
+}
+
+class _FacetFormBuilderTextFieldState
+    extends State<_FacetFormBuilderTextField> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialDisplayText case final initialDisplayText?
+        when widget.controller.text.isEmpty) {
+      widget.controller.text = initialDisplayText;
+      widget.controller.selection = TextSelection.collapsed(
+        offset: initialDisplayText.length,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FormBuilderField<String>(
+      name: widget.name,
+      initialValue: '',
+      enabled: widget.enabled,
+      builder: (field) {
+        return FacetAutocompleteEditor(
+          key: widget.editorKey,
+          label: widget.label,
+          hintText: widget.hintText,
+          controller: widget.controller,
+          focusNode: widget.focusNode,
+          enabled: field.widget.enabled,
+          textInputAction: TextInputAction.next,
+          allowedTokenKinds: widget.allowedTokenKinds,
+          onChanged: (value) {
+            field.didChange(widget.normalizeValue?.call(value) ?? value);
+            widget.onChanged?.call(value);
+          },
+        );
+      },
+    );
   }
 }

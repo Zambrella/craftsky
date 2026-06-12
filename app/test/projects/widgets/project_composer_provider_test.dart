@@ -122,16 +122,32 @@ Future<void> _pumpComposer(
 }
 
 Future<void> _submitValidEmbroideryProject(WidgetTester tester) async {
-  await tester.enterText(_bodyTextField(), 'Finished project');
-  final craftDropdown = find.byType(DropdownButton<String>).first;
+  final craftDropdown = find.byKey(const Key('craftType-select-button'));
   await tester.ensureVisible(craftDropdown);
   await tester.pumpAndSettle();
   await tester.tap(craftDropdown);
   await tester.pumpAndSettle();
   await tester.tap(find.text('Embroidery').last);
   await tester.pumpAndSettle();
+  await tester.tap(find.widgetWithText(TextButton, 'Next'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.widgetWithText(TextButton, 'Next'));
+  await tester.pumpAndSettle();
+  await tester.enterText(_bodyTextField(), 'Finished project');
+  await _pumpUntilPostEnabled(tester);
   await tester.tap(find.widgetWithText(TextButton, 'Post'));
   await tester.pumpAndSettle();
+}
+
+Future<void> _pumpUntilPostEnabled(WidgetTester tester) async {
+  for (var i = 0; i < 200; i += 1) {
+    await tester.pump(const Duration(milliseconds: 20));
+    final button = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Post'),
+    );
+    if (button.onPressed != null) return;
+  }
+  fail('Timed out waiting for Post button to be enabled');
 }
 
 Finder _bodyTextField() {

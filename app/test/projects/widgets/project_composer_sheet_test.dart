@@ -1,3 +1,5 @@
+import 'package:craftsky_app/feed/providers/composer_image_state.dart';
+import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -14,13 +16,18 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          composerImagesProvider('sheet-composer').overrideWithValue(
+            _readyImagesState,
+          ),
+        ],
         child: MessengerScope(
           messenger: RecordingMessenger(),
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProjectComposerSheet(),
+            home: const ProjectComposerSheet(composerId: 'sheet-composer'),
           ),
         ),
       ),
@@ -28,30 +35,47 @@ void main() {
 
     expect(find.text('Project post'), findsOneWidget);
     expect(find.text('Photos'), findsOneWidget);
-    expect(find.text('Add a photo'), findsOneWidget);
+    expect(find.text('Craft type'), findsOneWidget);
+    expect(find.text('Fill in the details about your project'), findsOneWidget);
     expect(find.text('Project title'), findsOneWidget);
     expect(find.text('Add a short project title'), findsOneWidget);
-    expect(find.text('Craft type'), findsOneWidget);
-    expect(find.text('Project description'), findsOneWidget);
-    expect(find.text('Tell everyone about your project'), findsOneWidget);
     expect(find.text('Status'), findsOneWidget);
     expect(find.text('Finished'), findsOneWidget);
+    expect(find.text('Pattern tag or name'), findsOneWidget);
+    expect(find.text('Next'), findsOneWidget);
+    expect(find.text('Post'), findsNothing);
+
+    final craftTop = tester.getTopLeft(find.text('Craft type')).dy;
+    final titleTop = tester.getTopLeft(find.text('Project title')).dy;
+    final statusTop = tester.getTopLeft(find.text('Status')).dy;
+    expect(titleTop, greaterThan(craftTop));
+    expect(titleTop, lessThan(statusTop));
+
+    expect(find.byKey(const Key('status-select-button')), findsOneWidget);
+
+    await _selectCraft(tester, 'Embroidery');
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'This information is optional but will help others find your project',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Materials'), findsOneWidget);
     expect(find.text('Search colours'), findsOneWidget);
     expect(find.text('Colours'), findsOneWidget);
     expect(find.text('Search design tags'), findsOneWidget);
     expect(find.text('Design tags'), findsOneWidget);
-    expect(find.text('Pattern'), findsOneWidget);
-    expect(find.text('More project details'), findsOneWidget);
+    expect(find.text('More project details'), findsNothing);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Project description'), findsOneWidget);
+    expect(find.text('Tell everyone about your project'), findsOneWidget);
     expect(find.text('Post'), findsOneWidget);
-
-    final craftTop = tester.getTopLeft(find.text('Craft type')).dy;
-    final bodyTop = tester.getTopLeft(find.text('Project description')).dy;
-    final statusTop = tester.getTopLeft(find.text('Status')).dy;
-    expect(bodyTop, greaterThan(craftTop));
-    expect(bodyTop, lessThan(statusTop));
-
-    expect(find.byKey(const Key('status-select-button')), findsOneWidget);
 
     final safeArea = tester.widget<SafeArea>(find.byType(SafeArea).first);
     expect(safeArea.bottom, isFalse);
@@ -66,22 +90,35 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          composerImagesProvider('focus-composer').overrideWithValue(
+            _readyImagesState,
+          ),
+        ],
         child: MessengerScope(
           messenger: RecordingMessenger(),
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProjectComposerSheet(),
+            home: const ProjectComposerSheet(composerId: 'focus-composer'),
           ),
         ),
       ),
     );
 
+    await _selectCraft(tester, 'Embroidery');
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
+
     final bodyField = find.descendant(
       of: find.byKey(const Key('project-composer-body-editor')),
       matching: find.byType(TextField),
     );
+    await tester.ensureVisible(bodyField);
+    await tester.pumpAndSettle();
     await tester.tap(bodyField);
     await tester.pump();
     expect(tester.widget<TextField>(bodyField).focusNode?.hasFocus, isTrue);
@@ -92,4 +129,116 @@ void main() {
 
     expect(tester.widget<TextField>(bodyField).focusNode?.hasFocus, isFalse);
   });
+
+  testWidgets('AT-003 page navigation resets scroll to top', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          composerImagesProvider('scroll-composer').overrideWithValue(
+            _readyImagesState,
+          ),
+        ],
+        child: MessengerScope(
+          messenger: RecordingMessenger(),
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProjectComposerSheet(composerId: 'scroll-composer'),
+          ),
+        ),
+      ),
+    );
+
+    await _selectCraft(tester, 'Embroidery');
+    final scrollable = find.byType(Scrollable).first;
+    await tester.drag(scrollable, const Offset(0, -500));
+    await tester.pumpAndSettle();
+    expect(
+      tester.state<ScrollableState>(scrollable).position.pixels,
+      greaterThan(0),
+    );
+
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
+
+    expect(tester.state<ScrollableState>(scrollable).position.pixels, 0);
+  });
+
+  testWidgets('AT-003 hidden pages do not inflate scroll extent', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          composerImagesProvider('extent-composer').overrideWithValue(
+            _readyImagesState,
+          ),
+        ],
+        child: MessengerScope(
+          messenger: RecordingMessenger(),
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProjectComposerSheet(composerId: 'extent-composer'),
+          ),
+        ),
+      ),
+    );
+
+    await _selectCraft(tester, 'Embroidery');
+    final patternField = find.descendant(
+      of: find.byKey(const Key('project-composer-pattern-name-editor')),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(patternField, '#socks');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pattern info'), findsOneWidget);
+    final pageOneMaxScrollExtent = tester
+        .state<ScrollableState>(find.byType(Scrollable).first)
+        .position
+        .maxScrollExtent;
+
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
+
+    final pageThreeMaxScrollExtent = tester
+        .state<ScrollableState>(find.byType(Scrollable).first)
+        .position
+        .maxScrollExtent;
+    expect(pageThreeMaxScrollExtent, lessThan(pageOneMaxScrollExtent));
+    expect(pageThreeMaxScrollExtent, lessThan(120));
+  });
+}
+
+const _readyImagesState = ComposerImagesState(
+  images: [
+    ComposerImageDraft(
+      id: 'image-1',
+      fileName: 'project.jpg',
+      mimeType: 'image/jpeg',
+      altText: 'Finished project photo',
+      phase: ImageUploaded(
+        UploadedDraftImage(
+          cid: 'bafkimage',
+          mime: 'image/jpeg',
+          size: 123,
+        ),
+      ),
+    ),
+  ],
+);
+
+Future<void> _selectCraft(WidgetTester tester, String craftLabel) async {
+  final craftDropdown = find.byKey(const Key('craftType-select-button'));
+  await tester.ensureVisible(craftDropdown);
+  await tester.pumpAndSettle();
+  await tester.tap(craftDropdown);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(craftLabel).last);
+  await tester.pumpAndSettle();
 }

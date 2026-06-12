@@ -338,6 +338,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerTitle => 'Project post';
 
   @override
+  String get projectComposerNextAction => 'Next';
+
+  @override
+  String get projectComposerDetailsPrompt =>
+      'Fill in the details about your project';
+
+  @override
+  String get projectComposerOptionalDetailsPrompt =>
+      'This information is optional but will help others find your project';
+
+  @override
   String get projectComposerProjectTitleLabel => 'Project title';
 
   @override
@@ -392,13 +403,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerPatternSectionLabel => 'Pattern';
 
   @override
+  String get projectComposerPatternInfoSectionLabel => 'Pattern info';
+
+  @override
   String get projectComposerMoreDetailsLabel => 'More project details';
 
   @override
   String get projectComposerSelectCraftTypeEmptyState => 'Select Craft Type';
 
   @override
-  String get projectComposerSewingProjectTypeLabel => 'Sewing project type';
+  String get projectComposerSewingProjectTypeLabel => 'Project type';
 
   @override
   String get projectComposerProjectSubtypeLabel => 'Project subtype';
@@ -417,13 +431,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerFitNotesHint => 'Add fit notes';
 
   @override
-  String get projectComposerKnittingProjectTypeLabel => 'Knitting project type';
+  String get projectComposerKnittingProjectTypeLabel => 'Project type';
 
   @override
-  String get projectComposerCrochetProjectTypeLabel => 'Crochet project type';
+  String get projectComposerCrochetProjectTypeLabel => 'Project type';
 
   @override
-  String get projectComposerQuiltingProjectTypeLabel => 'Quilting project type';
+  String get projectComposerQuiltingProjectTypeLabel => 'Project type';
 
   @override
   String get projectComposerYarnWeightLabel => 'Yarn weight';
@@ -484,7 +498,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Complete the gauge or clear it.';
 
   @override
-  String get projectComposerPatternNameLabel => 'Name';
+  String get projectComposerPatternNameLabel => 'Pattern tag or name';
 
   @override
   String get projectComposerPatternNameHint => 'Add pattern name';

@@ -43,6 +43,7 @@ class _CraftskySearchableMultiSelectInputState<T>
   final GlobalKey _anchorKey = GlobalKey();
   final LayerLink _layerLink = LayerLink();
   OverlayEntry? _overlayEntry;
+  ScrollPosition? _overlayScrollPosition;
   bool _open = false;
   String _query = '';
   String? _limitText;
@@ -115,10 +116,11 @@ class _CraftskySearchableMultiSelectInputState<T>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_open) return;
       _removeOverlay();
+      _overlayScrollPosition = Scrollable.maybeOf(context)?.position
+        ?..addListener(_markOverlayNeedsBuild);
       _overlayEntry = OverlayEntry(
         builder: (context) => _AnchoredSelectOverlay(
           anchorKey: _anchorKey,
-          layerLink: _layerLink,
           onDismiss: () => _setOpen(false),
           onEscape: _closeOverlayAndRefocus,
           child: _buildMenuContent(),
@@ -134,6 +136,8 @@ class _CraftskySearchableMultiSelectInputState<T>
   }
 
   void _removeOverlay() {
+    _overlayScrollPosition?.removeListener(_markOverlayNeedsBuild);
+    _overlayScrollPosition = null;
     _overlayEntry?.remove();
     _overlayEntry = null;
   }

@@ -152,6 +152,7 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
     this.keyboardType,
     this.textInputAction,
     this.onChanged,
+    this.allowedTokenKinds,
   });
 
   /// Field label.
@@ -192,6 +193,9 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
 
   /// Parent change callback.
   final ValueChanged<String>? onChanged;
+
+  /// Autocomplete token kinds this editor should respond to.
+  final Set<ActiveFacetTokenKind>? allowedTokenKinds;
 
   @override
   ConsumerState<FacetAutocompleteEditor> createState() =>
@@ -258,7 +262,8 @@ class _FacetAutocompleteEditorState
       widget.controller.value,
     );
     _debounceTimer?.cancel();
-    if (token == null) {
+    if (token == null ||
+        !(widget.allowedTokenKinds?.contains(token.kind) ?? true)) {
       setState(() {
         _activeToken = null;
         _accountSuggestions = null;
@@ -420,11 +425,21 @@ class _FacetAutocompleteEditorState
         .clamp(math.min(viewportPadding, maxLeft), maxLeft)
         .toDouble();
 
+    final spaceBelow =
+        overlayBox.size.height - tokenStart.dy - (viewportPadding * 2);
+    final spaceAbove = tokenStart.dy - (viewportPadding * 2);
+    final (top, maxHeight) = spaceBelow > 0
+        ? (tokenStart.dy + viewportPadding, spaceBelow)
+        : (viewportPadding, spaceAbove);
+    if (maxHeight <= 0) {
+      return null;
+    }
+
     return _SuggestionOverlayGeometry(
       left: left,
-      top: tokenStart.dy + viewportPadding,
+      top: top,
       width: width,
-      maxHeight: overlayBox.size.height - tokenStart.dy - (viewportPadding * 2),
+      maxHeight: maxHeight,
     );
   }
 

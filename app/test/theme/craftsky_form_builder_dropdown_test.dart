@@ -430,6 +430,61 @@ void main() {
     expect(panelRect.top - anchorRect.bottom, lessThanOrEqualTo(12));
   });
 
+  testWidgets('UT-003 dropdown near viewport bottom opens above the anchor', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightThemeData,
+        home: const Scaffold(
+          body: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              children: [
+                Spacer(),
+                FormBuilder(
+                  child: CraftskyFormBuilderDropdownField<String>(
+                    name: 'difficulty',
+                    label: 'Difficulty',
+                    options: [
+                      CraftskySelectOption(
+                        value: 'beginner',
+                        label: 'Beginner',
+                      ),
+                      CraftskySelectOption(
+                        value: 'advanced',
+                        label: 'Advanced',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('difficulty-select-button')));
+    await tester.pumpAndSettle();
+
+    final panelRect = tester.getRect(
+      find.byKey(const Key('difficulty-options-panel')),
+    );
+    final anchorRect = tester.getRect(
+      find.byKey(const Key('difficulty-select-button')),
+    );
+    expect(panelRect.bottom, lessThanOrEqualTo(anchorRect.top));
+    expect(panelRect.bottom, greaterThanOrEqualTo(anchorRect.top - 12));
+    expect(panelRect.top, greaterThanOrEqualTo(0));
+    expect(
+      panelRect.bottom,
+      lessThanOrEqualTo(
+        tester.view.physicalSize.height / tester.view.devicePixelRatio,
+      ),
+    );
+  });
+
   testWidgets('UT-003 dropdown overlay closes when tabbing away', (
     tester,
   ) async {

@@ -1,3 +1,5 @@
+import 'package:craftsky_app/feed/providers/composer_image_state.dart';
+import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -9,38 +11,40 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../fakes/recording_messenger.dart';
 
 void main() {
-  testWidgets('AT-005 prompts for craft type before showing details', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        child: MessengerScope(
-          messenger: RecordingMessenger(),
-          child: MaterialApp(
-            theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProjectComposerSheet(),
+  testWidgets(
+    'AT-005 blocks before details until page one required fields pass',
+    (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MessengerScope(
+            messenger: RecordingMessenger(),
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const ProjectComposerSheet(),
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    await tester.ensureVisible(find.text('More project details'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('More project details'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Next'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Select Craft Type'), findsOneWidget);
-    expect(find.text('Sewing project type'), findsNothing);
-  });
+      expect(find.text('Choose a craft type.'), findsOneWidget);
+      expect(find.text('Add at least one photo.'), findsOneWidget);
+      expect(find.text('Project type'), findsNothing);
+    },
+  );
 
   testWidgets('AT-005 shows sewing detail fields for sewing projects', (
     tester,
   ) async {
     await _openDetailsForCraft(tester, 'Sewing');
 
-    expect(find.text('Sewing project type'), findsOneWidget);
+    expect(find.text('Project type'), findsOneWidget);
     expect(find.text('Project subtype'), findsOneWidget);
     expect(find.text('Size made'), findsOneWidget);
     expect(find.text('Fit notes'), findsOneWidget);
@@ -54,7 +58,7 @@ void main() {
   ) async {
     await _openDetailsForCraft(tester, 'Knitting');
 
-    expect(find.text('Knitting project type'), findsOneWidget);
+    expect(find.text('Project type'), findsOneWidget);
     expect(find.text('Project subtype'), findsOneWidget);
     expect(find.text('Yarn weight'), findsOneWidget);
     expect(find.text('Needle size'), findsOneWidget);
@@ -72,7 +76,7 @@ void main() {
   ) async {
     await _openDetailsForCraft(tester, 'Crochet');
 
-    expect(find.text('Crochet project type'), findsOneWidget);
+    expect(find.text('Project type'), findsOneWidget);
     expect(find.text('Project subtype'), findsOneWidget);
     expect(find.text('Yarn weight'), findsOneWidget);
     expect(find.text('Hook size'), findsOneWidget);
@@ -90,7 +94,7 @@ void main() {
   ) async {
     await _openDetailsForCraft(tester, 'Quilting');
 
-    expect(find.text('Quilting project type'), findsOneWidget);
+    expect(find.text('Project type'), findsOneWidget);
     expect(find.text('Project subtype'), findsOneWidget);
     expect(find.text('Size'), findsOneWidget);
     expect(find.text('Piecing technique'), findsOneWidget);
@@ -177,15 +181,19 @@ Future<void> _openOptions(
 }
 
 Future<void> _openDetailsForCraft(WidgetTester tester, String craft) async {
+  final composerId = 'details-$craft';
   await tester.pumpWidget(
     ProviderScope(
+      overrides: [
+        composerImagesProvider(composerId).overrideWithValue(_readyImagesState),
+      ],
       child: MessengerScope(
         messenger: RecordingMessenger(),
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const ProjectComposerSheet(),
+          home: ProjectComposerSheet(composerId: composerId),
         ),
       ),
     ),
@@ -198,8 +206,20 @@ Future<void> _openDetailsForCraft(WidgetTester tester, String craft) async {
   await tester.pumpAndSettle();
   await tester.tap(find.text(craft).last);
   await tester.pumpAndSettle();
-  await tester.ensureVisible(find.text('More project details'));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('More project details'));
+  await tester.tap(find.widgetWithText(TextButton, 'Next'));
   await tester.pumpAndSettle();
 }
+
+const _readyImagesState = ComposerImagesState(
+  images: [
+    ComposerImageDraft(
+      id: 'image-1',
+      fileName: 'project.jpg',
+      mimeType: 'image/jpeg',
+      altText: 'Finished project photo',
+      phase: ImageUploaded(
+        UploadedDraftImage(cid: 'bafkimage', mime: 'image/jpeg', size: 123),
+      ),
+    ),
+  ],
+);

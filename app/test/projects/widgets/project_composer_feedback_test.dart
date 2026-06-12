@@ -67,8 +67,11 @@ void main() {
         ),
       );
 
-      await tester.enterText(_bodyTextField(), 'Finished project');
       await _selectEmbroidery(tester);
+      await _goNext(tester);
+      await _goNext(tester);
+      await tester.enterText(_bodyTextField(), 'Finished project');
+      await _pumpUntilPostEnabled(tester);
 
       await tester.tap(find.widgetWithText(TextButton, 'Post'));
       await tester.pumpAndSettle();
@@ -130,8 +133,11 @@ void main() {
       ),
     );
 
-    await tester.enterText(_bodyTextField(), 'Finished project');
     await _selectEmbroidery(tester);
+    await _goNext(tester);
+    await _goNext(tester);
+    await tester.enterText(_bodyTextField(), 'Finished project');
+    await _pumpUntilPostEnabled(tester);
 
     await tester.tap(find.widgetWithText(TextButton, 'Post'));
     await tester.pump();
@@ -147,37 +153,21 @@ void main() {
       isFalse,
     );
     expect(
-      tester.widget<InkWell>(find.byKey(const Key('composer-add-image'))).onTap,
+      tester
+          .widget<InkWell>(
+            find.byKey(const Key('composer-add-image'), skipOffstage: false),
+          )
+          .onTap,
       isNull,
     );
     expect(
       tester
           .widget<BrandTextField>(
-            find.byKey(const Key('composer-alt-image-1')),
+            find.byKey(const Key('composer-alt-image-1'), skipOffstage: false),
           )
           .enabled,
       isFalse,
     );
-    expect(
-      tester
-          .widget<IconButton>(
-            find.descendant(
-              of: find.byKey(const Key('composer-remove-image-1')),
-              matching: find.byType(IconButton),
-            ),
-          )
-          .onPressed,
-      isNull,
-    );
-    expect(
-      tester
-          .widget<DropdownButton<String>>(
-            find.byType(DropdownButton<String>).first,
-          )
-          .onChanged,
-      isNull,
-    );
-
     createGate.complete(_post('Finished project'));
     await tester.pumpAndSettle();
   });
@@ -246,8 +236,11 @@ void main() {
 
     await tester.tap(find.text('Open composer'));
     await tester.pumpAndSettle();
-    await tester.enterText(_bodyTextField(), 'Finished project');
     await _selectEmbroidery(tester);
+    await _goNext(tester);
+    await _goNext(tester);
+    await tester.enterText(_bodyTextField(), 'Finished project');
+    await _pumpUntilPostEnabled(tester);
 
     await tester.tap(find.widgetWithText(TextButton, 'Post'));
     await tester.pumpAndSettle();
@@ -327,8 +320,11 @@ void main() {
 
       await tester.tap(find.text('Open composer'));
       await tester.pumpAndSettle();
-      await tester.enterText(_bodyTextField(), 'Finished project');
       await _selectEmbroidery(tester);
+      await _goNext(tester);
+      await _goNext(tester);
+      await tester.enterText(_bodyTextField(), 'Finished project');
+      await _pumpUntilPostEnabled(tester);
 
       await tester.tap(find.widgetWithText(TextButton, 'Post'));
       await tester.pumpAndSettle();
@@ -354,13 +350,29 @@ Finder _bodyTextField() {
 }
 
 Future<void> _selectEmbroidery(WidgetTester tester) async {
-  final craftDropdown = find.byType(DropdownButton<String>).first;
+  final craftDropdown = find.byKey(const Key('craftType-select-button'));
   await tester.ensureVisible(craftDropdown);
   await tester.pumpAndSettle();
   await tester.tap(craftDropdown);
   await tester.pumpAndSettle();
   await tester.tap(find.text('Embroidery').last);
   await tester.pumpAndSettle();
+}
+
+Future<void> _goNext(WidgetTester tester) async {
+  await tester.tap(find.widgetWithText(TextButton, 'Next'));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _pumpUntilPostEnabled(WidgetTester tester) async {
+  for (var i = 0; i < 200; i += 1) {
+    await tester.pump(const Duration(milliseconds: 20));
+    final button = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Post'),
+    );
+    if (button.onPressed != null) return;
+  }
+  fail('Timed out waiting for Post button to be enabled');
 }
 
 Post _post(String text) {

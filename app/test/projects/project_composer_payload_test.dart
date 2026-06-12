@@ -64,6 +64,19 @@ void main() {
       expect(result.project!.common.pattern?.publisher, isNull);
     });
 
+    test('UT-007 treats a lone pattern hashtag placeholder as empty', () {
+      final result = buildProjectComposerPayload(
+        formValues: {
+          ProjectComposerFields.craftType:
+              ProjectOptionCatalogs.knittingCraftToken,
+          ProjectComposerFields.patternName: '#',
+        },
+      );
+
+      expect(result.errors, isEmpty);
+      expect(result.project!.common.pattern, isNull);
+    });
+
     test('UT-007 reports missing craft type before building a project', () {
       final result = buildProjectComposerPayload(formValues: const {});
 

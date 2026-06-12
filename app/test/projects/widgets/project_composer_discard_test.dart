@@ -32,12 +32,27 @@ void main() {
   testWidgets('AT-009 confirms before discarding body text edits', (
     tester,
   ) async {
-    await _openProjectComposer(tester);
+    await _openProjectComposer(
+      tester,
+      composerId: 'body-draft-composer',
+      overrides: [
+        composerImagesProvider(
+          'body-draft-composer',
+        ).overrideWithValue(_readyImagesState),
+      ],
+    );
+
+    await _selectCraft(tester, 'Embroidery');
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
 
     await tester.ensureVisible(_bodyTextField());
     await tester.enterText(_bodyTextField(), 'A finished hoop');
     await tester.pump();
 
+    await _returnToFirstPage(tester);
     await tester.tap(find.byType(CloseButton));
     await tester.pumpAndSettle();
 
@@ -98,7 +113,7 @@ void main() {
   ) async {
     await _openProjectComposer(tester);
 
-    final craftDropdown = find.byType(DropdownButton<String>).first;
+    final craftDropdown = find.byKey(const Key('craftType-select-button'));
     await tester.ensureVisible(craftDropdown);
     await tester.pumpAndSettle();
     await tester.tap(craftDropdown);
@@ -111,6 +126,37 @@ void main() {
 
     expect(find.text('Discard draft?'), findsOneWidget);
   });
+}
+
+const _readyImagesState = ComposerImagesState(
+  images: [
+    ComposerImageDraft(
+      id: 'image-1',
+      fileName: 'project.jpg',
+      mimeType: 'image/jpeg',
+      altText: 'Finished project photo',
+      phase: ImageUploaded(
+        UploadedDraftImage(cid: 'bafkimage', mime: 'image/jpeg', size: 123),
+      ),
+    ),
+  ],
+);
+
+Future<void> _selectCraft(WidgetTester tester, String craftLabel) async {
+  final craftDropdown = find.byKey(const Key('craftType-select-button'));
+  await tester.ensureVisible(craftDropdown);
+  await tester.pumpAndSettle();
+  await tester.tap(craftDropdown);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(craftLabel).last);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _returnToFirstPage(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('Back'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byTooltip('Back'));
+  await tester.pumpAndSettle();
 }
 
 Finder _bodyTextField() {

@@ -74,11 +74,13 @@ void main() {
       ),
     );
 
+    await _selectCraft(tester, 'Embroidery');
+    await _goNext(tester);
+    await _goNext(tester);
     await tester.enterText(
       _bodyTextField(),
       'Finished my hoop #embroidery',
     );
-    await _selectCraft(tester, 'Embroidery');
     await _pumpUntilPostEnabled(tester);
 
     await tester.tap(find.widgetWithText(TextButton, 'Post'));
@@ -161,8 +163,14 @@ void main() {
       ),
     );
 
-    await tester.enterText(_bodyTextField(), 'Finished a dress');
     await _selectCraft(tester, 'Sewing');
+    await tester.enterText(_patternNameTextField(), 'Garden dress');
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('pattern-url-input')),
+      'https://patterns.example/garden-dress',
+    );
+    await _goNext(tester);
 
     await tester.ensureVisible(
       find.byKey(const Key('${ProjectComposerFields.materials}-custom-input')),
@@ -212,17 +220,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Pattern'));
-    await tester.tap(find.text('Pattern'));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('pattern-name-input')),
-      'Garden dress',
-    );
-    await tester.enterText(
-      find.byKey(const Key('pattern-url-input')),
-      'https://patterns.example/garden-dress',
-    );
+    await _goNext(tester);
+    await tester.enterText(_bodyTextField(), 'Finished a dress');
+    await _pumpUntilPostEnabled(tester);
 
     await tester.tap(find.widgetWithText(TextButton, 'Post'));
     await tester.pumpAndSettle();
@@ -254,6 +254,18 @@ Finder _bodyTextField() {
     of: find.byKey(const Key('project-composer-body-editor')),
     matching: find.byType(TextField),
   );
+}
+
+Finder _patternNameTextField() {
+  return find.descendant(
+    of: find.byKey(const Key('project-composer-pattern-name-editor')),
+    matching: find.byType(TextField),
+  );
+}
+
+Future<void> _goNext(WidgetTester tester) async {
+  await tester.tap(find.widgetWithText(TextButton, 'Next'));
+  await tester.pumpAndSettle();
 }
 
 Future<void> _selectCraft(WidgetTester tester, String craftLabel) async {
