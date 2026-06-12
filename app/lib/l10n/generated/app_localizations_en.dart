@@ -344,6 +344,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerProjectTitleHint => 'Add a short project title';
 
   @override
+  String get projectComposerDescriptionLabel => 'Project description';
+
+  @override
+  String get projectComposerDescriptionHint =>
+      'Tell everyone about your project';
+
+  @override
   String get projectComposerCraftTypeLabel => 'Craft type';
 
   @override
@@ -356,7 +363,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerMaterialsAddHint => 'Add material';
 
   @override
-  String get projectComposerMaterialsAddAction => 'Add material';
+  String get projectComposerMaterialsAddAction => 'Add';
 
   @override
   String get projectComposerFieldDisabledLabel => 'Disabled';
@@ -386,6 +393,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get projectComposerMoreDetailsLabel => 'More project details';
+
+  @override
+  String get projectComposerSelectCraftTypeEmptyState => 'Select Craft Type';
 
   @override
   String get projectComposerSewingProjectTypeLabel => 'Sewing project type';
@@ -474,31 +484,31 @@ class AppLocalizationsEn extends AppLocalizations {
       'Complete the gauge or clear it.';
 
   @override
-  String get projectComposerPatternNameLabel => 'Pattern name';
+  String get projectComposerPatternNameLabel => 'Name';
 
   @override
   String get projectComposerPatternNameHint => 'Add pattern name';
 
   @override
-  String get projectComposerPatternUrlLabel => 'Pattern URL';
+  String get projectComposerPatternUrlLabel => 'Link';
 
   @override
   String get projectComposerPatternUrlHint => 'https://example.com/pattern';
 
   @override
-  String get projectComposerPatternDifficultyLabel => 'Pattern difficulty';
+  String get projectComposerPatternDifficultyLabel => 'Difficulty';
 
   @override
   String get projectComposerPatternDesignerLabel => 'Designer';
 
   @override
-  String get projectComposerPatternDesignerHint => 'Add designer';
+  String get projectComposerPatternDesignerHint => 'Add pattern designer';
 
   @override
   String get projectComposerPatternPublisherLabel => 'Publisher';
 
   @override
-  String get projectComposerPatternPublisherHint => 'Add publisher';
+  String get projectComposerPatternPublisherHint => 'Add pattern publisher';
 
   @override
   String get postComposeHint => 'What are you making?';

@@ -9,6 +9,32 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../fakes/recording_messenger.dart';
 
 void main() {
+  testWidgets('AT-005 prompts for craft type before showing details', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MessengerScope(
+          messenger: RecordingMessenger(),
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProjectComposerSheet(),
+          ),
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(find.text('More project details'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('More project details'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Select Craft Type'), findsOneWidget);
+    expect(find.text('Sewing project type'), findsNothing);
+  });
+
   testWidgets('AT-005 shows sewing detail fields for sewing projects', (
     tester,
   ) async {
@@ -79,38 +105,75 @@ void main() {
   ) async {
     await _openDetailsForCraft(tester, 'Sewing');
 
-    await tester.ensureVisible(find.byType(DropdownButton<String>).at(2));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButton<String>).at(2));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Garment').last);
-    await tester.pumpAndSettle();
+    final projectSubtype = find.byKey(
+      const Key('sewingProjectSubtype-select-button'),
+    );
 
-    await tester.ensureVisible(find.byType(DropdownButton<String>).at(3));
+    await _searchAndSelect(
+      tester,
+      fieldName: 'sewingProjectType',
+      query: 'gar',
+      option: 'Garment',
+    );
+
+    await tester.ensureVisible(projectSubtype);
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButton<String>).at(3));
-    await tester.pumpAndSettle();
+    await _openOptions(
+      tester,
+      fieldName: 'sewingProjectSubtype',
+      query: 'dre',
+    );
     expect(find.text('Dress'), findsOneWidget);
     expect(find.text('Bag'), findsNothing);
     await tester.tap(find.text('Dress').last);
     await tester.pumpAndSettle();
     expect(find.text('Dress'), findsOneWidget);
 
-    await tester.ensureVisible(find.byType(DropdownButton<String>).at(2));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButton<String>).at(2));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Accessory').last);
-    await tester.pumpAndSettle();
+    await _searchAndSelect(
+      tester,
+      fieldName: 'sewingProjectType',
+      query: 'acc',
+      option: 'Accessory',
+    );
 
     expect(find.text('Dress'), findsNothing);
-    await tester.ensureVisible(find.byType(DropdownButton<String>).at(3));
+    await tester.ensureVisible(projectSubtype);
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButton<String>).at(3));
-    await tester.pumpAndSettle();
+    await _openOptions(
+      tester,
+      fieldName: 'sewingProjectSubtype',
+      query: 'bag',
+    );
     expect(find.text('Bag'), findsOneWidget);
     expect(find.text('Dress'), findsNothing);
   });
+}
+
+Future<void> _searchAndSelect(
+  WidgetTester tester, {
+  required String fieldName,
+  required String query,
+  required String option,
+}) async {
+  await _openOptions(tester, fieldName: fieldName, query: query);
+  await tester.tap(find.text(option).last);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openOptions(
+  WidgetTester tester, {
+  required String fieldName,
+  required String query,
+}) async {
+  await tester.ensureVisible(find.byKey(Key('$fieldName-select-button')));
+  await tester.pumpAndSettle();
+  final searchInput = find.byKey(Key('$fieldName-search-input'));
+  if (searchInput.evaluate().isNotEmpty) {
+    await tester.enterText(searchInput, query);
+  } else {
+    await tester.tap(find.byKey(Key('$fieldName-select-button')));
+  }
+  await tester.pumpAndSettle();
 }
 
 Future<void> _openDetailsForCraft(WidgetTester tester, String craft) async {
@@ -128,7 +191,7 @@ Future<void> _openDetailsForCraft(WidgetTester tester, String craft) async {
     ),
   );
 
-  final craftDropdown = find.byType(DropdownButton<String>).first;
+  final craftDropdown = find.byKey(const Key('craftType-select-button'));
   await tester.ensureVisible(craftDropdown);
   await tester.pumpAndSettle();
   await tester.tap(craftDropdown);

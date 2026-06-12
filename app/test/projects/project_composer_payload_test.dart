@@ -150,6 +150,26 @@ void main() {
       },
     );
 
+    test('UT-009 accepts typed numeric gauge values from form fields', () {
+      final result = buildProjectComposerPayload(
+        formValues: {
+          ProjectComposerFields.craftType:
+              ProjectOptionCatalogs.knittingCraftToken,
+          ProjectComposerFields.knittingGaugeStitches: 22,
+          ProjectComposerFields.knittingGaugeRows: 30,
+          ProjectComposerFields.knittingGaugeMeasurement: 10,
+          ProjectComposerFields.knittingGaugeUnit: 'cm',
+        },
+      );
+
+      expect(result.errors, isEmpty);
+      final details = result.project!.details! as KnittingProjectDetails;
+      expect(details.gauge?.stitches, 22);
+      expect(details.gauge?.rows, 30);
+      expect(details.gauge?.measurement, 10);
+      expect(details.gauge?.unit, 'cm');
+    });
+
     test('UT-009 rejects partial and invalid knitting gauge', () {
       for (final values in [
         {ProjectComposerFields.knittingGaugeStitches: '20'},

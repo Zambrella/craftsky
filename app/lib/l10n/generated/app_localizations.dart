@@ -694,6 +694,18 @@ abstract class AppLocalizations {
   /// **'Add a short project title'**
   String get projectComposerProjectTitleHint;
 
+  /// Label above the main project description text field in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Project description'**
+  String get projectComposerDescriptionLabel;
+
+  /// Hint text inside the main project description text field in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Tell everyone about your project'**
+  String get projectComposerDescriptionHint;
+
   /// Label for the project composer craft-type field.
   ///
   /// In en, this message translates to:
@@ -721,7 +733,7 @@ abstract class AppLocalizations {
   /// Button label for adding a typed material in the project composer.
   ///
   /// In en, this message translates to:
-  /// **'Add material'**
+  /// **'Add'**
   String get projectComposerMaterialsAddAction;
 
   /// Small helper label shown by reusable project fields while create is loading and controls are disabled.
@@ -777,6 +789,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'More project details'**
   String get projectComposerMoreDetailsLabel;
+
+  /// Empty-state text shown in the craft-specific project details section before a craft type is selected.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Craft Type'**
+  String get projectComposerSelectCraftTypeEmptyState;
 
   /// Label for the sewing project-type field in project details.
   ///
@@ -949,7 +967,7 @@ abstract class AppLocalizations {
   /// Label for the optional pattern-name field in the project composer.
   ///
   /// In en, this message translates to:
-  /// **'Pattern name'**
+  /// **'Name'**
   String get projectComposerPatternNameLabel;
 
   /// Placeholder text for the optional pattern-name field in the project composer.
@@ -961,7 +979,7 @@ abstract class AppLocalizations {
   /// Label for the optional pattern URL field in the project composer.
   ///
   /// In en, this message translates to:
-  /// **'Pattern URL'**
+  /// **'Link'**
   String get projectComposerPatternUrlLabel;
 
   /// Placeholder text for the optional pattern URL field in the project composer.
@@ -973,7 +991,7 @@ abstract class AppLocalizations {
   /// Label for the optional pattern difficulty field in the project composer.
   ///
   /// In en, this message translates to:
-  /// **'Pattern difficulty'**
+  /// **'Difficulty'**
   String get projectComposerPatternDifficultyLabel;
 
   /// Label for the optional pattern designer field in the project composer.
@@ -985,7 +1003,7 @@ abstract class AppLocalizations {
   /// Placeholder text for the optional pattern designer field in the project composer.
   ///
   /// In en, this message translates to:
-  /// **'Add designer'**
+  /// **'Add pattern designer'**
   String get projectComposerPatternDesignerHint;
 
   /// Label for the optional pattern publisher field in the project composer.
@@ -997,7 +1015,7 @@ abstract class AppLocalizations {
   /// Placeholder text for the optional pattern publisher field in the project composer.
   ///
   /// In en, this message translates to:
-  /// **'Add publisher'**
+  /// **'Add pattern publisher'**
   String get projectComposerPatternPublisherHint;
 
   /// Label above the text field in the text-only post composer.

@@ -331,6 +331,12 @@
   "projectComposerProjectTitleHint": "Add a short project title",
   "@projectComposerProjectTitleHint": { "description": "Placeholder text for the optional project-title field in the project composer." },
 
+  "projectComposerDescriptionLabel": "Project description",
+  "@projectComposerDescriptionLabel": { "description": "Label above the main project description text field in the project composer." },
+
+  "projectComposerDescriptionHint": "Tell everyone about your project",
+  "@projectComposerDescriptionHint": { "description": "Hint text inside the main project description text field in the project composer." },
+
   "projectComposerCraftTypeLabel": "Craft type",
   "@projectComposerCraftTypeLabel": { "description": "Label for the project composer craft-type field." },
 
@@ -343,7 +349,7 @@
   "projectComposerMaterialsAddHint": "Add material",
   "@projectComposerMaterialsAddHint": { "description": "Hint text for the free-text materials entry in the project composer." },
 
-  "projectComposerMaterialsAddAction": "Add material",
+  "projectComposerMaterialsAddAction": "Add",
   "@projectComposerMaterialsAddAction": { "description": "Button label for adding a typed material in the project composer." },
 
   "projectComposerFieldDisabledLabel": "Disabled",
@@ -375,6 +381,9 @@
 
   "projectComposerMoreDetailsLabel": "More project details",
   "@projectComposerMoreDetailsLabel": { "description": "Disclosure label for optional craft-specific project detail fields." },
+
+  "projectComposerSelectCraftTypeEmptyState": "Select Craft Type",
+  "@projectComposerSelectCraftTypeEmptyState": { "description": "Empty-state text shown in the craft-specific project details section before a craft type is selected." },
 
   "projectComposerSewingProjectTypeLabel": "Sewing project type",
   "@projectComposerSewingProjectTypeLabel": { "description": "Label for the sewing project-type field in project details." },
@@ -460,31 +469,31 @@
   "projectComposerGaugeInvalidError": "Complete the gauge or clear it.",
   "@projectComposerGaugeInvalidError": { "description": "Validation error shown when gauge values are partial, missing a unit, or not positive whole numbers." },
 
-  "projectComposerPatternNameLabel": "Pattern name",
+  "projectComposerPatternNameLabel": "Name",
   "@projectComposerPatternNameLabel": { "description": "Label for the optional pattern-name field in the project composer." },
 
   "projectComposerPatternNameHint": "Add pattern name",
   "@projectComposerPatternNameHint": { "description": "Placeholder text for the optional pattern-name field in the project composer." },
 
-  "projectComposerPatternUrlLabel": "Pattern URL",
+  "projectComposerPatternUrlLabel": "Link",
   "@projectComposerPatternUrlLabel": { "description": "Label for the optional pattern URL field in the project composer." },
 
   "projectComposerPatternUrlHint": "https://example.com/pattern",
   "@projectComposerPatternUrlHint": { "description": "Placeholder text for the optional pattern URL field in the project composer." },
 
-  "projectComposerPatternDifficultyLabel": "Pattern difficulty",
+  "projectComposerPatternDifficultyLabel": "Difficulty",
   "@projectComposerPatternDifficultyLabel": { "description": "Label for the optional pattern difficulty field in the project composer." },
 
   "projectComposerPatternDesignerLabel": "Designer",
   "@projectComposerPatternDesignerLabel": { "description": "Label for the optional pattern designer field in the project composer." },
 
-  "projectComposerPatternDesignerHint": "Add designer",
+  "projectComposerPatternDesignerHint": "Add pattern designer",
   "@projectComposerPatternDesignerHint": { "description": "Placeholder text for the optional pattern designer field in the project composer." },
 
   "projectComposerPatternPublisherLabel": "Publisher",
   "@projectComposerPatternPublisherLabel": { "description": "Label for the optional pattern publisher field in the project composer." },
 
-  "projectComposerPatternPublisherHint": "Add publisher",
+  "projectComposerPatternPublisherHint": "Add pattern publisher",
   "@projectComposerPatternPublisherHint": { "description": "Placeholder text for the optional pattern publisher field in the project composer." },
 
   "postComposeHint": "What are you making?",

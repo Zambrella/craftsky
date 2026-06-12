@@ -16,6 +16,7 @@ import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_text_field.dart';
+import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
@@ -98,6 +99,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       imageCount: imagesState.images.length,
       formValues: _formKey.currentState?.instantValue ?? const {},
     );
+    final detailSectionTitleStyle = theme.textTheme.titleLarge?.copyWith(
+      fontWeight: FontWeight.w900,
+      color: theme.colorScheme.onSurface,
+    );
 
     ref
       ..listen(createPostProvider, (previous, next) {
@@ -162,228 +167,253 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
             ),
           ],
         ),
-        body: SafeArea(
-          top: false,
-          bottom: false,
-          child: SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(
-              spacing.sp4,
-              spacing.sp5,
-              spacing.sp4,
-              0,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ComposerImageAttachmentSection(
-                  imagesState: imagesState,
-                  enabled: controlsEnabled,
-                  validationErrorText: photoErrorText,
-                  onAddImages: () =>
-                      ref.read(imagesProvider.notifier).addImages(),
-                  onAltTextChanged: (imageId, value) => ref
-                      .read(imagesProvider.notifier)
-                      .setAltText(imageId, value),
-                  onRemove: (imageId) =>
-                      ref.read(imagesProvider.notifier).remove(imageId),
-                  onReorder: (fromIndex, toIndex) => ref
-                      .read(imagesProvider.notifier)
-                      .reorder(fromIndex: fromIndex, toIndex: toIndex),
-                ),
-                SizedBox(height: spacing.sp6),
-                if (_formValidationError case final formValidationError?) ...[
-                  Text(
-                    formValidationError,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
+        body: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+          child: SafeArea(
+            top: false,
+            bottom: false,
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                spacing.sp4,
+                spacing.sp5,
+                spacing.sp4,
+                0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ComposerImageAttachmentSection(
+                    imagesState: imagesState,
+                    enabled: controlsEnabled,
+                    validationErrorText: photoErrorText,
+                    onAddImages: () =>
+                        ref.read(imagesProvider.notifier).addImages(),
+                    onAltTextChanged: (imageId, value) => ref
+                        .read(imagesProvider.notifier)
+                        .setAltText(imageId, value),
+                    onRemove: (imageId) =>
+                        ref.read(imagesProvider.notifier).remove(imageId),
+                    onReorder: (fromIndex, toIndex) => ref
+                        .read(imagesProvider.notifier)
+                        .reorder(fromIndex: fromIndex, toIndex: toIndex),
+                  ),
+                  SizedBox(height: spacing.sp6),
+                  if (_formValidationError case final formValidationError?) ...[
+                    Text(
+                      formValidationError,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
+                    SizedBox(height: spacing.sp4),
+                  ],
+                  FormBuilder(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        CraftskyFormBuilderTextField(
+                          name: ProjectComposerFields.title,
+                          label: l10n.projectComposerProjectTitleLabel,
+                          hintText: l10n.projectComposerProjectTitleHint,
+                          enabled: controlsEnabled,
+                        ),
+                        SizedBox(height: spacing.sp4),
+                        CraftskyFormBuilderDropdownField<String>(
+                          name: ProjectComposerFields.craftType,
+                          label: l10n.projectComposerCraftTypeLabel,
+                          options: _selectOptions(
+                            ProjectOptionCatalogs.craftTypes,
+                          ),
+                          enabled: controlsEnabled,
+                          validator: (value) => value == null
+                              ? l10n.projectComposerCraftRequiredError
+                              : null,
+                          onChanged: (value) {
+                            setState(() {
+                              _activeCraftType = value;
+                              _formValidationError = null;
+                              _sewingProjectType = null;
+                              _knittingProjectType = null;
+                              _crochetProjectType = null;
+                              _quiltingProjectType = null;
+                              _formKey
+                                  .currentState
+                                  ?.fields[ProjectComposerFields
+                                      .sewingProjectSubtype]
+                                  ?.didChange(null);
+                              _formKey
+                                  .currentState
+                                  ?.fields[ProjectComposerFields
+                                      .knittingProjectSubtype]
+                                  ?.didChange(null);
+                              _formKey
+                                  .currentState
+                                  ?.fields[ProjectComposerFields
+                                      .crochetProjectSubtype]
+                                  ?.didChange(null);
+                              _formKey
+                                  .currentState
+                                  ?.fields[ProjectComposerFields
+                                      .quiltingProjectSubtype]
+                                  ?.didChange(null);
+                            });
+                          },
+                        ),
+                        SizedBox(height: spacing.sp4),
+                        FacetAutocompleteEditor(
+                          key: const Key('project-composer-body-editor'),
+                          label: l10n.projectComposerDescriptionLabel,
+                          hintText: l10n.projectComposerDescriptionHint,
+                          controller: _bodyController,
+                          focusNode: _bodyFocusNode,
+                          minLines: 3,
+                          maxLines: 12,
+                          enabled: controlsEnabled,
+                          textInputAction: TextInputAction.newline,
+                          keyboardType: TextInputType.multiline,
+                          errorText: bodyErrorText,
+                          helperText:
+                              '${_bodyText.length}/${ProjectComposerSheet.maxCharacters}',
+                          helperAlignment: AlignmentDirectional.centerEnd,
+                          onChanged: (value) =>
+                              setState(() => _bodyText = value),
+                        ),
+                        SizedBox(height: spacing.sp4),
+                        CraftskyFormBuilderDropdownField<String>(
+                          name: ProjectComposerFields.status,
+                          label: l10n.projectComposerStatusLabel,
+                          initialValue:
+                              ProjectOptionCatalogs.finishedStatusToken,
+                          options: _selectOptions(
+                            ProjectOptionCatalogs.statuses,
+                          ),
+                          enabled: controlsEnabled,
+                        ),
+                        SizedBox(height: spacing.sp4),
+                        CraftskyFormBuilderMultiSelectField<String>(
+                          name: ProjectComposerFields.materials,
+                          label: l10n.projectComposerMaterialsLabel,
+                          allowCustomValues: true,
+                          maxSelected: 20,
+                          customValueHintText:
+                              l10n.projectComposerMaterialsAddHint,
+                          addCustomValueLabel:
+                              l10n.projectComposerMaterialsAddAction,
+                          disabledText: l10n.projectComposerFieldDisabledLabel,
+                          maxSelectedErrorText: l10n
+                              .projectComposerMultiSelectMaxSelectedError(20),
+                          enabled: controlsEnabled,
+                        ),
+                        SizedBox(height: spacing.sp4),
+                        CraftskyFormBuilderMultiSelectField<String>(
+                          name: ProjectComposerFields.colours,
+                          label: l10n.projectComposerColoursLabel,
+                          options: _selectOptions(
+                            ProjectOptionCatalogs.colours,
+                          ),
+                          maxSelected: 10,
+                          searchHintText: l10n.projectComposerColoursSearchHint,
+                          disabledText: l10n.projectComposerFieldDisabledLabel,
+                          maxSelectedErrorText: l10n
+                              .projectComposerMultiSelectMaxSelectedError(10),
+                          enabled: controlsEnabled,
+                        ),
+                        SizedBox(height: spacing.sp4),
+                        CraftskyFormBuilderMultiSelectField<String>(
+                          name: ProjectComposerFields.designTags,
+                          label: l10n.projectComposerDesignTagsLabel,
+                          options: _selectOptions(
+                            ProjectOptionCatalogs.designTags,
+                          ),
+                          maxSelected: 10,
+                          searchHintText:
+                              l10n.projectComposerDesignTagsSearchHint,
+                          disabledText: l10n.projectComposerFieldDisabledLabel,
+                          maxSelectedErrorText: l10n
+                              .projectComposerMultiSelectMaxSelectedError(10),
+                          enabled: controlsEnabled,
+                        ),
+                        SizedBox(height: spacing.sp4),
+                        ExpansionTile(
+                          tilePadding: EdgeInsets.zero,
+                          maintainState: true,
+                          shape: const Border(),
+                          collapsedShape: const Border(),
+                          childrenPadding: EdgeInsets.only(bottom: spacing.sp3),
+                          title: Text(
+                            l10n.projectComposerPatternSectionLabel,
+                            style: detailSectionTitleStyle,
+                          ),
+                          children: [
+                            CraftskyFormBuilderTextField(
+                              name: ProjectComposerFields.patternName,
+                              label: l10n.projectComposerPatternNameLabel,
+                              hintText: l10n.projectComposerPatternNameHint,
+                              textFieldKey: const Key('pattern-name-input'),
+                              enabled: controlsEnabled,
+                            ),
+                            SizedBox(height: spacing.sp4),
+                            CraftskyFormBuilderTextField(
+                              name: ProjectComposerFields.patternUrl,
+                              label: l10n.projectComposerPatternUrlLabel,
+                              hintText: l10n.projectComposerPatternUrlHint,
+                              keyboardType: TextInputType.url,
+                              textFieldKey: const Key('pattern-url-input'),
+                              enabled: controlsEnabled,
+                            ),
+                            SizedBox(height: spacing.sp4),
+                            CraftskyFormBuilderDropdownField<String>(
+                              name: ProjectComposerFields.patternDifficulty,
+                              label: l10n.projectComposerPatternDifficultyLabel,
+                              options: _selectOptions(
+                                ProjectOptionCatalogs.patternDifficulties,
+                              ),
+                              enabled: controlsEnabled,
+                            ),
+                            SizedBox(height: spacing.sp4),
+                            CraftskyFormBuilderTextField(
+                              name: ProjectComposerFields.patternDesigner,
+                              label: l10n.projectComposerPatternDesignerLabel,
+                              hintText: l10n.projectComposerPatternDesignerHint,
+                              enabled: controlsEnabled,
+                            ),
+                            SizedBox(height: spacing.sp4),
+                            CraftskyFormBuilderTextField(
+                              name: ProjectComposerFields.patternPublisher,
+                              label: l10n.projectComposerPatternPublisherLabel,
+                              hintText:
+                                  l10n.projectComposerPatternPublisherHint,
+                              enabled: controlsEnabled,
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: spacing.sp2),
+                        ExpansionTile(
+                          tilePadding: EdgeInsets.zero,
+                          shape: const Border(),
+                          collapsedShape: const Border(),
+                          childrenPadding: EdgeInsets.only(bottom: spacing.sp3),
+                          title: Text(
+                            l10n.projectComposerMoreDetailsLabel,
+                            style: detailSectionTitleStyle,
+                          ),
+                          children: _detailFields(
+                            l10n,
+                            spacing,
+                            controlsEnabled,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  SizedBox(height: spacing.sp4),
-                ],
-                FormBuilder(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      CraftskyFormBuilderTextField(
-                        name: ProjectComposerFields.title,
-                        label: l10n.projectComposerProjectTitleLabel,
-                        hintText: l10n.projectComposerProjectTitleHint,
-                        enabled: controlsEnabled,
-                      ),
-                      SizedBox(height: spacing.sp4),
-                      CraftskyFormBuilderDropdownField<String>(
-                        name: ProjectComposerFields.craftType,
-                        label: l10n.projectComposerCraftTypeLabel,
-                        options: _selectOptions(
-                          ProjectOptionCatalogs.craftTypes,
-                        ),
-                        enabled: controlsEnabled,
-                        validator: (value) => value == null
-                            ? l10n.projectComposerCraftRequiredError
-                            : null,
-                        onChanged: (value) {
-                          setState(() {
-                            _activeCraftType = value;
-                            _formValidationError = null;
-                            _sewingProjectType = null;
-                            _knittingProjectType = null;
-                            _crochetProjectType = null;
-                            _quiltingProjectType = null;
-                            _formKey
-                                .currentState
-                                ?.fields[ProjectComposerFields
-                                    .sewingProjectSubtype]
-                                ?.didChange(null);
-                            _formKey
-                                .currentState
-                                ?.fields[ProjectComposerFields
-                                    .knittingProjectSubtype]
-                                ?.didChange(null);
-                            _formKey
-                                .currentState
-                                ?.fields[ProjectComposerFields
-                                    .crochetProjectSubtype]
-                                ?.didChange(null);
-                            _formKey
-                                .currentState
-                                ?.fields[ProjectComposerFields
-                                    .quiltingProjectSubtype]
-                                ?.didChange(null);
-                          });
-                        },
-                      ),
-                      SizedBox(height: spacing.sp4),
-                      FacetAutocompleteEditor(
-                        key: const Key('project-composer-body-editor'),
-                        label: l10n.postComposeHint,
-                        hintText: l10n.postComposeBodyHint,
-                        controller: _bodyController,
-                        focusNode: _bodyFocusNode,
-                        minLines: 3,
-                        maxLines: 12,
-                        enabled: controlsEnabled,
-                        textInputAction: TextInputAction.newline,
-                        keyboardType: TextInputType.multiline,
-                        errorText: bodyErrorText,
-                        helperText:
-                            '${_bodyText.length}/${ProjectComposerSheet.maxCharacters}',
-                        helperAlignment: AlignmentDirectional.centerEnd,
-                        onChanged: (value) => setState(() => _bodyText = value),
-                      ),
-                      SizedBox(height: spacing.sp4),
-                      CraftskyFormBuilderDropdownField<String>(
-                        name: ProjectComposerFields.status,
-                        label: l10n.projectComposerStatusLabel,
-                        initialValue: ProjectOptionCatalogs.finishedStatusToken,
-                        options: _selectOptions(ProjectOptionCatalogs.statuses),
-                        enabled: controlsEnabled,
-                      ),
-                      SizedBox(height: spacing.sp4),
-                      CraftskyFormBuilderMultiSelectField<String>(
-                        name: ProjectComposerFields.materials,
-                        label: l10n.projectComposerMaterialsLabel,
-                        allowCustomValues: true,
-                        maxSelected: 20,
-                        customValueHintText:
-                            l10n.projectComposerMaterialsAddHint,
-                        addCustomValueLabel:
-                            l10n.projectComposerMaterialsAddAction,
-                        disabledText: l10n.projectComposerFieldDisabledLabel,
-                        maxSelectedErrorText: l10n
-                            .projectComposerMultiSelectMaxSelectedError(20),
-                        enabled: controlsEnabled,
-                      ),
-                      SizedBox(height: spacing.sp4),
-                      CraftskyFormBuilderMultiSelectField<String>(
-                        name: ProjectComposerFields.colours,
-                        label: l10n.projectComposerColoursLabel,
-                        options: _selectOptions(ProjectOptionCatalogs.colours),
-                        maxSelected: 10,
-                        searchHintText: l10n.projectComposerColoursSearchHint,
-                        disabledText: l10n.projectComposerFieldDisabledLabel,
-                        maxSelectedErrorText: l10n
-                            .projectComposerMultiSelectMaxSelectedError(10),
-                        enabled: controlsEnabled,
-                      ),
-                      SizedBox(height: spacing.sp4),
-                      CraftskyFormBuilderMultiSelectField<String>(
-                        name: ProjectComposerFields.designTags,
-                        label: l10n.projectComposerDesignTagsLabel,
-                        options: _selectOptions(
-                          ProjectOptionCatalogs.designTags,
-                        ),
-                        maxSelected: 10,
-                        searchHintText:
-                            l10n.projectComposerDesignTagsSearchHint,
-                        disabledText: l10n.projectComposerFieldDisabledLabel,
-                        maxSelectedErrorText: l10n
-                            .projectComposerMultiSelectMaxSelectedError(10),
-                        enabled: controlsEnabled,
-                      ),
-                      SizedBox(height: spacing.sp4),
-                      ExpansionTile(
-                        tilePadding: EdgeInsets.zero,
-                        maintainState: true,
-                        childrenPadding: EdgeInsets.only(bottom: spacing.sp3),
-                        title: Text(l10n.projectComposerPatternSectionLabel),
-                        children: [
-                          CraftskyFormBuilderTextField(
-                            name: ProjectComposerFields.patternName,
-                            label: l10n.projectComposerPatternNameLabel,
-                            hintText: l10n.projectComposerPatternNameHint,
-                            textFieldKey: const Key('pattern-name-input'),
-                            enabled: controlsEnabled,
-                          ),
-                          SizedBox(height: spacing.sp4),
-                          CraftskyFormBuilderTextField(
-                            name: ProjectComposerFields.patternUrl,
-                            label: l10n.projectComposerPatternUrlLabel,
-                            hintText: l10n.projectComposerPatternUrlHint,
-                            keyboardType: TextInputType.url,
-                            textFieldKey: const Key('pattern-url-input'),
-                            enabled: controlsEnabled,
-                          ),
-                          SizedBox(height: spacing.sp4),
-                          CraftskyFormBuilderDropdownField<String>(
-                            name: ProjectComposerFields.patternDifficulty,
-                            label: l10n.projectComposerPatternDifficultyLabel,
-                            options: _selectOptions(
-                              ProjectOptionCatalogs.patternDifficulties,
-                            ),
-                            enabled: controlsEnabled,
-                          ),
-                          SizedBox(height: spacing.sp4),
-                          CraftskyFormBuilderTextField(
-                            name: ProjectComposerFields.patternDesigner,
-                            label: l10n.projectComposerPatternDesignerLabel,
-                            hintText: l10n.projectComposerPatternDesignerHint,
-                            enabled: controlsEnabled,
-                          ),
-                          SizedBox(height: spacing.sp4),
-                          CraftskyFormBuilderTextField(
-                            name: ProjectComposerFields.patternPublisher,
-                            label: l10n.projectComposerPatternPublisherLabel,
-                            hintText: l10n.projectComposerPatternPublisherHint,
-                            enabled: controlsEnabled,
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: spacing.sp2),
-                      ExpansionTile(
-                        tilePadding: EdgeInsets.zero,
-                        childrenPadding: EdgeInsets.only(bottom: spacing.sp3),
-                        title: Text(l10n.projectComposerMoreDetailsLabel),
-                        children: _detailFields(l10n, spacing, controlsEnabled),
-                      ),
-                    ],
+                  SizedBox(
+                    key: const Key('project-composer-bottom-safe-space'),
+                    height: spacing.sp7 + MediaQuery.paddingOf(context).bottom,
                   ),
-                ),
-                SizedBox(
-                  key: const Key('project-composer-bottom-safe-space'),
-                  height: spacing.sp7 + MediaQuery.paddingOf(context).bottom,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -465,7 +495,17 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         spacing,
         controlsEnabled,
       ),
-      _ => const [SizedBox.shrink()],
+      _ => [
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: Text(
+            l10n.projectComposerSelectCraftTypeEmptyState,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
     };
   }
 
@@ -573,28 +613,28 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderTextField(
+      CraftskyFormNumberField(
         name: ProjectComposerFields.knittingGaugeStitches,
         label: l10n.projectComposerGaugeStitchesLabel,
         hintText: l10n.projectComposerGaugeStitchesHint,
-        keyboardType: TextInputType.number,
+        mode: CraftskyNumberInputMode.integer,
         textFieldKey: const Key('knitting-gauge-stitches-input'),
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderTextField(
+      CraftskyFormNumberField(
         name: ProjectComposerFields.knittingGaugeRows,
         label: l10n.projectComposerGaugeRowsLabel,
         hintText: l10n.projectComposerGaugeRowsHint,
-        keyboardType: TextInputType.number,
+        mode: CraftskyNumberInputMode.integer,
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderTextField(
+      CraftskyFormNumberField(
         name: ProjectComposerFields.knittingGaugeMeasurement,
         label: l10n.projectComposerGaugeMeasurementLabel,
         hintText: l10n.projectComposerGaugeMeasurementHint,
-        keyboardType: TextInputType.number,
+        mode: CraftskyNumberInputMode.integer,
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
@@ -665,27 +705,27 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderTextField(
+      CraftskyFormNumberField(
         name: ProjectComposerFields.crochetGaugeStitches,
         label: l10n.projectComposerGaugeStitchesLabel,
         hintText: l10n.projectComposerGaugeStitchesHint,
-        keyboardType: TextInputType.number,
+        mode: CraftskyNumberInputMode.integer,
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderTextField(
+      CraftskyFormNumberField(
         name: ProjectComposerFields.crochetGaugeRows,
         label: l10n.projectComposerGaugeRowsLabel,
         hintText: l10n.projectComposerGaugeRowsHint,
-        keyboardType: TextInputType.number,
+        mode: CraftskyNumberInputMode.integer,
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderTextField(
+      CraftskyFormNumberField(
         name: ProjectComposerFields.crochetGaugeMeasurement,
         label: l10n.projectComposerGaugeMeasurementLabel,
         hintText: l10n.projectComposerGaugeMeasurementHint,
-        keyboardType: TextInputType.number,
+        mode: CraftskyNumberInputMode.integer,
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),

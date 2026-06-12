@@ -257,7 +257,7 @@ Finder _bodyTextField() {
 }
 
 Future<void> _selectCraft(WidgetTester tester, String craftLabel) async {
-  final craftDropdown = find.byType(DropdownButton<String>).first;
+  final craftDropdown = find.byKey(const Key('craftType-select-button'));
   await tester.ensureVisible(craftDropdown);
   await tester.pumpAndSettle();
   await tester.tap(craftDropdown);

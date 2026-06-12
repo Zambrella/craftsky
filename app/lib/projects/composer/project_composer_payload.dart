@@ -211,9 +211,9 @@ List<ProjectComposerValidationError> _gaugeErrors({
   required String unitField,
   required Map<String, dynamic> values,
 }) {
-  final stitches = _stringValue(values[stitchesField]);
-  final rows = _stringValue(values[rowsField]);
-  final measurement = _stringValue(values[measurementField]);
+  final stitches = values[stitchesField];
+  final rows = values[rowsField];
+  final measurement = values[measurementField];
   final unit = _stringValue(values[unitField]);
   final hasAny = [
     stitches,
@@ -244,9 +244,9 @@ ProjectGauge? _gaugeFrom({
   required String unitField,
   required Map<String, dynamic> values,
 }) {
-  final stitches = _positiveInt(_stringValue(values[stitchesField]));
-  final rows = _positiveInt(_stringValue(values[rowsField]));
-  final measurement = _positiveInt(_stringValue(values[measurementField]));
+  final stitches = _positiveInt(values[stitchesField]);
+  final rows = _positiveInt(values[rowsField]);
+  final measurement = _positiveInt(values[measurementField]);
   final unit = _stringValue(values[unitField]);
   if (stitches == null && rows == null && measurement == null && unit == null) {
     return null;
@@ -259,9 +259,15 @@ ProjectGauge? _gaugeFrom({
   );
 }
 
-int? _positiveInt(String? value) {
-  if (value == null || !RegExp(r'^\d+$').hasMatch(value)) return null;
-  final parsed = int.parse(value);
+int? _positiveInt(Object? value) {
+  if (value is int) return value > 0 ? value : null;
+  if (value is num && value % 1 == 0) {
+    final parsed = value.toInt();
+    return parsed > 0 ? parsed : null;
+  }
+  final text = _stringValue(value);
+  if (text == null || !RegExp(r'^\d+$').hasMatch(text)) return null;
+  final parsed = int.parse(text);
   return parsed > 0 ? parsed : null;
 }
 

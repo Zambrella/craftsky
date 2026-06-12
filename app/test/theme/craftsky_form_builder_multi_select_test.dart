@@ -1,6 +1,7 @@
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -21,16 +22,46 @@ void main() {
             allowCustomValues: true,
             maxSelected: 2,
             customValueHintText: 'Add material',
-            addCustomValueLabel: 'Add material',
+            addCustomValueLabel: 'Add',
             maxSelectedErrorText: 'Choose no more than 2 materials.',
           ),
         ),
       ),
     );
 
-    expect(find.text('Add material'), findsNWidgets(2));
+    expect(find.text('Add material'), findsOneWidget);
+    expect(find.text('Add'), findsOneWidget);
+    final addButton = tester.widget<TextButton>(
+      find.byKey(const Key('materials-add-custom')),
+    );
+    expect(
+      addButton.style?.padding?.resolve(const <WidgetState>{}),
+      EdgeInsets.zero,
+    );
+    expect(
+      addButton.style?.minimumSize?.resolve(const <WidgetState>{}),
+      Size.zero,
+    );
+    expect(addButton.style?.tapTargetSize, MaterialTapTargetSize.shrinkWrap);
+    expect(
+      addButton.onPressed,
+      isNull,
+    );
 
-    await _addCustom(tester, 'materials', 'linen');
+    await tester.enterText(
+      find.byKey(const Key('materials-custom-input')),
+      'linen',
+    );
+    await tester.pump();
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('materials-add-custom')))
+          .onPressed,
+      isNotNull,
+    );
+    await tester.tap(find.byKey(const Key('materials-add-custom')));
+    await tester.pump();
+
     await _addCustom(tester, 'materials', 'cotton');
     await _addCustom(tester, 'materials', 'wool');
 
@@ -75,66 +106,333 @@ void main() {
     );
 
     expect(formKey.currentState!.instantValue['colours'], ['blue']);
-    expect(find.text('Search colours'), findsOneWidget);
+    expect(find.text('Blue'), findsOneWidget);
+    expect(find.byKey(const Key('colours-search-input')), findsOneWidget);
     expect(find.byKey(const Key('colours-option-red')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('colours-search-input')));
+    await tester.pumpAndSettle();
+    expect(find.text('Search colours'), findsOneWidget);
+    expect(find.byType(Divider), findsNothing);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('colours-search-input')))
+          .focusNode
+          ?.hasFocus,
+      isTrue,
+    );
+    expect(find.byKey(const Key('colours-option-cream')), findsOneWidget);
+    expect(find.byKey(const Key('colours-option-red')), findsOneWidget);
+    expect(
+      tester
+          .widget<CheckboxListTile>(
+            find.byKey(const Key('colours-option-blue')),
+          )
+          .tileColor,
+      isNotNull,
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('colours-search-input')), findsOneWidget);
+    expect(find.byKey(const Key('colours-option-cream')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('colours-search-input')));
+    await tester.pumpAndSettle();
 
     await tester.enterText(
       find.byKey(const Key('colours-search-input')),
       'cre',
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('colours-option-cream')), findsOneWidget);
     expect(find.byKey(const Key('colours-option-red')), findsNothing);
-    expect(find.byType(ListTile), findsOneWidget);
+    expect(find.byType(CheckboxListTile), findsOneWidget);
+    expect(
+      tester
+          .widget<CheckboxListTile>(
+            find.byKey(const Key('colours-option-cream')),
+          )
+          .tileColor,
+      isNotNull,
+    );
 
     await tester.tap(find.byKey(const Key('colours-option-cream')));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(formKey.currentState!.instantValue['colours'], ['blue', 'cream']);
+    expect(find.byKey(const Key('colours-option-cream')), findsNothing);
     final searchField = tester.widget<TextField>(
       find.byKey(const Key('colours-search-input')),
     );
     expect(searchField.controller?.text, isEmpty);
+    expect(searchField.focusNode?.hasFocus, isTrue);
+    expect(find.byKey(const Key('colours-option-blue')), findsNothing);
+
+    await tester.enterText(
+      find.byKey(const Key('colours-search-input')),
+      'cre',
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<CheckboxListTile>(
+            find.byKey(const Key('colours-option-cream')),
+          )
+          .value,
+      isTrue,
+    );
+    final selectedTile = tester.widget<CheckboxListTile>(
+      find.byKey(const Key('colours-option-cream')),
+    );
+    expect(selectedTile.selected, isFalse);
+    expect(selectedTile.selectedTileColor, isNull);
+    expect(selectedTile.shape, isA<RoundedRectangleBorder>());
 
     await tester.enterText(
       find.byKey(const Key('colours-search-input')),
       'blue',
     );
-    await tester.pump();
-    expect(find.byKey(const Key('colours-option-blue')), findsNothing);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('colours-option-blue')), findsOneWidget);
 
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('colours-remove-blue')));
     await tester.pump();
     expect(formKey.currentState!.instantValue['colours'], ['cream']);
   });
 
-  testWidgets('UT-004 inline known-option search stays centred with chips', (
+  testWidgets(
+    'UT-004 known-option search is inline and opens options after typing',
+    (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const _Harness(
+          child: FormBuilder(
+            child: CraftskyFormBuilderMultiSelectField<String>(
+              name: 'designTags',
+              label: 'Design tags',
+              initialValue: ['floral'],
+              searchHintText: 'Search design tags',
+              options: [
+                CraftskySelectOption(value: 'floral', label: 'Floral'),
+                CraftskySelectOption(value: 'striped', label: 'Striped'),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('designTags-search-input')), findsOneWidget);
+      expect(find.text('Floral'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('designTags-search-input')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('designTags-search-input')), findsOneWidget);
+      expect(
+        find.byKey(const Key('designTags-option-striped')),
+        findsOneWidget,
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('designTags-search-input')),
+        'str',
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('designTags-option-striped')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'UT-004 inline search enter with empty text selects first option',
+    (
+      tester,
+    ) async {
+      final formKey = GlobalKey<FormBuilderState>();
+
+      await tester.pumpWidget(
+        _Harness(
+          child: FormBuilder(
+            key: formKey,
+            child: const CraftskyFormBuilderMultiSelectField<String>(
+              name: 'colours',
+              label: 'Colours',
+              searchHintText: 'Search colours',
+              options: [
+                CraftskySelectOption(value: 'blue', label: 'Blue'),
+                CraftskySelectOption(value: 'cream', label: 'Cream'),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('colours-search-input')));
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+
+      expect(formKey.currentState!.instantValue['colours'], ['blue']);
+      expect(find.byKey(const Key('colours-option-blue')), findsNothing);
+    },
+  );
+
+  testWidgets('UT-004 inline search shows no results for unmatched text', (
     tester,
   ) async {
     await tester.pumpWidget(
       const _Harness(
         child: FormBuilder(
           child: CraftskyFormBuilderMultiSelectField<String>(
-            name: 'designTags',
-            label: 'Design tags',
-            initialValue: ['floral'],
-            searchHintText: 'Search design tags',
+            name: 'colours',
+            label: 'Colours',
+            searchHintText: 'Search colours',
             options: [
-              CraftskySelectOption(value: 'floral', label: 'Floral'),
-              CraftskySelectOption(value: 'striped', label: 'Striped'),
+              CraftskySelectOption(value: 'blue', label: 'Blue'),
+              CraftskySelectOption(value: 'cream', label: 'Cream'),
             ],
           ),
         ),
       ),
     );
 
-    final chipCenter = tester.getCenter(find.byType(InputChip));
-    final fieldCenter = tester.getCenter(
-      find.byKey(const Key('designTags-search-input')),
+    await tester.tap(find.byKey(const Key('colours-search-input')));
+    await tester.enterText(
+      find.byKey(const Key('colours-search-input')),
+      'zz',
     );
-    expect((chipCenter.dy - fieldCenter.dy).abs(), lessThanOrEqualTo(8));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No results'), findsOneWidget);
+    expect(find.byKey(const Key('colours-option-blue')), findsNothing);
+  });
+
+  testWidgets('UT-004 inline search enter selects and keeps focus', (
+    tester,
+  ) async {
+    final formKey = GlobalKey<FormBuilderState>();
+
+    await tester.pumpWidget(
+      _Harness(
+        child: FormBuilder(
+          key: formKey,
+          child: const CraftskyFormBuilderMultiSelectField<String>(
+            name: 'colours',
+            label: 'Colours',
+            searchHintText: 'Search colours',
+            options: [
+              CraftskySelectOption(value: 'blue', label: 'Blue'),
+              CraftskySelectOption(value: 'cream', label: 'Cream'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('colours-search-input')));
+    await tester.enterText(
+      find.byKey(const Key('colours-search-input')),
+      'cre',
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+
+    expect(formKey.currentState!.instantValue['colours'], ['cream']);
     expect(
-      tester.getSize(find.byKey(const Key('designTags-search-input'))).width,
-      greaterThan(320),
+      tester
+          .widget<TextField>(find.byKey(const Key('colours-search-input')))
+          .focusNode
+          ?.hasFocus,
+      isTrue,
+    );
+  });
+
+  testWidgets('UT-004 inline search tabs to next field once', (tester) async {
+    final firstFocusNode = FocusNode(debugLabel: 'first-field');
+    final nextFocusNode = FocusNode(debugLabel: 'next-field');
+    addTearDown(firstFocusNode.dispose);
+    addTearDown(nextFocusNode.dispose);
+
+    await tester.pumpWidget(
+      _Harness(
+        child: FormBuilder(
+          child: Column(
+            children: [
+              TextField(
+                key: const Key('first-field'),
+                focusNode: firstFocusNode,
+              ),
+              const SizedBox(height: 24),
+              const CraftskyFormBuilderMultiSelectField<String>(
+                name: 'colours',
+                label: 'Colours',
+                searchHintText: 'Search colours',
+                options: [
+                  CraftskySelectOption(value: 'blue', label: 'Blue'),
+                  CraftskySelectOption(value: 'cream', label: 'Cream'),
+                ],
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                key: const Key('next-field'),
+                focusNode: nextFocusNode,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    firstFocusNode.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    expect(nextFocusNode.hasFocus, isFalse);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('colours-options-panel')), findsNothing);
+    expect(nextFocusNode.hasFocus, isTrue);
+  });
+
+  testWidgets('UT-004 token enter adds value and keeps focus', (tester) async {
+    final formKey = GlobalKey<FormBuilderState>();
+
+    await tester.pumpWidget(
+      _Harness(
+        child: FormBuilder(
+          key: formKey,
+          child: const CraftskyFormBuilderMultiSelectField<String>(
+            name: 'materials',
+            label: 'Materials',
+            allowCustomValues: true,
+            customValueHintText: 'Add material',
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('materials-custom-input')));
+    await tester.enterText(
+      find.byKey(const Key('materials-custom-input')),
+      'linen',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+
+    expect(formKey.currentState!.instantValue['materials'], ['linen']);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('materials-custom-input')))
+          .focusNode
+          ?.hasFocus,
+      isTrue,
     );
   });
 
@@ -161,6 +459,7 @@ void main() {
 
 Future<void> _addCustom(WidgetTester tester, String name, String value) async {
   await tester.enterText(find.byKey(Key('$name-custom-input')), value);
+  await tester.pump();
   await tester.tap(find.byKey(Key('$name-add-custom')));
   await tester.pump();
 }

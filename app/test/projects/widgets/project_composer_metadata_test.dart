@@ -1,10 +1,12 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
+import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -29,8 +31,8 @@ void main() {
     );
 
     expect(find.text('Pattern'), findsOneWidget);
-    expect(find.text('Pattern name'), findsNothing);
-    expect(find.text('Pattern URL'), findsNothing);
+    expect(find.text('Name'), findsNothing);
+    expect(find.text('Link'), findsNothing);
     expect(find.text('Pattern difficulty'), findsNothing);
     expect(find.text('Designer'), findsNothing);
     expect(find.text('Publisher'), findsNothing);
@@ -40,8 +42,8 @@ void main() {
     await tester.tap(find.text('Pattern'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Pattern name'), findsOneWidget);
-    expect(find.text('Pattern URL'), findsOneWidget);
+    expect(find.text('Name'), findsOneWidget);
+    expect(find.text('Link'), findsOneWidget);
     expect(find.text('Pattern difficulty'), findsOneWidget);
     expect(find.text('Designer'), findsOneWidget);
     expect(find.text('Publisher'), findsOneWidget);
@@ -73,56 +75,50 @@ void main() {
     await tester.pumpAndSettle();
 
     for (final option in firstTen) {
-      await tester.enterText(
-        find.byKey(const Key('${ProjectComposerFields.colours}-search-input')),
-        option.label,
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(
-          Key('${ProjectComposerFields.colours}-option-${option.value}'),
-        ),
-      );
-      await tester.pumpAndSettle();
+      await _searchAndTapColour(tester, option);
     }
 
     expect(find.text(firstTen.first.label), findsWidgets);
 
-    await tester.enterText(
-      find.byKey(const Key('${ProjectComposerFields.colours}-search-input')),
-      eleventh.label,
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(
-        Key('${ProjectComposerFields.colours}-option-${eleventh.value}'),
-      ),
-    );
-    await tester.pumpAndSettle();
+    await _searchAndTapColour(tester, eleventh);
 
     expect(find.text('You can choose up to 10.'), findsOneWidget);
     expect(find.text(eleventh.label), findsWidgets);
 
-    await tester.tap(
-      find.byKey(
-        Key('${ProjectComposerFields.colours}-remove-${firstTen.first.value}'),
-      ),
-    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.byKey(const Key('${ProjectComposerFields.colours}-search-input')),
-      eleventh.label,
+    final firstRemoveButton = find.byKey(
+      Key('${ProjectComposerFields.colours}-remove-${firstTen.first.value}'),
     );
+    await tester.ensureVisible(firstRemoveButton);
     await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(
-        Key('${ProjectComposerFields.colours}-option-${eleventh.value}'),
-      ),
-    );
+    await tester.tap(firstRemoveButton);
     await tester.pumpAndSettle();
+
+    await _searchAndTapColour(tester, eleventh);
 
     expect(find.text('You can choose up to 10.'), findsNothing);
     expect(find.text(eleventh.label), findsWidgets);
   });
+}
+
+Future<void> _searchAndTapColour(
+  WidgetTester tester,
+  ProjectOption option,
+) async {
+  final searchInput = find.byKey(
+    const Key('${ProjectComposerFields.colours}-search-input'),
+  );
+  final optionFinder = find.byKey(
+    Key('${ProjectComposerFields.colours}-option-${option.value}'),
+  );
+  await tester.ensureVisible(searchInput);
+  await tester.pumpAndSettle();
+  await tester.tap(searchInput);
+  await tester.pump();
+  await tester.enterText(searchInput, option.label);
+  await tester.pumpAndSettle();
+  await tester.tap(optionFinder);
+  await tester.pumpAndSettle();
 }
