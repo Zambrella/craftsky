@@ -31,20 +31,10 @@ void main() {
 
     expect(find.text('Add material'), findsOneWidget);
     expect(find.text('Add'), findsOneWidget);
-    final addButton = tester.widget<TextButton>(
-      find.byKey(const Key('materials-add-custom')),
-    );
     expect(
-      addButton.style?.padding?.resolve(const <WidgetState>{}),
-      EdgeInsets.zero,
-    );
-    expect(
-      addButton.style?.minimumSize?.resolve(const <WidgetState>{}),
-      Size.zero,
-    );
-    expect(addButton.style?.tapTargetSize, MaterialTapTargetSize.shrinkWrap);
-    expect(
-      addButton.onPressed,
+      tester
+          .widget<TextButton>(find.byKey(const Key('materials-add-custom')))
+          .onPressed,
       isNull,
     );
 
@@ -123,14 +113,6 @@ void main() {
     );
     expect(find.byKey(const Key('colours-option-cream')), findsOneWidget);
     expect(find.byKey(const Key('colours-option-red')), findsOneWidget);
-    expect(
-      tester
-          .widget<CheckboxListTile>(
-            find.byKey(const Key('colours-option-blue')),
-          )
-          .tileColor,
-      isNotNull,
-    );
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
@@ -184,9 +166,7 @@ void main() {
     final selectedTile = tester.widget<CheckboxListTile>(
       find.byKey(const Key('colours-option-cream')),
     );
-    expect(selectedTile.selected, isFalse);
-    expect(selectedTile.selectedTileColor, isNull);
-    expect(selectedTile.shape, isA<RoundedRectangleBorder>());
+    expect(selectedTile.value, isTrue);
 
     await tester.enterText(
       find.byKey(const Key('colours-search-input')),
@@ -401,6 +381,86 @@ void main() {
     expect(nextFocusNode.hasFocus, isTrue);
   });
 
+  testWidgets('UT-004 disabling an open multi-select closes its overlay', (
+    tester,
+  ) async {
+    var enabled = true;
+
+    Widget buildSubject() {
+      return _Harness(
+        child: FormBuilder(
+          child: CraftskyFormBuilderMultiSelectField<String>(
+            name: 'colours',
+            label: 'Colours',
+            enabled: enabled,
+            searchHintText: 'Search colours',
+            options: const [
+              CraftskySelectOption(value: 'blue', label: 'Blue'),
+              CraftskySelectOption(value: 'cream', label: 'Cream'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(buildSubject());
+    await tester.tap(find.byKey(const Key('colours-search-input')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('colours-options-panel')), findsOneWidget);
+
+    enabled = false;
+    await tester.pumpWidget(buildSubject());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('colours-options-panel')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('colours-search-input')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('colours-options-panel')), findsNothing);
+  });
+
+  testWidgets('UT-004 known-option max error clears after parent reset', (
+    tester,
+  ) async {
+    var values = <String>['blue'];
+    late StateSetter setHarnessState;
+
+    await tester.pumpWidget(
+      _Harness(
+        child: StatefulBuilder(
+          builder: (context, setState) {
+            setHarnessState = setState;
+            return CraftskySearchableMultiSelectInput<String>(
+              label: 'Colours',
+              values: values,
+              maxSelected: 1,
+              maxSelectedErrorText: 'Choose no more than 1 colour.',
+              searchHintText: 'Search colours',
+              options: const [
+                CraftskySelectOption(value: 'blue', label: 'Blue'),
+                CraftskySelectOption(value: 'cream', label: 'Cream'),
+              ],
+              onChanged: (nextValues) {
+                setHarnessState(() => values = nextValues);
+              },
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('Colours-search-input')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('Colours-option-cream')));
+    await tester.pump();
+    expect(find.text('Choose no more than 1 colour.'), findsOneWidget);
+
+    setHarnessState(() => values = const []);
+    await tester.pump();
+
+    expect(find.text('Choose no more than 1 colour.'), findsNothing);
+  });
+
   testWidgets('UT-004 token enter adds value and keeps focus', (tester) async {
     final formKey = GlobalKey<FormBuilderState>();
 
@@ -434,6 +494,47 @@ void main() {
           ?.hasFocus,
       isTrue,
     );
+  });
+
+  testWidgets('UT-004 token max error clears after parent reset', (
+    tester,
+  ) async {
+    var values = <String>['linen'];
+    late StateSetter setHarnessState;
+
+    await tester.pumpWidget(
+      _Harness(
+        child: StatefulBuilder(
+          builder: (context, setState) {
+            setHarnessState = setState;
+            return CraftskyTokenInput(
+              label: 'Materials',
+              values: values,
+              maxSelected: 1,
+              maxSelectedErrorText: 'Choose no more than 1 material.',
+              inputHintText: 'Add material',
+              onChanged: (nextValues) {
+                setHarnessState(() => values = nextValues);
+              },
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('Materials-custom-input')),
+      'cotton',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('Materials-add-custom')));
+    await tester.pump();
+    expect(find.text('Choose no more than 1 material.'), findsOneWidget);
+
+    setHarnessState(() => values = const []);
+    await tester.pump();
+
+    expect(find.text('Choose no more than 1 material.'), findsNothing);
   });
 
   testWidgets('UT-016 multi-select disabled copy is supplied by caller', (

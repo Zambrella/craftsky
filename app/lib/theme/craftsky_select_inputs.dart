@@ -103,6 +103,14 @@ class _CraftskySingleSelectInputState<T>
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant CraftskySingleSelectInput<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.enabled && !widget.enabled && _open) {
+      _setOpen(false);
+    }
+  }
+
   void _handleFocusChanged() {
     if (mounted) setState(() {});
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -119,7 +127,7 @@ class _CraftskySingleSelectInputState<T>
   }
 
   void _setOpen(bool open) {
-    if (!widget.enabled) return;
+    if (open && !widget.enabled) return;
     final shouldOpen = open;
     if (shouldOpen == _open) return;
     setState(() {
@@ -579,9 +587,15 @@ class _CraftskySearchableMultiSelectInputState<T>
     covariant CraftskySearchableMultiSelectInput<T> oldWidget,
   ) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.enabled && !widget.enabled && _open) {
+      _setOpen(false);
+    }
     if (!_listEquals(_values, widget.values)) {
       _values = List<T>.from(widget.values);
-      _markOverlayNeedsBuild();
+      if (_isBelowSelectionLimit(_values.length)) {
+        _limitText = null;
+      }
+      _markOverlayNeedsBuildAfterFrame();
     }
   }
 
@@ -612,7 +626,7 @@ class _CraftskySearchableMultiSelectInputState<T>
   }
 
   void _setOpen(bool open) {
-    if (!widget.enabled) return;
+    if (open && !widget.enabled) return;
     final shouldOpen = open;
     if (shouldOpen == _open) return;
     setState(() => _open = shouldOpen);
@@ -679,6 +693,19 @@ class _CraftskySearchableMultiSelectInputState<T>
 
   void _markOverlayNeedsBuild() {
     _overlayEntry?.markNeedsBuild();
+  }
+
+  void _markOverlayNeedsBuildAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _markOverlayNeedsBuild();
+      }
+    });
+  }
+
+  bool _isBelowSelectionLimit(int length) {
+    final max = widget.maxSelected;
+    return max == null || length < max;
   }
 
   Map<T, String> get _labelByValue => {
@@ -934,6 +961,20 @@ class _CraftskyTokenInputState extends State<CraftskyTokenInput> {
       ..removeListener(_handleTextChanged)
       ..dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant CraftskyTokenInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_listEquals(widget.values, oldWidget.values) &&
+        _isBelowSelectionLimit(widget.values.length)) {
+      _limitText = null;
+    }
+  }
+
+  bool _isBelowSelectionLimit(int length) {
+    final max = widget.maxSelected;
+    return max == null || length < max;
   }
 
   void _setValues(List<String> values) {

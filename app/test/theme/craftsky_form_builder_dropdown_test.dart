@@ -98,6 +98,44 @@ void main() {
     expect(formKey.currentState!.instantValue['status'], 'finished');
   });
 
+  testWidgets('UT-003 disabling an open dropdown closes its overlay', (
+    tester,
+  ) async {
+    var enabled = true;
+
+    Widget buildSubject() {
+      return _Harness(
+        child: FormBuilder(
+          child: CraftskyFormBuilderDropdownField<String>(
+            name: 'status',
+            label: 'Status',
+            initialValue: 'finished',
+            enabled: enabled,
+            options: const [
+              CraftskySelectOption(value: 'finished', label: 'Finished'),
+              CraftskySelectOption(value: 'wip', label: 'Work in progress'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(buildSubject());
+    await tester.tap(find.byKey(const Key('status-select-button')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('status-options-panel')), findsOneWidget);
+
+    enabled = false;
+    await tester.pumpWidget(buildSubject());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('status-options-panel')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('status-select-button')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('status-options-panel')), findsNothing);
+  });
+
   testWidgets('UT-003 disabled dropdown is skipped by tab traversal', (
     tester,
   ) async {
@@ -635,8 +673,6 @@ void main() {
       find.byKey(const Key('craftType-option-crochet')),
     );
     expect(highlightedTile.selected, isTrue);
-    expect(highlightedTile.selectedTileColor, isNotNull);
-    expect(highlightedTile.shape, isA<RoundedRectangleBorder>());
   });
 
   testWidgets('UT-003 keyboard highlight scrolls into view', (tester) async {

@@ -468,23 +468,18 @@ class CraftskyFormNumberField extends StatelessWidget {
       focusNode: focusNode,
       validator: validator,
       builder: (field) {
-        return CraftskyNumberInput(
+        return _CraftskyFormNumberAdapter(
+          field: field,
           label: label,
           controller: controller,
           focusNode: focusNode,
-          initialValue: field.value,
           hintText: hintText,
           helperText: helperText,
-          errorText: field.errorText,
           prefixText: prefixText,
           suffixText: suffixText,
           textFieldKey: textFieldKey,
           mode: mode,
-          enabled: field.widget.enabled,
-          onChanged: (value) {
-            field.didChange(value);
-            onChanged?.call(value);
-          },
+          onChanged: onChanged,
         );
       },
     );
@@ -496,5 +491,85 @@ class CraftskyFormNumberField extends StatelessWidget {
       CraftskyNumberInputMode.integer => int.tryParse(value.trim()),
       CraftskyNumberInputMode.decimal => num.tryParse(value.trim()),
     };
+  }
+}
+
+class _CraftskyFormNumberAdapter extends StatefulWidget {
+  const _CraftskyFormNumberAdapter({
+    required this.field,
+    required this.label,
+    required this.controller,
+    required this.focusNode,
+    required this.hintText,
+    required this.helperText,
+    required this.prefixText,
+    required this.suffixText,
+    required this.textFieldKey,
+    required this.mode,
+    required this.onChanged,
+  });
+
+  final FormFieldState<num> field;
+  final String label;
+  final TextEditingController? controller;
+  final FocusNode? focusNode;
+  final String? hintText;
+  final String? helperText;
+  final String? prefixText;
+  final String? suffixText;
+  final Key? textFieldKey;
+  final CraftskyNumberInputMode mode;
+  final ValueChanged<num?>? onChanged;
+
+  @override
+  State<_CraftskyFormNumberAdapter> createState() =>
+      _CraftskyFormNumberAdapterState();
+}
+
+class _CraftskyFormNumberAdapterState
+    extends State<_CraftskyFormNumberAdapter> {
+  @override
+  void didUpdateWidget(covariant _CraftskyFormNumberAdapter oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncControllerToFieldValue();
+  }
+
+  void _syncControllerToFieldValue() {
+    final controller = widget.controller;
+    if (controller == null) return;
+    final value = _format(widget.field.value);
+    if (controller.text == value) return;
+    controller.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+  }
+
+  String _format(num? value) => switch (value) {
+    final int value => value.toString(),
+    final num value => value.toString(),
+    null => '',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return CraftskyNumberInput(
+      label: widget.label,
+      controller: widget.controller,
+      focusNode: widget.focusNode,
+      initialValue: widget.controller == null ? widget.field.value : null,
+      hintText: widget.hintText,
+      helperText: widget.helperText,
+      errorText: widget.field.errorText,
+      prefixText: widget.prefixText,
+      suffixText: widget.suffixText,
+      textFieldKey: widget.textFieldKey,
+      mode: widget.mode,
+      enabled: widget.field.widget.enabled,
+      onChanged: (value) {
+        widget.field.didChange(value);
+        widget.onChanged?.call(value);
+      },
+    );
   }
 }

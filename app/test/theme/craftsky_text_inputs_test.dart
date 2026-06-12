@@ -82,6 +82,47 @@ void main() {
     expect(changed, 10.5);
     expect(find.text('cm'), findsOneWidget);
   });
+
+  testWidgets('number form field supports external controller values', (
+    tester,
+  ) async {
+    final formKey = GlobalKey<FormBuilderState>();
+    final controller = TextEditingController(text: '12');
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      _Harness(
+        child: FormBuilder(
+          key: formKey,
+          child: CraftskyFormNumberField(
+            name: 'rowGauge',
+            label: 'Row gauge',
+            controller: controller,
+            mode: CraftskyNumberInputMode.integer,
+            validator: (value) => value == null ? 'Enter a number.' : null,
+          ),
+        ),
+      ),
+    );
+
+    expect(formKey.currentState!.instantValue['rowGauge'], 12);
+
+    await tester.enterText(find.byType(TextField), '14');
+    expect(controller.text, '14');
+    expect(formKey.currentState!.instantValue['rowGauge'], 14);
+    expect(formKey.currentState!.saveAndValidate(), isTrue);
+    expect(formKey.currentState!.value['rowGauge'], 14);
+
+    await tester.enterText(find.byType(TextField), '');
+    expect(formKey.currentState!.saveAndValidate(), isFalse);
+    await tester.pump();
+    expect(find.text('Enter a number.'), findsOneWidget);
+
+    formKey.currentState!.reset();
+    await tester.pump();
+    expect(controller.text, '12');
+    expect(formKey.currentState!.instantValue['rowGauge'], 12);
+  });
 }
 
 class _Harness extends StatelessWidget {
