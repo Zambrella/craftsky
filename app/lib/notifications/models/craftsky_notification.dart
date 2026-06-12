@@ -1,7 +1,7 @@
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
-enum CraftskyNotificationType { follow, like, repost, reply }
+enum CraftskyNotificationType { follow, like, repost, reply, mention }
 
 sealed class CraftskyNotification {
   const CraftskyNotification({
@@ -49,6 +49,12 @@ sealed class CraftskyNotification {
             : NotificationReplyRef.fromMap(
                 map['reply'] as Map<String, dynamic>,
               ),
+      ),
+      'mention' => MentionNotification(
+        common,
+        subjectPost: PostMapper.fromMap(
+          map['subjectPost'] as Map<String, dynamic>,
+        ),
       ),
       _ => throw FormatException('unknown notification type: $type'),
     };
@@ -107,6 +113,13 @@ final class ReplyNotification extends SubjectPostNotification {
 
   @override
   CraftskyNotificationType get type => CraftskyNotificationType.reply;
+}
+
+final class MentionNotification extends SubjectPostNotification {
+  MentionNotification(super.common, {required super.subjectPost});
+
+  @override
+  CraftskyNotificationType get type => CraftskyNotificationType.mention;
 }
 
 final class NotificationActor {

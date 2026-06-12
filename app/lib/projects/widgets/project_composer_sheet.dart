@@ -20,6 +20,7 @@ import 'package:craftsky_app/theme/craftsky_form_builder_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -604,6 +605,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       _scrollToTop();
       return;
     }
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _currentPage = page);
     _scrollToTop();
   }
@@ -1086,6 +1088,70 @@ class _MountedWizardPages extends StatelessWidget {
   final int currentPage;
   final List<Widget> children;
 
+  KeyEventResult _handlePageKey(FocusNode pageNode, KeyEvent event) {
+    if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.tab) {
+      return KeyEventResult.ignored;
+    }
+    final focusedNode = FocusManager.instance.primaryFocus;
+    if (focusedNode == null || !focusedNode.ancestors.contains(pageNode)) {
+      return KeyEventResult.ignored;
+    }
+
+    final focusGroups = pageNode.descendants.where(
+      (node) =>
+          node.canRequestFocus &&
+          node.context != null &&
+          !_hasFocusableAncestorWithin(node, pageNode),
+    );
+    final orderedGroups = WidgetOrderTraversalPolicy()
+        .sortDescendants(focusGroups, focusedNode)
+        .where((node) => node.context != null)
+        .toList(growable: false);
+    if (orderedGroups.length < 2) return KeyEventResult.ignored;
+
+    final currentGroup = _nearestOrderedNode(focusedNode, orderedGroups);
+    if (currentGroup == null) return KeyEventResult.ignored;
+    final currentIndex = orderedGroups.indexOf(currentGroup);
+    if (currentIndex == -1) return KeyEventResult.ignored;
+    final direction = HardwareKeyboard.instance.isShiftPressed ? -1 : 1;
+    final nextIndex = currentIndex + direction;
+    if (nextIndex < 0 || nextIndex >= orderedGroups.length) {
+      return KeyEventResult.ignored;
+    }
+    _preferredFocusTarget(orderedGroups[nextIndex]).requestFocus();
+    return KeyEventResult.handled;
+  }
+
+  static bool _hasFocusableAncestorWithin(FocusNode node, FocusNode root) {
+    for (final ancestor in node.ancestors) {
+      if (ancestor == root) return false;
+      if (ancestor.canRequestFocus && ancestor.context != null) return true;
+    }
+    return false;
+  }
+
+  static FocusNode? _nearestOrderedNode(
+    FocusNode node,
+    List<FocusNode> orderedNodes,
+  ) {
+    if (orderedNodes.contains(node)) return node;
+    for (final ancestor in node.ancestors) {
+      if (orderedNodes.contains(ancestor)) return ancestor;
+    }
+    return null;
+  }
+
+  static FocusNode _preferredFocusTarget(FocusNode group) {
+    final leafNodes = group.descendants.where(
+      (node) => node.canRequestFocus && node.context != null,
+    );
+    final orderedLeafNodes = WidgetOrderTraversalPolicy()
+        .sortDescendants(leafNodes, group)
+        .toList(growable: false);
+    if (orderedLeafNodes.isEmpty) return group;
+    return orderedLeafNodes.last;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -1096,10 +1162,16 @@ class _MountedWizardPages extends StatelessWidget {
             offstage: index != currentPage,
             child: TickerMode(
               enabled: index == currentPage,
-              child: Focus(
-                descendantsAreFocusable: index == currentPage,
-                descendantsAreTraversable: index == currentPage,
-                child: child,
+              child: FocusTraversalGroup(
+                policy: WidgetOrderTraversalPolicy(),
+                child: Focus(
+                  canRequestFocus: index == currentPage,
+                  skipTraversal: true,
+                  descendantsAreFocusable: index == currentPage,
+                  descendantsAreTraversable: index == currentPage,
+                  onKeyEvent: _handlePageKey,
+                  child: child,
+                ),
               ),
             ),
           ),

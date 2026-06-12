@@ -272,7 +272,7 @@ void main() {
                 mime: 'image/jpeg',
                 size: 10,
                 alt: 'Indigo jacket on a hanger',
-                aspectRatio: PostImageAspectRatio(width: 4, height: 1),
+                aspectRatio: const PostImageAspectRatio(width: 4, height: 1),
                 thumb: 'https://cdn.example.com/project-thumb.jpg',
                 fullsize: 'https://cdn.example.com/project-full.jpg',
               ),
@@ -297,7 +297,8 @@ void main() {
       expect(find.text('Finished'), findsOneWidget);
       expect(find.text('Sewing'), findsOneWidget);
       expect(find.text('PATTERN'), findsOneWidget);
-      expect(find.text('Wiksten Haori by Jenny Gordy'), findsOneWidget);
+      expect(find.text('Wiksten Haori'), findsOneWidget);
+      expect(find.text('Jenny Gordy'), findsOneWidget);
       expect(find.text('SIZE'), findsOneWidget);
       expect(find.text('Medium'), findsOneWidget);
       expect(find.text('Process shots, swipe through.'), findsOneWidget);
@@ -312,7 +313,7 @@ void main() {
       expect(
         tester.getCenter(find.text('PATTERN')).dy,
         moreOrLessEquals(
-          tester.getCenter(find.text('Wiksten Haori by Jenny Gordy')).dy,
+          tester.getCenter(find.text('Wiksten Haori')).dy,
           epsilon: 1,
         ),
       );
@@ -333,6 +334,64 @@ void main() {
           tester.getTopLeft(find.text('Process shots, swipe through.')).dy,
         ),
       );
+    });
+
+    testWidgets('renders clickable facets in project pattern metadata', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            project: Project(
+              common: ProjectCommon(
+                craftType: ProjectOptionCatalogs.knittingCraftToken,
+                pattern: ProjectPattern(
+                  name: '#hitchhiker',
+                  nameFacets: [
+                    _facet(0, 11, {
+                      r'$type': 'app.bsky.richtext.facet#tag',
+                      'tag': 'hitchhiker',
+                    }),
+                  ],
+                  designer: '@alice.craftsky.social',
+                  designerFacets: [
+                    _facet(0, 22, {
+                      r'$type': 'app.bsky.richtext.facet#mention',
+                      'did': 'did:plc:alice',
+                    }),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final patternName = tester.widget<Text>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Text && widget.textSpan?.toPlainText() == '#hitchhiker',
+        ),
+      );
+      final designer = tester.widget<Text>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Text &&
+              widget.textSpan?.toPlainText() == '@alice.craftsky.social',
+        ),
+      );
+      final patternNameSpan = _leafTextSpans(
+        patternName.textSpan! as TextSpan,
+      ).single;
+      final designerSpan = _leafTextSpans(
+        designer.textSpan! as TextSpan,
+      ).single;
+
+      expect(patternNameSpan.style?.color, BrandColors.cobalt);
+      expect(patternNameSpan.recognizer, isNotNull);
+      expect(designerSpan.style?.color, BrandColors.cobalt);
+      expect(designerSpan.recognizer, isNotNull);
     });
 
     testWidgets('renders partial pattern metadata without empty rows', (

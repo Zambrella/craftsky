@@ -55,6 +55,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String notificationMentionRow(String actor) {
+    return '$actor mentioned you';
+  }
+
+  @override
   String get welcomeTitle => 'Welcome';
 
   @override

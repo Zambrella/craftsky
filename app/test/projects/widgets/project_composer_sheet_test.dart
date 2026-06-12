@@ -5,6 +5,7 @@ import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -212,6 +213,61 @@ void main() {
         .maxScrollExtent;
     expect(pageThreeMaxScrollExtent, lessThan(pageOneMaxScrollExtent));
     expect(pageThreeMaxScrollExtent, lessThan(120));
+  });
+
+  testWidgets('AT-003 page two fields advance with tab traversal', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          composerImagesProvider('tab-composer').overrideWithValue(
+            _readyImagesState,
+          ),
+        ],
+        child: MessengerScope(
+          messenger: RecordingMessenger(),
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProjectComposerSheet(composerId: 'tab-composer'),
+          ),
+        ),
+      ),
+    );
+
+    await _selectCraft(tester, 'Embroidery');
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
+
+    final materials = find.byKey(const Key('materials-custom-input'));
+    final colors = find.byKey(const Key('colors-search-input'));
+    final designTags = find.byKey(const Key('designTags-search-input'));
+    await tester.tap(materials);
+    await tester.pump();
+    expect(tester.widget<TextField>(materials).focusNode?.hasFocus, isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+
+    expect(tester.widget<TextField>(materials).focusNode?.hasFocus, isFalse);
+    expect(tester.widget<TextField>(colors).focusNode?.hasFocus, isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+
+    expect(tester.widget<TextField>(colors).focusNode?.hasFocus, isFalse);
+    expect(tester.widget<TextField>(designTags).focusNode?.hasFocus, isTrue);
+
+    await tester.tap(designTags);
+    await tester.pump();
+    expect(tester.widget<TextField>(designTags).focusNode?.hasFocus, isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+
+    expect(tester.widget<TextField>(designTags).focusNode?.hasFocus, isFalse);
   });
 }
 

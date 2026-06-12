@@ -281,7 +281,7 @@ class _ProjectSummary extends StatelessWidget {
           const CraftskyDivider(),
           SizedBox(height: spacing.sp2),
           if (pattern != null)
-            _ProjectMetadataRow(label: 'Pattern', value: pattern),
+            _ProjectPatternMetadataRow(pattern: project.common.pattern!),
           if (size case final row?)
             _ProjectMetadataRow(label: row.label, value: row.value),
         ],
@@ -359,7 +359,6 @@ class _ProjectMetadataRow extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: spacing.sp1),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           SizedBox(
             width: 82,
@@ -377,6 +376,72 @@ class _ProjectMetadataRow extends StatelessWidget {
                 color: theme.colorScheme.onSurface,
                 fontWeight: FontWeight.w600,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProjectPatternMetadataRow extends StatelessWidget {
+  const _ProjectPatternMetadataRow({required this.pattern});
+
+  final ProjectPattern pattern;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final valueStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurface,
+      fontWeight: FontWeight.w600,
+    );
+    final name = _nonBlank(pattern.name);
+    final designer = _nonBlank(pattern.designer);
+    final publisher = _nonBlank(pattern.publisher);
+    final trailingCredits = [designer, publisher].whereType<String>().toList();
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: spacing.sp1),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 82,
+            child: Text(
+              'PATTERN',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (name != null)
+                  FacetedText(
+                    text: name,
+                    facets: pattern.nameFacets,
+                    style: valueStyle,
+                  ),
+                if (name != null && trailingCredits.isNotEmpty)
+                  Text(' by ', style: valueStyle),
+                if (designer != null)
+                  FacetedText(
+                    text: designer,
+                    facets: pattern.designerFacets,
+                    style: valueStyle,
+                  ),
+                if (designer != null && publisher != null)
+                  Text(', ', style: valueStyle),
+                if (publisher != null)
+                  FacetedText(
+                    text: publisher,
+                    facets: pattern.publisherFacets,
+                    style: valueStyle,
+                  ),
+              ],
             ),
           ),
         ],
@@ -437,10 +502,17 @@ String? _patternValue(ProjectPattern? pattern) {
   if (pattern == null) return null;
   final name = _nonBlank(pattern.name);
   final designer = _nonBlank(pattern.designer);
-  return switch ((name, designer)) {
-    (final String name, final String designer) => '$name by $designer',
-    (final String name, null) => name,
-    (null, final String designer) => designer,
+  final publisher = _nonBlank(pattern.publisher);
+  return switch ((name, designer, publisher)) {
+    (final String name, final String designer, final String publisher) =>
+      '$name by $designer, $publisher',
+    (final String name, final String designer, null) => '$name by $designer',
+    (final String name, null, final String publisher) => '$name by $publisher',
+    (final String name, null, null) => name,
+    (null, final String designer, final String publisher) =>
+      '$designer, $publisher',
+    (null, final String designer, null) => designer,
+    (null, null, final String publisher) => publisher,
     _ => null,
   };
 }

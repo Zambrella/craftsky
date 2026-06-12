@@ -166,6 +166,12 @@ abstract class AppLocalizations {
   /// **'{actor} replied to your post'**
   String notificationReplyRow(String actor);
 
+  /// Notification row title for a mention activity.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} mentioned you'**
+  String notificationMentionRow(String actor);
+
   /// Title and main heading on the welcome page.
   ///
   /// In en, this message translates to:

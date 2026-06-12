@@ -5,8 +5,11 @@ import 'package:craftsky_app/projects/models/project.dart';
 
 typedef ProjectFacetGenerator =
     Future<List<Map<String, dynamic>>> Function(
-      String text,
-    );
+      String text, {
+      bool includeMentions,
+      bool includeLinks,
+      bool includeTags,
+    });
 
 class ProjectComposerSubmitArguments {
   const ProjectComposerSubmitArguments({
@@ -32,11 +35,87 @@ Future<ProjectComposerSubmitArguments> buildProjectComposerSubmitArguments({
 }) async {
   final trimmedText = text.trim();
   final facets = await generateFacets(trimmedText);
+  final projectWithPatternFacets = await _projectWithPatternFacets(
+    project,
+    generateFacets,
+  );
   return ProjectComposerSubmitArguments(
     text: trimmedText,
-    project: project,
+    project: projectWithPatternFacets,
     reply: null,
     images: imagesState.toCreatePostImages(),
     facets: facets.isEmpty ? null : facets,
   );
+}
+
+Future<Project> _projectWithPatternFacets(
+  Project project,
+  ProjectFacetGenerator generateFacets,
+) async {
+  final pattern = project.common.pattern;
+  if (pattern == null) return project;
+
+  final nameFacets = await _fieldFacets(
+    pattern.name,
+    generateFacets,
+    includeMentions: false,
+    includeLinks: false,
+    includeTags: true,
+  );
+  final designerFacets = await _fieldFacets(
+    pattern.designer,
+    generateFacets,
+    includeMentions: true,
+    includeLinks: false,
+    includeTags: false,
+  );
+  final publisherFacets = await _fieldFacets(
+    pattern.publisher,
+    generateFacets,
+    includeMentions: true,
+    includeLinks: false,
+    includeTags: false,
+  );
+
+  final nextPattern = ProjectPattern(
+    url: pattern.url,
+    name: pattern.name,
+    nameFacets: nameFacets,
+    difficulty: pattern.difficulty,
+    designer: pattern.designer,
+    designerFacets: designerFacets,
+    publisher: pattern.publisher,
+    publisherFacets: publisherFacets,
+  );
+  return Project(
+    common: ProjectCommon(
+      craftType: project.common.craftType,
+      status: project.common.status,
+      title: project.common.title,
+      duration: project.common.duration,
+      pattern: nextPattern,
+      materials: project.common.materials,
+      colors: project.common.colors,
+      designTags: project.common.designTags,
+      tags: project.common.tags,
+    ),
+    details: project.details,
+  );
+}
+
+Future<List<Map<String, dynamic>>?> _fieldFacets(
+  String? text,
+  ProjectFacetGenerator generateFacets, {
+  required bool includeMentions,
+  required bool includeLinks,
+  required bool includeTags,
+}) async {
+  if (text == null || text.trim().isEmpty) return null;
+  final facets = await generateFacets(
+    text,
+    includeMentions: includeMentions,
+    includeLinks: includeLinks,
+    includeTags: includeTags,
+  );
+  return facets.isEmpty ? null : facets;
 }

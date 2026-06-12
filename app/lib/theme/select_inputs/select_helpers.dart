@@ -136,6 +136,10 @@ class _AnchoredSelectOverlay extends StatelessWidget {
             child: SizedBox(
               width: anchorBox.size.width,
               child: Focus(
+                canRequestFocus: false,
+                skipTraversal: true,
+                descendantsAreFocusable: false,
+                descendantsAreTraversable: false,
                 onKeyEvent: (_, event) {
                   if (event is KeyDownEvent &&
                       event.logicalKey == LogicalKeyboardKey.escape) {

@@ -1,6 +1,10 @@
 package api
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	appbsky "github.com/bluesky-social/indigo/api/bsky"
+)
 
 const (
 	ProjectCraftTypeKnitting   = "social.craftsky.feed.defs#knitting"
@@ -44,9 +48,12 @@ type ProjectCommon struct {
 }
 
 type ProjectPattern struct {
-	URL        *string `json:"url,omitempty"`
-	Name       *string `json:"name,omitempty"`
-	Difficulty *string `json:"difficulty,omitempty"`
-	Designer   *string `json:"designer,omitempty"`
-	Publisher  *string `json:"publisher,omitempty"`
+	URL             *string                  `json:"url,omitempty"`
+	Name            *string                  `json:"name,omitempty"`
+	NameFacets      []*appbsky.RichtextFacet `json:"nameFacets,omitempty"`
+	Difficulty      *string                  `json:"difficulty,omitempty"`
+	Designer        *string                  `json:"designer,omitempty"`
+	DesignerFacets  []*appbsky.RichtextFacet `json:"designerFacets,omitempty"`
+	Publisher       *string                  `json:"publisher,omitempty"`
+	PublisherFacets []*appbsky.RichtextFacet `json:"publisherFacets,omitempty"`
 }

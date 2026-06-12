@@ -48,16 +48,22 @@ class ProjectPattern with ProjectPatternMappable {
   const ProjectPattern({
     this.url,
     this.name,
+    this.nameFacets,
     this.difficulty,
     this.designer,
+    this.designerFacets,
     this.publisher,
+    this.publisherFacets,
   });
 
   final String? url;
   final String? name;
+  final List<Map<String, dynamic>>? nameFacets;
   final String? difficulty;
   final String? designer;
+  final List<Map<String, dynamic>>? designerFacets;
   final String? publisher;
+  final List<Map<String, dynamic>>? publisherFacets;
 }
 
 @MappableClass(ignoreNull: true)

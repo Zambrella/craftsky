@@ -435,6 +435,10 @@ class ProjectPatternMapper extends ClassMapperBase<ProjectPattern> {
     _$name,
     opt: true,
   );
+  static List<Map<String, dynamic>>? _$nameFacets(ProjectPattern v) =>
+      v.nameFacets;
+  static const Field<ProjectPattern, List<Map<String, dynamic>>> _f$nameFacets =
+      Field('nameFacets', _$nameFacets, opt: true);
   static String? _$difficulty(ProjectPattern v) => v.difficulty;
   static const Field<ProjectPattern, String> _f$difficulty = Field(
     'difficulty',
@@ -447,20 +451,31 @@ class ProjectPatternMapper extends ClassMapperBase<ProjectPattern> {
     _$designer,
     opt: true,
   );
+  static List<Map<String, dynamic>>? _$designerFacets(ProjectPattern v) =>
+      v.designerFacets;
+  static const Field<ProjectPattern, List<Map<String, dynamic>>>
+  _f$designerFacets = Field('designerFacets', _$designerFacets, opt: true);
   static String? _$publisher(ProjectPattern v) => v.publisher;
   static const Field<ProjectPattern, String> _f$publisher = Field(
     'publisher',
     _$publisher,
     opt: true,
   );
+  static List<Map<String, dynamic>>? _$publisherFacets(ProjectPattern v) =>
+      v.publisherFacets;
+  static const Field<ProjectPattern, List<Map<String, dynamic>>>
+  _f$publisherFacets = Field('publisherFacets', _$publisherFacets, opt: true);
 
   @override
   final MappableFields<ProjectPattern> fields = const {
     #url: _f$url,
     #name: _f$name,
+    #nameFacets: _f$nameFacets,
     #difficulty: _f$difficulty,
     #designer: _f$designer,
+    #designerFacets: _f$designerFacets,
     #publisher: _f$publisher,
+    #publisherFacets: _f$publisherFacets,
   };
   @override
   final bool ignoreNull = true;
@@ -469,9 +484,12 @@ class ProjectPatternMapper extends ClassMapperBase<ProjectPattern> {
     return ProjectPattern(
       url: data.dec(_f$url),
       name: data.dec(_f$name),
+      nameFacets: data.dec(_f$nameFacets),
       difficulty: data.dec(_f$difficulty),
       designer: data.dec(_f$designer),
+      designerFacets: data.dec(_f$designerFacets),
       publisher: data.dec(_f$publisher),
+      publisherFacets: data.dec(_f$publisherFacets),
     );
   }
 
@@ -537,12 +555,33 @@ extension ProjectPatternValueCopy<$R, $Out>
 
 abstract class ProjectPatternCopyWith<$R, $In extends ProjectPattern, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
+  ListCopyWith<
+    $R,
+    Map<String, dynamic>,
+    ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>
+  >?
+  get nameFacets;
+  ListCopyWith<
+    $R,
+    Map<String, dynamic>,
+    ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>
+  >?
+  get designerFacets;
+  ListCopyWith<
+    $R,
+    Map<String, dynamic>,
+    ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>
+  >?
+  get publisherFacets;
   $R call({
     String? url,
     String? name,
+    List<Map<String, dynamic>>? nameFacets,
     String? difficulty,
     String? designer,
+    List<Map<String, dynamic>>? designerFacets,
     String? publisher,
+    List<Map<String, dynamic>>? publisherFacets,
   });
   ProjectPatternCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -558,28 +597,76 @@ class _ProjectPatternCopyWithImpl<$R, $Out>
   late final ClassMapperBase<ProjectPattern> $mapper =
       ProjectPatternMapper.ensureInitialized();
   @override
+  ListCopyWith<
+    $R,
+    Map<String, dynamic>,
+    ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>
+  >?
+  get nameFacets => $value.nameFacets != null
+      ? ListCopyWith(
+          $value.nameFacets!,
+          (v, t) => ObjectCopyWith(v, $identity, t),
+          (v) => call(nameFacets: v),
+        )
+      : null;
+  @override
+  ListCopyWith<
+    $R,
+    Map<String, dynamic>,
+    ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>
+  >?
+  get designerFacets => $value.designerFacets != null
+      ? ListCopyWith(
+          $value.designerFacets!,
+          (v, t) => ObjectCopyWith(v, $identity, t),
+          (v) => call(designerFacets: v),
+        )
+      : null;
+  @override
+  ListCopyWith<
+    $R,
+    Map<String, dynamic>,
+    ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>
+  >?
+  get publisherFacets => $value.publisherFacets != null
+      ? ListCopyWith(
+          $value.publisherFacets!,
+          (v, t) => ObjectCopyWith(v, $identity, t),
+          (v) => call(publisherFacets: v),
+        )
+      : null;
+  @override
   $R call({
     Object? url = $none,
     Object? name = $none,
+    Object? nameFacets = $none,
     Object? difficulty = $none,
     Object? designer = $none,
+    Object? designerFacets = $none,
     Object? publisher = $none,
+    Object? publisherFacets = $none,
   }) => $apply(
     FieldCopyWithData({
       if (url != $none) #url: url,
       if (name != $none) #name: name,
+      if (nameFacets != $none) #nameFacets: nameFacets,
       if (difficulty != $none) #difficulty: difficulty,
       if (designer != $none) #designer: designer,
+      if (designerFacets != $none) #designerFacets: designerFacets,
       if (publisher != $none) #publisher: publisher,
+      if (publisherFacets != $none) #publisherFacets: publisherFacets,
     }),
   );
   @override
   ProjectPattern $make(CopyWithData data) => ProjectPattern(
     url: data.get(#url, or: $value.url),
     name: data.get(#name, or: $value.name),
+    nameFacets: data.get(#nameFacets, or: $value.nameFacets),
     difficulty: data.get(#difficulty, or: $value.difficulty),
     designer: data.get(#designer, or: $value.designer),
+    designerFacets: data.get(#designerFacets, or: $value.designerFacets),
     publisher: data.get(#publisher, or: $value.publisher),
+    publisherFacets: data.get(#publisherFacets, or: $value.publisherFacets),
   );
 
   @override

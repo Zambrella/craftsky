@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	appbsky "github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -121,7 +122,8 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	if project != nil && (rec.Reply != nil || quoteURI != nil) {
 		project = nil
 	}
-	tags := postutil.MergeTags(postutil.ExtractTags(rec.Facets), projectSearchTags(project))
+	tags := postutil.MergeTags(postutil.ExtractTagsForText(rec.Text, rec.Facets), projectSearchTags(project))
+	mentions := postutil.MergeMentionDIDs(postutil.ExtractMentionDIDsForText(rec.Text, rec.Facets), projectMentionDIDs(project))
 
 	var isProject bool
 	var projectCraftType any
@@ -178,11 +180,14 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		return fmt.Errorf("upsert %s: %w", ev.URI, err)
 	}
 	if project != nil {
-		if err := upsertProjectMaterialization(ctx, tx, ev.URI, project); err != nil {
+		if err := upsertProjectMaterialization(ctx, tx, ev.URI, project, tags); err != nil {
 			return err
 		}
 	} else if _, err := tx.Exec(ctx, `DELETE FROM craftsky_project_posts WHERE uri = $1`, ev.URI); err != nil {
 		return fmt.Errorf("delete stale project %s: %w", ev.URI, err)
+	}
+	if err := syncPostMentions(ctx, tx, ev.URI, mentions, createdAt); err != nil {
+		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit upsert %s: %w", ev.URI, err)
@@ -203,11 +208,14 @@ type indexedProjectCommon struct {
 	Title     *string `json:"title"`
 	Duration  *string `json:"duration"`
 	Pattern   *struct {
-		URL        *string `json:"url"`
-		Name       *string `json:"name"`
-		Difficulty *string `json:"difficulty"`
-		Designer   *string `json:"designer"`
-		Publisher  *string `json:"publisher"`
+		URL             *string                  `json:"url"`
+		Name            *string                  `json:"name"`
+		NameFacets      []*appbsky.RichtextFacet `json:"nameFacets"`
+		Difficulty      *string                  `json:"difficulty"`
+		Designer        *string                  `json:"designer"`
+		DesignerFacets  []*appbsky.RichtextFacet `json:"designerFacets"`
+		Publisher       *string                  `json:"publisher"`
+		PublisherFacets []*appbsky.RichtextFacet `json:"publisherFacets"`
 	} `json:"pattern"`
 	Materials  []string `json:"materials"`
 	Colors     []string `json:"colors"`
@@ -267,24 +275,65 @@ func projectSearchTags(project *indexedProject) []string {
 	if project == nil {
 		return nil
 	}
-	return project.Common.Tags
+	var patternTagSets [][]string
+	if pattern := project.Common.Pattern; pattern != nil {
+		patternTagSets = append(patternTagSets,
+			postutil.ExtractTagsForText(stringPtrValue(pattern.Name), pattern.NameFacets),
+			postutil.ExtractTagsForText(stringPtrValue(pattern.Designer), pattern.DesignerFacets),
+			postutil.ExtractTagsForText(stringPtrValue(pattern.Publisher), pattern.PublisherFacets),
+		)
+	}
+	return postutil.MergeTags(append([][]string{project.Common.Tags}, patternTagSets...)...)
 }
 
-func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATURI, project *indexedProject) error {
+func projectMentionDIDs(project *indexedProject) []string {
+	if project == nil || project.Common.Pattern == nil {
+		return nil
+	}
+	pattern := project.Common.Pattern
+	return postutil.MergeMentionDIDs(
+		postutil.ExtractMentionDIDsForText(stringPtrValue(pattern.Name), pattern.NameFacets),
+		postutil.ExtractMentionDIDsForText(stringPtrValue(pattern.Designer), pattern.DesignerFacets),
+		postutil.ExtractMentionDIDsForText(stringPtrValue(pattern.Publisher), pattern.PublisherFacets),
+	)
+}
+
+func stringPtrValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATURI, project *indexedProject, tags []string) error {
 	common := project.Common
 	var patternURL, patternName, patternDifficulty, patternDesigner, patternPublisher *string
+	var patternNameFacets, patternDesignerFacets, patternPublisherFacets []byte
 	if common.Pattern != nil {
+		var err error
 		patternURL = common.Pattern.URL
 		patternName = common.Pattern.Name
 		patternDifficulty = common.Pattern.Difficulty
 		patternDesigner = common.Pattern.Designer
 		patternPublisher = common.Pattern.Publisher
+		patternNameFacets, err = marshalFacetJSON(common.Pattern.NameFacets)
+		if err != nil {
+			return fmt.Errorf("marshal pattern name facets %s: %w", uri, err)
+		}
+		patternDesignerFacets, err = marshalFacetJSON(common.Pattern.DesignerFacets)
+		if err != nil {
+			return fmt.Errorf("marshal pattern designer facets %s: %w", uri, err)
+		}
+		patternPublisherFacets, err = marshalFacetJSON(common.Pattern.PublisherFacets)
+		if err != nil {
+			return fmt.Errorf("marshal pattern publisher facets %s: %w", uri, err)
+		}
 	}
 	detailCols := craftDetailColumnsFor(project)
 	const q = `
 		INSERT INTO craftsky_project_posts (
 			uri, raw_project, common_craft_type, common_status, common_title, common_duration,
-			pattern_url, pattern_name, pattern_difficulty, pattern_designer, pattern_publisher,
+			pattern_url, pattern_name, pattern_name_facets, pattern_difficulty, pattern_designer, pattern_designer_facets, pattern_publisher, pattern_publisher_facets,
 			materials, colors, design_tags, project_tags, details_type, raw_details,
 			knitting_project_type, knitting_project_subtype, knitting_yarn_weight, knitting_needle_size_mm, knitting_gauge, knitting_finished_size,
 			crochet_project_type, crochet_project_subtype, crochet_yarn_weight, crochet_hook_size_mm, crochet_gauge, crochet_finished_size,
@@ -293,12 +342,12 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 		)
 		VALUES (
 			$1, $2, $3, $4, $5, $6,
-			$7, $8, $9, $10, $11,
-			$12, $13, $14, $15, $16, $17,
-			$18, $19, $20, $21, $22, $23,
-			$24, $25, $26, $27, $28, $29,
-			$30, $31, $32, $33, $34,
-			$35, $36, $37, $38
+			$7, $8, $9, $10, $11, $12, $13, $14,
+			$15, $16, $17, $18, $19, $20,
+			$21, $22, $23, $24, $25, $26,
+			$27, $28, $29, $30, $31, $32,
+			$33, $34, $35, $36, $37,
+			$38, $39, $40, $41
 		)
 		ON CONFLICT (uri) DO UPDATE SET
 			raw_project = EXCLUDED.raw_project,
@@ -308,9 +357,12 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 			common_duration = EXCLUDED.common_duration,
 			pattern_url = EXCLUDED.pattern_url,
 			pattern_name = EXCLUDED.pattern_name,
+			pattern_name_facets = EXCLUDED.pattern_name_facets,
 			pattern_difficulty = EXCLUDED.pattern_difficulty,
 			pattern_designer = EXCLUDED.pattern_designer,
+			pattern_designer_facets = EXCLUDED.pattern_designer_facets,
 			pattern_publisher = EXCLUDED.pattern_publisher,
+			pattern_publisher_facets = EXCLUDED.pattern_publisher_facets,
 			materials = EXCLUDED.materials,
 			colors = EXCLUDED.colors,
 			design_tags = EXCLUDED.design_tags,
@@ -340,11 +392,12 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 			sewing_fit_notes = EXCLUDED.sewing_fit_notes,
 			indexed_at = now()
 		WHERE craftsky_project_posts.raw_project IS DISTINCT FROM EXCLUDED.raw_project
+		   OR craftsky_project_posts.project_tags IS DISTINCT FROM EXCLUDED.project_tags
 	`
 	_, err := tx.Exec(ctx, q,
 		uri, project.RawProject, common.CraftType, common.Status, common.Title, common.Duration,
-		patternURL, patternName, patternDifficulty, patternDesigner, patternPublisher,
-		nonNilStrings(common.Materials), nonNilStrings(common.Colors), nonNilStrings(common.DesignTags), nonNilStrings(common.Tags), nullableString(project.Details.Type), nullableJSON(project.RawDetails),
+		patternURL, patternName, patternNameFacets, patternDifficulty, patternDesigner, patternDesignerFacets, patternPublisher, patternPublisherFacets,
+		nonNilStrings(common.Materials), nonNilStrings(common.Colors), nonNilStrings(common.DesignTags), nonNilStrings(tags), nullableString(project.Details.Type), nullableJSON(project.RawDetails),
 		detailCols.knittingProjectType, detailCols.knittingProjectSubtype, detailCols.knittingYarnWeight, detailCols.knittingNeedleSizeMM, detailCols.knittingGauge, detailCols.knittingFinishedSize,
 		detailCols.crochetProjectType, detailCols.crochetProjectSubtype, detailCols.crochetYarnWeight, detailCols.crochetHookSizeMM, detailCols.crochetGauge, detailCols.crochetFinishedSize,
 		detailCols.quiltingProjectType, detailCols.quiltingProjectSubtype, detailCols.quiltingPiecingTechnique, detailCols.quiltingQuiltingMethod, detailCols.quiltingSize,
@@ -352,6 +405,38 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 	)
 	if err != nil {
 		return fmt.Errorf("upsert project %s: %w", uri, err)
+	}
+	return nil
+}
+
+func marshalFacetJSON(facets []*appbsky.RichtextFacet) ([]byte, error) {
+	if len(facets) == 0 {
+		return nil, nil
+	}
+	return json.Marshal(facets)
+}
+
+func syncPostMentions(ctx context.Context, tx pgx.Tx, uri syntax.ATURI, mentionedDIDs []string, createdAt time.Time) error {
+	if len(mentionedDIDs) == 0 {
+		if _, err := tx.Exec(ctx, `DELETE FROM craftsky_post_mentions WHERE post_uri = $1`, uri); err != nil {
+			return fmt.Errorf("delete mentions %s: %w", uri, err)
+		}
+		return nil
+	}
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM craftsky_post_mentions
+		WHERE post_uri = $1 AND NOT (mentioned_did = ANY($2::text[]))
+	`, uri, mentionedDIDs); err != nil {
+		return fmt.Errorf("delete removed mentions %s: %w", uri, err)
+	}
+	for _, did := range mentionedDIDs {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO craftsky_post_mentions (post_uri, mentioned_did, created_at)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (post_uri, mentioned_did) DO NOTHING
+		`, uri, did, createdAt); err != nil {
+			return fmt.Errorf("insert mention %s -> %s: %w", uri, did, err)
+		}
 	}
 	return nil
 }

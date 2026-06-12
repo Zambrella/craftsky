@@ -63,9 +63,12 @@ CREATE TABLE craftsky_project_posts (
     common_duration TEXT,
     pattern_url TEXT,
     pattern_name TEXT,
+    pattern_name_facets JSONB,
     pattern_difficulty TEXT,
     pattern_designer TEXT,
+    pattern_designer_facets JSONB,
     pattern_publisher TEXT,
+    pattern_publisher_facets JSONB,
     materials TEXT[] NOT NULL DEFAULT '{}',
     colors TEXT[] NOT NULL DEFAULT '{}',
     design_tags TEXT[] NOT NULL DEFAULT '{}',
@@ -94,6 +97,13 @@ CREATE TABLE craftsky_project_posts (
     sewing_size_made TEXT,
     sewing_fit_notes TEXT,
     indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE craftsky_post_mentions (
+    post_uri TEXT NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
+    mentioned_did TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (post_uri, mentioned_did)
 );
 `
 
@@ -350,6 +360,134 @@ func TestCraftskyPost_Create_WithProjectPayload_MaterializesProject(t *testing.T
 	}
 	if common["title"] != "Hitchhiker Shawl" {
 		t.Errorf("title = %v", common["title"])
+	}
+}
+
+func TestCraftskyPost_Create_ProjectPatternFacetsMaterializeTagsAndMentions(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:author")
+	idx := index.NewCraftskyPost(pool, testLogger())
+
+	const projectJSON = `{
+		"$type": "social.craftsky.feed.post",
+		"text": "caption #captiontag",
+		"createdAt": "` + fixedCreatedAt + `",
+		"facets": [{"index":{"byteStart":8,"byteEnd":19},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"CaptionTag"}]}],
+		"project": {
+			"common": {
+				"craftType": "social.craftsky.feed.defs#knitting",
+				"tags": ["structured-tag"],
+				"pattern": {
+					"name": "#hitchhiker",
+					"nameFacets": [{"index":{"byteStart":0,"byteEnd":11},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"Hitchhiker"}]}],
+					"designer": "@alice.craftsky.social",
+					"designerFacets": [{"index":{"byteStart":0,"byteEnd":22},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:alice"}]}],
+					"publisher": "@alice.craftsky.social",
+					"publisherFacets": [{"index":{"byteStart":0,"byteEnd":22},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:alice"}]}]
+				}
+			}
+		}
+	}`
+	ev := tap.Event{
+		URI:        "at://did:plc:author/social.craftsky.feed.post/pattern-facets",
+		CID:        "bafyPatternFacets",
+		DID:        "did:plc:author",
+		Rkey:       "pattern-facets",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record:     json.RawMessage(projectJSON),
+	}
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+
+	var postTags, projectTags []string
+	if err := pool.QueryRow(context.Background(), `SELECT tags FROM craftsky_posts WHERE uri = $1`, ev.URI).Scan(&postTags); err != nil {
+		t.Fatalf("select post tags: %v", err)
+	}
+	if err := pool.QueryRow(context.Background(), `SELECT project_tags FROM craftsky_project_posts WHERE uri = $1`, ev.URI).Scan(&projectTags); err != nil {
+		t.Fatalf("select project tags: %v", err)
+	}
+	wantTags := []string{"captiontag", "structured-tag", "hitchhiker"}
+	if strings.Join(postTags, ",") != strings.Join(wantTags, ",") {
+		t.Fatalf("post tags = %v, want %v", postTags, wantTags)
+	}
+	if strings.Join(projectTags, ",") != strings.Join(wantTags, ",") {
+		t.Fatalf("project tags = %v, want %v", projectTags, wantTags)
+	}
+	var nameFacetCount, designerFacetCount, publisherFacetCount int
+	if err := pool.QueryRow(context.Background(), `
+		SELECT
+			COALESCE(jsonb_array_length(pattern_name_facets), 0),
+			COALESCE(jsonb_array_length(pattern_designer_facets), 0),
+			COALESCE(jsonb_array_length(pattern_publisher_facets), 0)
+		FROM craftsky_project_posts WHERE uri = $1`, ev.URI).Scan(&nameFacetCount, &designerFacetCount, &publisherFacetCount); err != nil {
+		t.Fatalf("select pattern facet counts: %v", err)
+	}
+	if nameFacetCount != 1 || designerFacetCount != 1 || publisherFacetCount != 1 {
+		t.Fatalf("pattern facet counts = name:%d designer:%d publisher:%d, want 1 each", nameFacetCount, designerFacetCount, publisherFacetCount)
+	}
+
+	var mentions []string
+	if err := pool.QueryRow(context.Background(), `
+		SELECT array_agg(mentioned_did ORDER BY mentioned_did)
+		FROM craftsky_post_mentions WHERE post_uri = $1`, ev.URI).Scan(&mentions); err != nil {
+		t.Fatalf("select mentions: %v", err)
+	}
+	if len(mentions) != 1 || mentions[0] != "did:plc:alice" {
+		t.Fatalf("mentions = %v, want [did:plc:alice]", mentions)
+	}
+}
+
+func TestCraftskyPost_Create_ProjectPatternFacetsIgnoreInvalidByteRanges(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:invalidfacet")
+	idx := index.NewCraftskyPost(pool, testLogger())
+
+	ev := tap.Event{
+		URI:        "at://did:plc:invalidfacet/social.craftsky.feed.post/r",
+		CID:        "bafyInvalidPatternFacets",
+		DID:        "did:plc:invalidfacet",
+		Rkey:       "r",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record: json.RawMessage(`{
+			"$type": "social.craftsky.feed.post",
+			"text": "caption",
+			"createdAt": "` + fixedCreatedAt + `",
+			"project": {
+				"common": {
+					"craftType": "social.craftsky.feed.defs#knitting",
+					"tags": ["structured-tag"],
+					"pattern": {
+						"name": "#hat",
+						"nameFacets": [{"index":{"byteStart":0,"byteEnd":99},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"invalid-name-tag"}]}],
+						"designerFacets": [{"index":{"byteStart":0,"byteEnd":8},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:ghost"}]}]
+					}
+				}
+			}
+		}`),
+	}
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+
+	var tags []string
+	if err := pool.QueryRow(context.Background(), `SELECT tags FROM craftsky_posts WHERE uri = $1`, ev.URI).Scan(&tags); err != nil {
+		t.Fatalf("select tags: %v", err)
+	}
+	if len(tags) != 1 || tags[0] != "structured-tag" {
+		t.Fatalf("tags = %v, want [structured-tag]", tags)
+	}
+
+	var mentionCount int
+	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM craftsky_post_mentions WHERE post_uri = $1`, ev.URI).Scan(&mentionCount); err != nil {
+		t.Fatalf("select mention count: %v", err)
+	}
+	if mentionCount != 0 {
+		t.Fatalf("mention count = %d, want 0", mentionCount)
 	}
 }
 
@@ -876,6 +1014,48 @@ func TestCraftskyPost_Replay_PreservesIndexedAt(t *testing.T) {
 	}
 }
 
+func TestCraftskyPost_Replay_PreservesMentionIndexedAt(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:mentionreplay")
+	idx := index.NewCraftskyPost(pool, testLogger())
+	ctx := context.Background()
+
+	ev := tap.Event{
+		URI:        "at://did:plc:mentionreplay/social.craftsky.feed.post/r",
+		CID:        "bafyMentionReplay",
+		DID:        "did:plc:mentionreplay",
+		Rkey:       "r",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record: json.RawMessage(`{
+			"$type": "social.craftsky.feed.post",
+			"text": "hi @alice",
+			"createdAt": "` + fixedCreatedAt + `",
+			"facets": [{"index":{"byteStart":3,"byteEnd":9},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:alice"}]}]
+		}`),
+	}
+	if err := idx.Handle(ctx, ev); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+
+	sentinel := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+	if _, err := pool.Exec(ctx, `UPDATE craftsky_post_mentions SET indexed_at = $1 WHERE post_uri = $2 AND mentioned_did = $3`, sentinel, ev.URI, "did:plc:alice"); err != nil {
+		t.Fatalf("set sentinel indexed_at: %v", err)
+	}
+	if err := idx.Handle(ctx, ev); err != nil {
+		t.Fatalf("replay Handle: %v", err)
+	}
+
+	var indexedAt time.Time
+	if err := pool.QueryRow(ctx, `SELECT indexed_at FROM craftsky_post_mentions WHERE post_uri = $1 AND mentioned_did = $2`, ev.URI, "did:plc:alice").Scan(&indexedAt); err != nil {
+		t.Fatalf("select mention indexed_at: %v", err)
+	}
+	if !indexedAt.Equal(sentinel) {
+		t.Fatalf("mention indexed_at = %s, want %s", indexedAt, sentinel)
+	}
+}
+
 func TestCraftskyPost_Update_NewCID_ReplacesRow(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, craftskyPostsDDL)
@@ -928,6 +1108,55 @@ func TestCraftskyPost_Update_NewCID_ReplacesRow(t *testing.T) {
 	}
 	if secondIndexedAt == firstIndexedAt {
 		t.Errorf("indexed_at did not advance: %q stayed", firstIndexedAt)
+	}
+}
+
+func TestCraftskyPost_Update_ProjectTagsRefreshWhenOnlyCaptionFacetsChange(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:projecttags")
+	idx := index.NewCraftskyPost(pool, testLogger())
+	ctx := context.Background()
+
+	create := tap.Event{
+		URI:        "at://did:plc:projecttags/social.craftsky.feed.post/r",
+		CID:        "bafyProjectTags1",
+		DID:        "did:plc:projecttags",
+		Rkey:       "r",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record: json.RawMessage(`{
+			"$type": "social.craftsky.feed.post",
+			"text": "caption #one",
+			"createdAt": "` + fixedCreatedAt + `",
+			"facets": [{"index":{"byteStart":8,"byteEnd":12},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"one"}]}],
+			"project": {"common":{"craftType":"social.craftsky.feed.defs#knitting"}}
+		}`),
+	}
+	if err := idx.Handle(ctx, create); err != nil {
+		t.Fatalf("create Handle: %v", err)
+	}
+
+	update := create
+	update.Action = "update"
+	update.CID = "bafyProjectTags2"
+	update.Record = json.RawMessage(`{
+		"$type": "social.craftsky.feed.post",
+		"text": "caption #two",
+		"createdAt": "` + fixedCreatedAt + `",
+		"facets": [{"index":{"byteStart":8,"byteEnd":12},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"two"}]}],
+		"project": {"common":{"craftType":"social.craftsky.feed.defs#knitting"}}
+	}`)
+	if err := idx.Handle(ctx, update); err != nil {
+		t.Fatalf("update Handle: %v", err)
+	}
+
+	var projectTags []string
+	if err := pool.QueryRow(ctx, `SELECT project_tags FROM craftsky_project_posts WHERE uri = $1`, create.URI).Scan(&projectTags); err != nil {
+		t.Fatalf("select project tags: %v", err)
+	}
+	if len(projectTags) != 1 || projectTags[0] != "two" {
+		t.Fatalf("project_tags = %v, want [two]", projectTags)
 	}
 }
 

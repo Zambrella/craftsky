@@ -34,9 +34,15 @@ void main() {
         text: 'Hi #craft',
         project: project,
         imagesState: images,
-        generateFacets: (text) async => [
-          {'type': 'tag', 'tag': 'craft', 'text': text},
-        ],
+        generateFacets:
+            (
+              text, {
+              includeMentions = true,
+              includeLinks = true,
+              includeTags = true,
+            }) async => [
+              {'type': 'tag', 'tag': 'craft', 'text': text},
+            ],
       );
 
       expect(args.text, 'Hi #craft');
@@ -49,4 +55,51 @@ void main() {
       ]);
     },
   );
+
+  test('UT-016 attaches scoped pattern field facets', () async {
+    const project = Project(
+      common: ProjectCommon(
+        craftType: 'social.craftsky.feed.defs#knitting',
+        pattern: ProjectPattern(
+          name: '#hitchhiker',
+          designer: '@alice.craftsky.social',
+          publisher: 'Plain Publisher',
+        ),
+      ),
+    );
+
+    final args = await buildProjectComposerSubmitArguments(
+      text: 'Caption',
+      project: project,
+      imagesState: const ComposerImagesState(images: []),
+      generateFacets:
+          (
+            text, {
+            includeMentions = true,
+            includeLinks = true,
+            includeTags = true,
+          }) async {
+            if (includeTags && text == '#hitchhiker') {
+              return [
+                {'feature': 'tag', 'tag': 'hitchhiker'},
+              ];
+            }
+            if (includeMentions && text == '@alice.craftsky.social') {
+              return [
+                {'feature': 'mention', 'did': 'did:plc:alice'},
+              ];
+            }
+            return [];
+          },
+    );
+
+    final pattern = args.project.common.pattern!;
+    expect(pattern.nameFacets, [
+      {'feature': 'tag', 'tag': 'hitchhiker'},
+    ]);
+    expect(pattern.designerFacets, [
+      {'feature': 'mention', 'did': 'did:plc:alice'},
+    ]);
+    expect(pattern.publisherFacets, isNull);
+  });
 }

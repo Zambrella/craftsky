@@ -1092,7 +1092,13 @@ func TestCreatePost_WithProject_WritesProjectToPDSAndResponse(t *testing.T) {
 			"common":{
 				"craftType":"social.craftsky.feed.defs#knitting",
 				"title":"Hitchhiker Shawl",
-				"tags":[" fairisle ", "WIP"]
+				"tags":[" fairisle ", "WIP"],
+				"pattern":{
+					"name":"#hitchhiker",
+					"nameFacets":[{"index":{"byteStart":0,"byteEnd":11},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"Hitchhiker"}]}],
+					"designer":"@alice.craftsky.social",
+					"designerFacets":[{"index":{"byteStart":0,"byteEnd":22},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:alice"}]}]
+				}
 			},
 			"details":{"$type":"social.craftsky.project.knitting#details","projectType":"shawl"}
 		}
@@ -1109,6 +1115,12 @@ func TestCreatePost_WithProject_WritesProjectToPDSAndResponse(t *testing.T) {
 	if project == nil || project.Common.CraftType != "social.craftsky.feed.defs#knitting" || project.Common.Title == nil || *project.Common.Title != "Hitchhiker Shawl" {
 		t.Fatalf("PDS project = %#v", rec["project"])
 	}
+	if project.Common.Pattern == nil || project.Common.Pattern.Name == nil || *project.Common.Pattern.Name != "#hitchhiker" {
+		t.Fatalf("PDS project pattern = %#v", project.Common.Pattern)
+	}
+	if len(project.Common.Pattern.NameFacets) != 1 || len(project.Common.Pattern.DesignerFacets) != 1 {
+		t.Fatalf("PDS pattern facets = name:%d designer:%d", len(project.Common.Pattern.NameFacets), len(project.Common.Pattern.DesignerFacets))
+	}
 	if _, ok := rec["createdAt"].(string); !ok {
 		t.Fatalf("createdAt missing from PDS record: %#v", rec)
 	}
@@ -1120,7 +1132,7 @@ func TestCreatePost_WithProject_WritesProjectToPDSAndResponse(t *testing.T) {
 	if resp.Project == nil || resp.Project.Common.Title == nil || *resp.Project.Common.Title != "Hitchhiker Shawl" {
 		t.Fatalf("response project = %+v", resp.Project)
 	}
-	wantTags := []string{"fairisle", "wip"}
+	wantTags := []string{"fairisle", "wip", "hitchhiker"}
 	if !reflect.DeepEqual(resp.Tags, wantTags) {
 		t.Fatalf("response tags = %v, want %v", resp.Tags, wantTags)
 	}

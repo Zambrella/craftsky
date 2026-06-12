@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 
+	appbsky "github.com/bluesky-social/indigo/api/bsky"
 	lexutil "github.com/bluesky-social/indigo/lex/util"
 	cbg "github.com/whyrusleeping/cbor-gen"
 )
@@ -32,14 +33,20 @@ type ProjectDefs_Gauge struct {
 //
 // Optional reference to the pattern used. Every field optional — 'Simplicity 8265' (name only), 'https://ravelry.com/patterns/library/hitchhiker' (URL only), or both plus difficulty are all valid.
 type ProjectDefs_Pattern struct {
-	// designer: The person or people who designed the pattern. Free text so physical patterns, indie designers, and multiple-designer credits can be represented without account references.
+	// designer: The person or people who designed the pattern. Free text so physical patterns, indie designers, and multiple-designer credits can be represented without account references. Rich-text annotations for this string live in designerFacets.
 	Designer *string `json:"designer,omitempty" cborgen:"designer,omitempty"`
+	// designerFacets: Byte-range annotations over 'designer'. Mention facets may notify credited Craftsky accounts.
+	DesignerFacets []*appbsky.RichtextFacet `json:"designerFacets,omitempty" cborgen:"designerFacets,omitempty"`
 	// difficulty: Pattern difficulty as rated by the designer. A property of the pattern, not the post — self-drafted or free-formed projects should leave this empty. knownValues are tokens.
 	Difficulty *string `json:"difficulty,omitempty" cborgen:"difficulty,omitempty"`
-	// name: Pattern name, e.g. 'Simplicity 8265' or 'Hitchhiker Shawl'. Useful when there is no URL (e.g. a physical pattern), or alongside a URL as a display label.
+	// name: Pattern name or visible pattern hashtag, e.g. 'Simplicity 8265', 'Hitchhiker Shawl', or '#hitchhiker'. Useful when there is no URL (e.g. a physical pattern), or alongside a URL as a display label. Rich-text annotations for this string live in nameFacets.
 	Name *string `json:"name,omitempty" cborgen:"name,omitempty"`
-	// publisher: The person, company, or entity that published the pattern. Optional and free text because pattern publishing differs across crafts and eras.
+	// nameFacets: Byte-range annotations over 'name'. Used for pattern hashtags and future links/mentions in the visible pattern name string.
+	NameFacets []*appbsky.RichtextFacet `json:"nameFacets,omitempty" cborgen:"nameFacets,omitempty"`
+	// publisher: The person, company, or entity that published the pattern. Optional and free text because pattern publishing differs across crafts and eras. Rich-text annotations for this string live in publisherFacets.
 	Publisher *string `json:"publisher,omitempty" cborgen:"publisher,omitempty"`
+	// publisherFacets: Byte-range annotations over 'publisher'. Mention facets may notify credited Craftsky accounts.
+	PublisherFacets []*appbsky.RichtextFacet `json:"publisherFacets,omitempty" cborgen:"publisherFacets,omitempty"`
 	// url: Link to the pattern.
 	Url *string `json:"url,omitempty" cborgen:"url,omitempty"`
 }
@@ -72,7 +79,7 @@ type ProjectDefs_ProjectCommon struct {
 	Pattern *ProjectDefs_Pattern `json:"pattern,omitempty" cborgen:"pattern,omitempty"`
 	// status: Whether the project is in progress or finished at the time this post was created. Snapshot — not a mutable lifecycle flag. knownValues are tokens so new statuses (e.g. planned, frogged) can be added without breaking old clients.
 	Status *string `json:"status,omitempty" cborgen:"status,omitempty"`
-	// tags: Structured search tags. Composer responsibility to normalise to ASCII kebab-case (pattern ^[a-z0-9]+(-[a-z0-9]+)*$) and to merge any inline #hashtag facets from text into this field. AppView indexer materialises this as a multi-value searchable column.
+	// tags: Structured search tags. Composer responsibility to normalise to ASCII kebab-case (pattern ^[a-z0-9]+(-[a-z0-9]+)*$). AppView search materialisation also merges hashtag facets from post text and faceted project metadata, so this field is not required to duplicate every visible hashtag.
 	Tags []string `json:"tags,omitempty" cborgen:"tags,omitempty"`
 	// title: Optional project name, e.g. 'Hitchhiker Shawl' or 'Linen Summer Dress'. Clients showing grid/card views should fall back to truncated text when title is absent.
 	Title *string `json:"title,omitempty" cborgen:"title,omitempty"`

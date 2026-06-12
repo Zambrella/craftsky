@@ -147,12 +147,7 @@ class _CraftskySearchableMultiSelectInputState<T>
     switch (event.logicalKey) {
       case LogicalKeyboardKey.tab:
         _setOpen(false);
-        if (HardwareKeyboard.instance.isShiftPressed) {
-          _searchFocusNode.previousFocus();
-        } else {
-          _searchFocusNode.nextFocus();
-        }
-        return KeyEventResult.handled;
+        return KeyEventResult.ignored;
       case LogicalKeyboardKey.escape:
         if (_open) {
           _setOpen(false);
@@ -296,7 +291,9 @@ class _CraftskySearchableMultiSelectInputState<T>
                             children: [
                               Expanded(
                                 child: Focus(
-                                  canRequestFocus: false,
+                                  skipTraversal: true,
+                                  descendantsAreFocusable: true,
+                                  descendantsAreTraversable: true,
                                   onKeyEvent: _handleSearchKey,
                                   child: TextField(
                                     key: Key('$keyPrefix-search-input'),

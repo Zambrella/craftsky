@@ -159,7 +159,7 @@
             "maxLength": 64,
             "maxGraphemes": 64
           },
-          "description": "Structured search tags. Composer responsibility to normalise to ASCII kebab-case (pattern ^[a-z0-9]+(-[a-z0-9]+)*$) and to merge any inline #hashtag facets from text into this field. AppView indexer materialises this as a multi-value searchable column."
+          "description": "Structured search tags. Composer responsibility to normalise to ASCII kebab-case (pattern ^[a-z0-9]+(-[a-z0-9]+)*$). AppView search materialisation also merges hashtag facets from post text and faceted project metadata, so this field is not required to duplicate every visible hashtag."
         }
       }
     },
@@ -176,7 +176,15 @@
           "type": "string",
           "maxLength": 500,
           "maxGraphemes": 200,
-          "description": "Pattern name, e.g. 'Simplicity 8265' or 'Hitchhiker Shawl'. Useful when there is no URL (e.g. a physical pattern), or alongside a URL as a display label."
+          "description": "Pattern name or visible pattern hashtag, e.g. 'Simplicity 8265', 'Hitchhiker Shawl', or '#hitchhiker'. Useful when there is no URL (e.g. a physical pattern), or alongside a URL as a display label. Rich-text annotations for this string live in nameFacets."
+        },
+        "nameFacets": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "app.bsky.richtext.facet"
+          },
+          "description": "Byte-range annotations over 'name'. Used for pattern hashtags and future links/mentions in the visible pattern name string."
         },
         "difficulty": {
           "type": "string",
@@ -194,13 +202,29 @@
           "type": "string",
           "maxLength": 500,
           "maxGraphemes": 200,
-          "description": "The person or people who designed the pattern. Free text so physical patterns, indie designers, and multiple-designer credits can be represented without account references."
+          "description": "The person or people who designed the pattern. Free text so physical patterns, indie designers, and multiple-designer credits can be represented without account references. Rich-text annotations for this string live in designerFacets."
+        },
+        "designerFacets": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "app.bsky.richtext.facet"
+          },
+          "description": "Byte-range annotations over 'designer'. Mention facets may notify credited Craftsky accounts."
         },
         "publisher": {
           "type": "string",
           "maxLength": 500,
           "maxGraphemes": 200,
-          "description": "The person, company, or entity that published the pattern. Optional and free text because pattern publishing differs across crafts and eras."
+          "description": "The person, company, or entity that published the pattern. Optional and free text because pattern publishing differs across crafts and eras. Rich-text annotations for this string live in publisherFacets."
+        },
+        "publisherFacets": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "app.bsky.richtext.facet"
+          },
+          "description": "Byte-range annotations over 'publisher'. Mention facets may notify credited Craftsky accounts."
         }
       }
     },

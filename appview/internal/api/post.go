@@ -231,7 +231,7 @@ func syntheticPostRow(
 		Rkey:      path.Base(string(uri)),
 		CID:       string(cid),
 		Text:      req.Text,
-		Tags:      postutil.MergeTags(extractRequestTags(req.Facets), requestProjectTags(req.Project)),
+		Tags:      postutil.MergeTags(extractRequestTags(req.Text, req.Facets), requestProjectTags(req.Project)),
 		CreatedAt: now,
 		IndexedAt: now,
 		Project:   req.Project,
@@ -272,7 +272,16 @@ func requestProjectTags(project *Project) []string {
 	if project == nil {
 		return nil
 	}
-	return project.Common.Tags
+	if project.Common.Pattern == nil {
+		return project.Common.Tags
+	}
+	pattern := project.Common.Pattern
+	return postutil.MergeTags(
+		project.Common.Tags,
+		postutil.ExtractTagsForText(stringPtrValue(pattern.Name), pattern.NameFacets),
+		postutil.ExtractTagsForText(stringPtrValue(pattern.Designer), pattern.DesignerFacets),
+		postutil.ExtractTagsForText(stringPtrValue(pattern.Publisher), pattern.PublisherFacets),
+	)
 }
 
 func syntheticPostImagesJSON(images []PostImage) (json.RawMessage, error) {
@@ -313,7 +322,7 @@ func int64FromJSONNumber(value any) int64 {
 // produce when this record arrives via the firehose. Returns an empty
 // (non-nil) slice on decode failure so the response always carries a
 // valid tags array.
-func extractRequestTags(raw json.RawMessage) []string {
+func extractRequestTags(text string, raw json.RawMessage) []string {
 	if len(raw) == 0 {
 		return []string{}
 	}
@@ -321,7 +330,7 @@ func extractRequestTags(raw json.RawMessage) []string {
 	if err := json.Unmarshal(raw, &typed); err != nil {
 		return []string{}
 	}
-	return postutil.ExtractTags(typed)
+	return postutil.ExtractTagsForText(text, typed)
 }
 
 func strPtr(s string) *string { return &s }

@@ -52,6 +52,12 @@
     "placeholders": { "actor": { "type": "String", "example": "Alice" } }
   },
 
+  "notificationMentionRow": "{actor} mentioned you",
+  "@notificationMentionRow": {
+    "description": "Notification row title for a mention activity.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
   "welcomeTitle": "Welcome",
   "@welcomeTitle": { "description": "Title and main heading on the welcome page." },
 
