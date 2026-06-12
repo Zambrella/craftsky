@@ -48,7 +48,10 @@ class CraftskyFormBuilderMultiSelectField<T> extends StatelessWidget {
     this.addCustomValueLabel,
     this.disabledText,
     this.maxSelectedErrorText,
-  });
+  }) : assert(
+         !allowCustomValues || T == String,
+         'allowCustomValues only supports String values.',
+       );
 
   final String name;
   final String label;
@@ -58,6 +61,9 @@ class CraftskyFormBuilderMultiSelectField<T> extends StatelessWidget {
   final bool enabled;
   final FormFieldValidator<List<T>>? validator;
   final ValueChanged<List<T>>? onChanged;
+
+  /// Uses a free-text token input instead of known options. Only supported for
+  /// `CraftskyFormBuilderMultiSelectField<String>`.
   final bool allowCustomValues;
   final int? maxSelected;
   final String? searchHintText;

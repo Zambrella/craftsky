@@ -55,6 +55,7 @@ class _CraftskyFieldScaffoldState extends State<CraftskyFieldScaffold> {
   @override
   void initState() {
     super.initState();
+    _focused = _focusNode.hasFocus;
     _focusNode.addListener(_onFocusChange);
   }
 
@@ -66,6 +67,7 @@ class _CraftskyFieldScaffoldState extends State<CraftskyFieldScaffold> {
         _onFocusChange,
       );
       _focusNode.addListener(_onFocusChange);
+      _focused = _focusNode.hasFocus;
     }
   }
 

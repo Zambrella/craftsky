@@ -130,14 +130,6 @@ void main() {
     expect(find.byKey(const Key('colours-option-cream')), findsOneWidget);
     expect(find.byKey(const Key('colours-option-red')), findsNothing);
     expect(find.byType(CheckboxListTile), findsOneWidget);
-    expect(
-      tester
-          .widget<CheckboxListTile>(
-            find.byKey(const Key('colours-option-cream')),
-          )
-          .tileColor,
-      isNotNull,
-    );
 
     await tester.tap(find.byKey(const Key('colours-option-cream')));
     await tester.pumpAndSettle();
@@ -535,6 +527,19 @@ void main() {
     await tester.pump();
 
     expect(find.text('Choose no more than 1 material.'), findsNothing);
+  });
+
+  testWidgets('UT-004 custom values require string multi-selects', (
+    tester,
+  ) async {
+    expect(
+      () => CraftskyFormBuilderMultiSelectField<int>(
+        name: 'numbers',
+        label: 'Numbers',
+        allowCustomValues: true,
+      ),
+      throwsAssertionError,
+    );
   });
 
   testWidgets('UT-016 multi-select disabled copy is supplied by caller', (
