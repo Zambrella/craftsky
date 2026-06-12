@@ -104,8 +104,8 @@ func CreatePostHandler(
 			logger.Error("post: newPDS failed",
 				slog.String("err", err.Error()),
 				slog.String("run_id", runID))
-			envelope.WriteError(w, http.StatusBadGateway,
-				"pds_unavailable", "could not contact PDS", runID, nil)
+			writePDSError(w, http.StatusBadGateway,
+				"pds_unavailable", "could not contact PDS", runID, err)
 			return
 		}
 		uri, cid, err := pds.CreateRecord(r.Context(), did, craftskyPostNSID, body)
@@ -113,8 +113,8 @@ func CreatePostHandler(
 			logger.Warn("post: CreateRecord failed",
 				slog.String("did", did.String()), slog.String("err", err.Error()),
 				slog.String("run_id", runID))
-			envelope.WriteError(w, http.StatusBadGateway,
-				"pds_write_failed", "could not write post", runID, nil)
+			writePDSError(w, http.StatusBadGateway,
+				"pds_write_failed", "could not write post", runID, err)
 			return
 		}
 		logger.Debug("post create: PDS record created",
@@ -826,8 +826,8 @@ func DeletePostHandler(newPDS auth.PDSClientFactory, logger *slog.Logger) http.H
 			logger.Error("post: newPDS failed",
 				slog.String("err", err.Error()),
 				slog.String("run_id", runID))
-			envelope.WriteError(w, http.StatusBadGateway,
-				"pds_unavailable", "could not contact PDS", runID, nil)
+			writePDSError(w, http.StatusBadGateway,
+				"pds_unavailable", "could not contact PDS", runID, err)
 			return
 		}
 		if err := pds.DeleteRecord(r.Context(), did, craftskyPostNSID, rkey); err != nil {
@@ -844,8 +844,8 @@ func DeletePostHandler(newPDS auth.PDSClientFactory, logger *slog.Logger) http.H
 				slog.String("rkey", rkey),
 				slog.String("err", err.Error()),
 				slog.String("run_id", runID))
-			envelope.WriteError(w, http.StatusBadGateway,
-				"pds_unavailable", "PDS delete failed", runID, nil)
+			writePDSError(w, http.StatusBadGateway,
+				"pds_unavailable", "PDS delete failed", runID, err)
 			return
 		}
 		logger.Debug("post delete: PDS record deleted",
@@ -929,8 +929,8 @@ func LikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *slog
 			logger.Error("like: newPDS failed",
 				slog.String("err", err.Error()),
 				slog.String("run_id", runID))
-			envelope.WriteError(w, http.StatusBadGateway,
-				"pds_unavailable", "could not contact PDS", runID, nil)
+			writePDSError(w, http.StatusBadGateway,
+				"pds_unavailable", "could not contact PDS", runID, err)
 			return
 		}
 		uri, cid, err := pds.CreateRecord(r.Context(), caller, craftskyLikeNSID, body)
@@ -938,8 +938,8 @@ func LikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *slog
 			logger.Warn("like: CreateRecord failed",
 				slog.String("did", caller.String()), slog.String("err", err.Error()),
 				slog.String("run_id", runID))
-			envelope.WriteError(w, http.StatusBadGateway,
-				"pds_write_failed", "could not write like", runID, nil)
+			writePDSError(w, http.StatusBadGateway,
+				"pds_write_failed", "could not write like", runID, err)
 			return
 		}
 		logger.Debug("like: PDS record created",
@@ -1023,8 +1023,8 @@ func UnlikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *sl
 			logger.Error("unlike: newPDS failed",
 				slog.String("err", err.Error()),
 				slog.String("run_id", runID))
-			envelope.WriteError(w, http.StatusBadGateway,
-				"pds_unavailable", "could not contact PDS", runID, nil)
+			writePDSError(w, http.StatusBadGateway,
+				"pds_unavailable", "could not contact PDS", runID, err)
 			return
 		}
 		if err := pds.DeleteRecord(r.Context(), caller, craftskyLikeNSID, active.Rkey); err != nil {
@@ -1041,8 +1041,8 @@ func UnlikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *sl
 				slog.String("rkey", active.Rkey),
 				slog.String("err", err.Error()),
 				slog.String("run_id", runID))
-			envelope.WriteError(w, http.StatusBadGateway,
-				"pds_unavailable", "PDS delete failed", runID, nil)
+			writePDSError(w, http.StatusBadGateway,
+				"pds_unavailable", "PDS delete failed", runID, err)
 			return
 		}
 		logger.Debug("unlike: PDS record deleted",
@@ -1126,8 +1126,8 @@ func RepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger *
 			logger.Error("repost: newPDS failed",
 				slog.String("err", err.Error()),
 				slog.String("run_id", runID))
-			envelope.WriteError(w, http.StatusBadGateway,
-				"pds_unavailable", "could not contact PDS", runID, nil)
+			writePDSError(w, http.StatusBadGateway,
+				"pds_unavailable", "could not contact PDS", runID, err)
 			return
 		}
 		uri, cid, err := pds.CreateRecord(r.Context(), caller, craftskyRepostNSID, body)
@@ -1135,8 +1135,8 @@ func RepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger *
 			logger.Warn("repost: CreateRecord failed",
 				slog.String("did", caller.String()), slog.String("err", err.Error()),
 				slog.String("run_id", runID))
-			envelope.WriteError(w, http.StatusBadGateway,
-				"pds_write_failed", "could not write repost", runID, nil)
+			writePDSError(w, http.StatusBadGateway,
+				"pds_write_failed", "could not write repost", runID, err)
 			return
 		}
 		logger.Debug("repost: PDS record created",
@@ -1220,8 +1220,8 @@ func UnrepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger
 			logger.Error("unrepost: newPDS failed",
 				slog.String("err", err.Error()),
 				slog.String("run_id", runID))
-			envelope.WriteError(w, http.StatusBadGateway,
-				"pds_unavailable", "could not contact PDS", runID, nil)
+			writePDSError(w, http.StatusBadGateway,
+				"pds_unavailable", "could not contact PDS", runID, err)
 			return
 		}
 		if err := pds.DeleteRecord(r.Context(), caller, craftskyRepostNSID, active.Rkey); err != nil {
@@ -1238,8 +1238,8 @@ func UnrepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger
 				slog.String("rkey", active.Rkey),
 				slog.String("err", err.Error()),
 				slog.String("run_id", runID))
-			envelope.WriteError(w, http.StatusBadGateway,
-				"pds_unavailable", "PDS delete failed", runID, nil)
+			writePDSError(w, http.StatusBadGateway,
+				"pds_unavailable", "PDS delete failed", runID, err)
 			return
 		}
 		logger.Debug("unrepost: PDS record deleted",

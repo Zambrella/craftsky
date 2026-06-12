@@ -93,6 +93,16 @@ func (s *CraftskySessionStore) RevokeAll(ctx context.Context, did string) error 
 	return err
 }
 
+// RevokeOAuthSession revokes all Craftsky bearer tokens backed by a specific
+// OAuth session. Use when the server learns that OAuth session can no longer be
+// resumed/refreshed.
+func (s *CraftskySessionStore) RevokeOAuthSession(ctx context.Context, did, oauthSessionID string) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE craftsky_sessions SET revoked_at = now() WHERE account_did = $1 AND oauth_session_id = $2 AND revoked_at IS NULL`,
+		did, oauthSessionID)
+	return err
+}
+
 // maybeTouchLastSeen updates last_seen_at at most once per
 // lastSeenThrottle interval per token, keeping last-write times in an
 // in-process map. The map only grows during normal operation; it is

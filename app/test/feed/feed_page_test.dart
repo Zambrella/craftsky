@@ -335,6 +335,30 @@ void main() {
     expect(find.byIcon(Icons.favorite), findsOneWidget);
   });
 
+  testWidgets('FeedPage shows an error when liking fails', (tester) async {
+    final post = _post('like-fails');
+    final messenger = RecordingMessenger();
+    await _pump(
+      tester,
+      FakePostRepository(
+        onListTimeline: ({cursor, limit}) async => PostPage(items: [post]),
+        onLike: (did, rkey) async => throw Exception('pds write failed'),
+      ),
+      messenger: messenger,
+    );
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.favorite_border));
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      messenger.calls,
+      contains(('error', "Couldn't update like.", null)),
+    );
+    expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+  });
+
   testWidgets('FeedPage reply opens focused thread and updates root row', (
     tester,
   ) async {

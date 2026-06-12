@@ -68,8 +68,8 @@ func ImageBlobUploadHandler(newPDS auth.PDSClientFactory, limits MediaLimits, lo
 			logger.Error("blob upload: newPDS failed",
 				slog.String("err", err.Error()),
 				slog.String("run_id", runID))
-			envelope.WriteError(w, http.StatusBadGateway,
-				"pds_unavailable", "could not contact PDS", runID, nil)
+			writePDSError(w, http.StatusBadGateway,
+				"pds_unavailable", "could not contact PDS", runID, err)
 			return
 		}
 
@@ -81,8 +81,8 @@ func ImageBlobUploadHandler(newPDS auth.PDSClientFactory, limits MediaLimits, lo
 				slog.Int64("size", uploadReq.SizeBytes),
 				slog.String("err", err.Error()),
 				slog.String("run_id", runID))
-			envelope.WriteError(w, http.StatusBadGateway,
-				"pds_write_failed", "could not upload image", runID, nil)
+			writePDSError(w, http.StatusBadGateway,
+				"pds_write_failed", "could not upload image", runID, err)
 			return
 		}
 

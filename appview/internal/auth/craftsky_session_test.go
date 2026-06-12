@@ -160,6 +160,45 @@ func TestCraftskySession_RevokeAll_SetsRevokedAtOnAllRowsForDID(t *testing.T) {
 	}
 }
 
+func TestCraftskySession_RevokeOAuthSession_OnlyRevokesMatchingSession(t *testing.T) {
+	pool := withAuthSchema(t)
+	store := auth.NewCraftskySessionStore(pool, 15*time.Minute)
+	ctx := context.Background()
+
+	_, err := pool.Exec(ctx,
+		`INSERT INTO oauth_sessions (account_did, session_id, data) VALUES ('did:plc:b', 'sA', '{}'), ('did:plc:b', 'sB', '{}'), ('did:plc:c', 'sA', '{}')`)
+	if err != nil {
+		t.Fatalf("seed oauth_sessions: %v", err)
+	}
+
+	matching, err := store.Create(ctx, "did:plc:b", "sA", "")
+	if err != nil {
+		t.Fatalf("Create matching: %v", err)
+	}
+	otherSession, err := store.Create(ctx, "did:plc:b", "sB", "")
+	if err != nil {
+		t.Fatalf("Create otherSession: %v", err)
+	}
+	otherDID, err := store.Create(ctx, "did:plc:c", "sA", "")
+	if err != nil {
+		t.Fatalf("Create otherDID: %v", err)
+	}
+
+	if err := store.RevokeOAuthSession(ctx, "did:plc:b", "sA"); err != nil {
+		t.Fatalf("RevokeOAuthSession: %v", err)
+	}
+
+	if _, err := store.Lookup(ctx, matching); !errors.Is(err, auth.ErrCraftskySessionNotFound) {
+		t.Fatalf("matching: expected ErrCraftskySessionNotFound, got %v", err)
+	}
+	if _, err := store.Lookup(ctx, otherSession); err != nil {
+		t.Fatalf("otherSession should remain active: %v", err)
+	}
+	if _, err := store.Lookup(ctx, otherDID); err != nil {
+		t.Fatalf("otherDID should remain active: %v", err)
+	}
+}
+
 func TestCraftskySession_LastSeenThrottled(t *testing.T) {
 	pool := withAuthSchema(t)
 	// Use a 1-hour throttle so the second Lookup is always within the window.

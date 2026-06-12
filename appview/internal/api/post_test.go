@@ -476,6 +476,24 @@ func TestLikePost_PDSCreateFailureReturns502(t *testing.T) {
 	}
 }
 
+func TestLikePost_PDSSessionExpiredReturns401(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{target: &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"}}
+	h := api.LikePostHandler(store, newPDSFactory(&fakePDS{createErr: auth.ErrPDSSessionExpired}), nilLogger())
+	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/likes", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "pds_session_expired" {
+		t.Errorf("error = %q", body.Error)
+	}
+}
+
 func TestUnlikePost_ExistingDeletesPDSRecord(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}
@@ -999,6 +1017,24 @@ func TestCreatePost_PDSUnavailable_502(t *testing.T) {
 	body := rr.Body.String()
 	if !strings.Contains(body, "pds_unavailable") {
 		t.Errorf("expected pds_unavailable in body, got: %s", body)
+	}
+}
+
+func TestCreatePost_PDSSessionExpiredReturns401(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{}
+	h := api.CreatePostHandler(store, newPDSFactory(&fakePDS{createErr: auth.ErrPDSSessionExpired}), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
+	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hi"}`, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "pds_session_expired" {
+		t.Errorf("error = %q", body.Error)
 	}
 }
 

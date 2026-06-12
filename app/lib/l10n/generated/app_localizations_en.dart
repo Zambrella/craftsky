@@ -668,6 +668,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postUnlikeAction => 'Unlike';
 
   @override
+  String get postLikeError => 'Couldn\'t update like.';
+
+  @override
   String get postReplyAction => 'Reply';
 
   @override

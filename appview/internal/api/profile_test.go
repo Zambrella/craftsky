@@ -588,6 +588,33 @@ func TestPutProfile_PartialSuccessReturns502(t *testing.T) {
 	}
 }
 
+func TestPutProfile_PDSSessionExpiredReturns401InsteadOfPartial(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDSForPut{
+		getBsky:     func() (map[string]any, error) { return map[string]any{}, nil },
+		putBsky:     func(_ map[string]any) error { return nil },
+		putCraftsky: func(_ map[string]any) error { return auth.ErrPDSSessionExpired },
+	}
+	row := &api.ProfileRow{DID: "did:plc:me", Crafts: []string{}, CreatedAt: time.Now()}
+	h := newPutHandler(t, &fakeStore{row: row}, pds, fakeResolver{handleFor: "alice.example"})
+	req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me", strings.NewReader(`{"displayName":"x"}`))
+	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:me"))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var env envelope.Error
+	_ = json.Unmarshal(rr.Body.Bytes(), &env)
+	if env.Error != "pds_session_expired" {
+		t.Errorf("code = %q", env.Error)
+	}
+	if env.Fields != nil {
+		t.Errorf("fields = %v, want omitted", env.Fields)
+	}
+}
+
 func TestPutProfile_BothFailsReturns502(t *testing.T) {
 	t.Parallel()
 	boom := errors.New("boom")

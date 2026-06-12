@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -164,9 +165,18 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	deps.NewPDSClient = func(ctx context.Context, did syntax.DID, sid string) (auth.PDSClient, error) {
 		sess, err := oauthApp.ResumeSession(ctx, did, sid)
 		if err != nil {
+			err = auth.TranslatePDSError(err)
+			if errors.Is(err, auth.ErrPDSSessionExpired) {
+				deps.expirePDSSession(ctx, did, sid)
+			}
 			return nil, err
 		}
-		return &auth.IndigoPDSClient{Client: sess.APIClient()}, nil
+		return &auth.IndigoPDSClient{
+			Client: sess.APIClient(),
+			OnSessionExpired: func(ctx context.Context) {
+				deps.expirePDSSession(ctx, did, sid)
+			},
+		}, nil
 	}
 
 	var once sync.Once
@@ -184,6 +194,24 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	logger.Info("deps initialised", slog.String("env", string(cfg.Env)))
 
 	return deps, cleanup, nil
+}
+
+func (d *Deps) expirePDSSession(ctx context.Context, did syntax.DID, sid string) {
+	d.Logger.Warn("PDS OAuth session expired; revoking Craftsky sessions",
+		slog.String("did", did.String()),
+		slog.String("session_id", sid))
+	if err := d.CraftskySessionStore.RevokeOAuthSession(ctx, did.String(), sid); err != nil {
+		d.Logger.Error("revoke Craftsky sessions failed",
+			slog.String("did", did.String()),
+			slog.String("session_id", sid),
+			slog.String("err", err.Error()))
+	}
+	if err := d.OAuthStore.DeleteSession(ctx, did, sid); err != nil {
+		d.Logger.Error("delete OAuth session failed",
+			slog.String("did", did.String()),
+			slog.String("session_id", sid),
+			slog.String("err", err.Error()))
+	}
 }
 
 func newIndexerDispatcher(pool *pgxpool.Pool, anonPDS auth.PDSClient, logger *slog.Logger) *index.Dispatcher {

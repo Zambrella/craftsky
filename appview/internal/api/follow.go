@@ -75,14 +75,14 @@ func FollowProfileHandler(
 			sid, _ := middleware.GetOAuthSessionID(r.Context())
 			pds, err := newPDS(r.Context(), caller, sid)
 			if err != nil {
-				envelope.WriteError(w, http.StatusBadGateway,
-					"pds_unavailable", "could not contact PDS", runID, nil)
+				writePDSError(w, http.StatusBadGateway,
+					"pds_unavailable", "could not contact PDS", runID, err)
 				return
 			}
 			_, _, err = pds.CreateRecord(r.Context(), caller, blueskyFollowCollection, record)
 			if err != nil {
-				envelope.WriteError(w, http.StatusBadGateway,
-					"pds_write_failed", "could not write follow", runID, nil)
+				writePDSError(w, http.StatusBadGateway,
+					"pds_write_failed", "could not write follow", runID, err)
 				return
 			}
 		}
@@ -137,14 +137,14 @@ func UnfollowProfileHandler(
 			sid, _ := middleware.GetOAuthSessionID(r.Context())
 			pds, err := newPDS(r.Context(), caller, sid)
 			if err != nil {
-				envelope.WriteError(w, http.StatusBadGateway,
-					"pds_unavailable", "could not contact PDS", runID, nil)
+				writePDSError(w, http.StatusBadGateway,
+					"pds_unavailable", "could not contact PDS", runID, err)
 				return
 			}
 			if err := pds.DeleteRecord(r.Context(), caller, blueskyFollowCollection, active.Rkey); err != nil {
 				if !errors.Is(err, auth.ErrRecordNotFound) {
-					envelope.WriteError(w, http.StatusBadGateway,
-						"pds_write_failed", "could not delete follow", runID, nil)
+					writePDSError(w, http.StatusBadGateway,
+						"pds_write_failed", "could not delete follow", runID, err)
 					return
 				}
 			}

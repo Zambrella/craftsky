@@ -1288,6 +1288,12 @@ abstract class AppLocalizations {
   /// **'Unlike'**
   String get postUnlikeAction;
 
+  /// Snackbar shown when liking or unliking a post fails and the previous state is restored.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t update like.'**
+  String get postLikeError;
+
   /// Tooltip and optional label for replying to a post.
   ///
   /// In en, this message translates to:

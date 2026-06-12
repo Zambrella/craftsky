@@ -658,6 +658,9 @@
   "postUnlikeAction": "Unlike",
   "@postUnlikeAction": { "description": "Tooltip for removing a like from a post." },
 
+  "postLikeError": "Couldn't update like.",
+  "@postLikeError": { "description": "Snackbar shown when liking or unliking a post fails and the previous state is restored." },
+
   "postReplyAction": "Reply",
   "@postReplyAction": { "description": "Tooltip and optional label for replying to a post." },
 

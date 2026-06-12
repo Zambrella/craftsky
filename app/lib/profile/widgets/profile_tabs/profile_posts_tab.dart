@@ -52,6 +52,12 @@ class ProfilePostsTab extends ConsumerWidget {
           break;
       }
     });
+    ref.listen(toggleLikePostProvider, (previous, next) {
+      if (next.hasError) {
+        context.showError(l10n.postLikeError);
+        ref.read(toggleLikePostProvider.notifier).reset();
+      }
+    });
 
     return switch (postsAsync) {
       AsyncValue(:final value?) => _ProfilePostsLoadedSlivers(

@@ -16,7 +16,8 @@ import (
 // IndigoPDSClient adapts indigo's *atclient.APIClient to our PDSClient
 // interface.
 type IndigoPDSClient struct {
-	Client *atclient.APIClient
+	Client           *atclient.APIClient
+	OnSessionExpired func(context.Context)
 }
 
 var _ PDSClient = (*IndigoPDSClient)(nil)
@@ -41,7 +42,7 @@ func (i *IndigoPDSClient) GetRecord(ctx context.Context, repo syntax.DID, collec
 		"rkey":       rkey,
 	}
 	if err := i.Client.Get(ctx, nsid, params, &resp); err != nil {
-		return "", translateGetRecordError(err)
+		return "", i.translateError(ctx, translateGetRecordError(err))
 	}
 	// Downstream callers (notably the Bluesky backfiller) write resp.CID
 	// into NOT NULL columns. Fail loudly here rather than silently
@@ -91,7 +92,7 @@ func (i *IndigoPDSClient) PutRecord(ctx context.Context, repo syntax.DID, collec
 		"record":     record,
 	}
 	var resp any
-	return i.Client.Post(ctx, nsid, body, &resp)
+	return i.translateError(ctx, i.Client.Post(ctx, nsid, body, &resp))
 }
 
 // CreateRecord calls com.atproto.repo.createRecord on the user's PDS.
@@ -117,7 +118,7 @@ func (i *IndigoPDSClient) CreateRecord(
 		CID string `json:"cid"`
 	}
 	if err := i.Client.Post(ctx, nsid, body, &resp); err != nil {
-		return "", "", err
+		return "", "", i.translateError(ctx, err)
 	}
 	if resp.URI == "" || resp.CID == "" {
 		return "", "", fmt.Errorf("createRecord: PDS returned empty uri or cid")
@@ -146,7 +147,7 @@ func (i *IndigoPDSClient) DeleteRecord(
 	var resp any
 	if err := i.Client.Post(ctx, nsid, body, &resp); err != nil {
 		// translateGetRecordError also handles deleteRecord's "RecordNotFound" shape; reused deliberately.
-		return translateGetRecordError(err)
+		return i.translateError(ctx, translateGetRecordError(err))
 	}
 	return nil
 }
@@ -165,7 +166,7 @@ func (i *IndigoPDSClient) UploadBlob(ctx context.Context, contentType string, bo
 
 	resp, err := i.Client.Do(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, i.translateError(ctx, err)
 	}
 	defer resp.Body.Close()
 
@@ -174,7 +175,7 @@ func (i *IndigoPDSClient) UploadBlob(ctx context.Context, contentType string, bo
 		if err := json.NewDecoder(resp.Body).Decode(&eb); err != nil {
 			return nil, &atclient.APIError{StatusCode: resp.StatusCode}
 		}
-		return nil, eb.APIError(resp.StatusCode)
+		return nil, i.translateError(ctx, eb.APIError(resp.StatusCode))
 	}
 
 	var out struct {
@@ -201,6 +202,14 @@ func (i *IndigoPDSClient) UploadBlob(ctx context.Context, contentType string, bo
 	}
 
 	return &UploadedBlob{Raw: out.Blob, CID: cid, MIME: mime, Size: size}, nil
+}
+
+func (i *IndigoPDSClient) translateError(ctx context.Context, err error) error {
+	translated := TranslatePDSError(err)
+	if errors.Is(translated, ErrPDSSessionExpired) && i.OnSessionExpired != nil {
+		i.OnSessionExpired(ctx)
+	}
+	return translated
 }
 
 func parseBlobSize(v any) (int64, error) {

@@ -375,8 +375,8 @@ func PutMeProfileHandler(
 		pds, err := newPDS(r.Context(), did, sessionID)
 		if err != nil {
 			logger.Error("profile: newPDS failed", slog.String("err", err.Error()))
-			envelope.WriteError(w, http.StatusBadGateway,
-				"pds_unavailable", "could not contact PDS", runID, nil)
+			writePDSError(w, http.StatusBadGateway,
+				"pds_unavailable", "could not contact PDS", runID, err)
 			return
 		}
 
@@ -384,8 +384,8 @@ func PutMeProfileHandler(
 		var bsky map[string]any
 		if _, err := pds.GetRecord(r.Context(), did, blueskyProfileNSID, profileRecordKey, &bsky); err != nil {
 			logger.Warn("profile: bluesky getRecord failed", slog.String("err", err.Error()))
-			envelope.WriteError(w, http.StatusBadGateway,
-				"pds_read_failed", "could not read current bluesky profile", runID, nil)
+			writePDSError(w, http.StatusBadGateway,
+				"pds_read_failed", "could not read current bluesky profile", runID, err)
 			return
 		}
 		mergedBsky := mergeBlueskyRecord(bsky, reqBody)
@@ -435,11 +435,31 @@ func PutMeProfileHandler(
 			logger.Error("profile: both PDS writes failed",
 				slog.String("bsky_err", bskyErr.Error()),
 				slog.String("csky_err", cskyErr.Error()))
+			if errors.Is(bskyErr, auth.ErrPDSSessionExpired) {
+				writePDSError(w, http.StatusBadGateway,
+					"pds_write_failed", "both profile writes failed", runID, bskyErr)
+				return
+			}
+			if errors.Is(cskyErr, auth.ErrPDSSessionExpired) {
+				writePDSError(w, http.StatusBadGateway,
+					"pds_write_failed", "both profile writes failed", runID, cskyErr)
+				return
+			}
 			envelope.WriteError(w, http.StatusBadGateway,
 				"pds_write_failed", "both profile writes failed", runID, nil)
 		default:
 			logger.Warn("profile: partial PDS write",
 				slog.Any("bsky_err", bskyErr), slog.Any("csky_err", cskyErr))
+			if errors.Is(bskyErr, auth.ErrPDSSessionExpired) {
+				writePDSError(w, http.StatusBadGateway,
+					"pds_write_partial", "partial profile write", runID, bskyErr)
+				return
+			}
+			if errors.Is(cskyErr, auth.ErrPDSSessionExpired) {
+				writePDSError(w, http.StatusBadGateway,
+					"pds_write_partial", "partial profile write", runID, cskyErr)
+				return
+			}
 			fields := map[string]string{
 				"bsky":     okOrFailed(bskyErr),
 				"craftsky": okOrFailed(cskyErr),

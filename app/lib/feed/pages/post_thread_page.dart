@@ -101,6 +101,11 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
         unawaited(_handleCreatedThreadPost(post));
       })
       ..listen(toggleLikePostProvider, (previous, next) {
+        if (next.hasError) {
+          context.showError(l10n.postLikeError);
+          ref.read(toggleLikePostProvider.notifier).reset();
+          return;
+        }
         final post = next.value;
         if (post == null) return;
         ref
