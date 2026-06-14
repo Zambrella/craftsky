@@ -244,6 +244,20 @@ void main() {
     final materials = find.byKey(const Key('materials-custom-input'));
     final colors = find.byKey(const Key('colors-search-input'));
     final designTags = find.byKey(const Key('designTags-search-input'));
+    final backAction = find.byKey(const Key('project-composer-back-action'));
+    final primaryAction = find.byKey(
+      const Key('project-composer-primary-action'),
+    );
+
+    tester.widget<IconButton>(backAction).focusNode?.requestFocus();
+    await tester.pump();
+    expect(tester.widget<IconButton>(backAction).focusNode?.hasFocus, isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+
+    expect(tester.widget<TextField>(materials).focusNode?.hasFocus, isTrue);
+
     await tester.tap(materials);
     await tester.pump();
     expect(tester.widget<TextField>(materials).focusNode?.hasFocus, isTrue);
@@ -268,6 +282,55 @@ void main() {
     await tester.pump();
 
     expect(tester.widget<TextField>(designTags).focusNode?.hasFocus, isFalse);
+    expect(
+      tester.widget<TextButton>(primaryAction).focusNode?.hasFocus,
+      isTrue,
+    );
+  });
+
+  testWidgets('AT-003 page three body field advances to post action', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          composerImagesProvider('body-tab-composer').overrideWithValue(
+            _readyImagesState,
+          ),
+        ],
+        child: MessengerScope(
+          messenger: RecordingMessenger(),
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProjectComposerSheet(composerId: 'body-tab-composer'),
+          ),
+        ),
+      ),
+    );
+
+    await _selectCraft(tester, 'Embroidery');
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
+
+    final bodyField = find.descendant(
+      of: find.byKey(const Key('project-composer-body-editor')),
+      matching: find.byType(TextField),
+    );
+    final postAction = find.byKey(const Key('project-composer-primary-action'));
+
+    await tester.tap(bodyField);
+    await tester.pump();
+    expect(tester.widget<TextField>(bodyField).focusNode?.hasFocus, isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+
+    expect(tester.widget<TextField>(bodyField).focusNode?.hasFocus, isFalse);
+    expect(tester.widget<TextButton>(postAction).focusNode?.hasFocus, isTrue);
   });
 }
 

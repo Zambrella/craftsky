@@ -48,9 +48,16 @@ class ProjectComposerSheet extends ConsumerStatefulWidget {
 
 class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   final _formKey = GlobalKey<FormBuilderState>();
+  final _wizardPagesKey = GlobalKey<_MountedWizardPagesState>();
   final _scrollController = ScrollController();
   final _bodyController = FacetTextEditingController();
   final _bodyFocusNode = FocusNode(debugLabel: 'projectComposerBody');
+  final _backActionFocusNode = FocusNode(
+    debugLabel: 'projectComposerBackAction',
+  );
+  final _primaryActionFocusNode = FocusNode(
+    debugLabel: 'projectComposerPrimaryAction',
+  );
   final _patternNameController = FacetTextEditingController(text: '#');
   final _patternDesignerController = FacetTextEditingController();
   final _patternPublisherController = FacetTextEditingController();
@@ -86,6 +93,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     _scrollController.dispose();
     _bodyController.dispose();
     _bodyFocusNode.dispose();
+    _backActionFocusNode.dispose();
+    _primaryActionFocusNode.dispose();
     _patternNameController.dispose();
     _patternDesignerController.dispose();
     _patternPublisherController.dispose();
@@ -172,111 +181,143 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         if (!discard || !context.mounted) return;
         Navigator.of(context).pop();
       },
-      child: Scaffold(
-        backgroundColor: swatches.paper,
-        appBar: AppBar(
-          leading: _currentPage == 0
-              ? null
-              : IconButton(
-                  icon: const BackButtonIcon(),
-                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-                  onPressed: createState.isLoading
-                      ? null
-                      : () => _setCurrentPage(_currentPage - 1),
-                ),
-          title: Text(
-            l10n.projectComposerTitle,
-            style: theme.textTheme.titleLarge,
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          NextFocusIntent: _ProjectComposerNextFocusAction(
+            shouldEnterPage: () => _backActionFocusNode.hasPrimaryFocus,
+            enterPage: _focusFirstPageField,
+            exitPage: _focusPrimaryActionFromLastPageField,
           ),
-          actions: [
-            Padding(
-              padding: EdgeInsets.only(right: spacing.sp4),
-              child: TextButton(
-                onPressed: _currentPage < 2
-                    ? (controlsEnabled ? _goToNextPage : null)
-                    : (canSubmit
-                          ? () => _submitProject(trimmedBody: trimmedBody)
-                          : null),
-                child: Text(
-                  _currentPage < 2
-                      ? l10n.projectComposerNextAction
-                      : l10n.postComposeSubmit,
+        },
+        child: Scaffold(
+          backgroundColor: swatches.paper,
+          appBar: AppBar(
+            leading: _currentPage == 0
+                ? null
+                : IconButton(
+                    key: const Key('project-composer-back-action'),
+                    focusNode: _backActionFocusNode,
+                    icon: const BackButtonIcon(),
+                    tooltip: MaterialLocalizations.of(
+                      context,
+                    ).backButtonTooltip,
+                    onPressed: createState.isLoading
+                        ? null
+                        : () => _setCurrentPage(_currentPage - 1),
+                  ),
+            title: Text(
+              l10n.projectComposerTitle,
+              style: theme.textTheme.titleLarge,
+            ),
+            actions: [
+              Padding(
+                padding: EdgeInsets.only(right: spacing.sp4),
+                child: TextButton(
+                  key: const Key('project-composer-primary-action'),
+                  focusNode: _primaryActionFocusNode,
+                  onPressed: _currentPage < 2
+                      ? (controlsEnabled ? _goToNextPage : null)
+                      : (canSubmit
+                            ? () => _submitProject(trimmedBody: trimmedBody)
+                            : null),
+                  child: Text(
+                    _currentPage < 2
+                        ? l10n.projectComposerNextAction
+                        : l10n.postComposeSubmit,
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-        body: GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-          child: SafeArea(
-            top: false,
-            bottom: false,
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              padding: EdgeInsets.fromLTRB(
-                spacing.sp4,
-                spacing.sp5,
-                spacing.sp4,
-                0,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_formValidationError case final formValidationError?) ...[
-                    Text(
-                      formValidationError,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
+            ],
+          ),
+          body: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+            child: SafeArea(
+              top: false,
+              bottom: false,
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                padding: EdgeInsets.fromLTRB(
+                  spacing.sp4,
+                  spacing.sp5,
+                  spacing.sp4,
+                  0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_formValidationError
+                        case final formValidationError?) ...[
+                      Text(
+                        formValidationError,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                      SizedBox(height: spacing.sp4),
+                    ],
+                    FormBuilder(
+                      key: _formKey,
+                      child: _MountedWizardPages(
+                        key: _wizardPagesKey,
+                        currentPage: _currentPage,
+                        onExitBackward: _currentPage == 0
+                            ? null
+                            : () {
+                                _backActionFocusNode.requestFocus();
+                                return true;
+                              },
+                        onExitForward: () {
+                          _primaryActionFocusNode.requestFocus();
+                          return true;
+                        },
+                        children: [
+                          _pageOne(
+                            l10n: l10n,
+                            theme: theme,
+                            spacing: spacing,
+                            imagesState: imagesState,
+                            controlsEnabled: controlsEnabled,
+                            photoErrorText: photoErrorText,
+                            patternInfoTitle:
+                                l10n.projectComposerPatternInfoSectionLabel,
+                            onAddImages: () =>
+                                ref.read(imagesProvider.notifier).addImages(),
+                            onAltTextChanged: (imageId, value) => ref
+                                .read(imagesProvider.notifier)
+                                .setAltText(imageId, value),
+                            onRemoveImage: (imageId) => ref
+                                .read(imagesProvider.notifier)
+                                .remove(imageId),
+                            onReorderImages: (fromIndex, toIndex) => ref
+                                .read(imagesProvider.notifier)
+                                .reorder(
+                                  fromIndex: fromIndex,
+                                  toIndex: toIndex,
+                                ),
+                          ),
+                          _pageTwo(
+                            l10n: l10n,
+                            theme: theme,
+                            spacing: spacing,
+                            controlsEnabled: controlsEnabled,
+                          ),
+                          _pageThree(
+                            l10n: l10n,
+                            spacing: spacing,
+                            controlsEnabled: controlsEnabled,
+                            bodyErrorText: bodyErrorText,
+                          ),
+                        ],
                       ),
                     ),
-                    SizedBox(height: spacing.sp4),
-                  ],
-                  FormBuilder(
-                    key: _formKey,
-                    child: _MountedWizardPages(
-                      currentPage: _currentPage,
-                      children: [
-                        _pageOne(
-                          l10n: l10n,
-                          theme: theme,
-                          spacing: spacing,
-                          imagesState: imagesState,
-                          controlsEnabled: controlsEnabled,
-                          photoErrorText: photoErrorText,
-                          patternInfoTitle:
-                              l10n.projectComposerPatternInfoSectionLabel,
-                          onAddImages: () =>
-                              ref.read(imagesProvider.notifier).addImages(),
-                          onAltTextChanged: (imageId, value) => ref
-                              .read(imagesProvider.notifier)
-                              .setAltText(imageId, value),
-                          onRemoveImage: (imageId) =>
-                              ref.read(imagesProvider.notifier).remove(imageId),
-                          onReorderImages: (fromIndex, toIndex) => ref
-                              .read(imagesProvider.notifier)
-                              .reorder(fromIndex: fromIndex, toIndex: toIndex),
-                        ),
-                        _pageTwo(
-                          l10n: l10n,
-                          theme: theme,
-                          spacing: spacing,
-                          controlsEnabled: controlsEnabled,
-                        ),
-                        _pageThree(
-                          l10n: l10n,
-                          spacing: spacing,
-                          controlsEnabled: controlsEnabled,
-                          bodyErrorText: bodyErrorText,
-                        ),
-                      ],
+                    SizedBox(
+                      key: const Key('project-composer-bottom-safe-space'),
+                      height:
+                          spacing.sp7 + MediaQuery.paddingOf(context).bottom,
                     ),
-                  ),
-                  SizedBox(
-                    key: const Key('project-composer-bottom-safe-space'),
-                    height: spacing.sp7 + MediaQuery.paddingOf(context).bottom,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -294,6 +335,19 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       confirmLabel: l10n.postComposeDiscardConfirm,
       cancelLabel: l10n.postComposeDiscardCancel,
     );
+  }
+
+  bool _focusFirstPageField() {
+    return _wizardPagesKey.currentState?.focusFirstInCurrentPage() ?? false;
+  }
+
+  bool _focusPrimaryActionFromLastPageField() {
+    final wizardPages = _wizardPagesKey.currentState;
+    if (wizardPages == null || !wizardPages.primaryFocusAtEndOfCurrentPage()) {
+      return false;
+    }
+    _primaryActionFocusNode.requestFocus();
+    return true;
   }
 
   void _consumeImageNotice({
@@ -1079,14 +1133,106 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   }
 }
 
-class _MountedWizardPages extends StatelessWidget {
+class _ProjectComposerNextFocusAction extends NextFocusAction {
+  _ProjectComposerNextFocusAction({
+    required this.shouldEnterPage,
+    required this.enterPage,
+    required this.exitPage,
+  });
+
+  final bool Function() shouldEnterPage;
+  final bool Function() enterPage;
+  final bool Function() exitPage;
+
+  @override
+  bool invoke(NextFocusIntent intent) {
+    if (shouldEnterPage() && enterPage()) return true;
+    if (exitPage()) return true;
+    return super.invoke(intent);
+  }
+}
+
+class _MountedWizardPages extends StatefulWidget {
   const _MountedWizardPages({
     required this.currentPage,
     required this.children,
+    super.key,
+    this.onExitBackward,
+    this.onExitForward,
   });
 
   final int currentPage;
   final List<Widget> children;
+  final bool Function()? onExitBackward;
+  final bool Function()? onExitForward;
+
+  @override
+  State<_MountedWizardPages> createState() => _MountedWizardPagesState();
+}
+
+class _MountedWizardPagesState extends State<_MountedWizardPages> {
+  late List<FocusNode> _pageFocusNodes;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageFocusNodes = _createPageFocusNodes(widget.children.length);
+  }
+
+  @override
+  void didUpdateWidget(covariant _MountedWizardPages oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.children.length != widget.children.length) {
+      for (final node in _pageFocusNodes) {
+        node.dispose();
+      }
+      _pageFocusNodes = _createPageFocusNodes(widget.children.length);
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final node in _pageFocusNodes) {
+      node.dispose();
+    }
+    super.dispose();
+  }
+
+  static List<FocusNode> _createPageFocusNodes(int count) {
+    return [
+      for (var index = 0; index < count; index++)
+        FocusNode(debugLabel: 'projectComposerPage$index'),
+    ];
+  }
+
+  bool focusFirstInCurrentPage() {
+    if (widget.currentPage < 0 ||
+        widget.currentPage >= _pageFocusNodes.length) {
+      return false;
+    }
+    final pageNode = _pageFocusNodes[widget.currentPage];
+    final orderedGroups = _orderedFocusGroups(pageNode, pageNode);
+    if (orderedGroups.isEmpty) return false;
+    _preferredFocusTarget(orderedGroups.first).requestFocus();
+    return true;
+  }
+
+  bool primaryFocusAtEndOfCurrentPage() {
+    if (widget.currentPage < 0 ||
+        widget.currentPage >= _pageFocusNodes.length) {
+      return false;
+    }
+    final focusedNode = FocusManager.instance.primaryFocus;
+    if (focusedNode == null) return false;
+    final pageNode = _pageFocusNodes[widget.currentPage];
+    if (focusedNode != pageNode && !focusedNode.ancestors.contains(pageNode)) {
+      return false;
+    }
+    final orderedGroups = _orderedFocusGroups(pageNode, focusedNode);
+    if (orderedGroups.isEmpty) return false;
+    final currentGroup = _nearestOrderedNode(focusedNode, orderedGroups);
+    return currentGroup == orderedGroups.last;
+  }
 
   KeyEventResult _handlePageKey(FocusNode pageNode, KeyEvent event) {
     if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.tab) {
@@ -1097,16 +1243,7 @@ class _MountedWizardPages extends StatelessWidget {
       return KeyEventResult.ignored;
     }
 
-    final focusGroups = pageNode.descendants.where(
-      (node) =>
-          node.canRequestFocus &&
-          node.context != null &&
-          !_hasFocusableAncestorWithin(node, pageNode),
-    );
-    final orderedGroups = WidgetOrderTraversalPolicy()
-        .sortDescendants(focusGroups, focusedNode)
-        .where((node) => node.context != null)
-        .toList(growable: false);
+    final orderedGroups = _orderedFocusGroups(pageNode, focusedNode);
     if (orderedGroups.length < 2) return KeyEventResult.ignored;
 
     final currentGroup = _nearestOrderedNode(focusedNode, orderedGroups);
@@ -1116,10 +1253,30 @@ class _MountedWizardPages extends StatelessWidget {
     final direction = HardwareKeyboard.instance.isShiftPressed ? -1 : 1;
     final nextIndex = currentIndex + direction;
     if (nextIndex < 0 || nextIndex >= orderedGroups.length) {
+      final handled = direction < 0
+          ? widget.onExitBackward?.call()
+          : widget.onExitForward?.call();
+      if (handled == true) return KeyEventResult.handled;
       return KeyEventResult.ignored;
     }
     _preferredFocusTarget(orderedGroups[nextIndex]).requestFocus();
     return KeyEventResult.handled;
+  }
+
+  static List<FocusNode> _orderedFocusGroups(
+    FocusNode pageNode,
+    FocusNode anchor,
+  ) {
+    final focusGroups = pageNode.descendants.where(
+      (node) =>
+          node.canRequestFocus &&
+          node.context != null &&
+          !_hasFocusableAncestorWithin(node, pageNode),
+    );
+    return WidgetOrderTraversalPolicy()
+        .sortDescendants(focusGroups, anchor)
+        .where((node) => node.context != null)
+        .toList(growable: false);
   }
 
   static bool _hasFocusableAncestorWithin(FocusNode node, FocusNode root) {
@@ -1157,18 +1314,19 @@ class _MountedWizardPages extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final (index, child) in children.indexed)
+        for (final (index, child) in widget.children.indexed)
           Offstage(
-            offstage: index != currentPage,
+            offstage: index != widget.currentPage,
             child: TickerMode(
-              enabled: index == currentPage,
+              enabled: index == widget.currentPage,
               child: FocusTraversalGroup(
                 policy: WidgetOrderTraversalPolicy(),
                 child: Focus(
-                  canRequestFocus: index == currentPage,
+                  focusNode: _pageFocusNodes[index],
+                  canRequestFocus: index == widget.currentPage,
                   skipTraversal: true,
-                  descendantsAreFocusable: index == currentPage,
-                  descendantsAreTraversable: index == currentPage,
+                  descendantsAreFocusable: index == widget.currentPage,
+                  descendantsAreTraversable: index == widget.currentPage,
                   onKeyEvent: _handlePageKey,
                   child: child,
                 ),
