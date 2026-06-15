@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CraftSky Designer Style Guide</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #F5EFE4;
+      --paper-2: #EFE7D6;
+      --paper-3: #FFFFFF;
+      --ink: #161210;
+      --ink-2: #3E3733;
+      --ink-3: #7A716B;
+      --ink-4: #A69E97;
+      --border-hair: #16121026;
+      --cobalt: #1535D6;
+      --cobalt-deep: #0C1F8C;
+      --cobalt-soft: #E4E8FC;
+      --red: #F03A2E;
+      --red-deep: #B82016;
+      --red-soft: #FDDED9;
+      --butter: #F7D46A;
+      --clay: #E27B4A;
+      --moss: #6E8B3D;
+      --sky: #9BC2E6;
+      --lilac: #C9B8E8;
+      --font-display: "DM Serif Display", Georgia, serif;
+      --font-ui: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      --shadow-sm: 3px 3px 0 var(--ink);
+      --shadow-md: 6px 6px 0 var(--ink);
+      --shadow-lg: 10px 10px 0 var(--ink);
+      --paper-shadow: 0 2px 0 rgba(22, 18, 16, 0.04), 0 8px 20px rgba(22, 18, 16, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      background: var(--paper-2);
+      color: var(--ink);
+      font-family: var(--font-ui);
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(21, 53, 214, 0.08), transparent 28rem),
+        var(--paper);
+      color: var(--ink);
+    }
+
+    @page {
+      size: A4;
+      margin: 14mm;
+    }
+
+    a { color: var(--cobalt); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 48px 28px 72px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 28px;
+      align-items: stretch;
+      margin-bottom: 28px;
+    }
+
+    .hero-card,
+    .card {
+      background: var(--paper-3);
+      border: 1.5px solid var(--ink);
+      border-radius: 14px;
+      box-shadow: var(--shadow-md);
+    }
+
+    .hero-card {
+      padding: 36px;
+      min-height: 410px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-card::after {
+      content: "";
+      position: absolute;
+      inset: auto -40px -60px auto;
+      width: 220px;
+      height: 220px;
+      background: var(--butter);
+      border: 1.5px solid var(--ink);
+      transform: rotate(-8deg);
+      z-index: 0;
+    }
+
+    .hero-card > * { position: relative; z-index: 1; }
+
+    .logo-row {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 40px;
+    }
+
+    .mark {
+      width: 72px;
+      height: 72px;
+      flex: 0 0 auto;
+      transform: rotate(-3deg);
+    }
+
+    .wordmark {
+      font-family: var(--font-display);
+      font-size: 42px;
+      line-height: 1;
+      letter-spacing: -0.02em;
+    }
+
+    h1,
+    h2,
+    h3,
+    p { margin: 0; }
+
+    h1 {
+      font-family: var(--font-display);
+      font-size: clamp(58px, 8vw, 96px);
+      font-weight: 400;
+      line-height: 0.95;
+      letter-spacing: -0.025em;
+      max-width: 780px;
+    }
+
+    h2 {
+      font-size: 30px;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    h3 {
+      font-size: 18px;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+
+    .kicker,
+    .eyebrow {
+      color: var(--ink-2);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }
+
+    .dek {
+      color: var(--ink-2);
+      font-size: 20px;
+      max-width: 700px;
+      margin-top: 18px;
+    }
+
+    .meta {
+      color: var(--ink-3);
+      font-size: 13px;
+    }
+
+    .mono,
+    code { font-family: var(--font-mono); font-size: 0.92em; }
+
+    .snapshot {
+      background: var(--ink);
+      color: var(--paper);
+      border: 1.5px solid var(--ink);
+      border-radius: 14px;
+      padding: 28px;
+      box-shadow: var(--shadow-md);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+    }
+
+    .snapshot .logo-box {
+      border: 1.5px solid var(--paper);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 22px;
+    }
+
+    .snapshot ul,
+    .rules ul,
+    .notes ul {
+      margin: 12px 0 0;
+      padding-left: 20px;
+    }
+
+    .snapshot li,
+    .rules li,
+    .notes li { margin: 6px 0; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 20px;
+      margin-top: 28px;
+    }
+
+    .span-12 { grid-column: span 12; }
+    .span-8 { grid-column: span 8; }
+    .span-7 { grid-column: span 7; }
+    .span-6 { grid-column: span 6; }
+    .span-5 { grid-column: span 5; }
+    .span-4 { grid-column: span 4; }
+    .span-3 { grid-column: span 3; }
+
+    .card {
+      padding: 24px;
+      break-inside: avoid;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 20px;
+      border-bottom: 2.5px solid var(--ink);
+      padding-bottom: 14px;
+      margin-bottom: 22px;
+    }
+
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .swatch {
+      min-height: 142px;
+      border: 1.5px solid var(--ink);
+      border-radius: 14px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .swatch.light-border { border-color: var(--ink); }
+    .swatch.dark { color: var(--paper); }
+
+    .swatch-name { font-weight: 800; }
+    .swatch-token { font-family: var(--font-mono); font-size: 12px; }
+
+    .usage-table,
+    .type-table,
+    .token-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .usage-table th,
+    .usage-table td,
+    .type-table th,
+    .type-table td,
+    .token-table th,
+    .token-table td {
+      border-bottom: 1px solid var(--border-hair);
+      padding: 10px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .usage-table th,
+    .type-table th,
+    .token-table th {
+      color: var(--ink-2);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .type-sample-display {
+      font-family: var(--font-display);
+      font-size: 48px;
+      line-height: 0.95;
+      letter-spacing: -0.025em;
+    }
+
+    .type-sample-h1 {
+      font-size: 34px;
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+    }
+
+    .type-sample-body { font-size: 16px; line-height: 1.5; }
+    .type-sample-label { font-size: 15px; font-weight: 700; }
+    .type-sample-mono { font-family: var(--font-mono); font-size: 13px; }
+
+    .component-board {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      background: var(--paper-2);
+      border: 1.5px solid var(--ink);
+      border-radius: 14px;
+      padding: 18px;
+    }
+
+    .mini-card {
+      background: var(--paper-3);
+      border: 1.5px solid var(--ink);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .button-row,
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .button {
+      border: 1.5px solid var(--ink);
+      border-radius: 999px;
+      box-shadow: var(--shadow-sm);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 10px 18px;
+      font-weight: 700;
+      color: var(--paper-3);
+      background: var(--cobalt);
+    }
+
+    .button.secondary { background: var(--paper-3); color: var(--ink); }
+    .button.accent { background: var(--red); color: var(--paper-3); }
+
+    .chip {
+      border: 1.5px solid var(--ink);
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      background: var(--paper-3);
+    }
+
+    .chip.wip { background: var(--butter); }
+    .chip.done { background: var(--moss); color: var(--paper-3); }
+    .chip.biz { background: var(--cobalt); color: var(--paper-3); }
+    .chip.sponsored { background: var(--red); color: var(--paper-3); }
+
+    .field {
+      background: var(--paper-3);
+      border: 1.5px solid var(--ink);
+      border-radius: 14px;
+      padding: 13px 14px;
+      color: var(--ink-3);
+    }
+
+    .image-pattern {
+      background: var(--clay);
+      border: 1.5px solid var(--ink);
+      border-radius: 0;
+      padding: 10px;
+    }
+
+    .image-pattern-inner {
+      aspect-ratio: 4 / 3;
+      background:
+        linear-gradient(135deg, rgba(22, 18, 16, 0.15), rgba(22, 18, 16, 0)),
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.5) 0 6px, rgba(255, 255, 255, 0.2) 6px 12px),
+        var(--paper);
+      border: 1.5px solid var(--ink);
+      display: grid;
+      place-items: center;
+      color: var(--ink-2);
+      font-weight: 800;
+    }
+
+    .icon-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .icon-card {
+      border: 1.5px solid var(--ink);
+      border-radius: 14px;
+      background: var(--paper-3);
+      padding: 14px 10px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .icon-card svg {
+      width: 34px;
+      height: 34px;
+      display: block;
+      margin: 0 auto 8px;
+      color: var(--ink);
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .token-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .token-pill {
+      border: 1.5px solid var(--ink);
+      border-radius: 999px;
+      padding: 6px 12px;
+      background: var(--paper-3);
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .dos-donts {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .do-box,
+    .dont-box {
+      border: 1.5px solid var(--ink);
+      border-radius: 14px;
+      padding: 16px;
+    }
+
+    .do-box { background: var(--cobalt-soft); }
+    .dont-box { background: var(--red-soft); }
+
+    .source-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .source-list code {
+      display: block;
+      border: 1px solid var(--border-hair);
+      border-radius: 8px;
+      padding: 9px;
+      background: var(--paper);
+      color: var(--ink-2);
+    }
+
+    .footer {
+      color: var(--ink-3);
+      font-size: 13px;
+      margin-top: 28px;
+      text-align: center;
+    }
+
+    @media (max-width: 900px) {
+      .hero,
+      .component-board,
+      .dos-donts,
+      .source-list { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: 1fr; }
+      .span-12,
+      .span-8,
+      .span-7,
+      .span-6,
+      .span-5,
+      .span-4,
+      .span-3 { grid-column: auto; }
+      .swatches { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .icon-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media print {
+      html { background: var(--paper); }
+      body { background: var(--paper); }
+      .page { max-width: none; padding: 0; }
+      .hero-card,
+      .snapshot,
+      .card { box-shadow: none; }
+      .card { break-inside: avoid; page-break-inside: avoid; }
+      a { color: var(--cobalt); }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="hero-card">
+        <div>
+          <div class="logo-row" aria-label="CraftSky logo">
+            <svg class="mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" role="img" aria-label="CraftSky mark">
+              <g transform="translate(40 40) rotate(-3) translate(-40 -40)">
+                <rect x="6" y="6" width="68" height="68" rx="10" fill="#F5EFE4" stroke="#161210" stroke-width="2.5"></rect>
+                <text x="40" y="56" text-anchor="middle" font-family="DM Serif Display, Georgia, serif" font-size="42" font-weight="400" fill="#1535D6">CS</text>
+                <circle cx="60" cy="20" r="4" fill="#F03A2E" stroke="#161210" stroke-width="1.5"></circle>
+              </g>
+            </svg>
+            <div class="wordmark">CraftSky</div>
+          </div>
+          <p class="kicker">Designer style guide</p>
+          <h1>Paper cutout, warm craft, confident colour.</h1>
+          <p class="dek">A practical handoff for the current CraftSky visual system: palette, type, components, motion, imagery, voice and asset references.</p>
+        </div>
+        <p class="meta">Built from <span class="mono">docs/design/*</span> and the Flutter theme in <span class="mono">app/lib/theme/*</span>.</p>
+      </div>
+
+      <aside class="snapshot">
+        <div>
+          <div class="logo-box">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 64" width="100%" height="auto" role="img" aria-label="CraftSky reverse wordmark">
+              <g transform="translate(0 4) rotate(-3 28 28)">
+                <rect x="4" y="4" width="48" height="48" rx="8" fill="#161210" stroke="#F5EFE4" stroke-width="2"></rect>
+                <text x="28" y="42" text-anchor="middle" font-family="DM Serif Display, Georgia, serif" font-size="30" font-weight="400" fill="#F5EFE4">CS</text>
+                <circle cx="44" cy="12" r="3" fill="#F03A2E" stroke="#F5EFE4" stroke-width="1.2"></circle>
+              </g>
+              <text x="70" y="44" font-family="DM Serif Display, Georgia, serif" font-size="38" font-weight="400" fill="#F5EFE4">CraftSky</text>
+            </svg>
+          </div>
+          <p class="eyebrow" style="color: #F5EFE4;">Brand in one paragraph</p>
+          <ul>
+            <li>Warm cream paper, never sterile grey SaaS.</li>
+            <li>Near-black ink rules and chunky outlines.</li>
+            <li>Cobalt is primary; electric red is used sparingly.</li>
+            <li>Photos sit on coloured paper rectangles.</li>
+            <li>Typography should feel editorial, tactile and maker-friendly.</li>
+          </ul>
+        </div>
+        <p class="meta" style="color: #EFE7D6;">Product principles: no ads, chronological feed, creator-owned data, transparent business accounts.</p>
+      </aside>
+    </section>
+
+    <section class="grid">
+      <div class="card span-12">
+        <div class="section-title">
+          <h2>Colour Palette</h2>
+          <span class="eyebrow">Tokens and use</span>
+        </div>
+        <div class="swatches">
+          <div class="swatch" style="background: var(--paper);"><span class="swatch-name">Paper</span><span class="swatch-token">#F5EFE4</span><span>Primary page background.</span></div>
+          <div class="swatch" style="background: var(--paper-2);"><span class="swatch-name">Paper 2</span><span class="swatch-token">#EFE7D6</span><span>Sunken surfaces and soft fills.</span></div>
+          <div class="swatch" style="background: var(--paper-3);"><span class="swatch-name">Paper 3</span><span class="swatch-token">#FFFFFF</span><span>Sheets, cards and modals only.</span></div>
+          <div class="swatch dark" style="background: var(--ink);"><span class="swatch-name">Ink</span><span class="swatch-token">#161210</span><span>Primary text and rules. Never pure black.</span></div>
+          <div class="swatch dark" style="background: var(--ink-2);"><span class="swatch-name">Ink 2</span><span class="swatch-token">#3E3733</span><span>Secondary text.</span></div>
+          <div class="swatch" style="background: var(--ink-4);"><span class="swatch-name">Ink 4</span><span class="swatch-token">#A69E97</span><span>Faint lines and disabled states.</span></div>
+          <div class="swatch dark" style="background: var(--cobalt);"><span class="swatch-name">Cobalt</span><span class="swatch-token">#1535D6</span><span>Primary actions, selected states, links.</span></div>
+          <div class="swatch dark" style="background: var(--red);"><span class="swatch-name">Electric red</span><span class="swatch-token">#F03A2E</span><span>Likes, destructive actions, editorial pop.</span></div>
+          <div class="swatch" style="background: var(--butter);"><span class="swatch-name">Butter</span><span class="swatch-token">#F7D46A</span><span>WIP, sunny cutout backgrounds.</span></div>
+          <div class="swatch" style="background: var(--clay);"><span class="swatch-name">Clay</span><span class="swatch-token">#E27B4A</span><span>Terracotta cutout backgrounds.</span></div>
+          <div class="swatch dark" style="background: var(--moss);"><span class="swatch-name">Moss</span><span class="swatch-token">#6E8B3D</span><span>Finished status and calm surfaces.</span></div>
+          <div class="swatch" style="background: var(--sky);"><span class="swatch-name">Sky</span><span class="swatch-token">#9BC2E6</span><span>Soft blue cutout backgrounds.</span></div>
+          <div class="swatch" style="background: var(--lilac);"><span class="swatch-name">Lilac</span><span class="swatch-token">#C9B8E8</span><span>Pale purple cutout backgrounds.</span></div>
+          <div class="swatch" style="background: var(--cobalt-soft);"><span class="swatch-name">Cobalt soft</span><span class="swatch-token">#E4E8FC</span><span>Info surfaces and selection tint.</span></div>
+          <div class="swatch" style="background: var(--red-soft);"><span class="swatch-name">Red soft</span><span class="swatch-token">#FDDED9</span><span>Error surfaces and warnings.</span></div>
+        </div>
+      </div>
+
+      <div class="card span-7">
+        <div class="section-title">
+          <h2>Semantic Colour</h2>
+          <span class="eyebrow">Material mapping</span>
+        </div>
+        <table class="usage-table">
+          <thead><tr><th>Role</th><th>Token</th><th>Use</th></tr></thead>
+          <tbody>
+            <tr><td>Background</td><td><code>paper</code></td><td>Scaffold/page background.</td></tr>
+            <tr><td>Surface</td><td><code>paper3</code></td><td>Cards, dialogs, sheets pinned on top.</td></tr>
+            <tr><td>Primary</td><td><code>cobalt</code></td><td>Primary buttons, selected nav, links, brand emphasis.</td></tr>
+            <tr><td>Secondary/accent</td><td><code>red</code></td><td>Likes, destructive actions, sponsored disclosure, occasional accent.</td></tr>
+            <tr><td>Text 1</td><td><code>ink</code></td><td>Primary text and outer borders.</td></tr>
+            <tr><td>Text 2</td><td><code>ink2</code></td><td>Secondary text and explanations.</td></tr>
+            <tr><td>Text 3</td><td><code>ink3</code></td><td>Metadata and tertiary text.</td></tr>
+            <tr><td>Hairline</td><td><code>#16121026</code></td><td>Internal dividers only, not outer borders.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card span-5 rules">
+        <div class="section-title">
+          <h2>Colour Rules</h2>
+          <span class="eyebrow">Keep tight</span>
+        </div>
+        <ul>
+          <li>No gradients.</li>
+          <li>No pure black. Use <code>#161210</code>.</li>
+          <li>No pure white backgrounds except cards, sheets and modals.</li>
+          <li>Cobalt is the only saturated blue.</li>
+          <li>Red is the only saturated red and should feel special.</li>
+          <li>Supporting swatches are backgrounds, never text colours.</li>
+        </ul>
+      </div>
+
+      <div class="card span-12">
+        <div class="section-title">
+          <h2>Typography</h2>
+          <span class="eyebrow">Google Fonts</span>
+        </div>
+        <table class="type-table">
+          <thead><tr><th>Style</th><th>Family</th><th>Spec</th><th>Sample</th></tr></thead>
+          <tbody>
+            <tr><td>Display large</td><td>DM Serif Display</td><td>96px / 0.95 / -2.4px</td><td class="type-sample-display">Make it feel handmade.</td></tr>
+            <tr><td>Display medium</td><td>DM Serif Display</td><td>64px / 1.02 / -1.28px</td><td style="font-family: var(--font-display); font-size: 38px; line-height: 1.02;">Old-book warmth.</td></tr>
+            <tr><td>Headline large</td><td>Outfit 800</td><td>42px / 1.1 / -1.26px</td><td class="type-sample-h1">Confident UI heading</td></tr>
+            <tr><td>Title</td><td>Outfit 600-700</td><td>14-20px / 1.25-1.3</td><td style="font-weight: 700; font-size: 20px;">Project cards and sections</td></tr>
+            <tr><td>Body</td><td>Outfit 400</td><td>16px / 1.5</td><td class="type-sample-body">Roomy enough for notes, captions, field help and profile bios.</td></tr>
+            <tr><td>Label/button</td><td>Outfit 700</td><td>15px / 1.2</td><td class="type-sample-label">Share project</td></tr>
+            <tr><td>Eyebrow</td><td>Outfit 700</td><td>12px / 0.14em tracking</td><td><span class="eyebrow">Work in progress</span></td></tr>
+            <tr><td>Mono</td><td>JetBrains Mono</td><td>13px / 400-500</td><td class="type-sample-mono">did:plc:craftsky.example</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card span-6">
+        <div class="section-title">
+          <h2>Spacing</h2>
+          <span class="eyebrow">8-point grid</span>
+        </div>
+        <div class="token-pills">
+          <span class="token-pill">sp1 4</span>
+          <span class="token-pill">sp2 8</span>
+          <span class="token-pill">sp3 12</span>
+          <span class="token-pill">sp4 16</span>
+          <span class="token-pill">sp5 24</span>
+          <span class="token-pill">sp6 32</span>
+          <span class="token-pill">sp7 48</span>
+          <span class="token-pill">sp8 64</span>
+          <span class="token-pill">sp9 96</span>
+        </div>
+        <p style="margin-top: 16px;">Use a 4px half-step only when the UI needs small internal rhythm. Mobile hit targets should not go below 44px.</p>
+      </div>
+
+      <div class="card span-6">
+        <div class="section-title">
+          <h2>Radii and Shadows</h2>
+          <span class="eyebrow">Paper feel</span>
+        </div>
+        <table class="token-table">
+          <tbody>
+            <tr><th>Radii</th><td><code>0, 2, 6, 14, 22, 999</code></td></tr>
+            <tr><th>Cards</th><td><code>14px</code> radius, <code>1.5px</code> ink border.</td></tr>
+            <tr><th>Pills</th><td><code>999px</code> radius for chips and primary buttons.</td></tr>
+            <tr><th>Hard drop</th><td><code>3/6/10px</code> down-right, solid ink.</td></tr>
+            <tr><th>Soft paper</th><td>Only for true floating sheets, modals and popovers.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card span-12">
+        <div class="section-title">
+          <h2>Component Direction</h2>
+          <span class="eyebrow">UI examples</span>
+        </div>
+        <div class="component-board">
+          <div class="mini-card">
+            <h3>Buttons</h3>
+            <div class="button-row">
+              <span class="button">Share project</span>
+              <span class="button secondary">Cancel</span>
+              <span class="button accent">Report</span>
+            </div>
+            <p class="meta" style="margin-top: 12px;">Primary pill buttons have a hard offset shadow. Pressed state collapses the shadow.</p>
+          </div>
+          <div class="mini-card">
+            <h3>Chips</h3>
+            <div class="chip-row">
+              <span class="chip wip">Work in progress</span>
+              <span class="chip done">Finished</span>
+              <span class="chip biz">Business account</span>
+              <span class="chip sponsored">Sponsored</span>
+            </div>
+            <p class="meta" style="margin-top: 12px;">Chips are outlined pills. Status colours are direct swatches.</p>
+          </div>
+          <div class="mini-card">
+            <h3>Fields</h3>
+            <p class="eyebrow">Pattern name</p>
+            <div class="field">e.g. Wiksten Haori</div>
+            <p class="meta" style="margin-top: 12px;">Labels live outside fields. Inputs use white fill, 14px corners, ink outline.</p>
+          </div>
+          <div class="mini-card">
+            <h3>Photo treatment</h3>
+            <div class="image-pattern"><div class="image-pattern-inner">Photo crop</div></div>
+            <p class="meta" style="margin-top: 12px;">Photography sits on a coloured paper rectangle with 4-12px visible edge.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card span-6">
+        <div class="section-title">
+          <h2>Logo</h2>
+          <span class="eyebrow">Current assets</span>
+        </div>
+        <div style="display: grid; gap: 16px;">
+          <div class="mini-card" style="box-shadow: none;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 64" width="100%" height="auto" role="img" aria-label="CraftSky wordmark"><g transform="translate(0 4) rotate(-3 28 28)"><rect x="4" y="4" width="48" height="48" rx="8" fill="#F5EFE4" stroke="#161210" stroke-width="2"></rect><text x="28" y="42" text-anchor="middle" font-family="DM Serif Display, Georgia, serif" font-size="30" font-weight="400" fill="#1535D6">CS</text><circle cx="44" cy="12" r="3" fill="#F03A2E" stroke="#161210" stroke-width="1.2"></circle></g><text x="70" y="44" font-family="DM Serif Display, Georgia, serif" font-size="38" font-weight="400" fill="#161210">CraftSky</text></svg></div>
+          <div class="mini-card" style="background: var(--ink); box-shadow: none;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 64" width="100%" height="auto" role="img" aria-label="CraftSky parchment wordmark"><g transform="translate(0 4) rotate(-3 28 28)"><rect x="4" y="4" width="48" height="48" rx="8" fill="#161210" stroke="#F5EFE4" stroke-width="2"></rect><text x="28" y="42" text-anchor="middle" font-family="DM Serif Display, Georgia, serif" font-size="30" font-weight="400" fill="#F5EFE4">CS</text><circle cx="44" cy="12" r="3" fill="#F03A2E" stroke="#F5EFE4" stroke-width="1.2"></circle></g><text x="70" y="44" font-family="DM Serif Display, Georgia, serif" font-size="38" font-weight="400" fill="#F5EFE4">CraftSky</text></svg></div>
+        </div>
+        <p style="margin-top: 16px;">The mark is intentionally a little rotated and tactile. Keep the red dot as a small accent, not a large brand device.</p>
+      </div>
+
+      <div class="card span-6">
+        <div class="section-title">
+          <h2>Icons</h2>
+          <span class="eyebrow">Craft set</span>
+        </div>
+        <div class="icon-grid">
+          <div class="icon-card"><svg viewBox="0 0 24 24"><path d="M4 20L18 6"></path><path d="M20 20L6 6"></path><circle cx="4" cy="20" r="1"></circle><circle cx="20" cy="20" r="1"></circle><path d="M8 10c3 2 5 2 8 0"></path><path d="M9 12c2 2 4 2 6 0"></path></svg>Knitting</div>
+          <div class="icon-card"><svg viewBox="0 0 24 24"><path d="M8 20c4-4 6-8 4-12"></path><path d="M12 8c2-3 5-2 6 0s0 5-4 6"></path><path d="M7 15c2 2 5 2 7 0"></path></svg>Crochet</div>
+          <div class="icon-card"><svg viewBox="0 0 24 24"><path d="M5 19c5-1 9-5 14-14"></path><path d="M6 6l12 12"></path><path d="M4 20h5"></path></svg>Sewing</div>
+          <div class="icon-card"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"></rect><path d="M5 12h14"></path><path d="M12 5v14"></path><path d="M5 5l14 14"></path></svg>Quilting</div>
+        </div>
+        <p style="margin-top: 16px;">Icons are single-colour SVG strokes using currentColor, 1.5px stroke, round caps and joins.</p>
+      </div>
+
+      <div class="card span-7 notes">
+        <div class="section-title">
+          <h2>Imagery</h2>
+          <span class="eyebrow">Photo direction</span>
+        </div>
+        <ul>
+          <li>Warm natural light: morning or afternoon, not strip-lit studio.</li>
+          <li>Hands and material in-frame: yarn, fabric, paper patterns, cutting mats.</li>
+          <li>Real homes and real makers over slick studio setups.</li>
+          <li>Light grain and matte finish are welcome.</li>
+          <li>Use tight crops with craft detail. Avoid generic lifestyle stock.</li>
+        </ul>
+      </div>
+
+      <div class="card span-5 notes">
+        <div class="section-title">
+          <h2>Motion</h2>
+          <span class="eyebrow">Quiet pop</span>
+        </div>
+        <ul>
+          <li>Fast UI feedback: 120ms.</li>
+          <li>Entrances: 220ms.</li>
+          <li>Modals: 320ms.</li>
+          <li>Default ease: <code>cubic-bezier(0.22, 0.61, 0.36, 1)</code>.</li>
+          <li>Pop ease: <code>cubic-bezier(0.34, 1.56, 0.64, 1)</code>.</li>
+        </ul>
+      </div>
+
+      <div class="card span-12">
+        <div class="section-title">
+          <h2>Do and Do Not</h2>
+          <span class="eyebrow">Fast guardrails</span>
+        </div>
+        <div class="dos-donts">
+          <div class="do-box">
+            <h3>Do</h3>
+            <ul>
+              <li>Use warm paper backgrounds and crisp ink borders.</li>
+              <li>Make display type large and editorial.</li>
+              <li>Use cobalt for primary action and selected state.</li>
+              <li>Put photos on coloured paper cutouts.</li>
+              <li>Use direct, plainspoken, slightly cheeky copy.</li>
+            </ul>
+          </div>
+          <div class="dont-box">
+            <h3>Do not</h3>
+            <ul>
+              <li>Do not add gradients, glassmorphism or blur-heavy chrome.</li>
+              <li>Do not use muted SaaS greys as core surfaces.</li>
+              <li>Do not use red everywhere. It should still punch.</li>
+              <li>Do not round everything softly; the system needs cut edges.</li>
+              <li>Do not use emoji in system chrome.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="card span-12">
+        <div class="section-title">
+          <h2>Source Files</h2>
+          <span class="eyebrow">For implementation</span>
+        </div>
+        <p>These are the files the current app uses for the visual system and assets.</p>
+        <div class="source-list">
+          <code>docs/design/design-system.md</code>
+          <code>docs/design/colors_and_type.css</code>
+          <code>app/lib/theme/brand_colors.dart</code>
+          <code>app/lib/theme/app_theme.dart</code>
+          <code>app/lib/theme/theme_extensions.dart</code>
+          <code>app/assets/design/logo/mark.svg</code>
+          <code>app/assets/design/logo/wordmark-indigo.svg</code>
+          <code>app/assets/design/logo/wordmark-parchment.svg</code>
+          <code>app/assets/design/icons/*.svg</code>
+          <code>app/assets/design/paper-grain.svg</code>
+        </div>
+      </div>
+    </section>
+
+    <p class="footer">CraftSky designer style guide. Generated from the repository design system and Flutter theme.</p>
+  </main>
+</body>
+</html>
