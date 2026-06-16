@@ -6,9 +6,7 @@ import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:craftsky_app/projects/models/project.dart';
-import 'package:craftsky_app/projects/options/project_option.dart';
-import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
@@ -41,6 +39,7 @@ class PostCard extends StatelessWidget {
     this.showReplyLabel = false,
     this.isHighlighted = false,
     this.style = PostCardStyle.card,
+    this.projectVariant = ProjectCardVariant.summary,
   });
 
   final Post post;
@@ -59,6 +58,7 @@ class PostCard extends StatelessWidget {
   final bool showReplyLabel;
   final bool isHighlighted;
   final PostCardStyle style;
+  final ProjectCardVariant projectVariant;
 
   @override
   Widget build(BuildContext context) {
@@ -149,7 +149,7 @@ class PostCard extends StatelessWidget {
                       SizedBox(height: spacing.sp3),
                     ],
                     if (post.project case final project?) ...[
-                      _ProjectSummary(project: project),
+                      ProjectCard(project: project, variant: projectVariant),
                       SizedBox(height: spacing.sp3),
                     ],
                     FacetedText(
@@ -230,318 +230,6 @@ class PostCard extends StatelessWidget {
       child: content,
     );
   }
-}
-
-class _ProjectSummary extends StatelessWidget {
-  const _ProjectSummary({required this.project});
-
-  final Project project;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final spacing = theme.extension<SpacingTheme>()!;
-    final title = _nonBlank(project.common.title);
-    final status = _nonBlank(project.common.status);
-    final pattern = _patternValue(project.common.pattern);
-    final size = _sizeMetadata(project.details);
-    final headlineStyle = theme.textTheme.headlineSmall;
-    final titleStyle = theme.textTheme.displaySmall?.copyWith(
-      fontSize: headlineStyle?.fontSize,
-      fontWeight: headlineStyle?.fontWeight,
-      height: headlineStyle?.height,
-      letterSpacing: headlineStyle?.letterSpacing,
-      color: headlineStyle?.color,
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (title != null) ...[
-          Text(title, style: titleStyle),
-          SizedBox(height: spacing.sp2),
-        ],
-        Wrap(
-          spacing: spacing.sp2,
-          runSpacing: spacing.sp1,
-          children: [
-            if (status != null)
-              _ProjectChip(
-                label: _statusLabel(status),
-                tone: _statusTone(status),
-              ),
-            _ProjectChip(
-              label: _craftTypeLabel(project.common.craftType),
-              tone: _ProjectChipTone.outlined,
-            ),
-          ],
-        ),
-        if (pattern != null || size != null) ...[
-          SizedBox(height: spacing.sp3),
-          const CraftskyDivider(),
-          SizedBox(height: spacing.sp2),
-          if (pattern != null)
-            _ProjectPatternMetadataRow(pattern: project.common.pattern!),
-          if (size case final row?)
-            _ProjectMetadataRow(label: row.label, value: row.value),
-        ],
-      ],
-    );
-  }
-}
-
-enum _ProjectChipTone { finished, wip, outlined }
-
-class _ProjectChip extends StatelessWidget {
-  const _ProjectChip({required this.label, required this.tone});
-
-  final String label;
-  final _ProjectChipTone tone;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final spacing = theme.extension<SpacingTheme>()!;
-    final radii = theme.extension<RadiusTheme>()!;
-    final swatches = theme.extension<BrandSwatchTheme>()!;
-    final colors = theme.colorScheme;
-    final (background, foreground, borderColor) = switch (tone) {
-      _ProjectChipTone.finished => (
-        swatches.done,
-        colors.onSurface,
-        colors.onSurface,
-      ),
-      _ProjectChipTone.wip => (
-        swatches.wip,
-        colors.onSurface,
-        colors.onSurface,
-      ),
-      _ProjectChipTone.outlined => (
-        Colors.transparent,
-        colors.onSurface,
-        colors.onSurface,
-      ),
-    };
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: background,
-        border: Border.all(color: borderColor, width: 1.2),
-        borderRadius: BorderRadius.circular(radii.rPill),
-      ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: spacing.sp2,
-          vertical: spacing.sp1,
-        ),
-        child: Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: foreground,
-            letterSpacing: 0,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProjectMetadataRow extends StatelessWidget {
-  const _ProjectMetadataRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final spacing = theme.extension<SpacingTheme>()!;
-    return Padding(
-      padding: EdgeInsets.only(bottom: spacing.sp1),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 82,
-            child: Text(
-              label.toUpperCase(),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.outline,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProjectPatternMetadataRow extends StatelessWidget {
-  const _ProjectPatternMetadataRow({required this.pattern});
-
-  final ProjectPattern pattern;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final spacing = theme.extension<SpacingTheme>()!;
-    final valueStyle = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurface,
-      fontWeight: FontWeight.w600,
-    );
-    final name = _nonBlank(pattern.name);
-    final designer = _nonBlank(pattern.designer);
-    final publisher = _nonBlank(pattern.publisher);
-    final trailingCredits = [designer, publisher].whereType<String>().toList();
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: spacing.sp1),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 82,
-            child: Text(
-              'PATTERN',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.outline,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                if (name != null)
-                  FacetedText(
-                    text: name,
-                    facets: pattern.nameFacets,
-                    style: valueStyle,
-                  ),
-                if (name != null && trailingCredits.isNotEmpty)
-                  Text(' by ', style: valueStyle),
-                if (designer != null)
-                  FacetedText(
-                    text: designer,
-                    facets: pattern.designerFacets,
-                    style: valueStyle,
-                  ),
-                if (designer != null && publisher != null)
-                  Text(', ', style: valueStyle),
-                if (publisher != null)
-                  FacetedText(
-                    text: publisher,
-                    facets: pattern.publisherFacets,
-                    style: valueStyle,
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProjectSizeMetadata {
-  const _ProjectSizeMetadata({required this.label, required this.value});
-
-  final String label;
-  final String value;
-}
-
-String _craftTypeLabel(String value) => _optionLabel(
-  value,
-  ProjectOptionCatalogs.craftTypes,
-);
-
-String _statusLabel(String value) => _optionLabel(
-  value,
-  ProjectOptionCatalogs.statuses,
-);
-
-_ProjectChipTone _statusTone(String value) {
-  return switch (value) {
-    ProjectOptionCatalogs.finishedStatusToken => _ProjectChipTone.finished,
-    ProjectOptionCatalogs.wipStatusToken => _ProjectChipTone.wip,
-    _ => _ProjectChipTone.outlined,
-  };
-}
-
-String _optionLabel(String value, List<ProjectOption> options) {
-  for (final option in options) {
-    if (option.value == value) return option.label;
-  }
-  return _tokenFallbackLabel(value);
-}
-
-String _tokenFallbackLabel(String value) {
-  final token = value.contains('#') ? value.split('#').last : value;
-  if (token.isEmpty) return value;
-  final words = token
-      .replaceAllMapped(RegExp('([a-z0-9])([A-Z])'), (match) {
-        return '${match.group(1)} ${match.group(2)}';
-      })
-      .replaceAll(RegExp('[-_]+'), ' ')
-      .trim()
-      .split(RegExp(r'\s+'));
-  return words
-      .where((word) => word.isNotEmpty)
-      .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
-      .join(' ');
-}
-
-String? _patternValue(ProjectPattern? pattern) {
-  if (pattern == null) return null;
-  final name = _nonBlank(pattern.name);
-  final designer = _nonBlank(pattern.designer);
-  final publisher = _nonBlank(pattern.publisher);
-  return switch ((name, designer, publisher)) {
-    (final String name, final String designer, final String publisher) =>
-      '$name by $designer, $publisher',
-    (final String name, final String designer, null) => '$name by $designer',
-    (final String name, null, final String publisher) => '$name by $publisher',
-    (final String name, null, null) => name,
-    (null, final String designer, final String publisher) =>
-      '$designer, $publisher',
-    (null, final String designer, null) => designer,
-    (null, null, final String publisher) => publisher,
-    _ => null,
-  };
-}
-
-_ProjectSizeMetadata? _sizeMetadata(ProjectDetails? details) {
-  return switch (details) {
-    SewingProjectDetails(:final sizeMade) when _nonBlank(sizeMade) != null =>
-      _ProjectSizeMetadata(label: 'Size', value: _nonBlank(sizeMade)!),
-    KnittingProjectDetails(:final finishedSize)
-        when _nonBlank(finishedSize) != null =>
-      _ProjectSizeMetadata(
-        label: 'Finished size',
-        value: _nonBlank(finishedSize)!,
-      ),
-    CrochetProjectDetails(:final finishedSize)
-        when _nonBlank(finishedSize) != null =>
-      _ProjectSizeMetadata(
-        label: 'Finished size',
-        value: _nonBlank(finishedSize)!,
-      ),
-    QuiltingProjectDetails(:final size) when _nonBlank(size) != null =>
-      _ProjectSizeMetadata(label: 'Size', value: _nonBlank(size)!),
-    _ => null,
-  };
-}
-
-String? _nonBlank(String? value) {
-  final trimmed = value?.trim();
-  return trimmed == null || trimmed.isEmpty ? null : trimmed;
 }
 
 class _PostCardHeader extends StatelessWidget {
