@@ -153,6 +153,8 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
     this.textInputAction,
     this.onChanged,
     this.allowedTokenKinds,
+    this.required = false,
+    this.requiredLabel = 'required',
   });
 
   /// Field label.
@@ -196,6 +198,12 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
 
   /// Autocomplete token kinds this editor should respond to.
   final Set<ActiveFacetTokenKind>? allowedTokenKinds;
+
+  /// Whether the label should display the required marker.
+  final bool required;
+
+  /// Required marker text rendered beside the label.
+  final String requiredLabel;
 
   @override
   ConsumerState<FacetAutocompleteEditor> createState() =>
@@ -478,6 +486,8 @@ class _FacetAutocompleteEditorState
           errorText: widget.errorText,
           helperText: widget.helperText,
           helperAlignment: widget.helperAlignment,
+          required: widget.required,
+          requiredLabel: widget.requiredLabel,
           keyboardType: widget.keyboardType,
           textInputAction: widget.textInputAction,
           onChanged: _onChanged,

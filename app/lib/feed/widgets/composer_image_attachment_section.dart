@@ -19,6 +19,8 @@ class ComposerImageAttachmentSection extends StatelessWidget {
     required this.onReorder,
     super.key,
     this.validationErrorText,
+    this.required = false,
+    this.requiredLabel = 'required',
   });
 
   static const _imageListAnimationDuration = Duration(milliseconds: 220);
@@ -30,6 +32,8 @@ class ComposerImageAttachmentSection extends StatelessWidget {
   final void Function(String imageId) onRemove;
   final void Function(int fromIndex, int toIndex) onReorder;
   final String? validationErrorText;
+  final bool required;
+  final String requiredLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +49,8 @@ class ComposerImageAttachmentSection extends StatelessWidget {
         _PhotosHeader(
           imageCount: imagesState.images.length,
           describedImageCount: describedImageCount,
+          required: required,
+          requiredLabel: requiredLabel,
         ),
         SizedBox(height: spacing.sp3),
         if (imagesState.images.isNotEmpty)
@@ -139,10 +145,14 @@ class _PhotosHeader extends StatelessWidget {
   const _PhotosHeader({
     required this.imageCount,
     required this.describedImageCount,
+    required this.required,
+    required this.requiredLabel,
   });
 
   final int imageCount;
   final int describedImageCount;
+  final bool required;
+  final String requiredLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -150,6 +160,13 @@ class _PhotosHeader extends StatelessWidget {
     final spacing = theme.extension<SpacingTheme>()!;
     final colors = theme.colorScheme;
     final l10n = AppLocalizations.of(context);
+    final titleStyle = theme.textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w800,
+    );
+    final requiredLabelStyle = theme.textTheme.labelSmall?.copyWith(
+      color: colors.onSurfaceVariant,
+      fontWeight: FontWeight.w600,
+    );
     final describedLabel = imageCount == 0
         ? l10n.postComposeNoImagesDescribed
         : l10n.postComposeImagesDescribed(describedImageCount, imageCount);
@@ -160,11 +177,19 @@ class _PhotosHeader extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: Text(
-                l10n.postComposePhotosTitle,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(text: l10n.postComposePhotosTitle),
+                    if (required)
+                      TextSpan(
+                        text: '  $requiredLabel',
+                        style: requiredLabelStyle,
+                      ),
+                  ],
                 ),
+                style: titleStyle,
+                textAlign: TextAlign.start,
               ),
             ),
             Icon(Icons.short_text_rounded, color: colors.outline, size: 22),

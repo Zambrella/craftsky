@@ -346,6 +346,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerNextAction => 'Next';
 
   @override
+  String get projectComposerRequiredLabel => 'required';
+
+  @override
   String get projectComposerDetailsPrompt =>
       'Fill in the details about your project';
 

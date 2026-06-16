@@ -43,6 +43,8 @@ class BrandTextField extends StatefulWidget {
     this.onChanged,
     this.onSubmitted,
     this.enabled = true,
+    this.required = false,
+    this.requiredLabel = 'required',
   }) : assert(
          controller == null || initialValue == null,
          'Provide either controller or initialValue, not both.',
@@ -75,6 +77,8 @@ class BrandTextField extends StatefulWidget {
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final bool enabled;
+  final bool required;
+  final String requiredLabel;
 
   @override
   State<BrandTextField> createState() => _BrandTextFieldState();
@@ -158,6 +162,8 @@ class _BrandTextFieldState extends State<BrandTextField> {
       helperStyle: widget.helperStyle,
       helperAlignment: widget.helperAlignment,
       enabled: widget.enabled,
+      required: widget.required,
+      requiredLabel: widget.requiredLabel,
       semanticHint: widget.hintText,
       semanticValue: _controller?.text,
       textFieldSemantics: true,

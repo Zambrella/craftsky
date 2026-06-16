@@ -694,6 +694,12 @@ abstract class AppLocalizations {
   /// **'Next'**
   String get projectComposerNextAction;
 
+  /// Small marker shown beside project composer field labels when the field is required.
+  ///
+  /// In en, this message translates to:
+  /// **'required'**
+  String get projectComposerRequiredLabel;
+
   /// Short helper text shown above the project title on the first project composer page.
   ///
   /// In en, this message translates to:

@@ -19,6 +19,7 @@ class CraftskyFieldScaffold extends StatefulWidget {
     this.helperAlignment = AlignmentDirectional.centerStart,
     this.enabled = true,
     this.required = false,
+    this.requiredLabel = 'required',
     this.semanticHint,
     this.semanticValue,
     this.textFieldSemantics = false,
@@ -37,6 +38,7 @@ class CraftskyFieldScaffold extends StatefulWidget {
   final AlignmentGeometry helperAlignment;
   final bool enabled;
   final bool required;
+  final String requiredLabel;
   final String? semanticHint;
   final String? semanticValue;
   final bool textFieldSemantics;
@@ -108,12 +110,22 @@ class _CraftskyFieldScaffoldState extends State<CraftskyFieldScaffold> {
     final colors = theme.colorScheme;
     final hasError = widget.errorText != null;
     final belowText = widget.errorText ?? widget.helperText;
+    final labelStyle =
+        widget.labelStyle ??
+        theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w800,
+          color: hasError ? colors.error : colors.onSurface,
+        );
+    final requiredLabelStyle = theme.textTheme.labelSmall?.copyWith(
+      color: colors.onSurfaceVariant,
+      fontWeight: FontWeight.w600,
+    );
 
     final shadowOffset = shadows.dropSm.first.offset;
     final shadowColor = shadows.dropSm.first.color;
     final lift = _focused ? Offset.zero : shadowOffset;
     final semanticLabel = widget.required
-        ? '${widget.label}, required'
+        ? '${widget.label}, ${widget.requiredLabel}'
         : widget.label;
     final semanticHint = [
       widget.semanticHint,
@@ -139,14 +151,19 @@ class _CraftskyFieldScaffoldState extends State<CraftskyFieldScaffold> {
               ],
               Expanded(
                 child: ExcludeSemantics(
-                  child: Text(
-                    widget.label,
-                    style:
-                        widget.labelStyle ??
-                        theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: hasError ? colors.error : colors.onSurface,
-                        ),
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(text: widget.label),
+                        if (widget.required)
+                          TextSpan(
+                            text: '  ${widget.requiredLabel}',
+                            style: requiredLabelStyle,
+                          ),
+                      ],
+                    ),
+                    style: labelStyle,
+                    textAlign: TextAlign.start,
                   ),
                 ),
               ),

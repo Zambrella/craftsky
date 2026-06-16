@@ -334,6 +334,9 @@
   "projectComposerNextAction": "Next",
   "@projectComposerNextAction": { "description": "Button label for advancing to the next project composer page." },
 
+  "projectComposerRequiredLabel": "required",
+  "@projectComposerRequiredLabel": { "description": "Small marker shown beside project composer field labels when the field is required." },
+
   "projectComposerDetailsPrompt": "Fill in the details about your project",
   "@projectComposerDetailsPrompt": { "description": "Short helper text shown above the project title on the first project composer page." },
 

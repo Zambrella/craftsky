@@ -27,6 +27,8 @@ class CraftskyFormBuilderDropdownField<T>
     super.searchHintText,
     super.validator,
     super.onChanged,
+    super.required,
+    super.requiredLabel,
   });
 }
 

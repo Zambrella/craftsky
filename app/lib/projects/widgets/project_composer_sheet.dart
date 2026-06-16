@@ -408,6 +408,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
           imagesState: imagesState,
           enabled: controlsEnabled,
           validationErrorText: photoErrorText,
+          required: true,
+          requiredLabel: l10n.projectComposerRequiredLabel,
           onAddImages: onAddImages,
           onAltTextChanged: onAltTextChanged,
           onRemove: onRemoveImage,
@@ -417,6 +419,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         CraftskyFormBuilderDropdownField<String>(
           name: ProjectComposerFields.craftType,
           label: l10n.projectComposerCraftTypeLabel,
+          required: true,
+          requiredLabel: l10n.projectComposerRequiredLabel,
           options: _selectOptions(ProjectOptionCatalogs.craftTypes),
           enabled: controlsEnabled,
           validator: (value) =>
@@ -587,6 +591,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         FacetAutocompleteEditor(
           key: const Key('project-composer-body-editor'),
           label: l10n.projectComposerDescriptionLabel,
+          required: true,
+          requiredLabel: l10n.projectComposerRequiredLabel,
           hintText: l10n.projectComposerDescriptionHint,
           controller: _bodyController,
           focusNode: _bodyFocusNode,

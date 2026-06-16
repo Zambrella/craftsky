@@ -13,6 +13,8 @@ class CraftskySingleSelectInput<T> extends StatefulWidget {
     this.searchHintText = 'Search',
     this.noResultsText = 'No results',
     this.keyPrefix,
+    this.required = false,
+    this.requiredLabel = 'required',
     this.onChanged,
   });
 
@@ -26,6 +28,8 @@ class CraftskySingleSelectInput<T> extends StatefulWidget {
   final String searchHintText;
   final String noResultsText;
   final String? keyPrefix;
+  final bool required;
+  final String requiredLabel;
   final ValueChanged<T?>? onChanged;
 
   @override
@@ -355,6 +359,8 @@ class _CraftskySingleSelectInputState<T>
       helperText: widget.helperText,
       errorText: widget.errorText,
       enabled: widget.enabled,
+      required: widget.required,
+      requiredLabel: widget.requiredLabel,
       semanticValue: selectedLabel ?? 'No selection',
       semanticHint: _open ? 'Expanded' : 'Collapsed',
       child: CompositedTransformTarget(

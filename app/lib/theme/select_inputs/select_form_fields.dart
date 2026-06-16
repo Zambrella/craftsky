@@ -14,6 +14,8 @@ class CraftskyFormSingleSelectField<T> extends StatelessWidget {
     this.keyPrefix,
     this.validator,
     this.onChanged,
+    this.required = false,
+    this.requiredLabel = 'required',
   });
 
   final String name;
@@ -27,6 +29,8 @@ class CraftskyFormSingleSelectField<T> extends StatelessWidget {
   final String? keyPrefix;
   final FormFieldValidator<T>? validator;
   final ValueChanged<T?>? onChanged;
+  final bool required;
+  final String requiredLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +50,8 @@ class CraftskyFormSingleSelectField<T> extends StatelessWidget {
           searchThreshold: searchThreshold,
           searchHintText: searchHintText,
           keyPrefix: keyPrefix ?? name,
+          required: required,
+          requiredLabel: requiredLabel,
           onChanged: (value) {
             field.didChange(value);
             onChanged?.call(value);
