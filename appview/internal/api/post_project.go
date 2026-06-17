@@ -36,15 +36,20 @@ type Project struct {
 }
 
 type ProjectCommon struct {
-	CraftType  string          `json:"craftType"`
-	Status     *string         `json:"status,omitempty"`
-	Title      *string         `json:"title,omitempty"`
-	Duration   *string         `json:"duration,omitempty"`
-	Pattern    *ProjectPattern `json:"pattern,omitempty"`
-	Materials  []string        `json:"materials,omitempty"`
-	Colors     []string        `json:"colors,omitempty"`
-	DesignTags []string        `json:"designTags,omitempty"`
-	Tags       []string        `json:"tags,omitempty"`
+	CraftType  string            `json:"craftType"`
+	Status     *string           `json:"status,omitempty"`
+	Title      *string           `json:"title,omitempty"`
+	Duration   *string           `json:"duration,omitempty"`
+	Pattern    *ProjectPattern   `json:"pattern,omitempty"`
+	Materials  []ProjectMaterial `json:"materials,omitempty"`
+	Colors     []string          `json:"colors,omitempty"`
+	DesignTags []string          `json:"designTags,omitempty"`
+	Tags       []string          `json:"tags,omitempty"`
+}
+
+type ProjectMaterial struct {
+	Text   string                   `json:"text"`
+	Facets []*appbsky.RichtextFacet `json:"facets,omitempty"`
 }
 
 type ProjectPattern struct {

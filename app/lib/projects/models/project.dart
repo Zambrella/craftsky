@@ -37,10 +37,18 @@ class ProjectCommon with ProjectCommonMappable {
   final String? title;
   final String? duration;
   final ProjectPattern? pattern;
-  final List<String>? materials;
+  final List<ProjectMaterial>? materials;
   final List<String>? colors;
   final List<String>? designTags;
   final List<String>? tags;
+}
+
+@MappableClass(ignoreNull: true)
+class ProjectMaterial with ProjectMaterialMappable {
+  const ProjectMaterial({required this.text, this.facets});
+
+  final String text;
+  final List<Map<String, dynamic>>? facets;
 }
 
 @MappableClass(ignoreNull: true)

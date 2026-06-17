@@ -172,14 +172,8 @@ void main() {
     );
     await _goNext(tester);
 
-    await tester.ensureVisible(
-      find.byKey(const Key('${ProjectComposerFields.materials}-custom-input')),
-    );
-    await tester.enterText(
-      find.byKey(const Key('${ProjectComposerFields.materials}-custom-input')),
-      'Cotton lawn',
-    );
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.ensureVisible(_materialTextField());
+    await tester.enterText(_materialTextField(), 'Cotton lawn');
     await tester.ensureVisible(
       find.byKey(const Key('${ProjectComposerFields.materials}-add-custom')),
     );
@@ -229,7 +223,7 @@ void main() {
 
     expect(capturedProject, isNotNull);
     final common = capturedProject!.common;
-    expect(common.materials, ['Cotton lawn']);
+    expect(common.materials, const [ProjectMaterial(text: 'Cotton lawn')]);
     expect(common.colors, ['blue']);
     expect(common.designTags, ['social.craftsky.project.defs#floral']);
     expect(common.pattern, isNotNull);
@@ -259,6 +253,15 @@ Finder _bodyTextField() {
 Finder _patternNameTextField() {
   return find.descendant(
     of: find.byKey(const Key('project-composer-pattern-name-editor')),
+    matching: find.byType(TextField),
+  );
+}
+
+Finder _materialTextField() {
+  return find.descendant(
+    of: find.byKey(
+      const Key('${ProjectComposerFields.materials}-custom-input'),
+    ),
     matching: find.byType(TextField),
   );
 }

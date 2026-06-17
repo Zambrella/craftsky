@@ -107,6 +107,7 @@ class _ProjectDetail extends StatelessWidget {
     final spacing = theme.extension<SpacingTheme>()!;
     final title = _nonBlank(project.common.title);
     final rows = _detailRows(project);
+    final materials = _materialValues(project.common.materials);
     final chipSections = _chipSections(project.common);
     final hasPattern = _patternValue(project.common.pattern) != null;
 
@@ -147,10 +148,14 @@ class _ProjectDetail extends StatelessWidget {
               launchUrl: launchUrl,
             ),
         ],
-        if (chipSections.isNotEmpty) ...[
+        if (materials.isNotEmpty || chipSections.isNotEmpty) ...[
           SizedBox(height: spacing.sp3),
           const CraftskyDivider(),
           SizedBox(height: spacing.sp2),
+          if (materials.isNotEmpty) ...[
+            _ProjectMaterialChipSection(materials: materials),
+            SizedBox(height: spacing.sp2),
+          ],
           for (final section in chipSections) ...[
             _ProjectChipSection(section: section),
             SizedBox(height: spacing.sp2),
@@ -189,6 +194,79 @@ class _ProjectChipSection extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _ProjectMaterialChipSection extends StatelessWidget {
+  const _ProjectMaterialChipSection({required this.materials});
+
+  final List<ProjectMaterial> materials;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'MATERIALS',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.outline,
+          ),
+        ),
+        SizedBox(height: spacing.sp1),
+        Wrap(
+          spacing: spacing.sp1,
+          runSpacing: spacing.sp1,
+          children: [
+            for (final material in materials) _ProjectMaterialChip(material),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ProjectMaterialChip extends StatelessWidget {
+  const _ProjectMaterialChip(this.material);
+
+  final ProjectMaterial material;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final radii = theme.extension<RadiusTheme>()!;
+    final colors = theme.colorScheme;
+    final style = theme.textTheme.labelSmall?.copyWith(
+      color: colors.onSurface,
+      letterSpacing: 0,
+    );
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.sizeOf(context).width - spacing.sp8,
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+          border: Border.all(color: colors.onSurface, width: 1.2),
+          borderRadius: BorderRadius.circular(radii.rPill),
+        ),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: spacing.sp2,
+            vertical: spacing.sp1,
+          ),
+          child: FacetedText(
+            text: material.text,
+            facets: material.facets,
+            style: style,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -663,8 +741,6 @@ Future<bool> _showOpenLinkDialog(BuildContext context, Uri uri) async {
 
 List<_ProjectChipSectionData> _chipSections(ProjectCommon common) {
   return [
-    if (_listLabels(common.materials) case final values when values.isNotEmpty)
-      _ProjectChipSectionData(label: 'Materials', values: values),
     if (_listLabels(common.colors, ProjectOptionCatalogs.colours)
         case final values when values.isNotEmpty)
       _ProjectChipSectionData(label: 'Colours', values: values),
@@ -681,6 +757,14 @@ List<String> _listLabels(List<String>? values, [List<ProjectOption>? options]) {
     for (final value in values ?? const <String>[])
       if (_nonBlank(value) case final clean?)
         options == null ? clean : _optionLabel(clean, options),
+  ];
+}
+
+List<ProjectMaterial> _materialValues(List<ProjectMaterial>? values) {
+  return [
+    for (final material in values ?? const <ProjectMaterial>[])
+      if (_nonBlank(material.text) case final text?)
+        ProjectMaterial(text: text, facets: material.facets),
   ];
 }
 

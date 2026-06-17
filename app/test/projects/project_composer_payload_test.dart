@@ -13,7 +13,11 @@ void main() {
               ProjectOptionCatalogs.embroideryCraftToken,
           ProjectComposerFields.status: null,
           ProjectComposerFields.title: '  Hoop sampler  ',
-          ProjectComposerFields.materials: [' linen ', '', 'cotton'],
+          ProjectComposerFields.materials: const [
+            ProjectMaterial(text: ' linen '),
+            ProjectMaterial(text: ''),
+            ProjectMaterial(text: 'cotton'),
+          ],
           ProjectComposerFields.colours: ['blue', 'cream'],
           ProjectComposerFields.designTags: [
             'social.craftsky.project.defs#floral',
@@ -29,7 +33,10 @@ void main() {
       );
       expect(project.common.status, ProjectOptionCatalogs.finishedStatusToken);
       expect(project.common.title, 'Hoop sampler');
-      expect(project.common.materials, ['linen', 'cotton']);
+      expect(project.common.materials, const [
+        ProjectMaterial(text: 'linen'),
+        ProjectMaterial(text: 'cotton'),
+      ]);
       expect(project.common.colors, ['blue', 'cream']);
       expect(project.common.designTags, [
         'social.craftsky.project.defs#floral',

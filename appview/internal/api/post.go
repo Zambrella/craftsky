@@ -272,16 +272,21 @@ func requestProjectTags(project *Project) []string {
 	if project == nil {
 		return nil
 	}
+	materialTagSets := make([][]string, 0, len(project.Common.Materials))
+	for _, material := range project.Common.Materials {
+		materialTagSets = append(materialTagSets, postutil.ExtractTagsForText(material.Text, material.Facets))
+	}
 	if project.Common.Pattern == nil {
-		return project.Common.Tags
+		return postutil.MergeTags(append([][]string{project.Common.Tags}, materialTagSets...)...)
 	}
 	pattern := project.Common.Pattern
-	return postutil.MergeTags(
+	tagSets := [][]string{
 		project.Common.Tags,
 		postutil.ExtractTagsForText(stringPtrValue(pattern.Name), pattern.NameFacets),
 		postutil.ExtractTagsForText(stringPtrValue(pattern.Designer), pattern.DesignerFacets),
 		postutil.ExtractTagsForText(stringPtrValue(pattern.Publisher), pattern.PublisherFacets),
-	)
+	}
+	return postutil.MergeTags(append(tagSets, materialTagSets...)...)
 }
 
 func syntheticPostImagesJSON(images []PostImage) (json.RawMessage, error) {

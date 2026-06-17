@@ -205,7 +205,7 @@ void main() {
             craftType: ProjectOptionCatalogs.sewingCraftToken,
             title: 'Root jacket',
             duration: '3 weekends',
-            materials: ['linen'],
+            materials: [ProjectMaterial(text: 'linen')],
           ),
           details: SewingProjectDetails(fitNotes: 'Root fit notes'),
         ),

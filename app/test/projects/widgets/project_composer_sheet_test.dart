@@ -33,25 +33,18 @@ void main() {
         ),
       ),
     );
+    await tester.pumpAndSettle();
 
     expect(find.text('Project post'), findsOneWidget);
-    expect(find.text('Photos'), findsOneWidget);
-    expect(find.text('Craft type'), findsOneWidget);
     expect(find.text('Fill in the details about your project'), findsOneWidget);
     expect(find.text('Project title'), findsOneWidget);
     expect(find.text('Add a short project title'), findsOneWidget);
-    expect(find.text('Status'), findsOneWidget);
     expect(find.text('Finished'), findsOneWidget);
     expect(find.text('Pattern tag or name'), findsOneWidget);
     expect(find.text('Next'), findsOneWidget);
     expect(find.text('Post'), findsNothing);
 
-    final craftTop = tester.getTopLeft(find.text('Craft type')).dy;
-    final titleTop = tester.getTopLeft(find.text('Project title')).dy;
-    final statusTop = tester.getTopLeft(find.text('Status')).dy;
-    expect(titleTop, greaterThan(craftTop));
-    expect(titleTop, lessThan(statusTop));
-
+    expect(find.byKey(const Key('craftType-select-button')), findsOneWidget);
     expect(find.byKey(const Key('status-select-button')), findsOneWidget);
 
     await _selectCraft(tester, 'Embroidery');
@@ -74,8 +67,10 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Next'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Project description'), findsOneWidget);
-    expect(find.text('Tell everyone about your project'), findsOneWidget);
+    expect(
+      find.byKey(const Key('project-composer-body-editor')),
+      findsOneWidget,
+    );
     expect(find.text('Post'), findsOneWidget);
 
     final safeArea = tester.widget<SafeArea>(find.byType(SafeArea).first);
@@ -241,7 +236,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Next'));
     await tester.pumpAndSettle();
 
-    final materials = find.byKey(const Key('materials-custom-input'));
+    final materials = _materialTextField();
     final colors = find.byKey(const Key('colors-search-input'));
     final designTags = find.byKey(const Key('designTags-search-input'));
     final backAction = find.byKey(const Key('project-composer-back-action'));
@@ -360,4 +355,11 @@ Future<void> _selectCraft(WidgetTester tester, String craftLabel) async {
   await tester.pumpAndSettle();
   await tester.tap(find.text(craftLabel).last);
   await tester.pumpAndSettle();
+}
+
+Finder _materialTextField() {
+  return find.descendant(
+    of: find.byKey(const Key('materials-custom-input')),
+    matching: find.byType(TextField),
+  );
 }

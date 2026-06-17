@@ -280,7 +280,7 @@ func TestCraftskyPost_Create_WithProjectPayload_MaterializesProject(t *testing.T
 				"craftType": "social.craftsky.feed.defs#knitting",
 				"status":    "social.craftsky.feed.defs#finished",
 				"title":     "Hitchhiker Shawl",
-				"materials": ["merino"],
+				"materials": [{"text":"merino"}],
 				"tags":      ["fair-isle"]
 			}
 		}
@@ -323,13 +323,14 @@ func TestCraftskyPost_Create_WithProjectPayload_MaterializesProject(t *testing.T
 		commonCraftType string
 		commonStatus    *string
 		commonTitle     *string
+		materials       []string
 		projectTags     []string
 		rawProject      string
 	)
 	if err := pool.QueryRow(context.Background(), `
-		SELECT common_craft_type, common_status, common_title, project_tags, raw_project::text
+		SELECT common_craft_type, common_status, common_title, materials, project_tags, raw_project::text
 		FROM craftsky_project_posts WHERE uri = $1`, ev.URI).
-		Scan(&commonCraftType, &commonStatus, &commonTitle, &projectTags, &rawProject); err != nil {
+		Scan(&commonCraftType, &commonStatus, &commonTitle, &materials, &projectTags, &rawProject); err != nil {
 		t.Fatalf("select project: %v", err)
 	}
 	if commonCraftType != "social.craftsky.feed.defs#knitting" || commonStatus == nil || *commonStatus != "social.craftsky.feed.defs#finished" || commonTitle == nil || *commonTitle != "Hitchhiker Shawl" {
@@ -337,6 +338,9 @@ func TestCraftskyPost_Create_WithProjectPayload_MaterializesProject(t *testing.T
 	}
 	if len(projectTags) != 1 || projectTags[0] != "fair-isle" {
 		t.Fatalf("project_tags = %v, want [fair-isle]", projectTags)
+	}
+	if len(materials) != 1 || materials[0] != "merino" {
+		t.Fatalf("materials = %v, want [merino]", materials)
 	}
 	if rawProject == "" {
 		t.Fatalf("raw_project empty")
@@ -378,6 +382,13 @@ func TestCraftskyPost_Create_ProjectPatternFacetsMaterializeTagsAndMentions(t *t
 			"common": {
 				"craftType": "social.craftsky.feed.defs#knitting",
 				"tags": ["structured-tag"],
+				"materials": [{
+					"text": "3m of @alice.craftsky.social #viscose fabric",
+					"facets": [
+						{"index":{"byteStart":6,"byteEnd":28},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:alice"}]},
+						{"index":{"byteStart":29,"byteEnd":37},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"viscose"}]}
+					]
+				}],
 				"pattern": {
 					"name": "#hitchhiker",
 					"nameFacets": [{"index":{"byteStart":0,"byteEnd":11},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"Hitchhiker"}]}],
@@ -409,7 +420,7 @@ func TestCraftskyPost_Create_ProjectPatternFacetsMaterializeTagsAndMentions(t *t
 	if err := pool.QueryRow(context.Background(), `SELECT project_tags FROM craftsky_project_posts WHERE uri = $1`, ev.URI).Scan(&projectTags); err != nil {
 		t.Fatalf("select project tags: %v", err)
 	}
-	wantTags := []string{"captiontag", "structured-tag", "hitchhiker"}
+	wantTags := []string{"captiontag", "structured-tag", "hitchhiker", "viscose"}
 	if strings.Join(postTags, ",") != strings.Join(wantTags, ",") {
 		t.Fatalf("post tags = %v, want %v", postTags, wantTags)
 	}

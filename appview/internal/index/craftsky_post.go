@@ -217,10 +217,15 @@ type indexedProjectCommon struct {
 		Publisher       *string                  `json:"publisher"`
 		PublisherFacets []*appbsky.RichtextFacet `json:"publisherFacets"`
 	} `json:"pattern"`
-	Materials  []string `json:"materials"`
-	Colors     []string `json:"colors"`
-	DesignTags []string `json:"designTags"`
-	Tags       []string `json:"tags"`
+	Materials  []indexedProjectMaterial `json:"materials"`
+	Colors     []string                 `json:"colors"`
+	DesignTags []string                 `json:"designTags"`
+	Tags       []string                 `json:"tags"`
+}
+
+type indexedProjectMaterial struct {
+	Text   string                   `json:"text"`
+	Facets []*appbsky.RichtextFacet `json:"facets"`
 }
 
 type indexedProjectDetails struct {
@@ -283,19 +288,30 @@ func projectSearchTags(project *indexedProject) []string {
 			postutil.ExtractTagsForText(stringPtrValue(pattern.Publisher), pattern.PublisherFacets),
 		)
 	}
-	return postutil.MergeTags(append([][]string{project.Common.Tags}, patternTagSets...)...)
+	materialTagSets := make([][]string, 0, len(project.Common.Materials))
+	for _, material := range project.Common.Materials {
+		materialTagSets = append(materialTagSets, postutil.ExtractTagsForText(material.Text, material.Facets))
+	}
+	tagSets := append([][]string{project.Common.Tags}, patternTagSets...)
+	return postutil.MergeTags(append(tagSets, materialTagSets...)...)
 }
 
 func projectMentionDIDs(project *indexedProject) []string {
-	if project == nil || project.Common.Pattern == nil {
+	if project == nil {
 		return nil
 	}
-	pattern := project.Common.Pattern
-	return postutil.MergeMentionDIDs(
-		postutil.ExtractMentionDIDsForText(stringPtrValue(pattern.Name), pattern.NameFacets),
-		postutil.ExtractMentionDIDsForText(stringPtrValue(pattern.Designer), pattern.DesignerFacets),
-		postutil.ExtractMentionDIDsForText(stringPtrValue(pattern.Publisher), pattern.PublisherFacets),
-	)
+	mentionSets := make([][]string, 0, 3+len(project.Common.Materials))
+	if pattern := project.Common.Pattern; pattern != nil {
+		mentionSets = append(mentionSets,
+			postutil.ExtractMentionDIDsForText(stringPtrValue(pattern.Name), pattern.NameFacets),
+			postutil.ExtractMentionDIDsForText(stringPtrValue(pattern.Designer), pattern.DesignerFacets),
+			postutil.ExtractMentionDIDsForText(stringPtrValue(pattern.Publisher), pattern.PublisherFacets),
+		)
+	}
+	for _, material := range project.Common.Materials {
+		mentionSets = append(mentionSets, postutil.ExtractMentionDIDsForText(material.Text, material.Facets))
+	}
+	return postutil.MergeMentionDIDs(mentionSets...)
 }
 
 func stringPtrValue(value *string) string {
@@ -397,7 +413,7 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 	_, err := tx.Exec(ctx, q,
 		uri, project.RawProject, common.CraftType, common.Status, common.Title, common.Duration,
 		patternURL, patternName, patternNameFacets, patternDifficulty, patternDesigner, patternDesignerFacets, patternPublisher, patternPublisherFacets,
-		nonNilStrings(common.Materials), nonNilStrings(common.Colors), nonNilStrings(common.DesignTags), nonNilStrings(tags), nullableString(project.Details.Type), nullableJSON(project.RawDetails),
+		materialTexts(common.Materials), nonNilStrings(common.Colors), nonNilStrings(common.DesignTags), nonNilStrings(tags), nullableString(project.Details.Type), nullableJSON(project.RawDetails),
 		detailCols.knittingProjectType, detailCols.knittingProjectSubtype, detailCols.knittingYarnWeight, detailCols.knittingNeedleSizeMM, detailCols.knittingGauge, detailCols.knittingFinishedSize,
 		detailCols.crochetProjectType, detailCols.crochetProjectSubtype, detailCols.crochetYarnWeight, detailCols.crochetHookSizeMM, detailCols.crochetGauge, detailCols.crochetFinishedSize,
 		detailCols.quiltingProjectType, detailCols.quiltingProjectSubtype, detailCols.quiltingPiecingTechnique, detailCols.quiltingQuiltingMethod, detailCols.quiltingSize,
@@ -509,6 +525,17 @@ func nonNilStrings(in []string) []string {
 		return []string{}
 	}
 	return in
+}
+
+func materialTexts(in []indexedProjectMaterial) []string {
+	out := make([]string, 0, len(in))
+	for _, material := range in {
+		text := strings.TrimSpace(material.Text)
+		if text != "" {
+			out = append(out, text)
+		}
+	}
+	return out
 }
 
 func nullableString(in string) any {

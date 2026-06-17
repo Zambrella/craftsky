@@ -14,6 +14,7 @@ class CraftskyFieldScaffold extends StatefulWidget {
     this.counterText,
     this.labelLeading,
     this.labelTrailing,
+    this.betweenLabelAndChild,
     this.labelStyle,
     this.helperStyle,
     this.helperAlignment = AlignmentDirectional.centerStart,
@@ -33,6 +34,7 @@ class CraftskyFieldScaffold extends StatefulWidget {
   final String? counterText;
   final Widget? labelLeading;
   final Widget? labelTrailing;
+  final Widget? betweenLabelAndChild;
   final TextStyle? labelStyle;
   final TextStyle? helperStyle;
   final AlignmentGeometry helperAlignment;
@@ -172,6 +174,10 @@ class _CraftskyFieldScaffoldState extends State<CraftskyFieldScaffold> {
             ],
           ),
           SizedBox(height: sp.sp2),
+          if (widget.betweenLabelAndChild != null) ...[
+            widget.betweenLabelAndChild!,
+            SizedBox(height: sp.sp2),
+          ],
           CraftskyFocusLift(
             lift: lift,
             shadowOffset: shadowOffset,

@@ -1092,6 +1092,7 @@ func TestCreatePost_WithProject_WritesProjectToPDSAndResponse(t *testing.T) {
 			"common":{
 				"craftType":"social.craftsky.feed.defs#knitting",
 				"title":"Hitchhiker Shawl",
+				"materials":[{"text":"3m of @alice.craftsky.social #viscose fabric","facets":[{"index":{"byteStart":6,"byteEnd":28},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:alice"}]},{"index":{"byteStart":29,"byteEnd":37},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"Viscose"}]}]}],
 				"tags":[" fairisle ", "WIP"],
 				"pattern":{
 					"name":"#hitchhiker",
@@ -1118,6 +1119,9 @@ func TestCreatePost_WithProject_WritesProjectToPDSAndResponse(t *testing.T) {
 	if project.Common.Pattern == nil || project.Common.Pattern.Name == nil || *project.Common.Pattern.Name != "#hitchhiker" {
 		t.Fatalf("PDS project pattern = %#v", project.Common.Pattern)
 	}
+	if len(project.Common.Materials) != 1 || project.Common.Materials[0].Text != "3m of @alice.craftsky.social #viscose fabric" || len(project.Common.Materials[0].Facets) != 2 {
+		t.Fatalf("PDS project materials = %#v", project.Common.Materials)
+	}
 	if len(project.Common.Pattern.NameFacets) != 1 || len(project.Common.Pattern.DesignerFacets) != 1 {
 		t.Fatalf("PDS pattern facets = name:%d designer:%d", len(project.Common.Pattern.NameFacets), len(project.Common.Pattern.DesignerFacets))
 	}
@@ -1132,7 +1136,7 @@ func TestCreatePost_WithProject_WritesProjectToPDSAndResponse(t *testing.T) {
 	if resp.Project == nil || resp.Project.Common.Title == nil || *resp.Project.Common.Title != "Hitchhiker Shawl" {
 		t.Fatalf("response project = %+v", resp.Project)
 	}
-	wantTags := []string{"fairisle", "wip", "hitchhiker"}
+	wantTags := []string{"fairisle", "wip", "hitchhiker", "viscose"}
 	if !reflect.DeepEqual(resp.Tags, wantTags) {
 		t.Fatalf("response tags = %v, want %v", resp.Tags, wantTags)
 	}

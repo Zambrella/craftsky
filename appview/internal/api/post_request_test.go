@@ -143,6 +143,58 @@ func TestValidatePostCreate_RejectsProjectWithReplyQuoteOrUnsupportedCraft(t *te
 	}
 }
 
+func TestValidatePostCreate_RejectsInvalidProjectMaterials(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		materials []api.ProjectMaterial
+		key       string
+	}{
+		{
+			name:      "too many",
+			materials: make([]api.ProjectMaterial, 11),
+			key:       "project.common.materials",
+		},
+		{
+			name:      "empty text",
+			materials: []api.ProjectMaterial{{Text: "   "}},
+			key:       "project.common.materials[0].text",
+		},
+		{
+			name:      "too long",
+			materials: []api.ProjectMaterial{{Text: strings.Repeat("a", 101)}},
+			key:       "project.common.materials[0].text",
+		},
+		{
+			name:      "multiline",
+			materials: []api.ProjectMaterial{{Text: "linen\ncotton"}},
+			key:       "project.common.materials[0].text",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := api.ValidatePostCreate(api.PostCreateRequest{
+				Text: "hi",
+				Project: &api.Project{Common: api.ProjectCommon{
+					CraftType: api.ProjectCraftTypeKnitting,
+					Materials: tc.materials,
+				}},
+			})
+			var fe *api.FieldError
+			if !errors.As(err, &fe) || fe.Code != "validation_failed" {
+				t.Fatalf("want validation_failed, got %v", err)
+			}
+			if _, ok := fe.Fields[tc.key]; !ok {
+				t.Fatalf("fields = %v, want %s", fe.Fields, tc.key)
+			}
+		})
+	}
+}
+
 func TestValidatePostCreate_RejectsProjectWithoutCraftType(t *testing.T) {
 	t.Parallel()
 	err := api.ValidatePostCreate(api.PostCreateRequest{

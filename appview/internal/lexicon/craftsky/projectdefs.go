@@ -29,6 +29,16 @@ type ProjectDefs_Gauge struct {
 	Unit string `json:"unit" cborgen:"unit"`
 }
 
+// ProjectDefs_Material is a "material" in the social.craftsky.project.defs schema.
+//
+// One visible material entry for a project. Rich-text annotations are scoped to text.
+type ProjectDefs_Material struct {
+	// facets: Byte-range annotations over text for material mentions and hashtags.
+	Facets []*appbsky.RichtextFacet `json:"facets,omitempty" cborgen:"facets,omitempty"`
+	// text: Visible material text, e.g. '3m of @sewmesunshine.bsky.social #viscose fabric'.
+	Text string `json:"text" cborgen:"text"`
+}
+
 // ProjectDefs_Pattern is a "pattern" in the social.craftsky.project.defs schema.
 //
 // Optional reference to the pattern used. Every field optional — 'Simplicity 8265' (name only), 'https://ravelry.com/patterns/library/hitchhiker' (URL only), or both plus difficulty are all valid.
@@ -73,8 +83,8 @@ type ProjectDefs_ProjectCommon struct {
 	DesignTags []string `json:"designTags,omitempty" cborgen:"designTags,omitempty"`
 	// duration: Free-text description of how long the project took, e.g. '3 weeks', 'a weekend', '6 months of evenings'. Deliberately unstructured — crafters describe duration informally. Not range-queryable.
 	Duration *string `json:"duration,omitempty" cborgen:"duration,omitempty"`
-	// materials: Materials used in the project, as free-form tags. Indexed for search, e.g. 'show me all projects using linen'. Structure per material is intentionally free-form because every craft uses different material descriptors.
-	Materials []string `json:"materials,omitempty" cborgen:"materials,omitempty"`
+	// materials: Materials used in the project as visible rich-text entries. Each entry is indexed for search by text and may carry mention or hashtag facets over that text.
+	Materials []*ProjectDefs_Material `json:"materials,omitempty" cborgen:"materials,omitempty"`
 	// pattern: Optional pattern reference.
 	Pattern *ProjectDefs_Pattern `json:"pattern,omitempty" cborgen:"pattern,omitempty"`
 	// status: Whether the project is in progress or finished at the time this post was created. Snapshot — not a mutable lifecycle flag. knownValues are tokens so new statuses (e.g. planned, frogged) can be added without breaking old clients.

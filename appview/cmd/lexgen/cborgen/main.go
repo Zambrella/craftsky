@@ -29,6 +29,7 @@ func main() {
 		craftsky.FeedPost_ReplyRef{},
 		craftsky.ProjectCrochet_Details{},
 		craftsky.ProjectDefs_Gauge{},
+		craftsky.ProjectDefs_Material{},
 		craftsky.ProjectDefs_Pattern{},
 		craftsky.ProjectDefs_Project{},
 		craftsky.ProjectDefs_ProjectCommon{},

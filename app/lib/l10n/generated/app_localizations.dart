@@ -766,6 +766,12 @@ abstract class AppLocalizations {
   /// **'Add'**
   String get projectComposerMaterialsAddAction;
 
+  /// Validation error for a project composer material entry that is too long.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep each material to {max} characters or fewer.'**
+  String projectComposerMaterialsMaxLengthError(int max);
+
   /// Small helper label shown by reusable project fields while create is loading and controls are disabled.
   ///
   /// In en, this message translates to:

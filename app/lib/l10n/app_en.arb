@@ -370,6 +370,12 @@
   "projectComposerMaterialsAddAction": "Add",
   "@projectComposerMaterialsAddAction": { "description": "Button label for adding a typed material in the project composer." },
 
+  "projectComposerMaterialsMaxLengthError": "Keep each material to {max} characters or fewer.",
+  "@projectComposerMaterialsMaxLengthError": {
+    "description": "Validation error for a project composer material entry that is too long.",
+    "placeholders": { "max": { "type": "int", "example": "100" } }
+  },
+
   "projectComposerFieldDisabledLabel": "Disabled",
   "@projectComposerFieldDisabledLabel": { "description": "Small helper label shown by reusable project fields while create is loading and controls are disabled." },
 

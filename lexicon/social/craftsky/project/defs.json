@@ -76,13 +76,12 @@
         },
         "materials": {
           "type": "array",
-          "maxLength": 20,
+          "maxLength": 10,
           "items": {
-            "type": "string",
-            "maxLength": 100,
-            "maxGraphemes": 100
+            "type": "ref",
+            "ref": "#material"
           },
-          "description": "Materials used in the project, as free-form tags. Indexed for search, e.g. 'show me all projects using linen'. Structure per material is intentionally free-form because every craft uses different material descriptors."
+          "description": "Materials used in the project as visible rich-text entries. Each entry is indexed for search by text and may carry mention or hashtag facets over that text."
         },
         "colors": {
           "type": "array",
@@ -160,6 +159,29 @@
             "maxGraphemes": 64
           },
           "description": "Structured search tags. Composer responsibility to normalise to ASCII kebab-case (pattern ^[a-z0-9]+(-[a-z0-9]+)*$). AppView search materialisation also merges hashtag facets from post text and faceted project metadata, so this field is not required to duplicate every visible hashtag."
+        }
+      }
+    },
+    "material": {
+      "type": "object",
+      "description": "One visible material entry for a project. Rich-text annotations are scoped to text.",
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "maxLength": 1000,
+          "maxGraphemes": 100,
+          "description": "Visible material text, e.g. '3m of @sewmesunshine.bsky.social #viscose fabric'."
+        },
+        "facets": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "app.bsky.richtext.facet"
+          },
+          "description": "Byte-range annotations over text for material mentions and hashtags."
         }
       }
     },

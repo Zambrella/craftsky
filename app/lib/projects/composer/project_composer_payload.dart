@@ -47,7 +47,7 @@ ProjectComposerPayloadResult buildProjectComposerPayload({
         ProjectOptionCatalogs.finishedStatusToken,
     title: _stringValue(formValues[ProjectComposerFields.title]),
     pattern: _patternFrom(formValues),
-    materials: _stringList(formValues[ProjectComposerFields.materials]),
+    materials: _materialsList(formValues[ProjectComposerFields.materials]),
     colors: _stringList(formValues[ProjectComposerFields.colours]),
     designTags: _stringList(formValues[ProjectComposerFields.designTags]),
   );
@@ -307,6 +307,20 @@ List<String>? _stringList(Object? value) {
       .whereType<String>()
       .map((item) => item.trim())
       .where((item) => item.isNotEmpty)
+      .toList(growable: false);
+  return values.isEmpty ? null : values;
+}
+
+List<ProjectMaterial>? _materialsList(Object? value) {
+  if (value is! Iterable) return null;
+  final values = value
+      .whereType<ProjectMaterial>()
+      .map((material) {
+        final text = material.text.trim();
+        if (text.isEmpty) return null;
+        return ProjectMaterial(text: text, facets: material.facets);
+      })
+      .nonNulls
       .toList(growable: false);
   return values.isEmpty ? null : values;
 }

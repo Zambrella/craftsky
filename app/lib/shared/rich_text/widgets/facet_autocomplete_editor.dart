@@ -148,9 +148,12 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
     this.enabled = true,
     this.errorText,
     this.helperText,
+    this.betweenLabelAndField,
     this.helperAlignment = AlignmentDirectional.centerStart,
+    this.suffixIcon,
     this.keyboardType,
     this.textInputAction,
+    this.onSubmitted,
     this.onChanged,
     this.allowedTokenKinds,
     this.required = false,
@@ -184,14 +187,23 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
   /// Optional helper text below the field.
   final String? helperText;
 
+  /// Optional content rendered between the label and the text field.
+  final Widget? betweenLabelAndField;
+
   /// Alignment for helper text.
   final AlignmentGeometry helperAlignment;
+
+  /// Optional trailing widget inside the field decoration.
+  final Widget? suffixIcon;
 
   /// Keyboard type for the inner text field.
   final TextInputType? keyboardType;
 
   /// Text input action for the inner text field.
   final TextInputAction? textInputAction;
+
+  /// Parent submitted callback.
+  final ValueChanged<String>? onSubmitted;
 
   /// Parent change callback.
   final ValueChanged<String>? onChanged;
@@ -485,11 +497,14 @@ class _FacetAutocompleteEditorState
           enabled: widget.enabled,
           errorText: widget.errorText,
           helperText: widget.helperText,
+          betweenLabelAndField: widget.betweenLabelAndField,
           helperAlignment: widget.helperAlignment,
+          suffixIcon: widget.suffixIcon,
           required: widget.required,
           requiredLabel: widget.requiredLabel,
           keyboardType: widget.keyboardType,
           textInputAction: widget.textInputAction,
+          onSubmitted: widget.onSubmitted,
           onChanged: _onChanged,
         ),
       ],

@@ -385,6 +385,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerMaterialsAddAction => 'Add';
 
   @override
+  String projectComposerMaterialsMaxLengthError(int max) {
+    return 'Keep each material to $max characters or fewer.';
+  }
+
+  @override
   String get projectComposerFieldDisabledLabel => 'Disabled';
 
   @override

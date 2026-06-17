@@ -48,7 +48,7 @@ void main() {
               status: ProjectOptionCatalogs.finishedStatusToken,
               title: 'Indigo jacket',
               duration: '3 weekends',
-              materials: ['linen'],
+              materials: [ProjectMaterial(text: 'linen')],
             ),
             details: SewingProjectDetails(
               projectType: '${ProjectOptionCatalogs.projectDefsPrefix}#garment',
@@ -87,7 +87,10 @@ void main() {
                     '${ProjectOptionCatalogs.feedDefsPrefix}#intermediate',
                 url: 'https://example.com/pattern',
               ),
-              materials: ['linen', 'cotton thread'],
+              materials: [
+                ProjectMaterial(text: 'linen'),
+                ProjectMaterial(text: 'cotton thread'),
+              ],
               colors: ['blue', 'natural'],
               designTags: [
                 '${ProjectOptionCatalogs.projectDefsPrefix}#minimalist',
