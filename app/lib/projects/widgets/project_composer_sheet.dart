@@ -54,7 +54,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   static const _initialFormValues = <String, dynamic>{
     ProjectComposerFields.status: ProjectOptionCatalogs.finishedStatusToken,
   };
-  static const _craftDetailFieldNames = [
+  static const List<String> _craftDetailFieldNames = [
     ProjectComposerFields.sewingProjectType,
     ProjectComposerFields.sewingProjectSubtype,
     ProjectComposerFields.sewingSizeMade,
@@ -666,9 +666,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       _knittingProjectType = null;
       _crochetProjectType = null;
       _quiltingProjectType = null;
-      for (final field in _craftDetailFieldNames) {
-        _clearFormField(field);
-      }
+      _craftDetailFieldNames.forEach(_clearFormField);
     });
   }
 

@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 /// same source of truth and can't drift. Display labels are looked up
 /// via [ProfileTabLabel.label] on the current [AppLocalizations] —
 /// keeping the enum locale-agnostic.
-enum ProfileTab { posts, comments, projects, saved, reposts, about }
+enum ProfileTab { projects, posts, comments, saved, reposts, about }
 
 extension ProfileTabLabel on ProfileTab {
   /// Localised tab label for [AppLocalizations].
