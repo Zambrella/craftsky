@@ -1,5 +1,7 @@
 import 'package:craftsky_app/projects/composer/project_composer_draft_state.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
+import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -54,6 +56,41 @@ void main() {
           imageCount: 0,
           formValues: const {
             ProjectComposerFields.knittingFinishedSize: '42in chest',
+          },
+        ),
+        isTrue,
+      );
+    });
+
+    test('UT-014 treats initial default form values as unchanged', () {
+      expect(
+        ProjectComposerDraftState.hasDraft(
+          bodyText: '',
+          initialBodyText: '',
+          imageCount: 0,
+          formValues: const {
+            ProjectComposerFields.status:
+                ProjectOptionCatalogs.finishedStatusToken,
+          },
+          initialFormValues: const {
+            ProjectComposerFields.status:
+                ProjectOptionCatalogs.finishedStatusToken,
+          },
+        ),
+        isFalse,
+      );
+    });
+
+    test('UT-014 detects material entry changes', () {
+      expect(
+        ProjectComposerDraftState.hasDraft(
+          bodyText: '',
+          initialBodyText: '',
+          imageCount: 0,
+          formValues: const {
+            ProjectComposerFields.materials: [
+              ProjectMaterial(text: 'Wool roving'),
+            ],
           },
         ),
         isTrue,

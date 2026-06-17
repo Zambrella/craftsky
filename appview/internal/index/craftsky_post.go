@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	appbsky "github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -65,7 +64,7 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		return nil
 	}
 
-	var rec craftskylex.FeedPost
+	var rec indexedPostRecord
 	if err := json.Unmarshal(ev.Record, &rec); err != nil {
 		return fmt.Errorf("unmarshal %s: %w", ev.URI, err)
 	}
@@ -74,12 +73,9 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		return fmt.Errorf("parse createdAt %q on %s: %w", rec.CreatedAt, ev.URI, err)
 	}
 
-	var facetsJSON []byte
-	if len(rec.Facets) > 0 {
-		facetsJSON, err = json.Marshal(rec.Facets)
-		if err != nil {
-			return fmt.Errorf("marshal facets %s: %w", ev.URI, err)
-		}
+	var facetsJSON json.RawMessage
+	if len(rec.Facets) > 0 && string(rec.Facets) != "null" {
+		facetsJSON = append(json.RawMessage(nil), rec.Facets...)
 	}
 
 	var imagesJSON []byte
@@ -122,8 +118,9 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	if project != nil && (rec.Reply != nil || quoteURI != nil) {
 		project = nil
 	}
-	tags := postutil.MergeTags(postutil.ExtractTagsForText(rec.Text, rec.Facets), projectSearchTags(project))
-	mentions := postutil.MergeMentionDIDs(postutil.ExtractMentionDIDsForText(rec.Text, rec.Facets), projectMentionDIDs(project))
+	topLevelFacets := postutil.DecodeFacets(rec.Facets)
+	tags := postutil.MergeTags(postutil.ExtractTagsForText(rec.Text, topLevelFacets), projectSearchTags(project))
+	mentions := postutil.MergeMentionDIDs(postutil.ExtractMentionDIDsForText(rec.Text, topLevelFacets), projectMentionDIDs(project))
 
 	var isProject bool
 	var projectCraftType any
@@ -202,30 +199,41 @@ type indexedProject struct {
 	Details    indexedProjectDetails
 }
 
+type indexedPostRecord struct {
+	CreatedAt string                         `json:"createdAt"`
+	Embed     *craftskylex.FeedPost_Embed    `json:"embed,omitempty"`
+	Facets    json.RawMessage                `json:"facets,omitempty"`
+	Images    []*craftskylex.FeedPost_Image  `json:"images,omitempty"`
+	Reply     *craftskylex.FeedPost_ReplyRef `json:"reply,omitempty"`
+	Text      string                         `json:"text"`
+}
+
 type indexedProjectCommon struct {
-	CraftType string  `json:"craftType"`
-	Status    *string `json:"status"`
-	Title     *string `json:"title"`
-	Duration  *string `json:"duration"`
-	Pattern   *struct {
-		URL             *string                  `json:"url"`
-		Name            *string                  `json:"name"`
-		NameFacets      []*appbsky.RichtextFacet `json:"nameFacets"`
-		Difficulty      *string                  `json:"difficulty"`
-		Designer        *string                  `json:"designer"`
-		DesignerFacets  []*appbsky.RichtextFacet `json:"designerFacets"`
-		Publisher       *string                  `json:"publisher"`
-		PublisherFacets []*appbsky.RichtextFacet `json:"publisherFacets"`
-	} `json:"pattern"`
+	CraftType  string                   `json:"craftType"`
+	Status     *string                  `json:"status"`
+	Title      *string                  `json:"title"`
+	Duration   *string                  `json:"duration"`
+	Pattern    *indexedProjectPattern   `json:"pattern"`
 	Materials  []indexedProjectMaterial `json:"materials"`
 	Colors     []string                 `json:"colors"`
 	DesignTags []string                 `json:"designTags"`
 	Tags       []string                 `json:"tags"`
 }
 
+type indexedProjectPattern struct {
+	URL             *string         `json:"url"`
+	Name            *string         `json:"name"`
+	NameFacets      json.RawMessage `json:"nameFacets"`
+	Difficulty      *string         `json:"difficulty"`
+	Designer        *string         `json:"designer"`
+	DesignerFacets  json.RawMessage `json:"designerFacets"`
+	Publisher       *string         `json:"publisher"`
+	PublisherFacets json.RawMessage `json:"publisherFacets"`
+}
+
 type indexedProjectMaterial struct {
-	Text   string                   `json:"text"`
-	Facets []*appbsky.RichtextFacet `json:"facets"`
+	Text   string          `json:"text"`
+	Facets json.RawMessage `json:"facets"`
 }
 
 type indexedProjectDetails struct {
@@ -280,38 +288,43 @@ func projectSearchTags(project *indexedProject) []string {
 	if project == nil {
 		return nil
 	}
-	var patternTagSets [][]string
-	if pattern := project.Common.Pattern; pattern != nil {
-		patternTagSets = append(patternTagSets,
-			postutil.ExtractTagsForText(stringPtrValue(pattern.Name), pattern.NameFacets),
-			postutil.ExtractTagsForText(stringPtrValue(pattern.Designer), pattern.DesignerFacets),
-			postutil.ExtractTagsForText(stringPtrValue(pattern.Publisher), pattern.PublisherFacets),
-		)
-	}
-	materialTagSets := make([][]string, 0, len(project.Common.Materials))
-	for _, material := range project.Common.Materials {
-		materialTagSets = append(materialTagSets, postutil.ExtractTagsForText(material.Text, material.Facets))
-	}
-	tagSets := append([][]string{project.Common.Tags}, patternTagSets...)
-	return postutil.MergeTags(append(tagSets, materialTagSets...)...)
+	return postutil.ExtractProjectTags(
+		project.Common.Tags,
+		indexedPatternFacetedTexts(project.Common.Pattern),
+		indexedMaterialFacetedTexts(project.Common.Materials),
+	)
 }
 
 func projectMentionDIDs(project *indexedProject) []string {
 	if project == nil {
 		return nil
 	}
-	mentionSets := make([][]string, 0, 3+len(project.Common.Materials))
-	if pattern := project.Common.Pattern; pattern != nil {
-		mentionSets = append(mentionSets,
-			postutil.ExtractMentionDIDsForText(stringPtrValue(pattern.Name), pattern.NameFacets),
-			postutil.ExtractMentionDIDsForText(stringPtrValue(pattern.Designer), pattern.DesignerFacets),
-			postutil.ExtractMentionDIDsForText(stringPtrValue(pattern.Publisher), pattern.PublisherFacets),
-		)
+	return postutil.ExtractProjectMentionDIDs(
+		indexedPatternFacetedTexts(project.Common.Pattern),
+		indexedMaterialFacetedTexts(project.Common.Materials),
+	)
+}
+
+func indexedPatternFacetedTexts(pattern *indexedProjectPattern) []postutil.FacetedText {
+	if pattern == nil {
+		return nil
 	}
-	for _, material := range project.Common.Materials {
-		mentionSets = append(mentionSets, postutil.ExtractMentionDIDsForText(material.Text, material.Facets))
+	return []postutil.FacetedText{
+		{Text: stringPtrValue(pattern.Name), Facets: postutil.DecodeFacets(pattern.NameFacets)},
+		{Text: stringPtrValue(pattern.Designer), Facets: postutil.DecodeFacets(pattern.DesignerFacets)},
+		{Text: stringPtrValue(pattern.Publisher), Facets: postutil.DecodeFacets(pattern.PublisherFacets)},
 	}
-	return postutil.MergeMentionDIDs(mentionSets...)
+}
+
+func indexedMaterialFacetedTexts(materials []indexedProjectMaterial) []postutil.FacetedText {
+	out := make([]postutil.FacetedText, 0, len(materials))
+	for _, material := range materials {
+		out = append(out, postutil.FacetedText{
+			Text:   material.Text,
+			Facets: postutil.DecodeFacets(material.Facets),
+		})
+	}
+	return out
 }
 
 func stringPtrValue(value *string) string {
@@ -324,26 +337,16 @@ func stringPtrValue(value *string) string {
 func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATURI, project *indexedProject, tags []string) error {
 	common := project.Common
 	var patternURL, patternName, patternDifficulty, patternDesigner, patternPublisher *string
-	var patternNameFacets, patternDesignerFacets, patternPublisherFacets []byte
+	var patternNameFacets, patternDesignerFacets, patternPublisherFacets json.RawMessage
 	if common.Pattern != nil {
-		var err error
 		patternURL = common.Pattern.URL
 		patternName = common.Pattern.Name
 		patternDifficulty = common.Pattern.Difficulty
 		patternDesigner = common.Pattern.Designer
 		patternPublisher = common.Pattern.Publisher
-		patternNameFacets, err = marshalFacetJSON(common.Pattern.NameFacets)
-		if err != nil {
-			return fmt.Errorf("marshal pattern name facets %s: %w", uri, err)
-		}
-		patternDesignerFacets, err = marshalFacetJSON(common.Pattern.DesignerFacets)
-		if err != nil {
-			return fmt.Errorf("marshal pattern designer facets %s: %w", uri, err)
-		}
-		patternPublisherFacets, err = marshalFacetJSON(common.Pattern.PublisherFacets)
-		if err != nil {
-			return fmt.Errorf("marshal pattern publisher facets %s: %w", uri, err)
-		}
+		patternNameFacets = common.Pattern.NameFacets
+		patternDesignerFacets = common.Pattern.DesignerFacets
+		patternPublisherFacets = common.Pattern.PublisherFacets
 	}
 	detailCols := craftDetailColumnsFor(project)
 	const q = `
@@ -412,7 +415,7 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 	`
 	_, err := tx.Exec(ctx, q,
 		uri, project.RawProject, common.CraftType, common.Status, common.Title, common.Duration,
-		patternURL, patternName, patternNameFacets, patternDifficulty, patternDesigner, patternDesignerFacets, patternPublisher, patternPublisherFacets,
+		patternURL, patternName, nullableJSON(patternNameFacets), patternDifficulty, patternDesigner, nullableJSON(patternDesignerFacets), patternPublisher, nullableJSON(patternPublisherFacets),
 		materialTexts(common.Materials), nonNilStrings(common.Colors), nonNilStrings(common.DesignTags), nonNilStrings(tags), nullableString(project.Details.Type), nullableJSON(project.RawDetails),
 		detailCols.knittingProjectType, detailCols.knittingProjectSubtype, detailCols.knittingYarnWeight, detailCols.knittingNeedleSizeMM, detailCols.knittingGauge, detailCols.knittingFinishedSize,
 		detailCols.crochetProjectType, detailCols.crochetProjectSubtype, detailCols.crochetYarnWeight, detailCols.crochetHookSizeMM, detailCols.crochetGauge, detailCols.crochetFinishedSize,
@@ -423,13 +426,6 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 		return fmt.Errorf("upsert project %s: %w", uri, err)
 	}
 	return nil
-}
-
-func marshalFacetJSON(facets []*appbsky.RichtextFacet) ([]byte, error) {
-	if len(facets) == 0 {
-		return nil, nil
-	}
-	return json.Marshal(facets)
 }
 
 func syncPostMentions(ctx context.Context, tx pgx.Tx, uri syntax.ATURI, mentionedDIDs []string, createdAt time.Time) error {
@@ -546,7 +542,7 @@ func nullableString(in string) any {
 }
 
 func nullableJSON(raw json.RawMessage) any {
-	if len(raw) == 0 {
+	if len(raw) == 0 || string(raw) == "null" {
 		return nil
 	}
 	return raw

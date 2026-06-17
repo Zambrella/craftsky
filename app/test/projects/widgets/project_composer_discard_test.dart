@@ -126,6 +126,62 @@ void main() {
 
     expect(find.text('Discard draft?'), findsOneWidget);
   });
+
+  testWidgets('AT-009 confirms before discarding title edits', (tester) async {
+    await _openProjectComposer(tester);
+
+    await tester.ensureVisible(find.byKey(const Key('project-title-input')));
+    await tester.enterText(
+      find.byKey(const Key('project-title-input')),
+      'Weekend cardigan',
+    );
+    await tester.pump();
+
+    await tester.tap(find.byType(CloseButton));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Discard draft?'), findsOneWidget);
+  });
+
+  testWidgets('AT-009 confirms before discarding status edits', (tester) async {
+    await _openProjectComposer(tester);
+
+    await _selectStatus(tester, 'Work in progress');
+
+    await tester.tap(find.byType(CloseButton));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Discard draft?'), findsOneWidget);
+  });
+
+  testWidgets('AT-009 confirms before discarding material edits', (
+    tester,
+  ) async {
+    await _openProjectComposer(
+      tester,
+      composerId: 'materials-draft-composer',
+      overrides: [
+        composerImagesProvider(
+          'materials-draft-composer',
+        ).overrideWithValue(_readyImagesState),
+      ],
+    );
+
+    await _selectCraft(tester, 'Embroidery');
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
+    await tester.enterText(_materialsTextField(), 'Wool roving');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('materials-add-custom')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(CloseButton));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Discard draft?'), findsOneWidget);
+  });
 }
 
 const _readyImagesState = ComposerImagesState(
@@ -152,6 +208,16 @@ Future<void> _selectCraft(WidgetTester tester, String craftLabel) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _selectStatus(WidgetTester tester, String statusLabel) async {
+  final statusDropdown = find.byKey(const Key('status-select-button'));
+  await tester.ensureVisible(statusDropdown);
+  await tester.pumpAndSettle();
+  await tester.tap(statusDropdown);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(statusLabel).last);
+  await tester.pumpAndSettle();
+}
+
 Future<void> _returnToFirstPage(WidgetTester tester) async {
   await tester.tap(find.byTooltip('Back'));
   await tester.pumpAndSettle();
@@ -162,6 +228,13 @@ Future<void> _returnToFirstPage(WidgetTester tester) async {
 Finder _bodyTextField() {
   return find.descendant(
     of: find.byKey(const Key('project-composer-body-editor')),
+    matching: find.byType(TextField),
+  );
+}
+
+Finder _materialsTextField() {
+  return find.descendant(
+    of: find.byKey(const Key('materials-custom-input')),
     matching: find.byType(TextField),
   );
 }

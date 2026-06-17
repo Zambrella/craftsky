@@ -5,10 +5,33 @@
 package postutil
 
 import (
+	"encoding/json"
 	"strings"
 
 	appbsky "github.com/bluesky-social/indigo/api/bsky"
 )
+
+// FacetedText is a project-adjacent string plus its best-effort decoded facets.
+// It lets API request handling and firehose indexing share tag/mention logic
+// while keeping wire/storage facet JSON pass-through at the package boundary.
+type FacetedText struct {
+	Text   string
+	Facets []*appbsky.RichtextFacet
+}
+
+// DecodeFacets best-effort decodes raw facet JSON into Indigo's richtext facet
+// structs. Unknown or future facet shapes return nil so callers can continue to
+// pass the raw JSON through to the PDS/storage layer without failing indexing.
+func DecodeFacets(raw json.RawMessage) []*appbsky.RichtextFacet {
+	if len(raw) == 0 {
+		return nil
+	}
+	var typed []*appbsky.RichtextFacet
+	if err := json.Unmarshal(raw, &typed); err != nil {
+		return nil
+	}
+	return typed
+}
 
 // ExtractTags walks facets and pulls hashtag-feature tags. Lowercase,
 // trim, drop empties, dedupe (preserve first-seen order). Always
@@ -147,4 +170,29 @@ func MergeTags(tagSets ...[]string) []string {
 		}
 	}
 	return out
+}
+
+// ExtractProjectTags merges structured project tags with tag facets on pattern
+// and material text. The first argument is usually project.common.tags.
+func ExtractProjectTags(structuredTags []string, patternTexts []FacetedText, materials []FacetedText) []string {
+	tagSets := [][]string{structuredTags}
+	for _, item := range patternTexts {
+		tagSets = append(tagSets, ExtractTagsForText(item.Text, item.Facets))
+	}
+	for _, item := range materials {
+		tagSets = append(tagSets, ExtractTagsForText(item.Text, item.Facets))
+	}
+	return MergeTags(tagSets...)
+}
+
+// ExtractProjectMentionDIDs merges mention facets on pattern and material text.
+func ExtractProjectMentionDIDs(patternTexts []FacetedText, materials []FacetedText) []string {
+	mentionSets := make([][]string, 0, len(patternTexts)+len(materials))
+	for _, item := range patternTexts {
+		mentionSets = append(mentionSets, ExtractMentionDIDsForText(item.Text, item.Facets))
+	}
+	for _, item := range materials {
+		mentionSets = append(mentionSets, ExtractMentionDIDsForText(item.Text, item.Facets))
+	}
+	return MergeMentionDIDs(mentionSets...)
 }

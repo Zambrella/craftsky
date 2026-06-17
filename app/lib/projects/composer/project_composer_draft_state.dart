@@ -1,3 +1,5 @@
+import 'package:craftsky_app/projects/models/project.dart';
+
 /// Detects whether the project composer has unsaved user-entered content.
 abstract final class ProjectComposerDraftState {
   /// Returns true when the body text, images, or normalized metadata values
@@ -23,16 +25,25 @@ abstract final class ProjectComposerDraftState {
         case final String text when text.trim().isNotEmpty:
           normalised[entry.key] = text.trim();
         case final Iterable<Object?> items:
-          final cleaned = items
-              .whereType<String>()
-              .map((item) => item.trim())
-              .where((item) => item.isNotEmpty)
-              .toList(growable: false);
+          final cleaned = <Object>[];
+          for (final item in items) {
+            final normalisedItem = _normaliseListItem(item);
+            if (normalisedItem != null) cleaned.add(normalisedItem);
+          }
           if (cleaned.isNotEmpty) normalised[entry.key] = cleaned;
         case final value? when value is! String:
           normalised[entry.key] = value;
       }
     }
     return normalised;
+  }
+
+  static Object? _normaliseListItem(Object? value) {
+    return switch (value) {
+      final String text when text.trim().isNotEmpty => text.trim(),
+      final ProjectMaterial material when material.text.trim().isNotEmpty =>
+        material.copyWith(text: material.text.trim()).toMap(),
+      _ => null,
+    };
   }
 }

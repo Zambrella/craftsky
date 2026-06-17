@@ -177,3 +177,37 @@ func TestMergeMentionDIDs_DedupesAndReturnsNonNil(t *testing.T) {
 		t.Fatalf("MergeMentionDIDs empty = %#v, want empty slice", empty)
 	}
 }
+
+func TestExtractProjectTagsAndMentions(t *testing.T) {
+	t.Parallel()
+
+	patternFacet := []*appbsky.RichtextFacet{{
+		Index: &appbsky.RichtextFacet_ByteSlice{ByteStart: 0, ByteEnd: 8},
+		Features: []*appbsky.RichtextFacet_Features_Elem{
+			{RichtextFacet_Tag: &appbsky.RichtextFacet_Tag{Tag: "Pattern"}},
+		},
+	}}
+	materialFacet := []*appbsky.RichtextFacet{{
+		Index: &appbsky.RichtextFacet_ByteSlice{ByteStart: 0, ByteEnd: 6},
+		Features: []*appbsky.RichtextFacet_Features_Elem{
+			{RichtextFacet_Mention: &appbsky.RichtextFacet_Mention{Did: "did:plc:alice"}},
+		},
+	}}
+
+	tags := postutil.ExtractProjectTags(
+		[]string{"Structured"},
+		[]postutil.FacetedText{{Text: "#pattern", Facets: patternFacet}},
+		[]postutil.FacetedText{{Text: "@alice", Facets: materialFacet}},
+	)
+	if !reflect.DeepEqual(tags, []string{"structured", "pattern"}) {
+		t.Fatalf("ExtractProjectTags = %#v", tags)
+	}
+
+	mentions := postutil.ExtractProjectMentionDIDs(
+		[]postutil.FacetedText{{Text: "#pattern", Facets: patternFacet}},
+		[]postutil.FacetedText{{Text: "@alice", Facets: materialFacet}},
+	)
+	if !reflect.DeepEqual(mentions, []string{"did:plc:alice"}) {
+		t.Fatalf("ExtractProjectMentionDIDs = %#v", mentions)
+	}
+}

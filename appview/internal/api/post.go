@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	appbsky "github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api/envelope"
@@ -272,21 +271,33 @@ func requestProjectTags(project *Project) []string {
 	if project == nil {
 		return nil
 	}
-	materialTagSets := make([][]string, 0, len(project.Common.Materials))
-	for _, material := range project.Common.Materials {
-		materialTagSets = append(materialTagSets, postutil.ExtractTagsForText(material.Text, material.Facets))
-	}
-	if project.Common.Pattern == nil {
-		return postutil.MergeTags(append([][]string{project.Common.Tags}, materialTagSets...)...)
-	}
-	pattern := project.Common.Pattern
-	tagSets := [][]string{
+	return postutil.ExtractProjectTags(
 		project.Common.Tags,
-		postutil.ExtractTagsForText(stringPtrValue(pattern.Name), pattern.NameFacets),
-		postutil.ExtractTagsForText(stringPtrValue(pattern.Designer), pattern.DesignerFacets),
-		postutil.ExtractTagsForText(stringPtrValue(pattern.Publisher), pattern.PublisherFacets),
+		requestPatternFacetedTexts(project.Common.Pattern),
+		requestMaterialFacetedTexts(project.Common.Materials),
+	)
+}
+
+func requestPatternFacetedTexts(pattern *ProjectPattern) []postutil.FacetedText {
+	if pattern == nil {
+		return nil
 	}
-	return postutil.MergeTags(append(tagSets, materialTagSets...)...)
+	return []postutil.FacetedText{
+		{Text: stringPtrValue(pattern.Name), Facets: postutil.DecodeFacets(pattern.NameFacets)},
+		{Text: stringPtrValue(pattern.Designer), Facets: postutil.DecodeFacets(pattern.DesignerFacets)},
+		{Text: stringPtrValue(pattern.Publisher), Facets: postutil.DecodeFacets(pattern.PublisherFacets)},
+	}
+}
+
+func requestMaterialFacetedTexts(materials []ProjectMaterial) []postutil.FacetedText {
+	out := make([]postutil.FacetedText, 0, len(materials))
+	for _, material := range materials {
+		out = append(out, postutil.FacetedText{
+			Text:   material.Text,
+			Facets: postutil.DecodeFacets(material.Facets),
+		})
+	}
+	return out
 }
 
 func syntheticPostImagesJSON(images []PostImage) (json.RawMessage, error) {
@@ -331,8 +342,8 @@ func extractRequestTags(text string, raw json.RawMessage) []string {
 	if len(raw) == 0 {
 		return []string{}
 	}
-	var typed []*appbsky.RichtextFacet
-	if err := json.Unmarshal(raw, &typed); err != nil {
+	typed := postutil.DecodeFacets(raw)
+	if len(typed) == 0 {
 		return []string{}
 	}
 	return postutil.ExtractTagsForText(text, typed)

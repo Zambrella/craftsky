@@ -2,8 +2,6 @@ package api
 
 import (
 	"encoding/json"
-
-	appbsky "github.com/bluesky-social/indigo/api/bsky"
 )
 
 const (
@@ -48,17 +46,17 @@ type ProjectCommon struct {
 }
 
 type ProjectMaterial struct {
-	Text   string                   `json:"text"`
-	Facets []*appbsky.RichtextFacet `json:"facets,omitempty"`
+	Text   string          `json:"text"`
+	Facets json.RawMessage `json:"facets,omitempty"`
 }
 
 type ProjectPattern struct {
-	URL             *string                  `json:"url,omitempty"`
-	Name            *string                  `json:"name,omitempty"`
-	NameFacets      []*appbsky.RichtextFacet `json:"nameFacets,omitempty"`
-	Difficulty      *string                  `json:"difficulty,omitempty"`
-	Designer        *string                  `json:"designer,omitempty"`
-	DesignerFacets  []*appbsky.RichtextFacet `json:"designerFacets,omitempty"`
-	Publisher       *string                  `json:"publisher,omitempty"`
-	PublisherFacets []*appbsky.RichtextFacet `json:"publisherFacets,omitempty"`
+	URL             *string         `json:"url,omitempty"`
+	Name            *string         `json:"name,omitempty"`
+	NameFacets      json.RawMessage `json:"nameFacets,omitempty"`
+	Difficulty      *string         `json:"difficulty,omitempty"`
+	Designer        *string         `json:"designer,omitempty"`
+	DesignerFacets  json.RawMessage `json:"designerFacets,omitempty"`
+	Publisher       *string         `json:"publisher,omitempty"`
+	PublisherFacets json.RawMessage `json:"publisherFacets,omitempty"`
 }

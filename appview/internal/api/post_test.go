@@ -1119,11 +1119,17 @@ func TestCreatePost_WithProject_WritesProjectToPDSAndResponse(t *testing.T) {
 	if project.Common.Pattern == nil || project.Common.Pattern.Name == nil || *project.Common.Pattern.Name != "#hitchhiker" {
 		t.Fatalf("PDS project pattern = %#v", project.Common.Pattern)
 	}
-	if len(project.Common.Materials) != 1 || project.Common.Materials[0].Text != "3m of @alice.craftsky.social #viscose fabric" || len(project.Common.Materials[0].Facets) != 2 {
+	if len(project.Common.Materials) != 1 || project.Common.Materials[0].Text != "3m of @alice.craftsky.social #viscose fabric" {
 		t.Fatalf("PDS project materials = %#v", project.Common.Materials)
 	}
-	if len(project.Common.Pattern.NameFacets) != 1 || len(project.Common.Pattern.DesignerFacets) != 1 {
-		t.Fatalf("PDS pattern facets = name:%d designer:%d", len(project.Common.Pattern.NameFacets), len(project.Common.Pattern.DesignerFacets))
+	if got := facetArrayLength(t, project.Common.Materials[0].Facets); got != 2 {
+		t.Fatalf("PDS material facets len = %d, want 2", got)
+	}
+	if got := facetArrayLength(t, project.Common.Pattern.NameFacets); got != 1 {
+		t.Fatalf("PDS pattern name facets len = %d, want 1", got)
+	}
+	if got := facetArrayLength(t, project.Common.Pattern.DesignerFacets); got != 1 {
+		t.Fatalf("PDS pattern designer facets len = %d, want 1", got)
 	}
 	if _, ok := rec["createdAt"].(string); !ok {
 		t.Fatalf("createdAt missing from PDS record: %#v", rec)
@@ -2681,4 +2687,13 @@ func TestListPosts_HandleResolutionFails_502(t *testing.T) {
 	if !strings.Contains(body, "identity_unavailable") {
 		t.Errorf("expected identity_unavailable in body, got: %s", body)
 	}
+}
+
+func facetArrayLength(t *testing.T, raw json.RawMessage) int {
+	t.Helper()
+	var facets []map[string]any
+	if err := json.Unmarshal(raw, &facets); err != nil {
+		t.Fatalf("unmarshal facets %s: %v", raw, err)
+	}
+	return len(facets)
 }

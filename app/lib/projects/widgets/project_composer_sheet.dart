@@ -51,6 +51,39 @@ class ProjectComposerSheet extends ConsumerStatefulWidget {
 }
 
 class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
+  static const _initialFormValues = <String, dynamic>{
+    ProjectComposerFields.status: ProjectOptionCatalogs.finishedStatusToken,
+  };
+  static const _craftDetailFieldNames = [
+    ProjectComposerFields.sewingProjectType,
+    ProjectComposerFields.sewingProjectSubtype,
+    ProjectComposerFields.sewingSizeMade,
+    ProjectComposerFields.sewingFitNotes,
+    ProjectComposerFields.knittingProjectType,
+    ProjectComposerFields.knittingProjectSubtype,
+    ProjectComposerFields.knittingYarnWeight,
+    ProjectComposerFields.knittingNeedleSize,
+    ProjectComposerFields.knittingGaugeStitches,
+    ProjectComposerFields.knittingGaugeRows,
+    ProjectComposerFields.knittingGaugeMeasurement,
+    ProjectComposerFields.knittingGaugeUnit,
+    ProjectComposerFields.knittingFinishedSize,
+    ProjectComposerFields.crochetProjectType,
+    ProjectComposerFields.crochetProjectSubtype,
+    ProjectComposerFields.crochetYarnWeight,
+    ProjectComposerFields.crochetHookSize,
+    ProjectComposerFields.crochetGaugeStitches,
+    ProjectComposerFields.crochetGaugeRows,
+    ProjectComposerFields.crochetGaugeMeasurement,
+    ProjectComposerFields.crochetGaugeUnit,
+    ProjectComposerFields.crochetFinishedSize,
+    ProjectComposerFields.quiltingProjectType,
+    ProjectComposerFields.quiltingProjectSubtype,
+    ProjectComposerFields.quiltingSize,
+    ProjectComposerFields.quiltingPiecingTechnique,
+    ProjectComposerFields.quiltingMethod,
+  ];
+
   final _formKey = GlobalKey<FormBuilderState>();
   final _wizardPagesKey = GlobalKey<_MountedWizardPagesState>();
   final _scrollController = ScrollController();
@@ -126,6 +159,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       _ when tooLong => l10n.postComposeTooLong,
       _ => null,
     };
+    final formValues = {
+      ..._initialFormValues,
+      ...?_formKey.currentState?.instantValue,
+    };
     final photoErrorText =
         (_attemptedSubmit || _attemptedPageOneNext) &&
             imagesState.images.isEmpty
@@ -135,7 +172,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       bodyText: _bodyText,
       initialBodyText: '',
       imageCount: imagesState.images.length,
-      formValues: _formKey.currentState?.instantValue ?? const {},
+      formValues: formValues,
+      initialFormValues: _initialFormValues,
     );
     ref
       ..listen(createPostProvider, (previous, next) {
@@ -262,6 +300,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                     ],
                     FormBuilder(
                       key: _formKey,
+                      initialValue: _initialFormValues,
+                      onChanged: () {
+                        if (mounted) setState(() {});
+                      },
                       child: _MountedWizardPages(
                         key: _wizardPagesKey,
                         currentPage: _currentPage,
@@ -443,6 +485,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
           name: ProjectComposerFields.title,
           label: l10n.projectComposerProjectTitleLabel,
           hintText: l10n.projectComposerProjectTitleHint,
+          textFieldKey: const Key('project-title-input'),
           enabled: controlsEnabled,
         ),
         SizedBox(height: spacing.sp4),
@@ -623,19 +666,16 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       _knittingProjectType = null;
       _crochetProjectType = null;
       _quiltingProjectType = null;
-      _formKey.currentState?.fields[ProjectComposerFields.sewingProjectSubtype]
-          ?.didChange(null);
-      _formKey
-          .currentState
-          ?.fields[ProjectComposerFields.knittingProjectSubtype]
-          ?.didChange(null);
-      _formKey.currentState?.fields[ProjectComposerFields.crochetProjectSubtype]
-          ?.didChange(null);
-      _formKey
-          .currentState
-          ?.fields[ProjectComposerFields.quiltingProjectSubtype]
-          ?.didChange(null);
+      for (final field in _craftDetailFieldNames) {
+        _clearFormField(field);
+      }
     });
+  }
+
+  void _clearFormField(String fieldName) {
+    final form = _formKey.currentState;
+    form?.fields[fieldName]?.didChange(null);
+    form?.removeInternalFieldValue(fieldName);
   }
 
   void _goToNextPage() {
@@ -736,15 +776,15 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         spacing,
         controlsEnabled,
       ),
+      ProjectOptionCatalogs.embroideryCraftToken => const <Widget>[],
+      null => [
+        _SelectCraftTypeEmptyState(
+          text: l10n.projectComposerSelectCraftTypeEmptyState,
+        ),
+      ],
       _ => [
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: Text(
-            l10n.projectComposerSelectCraftTypeEmptyState,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
+        _SelectCraftTypeEmptyState(
+          text: l10n.projectComposerSelectCraftTypeEmptyState,
         ),
       ],
     };
@@ -1387,6 +1427,25 @@ class _MaterialsFormBuilderField extends StatelessWidget {
           onChanged: field.didChange,
         );
       },
+    );
+  }
+}
+
+class _SelectCraftTypeEmptyState extends StatelessWidget {
+  const _SelectCraftTypeEmptyState({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
     );
   }
 }

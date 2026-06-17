@@ -451,6 +451,62 @@ func TestCraftskyPost_Create_ProjectPatternFacetsMaterializeTagsAndMentions(t *t
 	}
 }
 
+func TestCraftskyPost_Create_ProjectFacetsStoreRawFutureShapes(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:futurefacet")
+	idx := index.NewCraftskyPost(pool, testLogger())
+
+	const projectJSON = `{
+		"$type": "social.craftsky.feed.post",
+		"text": "caption",
+		"createdAt": "` + fixedCreatedAt + `",
+		"project": {
+			"common": {
+				"craftType": "social.craftsky.feed.defs#knitting",
+				"tags": ["structured"],
+				"materials": [{
+					"text": "future #fiber",
+					"facets": [{"index":{"byteStart":7,"byteEnd":13},"features":[{"$type":"app.bsky.richtext.facet#futureTag","tag":"fiber","future":true}]}]
+				}],
+				"pattern": {
+					"name": "#futurepattern",
+					"nameFacets": [{"index":{"byteStart":0,"byteEnd":14},"features":[{"$type":"app.bsky.richtext.facet#futureTag","tag":"futurepattern","future":true}]}]
+				}
+			}
+		}
+	}`
+	ev := tap.Event{
+		URI:        "at://did:plc:futurefacet/social.craftsky.feed.post/future-facets",
+		CID:        "bafyFutureFacets",
+		DID:        "did:plc:futurefacet",
+		Rkey:       "future-facets",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record:     json.RawMessage(projectJSON),
+	}
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+
+	var rawProject, patternNameFacets string
+	var projectTags []string
+	if err := pool.QueryRow(context.Background(), `
+		SELECT raw_project::text, pattern_name_facets::text, project_tags
+		FROM craftsky_project_posts WHERE uri = $1`, ev.URI).Scan(&rawProject, &patternNameFacets, &projectTags); err != nil {
+		t.Fatalf("select project: %v", err)
+	}
+	if !strings.Contains(rawProject, `"future": true`) && !strings.Contains(rawProject, `"future":true`) {
+		t.Fatalf("raw_project lost future facet field: %s", rawProject)
+	}
+	if !strings.Contains(patternNameFacets, `futurepattern`) {
+		t.Fatalf("pattern_name_facets not stored raw: %s", patternNameFacets)
+	}
+	if len(projectTags) != 1 || projectTags[0] != "structured" {
+		t.Fatalf("project_tags = %v, want [structured]", projectTags)
+	}
+}
+
 func TestCraftskyPost_Create_ProjectPatternFacetsIgnoreInvalidByteRanges(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, craftskyPostsDDL)

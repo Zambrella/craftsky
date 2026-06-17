@@ -104,6 +104,17 @@ void main() {
     expect(find.text('Fit notes'), findsNothing);
   });
 
+  testWidgets('AT-005 shows no empty-state prompt for crafts without details', (
+    tester,
+  ) async {
+    await _openDetailsForCraft(tester, 'Embroidery');
+
+    expect(find.text('Select Craft Type'), findsNothing);
+    expect(find.text('Project type'), findsNothing);
+    expect(find.text('Yarn weight'), findsNothing);
+    expect(find.text('Fit notes'), findsNothing);
+  });
+
   testWidgets('AT-005 filters and clears project subtype selections', (
     tester,
   ) async {
@@ -151,6 +162,31 @@ void main() {
     expect(find.text('Bag'), findsOneWidget);
     expect(find.text('Dress'), findsNothing);
   });
+
+  testWidgets('AT-005 clears craft-specific details when craft changes', (
+    tester,
+  ) async {
+    await _openDetailsForCraft(tester, 'Sewing');
+
+    await _searchAndSelect(
+      tester,
+      fieldName: 'sewingProjectType',
+      query: 'gar',
+      option: 'Garment',
+    );
+    expect(find.text('Garment'), findsOneWidget);
+
+    await _returnToFirstPage(tester);
+    await _selectCraft(tester, 'Knitting');
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
+    await _returnToFirstPage(tester);
+    await _selectCraft(tester, 'Sewing');
+    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Garment'), findsNothing);
+  });
 }
 
 Future<void> _searchAndSelect(
@@ -180,6 +216,21 @@ Future<void> _openOptions(
   await tester.pumpAndSettle();
 }
 
+Future<void> _returnToFirstPage(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('Back'));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _selectCraft(WidgetTester tester, String craft) async {
+  final craftDropdown = find.byKey(const Key('craftType-select-button'));
+  await tester.ensureVisible(craftDropdown);
+  await tester.pumpAndSettle();
+  await tester.tap(craftDropdown);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(craft).last);
+  await tester.pumpAndSettle();
+}
+
 Future<void> _openDetailsForCraft(WidgetTester tester, String craft) async {
   final composerId = 'details-$craft';
   await tester.pumpWidget(
@@ -199,13 +250,7 @@ Future<void> _openDetailsForCraft(WidgetTester tester, String craft) async {
     ),
   );
 
-  final craftDropdown = find.byKey(const Key('craftType-select-button'));
-  await tester.ensureVisible(craftDropdown);
-  await tester.pumpAndSettle();
-  await tester.tap(craftDropdown);
-  await tester.pumpAndSettle();
-  await tester.tap(find.text(craft).last);
-  await tester.pumpAndSettle();
+  await _selectCraft(tester, craft);
   await tester.tap(find.widgetWithText(TextButton, 'Next'));
   await tester.pumpAndSettle();
 }
