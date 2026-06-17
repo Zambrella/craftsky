@@ -5,6 +5,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
@@ -57,9 +58,11 @@ Future<void> _pump(
   WidgetTester tester,
   Widget child, {
   EdgeInsets viewPadding = EdgeInsets.zero,
+  List<dynamic> overrides = const [],
 }) {
   return tester.pumpWidget(
     ProviderScope(
+      overrides: List.from(overrides),
       child: MaterialApp(
         theme: AppTheme.lightThemeData,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -142,6 +145,82 @@ void main() {
       expect(spans.map((span) => span.text), ['Hi ', '@alice', ' ', '#Lace']);
       expect(spans[1].style?.color, BrandColors.cobalt);
       expect(spans[3].style?.color, BrandColors.cobalt);
+    });
+
+    testWidgets('renders post body links with the shared display label', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            text: 'See https://example.com/patterns/top?utm_source=feed',
+            facets: [
+              _facet(4, 52, {
+                r'$type': 'app.bsky.richtext.facet#link',
+                'uri': 'https://example.com/patterns/top?utm_source=feed',
+              }),
+            ],
+          ),
+        ),
+      );
+
+      final body = tester.widget<Text>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Text &&
+              widget.textSpan?.toPlainText() == 'See example.com/patterns/top',
+        ),
+      );
+      final spans = _leafTextSpans(body.textSpan! as TextSpan);
+
+      expect(spans.map((span) => span.text), [
+        'See ',
+        'example.com/patterns/top',
+      ]);
+      expect(spans[1].style?.color, BrandColors.cobalt);
+    });
+
+    testWidgets('post body links confirm before opening', (tester) async {
+      Uri? launched;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            text: 'https://example.com/patterns/top?utm_source=feed',
+            facets: [
+              _facet(0, 48, {
+                r'$type': 'app.bsky.richtext.facet#link',
+                'uri': 'https://example.com/patterns/top?utm_source=feed',
+              }),
+            ],
+          ),
+        ),
+        overrides: [
+          facetUrlLauncherProvider.overrideWithValue((uri) async {
+            launched = uri;
+            return true;
+          }),
+        ],
+      );
+
+      await tester.tap(find.text('example.com/patterns/top'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Open link?'), findsOneWidget);
+      expect(
+        find.text('https://example.com/patterns/top?utm_source=feed'),
+        findsOneWidget,
+      );
+      expect(launched, isNull);
+
+      await tester.tap(find.text('Open link'));
+      await tester.pumpAndSettle();
+
+      expect(
+        launched,
+        Uri.parse('https://example.com/patterns/top?utm_source=feed'),
+      );
     });
 
     testWidgets('renders engagement counts and selected colours', (

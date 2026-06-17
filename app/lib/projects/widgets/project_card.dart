@@ -1,15 +1,13 @@
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
-import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
-typedef ProjectLinkLauncher = Future<bool> Function(Uri uri);
+typedef ProjectLinkLauncher = ExternalLinkLauncher;
 
 enum ProjectCardVariant { summary, detail }
 
@@ -31,7 +29,7 @@ class ProjectCard extends StatelessWidget {
       ProjectCardVariant.summary => _ProjectSummary(project: project),
       ProjectCardVariant.detail => _ProjectDetail(
         project: project,
-        launchUrl: launchUrl ?? _defaultLaunchUrl,
+        launchUrl: launchUrl ?? launchExternalLink,
       ),
     };
   }
@@ -405,9 +403,11 @@ class _ProjectLinkValue extends StatelessWidget {
   }
 
   Future<void> _confirmAndOpenLink(BuildContext context) async {
-    final confirmed = await _showOpenLinkDialog(context, uri);
-    if (!confirmed) return;
-    await launchUrl(uri);
+    await confirmAndLaunchExternalLink(
+      context,
+      uri: uri,
+      launchUrl: launchUrl,
+    );
   }
 }
 
@@ -643,100 +643,13 @@ List<_ProjectSizeMetadata> _optionalMetadata(_ProjectSizeMetadata? row) {
 }
 
 _ProjectSizeMetadata? _linkMetadata(String? value) {
-  final uri = _normalizeLinkUri(value);
+  final uri = normalizeExternalLinkUri(value);
   if (uri == null) return null;
   return _ProjectSizeMetadata(
     label: 'Link',
-    value: _displayLink(uri),
+    value: displayExternalLink(uri),
     linkUri: uri,
   );
-}
-
-Uri? _normalizeLinkUri(String? value) {
-  final trimmed = _nonBlank(value);
-  if (trimmed == null) return null;
-  final parsed = Uri.tryParse(trimmed);
-  if (parsed == null) return null;
-  final withScheme = parsed.hasScheme
-      ? parsed
-      : Uri.tryParse('https://$trimmed');
-  if (withScheme == null) return null;
-  if (withScheme.scheme != 'http' && withScheme.scheme != 'https') return null;
-  if (withScheme.host.isEmpty) return null;
-  return withScheme;
-}
-
-String _displayLink(Uri uri) {
-  final buffer = StringBuffer(uri.host);
-  var path = uri.path;
-  if (path.endsWith('/') && path.length > 1) {
-    path = path.substring(0, path.length - 1);
-  }
-  if (path.isNotEmpty && path != '/') {
-    buffer.write(path);
-  }
-  return buffer.toString();
-}
-
-Future<bool> _defaultLaunchUrl(Uri uri) {
-  return url_launcher.launchUrl(
-    uri,
-    mode: url_launcher.LaunchMode.externalApplication,
-  );
-}
-
-Future<bool> _showOpenLinkDialog(BuildContext context, Uri uri) async {
-  final theme = Theme.of(context);
-  final spacing = theme.extension<SpacingTheme>()!;
-  final durations = theme.extension<DurationTheme>()!;
-  final result = await showGeneralDialog<bool>(
-    context: context,
-    barrierDismissible: true,
-    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-    barrierColor: Colors.black54,
-    transitionDuration: durations.modal,
-    pageBuilder: (dialogContext, _, _) => CraftskyDialog(
-      title: 'Open link?',
-      body: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text('This will open outside Craftsky.'),
-          SizedBox(height: spacing.sp3),
-          SelectableText(
-            uri.toString(),
-            style: theme.textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(dialogContext).pop(false),
-          child: const Text('Cancel'),
-        ),
-        ChunkyButton(
-          onPressed: () => Navigator.of(dialogContext).pop(true),
-          child: const Text('Open link'),
-        ),
-      ],
-    ),
-    transitionBuilder: (_, animation, _, child) {
-      final curved = CurvedAnimation(
-        parent: animation,
-        curve: durations.easePop,
-      );
-      return FadeTransition(
-        opacity: curved,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
-          child: child,
-        ),
-      );
-    },
-  );
-  return result ?? false;
 }
 
 List<_ProjectChipSectionData> _chipSections(ProjectCommon common) {

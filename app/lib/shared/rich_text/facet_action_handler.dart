@@ -1,18 +1,25 @@
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/rich_text/facet_syntax.dart';
 import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:flutter/material.dart';
 
 /// Launches a URL for a link facet. Tests override this seam.
-typedef FacetUrlLauncher = Future<bool> Function(Uri uri);
+typedef FacetUrlLauncher = ExternalLinkLauncher;
 
 /// Dispatches supported rich-text facet tap actions safely.
 class FacetActionHandler {
   /// Creates a facet action handler.
-  const FacetActionHandler({required this.launchUrl});
+  const FacetActionHandler({
+    required this.launchUrl,
+    this.confirmOpenLink = showOpenLinkDialog,
+  });
 
   /// Injectable URL launcher callback.
   final FacetUrlLauncher launchUrl;
+
+  /// Injectable confirmation callback for external links.
+  final ExternalLinkConfirmer confirmOpenLink;
 
   /// Handles a tap for [feature] whose visible substring is [visibleText].
   Future<void> handle(
@@ -27,10 +34,14 @@ class FacetActionHandler {
           if (handle == null) return;
           await UserProfileRoute(handle: handle).push<void>(context);
         case LinkFacetFeature(uri: final uriText):
-          if (uriText.isEmpty) return;
-          final uri = Uri.tryParse(uriText);
+          final uri = normalizeExternalLinkUri(uriText);
           if (uri == null) return;
-          await launchUrl(uri);
+          await confirmAndLaunchExternalLink(
+            context,
+            uri: uri,
+            launchUrl: launchUrl,
+            confirmOpenLink: confirmOpenLink,
+          );
         case TagFacetFeature(:final tag):
           if (tag.isEmpty) return;
           await SearchRoute(tag: tag).push<void>(context);

@@ -1,3 +1,4 @@
+import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -27,9 +28,10 @@ class FacetedTextSpanBuilder {
           ),
         );
       }
+      final visibleText = text.substring(range.charStart, range.charEnd);
       children.add(
         TextSpan(
-          text: text.substring(range.charStart, range.charEnd),
+          text: _displayTextForRange(range, visibleText),
           style: baseStyle.copyWith(color: facetColor),
           recognizer: recognizerForRange?.call(range),
         ),
@@ -42,4 +44,16 @@ class FacetedTextSpanBuilder {
 
     return TextSpan(style: baseStyle, children: children);
   }
+}
+
+String _displayTextForRange(NormalizedFacetRange range, String visibleText) {
+  return switch (range.feature) {
+    LinkFacetFeature(uri: final uriText) => switch (normalizeExternalLinkUri(
+      uriText,
+    )) {
+      final Uri uri => displayExternalLink(uri),
+      null => visibleText,
+    },
+    _ => visibleText,
+  };
 }
