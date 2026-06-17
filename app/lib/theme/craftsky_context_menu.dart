@@ -33,6 +33,27 @@ class CraftskyContextMenuGroup {
   final List<CraftskyContextMenuItem> items;
 }
 
+/// Returns an overlay-relative position anchored to [context]'s render box.
+RelativeRect craftskyContextMenuAnchorPosition(BuildContext context) {
+  final renderObject = context.findRenderObject();
+  final overlayObject = Overlay.of(context).context.findRenderObject();
+  if (renderObject is! RenderBox || overlayObject is! RenderBox) {
+    return RelativeRect.fill;
+  }
+  final topLeft = renderObject.localToGlobal(
+    Offset.zero,
+    ancestor: overlayObject,
+  );
+  final bottomRight = renderObject.localToGlobal(
+    renderObject.size.bottomRight(Offset.zero),
+    ancestor: overlayObject,
+  );
+  return RelativeRect.fromRect(
+    Rect.fromPoints(topLeft, bottomRight),
+    Offset.zero & overlayObject.size,
+  );
+}
+
 /// Icon button that opens a responsive Craftsky context menu.
 class CraftskyContextMenuButton extends StatelessWidget {
   const CraftskyContextMenuButton({
@@ -53,20 +74,10 @@ class CraftskyContextMenuButton extends StatelessWidget {
       tooltip: tooltip,
       padding: EdgeInsets.zero,
       onPressed: () {
-        final button = context.findRenderObject()! as RenderBox;
-        final overlay =
-            Navigator.of(context).overlay!.context.findRenderObject()!
-                as RenderBox;
-        final offset = button.localToGlobal(Offset.zero, ancestor: overlay);
-        final position = RelativeRect.fromRect(
-          offset & button.size,
-          Offset.zero & overlay.size,
-        );
-
         unawaited(
           showCraftskyContextMenu(
             context,
-            position: position,
+            position: craftskyContextMenuAnchorPosition(context),
             groups: groups,
           ),
         );

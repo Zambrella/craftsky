@@ -1,4 +1,7 @@
+/// Detects whether the project composer has unsaved user-entered content.
 abstract final class ProjectComposerDraftState {
+  /// Returns true when the body text, images, or normalized metadata values
+  /// differ from the initial composer state.
   static bool hasDraft({
     required String bodyText,
     required String initialBodyText,

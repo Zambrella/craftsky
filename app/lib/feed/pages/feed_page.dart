@@ -15,6 +15,7 @@ import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
@@ -101,7 +102,9 @@ class _FeedLoadedSlivers extends ConsumerWidget {
                     unawaited(
                       showTopLevelPostComposerChooser(
                         buttonContext,
-                        position: _contextMenuPosition(buttonContext),
+                        position: craftskyContextMenuAnchorPosition(
+                          buttonContext,
+                        ),
                       ),
                     );
                   },
@@ -174,26 +177,6 @@ class _FeedLoadedSlivers extends ConsumerWidget {
             ),
           ),
       ],
-    );
-  }
-
-  RelativeRect _contextMenuPosition(BuildContext context) {
-    final renderObject = context.findRenderObject();
-    final overlayObject = Overlay.of(context).context.findRenderObject();
-    if (renderObject is! RenderBox || overlayObject is! RenderBox) {
-      return RelativeRect.fill;
-    }
-    final topLeft = renderObject.localToGlobal(
-      Offset.zero,
-      ancestor: overlayObject,
-    );
-    final bottomRight = renderObject.localToGlobal(
-      renderObject.size.bottomRight(Offset.zero),
-      ancestor: overlayObject,
-    );
-    return RelativeRect.fromRect(
-      Rect.fromPoints(topLeft, bottomRight),
-      Offset.zero & overlayObject.size,
     );
   }
 
