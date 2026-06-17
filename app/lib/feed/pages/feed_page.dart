@@ -30,24 +30,25 @@ class FeedPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final timelineAsync = ref.watch(timelineProvider);
-    ref.listen(deletePostProvider, (previous, next) {
-      switch ((previous, next)) {
-        case (AsyncLoading(), AsyncData(value: != null)):
-          context.showInfo(l10n.postDeleteSuccess);
-          ref.read(deletePostProvider.notifier).reset();
-        case (AsyncLoading(), AsyncError()):
-          context.showError(l10n.postDeleteError);
-          ref.read(deletePostProvider.notifier).reset();
-        case _:
-          break;
-      }
-    });
-    ref.listen(toggleLikePostProvider, (previous, next) {
-      if (next.hasError) {
-        context.showError(l10n.postLikeError);
-        ref.read(toggleLikePostProvider.notifier).reset();
-      }
-    });
+    ref
+      ..listen(deletePostProvider, (previous, next) {
+        switch ((previous, next)) {
+          case (AsyncLoading(), AsyncData(value: != null)):
+            context.showInfo(l10n.postDeleteSuccess);
+            ref.read(deletePostProvider.notifier).reset();
+          case (AsyncLoading(), AsyncError()):
+            context.showError(l10n.postDeleteError);
+            ref.read(deletePostProvider.notifier).reset();
+          case _:
+            break;
+        }
+      })
+      ..listen(toggleLikePostProvider, (previous, next) {
+        if (next.hasError) {
+          context.showError(l10n.postLikeError);
+          ref.read(toggleLikePostProvider.notifier).reset();
+        }
+      });
     return Scaffold(
       appBar: AppBar(title: Text(l10n.feedTitle)),
       body: CustomScrollView(
@@ -133,26 +134,25 @@ class _FeedLoadedSlivers extends ConsumerWidget {
                   }
                 });
               }
+              final post = posts[index];
               return PostCard(
-                post: posts[index],
+                post: post,
                 onTap: () => PostThreadRoute(
-                  did: posts[index].author.did,
-                  rkey: posts[index].rkey,
+                  did: post.author.did,
+                  rkey: post.rkey,
                 ).push<void>(context),
                 onLike: () => ref
                     .read(toggleLikePostProvider.notifier)
-                    .toggle(post: posts[index]),
+                    .toggle(post: post),
                 onRepost: () => ref
                     .read(toggleRepostPostProvider.notifier)
-                    .toggle(post: posts[index]),
-                onReply: () => _replyAndOpenThread(context, ref, posts[index]),
-                onDelete:
-                    auth is SignedIn && posts[index].author.did == auth.did
-                    ? () => _confirmDelete(context, ref, posts[index])
+                    .toggle(post: post),
+                onReply: () => _replyAndOpenThread(context, ref, post),
+                onDelete: auth is SignedIn && post.author.did == auth.did
+                    ? () => _confirmDelete(context, ref, post)
                     : null,
-                onReport:
-                    auth is SignedIn && posts[index].author.did != auth.did
-                    ? () => showPostReportSheet(context, ref, posts[index])
+                onReport: auth is SignedIn && post.author.did != auth.did
+                    ? () => showPostReportSheet(context, ref, post)
                     : null,
                 replyTooltip: l10n.postCommentAction,
               );

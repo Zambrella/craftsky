@@ -41,24 +41,25 @@ class ProfilePostsTab extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final postsAsync = ref.watch(userPostsProvider(handle));
 
-    ref.listen(deletePostProvider, (previous, next) {
-      switch ((previous, next)) {
-        case (AsyncLoading(), AsyncData(value: != null)):
-          context.showInfo(l10n.postDeleteSuccess);
-          ref.read(deletePostProvider.notifier).reset();
-        case (AsyncLoading(), AsyncError()):
-          context.showError(l10n.postDeleteError);
-          ref.read(deletePostProvider.notifier).reset();
-        case _:
-          break;
-      }
-    });
-    ref.listen(toggleLikePostProvider, (previous, next) {
-      if (next.hasError) {
-        context.showError(l10n.postLikeError);
-        ref.read(toggleLikePostProvider.notifier).reset();
-      }
-    });
+    ref
+      ..listen(deletePostProvider, (previous, next) {
+        switch ((previous, next)) {
+          case (AsyncLoading(), AsyncData(value: != null)):
+            context.showInfo(l10n.postDeleteSuccess);
+            ref.read(deletePostProvider.notifier).reset();
+          case (AsyncLoading(), AsyncError()):
+            context.showError(l10n.postDeleteError);
+            ref.read(deletePostProvider.notifier).reset();
+          case _:
+            break;
+        }
+      })
+      ..listen(toggleLikePostProvider, (previous, next) {
+        if (next.hasError) {
+          context.showError(l10n.postLikeError);
+          ref.read(toggleLikePostProvider.notifier).reset();
+        }
+      });
 
     return switch (postsAsync) {
       AsyncValue(:final value?) => _ProfilePostsLoadedSlivers(
