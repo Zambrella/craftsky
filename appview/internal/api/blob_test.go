@@ -135,6 +135,26 @@ func TestImageBlobUpload_FailureLogsExcludeImageBytesAndToken(t *testing.T) {
 	}
 }
 
+func TestImageBlobUpload_PDSSessionExpiredReturns401(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{uploadErr: auth.ErrPDSSessionExpired}
+	h := api.ImageBlobUploadHandler(newPDSFactory(pds), api.DefaultMediaLimits(), nilLogger())
+	req := authedReq(http.MethodPost, "/v1/blobs/images", "", "did:plc:alice")
+	req.Body = io.NopCloser(strings.NewReader("jpeg-bytes"))
+	req.Header.Set("Content-Type", "image/jpeg")
+	rr := httptest.NewRecorder()
+
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "pds_session_expired" {
+		t.Errorf("error = %q", body.Error)
+	}
+}
+
 type ioNopCloser struct{ Reader *bytes.Reader }
 
 func (n ioNopCloser) Read(p []byte) (int, error) { return n.Reader.Read(p) }

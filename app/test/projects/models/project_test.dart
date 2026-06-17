@@ -13,7 +13,10 @@ void main() {
           'status': 'social.craftsky.feed.defs#wip',
           'title': 'Hitchhiker Shawl',
           'duration': '3 weeks',
-          'materials': ['wool', 'mohair'],
+          'materials': [
+            {'text': 'wool'},
+            {'text': 'mohair'},
+          ],
           'colors': ['blue', 'cream'],
           'designTags': ['social.craftsky.project.defs#stripes'],
           'tags': ['shawl', 'gift'],
@@ -27,7 +30,10 @@ void main() {
       expect(project.common.status, 'social.craftsky.feed.defs#wip');
       expect(project.common.title, 'Hitchhiker Shawl');
       expect(project.common.duration, '3 weeks');
-      expect(project.common.materials, ['wool', 'mohair']);
+      expect(project.common.materials, const [
+        ProjectMaterial(text: 'wool'),
+        ProjectMaterial(text: 'mohair'),
+      ]);
       expect(project.common.colors, ['blue', 'cream']);
       expect(project.common.designTags, [
         'social.craftsky.project.defs#stripes',
@@ -108,7 +114,10 @@ void main() {
           craftType: 'social.craftsky.feed.defs#future-craft',
           title: 'x' * 1000,
           pattern: const ProjectPattern(url: 'not a uri'),
-          materials: List.generate(25, (index) => 'material-$index'),
+          materials: List.generate(
+            25,
+            (index) => ProjectMaterial(text: 'material-$index'),
+          ),
         ),
         details: const KnittingProjectDetails(
           gauge: ProjectGauge(

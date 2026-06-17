@@ -2,6 +2,7 @@
 package api_test
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -42,6 +43,42 @@ func TestDecodePostCreate_AcceptsProjectField(t *testing.T) {
 	}
 	if req.Project == nil || req.Project.Common.CraftType != "social.craftsky.feed.defs#knitting" {
 		t.Fatalf("project = %+v", req.Project)
+	}
+}
+
+func TestDecodePostCreate_PreservesRawProjectFacets(t *testing.T) {
+	t.Parallel()
+	body := strings.NewReader(`{
+		"text":"hi",
+		"project":{
+			"common":{
+				"craftType":"social.craftsky.feed.defs#knitting",
+				"materials":[{
+					"text":"future #fiber",
+					"facets":[{"index":{"byteStart":7,"byteEnd":13},"features":[{"$type":"app.bsky.richtext.facet#futureTag","tag":"fiber","future":true}]}]
+				}],
+				"pattern":{
+					"name":"#futurepattern",
+					"nameFacets":[{"index":{"byteStart":0,"byteEnd":14},"features":[{"$type":"app.bsky.richtext.facet#futureTag","tag":"futurepattern","future":true}]}]
+				}
+			}
+		}
+	}`)
+	req, err := api.DecodePostCreate(body)
+	if err != nil {
+		t.Fatalf("DecodePostCreate: %v", err)
+	}
+	if req.Project == nil || len(req.Project.Common.Materials) != 1 || req.Project.Common.Pattern == nil {
+		t.Fatalf("project = %+v", req.Project)
+	}
+	if !json.Valid(req.Project.Common.Materials[0].Facets) {
+		t.Fatalf("material facets are not valid raw JSON: %s", req.Project.Common.Materials[0].Facets)
+	}
+	if !strings.Contains(string(req.Project.Common.Materials[0].Facets), `"future":true`) {
+		t.Fatalf("material facets lost future field: %s", req.Project.Common.Materials[0].Facets)
+	}
+	if !strings.Contains(string(req.Project.Common.Pattern.NameFacets), `"futurepattern"`) {
+		t.Fatalf("pattern facets not preserved: %s", req.Project.Common.Pattern.NameFacets)
 	}
 }
 
@@ -132,6 +169,58 @@ func TestValidatePostCreate_RejectsProjectWithReplyQuoteOrUnsupportedCraft(t *te
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			err := api.ValidatePostCreate(tc.req)
+			var fe *api.FieldError
+			if !errors.As(err, &fe) || fe.Code != "validation_failed" {
+				t.Fatalf("want validation_failed, got %v", err)
+			}
+			if _, ok := fe.Fields[tc.key]; !ok {
+				t.Fatalf("fields = %v, want %s", fe.Fields, tc.key)
+			}
+		})
+	}
+}
+
+func TestValidatePostCreate_RejectsInvalidProjectMaterials(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		materials []api.ProjectMaterial
+		key       string
+	}{
+		{
+			name:      "too many",
+			materials: make([]api.ProjectMaterial, 11),
+			key:       "project.common.materials",
+		},
+		{
+			name:      "empty text",
+			materials: []api.ProjectMaterial{{Text: "   "}},
+			key:       "project.common.materials[0].text",
+		},
+		{
+			name:      "too long",
+			materials: []api.ProjectMaterial{{Text: strings.Repeat("a", 101)}},
+			key:       "project.common.materials[0].text",
+		},
+		{
+			name:      "multiline",
+			materials: []api.ProjectMaterial{{Text: "linen\ncotton"}},
+			key:       "project.common.materials[0].text",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := api.ValidatePostCreate(api.PostCreateRequest{
+				Text: "hi",
+				Project: &api.Project{Common: api.ProjectCommon{
+					CraftType: api.ProjectCraftTypeKnitting,
+					Materials: tc.materials,
+				}},
+			})
 			var fe *api.FieldError
 			if !errors.As(err, &fe) || fe.Code != "validation_failed" {
 				t.Fatalf("want validation_failed, got %v", err)

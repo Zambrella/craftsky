@@ -64,7 +64,7 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		return nil
 	}
 
-	var rec craftskylex.FeedPost
+	var rec indexedPostRecord
 	if err := json.Unmarshal(ev.Record, &rec); err != nil {
 		return fmt.Errorf("unmarshal %s: %w", ev.URI, err)
 	}
@@ -73,12 +73,9 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		return fmt.Errorf("parse createdAt %q on %s: %w", rec.CreatedAt, ev.URI, err)
 	}
 
-	var facetsJSON []byte
-	if len(rec.Facets) > 0 {
-		facetsJSON, err = json.Marshal(rec.Facets)
-		if err != nil {
-			return fmt.Errorf("marshal facets %s: %w", ev.URI, err)
-		}
+	var facetsJSON json.RawMessage
+	if len(rec.Facets) > 0 && string(rec.Facets) != "null" {
+		facetsJSON = append(json.RawMessage(nil), rec.Facets...)
 	}
 
 	var imagesJSON []byte
@@ -121,7 +118,9 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	if project != nil && (rec.Reply != nil || quoteURI != nil) {
 		project = nil
 	}
-	tags := postutil.MergeTags(postutil.ExtractTags(rec.Facets), projectSearchTags(project))
+	topLevelFacets := postutil.DecodeFacets(rec.Facets)
+	tags := postutil.MergeTags(postutil.ExtractTagsForText(rec.Text, topLevelFacets), projectSearchTags(project))
+	mentions := postutil.MergeMentionDIDs(postutil.ExtractMentionDIDsForText(rec.Text, topLevelFacets), projectMentionDIDs(project))
 
 	var isProject bool
 	var projectCraftType any
@@ -178,11 +177,14 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		return fmt.Errorf("upsert %s: %w", ev.URI, err)
 	}
 	if project != nil {
-		if err := upsertProjectMaterialization(ctx, tx, ev.URI, project); err != nil {
+		if err := upsertProjectMaterialization(ctx, tx, ev.URI, project, tags); err != nil {
 			return err
 		}
 	} else if _, err := tx.Exec(ctx, `DELETE FROM craftsky_project_posts WHERE uri = $1`, ev.URI); err != nil {
 		return fmt.Errorf("delete stale project %s: %w", ev.URI, err)
+	}
+	if err := syncPostMentions(ctx, tx, ev.URI, mentions, createdAt); err != nil {
+		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit upsert %s: %w", ev.URI, err)
@@ -197,22 +199,41 @@ type indexedProject struct {
 	Details    indexedProjectDetails
 }
 
+type indexedPostRecord struct {
+	CreatedAt string                         `json:"createdAt"`
+	Embed     *craftskylex.FeedPost_Embed    `json:"embed,omitempty"`
+	Facets    json.RawMessage                `json:"facets,omitempty"`
+	Images    []*craftskylex.FeedPost_Image  `json:"images,omitempty"`
+	Reply     *craftskylex.FeedPost_ReplyRef `json:"reply,omitempty"`
+	Text      string                         `json:"text"`
+}
+
 type indexedProjectCommon struct {
-	CraftType string  `json:"craftType"`
-	Status    *string `json:"status"`
-	Title     *string `json:"title"`
-	Duration  *string `json:"duration"`
-	Pattern   *struct {
-		URL        *string `json:"url"`
-		Name       *string `json:"name"`
-		Difficulty *string `json:"difficulty"`
-		Designer   *string `json:"designer"`
-		Publisher  *string `json:"publisher"`
-	} `json:"pattern"`
-	Materials  []string `json:"materials"`
-	Colors     []string `json:"colors"`
-	DesignTags []string `json:"designTags"`
-	Tags       []string `json:"tags"`
+	CraftType  string                   `json:"craftType"`
+	Status     *string                  `json:"status"`
+	Title      *string                  `json:"title"`
+	Duration   *string                  `json:"duration"`
+	Pattern    *indexedProjectPattern   `json:"pattern"`
+	Materials  []indexedProjectMaterial `json:"materials"`
+	Colors     []string                 `json:"colors"`
+	DesignTags []string                 `json:"designTags"`
+	Tags       []string                 `json:"tags"`
+}
+
+type indexedProjectPattern struct {
+	URL             *string         `json:"url"`
+	Name            *string         `json:"name"`
+	NameFacets      json.RawMessage `json:"nameFacets"`
+	Difficulty      *string         `json:"difficulty"`
+	Designer        *string         `json:"designer"`
+	DesignerFacets  json.RawMessage `json:"designerFacets"`
+	Publisher       *string         `json:"publisher"`
+	PublisherFacets json.RawMessage `json:"publisherFacets"`
+}
+
+type indexedProjectMaterial struct {
+	Text   string          `json:"text"`
+	Facets json.RawMessage `json:"facets"`
 }
 
 type indexedProjectDetails struct {
@@ -267,24 +288,71 @@ func projectSearchTags(project *indexedProject) []string {
 	if project == nil {
 		return nil
 	}
-	return project.Common.Tags
+	return postutil.ExtractProjectTags(
+		project.Common.Tags,
+		indexedPatternFacetedTexts(project.Common.Pattern),
+		indexedMaterialFacetedTexts(project.Common.Materials),
+	)
 }
 
-func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATURI, project *indexedProject) error {
+func projectMentionDIDs(project *indexedProject) []string {
+	if project == nil {
+		return nil
+	}
+	return postutil.ExtractProjectMentionDIDs(
+		indexedPatternFacetedTexts(project.Common.Pattern),
+		indexedMaterialFacetedTexts(project.Common.Materials),
+	)
+}
+
+func indexedPatternFacetedTexts(pattern *indexedProjectPattern) []postutil.FacetedText {
+	if pattern == nil {
+		return nil
+	}
+	return []postutil.FacetedText{
+		{Text: stringPtrValue(pattern.Name), Facets: postutil.DecodeFacets(pattern.NameFacets)},
+		{Text: stringPtrValue(pattern.Designer), Facets: postutil.DecodeFacets(pattern.DesignerFacets)},
+		{Text: stringPtrValue(pattern.Publisher), Facets: postutil.DecodeFacets(pattern.PublisherFacets)},
+	}
+}
+
+func indexedMaterialFacetedTexts(materials []indexedProjectMaterial) []postutil.FacetedText {
+	out := make([]postutil.FacetedText, 0, len(materials))
+	for _, material := range materials {
+		out = append(out, postutil.FacetedText{
+			Text:   material.Text,
+			Facets: postutil.DecodeFacets(material.Facets),
+		})
+	}
+	return out
+}
+
+func stringPtrValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATURI, project *indexedProject, tags []string) error {
 	common := project.Common
 	var patternURL, patternName, patternDifficulty, patternDesigner, patternPublisher *string
+	var patternNameFacets, patternDesignerFacets, patternPublisherFacets json.RawMessage
 	if common.Pattern != nil {
 		patternURL = common.Pattern.URL
 		patternName = common.Pattern.Name
 		patternDifficulty = common.Pattern.Difficulty
 		patternDesigner = common.Pattern.Designer
 		patternPublisher = common.Pattern.Publisher
+		patternNameFacets = common.Pattern.NameFacets
+		patternDesignerFacets = common.Pattern.DesignerFacets
+		patternPublisherFacets = common.Pattern.PublisherFacets
 	}
 	detailCols := craftDetailColumnsFor(project)
 	const q = `
 		INSERT INTO craftsky_project_posts (
 			uri, raw_project, common_craft_type, common_status, common_title, common_duration,
-			pattern_url, pattern_name, pattern_difficulty, pattern_designer, pattern_publisher,
+			pattern_url, pattern_name, pattern_name_facets, pattern_difficulty, pattern_designer, pattern_designer_facets, pattern_publisher, pattern_publisher_facets,
 			materials, colors, design_tags, project_tags, details_type, raw_details,
 			knitting_project_type, knitting_project_subtype, knitting_yarn_weight, knitting_needle_size_mm, knitting_gauge, knitting_finished_size,
 			crochet_project_type, crochet_project_subtype, crochet_yarn_weight, crochet_hook_size_mm, crochet_gauge, crochet_finished_size,
@@ -293,12 +361,12 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 		)
 		VALUES (
 			$1, $2, $3, $4, $5, $6,
-			$7, $8, $9, $10, $11,
-			$12, $13, $14, $15, $16, $17,
-			$18, $19, $20, $21, $22, $23,
-			$24, $25, $26, $27, $28, $29,
-			$30, $31, $32, $33, $34,
-			$35, $36, $37, $38
+			$7, $8, $9, $10, $11, $12, $13, $14,
+			$15, $16, $17, $18, $19, $20,
+			$21, $22, $23, $24, $25, $26,
+			$27, $28, $29, $30, $31, $32,
+			$33, $34, $35, $36, $37,
+			$38, $39, $40, $41
 		)
 		ON CONFLICT (uri) DO UPDATE SET
 			raw_project = EXCLUDED.raw_project,
@@ -308,9 +376,12 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 			common_duration = EXCLUDED.common_duration,
 			pattern_url = EXCLUDED.pattern_url,
 			pattern_name = EXCLUDED.pattern_name,
+			pattern_name_facets = EXCLUDED.pattern_name_facets,
 			pattern_difficulty = EXCLUDED.pattern_difficulty,
 			pattern_designer = EXCLUDED.pattern_designer,
+			pattern_designer_facets = EXCLUDED.pattern_designer_facets,
 			pattern_publisher = EXCLUDED.pattern_publisher,
+			pattern_publisher_facets = EXCLUDED.pattern_publisher_facets,
 			materials = EXCLUDED.materials,
 			colors = EXCLUDED.colors,
 			design_tags = EXCLUDED.design_tags,
@@ -340,11 +411,12 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 			sewing_fit_notes = EXCLUDED.sewing_fit_notes,
 			indexed_at = now()
 		WHERE craftsky_project_posts.raw_project IS DISTINCT FROM EXCLUDED.raw_project
+		   OR craftsky_project_posts.project_tags IS DISTINCT FROM EXCLUDED.project_tags
 	`
 	_, err := tx.Exec(ctx, q,
 		uri, project.RawProject, common.CraftType, common.Status, common.Title, common.Duration,
-		patternURL, patternName, patternDifficulty, patternDesigner, patternPublisher,
-		nonNilStrings(common.Materials), nonNilStrings(common.Colors), nonNilStrings(common.DesignTags), nonNilStrings(common.Tags), nullableString(project.Details.Type), nullableJSON(project.RawDetails),
+		patternURL, patternName, nullableJSON(patternNameFacets), patternDifficulty, patternDesigner, nullableJSON(patternDesignerFacets), patternPublisher, nullableJSON(patternPublisherFacets),
+		materialTexts(common.Materials), nonNilStrings(common.Colors), nonNilStrings(common.DesignTags), nonNilStrings(tags), nullableString(project.Details.Type), nullableJSON(project.RawDetails),
 		detailCols.knittingProjectType, detailCols.knittingProjectSubtype, detailCols.knittingYarnWeight, detailCols.knittingNeedleSizeMM, detailCols.knittingGauge, detailCols.knittingFinishedSize,
 		detailCols.crochetProjectType, detailCols.crochetProjectSubtype, detailCols.crochetYarnWeight, detailCols.crochetHookSizeMM, detailCols.crochetGauge, detailCols.crochetFinishedSize,
 		detailCols.quiltingProjectType, detailCols.quiltingProjectSubtype, detailCols.quiltingPiecingTechnique, detailCols.quiltingQuiltingMethod, detailCols.quiltingSize,
@@ -352,6 +424,31 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 	)
 	if err != nil {
 		return fmt.Errorf("upsert project %s: %w", uri, err)
+	}
+	return nil
+}
+
+func syncPostMentions(ctx context.Context, tx pgx.Tx, uri syntax.ATURI, mentionedDIDs []string, createdAt time.Time) error {
+	if len(mentionedDIDs) == 0 {
+		if _, err := tx.Exec(ctx, `DELETE FROM craftsky_post_mentions WHERE post_uri = $1`, uri); err != nil {
+			return fmt.Errorf("delete mentions %s: %w", uri, err)
+		}
+		return nil
+	}
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM craftsky_post_mentions
+		WHERE post_uri = $1 AND NOT (mentioned_did = ANY($2::text[]))
+	`, uri, mentionedDIDs); err != nil {
+		return fmt.Errorf("delete removed mentions %s: %w", uri, err)
+	}
+	for _, did := range mentionedDIDs {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO craftsky_post_mentions (post_uri, mentioned_did, created_at)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (post_uri, mentioned_did) DO NOTHING
+		`, uri, did, createdAt); err != nil {
+			return fmt.Errorf("insert mention %s -> %s: %w", uri, did, err)
+		}
 	}
 	return nil
 }
@@ -426,6 +523,17 @@ func nonNilStrings(in []string) []string {
 	return in
 }
 
+func materialTexts(in []indexedProjectMaterial) []string {
+	out := make([]string, 0, len(in))
+	for _, material := range in {
+		text := strings.TrimSpace(material.Text)
+		if text != "" {
+			out = append(out, text)
+		}
+	}
+	return out
+}
+
 func nullableString(in string) any {
 	if in == "" {
 		return nil
@@ -434,7 +542,7 @@ func nullableString(in string) any {
 }
 
 func nullableJSON(raw json.RawMessage) any {
-	if len(raw) == 0 {
+	if len(raw) == 0 || string(raw) == "null" {
 		return nil
 	}
 	return raw

@@ -28,6 +28,10 @@ class NotificationRow extends StatelessWidget {
         l10n.notificationReplyRow(actor),
         subjectPost.text,
       ),
+      MentionNotification(:final subjectPost) => (
+        l10n.notificationMentionRow(actor),
+        subjectPost.text,
+      ),
     };
     return ListTile(
       title: Text(title),
@@ -44,6 +48,7 @@ class NotificationRow extends StatelessWidget {
         );
       case LikeNotification(:final subjectPost):
       case RepostNotification(:final subjectPost):
+      case MentionNotification(:final subjectPost):
         unawaited(
           PostThreadRoute(
             did: subjectPost.author.did.toString(),

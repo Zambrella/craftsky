@@ -20,20 +20,28 @@ class FacetGenerator {
   final MentionResolver _mentionResolver;
 
   /// Generates non-overlapping facet maps using UTF-8 byte offsets.
-  Future<List<Map<String, dynamic>>> generate(String text) async {
+  Future<List<Map<String, dynamic>>> generate(
+    String text, {
+    bool includeMentions = true,
+    bool includeLinks = true,
+    bool includeTags = true,
+  }) async {
     final facets = <Map<String, dynamic>>[];
 
     for (final token in detectSupportedFacetTokens(text)) {
       switch (token) {
         case MentionFacetToken(:final handle):
+          if (!includeMentions) continue;
           final did = await _mentionResolver.didForHandle(handle);
           if (did == null) {
             continue;
           }
           facets.add(token.toRawFacet(text, did: did));
         case LinkFacetToken():
+          if (!includeLinks) continue;
           facets.add(token.toRawFacet(text));
         case TagFacetToken():
+          if (!includeTags) continue;
           facets.add(token.toRawFacet(text));
       }
     }

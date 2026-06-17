@@ -215,6 +215,80 @@ func TestNotificationStore_ListNotifications_DerivesDirectReplyNotificationsWith
 	}
 }
 
+func TestNotificationStore_ListNotifications_DerivesMentionNotifications(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, notificationStoreDDL)
+	base := time.Date(2026, 5, 28, 13, 30, 0, 0, time.UTC)
+
+	seedMember(t, pool, "did:plc:viewer")
+	seedMember(t, pool, "did:plc:alice")
+	seedMember(t, pool, "did:plc:bob")
+	seedBskyProfile(t, pool, "did:plc:alice", "Alice", "bafyalice")
+	mentionedPost := seedPost(t, pool, "did:plc:alice", "mentions-viewer", "credit @viewer", base)
+	otherPost := seedPost(t, pool, "did:plc:bob", "mentions-someone-else", "credit @someone", base.Add(time.Minute))
+	seedPostMention(t, pool, mentionedPost, "did:plc:viewer", base)
+	seedPostMention(t, pool, otherPost, "did:plc:carol", base.Add(time.Minute))
+
+	store := api.NewPostStore(pool)
+	rows, _, err := store.ListNotifications(context.Background(), "did:plc:viewer", 20, "")
+	if err != nil {
+		t.Fatalf("ListNotifications: %v", err)
+	}
+
+	got := notificationURIs(rows)
+	if slices.Contains(got, otherPost) {
+		t.Fatalf("notification URIs = %v, must not contain mention for another viewer", got)
+	}
+	row := notificationRowByURI(rows, mentionedPost)
+	if row == nil {
+		t.Fatalf("notification URIs = %v, want mention post %s", got, mentionedPost)
+	}
+	if row.Type != api.NotificationTypeMention {
+		t.Fatalf("row.Type = %q, want %q", row.Type, api.NotificationTypeMention)
+	}
+	if row.ActorDID != "did:plc:alice" {
+		t.Fatalf("row.ActorDID = %q, want did:plc:alice", row.ActorDID)
+	}
+	if row.SubjectPost == nil || row.SubjectPost.URI != mentionedPost {
+		t.Fatalf("row.SubjectPost = %+v, want mentioned post %s", row.SubjectPost, mentionedPost)
+	}
+}
+
+func TestNotificationStore_ListNotifications_SuppressesSelfAndDirectReplyMentions(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, notificationStoreDDL)
+	base := time.Date(2026, 5, 28, 13, 45, 0, 0, time.UTC)
+
+	seedMember(t, pool, "did:plc:viewer")
+	seedMember(t, pool, "did:plc:alice")
+	viewerPost := seedPost(t, pool, "did:plc:viewer", "viewer-root", "viewer post", base)
+	selfMention := seedPost(t, pool, "did:plc:viewer", "self-mention", "self @viewer", base.Add(time.Minute))
+	directReplyMention := seedReplyPost(t, pool, "did:plc:alice", "reply-mention", "reply @viewer", viewerPost, viewerPost, base.Add(2*time.Minute))
+	plainMention := seedPost(t, pool, "did:plc:alice", "plain-mention", "plain @viewer", base.Add(3*time.Minute))
+	seedPostMention(t, pool, selfMention, "did:plc:viewer", base.Add(time.Minute))
+	seedPostMention(t, pool, directReplyMention, "did:plc:viewer", base.Add(2*time.Minute))
+	seedPostMention(t, pool, plainMention, "did:plc:viewer", base.Add(3*time.Minute))
+
+	store := api.NewPostStore(pool)
+	rows, _, err := store.ListNotifications(context.Background(), "did:plc:viewer", 20, "")
+	if err != nil {
+		t.Fatalf("ListNotifications: %v", err)
+	}
+
+	got := notificationURIs(rows)
+	if slices.Contains(got, selfMention) {
+		t.Fatalf("notification URIs = %v, must not contain self mention", got)
+	}
+	mentionRow := notificationRowByURI(rows, directReplyMention)
+	if mentionRow == nil || mentionRow.Type != api.NotificationTypeReply {
+		t.Fatalf("direct reply row = %+v, want reply notification only", mentionRow)
+	}
+	plainRow := notificationRowByURI(rows, plainMention)
+	if plainRow == nil || plainRow.Type != api.NotificationTypeMention {
+		t.Fatalf("plain mention row = %+v, want mention notification", plainRow)
+	}
+}
+
 func TestNotificationStore_ListNotifications_ExcludesSelfGeneratedNotifications(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, notificationStoreDDL)

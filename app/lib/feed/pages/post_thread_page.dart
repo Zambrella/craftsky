@@ -15,6 +15,7 @@ import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
+import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
@@ -101,6 +102,11 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
         unawaited(_handleCreatedThreadPost(post));
       })
       ..listen(toggleLikePostProvider, (previous, next) {
+        if (next.hasError) {
+          context.showError(l10n.postLikeError);
+          ref.read(toggleLikePostProvider.notifier).reset();
+          return;
+        }
         final post = next.value;
         if (post == null) return;
         ref
@@ -456,6 +462,7 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
             padding: EdgeInsets.symmetric(vertical: spacing.sp2),
             child: PostCard(
               post: widget.section.post,
+              projectVariant: ProjectCardVariant.detail,
               replyTooltip: l10n.postCommentAction,
               onReply: () => showPostComposerSheet(
                 context,

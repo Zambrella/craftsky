@@ -2399,6 +2399,189 @@ func (t *ProjectDefs_Gauge) UnmarshalCBOR(r io.Reader) (err error) {
 
 	return nil
 }
+func (t *ProjectDefs_Material) MarshalCBOR(w io.Writer) error {
+	if t == nil {
+		_, err := w.Write(cbg.CborNull)
+		return err
+	}
+
+	cw := cbg.NewCborWriter(w)
+	fieldCount := 2
+
+	if t.Facets == nil {
+		fieldCount--
+	}
+
+	if _, err := cw.Write(cbg.CborEncodeMajorType(cbg.MajMap, uint64(fieldCount))); err != nil {
+		return err
+	}
+
+	// t.Text (string) (string)
+	if len("text") > 1000000 {
+		return xerrors.Errorf("Value in field \"text\" was too long")
+	}
+
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("text"))); err != nil {
+		return err
+	}
+	if _, err := cw.WriteString(string("text")); err != nil {
+		return err
+	}
+
+	if len(t.Text) > 1000000 {
+		return xerrors.Errorf("Value in field t.Text was too long")
+	}
+
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(t.Text))); err != nil {
+		return err
+	}
+	if _, err := cw.WriteString(string(t.Text)); err != nil {
+		return err
+	}
+
+	// t.Facets ([]*bsky.RichtextFacet) (slice)
+	if t.Facets != nil {
+
+		if len("facets") > 1000000 {
+			return xerrors.Errorf("Value in field \"facets\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("facets"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("facets")); err != nil {
+			return err
+		}
+
+		if len(t.Facets) > 8192 {
+			return xerrors.Errorf("Slice value in field t.Facets was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajArray, uint64(len(t.Facets))); err != nil {
+			return err
+		}
+		for _, v := range t.Facets {
+			if err := v.MarshalCBOR(cw); err != nil {
+				return err
+			}
+
+		}
+	}
+	return nil
+}
+
+func (t *ProjectDefs_Material) UnmarshalCBOR(r io.Reader) (err error) {
+	*t = ProjectDefs_Material{}
+
+	cr := cbg.NewCborReader(r)
+
+	maj, extra, err := cr.ReadHeader()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
+	}()
+
+	if maj != cbg.MajMap {
+		return fmt.Errorf("cbor input should be of type map")
+	}
+
+	if extra > cbg.MaxLength {
+		return fmt.Errorf("ProjectDefs_Material: map struct too large (%d)", extra)
+	}
+
+	n := extra
+
+	nameBuf := make([]byte, 6)
+	for i := uint64(0); i < n; i++ {
+		nameLen, ok, err := cbg.ReadFullStringIntoBuf(cr, nameBuf, 1000000)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			// Field doesn't exist on this type, so ignore it
+			if err := cbg.ScanForLinks(cr, func(cid.Cid) {}); err != nil {
+				return err
+			}
+			continue
+		}
+
+		switch string(nameBuf[:nameLen]) {
+		// t.Text (string) (string)
+		case "text":
+
+			{
+				sval, err := cbg.ReadStringWithMax(cr, 1000000)
+				if err != nil {
+					return err
+				}
+
+				t.Text = string(sval)
+			}
+			// t.Facets ([]*bsky.RichtextFacet) (slice)
+		case "facets":
+
+			maj, extra, err = cr.ReadHeader()
+			if err != nil {
+				return err
+			}
+
+			if extra > 8192 {
+				return fmt.Errorf("t.Facets: array too large (%d)", extra)
+			}
+
+			if maj != cbg.MajArray {
+				return fmt.Errorf("expected cbor array")
+			}
+
+			if extra > 0 {
+				t.Facets = make([]*bsky.RichtextFacet, extra)
+			}
+
+			for i := 0; i < int(extra); i++ {
+				{
+					var maj byte
+					var extra uint64
+					var err error
+					_ = maj
+					_ = extra
+					_ = err
+
+					{
+
+						b, err := cr.ReadByte()
+						if err != nil {
+							return err
+						}
+						if b != cbg.CborNull[0] {
+							if err := cr.UnreadByte(); err != nil {
+								return err
+							}
+							t.Facets[i] = new(bsky.RichtextFacet)
+							if err := t.Facets[i].UnmarshalCBOR(cr); err != nil {
+								return xerrors.Errorf("unmarshaling t.Facets[i] pointer: %w", err)
+							}
+						}
+
+					}
+
+				}
+			}
+
+		default:
+			// Field doesn't exist on this type, so ignore it
+			if err := cbg.ScanForLinks(r, func(cid.Cid) {}); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
 func (t *ProjectDefs_Pattern) MarshalCBOR(w io.Writer) error {
 	if t == nil {
 		_, err := w.Write(cbg.CborNull)
@@ -2406,9 +2589,13 @@ func (t *ProjectDefs_Pattern) MarshalCBOR(w io.Writer) error {
 	}
 
 	cw := cbg.NewCborWriter(w)
-	fieldCount := 5
+	fieldCount := 8
 
 	if t.Designer == nil {
+		fieldCount--
+	}
+
+	if t.DesignerFacets == nil {
 		fieldCount--
 	}
 
@@ -2420,7 +2607,15 @@ func (t *ProjectDefs_Pattern) MarshalCBOR(w io.Writer) error {
 		fieldCount--
 	}
 
+	if t.NameFacets == nil {
+		fieldCount--
+	}
+
 	if t.Publisher == nil {
+		fieldCount--
+	}
+
+	if t.PublisherFacets == nil {
 		fieldCount--
 	}
 
@@ -2591,6 +2786,93 @@ func (t *ProjectDefs_Pattern) MarshalCBOR(w io.Writer) error {
 			}
 		}
 	}
+
+	// t.NameFacets ([]*bsky.RichtextFacet) (slice)
+	if t.NameFacets != nil {
+
+		if len("nameFacets") > 1000000 {
+			return xerrors.Errorf("Value in field \"nameFacets\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("nameFacets"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("nameFacets")); err != nil {
+			return err
+		}
+
+		if len(t.NameFacets) > 8192 {
+			return xerrors.Errorf("Slice value in field t.NameFacets was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajArray, uint64(len(t.NameFacets))); err != nil {
+			return err
+		}
+		for _, v := range t.NameFacets {
+			if err := v.MarshalCBOR(cw); err != nil {
+				return err
+			}
+
+		}
+	}
+
+	// t.DesignerFacets ([]*bsky.RichtextFacet) (slice)
+	if t.DesignerFacets != nil {
+
+		if len("designerFacets") > 1000000 {
+			return xerrors.Errorf("Value in field \"designerFacets\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("designerFacets"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("designerFacets")); err != nil {
+			return err
+		}
+
+		if len(t.DesignerFacets) > 8192 {
+			return xerrors.Errorf("Slice value in field t.DesignerFacets was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajArray, uint64(len(t.DesignerFacets))); err != nil {
+			return err
+		}
+		for _, v := range t.DesignerFacets {
+			if err := v.MarshalCBOR(cw); err != nil {
+				return err
+			}
+
+		}
+	}
+
+	// t.PublisherFacets ([]*bsky.RichtextFacet) (slice)
+	if t.PublisherFacets != nil {
+
+		if len("publisherFacets") > 1000000 {
+			return xerrors.Errorf("Value in field \"publisherFacets\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("publisherFacets"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("publisherFacets")); err != nil {
+			return err
+		}
+
+		if len(t.PublisherFacets) > 8192 {
+			return xerrors.Errorf("Slice value in field t.PublisherFacets was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajArray, uint64(len(t.PublisherFacets))); err != nil {
+			return err
+		}
+		for _, v := range t.PublisherFacets {
+			if err := v.MarshalCBOR(cw); err != nil {
+				return err
+			}
+
+		}
+	}
 	return nil
 }
 
@@ -2619,7 +2901,7 @@ func (t *ProjectDefs_Pattern) UnmarshalCBOR(r io.Reader) (err error) {
 
 	n := extra
 
-	nameBuf := make([]byte, 10)
+	nameBuf := make([]byte, 15)
 	for i := uint64(0); i < n; i++ {
 		nameLen, ok, err := cbg.ReadFullStringIntoBuf(cr, nameBuf, 1000000)
 		if err != nil {
@@ -2738,6 +3020,153 @@ func (t *ProjectDefs_Pattern) UnmarshalCBOR(r io.Reader) (err error) {
 					}
 
 					t.Difficulty = (*string)(&sval)
+				}
+			}
+			// t.NameFacets ([]*bsky.RichtextFacet) (slice)
+		case "nameFacets":
+
+			maj, extra, err = cr.ReadHeader()
+			if err != nil {
+				return err
+			}
+
+			if extra > 8192 {
+				return fmt.Errorf("t.NameFacets: array too large (%d)", extra)
+			}
+
+			if maj != cbg.MajArray {
+				return fmt.Errorf("expected cbor array")
+			}
+
+			if extra > 0 {
+				t.NameFacets = make([]*bsky.RichtextFacet, extra)
+			}
+
+			for i := 0; i < int(extra); i++ {
+				{
+					var maj byte
+					var extra uint64
+					var err error
+					_ = maj
+					_ = extra
+					_ = err
+
+					{
+
+						b, err := cr.ReadByte()
+						if err != nil {
+							return err
+						}
+						if b != cbg.CborNull[0] {
+							if err := cr.UnreadByte(); err != nil {
+								return err
+							}
+							t.NameFacets[i] = new(bsky.RichtextFacet)
+							if err := t.NameFacets[i].UnmarshalCBOR(cr); err != nil {
+								return xerrors.Errorf("unmarshaling t.NameFacets[i] pointer: %w", err)
+							}
+						}
+
+					}
+
+				}
+			}
+			// t.DesignerFacets ([]*bsky.RichtextFacet) (slice)
+		case "designerFacets":
+
+			maj, extra, err = cr.ReadHeader()
+			if err != nil {
+				return err
+			}
+
+			if extra > 8192 {
+				return fmt.Errorf("t.DesignerFacets: array too large (%d)", extra)
+			}
+
+			if maj != cbg.MajArray {
+				return fmt.Errorf("expected cbor array")
+			}
+
+			if extra > 0 {
+				t.DesignerFacets = make([]*bsky.RichtextFacet, extra)
+			}
+
+			for i := 0; i < int(extra); i++ {
+				{
+					var maj byte
+					var extra uint64
+					var err error
+					_ = maj
+					_ = extra
+					_ = err
+
+					{
+
+						b, err := cr.ReadByte()
+						if err != nil {
+							return err
+						}
+						if b != cbg.CborNull[0] {
+							if err := cr.UnreadByte(); err != nil {
+								return err
+							}
+							t.DesignerFacets[i] = new(bsky.RichtextFacet)
+							if err := t.DesignerFacets[i].UnmarshalCBOR(cr); err != nil {
+								return xerrors.Errorf("unmarshaling t.DesignerFacets[i] pointer: %w", err)
+							}
+						}
+
+					}
+
+				}
+			}
+			// t.PublisherFacets ([]*bsky.RichtextFacet) (slice)
+		case "publisherFacets":
+
+			maj, extra, err = cr.ReadHeader()
+			if err != nil {
+				return err
+			}
+
+			if extra > 8192 {
+				return fmt.Errorf("t.PublisherFacets: array too large (%d)", extra)
+			}
+
+			if maj != cbg.MajArray {
+				return fmt.Errorf("expected cbor array")
+			}
+
+			if extra > 0 {
+				t.PublisherFacets = make([]*bsky.RichtextFacet, extra)
+			}
+
+			for i := 0; i < int(extra); i++ {
+				{
+					var maj byte
+					var extra uint64
+					var err error
+					_ = maj
+					_ = extra
+					_ = err
+
+					{
+
+						b, err := cr.ReadByte()
+						if err != nil {
+							return err
+						}
+						if b != cbg.CborNull[0] {
+							if err := cr.UnreadByte(); err != nil {
+								return err
+							}
+							t.PublisherFacets[i] = new(bsky.RichtextFacet)
+							if err := t.PublisherFacets[i].UnmarshalCBOR(cr); err != nil {
+								return xerrors.Errorf("unmarshaling t.PublisherFacets[i] pointer: %w", err)
+							}
+						}
+
+					}
+
 				}
 			}
 
@@ -3152,7 +3581,7 @@ func (t *ProjectDefs_ProjectCommon) MarshalCBOR(w io.Writer) error {
 		return err
 	}
 
-	// t.Materials ([]string) (slice)
+	// t.Materials ([]*craftsky.ProjectDefs_Material) (slice)
 	if t.Materials != nil {
 
 		if len("materials") > 1000000 {
@@ -3174,14 +3603,7 @@ func (t *ProjectDefs_ProjectCommon) MarshalCBOR(w io.Writer) error {
 			return err
 		}
 		for _, v := range t.Materials {
-			if len(v) > 1000000 {
-				return xerrors.Errorf("Value in field v was too long")
-			}
-
-			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(v))); err != nil {
-				return err
-			}
-			if _, err := cw.WriteString(string(v)); err != nil {
+			if err := v.MarshalCBOR(cw); err != nil {
 				return err
 			}
 
@@ -3441,7 +3863,7 @@ func (t *ProjectDefs_ProjectCommon) UnmarshalCBOR(r io.Reader) (err error) {
 
 				t.CraftType = string(sval)
 			}
-			// t.Materials ([]string) (slice)
+			// t.Materials ([]*craftsky.ProjectDefs_Material) (slice)
 		case "materials":
 
 			maj, extra, err = cr.ReadHeader()
@@ -3458,7 +3880,7 @@ func (t *ProjectDefs_ProjectCommon) UnmarshalCBOR(r io.Reader) (err error) {
 			}
 
 			if extra > 0 {
-				t.Materials = make([]string, extra)
+				t.Materials = make([]*ProjectDefs_Material, extra)
 			}
 
 			for i := 0; i < int(extra); i++ {
@@ -3471,12 +3893,21 @@ func (t *ProjectDefs_ProjectCommon) UnmarshalCBOR(r io.Reader) (err error) {
 					_ = err
 
 					{
-						sval, err := cbg.ReadStringWithMax(cr, 1000000)
+
+						b, err := cr.ReadByte()
 						if err != nil {
 							return err
 						}
+						if b != cbg.CborNull[0] {
+							if err := cr.UnreadByte(); err != nil {
+								return err
+							}
+							t.Materials[i] = new(ProjectDefs_Material)
+							if err := t.Materials[i].UnmarshalCBOR(cr); err != nil {
+								return xerrors.Errorf("unmarshaling t.Materials[i] pointer: %w", err)
+							}
+						}
 
-						t.Materials[i] = string(sval)
 					}
 
 				}

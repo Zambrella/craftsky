@@ -12,6 +12,11 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
+const (
+	maxProjectMaterials         = 10
+	maxProjectMaterialGraphemes = 100
+)
+
 // StrongRef is the wire shape of a strongRef ({uri, cid}). Used for
 // reply pointers and quote embeds. cid uses a string rather than
 // syntax.CID so unmarshalling never fails on the "informal helper"
@@ -156,6 +161,20 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 			fields["project.common.craftType"] = "must not be empty"
 		} else if !IsSupportedProjectCraftType(craftType) {
 			fields["project.common.craftType"] = "must be a supported craft type"
+		}
+		if len(req.Project.Common.Materials) > maxProjectMaterials {
+			fields["project.common.materials"] = fmt.Sprintf("exceeds maximum of %d entries", maxProjectMaterials)
+		}
+		for i, material := range req.Project.Common.Materials {
+			key := fmt.Sprintf("project.common.materials[%d].text", i)
+			text := strings.TrimSpace(material.Text)
+			if text == "" {
+				fields[key] = "must not be empty"
+			} else if utf8.RuneCountInString(text) > maxProjectMaterialGraphemes {
+				fields[key] = fmt.Sprintf("exceeds %d graphemes", maxProjectMaterialGraphemes)
+			} else if strings.ContainsAny(text, "\r\n") {
+				fields[key] = "must be a single line"
+			}
 		}
 		if req.Reply != nil {
 			fields["project"] = "project posts must be standalone and cannot be replies"

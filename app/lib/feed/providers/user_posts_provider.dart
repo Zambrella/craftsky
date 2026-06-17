@@ -1,5 +1,6 @@
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/user_posts_state.dart';
+import 'package:craftsky_app/feed/providers/author_post_cache.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -62,8 +63,9 @@ class UserPosts extends _$UserPosts {
   void prepend(Post post) {
     final current = state.value;
     if (current == null) return;
-    if (current.items.any((p) => p.uri == post.uri)) return;
-    state = AsyncData(current.copyWith(items: [post, ...current.items]));
+    final items = prependPostIfAbsent(current.items, post);
+    if (identical(items, current.items)) return;
+    state = AsyncData(current.copyWith(items: items));
   }
 
   /// Cache helper. Removes the post with [rkey] from items if present.
@@ -73,9 +75,7 @@ class UserPosts extends _$UserPosts {
     final current = state.value;
     if (current == null) return;
     state = AsyncData(
-      current.copyWith(
-        items: current.items.where((p) => p.rkey != rkey).toList(),
-      ),
+      current.copyWith(items: removePostByRkey(current.items, rkey)),
     );
   }
 
@@ -84,19 +84,14 @@ class UserPosts extends _$UserPosts {
     final current = state.value;
     if (current == null) return;
     state = AsyncData(
-      current.copyWith(
-        items: [
-          for (final item in current.items)
-            if (item.uri == post.uri || item.rkey == post.rkey) post else item,
-        ],
-      ),
+      current.copyWith(items: replacePostByIdentity(current.items, post)),
     );
   }
 }
 
 void updateLiveUserPostCaches(Ref ref, Post post) {
   if (post.project != null) return;
-  for (final id in <String>{post.author.did, post.author.handle}) {
+  for (final id in authorPostCacheIds(post)) {
     if (ref.exists(userPostsProvider(id))) {
       ref.read(userPostsProvider(id).notifier).replace(post);
     }

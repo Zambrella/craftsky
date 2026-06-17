@@ -1,6 +1,8 @@
 package api
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 const (
 	ProjectCraftTypeKnitting   = "social.craftsky.feed.defs#knitting"
@@ -32,21 +34,29 @@ type Project struct {
 }
 
 type ProjectCommon struct {
-	CraftType  string          `json:"craftType"`
-	Status     *string         `json:"status,omitempty"`
-	Title      *string         `json:"title,omitempty"`
-	Duration   *string         `json:"duration,omitempty"`
-	Pattern    *ProjectPattern `json:"pattern,omitempty"`
-	Materials  []string        `json:"materials,omitempty"`
-	Colors     []string        `json:"colors,omitempty"`
-	DesignTags []string        `json:"designTags,omitempty"`
-	Tags       []string        `json:"tags,omitempty"`
+	CraftType  string            `json:"craftType"`
+	Status     *string           `json:"status,omitempty"`
+	Title      *string           `json:"title,omitempty"`
+	Duration   *string           `json:"duration,omitempty"`
+	Pattern    *ProjectPattern   `json:"pattern,omitempty"`
+	Materials  []ProjectMaterial `json:"materials,omitempty"`
+	Colors     []string          `json:"colors,omitempty"`
+	DesignTags []string          `json:"designTags,omitempty"`
+	Tags       []string          `json:"tags,omitempty"`
+}
+
+type ProjectMaterial struct {
+	Text   string          `json:"text"`
+	Facets json.RawMessage `json:"facets,omitempty"`
 }
 
 type ProjectPattern struct {
-	URL        *string `json:"url,omitempty"`
-	Name       *string `json:"name,omitempty"`
-	Difficulty *string `json:"difficulty,omitempty"`
-	Designer   *string `json:"designer,omitempty"`
-	Publisher  *string `json:"publisher,omitempty"`
+	URL             *string         `json:"url,omitempty"`
+	Name            *string         `json:"name,omitempty"`
+	NameFacets      json.RawMessage `json:"nameFacets,omitempty"`
+	Difficulty      *string         `json:"difficulty,omitempty"`
+	Designer        *string         `json:"designer,omitempty"`
+	DesignerFacets  json.RawMessage `json:"designerFacets,omitempty"`
+	Publisher       *string         `json:"publisher,omitempty"`
+	PublisherFacets json.RawMessage `json:"publisherFacets,omitempty"`
 }

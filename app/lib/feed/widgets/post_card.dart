@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
@@ -38,6 +39,7 @@ class PostCard extends StatelessWidget {
     this.showReplyLabel = false,
     this.isHighlighted = false,
     this.style = PostCardStyle.card,
+    this.projectVariant = ProjectCardVariant.summary,
   });
 
   final Post post;
@@ -56,6 +58,7 @@ class PostCard extends StatelessWidget {
   final bool showReplyLabel;
   final bool isHighlighted;
   final PostCardStyle style;
+  final ProjectCardVariant projectVariant;
 
   @override
   Widget build(BuildContext context) {
@@ -143,6 +146,10 @@ class PostCard extends StatelessWidget {
                     ],
                     if (post.moderation?.warningKind case final kind?) ...[
                       ModerationWarningBanner(warningKind: kind),
+                      SizedBox(height: spacing.sp3),
+                    ],
+                    if (post.project case final project?) ...[
+                      ProjectCard(project: project, variant: projectVariant),
                       SizedBox(height: spacing.sp3),
                     ],
                     FacetedText(

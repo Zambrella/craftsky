@@ -1,4 +1,5 @@
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/providers/author_post_cache.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/projects/models/user_projects_state.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -48,17 +49,16 @@ class UserProjects extends _$UserProjects {
   void prepend(Post post) {
     final current = state.value;
     if (current == null) return;
-    if (current.items.any((item) => item.uri == post.uri)) return;
-    state = AsyncData(current.copyWith(items: [post, ...current.items]));
+    final items = prependPostIfAbsent(current.items, post);
+    if (identical(items, current.items)) return;
+    state = AsyncData(current.copyWith(items: items));
   }
 
   void removeByRkey(String rkey) {
     final current = state.value;
     if (current == null) return;
     state = AsyncData(
-      current.copyWith(
-        items: current.items.where((post) => post.rkey != rkey).toList(),
-      ),
+      current.copyWith(items: removePostByRkey(current.items, rkey)),
     );
   }
 
@@ -66,19 +66,14 @@ class UserProjects extends _$UserProjects {
     final current = state.value;
     if (current == null) return;
     state = AsyncData(
-      current.copyWith(
-        items: [
-          for (final item in current.items)
-            if (item.uri == post.uri || item.rkey == post.rkey) post else item,
-        ],
-      ),
+      current.copyWith(items: replacePostByIdentity(current.items, post)),
     );
   }
 }
 
 void prependLiveUserProjectCaches(Ref ref, Post post) {
   if (post.project == null) return;
-  for (final id in <String>{post.author.did, post.author.handle}) {
+  for (final id in authorPostCacheIds(post)) {
     if (ref.exists(userProjectsProvider(id))) {
       ref.read(userProjectsProvider(id).notifier).prepend(post);
     }
@@ -87,7 +82,7 @@ void prependLiveUserProjectCaches(Ref ref, Post post) {
 
 void updateLiveUserProjectCaches(Ref ref, Post post) {
   if (post.project == null) return;
-  for (final id in <String>{post.author.did, post.author.handle}) {
+  for (final id in authorPostCacheIds(post)) {
     if (ref.exists(userProjectsProvider(id))) {
       ref.read(userProjectsProvider(id).notifier).replace(post);
     }
@@ -96,7 +91,7 @@ void updateLiveUserProjectCaches(Ref ref, Post post) {
 
 void removeFromLiveUserProjectCaches(Ref ref, Post post) {
   if (post.project == null) return;
-  for (final id in <String>{post.author.did, post.author.handle}) {
+  for (final id in authorPostCacheIds(post)) {
     if (ref.exists(userProjectsProvider(id))) {
       ref.read(userProjectsProvider(id).notifier).removeByRkey(post.rkey);
     }

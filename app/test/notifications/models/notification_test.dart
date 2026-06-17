@@ -57,20 +57,30 @@ void main() {
             'rkey': 'reply1',
           },
         },
+        {
+          ...base('mention', 'mention1'),
+          'uri': 'at://did:plc:alice/social.craftsky.feed.post/mention1',
+          'subjectPost': post(),
+        },
       ],
     });
 
     expect(page.cursor, 'opaque-next');
-    expect(page.items, hasLength(4));
+    expect(page.items, hasLength(5));
     expect(page.items[0], isA<FollowNotification>());
     expect(page.items[1], isA<LikeNotification>());
     expect(page.items[2], isA<RepostNotification>());
     expect(page.items[3], isA<ReplyNotification>());
+    expect(page.items[4], isA<MentionNotification>());
     expect(page.items[0].actor.displayLabel, 'Alice');
     expect((page.items[1] as LikeNotification).subjectPost.text, 'viewer post');
     expect(
       (page.items[3] as ReplyNotification).reply!.rkey.toString(),
       'reply1',
+    );
+    expect(
+      (page.items[4] as MentionNotification).subjectPost.text,
+      'viewer post',
     );
   });
 }

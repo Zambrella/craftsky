@@ -148,6 +148,7 @@ class ProjectCommonMapper extends ClassMapperBase<ProjectCommon> {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = ProjectCommonMapper._());
       ProjectPatternMapper.ensureInitialized();
+      ProjectMaterialMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -184,8 +185,8 @@ class ProjectCommonMapper extends ClassMapperBase<ProjectCommon> {
     _$pattern,
     opt: true,
   );
-  static List<String>? _$materials(ProjectCommon v) => v.materials;
-  static const Field<ProjectCommon, List<String>> _f$materials = Field(
+  static List<ProjectMaterial>? _$materials(ProjectCommon v) => v.materials;
+  static const Field<ProjectCommon, List<ProjectMaterial>> _f$materials = Field(
     'materials',
     _$materials,
     opt: true,
@@ -301,7 +302,12 @@ extension ProjectCommonValueCopy<$R, $Out>
 abstract class ProjectCommonCopyWith<$R, $In extends ProjectCommon, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
   ProjectPatternCopyWith<$R, ProjectPattern, ProjectPattern>? get pattern;
-  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>? get materials;
+  ListCopyWith<
+    $R,
+    ProjectMaterial,
+    ProjectMaterialCopyWith<$R, ProjectMaterial, ProjectMaterial>
+  >?
+  get materials;
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>? get colors;
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>? get designTags;
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>? get tags;
@@ -311,7 +317,7 @@ abstract class ProjectCommonCopyWith<$R, $In extends ProjectCommon, $Out>
     String? title,
     String? duration,
     ProjectPattern? pattern,
-    List<String>? materials,
+    List<ProjectMaterial>? materials,
     List<String>? colors,
     List<String>? designTags,
     List<String>? tags,
@@ -331,11 +337,15 @@ class _ProjectCommonCopyWithImpl<$R, $Out>
   ProjectPatternCopyWith<$R, ProjectPattern, ProjectPattern>? get pattern =>
       $value.pattern?.copyWith.$chain((v) => call(pattern: v));
   @override
-  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>? get materials =>
-      $value.materials != null
+  ListCopyWith<
+    $R,
+    ProjectMaterial,
+    ProjectMaterialCopyWith<$R, ProjectMaterial, ProjectMaterial>
+  >?
+  get materials => $value.materials != null
       ? ListCopyWith(
           $value.materials!,
-          (v, t) => ObjectCopyWith(v, $identity, t),
+          (v, t) => v.copyWith.$chain(t),
           (v) => call(materials: v),
         )
       : null;
@@ -435,6 +445,10 @@ class ProjectPatternMapper extends ClassMapperBase<ProjectPattern> {
     _$name,
     opt: true,
   );
+  static List<Map<String, dynamic>>? _$nameFacets(ProjectPattern v) =>
+      v.nameFacets;
+  static const Field<ProjectPattern, List<Map<String, dynamic>>> _f$nameFacets =
+      Field('nameFacets', _$nameFacets, opt: true);
   static String? _$difficulty(ProjectPattern v) => v.difficulty;
   static const Field<ProjectPattern, String> _f$difficulty = Field(
     'difficulty',
@@ -447,20 +461,31 @@ class ProjectPatternMapper extends ClassMapperBase<ProjectPattern> {
     _$designer,
     opt: true,
   );
+  static List<Map<String, dynamic>>? _$designerFacets(ProjectPattern v) =>
+      v.designerFacets;
+  static const Field<ProjectPattern, List<Map<String, dynamic>>>
+  _f$designerFacets = Field('designerFacets', _$designerFacets, opt: true);
   static String? _$publisher(ProjectPattern v) => v.publisher;
   static const Field<ProjectPattern, String> _f$publisher = Field(
     'publisher',
     _$publisher,
     opt: true,
   );
+  static List<Map<String, dynamic>>? _$publisherFacets(ProjectPattern v) =>
+      v.publisherFacets;
+  static const Field<ProjectPattern, List<Map<String, dynamic>>>
+  _f$publisherFacets = Field('publisherFacets', _$publisherFacets, opt: true);
 
   @override
   final MappableFields<ProjectPattern> fields = const {
     #url: _f$url,
     #name: _f$name,
+    #nameFacets: _f$nameFacets,
     #difficulty: _f$difficulty,
     #designer: _f$designer,
+    #designerFacets: _f$designerFacets,
     #publisher: _f$publisher,
+    #publisherFacets: _f$publisherFacets,
   };
   @override
   final bool ignoreNull = true;
@@ -469,9 +494,12 @@ class ProjectPatternMapper extends ClassMapperBase<ProjectPattern> {
     return ProjectPattern(
       url: data.dec(_f$url),
       name: data.dec(_f$name),
+      nameFacets: data.dec(_f$nameFacets),
       difficulty: data.dec(_f$difficulty),
       designer: data.dec(_f$designer),
+      designerFacets: data.dec(_f$designerFacets),
       publisher: data.dec(_f$publisher),
+      publisherFacets: data.dec(_f$publisherFacets),
     );
   }
 
@@ -537,12 +565,33 @@ extension ProjectPatternValueCopy<$R, $Out>
 
 abstract class ProjectPatternCopyWith<$R, $In extends ProjectPattern, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
+  ListCopyWith<
+    $R,
+    Map<String, dynamic>,
+    ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>
+  >?
+  get nameFacets;
+  ListCopyWith<
+    $R,
+    Map<String, dynamic>,
+    ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>
+  >?
+  get designerFacets;
+  ListCopyWith<
+    $R,
+    Map<String, dynamic>,
+    ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>
+  >?
+  get publisherFacets;
   $R call({
     String? url,
     String? name,
+    List<Map<String, dynamic>>? nameFacets,
     String? difficulty,
     String? designer,
+    List<Map<String, dynamic>>? designerFacets,
     String? publisher,
+    List<Map<String, dynamic>>? publisherFacets,
   });
   ProjectPatternCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -558,34 +607,231 @@ class _ProjectPatternCopyWithImpl<$R, $Out>
   late final ClassMapperBase<ProjectPattern> $mapper =
       ProjectPatternMapper.ensureInitialized();
   @override
+  ListCopyWith<
+    $R,
+    Map<String, dynamic>,
+    ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>
+  >?
+  get nameFacets => $value.nameFacets != null
+      ? ListCopyWith(
+          $value.nameFacets!,
+          (v, t) => ObjectCopyWith(v, $identity, t),
+          (v) => call(nameFacets: v),
+        )
+      : null;
+  @override
+  ListCopyWith<
+    $R,
+    Map<String, dynamic>,
+    ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>
+  >?
+  get designerFacets => $value.designerFacets != null
+      ? ListCopyWith(
+          $value.designerFacets!,
+          (v, t) => ObjectCopyWith(v, $identity, t),
+          (v) => call(designerFacets: v),
+        )
+      : null;
+  @override
+  ListCopyWith<
+    $R,
+    Map<String, dynamic>,
+    ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>
+  >?
+  get publisherFacets => $value.publisherFacets != null
+      ? ListCopyWith(
+          $value.publisherFacets!,
+          (v, t) => ObjectCopyWith(v, $identity, t),
+          (v) => call(publisherFacets: v),
+        )
+      : null;
+  @override
   $R call({
     Object? url = $none,
     Object? name = $none,
+    Object? nameFacets = $none,
     Object? difficulty = $none,
     Object? designer = $none,
+    Object? designerFacets = $none,
     Object? publisher = $none,
+    Object? publisherFacets = $none,
   }) => $apply(
     FieldCopyWithData({
       if (url != $none) #url: url,
       if (name != $none) #name: name,
+      if (nameFacets != $none) #nameFacets: nameFacets,
       if (difficulty != $none) #difficulty: difficulty,
       if (designer != $none) #designer: designer,
+      if (designerFacets != $none) #designerFacets: designerFacets,
       if (publisher != $none) #publisher: publisher,
+      if (publisherFacets != $none) #publisherFacets: publisherFacets,
     }),
   );
   @override
   ProjectPattern $make(CopyWithData data) => ProjectPattern(
     url: data.get(#url, or: $value.url),
     name: data.get(#name, or: $value.name),
+    nameFacets: data.get(#nameFacets, or: $value.nameFacets),
     difficulty: data.get(#difficulty, or: $value.difficulty),
     designer: data.get(#designer, or: $value.designer),
+    designerFacets: data.get(#designerFacets, or: $value.designerFacets),
     publisher: data.get(#publisher, or: $value.publisher),
+    publisherFacets: data.get(#publisherFacets, or: $value.publisherFacets),
   );
 
   @override
   ProjectPatternCopyWith<$R2, ProjectPattern, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   ) => _ProjectPatternCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class ProjectMaterialMapper extends ClassMapperBase<ProjectMaterial> {
+  ProjectMaterialMapper._();
+
+  static ProjectMaterialMapper? _instance;
+  static ProjectMaterialMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = ProjectMaterialMapper._());
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'ProjectMaterial';
+
+  static String _$text(ProjectMaterial v) => v.text;
+  static const Field<ProjectMaterial, String> _f$text = Field('text', _$text);
+  static List<Map<String, dynamic>>? _$facets(ProjectMaterial v) => v.facets;
+  static const Field<ProjectMaterial, List<Map<String, dynamic>>> _f$facets =
+      Field('facets', _$facets, opt: true);
+
+  @override
+  final MappableFields<ProjectMaterial> fields = const {
+    #text: _f$text,
+    #facets: _f$facets,
+  };
+  @override
+  final bool ignoreNull = true;
+
+  static ProjectMaterial _instantiate(DecodingData data) {
+    return ProjectMaterial(
+      text: data.dec(_f$text),
+      facets: data.dec(_f$facets),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static ProjectMaterial fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<ProjectMaterial>(map);
+  }
+
+  static ProjectMaterial fromJson(String json) {
+    return ensureInitialized().decodeJson<ProjectMaterial>(json);
+  }
+}
+
+mixin ProjectMaterialMappable {
+  String toJson() {
+    return ProjectMaterialMapper.ensureInitialized()
+        .encodeJson<ProjectMaterial>(this as ProjectMaterial);
+  }
+
+  Map<String, dynamic> toMap() {
+    return ProjectMaterialMapper.ensureInitialized().encodeMap<ProjectMaterial>(
+      this as ProjectMaterial,
+    );
+  }
+
+  ProjectMaterialCopyWith<ProjectMaterial, ProjectMaterial, ProjectMaterial>
+  get copyWith =>
+      _ProjectMaterialCopyWithImpl<ProjectMaterial, ProjectMaterial>(
+        this as ProjectMaterial,
+        $identity,
+        $identity,
+      );
+  @override
+  String toString() {
+    return ProjectMaterialMapper.ensureInitialized().stringifyValue(
+      this as ProjectMaterial,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return ProjectMaterialMapper.ensureInitialized().equalsValue(
+      this as ProjectMaterial,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return ProjectMaterialMapper.ensureInitialized().hashValue(
+      this as ProjectMaterial,
+    );
+  }
+}
+
+extension ProjectMaterialValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, ProjectMaterial, $Out> {
+  ProjectMaterialCopyWith<$R, ProjectMaterial, $Out> get $asProjectMaterial =>
+      $base.as((v, t, t2) => _ProjectMaterialCopyWithImpl<$R, $Out>(v, t, t2));
+}
+
+abstract class ProjectMaterialCopyWith<$R, $In extends ProjectMaterial, $Out>
+    implements ClassCopyWith<$R, $In, $Out> {
+  ListCopyWith<
+    $R,
+    Map<String, dynamic>,
+    ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>
+  >?
+  get facets;
+  $R call({String? text, List<Map<String, dynamic>>? facets});
+  ProjectMaterialCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _ProjectMaterialCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, ProjectMaterial, $Out>
+    implements ProjectMaterialCopyWith<$R, ProjectMaterial, $Out> {
+  _ProjectMaterialCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<ProjectMaterial> $mapper =
+      ProjectMaterialMapper.ensureInitialized();
+  @override
+  ListCopyWith<
+    $R,
+    Map<String, dynamic>,
+    ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>
+  >?
+  get facets => $value.facets != null
+      ? ListCopyWith(
+          $value.facets!,
+          (v, t) => ObjectCopyWith(v, $identity, t),
+          (v) => call(facets: v),
+        )
+      : null;
+  @override
+  $R call({String? text, Object? facets = $none}) => $apply(
+    FieldCopyWithData({
+      if (text != null) #text: text,
+      if (facets != $none) #facets: facets,
+    }),
+  );
+  @override
+  ProjectMaterial $make(CopyWithData data) => ProjectMaterial(
+    text: data.get(#text, or: $value.text),
+    facets: data.get(#facets, or: $value.facets),
+  );
+
+  @override
+  ProjectMaterialCopyWith<$R2, ProjectMaterial, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  ) => _ProjectMaterialCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 
 class ProjectGaugeMapper extends ClassMapperBase<ProjectGauge> {

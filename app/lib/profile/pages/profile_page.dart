@@ -18,6 +18,7 @@ import 'package:craftsky_app/profile/widgets/profile_tabs/profile_about_tab.dart
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_comments_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_empty_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_posts_tab.dart';
+import 'package:craftsky_app/profile/widgets/profile_tabs/profile_projects_tab.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -284,8 +285,9 @@ class _ProfileTabScrollView extends StatelessWidget {
         handle: profile.handle,
         isOwnProfile: isOwnProfile,
       ),
-      ProfileTab.projects => ProfileEmptyTab(
-        message: l10n.profileEmptyProjects,
+      ProfileTab.projects => ProfileProjectsTab(
+        handle: profile.handle,
+        isOwnProfile: isOwnProfile,
       ),
       ProfileTab.saved => ProfileEmptyTab(message: l10n.profileEmptySaved),
       ProfileTab.reposts => ProfileEmptyTab(message: l10n.profileEmptyReposts),

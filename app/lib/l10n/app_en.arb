@@ -52,6 +52,12 @@
     "placeholders": { "actor": { "type": "String", "example": "Alice" } }
   },
 
+  "notificationMentionRow": "{actor} mentioned you",
+  "@notificationMentionRow": {
+    "description": "Notification row title for a mention activity.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
   "welcomeTitle": "Welcome",
   "@welcomeTitle": { "description": "Title and main heading on the welcome page." },
 
@@ -194,7 +200,7 @@
   "@profileAboutJoinedHeading": { "description": "Section heading above the join-date on the About tab." },
 
   "profileEmptyProjects": "No projects yet.",
-  "@profileEmptyProjects": { "description": "Muted placeholder shown in the Projects tab while project data isn't wired." },
+  "@profileEmptyProjects": { "description": "Muted placeholder shown in the Projects tab when the user has no project posts." },
 
   "profileEmptySaved": "Nothing saved yet.",
   "@profileEmptySaved": { "description": "Muted placeholder shown in the Saved tab while saved-item data isn't wired." },
@@ -309,6 +315,213 @@
 
   "postComposeTitle": "New post",
   "@postComposeTitle": { "description": "Title of the text-only post composer sheet." },
+
+  "postTypeRegularLabel": "Regular post",
+  "@postTypeRegularLabel": { "description": "Label for the regular-post option in the top-level post-type chooser." },
+
+  "postTypeRegularDescription": "Share a quick update, thought or question.",
+  "@postTypeRegularDescription": { "description": "Brief description for the regular-post option in the top-level post-type chooser." },
+
+  "postTypeProjectLabel": "Project post",
+  "@postTypeProjectLabel": { "description": "Label for the project-post option in the top-level post-type chooser." },
+
+  "postTypeProjectDescription": "Add photos and structured project details.",
+  "@postTypeProjectDescription": { "description": "Brief description for the project-post option in the top-level post-type chooser." },
+
+  "projectComposerTitle": "Project post",
+  "@projectComposerTitle": { "description": "Title of the project composer sheet." },
+
+  "projectComposerNextAction": "Next",
+  "@projectComposerNextAction": { "description": "Button label for advancing to the next project composer page." },
+
+  "projectComposerRequiredLabel": "required",
+  "@projectComposerRequiredLabel": { "description": "Small marker shown beside project composer field labels when the field is required." },
+
+  "projectComposerDetailsPrompt": "Fill in the details about your project",
+  "@projectComposerDetailsPrompt": { "description": "Short helper text shown above the project title on the first project composer page." },
+
+  "projectComposerOptionalDetailsPrompt": "This information is optional but will help others find your project",
+  "@projectComposerOptionalDetailsPrompt": { "description": "Short helper text shown at the top of the optional details page in the project composer." },
+
+  "projectComposerProjectTitleLabel": "Project title",
+  "@projectComposerProjectTitleLabel": { "description": "Label for the optional project-title field in the project composer." },
+
+  "projectComposerProjectTitleHint": "Add a short project title",
+  "@projectComposerProjectTitleHint": { "description": "Placeholder text for the optional project-title field in the project composer." },
+
+  "projectComposerDescriptionLabel": "Project description",
+  "@projectComposerDescriptionLabel": { "description": "Label above the main project description text field in the project composer." },
+
+  "projectComposerDescriptionHint": "Tell everyone about your project",
+  "@projectComposerDescriptionHint": { "description": "Hint text inside the main project description text field in the project composer." },
+
+  "projectComposerCraftTypeLabel": "Craft type",
+  "@projectComposerCraftTypeLabel": { "description": "Label for the project composer craft-type field." },
+
+  "projectComposerStatusLabel": "Status",
+  "@projectComposerStatusLabel": { "description": "Label for the project composer status field." },
+
+  "projectComposerMaterialsLabel": "Materials",
+  "@projectComposerMaterialsLabel": { "description": "Label for the project composer materials field." },
+
+  "projectComposerMaterialsAddHint": "Add material",
+  "@projectComposerMaterialsAddHint": { "description": "Hint text for the free-text materials entry in the project composer." },
+
+  "projectComposerMaterialsAddAction": "Add",
+  "@projectComposerMaterialsAddAction": { "description": "Button label for adding a typed material in the project composer." },
+
+  "projectComposerMaterialsMaxLengthError": "Keep each material to {max} characters or fewer.",
+  "@projectComposerMaterialsMaxLengthError": {
+    "description": "Validation error for a project composer material entry that is too long.",
+    "placeholders": { "max": { "type": "int", "example": "100" } }
+  },
+
+  "projectComposerFieldDisabledLabel": "Disabled",
+  "@projectComposerFieldDisabledLabel": { "description": "Small helper label shown by reusable project fields while create is loading and controls are disabled." },
+
+  "projectComposerMultiSelectMaxSelectedError": "You can choose up to {maxSelected}.",
+  "@projectComposerMultiSelectMaxSelectedError": {
+    "description": "Validation helper shown when a project multi-select field reaches its configured maximum.",
+    "placeholders": { "maxSelected": { "type": "int", "example": "10" } }
+  },
+
+  "projectComposerColoursLabel": "Colours",
+  "@projectComposerColoursLabel": { "description": "Label for the project composer colours field." },
+
+  "projectComposerColoursSearchHint": "Search colours",
+  "@projectComposerColoursSearchHint": { "description": "Placeholder text for searching known colour options in the project composer." },
+
+  "projectComposerDesignTagsLabel": "Design tags",
+  "@projectComposerDesignTagsLabel": { "description": "Label for the project composer design-tags field." },
+
+  "projectComposerDesignTagsSearchHint": "Search design tags",
+  "@projectComposerDesignTagsSearchHint": { "description": "Placeholder text for searching known design-tag options in the project composer." },
+
+  "projectComposerAddPatternAction": "Add pattern",
+  "@projectComposerAddPatternAction": { "description": "Action that reveals optional project pattern fields in the project composer." },
+
+  "projectComposerPatternSectionLabel": "Pattern",
+  "@projectComposerPatternSectionLabel": { "description": "Disclosure label for the optional pattern section in the project composer." },
+
+  "projectComposerPatternInfoSectionLabel": "Pattern info",
+  "@projectComposerPatternInfoSectionLabel": { "description": "Section title shown above optional pattern details after a pattern tag or name is entered." },
+
+  "projectComposerMoreDetailsLabel": "More project details",
+  "@projectComposerMoreDetailsLabel": { "description": "Disclosure label for optional craft-specific project detail fields." },
+
+  "projectComposerSelectCraftTypeEmptyState": "Select Craft Type",
+  "@projectComposerSelectCraftTypeEmptyState": { "description": "Empty-state text shown in the craft-specific project details section before a craft type is selected." },
+
+  "projectComposerSewingProjectTypeLabel": "Project type",
+  "@projectComposerSewingProjectTypeLabel": { "description": "Label for the sewing project-type field in project details." },
+
+  "projectComposerProjectSubtypeLabel": "Project subtype",
+  "@projectComposerProjectSubtypeLabel": { "description": "Label for the craft-specific project subtype field in project details." },
+
+  "projectComposerSizeMadeLabel": "Size made",
+  "@projectComposerSizeMadeLabel": { "description": "Label for the sewing size-made detail field." },
+
+  "projectComposerSizeMadeHint": "e.g. Medium or custom measurements",
+  "@projectComposerSizeMadeHint": { "description": "Placeholder text for the sewing size-made detail field." },
+
+  "projectComposerFitNotesLabel": "Fit notes",
+  "@projectComposerFitNotesLabel": { "description": "Label for the sewing fit-notes detail field." },
+
+  "projectComposerFitNotesHint": "Add fit notes",
+  "@projectComposerFitNotesHint": { "description": "Placeholder text for the sewing fit-notes detail field." },
+
+  "projectComposerKnittingProjectTypeLabel": "Project type",
+  "@projectComposerKnittingProjectTypeLabel": { "description": "Label for the knitting project-type field in project details." },
+
+  "projectComposerCrochetProjectTypeLabel": "Project type",
+  "@projectComposerCrochetProjectTypeLabel": { "description": "Label for the crochet project-type field in project details." },
+
+  "projectComposerQuiltingProjectTypeLabel": "Project type",
+  "@projectComposerQuiltingProjectTypeLabel": { "description": "Label for the quilting project-type field in project details." },
+
+  "projectComposerYarnWeightLabel": "Yarn weight",
+  "@projectComposerYarnWeightLabel": { "description": "Label for yarn-weight detail fields." },
+
+  "projectComposerNeedleSizeLabel": "Needle size",
+  "@projectComposerNeedleSizeLabel": { "description": "Label for the knitting needle-size detail field." },
+
+  "projectComposerHookSizeLabel": "Hook size",
+  "@projectComposerHookSizeLabel": { "description": "Label for the crochet hook-size detail field." },
+
+  "projectComposerGaugeStitchesLabel": "Gauge stitches",
+  "@projectComposerGaugeStitchesLabel": { "description": "Label for gauge stitches input in project details." },
+
+  "projectComposerGaugeStitchesHint": "Stitches",
+  "@projectComposerGaugeStitchesHint": { "description": "Placeholder text for gauge stitch count fields." },
+
+  "projectComposerGaugeRowsLabel": "Gauge rows",
+  "@projectComposerGaugeRowsLabel": { "description": "Label for optional gauge rows input in project details." },
+
+  "projectComposerGaugeRowsHint": "Rows",
+  "@projectComposerGaugeRowsHint": { "description": "Placeholder text for optional gauge row count fields." },
+
+  "projectComposerGaugeMeasurementLabel": "Gauge measurement",
+  "@projectComposerGaugeMeasurementLabel": { "description": "Label for gauge measurement input in project details." },
+
+  "projectComposerGaugeMeasurementHint": "Measurement",
+  "@projectComposerGaugeMeasurementHint": { "description": "Placeholder text for gauge measurement fields." },
+
+  "projectComposerGaugeUnitLabel": "Gauge unit",
+  "@projectComposerGaugeUnitLabel": { "description": "Label for gauge unit selection in project details." },
+
+  "projectComposerFinishedSizeLabel": "Finished size",
+  "@projectComposerFinishedSizeLabel": { "description": "Label for finished-size detail fields." },
+
+  "projectComposerFinishedSizeHint": "Add finished size",
+  "@projectComposerFinishedSizeHint": { "description": "Placeholder text for finished-size detail fields." },
+
+  "projectComposerSizeLabel": "Size",
+  "@projectComposerSizeLabel": { "description": "Label for the quilting size detail field." },
+
+  "projectComposerPiecingTechniqueLabel": "Piecing technique",
+  "@projectComposerPiecingTechniqueLabel": { "description": "Label for the quilting piecing-technique detail field." },
+
+  "projectComposerQuiltingMethodLabel": "Quilting method",
+  "@projectComposerQuiltingMethodLabel": { "description": "Label for the quilting method detail field." },
+
+  "projectComposerBodyRequiredError": "Add body text.",
+  "@projectComposerBodyRequiredError": { "description": "Validation error shown when submitting a project post without body text." },
+
+  "projectComposerCraftRequiredError": "Choose a craft type.",
+  "@projectComposerCraftRequiredError": { "description": "Validation error shown when submitting a project post without selecting a craft type." },
+
+  "projectComposerPhotoRequiredError": "Add at least one photo.",
+  "@projectComposerPhotoRequiredError": { "description": "Validation error shown when submitting a project post without a photo." },
+
+  "projectComposerGaugeInvalidError": "Complete the gauge or clear it.",
+  "@projectComposerGaugeInvalidError": { "description": "Validation error shown when gauge values are partial, missing a unit, or not positive whole numbers." },
+
+  "projectComposerPatternNameLabel": "Pattern tag or name",
+  "@projectComposerPatternNameLabel": { "description": "Label for the optional pattern tag-or-name field in the project composer." },
+
+  "projectComposerPatternNameHint": "Add pattern name",
+  "@projectComposerPatternNameHint": { "description": "Placeholder text for the optional pattern-name field in the project composer." },
+
+  "projectComposerPatternUrlLabel": "Link",
+  "@projectComposerPatternUrlLabel": { "description": "Label for the optional pattern URL field in the project composer." },
+
+  "projectComposerPatternUrlHint": "https://example.com/pattern",
+  "@projectComposerPatternUrlHint": { "description": "Placeholder text for the optional pattern URL field in the project composer." },
+
+  "projectComposerPatternDifficultyLabel": "Difficulty",
+  "@projectComposerPatternDifficultyLabel": { "description": "Label for the optional pattern difficulty field in the project composer." },
+
+  "projectComposerPatternDesignerLabel": "Designer",
+  "@projectComposerPatternDesignerLabel": { "description": "Label for the optional pattern designer field in the project composer." },
+
+  "projectComposerPatternDesignerHint": "Add pattern designer",
+  "@projectComposerPatternDesignerHint": { "description": "Placeholder text for the optional pattern designer field in the project composer." },
+
+  "projectComposerPatternPublisherLabel": "Publisher",
+  "@projectComposerPatternPublisherLabel": { "description": "Label for the optional pattern publisher field in the project composer." },
+
+  "projectComposerPatternPublisherHint": "Add pattern publisher",
+  "@projectComposerPatternPublisherHint": { "description": "Placeholder text for the optional pattern publisher field in the project composer." },
 
   "postComposeHint": "What are you making?",
   "@postComposeHint": { "description": "Label above the text field in the text-only post composer." },
@@ -471,6 +684,9 @@
 
   "postUnlikeAction": "Unlike",
   "@postUnlikeAction": { "description": "Tooltip for removing a like from a post." },
+
+  "postLikeError": "Couldn't update like.",
+  "@postLikeError": { "description": "Snackbar shown when liking or unliking a post fails and the previous state is restored." },
 
   "postReplyAction": "Reply",
   "@postReplyAction": { "description": "Tooltip and optional label for replying to a post." },

@@ -20,7 +20,7 @@ class CraftskyContextMenuItem {
 
   final String text;
   final IconData icon;
-  final VoidCallback? onPressed;
+  final FutureOr<void> Function()? onPressed;
   final String? description;
   final bool isSelected;
   final CraftskyContextMenuItemStyle style;
@@ -31,6 +31,27 @@ class CraftskyContextMenuGroup {
   const CraftskyContextMenuGroup({required this.items});
 
   final List<CraftskyContextMenuItem> items;
+}
+
+/// Returns an overlay-relative position anchored to [context]'s render box.
+RelativeRect craftskyContextMenuAnchorPosition(BuildContext context) {
+  final renderObject = context.findRenderObject();
+  final overlayObject = Overlay.of(context).context.findRenderObject();
+  if (renderObject is! RenderBox || overlayObject is! RenderBox) {
+    return RelativeRect.fill;
+  }
+  final topLeft = renderObject.localToGlobal(
+    Offset.zero,
+    ancestor: overlayObject,
+  );
+  final bottomRight = renderObject.localToGlobal(
+    renderObject.size.bottomRight(Offset.zero),
+    ancestor: overlayObject,
+  );
+  return RelativeRect.fromRect(
+    Rect.fromPoints(topLeft, bottomRight),
+    Offset.zero & overlayObject.size,
+  );
 }
 
 /// Icon button that opens a responsive Craftsky context menu.
@@ -53,20 +74,10 @@ class CraftskyContextMenuButton extends StatelessWidget {
       tooltip: tooltip,
       padding: EdgeInsets.zero,
       onPressed: () {
-        final button = context.findRenderObject()! as RenderBox;
-        final overlay =
-            Navigator.of(context).overlay!.context.findRenderObject()!
-                as RenderBox;
-        final offset = button.localToGlobal(Offset.zero, ancestor: overlay);
-        final position = RelativeRect.fromRect(
-          offset & button.size,
-          Offset.zero & overlay.size,
-        );
-
         unawaited(
           showCraftskyContextMenu(
             context,
-            position: position,
+            position: craftskyContextMenuAnchorPosition(context),
             groups: groups,
           ),
         );
@@ -91,6 +102,7 @@ Future<void> showCraftskyContextMenu(
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final radius = BorderRadius.vertical(top: Radius.circular(radii.r4));
 
+    var selectedAction = Future<void>.value();
     await showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
@@ -102,8 +114,17 @@ Future<void> showCraftskyContextMenu(
         borderRadius: radius,
         side: BorderSide(color: theme.colorScheme.onSurface, width: 1.5),
       ),
-      builder: (_) => _CraftskyContextMenuSheet(groups: groups),
+      builder: (_) => _CraftskyContextMenuSheet(
+        groups: groups,
+        onSelected: (item) {
+          Navigator.of(context, rootNavigator: true).pop();
+          selectedAction = Future<void>.microtask(() async {
+            await item.onPressed?.call();
+          });
+        },
+      ),
     );
+    await selectedAction;
     return;
   }
 
@@ -122,7 +143,7 @@ Future<void> showCraftskyContextMenu(
     ),
     items: _popupEntries(groups),
   );
-  selected?.onPressed?.call();
+  await selected?.onPressed?.call();
 }
 
 List<PopupMenuEntry<CraftskyContextMenuItem>> _popupEntries(
@@ -151,9 +172,13 @@ List<PopupMenuEntry<CraftskyContextMenuItem>> _popupEntries(
 }
 
 class _CraftskyContextMenuSheet extends StatelessWidget {
-  const _CraftskyContextMenuSheet({required this.groups});
+  const _CraftskyContextMenuSheet({
+    required this.groups,
+    required this.onSelected,
+  });
 
   final List<CraftskyContextMenuGroup> groups;
+  final void Function(CraftskyContextMenuItem item) onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -184,12 +209,7 @@ class _CraftskyContextMenuSheet extends StatelessWidget {
         children.add(
           _CraftskyContextMenuRow(
             item: item,
-            onTap: item.onPressed == null
-                ? null
-                : () {
-                    Navigator.of(context).pop();
-                    item.onPressed?.call();
-                  },
+            onTap: item.onPressed == null ? null : () => onSelected(item),
           ),
         );
       }

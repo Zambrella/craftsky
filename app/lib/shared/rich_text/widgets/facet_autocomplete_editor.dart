@@ -148,10 +148,16 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
     this.enabled = true,
     this.errorText,
     this.helperText,
+    this.betweenLabelAndField,
     this.helperAlignment = AlignmentDirectional.centerStart,
+    this.suffixIcon,
     this.keyboardType,
     this.textInputAction,
+    this.onSubmitted,
     this.onChanged,
+    this.allowedTokenKinds,
+    this.required = false,
+    this.requiredLabel = 'required',
   });
 
   /// Field label.
@@ -181,8 +187,14 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
   /// Optional helper text below the field.
   final String? helperText;
 
+  /// Optional content rendered between the label and the text field.
+  final Widget? betweenLabelAndField;
+
   /// Alignment for helper text.
   final AlignmentGeometry helperAlignment;
+
+  /// Optional trailing widget inside the field decoration.
+  final Widget? suffixIcon;
 
   /// Keyboard type for the inner text field.
   final TextInputType? keyboardType;
@@ -190,8 +202,20 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
   /// Text input action for the inner text field.
   final TextInputAction? textInputAction;
 
+  /// Parent submitted callback.
+  final ValueChanged<String>? onSubmitted;
+
   /// Parent change callback.
   final ValueChanged<String>? onChanged;
+
+  /// Autocomplete token kinds this editor should respond to.
+  final Set<ActiveFacetTokenKind>? allowedTokenKinds;
+
+  /// Whether the label should display the required marker.
+  final bool required;
+
+  /// Required marker text rendered beside the label.
+  final String requiredLabel;
 
   @override
   ConsumerState<FacetAutocompleteEditor> createState() =>
@@ -258,7 +282,8 @@ class _FacetAutocompleteEditorState
       widget.controller.value,
     );
     _debounceTimer?.cancel();
-    if (token == null) {
+    if (token == null ||
+        !(widget.allowedTokenKinds?.contains(token.kind) ?? true)) {
       setState(() {
         _activeToken = null;
         _accountSuggestions = null;
@@ -420,11 +445,21 @@ class _FacetAutocompleteEditorState
         .clamp(math.min(viewportPadding, maxLeft), maxLeft)
         .toDouble();
 
+    final spaceBelow =
+        overlayBox.size.height - tokenStart.dy - (viewportPadding * 2);
+    final spaceAbove = tokenStart.dy - (viewportPadding * 2);
+    final (top, maxHeight) = spaceBelow > 0
+        ? (tokenStart.dy + viewportPadding, spaceBelow)
+        : (viewportPadding, spaceAbove);
+    if (maxHeight <= 0) {
+      return null;
+    }
+
     return _SuggestionOverlayGeometry(
       left: left,
-      top: tokenStart.dy + viewportPadding,
+      top: top,
       width: width,
-      maxHeight: overlayBox.size.height - tokenStart.dy - (viewportPadding * 2),
+      maxHeight: maxHeight,
     );
   }
 
@@ -462,9 +497,14 @@ class _FacetAutocompleteEditorState
           enabled: widget.enabled,
           errorText: widget.errorText,
           helperText: widget.helperText,
+          betweenLabelAndField: widget.betweenLabelAndField,
           helperAlignment: widget.helperAlignment,
+          suffixIcon: widget.suffixIcon,
+          required: widget.required,
+          requiredLabel: widget.requiredLabel,
           keyboardType: widget.keyboardType,
           textInputAction: widget.textInputAction,
+          onSubmitted: widget.onSubmitted,
           onChanged: _onChanged,
         ),
       ],

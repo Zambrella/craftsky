@@ -102,7 +102,7 @@ The union on `details` is open (no `closed: true`). Adding a new craft is purely
 | `title` | string | no | `maxGraphemes: 200, maxLength: 500` | Optional project name. Not required — matches the casual Instagram-style "finished this!" posting pattern. Clients wanting grid/card views fall back to truncated `text` when title is absent. |
 | `duration` | string | no | `maxGraphemes: 100, maxLength: 500` | Free-text description of how long the project took ("3 weeks", "a weekend", "6 months of evenings"). Deliberately unstructured — crafters describe duration informally. Not queryable by range as a result. |
 | `pattern` | `social.craftsky.project.defs#pattern` | no | | Optional pattern reference. See [`#pattern`](#socialcraftskyprojectdefspattern). |
-| `materials` | `array<string>` | no | Each `maxGraphemes: 100, maxLength: 100`. Array `maxLength: 20` | Free-form tags for materials used. Indexed as a multi-value column on the AppView side. See [Materials design rationale](#materials). |
+| `materials` | `array<social.craftsky.project.defs#material>` | no | Array `maxLength: 10`. Each `material.text` has `maxGraphemes: 100, maxLength: 1000`; `material.facets[]` uses `app.bsky.richtext.facet` and is scoped to `text`. | Free-form visible material entries with optional mention/hashtag facets. `text` is indexed as the material multi-value column; hashtag facets are merged into searchable tags. See [Materials design rationale](#materials). |
 | `tags` | `array<string>` | no | Each `maxGraphemes: 64, maxLength: 64`. Array `maxLength: 10`. Per-entry pattern `^[a-z0-9]+(-[a-z0-9]+)*$` | Structured search tags. Composer-side normalised. See [Tags design rationale](#tags). |
 
 ### `social.craftsky.project.defs#pattern`
@@ -177,12 +177,13 @@ Sewing sub-domain tokens live in a sibling `social.craftsky.project.sewing.defs`
 
 ### Materials design rationale
 
-`materials: array<string>` — free-form strings, no structure beyond the array. Rationale:
+`materials: array<#material>` — each entry is a free-form visible text object with optional field-scoped facets. Rationale:
 
 - Materials are universal (every craft has them) but their *structure* varies wildly per craft: yarn has weight/fibre/skeins; fabric has type/yardage/width; wood has species/dimensions/board-feet. Forcing a shared object shape would either be too thin (only a `name` field) or too domain-specific.
-- Free-form strings work for every craft and stay composer-simple (a tag-input field where the user types "linen" and presses enter).
+- Free-form visible text works for every craft and stays composer-simple: type one material, press Add, clear the field for the next material.
+- Mentions and hashtags inside material text are semantic, not decoration. They use `app.bsky.richtext.facet` on the individual material string so byte ranges remain local to the text they annotate.
 - Structured material data (yarn weight as a token, fabric yardage as a number) can still live in per-craft `#details` if needed — they answer different questions. Cross-craft search on "linen" still works via `materials[]`; "show me all DK-weight knitting projects" would use a knitting-specific `yarnWeight` field in knitting's `#details`.
-- Indexer materialises `materials[]` as a multi-value searchable column.
+- Indexer materialises `materials[].text` as a multi-value searchable column and merges hashtag facets from `materials[].facets` into searchable tags. Mention facets contribute to the post-mentions table used by notifications.
 
 ### Tags design rationale
 
@@ -221,7 +222,7 @@ This accepts that inline-authored tags will look uglier than field-authored tags
 The spec documents the following help-text hints as a client contract, so every composer (Flutter first, hypothetical third-party clients later) teaches users the same conventions:
 
 - **Tags field:** "Use spaces for multi-word tags — we'll format them. These help people find your project in search."
-- **Materials field:** "List materials one at a time. Searchable — keep them descriptive."
+- **Materials field:** "List materials one at a time. You can include @mentions and #tags."
 
 These are not lexicon concerns — they're UX hints captured here so they don't get lost when building the composer screen.
 
@@ -231,7 +232,7 @@ Beyond ADR 001's commitment to materialise `is_project` and `craftType` as query
 
 - `project.common.status`
 - `project.common.pattern.difficulty`
-- `project.common.materials[]` (multi-value index)
+- `project.common.materials[].text` (multi-value material index) and material facet hashtags/mentions
 - `project.common.tags[]` (multi-value index, with inline-facet merge as documented above)
 - Per-craft `#details` fields, each as its own column(s) as each craft is added. Sewing's `projectType` is the first.
 
@@ -264,11 +265,11 @@ Considered and rejected in favour of free-text `duration`.
 
 Cost: duration is not queryable by range ("all projects that took more than a month"). Accepted as a non-goal — this is a niche filter at best.
 
-### `materials` as `array<#material>` with structured fields
+### `materials` as structured quantity/vendor fields
 
-Considered `materials: array<{name, quantity?, notes?}>`. Rejected in favour of `array<string>`.
+Considered `materials: array<{name, quantity?, notes?}>`. Rejected in favour of rich-text material entries.
 
-**Reason:** the `quantity` field would often duplicate what's already in post text, and since it'd be optional, most records wouldn't have it — making search on it unreliable. Simple strings cover the discovery use case (search on "merino") and keep the composer simple.
+**Reason:** the `quantity` field would often duplicate what's already in post text, and since it'd be optional, most records wouldn't have it — making search on it unreliable. A visible `text` field covers the discovery use case (search on "merino") while facets preserve mentions and hashtags without forcing a cross-craft material schema.
 
 ### Rich sewing `#details` (garment sizing, finished dimensions, fit notes)
 

@@ -36,6 +36,9 @@ Future<void> showPostReportSheet(
             );
           });
 
+          // TODO(Agent): It would be better if the ReportSubjectSheet handled
+          // the state/submission logic itself. It can show a loading indicator
+          // and error messages itself. Also close itself on success.
           return ReportSubjectSheet(
             subjectType: ReportSubjectType.post,
             isSubmitting: submitState.isLoading,

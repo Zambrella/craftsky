@@ -1,4 +1,5 @@
 import 'package:craftsky_app/profile/widgets/profile_bio.dart';
+import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:flutter/material.dart';
@@ -72,17 +73,51 @@ void main() {
           (widget) =>
               widget is Text &&
               widget.textSpan?.toPlainText() ==
-                  'mailto:x@y.example https://craftsky.social/#lace #lace',
+                  'mailto:x@y.example craftsky.social #lace',
         ),
       );
       final spans = _leafTextSpans(body.textSpan! as TextSpan);
       expect(spans.map((span) => span.text), [
         'mailto:x@y.example ',
-        'https://craftsky.social/#lace',
+        'craftsky.social',
         ' ',
         '#lace',
       ]);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('confirms before opening bio links', (tester) async {
+      Uri? launched;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            facetUrlLauncherProvider.overrideWithValue((uri) async {
+              launched = uri;
+              return true;
+            }),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            home: const Scaffold(
+              body: ProfileBio(
+                description: 'https://craftsky.social/#lace',
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('craftsky.social'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Open link?'), findsOneWidget);
+      expect(find.text('https://craftsky.social/#lace'), findsOneWidget);
+      expect(launched, isNull);
+
+      await tester.tap(find.text('Open link'));
+      await tester.pumpAndSettle();
+
+      expect(launched, Uri.parse('https://craftsky.social/#lace'));
     });
   });
 }

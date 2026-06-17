@@ -67,9 +67,12 @@ CREATE TABLE craftsky_project_posts (
     common_duration TEXT,
     pattern_url TEXT,
     pattern_name TEXT,
+    pattern_name_facets JSONB,
     pattern_difficulty TEXT,
     pattern_designer TEXT,
+    pattern_designer_facets JSONB,
     pattern_publisher TEXT,
+    pattern_publisher_facets JSONB,
     materials TEXT[] NOT NULL DEFAULT '{}',
     colors TEXT[] NOT NULL DEFAULT '{}',
     design_tags TEXT[] NOT NULL DEFAULT '{}',
@@ -98,6 +101,13 @@ CREATE TABLE craftsky_project_posts (
     sewing_size_made TEXT,
     sewing_fit_notes TEXT,
     indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE craftsky_post_mentions (
+    post_uri TEXT NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
+    mentioned_did TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (post_uri, mentioned_did)
 );
 CREATE TABLE craftsky_likes (
     uri         TEXT        NOT NULL PRIMARY KEY,
@@ -216,6 +226,16 @@ func seedInteraction(t *testing.T, pool *pgxpool.Pool, table, did, rkey, subject
 		t.Fatalf("seed %s: %v", table, err)
 	}
 	return uri
+}
+
+func seedPostMention(t *testing.T, pool *pgxpool.Pool, postURI, mentionedDID string, indexedAt time.Time) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO craftsky_post_mentions (post_uri, mentioned_did, created_at, indexed_at)
+		VALUES ($1, $2, $3, $3)
+	`, postURI, mentionedDID, indexedAt); err != nil {
+		t.Fatalf("seed post mention: %v", err)
+	}
 }
 
 func seedModerationOutput(t *testing.T, pool *pgxpool.Pool, subjectType, subjectDID, subjectURI, value string, createdAt time.Time) {

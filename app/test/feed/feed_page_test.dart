@@ -335,6 +335,30 @@ void main() {
     expect(find.byIcon(Icons.favorite), findsOneWidget);
   });
 
+  testWidgets('FeedPage shows an error when liking fails', (tester) async {
+    final post = _post('like-fails');
+    final messenger = RecordingMessenger();
+    await _pump(
+      tester,
+      FakePostRepository(
+        onListTimeline: ({cursor, limit}) async => PostPage(items: [post]),
+        onLike: (did, rkey) async => throw Exception('pds write failed'),
+      ),
+      messenger: messenger,
+    );
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.favorite_border));
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      messenger.calls,
+      contains(('error', "Couldn't update like.", null)),
+    );
+    expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+  });
+
   testWidgets('FeedPage reply opens focused thread and updates root row', (
     tester,
   ) async {
@@ -386,6 +410,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.chat_bubble_outline));
     await tester.pumpAndSettle();
+    expect(find.text('Regular post'), findsNothing);
+    expect(find.text('Project post'), findsNothing);
     await tester.enterText(find.byType(TextField), 'new comment');
     await tester.pump();
     await tester.tap(find.widgetWithText(TextButton, 'Reply'));
@@ -517,20 +543,25 @@ void main() {
     tester,
   ) async {
     PostReply? capturedReply;
+    Object? capturedProject;
     await _pump(
       tester,
       FakePostRepository(
         onListTimeline: ({cursor, limit}) async =>
             PostPage(items: [_post('old')]),
-        onCreate: ({required text, reply, images}) async {
-          capturedReply = reply;
-          return _post('new');
-        },
+        onCreateWithFacets:
+            ({required text, reply, project, images, facets}) async {
+              capturedReply = reply;
+              capturedProject = project;
+              return _post('new');
+            },
       ),
     );
 
     await tester.pumpAndSettle();
     await tester.tap(find.text('New post'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Regular post'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'top-level');
     await tester.pump();
@@ -538,6 +569,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(capturedReply, isNull);
+    expect(capturedProject, isNull);
     expect(find.text('timeline post new'), findsOneWidget);
     expect(find.text('timeline post old'), findsOneWidget);
   });

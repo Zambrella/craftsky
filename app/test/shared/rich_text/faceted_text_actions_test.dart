@@ -30,7 +30,7 @@ void main() {
       expect(find.text('profile:alice.craftsky.social'), findsOneWidget);
     });
 
-    testWidgets('AT-006 tapping a link uses the injected launcher', (
+    testWidgets('AT-006 tapping a link confirms before launching', (
       tester,
     ) async {
       Uri? launched;
@@ -56,7 +56,19 @@ void main() {
           }),
         ],
       );
-      await tester.tap(find.text('https://craftsky.social'));
+
+      expect(find.text('craftsky.social'), findsOneWidget);
+      expect(find.text('https://craftsky.social'), findsNothing);
+
+      await tester.tap(find.text('craftsky.social'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Open link?'), findsOneWidget);
+      expect(find.text('This will open outside Craftsky.'), findsOneWidget);
+      expect(find.text('https://craftsky.social'), findsOneWidget);
+      expect(launched, isNull);
+
+      await tester.tap(find.text('Open link'));
       await tester.pumpAndSettle();
 
       expect(launched, Uri.parse('https://craftsky.social'));
@@ -106,7 +118,9 @@ void main() {
           }),
         ],
       );
-      await tester.tap(find.text('https://craftsky.social'));
+      await tester.tap(find.text('craftsky.social'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open link'));
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);

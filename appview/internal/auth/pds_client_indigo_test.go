@@ -133,6 +133,31 @@ func TestIndigoPDSClient_CreateRecord_EmptyCIDErrors(t *testing.T) {
 	}
 }
 
+func TestIndigoPDSClient_CreateRecord_AuthErrorExpiresSession(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"AuthenticationRequired","message":"invalid access token"}`))
+	}))
+	defer srv.Close()
+
+	expired := false
+	cli := &IndigoPDSClient{
+		Client: atclient.NewAPIClient(srv.URL),
+		OnSessionExpired: func(context.Context) {
+			expired = true
+		},
+	}
+	_, _, err := cli.CreateRecord(context.Background(),
+		syntax.DID("did:plc:xyz"), "social.craftsky.feed.post", map[string]any{})
+	if !errors.Is(err, ErrPDSSessionExpired) {
+		t.Fatalf("want ErrPDSSessionExpired, got %v", err)
+	}
+	if !expired {
+		t.Fatal("OnSessionExpired was not called")
+	}
+}
+
 func TestIndigoPDSClient_DeleteRecord_HappyPath(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/xrpc/com.atproto.repo.deleteRecord" || r.Method != http.MethodPost {

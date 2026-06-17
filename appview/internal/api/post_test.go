@@ -476,6 +476,24 @@ func TestLikePost_PDSCreateFailureReturns502(t *testing.T) {
 	}
 }
 
+func TestLikePost_PDSSessionExpiredReturns401(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{target: &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"}}
+	h := api.LikePostHandler(store, newPDSFactory(&fakePDS{createErr: auth.ErrPDSSessionExpired}), nilLogger())
+	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/likes", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "pds_session_expired" {
+		t.Errorf("error = %q", body.Error)
+	}
+}
+
 func TestUnlikePost_ExistingDeletesPDSRecord(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}
@@ -1002,6 +1020,24 @@ func TestCreatePost_PDSUnavailable_502(t *testing.T) {
 	}
 }
 
+func TestCreatePost_PDSSessionExpiredReturns401(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{}
+	h := api.CreatePostHandler(store, newPDSFactory(&fakePDS{createErr: auth.ErrPDSSessionExpired}), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
+	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hi"}`, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "pds_session_expired" {
+		t.Errorf("error = %q", body.Error)
+	}
+}
+
 func TestCreatePost_QuoteEmbed_TranslatedToLexiconShape(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}
@@ -1056,7 +1092,14 @@ func TestCreatePost_WithProject_WritesProjectToPDSAndResponse(t *testing.T) {
 			"common":{
 				"craftType":"social.craftsky.feed.defs#knitting",
 				"title":"Hitchhiker Shawl",
-				"tags":[" fairisle ", "WIP"]
+				"materials":[{"text":"3m of @alice.craftsky.social #viscose fabric","facets":[{"index":{"byteStart":6,"byteEnd":28},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:alice"}]},{"index":{"byteStart":29,"byteEnd":37},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"Viscose"}]}]}],
+				"tags":[" fairisle ", "WIP"],
+				"pattern":{
+					"name":"#hitchhiker",
+					"nameFacets":[{"index":{"byteStart":0,"byteEnd":11},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"Hitchhiker"}]}],
+					"designer":"@alice.craftsky.social",
+					"designerFacets":[{"index":{"byteStart":0,"byteEnd":22},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:alice"}]}]
+				}
 			},
 			"details":{"$type":"social.craftsky.project.knitting#details","projectType":"shawl"}
 		}
@@ -1073,6 +1116,21 @@ func TestCreatePost_WithProject_WritesProjectToPDSAndResponse(t *testing.T) {
 	if project == nil || project.Common.CraftType != "social.craftsky.feed.defs#knitting" || project.Common.Title == nil || *project.Common.Title != "Hitchhiker Shawl" {
 		t.Fatalf("PDS project = %#v", rec["project"])
 	}
+	if project.Common.Pattern == nil || project.Common.Pattern.Name == nil || *project.Common.Pattern.Name != "#hitchhiker" {
+		t.Fatalf("PDS project pattern = %#v", project.Common.Pattern)
+	}
+	if len(project.Common.Materials) != 1 || project.Common.Materials[0].Text != "3m of @alice.craftsky.social #viscose fabric" {
+		t.Fatalf("PDS project materials = %#v", project.Common.Materials)
+	}
+	if got := facetArrayLength(t, project.Common.Materials[0].Facets); got != 2 {
+		t.Fatalf("PDS material facets len = %d, want 2", got)
+	}
+	if got := facetArrayLength(t, project.Common.Pattern.NameFacets); got != 1 {
+		t.Fatalf("PDS pattern name facets len = %d, want 1", got)
+	}
+	if got := facetArrayLength(t, project.Common.Pattern.DesignerFacets); got != 1 {
+		t.Fatalf("PDS pattern designer facets len = %d, want 1", got)
+	}
 	if _, ok := rec["createdAt"].(string); !ok {
 		t.Fatalf("createdAt missing from PDS record: %#v", rec)
 	}
@@ -1084,7 +1142,7 @@ func TestCreatePost_WithProject_WritesProjectToPDSAndResponse(t *testing.T) {
 	if resp.Project == nil || resp.Project.Common.Title == nil || *resp.Project.Common.Title != "Hitchhiker Shawl" {
 		t.Fatalf("response project = %+v", resp.Project)
 	}
-	wantTags := []string{"fairisle", "wip"}
+	wantTags := []string{"fairisle", "wip", "hitchhiker", "viscose"}
 	if !reflect.DeepEqual(resp.Tags, wantTags) {
 		t.Fatalf("response tags = %v, want %v", resp.Tags, wantTags)
 	}
@@ -2629,4 +2687,13 @@ func TestListPosts_HandleResolutionFails_502(t *testing.T) {
 	if !strings.Contains(body, "identity_unavailable") {
 		t.Errorf("expected identity_unavailable in body, got: %s", body)
 	}
+}
+
+func facetArrayLength(t *testing.T, raw json.RawMessage) int {
+	t.Helper()
+	var facets []map[string]any
+	if err := json.Unmarshal(raw, &facets); err != nil {
+		t.Fatalf("unmarshal facets %s: %v", raw, err)
+	}
+	return len(facets)
 }

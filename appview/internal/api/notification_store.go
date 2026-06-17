@@ -14,10 +14,11 @@ import (
 type NotificationType string
 
 const (
-	NotificationTypeFollow NotificationType = "follow"
-	NotificationTypeLike   NotificationType = "like"
-	NotificationTypeRepost NotificationType = "repost"
-	NotificationTypeReply  NotificationType = "reply"
+	NotificationTypeFollow  NotificationType = "follow"
+	NotificationTypeLike    NotificationType = "like"
+	NotificationTypeRepost  NotificationType = "repost"
+	NotificationTypeReply   NotificationType = "reply"
+	NotificationTypeMention NotificationType = "mention"
 )
 
 type NotificationReplyRef struct {
@@ -95,6 +96,23 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			JOIN craftsky_posts parent ON parent.uri = reply.reply_parent_uri
 			WHERE parent.did = $1
 			  AND reply.did <> $1
+			UNION ALL
+			SELECT
+				'mention'::text AS event_type,
+				p.uri, p.cid, p.rkey,
+				p.did AS actor_did,
+				m.created_at, m.indexed_at,
+				p.uri AS subject_uri
+			FROM craftsky_post_mentions m
+			JOIN craftsky_posts p ON p.uri = m.post_uri
+			WHERE m.mentioned_did = $1
+			  AND p.did <> $1
+			  AND NOT EXISTS (
+				SELECT 1
+				FROM craftsky_posts parent
+				WHERE parent.uri = p.reply_parent_uri
+				  AND parent.did = $1
+			  )
 		)
 		SELECT
 			e.event_type,

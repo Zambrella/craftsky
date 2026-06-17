@@ -4,6 +4,8 @@ import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
@@ -191,6 +193,65 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'root project post uses detail card while comments stay compact',
+    (
+      tester,
+    ) async {
+      final root = _post('did:plc:alice', 'root', 'root post').copyWith(
+        project: const Project(
+          common: ProjectCommon(
+            craftType: ProjectOptionCatalogs.sewingCraftToken,
+            title: 'Root jacket',
+            duration: '3 weekends',
+            materials: [ProjectMaterial(text: 'linen')],
+          ),
+          details: SewingProjectDetails(fitNotes: 'Root fit notes'),
+        ),
+      );
+      final comment = _post('did:plc:bob', 'comment', 'comment').copyWith(
+        project: const Project(
+          common: ProjectCommon(
+            craftType: ProjectOptionCatalogs.knittingCraftToken,
+            title: 'Comment sweater',
+            duration: '1 month',
+          ),
+          details: KnittingProjectDetails(finishedSize: '42 in bust'),
+        ),
+      );
+      final repo = FakePostRepository(
+        onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+            PostCommentSection(
+              post: root,
+              sort: CommentSort.oldest,
+              comments: CommentPage(
+                items: [
+                  CommentItem(
+                    post: comment,
+                    placement: CommentPlacement.normal,
+                    replies: const ReplyPage(loaded: false, items: []),
+                  ),
+                ],
+              ),
+            ),
+      );
+
+      await _pumpCommentSection(tester, repo: repo);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('project-detail-card')), findsOneWidget);
+      expect(find.text('Root jacket'), findsOneWidget);
+      expect(find.text('DURATION'), findsOneWidget);
+      expect(find.text('3 weekends'), findsOneWidget);
+      expect(find.text('MATERIALS'), findsOneWidget);
+      expect(find.text('linen'), findsOneWidget);
+      expect(find.text('FIT NOTES'), findsOneWidget);
+      expect(find.text('Root fit notes'), findsOneWidget);
+      expect(find.text('Comment sweater'), findsOneWidget);
+      expect(find.text('1 month'), findsNothing);
+    },
+  );
 
   testWidgets('focused reply branch is promoted before normal comments', (
     tester,

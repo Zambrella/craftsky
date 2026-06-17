@@ -55,6 +55,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String notificationMentionRow(String actor) {
+    return '$actor mentioned you';
+  }
+
+  @override
   String get welcomeTitle => 'Welcome';
 
   @override
@@ -321,6 +326,218 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postComposeTitle => 'New post';
 
   @override
+  String get postTypeRegularLabel => 'Regular post';
+
+  @override
+  String get postTypeRegularDescription =>
+      'Share a quick update, thought or question.';
+
+  @override
+  String get postTypeProjectLabel => 'Project post';
+
+  @override
+  String get postTypeProjectDescription =>
+      'Add photos and structured project details.';
+
+  @override
+  String get projectComposerTitle => 'Project post';
+
+  @override
+  String get projectComposerNextAction => 'Next';
+
+  @override
+  String get projectComposerRequiredLabel => 'required';
+
+  @override
+  String get projectComposerDetailsPrompt =>
+      'Fill in the details about your project';
+
+  @override
+  String get projectComposerOptionalDetailsPrompt =>
+      'This information is optional but will help others find your project';
+
+  @override
+  String get projectComposerProjectTitleLabel => 'Project title';
+
+  @override
+  String get projectComposerProjectTitleHint => 'Add a short project title';
+
+  @override
+  String get projectComposerDescriptionLabel => 'Project description';
+
+  @override
+  String get projectComposerDescriptionHint =>
+      'Tell everyone about your project';
+
+  @override
+  String get projectComposerCraftTypeLabel => 'Craft type';
+
+  @override
+  String get projectComposerStatusLabel => 'Status';
+
+  @override
+  String get projectComposerMaterialsLabel => 'Materials';
+
+  @override
+  String get projectComposerMaterialsAddHint => 'Add material';
+
+  @override
+  String get projectComposerMaterialsAddAction => 'Add';
+
+  @override
+  String projectComposerMaterialsMaxLengthError(int max) {
+    return 'Keep each material to $max characters or fewer.';
+  }
+
+  @override
+  String get projectComposerFieldDisabledLabel => 'Disabled';
+
+  @override
+  String projectComposerMultiSelectMaxSelectedError(int maxSelected) {
+    return 'You can choose up to $maxSelected.';
+  }
+
+  @override
+  String get projectComposerColoursLabel => 'Colours';
+
+  @override
+  String get projectComposerColoursSearchHint => 'Search colours';
+
+  @override
+  String get projectComposerDesignTagsLabel => 'Design tags';
+
+  @override
+  String get projectComposerDesignTagsSearchHint => 'Search design tags';
+
+  @override
+  String get projectComposerAddPatternAction => 'Add pattern';
+
+  @override
+  String get projectComposerPatternSectionLabel => 'Pattern';
+
+  @override
+  String get projectComposerPatternInfoSectionLabel => 'Pattern info';
+
+  @override
+  String get projectComposerMoreDetailsLabel => 'More project details';
+
+  @override
+  String get projectComposerSelectCraftTypeEmptyState => 'Select Craft Type';
+
+  @override
+  String get projectComposerSewingProjectTypeLabel => 'Project type';
+
+  @override
+  String get projectComposerProjectSubtypeLabel => 'Project subtype';
+
+  @override
+  String get projectComposerSizeMadeLabel => 'Size made';
+
+  @override
+  String get projectComposerSizeMadeHint =>
+      'e.g. Medium or custom measurements';
+
+  @override
+  String get projectComposerFitNotesLabel => 'Fit notes';
+
+  @override
+  String get projectComposerFitNotesHint => 'Add fit notes';
+
+  @override
+  String get projectComposerKnittingProjectTypeLabel => 'Project type';
+
+  @override
+  String get projectComposerCrochetProjectTypeLabel => 'Project type';
+
+  @override
+  String get projectComposerQuiltingProjectTypeLabel => 'Project type';
+
+  @override
+  String get projectComposerYarnWeightLabel => 'Yarn weight';
+
+  @override
+  String get projectComposerNeedleSizeLabel => 'Needle size';
+
+  @override
+  String get projectComposerHookSizeLabel => 'Hook size';
+
+  @override
+  String get projectComposerGaugeStitchesLabel => 'Gauge stitches';
+
+  @override
+  String get projectComposerGaugeStitchesHint => 'Stitches';
+
+  @override
+  String get projectComposerGaugeRowsLabel => 'Gauge rows';
+
+  @override
+  String get projectComposerGaugeRowsHint => 'Rows';
+
+  @override
+  String get projectComposerGaugeMeasurementLabel => 'Gauge measurement';
+
+  @override
+  String get projectComposerGaugeMeasurementHint => 'Measurement';
+
+  @override
+  String get projectComposerGaugeUnitLabel => 'Gauge unit';
+
+  @override
+  String get projectComposerFinishedSizeLabel => 'Finished size';
+
+  @override
+  String get projectComposerFinishedSizeHint => 'Add finished size';
+
+  @override
+  String get projectComposerSizeLabel => 'Size';
+
+  @override
+  String get projectComposerPiecingTechniqueLabel => 'Piecing technique';
+
+  @override
+  String get projectComposerQuiltingMethodLabel => 'Quilting method';
+
+  @override
+  String get projectComposerBodyRequiredError => 'Add body text.';
+
+  @override
+  String get projectComposerCraftRequiredError => 'Choose a craft type.';
+
+  @override
+  String get projectComposerPhotoRequiredError => 'Add at least one photo.';
+
+  @override
+  String get projectComposerGaugeInvalidError =>
+      'Complete the gauge or clear it.';
+
+  @override
+  String get projectComposerPatternNameLabel => 'Pattern tag or name';
+
+  @override
+  String get projectComposerPatternNameHint => 'Add pattern name';
+
+  @override
+  String get projectComposerPatternUrlLabel => 'Link';
+
+  @override
+  String get projectComposerPatternUrlHint => 'https://example.com/pattern';
+
+  @override
+  String get projectComposerPatternDifficultyLabel => 'Difficulty';
+
+  @override
+  String get projectComposerPatternDesignerLabel => 'Designer';
+
+  @override
+  String get projectComposerPatternDesignerHint => 'Add pattern designer';
+
+  @override
+  String get projectComposerPatternPublisherLabel => 'Publisher';
+
+  @override
+  String get projectComposerPatternPublisherHint => 'Add pattern publisher';
+
+  @override
   String get postComposeHint => 'What are you making?';
 
   @override
@@ -476,6 +693,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postUnlikeAction => 'Unlike';
+
+  @override
+  String get postLikeError => 'Couldn\'t update like.';
 
   @override
   String get postReplyAction => 'Reply';

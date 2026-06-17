@@ -3,6 +3,9 @@ import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
+import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
@@ -23,6 +26,7 @@ Post _post({
   List<PostImage>? images,
   DateTime? createdAt,
   ModerationMetadata? moderation,
+  Project? project,
 }) {
   return Post(
     uri: 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
@@ -46,6 +50,7 @@ Post _post({
       displayName: displayName,
     ),
     moderation: moderation,
+    project: project,
   );
 }
 
@@ -53,9 +58,11 @@ Future<void> _pump(
   WidgetTester tester,
   Widget child, {
   EdgeInsets viewPadding = EdgeInsets.zero,
+  List<dynamic> overrides = const [],
 }) {
   return tester.pumpWidget(
     ProviderScope(
+      overrides: List.from(overrides),
       child: MaterialApp(
         theme: AppTheme.lightThemeData,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -138,6 +145,82 @@ void main() {
       expect(spans.map((span) => span.text), ['Hi ', '@alice', ' ', '#Lace']);
       expect(spans[1].style?.color, BrandColors.cobalt);
       expect(spans[3].style?.color, BrandColors.cobalt);
+    });
+
+    testWidgets('renders post body links with the shared display label', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            text: 'See https://example.com/patterns/top?utm_source=feed',
+            facets: [
+              _facet(4, 52, {
+                r'$type': 'app.bsky.richtext.facet#link',
+                'uri': 'https://example.com/patterns/top?utm_source=feed',
+              }),
+            ],
+          ),
+        ),
+      );
+
+      final body = tester.widget<Text>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Text &&
+              widget.textSpan?.toPlainText() == 'See example.com/patterns/top',
+        ),
+      );
+      final spans = _leafTextSpans(body.textSpan! as TextSpan);
+
+      expect(spans.map((span) => span.text), [
+        'See ',
+        'example.com/patterns/top',
+      ]);
+      expect(spans[1].style?.color, BrandColors.cobalt);
+    });
+
+    testWidgets('post body links confirm before opening', (tester) async {
+      Uri? launched;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            text: 'https://example.com/patterns/top?utm_source=feed',
+            facets: [
+              _facet(0, 48, {
+                r'$type': 'app.bsky.richtext.facet#link',
+                'uri': 'https://example.com/patterns/top?utm_source=feed',
+              }),
+            ],
+          ),
+        ),
+        overrides: [
+          facetUrlLauncherProvider.overrideWithValue((uri) async {
+            launched = uri;
+            return true;
+          }),
+        ],
+      );
+
+      await tester.tap(find.text('example.com/patterns/top'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Open link?'), findsOneWidget);
+      expect(
+        find.text('https://example.com/patterns/top?utm_source=feed'),
+        findsOneWidget,
+      );
+      expect(launched, isNull);
+
+      await tester.tap(find.text('Open link'));
+      await tester.pumpAndSettle();
+
+      expect(
+        launched,
+        Uri.parse('https://example.com/patterns/top?utm_source=feed'),
+      );
     });
 
     testWidgets('renders engagement counts and selected colours', (
@@ -254,6 +337,282 @@ void main() {
 
       expect(find.byType(CraftskyCard), findsNothing);
       expect(find.text('Reply'), findsOneWidget);
+    });
+
+    testWidgets('renders project summary before body text', (tester) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            text: 'Process shots, swipe through.',
+            images: [
+              PostImage(
+                cid: 'bafkprojectimage1',
+                mime: 'image/jpeg',
+                size: 10,
+                alt: 'Indigo jacket on a hanger',
+                aspectRatio: const PostImageAspectRatio(width: 4, height: 1),
+                thumb: 'https://cdn.example.com/project-thumb.jpg',
+                fullsize: 'https://cdn.example.com/project-full.jpg',
+              ),
+            ],
+            project: const Project(
+              common: ProjectCommon(
+                craftType: ProjectOptionCatalogs.sewingCraftToken,
+                status: ProjectOptionCatalogs.finishedStatusToken,
+                title: 'Wiksten Haori in indigo linen',
+                pattern: ProjectPattern(
+                  name: 'Wiksten Haori',
+                  designer: 'Jenny Gordy',
+                ),
+              ),
+              details: SewingProjectDetails(sizeMade: 'Medium'),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Wiksten Haori in indigo linen'), findsOneWidget);
+      expect(find.text('Finished'), findsOneWidget);
+      expect(find.text('Sewing'), findsOneWidget);
+      expect(find.text('PATTERN'), findsOneWidget);
+      expect(find.text('Wiksten Haori'), findsOneWidget);
+      expect(find.text('Jenny Gordy'), findsOneWidget);
+      expect(find.text('SIZE'), findsOneWidget);
+      expect(find.text('Medium'), findsOneWidget);
+      expect(find.text('Process shots, swipe through.'), findsOneWidget);
+
+      final title = tester.widget<Text>(
+        find.text('Wiksten Haori in indigo linen'),
+      );
+      final theme = Theme.of(tester.element(find.byType(PostCard)));
+      expect(title.style?.fontFamily, theme.textTheme.displaySmall?.fontFamily);
+      expect(title.style?.fontSize, theme.textTheme.headlineSmall?.fontSize);
+
+      expect(
+        tester.getCenter(find.text('PATTERN')).dy,
+        moreOrLessEquals(
+          tester.getCenter(find.text('Wiksten Haori')).dy,
+          epsilon: 1,
+        ),
+      );
+      expect(
+        tester.getCenter(find.text('SIZE')).dy,
+        moreOrLessEquals(tester.getCenter(find.text('Medium')).dy, epsilon: 1),
+      );
+
+      expect(
+        tester.getBottomLeft(find.byKey(const Key('post-image-carousel'))).dy,
+        lessThan(
+          tester.getTopLeft(find.text('Wiksten Haori in indigo linen')).dy,
+        ),
+      );
+      expect(
+        tester.getTopLeft(find.text('Wiksten Haori in indigo linen')).dy,
+        lessThan(
+          tester.getTopLeft(find.text('Process shots, swipe through.')).dy,
+        ),
+      );
+    });
+
+    testWidgets('renders clickable facets in project pattern metadata', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            project: Project(
+              common: ProjectCommon(
+                craftType: ProjectOptionCatalogs.knittingCraftToken,
+                pattern: ProjectPattern(
+                  name: '#hitchhiker',
+                  nameFacets: [
+                    _facet(0, 11, {
+                      r'$type': 'app.bsky.richtext.facet#tag',
+                      'tag': 'hitchhiker',
+                    }),
+                  ],
+                  designer: '@alice.craftsky.social',
+                  designerFacets: [
+                    _facet(0, 22, {
+                      r'$type': 'app.bsky.richtext.facet#mention',
+                      'did': 'did:plc:alice',
+                    }),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final patternName = tester.widget<Text>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Text && widget.textSpan?.toPlainText() == '#hitchhiker',
+        ),
+      );
+      final designer = tester.widget<Text>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Text &&
+              widget.textSpan?.toPlainText() == '@alice.craftsky.social',
+        ),
+      );
+      final patternNameSpan = _leafTextSpans(
+        patternName.textSpan! as TextSpan,
+      ).single;
+      final designerSpan = _leafTextSpans(
+        designer.textSpan! as TextSpan,
+      ).single;
+
+      expect(patternNameSpan.style?.color, BrandColors.cobalt);
+      expect(patternNameSpan.recognizer, isNotNull);
+      expect(designerSpan.style?.color, BrandColors.cobalt);
+      expect(designerSpan.recognizer, isNotNull);
+    });
+
+    testWidgets('renders partial pattern metadata without empty rows', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            project: const Project(
+              common: ProjectCommon(
+                craftType: ProjectOptionCatalogs.knittingCraftToken,
+                pattern: ProjectPattern(name: 'Hitchhiker'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('PATTERN'), findsOneWidget);
+      expect(find.text('Hitchhiker'), findsOneWidget);
+      expect(find.textContaining(' by '), findsNothing);
+
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            project: const Project(
+              common: ProjectCommon(
+                craftType: ProjectOptionCatalogs.knittingCraftToken,
+                pattern: ProjectPattern(designer: 'Martina Behm'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('PATTERN'), findsOneWidget);
+      expect(find.text('Martina Behm'), findsOneWidget);
+
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            project: const Project(
+              common: ProjectCommon(
+                craftType: ProjectOptionCatalogs.knittingCraftToken,
+                pattern: ProjectPattern(),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('PATTERN'), findsNothing);
+    });
+
+    testWidgets('renders craft-specific size metadata', (tester) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            project: const Project(
+              common: ProjectCommon(
+                craftType: ProjectOptionCatalogs.knittingCraftToken,
+              ),
+              details: KnittingProjectDetails(finishedSize: '40 in bust'),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('FINISHED SIZE'), findsOneWidget);
+      expect(find.text('40 in bust'), findsOneWidget);
+
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            project: const Project(
+              common: ProjectCommon(
+                craftType: ProjectOptionCatalogs.crochetCraftToken,
+              ),
+              details: CrochetProjectDetails(finishedSize: 'Baby blanket'),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('FINISHED SIZE'), findsOneWidget);
+      expect(find.text('Baby blanket'), findsOneWidget);
+
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            project: const Project(
+              common: ProjectCommon(
+                craftType: ProjectOptionCatalogs.quiltingCraftToken,
+              ),
+              details: QuiltingProjectDetails(size: '60 x 72 in'),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('SIZE'), findsOneWidget);
+      expect(find.text('60 x 72 in'), findsOneWidget);
+
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            project: const Project(
+              common: ProjectCommon(
+                craftType: ProjectOptionCatalogs.embroideryCraftToken,
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('SIZE'), findsNothing);
+      expect(find.text('FINISHED SIZE'), findsNothing);
+    });
+
+    testWidgets('falls back to readable labels for unknown project tokens', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            project: const Project(
+              common: ProjectCommon(
+                craftType: 'social.craftsky.feed.defs#machineKnitting',
+                status: 'social.craftsky.feed.defs#blockedOut',
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Machine Knitting'), findsOneWidget);
+      expect(find.text('Blocked Out'), findsOneWidget);
+      expect(find.textContaining('social.craftsky'), findsNothing);
     });
 
     testWidgets('uses stronger treatment when highlighted', (tester) async {

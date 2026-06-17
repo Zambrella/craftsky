@@ -95,6 +95,29 @@ void main() {
       expect(find.text('No posts yet.'), findsOneWidget);
     });
 
+    testWidgets('own-profile New post opens chooser and project branch', (
+      tester,
+    ) async {
+      final repo = FakePostRepository(
+        onListByAuthor: (_, {cursor, limit}) async => const PostPage(items: []),
+      );
+
+      await _pump(tester, repo: repo, isOwnProfile: true);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('New post'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Regular post'), findsOneWidget);
+      expect(find.text('Project post'), findsOneWidget);
+
+      await tester.tap(find.text('Project post'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Project post'), findsOneWidget);
+      expect(find.byKey(const Key('craftType-select-button')), findsOneWidget);
+    });
+
     testWidgets('scrolling near the end appends the next page', (tester) async {
       final calls = <({String? cursor, int? limit})>[];
       final repo = FakePostRepository(
