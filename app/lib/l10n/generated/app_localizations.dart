@@ -454,7 +454,7 @@ abstract class AppLocalizations {
   /// **'Joined'**
   String get profileAboutJoinedHeading;
 
-  /// Muted placeholder shown in the Projects tab while project data isn't wired.
+  /// Muted placeholder shown in the Projects tab when the user has no project posts.
   ///
   /// In en, this message translates to:
   /// **'No projects yet.'**

@@ -200,7 +200,7 @@
   "@profileAboutJoinedHeading": { "description": "Section heading above the join-date on the About tab." },
 
   "profileEmptyProjects": "No projects yet.",
-  "@profileEmptyProjects": { "description": "Muted placeholder shown in the Projects tab while project data isn't wired." },
+  "@profileEmptyProjects": { "description": "Muted placeholder shown in the Projects tab when the user has no project posts." },
 
   "profileEmptySaved": "Nothing saved yet.",
   "@profileEmptySaved": { "description": "Muted placeholder shown in the Saved tab while saved-item data isn't wired." },
