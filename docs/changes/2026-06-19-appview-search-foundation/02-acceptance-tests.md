@@ -115,7 +115,7 @@ Feature: Exact hashtag search
     Given visible top-level posts and projects have stored tags sock, sockknitting, and SOCK normalized as indexed values
     And another visible post text visually contains #sock but its indexed tags do not contain sock
     And a reply contains the stored tag sock
-    When an authenticated user calls GET /v1/search/hashtags/#Sock/posts
+    When an authenticated user calls GET /v1/search/hashtags/Sock/posts
     Then only visible top-level posts and projects whose stored normalized tag equals sock are returned
     And posts with sockknitting are not returned
     And display-text-only #sock matches are not returned
@@ -163,7 +163,7 @@ Feature: Private recent searches
     And Bob's recent-search list does not include Alice's entries
     When Alice saves the same normalized search again with a display label
     Then the existing recent search is refreshed to the top instead of duplicated
-    And updatedAt is refreshed while the display label behavior follows the documented contract
+    And updatedAt is refreshed while the existing stored display label remains unchanged
     When Alice saves more than 50 distinct searches
     Then only the latest 50 remain after pruning
     When Alice deletes a recent-search ID
@@ -318,7 +318,9 @@ Feature: Search scalability guardrails
   Scenario: Search paths are bounded and local to AppView data
     Given a representative seeded AppView database
     When search endpoints are exercised with default and maximum limits
-    Then query limits, query-string lengths, filter counts, and cursors are bounded
+    Then result-list limits default to 25 and reject values above 100
+    And top-hashtag group limits default to 10 and reject values above 50 per craft group
+    And free-text queries, hashtag path values, recent-search display labels, recent-search payload sizes, filter-family counts, total filter counts, and cursors are bounded by the documented v1 limits
     And post/project keyword search uses the documented PostgreSQL full-text or local indexed strategy
     And profile search can use pg_trgm-backed local matching without changing followed-first deterministic ranking
     And normal result hydration does not perform per-result PDS or identity-service network calls
@@ -331,7 +333,7 @@ Feature: Search scalability guardrails
 | UT-001 | FR-003, RULE-002 | AC-001, AC-021 | Normalize exact hashtag request path values. | `" #SockKAL "`, `"#sock"`, `"sock"`, `"##sock"` | One leading `#` is removed, whitespace trimmed, canonical lowercase tag returned; empty/invalid values are rejected. | `appview/internal/api/search_request_test.go` |
 | UT-002 | FR-003, FR-006, FR-018, RULE-003, NFR-001, NFR-002 | AC-019 | Validate search query params. | Missing/blank post `q`, invalid `sort`, profile `sort=popular`, over-limit values, overlong query strings, invalid cursors. | Documented 400/422 standard error envelope; no silent broadening. | `appview/internal/api/search_request_test.go` |
 | UT-003 | FR-007, FR-008, FR-018 | AC-010, AC-011, AC-019 | Parse project filter query parameters and normalize user-facing values. | Repeated `craftType`, `color`, `material`, `designTag`, `projectTag`, invalid key/value. | OR-within-family and AND-across-family representation; case-insensitive normalized comparisons; validation errors for unsupported inputs. | `appview/internal/api/search_request_test.go` |
-| UT-004 | FR-014, FR-021, FR-022 | AC-005, AC-006, AC-027 | Normalize recent-search payloads and produce de-duplication keys. | Hashtag/profile/post/project recent payloads with different casing/ordering. | Stable normalized payload; opaque ID remains server generated; equal normalized payloads map to one per-user de-dupe key. | `appview/internal/api/search_recent_test.go` |
+| UT-004 | FR-014, FR-021, FR-022 | AC-005, AC-006, AC-027 | Normalize recent-search payloads and produce de-duplication keys. | Hashtag/profile/post/project recent payloads with different casing/ordering and duplicate saves with different display labels. | Stable normalized payload; opaque ID remains server generated; equal normalized payloads map to one per-user de-dupe key; duplicate saves preserve the existing stored display label while refreshing `updatedAt`. | `appview/internal/api/search_recent_test.go` |
 | UT-005 | FR-017, BR-006, NFR-003 | AC-013, AC-026 | Calculate centralized popularity scores and tie-breakers. | Likes/replies/reposts, age in hours, equal scores. | Formula matches requirements; deleted/hidden inputs excluded by caller contract; ties sort `created_at DESC, uri DESC`. | `appview/internal/api/search_ranking_test.go` |
 | UT-006 | FR-004, FR-005, BR-002, NFR-005 | AC-003, AC-004 | Classify profile match relevance. | Exact handle, prefix handle, handle substring, display-name, bio match, followed flag. | Followed group outranks non-followed; relevance class order is deterministic inside groups. | `appview/internal/api/search_profile_rank_test.go` |
 | UT-007 | FR-012, BR-004 | AC-008, AC-009, AC-025 | Count top hashtags by distinct project per craft group. | Project rows with duplicate tag sources and requested empty craft groups. | Counts distinct project posts once per tag; requested empty groups return `items: []`. | `appview/internal/api/search_top_hashtags_test.go` |
@@ -349,7 +351,7 @@ Feature: Search scalability guardrails
 | IT-005 | FR-006, FR-019, NFR-006 | AC-022 | Post/project keyword search covers post text and core project fields. | Seed visible top-level regular posts and project posts with matches across text/title/pattern/material/tags. | `GET /v1/search/posts?q=alpaca` and `GET /v1/search/projects?q=alpaca`. | Matching visible top-level records found through local FTS/indexed fields with deterministic tie-breakers. | `appview/internal/api/search_store_test.go` |
 | IT-006 | BR-005, FR-007, FR-008, FR-020, RULE-006 | AC-010, AC-011, AC-023 | Project filters and browse-all project search. | Seed projects across craft type, project type, difficulty, color, material, design tag, project tag, and hidden/non-project rows. | Query repeated same-family filters, combined families, no filters, and `sort=popular`. | OR/AND filter semantics hold; no-filter browse returns all visible top-level projects chronological by default and popular when requested. | `appview/internal/api/search_store_test.go` |
 | IT-007 | BR-004, FR-011, FR-012 | AC-008, AC-009, AC-025 | Top hashtags are grouped and distinct within 28-day window. | Seed project posts inside/outside 28 days across craft types with duplicate tag sources. | `GET /v1/search/hashtags/top` with and without `craftTypes`. | Returned groups and counts match requested/all craft groups; empty requested group included. | `appview/internal/api/search_store_test.go` |
-| IT-008 | BR-003, FR-013, FR-014, FR-021, FR-022 | AC-005, AC-006, AC-007, AC-027 | Recent-search save/list/delete lifecycle. | Migrate recent-search table; authenticate one user. | Save all supported recent types, save duplicate, exceed 50, delete one. | List is newest-first with opaque IDs and rerunnable payloads; duplicate refreshed; older entries pruned; delete hard removes row. | `appview/internal/api/search_recent_store_test.go` |
+| IT-008 | BR-003, FR-013, FR-014, FR-021, FR-022 | AC-005, AC-006, AC-007, AC-027 | Recent-search save/list/delete lifecycle. | Migrate recent-search table; authenticate one user. | Save all supported recent types, save duplicate with a different display label, exceed 50, delete one. | List is newest-first with opaque IDs and rerunnable payloads; duplicate refreshed with existing stored display label preserved; older entries pruned; delete hard removes row. | `appview/internal/api/search_recent_store_test.go` |
 | IT-009 | FR-016, FR-002, RULE-006 | AC-012, AC-015 | Pagination preserves chronological order. | Seed more matching hashtag/post/project results than one page with equal timestamps requiring URI tiebreaker. | Request first page with limit and follow cursor. | Pages continue `created_at DESC, uri DESC` without duplicates; invalid cursor returns `400 invalid_cursor`. | `appview/internal/api/search_store_test.go` |
 | IT-010 | BR-006, FR-006, FR-017 | AC-013, AC-026 | Popularity sort for general post search. | Seed active/deleted likes/reposts and visible/hidden descendant replies across differently aged posts. | `GET /v1/search/posts?q=sock&sort=popular`. | Results follow decayed score using active visible inputs only and deterministic tie-breakers. | `appview/internal/api/search_store_test.go` |
 | IT-011 | BR-006, FR-007, FR-017 | AC-013, AC-023, AC-026 | Popularity sort for project search including browse-all. | Seed projects with different ages and engagement counts. | `GET /v1/search/projects?sort=popular`. | All visible top-level projects are popularity ordered; score ties stable. | `appview/internal/api/search_store_test.go` |
@@ -385,7 +387,7 @@ Feature: Search scalability guardrails
 
 | ID | Requirement IDs | Acceptance Criteria | Check | Steps | Expected Result |
 |---|---|---|---|---|---|
-| MAN-001 | NFR-002, NFR-004, NFR-005, NFR-006 | AC-020, AC-022 | Query-plan/index review for search paths. | After implementation migrations, run representative `EXPLAIN`/local development checks for hashtag equality, profile search, post/project FTS, project filters, top hashtags, and recent-search list. | Queries use bounded limits and appropriate local indexes/materialized columns; no per-result network dependency is needed. |
+| MAN-001 | NFR-002, NFR-004, NFR-005, NFR-006 | AC-020, AC-022 | Query-plan/index review for search paths. | After implementation migrations, run representative `EXPLAIN`/local development checks for hashtag equality, profile search, post/project FTS, project filters, top hashtags, and recent-search list using the documented default and maximum limits. | Queries use bounded limits and appropriate local indexes/materialized columns; no per-result network dependency is needed. |
 | MAN-002 | BR-006, FR-017, NFR-003 | AC-013, AC-026 | Popularity formula review. | Review implementation docs/tests for the centralized formula and tie-breakers. | Formula is implemented once or through a shared helper; score is not part of public response JSON. |
 | MAN-003 | RULE-001, FR-015 | AC-018 | Recent-search privacy/log redaction review. | Inspect logs and handler/store error paths for recent-search save/list/delete. | Full recent-search payloads and long free-text queries are not logged at high verbosity; recent state remains AppView-private. |
 | MAN-004 | NFR-001, FR-009 | AC-014, AC-015, AC-016 | API contract review before Flutter UI work. | Review generated examples or handler responses for camelCase JSON, object-wrapped lists, optional cursors, and error envelope consistency. | Response shapes are stable and suitable for future Flutter search page consumption. |
@@ -394,9 +396,9 @@ Feature: Search scalability guardrails
 
 | ID | Gap / Risk | Affected Requirement IDs | Reason | Follow-Up |
 |---|---|---|---|---|
-| GAP-001 | No concrete latency/row-count performance threshold is specified. | NFR-002, NFR-005, NFR-006 | Requirements require bounded/indexed paths but do not define target data volume or max response time. | Use query-plan/index manual review now; add benchmark or load-test requirements when expected AppView scale is defined. |
+| GAP-001 | No concrete latency/row-count performance threshold is specified. | NFR-002, NFR-005, NFR-006 | Requirements now define v1 request bounds and local indexed-path expectations, but not target data volume or max response time. | Use query-plan/index manual review now; add benchmark or load-test requirements when expected AppView scale is defined. |
 | GAP-002 | `pg_trgm` adoption threshold for profile search is not quantified. | NFR-005 | Requirement says preferred once data size requires it, but not exactly when. | Implementation plan should decide whether to add `pg_trgm` immediately or document threshold; preserve ranking tests either way. |
-| GAP-003 | Full response DTO field names for new search-specific metadata are not fully enumerated. | FR-002, FR-011, FR-013, NFR-001 | Requirements define conventions and required semantics, not every JSON field name for metadata/grouping. | Document review and coding plan should pin response examples before implementation. |
+| GAP-003 | Full response DTO field names for nested existing `PostResponse` and profile-summary objects are inherited rather than restated. | FR-002, FR-009, FR-011, FR-013, NFR-001 | Requirements pin minimum search-specific wrapper fields and rely on existing response contracts for nested post/profile objects. | Coding plan should reuse existing response builders and include handler tests for the documented wrapper fields. |
 
 ## 10. Out Of Scope
 
