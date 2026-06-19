@@ -62,7 +62,7 @@ Decision / implication: AppView must expose an explicit authenticated recent-sea
 
 ### Q4: How should profile search be ordered?
 
-Answer: Prefer matches against handle, then display name, then bio/description.
+Answer: Sort profiles the user follows first, then prefer matches against handle, then display name, then bio/description.
 
 Decision / implication: Profile ranking should prioritize profiles the viewer follows first, then order by textual relevance: exact/prefix handle matches strongest, then handle substring, then display-name matches, then profile-description matches.
 
@@ -77,6 +77,66 @@ Decision / implication: Popularity sorting must use active likes, replies, and r
 Answer: Dedicated `/v1/search/*` endpoints.
 
 Decision / implication: Existing `/v1/facets/*` endpoints remain autocomplete/resolve surfaces. Search-result and search-state APIs should live under `/v1/search/*`.
+
+### Q7: Should exact hashtag search include replies/comments or parse raw post text as a fallback?
+
+Answer: No; exact hashtag search is top-level posts/projects only and matches indexed/materialized tags only.
+
+Decision / implication: Replies/comments are excluded from exact hashtag search in v1, and visual hashtag text that was not materialized into indexed tags is treated as an indexing/composer issue rather than a search fallback.
+
+### Q8: How should top hashtags grouped by craft type be sourced in v1?
+
+Answer: Use project posts only for craft-grouped counts, return requested empty craft groups, do not add an uncategorized group, and count distinct posts.
+
+Decision / implication: Top hashtag groups use project craft metadata and project/post tag materialization. Regular non-project posts are not included until future regular-post craft-type properties exist. If a requested craft has no recent tags, it still appears with `items: []`. Counts represent distinct posts/projects using the tag, not repeated occurrences.
+
+### Q9: Can project search be used as a browse-all project endpoint?
+
+Answer: Yes.
+
+Decision / implication: `GET /v1/search/projects` may be called with no filters or keyword query and returns all visible top-level projects, default sorted chronologically. `sort=popular` is valid even when no filters are present.
+
+### Q10: Can general post search be used with an empty `q`?
+
+Answer: No.
+
+Decision / implication: `GET /v1/search/posts` requires a non-empty query; it is not a global all-posts discovery feed in v1.
+
+### Q11: What fields should keyword post/project search cover?
+
+Answer: Search post text plus core project common fields.
+
+Decision / implication: General post search and project keyword search use post text plus materialized project common fields such as project title, pattern name, material text, project tags, and design tags. Craft-specific detail fields remain primarily filters in v1.
+
+### Q12: What popularity formula and sort tie-breakers should v1 use?
+
+Answer: Use `weightedEngagement = likes + (2 * replies) + (3 * reposts)`, then `popularityScore = weightedEngagement / pow(1 + ageHours / 72, 1.5)`, sorted by score descending, then created time descending, then URI descending.
+
+Decision / implication: Popularity is deterministic and centralized. It counts only active likes, active reposts, and visible descendant replies/comments. The score is internal; API responses return normal engagement counts, not `popularityScore`.
+
+### Q13: What chronological ordering should search use?
+
+Answer: Use authored creation time, not indexing time.
+
+Decision / implication: Chronological search sorting is `created_at DESC, uri DESC`; default search sort is chronological unless the app explicitly requests `sort=popular`.
+
+### Q14: What recent-search lifecycle rules should v1 use?
+
+Answer: Use opaque server-generated IDs, store both normalized payload and display label, de-duplicate by normalized type/payload per user, move duplicates to the top, keep the latest 50 entries per user, and make delete idempotent hard delete.
+
+Decision / implication: Recent search persistence supports user-friendly display labels and deterministic reruns/de-duplication. Saving an existing search refreshes `updatedAt`; older entries beyond 50 are pruned. `DELETE` returns success even if the row is already gone or not owned by the caller, avoiding existence leaks.
+
+### Q15: What matching/indexing strategies should v1 prefer?
+
+Answer: Use PostgreSQL full-text search for post/project keyword search and `pg_trgm` as the preferred scalable profile-search strategy when needed.
+
+Decision / implication: Post/project keyword search is document-like and should be backed by PostgreSQL FTS with deterministic tie-breakers. Profile search keeps explicit followed-first and relevance ranking, using `pg_trgm` only as a scalable local indexed strategy without making ranking opaque.
+
+### Q16: What other result-safety and filter rules apply?
+
+Answer: Apply existing moderation only for profile safety in v1; block/mute filtering is out of scope unless already indexed/enforced. Project filter values match case-insensitively. Exact hashtag responses identify the normalized lowercase canonical tag without `#`.
+
+Decision / implication: Search does not invent block/mute behavior in this slice. App-provided filter casing should not affect project matches, but returned post/project data preserves stored display values. Hashtag result metadata is canonicalized even if recent-search display labels preserve user-entered casing.
 
 ## 4. Candidate Approaches
 
@@ -190,33 +250,39 @@ The AppView exposes authenticated `/v1/search/*` endpoints for exact hashtag pos
 | BR-005 | Business | Must | Craftsky users shall be able to search and filter project posts by craft-relevant fields. | Project discovery needs progressive app-side filters backed by AppView query semantics. | Prompt, Codebase | AC-010, AC-011 |
 | BR-006 | Business | Must | Craftsky users shall be able to order post and project search results by chronology or popularity. | The user requested sort options for searches except profile searches. | Prompt, Q5 | AC-012, AC-013 |
 | FR-001 | Functional | Must | The system shall register dedicated authenticated `/v1/search/*` routes for search results, top hashtags, and recent-search management. | Keeps result search separate from facet autocomplete and follows API architecture. | Q6, Codebase | AC-014, AC-015 |
-| FR-002 | Functional | Must | The system shall expose an exact hashtag results endpoint, such as `GET /v1/search/hashtags/{tag}/posts`, accepting `sort`, `limit`, and `cursor`. | Provides a clear API for hashtag facet taps and typed hashtag searches. | Prompt, Q6 | AC-001, AC-002, AC-012, AC-015 |
+| FR-002 | Functional | Must | The system shall expose a path-based exact hashtag results endpoint, `GET /v1/search/hashtags/{tag}/posts`, accepting `sort`, `limit`, and `cursor`. | Provides a clear API for hashtag facet taps and typed hashtag searches. | Prompt, Q6, Q7 | AC-001, AC-002, AC-012, AC-015, AC-021 |
 | FR-003 | Functional | Must | The system shall normalize hashtag inputs by trimming whitespace, removing one leading `#` if present, and matching case-insensitively against stored normalized tag values. | Users may arrive from typed text or facet taps, while storage is normalized. | Codebase, Prompt | AC-001, EC-001, EC-002 |
 | FR-004 | Functional | Must | The system shall expose profile search, such as `GET /v1/search/profiles?q=...`, searching Craftsky profiles by cached handle, Bluesky display name, and Bluesky description/bio. | Supports semi-fuzzy profile discovery with existing indexed profile data. | Prompt, Q4, Codebase | AC-003, AC-004, EC-003 |
 | FR-005 | Functional | Must | Profile search shall order followed profiles before profiles the viewer does not follow, then order within each followed/non-followed group by textual relevance: exact/prefix handle matches first, then handle substring, display-name matches, and description/bio matches, with stable deterministic tie-breakers. | Matches the user's preferred profile ordering, adds the reviewed followed-first behavior, and makes results predictable. | Q4, Review feedback | AC-004 |
-| FR-006 | Functional | Must | The system shall expose general post search, such as `GET /v1/search/posts?q=...`, over visible top-level posts, including project posts, with chronological and popularity sort support. | Provides broad search that includes projects without forcing users into project-only mode. | Prompt | AC-012, AC-013, AC-016 |
-| FR-007 | Functional | Must | The system shall expose project filter search, such as `GET /v1/search/projects`, filtering visible top-level project posts by supported materialized project fields. | Provides AppView support for the app's future progressive project-filter UI. | Prompt, Codebase | AC-010, AC-011, AC-013 |
-| FR-008 | Functional | Must | Project filter search shall support at least craft type, craft-specific project type, pattern difficulty, color, material text/tag, design tag, project tag, and optional keyword query where data is materialized; v1 filter semantics shall be OR within repeated values for the same filter family and AND across different filter families. | Captures the filter fields called out by the user and current project materialization. | Prompt, Codebase | AC-010, AC-011 |
-| FR-009 | Functional | Must | Search endpoints returning posts/projects shall build the same core post response shape used by existing timeline/profile post endpoints, including author data, project data when present, and engagement summary fields. | Flutter should consume consistent post cards across timeline, profile, and search surfaces. | Codebase, Discovery | AC-016 |
+| FR-006 | Functional | Must | The system shall expose general post search, such as `GET /v1/search/posts?q=...`, over visible top-level posts, including project posts, with chronological and popularity sort support; `q` is required and must be non-empty. | Provides broad search that includes projects without turning post search into a global discovery feed. | Prompt, Q10 | AC-012, AC-013, AC-016, AC-022 |
+| FR-007 | Functional | Must | The system shall expose project filter search as a `GET` endpoint with query parameters, such as `GET /v1/search/projects`, filtering visible top-level project posts by supported materialized project fields. | Provides AppView support for the app's future progressive project-filter UI while keeping search read operations URL-addressable. | Prompt, Codebase, Q29 | AC-010, AC-011, AC-013, AC-023 |
+| FR-008 | Functional | Must | Project filter search shall support at least craft type, craft-specific project type, pattern difficulty, color, material text/tag, design tag, project tag, and optional keyword query where data is materialized; v1 filter semantics shall be OR within repeated values for the same filter family and AND across different filter families, with case-insensitive matching for user-facing string filter values. | Captures the filter fields called out by the user and current project materialization. | Prompt, Codebase, Q25 | AC-010, AC-011 |
+| FR-009 | Functional | Must | Search endpoints returning posts/projects shall build the same core post response shape used by existing timeline/profile post endpoints, including author data, project data when present, and engagement summary fields, but not the internal decayed popularity score. | Flutter should consume consistent post cards across timeline, profile, and search surfaces while ranking internals remain tunable. | Codebase, Discovery, Q18 | AC-016, AC-024 |
 | FR-010 | Functional | Must | Search endpoints shall apply existing post and account moderation visibility rules before limiting, ranking, or returning results. | Hidden/takedown content must not reappear through search. | Codebase | AC-017, EC-004 |
 | FR-011 | Functional | Must | The system shall expose grouped top hashtags, such as `GET /v1/search/hashtags/top?craftTypes=...`, returning craft-grouped tags and recent counts. | Supports blank search discovery grouped by craft interest. | Prompt | AC-008, AC-009 |
-| FR-012 | Functional | Must | Top hashtag results shall use a bounded recent window, defaulting to 28 days for v1, and shall only include hashtags associated with the requested craft groups or all supported craft groups when no craft filter is provided. | Matches existing 28-day hashtag count behavior and app need to pass craft interests. | Prompt, Codebase | AC-008, AC-009 |
-| FR-013 | Functional | Must | The system shall expose recent-search list, save, and delete endpoints, such as `GET /v1/search/recent`, `POST /v1/search/recent`, and `DELETE /v1/search/recent/{id}`. | Recent searches need explicit user-controlled persistence. | Prompt, Q2, Q3 | AC-005, AC-006, AC-007 |
-| FR-014 | Functional | Must | Recent-search saves shall accept a bounded typed payload representing committed searches, including at least hashtag search, profile query, post query, and project filter search. | The app must be able to save the types of searches introduced in this slice. | Q3, Prompt | AC-005, AC-006, EC-005 |
+| FR-012 | Functional | Must | Top hashtag results shall use a bounded recent window, defaulting to 28 days for v1, count distinct project posts using each tag, and shall only include project-post hashtags associated with the requested craft groups or all supported craft groups when no craft filter is provided. | Matches existing 28-day hashtag count behavior and uses reliable v1 craft metadata. | Prompt, Codebase, Q8, Q26 | AC-008, AC-009, AC-025 |
+| FR-013 | Functional | Must | The system shall expose recent-search list, explicit save, and idempotent hard-delete endpoints, such as `GET /v1/search/recent`, `POST /v1/search/recent`, and `DELETE /v1/search/recent/{id}`. | Recent searches need explicit user-controlled persistence and private deletion. | Prompt, Q2, Q3, Q22 | AC-005, AC-006, AC-007 |
+| FR-014 | Functional | Must | Recent-search saves shall accept a bounded typed payload representing committed searches, including at least hashtag search, profile query, post query, and project filter search; saves shall store both normalized payload and display label. | The app must be able to save the types of searches introduced in this slice while preserving display labels. | Q3, Q21, Prompt | AC-005, AC-006, EC-005 |
 | FR-015 | Functional | Must | Recent-search list and delete operations shall be scoped to the authenticated viewer DID. | Search history is private per user. | Q2, AGENTS privacy rule | AC-006, AC-007, AC-018 |
 | FR-016 | Functional | Must | Search list endpoints shall support `limit` and opaque `cursor` pagination following existing AppView v1 conventions. | Consistent pagination is required for app consumption and API architecture compliance. | Codebase | AC-015 |
-| FR-017 | Functional | Must | Post/project popularity sort shall use active likes, active reposts, and descendant replies/comments as engagement inputs and apply deterministic age decay based on the result post's creation time. | Defines popularity in terms discussed by the user while preventing a pure all-time ranking. | Q5, Codebase | AC-013 |
+| FR-017 | Functional | Must | Post/project popularity sort shall use the centralized v1 formula `score = (likes + (2 * replies) + (3 * reposts)) / pow(1 + ageHours / 72, 1.5)`, counting active likes, active reposts, and visible descendant replies/comments only. | Defines popularity in terms discussed by the user while preventing a pure all-time ranking. | Q5, Q13, Q14, Q17, Codebase | AC-013, AC-026 |
 | FR-018 | Functional | Should | Search query parsing should reject or ignore unsupported filter fields with clear validation behavior instead of silently broadening results. | Avoids app bugs causing misleading or overly broad searches. | Discovery | AC-019, EC-006 |
+| FR-019 | Functional | Must | General post search and project keyword search shall search post text plus core materialized project common fields: project title, pattern name, material text, project tags, and design tags. | Users expect keyword search to find project metadata such as titles and materials without searching every raw craft-specific field. | Q11, Q12 | AC-022 |
+| FR-020 | Functional | Must | Project search shall allow no filters or keyword query and return all visible top-level projects, defaulting to chronological order unless `sort=popular` is explicitly requested. | Supports the future progressive project browse/filter UI. | Q9, Q28 | AC-023 |
+| FR-021 | Functional | Must | Recent-search saves shall de-duplicate by authenticated user, search type, and normalized payload, update `updatedAt`/move duplicates to the top, keep only the latest 50 entries per user, and prune older entries. | Keeps recent searches useful and bounded. | Q19, Q20 | AC-027 |
+| FR-022 | Functional | Must | Recent-search IDs returned to clients shall be opaque server-generated identifiers, not derived from query payloads or exposed composite keys. | Avoids leaking query payloads in URLs/logs and keeps the API flexible. | Q23 | AC-006, AC-007 |
 | NFR-001 | Non-functional | Must | Search APIs shall use `/v1/*` camelCase JSON, standard AppView error envelopes, and authenticated session/device middleware. | Required by existing AppView API conventions. | Codebase | AC-014, AC-015, AC-019 |
 | NFR-002 | Non-functional | Must | Search queries shall be bounded by default and maximum limits, bounded query string lengths, and indexed access paths appropriate for expected AppView growth. | Search can become expensive without guardrails. | Discovery | AC-015, AC-020 |
-| NFR-003 | Non-functional | Should | Popularity scoring should be centralized and documented so future scoring changes do not require changing endpoint names or response shapes. | The formula is product-sensitive and likely to evolve. | Q5 | AC-013 |
+| NFR-003 | Non-functional | Should | Popularity scoring should be centralized and documented so future scoring changes do not require changing endpoint names or response shapes. | The formula is product-sensitive and likely to evolve. | Q5, Q14 | AC-013 |
 | NFR-004 | Non-functional | Should | Search endpoints should avoid per-result network calls to PDS or identity services in the normal result path. | Search should be responsive and rely on indexed AppView data. | Codebase | AC-020 |
 | NFR-005 | Non-functional | Should | Profile search should use PostgreSQL `pg_trgm` as the preferred scalable local indexed strategy once data size requires indexed substring or similarity matching, while preserving explicit deterministic v1 ranking. | Keeps profile search scalable without making ranking opaque. | Review feedback | AC-004, AC-020 |
+| NFR-006 | Non-functional | Should | Post/project keyword search should use PostgreSQL full-text search as the intended v1 local search strategy, with deterministic relevance and sort tie-breakers. | Post and project keyword search is document-like and should not rely on slow raw substring scans. | Q31 | AC-020, AC-022 |
 | RULE-001 | Business rule | Must | Recent searches are private AppView data and must not be written to the PDS or exposed to other users. | Search history is private-by-intent behavior. | Q2, AGENTS privacy rule | AC-018 |
 | RULE-002 | Business rule | Must | Exact hashtag result search shall match stored tag equality, not substring, prefix, full-text, or display-text-only matches. | User explicitly requested only posts with the exact hashtag. | Prompt | AC-001, AC-002 |
 | RULE-003 | Business rule | Must | Profile searches shall not support chronology or popularity sorting in v1; unsupported profile sort parameters shall return validation errors rather than changing relevance ordering. | User excluded profile searches from chronology/popularity ordering. | Prompt | AC-004, EC-007 |
 | RULE-004 | Business rule | Must | Search result endpoints shall not auto-save recents; only the explicit recent-search save endpoint records a search. | Prevents noisy recent searches from intermediate typing/autocomplete requests. | Q3 | AC-005, EC-008 |
 | RULE-005 | Business rule | Must | Deleting a recent search shall hard delete that recent-search row rather than soft deleting it. | The user explicitly chose hard delete for private recent-search removal. | Review feedback | AC-007, AC-018 |
+| RULE-006 | Business rule | Must | Search result list endpoints shall default to chronological order (`created_at DESC, uri DESC`) unless the endpoint has relevance-only semantics or the app explicitly requests `sort=popular`. | Craftsky's product principles favor chronological ordering by default. | Q13, Q15, Q27 | AC-012, AC-023 |
 
 ## 13. Acceptance Criteria
 
@@ -233,7 +299,7 @@ The AppView exposes authenticated `/v1/search/*` endpoints for exact hashtag pos
 | AC-009 | BR-004, FR-011, FR-012 | Given a requested craft type has no recent hashtag activity, when top hashtags are requested, then the response includes that requested craft group with an empty `items` list so the app can render stable craft sections. |
 | AC-010 | BR-005, FR-007, FR-008 | Given indexed project posts with different craft types, project types, difficulties, colors, materials, design tags, and project tags, when project search filters are provided, then only projects matching the requested filter combination are returned. |
 | AC-011 | BR-005, FR-007, FR-008 | Given multiple values for supported project filters, when project search is requested, then the endpoint applies OR semantics within repeated values for the same filter family, AND semantics across different filter families, and rejects unsupported filter values or fields according to validation rules. |
-| AC-012 | BR-006, FR-002, FR-006 | Given matching hashtag or post search results with different creation/index times, when `sort=chronological` is requested, then results are ordered newest-first with deterministic tie-breakers and opaque cursors continue that order. |
+| AC-012 | BR-006, FR-002, FR-006 | Given matching hashtag or post search results with different creation times, when `sort=chronological` is requested, then results are ordered newest-first by `created_at DESC, uri DESC` and opaque cursors continue that order. |
 | AC-013 | BR-006, FR-006, FR-007, FR-017, NFR-003 | Given matching post/project results with different engagement counts and ages, when `sort=popular` is requested, then results are ordered by the documented decayed popularity score with deterministic tie-breakers. |
 | AC-014 | FR-001, NFR-001 | Given any `/v1/search/*` endpoint other than none explicitly public, when the request is missing auth or device ID, then it fails through the existing authenticated/device middleware and standard error envelope. |
 | AC-015 | FR-001, FR-002, FR-016, NFR-001, NFR-002 | Given a search list endpoint receives valid `limit` and `cursor` parameters, when results span multiple pages, then it returns an `items` array and an opaque `cursor` only when more results are available; invalid cursors return `400 invalid_cursor`. |
@@ -242,6 +308,13 @@ The AppView exposes authenticated `/v1/search/*` endpoints for exact hashtag pos
 | AC-018 | FR-015, RULE-001, RULE-005 | Given two authenticated users have different recent searches, when either user lists or deletes recents, then they can only see/delete their own entries and cannot infer the other's recent-search contents. |
 | AC-019 | FR-018, NFR-001 | Given malformed query parameters, unsupported sort values, unsupported filter fields, or invalid recent-search payloads, when the endpoint handles the request, then it returns a documented 400/422 standard error envelope rather than silently broadening the query. |
 | AC-020 | NFR-002, NFR-004, NFR-005 | Given a representative seeded data set, when search endpoints are exercised in tests or local development, then they use bounded limits and indexed/local AppView data paths without per-result PDS network calls in the normal path; profile search can adopt PostgreSQL `pg_trgm` indexes when substring/similarity performance requires it without changing relevance-order semantics. |
+| AC-021 | FR-002, FR-003 | Given `GET /v1/search/hashtags/SockKAL/posts`, when the endpoint succeeds, then response metadata identifies the searched hashtag as the normalized canonical `sockkal` without a leading `#`. |
+| AC-022 | FR-006, FR-019, NFR-006 | Given posts/projects with matches in post text, project title, pattern name, material text, project tags, or design tags, when general post or project keyword search is requested with a non-empty `q`, then matching visible top-level records are found through the documented PostgreSQL full-text/local indexed strategy and deterministic tie-breakers. |
+| AC-023 | FR-007, FR-020, RULE-006 | Given no filters and no keyword query are passed to `GET /v1/search/projects`, when the endpoint is called, then all visible top-level projects are returned in chronological order by default; when `sort=popular` is explicitly passed, the same browse-all project set is popularity-ordered. |
+| AC-024 | FR-009 | Given `sort=popular` orders search results by decayed score, when the response is encoded, then items include engagement counts but do not expose `popularityScore`. |
+| AC-025 | FR-011, FR-012 | Given one project repeats the same hashtag across multiple materialized tag sources, when top hashtags are counted, then that tag contributes one distinct-project count for that craft group. |
+| AC-026 | FR-017 | Given active likes/reposts and visible replies differ from deleted or hidden/takedown interactions, when popularity is calculated, then only active likes, active reposts, and visible descendant replies/comments contribute; ties sort by `created_at DESC, uri DESC`. |
+| AC-027 | FR-021, FR-014 | Given a user saves the same normalized search more than once and later exceeds 50 saved searches, when recent searches are listed, then the duplicate appears once at the top with refreshed `updatedAt`, display label preserved, and older entries beyond the latest 50 pruned. |
 
 ## 14. Edge Cases
 
@@ -256,14 +329,19 @@ The AppView exposes authenticated `/v1/search/*` endpoints for exact hashtag pos
 | EC-007 | App sends `sort=popular` or `sort=chronological` to profile search. | Return a validation error; profile results remain relevance-ordered only when no unsupported sort is requested. | RULE-003 |
 | EC-008 | App calls search endpoints while typing without saving. | Results may be returned, but recent searches are not changed unless `POST /v1/search/recent` is called. | RULE-004 |
 | EC-009 | Top hashtags requested with no craft filters. | Return all supported craft groups using the same grouped shape. | FR-011, FR-012 |
-| EC-010 | Popularity sort sees equal scores. | Use deterministic tie-breakers such as created/indexed time and URI so pagination is stable. | FR-017, FR-016 |
+| EC-010 | Popularity sort sees equal scores. | Use deterministic tie-breakers `created_at DESC, uri DESC` so pagination is stable. | FR-017, FR-016 |
+| EC-011 | `GET /v1/search/posts` receives missing, empty, or whitespace-only `q`. | Return validation error rather than a global all-posts feed. | FR-006 |
+| EC-012 | Project search receives no filters and no query. | Return all visible top-level projects using default chronological order unless `sort=popular` is explicitly requested. | FR-020, RULE-006 |
+| EC-013 | Recent-search delete targets an already-deleted, nonexistent, or not-owned opaque ID. | Return idempotent success without revealing whether another user's row exists. | FR-013, FR-015, RULE-005 |
+| EC-014 | Project filter values differ only by case from stored normalized values. | Match case-insensitively while preserving stored/display casing in returned post/project data. | FR-008 |
 
 ## 15. Data / Persistence Impact
 
 - New fields/tables:
   - A new AppView recent-search persistence table is expected, keyed by authenticated user DID and a server-generated recent-search ID.
-  - The table should store search type, display label, normalized payload/filter JSON, and timestamps such as `created_at`/`updated_at`.
+  - The table should store an opaque server-generated ID, search type, display label, normalized payload/filter JSON, a normalized payload hash or equivalent de-duplication key, and timestamps such as `created_at`/`updated_at`.
   - Recent-search delete is a hard delete; no `deleted_at` column is required for v1 recent-search removal.
+  - Recent-search persistence should enforce or implement per-user de-duplication by search type and normalized payload, and pruning to the latest 50 entries.
 - Changed fields:
   - No existing public record fields need to change.
   - Supporting search indexes, generated columns, or materialized text vectors may be added to existing AppView tables if needed.
@@ -300,6 +378,8 @@ The AppView exposes authenticated `/v1/search/*` endpoints for exact hashtag pos
 - Sensitive data:
   - Recent searches are private-by-intent AppView data and must not be stored in PDS records or returned to other users.
   - Recent-search logs should avoid recording full sensitive query payloads at high log levels unless redacted/bounded.
+- Blocks/mutes:
+  - Block/mute filtering is out of scope unless such state is already indexed and enforced elsewhere; v1 search applies existing moderation visibility rules.
 - Abuse cases:
   - Query length, result limits, filter count, and pagination must be bounded to reduce scraping and expensive-query abuse.
   - No unauthenticated public search endpoint is introduced in this slice.
@@ -321,7 +401,7 @@ The AppView exposes authenticated `/v1/search/*` endpoints for exact hashtag pos
 | ID | Risk | Impact | Mitigation |
 |---|---|---|---|
 | RISK-001 | Search scope is broad for one AppView slice. | Requirements or tests may become too large, slowing implementation. | Keep Flutter UI, lexicon changes, semantic search, and recommendations out of scope; split implementation tasks later if needed. |
-| RISK-002 | Popularity formula may not match user expectations. | Users may see stale or surprising popular results. | Centralize and document the v1 formula, test clear ranking examples, and keep endpoint shape independent of formula changes. |
+| RISK-002 | Popularity formula may not match user expectations. | Users may see stale or surprising popular results. | Centralize and document the v1 formula, test clear ranking examples, do not expose the score publicly, and keep endpoint shape independent of formula changes. |
 | RISK-003 | Search queries may be slow on larger data sets. | Poor app responsiveness and database load. | Require bounded limits, validation, local indexed data paths, and migration/index review before implementation. |
 | RISK-004 | Recent searches are private user behavior. | Storing or logging them incorrectly could violate privacy expectations. | Store only in AppView scoped by DID; do not write PDS records; avoid verbose logging of payloads. |
 | RISK-005 | Top hashtags grouped by craft may omit relevant non-project posts without craft metadata. | Blank-search discovery may feel incomplete. | Start from materialized craft/project data and document the limitation; revisit author-craft inference or richer tagging in a later slice. |
@@ -337,10 +417,11 @@ The AppView exposes authenticated `/v1/search/*` endpoints for exact hashtag pos
 | ASM-004 | Existing `PostResponse` and profile-summary response patterns are acceptable for search result items. | Search may require new response DTOs or adapter fields for the app. |
 | ASM-005 | 28 days is a suitable v1 recency window for top hashtags because existing hashtag suggestions already use 28-day counts. | The top-hashtag endpoint would need a different default/window parameter. |
 | ASM-006 | Search remains authenticated in v1. | Public search would require separate rate limiting, privacy, and caching requirements. |
+| ASM-007 | Existing moderation visibility rules are the only safety filters needed for v1 search; block/mute search filtering can wait until that state is indexed/enforced elsewhere. | Search requirements would need to add viewer-specific block/mute exclusions. |
 
 ## 21. Open Questions
 
-- [ ] Non-blocking: Pick exact v1 popularity formula constants during implementation planning. The implementer should choose a reasonable centralized default that can be tweaked later without changing endpoint names or response shapes.
+None.
 
 ## 22. Review Status
 
@@ -349,7 +430,7 @@ Risk level: Medium
 Review recommended: Yes
 Reviewer: Douglas Todd
 Date: 2026-06-19
-Notes: Review feedback addressed. Semi-fuzzy profile search, project-backed top hashtag grouping, and 28-day window were confirmed. Future regular-post craft-type properties are expected to broaden top-hashtag craft grouping. PostgreSQL `pg_trgm` is the preferred scalable profile-search strategy when needed. Recent-search delete is hard delete. Profile search sorts followed profiles first, then textual relevance within followed/non-followed groups. Popularity constants remain a non-blocking implementation-planning choice.
+Notes: Review and grilling feedback addressed. Semi-fuzzy profile search, project-backed top hashtag grouping, and 28-day window were confirmed. Future regular-post craft-type properties are expected to broaden top-hashtag craft grouping. PostgreSQL `pg_trgm` is the preferred scalable profile-search strategy when needed. Post/project keyword search should use PostgreSQL full-text search. Recent searches use opaque IDs, display labels plus normalized payloads, de-duplication, hard delete, idempotent delete, and latest-50 pruning. Profile search sorts followed profiles first, then textual relevance within followed/non-followed groups. Popularity uses the documented weighted engagement plus age-decay formula and remains internal to ordering.
 
 ## 23. Handoff To Test Design
 
@@ -357,9 +438,9 @@ Notes: Review feedback addressed. Semi-fuzzy profile search, project-backed top 
 - Next test specification: `02-acceptance-tests.md`
 - Must-cover requirement IDs:
   - Business: `BR-001` through `BR-006`
-  - Functional: `FR-001` through `FR-017`
-  - Non-functional: `NFR-001`, `NFR-002`, `NFR-005`
-  - Rules: `RULE-001` through `RULE-005`
+  - Functional: `FR-001` through `FR-022`
+  - Non-functional: `NFR-001`, `NFR-002`, `NFR-005`, `NFR-006`
+  - Rules: `RULE-001` through `RULE-006`
 - Suggested test levels:
   - AppView API handler tests for auth/device enforcement, validation, response shapes, and error envelopes.
   - AppView store/integration tests for exact hashtag matching, profile ranking, post/project filters, top hashtag grouping, recent-search persistence, moderation filtering, pagination, and popularity ordering.
