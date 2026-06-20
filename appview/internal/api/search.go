@@ -88,6 +88,10 @@ func SearchProfilesHandler(store *SearchStore, logger *slog.Logger) http.Handler
 			return
 		}
 		rows, nextCursor, err := store.SearchProfiles(r.Context(), viewerDID.String(), req)
+		if errors.Is(err, envelope.ErrInvalidCursor) {
+			envelope.WriteError(w, http.StatusBadRequest, "invalid_cursor", "invalid cursor", middleware.GetRunID(r.Context()), nil)
+			return
+		}
 		if err != nil {
 			logger.Error("profile search failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
 			envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)

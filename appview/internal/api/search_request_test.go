@@ -1,6 +1,8 @@
 package api_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -37,6 +39,52 @@ func TestParsePostSearchRequestValidation(t *testing.T) {
 	}
 	if parsed.Query != "Sock" || parsed.Sort != api.SearchSortChronological || parsed.Limit != 25 {
 		t.Fatalf("parsed = %+v, want trimmed query, chronological default, limit 25", parsed)
+	}
+}
+
+func TestDecodeSaveRecentSearchRequestNormalizesTypedPayloads(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "hashtag", body: `{"type":"hashtag","displayLabel":" #Sock ","payload":{"tag":"#Sock","sort":"chronological"}}`, want: `{"sort":"chronological","tag":"sock"}`},
+		{name: "profile", body: `{"type":"profile","displayLabel":"Ali","payload":{"q":" ali "}}`, want: `{"q":"ali"}`},
+		{name: "post popular", body: `{"type":"post","displayLabel":"Alpaca","payload":{"q":" alpaca ","sort":"popular"}}`, want: `{"q":"alpaca","sort":"popular"}`},
+		{name: "project filters", body: `{"type":"project","displayLabel":"Projects","payload":{"sort":"chronological","filters":{"projectTag":["KAL","kal"],"craftType":["Knitting"]},"q":" sock "}}`, want: `{"filters":{"craftType":["knitting"],"projectTag":["kal"]},"q":"sock","sort":"chronological"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/v1/search/recent", bytes.NewBufferString(tc.body))
+			got, err := api.DecodeSaveRecentSearchRequest(req)
+			if err != nil {
+				t.Fatalf("DecodeSaveRecentSearchRequest: %v", err)
+			}
+			var normalized bytes.Buffer
+			if err := json.Compact(&normalized, got.NormalizedPayload); err != nil {
+				t.Fatalf("compact normalized payload: %v", err)
+			}
+			if normalized.String() != tc.want {
+				t.Fatalf("normalized payload = %s, want %s", normalized.String(), tc.want)
+			}
+			if got.PayloadHash == "" {
+				t.Fatal("PayloadHash empty")
+			}
+		})
+	}
+}
+
+func TestDecodeSaveRecentSearchRequestRejectsInvalidTypedPayloads(t *testing.T) {
+	for _, body := range []string{
+		`{"type":"hashtag","displayLabel":"Sock","payload":{}}`,
+		`{"type":"profile","displayLabel":"Ali","payload":{"q":""}}`,
+		`{"type":"post","displayLabel":"Alpaca","payload":{"q":"alpaca","sort":"newest"}}`,
+		`{"type":"project","displayLabel":"Projects","payload":{"filters":{"unknown":["x"]}}}`,
+		`{"type":"profile","displayLabel":"Ali","payload":null}`,
+	} {
+		req := httptest.NewRequest("POST", "/v1/search/recent", bytes.NewBufferString(body))
+		if _, err := api.DecodeSaveRecentSearchRequest(req); err == nil {
+			t.Fatalf("DecodeSaveRecentSearchRequest(%s) error = nil, want validation", body)
+		}
 	}
 }
 

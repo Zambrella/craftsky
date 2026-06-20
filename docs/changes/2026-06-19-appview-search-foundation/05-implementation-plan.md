@@ -156,6 +156,48 @@
 - Check: Partially completed by code/migration inspection and full test/format commands; no representative `EXPLAIN` plans were run.
 - Notes: Manual query-plan review remains a follow-up gap. API contracts are implemented with camelCase wrappers and standard error envelopes. Popularity score is internal-only.
 
+## Implementation Review Fix Pass (2026-06-20)
+
+### Fix 1: IT-011 / AT-008 project `sort=popular`
+- Requirement IDs: BR-006, FR-007, FR-017, FR-020, RULE-006.
+- Write failing test: Added `TestSearchStore_SearchProjectsPopularOrdersBrowseAllAndFilteredProjects` for browse-all and filtered project search with an older, higher-engagement project outranking newer quieter projects.
+- Red failure: Implementation review confirmed `SearchProjects` accepted `sort=popular` while ordering chronologically and returning a zero score.
+- Implement: Added the centralized decayed popularity SQL path to project search, including active likes/reposts, visible replies, stable popularity cursors, and `popularity_score DESC, created_at DESC, uri DESC` ordering.
+- Green command: `go test ./internal/api -run 'TestSearchStore_' -count=1` passed.
+
+### Fix 2: profile search cursor pagination
+- Requirement IDs: FR-004, FR-005, FR-016.
+- Write failing test: Added `TestSearchStore_SearchProfilesPaginatesByRankTuple` to prove followed-first/relevance ordering continues across pages with no duplicates.
+- Red failure: Implementation review confirmed profile search ignored cursors, fetched only `limit`, and never returned a next cursor.
+- Implement: Added profile cursor encode/decode helpers over `(followedRank, relevanceRank, handleLower, did)`, store seek pagination with `limit + 1`, next-cursor generation, and handler mapping for invalid profile cursors.
+- Green command: `go test ./internal/api -run 'TestSearchStore_' -count=1` passed.
+
+### Fix 3: UT-004 / IT-008 / IT-014 recent-search payloads and privacy
+- Requirement IDs: BR-003, FR-013, FR-014, FR-015, FR-021, FR-022, RULE-001, RULE-005.
+- Write failing tests: Added `TestDecodeSaveRecentSearchRequestNormalizesTypedPayloads`, `TestDecodeSaveRecentSearchRequestRejectsInvalidTypedPayloads`, and `TestSearchStore_RecentSearchLifecycleDedupesPrunesAndHardDeletes`.
+- Red failure: Implementation review confirmed raw JSON payloads such as `{}` or `null` could be saved and equivalent searches did not necessarily de-duplicate.
+- Implement: Added type-specific payload normalization for `hashtag`, `profile`, `post`, and `project` recents; defaulted omitted sort values to chronological where applicable; normalized/canonicalized project filters; rejected invalid or non-rerunnable payloads; retained existing de-duplication, prune-to-50, DID-scoped list, and idempotent hard-delete behavior.
+- Green command: `go test ./internal/api -run 'Test(SearchStore|DecodeSaveRecent)' -count=1` passed.
+
+### Fix 4: seeded store and response-contract coverage
+- Requirement IDs: BR-001, BR-004, BR-005, BR-006, FR-002, FR-006, FR-007, FR-008, FR-009, FR-010, FR-011, FR-012, FR-017, FR-019, FR-020, RULE-002.
+- Write failing tests: Added seeded store tests for exact hashtag equality (`TestSearchStore_SearchHashtagPostsUsesStoredTagEqualityOnly`), FTS keyword search (`TestSearchStore_SearchPostsAndProjectsUseFTSFields`), project filters (`TestSearchStore_SearchProjectsAppliesFilterSemantics`), grouped top hashtags (`TestSearchStore_TopHashtagsGroupsDistinctProjectsAndEmptyCrafts`), popularity (`TestSearchStore_SearchProjectsPopularOrdersBrowseAllAndFilteredProjects`), moderation-before-limit/rank (`TestSearchStore_ModerationFiltersBeforeSearchRankingAndLimits`), and retained the existing response wrapper test that proves `popularityScore` is not public JSON.
+- Implement: Fixed behavior as needed while keeping existing public response wrappers and post-response reuse.
+- Green command: `go test ./internal/api -run 'TestSearchStore_' -count=1` passed.
+
+### Fix 5: FTS/indexed keyword path and MAN-001
+- Requirement IDs: FR-019, NFR-002, NFR-004, NFR-005, NFR-006.
+- Write failing test: `TestSearchStore_SearchPostsAndProjectsUseFTSFields` covers matches in post text and core project fields while excluding replies.
+- Red failure: Implementation review confirmed keyword search used raw `lower(...) LIKE '%q%'` predicates and array `unnest` scans despite planned FTS indexes.
+- Implement: Replaced post/project keyword matching with PostgreSQL `to_tsvector('simple', ...) @@ plainto_tsquery('simple', ...)` expressions matching the migration's local FTS index definitions.
+- MAN-001 command: Ran representative `EXPLAIN` checks against `postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable` for hashtag equality, post/project FTS, project filters, and recent-search list.
+- MAN-001 result: The local dev database had not applied `000019_search_foundation` (`craftsky_recent_searches` was absent and search indexes were not present), so full index-plan validation is blocked until local migrations are applied. The implemented SQL now matches the FTS expressions defined by `000019_search_foundation.up.sql`; the blocked EXPLAIN state should be rechecked after migration in implementation review or local dev setup.
+
+### Fix-pass verification
+- Focused command: `go test ./internal/api -run 'Test(SearchStore|DecodeSaveRecent)' -count=1` passed.
+- Package command: `go test ./internal/api -count=1` passed.
+- Broader command: `go test ./...` from `appview/` passed.
+
 ## Completion Checklist
 - [x] All Must requirements covered by tests or documented gaps
 - [x] All planned Must tests passing or coverage gaps documented above
@@ -168,8 +210,11 @@
 - `go test ./...` from `appview/`: passed.
 - `just fmt`: passed (`gofmt -w .` and `go vet ./...`).
 - `just test`: passed (`go test -race ./...` with `TEST_DATABASE_URL`).
+- Fix-pass focused tests: `go test ./internal/api -run 'Test(SearchStore|DecodeSaveRecent)' -count=1` passed.
+- Fix-pass package tests: `go test ./internal/api -count=1` passed.
+- Fix-pass broader tests: `go test ./...` from `appview/` passed.
+- Fix-pass final verification: `just fmt && just test` passed on 2026-06-20 after correcting the new project-search test fixtures and SQL parameter bindings.
 
 ## Coverage Gaps / Follow-ups
-- Dedicated seeded integration fixtures for exact hashtag equality, keyword search, project filtering, top hashtags, popularity ordering, recent-search lifecycle, and moderation filtering should be strengthened in a follow-up.
-- `MAN-001` representative `EXPLAIN` query-plan review was not run.
-- This implementation uses local SQL text matching in stores while adding PostgreSQL text-vector indexes for the intended scalable path; deeper FTS query usage can be tightened in follow-up without API shape changes.
+- `MAN-001` representative `EXPLAIN` query-plan review was attempted, but the local dev database had not applied migration `000019_search_foundation`; re-run after applying migrations to confirm planner use of the added GIN/trigram/list indexes.
+- No remaining known seeded-test gap for the implementation-review required behaviors: project popularity, profile pagination, typed recent-search normalization/privacy, exact hashtag equality, keyword search, project filters, top hashtags, popularity, moderation, and response contracts now have focused automated coverage.

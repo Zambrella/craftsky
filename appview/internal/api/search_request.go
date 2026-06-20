@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -89,7 +90,7 @@ func DecodeSaveRecentSearchRequest(r *http.Request) (SaveRecentSearchRequest, er
 	if len(req.Payload) == 0 || len(req.Payload) > RecentSearchMaxPayloadLen {
 		return SaveRecentSearchRequest{}, ErrSearchValidation
 	}
-	normalized, err := normalizeRecentPayload(req.Payload)
+	normalized, err := normalizeRecentPayload(req.Type, req.Payload)
 	if err != nil {
 		return SaveRecentSearchRequest{}, err
 	}
@@ -99,14 +100,31 @@ func DecodeSaveRecentSearchRequest(r *http.Request) (SaveRecentSearchRequest, er
 	return req, nil
 }
 
-func normalizeRecentPayload(raw json.RawMessage) ([]byte, error) {
-	var v any
+func normalizeRecentPayload(searchType string, raw json.RawMessage) ([]byte, error) {
+	var payload map[string]json.RawMessage
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.UseNumber()
-	if err := dec.Decode(&v); err != nil {
+	if err := dec.Decode(&payload); err != nil || payload == nil {
 		return nil, ErrSearchValidation
 	}
-	normalized, err := json.Marshal(v)
+	var canonical any
+	var err error
+	switch searchType {
+	case "hashtag":
+		canonical, err = normalizeRecentHashtagPayload(payload)
+	case "profile":
+		canonical, err = normalizeRecentQueryPayload(payload, false)
+	case "post":
+		canonical, err = normalizeRecentQueryPayload(payload, true)
+	case "project":
+		canonical, err = normalizeRecentProjectPayload(payload)
+	default:
+		err = ErrSearchValidation
+	}
+	if err != nil {
+		return nil, err
+	}
+	normalized, err := json.Marshal(canonical)
 	if err != nil {
 		return nil, ErrSearchValidation
 	}
@@ -114,6 +132,158 @@ func normalizeRecentPayload(raw json.RawMessage) ([]byte, error) {
 		return nil, ErrSearchValidation
 	}
 	return normalized, nil
+}
+
+func normalizeRecentHashtagPayload(payload map[string]json.RawMessage) (map[string]any, error) {
+	if !onlyRecentKeys(payload, "tag", "sort") {
+		return nil, ErrSearchValidation
+	}
+	tag, err := rawString(payload, "tag", true)
+	if err != nil {
+		return nil, err
+	}
+	normalizedTag, err := NormalizeHashtagPathValue(tag)
+	if err != nil {
+		return nil, err
+	}
+	sortValue, err := rawOptionalSort(payload)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"tag": normalizedTag, "sort": string(sortValue)}, nil
+}
+
+func normalizeRecentQueryPayload(payload map[string]json.RawMessage, allowSort bool) (map[string]any, error) {
+	allowed := []string{"q"}
+	if allowSort {
+		allowed = append(allowed, "sort")
+	}
+	if !onlyRecentKeys(payload, allowed...) {
+		return nil, ErrSearchValidation
+	}
+	q, err := rawString(payload, "q", true)
+	if err != nil {
+		return nil, err
+	}
+	q = strings.TrimSpace(q)
+	if q == "" || utf8.RuneCountInString(q) > SearchMaxQueryLength {
+		return nil, ErrSearchValidation
+	}
+	out := map[string]any{"q": q}
+	if allowSort {
+		sortValue, err := rawOptionalSort(payload)
+		if err != nil {
+			return nil, err
+		}
+		out["sort"] = string(sortValue)
+	}
+	return out, nil
+}
+
+func normalizeRecentProjectPayload(payload map[string]json.RawMessage) (map[string]any, error) {
+	if !onlyRecentKeys(payload, "q", "sort", "filters") {
+		return nil, ErrSearchValidation
+	}
+	out := map[string]any{}
+	if _, ok := payload["q"]; ok {
+		q, err := rawString(payload, "q", false)
+		if err != nil {
+			return nil, err
+		}
+		q = strings.TrimSpace(q)
+		if utf8.RuneCountInString(q) > SearchMaxQueryLength {
+			return nil, ErrSearchValidation
+		}
+		if q != "" {
+			out["q"] = q
+		}
+	}
+	sortValue, err := rawOptionalSort(payload)
+	if err != nil {
+		return nil, err
+	}
+	out["sort"] = string(sortValue)
+	filters, err := normalizeRecentProjectFilters(payload["filters"])
+	if err != nil {
+		return nil, err
+	}
+	if len(filters) > 0 {
+		out["filters"] = filters
+	}
+	return out, nil
+}
+
+func normalizeRecentProjectFilters(raw json.RawMessage) (map[string][]string, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return map[string][]string{}, nil
+	}
+	var input map[string][]string
+	if err := json.Unmarshal(raw, &input); err != nil || input == nil {
+		return nil, ErrSearchValidation
+	}
+	filters := map[string][]string{}
+	total := 0
+	for key, values := range input {
+		if !allowedProjectFilterKeys[key] || len(values) == 0 || len(values) > ProjectFilterMaxPerFamily {
+			return nil, ErrSearchValidation
+		}
+		seen := map[string]bool{}
+		for _, value := range values {
+			normalized := strings.ToLower(strings.TrimSpace(value))
+			if normalized == "" || utf8.RuneCountInString(normalized) > SearchMaxQueryLength {
+				return nil, ErrSearchValidation
+			}
+			if !seen[normalized] {
+				filters[key] = append(filters[key], normalized)
+				seen[normalized] = true
+				total++
+			}
+		}
+		sort.Strings(filters[key])
+	}
+	if total > ProjectFilterMaxTotal {
+		return nil, ErrSearchValidation
+	}
+	return filters, nil
+}
+
+func rawOptionalSort(payload map[string]json.RawMessage) (SearchSort, error) {
+	if _, ok := payload["sort"]; !ok {
+		return SearchSortChronological, nil
+	}
+	s, err := rawString(payload, "sort", false)
+	if err != nil {
+		return "", err
+	}
+	return parseSearchSort(s)
+}
+
+func rawString(payload map[string]json.RawMessage, key string, required bool) (string, error) {
+	raw, ok := payload[key]
+	if !ok {
+		if required {
+			return "", ErrSearchValidation
+		}
+		return "", nil
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return "", ErrSearchValidation
+	}
+	return value, nil
+}
+
+func onlyRecentKeys(payload map[string]json.RawMessage, allowed ...string) bool {
+	set := map[string]bool{}
+	for _, key := range allowed {
+		set[key] = true
+	}
+	for key := range payload {
+		if !set[key] {
+			return false
+		}
+	}
+	return true
 }
 
 func ParseTopHashtagsRequest(r *http.Request) (TopHashtagsRequest, error) {

@@ -22,6 +22,7 @@ type SearchPostRow struct {
 type ProfileSearchRow struct {
 	DID               string
 	Handle            string
+	HandleLower       string
 	DisplayName       *string
 	Description       *string
 	AvatarCID         *string
@@ -37,8 +38,13 @@ func (s *SearchStore) SearchProfiles(ctx context.Context, viewerDID string, req 
 		return nil, "", fmt.Errorf("search store unavailable")
 	}
 	queryLower := strings.ToLower(strings.TrimSpace(req.Query))
+	cur, err := DecodeProfileSearchCursor(req.Cursor)
+	if err != nil {
+		return nil, "", err
+	}
 	q := `
-		SELECT cp.did, ic.handle, bp.display_name, bp.description, bp.avatar_cid, bp.avatar_mime,
+		WITH ranked AS (
+		SELECT cp.did, ic.handle, ic.handle_lower, bp.display_name, bp.description, bp.avatar_cid, bp.avatar_mime,
 			true AS is_craftsky_profile,
 			EXISTS (SELECT 1 FROM atproto_follows f WHERE f.did = $2 AND f.subject_did = cp.did) AS viewer_is_following,
 			CASE WHEN EXISTS (SELECT 1 FROM atproto_follows f WHERE f.did = $2 AND f.subject_did = cp.did) THEN 0 ELSE 1 END AS followed_rank,
@@ -59,22 +65,53 @@ func (s *SearchStore) SearchProfiles(ctx context.Context, viewerDID string, req 
 			OR lower(coalesce(bp.description, '')) LIKE '%' || $1 || '%'
 		)
 		` + profileVisibleModerationPredicate + `
-		ORDER BY followed_rank ASC, relevance_rank ASC, ic.handle_lower ASC, cp.did ASC
+		)
+		SELECT did, handle, handle_lower, display_name, description, avatar_cid, avatar_mime, is_craftsky_profile, viewer_is_following, followed_rank, relevance_rank
+		FROM ranked
+		WHERE ($4::int IS NULL OR (followed_rank, relevance_rank, handle_lower, did) > ($4::int, $5::int, $6::text, $7::text))
+		ORDER BY followed_rank ASC, relevance_rank ASC, handle_lower ASC, did ASC
 		LIMIT $3`
-	rows, err := s.pool.Query(ctx, q, queryLower, viewerDID, req.Limit)
+	rows, err := s.pool.Query(ctx, q, queryLower, viewerDID, req.Limit+1, profileCursorArg(cur, "followed"), profileCursorArg(cur, "relevance"), profileCursorArg(cur, "handle"), profileCursorArg(cur, "did"))
 	if err != nil {
 		return nil, "", fmt.Errorf("profile search: %w", err)
 	}
 	defer rows.Close()
-	out := make([]ProfileSearchRow, 0, req.Limit)
+	out := make([]ProfileSearchRow, 0, req.Limit+1)
 	for rows.Next() {
 		var row ProfileSearchRow
-		if err := rows.Scan(&row.DID, &row.Handle, &row.DisplayName, &row.Description, &row.AvatarCID, &row.AvatarMime, &row.IsCraftskyProfile, &row.ViewerIsFollowing, &row.FollowedRank, &row.RelevanceRank); err != nil {
+		if err := rows.Scan(&row.DID, &row.Handle, &row.HandleLower, &row.DisplayName, &row.Description, &row.AvatarCID, &row.AvatarMime, &row.IsCraftskyProfile, &row.ViewerIsFollowing, &row.FollowedRank, &row.RelevanceRank); err != nil {
 			return nil, "", err
 		}
 		out = append(out, row)
 	}
-	return out, "", rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+	if len(out) <= req.Limit {
+		return out, "", nil
+	}
+	out = out[:req.Limit]
+	last := out[len(out)-1]
+	next, err := EncodeProfileSearchCursor(last.FollowedRank, last.RelevanceRank, last.HandleLower, last.DID)
+	return out, next, err
+}
+
+func profileCursorArg(cur ProfileCursor, field string) any {
+	if cur.DID == "" {
+		return nil
+	}
+	switch field {
+	case "followed":
+		return cur.FollowedRank
+	case "relevance":
+		return cur.RelevanceRank
+	case "handle":
+		return cur.HandleLower
+	case "did":
+		return cur.DID
+	default:
+		return nil
+	}
 }
 
 func BuildProfileSearchSummary(row ProfileSearchRow) ProfileSearchSummary {
@@ -102,39 +139,91 @@ func (s *SearchStore) SearchProjects(ctx context.Context, req ProjectSearchReque
 	if s == nil || s.pool == nil {
 		return nil, "", fmt.Errorf("search store unavailable")
 	}
-	curCreatedAt, curURI, err := DecodeChronologicalSearchCursor(req.Cursor)
-	if err != nil {
-		return nil, "", err
+	if now.IsZero() {
+		now = time.Now().UTC()
 	}
 	query := strings.ToLower(strings.TrimSpace(req.Query))
+	fts := searchTSQuery(query)
+	queryLimit := req.Limit + 1
+	var cursorWhere string
+	var cursorArgs []any
+	var rankedAt time.Time
+	if req.Sort == SearchSortPopular {
+		cur, err := DecodePopularityCursor(req.Cursor)
+		if err != nil {
+			return nil, "", err
+		}
+		rankedAt = now
+		if !cur.RankedAt.IsZero() {
+			rankedAt = cur.RankedAt
+		}
+		cursorWhere = `AND ($11::double precision IS NULL OR (popularity_score, p.created_at, p.uri) < ($11::double precision, $12::timestamptz, $13::text))`
+		cursorArgs = []any{cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr()}
+	} else {
+		curCreatedAt, curURI, err := DecodeChronologicalSearchCursor(req.Cursor)
+		if err != nil {
+			return nil, "", err
+		}
+		cursorWhere = `AND ($11::timestamptz IS NULL OR (p.created_at, p.uri) < ($11::timestamptz, $12::text))`
+		cursorArgs = []any{curCreatedAt, curURI}
+	}
+	orderBy := `ORDER BY p.created_at DESC, p.uri DESC`
+	if req.Sort == SearchSortPopular {
+		orderBy = `ORDER BY popularity_score DESC, p.created_at DESC, p.uri DESC`
+	}
 	q := `
-		SELECT ` + postSelectColumns + `, 0::double precision AS popularity_score
+		WITH candidate AS (
+		SELECT p.*, pp.raw_project, bp.display_name, bp.avatar_cid,
+			COALESCE(l.like_count, 0)::int AS like_count,
+			COALESCE(r.repost_count, 0)::int AS repost_count,
+			COALESCE(re.reply_count, 0)::int AS reply_count,
+			(COALESCE(l.like_count, 0) + (2 * COALESCE(re.reply_count, 0)) + (3 * COALESCE(r.repost_count, 0))) /
+				pow(1 + greatest(extract(epoch from ($10::timestamptz - p.created_at)) / 3600, 0) / 72, 1.5) AS popularity_score
 		FROM craftsky_posts p
 		JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
+		LEFT JOIN (SELECT subject_uri, count(*) AS like_count FROM craftsky_likes WHERE deleted_at IS NULL GROUP BY subject_uri) l ON l.subject_uri = p.uri
+		LEFT JOIN (SELECT subject_uri, count(*) AS repost_count FROM craftsky_reposts WHERE deleted_at IS NULL GROUP BY subject_uri) r ON r.subject_uri = p.uri
+		LEFT JOIN (
+			SELECT reply_root_uri AS subject_uri, count(*) AS reply_count
+			FROM craftsky_posts rp
+			WHERE rp.reply_root_uri IS NOT NULL
+			  AND NOT EXISTS (
+				SELECT 1 FROM moderation_outputs mo
+				WHERE mo.action = 'apply'
+				  AND mo.value IN ('hide', 'takedown')
+				  AND (mo.expires_at IS NULL OR mo.expires_at > now())
+				  AND ((mo.subject_type = 'post' AND mo.subject_uri = rp.uri) OR (mo.subject_type = 'account' AND mo.subject_did = rp.did))
+			  )
+			GROUP BY reply_root_uri
+		) re ON re.subject_uri = p.uri
 		WHERE p.is_project = true
 		  AND p.reply_root_uri IS NULL AND p.reply_parent_uri IS NULL AND p.quote_uri IS NULL
-		  AND ($3::timestamptz IS NULL OR (p.created_at, p.uri) < ($3::timestamptz, $4::text))
-		  AND (cardinality($5::text[]) = 0 OR lower(pp.common_craft_type) = ANY($5::text[]))
-		  AND (cardinality($6::text[]) = 0 OR lower(coalesce(pp.pattern_difficulty, '')) = ANY($6::text[]))
-		  AND (cardinality($7::text[]) = 0 OR lower(coalesce(pp.knitting_project_type, '')) = ANY($7::text[]) OR lower(coalesce(pp.crochet_project_type, '')) = ANY($7::text[]) OR lower(coalesce(pp.quilting_project_type, '')) = ANY($7::text[]) OR lower(coalesce(pp.sewing_project_type, '')) = ANY($7::text[]))
-		  AND (cardinality($8::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.colors, '{}')) AS v WHERE lower(v) = ANY($8::text[])))
-		  AND (cardinality($9::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.materials, '{}')) AS v WHERE lower(v) = ANY($9::text[])))
-		  AND (cardinality($10::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.design_tags, '{}')) AS v WHERE lower(v) = ANY($10::text[])))
-		  AND (cardinality($11::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.project_tags, '{}')) AS v WHERE lower(v) = ANY($11::text[])))
-		  AND ($12 = '' OR (
-			lower(coalesce(p.text, '')) LIKE '%' || $12 || '%'
-			OR lower(coalesce(pp.common_title, '')) LIKE '%' || $12 || '%'
-			OR lower(coalesce(pp.pattern_name, '')) LIKE '%' || $12 || '%'
-			OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.materials, '{}') || coalesce(pp.project_tags, '{}') || coalesce(pp.design_tags, '{}')) AS v WHERE lower(v) LIKE '%' || $12 || '%')
+		  AND (cardinality($2::text[]) = 0 OR lower(pp.common_craft_type) = ANY($2::text[]))
+		  AND (cardinality($3::text[]) = 0 OR lower(coalesce(pp.pattern_difficulty, '')) = ANY($3::text[]))
+		  AND (cardinality($4::text[]) = 0 OR lower(coalesce(pp.knitting_project_type, '')) = ANY($4::text[]) OR lower(coalesce(pp.crochet_project_type, '')) = ANY($4::text[]) OR lower(coalesce(pp.quilting_project_type, '')) = ANY($4::text[]) OR lower(coalesce(pp.sewing_project_type, '')) = ANY($4::text[]))
+		  AND (cardinality($5::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.colors, '{}')) AS v WHERE lower(v) = ANY($5::text[])))
+		  AND (cardinality($6::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.materials, '{}')) AS v WHERE lower(v) = ANY($6::text[])))
+		  AND (cardinality($7::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.design_tags, '{}')) AS v WHERE lower(v) = ANY($7::text[])))
+		  AND (cardinality($8::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.project_tags, '{}')) AS v WHERE lower(v) = ANY($8::text[])))
+		  AND ($9 = '' OR (
+			to_tsvector('simple', coalesce(p.text, '')) @@ plainto_tsquery('simple', $9)
+			OR to_tsvector('simple', coalesce(pp.common_title, '') || ' ' || coalesce(pp.pattern_name, '') || ' ' || coalesce(array_to_string(pp.materials, ' '), '') || ' ' || coalesce(array_to_string(pp.project_tags, ' '), '') || ' ' || coalesce(array_to_string(pp.design_tags, ' '), '')) @@ plainto_tsquery('simple', $9)
 		  ))
 		` + postVisibleModerationPredicate + `
-		ORDER BY p.created_at DESC, p.uri DESC
-		LIMIT $2`
-	rows, err := s.pool.Query(ctx, q,
-		"", req.Limit+1, curCreatedAt, curURI,
-		projectFilterValues(req, "craftType"), projectFilterValues(req, "patternDifficulty"), projectFilterValues(req, "projectType"), projectFilterValues(req, "color"), projectFilterValues(req, "material"), projectFilterValues(req, "designTag"), projectFilterValues(req, "projectTag"), query,
-	)
+		)
+		SELECT ` + postSelectColumns + `, popularity_score
+		FROM candidate p
+		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
+		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
+		WHERE true ` + cursorWhere + `
+		` + orderBy + `
+		LIMIT $1`
+	args := []any{queryLimit,
+		projectFilterValues(req, "craftType"), projectFilterValues(req, "patternDifficulty"), projectFilterValues(req, "projectType"), projectFilterValues(req, "color"), projectFilterValues(req, "material"), projectFilterValues(req, "designTag"), projectFilterValues(req, "projectTag"), fts, rankedAt,
+	}
+	args = append(args, cursorArgs...)
+	rows, err := s.pool.Query(ctx, q, args...)
 	if err != nil {
 		return nil, "", fmt.Errorf("project search: %w", err)
 	}
@@ -155,8 +244,16 @@ func (s *SearchStore) SearchProjects(ctx context.Context, req ProjectSearchReque
 	}
 	out = out[:req.Limit]
 	last := out[len(out)-1]
+	if req.Sort == SearchSortPopular {
+		next, err := EncodePopularityCursor(rankedAt, last.Score, last.Post.CreatedAt, last.Post.URI)
+		return out, next, err
+	}
 	next, err := EncodeChronologicalSearchCursor(last.Post.CreatedAt, last.Post.URI)
 	return out, next, err
+}
+
+func searchTSQuery(q string) string {
+	return strings.TrimSpace(q)
 }
 
 func projectFilterValues(req ProjectSearchRequest, key string) []string {
@@ -270,10 +367,8 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 			  AND (
 				($1 <> '' AND lower($1) = ANY(p.tags))
 				OR ($7 <> '' AND (
-					lower(coalesce(p.text, '')) LIKE '%' || $7 || '%'
-					OR lower(coalesce(pp.common_title, '')) LIKE '%' || $7 || '%'
-					OR lower(coalesce(pp.pattern_name, '')) LIKE '%' || $7 || '%'
-					OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.materials, '{}') || coalesce(pp.project_tags, '{}') || coalesce(pp.design_tags, '{}')) AS v WHERE lower(v) LIKE '%' || $7 || '%')
+					to_tsvector('simple', coalesce(p.text, '')) @@ plainto_tsquery('simple', $7)
+					OR to_tsvector('simple', coalesce(pp.common_title, '') || ' ' || coalesce(pp.pattern_name, '') || ' ' || coalesce(array_to_string(pp.materials, ' '), '') || ' ' || coalesce(array_to_string(pp.project_tags, ' '), '') || ' ' || coalesce(array_to_string(pp.design_tags, ' '), '')) @@ plainto_tsquery('simple', $7)
 				))
 			  )
 			` + postVisibleModerationPredicate + `
@@ -300,10 +395,8 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 		  AND (
 			($1 <> '' AND lower($1) = ANY(p.tags))
 			OR ($5 <> '' AND (
-				lower(coalesce(p.text, '')) LIKE '%' || $5 || '%'
-				OR lower(coalesce(pp.common_title, '')) LIKE '%' || $5 || '%'
-				OR lower(coalesce(pp.pattern_name, '')) LIKE '%' || $5 || '%'
-				OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.materials, '{}') || coalesce(pp.project_tags, '{}') || coalesce(pp.design_tags, '{}')) AS v WHERE lower(v) LIKE '%' || $5 || '%')
+				to_tsvector('simple', coalesce(p.text, '')) @@ plainto_tsquery('simple', $5)
+				OR to_tsvector('simple', coalesce(pp.common_title, '') || ' ' || coalesce(pp.pattern_name, '') || ' ' || coalesce(array_to_string(pp.materials, ' '), '') || ' ' || coalesce(array_to_string(pp.project_tags, ' '), '') || ' ' || coalesce(array_to_string(pp.design_tags, ' '), '')) @@ plainto_tsquery('simple', $5)
 			))
 		  )
 		  AND ($3::timestamptz IS NULL OR (p.created_at, p.uri) < ($3::timestamptz, $4::text))

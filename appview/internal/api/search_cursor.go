@@ -13,6 +13,13 @@ type PopularityCursor struct {
 	URI       string
 }
 
+type ProfileCursor struct {
+	FollowedRank  int
+	RelevanceRank int
+	HandleLower   string
+	DID           string
+}
+
 func (c PopularityCursor) ScorePtr() any {
 	if c.URI == "" {
 		return nil
@@ -106,4 +113,55 @@ func DecodePopularityCursor(cursor string) (PopularityCursor, error) {
 		return PopularityCursor{}, envelope.ErrInvalidCursor
 	}
 	return PopularityCursor{RankedAt: parsedRankedAt, Score: score, CreatedAt: parsedCreatedAt, URI: uri}, nil
+}
+
+func EncodeProfileSearchCursor(followedRank, relevanceRank int, handleLower, did string) (string, error) {
+	return envelope.EncodeCursor(map[string]any{
+		"kind":          "profile",
+		"followedRank":  followedRank,
+		"relevanceRank": relevanceRank,
+		"handleLower":   handleLower,
+		"did":           did,
+	})
+}
+
+func DecodeProfileSearchCursor(cursor string) (ProfileCursor, error) {
+	cur, err := envelope.DecodeCursor(cursor)
+	if err != nil || cursor == "" {
+		return ProfileCursor{}, err
+	}
+	if cur["kind"] != "profile" {
+		return ProfileCursor{}, envelope.ErrInvalidCursor
+	}
+	followedRank, ok := numberAsInt(cur["followedRank"])
+	if !ok {
+		return ProfileCursor{}, envelope.ErrInvalidCursor
+	}
+	relevanceRank, ok := numberAsInt(cur["relevanceRank"])
+	if !ok {
+		return ProfileCursor{}, envelope.ErrInvalidCursor
+	}
+	handleLower, ok := cur["handleLower"].(string)
+	if !ok || handleLower == "" {
+		return ProfileCursor{}, envelope.ErrInvalidCursor
+	}
+	did, ok := cur["did"].(string)
+	if !ok || did == "" {
+		return ProfileCursor{}, envelope.ErrInvalidCursor
+	}
+	return ProfileCursor{FollowedRank: followedRank, RelevanceRank: relevanceRank, HandleLower: handleLower, DID: did}, nil
+}
+
+func numberAsInt(v any) (int, bool) {
+	switch n := v.(type) {
+	case float64:
+		if n != float64(int(n)) {
+			return 0, false
+		}
+		return int(n), true
+	case int:
+		return n, true
+	default:
+		return 0, false
+	}
 }
