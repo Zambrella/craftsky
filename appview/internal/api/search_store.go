@@ -115,7 +115,7 @@ func profileCursorArg(cur ProfileCursor, field string) any {
 }
 
 func BuildProfileSearchSummary(row ProfileSearchRow) ProfileSearchSummary {
-	return ProfileSearchSummary{
+	out := ProfileSearchSummary{
 		ProfileAccountSummary: ProfileAccountSummary{
 			DID:               syntax.DID(row.DID),
 			Handle:            syntax.Handle(row.Handle),
@@ -125,6 +125,10 @@ func BuildProfileSearchSummary(row ProfileSearchRow) ProfileSearchSummary {
 		},
 		ViewerIsFollowing: row.ViewerIsFollowing,
 	}
+	if avatar := synthBlobURL("avatar", row.DID, row.AvatarCID, row.AvatarMime); avatar != "" {
+		out.Avatar = &avatar
+	}
+	return out
 }
 
 func (s *SearchStore) SearchHashtagPosts(ctx context.Context, tag string, sort SearchSort, limit int, cursor string, now time.Time) ([]SearchPostRow, string, error) {

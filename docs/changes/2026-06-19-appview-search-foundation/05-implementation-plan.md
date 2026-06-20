@@ -198,6 +198,19 @@
 - Package command: `go test ./internal/api -count=1` passed.
 - Broader command: `go test ./...` from `appview/` passed.
 
+## Approved-with-notes Fix Pass (2026-06-20)
+
+### Note Fix 1: IR-001 profile search avatar response contract
+- Requirement IDs: BR-002, FR-004, NFR-001.
+- Acceptance/Test IDs: AT-003 / AC-003 profile summary fields; coding-plan §5.2 profile search response example.
+- Write failing test: Added `TestBuildProfileSearchSummaryIncludesAvatar` in `appview/internal/api/search_response_test.go` to prove profile search summaries synthesize an `avatar` URL when `avatar_cid`/`avatar_mime` are present.
+- Run command: `go test ./internal/api -run TestBuildProfileSearchSummaryIncludesAvatar -count=1`.
+- Confirmed failure: Meaningful red failure: `BuildProfileSearchSummary` returned `avatar = nil` despite the row carrying `bafavatar` and `image/jpeg`.
+- Implement: Updated `BuildProfileSearchSummary` to reuse the existing `synthBlobURL("avatar", ...)` convention used by `BuildProfileAccountSummary` and preserve existing profile/search fields.
+- Run command: `gofmt -w "internal/api/search_store.go" "internal/api/search_response_test.go" && go test ./internal/api -run TestBuildProfileSearchSummaryIncludesAvatar -count=1 && go test ./internal/api -count=1` passed.
+- Refactor: None.
+- Notes: This is additive API-contract polish for profile search summaries; it does not change ranking, pagination, persistence, Flutter UI, lexicons, or PDS behavior.
+
 ## Completion Checklist
 - [x] All Must requirements covered by tests or documented gaps
 - [x] All planned Must tests passing or coverage gaps documented above
@@ -214,6 +227,9 @@
 - Fix-pass package tests: `go test ./internal/api -count=1` passed.
 - Fix-pass broader tests: `go test ./...` from `appview/` passed.
 - Fix-pass final verification: `just fmt && just test` passed on 2026-06-20 after correcting the new project-search test fixtures and SQL parameter bindings.
+- Approved-with-notes focused verification: `go test ./internal/api -run TestBuildProfileSearchSummaryIncludesAvatar -count=1` passed.
+- Approved-with-notes package verification: `go test ./internal/api -count=1` passed.
+- Approved-with-notes final verification: `just fmt && just test` passed on 2026-06-20.
 
 ## Coverage Gaps / Follow-ups
 - `MAN-001` representative `EXPLAIN` query-plan review was attempted, but the local dev database had not applied migration `000019_search_foundation`; re-run after applying migrations to confirm planner use of the added GIN/trigram/list indexes.
