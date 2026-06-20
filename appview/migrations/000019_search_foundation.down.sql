@@ -1,0 +1,10 @@
+DROP INDEX IF EXISTS bluesky_profiles_description_trgm_idx;
+DROP INDEX IF EXISTS bluesky_profiles_display_name_trgm_idx;
+DROP INDEX IF EXISTS atproto_identity_cache_handle_trgm_idx;
+DROP INDEX IF EXISTS craftsky_project_posts_lower_pattern_difficulty_idx;
+DROP INDEX IF EXISTS craftsky_project_posts_lower_craft_type_idx;
+DROP INDEX IF EXISTS craftsky_project_posts_search_vector_idx;
+DROP INDEX IF EXISTS craftsky_posts_root_created_uri_idx;
+DROP INDEX IF EXISTS craftsky_posts_search_vector_idx;
+DROP INDEX IF EXISTS craftsky_recent_searches_viewer_updated_idx;
+DROP TABLE IF EXISTS craftsky_recent_searches;
