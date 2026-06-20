@@ -27,6 +27,9 @@ import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/models/user_projects_state.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart'
     as user_projects_provider;
+import 'package:craftsky_app/search/models/profile_search_page.dart';
+import 'package:craftsky_app/search/models/search_post_page.dart';
+import 'package:craftsky_app/search/models/top_hashtags.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
@@ -211,6 +214,12 @@ void initializeMappers() {
   ProfileMapper.ensureInitialized();
   ProfileAccountSummaryMapper.ensureInitialized();
   ProfileAccountPageMapper.ensureInitialized();
+  SearchPostPageMapper.ensureInitialized();
+  ProfileSearchResultMapper.ensureInitialized();
+  ProfileSearchPageMapper.ensureInitialized();
+  TopHashtagsResponseMapper.ensureInitialized();
+  TopHashtagGroupMapper.ensureInitialized();
+  TopHashtagItemMapper.ensureInitialized();
   AccountSuggestionMapper.ensureInitialized();
   HashtagSuggestionMapper.ensureInitialized();
 }
