@@ -28,19 +28,15 @@ func NewSearchStore(pool *pgxpool.Pool) *SearchStore {
 
 func SearchHashtagPostsHandler(store *SearchStore, resolver HandleResolver, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tag, err := NormalizeHashtagPathValue(r.PathValue("tag"))
+		req, err := ParseExactHashtagPostsRequest(r)
 		if err != nil {
-			envelope.WriteError(w, http.StatusBadRequest, "validation_error", "invalid hashtag", middleware.GetRunID(r.Context()), nil)
-			return
-		}
-		sort, err := parseSearchSort(r.URL.Query().Get("sort"))
-		if err != nil {
-			envelope.WriteError(w, http.StatusBadRequest, "validation_error", "invalid search query", middleware.GetRunID(r.Context()), nil)
-			return
-		}
-		limit, err := parseBoundedSearchLimit(r.URL.Query().Get("limit"), SearchDefaultLimit, SearchMaxLimit)
-		if err != nil {
-			envelope.WriteError(w, http.StatusBadRequest, "validation_error", "invalid search query", middleware.GetRunID(r.Context()), nil)
+			code := "validation_error"
+			message := "invalid search query"
+			if errors.Is(err, envelope.ErrInvalidCursor) {
+				code = "invalid_cursor"
+				message = "invalid cursor"
+			}
+			envelope.WriteError(w, http.StatusBadRequest, code, message, middleware.GetRunID(r.Context()), nil)
 			return
 		}
 		viewerDID, ok := middleware.GetDID(r.Context())
@@ -48,7 +44,7 @@ func SearchHashtagPostsHandler(store *SearchStore, resolver HandleResolver, logg
 			envelope.WriteError(w, http.StatusInternalServerError, "missing_authenticated_did", "authenticated DID missing", middleware.GetRunID(r.Context()), nil)
 			return
 		}
-		rows, nextCursor, err := store.SearchHashtagPosts(r.Context(), tag, sort, limit, r.URL.Query().Get("cursor"), time.Now().UTC())
+		rows, nextCursor, err := store.SearchHashtagPosts(r.Context(), req.Tag, req.Sort, req.Limit, req.Cursor, time.Now().UTC())
 		if errors.Is(err, envelope.ErrInvalidCursor) {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_cursor", "invalid cursor", middleware.GetRunID(r.Context()), nil)
 			return
@@ -64,7 +60,7 @@ func SearchHashtagPostsHandler(store *SearchStore, resolver HandleResolver, logg
 			envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
-		writeJSON(w, http.StatusOK, SearchPostPageResponse{Hashtag: tag, Items: items, Cursor: nextCursor})
+		writeJSON(w, http.StatusOK, SearchPostPageResponse{Hashtag: req.Tag, Items: items, Cursor: nextCursor})
 	})
 }
 
@@ -102,6 +98,76 @@ func SearchProfilesHandler(store *SearchStore, logger *slog.Logger) http.Handler
 			items = append(items, BuildProfileSearchSummary(row))
 		}
 		writeJSON(w, http.StatusOK, SearchProfilePageResponse{Items: items, Cursor: nextCursor})
+	})
+}
+
+func SearchHashtagsHandler(store *SearchStore, logger *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		req, err := ParseHashtagSearchRequest(r)
+		if err != nil {
+			code := "validation_error"
+			message := "invalid hashtag search query"
+			if errors.Is(err, envelope.ErrInvalidCursor) {
+				code = "invalid_cursor"
+				message = "invalid cursor"
+			}
+			envelope.WriteError(w, http.StatusBadRequest, code, message, middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		items, nextCursor, err := store.SearchHashtags(r.Context(), req, time.Now().UTC())
+		if errors.Is(err, envelope.ErrInvalidCursor) {
+			envelope.WriteError(w, http.StatusBadRequest, "invalid_cursor", "invalid cursor", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		if err != nil {
+			logger.Error("hashtag query search failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+			envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		writeJSON(w, http.StatusOK, HashtagSearchPageResponse{Items: items, Cursor: nextCursor})
+	})
+}
+
+func SearchSuggestionsHandler(store *SearchStore, logger *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		req, err := ParseSearchSuggestionsRequest(r)
+		if err != nil {
+			envelope.WriteError(w, http.StatusBadRequest, "validation_error", "invalid suggestion query", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		viewerDID, ok := middleware.GetDID(r.Context())
+		if !ok {
+			envelope.WriteError(w, http.StatusInternalServerError, "missing_authenticated_did", "authenticated DID missing", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		resp := SearchSuggestionsResponse{
+			Profiles: SuggestionProfileSection{Items: []ProfileSearchSummary{}},
+			Hashtags: SuggestionHashtagSection{Items: []HashtagSearchResult{}},
+		}
+		if req.Types[SearchSuggestionTypeProfiles] {
+			rows, nextCursor, err := store.SearchProfiles(r.Context(), viewerDID.String(), ProfileSearchRequest{Query: req.Query, Limit: req.ProfileLimit})
+			if err != nil {
+				logger.Error("profile suggestions failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+				envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
+				return
+			}
+			resp.Profiles.Items = make([]ProfileSearchSummary, 0, len(rows))
+			for _, row := range rows {
+				resp.Profiles.Items = append(resp.Profiles.Items, BuildProfileSearchSummary(row))
+			}
+			resp.Profiles.HasMore = nextCursor != ""
+		}
+		if req.Types[SearchSuggestionTypeHashtags] {
+			items, nextCursor, err := store.SearchHashtags(r.Context(), HashtagSearchRequest{Query: req.Query, Limit: req.HashtagLimit}, time.Now().UTC())
+			if err != nil {
+				logger.Error("hashtag suggestions failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+				envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
+				return
+			}
+			resp.Hashtags.Items = items
+			resp.Hashtags.HasMore = nextCursor != ""
+		}
+		writeJSON(w, http.StatusOK, resp)
 	})
 }
 
@@ -199,11 +265,7 @@ func ListProjectsHandler(store *SearchStore, resolver HandleResolver, logger *sl
 			envelope.WriteError(w, http.StatusInternalServerError, "missing_authenticated_did", "authenticated DID missing", middleware.GetRunID(r.Context()), nil)
 			return
 		}
-		filters := map[string][]string{}
-		if len(req.CraftTypes) > 0 {
-			filters["craftType"] = req.CraftTypes
-		}
-		rows, nextCursor, err := store.SearchProjects(r.Context(), ProjectSearchRequest{Sort: req.Sort, Limit: req.Limit, Cursor: req.Cursor, Filters: filters}, time.Now().UTC())
+		rows, nextCursor, err := store.SearchProjects(r.Context(), ProjectSearchRequest{Sort: req.Sort, Limit: req.Limit, Cursor: req.Cursor, Filters: req.Filters}, time.Now().UTC())
 		if errors.Is(err, envelope.ErrInvalidCursor) {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_cursor", "invalid cursor", middleware.GetRunID(r.Context()), nil)
 			return

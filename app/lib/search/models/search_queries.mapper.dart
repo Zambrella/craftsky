@@ -8,6 +8,190 @@
 
 part of 'search_queries.dart';
 
+class SearchSuggestionQueryMapper
+    extends ClassMapperBase<SearchSuggestionQuery> {
+  SearchSuggestionQueryMapper._();
+
+  static SearchSuggestionQueryMapper? _instance;
+  static SearchSuggestionQueryMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = SearchSuggestionQueryMapper._());
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'SearchSuggestionQuery';
+
+  static String _$q(SearchSuggestionQuery v) => v.q;
+  static const Field<SearchSuggestionQuery, String> _f$q = Field('q', _$q);
+  static List<SearchSuggestionType> _$types(SearchSuggestionQuery v) => v.types;
+  static const Field<SearchSuggestionQuery, List<SearchSuggestionType>>
+  _f$types = Field('types', _$types, opt: true, def: const []);
+  static int? _$profileLimit(SearchSuggestionQuery v) => v.profileLimit;
+  static const Field<SearchSuggestionQuery, int> _f$profileLimit = Field(
+    'profileLimit',
+    _$profileLimit,
+    opt: true,
+  );
+  static int? _$hashtagLimit(SearchSuggestionQuery v) => v.hashtagLimit;
+  static const Field<SearchSuggestionQuery, int> _f$hashtagLimit = Field(
+    'hashtagLimit',
+    _$hashtagLimit,
+    opt: true,
+  );
+
+  @override
+  final MappableFields<SearchSuggestionQuery> fields = const {
+    #q: _f$q,
+    #types: _f$types,
+    #profileLimit: _f$profileLimit,
+    #hashtagLimit: _f$hashtagLimit,
+  };
+
+  static SearchSuggestionQuery _instantiate(DecodingData data) {
+    return SearchSuggestionQuery(
+      q: data.dec(_f$q),
+      types: data.dec(_f$types),
+      profileLimit: data.dec(_f$profileLimit),
+      hashtagLimit: data.dec(_f$hashtagLimit),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static SearchSuggestionQuery fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<SearchSuggestionQuery>(map);
+  }
+
+  static SearchSuggestionQuery fromJson(String json) {
+    return ensureInitialized().decodeJson<SearchSuggestionQuery>(json);
+  }
+}
+
+mixin SearchSuggestionQueryMappable {
+  String toJson() {
+    return SearchSuggestionQueryMapper.ensureInitialized()
+        .encodeJson<SearchSuggestionQuery>(this as SearchSuggestionQuery);
+  }
+
+  Map<String, dynamic> toMap() {
+    return SearchSuggestionQueryMapper.ensureInitialized()
+        .encodeMap<SearchSuggestionQuery>(this as SearchSuggestionQuery);
+  }
+
+  SearchSuggestionQueryCopyWith<
+    SearchSuggestionQuery,
+    SearchSuggestionQuery,
+    SearchSuggestionQuery
+  >
+  get copyWith =>
+      _SearchSuggestionQueryCopyWithImpl<
+        SearchSuggestionQuery,
+        SearchSuggestionQuery
+      >(this as SearchSuggestionQuery, $identity, $identity);
+  @override
+  String toString() {
+    return SearchSuggestionQueryMapper.ensureInitialized().stringifyValue(
+      this as SearchSuggestionQuery,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return SearchSuggestionQueryMapper.ensureInitialized().equalsValue(
+      this as SearchSuggestionQuery,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return SearchSuggestionQueryMapper.ensureInitialized().hashValue(
+      this as SearchSuggestionQuery,
+    );
+  }
+}
+
+extension SearchSuggestionQueryValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, SearchSuggestionQuery, $Out> {
+  SearchSuggestionQueryCopyWith<$R, SearchSuggestionQuery, $Out>
+  get $asSearchSuggestionQuery => $base.as(
+    (v, t, t2) => _SearchSuggestionQueryCopyWithImpl<$R, $Out>(v, t, t2),
+  );
+}
+
+abstract class SearchSuggestionQueryCopyWith<
+  $R,
+  $In extends SearchSuggestionQuery,
+  $Out
+>
+    implements ClassCopyWith<$R, $In, $Out> {
+  ListCopyWith<
+    $R,
+    SearchSuggestionType,
+    ObjectCopyWith<$R, SearchSuggestionType, SearchSuggestionType>
+  >
+  get types;
+  $R call({
+    String? q,
+    List<SearchSuggestionType>? types,
+    int? profileLimit,
+    int? hashtagLimit,
+  });
+  SearchSuggestionQueryCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _SearchSuggestionQueryCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, SearchSuggestionQuery, $Out>
+    implements SearchSuggestionQueryCopyWith<$R, SearchSuggestionQuery, $Out> {
+  _SearchSuggestionQueryCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<SearchSuggestionQuery> $mapper =
+      SearchSuggestionQueryMapper.ensureInitialized();
+  @override
+  ListCopyWith<
+    $R,
+    SearchSuggestionType,
+    ObjectCopyWith<$R, SearchSuggestionType, SearchSuggestionType>
+  >
+  get types => ListCopyWith(
+    $value.types,
+    (v, t) => ObjectCopyWith(v, $identity, t),
+    (v) => call(types: v),
+  );
+  @override
+  $R call({
+    String? q,
+    List<SearchSuggestionType>? types,
+    Object? profileLimit = $none,
+    Object? hashtagLimit = $none,
+  }) => $apply(
+    FieldCopyWithData({
+      if (q != null) #q: q,
+      if (types != null) #types: types,
+      if (profileLimit != $none) #profileLimit: profileLimit,
+      if (hashtagLimit != $none) #hashtagLimit: hashtagLimit,
+    }),
+  );
+  @override
+  SearchSuggestionQuery $make(CopyWithData data) => SearchSuggestionQuery(
+    q: data.get(#q, or: $value.q),
+    types: data.get(#types, or: $value.types),
+    profileLimit: data.get(#profileLimit, or: $value.profileLimit),
+    hashtagLimit: data.get(#hashtagLimit, or: $value.hashtagLimit),
+  );
+
+  @override
+  SearchSuggestionQueryCopyWith<$R2, SearchSuggestionQuery, $Out2>
+  $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
+      _SearchSuggestionQueryCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
 class HashtagSearchQueryMapper extends ClassMapperBase<HashtagSearchQuery> {
   HashtagSearchQueryMapper._();
 
@@ -147,6 +331,130 @@ class _HashtagSearchQueryCopyWithImpl<$R, $Out>
   ) => _HashtagSearchQueryCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 
+class HashtagResultSearchQueryMapper
+    extends ClassMapperBase<HashtagResultSearchQuery> {
+  HashtagResultSearchQueryMapper._();
+
+  static HashtagResultSearchQueryMapper? _instance;
+  static HashtagResultSearchQueryMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(
+        _instance = HashtagResultSearchQueryMapper._(),
+      );
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'HashtagResultSearchQuery';
+
+  static String _$q(HashtagResultSearchQuery v) => v.q;
+  static const Field<HashtagResultSearchQuery, String> _f$q = Field('q', _$q);
+
+  @override
+  final MappableFields<HashtagResultSearchQuery> fields = const {#q: _f$q};
+
+  static HashtagResultSearchQuery _instantiate(DecodingData data) {
+    return HashtagResultSearchQuery(q: data.dec(_f$q));
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static HashtagResultSearchQuery fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<HashtagResultSearchQuery>(map);
+  }
+
+  static HashtagResultSearchQuery fromJson(String json) {
+    return ensureInitialized().decodeJson<HashtagResultSearchQuery>(json);
+  }
+}
+
+mixin HashtagResultSearchQueryMappable {
+  String toJson() {
+    return HashtagResultSearchQueryMapper.ensureInitialized()
+        .encodeJson<HashtagResultSearchQuery>(this as HashtagResultSearchQuery);
+  }
+
+  Map<String, dynamic> toMap() {
+    return HashtagResultSearchQueryMapper.ensureInitialized()
+        .encodeMap<HashtagResultSearchQuery>(this as HashtagResultSearchQuery);
+  }
+
+  HashtagResultSearchQueryCopyWith<
+    HashtagResultSearchQuery,
+    HashtagResultSearchQuery,
+    HashtagResultSearchQuery
+  >
+  get copyWith =>
+      _HashtagResultSearchQueryCopyWithImpl<
+        HashtagResultSearchQuery,
+        HashtagResultSearchQuery
+      >(this as HashtagResultSearchQuery, $identity, $identity);
+  @override
+  String toString() {
+    return HashtagResultSearchQueryMapper.ensureInitialized().stringifyValue(
+      this as HashtagResultSearchQuery,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return HashtagResultSearchQueryMapper.ensureInitialized().equalsValue(
+      this as HashtagResultSearchQuery,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return HashtagResultSearchQueryMapper.ensureInitialized().hashValue(
+      this as HashtagResultSearchQuery,
+    );
+  }
+}
+
+extension HashtagResultSearchQueryValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, HashtagResultSearchQuery, $Out> {
+  HashtagResultSearchQueryCopyWith<$R, HashtagResultSearchQuery, $Out>
+  get $asHashtagResultSearchQuery => $base.as(
+    (v, t, t2) => _HashtagResultSearchQueryCopyWithImpl<$R, $Out>(v, t, t2),
+  );
+}
+
+abstract class HashtagResultSearchQueryCopyWith<
+  $R,
+  $In extends HashtagResultSearchQuery,
+  $Out
+>
+    implements ClassCopyWith<$R, $In, $Out> {
+  $R call({String? q});
+  HashtagResultSearchQueryCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _HashtagResultSearchQueryCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, HashtagResultSearchQuery, $Out>
+    implements
+        HashtagResultSearchQueryCopyWith<$R, HashtagResultSearchQuery, $Out> {
+  _HashtagResultSearchQueryCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<HashtagResultSearchQuery> $mapper =
+      HashtagResultSearchQueryMapper.ensureInitialized();
+  @override
+  $R call({String? q}) => $apply(FieldCopyWithData({if (q != null) #q: q}));
+  @override
+  HashtagResultSearchQuery $make(CopyWithData data) =>
+      HashtagResultSearchQuery(q: data.get(#q, or: $value.q));
+
+  @override
+  HashtagResultSearchQueryCopyWith<$R2, HashtagResultSearchQuery, $Out2>
+  $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
+      _HashtagResultSearchQueryCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
 class ProfileSearchQueryMapper extends ClassMapperBase<ProfileSearchQuery> {
   ProfileSearchQueryMapper._();
 
@@ -275,7 +583,6 @@ class PostSearchQueryMapper extends ClassMapperBase<PostSearchQuery> {
   static PostSearchQueryMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = PostSearchQueryMapper._());
-      SearchSortMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -285,22 +592,12 @@ class PostSearchQueryMapper extends ClassMapperBase<PostSearchQuery> {
 
   static String _$q(PostSearchQuery v) => v.q;
   static const Field<PostSearchQuery, String> _f$q = Field('q', _$q);
-  static SearchSort _$sort(PostSearchQuery v) => v.sort;
-  static const Field<PostSearchQuery, SearchSort> _f$sort = Field(
-    'sort',
-    _$sort,
-    opt: true,
-    def: SearchSort.chronological,
-  );
 
   @override
-  final MappableFields<PostSearchQuery> fields = const {
-    #q: _f$q,
-    #sort: _f$sort,
-  };
+  final MappableFields<PostSearchQuery> fields = const {#q: _f$q};
 
   static PostSearchQuery _instantiate(DecodingData data) {
-    return PostSearchQuery(q: data.dec(_f$q), sort: data.dec(_f$sort));
+    return PostSearchQuery(q: data.dec(_f$q));
   }
 
   @override
@@ -365,7 +662,7 @@ extension PostSearchQueryValueCopy<$R, $Out>
 
 abstract class PostSearchQueryCopyWith<$R, $In extends PostSearchQuery, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
-  $R call({String? q, SearchSort? sort});
+  $R call({String? q});
   PostSearchQueryCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   );
@@ -380,14 +677,10 @@ class _PostSearchQueryCopyWithImpl<$R, $Out>
   late final ClassMapperBase<PostSearchQuery> $mapper =
       PostSearchQueryMapper.ensureInitialized();
   @override
-  $R call({String? q, SearchSort? sort}) => $apply(
-    FieldCopyWithData({if (q != null) #q: q, if (sort != null) #sort: sort}),
-  );
+  $R call({String? q}) => $apply(FieldCopyWithData({if (q != null) #q: q}));
   @override
-  PostSearchQuery $make(CopyWithData data) => PostSearchQuery(
-    q: data.get(#q, or: $value.q),
-    sort: data.get(#sort, or: $value.sort),
-  );
+  PostSearchQuery $make(CopyWithData data) =>
+      PostSearchQuery(q: data.get(#q, or: $value.q));
 
   @override
   PostSearchQueryCopyWith<$R2, PostSearchQuery, $Out2> $chain<$R2, $Out2>(
@@ -402,8 +695,6 @@ class ProjectSearchQueryMapper extends ClassMapperBase<ProjectSearchQuery> {
   static ProjectSearchQueryMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = ProjectSearchQueryMapper._());
-      SearchSortMapper.ensureInitialized();
-      ProjectSearchFiltersMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -411,36 +702,14 @@ class ProjectSearchQueryMapper extends ClassMapperBase<ProjectSearchQuery> {
   @override
   final String id = 'ProjectSearchQuery';
 
-  static String? _$q(ProjectSearchQuery v) => v.q;
-  static const Field<ProjectSearchQuery, String> _f$q = Field(
-    'q',
-    _$q,
-    opt: true,
-  );
-  static SearchSort _$sort(ProjectSearchQuery v) => v.sort;
-  static const Field<ProjectSearchQuery, SearchSort> _f$sort = Field(
-    'sort',
-    _$sort,
-    opt: true,
-    def: SearchSort.chronological,
-  );
-  static ProjectSearchFilters _$filters(ProjectSearchQuery v) => v.filters;
-  static const Field<ProjectSearchQuery, ProjectSearchFilters> _f$filters =
-      Field('filters', _$filters, opt: true, def: const ProjectSearchFilters());
+  static String _$q(ProjectSearchQuery v) => v.q;
+  static const Field<ProjectSearchQuery, String> _f$q = Field('q', _$q);
 
   @override
-  final MappableFields<ProjectSearchQuery> fields = const {
-    #q: _f$q,
-    #sort: _f$sort,
-    #filters: _f$filters,
-  };
+  final MappableFields<ProjectSearchQuery> fields = const {#q: _f$q};
 
   static ProjectSearchQuery _instantiate(DecodingData data) {
-    return ProjectSearchQuery(
-      q: data.dec(_f$q),
-      sort: data.dec(_f$sort),
-      filters: data.dec(_f$filters),
-    );
+    return ProjectSearchQuery(q: data.dec(_f$q));
   }
 
   @override
@@ -514,9 +783,7 @@ abstract class ProjectSearchQueryCopyWith<
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
-  ProjectSearchFiltersCopyWith<$R, ProjectSearchFilters, ProjectSearchFilters>
-  get filters;
-  $R call({String? q, SearchSort? sort, ProjectSearchFilters? filters});
+  $R call({String? q});
   ProjectSearchQueryCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   );
@@ -531,26 +798,10 @@ class _ProjectSearchQueryCopyWithImpl<$R, $Out>
   late final ClassMapperBase<ProjectSearchQuery> $mapper =
       ProjectSearchQueryMapper.ensureInitialized();
   @override
-  ProjectSearchFiltersCopyWith<$R, ProjectSearchFilters, ProjectSearchFilters>
-  get filters => $value.filters.copyWith.$chain((v) => call(filters: v));
+  $R call({String? q}) => $apply(FieldCopyWithData({if (q != null) #q: q}));
   @override
-  $R call({
-    Object? q = $none,
-    SearchSort? sort,
-    ProjectSearchFilters? filters,
-  }) => $apply(
-    FieldCopyWithData({
-      if (q != $none) #q: q,
-      if (sort != null) #sort: sort,
-      if (filters != null) #filters: filters,
-    }),
-  );
-  @override
-  ProjectSearchQuery $make(CopyWithData data) => ProjectSearchQuery(
-    q: data.get(#q, or: $value.q),
-    sort: data.get(#sort, or: $value.sort),
-    filters: data.get(#filters, or: $value.filters),
-  );
+  ProjectSearchQuery $make(CopyWithData data) =>
+      ProjectSearchQuery(q: data.get(#q, or: $value.q));
 
   @override
   ProjectSearchQueryCopyWith<$R2, ProjectSearchQuery, $Out2> $chain<$R2, $Out2>(

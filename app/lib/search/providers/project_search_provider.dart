@@ -15,8 +15,6 @@ class ProjectSearch extends _$ProjectSearch {
         .watch(searchRepositoryProvider)
         .searchProjects(
           q: query.q,
-          sort: query.sort,
-          filters: query.filters,
           limit: searchResultsPageLimit,
         );
     return SearchPostResultsState(items: page.items, cursor: page.cursor);
@@ -32,8 +30,6 @@ class ProjectSearch extends _$ProjectSearch {
           .read(searchRepositoryProvider)
           .searchProjects(
             q: query.q,
-            sort: query.sort,
-            filters: query.filters,
             limit: searchResultsPageLimit,
             cursor: current.cursor,
           );

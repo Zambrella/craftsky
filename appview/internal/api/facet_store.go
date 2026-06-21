@@ -33,13 +33,26 @@ func RankMentionSuggestionRows(rows []MentionSuggestionRow, query string) {
 		if a.ViewerIsFollowing != b.ViewerIsFollowing {
 			return a.ViewerIsFollowing
 		}
-		aPrefix := strings.HasPrefix(strings.ToLower(a.Handle), query)
-		bPrefix := strings.HasPrefix(strings.ToLower(b.Handle), query)
-		if aPrefix != bPrefix {
-			return aPrefix
+		aRank, aOK := ProfileRelevanceRank(query, a.Handle, derefString(a.DisplayName), derefString(a.Description))
+		bRank, bOK := ProfileRelevanceRank(query, b.Handle, derefString(b.DisplayName), derefString(b.Description))
+		if aOK != bOK {
+			return aOK
 		}
-		return strings.ToLower(a.Handle) < strings.ToLower(b.Handle)
+		if aRank != bRank {
+			return aRank < bRank
+		}
+		if strings.ToLower(a.Handle) != strings.ToLower(b.Handle) {
+			return strings.ToLower(a.Handle) < strings.ToLower(b.Handle)
+		}
+		return a.DID < b.DID
 	})
+}
+
+func derefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func NormalizeHashtagSuggestionRows(rows []HashtagSuggestionRow) []HashtagSuggestionRow {
@@ -84,8 +97,10 @@ func (s *FacetStore) SearchMentionSuggestions(ctx context.Context, viewerDID syn
 			ic.did,
 			ic.handle,
 			bp.display_name,
+			bp.description,
 			bp.avatar_cid,
 			bp.avatar_mime,
+			cp.crafts,
 			EXISTS (
 				SELECT 1 FROM atproto_follows f
 				WHERE f.did = $1 AND f.subject_did = ic.did
@@ -95,18 +110,27 @@ func (s *FacetStore) SearchMentionSuggestions(ctx context.Context, viewerDID syn
 		LEFT JOIN bluesky_profiles bp ON bp.did = ic.did
 		WHERE ic.resolved_at >= $2
 		  AND (
-			ic.handle_lower LIKE '%' || $3 || '%' ESCAPE '\'
-			OR lower(coalesce(bp.display_name, '')) LIKE '%' || $3 || '%' ESCAPE '\'
+			ic.handle_lower LIKE '%' || $4 || '%' ESCAPE '\'
+			OR lower(coalesce(bp.display_name, '')) LIKE '%' || $4 || '%' ESCAPE '\'
+			OR lower(coalesce(bp.description, '')) LIKE '%' || $4 || '%' ESCAPE '\'
 		  )
 		ORDER BY
 			EXISTS (
 				SELECT 1 FROM atproto_follows f
 				WHERE f.did = $1 AND f.subject_did = ic.did
 			) DESC,
-			CASE WHEN ic.handle_lower LIKE $3 || '%' ESCAPE '\' THEN 0 ELSE 1 END ASC,
-			ic.handle_lower ASC
-		LIMIT $4
-	`, viewerDID.String(), now.Add(-identityCacheFreshness), likeQuery, limit)
+			CASE
+				WHEN ic.handle_lower = $3 THEN 0
+				WHEN ic.handle_lower LIKE $4 || '%' ESCAPE '\' THEN 1
+				WHEN ic.handle_lower LIKE '%' || $4 || '%' ESCAPE '\' THEN 2
+				WHEN lower(coalesce(bp.display_name, '')) LIKE '%' || $4 || '%' ESCAPE '\' THEN 3
+				WHEN lower(coalesce(bp.description, '')) LIKE '%' || $4 || '%' ESCAPE '\' THEN 4
+				ELSE 99
+			END ASC,
+			ic.handle_lower ASC,
+			ic.did ASC
+		LIMIT $5
+	`, viewerDID.String(), now.Add(-identityCacheFreshness), queryLower, likeQuery, limit)
 	if err != nil {
 		return nil, fmt.Errorf("facet mention suggestions: %w", err)
 	}
@@ -115,7 +139,7 @@ func (s *FacetStore) SearchMentionSuggestions(ctx context.Context, viewerDID syn
 	out := make([]MentionSuggestionRow, 0, limit)
 	for rows.Next() {
 		var row MentionSuggestionRow
-		if err := rows.Scan(&row.DID, &row.Handle, &row.DisplayName, &row.AvatarCID, &row.AvatarMime, &row.ViewerIsFollowing); err != nil {
+		if err := rows.Scan(&row.DID, &row.Handle, &row.DisplayName, &row.Description, &row.AvatarCID, &row.AvatarMime, &row.Crafts, &row.ViewerIsFollowing); err != nil {
 			return nil, fmt.Errorf("facet mention suggestion scan: %w", err)
 		}
 		row.IsCraftskyProfile = true
@@ -128,7 +152,7 @@ func (s *FacetStore) SearchMentionSuggestions(ctx context.Context, viewerDID syn
 }
 
 func (s *FacetStore) SearchHashtagSuggestions(ctx context.Context, query string, limit int, now time.Time) ([]HashtagSuggestionRow, error) {
-	queryLower := strings.ToLower(strings.TrimSpace(query))
+	queryLower := normalizeHashtagSearchTerm(query)
 	if queryLower == "" || limit <= 0 {
 		return []HashtagSuggestionRow{}, nil
 	}
@@ -141,11 +165,18 @@ func (s *FacetStore) SearchHashtagSuggestions(ctx context.Context, query string,
 		  AND p.reply_parent_uri IS NULL
 		  AND p.created_at >= $1
 		  AND trim(tag.raw_tag) <> ''
-		  AND lower(trim(tag.raw_tag)) LIKE '%' || $2 || '%' ESCAPE '\'
+		  AND lower(trim(tag.raw_tag)) LIKE '%' || $3 || '%' ESCAPE '\'
 		GROUP BY lower(trim(tag.raw_tag))
-		ORDER BY posts_last_28_days DESC, tag ASC
-		LIMIT $3
-	`, now.Add(-28*24*time.Hour), likeQuery, limit)
+		ORDER BY
+		  CASE
+		    WHEN lower(trim(tag.raw_tag)) = $2 THEN 0
+		    WHEN lower(trim(tag.raw_tag)) LIKE $3 || '%' ESCAPE '\' THEN 1
+		    ELSE 2
+		  END ASC,
+		  posts_last_28_days DESC,
+		  tag ASC
+		LIMIT $4
+	`, now.Add(-28*24*time.Hour), queryLower, likeQuery, limit)
 	if err != nil {
 		return nil, fmt.Errorf("facet hashtag suggestions: %w", err)
 	}

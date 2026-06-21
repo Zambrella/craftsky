@@ -343,3 +343,171 @@ class _ProfileSearchResultsStateCopyWithImpl<$R, $Out>
       _ProfileSearchResultsStateCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 
+class HashtagSearchResultsStateMapper
+    extends ClassMapperBase<HashtagSearchResultsState> {
+  HashtagSearchResultsStateMapper._();
+
+  static HashtagSearchResultsStateMapper? _instance;
+  static HashtagSearchResultsStateMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(
+        _instance = HashtagSearchResultsStateMapper._(),
+      );
+      HashtagSearchResultMapper.ensureInitialized();
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'HashtagSearchResultsState';
+
+  static List<HashtagSearchResult> _$items(HashtagSearchResultsState v) =>
+      v.items;
+  static const Field<HashtagSearchResultsState, List<HashtagSearchResult>>
+  _f$items = Field('items', _$items);
+  static String? _$cursor(HashtagSearchResultsState v) => v.cursor;
+  static const Field<HashtagSearchResultsState, String> _f$cursor = Field(
+    'cursor',
+    _$cursor,
+    opt: true,
+  );
+
+  @override
+  final MappableFields<HashtagSearchResultsState> fields = const {
+    #items: _f$items,
+    #cursor: _f$cursor,
+  };
+
+  static HashtagSearchResultsState _instantiate(DecodingData data) {
+    return HashtagSearchResultsState(
+      items: data.dec(_f$items),
+      cursor: data.dec(_f$cursor),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static HashtagSearchResultsState fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<HashtagSearchResultsState>(map);
+  }
+
+  static HashtagSearchResultsState fromJson(String json) {
+    return ensureInitialized().decodeJson<HashtagSearchResultsState>(json);
+  }
+}
+
+mixin HashtagSearchResultsStateMappable {
+  String toJson() {
+    return HashtagSearchResultsStateMapper.ensureInitialized()
+        .encodeJson<HashtagSearchResultsState>(
+          this as HashtagSearchResultsState,
+        );
+  }
+
+  Map<String, dynamic> toMap() {
+    return HashtagSearchResultsStateMapper.ensureInitialized()
+        .encodeMap<HashtagSearchResultsState>(
+          this as HashtagSearchResultsState,
+        );
+  }
+
+  HashtagSearchResultsStateCopyWith<
+    HashtagSearchResultsState,
+    HashtagSearchResultsState,
+    HashtagSearchResultsState
+  >
+  get copyWith =>
+      _HashtagSearchResultsStateCopyWithImpl<
+        HashtagSearchResultsState,
+        HashtagSearchResultsState
+      >(this as HashtagSearchResultsState, $identity, $identity);
+  @override
+  String toString() {
+    return HashtagSearchResultsStateMapper.ensureInitialized().stringifyValue(
+      this as HashtagSearchResultsState,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return HashtagSearchResultsStateMapper.ensureInitialized().equalsValue(
+      this as HashtagSearchResultsState,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return HashtagSearchResultsStateMapper.ensureInitialized().hashValue(
+      this as HashtagSearchResultsState,
+    );
+  }
+}
+
+extension HashtagSearchResultsStateValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, HashtagSearchResultsState, $Out> {
+  HashtagSearchResultsStateCopyWith<$R, HashtagSearchResultsState, $Out>
+  get $asHashtagSearchResultsState => $base.as(
+    (v, t, t2) => _HashtagSearchResultsStateCopyWithImpl<$R, $Out>(v, t, t2),
+  );
+}
+
+abstract class HashtagSearchResultsStateCopyWith<
+  $R,
+  $In extends HashtagSearchResultsState,
+  $Out
+>
+    implements ClassCopyWith<$R, $In, $Out> {
+  ListCopyWith<
+    $R,
+    HashtagSearchResult,
+    HashtagSearchResultCopyWith<$R, HashtagSearchResult, HashtagSearchResult>
+  >
+  get items;
+  $R call({List<HashtagSearchResult>? items, String? cursor});
+  HashtagSearchResultsStateCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _HashtagSearchResultsStateCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, HashtagSearchResultsState, $Out>
+    implements
+        HashtagSearchResultsStateCopyWith<$R, HashtagSearchResultsState, $Out> {
+  _HashtagSearchResultsStateCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<HashtagSearchResultsState> $mapper =
+      HashtagSearchResultsStateMapper.ensureInitialized();
+  @override
+  ListCopyWith<
+    $R,
+    HashtagSearchResult,
+    HashtagSearchResultCopyWith<$R, HashtagSearchResult, HashtagSearchResult>
+  >
+  get items => ListCopyWith(
+    $value.items,
+    (v, t) => v.copyWith.$chain(t),
+    (v) => call(items: v),
+  );
+  @override
+  $R call({List<HashtagSearchResult>? items, Object? cursor = $none}) => $apply(
+    FieldCopyWithData({
+      if (items != null) #items: items,
+      if (cursor != $none) #cursor: cursor,
+    }),
+  );
+  @override
+  HashtagSearchResultsState $make(CopyWithData data) =>
+      HashtagSearchResultsState(
+        items: data.get(#items, or: $value.items),
+        cursor: data.get(#cursor, or: $value.cursor),
+      );
+
+  @override
+  HashtagSearchResultsStateCopyWith<$R2, HashtagSearchResultsState, $Out2>
+  $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
+      _HashtagSearchResultsStateCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+

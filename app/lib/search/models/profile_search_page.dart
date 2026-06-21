@@ -11,6 +11,7 @@ class ProfileSearchResult with ProfileSearchResultMappable {
     required String handle,
     required this.isCraftskyProfile,
     required this.viewerIsFollowing,
+    this.crafts = const [],
     this.displayName,
     this.description,
     this.avatar,
@@ -21,6 +22,7 @@ class ProfileSearchResult with ProfileSearchResultMappable {
   final Handle handle;
   final bool isCraftskyProfile;
   final bool viewerIsFollowing;
+  final List<String> crafts;
   final String? displayName;
   final String? description;
   final String? avatar;

@@ -41,3 +41,21 @@ func TestProfileSearchRankTupleFollowedFirst(t *testing.T) {
 		t.Fatalf("followed weak match must rank before non-followed strong match")
 	}
 }
+
+func TestBuildProfileSearchSummaryIncludesCrafts(t *testing.T) {
+	crafts := []string{"social.craftsky.feed.defs#knitting"}
+	summary := api.BuildProfileSearchSummary(api.ProfileSearchRow{
+		DID:               "did:plc:alice",
+		Handle:            "alice.craftsky.social",
+		HandleLower:       "alice.craftsky.social",
+		IsCraftskyProfile: true,
+		Crafts:            crafts,
+	})
+	if len(summary.Crafts) != 1 || summary.Crafts[0] != crafts[0] {
+		t.Fatalf("summary crafts = %#v, want %#v", summary.Crafts, crafts)
+	}
+	crafts[0] = "mutated"
+	if summary.Crafts[0] != "social.craftsky.feed.defs#knitting" {
+		t.Fatalf("summary crafts aliases input slice: %#v", summary.Crafts)
+	}
+}

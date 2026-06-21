@@ -1,7 +1,7 @@
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/search/data/api_search_repository.dart';
 import 'package:craftsky_app/search/data/search_api_client.dart';
-import 'package:craftsky_app/search/models/search_sort.dart';
+import 'package:craftsky_app/search/models/search_suggestions.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -42,7 +42,6 @@ void main() {
         }),
         queryParameters: {
           'q': 'alpaca',
-          'sort': 'popular',
           'limit': '7',
           'cursor': 'opaque:start',
         },
@@ -51,13 +50,52 @@ void main() {
       final repo = ApiSearchRepository(SearchApiClient(dio));
       final page = await repo.searchPosts(
         q: 'alpaca',
-        sort: SearchSort.popular,
         limit: 7,
         cursor: 'opaque:start',
       );
 
       expect(page.cursor, 'next');
       expect(page.items.single.text, 'delegated');
+    },
+  );
+
+  test(
+    'IT-012 ApiSearchRepository delegates suggestions and hashtags',
+    () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio)
+        ..onGet(
+          '/v1/search/suggestions',
+          (server) => server.reply(200, {
+            'profiles': {'items': <Map<String, dynamic>>[], 'hasMore': false},
+            'hashtags': {'items': <Map<String, dynamic>>[], 'hasMore': false},
+          }),
+          queryParameters: {
+            'q': 'sock',
+            'types': 'profiles',
+            'profileLimit': '3',
+          },
+        )
+        ..onGet(
+          '/v1/search/hashtags',
+          (server) => server.reply(200, {
+            'items': [
+              {'tag': 'sock', 'postsLast28Days': 2},
+            ],
+          }),
+          queryParameters: {'q': 'sock', 'limit': '3'},
+        );
+
+      final repo = ApiSearchRepository(SearchApiClient(dio));
+      final suggestions = await repo.searchSuggestions(
+        q: 'sock',
+        types: const [SearchSuggestionType.profiles],
+        profileLimit: 3,
+      );
+      final hashtags = await repo.searchHashtags(q: 'sock', limit: 3);
+
+      expect(suggestions.profiles.items, isEmpty);
+      expect(hashtags.items.single.tag, 'sock');
     },
   );
 }

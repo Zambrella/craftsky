@@ -1,4 +1,5 @@
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/search/models/hashtag_search_page.dart';
 import 'package:craftsky_app/search/models/profile_search_page.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
@@ -34,4 +35,18 @@ class ProfileSearchResultsState with ProfileSearchResultsStateMappable {
   @override
   String toString() =>
       'ProfileSearchResultsState(items: ${items.length}, hasMore: $hasMore)';
+}
+
+@MappableClass()
+class HashtagSearchResultsState with HashtagSearchResultsStateMappable {
+  const HashtagSearchResultsState({required this.items, this.cursor});
+
+  final List<HashtagSearchResult> items;
+  final String? cursor;
+
+  bool get hasMore => cursor != null;
+
+  @override
+  String toString() =>
+      'HashtagSearchResultsState(items: ${items.length}, hasMore: $hasMore)';
 }

@@ -6,6 +6,7 @@ part 'recent_search.mapper.dart';
 
 @MappableEnum()
 enum RecentSearchType {
+  query,
   hashtag,
   profile,
   post,
@@ -26,12 +27,15 @@ sealed class RecentSearchPayload {
     RecentSearchType type,
     Map<String, dynamic> map,
   ) => switch (type) {
+    RecentSearchType.query => QueryRecentSearchPayload(q: map['q'] as String),
     RecentSearchType.hashtag => HashtagRecentSearchPayload(
       tag: map['tag'] as String,
-      sort: _sortFromMap(map),
     ),
     RecentSearchType.profile => ProfileRecentSearchPayload(
-      q: map['q'] as String,
+      did: map['did'] as String,
+      handle: map['handle'] as String,
+      displayName: map['displayName'] as String?,
+      avatar: map['avatar'] as String?,
     ),
     RecentSearchType.post => PostRecentSearchPayload(
       q: map['q'] as String,
@@ -48,29 +52,49 @@ sealed class RecentSearchPayload {
 }
 
 @MappableClass()
-class HashtagRecentSearchPayload extends RecentSearchPayload
-    with HashtagRecentSearchPayloadMappable {
-  const HashtagRecentSearchPayload({
-    required this.tag,
-    this.sort = SearchSort.chronological,
-  });
-
-  final String tag;
-  final SearchSort sort;
-
-  @override
-  Map<String, dynamic> toMap() => {'tag': tag, 'sort': sort.wireValue};
-}
-
-@MappableClass()
-class ProfileRecentSearchPayload extends RecentSearchPayload
-    with ProfileRecentSearchPayloadMappable {
-  const ProfileRecentSearchPayload({required this.q});
+class QueryRecentSearchPayload extends RecentSearchPayload
+    with QueryRecentSearchPayloadMappable {
+  const QueryRecentSearchPayload({required this.q});
 
   final String q;
 
   @override
   Map<String, dynamic> toMap() => {'q': q};
+}
+
+@MappableClass()
+class HashtagRecentSearchPayload extends RecentSearchPayload
+    with HashtagRecentSearchPayloadMappable {
+  const HashtagRecentSearchPayload({required this.tag});
+
+  final String tag;
+
+  @override
+  Map<String, dynamic> toMap() => {'tag': tag};
+}
+
+@MappableClass()
+class ProfileRecentSearchPayload extends RecentSearchPayload
+    with ProfileRecentSearchPayloadMappable {
+  const ProfileRecentSearchPayload({
+    required this.did,
+    required this.handle,
+    this.displayName,
+    this.avatar,
+  });
+
+  final String did;
+  final String handle;
+  final String? displayName;
+  final String? avatar;
+
+  @override
+  Map<String, dynamic> toMap() => {
+    'did': did,
+    'handle': handle,
+    'displayName': ?displayName,
+    'avatar': ?avatar,
+  };
 }
 
 @MappableClass()

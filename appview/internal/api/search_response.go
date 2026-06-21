@@ -16,9 +16,35 @@ type SearchProfilePageResponse struct {
 	Cursor string                 `json:"cursor,omitempty"`
 }
 
+type HashtagSearchPageResponse struct {
+	Items  []HashtagSearchResult `json:"items"`
+	Cursor string                `json:"cursor,omitempty"`
+}
+
+type HashtagSearchResult struct {
+	Tag             string `json:"tag"`
+	PostsLast28Days int    `json:"postsLast28Days"`
+}
+
+type SearchSuggestionsResponse struct {
+	Profiles SuggestionProfileSection `json:"profiles"`
+	Hashtags SuggestionHashtagSection `json:"hashtags"`
+}
+
+type SuggestionProfileSection struct {
+	Items   []ProfileSearchSummary `json:"items"`
+	HasMore bool                   `json:"hasMore"`
+}
+
+type SuggestionHashtagSection struct {
+	Items   []HashtagSearchResult `json:"items"`
+	HasMore bool                  `json:"hasMore"`
+}
+
 type ProfileSearchSummary struct {
 	ProfileAccountSummary
-	ViewerIsFollowing bool `json:"viewerIsFollowing"`
+	ViewerIsFollowing bool     `json:"viewerIsFollowing"`
+	Crafts            []string `json:"crafts"`
 }
 
 type TopHashtagsResponse struct {

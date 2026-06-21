@@ -47,6 +47,13 @@ class ProfileSearchResultMapper extends ClassMapperBase<ProfileSearchResult> {
     'viewerIsFollowing',
     _$viewerIsFollowing,
   );
+  static List<String> _$crafts(ProfileSearchResult v) => v.crafts;
+  static const Field<ProfileSearchResult, List<String>> _f$crafts = Field(
+    'crafts',
+    _$crafts,
+    opt: true,
+    def: const [],
+  );
   static String? _$displayName(ProfileSearchResult v) => v.displayName;
   static const Field<ProfileSearchResult, String> _f$displayName = Field(
     'displayName',
@@ -72,6 +79,7 @@ class ProfileSearchResultMapper extends ClassMapperBase<ProfileSearchResult> {
     #handle: _f$handle,
     #isCraftskyProfile: _f$isCraftskyProfile,
     #viewerIsFollowing: _f$viewerIsFollowing,
+    #crafts: _f$crafts,
     #displayName: _f$displayName,
     #description: _f$description,
     #avatar: _f$avatar,
@@ -83,6 +91,7 @@ class ProfileSearchResultMapper extends ClassMapperBase<ProfileSearchResult> {
       handle: data.dec(_f$handle),
       isCraftskyProfile: data.dec(_f$isCraftskyProfile),
       viewerIsFollowing: data.dec(_f$viewerIsFollowing),
+      crafts: data.dec(_f$crafts),
       displayName: data.dec(_f$displayName),
       description: data.dec(_f$description),
       avatar: data.dec(_f$avatar),
@@ -159,11 +168,13 @@ abstract class ProfileSearchResultCopyWith<
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get crafts;
   $R call({
     String? did,
     String? handle,
     bool? isCraftskyProfile,
     bool? viewerIsFollowing,
+    List<String>? crafts,
     String? displayName,
     String? description,
     String? avatar,
@@ -182,11 +193,19 @@ class _ProfileSearchResultCopyWithImpl<$R, $Out>
   late final ClassMapperBase<ProfileSearchResult> $mapper =
       ProfileSearchResultMapper.ensureInitialized();
   @override
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get crafts =>
+      ListCopyWith(
+        $value.crafts,
+        (v, t) => ObjectCopyWith(v, $identity, t),
+        (v) => call(crafts: v),
+      );
+  @override
   $R call({
     String? did,
     String? handle,
     bool? isCraftskyProfile,
     bool? viewerIsFollowing,
+    List<String>? crafts,
     Object? displayName = $none,
     Object? description = $none,
     Object? avatar = $none,
@@ -196,6 +215,7 @@ class _ProfileSearchResultCopyWithImpl<$R, $Out>
       if (handle != null) #handle: handle,
       if (isCraftskyProfile != null) #isCraftskyProfile: isCraftskyProfile,
       if (viewerIsFollowing != null) #viewerIsFollowing: viewerIsFollowing,
+      if (crafts != null) #crafts: crafts,
       if (displayName != $none) #displayName: displayName,
       if (description != $none) #description: description,
       if (avatar != $none) #avatar: avatar,
@@ -213,6 +233,7 @@ class _ProfileSearchResultCopyWithImpl<$R, $Out>
       #viewerIsFollowing,
       or: $value.viewerIsFollowing,
     ),
+    crafts: data.get(#crafts, or: $value.crafts),
     displayName: data.get(#displayName, or: $value.displayName),
     description: data.get(#description, or: $value.description),
     avatar: data.get(#avatar, or: $value.avatar),

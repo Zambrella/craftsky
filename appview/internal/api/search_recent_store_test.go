@@ -3,6 +3,7 @@ package api_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -15,7 +16,7 @@ const recentSearchStoreDDL = `
 CREATE TABLE craftsky_recent_searches (
     id TEXT PRIMARY KEY,
     viewer_did TEXT NOT NULL,
-    search_type TEXT NOT NULL CHECK (search_type IN ('hashtag', 'profile', 'post', 'project')),
+    search_type TEXT NOT NULL CHECK (search_type IN ('query', 'hashtag', 'profile', 'post', 'project')),
     display_label TEXT NOT NULL,
     normalized_payload JSONB NOT NULL,
     normalized_payload_hash TEXT NOT NULL,
@@ -42,6 +43,19 @@ func TestSearchStore_RecentSearchLifecycleDedupesPrunesAndHardDeletes(t *testing
 	store := api.NewSearchStore(pool)
 	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 
+	query := recentReq(t, `{"type":"query","displayLabel":"Alpaca socks","payload":{"q":" Alpaca socks "}}`)
+	queryRow, err := store.SaveRecentSearch(ctx, "did:plc:alice", query, now.Add(-time.Minute))
+	if err != nil {
+		t.Fatalf("SaveRecentSearch query: %v", err)
+	}
+	var queryPayload map[string]string
+	if err := json.Unmarshal(queryRow.NormalizedPayload, &queryPayload); err != nil {
+		t.Fatalf("decode query payload: %v", err)
+	}
+	if queryRow.Type != "query" || queryPayload["q"] != "Alpaca socks" || len(queryPayload) != 1 {
+		t.Fatalf("query row = %+v payload=%s", queryRow, queryRow.NormalizedPayload)
+	}
+
 	first := recentReq(t, `{"type":"hashtag","displayLabel":"#Sock","payload":{"tag":"#Sock"}}`)
 	row, err := store.SaveRecentSearch(ctx, "did:plc:alice", first, now)
 	if err != nil {
@@ -50,7 +64,7 @@ func TestSearchStore_RecentSearchLifecycleDedupesPrunesAndHardDeletes(t *testing
 	if row.DisplayLabel != "#Sock" || row.ID == "" {
 		t.Fatalf("saved row = %+v", row)
 	}
-	dup := recentReq(t, `{"type":"hashtag","displayLabel":"#SOCK latest","payload":{"tag":"sock","sort":"chronological"}}`)
+	dup := recentReq(t, `{"type":"hashtag","displayLabel":"#SOCK latest","payload":{"tag":"sock"}}`)
 	refreshed, err := store.SaveRecentSearch(ctx, "did:plc:alice", dup, now.Add(time.Minute))
 	if err != nil {
 		t.Fatalf("SaveRecentSearch duplicate: %v", err)

@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"math"
+	"reflect"
 	"testing"
 	"time"
 
@@ -24,5 +25,29 @@ func TestPopularityScoreClampsFutureAge(t *testing.T) {
 	createdAt := rankedAt.Add(1 * time.Hour)
 	if got := api.PopularityScore(1, 1, 1, createdAt, rankedAt); got != 6 {
 		t.Fatalf("future score = %v, want weighted engagement without decay", got)
+	}
+}
+
+func TestRankHashtagResultsNormalizesAggregatesAndRanks(t *testing.T) {
+	rows := []api.HashtagSuggestionRow{
+		{Tag: "Sock", PostsLast28Days: 1},
+		{Tag: "#sock", PostsLast28Days: 2},
+		{Tag: "sockkal", PostsLast28Days: 3},
+		{Tag: "sockmending", PostsLast28Days: 7},
+		{Tag: "mending-sock", PostsLast28Days: 99},
+		{Tag: "sockbad", PostsLast28Days: -5},
+		{Tag: "hat", PostsLast28Days: 100},
+	}
+
+	got := api.RankHashtagResults("#Sock", rows)
+	want := []api.HashtagSuggestionRow{
+		{Tag: "sock", PostsLast28Days: 3},
+		{Tag: "sockmending", PostsLast28Days: 7},
+		{Tag: "sockkal", PostsLast28Days: 3},
+		{Tag: "sockbad", PostsLast28Days: 0},
+		{Tag: "mending-sock", PostsLast28Days: 99},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("RankHashtagResults = %#v, want %#v", got, want)
 	}
 }

@@ -34,8 +34,10 @@ type MentionSuggestionRow struct {
 	DID               string
 	Handle            string
 	DisplayName       *string
+	Description       *string
 	AvatarCID         *string
 	AvatarMime        *string
+	Crafts            []string
 	IsCraftskyProfile bool
 	ViewerIsFollowing bool
 }

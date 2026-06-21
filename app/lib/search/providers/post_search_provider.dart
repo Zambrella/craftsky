@@ -15,7 +15,6 @@ class PostSearch extends _$PostSearch {
         .watch(searchRepositoryProvider)
         .searchPosts(
           q: query.q,
-          sort: query.sort,
           limit: searchResultsPageLimit,
         );
     return SearchPostResultsState(items: page.items, cursor: page.cursor);
@@ -31,7 +30,6 @@ class PostSearch extends _$PostSearch {
           .read(searchRepositoryProvider)
           .searchPosts(
             q: query.q,
-            sort: query.sort,
             limit: searchResultsPageLimit,
             cursor: current.cursor,
           );

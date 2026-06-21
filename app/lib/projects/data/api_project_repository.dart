@@ -1,7 +1,7 @@
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/projects/data/project_api_client.dart';
 import 'package:craftsky_app/projects/data/project_repository.dart';
-import 'package:craftsky_app/search/models/search_sort.dart';
+import 'package:craftsky_app/projects/models/project_browse_filters.dart';
 
 class ApiProjectRepository implements ProjectRepository {
   const ApiProjectRepository(this._api);
@@ -10,14 +10,8 @@ class ApiProjectRepository implements ProjectRepository {
 
   @override
   Future<PostPage> listProjects({
-    List<String>? craftTypes,
-    SearchSort? sort,
+    required ProjectBrowseQuery query,
     int? limit,
     String? cursor,
-  }) => _api.listProjects(
-    craftTypes: craftTypes,
-    sort: sort,
-    limit: limit,
-    cursor: cursor,
-  );
+  }) => _api.listProjects(query: query, limit: limit, cursor: cursor);
 }

@@ -26,6 +26,8 @@ const (
 	ProjectFilterMaxTotal     = 50
 	TopHashtagDefaultLimit    = 10
 	TopHashtagMaxLimit        = 50
+	SuggestionDefaultLimit    = 5
+	SuggestionMaxLimit        = 25
 	RecentSearchMaxLabelRunes = 120
 	RecentSearchMaxPayloadLen = 4096
 )
@@ -39,6 +41,20 @@ const (
 
 var ErrSearchValidation = errors.New("search validation error")
 
+type SearchSuggestionType string
+
+const (
+	SearchSuggestionTypeProfiles SearchSuggestionType = "profiles"
+	SearchSuggestionTypeHashtags SearchSuggestionType = "hashtags"
+)
+
+type SearchSuggestionsRequest struct {
+	Query        string
+	Types        map[SearchSuggestionType]bool
+	ProfileLimit int
+	HashtagLimit int
+}
+
 type PostSearchRequest struct {
 	Query  string
 	Sort   SearchSort
@@ -47,6 +63,12 @@ type PostSearchRequest struct {
 }
 
 type ProfileSearchRequest struct {
+	Query  string
+	Limit  int
+	Cursor string
+}
+
+type HashtagSearchRequest struct {
 	Query  string
 	Limit  int
 	Cursor string
@@ -62,6 +84,7 @@ type ProjectSearchRequest struct {
 
 type ProjectListRequest struct {
 	CraftTypes []string
+	Filters    map[string][]string
 	Sort       SearchSort
 	Limit      int
 	Cursor     string
@@ -70,6 +93,13 @@ type ProjectListRequest struct {
 type TopHashtagsRequest struct {
 	CraftTypes []string
 	Limit      int
+}
+
+type ExactHashtagPostsRequest struct {
+	Tag    string
+	Sort   SearchSort
+	Limit  int
+	Cursor string
 }
 
 type SaveRecentSearchRequest struct {
@@ -81,13 +111,79 @@ type SaveRecentSearchRequest struct {
 	PayloadHash       string
 }
 
+func ParseSearchSuggestionsRequest(r *http.Request) (SearchSuggestionsRequest, error) {
+	q := r.URL.Query()
+	if q.Has("cursor") {
+		return SearchSuggestionsRequest{}, ErrSearchValidation
+	}
+	query := strings.TrimSpace(q.Get("q"))
+	if query == "" || utf8.RuneCountInString(query) > SearchMaxQueryLength {
+		return SearchSuggestionsRequest{}, ErrSearchValidation
+	}
+	profileLimit, err := parseBoundedSearchLimit(q.Get("profileLimit"), SuggestionDefaultLimit, SuggestionMaxLimit)
+	if err != nil {
+		return SearchSuggestionsRequest{}, err
+	}
+	hashtagLimit, err := parseBoundedSearchLimit(q.Get("hashtagLimit"), SuggestionDefaultLimit, SuggestionMaxLimit)
+	if err != nil {
+		return SearchSuggestionsRequest{}, err
+	}
+	types, err := parseSearchSuggestionTypes(q.Get("types"))
+	if err != nil {
+		return SearchSuggestionsRequest{}, err
+	}
+	return SearchSuggestionsRequest{Query: query, Types: types, ProfileLimit: profileLimit, HashtagLimit: hashtagLimit}, nil
+}
+
+func ParseExactHashtagPostsRequest(r *http.Request) (ExactHashtagPostsRequest, error) {
+	tag, err := NormalizeHashtagPathValue(r.PathValue("tag"))
+	if err != nil {
+		return ExactHashtagPostsRequest{}, err
+	}
+	sort, err := parseSearchSort(r.URL.Query().Get("sort"))
+	if err != nil {
+		return ExactHashtagPostsRequest{}, err
+	}
+	limit, err := parseBoundedSearchLimit(r.URL.Query().Get("limit"), SearchDefaultLimit, SearchMaxLimit)
+	if err != nil {
+		return ExactHashtagPostsRequest{}, err
+	}
+	cursor := r.URL.Query().Get("cursor")
+	if _, err := envelope.DecodeCursor(cursor); err != nil {
+		return ExactHashtagPostsRequest{}, err
+	}
+	return ExactHashtagPostsRequest{Tag: tag, Sort: sort, Limit: limit, Cursor: cursor}, nil
+}
+
+func parseSearchSuggestionTypes(raw string) (map[SearchSuggestionType]bool, error) {
+	if strings.TrimSpace(raw) == "" {
+		return map[SearchSuggestionType]bool{
+			SearchSuggestionTypeProfiles: true,
+			SearchSuggestionTypeHashtags: true,
+		}, nil
+	}
+	out := map[SearchSuggestionType]bool{}
+	for _, part := range strings.Split(raw, ",") {
+		switch typ := SearchSuggestionType(strings.ToLower(strings.TrimSpace(part))); typ {
+		case SearchSuggestionTypeProfiles, SearchSuggestionTypeHashtags:
+			out[typ] = true
+		default:
+			return nil, ErrSearchValidation
+		}
+	}
+	if len(out) == 0 {
+		return nil, ErrSearchValidation
+	}
+	return out, nil
+}
+
 func DecodeSaveRecentSearchRequest(r *http.Request) (SaveRecentSearchRequest, error) {
 	var req SaveRecentSearchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return SaveRecentSearchRequest{}, ErrSearchValidation
 	}
 	req.Type = strings.ToLower(strings.TrimSpace(req.Type))
-	if req.Type != "hashtag" && req.Type != "profile" && req.Type != "post" && req.Type != "project" {
+	if req.Type != "query" && req.Type != "hashtag" && req.Type != "profile" && req.Type != "post" && req.Type != "project" {
 		return SaveRecentSearchRequest{}, ErrSearchValidation
 	}
 	req.DisplayLabel = strings.TrimSpace(req.DisplayLabel)
@@ -117,10 +213,12 @@ func normalizeRecentPayload(searchType string, raw json.RawMessage) ([]byte, err
 	var canonical any
 	var err error
 	switch searchType {
+	case "query":
+		canonical, err = normalizeRecentQueryPayload(payload, false)
 	case "hashtag":
 		canonical, err = normalizeRecentHashtagPayload(payload)
 	case "profile":
-		canonical, err = normalizeRecentQueryPayload(payload, false)
+		canonical, err = normalizeRecentProfilePayload(payload)
 	case "post":
 		canonical, err = normalizeRecentQueryPayload(payload, true)
 	case "project":
@@ -142,7 +240,7 @@ func normalizeRecentPayload(searchType string, raw json.RawMessage) ([]byte, err
 }
 
 func normalizeRecentHashtagPayload(payload map[string]json.RawMessage) (map[string]any, error) {
-	if !onlyRecentKeys(payload, "tag", "sort") {
+	if !onlyRecentKeys(payload, "tag") {
 		return nil, ErrSearchValidation
 	}
 	tag, err := rawString(payload, "tag", true)
@@ -153,11 +251,41 @@ func normalizeRecentHashtagPayload(payload map[string]json.RawMessage) (map[stri
 	if err != nil {
 		return nil, err
 	}
-	sortValue, err := rawOptionalSort(payload)
+	return map[string]any{"tag": normalizedTag}, nil
+}
+
+func normalizeRecentProfilePayload(payload map[string]json.RawMessage) (map[string]any, error) {
+	if !onlyRecentKeys(payload, "did", "handle", "displayName", "avatar") {
+		return nil, ErrSearchValidation
+	}
+	did, err := rawString(payload, "did", true)
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"tag": normalizedTag, "sort": string(sortValue)}, nil
+	did = strings.TrimSpace(did)
+	if did == "" || !strings.HasPrefix(did, "did:") || utf8.RuneCountInString(did) > SearchMaxQueryLength {
+		return nil, ErrSearchValidation
+	}
+	handle, err := rawString(payload, "handle", true)
+	if err != nil {
+		return nil, err
+	}
+	handle = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(handle, "@")))
+	if handle == "" || utf8.RuneCountInString(handle) > SearchMaxQueryLength {
+		return nil, ErrSearchValidation
+	}
+	out := map[string]any{"did": did, "handle": handle}
+	if displayName, err := rawOptionalTrimmedString(payload, "displayName", RecentSearchMaxLabelRunes); err != nil {
+		return nil, err
+	} else if displayName != "" {
+		out["displayName"] = displayName
+	}
+	if avatar, err := rawOptionalTrimmedString(payload, "avatar", RecentSearchMaxPayloadLen); err != nil {
+		return nil, err
+	} else if avatar != "" {
+		out["avatar"] = avatar
+	}
+	return out, nil
 }
 
 func normalizeRecentQueryPayload(payload map[string]json.RawMessage, allowSort bool) (map[string]any, error) {
@@ -280,6 +408,21 @@ func rawString(payload map[string]json.RawMessage, key string, required bool) (s
 	return value, nil
 }
 
+func rawOptionalTrimmedString(payload map[string]json.RawMessage, key string, maxRunes int) (string, error) {
+	if _, ok := payload[key]; !ok {
+		return "", nil
+	}
+	value, err := rawString(payload, key, false)
+	if err != nil {
+		return "", err
+	}
+	value = strings.TrimSpace(value)
+	if utf8.RuneCountInString(value) > maxRunes {
+		return "", ErrSearchValidation
+	}
+	return value, nil
+}
+
 func onlyRecentKeys(payload map[string]json.RawMessage, allowed ...string) bool {
 	set := map[string]bool{}
 	for _, key := range allowed {
@@ -299,16 +442,11 @@ func ParseTopHashtagsRequest(r *http.Request) (TopHashtagsRequest, error) {
 	if err != nil {
 		return TopHashtagsRequest{}, err
 	}
-	crafts := q["craftTypes"]
-	out := make([]string, 0, len(crafts))
-	for _, craft := range crafts {
-		normalized := strings.ToLower(strings.TrimSpace(craft))
-		if normalized == "" || utf8.RuneCountInString(normalized) > SearchMaxQueryLength {
-			return TopHashtagsRequest{}, ErrSearchValidation
-		}
-		out = append(out, normalized)
+	crafts, err := CanonicalCraftTypes(q["craftTypes"], true)
+	if err != nil {
+		return TopHashtagsRequest{}, err
 	}
-	return TopHashtagsRequest{CraftTypes: out, Limit: limit}, nil
+	return TopHashtagsRequest{CraftTypes: crafts, Limit: limit}, nil
 }
 
 var allowedProjectFilterKeys = map[string]bool{
@@ -322,16 +460,17 @@ var allowedProjectFilterKeys = map[string]bool{
 }
 
 var allowedProjectQueryKeys = map[string]bool{
-	"q": true, "sort": true, "limit": true, "cursor": true,
+	"q": true, "limit": true, "cursor": true,
 }
 
 func ParseProjectSearchRequest(r *http.Request) (ProjectSearchRequest, error) {
 	q := r.URL.Query()
-	query, err := parseSearchQuery(q, false)
-	if err != nil {
-		return ProjectSearchRequest{}, err
+	for key := range q {
+		if !allowedProjectQueryKeys[key] {
+			return ProjectSearchRequest{}, ErrSearchValidation
+		}
 	}
-	sort, err := parseSearchSort(q.Get("sort"))
+	query, err := parseSearchQuery(q, true)
 	if err != nil {
 		return ProjectSearchRequest{}, err
 	}
@@ -343,37 +482,13 @@ func ParseProjectSearchRequest(r *http.Request) (ProjectSearchRequest, error) {
 	if _, err := envelope.DecodeCursor(cursor); err != nil {
 		return ProjectSearchRequest{}, err
 	}
-	filters := map[string][]string{}
-	total := 0
-	for key, values := range q {
-		if allowedProjectQueryKeys[key] {
-			continue
-		}
-		if !allowedProjectFilterKeys[key] {
-			return ProjectSearchRequest{}, ErrSearchValidation
-		}
-		if len(values) > ProjectFilterMaxPerFamily {
-			return ProjectSearchRequest{}, ErrSearchValidation
-		}
-		for _, value := range values {
-			normalized := strings.ToLower(strings.TrimSpace(value))
-			if normalized == "" || utf8.RuneCountInString(normalized) > SearchMaxQueryLength {
-				return ProjectSearchRequest{}, ErrSearchValidation
-			}
-			filters[key] = append(filters[key], normalized)
-			total++
-		}
-	}
-	if total > ProjectFilterMaxTotal {
-		return ProjectSearchRequest{}, ErrSearchValidation
-	}
-	return ProjectSearchRequest{Query: query, Sort: sort, Limit: limit, Cursor: cursor, Filters: filters}, nil
+	return ProjectSearchRequest{Query: query, Sort: SearchSortChronological, Limit: limit, Cursor: cursor, Filters: map[string][]string{}}, nil
 }
 
 func ParseProjectListRequest(r *http.Request) (ProjectListRequest, error) {
 	q := r.URL.Query()
 	for key := range q {
-		if key != "craftType" && key != "sort" && key != "limit" && key != "cursor" {
+		if key != "sort" && key != "limit" && key != "cursor" && !allowedProjectFilterKeys[key] {
 			return ProjectListRequest{}, ErrSearchValidation
 		}
 	}
@@ -389,19 +504,50 @@ func ParseProjectListRequest(r *http.Request) (ProjectListRequest, error) {
 	if _, err := envelope.DecodeCursor(cursor); err != nil {
 		return ProjectListRequest{}, err
 	}
-	crafts := q["craftType"]
-	if len(crafts) > ProjectFilterMaxPerFamily {
-		return ProjectListRequest{}, ErrSearchValidation
+	filters, err := parseProjectBrowseFilters(q)
+	if err != nil {
+		return ProjectListRequest{}, err
 	}
-	out := make([]string, 0, len(crafts))
-	for _, craft := range crafts {
-		normalized := strings.ToLower(strings.TrimSpace(craft))
-		if normalized == "" || utf8.RuneCountInString(normalized) > SearchMaxQueryLength {
-			return ProjectListRequest{}, ErrSearchValidation
+	return ProjectListRequest{CraftTypes: filters["craftType"], Filters: filters, Sort: sort, Limit: limit, Cursor: cursor}, nil
+}
+
+func parseProjectBrowseFilters(q url.Values) (map[string][]string, error) {
+	filters := map[string][]string{}
+	total := 0
+	for key, values := range q {
+		if key == "sort" || key == "limit" || key == "cursor" {
+			continue
 		}
-		out = append(out, normalized)
+		if !allowedProjectFilterKeys[key] || len(values) == 0 || len(values) > ProjectFilterMaxPerFamily {
+			return nil, ErrSearchValidation
+		}
+		if key == "craftType" {
+			crafts, err := CanonicalCraftTypes(values, false)
+			if err != nil {
+				return nil, err
+			}
+			filters[key] = crafts
+			total += len(crafts)
+			continue
+		}
+		seen := map[string]bool{}
+		for _, value := range values {
+			normalized := strings.ToLower(strings.TrimSpace(value))
+			if normalized == "" || utf8.RuneCountInString(normalized) > SearchMaxQueryLength {
+				return nil, ErrSearchValidation
+			}
+			if !seen[normalized] {
+				filters[key] = append(filters[key], normalized)
+				seen[normalized] = true
+				total++
+			}
+		}
+		sort.Strings(filters[key])
 	}
-	return ProjectListRequest{CraftTypes: out, Sort: sort, Limit: limit, Cursor: cursor}, nil
+	if total > ProjectFilterMaxTotal {
+		return nil, ErrSearchValidation
+	}
+	return filters, nil
 }
 
 func NormalizeHashtagPathValue(raw string) (string, error) {
@@ -458,6 +604,28 @@ func ParseProfileSearchRequest(r *http.Request) (ProfileSearchRequest, error) {
 		return ProfileSearchRequest{}, err
 	}
 	return ProfileSearchRequest{Query: query, Limit: limit, Cursor: cursor}, nil
+}
+
+func ParseHashtagSearchRequest(r *http.Request) (HashtagSearchRequest, error) {
+	q := r.URL.Query()
+	for key := range q {
+		if key != "q" && key != "limit" && key != "cursor" {
+			return HashtagSearchRequest{}, ErrSearchValidation
+		}
+	}
+	query, err := parseSearchQuery(q, true)
+	if err != nil {
+		return HashtagSearchRequest{}, err
+	}
+	limit, err := parseBoundedSearchLimit(q.Get("limit"), SearchDefaultLimit, SearchMaxLimit)
+	if err != nil {
+		return HashtagSearchRequest{}, err
+	}
+	cursor := q.Get("cursor")
+	if _, err := DecodeHashtagSearchCursor(cursor, normalizeHashtagSearchTerm(query)); err != nil {
+		return HashtagSearchRequest{}, err
+	}
+	return HashtagSearchRequest{Query: query, Limit: limit, Cursor: cursor}, nil
 }
 
 func parseSearchQuery(values url.Values, required bool) (string, error) {

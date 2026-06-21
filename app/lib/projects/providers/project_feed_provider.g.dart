@@ -16,7 +16,7 @@ final class ProjectFeedProvider
     extends $AsyncNotifierProvider<ProjectFeed, UserProjectsState> {
   ProjectFeedProvider._({
     required ProjectFeedFamily super.from,
-    required ({String? craftType, SearchSort sort}) super.argument,
+    required ProjectBrowseQuery super.argument,
   }) : super(
          retry: null,
          name: r'projectFeedProvider',
@@ -32,7 +32,7 @@ final class ProjectFeedProvider
   String toString() {
     return r'projectFeedProvider'
         ''
-        '$argument';
+        '($argument)';
   }
 
   @$internal
@@ -50,7 +50,7 @@ final class ProjectFeedProvider
   }
 }
 
-String _$projectFeedHash() => r'4a3c1812f1aea9b110d9a2d742c5d9b538841aaa';
+String _$projectFeedHash() => r'9ea05c9f069e173aea765c7c568abebe8a6f55c2';
 
 final class ProjectFeedFamily extends $Family
     with
@@ -59,7 +59,7 @@ final class ProjectFeedFamily extends $Family
           AsyncValue<UserProjectsState>,
           UserProjectsState,
           FutureOr<UserProjectsState>,
-          ({String? craftType, SearchSort sort})
+          ProjectBrowseQuery
         > {
   ProjectFeedFamily._()
     : super(
@@ -70,27 +70,18 @@ final class ProjectFeedFamily extends $Family
         isAutoDispose: true,
       );
 
-  ProjectFeedProvider call({
-    String? craftType,
-    SearchSort sort = SearchSort.chronological,
-  }) => ProjectFeedProvider._(
-    argument: (craftType: craftType, sort: sort),
-    from: this,
-  );
+  ProjectFeedProvider call(ProjectBrowseQuery query) =>
+      ProjectFeedProvider._(argument: query, from: this);
 
   @override
   String toString() => r'projectFeedProvider';
 }
 
 abstract class _$ProjectFeed extends $AsyncNotifier<UserProjectsState> {
-  late final _$args = ref.$arg as ({String? craftType, SearchSort sort});
-  String? get craftType => _$args.craftType;
-  SearchSort get sort => _$args.sort;
+  late final _$args = ref.$arg as ProjectBrowseQuery;
+  ProjectBrowseQuery get query => _$args;
 
-  FutureOr<UserProjectsState> build({
-    String? craftType,
-    SearchSort sort = SearchSort.chronological,
-  });
+  FutureOr<UserProjectsState> build(ProjectBrowseQuery query);
   @$mustCallSuper
   @override
   void runBuild() {
@@ -104,9 +95,6 @@ abstract class _$ProjectFeed extends $AsyncNotifier<UserProjectsState> {
               Object?,
               Object?
             >;
-    element.handleCreate(
-      ref,
-      () => build(craftType: _$args.craftType, sort: _$args.sort),
-    );
+    element.handleCreate(ref, () => build(_$args));
   }
 }

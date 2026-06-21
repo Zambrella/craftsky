@@ -1,13 +1,16 @@
 import 'package:craftsky_app/search/data/search_repository.dart';
+import 'package:craftsky_app/search/models/hashtag_search_page.dart';
 import 'package:craftsky_app/search/models/profile_search_page.dart';
-import 'package:craftsky_app/search/models/project_search_filters.dart';
 import 'package:craftsky_app/search/models/recent_search.dart';
 import 'package:craftsky_app/search/models/search_post_page.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
+import 'package:craftsky_app/search/models/search_suggestions.dart';
 import 'package:craftsky_app/search/models/top_hashtags.dart';
 
 class FakeSearchRepository implements SearchRepository {
   FakeSearchRepository({
+    this.onSearchSuggestions,
+    this.onSearchHashtags,
     this.onSearchHashtagPosts,
     this.onSearchProfiles,
     this.onSearchPosts,
@@ -17,6 +20,20 @@ class FakeSearchRepository implements SearchRepository {
     this.onSaveRecentSearch,
     this.onDeleteRecentSearch,
   });
+
+  final Future<SearchSuggestions> Function({
+    required String q,
+    List<SearchSuggestionType>? types,
+    int? profileLimit,
+    int? hashtagLimit,
+  })?
+  onSearchSuggestions;
+  final Future<HashtagSearchPage> Function({
+    required String q,
+    int? limit,
+    String? cursor,
+  })?
+  onSearchHashtags;
 
   final Future<SearchPostPage> Function(
     String tag, {
@@ -33,19 +50,44 @@ class FakeSearchRepository implements SearchRepository {
   onSearchProfiles;
   final Future<SearchPostPage> Function({
     required String q,
-    SearchSort? sort,
     int? limit,
     String? cursor,
   })?
   onSearchPosts;
   final Future<SearchPostPage> Function({
-    String? q,
-    SearchSort? sort,
-    ProjectSearchFilters? filters,
+    required String q,
     int? limit,
     String? cursor,
   })?
   onSearchProjects;
+
+  @override
+  Future<SearchSuggestions> searchSuggestions({
+    required String q,
+    List<SearchSuggestionType>? types,
+    int? profileLimit,
+    int? hashtagLimit,
+  }) =>
+      onSearchSuggestions?.call(
+        q: q,
+        types: types,
+        profileLimit: profileLimit,
+        hashtagLimit: hashtagLimit,
+      ) ??
+      Future<SearchSuggestions>.error(
+        UnimplementedError('searchSuggestions not stubbed'),
+      );
+
+  @override
+  Future<HashtagSearchPage> searchHashtags({
+    required String q,
+    int? limit,
+    String? cursor,
+  }) =>
+      onSearchHashtags?.call(q: q, limit: limit, cursor: cursor) ??
+      Future<HashtagSearchPage>.error(
+        UnimplementedError('searchHashtags not stubbed'),
+      );
   final Future<TopHashtagsResponse> Function({
     List<String>? craftTypes,
     int? limit,
@@ -87,27 +129,22 @@ class FakeSearchRepository implements SearchRepository {
   @override
   Future<SearchPostPage> searchPosts({
     required String q,
-    SearchSort? sort,
     int? limit,
     String? cursor,
   }) =>
-      onSearchPosts?.call(q: q, sort: sort, limit: limit, cursor: cursor) ??
+      onSearchPosts?.call(q: q, limit: limit, cursor: cursor) ??
       Future<SearchPostPage>.error(
         UnimplementedError('searchPosts not stubbed'),
       );
 
   @override
   Future<SearchPostPage> searchProjects({
-    String? q,
-    SearchSort? sort,
-    ProjectSearchFilters? filters,
+    required String q,
     int? limit,
     String? cursor,
   }) =>
       onSearchProjects?.call(
         q: q,
-        sort: sort,
-        filters: filters,
         limit: limit,
         cursor: cursor,
       ) ??

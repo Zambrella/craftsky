@@ -33,7 +33,7 @@ void main() {
     () async {
       String? seenQ;
       final fake = FakeSearchRepository(
-        onSearchPosts: ({required q, sort, limit, cursor}) async {
+        onSearchPosts: ({required q, limit, cursor}) async {
           seenQ = q;
           return SearchPostPage(items: [_post('a')]);
         },
@@ -57,7 +57,7 @@ void main() {
       var calls = 0;
       String? seenCursor;
       final fake = FakeSearchRepository(
-        onSearchPosts: ({required q, sort, limit, cursor}) async {
+        onSearchPosts: ({required q, limit, cursor}) async {
           calls++;
           if (calls == 1) {
             return SearchPostPage(items: [_post('a')], cursor: 'opaque:posts');

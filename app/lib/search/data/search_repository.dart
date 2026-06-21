@@ -1,11 +1,25 @@
+import 'package:craftsky_app/search/models/hashtag_search_page.dart';
 import 'package:craftsky_app/search/models/profile_search_page.dart';
-import 'package:craftsky_app/search/models/project_search_filters.dart';
 import 'package:craftsky_app/search/models/recent_search.dart';
 import 'package:craftsky_app/search/models/search_post_page.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
+import 'package:craftsky_app/search/models/search_suggestions.dart';
 import 'package:craftsky_app/search/models/top_hashtags.dart';
 
 abstract interface class SearchRepository {
+  Future<SearchSuggestions> searchSuggestions({
+    required String q,
+    List<SearchSuggestionType>? types,
+    int? profileLimit,
+    int? hashtagLimit,
+  });
+
+  Future<HashtagSearchPage> searchHashtags({
+    required String q,
+    int? limit,
+    String? cursor,
+  });
+
   Future<SearchPostPage> searchHashtagPosts(
     String tag, {
     SearchSort? sort,
@@ -21,15 +35,12 @@ abstract interface class SearchRepository {
 
   Future<SearchPostPage> searchPosts({
     required String q,
-    SearchSort? sort,
     int? limit,
     String? cursor,
   });
 
   Future<SearchPostPage> searchProjects({
-    String? q,
-    SearchSort? sort,
-    ProjectSearchFilters? filters,
+    required String q,
     int? limit,
     String? cursor,
   });

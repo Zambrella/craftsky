@@ -1,8 +1,23 @@
-import 'package:craftsky_app/search/models/project_search_filters.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
+import 'package:craftsky_app/search/models/search_suggestions.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
 part 'search_queries.mapper.dart';
+
+@MappableClass()
+class SearchSuggestionQuery with SearchSuggestionQueryMappable {
+  const SearchSuggestionQuery({
+    required this.q,
+    this.types = const [],
+    this.profileLimit,
+    this.hashtagLimit,
+  });
+
+  final String q;
+  final List<SearchSuggestionType> types;
+  final int? profileLimit;
+  final int? hashtagLimit;
+}
 
 @MappableClass()
 class HashtagSearchQuery with HashtagSearchQueryMappable {
@@ -16,6 +31,13 @@ class HashtagSearchQuery with HashtagSearchQueryMappable {
 }
 
 @MappableClass()
+class HashtagResultSearchQuery with HashtagResultSearchQueryMappable {
+  const HashtagResultSearchQuery({required this.q});
+
+  final String q;
+}
+
+@MappableClass()
 class ProfileSearchQuery with ProfileSearchQueryMappable {
   const ProfileSearchQuery({required this.q});
 
@@ -24,26 +46,16 @@ class ProfileSearchQuery with ProfileSearchQueryMappable {
 
 @MappableClass()
 class PostSearchQuery with PostSearchQueryMappable {
-  const PostSearchQuery({
-    required this.q,
-    this.sort = SearchSort.chronological,
-  });
+  const PostSearchQuery({required this.q});
 
   final String q;
-  final SearchSort sort;
 }
 
 @MappableClass()
 class ProjectSearchQuery with ProjectSearchQueryMappable {
-  const ProjectSearchQuery({
-    this.q,
-    this.sort = SearchSort.chronological,
-    this.filters = const ProjectSearchFilters(),
-  });
+  const ProjectSearchQuery({required this.q});
 
-  final String? q;
-  final SearchSort sort;
-  final ProjectSearchFilters filters;
+  final String q;
 }
 
 @MappableClass()

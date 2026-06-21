@@ -1,16 +1,37 @@
 import 'package:craftsky_app/search/data/search_api_client.dart';
 import 'package:craftsky_app/search/data/search_repository.dart';
+import 'package:craftsky_app/search/models/hashtag_search_page.dart';
 import 'package:craftsky_app/search/models/profile_search_page.dart';
-import 'package:craftsky_app/search/models/project_search_filters.dart';
 import 'package:craftsky_app/search/models/recent_search.dart';
 import 'package:craftsky_app/search/models/search_post_page.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
+import 'package:craftsky_app/search/models/search_suggestions.dart';
 import 'package:craftsky_app/search/models/top_hashtags.dart';
 
 class ApiSearchRepository implements SearchRepository {
   const ApiSearchRepository(this._api);
 
   final SearchApiClient _api;
+
+  @override
+  Future<SearchSuggestions> searchSuggestions({
+    required String q,
+    List<SearchSuggestionType>? types,
+    int? profileLimit,
+    int? hashtagLimit,
+  }) => _api.searchSuggestions(
+    q: q,
+    types: types,
+    profileLimit: profileLimit,
+    hashtagLimit: hashtagLimit,
+  );
+
+  @override
+  Future<HashtagSearchPage> searchHashtags({
+    required String q,
+    int? limit,
+    String? cursor,
+  }) => _api.searchHashtags(q: q, limit: limit, cursor: cursor);
 
   @override
   Future<SearchPostPage> searchHashtagPosts(
@@ -30,25 +51,16 @@ class ApiSearchRepository implements SearchRepository {
   @override
   Future<SearchPostPage> searchPosts({
     required String q,
-    SearchSort? sort,
     int? limit,
     String? cursor,
-  }) => _api.searchPosts(q: q, sort: sort, limit: limit, cursor: cursor);
+  }) => _api.searchPosts(q: q, limit: limit, cursor: cursor);
 
   @override
   Future<SearchPostPage> searchProjects({
-    String? q,
-    SearchSort? sort,
-    ProjectSearchFilters? filters,
+    required String q,
     int? limit,
     String? cursor,
-  }) => _api.searchProjects(
-    q: q,
-    sort: sort,
-    filters: filters,
-    limit: limit,
-    cursor: cursor,
-  );
+  }) => _api.searchProjects(q: q, limit: limit, cursor: cursor);
 
   @override
   Future<TopHashtagsResponse> topHashtags({

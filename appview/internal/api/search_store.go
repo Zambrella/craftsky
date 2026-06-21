@@ -19,6 +19,11 @@ type SearchPostRow struct {
 	Score float64
 }
 
+const (
+	relevanceCursorKindPosts    = "searchPostsRelevance"
+	relevanceCursorKindProjects = "searchProjectsRelevance"
+)
+
 type ProfileSearchRow struct {
 	DID               string
 	Handle            string
@@ -27,6 +32,7 @@ type ProfileSearchRow struct {
 	Description       *string
 	AvatarCID         *string
 	AvatarMime        *string
+	Crafts            []string
 	IsCraftskyProfile bool
 	ViewerIsFollowing bool
 	FollowedRank      int
@@ -44,7 +50,7 @@ func (s *SearchStore) SearchProfiles(ctx context.Context, viewerDID string, req 
 	}
 	q := `
 		WITH ranked AS (
-		SELECT cp.did, ic.handle, ic.handle_lower, bp.display_name, bp.description, bp.avatar_cid, bp.avatar_mime,
+		SELECT cp.did, ic.handle, ic.handle_lower, bp.display_name, bp.description, bp.avatar_cid, bp.avatar_mime, cp.crafts,
 			true AS is_craftsky_profile,
 			EXISTS (SELECT 1 FROM atproto_follows f WHERE f.did = $2 AND f.subject_did = cp.did) AS viewer_is_following,
 			CASE WHEN EXISTS (SELECT 1 FROM atproto_follows f WHERE f.did = $2 AND f.subject_did = cp.did) THEN 0 ELSE 1 END AS followed_rank,
@@ -66,7 +72,7 @@ func (s *SearchStore) SearchProfiles(ctx context.Context, viewerDID string, req 
 		)
 		` + profileVisibleModerationPredicate + `
 		)
-		SELECT did, handle, handle_lower, display_name, description, avatar_cid, avatar_mime, is_craftsky_profile, viewer_is_following, followed_rank, relevance_rank
+		SELECT did, handle, handle_lower, display_name, description, avatar_cid, avatar_mime, crafts, is_craftsky_profile, viewer_is_following, followed_rank, relevance_rank
 		FROM ranked
 		WHERE ($4::int IS NULL OR (followed_rank, relevance_rank, handle_lower, did) > ($4::int, $5::int, $6::text, $7::text))
 		ORDER BY followed_rank ASC, relevance_rank ASC, handle_lower ASC, did ASC
@@ -79,7 +85,7 @@ func (s *SearchStore) SearchProfiles(ctx context.Context, viewerDID string, req 
 	out := make([]ProfileSearchRow, 0, req.Limit+1)
 	for rows.Next() {
 		var row ProfileSearchRow
-		if err := rows.Scan(&row.DID, &row.Handle, &row.HandleLower, &row.DisplayName, &row.Description, &row.AvatarCID, &row.AvatarMime, &row.IsCraftskyProfile, &row.ViewerIsFollowing, &row.FollowedRank, &row.RelevanceRank); err != nil {
+		if err := rows.Scan(&row.DID, &row.Handle, &row.HandleLower, &row.DisplayName, &row.Description, &row.AvatarCID, &row.AvatarMime, &row.Crafts, &row.IsCraftskyProfile, &row.ViewerIsFollowing, &row.FollowedRank, &row.RelevanceRank); err != nil {
 			return nil, "", err
 		}
 		out = append(out, row)
@@ -93,6 +99,71 @@ func (s *SearchStore) SearchProfiles(ctx context.Context, viewerDID string, req 
 	out = out[:req.Limit]
 	last := out[len(out)-1]
 	next, err := EncodeProfileSearchCursor(last.FollowedRank, last.RelevanceRank, last.HandleLower, last.DID)
+	return out, next, err
+}
+
+func (s *SearchStore) SearchHashtags(ctx context.Context, req HashtagSearchRequest, now time.Time) ([]HashtagSearchResult, string, error) {
+	if s == nil || s.pool == nil {
+		return nil, "", fmt.Errorf("search store unavailable")
+	}
+	query := normalizeHashtagSearchTerm(req.Query)
+	if query == "" {
+		return []HashtagSearchResult{}, "", nil
+	}
+	limit := req.Limit
+	if limit <= 0 {
+		limit = SearchDefaultLimit
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	cur, err := DecodeHashtagSearchCursor(req.Cursor, query)
+	if err != nil {
+		return nil, "", err
+	}
+	likeQuery := EscapeFacetLikePattern(query)
+	rows, err := s.pool.Query(ctx, `
+		SELECT lower(trim(tag.raw_tag)) AS tag, COUNT(DISTINCT p.uri)::int AS posts_last_28_days
+		FROM craftsky_posts p
+		CROSS JOIN LATERAL unnest(p.tags) AS tag(raw_tag)
+		WHERE p.reply_root_uri IS NULL
+		  AND p.reply_parent_uri IS NULL
+		  AND p.quote_uri IS NULL
+		  AND p.created_at >= $1
+		  AND trim(tag.raw_tag) <> ''
+		  AND lower(trim(tag.raw_tag)) LIKE '%' || $3 || '%' ESCAPE '\'
+		`+postVisibleModerationPredicate+`
+		GROUP BY lower(trim(tag.raw_tag))
+		ORDER BY
+		  CASE
+		    WHEN lower(trim(tag.raw_tag)) = $2 THEN 0
+		    WHEN lower(trim(tag.raw_tag)) LIKE $3 || '%' ESCAPE '\' THEN 1
+		    ELSE 2
+		  END ASC,
+		  posts_last_28_days DESC,
+		  tag ASC
+		LIMIT $4 OFFSET $5
+	`, now.Add(-28*24*time.Hour), query, likeQuery, limit+1, cur.Offset)
+	if err != nil {
+		return nil, "", fmt.Errorf("hashtag search: %w", err)
+	}
+	defer rows.Close()
+	out := make([]HashtagSearchResult, 0, limit+1)
+	for rows.Next() {
+		var row HashtagSearchResult
+		if err := rows.Scan(&row.Tag, &row.PostsLast28Days); err != nil {
+			return nil, "", err
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+	if len(out) <= limit {
+		return out, "", nil
+	}
+	out = out[:limit]
+	next, err := EncodeHashtagSearchCursor(query, cur.Offset+limit)
 	return out, next, err
 }
 
@@ -124,6 +195,7 @@ func BuildProfileSearchSummary(row ProfileSearchRow) ProfileSearchSummary {
 			IsCraftskyProfile: row.IsCraftskyProfile,
 		},
 		ViewerIsFollowing: row.ViewerIsFollowing,
+		Crafts:            append([]string(nil), row.Crafts...),
 	}
 	if avatar := synthBlobURL("avatar", row.DID, row.AvatarCID, row.AvatarMime); avatar != "" {
 		out.Avatar = &avatar
@@ -136,10 +208,16 @@ func (s *SearchStore) SearchHashtagPosts(ctx context.Context, tag string, sort S
 }
 
 func (s *SearchStore) SearchPosts(ctx context.Context, req PostSearchRequest, now time.Time) ([]SearchPostRow, string, error) {
+	if strings.TrimSpace(req.Query) != "" {
+		return s.searchPostsByRelevance(ctx, req)
+	}
 	return s.searchPosts(ctx, searchPostQuery{Query: req.Query, Sort: req.Sort, Limit: req.Limit, Cursor: req.Cursor, Now: now})
 }
 
 func (s *SearchStore) SearchProjects(ctx context.Context, req ProjectSearchRequest, now time.Time) ([]SearchPostRow, string, error) {
+	if strings.TrimSpace(req.Query) != "" {
+		return s.searchProjectsByRelevance(ctx, req)
+	}
 	if s == nil || s.pool == nil {
 		return nil, "", fmt.Errorf("search store unavailable")
 	}
@@ -256,13 +334,140 @@ func (s *SearchStore) SearchProjects(ctx context.Context, req ProjectSearchReque
 	return out, next, err
 }
 
+func (s *SearchStore) searchPostsByRelevance(ctx context.Context, req PostSearchRequest) ([]SearchPostRow, string, error) {
+	if s == nil || s.pool == nil {
+		return nil, "", fmt.Errorf("search store unavailable")
+	}
+	queryLimit := req.Limit + 1
+	fts := searchTSQuery(req.Query)
+	cur, err := DecodeRelevanceSearchCursor(req.Cursor, relevanceCursorKindPosts, fts)
+	if err != nil {
+		return nil, "", err
+	}
+	rows, err := s.pool.Query(ctx, `
+		WITH ranked AS (
+		SELECT p.*,
+		  ts_rank_cd(to_tsvector('simple', coalesce(p.text, '')), plainto_tsquery('simple', $1))::double precision AS relevance_score
+		FROM craftsky_posts p
+		WHERE p.is_project = false
+		  AND p.reply_root_uri IS NULL AND p.reply_parent_uri IS NULL
+		  AND to_tsvector('simple', coalesce(p.text, '')) @@ plainto_tsquery('simple', $1)
+		`+postVisibleModerationPredicate+`
+		)
+		SELECT `+postSelectColumns+`, relevance_score
+		FROM ranked p
+		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
+		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
+		WHERE ($3::double precision IS NULL OR (relevance_score, p.created_at, p.uri) < ($3::double precision, $4::timestamptz, $5::text))
+		ORDER BY relevance_score DESC, p.created_at DESC, p.uri DESC
+		LIMIT $2
+	`, fts, queryLimit, cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr())
+	if err != nil {
+		return nil, "", fmt.Errorf("post relevance search: %w", err)
+	}
+	defer rows.Close()
+	out := make([]SearchPostRow, 0, req.Limit)
+	for rows.Next() {
+		row, scanErr := scanSearchPostRow(rows)
+		if scanErr != nil {
+			return nil, "", scanErr
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+	if len(out) <= req.Limit {
+		return out, "", nil
+	}
+	out = out[:req.Limit]
+	last := out[len(out)-1]
+	next, err := EncodeRelevanceSearchCursor(relevanceCursorKindPosts, fts, last.Score, last.Post.CreatedAt, last.Post.URI)
+	return out, next, err
+}
+
+func (s *SearchStore) searchProjectsByRelevance(ctx context.Context, req ProjectSearchRequest) ([]SearchPostRow, string, error) {
+	if s == nil || s.pool == nil {
+		return nil, "", fmt.Errorf("search store unavailable")
+	}
+	queryLimit := req.Limit + 1
+	fts := searchTSQuery(req.Query)
+	cur, err := DecodeRelevanceSearchCursor(req.Cursor, relevanceCursorKindProjects, fts)
+	if err != nil {
+		return nil, "", err
+	}
+	projectVector := `
+		setweight(to_tsvector('simple', coalesce(pp.common_title, '')), 'A') ||
+		setweight(to_tsvector('simple', coalesce(pp.pattern_name, '')), 'B') ||
+		setweight(to_tsvector('simple', coalesce(array_to_string(pp.materials, ' '), '')), 'C') ||
+		setweight(to_tsvector('simple', coalesce(array_to_string(pp.project_tags, ' '), '')), 'C') ||
+		setweight(to_tsvector('simple', coalesce(array_to_string(pp.design_tags, ' '), '')), 'C') ||
+		setweight(to_tsvector('simple', coalesce(p.text, '')), 'D')`
+	rows, err := s.pool.Query(ctx, `
+		WITH ranked AS (
+		SELECT p.*,
+		  ts_rank_cd(`+projectVector+`, plainto_tsquery('simple', $9))::double precision AS relevance_score
+		FROM craftsky_posts p
+		JOIN craftsky_project_posts pp ON pp.uri = p.uri
+		WHERE p.is_project = true
+		  AND p.reply_root_uri IS NULL AND p.reply_parent_uri IS NULL AND p.quote_uri IS NULL
+		  AND (cardinality($2::text[]) = 0 OR lower(pp.common_craft_type) = ANY($2::text[]))
+		  AND (cardinality($3::text[]) = 0 OR lower(coalesce(pp.pattern_difficulty, '')) = ANY($3::text[]))
+		  AND (cardinality($4::text[]) = 0 OR lower(coalesce(pp.knitting_project_type, '')) = ANY($4::text[]) OR lower(coalesce(pp.crochet_project_type, '')) = ANY($4::text[]) OR lower(coalesce(pp.quilting_project_type, '')) = ANY($4::text[]) OR lower(coalesce(pp.sewing_project_type, '')) = ANY($4::text[]))
+		  AND (cardinality($5::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.colors, '{}')) AS v WHERE lower(v) = ANY($5::text[])))
+		  AND (cardinality($6::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.materials, '{}')) AS v WHERE lower(v) = ANY($6::text[])))
+		  AND (cardinality($7::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.design_tags, '{}')) AS v WHERE lower(v) = ANY($7::text[])))
+		  AND (cardinality($8::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.project_tags, '{}')) AS v WHERE lower(v) = ANY($8::text[])))
+		  AND (`+projectVector+`) @@ plainto_tsquery('simple', $9)
+		`+postVisibleModerationPredicate+`
+		)
+		SELECT `+postSelectColumns+`, relevance_score
+		FROM ranked p
+		JOIN craftsky_project_posts pp ON pp.uri = p.uri
+		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
+		WHERE ($10::double precision IS NULL OR (relevance_score, p.created_at, p.uri) < ($10::double precision, $11::timestamptz, $12::text))
+		ORDER BY relevance_score DESC, p.created_at DESC, p.uri DESC
+		LIMIT $1
+	`, queryLimit,
+		projectFilterValues(req, "craftType"), projectFilterValues(req, "patternDifficulty"), projectFilterValues(req, "projectType"), projectFilterValues(req, "color"), projectFilterValues(req, "material"), projectFilterValues(req, "designTag"), projectFilterValues(req, "projectTag"), fts,
+		cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr())
+	if err != nil {
+		return nil, "", fmt.Errorf("project relevance search: %w", err)
+	}
+	defer rows.Close()
+	out := make([]SearchPostRow, 0, req.Limit)
+	for rows.Next() {
+		row, scanErr := scanSearchPostRow(rows)
+		if scanErr != nil {
+			return nil, "", scanErr
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+	if len(out) <= req.Limit {
+		return out, "", nil
+	}
+	out = out[:req.Limit]
+	last := out[len(out)-1]
+	next, err := EncodeRelevanceSearchCursor(relevanceCursorKindProjects, fts, last.Score, last.Post.CreatedAt, last.Post.URI)
+	return out, next, err
+}
+
 func searchTSQuery(q string) string {
-	return strings.TrimSpace(q)
+	return strings.ToLower(strings.TrimSpace(q))
 }
 
 func projectFilterValues(req ProjectSearchRequest, key string) []string {
 	if req.Filters == nil || req.Filters[key] == nil {
 		return []string{}
+	}
+	if key == "craftType" {
+		crafts, err := CanonicalCraftTypes(req.Filters[key], false)
+		if err == nil {
+			return crafts
+		}
 	}
 	return req.Filters[key]
 }
@@ -271,9 +476,9 @@ func (s *SearchStore) TopHashtags(ctx context.Context, req TopHashtagsRequest, n
 	if s == nil || s.pool == nil {
 		return nil, fmt.Errorf("search store unavailable")
 	}
-	crafts := req.CraftTypes
-	if len(crafts) == 0 {
-		crafts = []string{"knitting", "crochet", "quilting", "sewing"}
+	crafts, err := CanonicalCraftTypes(req.CraftTypes, true)
+	if err != nil {
+		return nil, err
 	}
 	groups := make([]TopHashtagGroup, 0, len(crafts))
 	for _, craft := range crafts {

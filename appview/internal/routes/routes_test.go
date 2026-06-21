@@ -737,6 +737,8 @@ func TestAddRoutes_SearchRoutesRegisteredAndRequireAuthenticatedDevice(t *testin
 	}{
 		{name: "project list", method: http.MethodGet, path: "/v1/projects?craftType=knitting"},
 		{name: "hashtag posts", method: http.MethodGet, path: "/v1/search/hashtags/sock/posts"},
+		{name: "search suggestions", method: http.MethodGet, path: "/v1/search/suggestions?q=sock"},
+		{name: "hashtag search", method: http.MethodGet, path: "/v1/search/hashtags?q=sock"},
 		{name: "profile search", method: http.MethodGet, path: "/v1/search/profiles?q=ali"},
 		{name: "post search", method: http.MethodGet, path: "/v1/search/posts?q=sock"},
 		{name: "project search", method: http.MethodGet, path: "/v1/search/projects"},
@@ -783,6 +785,23 @@ func TestAddRoutes_SearchRoutesRegisteredAndRequireAuthenticatedDevice(t *testin
 				t.Errorf("body = %q, want containing 'missing_device_id'", rr.Body.String())
 			}
 		})
+	}
+}
+
+func TestSearchProjectsRouteRejectsBrowseFilters(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+	req := httptest.NewRequest(http.MethodGet, "/v1/search/projects?q=sock&craftType=knitting&material=alpaca", nil)
+	req.Header.Set("Authorization", "Bearer anything")
+	req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s, want 400", rr.Code, rr.Body.String())
+	}
+	assertErrorEnvelope(t, rr.Body.Bytes())
+	if !strings.Contains(rr.Body.String(), "validation_error") {
+		t.Fatalf("body = %s, want validation_error", rr.Body.String())
 	}
 }
 

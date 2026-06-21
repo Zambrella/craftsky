@@ -20,6 +20,38 @@ type ProfileCursor struct {
 	DID           string
 }
 
+type HashtagCursor struct {
+	Query  string
+	Offset int
+}
+
+type RelevanceCursor struct {
+	Kind      string
+	Query     string
+	Score     float64
+	CreatedAt time.Time
+	URI       string
+}
+
+func (c RelevanceCursor) ScorePtr() any {
+	if c.URI == "" {
+		return nil
+	}
+	return c.Score
+}
+func (c RelevanceCursor) CreatedAtPtr() any {
+	if c.URI == "" {
+		return nil
+	}
+	return c.CreatedAt
+}
+func (c RelevanceCursor) URIPtr() any {
+	if c.URI == "" {
+		return nil
+	}
+	return c.URI
+}
+
 func (c PopularityCursor) ScorePtr() any {
 	if c.URI == "" {
 		return nil
@@ -150,6 +182,66 @@ func DecodeProfileSearchCursor(cursor string) (ProfileCursor, error) {
 		return ProfileCursor{}, envelope.ErrInvalidCursor
 	}
 	return ProfileCursor{FollowedRank: followedRank, RelevanceRank: relevanceRank, HandleLower: handleLower, DID: did}, nil
+}
+
+func EncodeHashtagSearchCursor(query string, offset int) (string, error) {
+	return envelope.EncodeCursor(map[string]any{
+		"kind":   "hashtag",
+		"query":  query,
+		"offset": offset,
+	})
+}
+
+func DecodeHashtagSearchCursor(cursor, query string) (HashtagCursor, error) {
+	cur, err := envelope.DecodeCursor(cursor)
+	if err != nil || cursor == "" {
+		return HashtagCursor{}, err
+	}
+	if cur["kind"] != "hashtag" || cur["query"] != query {
+		return HashtagCursor{}, envelope.ErrInvalidCursor
+	}
+	offset, ok := numberAsInt(cur["offset"])
+	if !ok || offset < 0 {
+		return HashtagCursor{}, envelope.ErrInvalidCursor
+	}
+	return HashtagCursor{Query: query, Offset: offset}, nil
+}
+
+func EncodeRelevanceSearchCursor(kind, query string, score float64, createdAt time.Time, uri string) (string, error) {
+	return envelope.EncodeCursor(map[string]any{
+		"kind":      kind,
+		"query":     query,
+		"score":     score,
+		"createdAt": createdAt.UTC().Format(time.RFC3339Nano),
+		"uri":       uri,
+	})
+}
+
+func DecodeRelevanceSearchCursor(cursor, kind, query string) (RelevanceCursor, error) {
+	cur, err := envelope.DecodeCursor(cursor)
+	if err != nil || cursor == "" {
+		return RelevanceCursor{}, err
+	}
+	if cur["kind"] != kind || cur["query"] != query {
+		return RelevanceCursor{}, envelope.ErrInvalidCursor
+	}
+	score, ok := cur["score"].(float64)
+	if !ok {
+		return RelevanceCursor{}, envelope.ErrInvalidCursor
+	}
+	createdAt, ok := cur["createdAt"].(string)
+	if !ok || createdAt == "" {
+		return RelevanceCursor{}, envelope.ErrInvalidCursor
+	}
+	parsedCreatedAt, err := time.Parse(time.RFC3339Nano, createdAt)
+	if err != nil {
+		return RelevanceCursor{}, envelope.ErrInvalidCursor
+	}
+	uri, ok := cur["uri"].(string)
+	if !ok || uri == "" {
+		return RelevanceCursor{}, envelope.ErrInvalidCursor
+	}
+	return RelevanceCursor{Kind: kind, Query: query, Score: score, CreatedAt: parsedCreatedAt, URI: uri}, nil
 }
 
 func numberAsInt(v any) (int, bool) {

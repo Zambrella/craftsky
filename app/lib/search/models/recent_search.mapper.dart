@@ -27,6 +27,8 @@ class RecentSearchTypeMapper extends EnumMapper<RecentSearchType> {
   @override
   RecentSearchType decode(dynamic value) {
     switch (value) {
+      case r'query':
+        return RecentSearchType.query;
       case r'hashtag':
         return RecentSearchType.hashtag;
       case r'profile':
@@ -43,6 +45,8 @@ class RecentSearchTypeMapper extends EnumMapper<RecentSearchType> {
   @override
   dynamic encode(RecentSearchType self) {
     switch (self) {
+      case RecentSearchType.query:
+        return r'query';
       case RecentSearchType.hashtag:
         return r'hashtag';
       case RecentSearchType.profile:
@@ -62,6 +66,130 @@ extension RecentSearchTypeMapperExtension on RecentSearchType {
   }
 }
 
+class QueryRecentSearchPayloadMapper
+    extends ClassMapperBase<QueryRecentSearchPayload> {
+  QueryRecentSearchPayloadMapper._();
+
+  static QueryRecentSearchPayloadMapper? _instance;
+  static QueryRecentSearchPayloadMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(
+        _instance = QueryRecentSearchPayloadMapper._(),
+      );
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'QueryRecentSearchPayload';
+
+  static String _$q(QueryRecentSearchPayload v) => v.q;
+  static const Field<QueryRecentSearchPayload, String> _f$q = Field('q', _$q);
+
+  @override
+  final MappableFields<QueryRecentSearchPayload> fields = const {#q: _f$q};
+
+  static QueryRecentSearchPayload _instantiate(DecodingData data) {
+    return QueryRecentSearchPayload(q: data.dec(_f$q));
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static QueryRecentSearchPayload fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<QueryRecentSearchPayload>(map);
+  }
+
+  static QueryRecentSearchPayload fromJson(String json) {
+    return ensureInitialized().decodeJson<QueryRecentSearchPayload>(json);
+  }
+}
+
+mixin QueryRecentSearchPayloadMappable {
+  String toJson() {
+    return QueryRecentSearchPayloadMapper.ensureInitialized()
+        .encodeJson<QueryRecentSearchPayload>(this as QueryRecentSearchPayload);
+  }
+
+  Map<String, dynamic> toMap() {
+    return QueryRecentSearchPayloadMapper.ensureInitialized()
+        .encodeMap<QueryRecentSearchPayload>(this as QueryRecentSearchPayload);
+  }
+
+  QueryRecentSearchPayloadCopyWith<
+    QueryRecentSearchPayload,
+    QueryRecentSearchPayload,
+    QueryRecentSearchPayload
+  >
+  get copyWith =>
+      _QueryRecentSearchPayloadCopyWithImpl<
+        QueryRecentSearchPayload,
+        QueryRecentSearchPayload
+      >(this as QueryRecentSearchPayload, $identity, $identity);
+  @override
+  String toString() {
+    return QueryRecentSearchPayloadMapper.ensureInitialized().stringifyValue(
+      this as QueryRecentSearchPayload,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return QueryRecentSearchPayloadMapper.ensureInitialized().equalsValue(
+      this as QueryRecentSearchPayload,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return QueryRecentSearchPayloadMapper.ensureInitialized().hashValue(
+      this as QueryRecentSearchPayload,
+    );
+  }
+}
+
+extension QueryRecentSearchPayloadValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, QueryRecentSearchPayload, $Out> {
+  QueryRecentSearchPayloadCopyWith<$R, QueryRecentSearchPayload, $Out>
+  get $asQueryRecentSearchPayload => $base.as(
+    (v, t, t2) => _QueryRecentSearchPayloadCopyWithImpl<$R, $Out>(v, t, t2),
+  );
+}
+
+abstract class QueryRecentSearchPayloadCopyWith<
+  $R,
+  $In extends QueryRecentSearchPayload,
+  $Out
+>
+    implements ClassCopyWith<$R, $In, $Out> {
+  $R call({String? q});
+  QueryRecentSearchPayloadCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _QueryRecentSearchPayloadCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, QueryRecentSearchPayload, $Out>
+    implements
+        QueryRecentSearchPayloadCopyWith<$R, QueryRecentSearchPayload, $Out> {
+  _QueryRecentSearchPayloadCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<QueryRecentSearchPayload> $mapper =
+      QueryRecentSearchPayloadMapper.ensureInitialized();
+  @override
+  $R call({String? q}) => $apply(FieldCopyWithData({if (q != null) #q: q}));
+  @override
+  QueryRecentSearchPayload $make(CopyWithData data) =>
+      QueryRecentSearchPayload(q: data.get(#q, or: $value.q));
+
+  @override
+  QueryRecentSearchPayloadCopyWith<$R2, QueryRecentSearchPayload, $Out2>
+  $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
+      _QueryRecentSearchPayloadCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
 class HashtagRecentSearchPayloadMapper
     extends ClassMapperBase<HashtagRecentSearchPayload> {
   HashtagRecentSearchPayloadMapper._();
@@ -72,7 +200,6 @@ class HashtagRecentSearchPayloadMapper
       MapperContainer.globals.use(
         _instance = HashtagRecentSearchPayloadMapper._(),
       );
-      SearchSortMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -85,25 +212,14 @@ class HashtagRecentSearchPayloadMapper
     'tag',
     _$tag,
   );
-  static SearchSort _$sort(HashtagRecentSearchPayload v) => v.sort;
-  static const Field<HashtagRecentSearchPayload, SearchSort> _f$sort = Field(
-    'sort',
-    _$sort,
-    opt: true,
-    def: SearchSort.chronological,
-  );
 
   @override
   final MappableFields<HashtagRecentSearchPayload> fields = const {
     #tag: _f$tag,
-    #sort: _f$sort,
   };
 
   static HashtagRecentSearchPayload _instantiate(DecodingData data) {
-    return HashtagRecentSearchPayload(
-      tag: data.dec(_f$tag),
-      sort: data.dec(_f$sort),
-    );
+    return HashtagRecentSearchPayload(tag: data.dec(_f$tag));
   }
 
   @override
@@ -180,7 +296,7 @@ abstract class HashtagRecentSearchPayloadCopyWith<
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
-  $R call({String? tag, SearchSort? sort});
+  $R call({String? tag});
   HashtagRecentSearchPayloadCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   );
@@ -200,18 +316,11 @@ class _HashtagRecentSearchPayloadCopyWithImpl<$R, $Out>
   late final ClassMapperBase<HashtagRecentSearchPayload> $mapper =
       HashtagRecentSearchPayloadMapper.ensureInitialized();
   @override
-  $R call({String? tag, SearchSort? sort}) => $apply(
-    FieldCopyWithData({
-      if (tag != null) #tag: tag,
-      if (sort != null) #sort: sort,
-    }),
-  );
+  $R call({String? tag}) =>
+      $apply(FieldCopyWithData({if (tag != null) #tag: tag}));
   @override
   HashtagRecentSearchPayload $make(CopyWithData data) =>
-      HashtagRecentSearchPayload(
-        tag: data.get(#tag, or: $value.tag),
-        sort: data.get(#sort, or: $value.sort),
-      );
+      HashtagRecentSearchPayload(tag: data.get(#tag, or: $value.tag));
 
   @override
   HashtagRecentSearchPayloadCopyWith<$R2, HashtagRecentSearchPayload, $Out2>
@@ -236,14 +345,44 @@ class ProfileRecentSearchPayloadMapper
   @override
   final String id = 'ProfileRecentSearchPayload';
 
-  static String _$q(ProfileRecentSearchPayload v) => v.q;
-  static const Field<ProfileRecentSearchPayload, String> _f$q = Field('q', _$q);
+  static String _$did(ProfileRecentSearchPayload v) => v.did;
+  static const Field<ProfileRecentSearchPayload, String> _f$did = Field(
+    'did',
+    _$did,
+  );
+  static String _$handle(ProfileRecentSearchPayload v) => v.handle;
+  static const Field<ProfileRecentSearchPayload, String> _f$handle = Field(
+    'handle',
+    _$handle,
+  );
+  static String? _$displayName(ProfileRecentSearchPayload v) => v.displayName;
+  static const Field<ProfileRecentSearchPayload, String> _f$displayName = Field(
+    'displayName',
+    _$displayName,
+    opt: true,
+  );
+  static String? _$avatar(ProfileRecentSearchPayload v) => v.avatar;
+  static const Field<ProfileRecentSearchPayload, String> _f$avatar = Field(
+    'avatar',
+    _$avatar,
+    opt: true,
+  );
 
   @override
-  final MappableFields<ProfileRecentSearchPayload> fields = const {#q: _f$q};
+  final MappableFields<ProfileRecentSearchPayload> fields = const {
+    #did: _f$did,
+    #handle: _f$handle,
+    #displayName: _f$displayName,
+    #avatar: _f$avatar,
+  };
 
   static ProfileRecentSearchPayload _instantiate(DecodingData data) {
-    return ProfileRecentSearchPayload(q: data.dec(_f$q));
+    return ProfileRecentSearchPayload(
+      did: data.dec(_f$did),
+      handle: data.dec(_f$handle),
+      displayName: data.dec(_f$displayName),
+      avatar: data.dec(_f$avatar),
+    );
   }
 
   @override
@@ -320,7 +459,7 @@ abstract class ProfileRecentSearchPayloadCopyWith<
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
-  $R call({String? q});
+  $R call({String? did, String? handle, String? displayName, String? avatar});
   ProfileRecentSearchPayloadCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   );
@@ -340,10 +479,27 @@ class _ProfileRecentSearchPayloadCopyWithImpl<$R, $Out>
   late final ClassMapperBase<ProfileRecentSearchPayload> $mapper =
       ProfileRecentSearchPayloadMapper.ensureInitialized();
   @override
-  $R call({String? q}) => $apply(FieldCopyWithData({if (q != null) #q: q}));
+  $R call({
+    String? did,
+    String? handle,
+    Object? displayName = $none,
+    Object? avatar = $none,
+  }) => $apply(
+    FieldCopyWithData({
+      if (did != null) #did: did,
+      if (handle != null) #handle: handle,
+      if (displayName != $none) #displayName: displayName,
+      if (avatar != $none) #avatar: avatar,
+    }),
+  );
   @override
   ProfileRecentSearchPayload $make(CopyWithData data) =>
-      ProfileRecentSearchPayload(q: data.get(#q, or: $value.q));
+      ProfileRecentSearchPayload(
+        did: data.get(#did, or: $value.did),
+        handle: data.get(#handle, or: $value.handle),
+        displayName: data.get(#displayName, or: $value.displayName),
+        avatar: data.get(#avatar, or: $value.avatar),
+      );
 
   @override
   ProfileRecentSearchPayloadCopyWith<$R2, ProfileRecentSearchPayload, $Out2>
