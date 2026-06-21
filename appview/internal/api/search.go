@@ -181,6 +181,48 @@ func SearchProjectsHandler(store *SearchStore, resolver HandleResolver, logger *
 	})
 }
 
+func ListProjectsHandler(store *SearchStore, resolver HandleResolver, logger *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		req, err := ParseProjectListRequest(r)
+		if err != nil {
+			code := "validation_error"
+			message := "invalid projects query"
+			if errors.Is(err, envelope.ErrInvalidCursor) {
+				code = "invalid_cursor"
+				message = "invalid cursor"
+			}
+			envelope.WriteError(w, http.StatusBadRequest, code, message, middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		viewerDID, ok := middleware.GetDID(r.Context())
+		if !ok {
+			envelope.WriteError(w, http.StatusInternalServerError, "missing_authenticated_did", "authenticated DID missing", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		filters := map[string][]string{}
+		if len(req.CraftTypes) > 0 {
+			filters["craftType"] = req.CraftTypes
+		}
+		rows, nextCursor, err := store.SearchProjects(r.Context(), ProjectSearchRequest{Sort: req.Sort, Limit: req.Limit, Cursor: req.Cursor, Filters: filters}, time.Now().UTC())
+		if errors.Is(err, envelope.ErrInvalidCursor) {
+			envelope.WriteError(w, http.StatusBadRequest, "invalid_cursor", "invalid cursor", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		if err != nil {
+			logger.Error("project list failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+			envelope.WriteError(w, http.StatusInternalServerError, "projects_unavailable", "projects unavailable", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		items, err := buildSearchPostResponses(r.Context(), rows, viewerDID.String(), store, resolver)
+		if err != nil {
+			logger.Error("project list response failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+			envelope.WriteError(w, http.StatusInternalServerError, "projects_unavailable", "projects unavailable", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		writeJSON(w, http.StatusOK, SearchPostPageResponse{Items: items, Cursor: nextCursor})
+	})
+}
+
 func TopHashtagsHandler(store *SearchStore, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req, err := ParseTopHashtagsRequest(r)

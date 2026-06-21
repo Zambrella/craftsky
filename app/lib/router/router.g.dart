@@ -30,6 +30,16 @@ RouteBase get $appShellRoute => StatefulShellRouteData.$route(
       ],
     ),
     StatefulShellBranchData.$branch(
+      navigatorKey: ProjectsBranch.$navigatorKey,
+      routes: [
+        GoRouteData.$route(
+          path: '/projects',
+          name: 'projects',
+          factory: $ProjectsRoute._fromState,
+        ),
+      ],
+    ),
+    StatefulShellBranchData.$branch(
       navigatorKey: SearchBranch.$navigatorKey,
       routes: [
         GoRouteData.$route(
@@ -90,6 +100,26 @@ mixin $FeedRoute on GoRouteData {
 
   @override
   String get location => GoRouteData.$location('/feed');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $ProjectsRoute on GoRouteData {
+  static ProjectsRoute _fromState(GoRouterState state) => const ProjectsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/projects');
 
   @override
   void go(BuildContext context) => context.go(location);

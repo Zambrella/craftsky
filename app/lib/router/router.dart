@@ -14,6 +14,7 @@ import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/pages/saved_page.dart';
+import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/router/error_screen.dart';
 import 'package:craftsky_app/router/onboarding_refresh_listener.dart';
@@ -36,6 +37,7 @@ class _NavigatorKeys {
 
   static GlobalKey<NavigatorState>? _rootKey;
   static GlobalKey<NavigatorState>? _feedKey;
+  static GlobalKey<NavigatorState>? _projectsKey;
   static GlobalKey<NavigatorState>? _searchKey;
   static GlobalKey<NavigatorState>? _notificationsKey;
   static GlobalKey<NavigatorState>? _profileKey;
@@ -44,6 +46,8 @@ class _NavigatorKeys {
       _rootKey ??= GlobalKey<NavigatorState>(debugLabel: 'rootNavigator');
   static GlobalKey<NavigatorState> get feedNavigatorKey =>
       _feedKey ??= GlobalKey<NavigatorState>(debugLabel: 'feedNavigator');
+  static GlobalKey<NavigatorState> get projectsNavigatorKey => _projectsKey ??=
+      GlobalKey<NavigatorState>(debugLabel: 'projectsNavigator');
   static GlobalKey<NavigatorState> get searchNavigatorKey =>
       _searchKey ??= GlobalKey<NavigatorState>(debugLabel: 'searchNavigator');
   static GlobalKey<NavigatorState> get notificationsNavigatorKey =>
@@ -131,6 +135,14 @@ GoRouter goRouter(Ref ref) {
         TypedGoRoute<FeedRoute>(path: RouteLocations.feed, name: 'feed'),
       ],
     ),
+    TypedStatefulShellBranch<ProjectsBranch>(
+      routes: [
+        TypedGoRoute<ProjectsRoute>(
+          path: RouteLocations.projects,
+          name: 'projects',
+        ),
+      ],
+    ),
     TypedStatefulShellBranch<SearchBranch>(
       routes: [
         TypedGoRoute<SearchRoute>(path: RouteLocations.search, name: 'search'),
@@ -193,6 +205,12 @@ class SearchBranch extends StatefulShellBranchData {
       _NavigatorKeys.searchNavigatorKey;
 }
 
+class ProjectsBranch extends StatefulShellBranchData {
+  const ProjectsBranch();
+  static final GlobalKey<NavigatorState> $navigatorKey =
+      _NavigatorKeys.projectsNavigatorKey;
+}
+
 class NotificationsBranch extends StatefulShellBranchData {
   const NotificationsBranch();
   static final GlobalKey<NavigatorState> $navigatorKey =
@@ -209,6 +227,13 @@ class FeedRoute extends GoRouteData with $FeedRoute {
   const FeedRoute();
   @override
   Widget build(BuildContext context, GoRouterState state) => const FeedPage();
+}
+
+class ProjectsRoute extends GoRouteData with $ProjectsRoute {
+  const ProjectsRoute();
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const ProjectsPage();
 }
 
 class SearchRoute extends GoRouteData with $SearchRoute {

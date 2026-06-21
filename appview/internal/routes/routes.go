@@ -51,6 +51,8 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		authN(deviceID(api.ResolveFacetMentionHandler(facetStore, deps.Logger))))
 	mux.Handle("GET /v1/facets/hashtags",
 		authN(deviceID(api.ListFacetHashtagSuggestionsHandler(facetStore, deps.Logger))))
+	mux.Handle("GET /v1/projects",
+		authN(deviceID(api.ListProjectsHandler(searchStore, deps.HandleResolver, deps.Logger))))
 	mux.Handle("GET /v1/search/hashtags/{tag}/posts",
 		authN(deviceID(api.SearchHashtagPostsHandler(searchStore, deps.HandleResolver, deps.Logger))))
 	mux.Handle("GET /v1/search/profiles",

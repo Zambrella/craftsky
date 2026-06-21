@@ -162,3 +162,39 @@ func TestParseProjectSearchRequestFilters(t *testing.T) {
 		})
 	}
 }
+
+func TestParseProjectListRequest(t *testing.T) {
+	req := httptest.NewRequest("GET", "/v1/projects?craftType=Knitting&craftType=Crochet&sort=popular&limit=50", nil)
+	parsed, err := api.ParseProjectListRequest(req)
+	if err != nil {
+		t.Fatalf("ParseProjectListRequest: %v", err)
+	}
+	if parsed.Sort != api.SearchSortPopular || parsed.Limit != 50 {
+		t.Fatalf("parsed sort/limit = %s/%d, want popular/50", parsed.Sort, parsed.Limit)
+	}
+	if got := parsed.CraftTypes; len(got) != 2 || got[0] != "knitting" || got[1] != "crochet" {
+		t.Fatalf("craft types = %#v", got)
+	}
+
+	for _, path := range []string{
+		"/v1/projects?q=sock",
+		"/v1/projects?color=blue",
+		"/v1/projects?craftType=",
+		"/v1/projects?craftType=" + strings.Repeat("a", 257),
+		"/v1/projects?sort=newest",
+		"/v1/projects?limit=101",
+		"/v1/projects?" + strings.Repeat("craftType=knitting&", 11),
+	} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest("GET", path, nil)
+			if _, err := api.ParseProjectListRequest(req); err == nil {
+				t.Fatalf("ParseProjectListRequest(%q) error = nil, want validation error", path)
+			}
+		})
+	}
+
+	req = httptest.NewRequest("GET", "/v1/projects?cursor=bad@@", nil)
+	if _, err := api.ParseProjectListRequest(req); err != envelope.ErrInvalidCursor {
+		t.Fatalf("invalid cursor error = %v, want envelope.ErrInvalidCursor", err)
+	}
+}

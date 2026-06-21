@@ -24,6 +24,11 @@ const _destinations = <_DestinationSpec>[
     label: 'Feed',
   ),
   _DestinationSpec(
+    icon: Icons.grid_view_outlined,
+    selectedIcon: Icons.grid_view,
+    label: 'Projects',
+  ),
+  _DestinationSpec(
     icon: Icons.search_outlined,
     selectedIcon: Icons.search,
     label: 'Search',

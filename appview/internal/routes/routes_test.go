@@ -735,6 +735,7 @@ func TestAddRoutes_SearchRoutesRegisteredAndRequireAuthenticatedDevice(t *testin
 		method string
 		path   string
 	}{
+		{name: "project list", method: http.MethodGet, path: "/v1/projects?craftType=knitting"},
 		{name: "hashtag posts", method: http.MethodGet, path: "/v1/search/hashtags/sock/posts"},
 		{name: "profile search", method: http.MethodGet, path: "/v1/search/profiles?q=ali"},
 		{name: "post search", method: http.MethodGet, path: "/v1/search/posts?q=sock"},

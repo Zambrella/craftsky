@@ -60,6 +60,13 @@ type ProjectSearchRequest struct {
 	Filters map[string][]string
 }
 
+type ProjectListRequest struct {
+	CraftTypes []string
+	Sort       SearchSort
+	Limit      int
+	Cursor     string
+}
+
 type TopHashtagsRequest struct {
 	CraftTypes []string
 	Limit      int
@@ -361,6 +368,40 @@ func ParseProjectSearchRequest(r *http.Request) (ProjectSearchRequest, error) {
 		return ProjectSearchRequest{}, ErrSearchValidation
 	}
 	return ProjectSearchRequest{Query: query, Sort: sort, Limit: limit, Cursor: cursor, Filters: filters}, nil
+}
+
+func ParseProjectListRequest(r *http.Request) (ProjectListRequest, error) {
+	q := r.URL.Query()
+	for key := range q {
+		if key != "craftType" && key != "sort" && key != "limit" && key != "cursor" {
+			return ProjectListRequest{}, ErrSearchValidation
+		}
+	}
+	sort, err := parseSearchSort(q.Get("sort"))
+	if err != nil {
+		return ProjectListRequest{}, err
+	}
+	limit, err := parseBoundedSearchLimit(q.Get("limit"), SearchDefaultLimit, SearchMaxLimit)
+	if err != nil {
+		return ProjectListRequest{}, err
+	}
+	cursor := q.Get("cursor")
+	if _, err := envelope.DecodeCursor(cursor); err != nil {
+		return ProjectListRequest{}, err
+	}
+	crafts := q["craftType"]
+	if len(crafts) > ProjectFilterMaxPerFamily {
+		return ProjectListRequest{}, ErrSearchValidation
+	}
+	out := make([]string, 0, len(crafts))
+	for _, craft := range crafts {
+		normalized := strings.ToLower(strings.TrimSpace(craft))
+		if normalized == "" || utf8.RuneCountInString(normalized) > SearchMaxQueryLength {
+			return ProjectListRequest{}, ErrSearchValidation
+		}
+		out = append(out, normalized)
+	}
+	return ProjectListRequest{CraftTypes: out, Sort: sort, Limit: limit, Cursor: cursor}, nil
 }
 
 func NormalizeHashtagPathValue(raw string) (string, error) {
