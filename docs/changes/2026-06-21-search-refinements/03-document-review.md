@@ -19,6 +19,12 @@ No blocking issues were found. The notes below should be handled by the coding p
 | DR-003 | Suggestion | Requirements | The requirements artifact still lists `Status: Draft` and `Reviewer: Unassigned` in its own review-status section. This review artifact supplies the formal stage verdict, so this is not blocking. | `01-requirements.md` §22; this document §Verdict | Treat `03-document-review.md` as the review decision for moving forward. If desired, update prior document status in a separate requirements-maintenance step, not as part of implementation. |
 | DR-004 | Suggestion | Risk / Tests | Relevance ordering is intentionally requirement-level, but the exact scoring implementation and final tie-breakers are left to implementation design. Tests require deterministic relevance-first ordering, so the coding plan must pin this down before store tests are written. | `01-requirements.md` FR-006, RULE-008, RISK-008; `02-acceptance-tests.md` AT-004, UT-006, IT-005, AC-018 | In the coding plan, define the scoring helper or PostgreSQL ranking approach and stable tie-breakers before implementing `UT-006` / `IT-005`. |
 
+## Resolution Notes
+- DR-001 addressed in `01-requirements.md` by making empty or whitespace-only unified suggestion `q` a standard validation error, and in `02-acceptance-tests.md` by covering empty required queries in API validation.
+- DR-002 addressed in `01-requirements.md` and `02-acceptance-tests.md` by requiring standard validation errors for rich project browse filters sent to `/v1/search/projects`.
+- DR-003 addressed in `01-requirements.md` §22 by setting the review status to `Approved with notes` and assigning this reviewer.
+- DR-004 addressed in `01-requirements.md` and `02-acceptance-tests.md` by pinning submitted post/project text search to relevance score descending, then `createdAt` descending, then URI descending.
+
 ## Traceability Review
 - Planning to requirements: The requirements preserve the confirmed Option A direction: shared suggestion core, unified search typeahead contract, separate paginated result APIs, `/v1/projects` for project browse/filtering, disjoint submitted Posts/Projects tabs, exact hashtag combined feeds, and recent/saved searches as one private AppView-backed surface.
 - Requirements to acceptance criteria: All Must business, functional, non-functional, and rule requirements in `01-requirements.md` link to at least one acceptance criterion. Should-level `NFR-004` and `NFR-005` are also represented through `AC-016`.
