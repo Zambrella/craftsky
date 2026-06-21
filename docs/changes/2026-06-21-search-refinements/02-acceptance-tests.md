@@ -36,24 +36,24 @@ Risk-based review recommendation: retain the requirements risk level of **Medium
 | FR-005 | AC-005, AC-014 | AT-005, AT-009, UT-003, IT-004, IT-011, IT-012 | Acceptance / Unit / Integration | Yes |
 | FR-006 | AC-006, AC-014, AC-018 | AT-004, AT-009, UT-006, UT-010, IT-005, IT-011, IT-013 | Acceptance / Unit / Integration | Yes |
 | FR-007 | AC-007 | AT-004, UT-006, IT-005, REG-003 | Acceptance / Unit / Integration / Regression | Yes |
-| FR-008 | AC-008 | AT-005, UT-004, IT-006, REG-002 | Acceptance / Unit / Integration / Regression | Yes |
+| FR-008 | AC-008, AC-021 | AT-005, UT-004, UT-013, IT-006, IT-017, REG-002 | Acceptance / Unit / Integration / Regression | Yes |
 | FR-009 | AC-009, AC-010, AC-014 | AT-006, AT-009, UT-005, UT-008, IT-008, IT-011, IT-014, MAN-003 | Acceptance / Unit / Integration / Manual | Mostly; index review manual |
 | FR-010 | AC-009, AC-010, AC-019 | AT-006, UT-008, IT-008, IT-009, IT-014, REG-007 | Acceptance / Unit / Integration / Regression | Yes |
 | FR-011 | AC-010 | AT-006, IT-014, REG-007 | Acceptance / Integration / Regression | Yes |
-| FR-012 | AC-001, AC-002, AC-005, AC-006, AC-008, AC-012 | AT-001, AT-002, AT-004, AT-005, UT-009, UT-010, IT-012, IT-013, REG-005 | Acceptance / Unit / Integration / Regression | Yes |
+| FR-012 | AC-001, AC-002, AC-005, AC-006, AC-008, AC-012, AC-021 | AT-001, AT-002, AT-004, AT-005, UT-009, UT-010, UT-013, IT-012, IT-013, IT-017, REG-005 | Acceptance / Unit / Integration / Regression | Yes |
 | FR-013 | AC-011 | AT-007, UT-007, UT-012, IT-010, REG-004 | Acceptance / Unit / Integration / Regression | Yes |
 | FR-014 | AC-013 | AT-008, UT-005, IT-007, IT-008 | Acceptance / Unit / Integration | Yes |
 | FR-015 | AC-013 | AT-008, UT-009, UT-011, IT-007, IT-008 | Acceptance / Unit / Integration | Yes |
 | FR-016 | AC-011, AC-020 | AT-007, UT-007, IT-010, IT-012, REG-004 | Acceptance / Unit / Integration / Regression | Yes |
 | NFR-001 | AC-001 | AT-001, REG-005, MAN-001 | Acceptance / Regression / Manual | Partly manual |
 | NFR-002 | AC-014, AC-015 | AT-009, UT-009, IT-011, IT-012, IT-014, REG-006, MAN-002 | Acceptance / Unit / Integration / Regression / Manual | Mostly; architecture inspection manual |
-| NFR-003 | AC-014 | AT-009, UT-001, UT-004, UT-008, IT-011, IT-012 | Acceptance / Unit / Integration | Yes |
+| NFR-003 | AC-014, AC-021 | AT-009, UT-001, UT-004, UT-008, UT-013, IT-011, IT-012, IT-017 | Acceptance / Unit / Integration | Yes |
 | NFR-004 | AC-016 | AT-010, IT-004, IT-008, IT-016, MAN-003, GAP-002 | Acceptance / Integration / Manual / Gap | Partly manual |
-| NFR-005 | AC-016 | AT-010, UT-001 through UT-012, IT-001 through IT-016, REG-001 through REG-007 | Acceptance / Unit / Integration / Regression | Yes |
+| NFR-005 | AC-016 | AT-010, UT-001 through UT-013, IT-001 through IT-017, REG-001 through REG-007 | Acceptance / Unit / Integration / Regression | Yes |
 | RULE-001 | AC-011, AC-015 | AT-007, UT-007, IT-010, REG-004, REG-006, MAN-002 | Acceptance / Unit / Integration / Regression / Manual | Mostly |
 | RULE-002 | AC-011 | AT-007, UT-012, IT-010, REG-004 | Acceptance / Unit / Integration / Regression | Yes |
 | RULE-003 | AC-003, AC-004 | AT-002, AT-003, UT-002, IT-002, REG-001 | Acceptance / Unit / Integration / Regression | Yes |
-| RULE-004 | AC-005, AC-008 | AT-005, UT-003, UT-004, IT-004, IT-006, REG-002 | Acceptance / Unit / Integration / Regression | Yes |
+| RULE-004 | AC-005, AC-008, AC-021 | AT-005, UT-003, UT-004, UT-013, IT-004, IT-006, IT-017, REG-002 | Acceptance / Unit / Integration / Regression | Yes |
 | RULE-005 | AC-009, AC-010 | AT-006, UT-008, IT-008, IT-009, IT-014, REG-007 | Acceptance / Unit / Integration / Regression | Yes |
 | RULE-006 | AC-007 | AT-004, UT-006, IT-005, REG-003 | Acceptance / Unit / Integration / Regression | Yes |
 | RULE-007 | AC-002, AC-017 | AT-002, UT-001, IT-001 | Acceptance / Unit / Integration | Yes |
@@ -143,8 +143,8 @@ Feature: Submitted search result tabs
 
 ### AT-005: Hashtag query results and exact hashtag feeds remain separate modes
 
-Requirement IDs: BR-004, FR-005, FR-008, RULE-004  
-Acceptance Criteria: AC-005, AC-008, AC-014  
+Requirement IDs: BR-004, FR-005, FR-008, FR-012, NFR-003, RULE-004  
+Acceptance Criteria: AC-005, AC-008, AC-014, AC-021  
 Priority: Must  
 Level: Acceptance  
 Automation Target: `appview/internal/api/search_request_test.go`, `appview/internal/api/search_store_test.go`, `app/test/search/data/search_api_client_test.dart`, `app/test/search/providers/hashtag_search_provider_test.dart`
@@ -161,6 +161,9 @@ Feature: Hashtag search modes
     Then the tag is normalized safely
     And only top-level regular posts and project posts with that exact canonical tag are returned
     And replies, comments, substring tags, and text-only visual hashtag mentions are excluded
+    When the exact hashtag feed is requested with chronological and popular sort choices
+    Then each response preserves exact-tag matching and orders the combined feed by the requested sort
+    And unsupported exact hashtag sort values return the standard validation error
 ```
 
 ### AT-006: Project browse/filtering stays under the Projects API and data layer
@@ -279,6 +282,7 @@ Feature: Test coverage for the refinement slice
 | UT-010 | FR-006, FR-012 | AC-006, AC-016 | Keep Flutter provider pagination independent, duplicate-safe, and concurrency-safe. | Separate query objects for posts/projects/profiles/hashtags, load-more calls with same/different cursors, duplicate items, concurrent loads. | Each tab owns state/cursor; loadMore appends unique items; no-op at end; duplicate concurrent load is suppressed. | `app/test/search/providers/*_provider_test.dart` |
 | UT-011 | BR-002, FR-015 | AC-012, AC-013 | Build top-hashtag craft groups from project posts only and include empty supported groups. | Project posts for some crafts, regular posts with same hashtags, hidden/deleted data, no rows for one default craft. | Counts are distinct visible project-post counts by craft for last 28 days; default supported groups include empty `items`; response craftType values are full tokens. | `appview/internal/api/search_store_test.go`, `app/test/search/models/top_hashtags_test.dart` |
 | UT-012 | FR-013, RULE-002 | AC-011 | Ensure non-mutating search/suggestion repository paths do not save recents. | Typeahead fetch, post/project/profile/hashtag fetch, exact hashtag fetch, explicit save. | Fetch paths do not call save; only explicit recent save/delete mutations change recent state. | `app/test/search/data/search_repository_test.dart`, `app/test/search/providers/recent_searches_provider_test.dart` |
+| UT-013 | FR-008, FR-012, NFR-003, RULE-004 | AC-008, AC-014, AC-021 | Parse and propagate exact hashtag result sort choices without changing exact-match normalization. | Exact hashtag requests with omitted sort, `sort=chronological`, `sort=popular`, invalid sort, limit, cursor, leading-`#` tag, mixed-case tag. | Omitted sort uses the existing/default exact-hashtag ordering; chronological and popular are accepted; invalid sort returns standard validation; normalized tag and opaque cursor handling are preserved. | `appview/internal/api/search_request_test.go`, `app/test/search/data/search_api_client_test.dart`, `app/test/search/models/search_sort_test.dart` |
 
 ## 5. Integration Test Cases
 
@@ -289,7 +293,7 @@ Feature: Test coverage for the refinement slice
 | IT-003 | FR-003, FR-004 | AC-002, AC-004, AC-005 | Hashtag suggestion core powers search and facet compatibility. | Seed regular and project posts with hashtag duplicates, hidden rows, old rows, and mixed-case tags. | Call unified suggestions and `/v1/facets/hashtags`. | Both use normalized/count logic; facet callers still decode expected fields; search suggestions include per-section `hasMore`. | `appview/internal/api/facet_test.go`, `appview/internal/api/search_store_test.go` |
 | IT-004 | FR-005, NFR-004, RULE-004 | AC-005, AC-014, AC-016 | Committed hashtag-query endpoint ranks and paginates deterministically. | Seed exact, prefix, substring, equal-count tags; enough rows for multiple pages. | `GET /v1/search/hashtags?q=sock&limit=2`, then with returned cursor. | Page 1/2 ordering follows exact, prefix, count desc, tag asc; cursor is opaque; invalid cursor returns standard error. | `appview/internal/api/search_store_test.go`, `appview/internal/routes/routes_test.go` |
 | IT-005 | FR-006, FR-007, RULE-006, RULE-008 | AC-006, AC-007, AC-018 | Submitted post/project search is relevance-first and disjoint. | Seed regular post, project title/material matches, newer weak match, hidden/reply rows. | Call `/v1/search/posts?q=alpaca` and `/v1/search/projects?q=alpaca` without sort override. | Posts returns only non-project top-level matches; Projects returns only project posts; ranking is relevance-first with stable tie-breakers. | `appview/internal/api/search_store_test.go` |
-| IT-006 | FR-008, RULE-004 | AC-008, AC-014 | Exact hashtag feed returns combined top-level regular/project posts only. | Seed exact regular post, exact project post, substring tag, reply/comment, text-only visual hashtag. | `GET /v1/search/hashtags/{tag}/posts` with mixed-case/leading-hash input. | Response hashtag is canonical; exact regular/project posts returned; replies/comments/substrings/text-only mentions excluded; invalid path values error. | `appview/internal/api/search_store_test.go`, `app/test/search/data/search_api_client_test.dart` |
+| IT-006 | FR-008, NFR-003, RULE-004 | AC-008, AC-014 | Exact hashtag feed returns combined top-level regular/project posts only. | Seed exact regular post, exact project post, substring tag, reply/comment, text-only visual hashtag. | `GET /v1/search/hashtags/{tag}/posts` with mixed-case/leading-hash input. | Response hashtag is canonical; exact regular/project posts returned; replies/comments/substrings/text-only mentions excluded; invalid path values error. | `appview/internal/api/search_store_test.go`, `app/test/search/data/search_api_client_test.dart` |
 | IT-007 | BR-002, FR-014, FR-015 | AC-012, AC-013 | Top hashtags use canonical full craft groups and include empty defaults. | Seed project posts with full craft tokens, bare alias requests, default craft with no tags. | Call `/v1/search/hashtags/top` with no craftTypes and with mixed full/bare craftTypes. | Responses expose full craft tokens; supported default groups are included; counts use distinct visible project posts from last 28 days. | `appview/internal/api/search_store_test.go`, `app/test/search/data/search_api_client_test.dart` |
 | IT-008 | FR-009, FR-010, FR-014, RULE-005 | AC-009, AC-010, AC-013, AC-014 | `/v1/projects` supports browse filters, full/bare craft inputs, pagination, chronological/popular sort. | Seed projects across craft tokens, filter families, engagement, and dates. | Call `/v1/projects` with craftType, filter families, sort, limit, cursor. | Matching project posts page correctly; popular formula reused; full token and bare alias inputs match same rows; cursors and validation follow `/v1/` conventions. | `appview/internal/api/search_store_test.go`, `appview/internal/routes/routes_test.go` |
 | IT-009 | FR-010, RULE-005 | AC-009, AC-019 | `/v1/search/projects` is text-search-only after filters move to `/v1/projects`. | Use request parser/route with rich browse filter params. | Call `/v1/search/projects?q=sock&craftType=...&material=...`. | Unsupported browse filters are rejected or documented as removed; text-only Projects search remains available. | `appview/internal/api/search_request_test.go`, `appview/internal/routes/routes_test.go` |
@@ -300,13 +304,14 @@ Feature: Test coverage for the refinement slice
 | IT-014 | BR-005, FR-011, RULE-005, RULE-009 | AC-010, AC-011, AC-014 | Flutter project browse stays in project feature data layer. | Mock project repository/client and search repository spy. | Read project feed/provider with craft type, filters, sort, cursor; perform project browse interactions. | Project provider calls project repository/client and `/v1/projects`; search repository is not called; no project browse recent is serialized. | `app/test/projects/data/project_api_client_test.dart`, `app/test/projects/providers/project_feed_provider_test.dart` |
 | IT-015 | FR-004 | AC-004 | Existing Flutter rich-text facet repositories remain compatible. | Mock `/v1/facets/mentions`, `/v1/facets/mentions/resolve`, `/v1/facets/hashtags`. | Run existing rich-text repository/controller tests. | Current mention/hashtag decode behavior and tolerant error behavior remain passing. | `app/test/shared/rich_text/facet_suggestion_repository_test.dart`, `app/test/shared/rich_text/*autocomplete*_test.dart` |
 | IT-016 | NFR-004, NFR-005 | AC-016 | Migration/index/query checks are covered where implementation adds persistence/index changes. | Any migration for recent type constraint and any supporting indexes for hashtag/project filters. | Run AppView migration/test suite and focused store tests against Postgres. | Schema permits refined recents; queries remain bounded; any performance limitation is documented as a gap. | `appview/migrations/*`, `appview/internal/api/*_test.go` |
+| IT-017 | FR-008, FR-012, NFR-003, RULE-004 | AC-008, AC-021 | Exact hashtag feed sorts the combined regular/project feed by chronology or popularity. | Seed at least three exact-tag top-level posts/projects with different creation times and deterministic engagement/recency popularity scores, plus substring/reply rows that must remain excluded. | Call `/v1/search/hashtags/{tag}/posts?sort=chronological` and `?sort=popular`, paginate at least one sort, and call with an invalid sort. | Chronological order follows creation time with stable tie-breakers; popular order follows the existing deterministic popularity formula; exact matching and exclusions are unchanged; cursors are sort-specific/opaque; invalid sort returns standard validation. | `appview/internal/api/search_store_test.go`, `appview/internal/routes/routes_test.go`, `app/test/search/data/search_api_client_test.dart`, `app/test/search/providers/hashtag_search_provider_test.dart` |
 
 ## 6. Regression Tests
 
 | ID | Existing Behavior Protected | Requirement IDs | Acceptance Criteria | Test |
 |---|---|---|---|---|
 | REG-001 | Composer/profile rich-text autocomplete keeps `/v1/facets/mentions`, `/v1/facets/mentions/resolve`, and `/v1/facets/hashtags` compatibility. | BR-003, FR-002, FR-003, FR-004, RULE-003 | AC-003, AC-004 | Re-run existing AppView facet tests and Flutter rich-text repository/controller tests after shared suggestion refactor. |
-| REG-002 | Exact hashtag result feed excludes substring tags, replies/comments, and text-only hashtag mentions while including regular and project top-level posts. | FR-008, RULE-004 | AC-008 | Keep/extend existing `SearchHashtagPosts` tests with project post and invalid tag cases. |
+| REG-002 | Exact hashtag result feed excludes substring tags, replies/comments, and text-only hashtag mentions while including regular and project top-level posts and preserving supported chronology/popularity sorts. | FR-008, FR-012, NFR-003, RULE-004 | AC-008, AC-021 | Keep/extend existing `SearchHashtagPosts` tests with project post, invalid tag, chronological sort, and popular sort cases. |
 | REG-003 | Submitted Posts and Projects tabs do not duplicate project posts. | FR-007, RULE-006 | AC-007 | Seed a project post matching the query and assert it appears only in `/v1/search/projects`, not `/v1/search/posts`. |
 | REG-004 | Recent-search list/save/delete remains explicit, private, viewer-scoped, and idempotent on already-deleted/not-owned IDs. | BR-006, FR-013, FR-016, RULE-001, RULE-002, RULE-009 | AC-011, AC-015, AC-020 | Extend recent store tests to cover refined payloads and existing delete semantics. |
 | REG-005 | SearchPage/ProjectsPage rendered UI stubs and route/navigation behavior are not expanded by this non-UI slice. | BR-001, FR-012, NFR-001 | AC-001 | Keep UI tests limited to compile/stub compatibility and manually inspect source diff for no rendered search/project UI. |
@@ -325,6 +330,7 @@ Feature: Test coverage for the refinement slice
 | TD-006 | API validation and auth errors | Missing auth, missing device ID, invalid limits, invalid cursors, unsupported filter keys, malformed hashtags, whitespace-only q. | AT-009, UT-001, UT-004, UT-008, IT-011 |
 | TD-007 | Flutter mocked HTTP/provider state | DioAdapter responses with camelCase JSON, opaque cursors containing punctuation, fake repositories with duplicate items and delayed futures. | IT-012, IT-013, IT-014, UT-009, UT-010 |
 | TD-008 | Existing facet compatibility | Current `/v1/facets/mentions`, `/v1/facets/mentions/resolve`, and `/v1/facets/hashtags` response shapes expected by rich-text code. | AT-003, IT-015, REG-001 |
+| TD-009 | Exact hashtag sort ordering | Exact-tag regular posts and project posts with controlled `createdAt`, like/repost/reply counts, and recency values, plus substring/reply/comment rows that should not affect chronology or popularity results. | AT-005, UT-013, IT-017, REG-002 |
 
 ## 8. Manual Checks
 
@@ -364,9 +370,9 @@ Blocking gaps: None identified for test design.
 - External Plannotator review, if the user initiates it outside this agent: `docs/changes/2026-06-21-search-refinements/`
 - Recommended first failing test for implementation: `UT-001` for parsing/validating `GET /v1/search/suggestions` as a bounded, non-paginated, authenticated top-N suggestion request. This is the smallest failing test that anchors the new shared suggestion contract.
 - Suggested test order for implementation:
-  1. AppView request/normalization/payload unit tests: `UT-001`, `UT-004`, `UT-005`, `UT-007`, `UT-008`.
+  1. AppView request/normalization/payload unit tests: `UT-001`, `UT-004`, `UT-005`, `UT-007`, `UT-008`, `UT-013`.
   2. Shared ranking/counting unit tests: `UT-002`, `UT-003`, `UT-006`, `UT-011`.
-  3. AppView store/route integration tests: `IT-001` through `IT-011`, plus `IT-016` if migrations/indexes are added.
+  3. AppView store/route integration tests: `IT-001` through `IT-011`, `IT-017`, plus `IT-016` if migrations/indexes are added.
   4. Flutter model/API-client/repository/provider tests: `UT-009`, `UT-010`, `UT-012`, `IT-012`, `IT-013`, `IT-014`.
   5. Compatibility and boundary regressions: `IT-015`, `REG-001` through `REG-007`, then manual checks `MAN-001` through `MAN-004`.
 - Commands discovered:
