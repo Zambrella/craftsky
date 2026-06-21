@@ -268,7 +268,7 @@ void main() {
       expect(response.groups.first.items.single.count, 12);
     });
 
-    test('IT-007 lists recent searches with typed payloads', () async {
+    test('IT-007 lists recent searches with all typed payloads', () async {
       final dio = buildDio();
       DioAdapter(dio: dio).onGet(
         '/v1/search/recent',
@@ -288,60 +288,182 @@ void main() {
               'payload': {'q': 'alice'},
               'updatedAt': '2026-06-20T11:00:00Z',
             },
+            {
+              'id': 'recent_3',
+              'type': 'post',
+              'displayLabel': 'alpaca posts',
+              'payload': {'q': 'alpaca', 'sort': 'chronological'},
+              'updatedAt': '2026-06-20T12:00:00Z',
+            },
+            {
+              'id': 'recent_4',
+              'type': 'project',
+              'displayLabel': 'cardigan projects',
+              'payload': {
+                'q': 'cardigan',
+                'sort': 'popular',
+                'filters': {
+                  'craftType': ['knitting'],
+                  'projectTag': ['gift'],
+                },
+              },
+              'updatedAt': '2026-06-20T13:00:00Z',
+            },
           ],
         }),
       );
 
       final page = await SearchApiClient(dio).listRecentSearches();
 
-      expect(page.items.map((item) => item.id), ['recent_1', 'recent_2']);
-      expect(page.items.first.payload, isA<HashtagRecentSearchPayload>());
-      expect(page.items.last.payload, isA<ProfileRecentSearchPayload>());
+      expect(page.items.map((item) => item.id), [
+        'recent_1',
+        'recent_2',
+        'recent_3',
+        'recent_4',
+      ]);
+      expect(page.items[0].payload, isA<HashtagRecentSearchPayload>());
+      expect(page.items[1].payload, isA<ProfileRecentSearchPayload>());
+      expect(page.items[2].payload, isA<PostRecentSearchPayload>());
+      expect(page.items[3].payload, isA<ProjectRecentSearchPayload>());
+      expect(
+        page.items[1].payload.toMap(),
+        isNot(contains('sort')),
+      );
+      expect(page.items[3].payload.toMap(), {
+        'q': 'cardigan',
+        'sort': 'popular',
+        'filters': {
+          'craftType': ['knitting'],
+          'projectTag': ['gift'],
+        },
+      });
     });
 
-    test('IT-008 saves recent search payloads', () async {
+    test('IT-008 saves all supported recent search payloads', () async {
       final dio = buildDio();
-      const request = SaveRecentSearchRequest(
-        type: RecentSearchType.project,
-        displayLabel: 'Cardigan projects',
-        payload: ProjectRecentSearchPayload(
-          q: 'cardigan',
-          sort: SearchSort.popular,
-          filters: ProjectSearchFilters(craftType: ['knitting']),
+      DioAdapter(dio: dio)
+        ..onPost(
+          '/v1/search/recent',
+          (server) => server.reply(201, {
+            'id': 'recent_hashtag',
+            'type': 'hashtag',
+            'displayLabel': '#SockKAL',
+            'payload': {'tag': 'sockkal', 'sort': 'popular'},
+            'updatedAt': '2026-06-20T12:00:00Z',
+          }),
+          data: {
+            'type': 'hashtag',
+            'displayLabel': '#SockKAL',
+            'payload': {'tag': 'sockkal', 'sort': 'popular'},
+          },
+        )
+        ..onPost(
+          '/v1/search/recent',
+          (server) => server.reply(201, {
+            'id': 'recent_profile',
+            'type': 'profile',
+            'displayLabel': 'Alice',
+            'payload': {'q': 'alice'},
+            'updatedAt': '2026-06-20T12:01:00Z',
+          }),
+          data: {
+            'type': 'profile',
+            'displayLabel': 'Alice',
+            'payload': {'q': 'alice'},
+          },
+        )
+        ..onPost(
+          '/v1/search/recent',
+          (server) => server.reply(201, {
+            'id': 'recent_post',
+            'type': 'post',
+            'displayLabel': 'Alpaca posts',
+            'payload': {'q': 'alpaca', 'sort': 'chronological'},
+            'updatedAt': '2026-06-20T12:02:00Z',
+          }),
+          data: {
+            'type': 'post',
+            'displayLabel': 'Alpaca posts',
+            'payload': {'q': 'alpaca', 'sort': 'chronological'},
+          },
+        )
+        ..onPost(
+          '/v1/search/recent',
+          (server) => server.reply(201, {
+            'id': 'recent_project',
+            'type': 'project',
+            'displayLabel': 'Cardigan projects',
+            'payload': {
+              'q': 'cardigan',
+              'sort': 'popular',
+              'filters': {
+                'craftType': ['knitting'],
+              },
+            },
+            'updatedAt': '2026-06-20T12:03:00Z',
+          }),
+          data: {
+            'type': 'project',
+            'displayLabel': 'Cardigan projects',
+            'payload': {
+              'q': 'cardigan',
+              'sort': 'popular',
+              'filters': {
+                'craftType': ['knitting'],
+              },
+            },
+          },
+        );
+
+      final client = SearchApiClient(dio);
+      final saved = [
+        await client.saveRecentSearch(
+          const SaveRecentSearchRequest(
+            type: RecentSearchType.hashtag,
+            displayLabel: '#SockKAL',
+            payload: HashtagRecentSearchPayload(
+              tag: 'sockkal',
+              sort: SearchSort.popular,
+            ),
+          ),
         ),
-      );
-      DioAdapter(dio: dio).onPost(
-        '/v1/search/recent',
-        (server) => server.reply(201, {
-          'id': 'recent_project',
-          'type': 'project',
-          'displayLabel': 'Cardigan projects',
-          'payload': {
-            'q': 'cardigan',
-            'sort': 'popular',
-            'filters': {
-              'craftType': ['knitting'],
-            },
-          },
-          'updatedAt': '2026-06-20T12:00:00Z',
-        }),
-        data: {
-          'type': 'project',
-          'displayLabel': 'Cardigan projects',
-          'payload': {
-            'q': 'cardigan',
-            'sort': 'popular',
-            'filters': {
-              'craftType': ['knitting'],
-            },
-          },
-        },
-      );
+        await client.saveRecentSearch(
+          const SaveRecentSearchRequest(
+            type: RecentSearchType.profile,
+            displayLabel: 'Alice',
+            payload: ProfileRecentSearchPayload(q: 'alice'),
+          ),
+        ),
+        await client.saveRecentSearch(
+          const SaveRecentSearchRequest(
+            type: RecentSearchType.post,
+            displayLabel: 'Alpaca posts',
+            payload: PostRecentSearchPayload(q: 'alpaca'),
+          ),
+        ),
+        await client.saveRecentSearch(
+          const SaveRecentSearchRequest(
+            type: RecentSearchType.project,
+            displayLabel: 'Cardigan projects',
+            payload: ProjectRecentSearchPayload(
+              q: 'cardigan',
+              sort: SearchSort.popular,
+              filters: ProjectSearchFilters(craftType: ['knitting']),
+            ),
+          ),
+        ),
+      ];
 
-      final saved = await SearchApiClient(dio).saveRecentSearch(request);
-
-      expect(saved.id, 'recent_project');
-      expect(saved.payload, isA<ProjectRecentSearchPayload>());
+      expect(saved.map((item) => item.id), [
+        'recent_hashtag',
+        'recent_profile',
+        'recent_post',
+        'recent_project',
+      ]);
+      expect(saved[0].payload, isA<HashtagRecentSearchPayload>());
+      expect(saved[1].payload, isA<ProfileRecentSearchPayload>());
+      expect(saved[2].payload, isA<PostRecentSearchPayload>());
+      expect(saved[3].payload, isA<ProjectRecentSearchPayload>());
     });
 
     test('IT-009 deletes recent search by opaque id and accepts 204', () async {

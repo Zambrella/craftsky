@@ -9,11 +9,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes/fake_search_repository.dart';
 
-Post _post() => PostMapper.fromMap({
-  'uri': 'at://did:plc:alice/social.craftsky.feed.post/a',
-  'cid': 'bafy_a',
-  'rkey': 'a',
-  'text': 'a',
+Post _post(String rkey) => PostMapper.fromMap({
+  'uri': 'at://did:plc:alice/social.craftsky.feed.post/$rkey',
+  'cid': 'bafy_$rkey',
+  'rkey': rkey,
+  'text': rkey,
   'tags': <String>[],
   'likeCount': 0,
   'repostCount': 0,
@@ -35,7 +35,7 @@ void main() {
       final fake = FakeSearchRepository(
         onSearchPosts: ({required q, sort, limit, cursor}) async {
           seenQ = q;
-          return SearchPostPage(items: [_post()]);
+          return SearchPostPage(items: [_post('a')]);
         },
       );
       final container = ProviderContainer.test(
@@ -48,6 +48,38 @@ void main() {
 
       expect(seenQ, 'alpaca');
       expect(state.items.single.rkey.toString(), 'a');
+    },
+  );
+
+  test(
+    'IT-013 post loadMore passes cursor, appends, de-dupes, and no-ops at end',
+    () async {
+      var calls = 0;
+      String? seenCursor;
+      final fake = FakeSearchRepository(
+        onSearchPosts: ({required q, sort, limit, cursor}) async {
+          calls++;
+          if (calls == 1) {
+            return SearchPostPage(items: [_post('a')], cursor: 'opaque:posts');
+          }
+          seenCursor = cursor;
+          return SearchPostPage(items: [_post('a'), _post('b')]);
+        },
+      );
+      final container = ProviderContainer.test(
+        overrides: [searchRepositoryProvider.overrideWithValue(fake)],
+      );
+      final provider = postSearchProvider(const PostSearchQuery(q: 'alpaca'));
+
+      await container.read(provider.future);
+      await container.read(provider.notifier).loadMore();
+      await container.read(provider.notifier).loadMore();
+
+      final state = container.read(provider).value!;
+      expect(seenCursor, 'opaque:posts');
+      expect(state.items.map((post) => post.rkey.toString()), ['a', 'b']);
+      expect(state.hasMore, isFalse);
+      expect(calls, 2);
     },
   );
 }

@@ -45,6 +45,20 @@
 
 ## Implementation Steps
 
+## Implementation Review Fix Plan
+
+Review artifact: `06-implementation-review.md` (Status: Changes required).
+
+Required review-fix loops:
+
+| Step | Review Finding | Test IDs | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---|---|---|---|---|---|
+| RF-1 | IR-001 | UT-005 | BR-003, FR-001, FR-009, FR-015, NFR-005 | AC-006, AC-007, AC-014, AC-023 | Fails or exposes incomplete recent typed-payload variant coverage |
+| RF-2 | IR-001 | IT-007, IT-008 | BR-002, BR-003, FR-005, FR-009, FR-014, FR-015, NFR-005 | AC-006, AC-007, AC-014, AC-023 | Fails or exposes incomplete recent list/save API variant coverage |
+| RF-3 | IR-002 | IT-013 | FR-006, FR-012, FR-013, RULE-004, NFR-005 | AC-010, AC-013, AC-019, AC-020, AC-023 | Fails or exposes missing profile provider load-more coverage |
+| RF-4 | IR-002 | IT-013 | FR-006, FR-012, FR-013, RULE-004, NFR-005 | AC-010, AC-013, AC-019, AC-020, AC-023 | Fails or exposes missing post provider load-more coverage |
+| RF-5 | IR-002 | IT-013 | FR-006, FR-012, FR-013, RULE-004, NFR-005 | AC-010, AC-013, AC-019, AC-020, AC-023 | Fails or exposes missing project provider load-more coverage |
+
 ### Step 1: IT-002
 - Write failing test: Added `app/test/search/data/search_api_client_test.dart` coverage for hashtag path/query/decoding, safe path-segment encoding, and invalid-cursor error mapping.
 - Run command: `flutter test test/search/data/search_api_client_test.dart`
@@ -246,6 +260,51 @@
 - Refactor: None.
 - Notes: Values remain repeated lists, not comma-collapsed strings.
 
+### Review Fix RF-1: IR-001 / UT-005
+- Write failing test: Expanded `app/test/search/models/recent_search_test.dart` so save payload serialization and recent item deserialization cover all supported types: hashtag, profile, post, and project.
+- Run command: `flutter test test/search/models/recent_search_test.dart`
+- Confirmed failure: The expanded test started green because the existing typed recent-search model implementation already supported the missing variants; the gap was test coverage, not production behavior.
+- Implement: No production code required.
+- Run command: `flutter test test/search/models/recent_search_test.dart` — passed, 2 tests.
+- Refactor: None.
+- Notes: Profile payload assertions still exclude `sort`; project payload assertions include only supported filter keys.
+
+### Review Fix RF-2: IR-001 / IT-007, IT-008
+- Write failing test: Expanded `app/test/search/data/search_api_client_test.dart` so recent list decoding and explicit save serialization cover hashtag, profile, post, and project payloads.
+- Run command: `flutter test test/search/data/search_api_client_test.dart`
+- Confirmed failure: The expanded tests started green because the existing API client and payload models already supported the missing variants; the review finding was missing coverage.
+- Implement: No production code required.
+- Run command: `flutter test test/search/data/search_api_client_test.dart` — passed, 10 tests.
+- Refactor: None.
+- Notes: API assertions verify profile save/list payloads do not include `sort`, post payloads are typed, and project filters stay within supported keys.
+
+### Review Fix RF-3: IR-002 / IT-013 Profile Provider
+- Write failing test: Added `loadMore()` coverage to `app/test/search/providers/profile_search_provider_test.dart` for opaque cursor pass-through, append behavior, duplicate suppression, and no-more guard.
+- Run command: `flutter test test/search/providers/profile_search_provider_test.dart`
+- Confirmed failure: The new test started green because `ProfileSearch.loadMore()` already implemented the shared pagination behavior; the gap was provider-family coverage.
+- Implement: No production code required.
+- Run command: `flutter test test/search/providers/profile_search_provider_test.dart` — passed, 2 tests.
+- Refactor: None.
+- Notes: Profile duplicate suppression is asserted by DID/handle through the resulting item list.
+
+### Review Fix RF-4: IR-002 / IT-013 Post Provider
+- Write failing test: Added `loadMore()` coverage to `app/test/search/providers/post_search_provider_test.dart` for opaque cursor pass-through, append behavior, duplicate suppression, and no-more guard.
+- Run command: `flutter test test/search/providers/post_search_provider_test.dart`
+- Confirmed failure: The new test started green because `PostSearch.loadMore()` already implemented the shared pagination behavior; the gap was provider-family coverage.
+- Implement: No production code required.
+- Run command: `flutter test test/search/providers/post_search_provider_test.dart` — passed, 2 tests.
+- Refactor: Adjusted the test fixture helper to create posts with variable `rkey` values.
+- Notes: Post duplicate suppression is asserted by stable `Post.uri` through the resulting item list.
+
+### Review Fix RF-5: IR-002 / IT-013 Project Provider
+- Write failing test: Added `loadMore()` coverage to `app/test/search/providers/project_search_provider_test.dart` for opaque cursor pass-through, append behavior, duplicate suppression, and no-more guard.
+- Run command: `flutter test test/search/providers/project_search_provider_test.dart`
+- Confirmed failure: The new test started green because `ProjectSearch.loadMore()` already implemented the shared pagination behavior; the gap was provider-family coverage.
+- Implement: No production code required.
+- Run command: `flutter test test/search/providers/project_search_provider_test.dart` — passed, 2 tests.
+- Refactor: Adjusted the test fixture helper to create project-result posts with variable `rkey` values.
+- Notes: Project result duplicate suppression is asserted by stable `Post.uri` through the resulting item list.
+
 ## Verification Log
 - Codegen: `dart run build_runner build --delete-conflicting-outputs` — passed, wrote 0 outputs on final run.
 - Focused search/regression command: `flutter test test/search test/shared/rich_text/facet_suggestion_repository_test.dart` — passed, 38 tests.
@@ -263,6 +322,27 @@
   - MAN-002: No rendered search UI, routes, app shell, AppView, lexicon, dependency, or `/v1/facets/*` behavior changed.
   - MAN-003: Search code uses shared AppView Dio provider; no PDS client, token storage, local persistent recent-search storage, or logging of recent payloads was added.
   - MAN-004: Providers are query-in/state-out and expose data/cursor/hasMore/mutation methods without visual tab/layout/widget concepts.
+
+## Implementation Review Fix Verification Log
+- Review feedback addressed: `IR-001` and `IR-002` from `06-implementation-review.md`.
+- Focused review-fix commands:
+  - `flutter test test/search/models/recent_search_test.dart` — passed, 2 tests.
+  - `flutter test test/search/data/search_api_client_test.dart` — passed, 10 tests.
+  - `flutter test test/search/providers/profile_search_provider_test.dart` — passed, 2 tests.
+  - `flutter test test/search/providers/post_search_provider_test.dart` — passed, 2 tests.
+  - `flutter test test/search/providers/project_search_provider_test.dart` — passed, 2 tests.
+- Regression command: `flutter test test/search test/shared/rich_text/facet_suggestion_repository_test.dart` — passed, 41 tests.
+- Analyzer: `flutter analyze` — passed, no issues after fixing review-test style findings.
+- Broader command: `flutter test` — still failed in the same two existing non-search feed composer tests:
+  - `test/feed/pages/feed_page_composer_entry_test.dart: IT-001 feed New post opens chooser and project branch`
+  - `test/feed/widgets/post_type_chooser_test.dart: AT-001 compact chooser opens project composer`
+  - Both failures still expect `Craft type`; this review-fix diff only touches search tests and this workflow artifact.
+- Scope check: `git diff -- appview lexicon app/pubspec.yaml app/pubspec.lock app/lib/search/pages app/lib/router` — no diff.
+- Review-fix notes:
+  - Recent list and save tests now cover all AppView-supported types: hashtag, profile, post, and project.
+  - Profile recent payload tests assert no unsupported `sort` key.
+  - Project recent payload tests assert only supported filter keys are generated/preserved.
+  - Profile, post, and project result-provider tests now cover `loadMore()` cursor pass-through, append behavior, duplicate suppression, and no-more guard.
 
 ## Completion Checklist
 - [x] All Must requirements covered by tests or documented gaps
