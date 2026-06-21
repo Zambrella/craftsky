@@ -463,6 +463,16 @@ Mirrors `04-coding-plan.md` §9. Each loop will be executed red-green-refactor a
 - Result: New/refined query paths are bounded by parser-enforced limits and `limit + 1` fetches; submitted post/project relevance uses cursor predicates over relevance/createdAt/URI; project browse chronological/popular paths use cursor predicates and existing materialized project columns; top hashtags are bounded per craft group. Existing indexes cover post text search, project text search, lower craft type, lower pattern difficulty, root chronological ordering, and recent-search listing.
 - Notes: No additional performance index migration was added in this slice. Hashtag substring search still unnests `p.tags` and uses `LIKE '%query%'`; it is bounded and covered by focused tests, but production-scale optimization/materialization remains the accepted GAP-002 follow-up if profiling requires it.
 
+### Review Fix: IR-001 / FR-003, FR-004
+- Write failing test: Added `TestFacetHashtagSuggestionsUseVisibleSearchHashtagCounts` in `appview/internal/api/search_store_test.go`, seeding visible root posts, duplicate same-post hashtag rows, hidden/takedown rows, old rows, and reply/comment rows. The test asserts `/v1/facets/hashtags` store suggestions use the same visible 28-day distinct top-level counts as `SearchStore.SearchHashtags`.
+- Run command: `TEST_DATABASE_URL='postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable' go test ./internal/api -run TestFacetHashtagSuggestionsUseVisibleSearchHashtagCounts -count=1`.
+- Confirmed failure: `FacetStore.SearchHashtagSuggestions` returned `sockkal=3` and `sockmending=2`, proving hidden/takedown rows were counted; the search hashtag path returned the expected visible counts `sockkal=2` and `sockmending=1`.
+- Implement: Updated `FacetStore.SearchHashtagSuggestions` to apply the same top-level/visibility predicates as the search hashtag query path by excluding quote rows and applying `postVisibleModerationPredicate`. Updated the minimal facet test schema to include `moderation_outputs` so the shared predicate is available in facet-only tests.
+- Run command: `gofmt -w internal/api/facet_store.go internal/api/search_store_test.go && TEST_DATABASE_URL='postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable' go test ./internal/api -run TestFacetHashtagSuggestionsUseVisibleSearchHashtagCounts -count=1` → passed.
+- Nearby command: `gofmt -w internal/api/identity_cache_store_test.go && TEST_DATABASE_URL='postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable' go test ./internal/api -run 'Test(FacetHashtagSuggestionsUse|FacetStoreSearchHashtagSuggestions|SearchStore_SearchHashtagsRanksAndPaginates)' -count=1` → passed.
+- Refactor: No unrelated refactor; the facet path now reuses the existing moderation predicate used by search result queries.
+- Notes: Resolves implementation-review finding `IR-001`; broader requested verification is recorded below.
+
 ## Verification Log
 - Focused commands:
   - AppView parser/store/route focused commands are recorded in Steps 1–25.
@@ -473,6 +483,10 @@ Mirrors `04-coding-plan.md` §9. Each loop will be executed red-green-refactor a
   - `flutter test test/search test/shared/rich_text test/projects` → passed.
   - `flutter analyze` initially reported directive-ordering/unused-import issues; after fixing imports, `flutter analyze` → passed with no issues.
   - `gofmt -w ...changed AppView Go files...` completed; AppView API/routes tests re-run afterward and passed.
+- Implementation-review fix reruns for `IR-001`:
+  - `TEST_DATABASE_URL='postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable' go test ./internal/api ./internal/routes -count=1` → passed.
+  - `flutter test test/search test/shared/rich_text test/projects` → passed.
+  - `flutter analyze` → passed with no issues.
 - Blocked commands: none.
 - Manual checks:
   - MAN-001 no-rendered-UI source diff review → passed.
@@ -484,6 +498,7 @@ Mirrors `04-coding-plan.md` §9. Each loop will be executed red-green-refactor a
 - GAP-002 (production-scale performance cannot be fully proven by focused data) will be addressed by bounded query review and documented follow-up if needed.
 - GAP-004 (profile recent display freshness) remains future work.
 - GAP-005 (legacy `post`/`project` recent payload migration) will be handled deliberately during recent payload loops.
+- Implementation-review finding `IR-001` is resolved by the new DB-backed facet hashtag visibility/count parity regression and by applying the shared moderation/top-level predicates to `FacetStore.SearchHashtagSuggestions`.
 
 ## Completion Checklist
 - [x] All Must requirements covered by tests or documented gaps

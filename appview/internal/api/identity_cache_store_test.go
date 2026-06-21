@@ -79,6 +79,21 @@ CREATE TABLE atproto_identity_cache (
     resolved_at  TIMESTAMPTZ NOT NULL,
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE moderation_outputs (
+    id                  TEXT        NOT NULL PRIMARY KEY,
+    source_did          TEXT        NOT NULL,
+    subject_type        TEXT        NOT NULL CHECK (subject_type IN ('post', 'account')),
+    subject_did         TEXT        NOT NULL,
+    subject_collection  TEXT,
+    subject_rkey        TEXT,
+    subject_uri         TEXT,
+    value               TEXT        NOT NULL CHECK (value IN ('hide', 'takedown', 'warn')),
+    action              TEXT        NOT NULL CHECK (action IN ('apply', 'negate')),
+    internal_reason     TEXT,
+    expires_at          TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    indexed_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `
 
 func TestFacetStoreSearchMentionSuggestionsUsesFreshSeparateIdentityCache(t *testing.T) {

@@ -163,9 +163,11 @@ func (s *FacetStore) SearchHashtagSuggestions(ctx context.Context, query string,
 		CROSS JOIN LATERAL unnest(p.tags) AS tag(raw_tag)
 		WHERE p.reply_root_uri IS NULL
 		  AND p.reply_parent_uri IS NULL
+		  AND p.quote_uri IS NULL
 		  AND p.created_at >= $1
 		  AND trim(tag.raw_tag) <> ''
 		  AND lower(trim(tag.raw_tag)) LIKE '%' || $3 || '%' ESCAPE '\'
+		`+postVisibleModerationPredicate+`
 		GROUP BY lower(trim(tag.raw_tag))
 		ORDER BY
 		  CASE

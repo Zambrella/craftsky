@@ -235,6 +235,65 @@ func TestFacetHashtagSuggestionsUseHashtagResultRanking(t *testing.T) {
 	}
 }
 
+func TestFacetHashtagSuggestionsUseVisibleSearchHashtagCounts(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, searchStoreDDL)
+	ctx := context.Background()
+	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol"} {
+		seedMember(t, pool, did)
+	}
+
+	visibleDuplicate := seedPost(t, pool, "did:plc:alice", "visible-duplicate", "tagged", now.Add(-time.Hour))
+	visibleSecond := seedPost(t, pool, "did:plc:alice", "visible-second", "tagged", now.Add(-2*time.Hour))
+	visibleMending := seedPost(t, pool, "did:plc:alice", "visible-mending", "tagged", now.Add(-3*time.Hour))
+	hidden := seedPost(t, pool, "did:plc:bob", "hidden", "hidden", now.Add(-30*time.Minute))
+	takedown := seedPost(t, pool, "did:plc:carol", "author-takedown", "hidden author", now.Add(-20*time.Minute))
+	old := seedPost(t, pool, "did:plc:alice", "old", "old", now.Add(-29*24*time.Hour))
+	reply := seedReplyPost(t, pool, "did:plc:alice", "reply", "reply", visibleDuplicate, visibleDuplicate, now.Add(-10*time.Minute))
+
+	seedPostTags(t, pool, visibleDuplicate, []string{"SockKAL", "sockkal"})
+	seedPostTags(t, pool, visibleSecond, []string{"sockkal"})
+	seedPostTags(t, pool, visibleMending, []string{"sockmending"})
+	seedPostTags(t, pool, hidden, []string{"sockkal"})
+	seedPostTags(t, pool, takedown, []string{"sockmending"})
+	seedPostTags(t, pool, old, []string{"sockkal"})
+	seedPostTags(t, pool, reply, []string{"sockkal"})
+	seedModerationOutput(t, pool, "post", "did:plc:bob", hidden, "hide", now)
+	seedModerationOutput(t, pool, "account", "did:plc:carol", "", "takedown", now)
+
+	facetRows, err := api.NewFacetStore(pool).SearchHashtagSuggestions(ctx, "sock", 10, now)
+	if err != nil {
+		t.Fatalf("SearchHashtagSuggestions: %v", err)
+	}
+	searchRows, _, err := api.NewSearchStore(pool).SearchHashtags(ctx, api.HashtagSearchRequest{Query: "sock", Limit: 10}, now)
+	if err != nil {
+		t.Fatalf("SearchHashtags: %v", err)
+	}
+
+	facetGot := make([]api.HashtagSuggestionRow, 0, len(facetRows))
+	for _, row := range facetRows {
+		facetGot = append(facetGot, api.HashtagSuggestionRow{Tag: row.Tag, PostsLast28Days: row.PostsLast28Days})
+	}
+	searchGot := make([]api.HashtagSuggestionRow, 0, len(searchRows))
+	for _, row := range searchRows {
+		searchGot = append(searchGot, api.HashtagSuggestionRow{Tag: row.Tag, PostsLast28Days: row.PostsLast28Days})
+	}
+	want := []api.HashtagSuggestionRow{
+		{Tag: "sockkal", PostsLast28Days: 2},
+		{Tag: "sockmending", PostsLast28Days: 1},
+	}
+	if !slices.Equal(searchGot, want) {
+		t.Fatalf("search hashtag counts = %#v, want %#v", searchGot, want)
+	}
+	if !slices.Equal(facetGot, want) {
+		t.Fatalf("facet hashtag counts = %#v, want same visible counts %#v", facetGot, want)
+	}
+	if !slices.Equal(facetGot, searchGot) {
+		t.Fatalf("facet hashtag counts = %#v, want same as search path %#v", facetGot, searchGot)
+	}
+}
+
 func TestSearchSuggestionsHandlerReturnsGroupedTopNSections(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, searchStoreDDL)
