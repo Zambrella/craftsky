@@ -57,6 +57,90 @@ Answer: Option A — shared suggestion core, unified typeahead contract, separat
 
 Decision / implication: Requirements should plan a shared suggestion API/core, keep result-search and project-browse surfaces distinct, and preserve compatibility for existing facet autocomplete while making future search UI data straightforward.
 
+### Q3: Should submitted-search Posts and Projects tabs be disjoint?
+
+Answer: Yes — keep them disjoint.
+
+Decision / implication: Submitted text-search Posts results should exclude project posts, and submitted text-search Projects results should contain project posts. Exact hashtag results remain a combined feed of matching regular posts and projects.
+
+### Q4: What profiles are eligible for profile suggestions/search?
+
+Answer: Craftsky profiles only for v1.
+
+Decision / implication: Profile suggestions and profile search results should use indexed Craftsky profiles, matching the existing facet suggestion posture. External atproto account fallback is future work.
+
+### Q5: How should exact hashtag selections behave?
+
+Answer: Selecting a hashtag opens one combined exact-hashtag feed of top-level matching regular posts and projects.
+
+Decision / implication: Exact hashtag screens should not split into Posts/Projects tabs in this slice and should continue to exclude replies/comments.
+
+### Q6: How should blank-search top/trending hashtags be sourced and ranked?
+
+Answer: Use project posts only for craft-grouped top hashtags, support all current craft tokens by default, and rank by distinct visible project-post count in the last 28 days.
+
+Decision / implication: Craft grouping is based on project `common.craftType`; regular posts are not inferred into craft groups. Default groups include knitting, crochet, sewing, embroidery, and quilting as full craft tokens, even when a group is empty.
+
+### Q7: What craft-type contract should project/top-hashtag APIs use?
+
+Answer: Return full craft tokens and accept full tokens plus supported bare aliases as inputs.
+
+Decision / implication: AppView canonicalizes to `social.craftsky.feed.defs#...` values for comparisons and response groups. Flutter maps tokens to labels.
+
+### Q8: Should typeahead suggestions paginate?
+
+Answer: No — typeahead suggestions are top-N only, with per-section `hasMore` metadata.
+
+Decision / implication: Suggestion dropdowns remain fast and bounded. “View all” navigates to submitted result tabs rather than paginating inside typeahead.
+
+### Q9: How should submitted-search Hashtags tab matching/ranking work?
+
+Answer: Normalize away a leading `#`, match tags by case-insensitive substring, rank exact match first, prefix matches next, then 28-day count descending, then tag ascending.
+
+Decision / implication: Hashtag entity search remains lexical and deterministic. Counts use distinct visible top-level regular posts and projects from the last 28 days.
+
+### Q10: Which recent-search item types should the future Search recents list contain?
+
+Answer: Free-text submitted searches, selected hashtags, and selected profiles. Project browse/filter combinations should not be added to Search recents in this slice.
+
+Decision / implication: Add a generic `query` recent type for free-text all-tabs searches. Hashtag recents open exact hashtag results. Profile recents open the selected profile directly. Flutter should not generate project-filter recents for the Projects bottom-nav surface.
+
+### Q11: What payloads should selected profile and hashtag recents store?
+
+Answer: Profile recents store stable selected-profile identity and navigate directly to that profile; hashtag recents store canonical tag and open exact hashtag results.
+
+Decision / implication: Profile recents should not rerun a profile search query. Existing recent payload validation/modeling should be refined from query-shaped profile recents to selected-profile recents.
+
+### Q12: What payload should a generic free-text query recent store?
+
+Answer: Store the query text only.
+
+Decision / implication: Selecting a query recent reopens the all-tabs submitted search screen at its default tab/sort. Active-tab/sort memory is future work.
+
+### Q13: Where should rich project filters live?
+
+Answer: Move rich project filter support to `/v1/projects`; submitted-search Projects tab should be text-search-only.
+
+Decision / implication: `/v1/search/projects` remains for committed text-search Projects results. `/v1/projects` owns craft tabs, project filter families, chronological/popular sort, and project browse pagination.
+
+### Q14: How should submitted free-text search results rank?
+
+Answer: Posts and Projects tabs should default to text relevance, not chronology.
+
+Decision / implication: Free-text search is relevance-first with deterministic tie-breakers. Chronological/popular sorting belongs primarily to project browse; additional search sorts can be future work.
+
+### Q15: How should Projects bottom-nav popular sort work?
+
+Answer: Reuse the existing deterministic engagement plus recency-decay popularity formula.
+
+Decision / implication: Project browse `popular` remains testable and consistent with the previous search foundation formula.
+
+### Q16: What profile suggestion fields are needed for the mockup subtitle?
+
+Answer: Include profile `crafts` in profile suggestion/search summary data.
+
+Decision / implication: AppView/Flutter profile suggestion summaries should carry craft tokens so future UI can render context such as “Sophie • Knitter”.
+
 ## 4. Candidate Approaches
 
 ### Option A: Shared suggestion core plus separate result and browse APIs
@@ -159,11 +243,11 @@ The initial AppView and Flutter search data layers cover foundational result fet
 
 ## 10. Current Behavior
 
-AppView has search result, top-hashtag, recent-search, facet suggestion, and project-list endpoints, but their shapes reflect the earlier search foundation. Search suggestions and facet suggestions are separate; there is no unified profile+hashtag typeahead response. Profile suggestion ranking exists in multiple places. There is no paginated committed hashtag-query endpoint for a Hashtags result tab. `/v1/search/posts` currently searches top-level posts and may include project posts, while the future UI expects separate Posts and Projects tabs. `/v1/projects` is separate from search but currently supports only craft type, sort, limit, and cursor; richer project filters are under `/v1/search/projects`. Some current search/project code uses bare craft values (`knitting`) even though project records and Flutter project option catalogs use full lexicon tokens (`social.craftsky.feed.defs#knitting`). Flutter has non-UI search and project data layers, but no search-specific suggestion provider, no hashtag-query result provider, no combined blank-search state provider, and no UI consumption.
+AppView has search result, top-hashtag, recent-search, facet suggestion, and project-list endpoints, but their shapes reflect the earlier search foundation. Search suggestions and facet suggestions are separate; there is no unified profile+hashtag typeahead response. Profile suggestion ranking exists in multiple places, and profile suggestion/search summaries do not currently expose Craftsky `crafts` for UI subtitles. There is no paginated committed hashtag-query endpoint for a Hashtags result tab. `/v1/search/posts` currently searches top-level posts and may include project posts, while the future UI expects separate Posts and Projects tabs. Free-text post/project search currently defaults to chronological/popular behavior from the previous foundation, but the confirmed search UX expects text relevance by default. `/v1/projects` is separate from search but currently supports only craft type, sort, limit, and cursor; richer project filters are under `/v1/search/projects`, which conflicts with the confirmed project-browse boundary. Existing recent-search payload types include query-shaped post/profile/project searches, but the confirmed recents behavior needs a generic all-tabs `query` recent, direct selected-profile recents, exact-hashtag recents, and no project-filter recents generated by Flutter. Some current search/project code uses bare craft values (`knitting`) even though project records and Flutter project option catalogs use full lexicon tokens (`social.craftsky.feed.defs#knitting`). Flutter has non-UI search and project data layers, but no search-specific suggestion provider, no hashtag-query result provider, no combined blank-search state provider, and no UI consumption.
 
 ## 11. Desired Behavior
 
-After this slice, the AppView and Flutter data/logic layers are aligned with the desired future search and project-discovery UX. A unified suggestion contract returns profile and hashtag suggestions using shared ranking/count logic, while existing facet autocomplete remains compatible. Submitted searches can independently page posts, projects, profiles, and hashtags; the Posts and Projects tabs are disjoint for this slice. Exact hashtag selections continue to fetch posts and projects with that exact normalized tag. Recent/saved searches remain one private AppView-backed history surface. Project browsing and filtering are served by the Projects feature/API (`/v1/projects`) rather than being treated as search UI, while AppView may share backend query code with project search internally. Craft-type inputs are normalized to full lexicon tokens so top hashtags, project tabs, project filters, and project records use one consistent contract.
+After this slice, the AppView and Flutter data/logic layers are aligned with the desired future search and project-discovery UX. A unified top-N suggestion contract returns Craftsky-only profile suggestions and hashtag suggestions using shared ranking/count logic, per-section `hasMore`, and profile craft metadata for future subtitles, while existing facet autocomplete remains compatible. Submitted free-text searches can independently page posts, projects, profiles, and hashtags; the Posts and Projects tabs are disjoint for this slice and text results default to relevance. Exact hashtag selections fetch one combined top-level feed of regular posts and projects with that exact normalized tag. Recent/saved searches remain one private AppView-backed history surface, now shaped around generic free-text query recents, exact hashtag recents, and direct selected-profile recents; project browse/filter combinations do not appear in Search recents. Project browsing and filtering are served by the Projects feature/API (`/v1/projects`) rather than being treated as search UI, while AppView may share backend query code internally. Craft-type inputs are normalized to full lexicon tokens so top hashtags, project tabs, project filters, and project records use one consistent contract.
 
 ## 12. Requirements
 
@@ -175,21 +259,22 @@ After this slice, the AppView and Flutter data/logic layers are aligned with the
 | BR-004 | Business | Must | The system shall support submitted search results as four independently page-able result categories: posts, projects, profiles, and hashtags. | The desired submitted search screen has four tabs. | Prompt | AC-005, AC-006, AC-007, AC-014 |
 | BR-005 | Business | Must | The system shall keep project browsing/filtering as a Projects feature rather than folding it into the search flow. | The user now has a separate Projects bottom-nav surface where filtering occurs. | Prompt, Q2 | AC-009, AC-010 |
 | BR-006 | Business | Must | Recent and saved searches shall be treated as the same managed private search-history surface for this slice. | The user clarified that “saved” was a misstatement. | Q1 | AC-011 |
-| FR-001 | Functional | Must | The AppView shall expose a unified authenticated suggestion contract for profile and hashtag typeahead, recommended as `GET /v1/search/suggestions`, accepting a non-empty `q`, optional type selection, and bounded per-type limits. | Future search UI should not have to call separate composer-specific facet endpoints for one typeahead panel. | Q2, Discovery | AC-002, AC-014 |
-| FR-002 | Functional | Must | Profile suggestions shall be produced by shared ranking logic used by both the unified suggestion contract and existing facet mention/autocomplete behavior. | Ranking consistency is a stated product requirement. | Prompt, Discovery | AC-003, AC-004 |
-| FR-003 | Functional | Must | Hashtag suggestions shall be produced by shared normalization/count logic used by both the unified suggestion contract and existing facet hashtag/autocomplete behavior. | Search and composer hashtag suggestions should not drift. | Prompt, Discovery | AC-002, AC-004 |
+| FR-001 | Functional | Must | The AppView shall expose a unified authenticated top-N suggestion contract for profile and hashtag typeahead, recommended as `GET /v1/search/suggestions`, accepting a non-empty `q`, optional type selection, bounded per-type limits, and returning per-section `hasMore` metadata. | Future search UI should not have to call separate composer-specific facet endpoints for one typeahead panel, and typeahead should not paginate internally. | Q2, Q8, Discovery | AC-002, AC-014, AC-017 |
+| FR-002 | Functional | Must | Profile suggestions shall be Craftsky-profile-only and produced by shared ranking logic used by both the unified suggestion contract and existing facet mention/autocomplete behavior; profile suggestion/search summary data shall include craft metadata needed for future subtitles. | Ranking consistency is a stated product requirement, and the mockup shows profile craft context. | Prompt, Q4, Q16, Discovery | AC-003, AC-004, AC-017 |
+| FR-003 | Functional | Must | Hashtag suggestions shall be produced by shared normalization/count logic used by both the unified suggestion contract and existing facet hashtag/autocomplete behavior, using distinct visible top-level regular posts and projects from the last 28 days for global suggestion counts. | Search and composer hashtag suggestions should not drift, and global hashtag discovery should not exclude regular posts. | Prompt, Q9, Discovery | AC-002, AC-004, AC-005 |
 | FR-004 | Functional | Must | Existing `/v1/facets/mentions`, `/v1/facets/mentions/resolve`, and `/v1/facets/hashtags` shall remain compatible for current Flutter rich-text/facet callers, either as wrappers over the shared suggestion core or by migrating those callers without behavior regressions. | The slice must not break composer/profile autocomplete while adding search suggestions. | Discovery | AC-004 |
-| FR-005 | Functional | Must | The AppView shall expose a paginated committed hashtag-query result endpoint for the future Hashtags search tab, recommended as `GET /v1/search/hashtags?q=...`, returning hashtag items with normalized tags, counts, and opaque cursor pagination. | The desired submitted search screen has a Hashtags tab, which is distinct from exact hashtag post results and typeahead suggestions. | Prompt, Discovery | AC-005, AC-014 |
-| FR-006 | Functional | Must | The AppView and Flutter search data layer shall provide separate paginated fetch paths/providers for submitted query results: posts, projects, profiles, and hashtags. | Future tab UI needs independent pagination and loading states per tab. | Prompt, Q2 | AC-006, AC-014 |
+| FR-005 | Functional | Must | The AppView shall expose a paginated committed hashtag-query result endpoint for the future Hashtags search tab, recommended as `GET /v1/search/hashtags?q=...`, returning normalized hashtag items with 28-day counts, opaque cursor pagination, and deterministic ranking: exact match first, prefix matches next, then count descending, then tag ascending. | The desired submitted search screen has a Hashtags tab, which is distinct from exact hashtag post results and typeahead suggestions. | Prompt, Q9, Discovery | AC-005, AC-014 |
+| FR-006 | Functional | Must | The AppView and Flutter search data layer shall provide separate paginated fetch paths/providers for submitted query results: posts, projects, profiles, and hashtags; submitted free-text post/project results shall default to relevance ranking with deterministic tie-breakers. | Future tab UI needs independent pagination and loading states per tab, and text search should behave like search rather than a browse feed. | Prompt, Q2, Q14 | AC-006, AC-014, AC-018 |
 | FR-007 | Functional | Must | For submitted query results in this slice, the Posts fetch path shall return top-level non-project posts, and the Projects fetch path shall return top-level project posts. | Separate tabs should not duplicate the same project item in both Posts and Projects by default. | Prompt interpretation, Discovery | AC-007 |
-| FR-008 | Functional | Must | Exact hashtag selection shall use an exact normalized hashtag result fetch path that returns top-level posts and projects tagged with that exact hashtag, not substring hashtag suggestions. | Clicking a hashtag suggestion/option should show all posts/projects with that exact hashtag. | Prompt, Prior search requirements | AC-008 |
-| FR-009 | Functional | Must | The Projects API/data layer shall support project browsing by craft type, chronological/popular sort, opaque cursor pagination, and project filter families needed by the project filtering UI. | Project filtering now belongs in the Projects bottom-nav surface. | Prompt, Q2 | AC-009, AC-010, AC-014 |
-| FR-010 | Functional | Must | `/v1/projects` shall be the canonical AppView route family for project browsing/filtering, while `/v1/search/projects` remains available for committed text search result tabs; both may share backend query helpers. | Keeps project browse separate from search without duplicating backend logic unnecessarily. | Prompt, Q2 | AC-009, AC-010 |
+| FR-008 | Functional | Must | Exact hashtag selection shall use an exact normalized hashtag result fetch path that returns one combined feed of top-level regular posts and project posts tagged with that exact hashtag, not substring hashtag suggestions and not replies/comments. | Clicking a hashtag suggestion/option should show all top-level posts/projects with that exact hashtag. | Prompt, Q5, Prior search requirements | AC-008 |
+| FR-009 | Functional | Must | The Projects API/data layer shall support project browsing by all current supported craft types, chronological/popular sort, opaque cursor pagination, and project filter families needed by the project filtering UI; popular sort shall reuse the existing deterministic engagement plus recency-decay formula. | Project filtering now belongs in the Projects bottom-nav surface. | Prompt, Q6, Q13, Q15 | AC-009, AC-010, AC-014 |
+| FR-010 | Functional | Must | `/v1/projects` shall be the canonical AppView route family for project browsing/filtering, while `/v1/search/projects` remains available for committed text-search Projects tab results only; rich filter families shall move out of the public `/v1/search/projects` contract. | Keeps project browse separate from search without duplicating backend logic unnecessarily. | Prompt, Q13 | AC-009, AC-010, AC-019 |
 | FR-011 | Functional | Must | Flutter shall keep project browse/filter state under the project feature data layer, not under the search repository/provider boundary. | Future Projects UI should consume project providers directly. | Discovery | AC-010 |
 | FR-012 | Functional | Must | Flutter shall add or adapt search data-layer models/providers for unified suggestions, paginated hashtag-query results, submitted query result tabs, blank-search data, and exact hashtag result state without rendering UI. | Future UI needs stable provider surfaces after this non-UI slice. | Prompt, Discovery | AC-001, AC-002, AC-005, AC-006, AC-008, AC-012 |
-| FR-013 | Functional | Must | Recent-search list, save, and delete behavior shall remain explicit AppView-backed behavior, with no automatic recent mutation from typeahead or result fetches. | Recents are private history and existing search foundation chose explicit saves. | Q1, Prior search requirements | AC-011 |
+| FR-013 | Functional | Must | Recent-search list, save, and delete behavior shall remain explicit AppView-backed behavior, with no automatic recent mutation from typeahead or result fetches. | Recents are private history and existing search foundation chose explicit saves. | Q1, Q10, Prior search requirements | AC-011 |
 | FR-014 | Functional | Must | AppView shall canonicalize supported craft-type inputs for project browse, project search, and top-hashtag grouping to full `social.craftsky.feed.defs#...` tokens while accepting bare aliases for backwards/developer convenience. | Existing records use full tokens, but some current query code/tests use bare values. | Discovery | AC-013 |
 | FR-015 | Functional | Must | AppView responses that identify project craft groups, including top-hashtag groups and project browse filters where applicable, shall expose canonical full craft-type tokens rather than bare aliases. | Flutter can map tokens to labels through existing project option catalogs. | Discovery | AC-013 |
+| FR-016 | Functional | Must | Recent-search payload contracts for the future Search recents list shall support generic free-text `query` recents with `q` only, exact `hashtag` recents with canonical tag, and direct selected `profile` recents with stable profile identity; Flutter shall not generate project browse/filter recents in this slice. | The mockup includes free-text, hashtag, and profile recents, while project filtering has moved to Projects. | Q10, Q11, Q12, Q13, Q14, Q15 | AC-011, AC-020 |
 | NFR-001 | Non-functional | Must | This slice shall not implement rendered UI or visual route/navigation behavior. | The user explicitly asked to avoid UI-specific work. | Prompt | AC-001 |
 | NFR-002 | Non-functional | Must | Flutter search/project/facet calls shall continue to use authenticated AppView HTTP via the shared Dio stack and shall not call PDS directly. | Project architecture requires AppView reads and no PDS tokens on device. | AGENTS.md, Discovery | AC-014, AC-015 |
 | NFR-003 | Non-functional | Must | New or changed AppView APIs shall follow existing `/v1/` conventions: authenticated session, device ID, camelCase JSON, standard error envelopes, bounded limits, and opaque cursors for paginated lists. | Maintains API consistency and client expectations. | API specs, Discovery | AC-014 |
@@ -201,27 +286,34 @@ After this slice, the AppView and Flutter data/logic layers are aligned with the
 | RULE-004 | Business rule | Must | Hashtag typeahead/search-tab query matching and exact hashtag result matching are different modes: typeahead/query tabs may use substring matching, but exact hashtag result screens must match one normalized tag exactly. | Prevents confusing suggestion semantics with exact hashtag navigation. | Prompt, Prior search requirements | AC-005, AC-008 |
 | RULE-005 | Business rule | Must | Project browse/filtering belongs to the Projects API/data-layer boundary, not to search UI state, even if AppView reuses search-store internals. | The user moved project filtering to the Projects bottom nav. | Prompt, Q2 | AC-009, AC-010 |
 | RULE-006 | Business rule | Must | Submitted-query Posts and Projects result tabs shall be disjoint for this slice. | Separate tabs should avoid duplicate result cards and make acceptance testing deterministic. | Prompt interpretation | AC-007 |
+| RULE-007 | Business rule | Must | Typeahead suggestions shall be bounded top-N previews, not paginated result lists; “View all” behavior belongs to submitted result tabs. | Keeps suggestions fast and separates transient typeahead from committed search. | Q8 | AC-002, AC-017 |
+| RULE-008 | Business rule | Must | Submitted free-text search shall default to relevance ranking; chronological/popular sorting is part of project browse unless explicitly added to search later. | Text search should prioritize query relevance. | Q14 | AC-006, AC-018 |
+| RULE-009 | Business rule | Must | Project browse/filter combinations from the Projects bottom-nav surface shall not be generated as Search recent/saved search items in this slice. | Prevents project browse state from polluting Search recents. | Q10 | AC-011, AC-020 |
 
 ## 13. Acceptance Criteria
 
 | ID | Requirement IDs | Acceptance Criterion |
 |---|---|---|
 | AC-001 | BR-001, FR-012, NFR-001 | Given this slice is implemented, when Flutter UI/page/route files are inspected, then there is no rendered search UI, project UI, search tab UI, recent-management page UI, or visual navigation behavior added by this slice. |
-| AC-002 | BR-003, FR-001, FR-003, FR-012 | Given an authenticated user and a non-empty typeahead query, when the unified suggestion contract is requested for profiles and hashtags, then AppView returns bounded grouped profile and hashtag suggestions with camelCase fields, normalized hashtag values, and profile fields sufficient for future search suggestion rows. |
-| AC-003 | BR-003, FR-002, RULE-003 | Given the same viewer, indexed profiles, follows, and query text, when profile suggestions are requested through search typeahead and through the facet/autocomplete path, then the relative ranking of returned profile suggestions is equivalent for the overlapping result set. |
+| AC-002 | BR-003, FR-001, FR-003, FR-012, RULE-007 | Given an authenticated user and a non-empty typeahead query, when the unified suggestion contract is requested for profiles and hashtags, then AppView returns bounded top-N grouped profile and hashtag suggestions with camelCase fields, normalized hashtag values, per-section `hasMore`, and no pagination cursor. |
+| AC-003 | BR-003, FR-002, RULE-003 | Given the same viewer, indexed Craftsky profiles, follows, crafts, and query text, when profile suggestions are requested through search typeahead and through the facet/autocomplete path, then the relative ranking of returned profile suggestions is equivalent for the overlapping result set and returned profile suggestion/search summary data includes craft metadata. |
 | AC-004 | FR-004, RULE-003 | Given existing Flutter rich-text/facet autocomplete code requests mention or hashtag suggestions, when the suggestion refactor is complete, then existing facet autocomplete tests still pass and the response fields expected by composer/profile code remain compatible. |
-| AC-005 | BR-004, FR-005, RULE-004 | Given indexed hashtags matching a submitted query, when the committed hashtag-query endpoint is requested with `q`, `limit`, and optional `cursor`, then it returns hashtag result items with counts and an opaque next cursor when more results exist. |
-| AC-006 | BR-001, BR-004, FR-006, FR-012 | Given a submitted query, when Flutter data-layer providers for posts, projects, profiles, and hashtags are read, then each fetches through the appropriate repository/API path, exposes UI-agnostic async state, and can paginate independently. |
+| AC-005 | BR-004, FR-005, RULE-004 | Given indexed hashtags matching a submitted query, when the committed hashtag-query endpoint is requested with `q`, `limit`, and optional `cursor`, then it returns hashtag result items ranked exact match first, prefix matches next, then 28-day count descending, then tag ascending, with an opaque next cursor when more results exist. |
+| AC-006 | BR-001, BR-004, FR-006, FR-012, RULE-008 | Given a submitted query, when Flutter data-layer providers for posts, projects, profiles, and hashtags are read, then each fetches through the appropriate repository/API path, exposes UI-agnostic async state, can paginate independently, and post/project text results use relevance-first ordering by default. |
 | AC-007 | FR-007, RULE-006 | Given indexed regular posts and project posts that both match a submitted query, when Posts and Projects result providers/endpoints are fetched, then regular posts appear only in Posts results and project posts appear only in Projects results. |
 | AC-008 | FR-008, FR-012, RULE-004 | Given a selected hashtag value with optional leading `#` or mixed casing, when exact hashtag results are requested, then the request is normalized safely and returns top-level regular posts and project posts matching that exact canonical tag only. |
-| AC-009 | BR-005, FR-009, FR-010, RULE-005 | Given project browse parameters with craft type, sort, limit, cursor, and supported project filter families, when `/v1/projects` is requested, then it returns paginated project posts matching those browse/filter parameters without requiring use of a search UI endpoint. |
+| AC-009 | BR-005, FR-009, FR-010, RULE-005 | Given project browse parameters with craft type, sort, limit, cursor, and supported project filter families, when `/v1/projects` is requested, then it returns paginated project posts matching those browse/filter parameters without requiring use of a search UI endpoint, and `sort=popular` uses the existing deterministic popularity formula. |
 | AC-010 | BR-005, FR-010, FR-011, RULE-005 | Given future Projects UI code reads project browse providers, when craft type, sort, filters, and pagination state are supplied, then Flutter calls the project repository/data layer rather than the search repository/data layer. |
-| AC-011 | BR-002, BR-006, FR-013, RULE-001, RULE-002 | Given typeahead suggestions and result fetches are performed, when recent searches are listed afterward, then recents are unchanged unless an explicit save mutation was called; list/delete/save continue to operate against the existing recent-search AppView state. |
-| AC-012 | BR-001, BR-002, FR-012 | Given future blank `SearchPage` logic consumes non-UI data providers, when blank-search data is requested, then recent searches and craft-grouped top hashtags are fetchable without requiring rendered UI code. |
-| AC-013 | BR-002, FR-014, FR-015 | Given project records store full craft tokens and callers provide either full tokens or supported bare aliases, when project browse/search/top-hashtag requests are handled, then comparisons use canonical full tokens and responses expose canonical full craft tokens for craft groups. |
+| AC-011 | BR-002, BR-006, FR-013, FR-016, RULE-001, RULE-002, RULE-009 | Given typeahead suggestions and result fetches are performed, when recent searches are listed afterward, then recents are unchanged unless an explicit save mutation was called; explicit saves support free-text query, selected hashtag, and selected profile recents, and project browse/filter interactions do not generate Search recents in this slice. |
+| AC-012 | BR-001, BR-002, FR-012 | Given future blank `SearchPage` logic consumes non-UI data providers, when blank-search data is requested, then recent searches and craft-grouped top hashtags for the supported default craft tokens are fetchable without requiring rendered UI code. |
+| AC-013 | BR-002, FR-014, FR-015 | Given project records store full craft tokens and callers provide either full tokens or supported bare aliases, when project browse/search/top-hashtag requests are handled, then comparisons use canonical full tokens and responses expose canonical full craft tokens for craft groups, including empty supported groups when explicitly/default requested. |
 | AC-014 | BR-004, FR-001, FR-005, FR-006, FR-009, NFR-002, NFR-003 | Given new or changed AppView endpoints are called without auth/device headers, with invalid limits, or with invalid cursors, then they follow existing `/v1/` authentication, validation, error-envelope, and opaque-cursor behavior; given valid requests, Flutter uses shared authenticated Dio and preserves cursors opaquely. |
 | AC-015 | NFR-002, RULE-001 | Given recent/saved search behavior is implemented, when code paths are inspected, then no recent/saved search state is written to PDS records or local persistent Flutter search-history storage in this slice. |
 | AC-016 | NFR-004, NFR-005 | Given focused AppView and Flutter tests run for search, facets, and projects, when this slice is complete, then tests cover ranking consistency, craft-token normalization, hashtag-query pagination, project browse filters, provider pagination, and compatibility regressions or explicitly document any gaps. |
+| AC-017 | FR-001, FR-002, RULE-007 | Given more profile or hashtag suggestion matches exist than the requested top-N limit, when unified suggestions are requested, then each affected section returns only the bounded items plus `hasMore: true`; given no extra matches exist, `hasMore` is false. |
+| AC-018 | FR-006, RULE-008 | Given multiple post/project text-search matches with different textual relevance and creation times, when submitted search results are requested without an explicit future sort override, then higher textual relevance ranks ahead of newer-but-less-relevant matches with deterministic tie-breakers. |
+| AC-019 | FR-010 | Given a request to `/v1/search/projects` includes rich project browse filter parameters such as `craftType`, `color`, `material`, `designTag`, `projectTag`, `patternDifficulty`, or `projectType`, when the refined contract is implemented, then AppView rejects unsupported filter parameters or otherwise documents their removal from the public search-projects contract, while `/v1/projects` accepts supported browse filters. |
+| AC-020 | FR-016, RULE-009 | Given recent-search save requests for `query`, `hashtag`, and `profile`, when AppView stores and returns them, then `query` payloads contain `q` only, `hashtag` payloads contain canonical `tag`, and `profile` payloads contain stable selected-profile identity for direct navigation; Flutter does not serialize project browse/filter recents. |
 
 ## 14. Edge Cases
 
@@ -239,23 +331,33 @@ After this slice, the AppView and Flutter data/logic layers are aligned with the
 | EC-010 | A user deletes an already-deleted or not-owned recent-search ID. | Existing idempotent delete semantics remain: AppView does not reveal ownership/existence and Flutter treats success as success. | FR-013 |
 | EC-011 | A load-more call is issued while another page load is in progress. | Flutter provider state avoids duplicate concurrent pagination requests, following existing search/project pagination patterns. | FR-006, FR-011, FR-012 |
 | EC-012 | Top hashtags are requested for a craft type with no recent tags. | The craft group is returned with an empty `items` list when that craft group was explicitly requested or included by default. | BR-002, FR-015 |
+| EC-013 | A free-text query recent is saved with blank or overlong `q`. | AppView rejects it with standard validation; Flutter should not intentionally serialize blank query recents. | FR-016, NFR-003 |
+| EC-014 | A selected profile recent's handle later changes. | The recent can still navigate by stable DID, while display handle/label can be refreshed by the profile surface later. | FR-016 |
+| EC-015 | A project browse filter is accidentally sent to `/v1/search/projects`. | AppView treats it as an unsupported search-projects parameter under the refined contract; callers should use `/v1/projects` for filters. | FR-010, RULE-005 |
+| EC-016 | A suggestion section has exactly the requested limit of matches but no additional match. | `hasMore` is false; implementations should fetch limit+1 internally or otherwise avoid falsely showing View all. | FR-001, RULE-007 |
+| EC-017 | A submitted text-search match is very new but weakly relevant. | It does not outrank a substantially more relevant match solely because it is newer under the default relevance sort. | FR-006, RULE-008 |
 
 ## 15. Data / Persistence Impact
 
 - New fields:
   - AppView response models for unified suggestions and paginated hashtag-query results are expected.
-  - Flutter models may be added for unified suggestions, hashtag result pages, submitted search tab queries/state, and project browse filters.
+  - Profile suggestion/search summary response models should include profile craft metadata.
+  - Recent-search payload contracts should add a generic `query` type and refine selected `profile` recents to direct-profile payloads.
+  - Flutter models may be added for unified suggestions, hashtag result pages, submitted search tab queries/state, project browse filters, profile crafts in suggestions, and refined recent-search payloads.
 - Changed fields:
   - Top-hashtag/project craft group responses should use canonical full craft tokens rather than bare aliases.
   - `/v1/search/posts` semantics may change to exclude project posts for disjoint result tabs.
+  - `/v1/search/projects` semantics should be text-search-only for the submitted-search Projects tab and should no longer expose rich project browse filters as part of its public contract.
   - `/v1/projects` request parsing should expand from craft type/sort only to supported project browse filter families.
+  - Submitted post/project text search ordering should default to relevance rather than chronological ordering.
 - Migration required:
   - No new persistence table is required for saved searches; existing `craftsky_recent_searches` remains the only recent/saved search storage.
+  - A small AppView migration is likely required if the `craftsky_recent_searches.search_type` check constraint must add `query` and/or adjust supported recent payload types.
   - No lexicon migration is required.
   - Supporting database indexes may be added if needed for hashtag-query or project-filter performance, but the requirement is bounded/index-aware query behavior rather than a specific migration.
 - Backwards compatibility:
   - Existing `/v1/facets/*` callers must remain compatible.
-  - Existing recent-search IDs/payloads remain valid.
+  - Existing recent-search IDs remain valid. Existing pre-UI `post`/`project` recent payload support may be retained or migrated internally, but future Flutter Search recents should generate `query`, `hashtag`, and selected `profile` recents only.
   - Bare craft-type inputs should continue to work as accepted aliases, while canonical responses use full tokens.
   - The API is still pre-release; search result response/semantics churn is acceptable if Flutter data-layer tests are updated in the same slice.
 
@@ -268,10 +370,12 @@ After this slice, the AppView and Flutter data/logic layers are aligned with the
 - API:
   - Add or finalize a unified authenticated suggestion endpoint, recommended as `GET /v1/search/suggestions`.
   - Add or finalize a paginated committed hashtag-query endpoint, recommended as `GET /v1/search/hashtags`.
+  - Unified suggestions return top-N profile/hashtag sections with `hasMore`; they do not paginate.
   - Preserve `/v1/facets/*` compatibility.
-  - Expand `/v1/projects` for project browse/filter semantics.
-  - Keep `/v1/search/projects` for committed text-search Projects tab semantics.
-  - Exact hashtag results continue through `/v1/search/hashtags/{tag}/posts` unless a later UI/API design intentionally renames it.
+  - Expand `/v1/projects` for project browse/filter semantics, including all current supported craft tokens and chronological/popular sort.
+  - Keep `/v1/search/projects` for committed text-search Projects tab semantics only; move rich project filters to `/v1/projects`.
+  - Exact hashtag results continue through `/v1/search/hashtags/{tag}/posts` and return one combined top-level regular-post/project feed unless a later UI/API design intentionally renames it.
+  - Refine recent-search save/list payloads to support `query`, exact `hashtag`, and direct selected `profile` recents for the future Search recents list.
 - CLI:
   - No CLI behavior change expected.
 - Background jobs:
@@ -312,16 +416,20 @@ After this slice, the AppView and Flutter data/logic layers are aligned with the
 | RISK-004 | Hashtag-query result pagination is slow on larger data. | Hashtags tab could become expensive or time out. | Use bounded limits, indexed/materialized tag data, deterministic ordering, and add indexes if profiling/tests require. |
 | RISK-005 | Facet autocomplete compatibility regresses during suggestion unification. | Project composer/profile rich-text flows lose mention/hashtag suggestions. | Preserve `/v1/facets/*` compatibility and include regression tests for existing rich-text suggestion providers. |
 | RISK-006 | Provider contracts overfit imagined UI. | Later UI may need data-layer churn. | Keep providers UI-agnostic: query params, items, cursor, loading/error state, and mutations only. |
+| RISK-007 | Recent-search payload refinement conflicts with the existing pre-UI `post`/`project` recent types. | AppView migrations/tests and Flutter recent models may need more churn than expected. | Add explicit `query`/selected-entity recents while retaining or migrating legacy types intentionally; do not generate project recents from Flutter Search. |
+| RISK-008 | Relevance ranking for post/project text search is underspecified in implementation. | Result ordering may be inconsistent or hard to test. | Define deterministic ranking in test design using PostgreSQL text rank or an equivalent explicit scoring helper plus stable tie-breakers. |
 
 ## 20. Assumptions
 
 | ID | Assumption | Impact If Wrong |
 |---|---|---|
 | ASM-001 | “Saved searches” and “recent searches” are the same product surface for this slice. | A distinct saved-search feature would require new persistence, endpoints, models, providers, and requirements. |
-| ASM-002 | The future submitted-search Posts tab should exclude project posts because Projects has its own tab. | If product wants Posts to include all post types, FR-007/RULE-006 and related acceptance tests must change. |
+| ASM-002 | The future submitted-search Posts tab excludes project posts because Projects has its own tab. | If product later wants Posts to include all post types, FR-007/RULE-006 and related acceptance tests must change. |
 | ASM-003 | Future UI can map full craft tokens to human-readable labels using existing project option catalogs. | If the API must return display labels too, response contracts need additive label fields. |
-| ASM-004 | The canonical route names recommended here (`/v1/search/suggestions`, `/v1/search/hashtags`) are acceptable unless implementation planning finds a strong route-convention issue. | If route names change, requirements and tests must be updated together before implementation. |
-| ASM-005 | Project browse filters reuse the filter families already implemented for project search unless product adds more filter dimensions later. | New filter dimensions would need additional requirements and likely indexing work. |
+| ASM-004 | The canonical route names recommended here (`/v1/search/suggestions`, `/v1/search/hashtags`) are accepted for test design. | If route names change, requirements and tests must be updated together before implementation. |
+| ASM-005 | Project browse filters reuse the filter families previously implemented for project search unless product adds more filter dimensions later. | New filter dimensions would need additional requirements and likely indexing work. |
+| ASM-006 | A generic query recent should reopen the all-tabs submitted search screen at its default tab with query text only. | If UI later needs tab/sort memory, recent payloads need additive fields and tests. |
+| ASM-007 | Profile recents can store stable DID plus handle/display metadata without requiring a fresh profile fetch at list time. | If stale handle/display labels are unacceptable, recents listing may need profile hydration. |
 
 ## 21. Open Questions
 
@@ -334,7 +442,7 @@ Risk level: Medium
 Review recommended: Yes
 Reviewer: Unassigned
 Date: 2026-06-21
-Notes: This is a medium-risk cross-layer contract refinement touching AppView APIs, Flutter data providers, ranking semantics, pagination, and project/search boundary decisions. A short requirements review before test design is recommended but not required.
+Notes: This is a medium-risk cross-layer contract refinement touching AppView APIs, Flutter data providers, ranking semantics, pagination, recent-search payloads, and project/search boundary decisions. A grill-me review was performed and the resulting decisions were folded into this artifact; a short final requirements review before test design remains recommended but not required.
 
 ## 23. Handoff To Test Design
 
@@ -342,13 +450,13 @@ Notes: This is a medium-risk cross-layer contract refinement touching AppView AP
 - Next test specification: `02-acceptance-tests.md`
 - Must-cover requirement IDs:
   - Business: `BR-001`, `BR-002`, `BR-003`, `BR-004`, `BR-005`, `BR-006`
-  - Functional: `FR-001`, `FR-002`, `FR-003`, `FR-004`, `FR-005`, `FR-006`, `FR-007`, `FR-008`, `FR-009`, `FR-010`, `FR-011`, `FR-012`, `FR-013`, `FR-014`, `FR-015`
+  - Functional: `FR-001`, `FR-002`, `FR-003`, `FR-004`, `FR-005`, `FR-006`, `FR-007`, `FR-008`, `FR-009`, `FR-010`, `FR-011`, `FR-012`, `FR-013`, `FR-014`, `FR-015`, `FR-016`
   - Non-functional: `NFR-001`, `NFR-002`, `NFR-003`
-  - Rules: `RULE-001`, `RULE-002`, `RULE-003`, `RULE-004`, `RULE-005`, `RULE-006`
+  - Rules: `RULE-001`, `RULE-002`, `RULE-003`, `RULE-004`, `RULE-005`, `RULE-006`, `RULE-007`, `RULE-008`, `RULE-009`
 - Suggested test levels:
-  - AppView unit tests for request parsing, craft-token normalization, ranking helpers, hashtag-query pagination/cursors, recent-search non-mutation, and project browse filters.
+  - AppView unit tests for request parsing, craft-token normalization, ranking helpers, relevance ordering, hashtag-query pagination/cursors, refined recent-search payload validation, recent-search non-mutation, and project browse filters.
   - AppView handler/route tests for new/changed endpoint auth, validation, response shape, and compatibility wrappers.
-  - AppView integration/store tests for profile/hashtag suggestions, posts/projects disjoint search, exact hashtag results, top hashtags with full craft tokens, and project browse filtering.
-  - Flutter model/API-client tests for unified suggestions, hashtag result pages, project browse filters, recent preservation, and error/cursor handling.
-  - Flutter repository/provider tests for independent tab pagination, blank-search data, project browse provider boundaries, and facet autocomplete regressions.
+  - AppView integration/store tests for Craftsky-only profile suggestions with crafts, hashtag suggestions/counts, posts/projects disjoint relevance search, exact hashtag results, top hashtags with full craft tokens, and project browse filtering.
+  - Flutter model/API-client tests for unified suggestions, hashtag result pages, project browse filters, refined recent payloads, recent preservation, and error/cursor handling.
+  - Flutter repository/provider tests for independent tab pagination, blank-search data, project browse provider boundaries, direct selected-profile/hashtag/query recents, and facet autocomplete regressions.
 - Blocking open questions: None.
