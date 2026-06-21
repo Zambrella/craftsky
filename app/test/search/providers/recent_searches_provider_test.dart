@@ -48,11 +48,11 @@ void main() {
       expect(saveCalls, 0);
 
       expect(
-        await container.read(recentSearchesProvider.future),
+        await container.read(recentSearchPageProvider.future),
         isA<RecentSearchPage>(),
       );
       final result = await container
-          .read(recentSearchesProvider.notifier)
+          .read(saveRecentSearchProvider.notifier)
           .save(
             const SaveRecentSearchRequest(
               type: RecentSearchType.hashtag,
@@ -60,7 +60,13 @@ void main() {
               payload: HashtagRecentSearchPayload(tag: 'sockkal'),
             ),
           );
-      await container.read(recentSearchesProvider.notifier).delete('recent_1');
+      expect(
+        (await container.read(recentSearchPageProvider.future)).items,
+        [saved],
+      );
+      await container
+          .read(deleteRecentSearchProvider.notifier)
+          .delete('recent_1');
 
       expect(result.id, 'recent_1');
       expect(saveCalls, 1);

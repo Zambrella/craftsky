@@ -50,7 +50,7 @@ final class ProfileSearchProvider
   }
 }
 
-String _$profileSearchHash() => r'a43b30a3b8d5eade7f3c5f935790aa7d2249128f';
+String _$profileSearchHash() => r'0dcc447f94f88e0fafb158a96964b55ea1b59cda';
 
 final class ProfileSearchFamily extends $Family
     with

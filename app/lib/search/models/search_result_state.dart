@@ -1,7 +1,11 @@
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/search/models/profile_search_page.dart';
+import 'package:dart_mappable/dart_mappable.dart';
 
-class SearchPostResultsState {
+part 'search_result_state.mapper.dart';
+
+@MappableClass()
+class SearchPostResultsState with SearchPostResultsStateMappable {
   const SearchPostResultsState({
     required this.items,
     this.cursor,
@@ -13,23 +17,13 @@ class SearchPostResultsState {
   final String? hashtag;
 
   bool get hasMore => cursor != null;
-
-  SearchPostResultsState copyWith({
-    List<Post>? items,
-    String? cursor,
-    String? hashtag,
-  }) => SearchPostResultsState(
-    items: items ?? this.items,
-    cursor: cursor ?? this.cursor,
-    hashtag: hashtag ?? this.hashtag,
-  );
-
   @override
   String toString() =>
       'SearchPostResultsState(items: ${items.length}, hasMore: $hasMore)';
 }
 
-class ProfileSearchResultsState {
+@MappableClass()
+class ProfileSearchResultsState with ProfileSearchResultsStateMappable {
   const ProfileSearchResultsState({required this.items, this.cursor});
 
   final List<ProfileSearchResult> items;

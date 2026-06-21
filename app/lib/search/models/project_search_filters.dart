@@ -1,8 +1,10 @@
-import 'package:flutter/foundation.dart';
+import 'package:dart_mappable/dart_mappable.dart';
+
+part 'project_search_filters.mapper.dart';
 
 /// Supported repeated project search filter families.
-@immutable
-class ProjectSearchFilters {
+@MappableClass()
+class ProjectSearchFilters with ProjectSearchFiltersMappable {
   const ProjectSearchFilters({
     this.craftType = const [],
     this.projectType = const [],
@@ -45,38 +47,6 @@ class ProjectSearchFilters {
     if (designTag.isNotEmpty) 'designTag': designTag,
     if (projectTag.isNotEmpty) 'projectTag': projectTag,
   };
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ProjectSearchFilters &&
-          _listEquals(craftType, other.craftType) &&
-          _listEquals(projectType, other.projectType) &&
-          _listEquals(patternDifficulty, other.patternDifficulty) &&
-          _listEquals(color, other.color) &&
-          _listEquals(material, other.material) &&
-          _listEquals(designTag, other.designTag) &&
-          _listEquals(projectTag, other.projectTag);
-
-  @override
-  int get hashCode => Object.hash(
-    Object.hashAll(craftType),
-    Object.hashAll(projectType),
-    Object.hashAll(patternDifficulty),
-    Object.hashAll(color),
-    Object.hashAll(material),
-    Object.hashAll(designTag),
-    Object.hashAll(projectTag),
-  );
-}
-
-bool _listEquals(List<String> a, List<String> b) {
-  if (identical(a, b)) return true;
-  if (a.length != b.length) return false;
-  for (var i = 0; i < a.length; i++) {
-    if (a[i] != b[i]) return false;
-  }
-  return true;
 }
 
 List<String> _strings(Object? value) =>

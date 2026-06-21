@@ -1,6 +1,10 @@
 import 'package:craftsky_app/search/models/project_search_filters.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
+import 'package:dart_mappable/dart_mappable.dart';
 
+part 'recent_search.mapper.dart';
+
+@MappableEnum()
 enum RecentSearchType {
   hashtag,
   profile,
@@ -43,7 +47,9 @@ sealed class RecentSearchPayload {
   };
 }
 
-class HashtagRecentSearchPayload extends RecentSearchPayload {
+@MappableClass()
+class HashtagRecentSearchPayload extends RecentSearchPayload
+    with HashtagRecentSearchPayloadMappable {
   const HashtagRecentSearchPayload({
     required this.tag,
     this.sort = SearchSort.chronological,
@@ -56,7 +62,9 @@ class HashtagRecentSearchPayload extends RecentSearchPayload {
   Map<String, dynamic> toMap() => {'tag': tag, 'sort': sort.wireValue};
 }
 
-class ProfileRecentSearchPayload extends RecentSearchPayload {
+@MappableClass()
+class ProfileRecentSearchPayload extends RecentSearchPayload
+    with ProfileRecentSearchPayloadMappable {
   const ProfileRecentSearchPayload({required this.q});
 
   final String q;
@@ -65,7 +73,9 @@ class ProfileRecentSearchPayload extends RecentSearchPayload {
   Map<String, dynamic> toMap() => {'q': q};
 }
 
-class PostRecentSearchPayload extends RecentSearchPayload {
+@MappableClass()
+class PostRecentSearchPayload extends RecentSearchPayload
+    with PostRecentSearchPayloadMappable {
   const PostRecentSearchPayload({
     required this.q,
     this.sort = SearchSort.chronological,
@@ -78,7 +88,9 @@ class PostRecentSearchPayload extends RecentSearchPayload {
   Map<String, dynamic> toMap() => {'q': q, 'sort': sort.wireValue};
 }
 
-class ProjectRecentSearchPayload extends RecentSearchPayload {
+@MappableClass()
+class ProjectRecentSearchPayload extends RecentSearchPayload
+    with ProjectRecentSearchPayloadMappable {
   const ProjectRecentSearchPayload({
     this.q,
     this.sort = SearchSort.chronological,
@@ -90,6 +102,8 @@ class ProjectRecentSearchPayload extends RecentSearchPayload {
   final ProjectSearchFilters filters;
 
   @override
+  @override
+  @override
   Map<String, dynamic> toMap() => {
     'q': ?q,
     'sort': sort.wireValue,
@@ -97,7 +111,8 @@ class ProjectRecentSearchPayload extends RecentSearchPayload {
   };
 }
 
-class SaveRecentSearchRequest {
+@MappableClass()
+class SaveRecentSearchRequest with SaveRecentSearchRequestMappable {
   const SaveRecentSearchRequest({
     required this.type,
     required this.displayLabel,
@@ -108,6 +123,7 @@ class SaveRecentSearchRequest {
   final String displayLabel;
   final RecentSearchPayload payload;
 
+  @override
   Map<String, dynamic> toMap() => {
     'type': type.wireValue,
     'displayLabel': displayLabel,
@@ -115,7 +131,8 @@ class SaveRecentSearchRequest {
   };
 }
 
-class RecentSearchItem {
+@MappableClass()
+class RecentSearchItem with RecentSearchItemMappable {
   const RecentSearchItem({
     required this.id,
     required this.type,
@@ -145,7 +162,8 @@ class RecentSearchItem {
   final DateTime updatedAt;
 }
 
-class RecentSearchPage {
+@MappableClass()
+class RecentSearchPage with RecentSearchPageMappable {
   const RecentSearchPage({required this.items});
 
   factory RecentSearchPage.fromMap(Map<String, dynamic> map) =>

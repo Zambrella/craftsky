@@ -9,11 +9,8 @@ part 'post_search_provider.g.dart';
 
 @riverpod
 class PostSearch extends _$PostSearch {
-  late PostSearchQuery _query;
-
   @override
   Future<SearchPostResultsState> build(PostSearchQuery query) async {
-    _query = query;
     final page = await ref
         .watch(searchRepositoryProvider)
         .searchPosts(
@@ -25,15 +22,16 @@ class PostSearch extends _$PostSearch {
   }
 
   Future<void> loadMore() async {
-    final current = state.value;
-    if (current == null || !current.hasMore || state.isLoading) return;
+    if (!state.hasValue || state.isLoading) return;
+    final current = state.requireValue;
+    if (!current.hasMore) return;
     state = const AsyncLoading<SearchPostResultsState>();
     final next = await AsyncValue.guard(() async {
       final page = await ref
           .read(searchRepositoryProvider)
           .searchPosts(
-            q: _query.q,
-            sort: _query.sort,
+            q: query.q,
+            sort: query.sort,
             limit: searchResultsPageLimit,
             cursor: current.cursor,
           );

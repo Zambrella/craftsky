@@ -10,11 +10,8 @@ const searchResultsPageLimit = 25;
 
 @riverpod
 class HashtagSearch extends _$HashtagSearch {
-  late HashtagSearchQuery _query;
-
   @override
   Future<SearchPostResultsState> build(HashtagSearchQuery query) async {
-    _query = query;
     final page = await ref
         .watch(searchRepositoryProvider)
         .searchHashtagPosts(
@@ -30,15 +27,16 @@ class HashtagSearch extends _$HashtagSearch {
   }
 
   Future<void> loadMore() async {
-    final current = state.value;
-    if (current == null || !current.hasMore || state.isLoading) return;
+    if (!state.hasValue || state.isLoading) return;
+    final current = state.requireValue;
+    if (!current.hasMore) return;
     state = const AsyncLoading<SearchPostResultsState>();
     final next = await AsyncValue.guard(() async {
       final page = await ref
           .read(searchRepositoryProvider)
           .searchHashtagPosts(
-            _query.tag,
-            sort: _query.sort,
+            query.tag,
+            sort: query.sort,
             limit: searchResultsPageLimit,
             cursor: current.cursor,
           );
