@@ -10,9 +10,7 @@ Future<BlankSearchData> blankSearch(Ref ref) async {
   final repo = ref.watch(searchRepositoryProvider);
   final recentSearchesFuture = repo.listRecentSearches();
   final topHashtagsFuture = repo.topHashtags(
-    craftTypes: [
-      for (final option in ProjectOptionCatalogs.craftTypes) option.value,
-    ],
+    craftTypes: ProjectOptionCatalogs.defaultSupportedCraftTokens,
   );
 
   return BlankSearchData(

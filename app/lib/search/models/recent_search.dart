@@ -126,8 +126,6 @@ class ProjectRecentSearchPayload extends RecentSearchPayload
   final ProjectSearchFilters filters;
 
   @override
-  @override
-  @override
   Map<String, dynamic> toMap() => {
     'q': ?q,
     'sort': sort.wireValue,

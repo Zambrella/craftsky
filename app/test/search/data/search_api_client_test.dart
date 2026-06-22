@@ -1,5 +1,6 @@
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/search/data/search_api_client.dart';
 import 'package:craftsky_app/search/models/recent_search.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
@@ -293,27 +294,39 @@ void main() {
         (server) => server.reply(200, {
           'groups': [
             {
-              'craftType': 'knitting',
+              'craftType':
+                  ProjectOptionCatalogs.defaultSupportedCraftTokens.first,
               'items': [
                 {'tag': 'sockkal', 'count': 12},
               ],
             },
-            {'craftType': 'crochet', 'items': <Map<String, dynamic>>[]},
+            {
+              'craftType': ProjectOptionCatalogs.defaultSupportedCraftTokens[1],
+              'items': <Map<String, dynamic>>[],
+            },
           ],
         }),
         queryParameters: {
-          'craftTypes': ['knitting', 'crochet'],
+          'craftTypes': ProjectOptionCatalogs.defaultSupportedCraftTokens
+              .take(2)
+              .toList(),
           'limit': '10',
         },
       );
 
-      final response = await SearchApiClient(
-        dio,
-      ).topHashtags(craftTypes: ['knitting', 'crochet'], limit: 10);
+      final response =
+          await SearchApiClient(
+            dio,
+          ).topHashtags(
+            craftTypes: ProjectOptionCatalogs.defaultSupportedCraftTokens
+                .take(2)
+                .toList(),
+            limit: 10,
+          );
 
       expect(response.groups.map((group) => group.craftType), [
-        'knitting',
-        'crochet',
+        ProjectOptionCatalogs.knittingCraftToken,
+        ProjectOptionCatalogs.crochetCraftToken,
       ]);
       expect(response.groups.first.items.single.count, 12);
     });

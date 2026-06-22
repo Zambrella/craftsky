@@ -3,6 +3,30 @@ import 'package:dart_mappable/dart_mappable.dart';
 
 part 'project_browse_filters.mapper.dart';
 
+final class CraftTypeFilterToken {
+  const CraftTypeFilterToken(this.value);
+
+  final String value;
+}
+
+final class ProjectTypeFilterToken {
+  const ProjectTypeFilterToken(this.value);
+
+  final String value;
+}
+
+final class PatternDifficultyFilterToken {
+  const PatternDifficultyFilterToken(this.value);
+
+  final String value;
+}
+
+final class DesignTagFilterToken {
+  const DesignTagFilterToken(this.value);
+
+  final String value;
+}
+
 @MappableClass()
 class ProjectBrowseQuery with ProjectBrowseQueryMappable {
   const ProjectBrowseQuery({
@@ -10,6 +34,16 @@ class ProjectBrowseQuery with ProjectBrowseQueryMappable {
     this.filters = const ProjectBrowseFilters(),
     this.sort = SearchSort.chronological,
   });
+
+  factory ProjectBrowseQuery.tokens({
+    List<CraftTypeFilterToken> craftTypes = const [],
+    ProjectBrowseFilters filters = const ProjectBrowseFilters(),
+    SearchSort sort = SearchSort.chronological,
+  }) => ProjectBrowseQuery(
+    craftTypes: [for (final token in craftTypes) token.value],
+    filters: filters,
+    sort: sort,
+  );
 
   final List<String> craftTypes;
   final ProjectBrowseFilters filters;
@@ -26,6 +60,22 @@ class ProjectBrowseFilters with ProjectBrowseFiltersMappable {
     this.designTag = const [],
     this.projectTag = const [],
   });
+
+  factory ProjectBrowseFilters.tokens({
+    List<ProjectTypeFilterToken> projectType = const [],
+    List<PatternDifficultyFilterToken> patternDifficulty = const [],
+    List<String> color = const [],
+    List<String> material = const [],
+    List<DesignTagFilterToken> designTag = const [],
+    List<String> projectTag = const [],
+  }) => ProjectBrowseFilters(
+    projectType: [for (final token in projectType) token.value],
+    patternDifficulty: [for (final token in patternDifficulty) token.value],
+    color: color,
+    material: material,
+    designTag: [for (final token in designTag) token.value],
+    projectTag: projectTag,
+  );
 
   final List<String> projectType;
   final List<String> patternDifficulty;

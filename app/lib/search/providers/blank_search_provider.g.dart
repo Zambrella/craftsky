@@ -46,4 +46,4 @@ final class BlankSearchProvider
   }
 }
 
-String _$blankSearchHash() => r'f263c1afcb47d828822a6229618b463f82b8c8ea';
+String _$blankSearchHash() => r'77b94372a0afb06dba196262045592cad87db071';

@@ -60,17 +60,23 @@ void main() {
       );
 
       final page = await ProjectApiClient(dio).listProjects(
-        query: const ProjectBrowseQuery(
-          craftTypes: [
-            ProjectOptionCatalogs.knittingCraftToken,
-            ProjectOptionCatalogs.crochetCraftToken,
+        query: ProjectBrowseQuery.tokens(
+          craftTypes: const [
+            ProjectOptionCatalogs.knittingCraftFilterToken,
+            ProjectOptionCatalogs.crochetCraftFilterToken,
           ],
-          filters: ProjectBrowseFilters(
-            projectType: ['social.craftsky.project.defs#garment'],
-            patternDifficulty: ['social.craftsky.feed.defs#beginner'],
+          filters: ProjectBrowseFilters.tokens(
+            projectType: const [
+              ProjectOptionCatalogs.garmentProjectTypeFilterToken,
+            ],
+            patternDifficulty: const [
+              ProjectOptionCatalogs.beginnerPatternDifficultyFilterToken,
+            ],
             color: ['blue'],
             material: ['alpaca'],
-            designTag: ['social.craftsky.project.defs#stripes'],
+            designTag: const [
+              ProjectOptionCatalogs.stripesDesignTagFilterToken,
+            ],
             projectTag: ['gift'],
           ),
           sort: SearchSort.popular,

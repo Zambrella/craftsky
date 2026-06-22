@@ -473,6 +473,27 @@ Mirrors `04-coding-plan.md` §9. Each loop will be executed red-green-refactor a
 - Refactor: No unrelated refactor; the facet path now reuses the existing moderation predicate used by search result queries.
 - Notes: Resolves implementation-review finding `IR-001`; broader requested verification is recorded below.
 
+### Code Review Feedback: UT-009 / FR-015, NFR-002
+- Write failing test: Updated Flutter top-hashtag model/API-client tests to use `ProjectOptionCatalogs.defaultSupportedCraftTokens` and to expect full `social.craftsky.feed.defs#...` craft tokens in top-hashtag response groups and preferred request inputs.
+- Run command: `flutter test test/search/models/top_hashtags_test.dart test/search/data/search_api_client_test.dart`.
+- Confirmed failure: compilation failed because `ProjectOptionCatalogs.defaultSupportedCraftTokens` was undefined, leaving the craft-type wire rule implicit and allowing stale bare-string fixtures.
+- Implement: Added `ProjectOptionCatalogs.defaultSupportedCraftTokens` with a doc comment defining the Flutter `/v1/*` craft-type wire rule: prefer full lexicon tokens for requests and expect full tokens in responses, with bare aliases remaining AppView compatibility inputs only. Updated `blank_search_provider.dart` to use the same token list.
+- Run command: `flutter test test/search/models/top_hashtags_test.dart test/search/data/search_api_client_test.dart` → passed.
+- Notes: Addresses review feedback asking for a defined craftType wire-format rule and aligns Flutter fixtures with `FR-015` / `AC-013`.
+
+### Code Review Feedback: IT-014 / FR-009, FR-011
+- Write failing test: Updated `project_api_client_test.dart` to construct project browse requests via typed token helpers (`ProjectBrowseQuery.tokens`, `ProjectBrowseFilters.tokens`, and typed constants from `ProjectOptionCatalogs`) while preserving the expected `/v1/projects` query parameter strings.
+- Run command: `flutter test test/projects/data/project_api_client_test.dart`.
+- Confirmed failure: compilation failed because the typed token constructors and constants did not exist.
+- Implement: Added lightweight typed token classes for craft type, project type, pattern difficulty, and design tag filters; added typed factory constructors that convert those tokens back to the existing string query shape; added representative typed constants to `ProjectOptionCatalogs` for the tested project browse filters.
+- Run command: `dart format lib/projects/models/project_browse_filters.dart lib/projects/options/project_option_catalogs.dart test/projects/data/project_api_client_test.dart test/search/data/search_api_client_test.dart test/search/models/top_hashtags_test.dart lib/search/providers/blank_search_provider.dart && flutter test test/projects/data/project_api_client_test.dart` → passed.
+- Notes: This is a minimal type-safety seam for token-backed browse filters. Free-form filter families (`color`, `material`, `projectTag`) remain strings intentionally.
+
+### Code Review Feedback: UT-007 / FR-016
+- Cleanup: Removed duplicate `@override` annotations from `ProjectRecentSearchPayload.toMap()` in `recent_search.dart` while tests were green.
+- Run command: `dart format lib/search/models/recent_search.dart && flutter test test/search/models/recent_search_test.dart` → passed.
+- Notes: Non-behavioral cleanup for the refined recent-search payload model; no recent payload shape changed.
+
 ## Verification Log
 - Focused commands:
   - AppView parser/store/route focused commands are recorded in Steps 1–25.
@@ -487,6 +508,16 @@ Mirrors `04-coding-plan.md` §9. Each loop will be executed red-green-refactor a
   - `TEST_DATABASE_URL='postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable' go test ./internal/api ./internal/routes -count=1` → passed.
   - `flutter test test/search test/shared/rich_text test/projects` → passed.
   - `flutter analyze` → passed with no issues.
+- Code-review feedback reruns:
+  - `flutter test test/search/models/top_hashtags_test.dart test/search/data/search_api_client_test.dart` → passed.
+  - `flutter test test/projects/data/project_api_client_test.dart` → passed.
+  - `flutter test test/search/models/recent_search_test.dart` → passed.
+  - `flutter test test/search test/projects/data/project_api_client_test.dart test/projects/providers/project_feed_provider_test.dart test/projects/options/project_option_catalogs_test.dart` → passed.
+  - `flutter analyze` → passed with no issues.
+  - `flutter test test/search test/shared/rich_text test/projects` → passed.
+- Final post-generation reruns before commit:
+  - `flutter analyze` → passed with no issues.
+  - `flutter test test/search test/shared/rich_text test/projects` → passed.
 - Blocked commands: none.
 - Manual checks:
   - MAN-001 no-rendered-UI source diff review → passed.
@@ -499,6 +530,8 @@ Mirrors `04-coding-plan.md` §9. Each loop will be executed red-green-refactor a
 - GAP-004 (profile recent display freshness) remains future work.
 - GAP-005 (legacy `post`/`project` recent payload migration) will be handled deliberately during recent payload loops.
 - Implementation-review finding `IR-001` is resolved by the new DB-backed facet hashtag visibility/count parity regression and by applying the shared moderation/top-level predicates to `FacetStore.SearchHashtagSuggestions`.
+- Code-review craftType feedback is resolved by the documented Flutter full-token wire constant and updated top-hashtag fixtures.
+- Code-review project-filter type-safety feedback is partially addressed with typed construction helpers for token-backed filters while preserving string wire parameters and leaving free-form filters as strings.
 
 ## Completion Checklist
 - [x] All Must requirements covered by tests or documented gaps
