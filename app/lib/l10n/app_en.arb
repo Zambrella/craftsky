@@ -932,5 +932,149 @@
   "@craftCandleMaking": { "description": "Display label for the 'candlemaking' craft option." },
 
   "craftSoapMaking": "Soap making",
-  "@craftSoapMaking": { "description": "Display label for the 'soapmaking' craft option." }
+  "@craftSoapMaking": { "description": "Display label for the 'soapmaking' craft option." },
+
+  "searchTitle": "Search",
+  "@searchTitle": { "description": "Title for the search page." },
+
+  "searchHint": "Search hashtags, people or projects...",
+  "@searchHint": { "description": "Placeholder text in the search field." },
+
+  "searchCancelAction": "Cancel",
+  "@searchCancelAction": { "description": "Action next to the focused search input that returns to the blank search page." },
+
+  "searchClearAction": "Clear search text",
+  "@searchClearAction": { "description": "Tooltip for clearing the current search text." },
+
+  "searchRecentHeading": "Recent searches",
+  "@searchRecentHeading": { "description": "Heading above the user's recent searches on the blank search page." },
+
+  "searchDeleteRecentAction": "Delete recent search",
+  "@searchDeleteRecentAction": { "description": "Tooltip for deleting one recent search." },
+
+  "searchTrendingHashtagsHeading": "Trending hashtags",
+  "@searchTrendingHashtagsHeading": { "description": "Heading above craft-grouped trending hashtags on the blank search page." },
+
+  "searchProfilesHeading": "Profiles",
+  "@searchProfilesHeading": { "description": "Heading for profile suggestions or profile results." },
+
+  "searchHashtagsHeading": "Hashtags",
+  "@searchHashtagsHeading": { "description": "Heading for hashtag suggestions or hashtag results." },
+
+  "searchViewAllAction": "View all",
+  "@searchViewAllAction": { "description": "Action that opens the full results tab for a suggestion section." },
+
+  "searchTabPosts": "Posts",
+  "@searchTabPosts": { "description": "Tab label for submitted search post results." },
+
+  "searchTabProjects": "Projects",
+  "@searchTabProjects": { "description": "Tab label for submitted search project results." },
+
+  "searchTabProfiles": "Profiles",
+  "@searchTabProfiles": { "description": "Tab label for submitted search profile results." },
+
+  "searchTabTags": "Tags",
+  "@searchTabTags": { "description": "Tab label for submitted search hashtag results." },
+
+  "searchEmptyPosts": "No posts found.",
+  "@searchEmptyPosts": { "description": "Empty state for submitted search Posts tab." },
+
+  "searchEmptyProjects": "No projects found.",
+  "@searchEmptyProjects": { "description": "Empty state for submitted search Projects tab." },
+
+  "searchEmptyProfiles": "No profiles found.",
+  "@searchEmptyProfiles": { "description": "Empty state for submitted search Profiles tab." },
+
+  "searchEmptyTags": "No tags found.",
+  "@searchEmptyTags": { "description": "Empty state for submitted search Tags tab." },
+
+  "searchLoadError": "Search didn't load.",
+  "@searchLoadError": { "description": "Error title shown when search results fail to load." },
+
+  "searchTagPostCount": "{count, plural, =1{1 post} other{{count} posts}}",
+  "@searchTagPostCount": {
+    "description": "Post count label for a hashtag suggestion or result.",
+    "placeholders": { "count": { "type": "int", "example": "12" } }
+  },
+
+  "searchProfileCraftSubtitle": "{name} • {crafts}",
+  "@searchProfileCraftSubtitle": {
+    "description": "Subtitle for a profile suggestion combining display name and craft labels.",
+    "placeholders": {
+      "name": { "type": "String", "example": "Sophie" },
+      "crafts": { "type": "String", "example": "Knitting, Crochet" }
+    }
+  },
+
+  "searchSortNewest": "Newest",
+  "@searchSortNewest": { "description": "Sort label for chronological/newest search and project results." },
+
+  "searchSortNewestDescription": "Show the newest items first.",
+  "@searchSortNewestDescription": { "description": "Description for the newest sort menu item." },
+
+  "searchSortPopular": "Popular",
+  "@searchSortPopular": { "description": "Sort label for popular search and project results." },
+
+  "searchSortPopularDescription": "Show the most popular items first.",
+  "@searchSortPopularDescription": { "description": "Description for the popular sort menu item." },
+
+  "tagSearchTitle": "#{tag}",
+  "@tagSearchTitle": {
+    "description": "Title for an exact hashtag search page.",
+    "placeholders": { "tag": { "type": "String", "example": "sockknitting" } }
+  },
+
+  "tagSearchEmpty": "No posts found for this tag.",
+  "@tagSearchEmpty": { "description": "Empty state for an exact hashtag feed." },
+
+  "projectsTitle": "Projects",
+  "@projectsTitle": { "description": "Title for the Projects browse page." },
+
+  "projectsFilterAction": "Filters",
+  "@projectsFilterAction": { "description": "Button label opening the project filters sheet." },
+
+  "projectsFiltersTitle": "Filter projects",
+  "@projectsFiltersTitle": { "description": "Title for the project filters sheet." },
+
+  "projectsCraftContext": "Browsing {craft}",
+  "@projectsCraftContext": {
+    "description": "Read-only craft context label in the project filters sheet.",
+    "placeholders": { "craft": { "type": "String", "example": "Knitting" } }
+  },
+
+  "projectsFilterProjectType": "Project type",
+  "@projectsFilterProjectType": { "description": "Project filter group label for project type." },
+
+  "projectsFilterDifficulty": "Pattern difficulty",
+  "@projectsFilterDifficulty": { "description": "Project filter group label for pattern difficulty." },
+
+  "projectsFilterColor": "Color",
+  "@projectsFilterColor": { "description": "Project filter group label for colors." },
+
+  "projectsFilterDesignTag": "Design tag",
+  "@projectsFilterDesignTag": { "description": "Project filter group label for design tags." },
+
+  "projectsFilterMaterial": "Material",
+  "@projectsFilterMaterial": { "description": "Project filter group label for material free-text filters." },
+
+  "projectsFilterProjectTag": "Project tag",
+  "@projectsFilterProjectTag": { "description": "Project filter group label for project tag free-text filters." },
+
+  "projectsFreeTextHint": "Add a value",
+  "@projectsFreeTextHint": { "description": "Hint text for adding a free-text project filter chip." },
+
+  "projectsAddFilterValueAction": "Add",
+  "@projectsAddFilterValueAction": { "description": "Button label for adding a free-text project filter value." },
+
+  "projectsApplyFiltersAction": "Apply filters",
+  "@projectsApplyFiltersAction": { "description": "Primary action in the project filters sheet." },
+
+  "projectsClearFiltersAction": "Clear all",
+  "@projectsClearFiltersAction": { "description": "Action clearing all project filters." },
+
+  "projectsEmpty": "No projects found.",
+  "@projectsEmpty": { "description": "Empty state on the Projects browse page." },
+
+  "projectsLoadError": "Projects didn't load.",
+  "@projectsLoadError": { "description": "Error title shown when the Projects browse feed fails to load." }
 }

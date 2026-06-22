@@ -158,7 +158,7 @@ GoRouter _router(Widget home) {
         ),
       ),
       GoRoute(
-        path: '/search',
+        path: '/search/tags',
         builder: (context, state) => Scaffold(
           body: Text('search:${state.uri.queryParameters['tag']}'),
         ),

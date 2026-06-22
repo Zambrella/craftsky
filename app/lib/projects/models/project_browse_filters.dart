@@ -27,6 +27,15 @@ final class DesignTagFilterToken {
   final String value;
 }
 
+enum ProjectBrowseFilterFamily {
+  projectType,
+  patternDifficulty,
+  color,
+  material,
+  designTag,
+  projectTag,
+}
+
 @MappableClass()
 class ProjectBrowseQuery with ProjectBrowseQueryMappable {
   const ProjectBrowseQuery({
@@ -92,4 +101,58 @@ class ProjectBrowseFilters with ProjectBrowseFiltersMappable {
     if (designTag.isNotEmpty) 'designTag': designTag,
     if (projectTag.isNotEmpty) 'projectTag': projectTag,
   };
+
+  List<String> valuesFor(ProjectBrowseFilterFamily family) => switch (family) {
+    ProjectBrowseFilterFamily.projectType => projectType,
+    ProjectBrowseFilterFamily.patternDifficulty => patternDifficulty,
+    ProjectBrowseFilterFamily.color => color,
+    ProjectBrowseFilterFamily.material => material,
+    ProjectBrowseFilterFamily.designTag => designTag,
+    ProjectBrowseFilterFamily.projectTag => projectTag,
+  };
+
+  ProjectBrowseFilters toggleValue(
+    ProjectBrowseFilterFamily family,
+    String value,
+  ) {
+    final values = valuesFor(family);
+    return values.contains(value)
+        ? withoutValue(family, value)
+        : withValue(family, value);
+  }
+
+  ProjectBrowseFilters withValue(
+    ProjectBrowseFilterFamily family,
+    String value,
+  ) {
+    final values = valuesFor(family);
+    if (values.contains(value)) return this;
+    return withValues(family, [...values, value]);
+  }
+
+  ProjectBrowseFilters withoutValue(
+    ProjectBrowseFilterFamily family,
+    String value,
+  ) {
+    return withValues(
+      family,
+      valuesFor(family).where((item) => item != value).toList(),
+    );
+  }
+
+  ProjectBrowseFilters withValues(
+    ProjectBrowseFilterFamily family,
+    List<String> values,
+  ) {
+    return switch (family) {
+      ProjectBrowseFilterFamily.projectType => copyWith(projectType: values),
+      ProjectBrowseFilterFamily.patternDifficulty => copyWith(
+        patternDifficulty: values,
+      ),
+      ProjectBrowseFilterFamily.color => copyWith(color: values),
+      ProjectBrowseFilterFamily.material => copyWith(material: values),
+      ProjectBrowseFilterFamily.designTag => copyWith(designTag: values),
+      ProjectBrowseFilterFamily.projectTag => copyWith(projectTag: values),
+    };
+  }
 }

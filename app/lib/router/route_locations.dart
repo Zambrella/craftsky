@@ -13,6 +13,7 @@ class RouteLocations {
   static const String home = feed;
   static const projects = '/projects';
   static const search = '/search';
+  static const searchTagsChild = 'tags';
   static const notifications = '/notifications';
   static const postThread = '/posts/:did/:rkey';
   static const profile = '/profile';

@@ -1827,6 +1827,264 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Soap making'**
   String get craftSoapMaking;
+
+  /// Title for the search page.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get searchTitle;
+
+  /// Placeholder text in the search field.
+  ///
+  /// In en, this message translates to:
+  /// **'Search hashtags, people or projects...'**
+  String get searchHint;
+
+  /// Action next to the focused search input that returns to the blank search page.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get searchCancelAction;
+
+  /// Tooltip for clearing the current search text.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search text'**
+  String get searchClearAction;
+
+  /// Heading above the user's recent searches on the blank search page.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent searches'**
+  String get searchRecentHeading;
+
+  /// Tooltip for deleting one recent search.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete recent search'**
+  String get searchDeleteRecentAction;
+
+  /// Heading above craft-grouped trending hashtags on the blank search page.
+  ///
+  /// In en, this message translates to:
+  /// **'Trending hashtags'**
+  String get searchTrendingHashtagsHeading;
+
+  /// Heading for profile suggestions or profile results.
+  ///
+  /// In en, this message translates to:
+  /// **'Profiles'**
+  String get searchProfilesHeading;
+
+  /// Heading for hashtag suggestions or hashtag results.
+  ///
+  /// In en, this message translates to:
+  /// **'Hashtags'**
+  String get searchHashtagsHeading;
+
+  /// Action that opens the full results tab for a suggestion section.
+  ///
+  /// In en, this message translates to:
+  /// **'View all'**
+  String get searchViewAllAction;
+
+  /// Tab label for submitted search post results.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts'**
+  String get searchTabPosts;
+
+  /// Tab label for submitted search project results.
+  ///
+  /// In en, this message translates to:
+  /// **'Projects'**
+  String get searchTabProjects;
+
+  /// Tab label for submitted search profile results.
+  ///
+  /// In en, this message translates to:
+  /// **'Profiles'**
+  String get searchTabProfiles;
+
+  /// Tab label for submitted search hashtag results.
+  ///
+  /// In en, this message translates to:
+  /// **'Tags'**
+  String get searchTabTags;
+
+  /// Empty state for submitted search Posts tab.
+  ///
+  /// In en, this message translates to:
+  /// **'No posts found.'**
+  String get searchEmptyPosts;
+
+  /// Empty state for submitted search Projects tab.
+  ///
+  /// In en, this message translates to:
+  /// **'No projects found.'**
+  String get searchEmptyProjects;
+
+  /// Empty state for submitted search Profiles tab.
+  ///
+  /// In en, this message translates to:
+  /// **'No profiles found.'**
+  String get searchEmptyProfiles;
+
+  /// Empty state for submitted search Tags tab.
+  ///
+  /// In en, this message translates to:
+  /// **'No tags found.'**
+  String get searchEmptyTags;
+
+  /// Error title shown when search results fail to load.
+  ///
+  /// In en, this message translates to:
+  /// **'Search didn\'t load.'**
+  String get searchLoadError;
+
+  /// Post count label for a hashtag suggestion or result.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 post} other{{count} posts}}'**
+  String searchTagPostCount(int count);
+
+  /// Subtitle for a profile suggestion combining display name and craft labels.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} • {crafts}'**
+  String searchProfileCraftSubtitle(String name, String crafts);
+
+  /// Sort label for chronological/newest search and project results.
+  ///
+  /// In en, this message translates to:
+  /// **'Newest'**
+  String get searchSortNewest;
+
+  /// Description for the newest sort menu item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the newest items first.'**
+  String get searchSortNewestDescription;
+
+  /// Sort label for popular search and project results.
+  ///
+  /// In en, this message translates to:
+  /// **'Popular'**
+  String get searchSortPopular;
+
+  /// Description for the popular sort menu item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the most popular items first.'**
+  String get searchSortPopularDescription;
+
+  /// Title for an exact hashtag search page.
+  ///
+  /// In en, this message translates to:
+  /// **'#{tag}'**
+  String tagSearchTitle(String tag);
+
+  /// Empty state for an exact hashtag feed.
+  ///
+  /// In en, this message translates to:
+  /// **'No posts found for this tag.'**
+  String get tagSearchEmpty;
+
+  /// Title for the Projects browse page.
+  ///
+  /// In en, this message translates to:
+  /// **'Projects'**
+  String get projectsTitle;
+
+  /// Button label opening the project filters sheet.
+  ///
+  /// In en, this message translates to:
+  /// **'Filters'**
+  String get projectsFilterAction;
+
+  /// Title for the project filters sheet.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter projects'**
+  String get projectsFiltersTitle;
+
+  /// Read-only craft context label in the project filters sheet.
+  ///
+  /// In en, this message translates to:
+  /// **'Browsing {craft}'**
+  String projectsCraftContext(String craft);
+
+  /// Project filter group label for project type.
+  ///
+  /// In en, this message translates to:
+  /// **'Project type'**
+  String get projectsFilterProjectType;
+
+  /// Project filter group label for pattern difficulty.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern difficulty'**
+  String get projectsFilterDifficulty;
+
+  /// Project filter group label for colors.
+  ///
+  /// In en, this message translates to:
+  /// **'Color'**
+  String get projectsFilterColor;
+
+  /// Project filter group label for design tags.
+  ///
+  /// In en, this message translates to:
+  /// **'Design tag'**
+  String get projectsFilterDesignTag;
+
+  /// Project filter group label for material free-text filters.
+  ///
+  /// In en, this message translates to:
+  /// **'Material'**
+  String get projectsFilterMaterial;
+
+  /// Project filter group label for project tag free-text filters.
+  ///
+  /// In en, this message translates to:
+  /// **'Project tag'**
+  String get projectsFilterProjectTag;
+
+  /// Hint text for adding a free-text project filter chip.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a value'**
+  String get projectsFreeTextHint;
+
+  /// Button label for adding a free-text project filter value.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get projectsAddFilterValueAction;
+
+  /// Primary action in the project filters sheet.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply filters'**
+  String get projectsApplyFiltersAction;
+
+  /// Action clearing all project filters.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear all'**
+  String get projectsClearFiltersAction;
+
+  /// Empty state on the Projects browse page.
+  ///
+  /// In en, this message translates to:
+  /// **'No projects found.'**
+  String get projectsEmpty;
+
+  /// Error title shown when the Projects browse feed fails to load.
+  ///
+  /// In en, this message translates to:
+  /// **'Projects didn\'t load.'**
+  String get projectsLoadError;
 }
 
 class _AppLocalizationsDelegate

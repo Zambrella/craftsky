@@ -948,4 +948,148 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get craftSoapMaking => 'Soap making';
+
+  @override
+  String get searchTitle => 'Search';
+
+  @override
+  String get searchHint => 'Search hashtags, people or projects...';
+
+  @override
+  String get searchCancelAction => 'Cancel';
+
+  @override
+  String get searchClearAction => 'Clear search text';
+
+  @override
+  String get searchRecentHeading => 'Recent searches';
+
+  @override
+  String get searchDeleteRecentAction => 'Delete recent search';
+
+  @override
+  String get searchTrendingHashtagsHeading => 'Trending hashtags';
+
+  @override
+  String get searchProfilesHeading => 'Profiles';
+
+  @override
+  String get searchHashtagsHeading => 'Hashtags';
+
+  @override
+  String get searchViewAllAction => 'View all';
+
+  @override
+  String get searchTabPosts => 'Posts';
+
+  @override
+  String get searchTabProjects => 'Projects';
+
+  @override
+  String get searchTabProfiles => 'Profiles';
+
+  @override
+  String get searchTabTags => 'Tags';
+
+  @override
+  String get searchEmptyPosts => 'No posts found.';
+
+  @override
+  String get searchEmptyProjects => 'No projects found.';
+
+  @override
+  String get searchEmptyProfiles => 'No profiles found.';
+
+  @override
+  String get searchEmptyTags => 'No tags found.';
+
+  @override
+  String get searchLoadError => 'Search didn\'t load.';
+
+  @override
+  String searchTagPostCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count posts',
+      one: '1 post',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String searchProfileCraftSubtitle(String name, String crafts) {
+    return '$name • $crafts';
+  }
+
+  @override
+  String get searchSortNewest => 'Newest';
+
+  @override
+  String get searchSortNewestDescription => 'Show the newest items first.';
+
+  @override
+  String get searchSortPopular => 'Popular';
+
+  @override
+  String get searchSortPopularDescription =>
+      'Show the most popular items first.';
+
+  @override
+  String tagSearchTitle(String tag) {
+    return '#$tag';
+  }
+
+  @override
+  String get tagSearchEmpty => 'No posts found for this tag.';
+
+  @override
+  String get projectsTitle => 'Projects';
+
+  @override
+  String get projectsFilterAction => 'Filters';
+
+  @override
+  String get projectsFiltersTitle => 'Filter projects';
+
+  @override
+  String projectsCraftContext(String craft) {
+    return 'Browsing $craft';
+  }
+
+  @override
+  String get projectsFilterProjectType => 'Project type';
+
+  @override
+  String get projectsFilterDifficulty => 'Pattern difficulty';
+
+  @override
+  String get projectsFilterColor => 'Color';
+
+  @override
+  String get projectsFilterDesignTag => 'Design tag';
+
+  @override
+  String get projectsFilterMaterial => 'Material';
+
+  @override
+  String get projectsFilterProjectTag => 'Project tag';
+
+  @override
+  String get projectsFreeTextHint => 'Add a value';
+
+  @override
+  String get projectsAddFilterValueAction => 'Add';
+
+  @override
+  String get projectsApplyFiltersAction => 'Apply filters';
+
+  @override
+  String get projectsClearFiltersAction => 'Clear all';
+
+  @override
+  String get projectsEmpty => 'No projects found.';
+
+  @override
+  String get projectsLoadError => 'Projects didn\'t load.';
 }

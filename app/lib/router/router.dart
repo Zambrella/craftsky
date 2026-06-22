@@ -19,7 +19,9 @@ import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/router/error_screen.dart';
 import 'package:craftsky_app/router/onboarding_refresh_listener.dart';
 import 'package:craftsky_app/router/route_locations.dart';
+import 'package:craftsky_app/search/models/search_results_tab.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
+import 'package:craftsky_app/search/pages/tag_search_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter/material.dart';
@@ -145,7 +147,16 @@ GoRouter goRouter(Ref ref) {
     ),
     TypedStatefulShellBranch<SearchBranch>(
       routes: [
-        TypedGoRoute<SearchRoute>(path: RouteLocations.search, name: 'search'),
+        TypedGoRoute<SearchRoute>(
+          path: RouteLocations.search,
+          name: 'search',
+          routes: [
+            TypedGoRoute<TagSearchRoute>(
+              path: RouteLocations.searchTagsChild,
+              name: 'search-tag',
+            ),
+          ],
+        ),
       ],
     ),
     TypedStatefulShellBranch<NotificationsBranch>(
@@ -237,13 +248,24 @@ class ProjectsRoute extends GoRouteData with $ProjectsRoute {
 }
 
 class SearchRoute extends GoRouteData with $SearchRoute {
-  const SearchRoute({this.tag});
+  const SearchRoute({this.q, this.tab});
 
-  final String? tag;
+  final String? q;
+  final SearchResultsTab? tab;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
-      SearchPage(tag: tag);
+      SearchPage(q: q, tab: tab);
+}
+
+class TagSearchRoute extends GoRouteData with $TagSearchRoute {
+  const TagSearchRoute({required this.tag});
+
+  final String tag;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      TagSearchPage(tag: tag);
 }
 
 class NotificationsRoute extends GoRouteData with $NotificationsRoute {
