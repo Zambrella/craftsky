@@ -22,13 +22,23 @@ CREATE INDEX craftsky_posts_root_created_uri_idx
     ON craftsky_posts (created_at DESC, uri DESC)
     WHERE reply_root_uri IS NULL AND reply_parent_uri IS NULL;
 
+CREATE FUNCTION craftsky_text_array_to_string(arr TEXT[], delimiter TEXT)
+RETURNS TEXT
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+RETURNS NULL ON NULL INPUT
+AS $$
+    SELECT array_to_string(arr, delimiter);
+$$;
+
 CREATE INDEX craftsky_project_posts_search_vector_idx
     ON craftsky_project_posts USING GIN (to_tsvector('simple',
         coalesce(common_title, '') || ' ' ||
         coalesce(pattern_name, '') || ' ' ||
-        coalesce(array_to_string(materials, ' '), '') || ' ' ||
-        coalesce(array_to_string(project_tags, ' '), '') || ' ' ||
-        coalesce(array_to_string(design_tags, ' '), '')
+        coalesce(craftsky_text_array_to_string(materials, ' '), '') || ' ' ||
+        coalesce(craftsky_text_array_to_string(project_tags, ' '), '') || ' ' ||
+        coalesce(craftsky_text_array_to_string(design_tags, ' '), '')
     ));
 
 CREATE INDEX craftsky_project_posts_lower_craft_type_idx

@@ -8,3 +8,4 @@ DROP INDEX IF EXISTS craftsky_posts_root_created_uri_idx;
 DROP INDEX IF EXISTS craftsky_posts_search_vector_idx;
 DROP INDEX IF EXISTS craftsky_recent_searches_viewer_updated_idx;
 DROP TABLE IF EXISTS craftsky_recent_searches;
+DROP FUNCTION IF EXISTS craftsky_text_array_to_string(TEXT[], TEXT);

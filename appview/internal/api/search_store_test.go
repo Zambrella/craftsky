@@ -22,6 +22,16 @@ import (
 )
 
 const searchStoreDDL = timelineStoreDDL + `
+CREATE FUNCTION craftsky_text_array_to_string(arr TEXT[], delimiter TEXT)
+RETURNS TEXT
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+RETURNS NULL ON NULL INPUT
+AS $$
+    SELECT array_to_string(arr, delimiter);
+$$;
+
 CREATE TABLE atproto_identity_cache (
     did          TEXT        NOT NULL PRIMARY KEY,
     handle       TEXT        NOT NULL,
