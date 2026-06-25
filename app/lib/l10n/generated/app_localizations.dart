@@ -1942,6 +1942,18 @@ abstract class AppLocalizations {
   /// **'Search didn\'t load.'**
   String get searchLoadError;
 
+  /// Snackbar shown when saving a recent search fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save recent search.'**
+  String get searchRecentSaveError;
+
+  /// Snackbar shown when deleting a recent search fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t delete recent search.'**
+  String get searchRecentDeleteError;
+
   /// Post count label for a hashtag suggestion or result.
   ///
   /// In en, this message translates to:

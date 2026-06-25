@@ -991,6 +991,12 @@
   "searchLoadError": "Search didn't load.",
   "@searchLoadError": { "description": "Error title shown when search results fail to load." },
 
+  "searchRecentSaveError": "Couldn't save recent search.",
+  "@searchRecentSaveError": { "description": "Snackbar shown when saving a recent search fails." },
+
+  "searchRecentDeleteError": "Couldn't delete recent search.",
+  "@searchRecentDeleteError": { "description": "Snackbar shown when deleting a recent search fails." },
+
   "searchTagPostCount": "{count, plural, =1{1 post} other{{count} posts}}",
   "@searchTagPostCount": {
     "description": "Post count label for a hashtag suggestion or result.",

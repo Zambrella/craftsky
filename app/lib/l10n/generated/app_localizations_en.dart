@@ -1007,6 +1007,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchLoadError => 'Search didn\'t load.';
 
   @override
+  String get searchRecentSaveError => 'Couldn\'t save recent search.';
+
+  @override
+  String get searchRecentDeleteError => 'Couldn\'t delete recent search.';
+
+  @override
   String searchTagPostCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

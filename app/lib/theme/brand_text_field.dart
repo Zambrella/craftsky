@@ -27,6 +27,7 @@ class BrandTextField extends StatefulWidget {
     this.labelTrailing,
     this.betweenLabelAndField,
     this.labelStyle,
+    this.showLabel = true,
     this.helperStyle,
     this.helperAlignment = AlignmentDirectional.centerStart,
     this.textFieldKey,
@@ -62,6 +63,7 @@ class BrandTextField extends StatefulWidget {
   final Widget? labelTrailing;
   final Widget? betweenLabelAndField;
   final TextStyle? labelStyle;
+  final bool showLabel;
   final TextStyle? helperStyle;
   final AlignmentGeometry helperAlignment;
   final Key? textFieldKey;
@@ -162,6 +164,7 @@ class _BrandTextFieldState extends State<BrandTextField> {
       labelTrailing: widget.labelTrailing,
       betweenLabelAndChild: widget.betweenLabelAndField,
       labelStyle: widget.labelStyle,
+      showLabel: widget.showLabel,
       helperStyle: widget.helperStyle,
       helperAlignment: widget.helperAlignment,
       enabled: widget.enabled,

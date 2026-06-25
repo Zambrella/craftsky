@@ -32,11 +32,11 @@ class _TagSearchPageState extends ConsumerState<TagSearchPage> {
     final provider = hashtagSearchProvider(
       HashtagSearchQuery(tag: widget.tag, sort: _sort),
     );
-    final async = ref.watch(provider);
+    final tagResultsAsync = ref.watch(provider);
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.tagSearchTitle(widget.tag))),
-      body: switch (async) {
+      body: switch (tagResultsAsync) {
         AsyncValue(:final value?) => Column(
           children: [
             Padding(
@@ -58,14 +58,14 @@ class _TagSearchPageState extends ConsumerState<TagSearchPage> {
             Expanded(
               child: _TagPostList(
                 posts: value.items,
-                isLoadingMore: async.isLoading,
-                hasLoadMoreError: async.hasError,
+                isLoadingMore: tagResultsAsync.isLoading,
+                hasLoadMoreError: tagResultsAsync.hasError,
                 onNearEnd: () => ref.read(provider.notifier).loadMore(),
               ),
             ),
           ],
         ),
-        _ when async.hasError => Center(
+        _ when tagResultsAsync.hasError => Center(
           child: TextButton.icon(
             onPressed: () => ref.invalidate(provider),
             icon: const Icon(Icons.refresh),

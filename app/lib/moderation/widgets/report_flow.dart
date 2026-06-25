@@ -20,47 +20,10 @@ Future<void> showPostReportSheet(
   return Navigator.of(context, rootNavigator: true).push<void>(
     MaterialPageRoute<void>(
       fullscreenDialog: true,
-      builder: (routeContext) => Consumer(
-        builder: (routeContext, routeRef, _) {
-          final submitState = routeRef.watch(reportPostProvider);
-          routeRef.listen<AsyncValue<ReportResult?>>(reportPostProvider, (
-            _,
-            next,
-          ) {
-            _handleAcceptedReport(
-              context: context,
-              routeContext: routeContext,
-              successMessage: successMessage,
-              reset: () => routeRef.read(reportPostProvider.notifier).reset(),
-              state: next,
-            );
-          });
-
-          // TODO(Agent): It would be better if the ReportSubjectSheet handled
-          // the state/submission logic itself. It can show a loading indicator
-          // and error messages itself. Also close itself on success.
-          return ReportSubjectSheet(
-            subjectType: ReportSubjectType.post,
-            isSubmitting: submitState.isLoading,
-            submitError: submitState.hasError
-                ? AppLocalizations.of(routeContext).reportSubmitError
-                : null,
-            onChanged: submitState.hasError
-                ? () => routeRef.read(reportPostProvider.notifier).reset()
-                : null,
-            onSubmit: (submission) {
-              unawaited(
-                routeRef
-                    .read(reportPostProvider.notifier)
-                    .submit(
-                      did: post.author.did,
-                      rkey: post.rkey,
-                      submission: submission,
-                    ),
-              );
-            },
-          );
-        },
+      builder: (routeContext) => _PostReportRouteBody(
+        parentContext: context,
+        successMessage: successMessage,
+        post: post,
       ),
     ),
   );
@@ -76,47 +39,105 @@ Future<void> showProfileReportSheet(
   return Navigator.of(context, rootNavigator: true).push<void>(
     MaterialPageRoute<void>(
       fullscreenDialog: true,
-      builder: (routeContext) => Consumer(
-        builder: (routeContext, routeRef, _) {
-          final submitState = routeRef.watch(reportProfileProvider);
-          routeRef.listen<AsyncValue<ReportResult?>>(reportProfileProvider, (
-            _,
-            next,
-          ) {
-            _handleAcceptedReport(
-              context: context,
-              routeContext: routeContext,
-              successMessage: successMessage,
-              reset: () =>
-                  routeRef.read(reportProfileProvider.notifier).reset(),
-              state: next,
-            );
-          });
-
-          return ReportSubjectSheet(
-            subjectType: ReportSubjectType.profile,
-            isSubmitting: submitState.isLoading,
-            submitError: submitState.hasError
-                ? AppLocalizations.of(routeContext).reportSubmitError
-                : null,
-            onChanged: submitState.hasError
-                ? () => routeRef.read(reportProfileProvider.notifier).reset()
-                : null,
-            onSubmit: (submission) {
-              unawaited(
-                routeRef
-                    .read(reportProfileProvider.notifier)
-                    .submit(
-                      handleOrDid: handleOrDid,
-                      submission: submission,
-                    ),
-              );
-            },
-          );
-        },
+      builder: (routeContext) => _ProfileReportRouteBody(
+        parentContext: context,
+        successMessage: successMessage,
+        handleOrDid: handleOrDid,
       ),
     ),
   );
+}
+
+class _PostReportRouteBody extends ConsumerWidget {
+  const _PostReportRouteBody({
+    required this.parentContext,
+    required this.successMessage,
+    required this.post,
+  });
+
+  final BuildContext parentContext;
+  final String successMessage;
+  final Post post;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final submitState = ref.watch(reportPostProvider);
+    ref.listen<AsyncValue<ReportResult?>>(reportPostProvider, (_, next) {
+      _handleAcceptedReport(
+        context: parentContext,
+        routeContext: context,
+        successMessage: successMessage,
+        reset: () => ref.read(reportPostProvider.notifier).reset(),
+        state: next,
+      );
+    });
+
+    return ReportSubjectSheet(
+      subjectType: ReportSubjectType.post,
+      isSubmitting: submitState.isLoading,
+      submitError: submitState.hasError
+          ? AppLocalizations.of(context).reportSubmitError
+          : null,
+      onChanged: submitState.hasError
+          ? () => ref.read(reportPostProvider.notifier).reset()
+          : null,
+      onSubmit: (submission) {
+        unawaited(
+          ref
+              .read(reportPostProvider.notifier)
+              .submit(
+                did: post.author.did,
+                rkey: post.rkey,
+                submission: submission,
+              ),
+        );
+      },
+    );
+  }
+}
+
+class _ProfileReportRouteBody extends ConsumerWidget {
+  const _ProfileReportRouteBody({
+    required this.parentContext,
+    required this.successMessage,
+    required this.handleOrDid,
+  });
+
+  final BuildContext parentContext;
+  final String successMessage;
+  final String handleOrDid;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final submitState = ref.watch(reportProfileProvider);
+    ref.listen<AsyncValue<ReportResult?>>(reportProfileProvider, (_, next) {
+      _handleAcceptedReport(
+        context: parentContext,
+        routeContext: context,
+        successMessage: successMessage,
+        reset: () => ref.read(reportProfileProvider.notifier).reset(),
+        state: next,
+      );
+    });
+
+    return ReportSubjectSheet(
+      subjectType: ReportSubjectType.profile,
+      isSubmitting: submitState.isLoading,
+      submitError: submitState.hasError
+          ? AppLocalizations.of(context).reportSubmitError
+          : null,
+      onChanged: submitState.hasError
+          ? () => ref.read(reportProfileProvider.notifier).reset()
+          : null,
+      onSubmit: (submission) {
+        unawaited(
+          ref
+              .read(reportProfileProvider.notifier)
+              .submit(handleOrDid: handleOrDid, submission: submission),
+        );
+      },
+    );
+  }
 }
 
 void _handleAcceptedReport({
