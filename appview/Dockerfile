@@ -14,6 +14,7 @@ WORKDIR /app
 COPY --from=build /out/appview /app/appview
 COPY --from=build /out/cli     /app/cli
 COPY migrations /app/migrations
+COPY devmedia /app/devmedia
 USER app
 EXPOSE 8080
 ENTRYPOINT ["/app/appview"]

@@ -3,6 +3,7 @@ package api_test
 
 import (
 	"encoding/json"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -224,6 +225,26 @@ func TestBuildPostResponse_ImageMetadataIncludesAspectRatioAndSize(t *testing.T)
 	}
 	if img.AspectRatio == nil || img.AspectRatio.Width != 919 || img.AspectRatio.Height != 2000 {
 		t.Fatalf("aspectRatio = %+v", img.AspectRatio)
+	}
+}
+
+func TestBuildPostResponse_DevMediaCIDUsesLocalDevMediaURL(t *testing.T) {
+	t.Setenv("CRAFTSKY_DEV_MEDIA_BASE_URL", "http://example.test/media/")
+	row := baseRow()
+	row.Images = json.RawMessage(`[
+		{"cid":"devmedia:knit-cardigan-moss","mime":"image/jpeg","alt":"project photo"}
+	]`)
+
+	resp := api.BuildPostResponse(row, syntax.Handle("alice.example"))
+	if len(resp.Images) != 1 {
+		t.Fatalf("len(images) = %d, want 1", len(resp.Images))
+	}
+	got := resp.Images[0].Fullsize
+	if got != "http://example.test/media/knit-cardigan-moss" || resp.Images[0].Thumb != got {
+		t.Fatalf("dev media urls = thumb %q fullsize %q", resp.Images[0].Thumb, got)
+	}
+	if _, err := url.ParseRequestURI(got); err != nil {
+		t.Fatalf("dev media URL is not parseable: %v", err)
 	}
 }
 

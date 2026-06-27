@@ -15,6 +15,9 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	// Public ops.
 	mux.Handle("GET /health", api.HealthHandler(deps.DB, deps.Logger))
 	mux.Handle("GET /healthz", api.NewHealthHandler(deps.DB, deps.Consumer))
+	if deps.Config.Env == app.EnvDev {
+		mux.Handle("GET /v1/dev/media/{name}", api.DevMediaHandler())
+	}
 
 	// OAuth discovery endpoints (contracts with the AS; not versioned).
 	oauthHandlers := auth.NewHTTPHandlers(
