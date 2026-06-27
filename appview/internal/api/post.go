@@ -263,6 +263,7 @@ func syntheticPostRow(
 	if author != nil {
 		row.AuthorDisplayName = author.DisplayName
 		row.AuthorAvatarCID = author.AvatarCID
+		row.AuthorAvatarMime = author.AvatarMime
 	}
 	return row, nil
 }

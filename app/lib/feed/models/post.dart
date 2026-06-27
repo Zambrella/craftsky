@@ -106,8 +106,9 @@ class PostImageAspectRatio with PostImageAspectRatioMappable {
 
 /// Author identity embedded in every [Post] response.
 ///
-/// `avatarCid` is a bare CID, not a URL — image proxying is its own
-/// future spec.
+/// `avatar` is the display-ready URL. `avatarCid` is retained because older
+/// AppView responses and notification-style payloads may still include only
+/// the raw CID.
 @MappableClass(
   ignoreNull: true,
   includeCustomMappers: [DidMapper(), HandleMapper(), CidMapper()],
@@ -117,6 +118,7 @@ class PostAuthor with PostAuthorMappable {
     required String did,
     required String handle,
     this.displayName,
+    this.avatar,
     String? avatarCid,
   }) : did = Did.parse(did),
        handle = Handle.parse(handle),
@@ -125,6 +127,7 @@ class PostAuthor with PostAuthorMappable {
   final Did did;
   final Handle handle;
   final String? displayName;
+  final String? avatar;
   final Cid? avatarCid;
 }
 

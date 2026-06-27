@@ -7,6 +7,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
@@ -74,6 +75,9 @@ class PostCard extends StatelessWidget {
     final borderRadius = isFlat
         ? BorderRadius.zero
         : BorderRadius.circular(radii.r3);
+    void openAuthorProfile() => UserProfileRoute(
+      handle: post.author.handle.toString(),
+    ).push<void>(context);
 
     final content = AnimatedContainer(
       duration: const Duration(milliseconds: 350),
@@ -108,15 +112,20 @@ class PostCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        ProfileAvatar(
-                          seed: displayName,
-                          size: ProfileAvatarSize.small,
+                        _PostCardAuthorTapTarget(
+                          onTap: openAuthorProfile,
+                          child: ProfileAvatar(
+                            seed: displayName,
+                            avatarUrl: post.author.avatar,
+                            size: ProfileAvatarSize.small,
+                          ),
                         ),
                         SizedBox(width: spacing.sp3),
                         Expanded(
                           child: _PostCardHeader(
                             displayName: displayName,
                             handle: post.author.handle,
+                            onTap: openAuthorProfile,
                           ),
                         ),
                         SizedBox(
@@ -233,30 +242,57 @@ class PostCard extends StatelessWidget {
 }
 
 class _PostCardHeader extends StatelessWidget {
-  const _PostCardHeader({required this.displayName, required this.handle});
+  const _PostCardHeader({
+    required this.displayName,
+    required this.handle,
+    required this.onTap,
+  });
 
   final String displayName;
   final String handle;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          displayName,
-          style: theme.textTheme.titleSmall,
-          overflow: TextOverflow.ellipsis,
-        ),
-        Text(
-          '@$handle',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.outline,
+    return _PostCardAuthorTapTarget(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            displayName,
+            style: theme.textTheme.titleSmall,
+            overflow: TextOverflow.ellipsis,
           ),
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
+          Text(
+            '@$handle',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.outline,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PostCardAuthorTapTarget extends StatelessWidget {
+  const _PostCardAuthorTapTarget({required this.onTap, required this.child});
+
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: child,
+      ),
     );
   }
 }

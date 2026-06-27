@@ -435,6 +435,12 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
     _$displayName,
     opt: true,
   );
+  static String? _$avatar(PostAuthor v) => v.avatar;
+  static const Field<PostAuthor, String> _f$avatar = Field(
+    'avatar',
+    _$avatar,
+    opt: true,
+  );
   static Cid? _$avatarCid(PostAuthor v) => v.avatarCid;
   static dynamic _arg$avatarCid(f) => f<Cid>();
   static const Field<PostAuthor, String> _f$avatarCid = Field(
@@ -449,6 +455,7 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
     #did: _f$did,
     #handle: _f$handle,
     #displayName: _f$displayName,
+    #avatar: _f$avatar,
     #avatarCid: _f$avatarCid,
   };
   @override
@@ -459,6 +466,7 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
       did: data.dec(_f$did),
       handle: data.dec(_f$handle),
       displayName: data.dec(_f$displayName),
+      avatar: data.dec(_f$avatar),
       avatarCid: data.dec(_f$avatarCid),
     );
   }
@@ -527,6 +535,7 @@ abstract class PostAuthorCopyWith<$R, $In extends PostAuthor, $Out>
     String? did,
     String? handle,
     String? displayName,
+    String? avatar,
     String? avatarCid,
   });
   PostAuthorCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
@@ -545,12 +554,14 @@ class _PostAuthorCopyWithImpl<$R, $Out>
     String? did,
     String? handle,
     Object? displayName = $none,
+    Object? avatar = $none,
     Object? avatarCid = $none,
   }) => $apply(
     FieldCopyWithData({
       if (did != null) #did: did,
       if (handle != null) #handle: handle,
       if (displayName != $none) #displayName: displayName,
+      if (avatar != $none) #avatar: avatar,
       if (avatarCid != $none) #avatarCid: avatarCid,
     }),
   );
@@ -559,6 +570,7 @@ class _PostAuthorCopyWithImpl<$R, $Out>
     did: data.get(#did, or: $value.did),
     handle: data.get(#handle, or: $value.handle),
     displayName: data.get(#displayName, or: $value.displayName),
+    avatar: data.get(#avatar, or: $value.avatar),
     avatarCid: data.get(#avatarCid, or: $value.avatarCid),
   );
 

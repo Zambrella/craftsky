@@ -1168,8 +1168,9 @@ func TestCreatePost_AuthorHydratedFromStore(t *testing.T) {
 	pds := &fakePDS{}
 	displayName := "Alice"
 	avatarCID := "bafyAvatar"
+	avatarMime := "image/jpeg"
 	store := &fakePostStore{
-		author: &api.PostAuthorRow{DisplayName: &displayName, AvatarCID: &avatarCID},
+		author: &api.PostAuthorRow{DisplayName: &displayName, AvatarCID: &avatarCID, AvatarMime: &avatarMime},
 	}
 	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
 	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hi"}`, "did:plc:alice")
@@ -1185,6 +1186,9 @@ func TestCreatePost_AuthorHydratedFromStore(t *testing.T) {
 	}
 	if resp.Author.AvatarCID == nil || *resp.Author.AvatarCID != "bafyAvatar" {
 		t.Errorf("avatarCID = %v", resp.Author.AvatarCID)
+	}
+	if resp.Author.Avatar == nil || *resp.Author.Avatar != "https://cdn.bsky.app/img/avatar/plain/did:plc:alice/bafyAvatar@jpeg" {
+		t.Errorf("avatar = %v", resp.Author.Avatar)
 	}
 }
 

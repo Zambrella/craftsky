@@ -153,6 +153,7 @@ func TestBuildPostResponse_WithAuthorDisplayFields(t *testing.T) {
 	row := baseRow()
 	row.AuthorDisplayName = ptrStr("Alice")
 	row.AuthorAvatarCID = ptrStr("bafyAvatar")
+	row.AuthorAvatarMime = ptrStr("image/jpeg")
 
 	resp := api.BuildPostResponse(row, syntax.Handle("alice.example"))
 	if resp.Author.DisplayName == nil || *resp.Author.DisplayName != "Alice" {
@@ -160,6 +161,9 @@ func TestBuildPostResponse_WithAuthorDisplayFields(t *testing.T) {
 	}
 	if resp.Author.AvatarCID == nil || *resp.Author.AvatarCID != "bafyAvatar" {
 		t.Errorf("avatarCID = %v", resp.Author.AvatarCID)
+	}
+	if resp.Author.Avatar == nil || *resp.Author.Avatar != "https://cdn.bsky.app/img/avatar/plain/did:plc:alice/bafyAvatar@jpeg" {
+		t.Errorf("avatar = %v", resp.Author.Avatar)
 	}
 }
 

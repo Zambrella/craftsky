@@ -23,6 +23,7 @@ type PostAuthor struct {
 	DID         string  `json:"did"`
 	Handle      string  `json:"handle"`
 	DisplayName *string `json:"displayName"`
+	Avatar      *string `json:"avatar,omitempty"`
 	AvatarCID   *string `json:"avatarCid"`
 }
 
@@ -167,6 +168,9 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle) *PostResponse {
 			AvatarCID:   row.AuthorAvatarCID,
 		},
 		Project: row.Project,
+	}
+	if avatar := synthBlobURL("avatar", row.DID, row.AuthorAvatarCID, row.AuthorAvatarMime); avatar != "" {
+		resp.Author.Avatar = &avatar
 	}
 	if row.ReplyRootURI != nil && row.ReplyParentURI != nil {
 		resp.Reply = &ResponseReply{
