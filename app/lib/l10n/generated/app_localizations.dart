@@ -2014,11 +2014,11 @@ abstract class AppLocalizations {
   /// **'Filters'**
   String get projectsFilterAction;
 
-  /// Title for the project filters sheet.
+  /// Title for the project filters sheet scoped to the selected craft.
   ///
   /// In en, this message translates to:
-  /// **'Filter projects'**
-  String get projectsFiltersTitle;
+  /// **'Filter {craft} projects'**
+  String projectsFiltersTitle(String craft);
 
   /// Read-only craft context label in the project filters sheet.
   ///

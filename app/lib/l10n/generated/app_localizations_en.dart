@@ -1056,7 +1056,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectsFilterAction => 'Filters';
 
   @override
-  String get projectsFiltersTitle => 'Filter projects';
+  String projectsFiltersTitle(String craft) {
+    return 'Filter $craft projects';
+  }
 
   @override
   String projectsCraftContext(String craft) {

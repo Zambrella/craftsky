@@ -1039,8 +1039,11 @@
   "projectsFilterAction": "Filters",
   "@projectsFilterAction": { "description": "Button label opening the project filters sheet." },
 
-  "projectsFiltersTitle": "Filter projects",
-  "@projectsFiltersTitle": { "description": "Title for the project filters sheet." },
+  "projectsFiltersTitle": "Filter {craft} projects",
+  "@projectsFiltersTitle": {
+    "description": "Title for the project filters sheet scoped to the selected craft.",
+    "placeholders": { "craft": { "type": "String", "example": "Knitting" } }
+  },
 
   "projectsCraftContext": "Browsing {craft}",
   "@projectsCraftContext": {
