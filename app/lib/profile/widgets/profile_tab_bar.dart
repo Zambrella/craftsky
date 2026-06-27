@@ -51,10 +51,6 @@ class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
-    final onSurface = theme.colorScheme.onSurface;
-    // `outline` carries the brand's ink3 (tertiary text) per the
-    // ColorScheme override in app_theme.dart.
-    final muted = theme.colorScheme.outline;
     return ColoredBox(
       color: swatches.paper,
       child: Column(
@@ -64,14 +60,6 @@ class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
               isScrollable: true,
               tabAlignment: TabAlignment.start,
               padding: EdgeInsets.symmetric(horizontal: spacing.sp2),
-              labelStyle: theme.textTheme.labelMedium,
-              unselectedLabelStyle: theme.textTheme.labelMedium?.copyWith(
-                color: muted,
-              ),
-              labelColor: onSurface,
-              unselectedLabelColor: muted,
-              indicatorColor: onSurface,
-              dividerColor: Colors.transparent,
               tabs: [
                 for (final tab in ProfileTab.values)
                   Tab(text: _labelFor(tab, l10n)),

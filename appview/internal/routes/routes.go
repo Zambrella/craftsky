@@ -43,6 +43,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		MaxImageUploadBytes: deps.Config.MaxImageUploadBytes,
 	}
 	facetStore := api.NewFacetStore(deps.DB, deps.HandleResolver)
+	searchStore := api.NewSearchStore(deps.DB)
 	mux.Handle("GET /v1/whoami", authN(deviceID(api.WhoAmIHandler(deps.HandleResolver, deps.Logger))))
 	mux.Handle("GET /v1/facets/mentions",
 		authN(deviceID(api.ListFacetMentionSuggestionsHandler(facetStore, deps.Logger))))
@@ -50,6 +51,28 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		authN(deviceID(api.ResolveFacetMentionHandler(facetStore, deps.Logger))))
 	mux.Handle("GET /v1/facets/hashtags",
 		authN(deviceID(api.ListFacetHashtagSuggestionsHandler(facetStore, deps.Logger))))
+	mux.Handle("GET /v1/projects",
+		authN(deviceID(api.ListProjectsHandler(searchStore, deps.HandleResolver, deps.Logger))))
+	mux.Handle("GET /v1/search/hashtags/{tag}/posts",
+		authN(deviceID(api.SearchHashtagPostsHandler(searchStore, deps.HandleResolver, deps.Logger))))
+	mux.Handle("GET /v1/search/suggestions",
+		authN(deviceID(api.SearchSuggestionsHandler(searchStore, deps.Logger))))
+	mux.Handle("GET /v1/search/hashtags",
+		authN(deviceID(api.SearchHashtagsHandler(searchStore, deps.Logger))))
+	mux.Handle("GET /v1/search/profiles",
+		authN(deviceID(api.SearchProfilesHandler(searchStore, deps.Logger))))
+	mux.Handle("GET /v1/search/posts",
+		authN(deviceID(api.SearchPostsHandler(searchStore, deps.HandleResolver, deps.Logger))))
+	mux.Handle("GET /v1/search/projects",
+		authN(deviceID(api.SearchProjectsHandler(searchStore, deps.HandleResolver, deps.Logger))))
+	mux.Handle("GET /v1/search/hashtags/top",
+		authN(deviceID(api.TopHashtagsHandler(searchStore, deps.Logger))))
+	mux.Handle("GET /v1/search/recent",
+		authN(deviceID(api.ListRecentSearchesHandler(searchStore, deps.Logger))))
+	mux.Handle("POST /v1/search/recent",
+		authN(deviceID(api.SaveRecentSearchHandler(searchStore, deps.Logger))))
+	mux.Handle("DELETE /v1/search/recent/{id}",
+		authN(deviceID(api.DeleteRecentSearchHandler(searchStore, deps.Logger))))
 	mux.Handle("POST /v1/auth/logout", authN(deviceID(oauthHandlers.LogoutHandler())))
 	mux.Handle("GET /v1/profiles/{handleOrDid}",
 		authN(deviceID(api.GetProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger))))

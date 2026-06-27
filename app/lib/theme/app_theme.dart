@@ -81,6 +81,7 @@ class AppTheme {
       extensions: _extensions(base.colorScheme),
       appBarTheme: _appBarTheme(base),
       navigationBarTheme: _navigationBarTheme(base),
+      tabBarTheme: _tabBarTheme(base),
     );
   }
 
@@ -226,11 +227,24 @@ class AppTheme {
       foregroundColor: base.colorScheme.onSurface,
       elevation: 0,
       scrolledUnderElevation: 0,
-      centerTitle: true,
+      centerTitle: false,
       titleTextStyle: base.textTheme.titleLarge,
       shape: Border(
         bottom: BorderSide(color: base.colorScheme.onSurface, width: 1.5),
       ),
+    );
+  }
+
+  static TabBarThemeData _tabBarTheme(ThemeData base) {
+    final muted = base.colorScheme.outline;
+    final onSurface = base.colorScheme.onSurface;
+    return TabBarThemeData(
+      labelStyle: base.textTheme.labelMedium,
+      unselectedLabelStyle: base.textTheme.labelMedium?.copyWith(color: muted),
+      labelColor: onSurface,
+      unselectedLabelColor: muted,
+      indicatorColor: onSurface,
+      dividerColor: Colors.transparent,
     );
   }
 
@@ -251,6 +265,7 @@ class AppTheme {
       indicatorColor: Colors.transparent,
       overlayColor: const WidgetStatePropertyAll(Colors.transparent),
       elevation: 0,
+      height: 64,
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         const base0 = TextStyle(
           fontSize: 12,

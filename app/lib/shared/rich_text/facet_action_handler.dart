@@ -44,7 +44,7 @@ class FacetActionHandler {
           );
         case TagFacetFeature(:final tag):
           if (tag.isEmpty) return;
-          await SearchRoute(tag: tag).push<void>(context);
+          await TagSearchRoute(tag: tag).push<void>(context);
       }
     } on Object {
       // Destination failures must not crash rendered text surfaces.

@@ -11,7 +11,9 @@ class RouteLocations {
   // Alias: the post-auth home landing. Keep as a const reference to `feed`
   // so renaming the branch in one place updates both usages.
   static const String home = feed;
+  static const projects = '/projects';
   static const search = '/search';
+  static const searchTagsChild = 'tags';
   static const notifications = '/notifications';
   static const postThread = '/posts/:did/:rkey';
   static const profile = '/profile';

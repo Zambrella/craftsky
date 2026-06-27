@@ -729,6 +729,95 @@ func TestAddRoutes_FacetRoutesRegisteredAndRequireAuthenticatedDevice(t *testing
 	}
 }
 
+func TestAddRoutes_SearchRoutesRegisteredAndRequireAuthenticatedDevice(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{name: "project list", method: http.MethodGet, path: "/v1/projects?craftType=knitting"},
+		{name: "hashtag posts", method: http.MethodGet, path: "/v1/search/hashtags/sock/posts"},
+		{name: "search suggestions", method: http.MethodGet, path: "/v1/search/suggestions?q=sock"},
+		{name: "hashtag search", method: http.MethodGet, path: "/v1/search/hashtags?q=sock"},
+		{name: "profile search", method: http.MethodGet, path: "/v1/search/profiles?q=ali"},
+		{name: "post search", method: http.MethodGet, path: "/v1/search/posts?q=sock"},
+		{name: "project search", method: http.MethodGet, path: "/v1/search/projects"},
+		{name: "top hashtags", method: http.MethodGet, path: "/v1/search/hashtags/top?craftTypes=knitting"},
+		{name: "list recents", method: http.MethodGet, path: "/v1/search/recent"},
+		{name: "save recent", method: http.MethodPost, path: "/v1/search/recent"},
+		{name: "delete recent", method: http.MethodDelete, path: "/v1/search/recent/recent_123"},
+	} {
+		t.Run(tc.name+" registered", func(t *testing.T) {
+			mux := http.NewServeMux()
+			AddRoutes(context.Background(), mux, testDeps())
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			_, pattern := mux.Handler(req)
+			if pattern == "/" || pattern == "" {
+				t.Fatalf("pattern = %q; %s %s must be registered", pattern, tc.method, tc.path)
+			}
+		})
+
+		t.Run(tc.name+" requires auth", func(t *testing.T) {
+			mux := http.NewServeMux()
+			AddRoutes(context.Background(), mux, testDeps())
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+			rr := httptest.NewRecorder()
+			mux.ServeHTTP(rr, req)
+			if rr.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want 401; body = %s", rr.Code, rr.Body.String())
+			}
+			assertErrorEnvelope(t, rr.Body.Bytes())
+		})
+
+		t.Run(tc.name+" requires device", func(t *testing.T) {
+			mux := http.NewServeMux()
+			AddRoutes(context.Background(), mux, testDeps())
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			req.Header.Set("Authorization", "Bearer anything")
+			rr := httptest.NewRecorder()
+			mux.ServeHTTP(rr, req)
+			if rr.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400; body = %s", rr.Code, rr.Body.String())
+			}
+			assertErrorEnvelope(t, rr.Body.Bytes())
+			if !strings.Contains(rr.Body.String(), "missing_device_id") {
+				t.Errorf("body = %q, want containing 'missing_device_id'", rr.Body.String())
+			}
+		})
+	}
+}
+
+func TestSearchProjectsRouteRejectsBrowseFilters(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+	req := httptest.NewRequest(http.MethodGet, "/v1/search/projects?q=sock&craftType=knitting&material=alpaca", nil)
+	req.Header.Set("Authorization", "Bearer anything")
+	req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s, want 400", rr.Code, rr.Body.String())
+	}
+	assertErrorEnvelope(t, rr.Body.Bytes())
+	if !strings.Contains(rr.Body.String(), "validation_error") {
+		t.Fatalf("body = %s, want validation_error", rr.Body.String())
+	}
+}
+
+func assertErrorEnvelope(t *testing.T, body []byte) {
+	t.Helper()
+	var env map[string]any
+	if err := json.Unmarshal(body, &env); err != nil {
+		t.Fatalf("body not valid JSON: %v; body=%s", err, string(body))
+	}
+	for _, key := range []string{"error", "message", "requestId"} {
+		if _, ok := env[key]; !ok {
+			t.Fatalf("error envelope missing %s: %v", key, env)
+		}
+	}
+}
+
 func TestAddRoutes_ImageBlobUploadRequiresAuth(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, testDeps())

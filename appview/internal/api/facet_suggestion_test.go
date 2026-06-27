@@ -30,6 +30,23 @@ func TestRankMentionSuggestionRowsFollowedPrefixThenHandle(t *testing.T) {
 	}
 }
 
+func TestRankMentionSuggestionRowsUsesSharedProfileRelevance(t *testing.T) {
+	t.Parallel()
+	displayName := "Alice Maker"
+	description := "Sews with Alice"
+	rows := []MentionSuggestionRow{
+		{DID: "did:plc:description", Handle: "aaa.craftsky.social", DisplayName: nil, IsCraftskyProfile: true, ViewerIsFollowing: false},
+		{DID: "did:plc:display", Handle: "zzz.craftsky.social", DisplayName: &displayName, IsCraftskyProfile: true, ViewerIsFollowing: false},
+	}
+	rows[0].Description = &description
+
+	RankMentionSuggestionRows(rows, "alice")
+
+	if rows[0].DID != "did:plc:display" {
+		t.Fatalf("first ranked DID = %q, want display-name match before description match; rows=%#v", rows[0].DID, rows)
+	}
+}
+
 func TestNormalizeHashtagSuggestionRowsLowercaseCountsAndSorts(t *testing.T) {
 	t.Parallel()
 	rows := []HashtagSuggestionRow{

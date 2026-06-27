@@ -30,12 +30,29 @@ RouteBase get $appShellRoute => StatefulShellRouteData.$route(
       ],
     ),
     StatefulShellBranchData.$branch(
+      navigatorKey: ProjectsBranch.$navigatorKey,
+      routes: [
+        GoRouteData.$route(
+          path: '/projects',
+          name: 'projects',
+          factory: $ProjectsRoute._fromState,
+        ),
+      ],
+    ),
+    StatefulShellBranchData.$branch(
       navigatorKey: SearchBranch.$navigatorKey,
       routes: [
         GoRouteData.$route(
           path: '/search',
           name: 'search',
           factory: $SearchRoute._fromState,
+          routes: [
+            GoRouteData.$route(
+              path: 'tags',
+              name: 'search-tag',
+              factory: $TagSearchRoute._fromState,
+            ),
+          ],
         ),
       ],
     ),
@@ -105,17 +122,77 @@ mixin $FeedRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
+mixin $ProjectsRoute on GoRouteData {
+  static ProjectsRoute _fromState(GoRouterState state) => const ProjectsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/projects');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
 mixin $SearchRoute on GoRouteData {
-  static SearchRoute _fromState(GoRouterState state) =>
-      SearchRoute(tag: state.uri.queryParameters['tag']);
+  static SearchRoute _fromState(GoRouterState state) => SearchRoute(
+    q: state.uri.queryParameters['q'],
+    tab: _$convertMapValue(
+      'tab',
+      state.uri.queryParameters,
+      _$SearchResultsTabEnumMap._$fromName,
+    ),
+  );
 
   SearchRoute get _self => this as SearchRoute;
 
   @override
   String get location => GoRouteData.$location(
     '/search',
-    queryParams: {if (_self.tag != null) 'tag': _self.tag},
+    queryParams: {
+      if (_self.q != null) 'q': _self.q,
+      if (_self.tab != null) 'tab': _$SearchResultsTabEnumMap[_self.tab!],
+    },
   );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+const _$SearchResultsTabEnumMap = {
+  SearchResultsTab.posts: 'posts',
+  SearchResultsTab.projects: 'projects',
+  SearchResultsTab.profiles: 'profiles',
+  SearchResultsTab.tags: 'tags',
+};
+
+mixin $TagSearchRoute on GoRouteData {
+  static TagSearchRoute _fromState(GoRouterState state) =>
+      TagSearchRoute(tag: state.uri.queryParameters['tag']!);
+
+  TagSearchRoute get _self => this as TagSearchRoute;
+
+  @override
+  String get location =>
+      GoRouteData.$location('/search/tags', queryParams: {'tag': _self.tag});
 
   @override
   void go(BuildContext context) => context.go(location);
@@ -231,6 +308,20 @@ mixin $PlaygroundRoute on GoRouteData {
 
   @override
   void replace(BuildContext context) => context.replace(location);
+}
+
+T? _$convertMapValue<T>(
+  String key,
+  Map<String, String> map,
+  T? Function(String) converter,
+) {
+  final value = map[key];
+  return value == null ? null : converter(value);
+}
+
+extension<T extends Enum> on Map<T, String> {
+  T? _$fromName(String? value) =>
+      entries.where((element) => element.value == value).firstOrNull?.key;
 }
 
 RouteBase get $welcomeRoute => GoRouteData.$route(

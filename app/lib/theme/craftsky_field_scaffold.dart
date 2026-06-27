@@ -16,6 +16,7 @@ class CraftskyFieldScaffold extends StatefulWidget {
     this.labelTrailing,
     this.betweenLabelAndChild,
     this.labelStyle,
+    this.showLabel = true,
     this.helperStyle,
     this.helperAlignment = AlignmentDirectional.centerStart,
     this.enabled = true,
@@ -36,6 +37,7 @@ class CraftskyFieldScaffold extends StatefulWidget {
   final Widget? labelTrailing;
   final Widget? betweenLabelAndChild;
   final TextStyle? labelStyle;
+  final bool showLabel;
   final TextStyle? helperStyle;
   final AlignmentGeometry helperAlignment;
   final bool enabled;
@@ -145,35 +147,37 @@ class _CraftskyFieldScaffoldState extends State<CraftskyFieldScaffold> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              if (widget.labelLeading != null) ...[
-                widget.labelLeading!,
-                SizedBox(width: sp.sp1),
-              ],
-              Expanded(
-                child: ExcludeSemantics(
-                  child: Text.rich(
-                    TextSpan(
-                      children: [
-                        TextSpan(text: widget.label),
-                        if (widget.required)
-                          TextSpan(
-                            text: '  ${widget.requiredLabel}',
-                            style: requiredLabelStyle,
-                          ),
-                      ],
+          if (widget.showLabel) ...[
+            Row(
+              children: [
+                if (widget.labelLeading != null) ...[
+                  widget.labelLeading!,
+                  SizedBox(width: sp.sp1),
+                ],
+                Expanded(
+                  child: ExcludeSemantics(
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(text: widget.label),
+                          if (widget.required)
+                            TextSpan(
+                              text: '  ${widget.requiredLabel}',
+                              style: requiredLabelStyle,
+                            ),
+                        ],
+                      ),
+                      style: labelStyle,
+                      textAlign: TextAlign.start,
                     ),
-                    style: labelStyle,
-                    textAlign: TextAlign.start,
                   ),
                 ),
-              ),
-              if (widget.labelTrailing != null)
-                ExcludeSemantics(child: widget.labelTrailing),
-            ],
-          ),
-          SizedBox(height: sp.sp2),
+                if (widget.labelTrailing != null)
+                  ExcludeSemantics(child: widget.labelTrailing),
+              ],
+            ),
+            SizedBox(height: sp.sp2),
+          ],
           if (widget.betweenLabelAndChild != null) ...[
             widget.betweenLabelAndChild!,
             SizedBox(height: sp.sp2),

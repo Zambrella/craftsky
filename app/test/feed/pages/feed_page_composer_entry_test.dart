@@ -54,6 +54,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Project post'), findsOneWidget);
-    expect(find.text('Craft type'), findsOneWidget);
+    expect(find.byKey(const Key('craftType-select-button')), findsOneWidget);
   });
 }

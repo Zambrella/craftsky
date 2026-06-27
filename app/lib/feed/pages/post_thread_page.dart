@@ -18,7 +18,7 @@ import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
-import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -489,9 +489,10 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
                   padding: EdgeInsets.symmetric(horizontal: spacing.sp4),
                   child: Align(
                     alignment: Alignment.centerRight,
-                    child: _CommentSortButton(
-                      selectedSort: widget.selectedSort,
-                      onSortChanged: widget.onSortChanged,
+                    child: SortMenuButton<CommentSort>(
+                      selectedValue: widget.selectedSort,
+                      options: _commentSortOptions(l10n),
+                      onChanged: widget.onSortChanged,
                     ),
                   ),
                 ),
@@ -781,97 +782,24 @@ class _ReplyBranchBox extends StatelessWidget {
   }
 }
 
-class _CommentSortButton extends StatelessWidget {
-  const _CommentSortButton({
-    required this.selectedSort,
-    required this.onSortChanged,
-  });
-
-  final CommentSort selectedSort;
-  final ValueChanged<CommentSort> onSortChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final spacing = theme.extension<SpacingTheme>()!;
-    final label = _sortLabel(l10n, selectedSort);
-    return OutlinedButton.icon(
-      onPressed: () => _showMenu(context),
-      icon: const Icon(Icons.filter_list, size: 18),
-      label: Text(label),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: theme.colorScheme.onSurface,
-        side: BorderSide(color: theme.colorScheme.onSurface, width: 1.5),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        padding: EdgeInsets.symmetric(
-          horizontal: spacing.sp3,
-          vertical: spacing.sp2,
-        ),
+List<SortMenuOption<CommentSort>> _commentSortOptions(AppLocalizations l10n) =>
+    [
+      SortMenuOption(
+        value: CommentSort.newest,
+        label: l10n.postCommentsSortNewest,
+        description: l10n.postCommentsSortNewestDescription,
       ),
-    );
-  }
-
-  void _showMenu(BuildContext context) {
-    final button = context.findRenderObject()! as RenderBox;
-    final overlay =
-        Navigator.of(context).overlay!.context.findRenderObject()! as RenderBox;
-    final offset = button.localToGlobal(Offset.zero, ancestor: overlay);
-    final position = RelativeRect.fromRect(
-      offset & button.size,
-      Offset.zero & overlay.size,
-    );
-    final l10n = AppLocalizations.of(context);
-
-    unawaited(
-      showCraftskyContextMenu(
-        context,
-        position: position,
-        groups: [
-          CraftskyContextMenuGroup(
-            items: [
-              _sortItem(
-                sort: CommentSort.newest,
-                text: l10n.postCommentsSortNewest,
-                description: l10n.postCommentsSortNewestDescription,
-              ),
-              _sortItem(
-                sort: CommentSort.oldest,
-                text: l10n.postCommentsSortOldest,
-                description: l10n.postCommentsSortOldestDescription,
-              ),
-              _sortItem(
-                sort: CommentSort.follows,
-                text: l10n.postCommentsSortFollows,
-                description: l10n.postCommentsSortFollowsDescription,
-              ),
-            ],
-          ),
-        ],
+      SortMenuOption(
+        value: CommentSort.oldest,
+        label: l10n.postCommentsSortOldest,
+        description: l10n.postCommentsSortOldestDescription,
       ),
-    );
-  }
-
-  CraftskyContextMenuItem _sortItem({
-    required CommentSort sort,
-    required String text,
-    required String description,
-  }) {
-    return CraftskyContextMenuItem(
-      text: text,
-      description: description,
-      icon: Icons.check_box_outline_blank,
-      isSelected: selectedSort == sort,
-      onPressed: selectedSort == sort ? () {} : () => onSortChanged(sort),
-    );
-  }
-
-  String _sortLabel(AppLocalizations l10n, CommentSort sort) => switch (sort) {
-    CommentSort.oldest => l10n.postCommentsSortOldest,
-    CommentSort.newest => l10n.postCommentsSortNewest,
-    CommentSort.follows => l10n.postCommentsSortFollows,
-  };
-}
+      SortMenuOption(
+        value: CommentSort.follows,
+        label: l10n.postCommentsSortFollows,
+        description: l10n.postCommentsSortFollowsDescription,
+      ),
+    ];
 
 class _FocusedTargetWrapper extends StatelessWidget {
   const _FocusedTargetWrapper({

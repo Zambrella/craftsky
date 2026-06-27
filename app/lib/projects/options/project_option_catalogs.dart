@@ -1,3 +1,4 @@
+import 'package:craftsky_app/projects/models/project_browse_filters.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 
 abstract final class ProjectOptionCatalogs {
@@ -15,6 +16,34 @@ abstract final class ProjectOptionCatalogs {
   static const quiltingCraftToken = '$feedDefsPrefix#quilting';
   static const finishedStatusToken = '$feedDefsPrefix#finished';
   static const wipStatusToken = '$feedDefsPrefix#wip';
+
+  /// Canonical craft-type tokens used by Flutter on `/v1/*` AppView wires.
+  ///
+  /// AppView accepts supported bare aliases as compatibility inputs, but
+  /// Flutter should prefer these full lexicon tokens for requests and expect
+  /// them in responses.
+  static const defaultSupportedCraftTokens = <String>[
+    knittingCraftToken,
+    crochetCraftToken,
+    sewingCraftToken,
+    embroideryCraftToken,
+    quiltingCraftToken,
+  ];
+
+  static const knittingCraftFilterToken = CraftTypeFilterToken(
+    knittingCraftToken,
+  );
+  static const crochetCraftFilterToken = CraftTypeFilterToken(
+    crochetCraftToken,
+  );
+  static const garmentProjectTypeFilterToken = ProjectTypeFilterToken(
+    '$projectDefsPrefix#garment',
+  );
+  static const beginnerPatternDifficultyFilterToken =
+      PatternDifficultyFilterToken('$feedDefsPrefix#beginner');
+  static const stripesDesignTagFilterToken = DesignTagFilterToken(
+    '$projectDefsPrefix#stripes',
+  );
 
   static const craftTypes = <ProjectOption>[
     ProjectOption(value: knittingCraftToken, label: 'Knitting'),
