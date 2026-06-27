@@ -2,6 +2,7 @@
 package api
 
 import (
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -118,6 +119,9 @@ func BuildProfileResponse(row *ProfileRow, handle syntax.Handle, includeCreatedA
 func synthBlobURL(kind, did string, cid, mime *string) string {
 	if cid == nil || mime == nil {
 		return ""
+	}
+	if name, ok := strings.CutPrefix(*cid, "devmedia:"); ok {
+		return devMediaURL(name)
 	}
 	ext, ok := mimeExt[*mime]
 	if !ok {

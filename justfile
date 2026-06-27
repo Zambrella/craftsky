@@ -45,6 +45,10 @@ tap-status:
 seed-fake *ARGS:
     docker compose exec appview /app/cli seed fake-posts {{ARGS}}
 
+# Populate the dev database with screenshot-friendly profiles, projects, images, and engagement.
+seed-demo *ARGS:
+    docker compose exec appview /app/cli seed demo {{ARGS}}
+
 # Open a psql session against the dev database, or run one-off commands.
 #   just psql                 # interactive shell
 #   just psql -c '\d'         # pass -c / other args through to psql

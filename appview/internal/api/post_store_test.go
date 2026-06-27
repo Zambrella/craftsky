@@ -163,8 +163,8 @@ func seedMember(t *testing.T, pool *pgxpool.Pool, did string) {
 func seedBskyProfile(t *testing.T, pool *pgxpool.Pool, did, displayName, avatarCID string) {
 	t.Helper()
 	if _, err := pool.Exec(context.Background(),
-		`INSERT INTO bluesky_profiles (did, display_name, avatar_cid, record_cid)
-		 VALUES ($1, $2, $3, 'seed')`, did, displayName, avatarCID); err != nil {
+		`INSERT INTO bluesky_profiles (did, display_name, avatar_cid, avatar_mime, record_cid)
+		 VALUES ($1, $2, $3, 'image/jpeg', 'seed')`, did, displayName, avatarCID); err != nil {
 		t.Fatalf("seed bsky profile: %v", err)
 	}
 }
@@ -291,6 +291,9 @@ func TestPostStore_ReadOne_HappyPath(t *testing.T) {
 	}
 	if row.AuthorAvatarCID == nil || *row.AuthorAvatarCID != "bafyavatar" {
 		t.Errorf("avatarCID = %v", row.AuthorAvatarCID)
+	}
+	if row.AuthorAvatarMime == nil || *row.AuthorAvatarMime != "image/jpeg" {
+		t.Errorf("avatarMime = %v", row.AuthorAvatarMime)
 	}
 }
 
@@ -740,7 +743,7 @@ func TestPostStore_ReadAuthor_NoBlueskyMirror_ReturnsNils(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadAuthor: %v", err)
 	}
-	if got.DisplayName != nil || got.AvatarCID != nil {
+	if got.DisplayName != nil || got.AvatarCID != nil || got.AvatarMime != nil {
 		t.Errorf("expected nils, got %+v", got)
 	}
 }

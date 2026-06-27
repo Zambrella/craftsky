@@ -657,7 +657,8 @@ func scanPostRowWithExtraScore(scanner pgx.Row) (SearchPostRow, error) {
 		&post.ReplyRootURI, &post.ReplyRootCID, &post.ReplyParentURI, &post.ReplyParentCID,
 		&post.QuoteURI, &post.QuoteCID, &post.Tags, &post.CreatedAt, &post.IndexedAt,
 		&post.IsProject, &post.ProjectCraftType, &rawProject,
-		&post.AuthorDisplayName, &post.AuthorAvatarCID, &post.ModerationWarningKind,
+		&post.AuthorDisplayName, &post.AuthorAvatarCID, &post.AuthorAvatarMime,
+		&post.ModerationWarningKind,
 		&score,
 	)
 	if err != nil {

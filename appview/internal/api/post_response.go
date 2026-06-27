@@ -3,6 +3,8 @@ package api
 
 import (
 	"encoding/json"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -21,6 +23,7 @@ type PostAuthor struct {
 	DID         string  `json:"did"`
 	Handle      string  `json:"handle"`
 	DisplayName *string `json:"displayName"`
+	Avatar      *string `json:"avatar,omitempty"`
 	AvatarCID   *string `json:"avatarCid"`
 }
 
@@ -166,6 +169,9 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle) *PostResponse {
 		},
 		Project: row.Project,
 	}
+	if avatar := synthBlobURL("avatar", row.DID, row.AuthorAvatarCID, row.AuthorAvatarMime); avatar != "" {
+		resp.Author.Avatar = &avatar
+	}
 	if row.ReplyRootURI != nil && row.ReplyParentURI != nil {
 		resp.Reply = &ResponseReply{
 			Root: ResponseStrongRef{
@@ -221,11 +227,22 @@ func synthPostImageURL(kind, did, cid, mime string) string {
 	if cid == "" || mime == "" {
 		return ""
 	}
+	if name, ok := strings.CutPrefix(cid, "devmedia:"); ok {
+		return devMediaURL(name)
+	}
 	ext, ok := postImageMimeExt[mime]
 	if !ok {
 		return ""
 	}
 	return "https://cdn.bsky.app/img/" + kind + "/plain/" + did + "/" + cid + "@" + ext
+}
+
+func devMediaURL(name string) string {
+	base := strings.TrimRight(os.Getenv("CRAFTSKY_DEV_MEDIA_BASE_URL"), "/")
+	if base == "" {
+		base = "http://localhost:18080/v1/dev/media"
+	}
+	return base + "/" + name
 }
 
 func applyEngagementSummary(resp *PostResponse, summary EngagementSummary) {

@@ -47,6 +47,7 @@ type PostRow struct {
 
 	AuthorDisplayName *string
 	AuthorAvatarCID   *string
+	AuthorAvatarMime  *string
 
 	ModerationWarningKind *string
 
@@ -68,6 +69,7 @@ func (row *PostRow) IsComment() bool {
 type PostAuthorRow struct {
 	DisplayName *string
 	AvatarCID   *string
+	AvatarMime  *string
 }
 
 // PostTargetRef is the indexed post identity needed before writing an
@@ -247,7 +249,7 @@ const postSelectColumns = `
 	p.reply_root_uri, p.reply_root_cid, p.reply_parent_uri, p.reply_parent_cid,
 	p.quote_uri, p.quote_cid, p.tags, p.created_at, p.indexed_at,
 	p.is_project, p.project_craft_type, pp.raw_project,
-	bp.display_name, bp.avatar_cid,
+	bp.display_name, bp.avatar_cid, bp.avatar_mime,
 	CASE
 		WHEN EXISTS (
 			SELECT 1
@@ -328,7 +330,8 @@ func scanPostRow(scanner pgx.Row) (*PostRow, error) {
 		&out.ReplyRootURI, &out.ReplyRootCID, &out.ReplyParentURI, &out.ReplyParentCID,
 		&out.QuoteURI, &out.QuoteCID, &out.Tags, &out.CreatedAt, &out.IndexedAt,
 		&out.IsProject, &out.ProjectCraftType, &rawProject,
-		&out.AuthorDisplayName, &out.AuthorAvatarCID, &out.ModerationWarningKind,
+		&out.AuthorDisplayName, &out.AuthorAvatarCID, &out.AuthorAvatarMime,
+		&out.ModerationWarningKind,
 	)
 	if err != nil {
 		return out, err
@@ -563,12 +566,12 @@ func (s *PostStore) ListCommentsByAuthor(ctx context.Context, did string, limit 
 // to hydrate authors whose row hasn't been indexed yet.
 func (s *PostStore) ReadAuthor(ctx context.Context, did string) (*PostAuthorRow, error) {
 	const q = `
-		SELECT display_name, avatar_cid
+		SELECT display_name, avatar_cid, avatar_mime
 		FROM bluesky_profiles
 		WHERE did = $1
 	`
 	out := &PostAuthorRow{}
-	err := s.pool.QueryRow(ctx, q, did).Scan(&out.DisplayName, &out.AvatarCID)
+	err := s.pool.QueryRow(ctx, q, did).Scan(&out.DisplayName, &out.AvatarCID, &out.AvatarMime)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return &PostAuthorRow{}, nil
 	}

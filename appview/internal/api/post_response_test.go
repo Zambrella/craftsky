@@ -3,6 +3,7 @@ package api_test
 
 import (
 	"encoding/json"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -152,6 +153,7 @@ func TestBuildPostResponse_WithAuthorDisplayFields(t *testing.T) {
 	row := baseRow()
 	row.AuthorDisplayName = ptrStr("Alice")
 	row.AuthorAvatarCID = ptrStr("bafyAvatar")
+	row.AuthorAvatarMime = ptrStr("image/jpeg")
 
 	resp := api.BuildPostResponse(row, syntax.Handle("alice.example"))
 	if resp.Author.DisplayName == nil || *resp.Author.DisplayName != "Alice" {
@@ -159,6 +161,9 @@ func TestBuildPostResponse_WithAuthorDisplayFields(t *testing.T) {
 	}
 	if resp.Author.AvatarCID == nil || *resp.Author.AvatarCID != "bafyAvatar" {
 		t.Errorf("avatarCID = %v", resp.Author.AvatarCID)
+	}
+	if resp.Author.Avatar == nil || *resp.Author.Avatar != "https://cdn.bsky.app/img/avatar/plain/did:plc:alice/bafyAvatar@jpeg" {
+		t.Errorf("avatar = %v", resp.Author.Avatar)
 	}
 }
 
@@ -224,6 +229,26 @@ func TestBuildPostResponse_ImageMetadataIncludesAspectRatioAndSize(t *testing.T)
 	}
 	if img.AspectRatio == nil || img.AspectRatio.Width != 919 || img.AspectRatio.Height != 2000 {
 		t.Fatalf("aspectRatio = %+v", img.AspectRatio)
+	}
+}
+
+func TestBuildPostResponse_DevMediaCIDUsesLocalDevMediaURL(t *testing.T) {
+	t.Setenv("CRAFTSKY_DEV_MEDIA_BASE_URL", "http://example.test/media/")
+	row := baseRow()
+	row.Images = json.RawMessage(`[
+		{"cid":"devmedia:knit-cardigan-moss","mime":"image/jpeg","alt":"project photo"}
+	]`)
+
+	resp := api.BuildPostResponse(row, syntax.Handle("alice.example"))
+	if len(resp.Images) != 1 {
+		t.Fatalf("len(images) = %d, want 1", len(resp.Images))
+	}
+	got := resp.Images[0].Fullsize
+	if got != "http://example.test/media/knit-cardigan-moss" || resp.Images[0].Thumb != got {
+		t.Fatalf("dev media urls = thumb %q fullsize %q", resp.Images[0].Thumb, got)
+	}
+	if _, err := url.ParseRequestURI(got); err != nil {
+		t.Fatalf("dev media URL is not parseable: %v", err)
 	}
 }
 
