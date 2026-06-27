@@ -35,35 +35,25 @@ class _TagSearchPageState extends ConsumerState<TagSearchPage> {
     final tagResultsAsync = ref.watch(provider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.tagSearchTitle(widget.tag))),
+      appBar: AppBar(
+        title: Text(l10n.tagSearchTitle(widget.tag)),
+        actions: [
+          Padding(
+            padding: EdgeInsetsDirectional.only(end: spacing.sp4),
+            child: SortMenuButton<SearchSort>(
+              selectedValue: _sort,
+              options: _sortOptions(l10n),
+              onChanged: (sort) => setState(() => _sort = sort),
+            ),
+          ),
+        ],
+      ),
       body: switch (tagResultsAsync) {
-        AsyncValue(:final value?) => Column(
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                spacing.sp4,
-                spacing.sp2,
-                spacing.sp4,
-                spacing.sp1,
-              ),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: SortMenuButton<SearchSort>(
-                  selectedValue: _sort,
-                  options: _sortOptions(l10n),
-                  onChanged: (sort) => setState(() => _sort = sort),
-                ),
-              ),
-            ),
-            Expanded(
-              child: _TagPostList(
-                posts: value.items,
-                isLoadingMore: tagResultsAsync.isLoading,
-                hasLoadMoreError: tagResultsAsync.hasError,
-                onNearEnd: () => ref.read(provider.notifier).loadMore(),
-              ),
-            ),
-          ],
+        AsyncValue(:final value?) => _TagPostList(
+          posts: value.items,
+          isLoadingMore: tagResultsAsync.isLoading,
+          hasLoadMoreError: tagResultsAsync.hasError,
+          onNearEnd: () => ref.read(provider.notifier).loadMore(),
         ),
         _ when tagResultsAsync.hasError => Center(
           child: TextButton.icon(
