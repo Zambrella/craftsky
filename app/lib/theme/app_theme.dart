@@ -81,6 +81,7 @@ class AppTheme {
       extensions: _extensions(base.colorScheme),
       appBarTheme: _appBarTheme(base),
       navigationBarTheme: _navigationBarTheme(base),
+      tabBarTheme: _tabBarTheme(base),
     );
   }
 
@@ -231,6 +232,19 @@ class AppTheme {
       shape: Border(
         bottom: BorderSide(color: base.colorScheme.onSurface, width: 1.5),
       ),
+    );
+  }
+
+  static TabBarThemeData _tabBarTheme(ThemeData base) {
+    final muted = base.colorScheme.outline;
+    final onSurface = base.colorScheme.onSurface;
+    return TabBarThemeData(
+      labelStyle: base.textTheme.labelMedium,
+      unselectedLabelStyle: base.textTheme.labelMedium?.copyWith(color: muted),
+      labelColor: onSurface,
+      unselectedLabelColor: muted,
+      indicatorColor: onSurface,
+      dividerColor: Colors.transparent,
     );
   }
 

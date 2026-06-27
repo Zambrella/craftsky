@@ -9,6 +9,7 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
+import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -39,6 +40,7 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
     final l10n = AppLocalizations.of(context);
     final spacing =
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
+    final swatches = Theme.of(context).extension<BrandSwatchTheme>()!;
     final projectFeedAsync = ref.watch(projectFeedProvider(_query));
     return DefaultTabController(
       length: ProjectOptionCatalogs.craftTypes.length,
@@ -47,19 +49,29 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
         body: SafeArea(
           child: Column(
             children: [
-              TabBar(
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
-                onTap: (index) {
-                  setState(() {
-                    _craftType = ProjectOptionCatalogs.craftTypes[index].value;
-                    _filters = const ProjectBrowseFilters();
-                  });
-                },
-                tabs: [
-                  for (final option in ProjectOptionCatalogs.craftTypes)
-                    Tab(text: option.label),
-                ],
+              ColoredBox(
+                color: swatches.paper,
+                child: Column(
+                  children: [
+                    TabBar(
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.start,
+                      padding: EdgeInsets.symmetric(horizontal: spacing.sp2),
+                      onTap: (index) {
+                        setState(() {
+                          _craftType =
+                              ProjectOptionCatalogs.craftTypes[index].value;
+                          _filters = const ProjectBrowseFilters();
+                        });
+                      },
+                      tabs: [
+                        for (final option in ProjectOptionCatalogs.craftTypes)
+                          Tab(text: option.label),
+                      ],
+                    ),
+                    const CraftskyDivider(),
+                  ],
+                ),
               ),
               Padding(
                 padding: EdgeInsets.fromLTRB(
