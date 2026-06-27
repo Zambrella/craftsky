@@ -1,62 +1,72 @@
 part of 'search_page.dart';
 
-class _SuggestionList extends ConsumerWidget {
-  const _SuggestionList({
-    required this.query,
-    required this.isWaitingForDebounce,
-    required this.onOpenProfile,
-    required this.onOpenHashtag,
-    required this.onViewAllProfiles,
-    required this.onViewAllHashtags,
-  });
+class _SuggestionList {
+  const _SuggestionList._();
 
-  final String query;
-  final bool isWaitingForDebounce;
-  final ValueChanged<ProfileSearchResult> onOpenProfile;
-  final ValueChanged<String> onOpenHashtag;
-  final VoidCallback onViewAllProfiles;
-  final VoidCallback onViewAllHashtags;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  static List<Widget> slivers({
+    required BuildContext context,
+    required WidgetRef ref,
+    required String query,
+    required bool isWaitingForDebounce,
+    required ValueChanged<ProfileSearchResult> onOpenProfile,
+    required ValueChanged<String> onOpenHashtag,
+    required VoidCallback onViewAllProfiles,
+    required VoidCallback onViewAllHashtags,
+  }) {
     final l10n = AppLocalizations.of(context);
     final spacing =
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
     if (isWaitingForDebounce || query.isEmpty) {
-      return const Center(child: StitchProgressIndicator());
+      return const [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(child: StitchProgressIndicator()),
+        ),
+      ];
     }
     final suggestionsAsync = ref.watch(
       searchSuggestionsProvider(SearchSuggestionQuery(q: query)),
     );
     return switch (suggestionsAsync) {
-      AsyncValue(:final value?) => ListView(
-        padding: EdgeInsets.fromLTRB(
-          spacing.sp4,
-          spacing.sp2,
-          spacing.sp4,
-          spacing.sp5,
-        ),
-        children: [
-          _SuggestionProfileSection(
-            suggestions: value,
-            onOpenProfile: onOpenProfile,
-            onViewAll: onViewAllProfiles,
+      AsyncValue(:final value?) => [
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            spacing.sp4,
+            spacing.sp2,
+            spacing.sp4,
+            spacing.sp5,
           ),
-          SizedBox(height: spacing.sp3),
-          _SuggestionHashtagSection(
-            suggestions: value,
-            onOpenHashtag: onOpenHashtag,
-            onViewAll: onViewAllHashtags,
+          sliver: SliverList.list(
+            children: [
+              _SuggestionProfileSection(
+                suggestions: value,
+                onOpenProfile: onOpenProfile,
+                onViewAll: onViewAllProfiles,
+              ),
+              SizedBox(height: spacing.sp3),
+              _SuggestionHashtagSection(
+                suggestions: value,
+                onOpenHashtag: onOpenHashtag,
+                onViewAll: onViewAllHashtags,
+              ),
+            ],
           ),
-        ],
-      ),
-      _ when suggestionsAsync.hasError => _ErrorView(
-        message: l10n.searchLoadError,
-        onRetry: () => ref.invalidate(
-          searchSuggestionsProvider(SearchSuggestionQuery(q: query)),
         ),
-      ),
-      _ => const Center(child: StitchProgressIndicator()),
+      ],
+      _ when suggestionsAsync.hasError => [
+        _ErrorView(
+          message: l10n.searchLoadError,
+          onRetry: () => ref.invalidate(
+            searchSuggestionsProvider(SearchSuggestionQuery(q: query)),
+          ),
+        ),
+      ],
+      _ => const [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(child: StitchProgressIndicator()),
+        ),
+      ],
     };
   }
 }

@@ -5,11 +5,13 @@ class _SearchResultsTabs extends StatefulWidget {
     required this.query,
     required this.initialTab,
     required this.onOpenHashtag,
+    required this.headerSlivers,
   });
 
   final String query;
   final SearchResultsTab initialTab;
   final ValueChanged<String> onOpenHashtag;
+  final List<Widget> headerSlivers;
 
   @override
   State<_SearchResultsTabs> createState() => _SearchResultsTabsState();
@@ -59,56 +61,108 @@ class _SearchResultsTabsState extends State<_SearchResultsTabs>
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Column(
-      children: [
-        TabBar(
-          controller: _controller,
-          tabs: [
-            Tab(text: l10n.searchTabPosts),
-            Tab(text: l10n.searchTabProjects),
-            Tab(text: l10n.searchTabProfiles),
-            Tab(text: l10n.searchTabTags),
-          ],
-        ),
-        Expanded(
-          child: TabBarView(
-            controller: _controller,
-            children: [
-              _PostResultsList(
-                query: widget.query,
-                type: _PostResultType.posts,
-              ),
-              _PostResultsList(
-                query: widget.query,
-                type: _PostResultType.projects,
-              ),
-              _ProfileResultsList(query: widget.query),
-              _HashtagResultsList(
-                query: widget.query,
-                onOpenHashtag: widget.onOpenHashtag,
-              ),
-            ],
-          ),
+    return NestedScrollView(
+      headerSliverBuilder: (context, innerBoxIsScrolled) => [
+        ...widget.headerSlivers,
+        SliverPersistentHeader(
+          pinned: true,
+          delegate: _SearchResultsTabBarDelegate(controller: _controller),
         ),
       ],
+      body: TabBarView(
+        controller: _controller,
+        children: [
+          for (final tab in SearchResultsTab.values)
+            _SearchResultTabScrollView(
+              tab: tab,
+              query: widget.query,
+              onOpenHashtag: widget.onOpenHashtag,
+            ),
+        ],
+      ),
     );
   }
 }
 
-enum _PostResultType { posts, projects }
+class _SearchResultsTabBarDelegate extends SliverPersistentHeaderDelegate {
+  const _SearchResultsTabBarDelegate({required this.controller});
 
-class _PostResultsList extends ConsumerWidget {
-  const _PostResultsList({required this.query, required this.type});
+  final TabController controller;
 
-  final String query;
-  final _PostResultType type;
+  static const double height = 48;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return switch (type) {
-      _PostResultType.posts => _SubmittedPostResults(query: query),
-      _PostResultType.projects => _SubmittedProjectResults(query: query),
+  double get minExtent => height;
+
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final theme = Theme.of(context);
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    final spacing = theme.extension<SpacingTheme>() ?? const SpacingTheme();
+    final l10n = AppLocalizations.of(context);
+    return ColoredBox(
+      color: swatches.paper,
+      child: Column(
+        children: [
+          Expanded(
+            child: TabBar(
+              controller: controller,
+              padding: EdgeInsets.symmetric(horizontal: spacing.sp2),
+              tabs: [
+                Tab(text: l10n.searchTabPosts),
+                Tab(text: l10n.searchTabProjects),
+                Tab(text: l10n.searchTabProfiles),
+                Tab(text: l10n.searchTabTags),
+              ],
+            ),
+          ),
+          const CraftskyDivider(),
+        ],
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _SearchResultsTabBarDelegate oldDelegate) {
+    return controller != oldDelegate.controller;
+  }
+}
+
+class _SearchResultTabScrollView extends StatelessWidget {
+  const _SearchResultTabScrollView({
+    required this.tab,
+    required this.query,
+    required this.onOpenHashtag,
+  });
+
+  final SearchResultsTab tab;
+  final String query;
+  final ValueChanged<String> onOpenHashtag;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(
+      key: PageStorageKey<String>('search_results_tab_${tab.name}'),
+      slivers: [_sliverForTab(tab)],
+    );
+  }
+
+  Widget _sliverForTab(SearchResultsTab tab) {
+    return switch (tab) {
+      SearchResultsTab.posts => _SubmittedPostResults(query: query),
+      SearchResultsTab.projects => _SubmittedProjectResults(query: query),
+      SearchResultsTab.profiles => _ProfileResultsSliver(query: query),
+      SearchResultsTab.tags => _HashtagResultsSliver(
+        query: query,
+        onOpenHashtag: onOpenHashtag,
+      ),
     };
   }
 }
@@ -135,7 +189,10 @@ class _SubmittedPostResults extends ConsumerWidget {
         message: l10n.searchLoadError,
         onRetry: () => ref.invalidate(provider),
       ),
-      _ => const Center(child: StitchProgressIndicator()),
+      _ => const SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(child: StitchProgressIndicator()),
+      ),
     };
   }
 }
@@ -162,13 +219,16 @@ class _SubmittedProjectResults extends ConsumerWidget {
         message: l10n.searchLoadError,
         onRetry: () => ref.invalidate(provider),
       ),
-      _ => const Center(child: StitchProgressIndicator()),
+      _ => const SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(child: StitchProgressIndicator()),
+      ),
     };
   }
 }
 
-class _ProfileResultsList extends ConsumerWidget {
-  const _ProfileResultsList({required this.query});
+class _ProfileResultsSliver extends ConsumerWidget {
+  const _ProfileResultsSliver({required this.query});
 
   final String query;
 
@@ -178,7 +238,7 @@ class _ProfileResultsList extends ConsumerWidget {
     final provider = profileSearchProvider(ProfileSearchQuery(q: query));
     final profileResultsAsync = ref.watch(provider);
     return switch (profileResultsAsync) {
-      AsyncValue(:final value?) => AutoPaginatedListView(
+      AsyncValue(:final value?) => AutoPaginatedSliverList(
         itemCount: value.items.length,
         emptyText: l10n.searchEmptyProfiles,
         isLoadingMore: profileResultsAsync.isLoading,
@@ -198,13 +258,19 @@ class _ProfileResultsList extends ConsumerWidget {
         message: l10n.searchLoadError,
         onRetry: () => ref.invalidate(provider),
       ),
-      _ => const Center(child: StitchProgressIndicator()),
+      _ => const SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(child: StitchProgressIndicator()),
+      ),
     };
   }
 }
 
-class _HashtagResultsList extends ConsumerWidget {
-  const _HashtagResultsList({required this.query, required this.onOpenHashtag});
+class _HashtagResultsSliver extends ConsumerWidget {
+  const _HashtagResultsSliver({
+    required this.query,
+    required this.onOpenHashtag,
+  });
 
   final String query;
   final ValueChanged<String> onOpenHashtag;
@@ -217,7 +283,7 @@ class _HashtagResultsList extends ConsumerWidget {
     );
     final hashtagResultsAsync = ref.watch(provider);
     return switch (hashtagResultsAsync) {
-      AsyncValue(:final value?) => AutoPaginatedListView(
+      AsyncValue(:final value?) => AutoPaginatedSliverList(
         itemCount: value.items.length,
         emptyText: l10n.searchEmptyTags,
         isLoadingMore: hashtagResultsAsync.isLoading,
@@ -235,7 +301,10 @@ class _HashtagResultsList extends ConsumerWidget {
         message: l10n.searchLoadError,
         onRetry: () => ref.invalidate(provider),
       ),
-      _ => const Center(child: StitchProgressIndicator()),
+      _ => const SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(child: StitchProgressIndicator()),
+      ),
     };
   }
 }

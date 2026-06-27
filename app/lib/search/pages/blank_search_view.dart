@@ -1,46 +1,54 @@
 part of 'search_page.dart';
 
-class _BlankSearchView extends ConsumerWidget {
-  const _BlankSearchView({
-    required this.onOpenQuery,
-    required this.onOpenHashtag,
-    required this.onOpenProfile,
-  });
+class _BlankSearchView {
+  const _BlankSearchView._();
 
-  final ValueChanged<String> onOpenQuery;
-  final ValueChanged<String> onOpenHashtag;
-  final ValueChanged<String> onOpenProfile;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  static List<Widget> slivers({
+    required BuildContext context,
+    required WidgetRef ref,
+    required ValueChanged<String> onOpenQuery,
+    required ValueChanged<String> onOpenHashtag,
+    required ValueChanged<String> onOpenProfile,
+  }) {
     final l10n = AppLocalizations.of(context);
     final spacing =
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
     final blankAsync = ref.watch(blankSearchProvider);
     return switch (blankAsync) {
-      AsyncValue(:final value?) => ListView(
-        padding: EdgeInsets.fromLTRB(
-          spacing.sp4,
-          spacing.sp2,
-          spacing.sp4,
-          spacing.sp5,
-        ),
-        children: [
-          _RecentSearchSection(
-            data: value,
-            onOpenQuery: onOpenQuery,
-            onOpenHashtag: onOpenHashtag,
-            onOpenProfile: onOpenProfile,
+      AsyncValue(:final value?) => [
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            spacing.sp4,
+            spacing.sp2,
+            spacing.sp4,
+            spacing.sp5,
           ),
-          SizedBox(height: spacing.sp5),
-          _TopHashtagSection(data: value, onOpenHashtag: onOpenHashtag),
-        ],
-      ),
-      _ when blankAsync.hasError => _ErrorView(
-        message: l10n.searchLoadError,
-        onRetry: () => ref.invalidate(blankSearchProvider),
-      ),
-      _ => const Center(child: StitchProgressIndicator()),
+          sliver: SliverList.list(
+            children: [
+              _RecentSearchSection(
+                data: value,
+                onOpenQuery: onOpenQuery,
+                onOpenHashtag: onOpenHashtag,
+                onOpenProfile: onOpenProfile,
+              ),
+              SizedBox(height: spacing.sp5),
+              _TopHashtagSection(data: value, onOpenHashtag: onOpenHashtag),
+            ],
+          ),
+        ),
+      ],
+      _ when blankAsync.hasError => [
+        _ErrorView(
+          message: l10n.searchLoadError,
+          onRetry: () => ref.invalidate(blankSearchProvider),
+        ),
+      ],
+      _ => const [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(child: StitchProgressIndicator()),
+        ),
+      ],
     };
   }
 }

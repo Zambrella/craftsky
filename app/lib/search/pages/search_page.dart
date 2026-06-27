@@ -24,6 +24,7 @@ import 'package:craftsky_app/search/providers/search_suggestions_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
+import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -204,14 +205,46 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
     final draft = _draftQuery.trim();
     final showSuggestions = !_hasSubmittedQuery && _focusNode.hasFocus;
-    final body = switch ((_hasSubmittedQuery, showSuggestions, draft.isEmpty)) {
-      (true, _, _) => _SearchResultsTabs(
-        query: widget.q!.trim(),
-        initialTab: widget.tab ?? SearchResultsTab.posts,
-        onOpenHashtag: _openHashtag,
-      ),
-      (false, true, true) => const SizedBox.shrink(),
-      (false, true, false) => _SuggestionList(
+    final headerSlivers = _headerSlivers(l10n, spacing);
+    if (_hasSubmittedQuery) {
+      return Scaffold(
+        body: _SearchResultsTabs(
+          query: widget.q!.trim(),
+          initialTab: widget.tab ?? SearchResultsTab.posts,
+          onOpenHashtag: _openHashtag,
+          headerSlivers: [
+            SliverAppBar(title: Text(l10n.searchTitle), pinned: true),
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _SearchInputHeaderDelegate(
+                child: _SearchInputHeader(
+                  l10n: l10n,
+                  spacing: spacing,
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  draftQuery: _draftQuery,
+                  onClear: _clearText,
+                  onChanged: _onQueryChanged,
+                  onSubmitted: _submitQuery,
+                  onCancel: _cancelSearch,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final body = switch ((
+      _hasSubmittedQuery,
+      showSuggestions,
+      draft.isEmpty,
+    )) {
+      (true, _, _) => const <Widget>[],
+      (false, true, true) => const <Widget>[],
+      (false, true, false) => _SuggestionList.slivers(
+        context: context,
+        ref: ref,
         query: _debouncedQuery.trim(),
         isWaitingForDebounce: _debouncedQuery.trim() != draft,
         onOpenProfile: _openProfile,
@@ -219,61 +252,140 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         onViewAllProfiles: () => _openResultTab(SearchResultsTab.profiles),
         onViewAllHashtags: () => _openResultTab(SearchResultsTab.tags),
       ),
-      _ => _BlankSearchView(
+      _ => _BlankSearchView.slivers(
+        context: context,
+        ref: ref,
         onOpenQuery: (query) => SearchRoute(q: query).go(context),
         onOpenHashtag: (tag) => TagSearchRoute(tag: tag).push<void>(context),
-        onOpenProfile: (handle) => UserProfileRoute(handle: handle).push<void>(
-          context,
-        ),
+        onOpenProfile: (handle) => UserProfileRoute(
+          handle: handle,
+        ).push<void>(context),
       ),
     };
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.searchTitle)),
-      body: SafeArea(
-        child: Column(
+      body: CustomScrollView(
+        slivers: [
+          ...headerSlivers,
+          ...body,
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _headerSlivers(AppLocalizations l10n, SpacingTheme spacing) {
+    return [
+      SliverAppBar(title: Text(l10n.searchTitle), pinned: true),
+      SliverToBoxAdapter(
+        child: _SearchInputHeader(
+          l10n: l10n,
+          spacing: spacing,
+          controller: _controller,
+          focusNode: _focusNode,
+          draftQuery: _draftQuery,
+          onClear: _clearText,
+          onChanged: _onQueryChanged,
+          onSubmitted: _submitQuery,
+          onCancel: _cancelSearch,
+        ),
+      ),
+    ];
+  }
+}
+
+class _SearchInputHeaderDelegate extends SliverPersistentHeaderDelegate {
+  const _SearchInputHeaderDelegate({required this.child});
+
+  final Widget child;
+
+  static const double height = 76;
+
+  @override
+  double get minExtent => height;
+
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return child;
+  }
+
+  @override
+  bool shouldRebuild(covariant _SearchInputHeaderDelegate oldDelegate) {
+    return child != oldDelegate.child;
+  }
+}
+
+class _SearchInputHeader extends StatelessWidget {
+  const _SearchInputHeader({
+    required this.l10n,
+    required this.spacing,
+    required this.controller,
+    required this.focusNode,
+    required this.draftQuery,
+    required this.onClear,
+    required this.onChanged,
+    required this.onSubmitted,
+    required this.onCancel,
+  });
+
+  final AppLocalizations l10n;
+  final SpacingTheme spacing;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final String draftQuery;
+  final VoidCallback onClear;
+  final ValueChanged<String> onChanged;
+  final ValueChanged<String> onSubmitted;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final swatches = Theme.of(context).extension<BrandSwatchTheme>()!;
+    return ColoredBox(
+      color: swatches.paper,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          spacing.sp4,
+          spacing.sp2,
+          spacing.sp4,
+          spacing.sp2,
+        ),
+        child: Row(
           children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                spacing.sp4,
-                spacing.sp3,
-                spacing.sp4,
-                spacing.sp2,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: BrandTextField(
-                      label: l10n.searchTitle,
-                      showLabel: false,
-                      textFieldKey: const ValueKey('search-input'),
-                      controller: _controller,
-                      focusNode: _focusNode,
-                      hintText: l10n.searchHint,
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _draftQuery.isEmpty
-                          ? null
-                          : IconButton(
-                              tooltip: l10n.searchClearAction,
-                              icon: const Icon(Icons.cancel),
-                              onPressed: _clearText,
-                            ),
-                      textInputAction: TextInputAction.search,
-                      onChanged: _onQueryChanged,
-                      onSubmitted: _submitQuery,
-                    ),
-                  ),
-                  if (_focusNode.hasFocus) ...[
-                    SizedBox(width: spacing.sp2),
-                    TextButton(
-                      onPressed: _cancelSearch,
-                      child: Text(l10n.searchCancelAction),
-                    ),
-                  ],
-                ],
+            Expanded(
+              child: BrandTextField(
+                label: l10n.searchTitle,
+                showLabel: false,
+                textFieldKey: const ValueKey('search-input'),
+                controller: controller,
+                focusNode: focusNode,
+                hintText: l10n.searchHint,
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: draftQuery.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: l10n.searchClearAction,
+                        icon: const Icon(Icons.cancel),
+                        onPressed: onClear,
+                      ),
+                textInputAction: TextInputAction.search,
+                onChanged: onChanged,
+                onSubmitted: onSubmitted,
               ),
             ),
-            Expanded(child: body),
+            if (focusNode.hasFocus) ...[
+              SizedBox(width: spacing.sp2),
+              TextButton(
+                onPressed: onCancel,
+                child: Text(l10n.searchCancelAction),
+              ),
+            ],
           ],
         ),
       ),
@@ -298,7 +410,7 @@ class _PostList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AutoPaginatedListView(
+    return AutoPaginatedSliverList(
       itemCount: posts.length,
       emptyText: emptyText,
       isLoadingMore: isLoadingMore,
@@ -371,18 +483,21 @@ class _ErrorView extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final spacing =
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(message),
-          SizedBox(height: spacing.sp2),
-          TextButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh),
-            label: Text(l10n.retryButton),
-          ),
-        ],
+    return SliverFillRemaining(
+      hasScrollBody: false,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(message),
+            SizedBox(height: spacing.sp2),
+            TextButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: Text(l10n.retryButton),
+            ),
+          ],
+        ),
       ),
     );
   }

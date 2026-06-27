@@ -25,55 +25,26 @@ class ProjectsPage extends ConsumerStatefulWidget {
 }
 
 class _ProjectsPageState extends ConsumerState<ProjectsPage> {
-  String _craftType = ProjectOptionCatalogs.defaultSupportedCraftTokens.first;
   SearchSort _sort = SearchSort.chronological;
   ProjectBrowseFilters _filters = const ProjectBrowseFilters();
-
-  ProjectBrowseQuery get _query => ProjectBrowseQuery(
-    craftTypes: [_craftType],
-    filters: _filters,
-    sort: _sort,
-  );
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final spacing =
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
-    final swatches = Theme.of(context).extension<BrandSwatchTheme>()!;
-    final projectFeedAsync = ref.watch(projectFeedProvider(_query));
     return DefaultTabController(
       length: ProjectOptionCatalogs.craftTypes.length,
       child: Scaffold(
-        appBar: AppBar(title: Text(l10n.projectsTitle)),
-        body: SafeArea(
-          child: Column(
-            children: [
-              ColoredBox(
-                color: swatches.paper,
-                child: Column(
-                  children: [
-                    TabBar(
-                      isScrollable: true,
-                      tabAlignment: TabAlignment.start,
-                      padding: EdgeInsets.symmetric(horizontal: spacing.sp2),
-                      onTap: (index) {
-                        setState(() {
-                          _craftType =
-                              ProjectOptionCatalogs.craftTypes[index].value;
-                          _filters = const ProjectBrowseFilters();
-                        });
-                      },
-                      tabs: [
-                        for (final option in ProjectOptionCatalogs.craftTypes)
-                          Tab(text: option.label),
-                      ],
-                    ),
-                    const CraftskyDivider(),
-                  ],
-                ),
-              ),
-              Padding(
+        body: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverAppBar(title: Text(l10n.projectsTitle), pinned: true),
+            const SliverPersistentHeader(
+              pinned: true,
+              delegate: _ProjectCraftTabBarDelegate(),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
                 padding: EdgeInsets.fromLTRB(
                   spacing.sp4,
                   spacing.sp3,
@@ -96,7 +67,9 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
                   ],
                 ),
               ),
-              _ActiveFilterChips(
+            ),
+            SliverToBoxAdapter(
+              child: _ActiveFilterChips(
                 filters: _filters,
                 onRemove: (family, value) => setState(() {
                   _filters = _filters.withoutValue(family, value);
@@ -105,22 +78,16 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
                   _filters = const ProjectBrowseFilters();
                 }),
               ),
-              Expanded(
-                child: switch (projectFeedAsync) {
-                  AsyncValue(:final value?) => _ProjectPostList(
-                    posts: value.items,
-                    isLoadingMore: projectFeedAsync.isLoading,
-                    hasLoadMoreError: projectFeedAsync.hasError,
-                    onNearEnd: () => ref
-                        .read(projectFeedProvider(_query).notifier)
-                        .loadMore(),
-                  ),
-                  _ when projectFeedAsync.hasError => _ProjectErrorView(
-                    onRetry: () => ref.invalidate(projectFeedProvider(_query)),
-                  ),
-                  _ => const Center(child: StitchProgressIndicator()),
-                },
-              ),
+            ),
+          ],
+          body: TabBarView(
+            children: [
+              for (final option in ProjectOptionCatalogs.craftTypes)
+                _ProjectTabScrollView(
+                  craftType: option.value,
+                  filters: _filters,
+                  sort: _sort,
+                ),
             ],
           ),
         ),
@@ -137,7 +104,9 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
           MaterialPageRoute<ProjectBrowseFilters>(
             fullscreenDialog: true,
             builder: (_) => _ProjectFilterSheet(
-              craftType: _craftType,
+              craftType: ProjectOptionCatalogs
+                  .craftTypes[DefaultTabController.of(context).index]
+                  .value,
               initialFilters: _filters,
             ),
           ),
@@ -160,8 +129,97 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
   ];
 }
 
-class _ProjectPostList extends StatelessWidget {
-  const _ProjectPostList({
+class _ProjectCraftTabBarDelegate extends SliverPersistentHeaderDelegate {
+  const _ProjectCraftTabBarDelegate();
+
+  static const double height = 48;
+
+  @override
+  double get minExtent => height;
+
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final theme = Theme.of(context);
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    final spacing = theme.extension<SpacingTheme>() ?? const SpacingTheme();
+    return ColoredBox(
+      color: swatches.paper,
+      child: Column(
+        children: [
+          Expanded(
+            child: TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              padding: EdgeInsets.symmetric(horizontal: spacing.sp2),
+              tabs: [
+                for (final option in ProjectOptionCatalogs.craftTypes)
+                  Tab(text: option.label),
+              ],
+            ),
+          ),
+          const CraftskyDivider(),
+        ],
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _ProjectCraftTabBarDelegate oldDelegate) =>
+      false;
+}
+
+class _ProjectTabScrollView extends ConsumerWidget {
+  const _ProjectTabScrollView({
+    required this.craftType,
+    required this.filters,
+    required this.sort,
+  });
+
+  final String craftType;
+  final ProjectBrowseFilters filters;
+  final SearchSort sort;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final query = ProjectBrowseQuery(
+      craftTypes: [craftType],
+      filters: filters,
+      sort: sort,
+    );
+    final projectFeedAsync = ref.watch(projectFeedProvider(query));
+    return CustomScrollView(
+      key: PageStorageKey<String>('projects_tab_$craftType'),
+      slivers: [
+        switch (projectFeedAsync) {
+          AsyncValue(:final value?) => _ProjectPostSlivers(
+            posts: value.items,
+            isLoadingMore: projectFeedAsync.isLoading,
+            hasLoadMoreError: projectFeedAsync.hasError,
+            onNearEnd: () =>
+                ref.read(projectFeedProvider(query).notifier).loadMore(),
+          ),
+          _ when projectFeedAsync.hasError => _ProjectErrorSliver(
+            onRetry: () => ref.invalidate(projectFeedProvider(query)),
+          ),
+          _ => const SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(child: StitchProgressIndicator()),
+          ),
+        },
+      ],
+    );
+  }
+}
+
+class _ProjectPostSlivers extends StatelessWidget {
+  const _ProjectPostSlivers({
     required this.posts,
     required this.isLoadingMore,
     required this.hasLoadMoreError,
@@ -176,7 +234,7 @@ class _ProjectPostList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return AutoPaginatedListView(
+    return AutoPaginatedSliverList(
       itemCount: posts.length,
       emptyText: l10n.projectsEmpty,
       isLoadingMore: isLoadingMore,
@@ -196,19 +254,22 @@ class _ProjectPostList extends StatelessWidget {
   }
 }
 
-class _ProjectErrorView extends StatelessWidget {
-  const _ProjectErrorView({required this.onRetry});
+class _ProjectErrorSliver extends StatelessWidget {
+  const _ProjectErrorSliver({required this.onRetry});
 
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Center(
-      child: TextButton.icon(
-        onPressed: onRetry,
-        icon: const Icon(Icons.refresh),
-        label: Text(l10n.projectsLoadError),
+    return SliverFillRemaining(
+      hasScrollBody: false,
+      child: Center(
+        child: TextButton.icon(
+          onPressed: onRetry,
+          icon: const Icon(Icons.refresh),
+          label: Text(l10n.projectsLoadError),
+        ),
       ),
     );
   }

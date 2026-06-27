@@ -59,3 +59,66 @@ class AutoPaginatedListView extends StatelessWidget {
     );
   }
 }
+
+class AutoPaginatedSliverList extends StatelessWidget {
+  const AutoPaginatedSliverList({
+    required this.itemCount,
+    required this.emptyText,
+    required this.isLoadingMore,
+    required this.hasLoadMoreError,
+    required this.onNearEnd,
+    required this.itemBuilder,
+    super.key,
+  });
+
+  final int itemCount;
+  final String emptyText;
+  final bool isLoadingMore;
+  final bool hasLoadMoreError;
+  final VoidCallback onNearEnd;
+  final IndexedWidgetBuilder itemBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    final spacing =
+        Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
+    if (itemCount == 0) {
+      return SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(child: Text(emptyText)),
+      );
+    }
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverList.builder(
+          itemCount: itemCount + (isLoadingMore || hasLoadMoreError ? 1 : 0),
+          itemBuilder: (context, index) {
+            if (index >= itemCount) {
+              return Padding(
+                padding: EdgeInsets.all(spacing.sp4),
+                child: Center(
+                  child: isLoadingMore
+                      ? const StitchProgressIndicator()
+                      : TextButton.icon(
+                          onPressed: onNearEnd,
+                          icon: const Icon(Icons.refresh),
+                          label: Text(
+                            AppLocalizations.of(context).retryButton,
+                          ),
+                        ),
+                ),
+              );
+            }
+            if (index >= itemCount - 3 && !isLoadingMore && !hasLoadMoreError) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (context.mounted) onNearEnd();
+              });
+            }
+            return itemBuilder(context, index);
+          },
+        ),
+        SliverPadding(padding: EdgeInsets.only(bottom: spacing.sp5)),
+      ],
+    );
+  }
+}

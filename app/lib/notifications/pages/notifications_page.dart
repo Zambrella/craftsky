@@ -14,9 +14,9 @@ class NotificationsPage extends ConsumerWidget {
     final notifications = ref.watch(notificationsProvider);
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.notificationsTitle)),
       body: CustomScrollView(
         slivers: [
+          SliverAppBar(title: Text(l10n.notificationsTitle), pinned: true),
           switch (notifications) {
             AsyncValue(:final value?) => _NotificationsLoadedSlivers(
               items: value.items,

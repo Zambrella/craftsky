@@ -50,9 +50,9 @@ class FeedPage extends ConsumerWidget {
         }
       });
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.feedTitle)),
       body: CustomScrollView(
         slivers: [
+          SliverAppBar(title: Text(l10n.feedTitle), pinned: true),
           switch (timelineAsync) {
             AsyncValue(:final value?) => _FeedLoadedSlivers(
               posts: value.items,
