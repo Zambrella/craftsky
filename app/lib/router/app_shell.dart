@@ -107,6 +107,7 @@ class _ShellNavigationBar extends StatelessWidget {
         Container(height: 1.5, color: onSurface),
         NavigationBar(
           selectedIndex: selectedIndex,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
           onDestinationSelected: onDestinationSelected,
           destinations: [
             for (final d in _destinations)

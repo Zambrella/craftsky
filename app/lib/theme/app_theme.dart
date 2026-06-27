@@ -265,6 +265,7 @@ class AppTheme {
       indicatorColor: Colors.transparent,
       overlayColor: const WidgetStatePropertyAll(Colors.transparent),
       elevation: 0,
+      height: 64,
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         const base0 = TextStyle(
           fontSize: 12,
