@@ -25,6 +25,7 @@ class ProjectsPage extends ConsumerStatefulWidget {
 }
 
 class _ProjectsPageState extends ConsumerState<ProjectsPage> {
+  var _selectedCraftIndex = 0;
   SearchSort _sort = SearchSort.chronological;
   ProjectBrowseFilters _filters = const ProjectBrowseFilters();
 
@@ -39,9 +40,14 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
         body: NestedScrollView(
           headerSliverBuilder: (context, innerBoxIsScrolled) => [
             SliverAppBar(title: Text(l10n.projectsTitle), pinned: true),
-            const SliverPersistentHeader(
+            SliverPersistentHeader(
               pinned: true,
-              delegate: _ProjectCraftTabBarDelegate(),
+              delegate: _ProjectCraftTabBarDelegate(
+                onTap: (index) => setState(() {
+                  _selectedCraftIndex = index;
+                  _filters = const ProjectBrowseFilters();
+                }),
+              ),
             ),
             SliverToBoxAdapter(
               child: Padding(
@@ -96,6 +102,8 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
   }
 
   Future<void> _openFilters() async {
+    final craftType =
+        ProjectOptionCatalogs.craftTypes[_selectedCraftIndex].value;
     final filters =
         await Navigator.of(
           context,
@@ -104,9 +112,7 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
           MaterialPageRoute<ProjectBrowseFilters>(
             fullscreenDialog: true,
             builder: (_) => _ProjectFilterSheet(
-              craftType: ProjectOptionCatalogs
-                  .craftTypes[DefaultTabController.of(context).index]
-                  .value,
+              craftType: craftType,
               initialFilters: _filters,
             ),
           ),
@@ -130,7 +136,9 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
 }
 
 class _ProjectCraftTabBarDelegate extends SliverPersistentHeaderDelegate {
-  const _ProjectCraftTabBarDelegate();
+  const _ProjectCraftTabBarDelegate({required this.onTap});
+
+  final ValueChanged<int> onTap;
 
   static const double height = 48;
 
@@ -155,6 +163,7 @@ class _ProjectCraftTabBarDelegate extends SliverPersistentHeaderDelegate {
         children: [
           Expanded(
             child: TabBar(
+              onTap: onTap,
               isScrollable: true,
               tabAlignment: TabAlignment.start,
               padding: EdgeInsets.symmetric(horizontal: spacing.sp2),
@@ -171,8 +180,9 @@ class _ProjectCraftTabBarDelegate extends SliverPersistentHeaderDelegate {
   }
 
   @override
-  bool shouldRebuild(covariant _ProjectCraftTabBarDelegate oldDelegate) =>
-      false;
+  bool shouldRebuild(covariant _ProjectCraftTabBarDelegate oldDelegate) {
+    return onTap != oldDelegate.onTap;
+  }
 }
 
 class _ProjectTabScrollView extends ConsumerWidget {
