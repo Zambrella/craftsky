@@ -226,7 +226,7 @@ class AppTheme {
       foregroundColor: base.colorScheme.onSurface,
       elevation: 0,
       scrolledUnderElevation: 0,
-      centerTitle: true,
+      centerTitle: false,
       titleTextStyle: base.textTheme.titleLarge,
       shape: Border(
         bottom: BorderSide(color: base.colorScheme.onSurface, width: 1.5),
