@@ -43,8 +43,13 @@ class SortMenuButton<T> extends StatelessWidget {
       label: Text(selected.label),
       style: OutlinedButton.styleFrom(
         foregroundColor: theme.colorScheme.onSurface,
-        side: BorderSide(color: theme.colorScheme.onSurface, width: 1.5),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        side: BorderSide(
+          color: theme.colorScheme.outlineVariant,
+          width: 1.5,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(spacing.sp2),
+        ),
         padding: EdgeInsets.symmetric(
           horizontal: spacing.sp3,
           vertical: spacing.sp2,

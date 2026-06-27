@@ -39,7 +39,27 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
       child: Scaffold(
         body: NestedScrollView(
           headerSliverBuilder: (context, innerBoxIsScrolled) => [
-            SliverAppBar(title: Text(l10n.projectsTitle), pinned: true),
+            SliverAppBar(
+              title: Text(l10n.projectsTitle),
+              pinned: true,
+              actions: [
+                OutlinedButton.icon(
+                  onPressed: _openFilters,
+                  icon: const Icon(Icons.tune, size: 18),
+                  label: Text(l10n.projectsFilterAction),
+                  style: _appBarControlStyle(context),
+                ),
+                SizedBox(width: spacing.sp2),
+                Padding(
+                  padding: EdgeInsetsDirectional.only(end: spacing.sp4),
+                  child: SortMenuButton<SearchSort>(
+                    selectedValue: _sort,
+                    options: _sortOptions(l10n),
+                    onChanged: (sort) => setState(() => _sort = sort),
+                  ),
+                ),
+              ],
+            ),
             SliverPersistentHeader(
               pinned: true,
               delegate: _ProjectCraftTabBarDelegate(
@@ -47,31 +67,6 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
                   _selectedCraftIndex = index;
                   _filters = const ProjectBrowseFilters();
                 }),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  spacing.sp4,
-                  spacing.sp3,
-                  spacing.sp4,
-                  spacing.sp2,
-                ),
-                child: Row(
-                  children: [
-                    FilledButton.icon(
-                      onPressed: _openFilters,
-                      icon: const Icon(Icons.tune),
-                      label: Text(l10n.projectsFilterAction),
-                    ),
-                    const Spacer(),
-                    SortMenuButton<SearchSort>(
-                      selectedValue: _sort,
-                      options: _sortOptions(l10n),
-                      onChanged: (sort) => setState(() => _sort = sort),
-                    ),
-                  ],
-                ),
               ),
             ),
             SliverToBoxAdapter(
@@ -133,6 +128,22 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
       description: l10n.searchSortPopularDescription,
     ),
   ];
+
+  ButtonStyle _appBarControlStyle(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>() ?? const SpacingTheme();
+    return OutlinedButton.styleFrom(
+      foregroundColor: theme.colorScheme.onSurface,
+      side: BorderSide(color: theme.colorScheme.outlineVariant, width: 1.5),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(spacing.sp2),
+      ),
+      padding: EdgeInsets.symmetric(
+        horizontal: spacing.sp3,
+        vertical: spacing.sp2,
+      ),
+    );
+  }
 }
 
 class _ProjectCraftTabBarDelegate extends SliverPersistentHeaderDelegate {
