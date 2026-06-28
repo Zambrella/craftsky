@@ -66,7 +66,7 @@ Decision / implication: v1 shall retain endpoint-specific success shapes such as
 
 Answer: Route-class policy.
 
-Decision / implication: Rate limits shall be configurable by route class, including at least auth, read, write, expensive/search, and upload classes, while enforcing both per-token and per-device counters where identity is available. V1 shall use shared buckets per route class rather than per-endpoint buckets.
+Decision / implication: Rate limits shall be configurable by route class, including at least auth, read, write, expensive/search, and upload classes, while enforcing both per-token and per-device counters where identity is available. Auth/login routes are pre-auth and shall not require a Craftsky session token for rate-limit evaluation; their initial AppView limiter is per-device. V1 shall use shared buckets per route class rather than per-endpoint buckets.
 
 ### Q3: What production CORS posture should v1 use?
 
@@ -108,7 +108,7 @@ Decision / implication: Production CORS shall use exact-origin matching only. Wi
 
 Answer: No, not unless a future cookie-based web auth design requires it.
 
-Decision / implication: Browser API calls shall rely on `Authorization` headers, not cookie credentials, for v1.
+Decision / implication: Browser API calls shall rely on bearer-token `Authorization` headers, not cookie credentials, for v1. Disabling `Access-Control-Allow-Credentials` means cookie/browser credential mode is not supported; it does not prohibit CORS support for the `Authorization` request header.
 
 ### Q10: What should 429 responses expose?
 
@@ -275,7 +275,7 @@ AppView v1 should have a documented, testable cross-cutting API contract: succes
 | FR-007 | Functional | Must | The system shall enforce rate limits per Craftsky session token for authenticated requests. | A valid token should not be able to abuse the API independently of device ID. | Roadmap; user answer Q2 | AC-007, AC-008 |
 | FR-008 | Functional | Must | The system shall enforce rate limits per `X-Craftsky-Device-Id` where the device ID is available. | Device-level throttling is needed for login and multi-token abuse scenarios. | Roadmap; user answer Q2 | AC-007, AC-008 |
 | FR-009 | Functional | Must | When a request is rate limited, the system shall return HTTP 429 with error code `rate_limited`, use the standard error envelope, and include `Retry-After`. | Clients need predictable throttling behavior without exposing bucket details to attackers. | User answer Q10; roadmap | AC-008 |
-| FR-010 | Functional | Must | Production CORS shall allow only exact configured origins and shall include the headers/methods needed by first-party web clients, including `Authorization`, `Content-Type`, and `X-Craftsky-Device-Id`. | Browser clients need CORS support for authenticated API calls. | User answers Q3, Q8; existing CORS code | AC-009, AC-010 |
+| FR-010 | Functional | Must | Production CORS shall allow only exact configured origins and shall include the headers/methods needed by first-party web clients, including bearer-token `Authorization`, `Content-Type`, and `X-Craftsky-Device-Id`, while not enabling cookie credential CORS for v1. | Browser clients need CORS support for authenticated API calls without allowing cookie-based credential sharing. | User answers Q3, Q8, Q9; existing CORS code | AC-009, AC-010 |
 | FR-011 | Functional | Should | Development CORS may allow localhost or wildcard origins when explicitly configured. | Keeps local development convenient without weakening production. | Existing CORS code; discovery recommendation | AC-010 |
 | FR-012 | Functional | Must | Oversized request bodies shall be rejected with HTTP 413, error code `request_body_too_large`, and message `request body exceeds the configured limit`. | Clients and tests need a stable oversize error contract. | User answer Q7 | AC-011 |
 | FR-013 | Functional | Must | Routes that do not declare a request body shall reject non-empty bodies with error code `request_body_not_allowed`, unless an endpoint explicitly allows a body. | Prevents clients from depending on ignored or ambiguous request bodies. | User answer Q14 | AC-016 |
@@ -306,7 +306,7 @@ AppView v1 should have a documented, testable cross-cutting API contract: succes
 | AC-007 | BR-002, FR-003, FR-007, FR-008, NFR-002 | Given authenticated requests with a Craftsky token and device ID, when the client exceeds the configured class limit for either key, then further requests in that class are rejected before handler work proceeds. |
 | AC-008 | BR-002, FR-007, FR-008, FR-009, NFR-002 | Given a request is rejected by rate limiting, when the response is received, then it is HTTP 429, uses error code `rate_limited`, uses the standard error envelope, includes `Retry-After`, and does not expose public bucket/quota details. |
 | AC-009 | BR-003, FR-010, RULE-003 | Given production configuration, when a browser request comes from `https://app.craftsky.social`, then CORS headers allow it; when it comes from `https://craftsky.social`, wildcard subdomains, preview patterns, or any unconfigured origin, then the response does not allow that origin. |
-| AC-010 | BR-003, FR-010, FR-011 | Given a CORS preflight from an allowed web origin, when it requests supported methods and headers including `Authorization`, `Content-Type`, and `X-Craftsky-Device-Id`, then the preflight succeeds with appropriate CORS headers. |
+| AC-010 | BR-003, FR-010, FR-011 | Given a CORS preflight from an allowed web origin, when it requests supported methods and headers including bearer-token `Authorization`, `Content-Type`, and `X-Craftsky-Device-Id`, then the preflight succeeds with appropriate CORS headers and does not enable `Access-Control-Allow-Credentials` for v1 cookie credential mode. |
 | AC-011 | FR-004, FR-012, NFR-001 | Given a JSON request body larger than the default `1 MiB` limit to a default-limited route, when the request is processed, then the system rejects it with HTTP 413, error code `request_body_too_large`, message `request body exceeds the configured limit`, and the standard error envelope before JSON parsing, endpoint work, or body-copying debug logging. |
 | AC-012 | FR-004, NFR-001 | Given a JSON request body at or below the default configured limit, when the request is otherwise valid, then body-limit middleware does not reject it. |
 | AC-013 | FR-005, RULE-004 | Given an endpoint with an explicit body-size override, when requests are below and above that override, then the endpoint accepts/rejects according to the override rather than the default JSON limit. |
@@ -317,7 +317,7 @@ AppView v1 should have a documented, testable cross-cutting API contract: succes
 | AC-018 | RULE-005, FR-003, FR-008 | Given a request includes a valid device ID, when authorization decisions are made, then the device ID is not used as proof of identity or permission. |
 | AC-019 | RULE-006 | Given AppView rate-limit keys are inspected, when v1 limits are configured, then no limiter key is based on client IP address. |
 | AC-020 | RULE-007 | Given upload requests exceed the upload class limit through failed or successful attempts, when another upload is attempted, then it is rate limited even if prior attempts did not succeed. |
-| AC-021 | RULE-008 | Given the v1 limiter is process-local, when deployment guidance/configuration is reviewed, then it explicitly states that multi-instance AppView deployments require shared limiter storage or equivalent edge enforcement before horizontal scaling. |
+| AC-021 | RULE-008 | Given the v1 limiter is process-local, when deployment guidance/configuration is reviewed, then a concrete implementation artifact such as config documentation, deployment notes, or startup/operator-facing guidance explicitly states that multi-instance AppView deployments require shared limiter storage or equivalent edge enforcement before horizontal scaling. |
 
 ## 14. Edge Cases
 
