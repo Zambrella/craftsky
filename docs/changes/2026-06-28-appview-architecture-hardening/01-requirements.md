@@ -14,8 +14,10 @@ The requester asked for guidance on best practices and confirmed these decisions
 
 - Keep successful `/v1/*` JSON responses as bare endpoint-specific bodies for v1; do not wrap them in `{ "data": ... }`.
 - Use route-class rate limiting rather than a single global limit.
-- Configure production CORS for known Craftsky web origins because a web version may arrive soon.
+- Configure production CORS for the known Craftsky web app origin because a web version may arrive soon.
 - Use a global JSON request-body size limit with explicit endpoint overrides.
+- Use process-local AppView rate limiting for v1, with single-instance deployment as an explicit constraint.
+- Use initial configurable rate/body defaults recorded in this document.
 
 ## 2. Current Codebase Findings
 
@@ -64,19 +66,97 @@ Decision / implication: v1 shall retain endpoint-specific success shapes such as
 
 Answer: Route-class policy.
 
-Decision / implication: Rate limits shall be configurable by route class, including at least auth, read, write, expensive/search, and upload classes, while enforcing both per-token and per-device counters where identity is available.
+Decision / implication: Rate limits shall be configurable by route class, including at least auth, read, write, expensive/search, and upload classes, while enforcing both per-token and per-device counters where identity is available. V1 shall use shared buckets per route class rather than per-endpoint buckets.
 
 ### Q3: What production CORS posture should v1 use?
 
-Answer: Allow known Craftsky web origins because a web version may come very soon.
+Answer: Allow the known Craftsky web app origin because a web version may come very soon.
 
-Decision / implication: Production CORS shall be explicit allow-list based and support known Craftsky-owned web origins. It shall not allow arbitrary origins in production.
+Decision / implication: Production CORS shall be explicit allow-list based and support `https://app.craftsky.social` as the initial authenticated web app origin. `https://craftsky.social` is the marketing/landing origin and shall not be allowed to call authenticated AppView APIs unless a future decision changes that. Production CORS shall not allow arbitrary origins, wildcard subdomains, or preview-domain patterns.
 
 ### Q4: How should request body size limits be scoped?
 
 Answer: Use a global JSON limit plus explicit endpoint overrides.
 
 Decision / implication: AppView shall enforce a conservative default body limit for JSON requests and allow route-specific overrides for endpoints with different needs, especially image/blob upload.
+
+### Q5: Should rate limiting be shared across instances or process-local for v1?
+
+Answer: Use process-local AppView rate limiting for v1 and explicitly constrain that to single-AppView-instance deployment.
+
+Decision / implication: V1 may use in-memory/process-local counters while production runs one AppView instance. Multi-instance deployment requires shared limiter storage or equivalent edge enforcement before scaling horizontally.
+
+### Q6: What initial body-size and rate-limit defaults should be documented?
+
+Answer: Lock initial configurable defaults.
+
+Decision / implication: Defaults shall be: JSON body limit `1 MiB`; auth/login `10 requests/minute per device ID`; read routes `300 requests/minute per token` and `600 requests/minute per device ID`; write routes `60 requests/minute per token` and `120 requests/minute per device ID`; expensive/search routes `60 requests/minute per token` and `120 requests/minute per device ID`; upload routes `100 requests/hour per token` and `200 requests/hour per device ID`.
+
+### Q7: What exact body-limit error should be used?
+
+Answer: Use HTTP 413 with error code `request_body_too_large`.
+
+Decision / implication: Oversized body responses shall use the standard error envelope and message `request body exceeds the configured limit`.
+
+### Q8: Should production CORS use exact origins only?
+
+Answer: Yes.
+
+Decision / implication: Production CORS shall use exact-origin matching only. Wildcard subdomains and preview-domain patterns are out of scope; additional origins must be explicitly configured.
+
+### Q9: Should v1 CORS send `Access-Control-Allow-Credentials: true`?
+
+Answer: No, not unless a future cookie-based web auth design requires it.
+
+Decision / implication: Browser API calls shall rely on `Authorization` headers, not cookie credentials, for v1.
+
+### Q10: What should 429 responses expose?
+
+Answer: Use `rate_limited` plus `Retry-After`, without public quota/bucket details.
+
+Decision / implication: V1 shall not expose public `X-RateLimit-*` headers or bucket names. Internal logs may include route class and key type without raw token/device values.
+
+### Q11: How should dev-only `/v1/dev/*` routes be handled?
+
+Answer: They still require explicit classification.
+
+Decision / implication: Dev-only routes may use a documented dev-only exemption or relaxed class, and tests should verify those routes cannot appear in production unexpectedly.
+
+### Q12: How trustworthy is `X-Craftsky-Device-Id`?
+
+Answer: Treat it as an untrusted client-supplied signal, not identity.
+
+Decision / implication: Device ID may contribute to abuse controls but shall not be used as authorization evidence. Token-based limits remain authoritative for authenticated routes.
+
+### Q13: What middleware ordering is required for body limits?
+
+Answer: Body-size limiting must run before any middleware that reads or copies request bodies, including debug logging.
+
+Decision / implication: Oversized body protection must prevent large in-memory reads and must not log full rejected bodies.
+
+### Q14: Should no-body routes reject unexpected bodies?
+
+Answer: Yes.
+
+Decision / implication: `/v1/*` routes that do not declare a request body, including GET and default DELETE routes, shall reject non-empty bodies with error code `request_body_not_allowed` unless the endpoint explicitly allows a body.
+
+### Q15: Should CORS preflight requests be rate limited by route-class limits?
+
+Answer: No.
+
+Decision / implication: Successful CORS preflight handling is exempt from normal AppView route-class rate limits. Exact-origin checks, preflight caching, and future edge/proxy controls handle preflight abuse.
+
+### Q16: Should AppView v1 use IP-based rate-limit keys?
+
+Answer: No.
+
+Decision / implication: AppView v1 shall avoid IP-based rate-limit keys. Login IP throttling is a deployment edge/proxy responsibility outside this AppView requirements scope.
+
+### Q17: Should upload limits count attempts or only successes?
+
+Answer: Count attempts.
+
+Decision / implication: Upload rate limits count attempted upload requests, not just successful uploads.
 
 ## 4. Candidate Approaches
 
@@ -99,7 +179,7 @@ Risks:
 
 ### Option B: Launch-Ready Route-Class Hardening
 
-Summary: Keep bare success bodies, define a global JSON body limit with overrides, formalize device-id/error-envelope helper expectations, implement route-class rate limits per token and per device, and lock production CORS to known web origins.
+Summary: Keep bare success bodies, define a global JSON body limit with overrides, formalize device-id/error-envelope helper expectations, implement process-local shared route-class rate limits per token and per device, and lock production CORS to the exact web app origin.
 
 Pros:
 - Aligns with existing API shape while addressing launch risks.
@@ -136,7 +216,7 @@ Risks:
 
 Recommended approach: Option B, launch-ready route-class hardening while preserving bare success bodies.
 
-Why: This direction addresses the actual launch risks — oversized bodies, abuse limits, browser-origin policy, and cross-cutting response/header consistency — without creating unnecessary API-shape churn. It also supports a likely near-term web client through explicit production CORS allow-listing rather than a permissive policy.
+Why: This direction addresses the actual launch risks — oversized bodies, abuse limits, browser-origin policy, and cross-cutting response/header consistency — without creating unnecessary API-shape churn. It also supports a likely near-term web client through exact production CORS allow-listing for `https://app.craftsky.social` rather than a permissive policy.
 
 ## 6. Problem / Opportunity
 
@@ -146,8 +226,8 @@ The AppView has enough endpoint surface that cross-cutting API behavior must be 
 
 - G-001: Lock the v1 success response contract before public clients depend on it.
 - G-002: Protect AppView from oversized request bodies in a consistent, testable way.
-- G-003: Add launch-ready AppView rate limiting that distinguishes route risk classes and keys by token/device where possible.
-- G-004: Define a production CORS policy that supports known Craftsky web clients without allowing arbitrary origins.
+- G-003: Add launch-ready AppView rate limiting that distinguishes route risk classes and keys by token/device where possible, with documented v1 single-instance constraints.
+- G-004: Define a production CORS policy that supports `https://app.craftsky.social` without allowing arbitrary origins.
 - G-005: Make cross-cutting helper and middleware expectations clear enough that future endpoints do not bypass them accidentally.
 
 ## 8. Non-Goals
@@ -158,6 +238,8 @@ The AppView has enough endpoint surface that cross-cutting API behavior must be 
 - NG-004: Do not design a full observability/metrics/tracing system; only require minimal logging/metrics hooks needed for rate-limit/body-limit/CORS behavior.
 - NG-005: Do not add user-facing Flutter UI changes beyond whatever client compatibility is needed for unchanged bare success bodies and standard errors.
 - NG-006: Do not rely solely on reverse proxy/CDN enforcement for body size or rate limiting.
+- NG-007: Do not implement AppView IP-based rate-limit keys in v1; IP throttling is an edge/proxy responsibility.
+- NG-008: Do not allow `https://craftsky.social` to call authenticated AppView APIs unless a future requirements decision changes that.
 
 ## 9. Users / Actors
 
@@ -175,7 +257,7 @@ AppView already has `/v1/*` route registration, error-envelope helpers, device-i
 
 ## 11. Desired Behavior
 
-AppView v1 should have a documented, testable cross-cutting API contract: successful responses remain bare endpoint-specific JSON, errors use the standard envelope, body sizes are limited by default with explicit overrides, route-class rate limits enforce both per-token and per-device controls where identity is available, CORS allows only configured Craftsky web origins in production, and all v1 routes follow consistent middleware/helper expectations.
+AppView v1 should have a documented, testable cross-cutting API contract: successful responses remain bare endpoint-specific JSON, errors use the standard envelope, body sizes are limited by default with explicit overrides, route-class rate limits enforce both per-token and per-device controls where identity is available, CORS allows only the configured Craftsky web app origin in production, and all v1 routes follow consistent middleware/helper expectations.
 
 ## 12. Requirements
 
@@ -183,19 +265,22 @@ AppView v1 should have a documented, testable cross-cutting API contract: succes
 |---|---|---|---|---|---|---|
 | BR-001 | Business | Must | AppView v1 shall lock successful JSON responses as bare endpoint-specific bodies rather than `{ "data": ... }` wrappers. | Avoids a later breaking `/v2/` change and preserves existing client/server shape. | User answer Q1; API architecture open question | AC-001, AC-002 |
 | BR-002 | Business | Must | AppView shall provide launch-ready abuse protection for `/v1/*` through route-class rate limits. | Public launch requires protection against abusive or buggy clients. | User answer Q2; roadmap | AC-006, AC-007, AC-008 |
-| BR-003 | Business | Must | AppView production CORS shall support known Craftsky web origins without allowing arbitrary origins. | A web version may come soon, but permissive CORS is not launch-safe. | User answer Q3 | AC-009, AC-010 |
+| BR-003 | Business | Must | AppView production CORS shall support `https://app.craftsky.social` without allowing arbitrary origins or the marketing origin `https://craftsky.social`. | A web version may come soon, but permissive CORS and marketing-origin API access are not launch-safe. | User answers Q3, Q8 | AC-009, AC-010 |
 | FR-001 | Functional | Must | The system shall continue returning standard error envelopes with `error`, `message`, and `requestId`, plus optional `fields`, for `/v1/*` error responses. | Existing API contract and client error handling depend on this shape. | Codebase; API architecture spec | AC-003, AC-004 |
 | FR-002 | Functional | Must | The system shall expose and require shared response helpers for `/v1/*` handlers so JSON success and error responses consistently set status and `Content-Type`. | Prevents handlers from drifting or bypassing error-envelope conventions. | Codebase; roadmap cross-cutting helpers item | AC-003, AC-004 |
 | FR-003 | Functional | Must | The system shall enforce `X-Craftsky-Device-Id` on applicable `/v1/*` routes using the established validation rule of 1-128 characters from `[A-Za-z0-9_-]`. | Device ID is needed for session instrumentation and per-device rate limiting. | Existing middleware; API architecture spec | AC-005, AC-007 |
-| FR-004 | Functional | Must | The system shall enforce a conservative default request body size limit for JSON request bodies. | Protects memory and CPU from oversized JSON bodies. | User answer Q4; roadmap | AC-011, AC-012 |
+| FR-004 | Functional | Must | The system shall enforce a default `1 MiB` request body size limit for JSON request bodies. | Protects memory and CPU from oversized JSON bodies. | User answers Q4, Q6 | AC-011, AC-012 |
 | FR-005 | Functional | Must | The system shall support explicit per-route body size overrides for endpoints whose expected payloads differ from the default, including blob/image upload routes. | Uploads and other large-body endpoints need limits suited to their purpose. | User answer Q4; existing media limits | AC-013 |
-| FR-006 | Functional | Must | The system shall classify `/v1/*` routes into rate-limit classes including at least auth, read, write, expensive/search, and upload. | Different route types have different cost and abuse profiles. | User answer Q2 | AC-006 |
+| FR-006 | Functional | Must | The system shall classify `/v1/*` routes into shared rate-limit classes including at least auth, read, write, expensive/search, and upload. | Different route types have different cost and abuse profiles. Shared class buckets avoid endpoint rotation bypasses. | User answers Q2, Q6 | AC-006 |
 | FR-007 | Functional | Must | The system shall enforce rate limits per Craftsky session token for authenticated requests. | A valid token should not be able to abuse the API independently of device ID. | Roadmap; user answer Q2 | AC-007, AC-008 |
 | FR-008 | Functional | Must | The system shall enforce rate limits per `X-Craftsky-Device-Id` where the device ID is available. | Device-level throttling is needed for login and multi-token abuse scenarios. | Roadmap; user answer Q2 | AC-007, AC-008 |
-| FR-009 | Functional | Must | When a request is rate limited, the system shall return HTTP 429 using the standard error envelope and include retry guidance through headers or documented response behavior. | Clients need predictable throttling behavior and retry information. | Best-practice guidance; roadmap | AC-008 |
-| FR-010 | Functional | Must | Production CORS shall allow only configured origins and shall include the headers/methods needed by first-party web clients, including `Authorization`, `Content-Type`, and `X-Craftsky-Device-Id`. | Browser clients need CORS support for authenticated API calls. | User answer Q3; existing CORS code | AC-009, AC-010 |
+| FR-009 | Functional | Must | When a request is rate limited, the system shall return HTTP 429 with error code `rate_limited`, use the standard error envelope, and include `Retry-After`. | Clients need predictable throttling behavior without exposing bucket details to attackers. | User answer Q10; roadmap | AC-008 |
+| FR-010 | Functional | Must | Production CORS shall allow only exact configured origins and shall include the headers/methods needed by first-party web clients, including `Authorization`, `Content-Type`, and `X-Craftsky-Device-Id`. | Browser clients need CORS support for authenticated API calls. | User answers Q3, Q8; existing CORS code | AC-009, AC-010 |
 | FR-011 | Functional | Should | Development CORS may allow localhost or wildcard origins when explicitly configured. | Keeps local development convenient without weakening production. | Existing CORS code; discovery recommendation | AC-010 |
-| NFR-001 | Non-functional | Must | Body-limit enforcement shall occur before handlers parse request bodies or perform expensive work. | Limits must protect resource usage, not merely validate after work is done. | Discovery | AC-011, AC-012 |
+| FR-012 | Functional | Must | Oversized request bodies shall be rejected with HTTP 413, error code `request_body_too_large`, and message `request body exceeds the configured limit`. | Clients and tests need a stable oversize error contract. | User answer Q7 | AC-011 |
+| FR-013 | Functional | Must | Routes that do not declare a request body shall reject non-empty bodies with error code `request_body_not_allowed`, unless an endpoint explicitly allows a body. | Prevents clients from depending on ignored or ambiguous request bodies. | User answer Q14 | AC-016 |
+| FR-014 | Functional | Must | CORS preflight requests that pass the CORS policy shall be handled before normal route-class rate limiting. | Browser preflights are unauthenticated and should not consume token/device route buckets. | User answer Q15 | AC-017 |
+| NFR-001 | Non-functional | Must | Body-limit enforcement shall occur before handlers parse request bodies or perform expensive work, and before any middleware reads or copies request bodies. | Limits must protect resource usage, not merely validate after work is done; debug logging currently reads JSON bodies. | User answer Q13; codebase finding | AC-011, AC-012, AC-015 |
 | NFR-002 | Non-functional | Must | Rate-limit checks shall occur early in the middleware chain after enough identity information is available to choose the correct key. | Prevents expensive handler work for requests that should be throttled. | Discovery | AC-007, AC-008 |
 | NFR-003 | Non-functional | Should | Rate-limit and body-limit behavior shall be configurable with safe defaults suitable for local development and production deployment. | Operators need tuning without source changes. | Discovery; app config pattern | AC-014 |
 | NFR-004 | Non-functional | Should | Limit rejections shall avoid logging full sensitive request bodies or bearer tokens. | Prevents sensitive data exposure during abuse events. | Security review | AC-015 |
@@ -203,6 +288,10 @@ AppView v1 should have a documented, testable cross-cutting API contract: succes
 | RULE-002 | Business rule | Must | Error responses shall remain enveloped even though success responses are bare. | Distinguishes operational errors from domain resources while preserving support diagnostics. | Existing API architecture | AC-003 |
 | RULE-003 | Business rule | Must | Production CORS shall not use `*` or broad origin reflection. | Prevents arbitrary browser origins from calling credentialed APIs. | User answer Q3; security best practice | AC-009 |
 | RULE-004 | Business rule | Must | Every registered `/v1/*` route shall have an explicit body-limit and rate-limit classification, even if its limit class is `none` or `no-body`. | Prevents new routes from silently bypassing cross-cutting policy. | Discovery | AC-006, AC-013 |
+| RULE-005 | Business rule | Must | `X-Craftsky-Device-Id` shall be treated as an untrusted client-supplied abuse-control signal, not as identity or authorization evidence. | Device IDs can be spoofed or rotated. | User answer Q12 | AC-018 |
+| RULE-006 | Business rule | Must | AppView v1 shall not use IP addresses as rate-limit keys. | Avoids privacy and proxy-header complexity in AppView v1. | User answer Q16 | AC-019 |
+| RULE-007 | Business rule | Must | Upload rate limits shall count attempted upload requests, not only successful uploads. | Failed uploads still consume resources and can be abusive. | User answer Q17 | AC-020 |
+| RULE-008 | Business rule | Must | V1 route-class rate limiting may be process-local only while AppView runs as a single instance. | Process-local limits are not globally enforceable across replicas. | User answer Q5 | AC-021 |
 
 ## 13. Acceptance Criteria
 
@@ -215,14 +304,20 @@ AppView v1 should have a documented, testable cross-cutting API contract: succes
 | AC-005 | FR-003 | Given an applicable `/v1/*` request without `X-Craftsky-Device-Id` or with a malformed value, when it is processed, then the system rejects it with HTTP 400 and the standard error envelope before the endpoint handler runs. |
 | AC-006 | BR-002, FR-006, RULE-004 | Given the route table, when route classifications are inspected by tests or review, then each `/v1/*` route has an explicit rate-limit class of auth, read, write, expensive/search, upload, or an intentionally documented exempt/no-body class. |
 | AC-007 | BR-002, FR-003, FR-007, FR-008, NFR-002 | Given authenticated requests with a Craftsky token and device ID, when the client exceeds the configured class limit for either key, then further requests in that class are rejected before handler work proceeds. |
-| AC-008 | BR-002, FR-007, FR-008, FR-009, NFR-002 | Given a request is rejected by rate limiting, when the response is received, then it is HTTP 429, uses the standard error envelope, and provides documented retry guidance such as a `Retry-After` header. |
-| AC-009 | BR-003, FR-010, RULE-003 | Given production configuration with known allowed origins, when a browser request from an allowed origin is made, then CORS headers allow it; when the origin is unconfigured, then the response does not allow that origin. |
+| AC-008 | BR-002, FR-007, FR-008, FR-009, NFR-002 | Given a request is rejected by rate limiting, when the response is received, then it is HTTP 429, uses error code `rate_limited`, uses the standard error envelope, includes `Retry-After`, and does not expose public bucket/quota details. |
+| AC-009 | BR-003, FR-010, RULE-003 | Given production configuration, when a browser request comes from `https://app.craftsky.social`, then CORS headers allow it; when it comes from `https://craftsky.social`, wildcard subdomains, preview patterns, or any unconfigured origin, then the response does not allow that origin. |
 | AC-010 | BR-003, FR-010, FR-011 | Given a CORS preflight from an allowed web origin, when it requests supported methods and headers including `Authorization`, `Content-Type`, and `X-Craftsky-Device-Id`, then the preflight succeeds with appropriate CORS headers. |
-| AC-011 | FR-004, NFR-001 | Given a JSON request body larger than the default configured limit to a default-limited route, when the request is processed, then the system rejects it with HTTP 413 using the standard error envelope before JSON parsing or endpoint work. |
+| AC-011 | FR-004, FR-012, NFR-001 | Given a JSON request body larger than the default `1 MiB` limit to a default-limited route, when the request is processed, then the system rejects it with HTTP 413, error code `request_body_too_large`, message `request body exceeds the configured limit`, and the standard error envelope before JSON parsing, endpoint work, or body-copying debug logging. |
 | AC-012 | FR-004, NFR-001 | Given a JSON request body at or below the default configured limit, when the request is otherwise valid, then body-limit middleware does not reject it. |
 | AC-013 | FR-005, RULE-004 | Given an endpoint with an explicit body-size override, when requests are below and above that override, then the endpoint accepts/rejects according to the override rather than the default JSON limit. |
 | AC-014 | NFR-003 | Given AppView starts in dev or prod, when limit-related configuration is omitted or supplied, then safe defaults are applied and invalid configuration fails startup with a clear error. |
-| AC-015 | NFR-004 | Given a request is rejected for size or rate limiting, when logs are inspected, then logs include enough context for diagnosis without logging bearer tokens or full rejected request bodies. |
+| AC-015 | NFR-001, NFR-004 | Given a request is rejected for size or rate limiting, when logs are inspected, then logs include enough context for diagnosis without logging bearer tokens or full rejected request bodies. |
+| AC-016 | FR-013 | Given a `/v1/*` no-body route receives a non-empty body, when the request is processed, then the system rejects it with error code `request_body_not_allowed` unless the endpoint explicitly allows a body. |
+| AC-017 | FR-014 | Given an allowed CORS preflight request, when it is processed, then it is handled by CORS policy and does not consume normal route-class rate-limit buckets. |
+| AC-018 | RULE-005, FR-003, FR-008 | Given a request includes a valid device ID, when authorization decisions are made, then the device ID is not used as proof of identity or permission. |
+| AC-019 | RULE-006 | Given AppView rate-limit keys are inspected, when v1 limits are configured, then no limiter key is based on client IP address. |
+| AC-020 | RULE-007 | Given upload requests exceed the upload class limit through failed or successful attempts, when another upload is attempted, then it is rate limited even if prior attempts did not succeed. |
+| AC-021 | RULE-008 | Given the v1 limiter is process-local, when deployment guidance/configuration is reviewed, then it explicitly states that multi-instance AppView deployments require shared limiter storage or equivalent edge enforcement before horizontal scaling. |
 
 ## 14. Edge Cases
 
@@ -238,6 +333,10 @@ AppView v1 should have a documented, testable cross-cutting API contract: succes
 | EC-008 | CORS request has no `Origin` header, such as mobile/native or server-to-server traffic. | Do not add allow-origin headers solely for CORS; process according to normal auth and route rules. | FR-010 |
 | EC-009 | Production config accidentally contains wildcard origin. | Startup should reject it or runtime should refuse wildcard behavior in production. | RULE-003, NFR-003 |
 | EC-010 | New `/v1/*` route is added without policy classification. | Tests or registration helpers fail, forcing explicit body-limit and rate-limit classification. | RULE-004 |
+| EC-011 | Marketing origin `https://craftsky.social` calls authenticated API. | Production CORS does not allow the origin unless a future requirements change explicitly adds it. | BR-003, FR-010 |
+| EC-012 | CORS preflight flood. | Normal route-class limits do not apply; exact-origin checks and future edge/proxy controls are the mitigation. | FR-014 |
+| EC-013 | Client rotates device IDs to avoid login limits. | AppView v1 does not use IP keys; edge/proxy IP throttling is documented as out-of-scope responsibility. | RULE-005, RULE-006 |
+| EC-014 | Upload request fails validation but reaches the upload limiter. | The attempt counts against upload route-class limits. | RULE-007 |
 
 ## 15. Data / Persistence Impact
 
@@ -259,6 +358,7 @@ AppView v1 should have a documented, testable cross-cutting API contract: succes
   - Oversized requests return 413.
   - Rate-limited requests return 429 with retry guidance.
   - CORS allows configured first-party web origins and headers.
+  - No-body routes reject unexpected bodies with `request_body_not_allowed`.
 - CLI:
   - No direct CLI impact.
 - Background jobs:
@@ -282,6 +382,8 @@ AppView v1 should have a documented, testable cross-cutting API contract: succes
   - Upload attempts.
   - Login/pre-auth hammering by device ID.
   - Cross-origin browser calls from unapproved origins.
+- Device IDs are spoofable and must not be treated as authentication or authorization evidence.
+- AppView v1 intentionally avoids IP-based rate-limit keys; deployment edge/proxy controls own IP throttling.
 
 ## 18. Observability
 
@@ -301,13 +403,15 @@ AppView v1 should have a documented, testable cross-cutting API contract: succes
 
 | ID | Risk | Impact | Mitigation |
 |---|---|---|---|
-| RISK-001 | Rate limits are too strict for legitimate users. | Users may see false 429s during normal use. | Use conservative defaults, route classes, retry guidance, and configurable limits. |
+| RISK-001 | Rate limits are too strict for legitimate users. | Users may see false 429s during normal use. | Use the documented configurable defaults, route classes, retry guidance, and monitoring. |
 | RISK-002 | Rate limits are too loose or missing on some routes. | AppView remains vulnerable to abuse or high-cost traffic. | Require explicit route classification and tests covering the route table. |
 | RISK-003 | Body limits break legitimate payloads. | Users may be unable to create posts/profiles/uploads. | Use default JSON limit plus explicit overrides and acceptance tests around known body sizes. |
 | RISK-004 | Production CORS is misconfigured for the upcoming web client. | Browser clients fail despite API being healthy. | Require explicit allowed origins and preflight tests for supported headers/methods. |
 | RISK-005 | Permissive CORS leaks into production. | Untrusted browser origins can call APIs with user credentials/headers. | Forbid wildcard/broad reflection in production and validate config. |
 | RISK-006 | Logging oversized requests leaks sensitive data or consumes memory. | Privacy/security issue and resource pressure during abuse. | Do not log full rejected bodies; ensure limit middleware runs before body-copying debug logging. |
 | RISK-007 | Success body decision is forgotten in future endpoints. | New endpoints may introduce inconsistent `data` wrappers. | Document RULE-001 and add contract tests/review guidance. |
+| RISK-008 | Process-local rate limiting is used with multiple AppView replicas. | Limits can be bypassed by spreading traffic across replicas. | Keep v1 single-instance or add shared limiter storage/equivalent edge enforcement before horizontal scaling. |
+| RISK-009 | Device ID rotation bypasses pre-auth limits. | Login abuse may evade AppView device buckets. | Document device ID as untrusted and rely on edge/proxy IP throttling outside AppView v1. |
 
 ## 20. Assumptions
 
@@ -315,16 +419,14 @@ AppView v1 should have a documented, testable cross-cutting API contract: succes
 |---|---|---|
 | ASM-001 | AppView remains the sole happy-path API for Flutter and near-term first-party web clients. | Third-party API needs might require broader CORS/API contract design. |
 | ASM-002 | Bare success bodies are compatible with current Flutter client models. | If client code already expects wrappers somewhere, requirements need revision. |
-| ASM-003 | In-memory or process-local rate limiting may be acceptable for initial implementation unless production deployment requires multi-instance consistency. | Multi-instance production would need shared limiter storage or proxy-level coordination. |
-| ASM-004 | Known production web origins will be provided through configuration. | Missing origins would block the web client. |
+| ASM-003 | In-memory/process-local rate limiting is acceptable for v1 because production runs a single AppView instance. | Multi-instance production would need shared limiter storage or equivalent edge enforcement before horizontal scaling. |
+| ASM-004 | The initial production authenticated web origin is `https://app.craftsky.social`; `https://craftsky.social` remains marketing-only for API CORS. | Additional web origins, including the marketing origin or preview domains, would need to be added explicitly before browser clients on those origins can call the API. |
 | ASM-005 | Existing media upload limits remain authoritative for image/blob upload ceilings. | If product upload limits change, body-limit overrides must be revisited. |
+| ASM-006 | Initial rate-limit defaults are configurable and can be adjusted without source-code changes. | Hard-coded defaults would make launch tuning slower. |
 
 ## 21. Open Questions
 
-- [ ] Non-blocking: What exact numeric defaults should be used for each body-size and rate-limit class? Test design can specify behavior parametrically, and implementation can choose conservative defaults for review.
-- [ ] Non-blocking: Should rate limiting be process-local for v1, or backed by Postgres/Redis/reverse-proxy shared state for multi-instance deployments?
-- [ ] Non-blocking: Which exact production origins should be configured first for the web client, e.g. `https://craftsky.social`, preview domains, or a separate app subdomain?
-- [ ] Non-blocking: Should 429 retry guidance be standardized as only `Retry-After`, or also include structured fields in the error envelope? The current requirement allows headers or documented response behavior while preserving the standard envelope.
+- [ ] Non-blocking: Should login rate limiting also include a non-IP pre-auth key such as normalized handle attempted, or is per-device plus edge/proxy IP throttling enough for v1?
 
 ## 22. Review Status
 
@@ -341,9 +443,9 @@ Notes: High risk because this change covers API contracts, CORS/security posture
 - Next test specification: `02-acceptance-tests.md`
 - Must-cover requirement IDs:
   - `BR-001`, `BR-002`, `BR-003`
-  - `FR-001` through `FR-010`
+  - `FR-001` through `FR-014`
   - `NFR-001`, `NFR-002`, `NFR-003`, `NFR-004`
-  - `RULE-001` through `RULE-004`
+  - `RULE-001` through `RULE-008`
 - Suggested test levels:
   - Middleware unit tests for body limits, CORS, device ID, and rate limiting.
   - Route registration/contract tests proving every `/v1/*` route has limit classifications.
