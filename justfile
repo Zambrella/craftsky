@@ -41,6 +41,10 @@ ping:
 tap-status:
     docker compose exec appview /app/cli tap status
 
+# Compare one DID's Tap/PDS/AppView post state; pass --repair-stale --yes for dev-only cleanup.
+tap-repo-check DID *ARGS:
+    docker compose exec appview /app/cli tap repo-check '{{DID}}' {{ARGS}}
+
 # Populate the dev database with deterministic fake posts/comments/replies.
 seed-fake *ARGS:
     docker compose exec appview /app/cli seed fake-posts {{ARGS}}
