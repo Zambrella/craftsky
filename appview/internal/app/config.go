@@ -13,7 +13,10 @@ import (
 	"github.com/joho/godotenv"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/middleware"
 )
+
+const defaultJSONBodyLimitBytes int64 = 1024 * 1024
 
 // Env identifies which deployment environment the process is running in.
 type Env string
@@ -64,8 +67,10 @@ type Config struct {
 
 	// Media policy. Defaults preserve the approved image-posting contract;
 	// env overrides may lower but not raise these ceilings.
+	JSONBodyLimitBytes  int64 // default 1 MiB
 	MaxPostImages       int   // default 4, maximum 4
 	MaxImageUploadBytes int64 // default 15MB, maximum 15MB
+	RateLimits          middleware.RateLimitConfig
 
 	// Dev-only synthetic moderation controls. These fields are cleared in prod.
 	EnableDevModeration         bool
@@ -150,6 +155,10 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if cfg.MaxImageUploadBytes, err = boundedInt64Env("MAX_IMAGE_UPLOAD_BYTES", api.DefaultMaxImageUploadBytes, 1, api.DefaultMaxImageUploadBytes); err != nil {
 		return Config{}, err
 	}
+	if cfg.JSONBodyLimitBytes, err = boundedInt64Env("APPVIEW_JSON_BODY_LIMIT_BYTES", defaultJSONBodyLimitBytes, 1, defaultJSONBodyLimitBytes); err != nil {
+		return Config{}, err
+	}
+	cfg.RateLimits = DefaultRateLimitConfig()
 	if cfg.EnableDevModeration, err = boolEnv("APPVIEW_ENABLE_DEV_MODERATION", false); err != nil {
 		return Config{}, err
 	}
@@ -178,6 +187,11 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	// In prod, DevDID is intentionally ignored; clear it so callers don't
 	// accidentally use a leftover value.
 	if env == EnvProd {
+		for _, origin := range cfg.AllowedOrigins {
+			if origin == "*" {
+				return Config{}, fmt.Errorf("ALLOWED_ORIGINS: wildcard origin is not allowed in prod")
+			}
+		}
 		cfg.DevDID = ""
 		cfg.EnableDevModeration = false
 		cfg.DevModerationToken = ""
@@ -194,6 +208,16 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func DefaultRateLimitConfig() middleware.RateLimitConfig {
+	return middleware.RateLimitConfig{Classes: map[middleware.RateClass]middleware.ClassLimit{
+		middleware.RateClassAuth:   {Window: time.Minute, PerDevice: 10},
+		middleware.RateClassRead:   {Window: time.Minute, PerToken: 300, PerDevice: 600},
+		middleware.RateClassWrite:  {Window: time.Minute, PerToken: 60, PerDevice: 120},
+		middleware.RateClassSearch: {Window: time.Minute, PerToken: 60, PerDevice: 120},
+		middleware.RateClassUpload: {Window: time.Hour, PerToken: 100, PerDevice: 200},
+	}}
 }
 
 // getEnvWithDefault returns os.Getenv(key), or def if empty.

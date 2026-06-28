@@ -8,7 +8,6 @@ package middleware
 import (
 	"bytes"
 	"context"
-	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -42,7 +41,6 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 			started := time.Now()
 			runID := uuid.New().String()
 			ctx := ctxkeys.WithRunID(r.Context(), runID)
-			requestPayload, payloadErr := readJSONRequestBody(r)
 			logger.Info("Request received",
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
@@ -52,16 +50,10 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
 				slog.String("raw_query", r.URL.RawQuery),
-				slog.Any("headers", r.Header),
+				slog.Any("headers", redactedHeaders(r.Header)),
 				slog.String("remote_addr", r.RemoteAddr),
 				slog.Int64("content_length", r.ContentLength),
 				slog.String("run_id", runID),
-			}
-			if requestPayload != "" {
-				requestAttrs = append(requestAttrs, slog.String("json_payload", requestPayload))
-			}
-			if payloadErr != nil {
-				requestAttrs = append(requestAttrs, slog.String("json_payload_err", payloadErr.Error()))
 			}
 			logger.Debug("Request details", requestAttrs...)
 
@@ -83,16 +75,16 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 	}
 }
 
-func readJSONRequestBody(r *http.Request) (string, error) {
-	if r.Body == nil || r.Body == http.NoBody || !isJSONContentType(r.Header.Get("Content-Type")) {
-		return "", nil
+func redactedHeaders(headers http.Header) http.Header {
+	redacted := make(http.Header, len(headers))
+	for key, values := range headers {
+		if strings.EqualFold(key, "Authorization") {
+			redacted[key] = []string{"[REDACTED]"}
+			continue
+		}
+		redacted[key] = append([]string(nil), values...)
 	}
-	raw, err := io.ReadAll(r.Body)
-	r.Body = io.NopCloser(bytes.NewReader(raw))
-	if len(bytes.TrimSpace(raw)) == 0 {
-		return "", err
-	}
-	return string(raw), err
+	return redacted
 }
 
 type responseLogger struct {

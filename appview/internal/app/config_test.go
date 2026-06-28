@@ -47,7 +47,8 @@ func testConfigFile(t *testing.T, contents string) string {
 		"OAUTH_HOSTNAME", "OAUTH_CLIENT_SECRET_KEY", "OAUTH_CLIENT_SECRET_KEY_ID",
 		"OAUTH_SCOPES", "OAUTH_SESSION_EXPIRY", "OAUTH_SESSION_INACTIVITY",
 		"OAUTH_AUTH_REQUEST_EXPIRY", "CRAFTSKY_SESSION_LAST_SEEN_THROTTLE",
-		"MAX_POST_IMAGES", "MAX_IMAGE_UPLOAD_BYTES", "APPVIEW_ENABLE_DEV_MODERATION",
+		"MAX_POST_IMAGES", "MAX_IMAGE_UPLOAD_BYTES", "APPVIEW_JSON_BODY_LIMIT_BYTES",
+		"APPVIEW_ENABLE_DEV_MODERATION",
 		"APPVIEW_DEV_MODERATION_TOKEN", "CRAFTSKY_DEV_LABELER_DID",
 		"APPVIEW_TRUSTED_MODERATION_SOURCE_DIDS"} {
 		// Snapshot for restoration, then unset.
@@ -153,6 +154,58 @@ func TestLoadConfig_ProdValid(t *testing.T) {
 	}
 	if cfg.DevDID != "" {
 		t.Errorf("DevDID = %q, want empty in prod", cfg.DevDID)
+	}
+}
+
+func TestLoadConfig_ProdRejectsWildcardOrigin(t *testing.T) {
+	path := testConfigFile(t, "DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=*\nTAP_WS_URL=ws://tap:2480/channel\n")
+	_, err := LoadConfig(EnvProd, path)
+	if err == nil {
+		t.Fatal("expected prod wildcard origin error")
+	}
+	if !strings.Contains(err.Error(), "ALLOWED_ORIGINS") {
+		t.Fatalf("error = %v, want ALLOWED_ORIGINS", err)
+	}
+}
+
+func TestLoadConfig_LimitDefaults(t *testing.T) {
+	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\n")
+	cfg, err := LoadConfig(EnvDev, path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.JSONBodyLimitBytes != 1024*1024 {
+		t.Fatalf("JSONBodyLimitBytes = %d, want 1 MiB", cfg.JSONBodyLimitBytes)
+	}
+	read := cfg.RateLimits.Classes["read"]
+	if read.Window != time.Minute || read.PerToken != 300 || read.PerDevice != 600 {
+		t.Fatalf("read rate limit = %+v, want 300/min token and 600/min device", read)
+	}
+	upload := cfg.RateLimits.Classes["upload"]
+	if upload.Window != time.Hour || upload.PerToken != 100 || upload.PerDevice != 200 {
+		t.Fatalf("upload rate limit = %+v, want 100/hour token and 200/hour device", upload)
+	}
+}
+
+func TestLoadConfig_JSONBodyLimitOverride(t *testing.T) {
+	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nAPPVIEW_JSON_BODY_LIMIT_BYTES=2048\n")
+	cfg, err := LoadConfig(EnvDev, path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.JSONBodyLimitBytes != 2048 {
+		t.Fatalf("JSONBodyLimitBytes = %d, want 2048", cfg.JSONBodyLimitBytes)
+	}
+}
+
+func TestLoadConfig_JSONBodyLimitInvalid(t *testing.T) {
+	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nAPPVIEW_JSON_BODY_LIMIT_BYTES=0\n")
+	_, err := LoadConfig(EnvDev, path)
+	if err == nil {
+		t.Fatal("expected JSON body limit error")
+	}
+	if !strings.Contains(err.Error(), "APPVIEW_JSON_BODY_LIMIT_BYTES") {
+		t.Fatalf("error = %v, want APPVIEW_JSON_BODY_LIMIT_BYTES", err)
 	}
 }
 

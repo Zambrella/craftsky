@@ -18,6 +18,7 @@ import (
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/db"
 	"social.craftsky/appview/internal/index"
+	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -34,6 +35,7 @@ type Deps struct {
 	Logger      *slog.Logger
 	DB          *pgxpool.Pool
 	AuthService auth.AuthService
+	RateLimiter *middleware.LocalRateLimiter
 
 	// OAuth subsystem.
 	OAuthApp             *oauth.ClientApp
@@ -121,6 +123,8 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	})
 	oauthApp := oauth.NewClientApp(&oauthCfg, oauthStore)
 	craftskyStore := auth.NewCraftskySessionStore(pool, cfg.CraftskySessionLastSeenThrottle)
+	rateLimiter := middleware.NewLocalRateLimiter(cfg.RateLimits, time.Now)
+	logger.Warn("rate limiter is process-local; run one AppView instance or configure shared/edge enforcement before horizontal scaling")
 
 	// Shared atproto identity directory for DID↔handle lookups.
 	// indigo provides an in-process cache via DefaultDirectory.
@@ -133,6 +137,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		Config:               cfg,
 		Logger:               logger,
 		DB:                   pool,
+		RateLimiter:          rateLimiter,
 		OAuthApp:             oauthApp,
 		OAuthStore:           oauthStore,
 		CraftskySessionStore: craftskyStore,

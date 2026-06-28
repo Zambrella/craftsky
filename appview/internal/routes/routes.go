@@ -10,6 +10,29 @@ import (
 	"social.craftsky/appview/internal/middleware"
 )
 
+const defaultJSONBodyLimitBytes int64 = 1024 * 1024
+
+type v1Middleware struct {
+	authN     func(http.Handler) http.Handler
+	deviceID  func(http.Handler) http.Handler
+	bodyLimit middleware.BodyLimitConfig
+	rateLimit map[RateClass]func(http.Handler) http.Handler
+}
+
+func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handler {
+	wrapped := handler
+	if rl := m.rateLimit[policy.RateClass]; rl != nil {
+		wrapped = rl(wrapped)
+	}
+	if policy.AuthRequired {
+		wrapped = m.deviceID(wrapped)
+		wrapped = m.authN(wrapped)
+	} else if policy.RateClass == RateClassAuth {
+		wrapped = m.deviceID(wrapped)
+	}
+	return middleware.BodyLimit(m.bodyLimit, middleware.BodyKind(policy.BodyKind), nil)(wrapped)
+}
+
 // AddRoutes registers all App View routes on mux.
 func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	// Public ops.
@@ -36,9 +59,25 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	// Middleware stacks.
 	authN := middleware.Authenticated(deps.AuthService, deps.Logger)
 	deviceID := middleware.DeviceID(deps.CraftskySessionStore, deps.Logger)
+	rateLimits := map[RateClass]func(http.Handler) http.Handler{}
+	if deps.RateLimiter != nil {
+		rateLimits[RateClassAuth] = middleware.RateLimit(deps.RateLimiter, middleware.RateClassAuth, deps.Logger)
+		rateLimits[RateClassRead] = middleware.RateLimit(deps.RateLimiter, middleware.RateClassRead, deps.Logger)
+		rateLimits[RateClassWrite] = middleware.RateLimit(deps.RateLimiter, middleware.RateClassWrite, deps.Logger)
+		rateLimits[RateClassSearch] = middleware.RateLimit(deps.RateLimiter, middleware.RateClassSearch, deps.Logger)
+		rateLimits[RateClassUpload] = middleware.RateLimit(deps.RateLimiter, middleware.RateClassUpload, deps.Logger)
+	}
+	bodyLimitCfg := middleware.BodyLimitConfig{
+		DefaultJSONBytes: deps.Config.JSONBodyLimitBytes,
+		UploadBytes:      deps.Config.MaxImageUploadBytes,
+	}
+	if bodyLimitCfg.DefaultJSONBytes == 0 {
+		bodyLimitCfg.DefaultJSONBytes = defaultJSONBodyLimitBytes
+	}
+	v1mw := v1Middleware{authN: authN, deviceID: deviceID, bodyLimit: bodyLimitCfg, rateLimit: rateLimits}
 
 	// v1 — unauthenticated but device-id required.
-	mux.Handle("POST /v1/auth/login", deviceID(oauthHandlers.LoginHandler()))
+	mux.Handle("POST /v1/auth/login", v1mw.wrap(mustPolicy("POST", "/v1/auth/login"), oauthHandlers.LoginHandler()))
 
 	// v1 — authenticated + device-id required.
 	mediaLimits := api.MediaLimits{
@@ -47,83 +86,47 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	}
 	facetStore := api.NewFacetStore(deps.DB, deps.HandleResolver)
 	searchStore := api.NewSearchStore(deps.DB)
-	mux.Handle("GET /v1/whoami", authN(deviceID(api.WhoAmIHandler(deps.HandleResolver, deps.Logger))))
-	mux.Handle("GET /v1/facets/mentions",
-		authN(deviceID(api.ListFacetMentionSuggestionsHandler(facetStore, deps.Logger))))
-	mux.Handle("GET /v1/facets/mentions/resolve",
-		authN(deviceID(api.ResolveFacetMentionHandler(facetStore, deps.Logger))))
-	mux.Handle("GET /v1/facets/hashtags",
-		authN(deviceID(api.ListFacetHashtagSuggestionsHandler(facetStore, deps.Logger))))
-	mux.Handle("GET /v1/projects",
-		authN(deviceID(api.ListProjectsHandler(searchStore, deps.HandleResolver, deps.Logger))))
-	mux.Handle("GET /v1/search/hashtags/{tag}/posts",
-		authN(deviceID(api.SearchHashtagPostsHandler(searchStore, deps.HandleResolver, deps.Logger))))
-	mux.Handle("GET /v1/search/suggestions",
-		authN(deviceID(api.SearchSuggestionsHandler(searchStore, deps.Logger))))
-	mux.Handle("GET /v1/search/hashtags",
-		authN(deviceID(api.SearchHashtagsHandler(searchStore, deps.Logger))))
-	mux.Handle("GET /v1/search/profiles",
-		authN(deviceID(api.SearchProfilesHandler(searchStore, deps.Logger))))
-	mux.Handle("GET /v1/search/posts",
-		authN(deviceID(api.SearchPostsHandler(searchStore, deps.HandleResolver, deps.Logger))))
-	mux.Handle("GET /v1/search/projects",
-		authN(deviceID(api.SearchProjectsHandler(searchStore, deps.HandleResolver, deps.Logger))))
-	mux.Handle("GET /v1/search/hashtags/top",
-		authN(deviceID(api.TopHashtagsHandler(searchStore, deps.Logger))))
-	mux.Handle("GET /v1/search/recent",
-		authN(deviceID(api.ListRecentSearchesHandler(searchStore, deps.Logger))))
-	mux.Handle("POST /v1/search/recent",
-		authN(deviceID(api.SaveRecentSearchHandler(searchStore, deps.Logger))))
-	mux.Handle("DELETE /v1/search/recent/{id}",
-		authN(deviceID(api.DeleteRecentSearchHandler(searchStore, deps.Logger))))
-	mux.Handle("POST /v1/auth/logout", authN(deviceID(oauthHandlers.LogoutHandler())))
-	mux.Handle("GET /v1/profiles/{handleOrDid}",
-		authN(deviceID(api.GetProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger))))
-	mux.Handle("GET /v1/profiles/me",
-		authN(deviceID(api.GetMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger))))
-	mux.Handle("GET /v1/profiles/me/followers",
-		authN(deviceID(api.GetMeFollowersHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger))))
-	mux.Handle("GET /v1/profiles/me/following",
-		authN(deviceID(api.GetMeFollowingHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger))))
-	mux.Handle("PUT /v1/profiles/me",
-		authN(deviceID(api.PutMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, mediaLimits, deps.Logger))))
-	mux.Handle("GET /v1/profiles/{handleOrDid}/mutual-followers",
-		authN(deviceID(api.GetMutualFollowersHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger))))
-	mux.Handle("POST /v1/profiles/{handleOrDid}/follows",
-		authN(deviceID(api.FollowProfileHandler(deps.FollowStore, deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger))))
-	mux.Handle("DELETE /v1/profiles/{handleOrDid}/follows",
-		authN(deviceID(api.UnfollowProfileHandler(deps.FollowStore, deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger))))
-	mux.Handle("POST /v1/profiles/{handleOrDid}/reports",
-		authN(deviceID(api.ReportProfileHandler(api.NewProfileReportTargetResolver(deps.ProfileStore, deps.HandleResolver), deps.ReportStore, deps.ReportForwarder, deps.Logger))))
+	mux.Handle("GET /v1/whoami", v1mw.wrap(mustPolicy("GET", "/v1/whoami"), api.WhoAmIHandler(deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/facets/mentions", v1mw.wrap(mustPolicy("GET", "/v1/facets/mentions"), api.ListFacetMentionSuggestionsHandler(facetStore, deps.Logger)))
+	mux.Handle("GET /v1/facets/mentions/resolve", v1mw.wrap(mustPolicy("GET", "/v1/facets/mentions/resolve"), api.ResolveFacetMentionHandler(facetStore, deps.Logger)))
+	mux.Handle("GET /v1/facets/hashtags", v1mw.wrap(mustPolicy("GET", "/v1/facets/hashtags"), api.ListFacetHashtagSuggestionsHandler(facetStore, deps.Logger)))
+	mux.Handle("GET /v1/projects", v1mw.wrap(mustPolicy("GET", "/v1/projects"), api.ListProjectsHandler(searchStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/search/hashtags/{tag}/posts", v1mw.wrap(mustPolicy("GET", "/v1/search/hashtags/{tag}/posts"), api.SearchHashtagPostsHandler(searchStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/search/suggestions", v1mw.wrap(mustPolicy("GET", "/v1/search/suggestions"), api.SearchSuggestionsHandler(searchStore, deps.Logger)))
+	mux.Handle("GET /v1/search/hashtags", v1mw.wrap(mustPolicy("GET", "/v1/search/hashtags"), api.SearchHashtagsHandler(searchStore, deps.Logger)))
+	mux.Handle("GET /v1/search/profiles", v1mw.wrap(mustPolicy("GET", "/v1/search/profiles"), api.SearchProfilesHandler(searchStore, deps.Logger)))
+	mux.Handle("GET /v1/search/posts", v1mw.wrap(mustPolicy("GET", "/v1/search/posts"), api.SearchPostsHandler(searchStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/search/projects", v1mw.wrap(mustPolicy("GET", "/v1/search/projects"), api.SearchProjectsHandler(searchStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/search/hashtags/top", v1mw.wrap(mustPolicy("GET", "/v1/search/hashtags/top"), api.TopHashtagsHandler(searchStore, deps.Logger)))
+	mux.Handle("GET /v1/search/recent", v1mw.wrap(mustPolicy("GET", "/v1/search/recent"), api.ListRecentSearchesHandler(searchStore, deps.Logger)))
+	mux.Handle("POST /v1/search/recent", v1mw.wrap(mustPolicy("POST", "/v1/search/recent"), api.SaveRecentSearchHandler(searchStore, deps.Logger)))
+	mux.Handle("DELETE /v1/search/recent/{id}", v1mw.wrap(mustPolicy("DELETE", "/v1/search/recent/{id}"), api.DeleteRecentSearchHandler(searchStore, deps.Logger)))
+	mux.Handle("POST /v1/auth/logout", v1mw.wrap(mustPolicy("POST", "/v1/auth/logout"), oauthHandlers.LogoutHandler()))
+	mux.Handle("GET /v1/profiles/{handleOrDid}", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}"), api.GetProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/profiles/me", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me"), api.GetMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/profiles/me/followers", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me/followers"), api.GetMeFollowersHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/profiles/me/following", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me/following"), api.GetMeFollowingHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("PUT /v1/profiles/me", v1mw.wrap(mustPolicy("PUT", "/v1/profiles/me"), api.PutMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, mediaLimits, deps.Logger)))
+	mux.Handle("GET /v1/profiles/{handleOrDid}/mutual-followers", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/mutual-followers"), api.GetMutualFollowersHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("POST /v1/profiles/{handleOrDid}/follows", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/follows"), api.FollowProfileHandler(deps.FollowStore, deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger)))
+	mux.Handle("DELETE /v1/profiles/{handleOrDid}/follows", v1mw.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/follows"), api.UnfollowProfileHandler(deps.FollowStore, deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger)))
+	mux.Handle("POST /v1/profiles/{handleOrDid}/reports", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/reports"), api.ReportProfileHandler(api.NewProfileReportTargetResolver(deps.ProfileStore, deps.HandleResolver), deps.ReportStore, deps.ReportForwarder, deps.Logger)))
 
 	// v1 — post handlers (authenticated + device-id required).
 	postStore := api.NewPostStore(deps.DB)
-	mux.Handle("GET /v1/feed/timeline",
-		authN(deviceID(api.ListTimelineHandler(postStore, deps.HandleResolver, deps.Logger))))
-	mux.Handle("GET /v1/notifications",
-		authN(deviceID(api.ListNotificationsHandler(postStore, deps.HandleResolver, deps.Logger))))
-	mux.Handle("POST /v1/blobs/images",
-		authN(deviceID(api.ImageBlobUploadHandler(deps.NewPDSClient, mediaLimits, deps.Logger))))
-	mux.Handle("POST /v1/posts",
-		authN(deviceID(api.CreatePostHandler(postStore, deps.NewPDSClient, deps.HandleResolver, mediaLimits, deps.Logger))))
-	mux.Handle("GET /v1/posts/{did}/{rkey}",
-		authN(deviceID(api.GetPostHandler(postStore, deps.HandleResolver, deps.Logger))))
-	mux.Handle("GET /v1/posts/{did}/{rkey}/replies",
-		authN(deviceID(api.ListCommentRepliesHandler(postStore, deps.HandleResolver, deps.Logger))))
-	mux.Handle("GET /v1/posts/{did}/{rkey}/comments",
-		authN(deviceID(api.GetPostCommentsHandler(postStore, deps.HandleResolver, deps.Logger))))
-	mux.Handle("POST /v1/posts/{did}/{rkey}/likes",
-		authN(deviceID(api.LikePostHandler(postStore, deps.NewPDSClient, deps.Logger))))
-	mux.Handle("DELETE /v1/posts/{did}/{rkey}/likes",
-		authN(deviceID(api.UnlikePostHandler(postStore, deps.NewPDSClient, deps.Logger))))
-	mux.Handle("POST /v1/posts/{did}/{rkey}/reposts",
-		authN(deviceID(api.RepostPostHandler(postStore, deps.NewPDSClient, deps.Logger))))
-	mux.Handle("DELETE /v1/posts/{did}/{rkey}/reposts",
-		authN(deviceID(api.UnrepostPostHandler(postStore, deps.NewPDSClient, deps.Logger))))
-	mux.Handle("DELETE /v1/posts/{did}/{rkey}",
-		authN(deviceID(api.DeletePostHandler(deps.NewPDSClient, deps.Logger))))
-	mux.Handle("POST /v1/posts/{did}/{rkey}/reports",
-		authN(deviceID(api.ReportPostHandler(postStore, deps.ReportStore, deps.ReportForwarder, deps.Logger))))
+	mux.Handle("GET /v1/feed/timeline", v1mw.wrap(mustPolicy("GET", "/v1/feed/timeline"), api.ListTimelineHandler(postStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/notifications", v1mw.wrap(mustPolicy("GET", "/v1/notifications"), api.ListNotificationsHandler(postStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("POST /v1/blobs/images", v1mw.wrap(mustPolicy("POST", "/v1/blobs/images"), api.ImageBlobUploadHandler(deps.NewPDSClient, mediaLimits, deps.Logger)))
+	mux.Handle("POST /v1/posts", v1mw.wrap(mustPolicy("POST", "/v1/posts"), api.CreatePostHandler(postStore, deps.NewPDSClient, deps.HandleResolver, mediaLimits, deps.Logger)))
+	mux.Handle("GET /v1/posts/{did}/{rkey}", v1mw.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}"), api.GetPostHandler(postStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/posts/{did}/{rkey}/replies", v1mw.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/replies"), api.ListCommentRepliesHandler(postStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/posts/{did}/{rkey}/comments", v1mw.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/comments"), api.GetPostCommentsHandler(postStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("POST /v1/posts/{did}/{rkey}/likes", v1mw.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/likes"), api.LikePostHandler(postStore, deps.NewPDSClient, deps.Logger)))
+	mux.Handle("DELETE /v1/posts/{did}/{rkey}/likes", v1mw.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/likes"), api.UnlikePostHandler(postStore, deps.NewPDSClient, deps.Logger)))
+	mux.Handle("POST /v1/posts/{did}/{rkey}/reposts", v1mw.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/reposts"), api.RepostPostHandler(postStore, deps.NewPDSClient, deps.Logger)))
+	mux.Handle("DELETE /v1/posts/{did}/{rkey}/reposts", v1mw.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/reposts"), api.UnrepostPostHandler(postStore, deps.NewPDSClient, deps.Logger)))
+	mux.Handle("DELETE /v1/posts/{did}/{rkey}", v1mw.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}"), api.DeletePostHandler(deps.NewPDSClient, deps.Logger)))
+	mux.Handle("POST /v1/posts/{did}/{rkey}/reports", v1mw.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/reports"), api.ReportPostHandler(postStore, deps.ReportStore, deps.ReportForwarder, deps.Logger)))
 	if deps.Config.Env == app.EnvDev && deps.Config.EnableDevModeration && deps.Config.DevModerationToken != "" {
 		mux.Handle("POST /v1/dev/moderation/ozone-events",
 			api.DevModerationOzoneEventsHandler(
@@ -136,12 +139,9 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 				deps.Logger,
 			))
 	}
-	mux.Handle("GET /v1/profiles/{handleOrDid}/posts",
-		authN(deviceID(api.ListPostsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger))))
-	mux.Handle("GET /v1/profiles/{handleOrDid}/projects",
-		authN(deviceID(api.ListProjectsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger))))
-	mux.Handle("GET /v1/profiles/{handleOrDid}/comments",
-		authN(deviceID(api.ListCommentsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger))))
+	mux.Handle("GET /v1/profiles/{handleOrDid}/posts", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/posts"), api.ListPostsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/profiles/{handleOrDid}/projects", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/projects"), api.ListProjectsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/profiles/{handleOrDid}/comments", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/comments"), api.ListCommentsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger)))
 
 	// Fallthrough.
 	mux.Handle("/", http.NotFoundHandler())

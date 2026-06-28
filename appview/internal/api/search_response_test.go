@@ -42,6 +42,19 @@ func TestSearchPostPageResponseOmitsPopularityScore(t *testing.T) {
 	if strings.Contains(jsonBody, "popularityScore") {
 		t.Fatalf("body = %s, must not expose popularityScore", jsonBody)
 	}
+	var topLevel map[string]json.RawMessage
+	if err := json.Unmarshal(body, &topLevel); err != nil {
+		t.Fatalf("body not valid JSON object: %v", err)
+	}
+	if _, ok := topLevel["data"]; ok {
+		t.Fatalf("paginated success response has synthetic data wrapper: %s", jsonBody)
+	}
+	if _, ok := topLevel["items"]; !ok {
+		t.Fatalf("paginated success response missing top-level items: %s", jsonBody)
+	}
+	if _, ok := topLevel["cursor"]; !ok {
+		t.Fatalf("paginated success response missing top-level cursor: %s", jsonBody)
+	}
 }
 
 func TestBuildProfileSearchSummaryIncludesAvatar(t *testing.T) {

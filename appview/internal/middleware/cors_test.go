@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -69,4 +70,42 @@ func TestCORS_PreflightShortCircuits(t *testing.T) {
 	if rec.Header().Get("Access-Control-Allow-Methods") == "" {
 		t.Error("preflight should set Access-Control-Allow-Methods")
 	}
+}
+
+func TestCORS_PreflightAllowsCraftskyHeadersWithoutCredentials(t *testing.T) {
+	handler := CORS([]string{"https://app.craftsky.social"})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not be called for preflight")
+	}))
+
+	req := httptest.NewRequest(http.MethodOptions, "/v1/whoami", nil)
+	req.Header.Set("Origin", "https://app.craftsky.social")
+	req.Header.Set("Access-Control-Request-Method", http.MethodGet)
+	req.Header.Set("Access-Control-Request-Headers", "Authorization, Content-Type, X-Craftsky-Device-Id")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("preflight status = %d, want 200", rec.Code)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://app.craftsky.social" {
+		t.Fatalf("ACAO = %q, want app origin", got)
+	}
+	allowedHeaders := rec.Header().Get("Access-Control-Allow-Headers")
+	for _, want := range []string{"Authorization", "Content-Type", "X-Craftsky-Device-Id"} {
+		if !containsHeaderToken(allowedHeaders, want) {
+			t.Fatalf("Access-Control-Allow-Headers = %q, missing %s", allowedHeaders, want)
+		}
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "" {
+		t.Fatalf("Access-Control-Allow-Credentials = %q, want empty", got)
+	}
+}
+
+func containsHeaderToken(header, want string) bool {
+	for _, token := range strings.Split(header, ",") {
+		if strings.EqualFold(strings.TrimSpace(token), want) {
+			return true
+		}
+	}
+	return false
 }
