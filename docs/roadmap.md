@@ -28,7 +28,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [ ] CORS policy → own spec (needed if any web surface talks to the API; landing page is static, so low priority unless scope changes)
 - [ ] Success response envelope — decide whether to wrap successful responses in `{"data": ...}`. Lock in before launch so we don't need a `/v2/` later.
 - [ ] Observability — request logging format, request-ID propagation into downstream calls, metrics, tracing → own spec
-- [ ] Search — posts by text, tag, craft type, materials (Postgres FTS vs separate service) → own spec
+- [x] Search — posts by text, tag, craft type, materials (Postgres FTS vs separate service) → own spec
 - [ ] Reposts — `POST /v1/posts/{did}/{rkey}/reposts` etc. Lexicon already defined. Folds into Posts spec unless it grows.
 - [x] Blocks, mutes, reports — moderation endpoints → own spec (overlaps the v1 "report a post" moderation plan; reconcile when scoping)
 - [ ] Push notification registration — `POST /v1/notifications/devices` etc. → own spec
