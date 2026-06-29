@@ -2,6 +2,7 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/search/data/search_api_client.dart';
+import 'package:craftsky_app/search/models/project_search_filters.dart';
 import 'package:craftsky_app/search/models/recent_search.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
 import 'package:craftsky_app/search/models/search_suggestions.dart';
@@ -469,6 +470,48 @@ void main() {
               'displayName': 'Alice',
             },
           },
+        )
+        ..onPost(
+          '/v1/search/recent',
+          (server) => server.reply(201, {
+            'id': 'recent_post',
+            'type': 'post',
+            'displayLabel': 'Alpaca posts',
+            'payload': {'q': 'alpaca', 'sort': 'popular'},
+            'updatedAt': '2026-06-20T12:02:00Z',
+          }),
+          data: {
+            'type': 'post',
+            'displayLabel': 'Alpaca posts',
+            'payload': {'q': 'alpaca', 'sort': 'popular'},
+          },
+        )
+        ..onPost(
+          '/v1/search/recent',
+          (server) => server.reply(201, {
+            'id': 'recent_project',
+            'type': 'project',
+            'displayLabel': 'Cardigan projects',
+            'payload': {
+              'q': 'cardigan',
+              'sort': 'chronological',
+              'filters': {
+                'craftType': ['knitting'],
+              },
+            },
+            'updatedAt': '2026-06-20T12:03:00Z',
+          }),
+          data: {
+            'type': 'project',
+            'displayLabel': 'Cardigan projects',
+            'payload': {
+              'q': 'cardigan',
+              'sort': 'chronological',
+              'filters': {
+                'craftType': ['knitting'],
+              },
+            },
+          },
         );
 
       final client = SearchApiClient(dio);
@@ -498,16 +541,40 @@ void main() {
             ),
           ),
         ),
+        await client.saveRecentSearch(
+          const SaveRecentSearchRequest(
+            type: RecentSearchType.post,
+            displayLabel: 'Alpaca posts',
+            payload: PostRecentSearchPayload(
+              q: 'alpaca',
+              sort: SearchSort.popular,
+            ),
+          ),
+        ),
+        await client.saveRecentSearch(
+          const SaveRecentSearchRequest(
+            type: RecentSearchType.project,
+            displayLabel: 'Cardigan projects',
+            payload: ProjectRecentSearchPayload(
+              q: 'cardigan',
+              filters: ProjectSearchFilters(craftType: ['knitting']),
+            ),
+          ),
+        ),
       ];
 
       expect(saved.map((item) => item.id), [
         'recent_query',
         'recent_hashtag',
         'recent_profile',
+        'recent_post',
+        'recent_project',
       ]);
       expect(saved[0].payload, isA<QueryRecentSearchPayload>());
       expect(saved[1].payload, isA<HashtagRecentSearchPayload>());
       expect(saved[2].payload, isA<ProfileRecentSearchPayload>());
+      expect(saved[3].payload, isA<PostRecentSearchPayload>());
+      expect(saved[4].payload, isA<ProjectRecentSearchPayload>());
     });
 
     test('IT-009 deletes recent search by opaque id and accepts 204', () async {
