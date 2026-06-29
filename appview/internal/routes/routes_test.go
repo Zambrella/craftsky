@@ -9,11 +9,13 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -57,6 +59,61 @@ func testDeps() *app.Deps {
 	}
 }
 
+func TestV1RoutePoliciesCoverRegisteredRoutes(t *testing.T) {
+	policies := V1RoutePolicies(app.EnvDev, app.Config{Env: app.EnvDev, EnableDevModeration: true, DevModerationToken: "secret"})
+	if len(policies) == 0 {
+		t.Fatal("V1RoutePolicies returned no policies")
+	}
+	seen := map[string]RoutePolicy{}
+	for _, policy := range policies {
+		if policy.Method == "" || policy.PathPattern == "" {
+			t.Fatalf("policy has empty method/path: %+v", policy)
+		}
+		if policy.RateClass == "" {
+			t.Fatalf("%s %s has empty rate class", policy.Method, policy.PathPattern)
+		}
+		if policy.BodyKind == "" {
+			t.Fatalf("%s %s has empty body kind", policy.Method, policy.PathPattern)
+		}
+		if !policy.RateClass.Valid() {
+			t.Fatalf("%s %s has invalid rate class %q", policy.Method, policy.PathPattern, policy.RateClass)
+		}
+		if !policy.BodyKind.Valid() {
+			t.Fatalf("%s %s has invalid body kind %q", policy.Method, policy.PathPattern, policy.BodyKind)
+		}
+		seen[policy.Method+" "+policy.PathPattern] = policy
+	}
+
+	for _, want := range []struct {
+		key       string
+		rateClass RateClass
+		bodyKind  BodyKind
+	}{
+		{"POST /v1/auth/login", RateClassAuth, BodyDefaultJSON},
+		{"GET /v1/whoami", RateClassRead, BodyNoBody},
+		{"GET /v1/search/posts", RateClassSearch, BodyNoBody},
+		{"POST /v1/posts", RateClassWrite, BodyDefaultJSON},
+		{"POST /v1/blobs/images", RateClassUpload, BodyUpload},
+		{"GET /v1/dev/media/{name}", RateClassDevOnly, BodyNoBody},
+		{"POST /v1/dev/moderation/ozone-events", RateClassDevOnly, BodyDefaultJSON},
+	} {
+		got, ok := seen[want.key]
+		if !ok {
+			t.Fatalf("missing policy for %s", want.key)
+		}
+		if got.RateClass != want.rateClass || got.BodyKind != want.bodyKind {
+			t.Fatalf("%s policy = (%s, %s), want (%s, %s)", want.key, got.RateClass, got.BodyKind, want.rateClass, want.bodyKind)
+		}
+	}
+
+	prodPolicies := V1RoutePolicies(app.EnvProd, app.Config{Env: app.EnvProd, EnableDevModeration: true, DevModerationToken: "secret"})
+	for _, policy := range prodPolicies {
+		if policy.DevOnly {
+			t.Fatalf("prod policy includes dev-only route: %+v", policy)
+		}
+	}
+}
+
 func TestAddRoutes_V1WhoAmIAuthenticatedReturnsDIDAndHandle(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, testDeps())
@@ -83,6 +140,13 @@ func TestAddRoutes_V1WhoAmIAuthenticatedReturnsDIDAndHandle(t *testing.T) {
 	}
 	if body.Handle != "stub-handle.example" {
 		t.Errorf("body.handle = %q, want stub-handle.example", body.Handle)
+	}
+	var topLevel map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &topLevel); err != nil {
+		t.Fatalf("body not valid JSON object: %v", err)
+	}
+	if _, ok := topLevel["data"]; ok {
+		t.Fatalf("success response has synthetic data wrapper: %s", rec.Body.String())
 	}
 }
 
@@ -115,6 +179,177 @@ func TestAddRoutes_V1WhoAmIWithoutDeviceIDReturns400(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "missing_device_id") {
 		t.Errorf("body = %q, want containing 'missing_device_id'", rec.Body.String())
 	}
+}
+
+func TestAddRoutes_BodyPolicyRunsThroughMux(t *testing.T) {
+	t.Run("default JSON route rejects oversized body before auth", func(t *testing.T) {
+		deps := testDeps()
+		deps.Config.JSONBodyLimitBytes = 8
+		mux := http.NewServeMux()
+		AddRoutes(context.Background(), mux, deps)
+
+		req := httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader("123456789"))
+		req.Header.Set("Authorization", "Bearer anything")
+		req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("status = %d, want 413; body=%s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "request_body_too_large") {
+			t.Fatalf("body = %q, want request_body_too_large", rec.Body.String())
+		}
+	})
+
+	t.Run("no-body route rejects unexpected body before auth", func(t *testing.T) {
+		deps := testDeps()
+		mux := http.NewServeMux()
+		AddRoutes(context.Background(), mux, deps)
+
+		req := httptest.NewRequest(http.MethodGet, "/v1/whoami", strings.NewReader("{}"))
+		req.Header.Set("Authorization", "Bearer anything")
+		req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "request_body_not_allowed") {
+			t.Fatalf("body = %q, want request_body_not_allowed", rec.Body.String())
+		}
+	})
+}
+
+func TestAddRoutes_RateLimitRejectsBeforeHandlerWork(t *testing.T) {
+	deps := testDeps()
+	deps.RateLimiter = middleware.NewLocalRateLimiter(middleware.RateLimitConfig{Classes: map[middleware.RateClass]middleware.ClassLimit{
+		middleware.RateClassRead: {Window: time.Minute, PerDevice: 1},
+	}}, func() time.Time { return time.Unix(100, 0) })
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/v1/whoami", nil)
+		req.Header.Set("Authorization", "Bearer anything")
+		req.Header.Set("X-Dev-DID", "did:plc:from-header")
+		req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if i == 0 && rec.Code != http.StatusOK {
+			t.Fatalf("first status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+		}
+		if i == 1 {
+			if rec.Code != http.StatusTooManyRequests {
+				t.Fatalf("second status = %d, want 429; body=%s", rec.Code, rec.Body.String())
+			}
+			if rec.Header().Get("Retry-After") == "" {
+				t.Fatal("Retry-After header is empty")
+			}
+			if rec.Header().Get("X-RateLimit-Limit") != "" || rec.Header().Get("X-RateLimit-Remaining") != "" {
+				t.Fatalf("unexpected public rate-limit headers: %v", rec.Header())
+			}
+			if !strings.Contains(rec.Body.String(), "rate_limited") {
+				t.Fatalf("body = %q, want rate_limited", rec.Body.String())
+			}
+			if strings.Contains(rec.Body.String(), "stub-handle.example") {
+				t.Fatalf("rate-limited response appears to include handler output: %q", rec.Body.String())
+			}
+		}
+	}
+}
+
+func TestAddRoutes_AllV1PoliciesEnforcedThroughMux(t *testing.T) {
+	for _, policy := range V1RoutePolicies(app.EnvDev, app.Config{Env: app.EnvDev, EnableDevModeration: true, DevModerationToken: "secret-token"}) {
+		if policy.RateClass == RateClassDevOnly {
+			continue
+		}
+		if policy.BodyKind == BodyNoBody {
+			t.Run(policy.Method+" "+policy.PathPattern+" rejects unexpected body", func(t *testing.T) {
+				deps := testDeps()
+				mux := http.NewServeMux()
+				AddRoutes(context.Background(), mux, deps)
+
+				req := httptest.NewRequest(policy.Method, samplePath(policy.PathPattern), strings.NewReader("unexpected"))
+				req.Header.Set("Authorization", "Bearer anything")
+				req.Header.Set("X-Dev-DID", "did:plc:from-header")
+				req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+				rec := httptest.NewRecorder()
+				mux.ServeHTTP(rec, req)
+
+				if rec.Code != http.StatusBadRequest {
+					t.Fatalf("status = %d, want 400; body=%s", rec.Code, rec.Body.String())
+				}
+				if !strings.Contains(rec.Body.String(), "request_body_not_allowed") {
+					t.Fatalf("body = %q, want request_body_not_allowed", rec.Body.String())
+				}
+			})
+		}
+
+		if policy.RateClass != RateClassExempt {
+			t.Run(policy.Method+" "+policy.PathPattern+" applies rate class", func(t *testing.T) {
+				mux := muxWithPolicyProbe(policy, routeTestRateLimitConfig(policy.RateClass))
+
+				for i := 0; i < 2; i++ {
+					req := httptest.NewRequest(policy.Method, samplePath(policy.PathPattern), nil)
+					req.Header.Set("Authorization", "Bearer anything")
+					req.Header.Set("X-Dev-DID", "did:plc:from-header")
+					req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+					rec := httptest.NewRecorder()
+					mux.ServeHTTP(rec, req)
+					if i == 1 {
+						if rec.Code != http.StatusTooManyRequests {
+							t.Fatalf("second status = %d, want 429; body=%s", rec.Code, rec.Body.String())
+						}
+						if !strings.Contains(rec.Body.String(), "rate_limited") {
+							t.Fatalf("body = %q, want rate_limited", rec.Body.String())
+						}
+					}
+				}
+			})
+		}
+	}
+}
+
+func muxWithPolicyProbe(policy RoutePolicy, cfg middleware.RateLimitConfig) *http.ServeMux {
+	mux := http.NewServeMux()
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	limiter := middleware.NewLocalRateLimiter(cfg, func() time.Time { return time.Unix(200, 0) })
+	if policy.RateClass != RateClassExempt && policy.RateClass != RateClassDevOnly {
+		handler = middleware.RateLimit(limiter, middleware.RateClass(policy.RateClass), nil)(handler)
+	}
+	handler = middleware.DeviceID(nil, nil)(handler)
+	handler = middleware.Authenticated(&auth.MockAuthService{DefaultDID: "did:plc:test"}, nil)(handler)
+	handler = middleware.BodyLimit(middleware.BodyLimitConfig{DefaultJSONBytes: 1, UploadBytes: 1}, middleware.BodyKind(policy.BodyKind), nil)(handler)
+	mux.Handle(policy.Method+" "+policy.PathPattern, handler)
+	return mux
+}
+
+func routeTestRateLimitConfig(class RateClass) middleware.RateLimitConfig {
+	mwClass := middleware.RateClass(class)
+	return middleware.RateLimitConfig{Classes: map[middleware.RateClass]middleware.ClassLimit{
+		mwClass: {Window: time.Minute, PerDevice: 1},
+	}}
+}
+
+func samplePath(pattern string) string {
+	replacer := strings.NewReplacer(
+		"{handleOrDid}", "@alice.example",
+		"{did}", "did:plc:alice",
+		"{rkey}", "post1",
+		"{tag}", "sock",
+		"{id}", "recent_123",
+	)
+	path := replacer.Replace(pattern)
+	switch pattern {
+	case "/v1/facets/mentions", "/v1/facets/hashtags", "/v1/search/suggestions", "/v1/search/hashtags", "/v1/search/profiles", "/v1/search/posts":
+		return path + "?q=sock"
+	case "/v1/facets/mentions/resolve":
+		return path + "?handle=alice.example"
+	}
+	return path
 }
 
 func TestAddRoutes_PostRepliesRequiresAuthenticatedDevice(t *testing.T) {

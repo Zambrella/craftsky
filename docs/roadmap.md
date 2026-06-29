@@ -22,11 +22,11 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [ ] Notifications: `GET /v1/notifications` → own spec
 - [x] Blob upload (required for images on posts) → own spec; may trigger TMB upgrade per OAuth BFF §6
 - [x] Indexer: consume Tap → populate `posts`, `follows`, `likes`, `blocks` tables for Craftsky lexicons → own spec (replaces the `000001_bluesky_posts_sample` placeholder)
-- [ ] Request body size limits → own spec (small, could be folded into another)
-- [ ] Cross-cutting envelope helpers + device-id middleware (part of API architecture implementation, not its own spec)
-- [ ] Rate limiting — per-token and per-device-id → own spec (needed before public launch)
-- [ ] CORS policy → own spec (needed if any web surface talks to the API; landing page is static, so low priority unless scope changes)
-- [ ] Success response envelope — decide whether to wrap successful responses in `{"data": ...}`. Lock in before launch so we don't need a `/v2/` later.
+- [x] Request body size limits — [`2026-06-28-appview-architecture-hardening`](../changes/2026-06-28-appview-architecture-hardening/)
+- [x] Cross-cutting envelope helpers + device-id middleware — [`2026-06-28-appview-architecture-hardening`](../changes/2026-06-28-appview-architecture-hardening/)
+- [x] Rate limiting — per-token and per-device-id — [`2026-06-28-appview-architecture-hardening`](../changes/2026-06-28-appview-architecture-hardening/)
+- [x] CORS policy — [`2026-06-28-appview-architecture-hardening`](../changes/2026-06-28-appview-architecture-hardening/)
+- [x] Success response envelope — bare v1 success bodies retained; errors stay enveloped — [`2026-06-28-appview-architecture-hardening`](../changes/2026-06-28-appview-architecture-hardening/)
 - [ ] Observability — request logging format, request-ID propagation into downstream calls, metrics, tracing → own spec
 - [x] Search — posts by text, tag, craft type, materials (Postgres FTS vs separate service) → own spec
 - [ ] Reposts — `POST /v1/posts/{did}/{rkey}/reposts` etc. Lexicon already defined. Folds into Posts spec unless it grows.

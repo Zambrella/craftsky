@@ -8,8 +8,8 @@ import (
 //
 // The allow-list is an explicit list of exact origins. The special value
 // "*" matches any origin (used in dev); when wildcarded, the request's
-// Origin header is echoed back rather than sending a literal "*" so that
-// credentialed requests still work.
+// Origin header is echoed back rather than sending a literal "*". V1 uses
+// bearer Authorization headers and does not enable cookie credential CORS.
 //
 // Preflight (OPTIONS) requests short-circuit with 200 after the headers
 // are set. Non-preflight requests pass through to next with the
@@ -31,7 +31,7 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 			// origin A to a request from origin B.
 			w.Header().Add("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-Dev-DID")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-Dev-DID, X-Craftsky-Device-Id")
 			w.Header().Set("Access-Control-Max-Age", "86400")
 
 			if r.Method == http.MethodOptions {

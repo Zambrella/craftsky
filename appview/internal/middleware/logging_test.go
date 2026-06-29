@@ -51,3 +51,25 @@ func TestGetRunID_EmptyWhenAbsent(t *testing.T) {
 		t.Errorf("GetRunID = %q, want empty", got)
 	}
 }
+
+func TestLogging_RedactsAuthorizationAndDoesNotLogRequestBody(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	handler := Logging(logger)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(`{"secret":"payload"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer raw-secret-token")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	logged := buf.String()
+	if strings.Contains(logged, "raw-secret-token") || strings.Contains(logged, "Bearer raw-secret-token") {
+		t.Fatalf("log contains raw authorization token: %s", logged)
+	}
+	if strings.Contains(logged, "payload") || strings.Contains(logged, "json_payload") {
+		t.Fatalf("log contains request payload: %s", logged)
+	}
+}
