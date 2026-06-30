@@ -92,7 +92,7 @@ func DeviceID(toucher DeviceIDToucher, logger *slog.Logger) func(http.Handler) h
 					if sid, ok := ctxkeys.GetOAuthSessionID(ctx); ok && sid != "" {
 						if err := toucher.TouchDeviceID(ctx, did.String(), sid, id); err != nil {
 							logger.Warn("device-id: TouchDeviceID failed",
-								slog.String("err", err.Error()),
+								slog.String("error_category", "store"),
 								slog.String("run_id", GetRunID(ctx)))
 						}
 					}

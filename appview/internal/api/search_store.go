@@ -12,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 )
 
 type SearchPostRow struct {
@@ -208,6 +210,24 @@ func (s *SearchStore) SearchHashtagPosts(ctx context.Context, tag string, sort S
 }
 
 func (s *SearchStore) SearchPosts(ctx context.Context, req PostSearchRequest, now time.Time) ([]SearchPostRow, string, error) {
+	if s != nil && s.observer != nil {
+		var rows []SearchPostRow
+		var cursor string
+		err := s.observer.ObserveDB(ctx, observability.DBOperation{
+			Operation:    "search.posts",
+			RoutePattern: "/v1/search/posts",
+			RunID:        middleware.GetRunID(ctx),
+		}, func(ctx context.Context) error {
+			var err error
+			rows, cursor, err = s.searchPostsObserved(ctx, req, now)
+			return err
+		})
+		return rows, cursor, err
+	}
+	return s.searchPostsObserved(ctx, req, now)
+}
+
+func (s *SearchStore) searchPostsObserved(ctx context.Context, req PostSearchRequest, now time.Time) ([]SearchPostRow, string, error) {
 	if strings.TrimSpace(req.Query) != "" {
 		return s.searchPostsByRelevance(ctx, req)
 	}

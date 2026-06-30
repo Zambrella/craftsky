@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/observability"
 )
 
 type BodyKind string
@@ -59,7 +60,7 @@ func enforceNoBody(w http.ResponseWriter, r *http.Request, logger *slog.Logger) 
 		if logger != nil {
 			logger.Warn("request body rejected: not allowed",
 				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
+				slog.String("route_pattern", observability.RoutePattern(r)),
 				slog.String("run_id", GetRunID(r.Context())))
 		}
 		envelope.WriteError(w, http.StatusBadRequest, "request_body_not_allowed", "request body is not allowed for this route", GetRunID(r.Context()), nil)
@@ -85,7 +86,7 @@ func enforceMaxBody(w http.ResponseWriter, r *http.Request, limit int64, logger 
 		if logger != nil {
 			logger.Warn("request body rejected: too large",
 				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
+				slog.String("route_pattern", observability.RoutePattern(r)),
 				slog.Int64("limit_bytes", limit),
 				slog.String("run_id", GetRunID(r.Context())))
 		}

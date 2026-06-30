@@ -33,11 +33,9 @@ func ImageBlobUploadHandler(newPDS auth.PDSClientFactory, limits MediaLimits, lo
 		}
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
 		logger.Debug("blob upload: request started",
-			slog.String("did", did.String()),
-			slog.String("session_id", sessionID),
-			slog.String("content_type", r.Header.Get("Content-Type")),
-			slog.Int64("content_length", r.ContentLength),
-			slog.String("run_id", runID))
+			append(pdsLogAttrs(runID, pdsOperationBlobUpload, pdsStageRequestBuild),
+				slog.String("content_type", r.Header.Get("Content-Type")),
+				slog.Int64("content_length", r.ContentLength))...)
 
 		uploadReq, payload, err := DecodeImageBlobUploadWithLimits(r.Header.Get("Content-Type"), r.Body, limits)
 		if err != nil {
@@ -58,16 +56,14 @@ func ImageBlobUploadHandler(newPDS auth.PDSClientFactory, limits MediaLimits, lo
 			return
 		}
 		logger.Debug("blob upload: validated payload",
-			slog.String("did", did.String()),
-			slog.String("mime", uploadReq.ContentType),
-			slog.Int64("size", uploadReq.SizeBytes),
-			slog.String("run_id", runID))
+			append(pdsLogAttrs(runID, pdsOperationBlobUpload, pdsStageRequestBuild),
+				slog.String("content_type", uploadReq.ContentType),
+				slog.Int64("size", uploadReq.SizeBytes))...)
 
 		pds, err := newPDS(r.Context(), did, sessionID)
 		if err != nil {
 			logger.Error("blob upload: newPDS failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationBlobUpload, pdsStageSessionResume, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_unavailable", "could not contact PDS", runID, err)
 			return
@@ -76,11 +72,9 @@ func ImageBlobUploadHandler(newPDS auth.PDSClientFactory, limits MediaLimits, lo
 		uploaded, err := pds.UploadBlob(r.Context(), uploadReq.ContentType, payload)
 		if err != nil {
 			logger.Warn("blob upload: UploadBlob failed",
-				slog.String("did", did.String()),
-				slog.String("mime", uploadReq.ContentType),
-				slog.Int64("size", uploadReq.SizeBytes),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				append(pdsLogErrorAttrs(runID, pdsOperationBlobUpload, pdsStagePDSRequest, err),
+					slog.String("content_type", uploadReq.ContentType),
+					slog.Int64("size", uploadReq.SizeBytes))...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_write_failed", "could not upload image", runID, err)
 			return
@@ -93,12 +87,9 @@ func ImageBlobUploadHandler(newPDS auth.PDSClientFactory, limits MediaLimits, lo
 			Size: uploaded.Size,
 		}
 		logger.Debug("blob upload: uploaded to PDS",
-			slog.String("did", did.String()),
-			slog.String("cid", uploaded.CID),
-			slog.String("mime", uploaded.MIME),
-			slog.Int64("size", uploaded.Size),
-			slog.Any("blob", uploaded.Raw),
-			slog.String("run_id", runID))
+			append(pdsLogSuccessAttrs(runID, pdsOperationBlobUpload, pdsStagePDSRequest),
+				slog.String("content_type", uploaded.MIME),
+				slog.Int64("size", uploaded.Size))...)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(resp)

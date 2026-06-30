@@ -84,8 +84,7 @@ func InitializeProfileAndIdentityCache(ctx context.Context, client PDSClient, di
 	if err := updater.UpsertCurrentHandle(ctx, did); err != nil {
 		if logger != nil {
 			logger.Warn("identity cache upsert after profile initialization failed",
-				slog.String("did", did.String()),
-				slog.String("err", err.Error()))
+				authLogErrorAttrs("", "profile_init.identity_cache", "store")...)
 		}
 	}
 	return nil

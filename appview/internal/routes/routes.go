@@ -8,6 +8,7 @@ import (
 	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 )
 
 const defaultJSONBodyLimitBytes int64 = 1024 * 1024
@@ -38,6 +39,11 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	// Public ops.
 	mux.Handle("GET /health", api.HealthHandler(deps.DB, deps.Logger))
 	mux.Handle("GET /healthz", api.NewHealthHandler(deps.DB, deps.Consumer))
+	observer := deps.Observability
+	if observer == nil {
+		observer = observability.New(observability.Config{Env: string(deps.Config.Env)})
+	}
+	mux.Handle("GET /metrics", observer.MetricsHandler())
 	if deps.Config.Env == app.EnvDev {
 		mux.Handle("GET /v1/dev/media/{name}", api.DevMediaHandler())
 	}
@@ -85,7 +91,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		MaxImageUploadBytes: deps.Config.MaxImageUploadBytes,
 	}
 	facetStore := api.NewFacetStore(deps.DB, deps.HandleResolver)
-	searchStore := api.NewSearchStore(deps.DB)
+	searchStore := api.NewSearchStore(deps.DB).WithObserver(deps.Observability)
 	mux.Handle("GET /v1/whoami", v1mw.wrap(mustPolicy("GET", "/v1/whoami"), api.WhoAmIHandler(deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/facets/mentions", v1mw.wrap(mustPolicy("GET", "/v1/facets/mentions"), api.ListFacetMentionSuggestionsHandler(facetStore, deps.Logger)))
 	mux.Handle("GET /v1/facets/mentions/resolve", v1mw.wrap(mustPolicy("GET", "/v1/facets/mentions/resolve"), api.ResolveFacetMentionHandler(facetStore, deps.Logger)))

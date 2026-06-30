@@ -19,6 +19,7 @@ import (
 	"social.craftsky/appview/internal/db"
 	"social.craftsky/appview/internal/index"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -31,11 +32,12 @@ import (
 // Handler factories in internal/api take only the specific dependencies
 // they use.
 type Deps struct {
-	Config      Config
-	Logger      *slog.Logger
-	DB          *pgxpool.Pool
-	AuthService auth.AuthService
-	RateLimiter *middleware.LocalRateLimiter
+	Config        Config
+	Logger        *slog.Logger
+	DB            *pgxpool.Pool
+	AuthService   auth.AuthService
+	RateLimiter   *middleware.LocalRateLimiter
+	Observability *observability.Observer
 
 	// OAuth subsystem.
 	OAuthApp             *oauth.ClientApp
@@ -134,10 +136,18 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	dispatcher := newIndexerDispatcher(pool, anonPDS, logger)
 
 	deps := &Deps{
-		Config:               cfg,
-		Logger:               logger,
-		DB:                   pool,
-		RateLimiter:          rateLimiter,
+		Config:      cfg,
+		Logger:      logger,
+		DB:          pool,
+		RateLimiter: rateLimiter,
+		Observability: observability.New(observability.Config{
+			Env:              string(cfg.Env),
+			Release:          cfg.SentryRelease,
+			TracingEnabled:   cfg.SentryTracingEnabled,
+			TracesSampleRate: cfg.SentryTracesSampleRate,
+			SentryDSN:        cfg.SentryDSN,
+			Logger:           logger,
+		}),
 		OAuthApp:             oauthApp,
 		OAuthStore:           oauthStore,
 		CraftskySessionStore: craftskyStore,
@@ -153,6 +163,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		ReconnectMax: cfg.TapReconnectMax,
 		MaxRetries:   cfg.TapMaxRetries,
 		Logger:       logger,
+		Observer:     deps.Observability,
 	})
 	if cfg.Env == EnvDev {
 		deps.HandleResolver = api.DevHandleResolver{
@@ -167,7 +178,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	deps.ReportStore = api.NewReportStore(pool)
 	deps.ReportForwarder = api.NewPlaceholderReportForwarder(time.Now)
 	deps.ModerationStore = api.NewModerationStore(pool)
-	deps.NewPDSClient = func(ctx context.Context, did syntax.DID, sid string) (auth.PDSClient, error) {
+	deps.NewPDSClient = deps.Observability.WrapPDSFactory(func(ctx context.Context, did syntax.DID, sid string) (auth.PDSClient, error) {
 		sess, err := oauthApp.ResumeSession(ctx, did, sid)
 		if err != nil {
 			err = auth.TranslatePDSError(err)
@@ -182,11 +193,12 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 				deps.expirePDSSession(ctx, did, sid)
 			},
 		}, nil
-	}
+	})
 
 	var once sync.Once
 	cleanup := func() {
 		once.Do(func() {
+			deps.Observability.Flush(2 * time.Second)
 			deps.DB.Close()
 			deps.Logger.Info("shutdown: db pool closed")
 		})
@@ -202,20 +214,23 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 }
 
 func (d *Deps) expirePDSSession(ctx context.Context, did syntax.DID, sid string) {
+	attrs := []any{
+		slog.String("component", "pds"),
+		slog.String("operation", "oauth.session_resume"),
+		slog.String("failure_stage", "session_resume"),
+		slog.String("result", "error"),
+		slog.String("error_category", "auth"),
+	}
+	if runID := middleware.GetRunID(ctx); runID != "" {
+		attrs = append(attrs, slog.String("run_id", runID))
+	}
 	d.Logger.Warn("PDS OAuth session expired; revoking Craftsky sessions",
-		slog.String("did", did.String()),
-		slog.String("session_id", sid))
+		attrs...)
 	if err := d.CraftskySessionStore.RevokeOAuthSession(ctx, did.String(), sid); err != nil {
-		d.Logger.Error("revoke Craftsky sessions failed",
-			slog.String("did", did.String()),
-			slog.String("session_id", sid),
-			slog.String("err", err.Error()))
+		d.Logger.Error("revoke Craftsky sessions failed", attrs...)
 	}
 	if err := d.OAuthStore.DeleteSession(ctx, did, sid); err != nil {
-		d.Logger.Error("delete OAuth session failed",
-			slog.String("did", did.String()),
-			slog.String("session_id", sid),
-			slog.String("err", err.Error()))
+		d.Logger.Error("delete OAuth session failed", attrs...)
 	}
 }
 

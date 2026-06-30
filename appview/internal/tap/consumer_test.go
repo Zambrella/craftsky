@@ -3,6 +3,7 @@ package tap_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,7 +14,9 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+	"github.com/getsentry/sentry-go"
 
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -313,6 +316,241 @@ func TestWSConsumer_PoisonPillIsDroppedAfterMaxRetries(t *testing.T) {
 type alwaysFailIndexer struct{}
 
 func (alwaysFailIndexer) Handle(ctx context.Context, ev tap.Event) error { return errTest }
+
+type panicIndexer struct{}
+
+func (panicIndexer) Handle(context.Context, tap.Event) error {
+	panic("indexer panic")
+}
+
+type failOnIDIndexer struct {
+	events []tap.Event
+}
+
+func (f *failOnIDIndexer) Handle(_ context.Context, ev tap.Event) error {
+	if ev.ID == 2 {
+		return errTest
+	}
+	f.events = append(f.events, ev)
+	return nil
+}
+
+func TestWSConsumer_EmitsTapMetricsAndCapturesIndexerErrors(t *testing.T) {
+	t.Parallel()
+
+	frames := []string{
+		`{"id":1,"type":"record","record":{"live":true,"rev":"r1","did":"did:plc:a","collection":"social.craftsky.feed.post","rkey":"k1","action":"create","cid":"bafy1","record":{"text":"hi"}}}`,
+		`{"id":2,"type":"record","record":{"live":true,"rev":"r2","did":"did:plc:a","collection":"social.craftsky.feed.like","rkey":"k2","action":"create","cid":"bafy2","record":{"subject":"x"}}}`,
+		`{"id":3,"type":"record","record":{"live":true,"rev":"r3","did":"did:plc:a","collection":"not-an-nsid!","rkey":"k3","action":"create","cid":"bafy3","record":{"text":"bad"}}}`,
+		`{"id":4,"type":"identity","identity":{"did":"did:plc:a"}}`,
+	}
+	ft := newFakeTap(frames)
+	srv := httptest.NewServer(ft.handler(t))
+	defer srv.Close()
+
+	transport := &sentry.MockTransport{}
+	observer := observability.New(observability.Config{
+		Env:             "test",
+		SentryDSN:       "https://public@example.invalid/1",
+		SentryTransport: transport,
+	})
+	idx := &failOnIDIndexer{}
+	c := tap.NewWSConsumer(tap.WSConsumerConfig{
+		URL:          strings.Replace(srv.URL, "http://", "ws://", 1),
+		Indexer:      idx,
+		AckTimeout:   1 * time.Second,
+		ReconnectMax: 500 * time.Millisecond,
+		MaxRetries:   100,
+		Observer:     observer,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go c.Run(ctx)
+
+	seenAcks := map[uint64]bool{}
+	deadline := time.After(1500 * time.Millisecond)
+	for len(seenAcks) < 3 {
+		select {
+		case id := <-ft.acks:
+			seenAcks[id] = true
+		case <-deadline:
+			t.Fatalf("timeout waiting for expected acks; seen=%v", seenAcks)
+		}
+	}
+	for _, want := range []uint64{1, 3, 4} {
+		if !seenAcks[want] {
+			t.Fatalf("missing ack for id=%d; seen=%v", want, seenAcks)
+		}
+	}
+	if seenAcks[2] {
+		t.Fatal("indexer-error event id=2 was acked; want retry")
+	}
+
+	rec := httptest.NewRecorder()
+	observer.MetricsHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	body := rec.Body.String()
+	for _, want := range []string{
+		`craftsky_appview_tap_connected 1`,
+		`craftsky_appview_tap_events_received_total{type="record"} 3`,
+		`craftsky_appview_tap_events_received_total{type="identity"} 1`,
+		`craftsky_appview_tap_events_acknowledged_total 3`,
+		`craftsky_appview_tap_indexer_records_total{nsid="social.craftsky.feed.post",reason="none",result="indexed"} 1`,
+		`craftsky_appview_tap_indexer_records_total{nsid="social.craftsky.feed.like",reason="indexer_error",result="error"} 1`,
+		`craftsky_appview_tap_indexer_records_total{nsid="malformed",reason="malformed",result="skipped"} 1`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("metrics output missing %q:\n%s", want, body)
+		}
+	}
+	for _, forbidden := range []string{"did:plc:a", "k1", "k2", "bafy"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("metrics output contains raw value %q:\n%s", forbidden, body)
+		}
+	}
+
+	if !observer.Flush(50 * time.Millisecond) {
+		t.Fatal("observer Flush returned false")
+	}
+	events := transport.Events()
+	if len(events) != 1 {
+		t.Fatalf("captured %d Sentry events, want 1", len(events))
+	}
+	if events[0].Tags["component"] != "tap_indexer" || events[0].Tags["nsid"] != "social.craftsky.feed.like" || events[0].Tags["result"] != "error" {
+		t.Fatalf("indexer Sentry event missing safe tags: %#v", events[0].Tags)
+	}
+}
+
+func TestWSConsumer_ExportsSentryConsumeAndIndexerSpans(t *testing.T) {
+	t.Parallel()
+
+	frames := []string{
+		`{"id":11,"type":"record","record":{"live":true,"rev":"r1","did":"did:plc:alice","collection":"social.craftsky.feed.post","rkey":"post1","action":"create","cid":"bafyPost","record":{"text":"secret body"}}}`,
+	}
+	ft := newFakeTap(frames)
+	srv := httptest.NewServer(ft.handler(t))
+	defer srv.Close()
+
+	transport := &sentry.MockTransport{}
+	observer := observability.New(observability.Config{
+		Env:              "test",
+		SentryDSN:        "https://public@example.invalid/1",
+		SentryTransport:  transport,
+		TracingEnabled:   true,
+		TracesSampleRate: 1,
+	})
+	idx := &fakeIndexer{}
+	c := tap.NewWSConsumer(tap.WSConsumerConfig{
+		URL:          strings.Replace(srv.URL, "http://", "ws://", 1),
+		Indexer:      idx,
+		AckTimeout:   1 * time.Second,
+		ReconnectMax: 500 * time.Millisecond,
+		MaxRetries:   5,
+		Observer:     observer,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	done := make(chan error, 1)
+	go func() { done <- c.Run(ctx) }()
+
+	select {
+	case id := <-ft.acks:
+		if id != 11 {
+			t.Fatalf("ack id=%d, want 11", id)
+		}
+	case <-time.After(1500 * time.Millisecond):
+		cancel()
+		t.Fatal("timeout waiting for ack")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil && !isContextCanceled(err) {
+			t.Fatalf("Run returned %v; want context cancellation", err)
+		}
+	case <-time.After(1500 * time.Millisecond):
+		t.Fatal("Run did not return after cancel")
+	}
+
+	if !observer.Flush(50 * time.Millisecond) {
+		t.Fatal("observer Flush returned false")
+	}
+	events := transport.Events()
+	if len(events) != 1 {
+		t.Fatalf("captured %d Sentry events, want 1 transaction", len(events))
+	}
+	event := events[0]
+	if event.Transaction != "tap.consume" {
+		t.Fatalf("transaction = %q, want tap.consume; event=%#v", event.Transaction, event)
+	}
+	if len(event.Spans) != 1 {
+		t.Fatalf("transaction spans = %d, want 1; event=%#v", len(event.Spans), event)
+	}
+	span := event.Spans[0]
+	if span.Op != "tap.indexer.handle" {
+		t.Fatalf("child span op = %q, want tap.indexer.handle", span.Op)
+	}
+	for key, want := range map[string]any{
+		"component": "tap_indexer",
+		"operation": "tap.indexer.handle",
+		"nsid":      "social.craftsky.feed.post",
+		"result":    "success",
+	} {
+		if got := span.Data[key]; got != want {
+			t.Fatalf("child span data %q = %#v, want %#v; all data=%#v", key, got, want, span.Data)
+		}
+	}
+	for _, forbidden := range []string{"did:plc:alice", "post1", "bafyPost", "secret body"} {
+		if strings.Contains(event.Transaction, forbidden) {
+			t.Fatalf("transaction contains forbidden value %q: %#v", forbidden, event)
+		}
+		for _, span := range event.Spans {
+			if strings.Contains(span.Op, forbidden) || strings.Contains(span.Description, forbidden) {
+				t.Fatalf("span contains forbidden value %q: %#v", forbidden, span)
+			}
+			for key, value := range span.Data {
+				if strings.Contains(key, forbidden) || strings.Contains(valueAsString(value), forbidden) {
+					t.Fatalf("span data contains forbidden value %q: %q=%#v", forbidden, key, value)
+				}
+			}
+		}
+	}
+}
+
+func TestWSConsumer_IndexerPanicDoesNotCrashConsumer(t *testing.T) {
+	t.Parallel()
+
+	frames := []string{
+		`{"id":123,"type":"record","record":{"live":true,"rev":"r","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`,
+	}
+	ft := newFakeTap(frames)
+	srv := httptest.NewServer(ft.handler(t))
+	defer srv.Close()
+
+	wsURL := strings.Replace(srv.URL, "http://", "ws://", 1)
+	c := tap.NewWSConsumer(tap.WSConsumerConfig{
+		URL:          wsURL,
+		Indexer:      panicIndexer{},
+		AckTimeout:   1 * time.Second,
+		ReconnectMax: 500 * time.Millisecond,
+		MaxRetries:   100,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go c.Run(ctx)
+
+	select {
+	case id := <-ft.acks:
+		t.Fatalf("unexpected ack for panicking event id=%d", id)
+	case <-time.After(500 * time.Millisecond):
+		// good: panic is treated like an indexer error, so Tap can redeliver.
+	}
+}
+
+func valueAsString(value any) string {
+	return fmt.Sprint(value)
+}
 
 // TestWSConsumer_MalformedIdentifierAcksAndDrops covers the boundary
 // validation added when Event fields became typed via indigo syntax types.

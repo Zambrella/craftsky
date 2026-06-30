@@ -74,7 +74,8 @@ func ReportPostHandler(targets PostReportTargetResolver, reports ReportCreator, 
 			return
 		}
 		if err != nil {
-			logger.Error("report post: resolve target failed", slog.String("err", err.Error()), slog.String("run_id", runID))
+			logger.Error("report post: resolve target failed",
+				apiLogErrorAttrs(runID, "report.post.create", "target_lookup")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report target lookup failed", runID, nil)
 			return
 		}
@@ -87,7 +88,8 @@ func ReportPostHandler(targets PostReportTargetResolver, reports ReportCreator, 
 		subject := ReportSubjectSnapshot{Type: ReportSubjectPost, DID: target.DID, Collection: &collection, Rkey: &target.Rkey, URI: &target.URI, CIDSnapshot: &target.CIDSnapshot}
 		metadata, err := forwarder.Prepare(r.Context(), ReportForwardingInput{ReporterDID: reporterDID.String(), Subject: subject, ReasonType: req.ReasonType, Details: normalizedDetails})
 		if err != nil {
-			logger.Error("report post: prepare forwarding failed", slog.String("err", err.Error()), slog.String("run_id", runID))
+			logger.Error("report post: prepare forwarding failed",
+				apiLogErrorAttrs(runID, "report.post.create", "forwarding")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report forwarding preparation failed", runID, nil)
 			return
 		}
@@ -108,7 +110,8 @@ func ReportPostHandler(targets PostReportTargetResolver, reports ReportCreator, 
 			ForwardingPreparedAt:    metadata.PreparedAt,
 		})
 		if err != nil {
-			logger.Error("report post: create report failed", slog.String("err", err.Error()), slog.String("run_id", runID))
+			logger.Error("report post: create report failed",
+				apiLogErrorAttrs(runID, "report.post.create", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report persistence failed", runID, nil)
 			return
 		}
@@ -140,7 +143,8 @@ func ReportProfileHandler(targets AccountReportTargetResolver, reports ReportCre
 			return
 		}
 		if err != nil {
-			logger.Error("report profile: resolve target failed", slog.String("err", err.Error()), slog.String("run_id", runID))
+			logger.Error("report profile: resolve target failed",
+				apiLogErrorAttrs(runID, "report.profile.create", "target_lookup")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report target lookup failed", runID, nil)
 			return
 		}
@@ -152,7 +156,8 @@ func ReportProfileHandler(targets AccountReportTargetResolver, reports ReportCre
 		subject := ReportSubjectSnapshot{Type: ReportSubjectAccount, DID: target.DID, HandleSnapshot: optionalString(target.SubmittedHandleSnapshot)}
 		metadata, err := forwarder.Prepare(r.Context(), ReportForwardingInput{ReporterDID: reporterDID.String(), Subject: subject, ReasonType: req.ReasonType, Details: normalizedDetails})
 		if err != nil {
-			logger.Error("report profile: prepare forwarding failed", slog.String("err", err.Error()), slog.String("run_id", runID))
+			logger.Error("report profile: prepare forwarding failed",
+				apiLogErrorAttrs(runID, "report.profile.create", "forwarding")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report forwarding preparation failed", runID, nil)
 			return
 		}
@@ -170,7 +175,8 @@ func ReportProfileHandler(targets AccountReportTargetResolver, reports ReportCre
 			ForwardingPreparedAt:    metadata.PreparedAt,
 		})
 		if err != nil {
-			logger.Error("report profile: create report failed", slog.String("err", err.Error()), slog.String("run_id", runID))
+			logger.Error("report profile: create report failed",
+				apiLogErrorAttrs(runID, "report.profile.create", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report persistence failed", runID, nil)
 			return
 		}

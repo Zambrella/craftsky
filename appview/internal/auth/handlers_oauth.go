@@ -10,6 +10,8 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"social.craftsky/appview/internal/ctxkeys"
 )
 
 // HTTPHandlers bundles the OAuth-related HTTP handlers. Construct via
@@ -62,7 +64,8 @@ func (h *HTTPHandlers) ClientMetadataHandler() http.Handler {
 			meta.JWKSURI = &jwksURL
 		}
 		if err := meta.Validate(cfg.ClientID); err != nil {
-			h.Logger.Error("client metadata validation failed", slog.String("err", err.Error()))
+			h.Logger.Error("client metadata validation failed",
+				authLogErrorAttrs(ctxkeys.GetRunID(r.Context()), "oauth.client_metadata", "validation")...)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
@@ -86,12 +89,12 @@ func (h *HTTPHandlers) JWKSHandler() http.Handler {
 // client (deep link for mobile/desktop; loopback POST for CLI/dev).
 func (h *HTTPHandlers) CallbackHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := ctxkeys.GetRunID(r.Context())
 		state := r.URL.Query().Get("state")
 		sessData, err := h.OAuth.ProcessCallback(r.Context(), r.URL.Query())
 		if err != nil {
 			h.Logger.Warn("ProcessCallback failed",
-				slog.String("state", state),
-				slog.String("err", err.Error()))
+				authLogErrorAttrs(runID, "oauth.callback", "authorization_server")...)
 			renderErrorHTML(w, http.StatusBadRequest, "Sign-in could not be completed. Please try again.")
 			return
 		}
@@ -101,8 +104,7 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 			// Best-effort: ProcessCallback may already have deleted the
 			// auth-request row (it's single-use). Fall back to deep_link.
 			h.Logger.Warn("loadHandoff failed; defaulting to deep_link",
-				slog.String("state", state),
-				slog.String("err", herr.Error()))
+				authLogErrorAttrs(runID, "oauth.callback", "handoff")...)
 			mode = "deep_link"
 		}
 		if mode == "" {
@@ -112,16 +114,14 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 		pdsClient, err := h.NewPDSClient(r.Context(), sessData.AccountDID, sessData.SessionID)
 		if err != nil {
 			h.Logger.Error("NewPDSClient failed",
-				slog.String("did", sessData.AccountDID.String()),
-				slog.String("err", err.Error()))
+				authLogErrorAttrs(runID, "oauth.callback", "pds")...)
 			renderErrorHTML(w, http.StatusBadGateway,
 				"Sign-in succeeded but we couldn't initialise your profile. Please try again.")
 			return
 		}
 		if err := InitializeProfileAndIdentityCache(r.Context(), pdsClient, sessData.AccountDID, h.IdentityCacheUpdater, h.Logger); err != nil {
 			h.Logger.Warn("InitializeProfile failed",
-				slog.String("did", sessData.AccountDID.String()),
-				slog.String("err", err.Error()))
+				authLogErrorAttrs(runID, "oauth.callback", "profile_init")...)
 			switch {
 			case errors.Is(err, ErrProfileDataInvalid):
 				renderErrorHTML(w, http.StatusBadGateway,
@@ -135,7 +135,8 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 
 		token, err := h.CraftskySessions.Create(r.Context(), sessData.AccountDID.String(), sessData.SessionID, "")
 		if err != nil {
-			h.Logger.Error("CraftskySessions.Create failed", slog.String("err", err.Error()))
+			h.Logger.Error("CraftskySessions.Create failed",
+				authLogErrorAttrs(runID, "oauth.callback", "store")...)
 			renderErrorHTML(w, http.StatusInternalServerError, "Internal error. Please try again.")
 			return
 		}
@@ -150,7 +151,7 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 			// Re-validate at egress (defence in depth; ingress check is primary).
 			if !loopbackRedirectPattern.MatchString(loopbackURI) {
 				h.Logger.Error("loopback_redirect_uri failed egress validation",
-					slog.String("uri", loopbackURI))
+					authLogErrorAttrs(runID, "oauth.callback", "validation")...)
 				renderErrorHTML(w, http.StatusInternalServerError, "Invalid loopback redirect URI.")
 				return
 			}
@@ -163,7 +164,8 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if err := callbackTmpl.Execute(w, data); err != nil {
-			h.Logger.Error("callback template", slog.String("err", err.Error()))
+			h.Logger.Error("callback template",
+				authLogErrorAttrs(runID, "oauth.callback", "template")...)
 		}
 	})
 }

@@ -19,6 +19,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+
+	"social.craftsky/appview/internal/observability"
 )
 
 // Event is one decoded record-event from Tap's /channel WebSocket.
@@ -85,6 +87,7 @@ type WSConsumerConfig struct {
 	ReconnectMax time.Duration // cap for exponential reconnect backoff
 	MaxRetries   int           // poison-pill threshold per event id
 	Logger       *slog.Logger  // optional; nil → slog.Default()
+	Observer     *observability.Observer
 }
 
 // HandlerIndexer is the narrow interface the consumer needs. Defined here
@@ -129,6 +132,9 @@ func (c *WSConsumer) setConnected(connected bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.state.Connected = connected
+	if c.cfg.Observer != nil {
+		c.cfg.Observer.SetTapConnected(connected)
+	}
 	if connected {
 		c.state.LastError = ""
 		c.state.ReconnectAttempt = 0
@@ -139,14 +145,22 @@ func (c *WSConsumer) recordError(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.state.Connected = false
-	c.state.LastError = err.Error()
+	c.state.LastError = "connection_error"
 	c.state.ReconnectAttempt++
+	if c.cfg.Observer != nil {
+		c.cfg.Observer.SetTapConnected(false)
+		c.cfg.Observer.ObserveTapReconnect()
+	}
 }
 
 func (c *WSConsumer) recordEvent() {
+	now := time.Now().UTC()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.state.LastEventAt = time.Now().UTC()
+	c.state.LastEventAt = now
+	if c.cfg.Observer != nil {
+		c.cfg.Observer.ObserveTapLastEventAt(now)
+	}
 }
 
 // Run loops forever connecting, reading, and reconnecting on error.
@@ -163,7 +177,8 @@ func (c *WSConsumer) Run(ctx context.Context) error {
 		c.recordError(err)
 		backoff := c.backoff()
 		c.logger.Warn("tap consumer disconnected",
-			slog.Any("err", err),
+			slog.String("result", "error"),
+			slog.String("error_category", "connection"),
 			slog.Duration("backoff", backoff),
 			slog.Int("attempt", c.State().ReconnectAttempt),
 		)
@@ -224,7 +239,28 @@ type ackFrame struct {
 }
 
 // runOnce handles one WS connection lifecycle.
-func (c *WSConsumer) runOnce(ctx context.Context) error {
+func (c *WSConsumer) runOnce(ctx context.Context) (err error) {
+	var consumeSpan *observability.Span
+	if c.cfg.Observer != nil {
+		ctx, consumeSpan = c.cfg.Observer.StartSpan(ctx, observability.SpanContext{
+			Operation: "tap.consume",
+			Component: "tap",
+			Attributes: observability.EventContext{
+				"component": "tap",
+			},
+		})
+		defer func() {
+			result := "error"
+			if err == nil || ctx.Err() != nil {
+				result = "success"
+			}
+			consumeSpan.SetAttributes(observability.EventContext{
+				"component": "tap",
+				"result":    result,
+			})
+			consumeSpan.Finish(result)
+		}()
+	}
 	conn, _, err := websocket.Dial(ctx, c.cfg.URL, nil)
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
@@ -236,7 +272,10 @@ func (c *WSConsumer) runOnce(ctx context.Context) error {
 	// faster on cancel and avoids a blocked write when the peer is gone.
 	defer conn.CloseNow()
 	c.setConnected(true)
-	c.logger.Info("tap consumer connected", slog.String("url", c.cfg.URL))
+	c.logger.Info("tap consumer connected",
+		slog.String("component", "tap"),
+		slog.String("operation", "tap.connect"),
+		slog.String("result", "success"))
 
 	for {
 		var env envelope
@@ -244,11 +283,17 @@ func (c *WSConsumer) runOnce(ctx context.Context) error {
 			return fmt.Errorf("read: %w", err)
 		}
 		c.recordEvent()
+		if c.cfg.Observer != nil {
+			c.cfg.Observer.ObserveTapEventReceived(env.Type)
+		}
 
 		switch env.Type {
 		case "record":
 			if env.Record == nil {
 				c.logger.Warn("record envelope missing record field", slog.Uint64("id", env.ID))
+				if c.cfg.Observer != nil {
+					c.cfg.Observer.ObserveIndexerSkipped("", "malformed")
+				}
 				continue
 			}
 			ev, err := decodeRecordEvent(env)
@@ -258,8 +303,12 @@ func (c *WSConsumer) runOnce(ctx context.Context) error {
 				// Tap redeliver indefinitely.
 				c.logger.Error("dropping event with invalid identifier",
 					slog.Uint64("id", env.ID),
-					slog.Any("err", err),
+					slog.String("result", "dropped"),
+					slog.String("error_category", "malformed_identifier"),
 				)
+				if c.cfg.Observer != nil {
+					c.cfg.Observer.ObserveIndexerSkipped(env.Record.Collection, "malformed")
+				}
 				if ackErr := c.sendAck(ctx, conn, env.ID); ackErr != nil {
 					return fmt.Errorf("ack: %w", ackErr)
 				}
@@ -268,22 +317,20 @@ func (c *WSConsumer) runOnce(ctx context.Context) error {
 			c.logger.Debug("tap record event received",
 				slog.Uint64("id", ev.ID),
 				slog.String("action", ev.Action),
-				slog.String("collection", ev.Collection.String()),
-				slog.String("did", ev.DID.String()),
-				slog.String("rkey", ev.Rkey.String()),
+				slog.String("nsid", observability.SafeNSIDLabel(ev.Collection.String())),
 				slog.Int("recordBytes", len(ev.Record)),
 			)
 			if err := c.handleWithTimeout(ctx, ev); err != nil {
 				c.logger.Error("indexer handle failed",
-					slog.String("uri", ev.URI.String()),
 					slog.Uint64("id", ev.ID),
-					slog.Any("err", err),
+					slog.String("nsid", observability.SafeNSIDLabel(ev.Collection.String())),
+					slog.String("result", "error"),
+					slog.String("error_category", "indexer"),
 				)
 				if c.shouldDrop(ev.ID) {
 					c.logger.Error("dropping poison-pill event after retries",
-						slog.String("uri", ev.URI.String()),
 						slog.Uint64("id", ev.ID),
-						slog.String("record", string(ev.Record)),
+						slog.String("nsid", observability.SafeNSIDLabel(ev.Collection.String())),
 					)
 					if err := c.sendAck(ctx, conn, ev.ID); err != nil {
 						return fmt.Errorf("ack: %w", err)
@@ -299,12 +346,18 @@ func (c *WSConsumer) runOnce(ctx context.Context) error {
 		case "identity":
 			// Drop identity events at debug.
 			c.logger.Debug("tap identity event received", slog.Uint64("id", env.ID))
+			if c.cfg.Observer != nil {
+				c.cfg.Observer.ObserveIndexerSkipped("", "identity")
+			}
 			if err := c.sendAck(ctx, conn, env.ID); err != nil {
 				return fmt.Errorf("ack: %w", err)
 			}
 		default:
 			c.logger.Warn("unknown tap envelope type", slog.String("type", env.Type), slog.Uint64("id", env.ID))
 			// Ack anyway to avoid blocking.
+			if c.cfg.Observer != nil {
+				c.cfg.Observer.ObserveIndexerSkipped("", "unsupported")
+			}
 			if err := c.sendAck(ctx, conn, env.ID); err != nil {
 				return fmt.Errorf("ack: %w", err)
 			}
@@ -312,9 +365,62 @@ func (c *WSConsumer) runOnce(ctx context.Context) error {
 	}
 }
 
-func (c *WSConsumer) handleWithTimeout(ctx context.Context, ev Event) error {
+func (c *WSConsumer) handleWithTimeout(ctx context.Context, ev Event) (err error) {
+	started := time.Now()
 	handleCtx, cancel := context.WithTimeout(ctx, c.cfg.AckTimeout)
 	defer cancel()
+	var indexerSpan *observability.Span
+	if c.cfg.Observer != nil {
+		handleCtx, indexerSpan = c.cfg.Observer.StartSpan(handleCtx, observability.SpanContext{
+			Operation: "tap.indexer.handle",
+			Component: "tap_indexer",
+			Attributes: observability.EventContext{
+				"component": "tap_indexer",
+				"nsid":      observability.SafeNSIDLabel(ev.Collection.String()),
+			},
+		})
+	}
+	defer func() {
+		panicCaptured := false
+		if recovered := recover(); recovered != nil {
+			c.mu.Lock()
+			c.retryCount[ev.ID]++
+			c.mu.Unlock()
+			if c.cfg.Observer != nil {
+				panicCaptured = true
+				c.cfg.Observer.CapturePanic(handleCtx, observability.EventContext{
+					"component": "tap_indexer",
+					"nsid":      observability.SafeNSIDLabel(ev.Collection.String()),
+					"result":    "error",
+				}, recovered)
+			}
+			err = fmt.Errorf("indexer panic: %T", recovered)
+		}
+		if c.cfg.Observer != nil {
+			c.cfg.Observer.ObserveIndexerHandled(ev.Collection.String(), err, time.Since(started))
+			if err != nil && !panicCaptured {
+				c.cfg.Observer.CaptureError(handleCtx, observability.EventContext{
+					"component":      "tap_indexer",
+					"nsid":           observability.SafeNSIDLabel(ev.Collection.String()),
+					"result":         "error",
+					"error_category": "unexpected",
+				}, err)
+			}
+		}
+		if indexerSpan != nil {
+			result := "success"
+			if err != nil {
+				result = "error"
+			}
+			indexerSpan.SetAttributes(observability.EventContext{
+				"component": "tap_indexer",
+				"operation": "tap.indexer.handle",
+				"nsid":      observability.SafeNSIDLabel(ev.Collection.String()),
+				"result":    result,
+			})
+			indexerSpan.Finish(result)
+		}
+	}()
 	if err := c.cfg.Indexer.Handle(handleCtx, ev); err != nil {
 		c.mu.Lock()
 		c.retryCount[ev.ID]++
@@ -340,7 +446,11 @@ func (c *WSConsumer) forgetRetry(id uint64) {
 }
 
 func (c *WSConsumer) sendAck(ctx context.Context, conn *websocket.Conn, id uint64) error {
-	return wsjson.Write(ctx, conn, ackFrame{Type: "ack", ID: id})
+	err := wsjson.Write(ctx, conn, ackFrame{Type: "ack", ID: id})
+	if c.cfg.Observer != nil {
+		c.cfg.Observer.ObserveTapEventAcknowledged(err)
+	}
+	return err
 }
 
 // decodeRecordEvent parses the wire envelope into a typed Event, validating

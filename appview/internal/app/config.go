@@ -72,6 +72,14 @@ type Config struct {
 	MaxImageUploadBytes int64 // default 15MB, maximum 15MB
 	RateLimits          middleware.RateLimitConfig
 
+	// Observability. Sentry export/tracing stays disabled unless explicitly
+	// configured, and unsafe body logging is local-dev only.
+	SentryDSN               string
+	SentryRelease           string
+	SentryTracingEnabled    bool
+	SentryTracesSampleRate  float64
+	UnsafeLogResponseBodies bool
+
 	// Dev-only synthetic moderation controls. These fields are cleared in prod.
 	EnableDevModeration         bool
 	DevModerationToken          string
@@ -159,6 +167,27 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		return Config{}, err
 	}
 	cfg.RateLimits = DefaultRateLimitConfig()
+	cfg.SentryDSN = os.Getenv("SENTRY_DSN")
+	cfg.SentryRelease = os.Getenv("SENTRY_RELEASE")
+	if cfg.SentryTracingEnabled, err = boolEnv("SENTRY_TRACING_ENABLED", false); err != nil {
+		return Config{}, err
+	}
+	if cfg.SentryTracesSampleRate, err = sampleRateEnv("SENTRY_TRACES_SAMPLE_RATE"); err != nil {
+		return Config{}, err
+	}
+	if cfg.SentryDSN == "" {
+		cfg.SentryTracingEnabled = false
+		cfg.SentryTracesSampleRate = 0
+	} else if cfg.SentryTracingEnabled && os.Getenv("SENTRY_TRACES_SAMPLE_RATE") == "" {
+		if env == EnvProd {
+			cfg.SentryTracesSampleRate = 0.01
+		} else {
+			cfg.SentryTracesSampleRate = 1
+		}
+	}
+	if cfg.UnsafeLogResponseBodies, err = boolEnv("APPVIEW_UNSAFE_LOG_RESPONSE_BODIES", false); err != nil {
+		return Config{}, err
+	}
 	if cfg.EnableDevModeration, err = boolEnv("APPVIEW_ENABLE_DEV_MODERATION", false); err != nil {
 		return Config{}, err
 	}
@@ -197,6 +226,7 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		cfg.DevModerationToken = ""
 		cfg.DevLabelerDID = ""
 		cfg.TrustedModerationSourceDIDs = nil
+		cfg.UnsafeLogResponseBodies = false
 	}
 	if env == EnvDev && cfg.EnableDevModeration && strings.TrimSpace(cfg.DevModerationToken) == "" {
 		return Config{}, fmt.Errorf("APPVIEW_DEV_MODERATION_TOKEN is required when APPVIEW_ENABLE_DEV_MODERATION=true")
@@ -262,6 +292,18 @@ func boundedInt64Env(key string, def, min, max int64) (int64, error) {
 	n, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil || n < min || n > max {
 		return 0, fmt.Errorf("%s: must be integer between %d and %d, got %q", key, min, max, raw)
+	}
+	return n, nil
+}
+
+func sampleRateEnv(key string) (float64, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return 0, nil
+	}
+	n, err := strconv.ParseFloat(raw, 64)
+	if err != nil || n < 0 || n > 1 {
+		return 0, fmt.Errorf("%s: must be number between 0 and 1, got %q", key, raw)
 	}
 	return n, nil
 }

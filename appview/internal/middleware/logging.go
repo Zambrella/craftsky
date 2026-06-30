@@ -6,16 +6,15 @@
 package middleware
 
 import (
-	"bytes"
 	"context"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/ctxkeys"
+	"social.craftsky/appview/internal/observability"
 )
 
 // GetRunID extracts the per-request ID injected by the Logging middleware.
@@ -30,8 +29,9 @@ func GetRunID(ctx context.Context) string {
 }
 
 // Logging returns middleware that assigns every request a UUID run_id,
-// logs an Info "Request received" line with method + path + run_id, and
-// puts the run_id in the request context for handlers to log against.
+// logs request start/completion with method, run_id, status, duration, and
+// route pattern where available. It puts the run_id in the request context
+// for handlers to log against.
 //
 // It uses the supplied logger (typically deps.Logger), NOT slog.Default,
 // so tests can capture output with a buffered handler.
@@ -43,48 +43,30 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 			ctx := ctxkeys.WithRunID(r.Context(), runID)
 			logger.Info("Request received",
 				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
 				slog.String("run_id", runID),
 			)
 			requestAttrs := []any{
 				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
-				slog.String("raw_query", r.URL.RawQuery),
-				slog.Any("headers", redactedHeaders(r.Header)),
-				slog.String("remote_addr", r.RemoteAddr),
 				slog.Int64("content_length", r.ContentLength),
 				slog.String("run_id", runID),
 			}
 			logger.Debug("Request details", requestAttrs...)
 
+			req := r.WithContext(ctx)
 			rw := &responseLogger{ResponseWriter: w, status: http.StatusOK}
-			next.ServeHTTP(rw, r.WithContext(ctx))
+			next.ServeHTTP(rw, req)
+			routePattern := observability.RoutePattern(req)
 			responseAttrs := []any{
 				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
+				slog.String("route_pattern", routePattern),
 				slog.Int("status", rw.status),
 				slog.Int("bytes", rw.bytes),
 				slog.Duration("duration", time.Since(started)),
 				slog.String("run_id", runID),
 			}
-			if payload := rw.JSONPayload(); payload != "" {
-				responseAttrs = append(responseAttrs, slog.String("json_payload", payload))
-			}
 			logger.Debug("Request completed", responseAttrs...)
 		})
 	}
-}
-
-func redactedHeaders(headers http.Header) http.Header {
-	redacted := make(http.Header, len(headers))
-	for key, values := range headers {
-		if strings.EqualFold(key, "Authorization") {
-			redacted[key] = []string{"[REDACTED]"}
-			continue
-		}
-		redacted[key] = append([]string(nil), values...)
-	}
-	return redacted
 }
 
 type responseLogger struct {
@@ -92,7 +74,6 @@ type responseLogger struct {
 	status      int
 	bytes       int
 	wroteHeader bool
-	body        []byte
 }
 
 func (w *responseLogger) WriteHeader(status int) {
@@ -110,32 +91,9 @@ func (w *responseLogger) Write(b []byte) (int, error) {
 	}
 	n, err := w.ResponseWriter.Write(b)
 	w.bytes += n
-	w.body = append(w.body, b[:n]...)
 	return n, err
 }
 
 func (w *responseLogger) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
-}
-
-func (w *responseLogger) JSONPayload() string {
-	if len(bytes.TrimSpace(w.body)) == 0 {
-		return ""
-	}
-	if isJSONContentType(w.Header().Get("Content-Type")) || looksLikeJSONPayload(w.body) {
-		return string(w.body)
-	}
-	return ""
-}
-
-func isJSONContentType(contentType string) bool {
-	return strings.Contains(strings.ToLower(contentType), "json")
-}
-
-func looksLikeJSONPayload(payload []byte) bool {
-	trimmed := bytes.TrimSpace(payload)
-	if len(trimmed) == 0 {
-		return false
-	}
-	return trimmed[0] == '{' || trimmed[0] == '['
 }

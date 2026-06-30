@@ -12,6 +12,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 )
 
 // SearchStore is the Postgres-backed search implementation. Search handlers
@@ -20,10 +21,16 @@ import (
 type SearchStore struct {
 	pool      *pgxpool.Pool
 	postStore *PostStore
+	observer  *observability.Observer
 }
 
 func NewSearchStore(pool *pgxpool.Pool) *SearchStore {
 	return &SearchStore{pool: pool, postStore: NewPostStore(pool)}
+}
+
+func (s *SearchStore) WithObserver(observer *observability.Observer) *SearchStore {
+	s.observer = observer
+	return s
 }
 
 func SearchHashtagPostsHandler(store *SearchStore, resolver HandleResolver, logger *slog.Logger) http.Handler {
@@ -50,13 +57,15 @@ func SearchHashtagPostsHandler(store *SearchStore, resolver HandleResolver, logg
 			return
 		}
 		if err != nil {
-			logger.Error("hashtag search failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+			logger.Error("hashtag search failed",
+				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "search.hashtag_posts", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
 		items, err := buildSearchPostResponses(r.Context(), rows, viewerDID.String(), store, resolver)
 		if err != nil {
-			logger.Error("hashtag search response failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+			logger.Error("hashtag search response failed",
+				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "search.hashtag_posts", "response_build")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
@@ -89,7 +98,8 @@ func SearchProfilesHandler(store *SearchStore, logger *slog.Logger) http.Handler
 			return
 		}
 		if err != nil {
-			logger.Error("profile search failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+			logger.Error("profile search failed",
+				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "search.profiles", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
@@ -120,7 +130,8 @@ func SearchHashtagsHandler(store *SearchStore, logger *slog.Logger) http.Handler
 			return
 		}
 		if err != nil {
-			logger.Error("hashtag query search failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+			logger.Error("hashtag query search failed",
+				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "search.hashtags", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
@@ -147,7 +158,8 @@ func SearchSuggestionsHandler(store *SearchStore, logger *slog.Logger) http.Hand
 		if req.Types[SearchSuggestionTypeProfiles] {
 			rows, nextCursor, err := store.SearchProfiles(r.Context(), viewerDID.String(), ProfileSearchRequest{Query: req.Query, Limit: req.ProfileLimit})
 			if err != nil {
-				logger.Error("profile suggestions failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+				logger.Error("profile suggestions failed",
+					apiLogErrorAttrs(middleware.GetRunID(r.Context()), "search.suggestions", "store")...)
 				envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
 				return
 			}
@@ -160,7 +172,8 @@ func SearchSuggestionsHandler(store *SearchStore, logger *slog.Logger) http.Hand
 		if req.Types[SearchSuggestionTypeHashtags] {
 			items, nextCursor, err := store.SearchHashtags(r.Context(), HashtagSearchRequest{Query: req.Query, Limit: req.HashtagLimit}, time.Now().UTC())
 			if err != nil {
-				logger.Error("hashtag suggestions failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+				logger.Error("hashtag suggestions failed",
+					apiLogErrorAttrs(middleware.GetRunID(r.Context()), "search.suggestions", "store")...)
 				envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
 				return
 			}
@@ -195,13 +208,15 @@ func SearchPostsHandler(store *SearchStore, resolver HandleResolver, logger *slo
 			return
 		}
 		if err != nil {
-			logger.Error("post search failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+			logger.Error("post search failed",
+				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "search.posts", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
 		items, err := buildSearchPostResponses(r.Context(), rows, viewerDID.String(), store, resolver)
 		if err != nil {
-			logger.Error("post search response failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+			logger.Error("post search response failed",
+				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "search.posts", "response_build")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
@@ -233,13 +248,15 @@ func SearchProjectsHandler(store *SearchStore, resolver HandleResolver, logger *
 			return
 		}
 		if err != nil {
-			logger.Error("project search failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+			logger.Error("project search failed",
+				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "search.projects", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
 		items, err := buildSearchPostResponses(r.Context(), rows, viewerDID.String(), store, resolver)
 		if err != nil {
-			logger.Error("project search response failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+			logger.Error("project search response failed",
+				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "search.projects", "response_build")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
@@ -271,13 +288,15 @@ func ListProjectsHandler(store *SearchStore, resolver HandleResolver, logger *sl
 			return
 		}
 		if err != nil {
-			logger.Error("project list failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+			logger.Error("project list failed",
+				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "projects.list", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "projects_unavailable", "projects unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
 		items, err := buildSearchPostResponses(r.Context(), rows, viewerDID.String(), store, resolver)
 		if err != nil {
-			logger.Error("project list response failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+			logger.Error("project list response failed",
+				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "projects.list", "response_build")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "projects_unavailable", "projects unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
@@ -294,7 +313,8 @@ func TopHashtagsHandler(store *SearchStore, logger *slog.Logger) http.Handler {
 		}
 		groups, err := store.TopHashtags(r.Context(), req, time.Now().UTC())
 		if err != nil {
-			logger.Error("top hashtags failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+			logger.Error("top hashtags failed",
+				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "hashtags.top", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
@@ -311,7 +331,8 @@ func ListRecentSearchesHandler(store *SearchStore, logger *slog.Logger) http.Han
 		}
 		rows, err := store.ListRecentSearches(r.Context(), viewerDID.String())
 		if err != nil {
-			logger.Error("list recent searches failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+			logger.Error("list recent searches failed",
+				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "recent_searches.list", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "recent_searches_unavailable", "recent searches unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
@@ -342,7 +363,9 @@ func SaveRecentSearchHandler(store *SearchStore, logger *slog.Logger) http.Handl
 		}
 		row, err := store.SaveRecentSearch(r.Context(), viewerDID.String(), req, time.Now().UTC())
 		if err != nil {
-			logger.Error("save recent search failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())), slog.String("type", req.Type))
+			logger.Error("save recent search failed",
+				append(apiLogErrorAttrs(middleware.GetRunID(r.Context()), "recent_searches.save", "store"),
+					slog.String("type", req.Type))...)
 			envelope.WriteError(w, http.StatusInternalServerError, "recent_searches_unavailable", "recent searches unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
@@ -363,7 +386,8 @@ func DeleteRecentSearchHandler(store *SearchStore, logger *slog.Logger) http.Han
 			return
 		}
 		if err := store.DeleteRecentSearch(r.Context(), viewerDID.String(), r.PathValue("id")); err != nil {
-			logger.Error("delete recent search failed", slog.String("err", err.Error()), slog.String("run_id", middleware.GetRunID(r.Context())))
+			logger.Error("delete recent search failed",
+				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "recent_searches.delete", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "recent_searches_unavailable", "recent searches unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}

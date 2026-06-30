@@ -61,7 +61,8 @@ func FollowProfileHandler(
 
 		active, err := graph.FindActiveFollow(r.Context(), caller.String(), target.String())
 		if err != nil {
-			logger.Error("follow: active lookup failed", slog.String("err", err.Error()))
+			logger.Error("follow: active lookup failed",
+				apiLogErrorAttrs(runID, "follow.create", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "follow graph lookup failed", runID, nil)
 			return
@@ -128,7 +129,8 @@ func UnfollowProfileHandler(
 
 		active, err := graph.FindActiveFollow(r.Context(), caller.String(), target.String())
 		if err != nil {
-			logger.Error("unfollow: active lookup failed", slog.String("err", err.Error()))
+			logger.Error("unfollow: active lookup failed",
+				apiLogErrorAttrs(runID, "follow.delete", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "follow graph lookup failed", runID, nil)
 			return

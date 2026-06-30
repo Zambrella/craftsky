@@ -85,7 +85,11 @@ func run(ctx context.Context, args []string) error {
 	go func() {
 		defer close(consumerDone)
 		if err := deps.Consumer.Run(consumerCtx); err != nil && !errors.Is(err, context.Canceled) {
-			deps.Logger.Error("tap consumer exited", slog.Any("err", err))
+			deps.Logger.Error("tap consumer exited",
+				slog.String("component", "tap"),
+				slog.String("operation", "tap.consume"),
+				slog.String("result", "error"),
+				slog.String("error_category", "consumer"))
 		}
 	}()
 
@@ -121,7 +125,11 @@ func run(ctx context.Context, args []string) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		deps.Logger.Error("shutdown error", "err", err.Error())
+		deps.Logger.Error("shutdown error",
+			slog.String("component", "http"),
+			slog.String("operation", "shutdown"),
+			slog.String("result", "error"),
+			slog.String("error_category", "shutdown"))
 	}
 	deps.Logger.Info("shutdown: http server stopped")
 	// Cancel the consumer explicitly and wait for it to exit, so the

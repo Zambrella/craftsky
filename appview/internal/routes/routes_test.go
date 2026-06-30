@@ -181,6 +181,55 @@ func TestAddRoutes_V1WhoAmIWithoutDeviceIDReturns400(t *testing.T) {
 	}
 }
 
+func TestAddRoutes_MetricsIsPublicOpsEndpoint(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	if contentType := rec.Header().Get("Content-Type"); !strings.Contains(contentType, "text/plain") {
+		t.Fatalf("Content-Type = %q, want Prometheus text/plain exposition", contentType)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "craftsky_appview") {
+		t.Fatalf("body missing craftsky_appview metric: %s", body)
+	}
+	if strings.Contains(body, "missing_device_id") || strings.Contains(body, `"error"`) {
+		t.Fatalf("/metrics returned an app auth error envelope: %s", body)
+	}
+}
+
+func TestAddRoutes_MetricsBypassesV1AuthButV1RoutesDoNot(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	metricsReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	metricsRec := httptest.NewRecorder()
+	mux.ServeHTTP(metricsRec, metricsReq)
+	if metricsRec.Code != http.StatusOK {
+		t.Fatalf("/metrics status = %d, want 200; body=%s", metricsRec.Code, metricsRec.Body.String())
+	}
+	if strings.Contains(metricsRec.Body.String(), "missing_device_id") || strings.Contains(metricsRec.Body.String(), "unauthorized") {
+		t.Fatalf("/metrics appears to use v1 auth/device middleware: %s", metricsRec.Body.String())
+	}
+
+	v1Req := httptest.NewRequest(http.MethodGet, "/v1/whoami", nil)
+	v1Req.Header.Set("Authorization", "Bearer anything")
+	v1Rec := httptest.NewRecorder()
+	mux.ServeHTTP(v1Rec, v1Req)
+	if v1Rec.Code == http.StatusOK {
+		t.Fatalf("/v1/whoami without auth/device status = 200, want an auth/device error")
+	}
+	if !strings.Contains(v1Rec.Body.String(), "missing_device_id") {
+		t.Fatalf("/v1/whoami body = %q, want missing_device_id", v1Rec.Body.String())
+	}
+}
+
 func TestAddRoutes_BodyPolicyRunsThroughMux(t *testing.T) {
 	t.Run("default JSON route rejects oversized body before auth", func(t *testing.T) {
 		deps := testDeps()

@@ -59,7 +59,8 @@ func DevModerationOzoneEventsHandler(expectedToken string, cfg ModerationRequest
 
 		row, err := store.InsertOutput(r.Context(), input)
 		if err != nil {
-			logger.Error("dev moderation: insert output failed", slog.String("err", err.Error()), slog.String("run_id", runID))
+			logger.Error("dev moderation: insert output failed",
+				apiLogErrorAttrs(runID, "moderation.dev_output.create", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "moderation output persistence failed", runID, nil)
 			return
 		}

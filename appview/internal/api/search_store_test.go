@@ -18,6 +18,7 @@ import (
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -496,6 +497,38 @@ func TestSearchStore_SearchPostsAndProjectsUseRelevanceAndDisjointTabs(t *testin
 	}
 	if !slices.Equal(searchURIs(projectPage1), []string{titleMatch}) || projectCursor == "" || !slices.Equal(searchURIs(projectPage2), []string{materialMatch}) || projectCursor2 != "" {
 		t.Fatalf("project pagination page1=%v cursor=%q page2=%v cursor2=%q", searchURIs(projectPage1), projectCursor, searchURIs(projectPage2), projectCursor2)
+	}
+}
+
+func TestSearchStore_SearchPostsEmitsDBOperationTelemetry(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, searchStoreDDL)
+	ctx := context.Background()
+	base := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
+	seedMember(t, pool, "did:plc:alice")
+	seedPost(t, pool, "did:plc:alice", "alpaca-post", "alpaca socks", base)
+
+	observer := observability.New(observability.Config{Env: "test"})
+	store := api.NewSearchStore(pool).WithObserver(observer)
+	if _, _, err := store.SearchPosts(ctx, api.PostSearchRequest{Query: "alpaca", Sort: api.SearchSortChronological, Limit: 10}, base); err != nil {
+		t.Fatalf("SearchPosts: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	observer.MetricsHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	body := rec.Body.String()
+	for _, want := range []string{
+		`craftsky_appview_db_operation_duration_seconds`,
+		`operation="search.posts"`,
+		`route_pattern="/v1/search/posts"`,
+		`result="success"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("metrics missing %q:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "alpaca") {
+		t.Fatalf("metrics contain raw search query text:\n%s", body)
 	}
 }
 

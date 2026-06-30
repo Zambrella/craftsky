@@ -39,10 +39,9 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 		}
 		req.Handle = strings.TrimPrefix(strings.TrimSpace(req.Handle), "@")
 		h.Logger.Debug("login: request decoded",
-			slog.String("handle", req.Handle),
-			slog.String("handoff_mode", req.HandoffMode),
-			slog.String("loopback_redirect_uri", req.LoopbackRedirectURI),
-			slog.String("run_id", runID))
+			append(authLogAttrs(runID, "login.start"),
+				slog.String("handoff_mode", req.HandoffMode),
+				slog.Bool("has_loopback_redirect_uri", req.LoopbackRedirectURI != ""))...)
 		if req.Handle == "" {
 			envelope.WriteError(w, http.StatusBadRequest, "handle_required",
 				"handle is required",
@@ -76,27 +75,24 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 			}
 		}
 		h.Logger.Debug("login: starting OAuth flow",
-			slog.String("handle", req.Handle),
-			slog.String("run_id", runID))
+			authLogAttrs(runID, "login.start")...)
 
 		authURL, err := h.OAuth.StartAuthFlow(r.Context(), req.Handle)
 		if err != nil {
 			h.Logger.Warn("StartAuthFlow failed",
-				slog.String("handle", req.Handle),
-				slog.String("err", err.Error()))
+				authLogErrorAttrs(runID, "login.start", "authorization_server")...)
 			envelope.WriteError(w, http.StatusBadGateway, "authorization_server_unavailable",
 				"could not reach the authorization server",
 				runID, nil)
 			return
 		}
 		h.Logger.Debug("login: OAuth flow started",
-			slog.String("handle", req.Handle),
-			slog.String("auth_url", authURL),
-			slog.String("run_id", runID))
+			authLogSuccessAttrs(runID, "login.start")...)
 
 		requestURI, err := extractRequestURI(authURL)
 		if err != nil {
-			h.Logger.Error("extractRequestURI from StartAuthFlow URL", slog.String("err", err.Error()))
+			h.Logger.Error("extractRequestURI from StartAuthFlow URL",
+				authLogErrorAttrs(runID, "login.start", "internal")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal",
 				"internal error",
 				runID, nil)
@@ -110,15 +106,13 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 		// the default handoff_mode='deep_link'. Acceptable for v1.
 		if err := h.recordHandoff(r.Context(), requestURI, req.HandoffMode, req.LoopbackRedirectURI); err != nil {
 			h.Logger.Error("recordHandoff failed",
-				slog.String("request_uri", requestURI),
-				slog.String("err", err.Error()))
+				authLogErrorAttrs(runID, "login.record_handoff", "store")...)
 			// Continue: callback's loadHandoff falls back to deep_link.
 		}
 		h.Logger.Debug("login: handoff recorded",
-			slog.String("request_uri", requestURI),
-			slog.String("handoff_mode", req.HandoffMode),
-			slog.String("loopback_redirect_uri", req.LoopbackRedirectURI),
-			slog.String("run_id", runID))
+			append(authLogSuccessAttrs(runID, "login.record_handoff"),
+				slog.String("handoff_mode", req.HandoffMode),
+				slog.Bool("has_loopback_redirect_uri", req.LoopbackRedirectURI != ""))...)
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(loginResponse{AuthURL: authURL})
@@ -219,27 +213,27 @@ func (h *HTTPHandlers) LogoutHandler() http.Handler {
 		all := r.URL.Query().Get("all") == "true"
 		token := bearerToken(r)
 		h.Logger.Debug("logout: request started",
-			slog.String("did", did.String()),
-			slog.String("session_id", sid),
-			slog.String("token", token),
-			slog.Bool("all", all),
-			slog.String("run_id", runID))
+			append(authLogAttrs(runID, "logout"),
+				slog.Bool("all", all),
+				slog.Bool("has_oauth_session", sid != ""),
+				slog.Bool("has_bearer_token", token != ""))...)
 		if all {
 			// Step 1: delete the OAuth session. Cascade removes
 			// craftsky_sessions rows on success.
 			if sid != "" {
 				if err := h.oauthLogout(r.Context(), did, sid); err != nil {
 					h.Logger.Warn("oauth.Logout failed; revoke-all will cover",
-						slog.String("did", did.String()),
-						slog.String("session_id", sid),
-						slog.String("err", err.Error()))
+						append(authLogErrorAttrs(runID, "logout", "oauth"),
+							slog.Bool("all", all))...)
 				}
 			}
 			// Step 2: belt-and-braces. If Logout succeeded, the cascade
 			// already deleted these rows and RevokeAll is a no-op. If
 			// Logout failed, this at least invalidates local tokens.
 			if err := h.CraftskySessions.RevokeAll(r.Context(), did.String()); err != nil {
-				h.Logger.Error("RevokeAll failed", slog.String("did", did.String()), slog.String("err", err.Error()))
+				h.Logger.Error("RevokeAll failed",
+					append(authLogErrorAttrs(runID, "logout", "store"),
+						slog.Bool("all", all))...)
 				envelope.WriteError(w, http.StatusInternalServerError, "internal",
 					"internal error",
 					ctxkeys.GetRunID(r.Context()), nil)
@@ -254,10 +248,8 @@ func (h *HTTPHandlers) LogoutHandler() http.Handler {
 			}
 		}
 		h.Logger.Debug("logout: revoked session",
-			slog.String("did", did.String()),
-			slog.String("session_id", sid),
-			slog.Bool("all", all),
-			slog.String("run_id", runID))
+			append(authLogSuccessAttrs(runID, "logout"),
+				slog.Bool("all", all))...)
 		w.WriteHeader(http.StatusNoContent)
 	})
 }

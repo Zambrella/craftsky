@@ -46,9 +46,7 @@ func ListTimelineHandler(store TimelineReader, resolver HandleResolver, logger *
 				return
 			}
 			logger.Error("timeline: list failed",
-				slog.String("did", viewerDID.String()),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				apiLogErrorAttrs(runID, "timeline.list", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "timeline list failed", runID, nil)
 			return
@@ -63,9 +61,7 @@ func ListTimelineHandler(store TimelineReader, resolver HandleResolver, logger *
 			summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
 			if err != nil {
 				logger.Error("timeline: EngagementSummaries failed",
-					slog.String("did", viewerDID.String()),
-					slog.String("err", err.Error()),
-					slog.String("run_id", runID))
+					apiLogErrorAttrs(runID, "timeline.list", "engagement")...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "post engagement lookup failed", runID, nil)
 				return
@@ -73,8 +69,7 @@ func ListTimelineHandler(store TimelineReader, resolver HandleResolver, logger *
 			handles, err := resolveHandlesForRows(r.Context(), rows, resolver)
 			if err != nil {
 				logger.Warn("timeline: ResolveHandle failed",
-					slog.String("err", err.Error()),
-					slog.String("run_id", runID))
+					apiLogErrorAttrs(runID, "timeline.list", "identity")...)
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve handle", runID, nil)
 				return

@@ -88,6 +88,30 @@ just migrate up   # wraps golang-migrate/v4 via the CLI
 
 Tests run on the **host** (the appview image has no Go toolchain), so Go must be installed locally and `just dev-d` must already be running — the integration tests connect to the compose Postgres at `localhost:5433` via the `TEST_DATABASE_URL` the recipe sets. (Host port 5433 maps to the container's 5432; this avoids a collision with any native Postgres already bound to 5432.)
 
+## Observability
+
+AppView emits structured JSON logs with a per-request `run_id`, safe route-pattern fields, and no request or response bodies by default. Sensitive headers such as `Authorization`, `Cookie`, `DPoP`, and Craftsky device/session token headers are redacted in request logs.
+
+Prometheus metrics are exposed at:
+
+```bash
+curl -s http://localhost:18080/metrics
+```
+
+The endpoint is an unauthenticated ops endpoint outside `/v1/*`; it does not use Craftsky app-session or device middleware. Production deployments must restrict `/metrics` with network policy, reverse proxy rules, or platform ingress controls. Public production exposure of `/metrics` is a deployment/security violation.
+
+Metric names are internal ops details for this slice and use the `craftsky_appview` prefix. Current metrics include:
+
+- `craftsky_appview_build_info` gauge with service/environment/release labels.
+- `craftsky_appview_http_requests_total` counter.
+- `craftsky_appview_http_request_duration_seconds` histogram.
+- `craftsky_appview_http_response_size_bytes` histogram.
+- `craftsky_appview_http_requests_in_flight` gauge.
+- `craftsky_appview_db_operation_duration_seconds` histogram for bounded DB operations such as `search.posts`.
+- `craftsky_appview_pds_write_duration_seconds` histogram for bounded PDS/OAuth write-proxy operations.
+
+Sentry export is disabled unless `SENTRY_DSN` is set. Optional tracing is controlled by `SENTRY_TRACING_ENABLED` and `SENTRY_TRACES_SAMPLE_RATE`; production defaults to conservative sampling when tracing is enabled without an explicit sample rate. When tracing and Sentry are configured, bounded observer spans are exported as Sentry SDK transactions/spans and also expose safe trace/span IDs for log and event correlation. This first observability slice does not configure OpenTelemetry/OTLP export, Prometheus exemplars, or Sentry Application Metrics.
+
 ## OAuth
 
 The appview acts as a confidential Backend-for-Frontend (BFF) OAuth client
