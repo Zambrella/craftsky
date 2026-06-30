@@ -8,6 +8,10 @@ appview/tmp/
 .env
 .env.local
 
+# Dev-only media fixtures stay local; the directory README remains tracked.
+appview/devmedia/*
+!appview/devmedia/README.md
+
 # Worktrees
 .worktrees/
 .claude/worktrees/
