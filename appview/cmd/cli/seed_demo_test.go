@@ -180,6 +180,49 @@ func TestRunDemoSeedCreatesScreenshotDatasetAndIsIdempotent(t *testing.T) {
 	if posts < 80 || projects < 12 || mediaPosts < 10 || follows < 30 {
 		t.Fatalf("posts=%d projects=%d mediaPosts=%d follows=%d", posts, projects, mediaPosts, follows)
 	}
+
+	var realProfiles int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*)
+		FROM bluesky_profiles bp
+		JOIN atproto_identity_cache id USING (did)
+		JOIN craftsky_profiles cp USING (did)
+		WHERE (bp.display_name, id.handle) IN (
+			('Alma', 'almitamade.bsky.social'),
+			('Yvette Todd', 'blossomsandwich.bsky.social')
+		)
+		AND cp.crafts && ARRAY['social.craftsky.feed.defs#knitting', 'social.craftsky.feed.defs#sewing']
+		AND bp.avatar_cid IN ('devmedia:alma-profile', 'devmedia:yvette-profile')
+	`).Scan(&realProfiles); err != nil {
+		t.Fatalf("count real profiles: %v", err)
+	}
+	if realProfiles != 2 {
+		t.Fatalf("real profiles = %d, want 2", realProfiles)
+	}
+
+	var realProjects int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*)
+		FROM craftsky_project_posts pp
+		JOIN craftsky_posts p USING (uri)
+		WHERE pp.common_title IN (
+			'Lobster Socks',
+			'Sew Fruity Patchwork Shirt',
+			'Banana Weekender Bag',
+			'South American Print Co-ord'
+		)
+		AND (
+			p.images::text LIKE '%lobster-socks-alma%' OR
+			p.images::text LIKE '%fruity-top-yvette%' OR
+			p.images::text LIKE '%banana-bag-alma%' OR
+			p.images::text LIKE '%south-american-set-yvette%'
+		)
+	`).Scan(&realProjects); err != nil {
+		t.Fatalf("count real projects: %v", err)
+	}
+	if realProjects != 4 {
+		t.Fatalf("real projects = %d, want 4", realProjects)
+	}
 }
 
 func TestRunDemoSeedResetDeletesPreviousSeedRows(t *testing.T) {

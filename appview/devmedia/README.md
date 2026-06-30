@@ -10,22 +10,22 @@ Accepted extensions: `.jpg`, `.jpeg`, `.png`, `.webp`.
 
 Current demo seed fixture names:
 
-- `knit-cardigan-moss`
-- `linen-dress-rust`
-- `quilt-top-navy`
-- `crochet-blanket-squares`
+- `lobster-socks-alma`
+- `fruity-top-yvette`
+- `banana-bag-alma`
+- `south-american-set-yvette`
 - `visible-mending-denim`
 - `naturally-dyed-skeins`
 - `avatar-viewer`
-- `avatar-mara`
-- `avatar-jules`
+- `alma-profile`
+- `yvette-profile`
 - `avatar-nina`
 - `avatar-sol`
 - `avatar-bea`
 - `avatar-ori`
 - `banner-viewer`
-- `banner-mara`
-- `banner-jules`
+- `banner-alma`
+- `banner-yvette`
 - `banner-nina`
 - `banner-sol`
 - `banner-bea`
