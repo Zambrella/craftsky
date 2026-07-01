@@ -673,12 +673,87 @@ a:hover { color: var(--cobalt-deep); }
 .whos-behind__card-wrap {
   margin: 0;
   display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
 }
 
 .whos-behind__copy p { max-width: 52ch; }
 
 .project-card--profile { transform: rotate(1.4deg); }
+
+.profile-stack {
+  width: min(100%, 420px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-4);
+}
+
+.profile-stack__cards {
+  width: 100%;
+  display: grid;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.profile-stack__card {
+  grid-area: 1 / 1;
+  opacity: 0.72;
+  pointer-events: none;
+  transform: translate(18px, 14px) rotate(2.4deg) scale(0.96);
+  transition: opacity var(--dur-med) var(--ease),
+              transform var(--dur-med) var(--ease);
+  z-index: 0;
+}
+
+.profile-stack__card[data-active="true"] {
+  opacity: 1;
+  pointer-events: auto;
+  transform: rotate(1.4deg);
+  z-index: 1;
+}
+
+.profile-stack__controls {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2);
+  background: var(--paper-3);
+  border: var(--border-w) solid var(--rule);
+  border-radius: var(--r-pill);
+  box-shadow: var(--sh-drop-sm);
+}
+
+.profile-stack__nav {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--cobalt);
+  color: var(--on-brand);
+  cursor: pointer;
+}
+
+.profile-stack__nav:hover {
+  background: var(--cobalt-deep);
+}
+
+.profile-stack__status {
+  min-width: 44px;
+  color: var(--fg-2);
+  font-family: var(--font-mono);
+  font-size: var(--t-meta);
+  text-align: center;
+}
+
+.project-card__avatar--alma {
+  background: var(--lilac);
+}
 
 .project-card__photo--profile {
   aspect-ratio: 1 / 1;
@@ -691,6 +766,10 @@ a:hover { color: var(--cobalt-deep); }
 
 .project-card__photo-frame--profile {
   background: var(--moss);
+}
+
+.project-card__photo-frame--alma {
+  background: var(--lilac);
 }
 
 /* =========================================================================

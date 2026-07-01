@@ -129,6 +129,79 @@
   }
 
   // -----------------------------------------------------------------------
+  // Profile card stack
+  // -----------------------------------------------------------------------
+
+  document.querySelectorAll('[data-profile-stack]').forEach(function (stack) {
+    const cards = Array.from(stack.querySelectorAll('.profile-stack__card'));
+    const prevButton = stack.querySelector('[data-profile-prev]');
+    const nextButton = stack.querySelector('[data-profile-next]');
+    const status = stack.querySelector('[data-profile-status]');
+    let activeIndex = cards.findIndex(function (card) {
+      return card.getAttribute('data-active') === 'true';
+    });
+    let swipeStart = null;
+
+    if (activeIndex < 0) activeIndex = 0;
+
+    function setActive(nextIndex) {
+      activeIndex = (nextIndex + cards.length) % cards.length;
+      cards.forEach(function (card, index) {
+        const isActive = index === activeIndex;
+        card.setAttribute('data-active', isActive ? 'true' : 'false');
+        card.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+      });
+      if (status) status.textContent = (activeIndex + 1) + ' / ' + cards.length;
+    }
+
+    function showPrevious() {
+      setActive(activeIndex - 1);
+    }
+
+    function showNext() {
+      setActive(activeIndex + 1);
+    }
+
+    if (prevButton) prevButton.addEventListener('click', showPrevious);
+    if (nextButton) nextButton.addEventListener('click', showNext);
+
+    function getSwipePoint(event) {
+      if (event.changedTouches && event.changedTouches.length > 0) {
+        return {
+          x: event.changedTouches[0].clientX,
+          y: event.changedTouches[0].clientY,
+        };
+      }
+      return { x: event.clientX, y: event.clientY };
+    }
+
+    function startSwipe(event) {
+      if (event.button !== undefined && event.button !== 0) return;
+      swipeStart = getSwipePoint(event);
+    }
+
+    function finishSwipe(event) {
+      if (!swipeStart) return;
+      const point = getSwipePoint(event);
+      const deltaX = point.x - swipeStart.x;
+      const deltaY = point.y - swipeStart.y;
+      swipeStart = null;
+      if (Math.abs(deltaX) < 48 || Math.abs(deltaX) < Math.abs(deltaY)) return;
+      if (deltaX > 0) showPrevious();
+      else showNext();
+    }
+
+    stack.addEventListener('pointerdown', startSwipe);
+    stack.addEventListener('pointerup', finishSwipe);
+    stack.addEventListener('mousedown', startSwipe);
+    stack.addEventListener('mouseup', finishSwipe);
+    stack.addEventListener('touchstart', startSwipe, { passive: true });
+    stack.addEventListener('touchend', finishSwipe);
+
+    setActive(activeIndex);
+  });
+
+  // -----------------------------------------------------------------------
   // Spec-click tracking
   // -----------------------------------------------------------------------
 

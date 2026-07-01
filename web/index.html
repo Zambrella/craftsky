@@ -208,55 +208,127 @@
         </section>
         <section id="whos-behind" class="whos-behind section">
             <div class="container whos-behind__grid">
-                <figure class="whos-behind__card-wrap" aria-label="Profile of the builder">
-                    <article class="project-card project-card--full project-card--profile">
-                        <header class="project-card__header">
-                            <div class="project-card__avatar" aria-hidden="true">D</div>
-                            <div class="project-card__who">
-                                <p class="project-card__name">Doug Todd</p>
-                                <p class="project-card__handle">@dougtodd · builder</p>
-                            </div>
-                            <button type="button" class="project-card__more" aria-label="More" tabindex="-1">
-                                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-                                    <circle cx="5" cy="12" r="2" />
-                                    <circle cx="12" cy="12" r="2" />
-                                    <circle cx="19" cy="12" r="2" />
+                <figure class="whos-behind__card-wrap" aria-label="Profiles of the people behind Craftsky">
+                    <div class="profile-stack" data-profile-stack>
+                        <div class="profile-stack__cards">
+                            <article class="project-card project-card--full project-card--profile profile-stack__card"
+                                data-active="true">
+                                <header class="project-card__header">
+                                    <div class="project-card__avatar" aria-hidden="true">D</div>
+                                    <div class="project-card__who">
+                                        <p class="project-card__name">Doug Todd</p>
+                                        <p class="project-card__handle">@dougtodd · builder</p>
+                                    </div>
+                                    <button type="button" class="project-card__more" aria-label="More" tabindex="-1">
+                                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"
+                                            aria-hidden="true">
+                                            <circle cx="5" cy="12" r="2" />
+                                            <circle cx="12" cy="12" r="2" />
+                                            <circle cx="19" cy="12" r="2" />
+                                        </svg>
+                                    </button>
+                                </header>
+                                <div class="project-card__photo-frame project-card__photo-frame--profile">
+                                    <img class="project-card__photo project-card__photo--profile"
+                                        src="assets/doug-profile.jpg" alt="Doug Todd" width="800" height="800"
+                                        loading="lazy" decoding="async" />
+                                </div>
+                                <div class="project-card__body">
+                                    <h3 class="project-card__title">Building Craftsky, in the open.</h3>
+                                    <ul class="project-card__chips">
+                                        <li class="ck-chip ck-chip--wip">In progress</li>
+                                        <li class="ck-chip">Developer</li>
+                                        <li class="ck-chip">Stash Hub</li>
+                                    </ul>
+                                    <dl class="project-card__fields">
+                                        <div class="project-card__field">
+                                            <dt>Making</dt>
+                                            <dd>A social platform for textile crafters</dd>
+                                        </div>
+                                        <div class="project-card__field">
+                                            <dt>Also made</dt>
+                                            <dd>Stash Hub — Sewing Organiser</dd>
+                                        </div>
+                                        <div class="project-card__field">
+                                            <dt>Approach</dt>
+                                            <dd>Open source · community-first · feedback welcome</dd>
+                                        </div>
+                                    </dl>
+                                </div>
+                            </article>
+                            <article class="project-card project-card--full project-card--profile profile-stack__card"
+                                data-active="false" aria-hidden="true">
+                                <header class="project-card__header">
+                                    <div class="project-card__avatar project-card__avatar--alma" aria-hidden="true">A
+                                    </div>
+                                    <div class="project-card__who">
+                                        <p class="project-card__name">Alma</p>
+                                        <p class="project-card__handle">@almitamade</p>
+                                    </div>
+                                    <button type="button" class="project-card__more" aria-label="More" tabindex="-1">
+                                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"
+                                            aria-hidden="true">
+                                            <circle cx="5" cy="12" r="2" />
+                                            <circle cx="12" cy="12" r="2" />
+                                            <circle cx="19" cy="12" r="2" />
+                                        </svg>
+                                    </button>
+                                </header>
+                                <div
+                                    class="project-card__photo-frame project-card__photo-frame--profile project-card__photo-frame--alma">
+                                    <img class="project-card__photo project-card__photo--profile"
+                                        src="assets/alma-profile.jpg" alt="Alma" width="800" height="800" loading="lazy"
+                                        decoding="async" />
+                                </div>
+                                <div class="project-card__body">
+                                    <h3 class="project-card__title">Sewing and knitting a colourful wardrobe.</h3>
+                                    <ul class="project-card__chips">
+                                        <li class="ck-chip ck-chip--done">Maker</li>
+                                        <li class="ck-chip">Sewing</li>
+                                        <li class="ck-chip">Knitting</li>
+                                    </ul>
+                                    <dl class="project-card__fields">
+                                        <div class="project-card__field">
+                                        </div>
+                                        <div class="project-card__field">
+                                            <dt>Expertise</dt>
+                                            <dd>Textile crafts and marketing</dd>
+                                        </div>
+                                        <div class="project-card__field">
+                                            <dt>Fav Colour</dt>
+                                            <dd>PURPLE!</dd>
+                                        </div>
+                                    </dl>
+                                </div>
+                            </article>
+                        </div>
+                        <div class="profile-stack__controls" aria-label="Profile card navigation">
+                            <button type="button" class="profile-stack__nav" data-profile-prev
+                                aria-label="Previous profile">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+                                    stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+                                    aria-hidden="true">
+                                    <path d="M15 18l-6-6 6-6" />
                                 </svg>
                             </button>
-                        </header>
-                        <div class="project-card__photo-frame project-card__photo-frame--profile">
-                            <img class="project-card__photo project-card__photo--profile" src="assets/doug-profile.jpg"
-                                alt="Doug Todd" width="800" height="800" loading="lazy" decoding="async" />
+                            <output class="profile-stack__status" data-profile-status aria-live="polite">1 / 2</output>
+                            <button type="button" class="profile-stack__nav" data-profile-next
+                                aria-label="Next profile">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+                                    stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+                                    aria-hidden="true">
+                                    <path d="M9 18l6-6-6-6" />
+                                </svg>
+                            </button>
                         </div>
-                        <div class="project-card__body">
-                            <h3 class="project-card__title">Building Craftsky, in the open.</h3>
-                            <ul class="project-card__chips">
-                                <li class="ck-chip ck-chip--wip">In progress</li>
-                                <li class="ck-chip">Developer</li>
-                                <li class="ck-chip">Stash Hub</li>
-                            </ul>
-                            <dl class="project-card__fields">
-                                <div class="project-card__field">
-                                    <dt>Making</dt>
-                                    <dd>A social platform for textile crafters</dd>
-                                </div>
-                                <div class="project-card__field">
-                                    <dt>Also made</dt>
-                                    <dd>Stash Hub — Sewing Organiser</dd>
-                                </div>
-                                <div class="project-card__field">
-                                    <dt>Approach</dt>
-                                    <dd>Open source · community-first · feedback welcome</dd>
-                                </div>
-                            </dl>
-                        </div>
-                    </article>
+                    </div>
                 </figure>
                 <div class="whos-behind__copy">
                     <h2 class="section-title">Who's behind it.</h2>
                     <p>
                         Craftsky is being built by Doug Todd — the developer behind Stash
-                        Hub — alongside anyone who wants to help shape it. The
+                        Hub — with Alma helping out with all things marketing.
+                        The
                         <a href="https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit"
                             target="_blank" rel="noopener">vision doc</a>
                         is open for comments and the code lives on
