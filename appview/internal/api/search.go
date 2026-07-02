@@ -24,13 +24,8 @@ type SearchStore struct {
 	observer  *observability.Observer
 }
 
-func NewSearchStore(pool *pgxpool.Pool) *SearchStore {
-	return &SearchStore{pool: pool, postStore: NewPostStore(pool)}
-}
-
-func (s *SearchStore) WithObserver(observer *observability.Observer) *SearchStore {
-	s.observer = observer
-	return s
+func NewSearchStore(pool *pgxpool.Pool, observer *observability.Observer) *SearchStore {
+	return &SearchStore{pool: pool, postStore: NewPostStore(pool), observer: observer}
 }
 
 func SearchHashtagPostsHandler(store *SearchStore, resolver HandleResolver, logger *slog.Logger) http.Handler {

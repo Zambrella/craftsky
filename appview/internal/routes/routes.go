@@ -91,7 +91,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		MaxImageUploadBytes: deps.Config.MaxImageUploadBytes,
 	}
 	facetStore := api.NewFacetStore(deps.DB, deps.HandleResolver)
-	searchStore := api.NewSearchStore(deps.DB).WithObserver(deps.Observability)
+	searchStore := api.NewSearchStore(deps.DB, deps.Observability)
 	mux.Handle("GET /v1/whoami", v1mw.wrap(mustPolicy("GET", "/v1/whoami"), api.WhoAmIHandler(deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/facets/mentions", v1mw.wrap(mustPolicy("GET", "/v1/facets/mentions"), api.ListFacetMentionSuggestionsHandler(facetStore, deps.Logger)))
 	mux.Handle("GET /v1/facets/mentions/resolve", v1mw.wrap(mustPolicy("GET", "/v1/facets/mentions/resolve"), api.ResolveFacetMentionHandler(facetStore, deps.Logger)))

@@ -119,7 +119,7 @@ func TestSearchStore_SearchProjectsPopularOrdersBrowseAllAndFilteredProjects(t *
 	seedInteraction(t, pool, "repost", "did:plc:fan3", "repost-high", high, false)
 	seedInteraction(t, pool, "like", "did:plc:fan1", "like-other", otherCraft, false)
 
-	store := api.NewSearchStore(pool)
+	store := api.NewSearchStore(pool, nil)
 	rows, cursor, err := store.SearchProjects(ctx, api.ProjectSearchRequest{Sort: api.SearchSortPopular, Limit: 10, Filters: map[string][]string{}}, now)
 	if err != nil {
 		t.Fatalf("SearchProjects popular browse: %v", err)
@@ -153,7 +153,7 @@ func TestSearchStore_SearchProfilesPaginatesByRankTuple(t *testing.T) {
 	seedSearchIdentity(t, pool, "did:plc:mallory", "mallory.craftsky.social", "Mallory", "ali bio match")
 	seedFollow(t, pool, "did:plc:viewer", "did:plc:mallory", "follow-mallory")
 
-	store := api.NewSearchStore(pool)
+	store := api.NewSearchStore(pool, nil)
 	page1, cursor, err := store.SearchProfiles(ctx, "did:plc:viewer", api.ProfileSearchRequest{Query: "ali", Limit: 2})
 	if err != nil {
 		t.Fatalf("SearchProfiles page1: %v", err)
@@ -190,7 +190,7 @@ func TestSearchAndFacetProfileSuggestionsShareRankingAndCrafts(t *testing.T) {
 		t.Fatalf("seed display crafts: %v", err)
 	}
 
-	searchRows, _, err := api.NewSearchStore(pool).SearchProfiles(ctx, "did:plc:viewer", api.ProfileSearchRequest{Query: "alice", Limit: 10})
+	searchRows, _, err := api.NewSearchStore(pool, nil).SearchProfiles(ctx, "did:plc:viewer", api.ProfileSearchRequest{Query: "alice", Limit: 10})
 	if err != nil {
 		t.Fatalf("SearchProfiles: %v", err)
 	}
@@ -277,7 +277,7 @@ func TestFacetHashtagSuggestionsUseVisibleSearchHashtagCounts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SearchHashtagSuggestions: %v", err)
 	}
-	searchRows, _, err := api.NewSearchStore(pool).SearchHashtags(ctx, api.HashtagSearchRequest{Query: "sock", Limit: 10}, now)
+	searchRows, _, err := api.NewSearchStore(pool, nil).SearchHashtags(ctx, api.HashtagSearchRequest{Query: "sock", Limit: 10}, now)
 	if err != nil {
 		t.Fatalf("SearchHashtags: %v", err)
 	}
@@ -324,7 +324,7 @@ func TestSearchSuggestionsHandlerReturnsGroupedTopNSections(t *testing.T) {
 		seedPostTags(t, pool, uri, []string{tag})
 	}
 
-	handler := api.SearchSuggestionsHandler(api.NewSearchStore(pool), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	handler := api.SearchSuggestionsHandler(api.NewSearchStore(pool, nil), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	req := httptest.NewRequest(http.MethodGet, "/v1/search/suggestions?q=sock&types=profiles,hashtags&profileLimit=1&hashtagLimit=1", nil)
 	req = req.WithContext(middleware.WithDID(req.Context(), syntax.DID("did:plc:viewer")))
 	rr := httptest.NewRecorder()
@@ -361,7 +361,7 @@ func TestSearchStore_SearchHashtagsRanksAndPaginates(t *testing.T) {
 		seedPostTags(t, pool, uri, []string{tag})
 	}
 
-	store := api.NewSearchStore(pool)
+	store := api.NewSearchStore(pool, nil)
 	page1, cursor, err := store.SearchHashtags(ctx, api.HashtagSearchRequest{Query: "#Sock", Limit: 2}, now)
 	if err != nil {
 		t.Fatalf("SearchHashtags page1: %v", err)
@@ -399,7 +399,7 @@ func TestSearchStore_SearchHashtagPostsUsesStoredTagEqualityOnly(t *testing.T) {
 	seedPostTags(t, pool, substring, []string{"sockknitting"})
 	seedPostTags(t, pool, reply, []string{"sock"})
 
-	rows, _, err := api.NewSearchStore(pool).SearchHashtagPosts(ctx, "sock", api.SearchSortChronological, 10, "", base)
+	rows, _, err := api.NewSearchStore(pool, nil).SearchHashtagPosts(ctx, "sock", api.SearchSortChronological, 10, "", base)
 	if err != nil {
 		t.Fatalf("SearchHashtagPosts: %v", err)
 	}
@@ -427,7 +427,7 @@ func TestSearchStore_SearchHashtagPostsSortsChronologicalAndPopular(t *testing.T
 	seedInteraction(t, pool, "repost", "did:plc:fan2", "sock-repost-2", olderPopular, false)
 	seedInteraction(t, pool, "like", "did:plc:fan3", "sock-like-1", olderPopular, false)
 
-	store := api.NewSearchStore(pool)
+	store := api.NewSearchStore(pool, nil)
 	chronPage1, chronCursor, err := store.SearchHashtagPosts(ctx, "sock", api.SearchSortChronological, 2, "", base)
 	if err != nil {
 		t.Fatalf("SearchHashtagPosts chronological page1: %v", err)
@@ -461,7 +461,7 @@ func TestSearchStore_SearchPostsAndProjectsUseRelevanceAndDisjointTabs(t *testin
 	seedProjectDetails(t, pool, materialMatch, []string{"alpaca"}, nil, []string{"cables"}, []string{"kal"})
 	reply := seedReplyPost(t, pool, "did:plc:alice", "reply-alpaca", "alpaca reply", newerWeak, newerWeak, base.Add(time.Minute))
 
-	store := api.NewSearchStore(pool)
+	store := api.NewSearchStore(pool, nil)
 	postRows, _, err := store.SearchPosts(ctx, api.PostSearchRequest{Query: "alpaca", Sort: api.SearchSortChronological, Limit: 10}, base)
 	if err != nil {
 		t.Fatalf("SearchPosts: %v", err)
@@ -509,7 +509,7 @@ func TestSearchStore_SearchPostsEmitsDBOperationTelemetry(t *testing.T) {
 	seedPost(t, pool, "did:plc:alice", "alpaca-post", "alpaca socks", base)
 
 	observer := observability.New(observability.Config{Env: "test"})
-	store := api.NewSearchStore(pool).WithObserver(observer)
+	store := api.NewSearchStore(pool, observer)
 	if _, _, err := store.SearchPosts(ctx, api.PostSearchRequest{Query: "alpaca", Sort: api.SearchSortChronological, Limit: 10}, base); err != nil {
 		t.Fatalf("SearchPosts: %v", err)
 	}
@@ -547,7 +547,7 @@ func TestSearchStore_SearchProjectsAppliesFilterSemantics(t *testing.T) {
 	seedProjectDetails(t, pool, shawl, []string{"Wool"}, []string{"Green"}, []string{"Lace"}, []string{"Gift"})
 	seedProjectDetails(t, pool, crochet, []string{"Cotton"}, []string{"Blue"}, []string{"Granny"}, []string{"KAL"})
 
-	store := api.NewSearchStore(pool)
+	store := api.NewSearchStore(pool, nil)
 	orRows, _, err := store.SearchProjects(ctx, api.ProjectSearchRequest{Sort: api.SearchSortChronological, Limit: 10, Filters: map[string][]string{"craftType": {"knitting", "crochet"}}}, base)
 	if err != nil {
 		t.Fatalf("SearchProjects OR filters: %v", err)
@@ -590,7 +590,7 @@ func TestSearchStore_ModerationFiltersBeforeSearchRankingAndLimits(t *testing.T)
 	seedPostTags(t, pool, hidden, []string{"sock"})
 	seedModerationOutput(t, pool, "post", "did:plc:bob", hidden, "hide", base.Add(time.Minute))
 
-	rows, _, err := api.NewSearchStore(pool).SearchHashtagPosts(ctx, "sock", api.SearchSortPopular, 1, "", base)
+	rows, _, err := api.NewSearchStore(pool, nil).SearchHashtagPosts(ctx, "sock", api.SearchSortPopular, 1, "", base)
 	if err != nil {
 		t.Fatalf("SearchHashtagPosts moderated: %v", err)
 	}
@@ -624,7 +624,7 @@ func TestSearchStore_TopHashtagsGroupsDistinctProjectsAndEmptyCrafts(t *testing.
 	seedPostTags(t, pool, regular, []string{"sock"})
 	seedModerationOutput(t, pool, "post", "did:plc:alice", hidden, "hide", now)
 
-	groups, err := api.NewSearchStore(pool).TopHashtags(ctx, api.TopHashtagsRequest{Limit: 10}, now)
+	groups, err := api.NewSearchStore(pool, nil).TopHashtags(ctx, api.TopHashtagsRequest{Limit: 10}, now)
 	if err != nil {
 		t.Fatalf("TopHashtags: %v", err)
 	}
@@ -654,7 +654,7 @@ func TestSearchStore_TopHashtagsGroupsDistinctProjectsAndEmptyCrafts(t *testing.
 		}
 	}
 
-	mixedGroups, err := api.NewSearchStore(pool).TopHashtags(ctx, api.TopHashtagsRequest{CraftTypes: []string{"knitting", crochetToken, knitting}, Limit: 10}, now)
+	mixedGroups, err := api.NewSearchStore(pool, nil).TopHashtags(ctx, api.TopHashtagsRequest{CraftTypes: []string{"knitting", crochetToken, knitting}, Limit: 10}, now)
 	if err != nil {
 		t.Fatalf("TopHashtags mixed aliases: %v", err)
 	}

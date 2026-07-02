@@ -19,6 +19,9 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 			var traceSpan *observability.Span
 			spanFinished := false
 			if observer != nil {
+				// The marker lets lower layers record that they already captured
+				// or deliberately handled an error, so this middleware does not
+				// emit a duplicate generic 5xx Sentry event after the handler returns.
 				req = r.WithContext(observability.WithCaptureMarker(r.Context()))
 				spanCtx, span := observer.StartSpan(req.Context(), observability.SpanContext{
 					Operation: "http.server",
@@ -31,14 +34,21 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 				})
 				traceSpan = span
 				req = req.WithContext(spanCtx)
+				// RoutePattern is intentionally a bounded template such as
+				// /v1/posts/{did}/{rkey}, not the raw URL, to keep Prometheus
+				// label cardinality low and avoid exposing request identifiers.
 				inFlightRoutePattern = observer.BeginHTTPRequest(req.Method, observability.RoutePattern(req))
 				defer observer.EndHTTPRequest(req.Method, inFlightRoutePattern)
 				defer func() {
+					// If the downstream handler panics, normal span finalization below
+					// will be skipped. Close the span here so traces are not left open.
 					if traceSpan != nil && !spanFinished {
 						traceSpan.Finish("error")
 					}
 				}()
 			}
+			// responseLogger captures the status and response byte count while
+			// preserving normal ResponseWriter behavior for the wrapped handler.
 			rw := &responseLogger{ResponseWriter: w, status: http.StatusOK}
 			next.ServeHTTP(rw, req)
 			if observer != nil {
@@ -64,6 +74,8 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 					traceSpan.Finish(result)
 					spanFinished = true
 				}
+				// If a request ends as a 5xx and no deeper layer captured a more
+				// specific error, emit one generic HTTP error event as a fallback.
 				if rw.status >= http.StatusInternalServerError && !observability.CaptureRecorded(req.Context()) {
 					observer.CaptureError(req.Context(), observability.EventContext{
 						"component":         "http",
