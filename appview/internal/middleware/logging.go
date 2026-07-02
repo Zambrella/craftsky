@@ -41,6 +41,7 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 			started := time.Now()
 			runID := uuid.New().String()
 			ctx := ctxkeys.WithRunID(r.Context(), runID)
+			ctx = observability.WithRoutePatternRecorder(ctx)
 			logger.Info("Request received",
 				slog.String("method", r.Method),
 				slog.String("run_id", runID),
@@ -55,7 +56,7 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 			req := r.WithContext(ctx)
 			rw := &responseLogger{ResponseWriter: w, status: http.StatusOK}
 			next.ServeHTTP(rw, req)
-			routePattern := observability.RoutePattern(req)
+			routePattern := observability.RecordedRoutePattern(req.Context(), observability.RoutePattern(req))
 			responseAttrs := []any{
 				slog.String("method", r.Method),
 				slog.String("route_pattern", routePattern),

@@ -15,7 +15,6 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			started := time.Now()
 			req := r
-			var inFlightRoutePattern string
 			var traceSpan *observability.Span
 			spanFinished := false
 			if observer != nil {
@@ -34,11 +33,6 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 				})
 				traceSpan = span
 				req = req.WithContext(spanCtx)
-				// RoutePattern is intentionally a bounded template such as
-				// /v1/posts/{did}/{rkey}, not the raw URL, to keep Prometheus
-				// label cardinality low and avoid exposing request identifiers.
-				inFlightRoutePattern = observer.BeginHTTPRequest(req.Method, observability.RoutePattern(req))
-				defer observer.EndHTTPRequest(req.Method, inFlightRoutePattern)
 				defer func() {
 					// If the downstream handler panics, normal span finalization below
 					// will be skipped. Close the span here so traces are not left open.
@@ -53,6 +47,7 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 			next.ServeHTTP(rw, req)
 			if observer != nil {
 				routePattern := observability.RoutePattern(req)
+				observability.RecordRoutePattern(req.Context(), routePattern)
 				duration := time.Since(started)
 				observer.ObserveHTTPRequest(req.Method, routePattern, rw.status, duration, rw.bytes)
 				result := "success"
@@ -89,6 +84,25 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 					}, errors.New("http server error response"))
 				}
 			}
+		})
+	}
+}
+
+// HTTPInFlight records active requests. It should be applied inside ServeMux
+// route handlers, after Request.Pattern has been populated, so the gauge can
+// use the same bounded route label as completed request metrics.
+func HTTPInFlight(observer *observability.Observer) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if observer == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+			routePattern := observability.RoutePattern(r)
+			observability.RecordRoutePattern(r.Context(), routePattern)
+			inFlightRoutePattern := observer.BeginHTTPRequest(r.Method, routePattern)
+			defer observer.EndHTTPRequest(r.Method, inFlightRoutePattern)
+			next.ServeHTTP(w, r)
 		})
 	}
 }

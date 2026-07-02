@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"social.craftsky/appview/internal/observability"
 )
 
 func TestLogging_InjectsRunIDAndLogs(t *testing.T) {
@@ -127,6 +129,38 @@ func TestLogging_CompletionUsesStableFieldsAndRoutePattern(t *testing.T) {
 		if !strings.Contains(logged, want) {
 			t.Fatalf("log missing %s:\n%s", want, logged)
 		}
+	}
+	for _, forbidden := range []string{"did:plc:raw", "rkey123", "cursor=secret"} {
+		if strings.Contains(logged, forbidden) {
+			t.Fatalf("log contains raw route/query value %q:\n%s", forbidden, logged)
+		}
+	}
+}
+
+func TestLogging_CompletionUsesRoutePatternRecordedByInnerMetricsMiddleware(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	observer := observability.New(observability.Config{Env: "test"})
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1/posts/{did}/{rkey}", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	handler := Logging(logger)(HTTPMetrics(observer)(mux))
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/posts/did:plc:raw/rkey123?cursor=secret", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+	logged := buf.String()
+	if !strings.Contains(logged, `"route_pattern":"/v1/posts/{did}/{rkey}"`) {
+		t.Fatalf("completion log missing recorded route pattern:\n%s", logged)
+	}
+	if strings.Contains(logged, `"route_pattern":"unmatched"`) {
+		t.Fatalf("completion log still used unmatched route pattern:\n%s", logged)
 	}
 	for _, forbidden := range []string{"did:plc:raw", "rkey123", "cursor=secret"} {
 		if strings.Contains(logged, forbidden) {

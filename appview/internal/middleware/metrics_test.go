@@ -24,11 +24,11 @@ func TestHTTPMetrics_InFlightGaugeIsNonZeroDuringActiveRequest(t *testing.T) {
 	release := make(chan struct{})
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /blocked", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /blocked", HTTPInFlight(observer)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		close(entered)
 		<-release
 		w.WriteHeader(http.StatusNoContent)
-	})
+	})))
 	handler := HTTPMetrics(observer)(mux)
 
 	done := make(chan struct{})
@@ -41,7 +41,7 @@ func TestHTTPMetrics_InFlightGaugeIsNonZeroDuringActiveRequest(t *testing.T) {
 	rec := httptest.NewRecorder()
 	observer.MetricsHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
 	body := rec.Body.String()
-	if !strings.Contains(body, `craftsky_appview_http_requests_in_flight{method="GET",route_pattern="unmatched"} 1`) {
+	if !strings.Contains(body, `craftsky_appview_http_requests_in_flight{method="GET",route_pattern="/blocked"} 1`) {
 		t.Fatalf("in-flight gauge was not 1 during active request:\n%s", body)
 	}
 
@@ -50,7 +50,7 @@ func TestHTTPMetrics_InFlightGaugeIsNonZeroDuringActiveRequest(t *testing.T) {
 	rec = httptest.NewRecorder()
 	observer.MetricsHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
 	body = rec.Body.String()
-	if !strings.Contains(body, `craftsky_appview_http_requests_in_flight{method="GET",route_pattern="unmatched"} 0`) {
+	if !strings.Contains(body, `craftsky_appview_http_requests_in_flight{method="GET",route_pattern="/blocked"} 0`) {
 		t.Fatalf("in-flight gauge was not decremented after request completed:\n%s", body)
 	}
 	if !strings.Contains(body, `route_pattern="/blocked"`) {
