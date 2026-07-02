@@ -153,7 +153,27 @@ func New(cfg Config) *Observer {
 		return time.Since(time.Unix(0, last)).Seconds()
 	})
 
-	registry.MustRegister(buildInfo, httpRequests, httpDuration, httpResponseSize, httpInFlight, dbDuration, pdsWriteDuration, tapConnected, tapReconnects, tapEventsReceived, tapEventsAcked, tapAckFailures, tapIndexerRecords, tapIndexerDuration, tapLastEventAge)
+	// The process collector emits process_* metrics on supported platforms
+	// (notably Linux, which is what the AppView container runs in).
+	registry.MustRegister(
+		prometheus.NewGoCollector(),
+		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
+		buildInfo,
+		httpRequests,
+		httpDuration,
+		httpResponseSize,
+		httpInFlight,
+		dbDuration,
+		pdsWriteDuration,
+		tapConnected,
+		tapReconnects,
+		tapEventsReceived,
+		tapEventsAcked,
+		tapAckFailures,
+		tapIndexerRecords,
+		tapIndexerDuration,
+		tapLastEventAge,
+	)
 	buildInfo.WithLabelValues(cfg.Service, cfg.Env, cfg.Release, cfg.BuildVersion).Set(1)
 
 	var sentryClient *sentry.Client

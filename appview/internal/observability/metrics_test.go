@@ -28,6 +28,8 @@ func TestMetricsUseCraftskyAppViewNamesAndUnits(t *testing.T) {
 		"# TYPE craftsky_appview_http_response_size_bytes histogram",
 		"# HELP craftsky_appview_http_requests_in_flight Current AppView HTTP requests in flight.",
 		"# TYPE craftsky_appview_http_requests_in_flight gauge",
+		"# HELP go_goroutines Number of goroutines that currently exist.",
+		"# TYPE go_goroutines gauge",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("metrics output missing %q:\n%s", want, body)
