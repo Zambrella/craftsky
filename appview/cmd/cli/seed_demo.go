@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -22,6 +23,8 @@ const (
 	demoLikeCollection   = "social.craftsky.feed.like"
 	demoRepostCollection = "social.craftsky.feed.repost"
 )
+
+var demoHashtagPattern = regexp.MustCompile(`#([A-Za-z0-9_]+)`)
 
 type demoSeedArgs struct {
 	UserDID    string
@@ -417,7 +420,11 @@ func upsertDemoPost(ctx context.Context, tx pgx.Tx, post demoPost) (demoPostRef,
 	if err != nil {
 		return demoPostRef{}, err
 	}
-	record, rawProject, err := demoPostRecord(post, imagesJSON)
+	facetsJSON, err := demoHashtagFacetsJSON(post.Text)
+	if err != nil {
+		return demoPostRef{}, err
+	}
+	record, rawProject, err := demoPostRecord(post, facetsJSON, imagesJSON)
 	if err != nil {
 		return demoPostRef{}, err
 	}
@@ -430,9 +437,9 @@ func upsertDemoPost(ctx context.Context, tx pgx.Tx, post demoPost) (demoPostRef,
 			(uri, did, rkey, cid, text, facets, images,
 			 reply_root_uri, reply_root_cid, reply_parent_uri, reply_parent_cid,
 			 quote_uri, quote_cid, tags, is_project, project_craft_type, record, created_at, indexed_at)
-		VALUES ($1, $2, $3, $4, $5, NULL, $6,
-			NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, ''),
-			NULL, NULL, $11, $12, $13, $14, $15, $16)
+		VALUES ($1, $2, $3, $4, $5, $6, $7,
+			NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, ''), NULLIF($11, ''),
+			NULL, NULL, $12, $13, $14, $15, $16, $17)
 		ON CONFLICT (uri) DO UPDATE SET
 			cid = EXCLUDED.cid,
 			text = EXCLUDED.text,
@@ -450,7 +457,7 @@ func upsertDemoPost(ctx context.Context, tx pgx.Tx, post demoPost) (demoPostRef,
 			record = EXCLUDED.record,
 			created_at = EXCLUDED.created_at,
 			indexed_at = EXCLUDED.indexed_at
-	`, uri, post.AuthorDID, post.Rkey, cid, post.Text, nullableRaw(imagesJSON), post.ReplyRootURI, post.ReplyRootCID, post.ReplyParentURI, post.ReplyParentCID, post.Tags, post.Project != nil, projectCraftType, record, post.CreatedAt.UTC(), post.IndexedAt.UTC()); err != nil {
+	`, uri, post.AuthorDID, post.Rkey, cid, post.Text, nullableRaw(facetsJSON), nullableRaw(imagesJSON), post.ReplyRootURI, post.ReplyRootCID, post.ReplyParentURI, post.ReplyParentCID, post.Tags, post.Project != nil, projectCraftType, record, post.CreatedAt.UTC(), post.IndexedAt.UTC()); err != nil {
 		return demoPostRef{}, fmt.Errorf("upsert demo post %s: %w", uri, err)
 	}
 	if post.Project != nil {
@@ -554,8 +561,15 @@ func upsertDemoInteraction(ctx context.Context, tx pgx.Tx, collection, did, rkey
 	return nil
 }
 
-func demoPostRecord(post demoPost, imagesJSON json.RawMessage) (json.RawMessage, json.RawMessage, error) {
+func demoPostRecord(post demoPost, facetsJSON, imagesJSON json.RawMessage) (json.RawMessage, json.RawMessage, error) {
 	record := map[string]any{"$type": fakePostCollection, "text": post.Text, "createdAt": post.CreatedAt.UTC().Format(time.RFC3339)}
+	if len(facetsJSON) > 0 {
+		var facets any
+		if err := json.Unmarshal(facetsJSON, &facets); err != nil {
+			return nil, nil, err
+		}
+		record["facets"] = facets
+	}
 	if len(imagesJSON) > 0 {
 		var images any
 		if err := json.Unmarshal(imagesJSON, &images); err != nil {
@@ -653,6 +667,27 @@ func demoImagesJSON(images []demoImage) (json.RawMessage, error) {
 	return json.Marshal(out)
 }
 
+func demoHashtagFacetsJSON(text string) (json.RawMessage, error) {
+	matches := demoHashtagPattern.FindAllStringSubmatchIndex(text, -1)
+	if len(matches) == 0 {
+		return nil, nil
+	}
+	out := make([]map[string]any, 0, len(matches))
+	for _, match := range matches {
+		out = append(out, map[string]any{
+			"index": map[string]int{
+				"byteStart": match[0],
+				"byteEnd":   match[1],
+			},
+			"features": []map[string]string{{
+				"$type": "app.bsky.richtext.facet#tag",
+				"tag":   text[match[2]:match[3]],
+			}},
+		})
+	}
+	return json.Marshal(out)
+}
+
 func demoProfiles(seed string) []demoProfile {
 	prefix := demoDIDPrefix(seed)
 	handle := func(name string) string { return name + "-" + seed + ".craftsky.test" }
@@ -670,10 +705,10 @@ func demoProfiles(seed string) []demoProfile {
 
 func demoRootPosts(seed string, profiles []demoProfile, now time.Time) []demoPost {
 	posts := []demoPost{
-		{Rkey: "demo-" + seed + "-project-001", AuthorDID: profiles[0].DID, Text: "Finished these lobster socks and they are exactly the kind of joyful wardrobe chaos I wanted. Tiny colourwork rows, worth every end. #knitting #socks", Images: []demoImage{{Name: "lobster-socks-alma", Alt: "Cream hand-knit socks with magenta lobster colourwork hanging over a gray chair", Width: 3024, Height: 4032}}, Tags: []string{"knitting", "socks", "colorwork"}, CreatedAt: now.Add(-1 * time.Hour), IndexedAt: now.Add(-59 * time.Minute), Project: &demoProject{CraftType: "social.craftsky.feed.defs#knitting", Status: "social.craftsky.feed.defs#finished", Title: "Lobster Socks", Duration: "a few evenings", PatternName: "self drafted lobster chart", PatternDifficulty: "social.craftsky.feed.defs#intermediate", Materials: []string{"cream sock yarn", "magenta contrast yarn"}, Colors: []string{"cream", "purple"}, DesignTags: []string{"social.craftsky.project.defs#animal", "social.craftsky.project.defs#whimsical"}, Tags: []string{"knitting", "socks", "colorwork"}, DetailsType: "social.craftsky.project.knitting#details", Details: map[string]any{"$type": "social.craftsky.project.knitting#details", "projectType": "social.craftsky.project.defs#accessory", "projectSubtype": "social.craftsky.project.knitting.defs#socks", "yarnWeight": "social.craftsky.project.defs#fingering", "needleSizeMm": "2.25mm", "finishedSize": "adult socks"}}},
-		{Rkey: "demo-" + seed + "-project-002", AuthorDID: profiles[1].DID, Text: "Finished a bright fruit-print shirt for #SewFruity26. The print does all the talking, so I kept the shape simple and wearable. #sewing #memade", Images: []demoImage{{Name: "fruity-top-yvette", Alt: "Yvette wearing a colourful fruit-print short-sleeve button-up shirt with blue shorts on a woodland path", Width: 4284, Height: 5712}}, Tags: []string{"sewing", "memade", "sewfruity26"}, CreatedAt: now.Add(-3 * time.Hour), IndexedAt: now.Add(-2*time.Hour - 58*time.Minute), Project: &demoProject{CraftType: "social.craftsky.feed.defs#sewing", Status: "social.craftsky.feed.defs#finished", Title: "Sew Fruity Patchwork Shirt", Duration: "two weekends", PatternName: "boxy button-up shirt", PatternDifficulty: "social.craftsky.feed.defs#beginner", Materials: []string{"fruit-print cotton lawn", "lightweight interfacing", "shirt buttons"}, Colors: []string{"multicolor", "blue"}, DesignTags: []string{"social.craftsky.project.defs#novelty", "social.craftsky.project.defs#whimsical"}, Tags: []string{"sewing", "memade", "sewfruity26"}, DetailsType: "social.craftsky.project.sewing#details", Details: map[string]any{"$type": "social.craftsky.project.sewing#details", "projectType": "social.craftsky.project.defs#garment", "projectSubtype": "social.craftsky.project.sewing.defs#shirt", "fitNotes": "cropped to sit neatly with high-waisted shorts"}}},
-		{Rkey: "demo-" + seed + "-project-003", AuthorDID: profiles[0].DID, Text: "Banana-print weekender bag, complete with big straps and a tiny Almitamade label. This one is ready for fabric shopping trips. #sewing #bagmaking", Images: []demoImage{{Name: "banana-bag-alma", Alt: "Large pink banana-print tote bag with brown straps held up in front of a brick wall", Width: 2316, Height: 3088}}, Tags: []string{"sewing", "bagmaking", "bananaprint"}, CreatedAt: now.Add(-6 * time.Hour), IndexedAt: now.Add(-5*time.Hour - 55*time.Minute), Project: &demoProject{CraftType: "social.craftsky.feed.defs#sewing", Status: "social.craftsky.feed.defs#finished", Title: "Banana Weekender Bag", Duration: "one weekend", PatternName: "self drafted oversized tote", PatternDifficulty: "social.craftsky.feed.defs#intermediate", Materials: []string{"banana-print canvas", "cotton webbing", "contrast topstitching thread"}, Colors: []string{"pink", "yellow", "green", "brown"}, DesignTags: []string{"social.craftsky.project.defs#botanical", "social.craftsky.project.defs#novelty"}, Tags: []string{"sewing", "bagmaking", "bananaprint"}, DetailsType: "social.craftsky.project.sewing#details", Details: map[string]any{"$type": "social.craftsky.project.sewing#details", "projectType": "social.craftsky.project.defs#accessory", "projectSubtype": "social.craftsky.project.sewing.defs#tote", "fitNotes": "boxed corners and reinforced strap stitching for a roomy carry-all"}}},
-		{Rkey: "demo-" + seed + "-project-004", AuthorDID: profiles[1].DID, Text: "The matching South American print set is finished. Loud fabric, relaxed fit, and enough colour to make gray weather irrelevant. #sewing #memade", Images: []demoImage{{Name: "south-american-set-yvette", Alt: "Yvette wearing a matching orange and green tropical print top and trousers outside a brick house", Width: 4284, Height: 5712}}, Tags: []string{"sewing", "memade", "matching-set"}, CreatedAt: now.Add(-8 * time.Hour), IndexedAt: now.Add(-7*time.Hour - 52*time.Minute), Project: &demoProject{CraftType: "social.craftsky.feed.defs#sewing", Status: "social.craftsky.feed.defs#finished", Title: "South American Print Co-ord", Duration: "a long weekend", PatternName: "relaxed wrap top and wide-leg trousers", PatternDifficulty: "social.craftsky.feed.defs#intermediate", Materials: []string{"bold printed viscose", "elastic waistband", "matching thread"}, Colors: []string{"orange", "green", "yellow"}, DesignTags: []string{"social.craftsky.project.defs#botanical", "social.craftsky.project.defs#maximalist"}, Tags: []string{"sewing", "memade", "matching-set"}, DetailsType: "social.craftsky.project.sewing#details", Details: map[string]any{"$type": "social.craftsky.project.sewing#details", "projectType": "social.craftsky.project.defs#garment", "projectSubtype": "social.craftsky.project.sewing.defs#pants", "fitNotes": "coordinating separates with an easy wrap top and wide-leg trousers"}}},
+		{Rkey: "demo-" + seed + "-project-001", AuthorDID: profiles[0].DID, Text: "Finished these Clawsome Lobster Socks and they are exactly the kind of joyful wardrobe chaos I wanted. Tiny colourwork rows, worth every end. #knitting #socks", Images: []demoImage{{Name: "lobster-socks-alma", Alt: "Cream hand-knit socks with magenta lobster colourwork hanging over a gray chair", Width: 2870, Height: 2764}}, Tags: []string{"knitting", "socks", "colorwork"}, CreatedAt: now.Add(-1 * time.Hour), IndexedAt: now.Add(-59 * time.Minute), Project: &demoProject{CraftType: "social.craftsky.feed.defs#knitting", Status: "social.craftsky.feed.defs#finished", Title: "Clawsome Lobster Socks", Duration: "a few evenings", PatternName: "Clawsome Lobster Socks", PatternDifficulty: "social.craftsky.feed.defs#intermediate", PatternDesigner: "Stone Knits", Materials: []string{"cream sock yarn", "magenta contrast yarn"}, Colors: []string{"cream", "purple"}, DesignTags: []string{"social.craftsky.project.defs#animal", "social.craftsky.project.defs#whimsical"}, Tags: []string{"knitting", "socks", "colorwork"}, DetailsType: "social.craftsky.project.knitting#details", Details: map[string]any{"$type": "social.craftsky.project.knitting#details", "projectType": "social.craftsky.project.defs#accessory", "projectSubtype": "social.craftsky.project.knitting.defs#socks", "yarnWeight": "social.craftsky.project.defs#fingering", "needleSizeMm": "2.25mm", "finishedSize": "adult socks"}}},
+		{Rkey: "demo-" + seed + "-project-002", AuthorDID: profiles[1].DID, Text: "Finished a bright fruit-print Canyon top for #SewFruity26. The print does all the talking, so I kept the shape simple and wearable. #sewing #memade", Images: []demoImage{{Name: "fruity-top-yvette", Alt: "Yvette wearing a colourful fruit-print short-sleeve button-up shirt with blue shorts on a woodland path", Width: 4282, Height: 4779}}, Tags: []string{"sewing", "memade", "sewfruity26"}, CreatedAt: now.Add(-3 * time.Hour), IndexedAt: now.Add(-2*time.Hour - 58*time.Minute), Project: &demoProject{CraftType: "social.craftsky.feed.defs#sewing", Status: "social.craftsky.feed.defs#finished", Title: "Sew Fruity Canyon Top", Duration: "two weekends", PatternName: "Canyon Dress & Top", PatternDifficulty: "social.craftsky.feed.defs#beginner", PatternDesigner: "Friday Pattern Company", Materials: []string{"fruit-print cotton lawn", "lightweight interfacing", "shirt buttons"}, Colors: []string{"multicolor", "blue"}, DesignTags: []string{"social.craftsky.project.defs#novelty", "social.craftsky.project.defs#whimsical"}, Tags: []string{"sewing", "memade", "sewfruity26"}, DetailsType: "social.craftsky.project.sewing#details", Details: map[string]any{"$type": "social.craftsky.project.sewing#details", "projectType": "social.craftsky.project.defs#garment", "projectSubtype": "social.craftsky.project.sewing.defs#shirt", "fitNotes": "cropped to sit neatly with high-waisted shorts"}}},
+		{Rkey: "demo-" + seed + "-project-003", AuthorDID: profiles[0].DID, Text: "Banana-print Painters Tote hack, complete with big straps and a tiny Almitamade label. This one is ready for fabric shopping trips. #sewing #bagmaking", Images: []demoImage{{Name: "banana-bag-alma", Alt: "Large pink banana-print tote bag with brown straps held up in front of a brick wall", Width: 2316, Height: 2201}}, Tags: []string{"sewing", "bagmaking", "bananaprint"}, CreatedAt: now.Add(-6 * time.Hour), IndexedAt: now.Add(-5*time.Hour - 55*time.Minute), Project: &demoProject{CraftType: "social.craftsky.feed.defs#sewing", Status: "social.craftsky.feed.defs#finished", Title: "Banana Painters Tote Hack", Duration: "one weekend", PatternName: "Painters Tote hack", PatternDifficulty: "social.craftsky.feed.defs#intermediate", PatternDesigner: "sewlukeivo", Materials: []string{"banana-print canvas", "cotton webbing", "contrast topstitching thread"}, Colors: []string{"pink", "yellow", "green", "brown"}, DesignTags: []string{"social.craftsky.project.defs#botanical", "social.craftsky.project.defs#novelty"}, Tags: []string{"sewing", "bagmaking", "bananaprint"}, DetailsType: "social.craftsky.project.sewing#details", Details: map[string]any{"$type": "social.craftsky.project.sewing#details", "projectType": "social.craftsky.project.defs#accessory", "projectSubtype": "social.craftsky.project.sewing.defs#tote", "fitNotes": "boxed corners and reinforced strap stitching for a roomy carry-all"}}},
+		{Rkey: "demo-" + seed + "-project-004", AuthorDID: profiles[1].DID, Text: "The matching Andi Set is finished. Loud fabric, relaxed fit, and enough colour to make gray weather irrelevant. #sewing #memade", Images: []demoImage{{Name: "south-american-set-yvette", Alt: "Yvette wearing a matching orange and green tropical print top and trousers outside a brick house", Width: 4284, Height: 5044}}, Tags: []string{"sewing", "memade", "matching-set"}, CreatedAt: now.Add(-8 * time.Hour), IndexedAt: now.Add(-7*time.Hour - 52*time.Minute), Project: &demoProject{CraftType: "social.craftsky.feed.defs#sewing", Status: "social.craftsky.feed.defs#finished", Title: "South American Print Andi Set", Duration: "a long weekend", PatternName: "Andi Set", PatternDifficulty: "social.craftsky.feed.defs#intermediate", PatternDesigner: "Swim Style", Materials: []string{"bold printed viscose", "elastic waistband", "matching thread"}, Colors: []string{"orange", "green", "yellow"}, DesignTags: []string{"social.craftsky.project.defs#botanical", "social.craftsky.project.defs#maximalist"}, Tags: []string{"sewing", "memade", "matching-set"}, DetailsType: "social.craftsky.project.sewing#details", Details: map[string]any{"$type": "social.craftsky.project.sewing#details", "projectType": "social.craftsky.project.defs#garment", "projectSubtype": "social.craftsky.project.sewing.defs#pants", "fitNotes": "coordinating separates with an easy wrap top and wide-leg trousers"}}},
 		{Rkey: "demo-" + seed + "-post-005", AuthorDID: profiles[4].DID, Text: "Spent lunch break reinforcing the inner thighs on two pairs of jeans. Tiny running stitches are meditative when the coffee is good. #mending", Images: []demoImage{{Name: "visible-mending-denim", Alt: "Close view of denim jeans repaired with neat rows of blue sashiko-style stitches", Width: 1200, Height: 900}}, Tags: []string{"mending"}, CreatedAt: now.Add(-10 * time.Hour), IndexedAt: now.Add(-9*time.Hour - 55*time.Minute)},
 		{Rkey: "demo-" + seed + "-post-006", AuthorDID: profiles[5].DID, Text: "Dye notebook update: onion skins gave a warmer gold than expected on the alum-mordanted sample. The unmordanted skein is much softer.", Images: []demoImage{{Name: "naturally-dyed-skeins", Alt: "Small wool skeins in cream and golden yellow beside a handwritten dye notebook", Width: 1200, Height: 900}}, Tags: []string{"naturaldye", "wool"}, CreatedAt: now.Add(-13 * time.Hour), IndexedAt: now.Add(-12*time.Hour - 47*time.Minute)},
 		{Rkey: "demo-" + seed + "-post-007", AuthorDID: profiles[0].DID, Text: "Swatch math says I need one more repeat than the pattern suggests. Future me is writing that down before optimism interferes.", Tags: []string{"swatching"}, CreatedAt: now.Add(-16 * time.Hour), IndexedAt: now.Add(-15*time.Hour - 30*time.Minute)},

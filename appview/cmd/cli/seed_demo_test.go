@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -205,12 +207,15 @@ func TestRunDemoSeedCreatesScreenshotDatasetAndIsIdempotent(t *testing.T) {
 		SELECT count(*)
 		FROM craftsky_project_posts pp
 		JOIN craftsky_posts p USING (uri)
-		WHERE pp.common_title IN (
-			'Lobster Socks',
-			'Sew Fruity Patchwork Shirt',
-			'Banana Weekender Bag',
-			'South American Print Co-ord'
+		WHERE (pp.common_title, pp.pattern_name, pp.pattern_designer) IN (
+			('Clawsome Lobster Socks', 'Clawsome Lobster Socks', 'Stone Knits'),
+			('Sew Fruity Canyon Top', 'Canyon Dress & Top', 'Friday Pattern Company'),
+			('Banana Painters Tote Hack', 'Painters Tote hack', 'sewlukeivo'),
+			('South American Print Andi Set', 'Andi Set', 'Swim Style')
 		)
+		AND p.facets IS NOT NULL
+		AND p.record ? 'facets'
+		AND p.facets::text LIKE '%app.bsky.richtext.facet#tag%'
 		AND (
 			p.images::text LIKE '%lobster-socks-alma%' OR
 			p.images::text LIKE '%fruity-top-yvette%' OR
@@ -222,6 +227,42 @@ func TestRunDemoSeedCreatesScreenshotDatasetAndIsIdempotent(t *testing.T) {
 	}
 	if realProjects != 4 {
 		t.Fatalf("real projects = %d, want 4", realProjects)
+	}
+}
+
+func TestDemoHashtagFacetsJSONUsesUTF8ByteRanges(t *testing.T) {
+	text := "🧶 café #Mending and #SockKAL."
+	raw, err := demoHashtagFacetsJSON(text)
+	if err != nil {
+		t.Fatalf("demoHashtagFacetsJSON: %v", err)
+	}
+
+	var facets []struct {
+		Index struct {
+			ByteStart int `json:"byteStart"`
+			ByteEnd   int `json:"byteEnd"`
+		} `json:"index"`
+		Features []map[string]string `json:"features"`
+	}
+	if err := json.Unmarshal(raw, &facets); err != nil {
+		t.Fatalf("unmarshal facets: %v", err)
+	}
+	if len(facets) != 2 {
+		t.Fatalf("facets = %d, want 2: %s", len(facets), raw)
+	}
+
+	for i, tag := range []string{"Mending", "SockKAL"} {
+		token := "#" + tag
+		start := strings.Index(text, token)
+		if start < 0 {
+			t.Fatalf("missing token %q", token)
+		}
+		if facets[i].Index.ByteStart != start || facets[i].Index.ByteEnd != start+len(token) {
+			t.Fatalf("facet %d index = %+v, want %d..%d", i, facets[i].Index, start, start+len(token))
+		}
+		if got := facets[i].Features[0]["tag"]; got != tag {
+			t.Fatalf("facet %d tag = %q, want %q", i, got, tag)
+		}
 	}
 }
 
