@@ -95,6 +95,7 @@ func TestV1RoutePoliciesCoverRegisteredRoutes(t *testing.T) {
 		{"POST /v1/posts", RateClassWrite, BodyDefaultJSON},
 		{"POST /v1/blobs/images", RateClassUpload, BodyUpload},
 		{"GET /v1/dev/media/{name}", RateClassDevOnly, BodyNoBody},
+		{"GET /v1/dev/panic", RateClassDevOnly, BodyNoBody},
 		{"POST /v1/dev/moderation/ozone-events", RateClassDevOnly, BodyDefaultJSON},
 	} {
 		got, ok := seen[want.key]
@@ -743,6 +744,39 @@ func TestRoutes_DevModerationRouteUnavailableUnlessEnabled(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRoutes_DevPanicRouteIsDevOnly(t *testing.T) {
+	t.Run("dev route is registered", func(t *testing.T) {
+		deps := testDeps()
+		deps.Config = app.Config{Env: app.EnvDev}
+		mux := http.NewServeMux()
+		AddRoutes(context.Background(), mux, deps)
+
+		defer func() {
+			recovered := recover()
+			if recovered == nil {
+				t.Fatal("GET /v1/dev/panic did not panic")
+			}
+			if recovered != "synthetic appview dev panic" {
+				t.Fatalf("panic = %#v, want synthetic appview dev panic", recovered)
+			}
+		}()
+		mux.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/dev/panic", nil))
+	})
+
+	t.Run("prod route is not registered", func(t *testing.T) {
+		deps := testDeps()
+		deps.Config = app.Config{Env: app.EnvProd}
+		mux := http.NewServeMux()
+		AddRoutes(context.Background(), mux, deps)
+
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/dev/panic", nil))
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want 404; body=%s", rec.Code, rec.Body.String())
+		}
+	})
 }
 
 func TestRoutes_DevModerationRouteRequiresToken(t *testing.T) {

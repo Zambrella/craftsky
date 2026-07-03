@@ -126,7 +126,7 @@ func (o *Observer) capture(ctx context.Context, message, exceptionType, exceptio
 			tags["sentry_span_id"] = spanID
 		}
 	}
-	o.sentryClient.CaptureEvent(&sentry.Event{
+	event := &sentry.Event{
 		Message: message,
 		Level:   sentry.LevelError,
 		Tags:    tags,
@@ -134,7 +134,22 @@ func (o *Observer) capture(ctx context.Context, message, exceptionType, exceptio
 			Type:  exceptionType,
 			Value: exceptionValue,
 		}},
-	}, nil, nil)
+	}
+	hub := sentry.GetHubFromContext(ctx)
+	if hub == nil {
+		hub = o.sentryHub
+	}
+	if hub == nil {
+		o.sentryClient.CaptureEvent(event, &sentry.EventHint{Context: ctx}, nil)
+		return
+	}
+	captureHub := hub.Clone()
+	captureHub.ConfigureScope(func(scope *sentry.Scope) {
+		if span := sentry.SpanFromContext(ctx); span != nil && span.TraceID.String() != "" {
+			scope.SetSpan(span)
+		}
+	})
+	captureHub.CaptureEventWithHint(event, &sentry.EventHint{Context: ctx})
 }
 
 type captureMarkerKey struct{}

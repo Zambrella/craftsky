@@ -87,8 +87,6 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 						"duration":          duration.String(),
 						"result":            result,
 					})
-					handlerSpan.Finish(result)
-					handlerSpanFinished = true
 				}
 				if traceSpan != nil {
 					traceSpan.SetTransactionName(req.Method + " " + routePattern)
@@ -102,8 +100,6 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 						"result":            result,
 						"run_id":            GetRunID(req.Context()),
 					})
-					traceSpan.Finish(result)
-					spanFinished = true
 				}
 				// If a request ends as a 5xx and no deeper layer captured a more
 				// specific error, emit one generic HTTP error event as a fallback.
@@ -118,6 +114,14 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 						"duration":          duration.String(),
 						"run_id":            GetRunID(req.Context()),
 					}, errors.New("http server error response"))
+				}
+				if handlerSpan != nil {
+					handlerSpan.Finish(result)
+					handlerSpanFinished = true
+				}
+				if traceSpan != nil {
+					traceSpan.Finish(result)
+					spanFinished = true
 				}
 			}
 		})

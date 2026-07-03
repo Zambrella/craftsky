@@ -321,6 +321,54 @@ func TestCaptureErrorUsesSentryTransportWithSanitizedContext(t *testing.T) {
 	}
 }
 
+func TestCaptureErrorUsesActiveSpanTraceContext(t *testing.T) {
+	transport := &sentry.MockTransport{}
+	observer := New(Config{
+		Env:              "test",
+		SentryDSN:        "https://public@example.invalid/1",
+		SentryTransport:  transport,
+		TracingEnabled:   true,
+		TracesSampleRate: 1,
+	})
+
+	rootCtx, root := observer.StartSpan(context.Background(), SpanContext{Operation: "http.server", Component: "http"})
+	childCtx, child := observer.StartSpan(rootCtx, SpanContext{Operation: "http.handler", Component: "http"})
+	observer.CaptureError(childCtx, EventContext{
+		"component":     "http",
+		"route_pattern": "/v1/profiles/{handleOrDid}",
+	}, errors.New("http server error response"))
+	child.Finish("error")
+	root.Finish("error")
+	if !observer.Flush(time.Second) {
+		t.Fatal("Flush returned false")
+	}
+
+	events := transport.Events()
+	var errorEvent *sentry.Event
+	for _, event := range events {
+		if event.Level == sentry.LevelError {
+			errorEvent = event
+			break
+		}
+	}
+	if errorEvent == nil {
+		t.Fatalf("missing error event in %#v", events)
+	}
+	traceCtx := errorEvent.Contexts["trace"]
+	if traceCtx == nil {
+		t.Fatalf("error event missing trace context: %#v", errorEvent.Contexts)
+	}
+	if got := fmt.Sprint(traceCtx["trace_id"]); got != child.sentrySpan.TraceID.String() {
+		t.Fatalf("trace_id = %q, want %q; trace context=%#v", got, child.sentrySpan.TraceID.String(), traceCtx)
+	}
+	if got := fmt.Sprint(traceCtx["span_id"]); got != child.sentrySpan.SpanID.String() {
+		t.Fatalf("span_id = %q, want %q; trace context=%#v", got, child.sentrySpan.SpanID.String(), traceCtx)
+	}
+	if errorEvent.Tags["sentry_trace_id"] != child.sentrySpan.TraceID.String() || errorEvent.Tags["sentry_span_id"] != child.sentrySpan.SpanID.String() {
+		t.Fatalf("trace tags missing active span IDs: %#v", errorEvent.Tags)
+	}
+}
+
 func TestCapturePanicIncludesRecoveredTypeWithoutRecoveredValue(t *testing.T) {
 	transport := &sentry.MockTransport{}
 	observer := New(Config{

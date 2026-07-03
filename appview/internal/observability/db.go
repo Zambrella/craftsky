@@ -28,6 +28,7 @@ func (o *Observer) ObserveDB(ctx context.Context, op DBOperation, fn func(contex
 	if routePattern == "" {
 		routePattern = unmatchedRoutePattern
 	}
+	routePattern = RecordedRoutePattern(ctx, routePattern)
 	routePattern = safeMetricRoute(routePattern)
 	spanCtx, span := o.StartSpan(ctx, SpanContext{
 		Operation: "db." + operation,

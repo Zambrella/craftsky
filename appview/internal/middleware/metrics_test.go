@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -125,6 +126,63 @@ func TestHTTPMetrics_CapturesNonPanic5xxResponseInSentry(t *testing.T) {
 				t.Fatalf("Sentry tag contains forbidden value %q: %q=%q", forbidden, key, value)
 			}
 		}
+	}
+}
+
+func TestHTTPMetrics_CapturesNonPanic5xxBeforeFinishingActiveSpan(t *testing.T) {
+	transport := &sentry.MockTransport{}
+	observer := observability.New(observability.Config{
+		Env:              "test",
+		SentryDSN:        "https://public@example.invalid/1",
+		SentryTransport:  transport,
+		TracingEnabled:   true,
+		TracesSampleRate: 1,
+	})
+
+	var handlerTraceID, handlerSpanID string
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1/internal/{did}", func(w http.ResponseWriter, r *http.Request) {
+		handlerTraceID, handlerSpanID = observability.TraceIDs(r.Context())
+		envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "internal server error", GetRunID(r.Context()), nil)
+	})
+	handler := Logging(slog.New(slog.NewTextHandler(io.Discard, nil)))(HTTPMetrics(observer)(mux))
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/internal/did:plc:raw", nil))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500; body=%s", rec.Code, rec.Body.String())
+	}
+	if handlerTraceID == "" || handlerSpanID == "" {
+		t.Fatalf("handler TraceIDs = (%q, %q), want populated", handlerTraceID, handlerSpanID)
+	}
+	if !observer.Flush(50 * time.Millisecond) {
+		t.Fatal("observer Flush returned false")
+	}
+
+	var errorEvent *sentry.Event
+	for _, event := range transport.Events() {
+		if event.Level == sentry.LevelError {
+			errorEvent = event
+			break
+		}
+	}
+	if errorEvent == nil {
+		t.Fatalf("missing error event in %#v", transport.Events())
+	}
+	traceCtx := errorEvent.Contexts["trace"]
+	if traceCtx == nil {
+		t.Fatalf("error event missing trace context: %#v", errorEvent.Contexts)
+	}
+	if got := fmt.Sprint(traceCtx["trace_id"]); got != handlerTraceID {
+		t.Fatalf("trace_id = %#v, want %q; trace context=%#v", got, handlerTraceID, traceCtx)
+	}
+	if got := fmt.Sprint(traceCtx["span_id"]); got != handlerSpanID {
+		t.Fatalf("span_id = %#v, want %q; trace context=%#v", got, handlerSpanID, traceCtx)
+	}
+	if errorEvent.Tags["sentry_trace_id"] != handlerTraceID || errorEvent.Tags["sentry_span_id"] != handlerSpanID {
+		t.Fatalf("trace tags = (%q, %q), want (%q, %q); tags=%#v",
+			errorEvent.Tags["sentry_trace_id"], errorEvent.Tags["sentry_span_id"],
+			handlerTraceID, handlerSpanID, errorEvent.Tags)
 	}
 }
 

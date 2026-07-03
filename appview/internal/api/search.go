@@ -25,7 +25,7 @@ type SearchStore struct {
 }
 
 func NewSearchStore(pool *pgxpool.Pool, observer *observability.Observer) *SearchStore {
-	return &SearchStore{pool: pool, postStore: NewPostStore(pool), observer: observer}
+	return &SearchStore{pool: pool, postStore: NewPostStore(pool, observer), observer: observer}
 }
 
 func SearchHashtagPostsHandler(store *SearchStore, resolver HandleResolver, logger *slog.Logger) http.Handler {

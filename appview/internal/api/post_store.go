@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/observability"
 )
 
 // ErrPostNotFound is returned by PostStore.ReadOne when no row matches.
@@ -237,11 +238,16 @@ func (s *PostStore) commentBranchHasRepliesAfter(ctx context.Context, commentURI
 
 // PostStore is the Postgres-backed implementation.
 type PostStore struct {
-	pool *pgxpool.Pool
+	pool     *pgxpool.Pool
+	observer *observability.Observer
 }
 
-func NewPostStore(pool *pgxpool.Pool) *PostStore {
-	return &PostStore{pool: pool}
+func NewPostStore(pool *pgxpool.Pool, observer ...*observability.Observer) *PostStore {
+	store := &PostStore{pool: pool}
+	if len(observer) > 0 {
+		store.observer = observer[0]
+	}
+	return store
 }
 
 const postSelectColumns = `
@@ -836,6 +842,16 @@ func (s *PostStore) ViewerReplyStates(ctx context.Context, viewerDID string, pos
 
 // EngagementSummaries returns counts and current-viewer state keyed by post URI.
 func (s *PostStore) EngagementSummaries(ctx context.Context, viewerDID string, postURIs []string) (map[string]EngagementSummary, error) {
+	var summaries map[string]EngagementSummary
+	err := s.observeDB(ctx, "post.engagement_summaries", "unmatched", func(ctx context.Context) error {
+		var err error
+		summaries, err = s.engagementSummariesObserved(ctx, viewerDID, postURIs)
+		return err
+	})
+	return summaries, err
+}
+
+func (s *PostStore) engagementSummariesObserved(ctx context.Context, viewerDID string, postURIs []string) (map[string]EngagementSummary, error) {
 	out := make(map[string]EngagementSummary, len(postURIs))
 	for _, uri := range postURIs {
 		out[uri] = EngagementSummary{}
@@ -876,6 +892,16 @@ func (s *PostStore) EngagementSummaries(ctx context.Context, viewerDID string, p
 		}
 	}
 	return out, nil
+}
+
+func (s *PostStore) observeDB(ctx context.Context, operation, routePattern string, fn func(context.Context) error) error {
+	if s == nil || s.observer == nil {
+		return fn(ctx)
+	}
+	return s.observer.ObserveDB(ctx, observability.DBOperation{
+		Operation:    operation,
+		RoutePattern: routePattern,
+	}, fn)
 }
 
 // ListCommentBranchReplies returns visual replies under a top-level comment,

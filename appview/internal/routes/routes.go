@@ -49,6 +49,9 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("GET /healthz", inFlight(api.NewHealthHandler(deps.DB, deps.Consumer)))
 	if deps.Config.Env == app.EnvDev {
 		mux.Handle("GET /v1/dev/media/{name}", inFlight(api.DevMediaHandler()))
+		mux.Handle("GET /v1/dev/panic", inFlight(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			panic("synthetic appview dev panic")
+		})))
 	}
 
 	// OAuth discovery endpoints (contracts with the AS; not versioned).
@@ -122,7 +125,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("POST /v1/profiles/{handleOrDid}/reports", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/reports"), api.ReportProfileHandler(api.NewProfileReportTargetResolver(deps.ProfileStore, deps.HandleResolver), deps.ReportStore, deps.ReportForwarder, deps.Logger)))
 
 	// v1 — post handlers (authenticated + device-id required).
-	postStore := api.NewPostStore(deps.DB)
+	postStore := api.NewPostStore(deps.DB, observer)
 	mux.Handle("GET /v1/feed/timeline", v1mw.wrap(mustPolicy("GET", "/v1/feed/timeline"), api.ListTimelineHandler(postStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/notifications", v1mw.wrap(mustPolicy("GET", "/v1/notifications"), api.ListNotificationsHandler(postStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("POST /v1/blobs/images", v1mw.wrap(mustPolicy("POST", "/v1/blobs/images"), api.ImageBlobUploadHandler(deps.NewPDSClient, mediaLimits, deps.Logger)))

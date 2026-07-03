@@ -17,6 +17,16 @@ type RecentSearchRow struct {
 }
 
 func (s *SearchStore) ListRecentSearches(ctx context.Context, viewerDID string) ([]RecentSearchRow, error) {
+	var out []RecentSearchRow
+	err := s.observeDB(ctx, "search.recent.list", "/v1/search/recent", func(ctx context.Context) error {
+		var err error
+		out, err = s.listRecentSearchesObserved(ctx, viewerDID)
+		return err
+	})
+	return out, err
+}
+
+func (s *SearchStore) listRecentSearchesObserved(ctx context.Context, viewerDID string) ([]RecentSearchRow, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT id, search_type, display_label, normalized_payload, updated_at
 		FROM craftsky_recent_searches
@@ -39,6 +49,16 @@ func (s *SearchStore) ListRecentSearches(ctx context.Context, viewerDID string) 
 }
 
 func (s *SearchStore) SaveRecentSearch(ctx context.Context, viewerDID string, req SaveRecentSearchRequest, now time.Time) (RecentSearchRow, error) {
+	var row RecentSearchRow
+	err := s.observeDB(ctx, "search.recent.save", "/v1/search/recent", func(ctx context.Context) error {
+		var err error
+		row, err = s.saveRecentSearchObserved(ctx, viewerDID, req, now)
+		return err
+	})
+	return row, err
+}
+
+func (s *SearchStore) saveRecentSearchObserved(ctx context.Context, viewerDID string, req SaveRecentSearchRequest, now time.Time) (RecentSearchRow, error) {
 	id, err := newRecentSearchID()
 	if err != nil {
 		return RecentSearchRow{}, err
@@ -70,6 +90,12 @@ func (s *SearchStore) SaveRecentSearch(ctx context.Context, viewerDID string, re
 }
 
 func (s *SearchStore) DeleteRecentSearch(ctx context.Context, viewerDID, id string) error {
+	return s.observeDB(ctx, "search.recent.delete", "/v1/search/recent/{id}", func(ctx context.Context) error {
+		return s.deleteRecentSearchObserved(ctx, viewerDID, id)
+	})
+}
+
+func (s *SearchStore) deleteRecentSearchObserved(ctx context.Context, viewerDID, id string) error {
 	_, err := s.pool.Exec(ctx, `DELETE FROM craftsky_recent_searches WHERE viewer_did = $1 AND id = $2`, viewerDID, id)
 	if err != nil {
 		return fmt.Errorf("delete recent search: %w", err)
