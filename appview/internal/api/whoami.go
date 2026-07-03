@@ -30,23 +30,18 @@ func WhoAmIHandler(resolver HandleResolver, logger *slog.Logger) http.Handler {
 			return
 		}
 		logger.Debug("whoami: resolving handle",
-			slog.String("did", did.String()),
-			slog.String("run_id", runID))
+			apiLogAttrs(runID, "whoami.get")...)
 		handle, err := resolver.ResolveHandle(r.Context(), did)
 		if err != nil {
 			logger.Warn("whoami: handle resolution failed",
-				slog.String("did", did.String()),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				apiLogErrorAttrs(runID, "whoami.get", "identity")...)
 			envelope.WriteError(w, http.StatusBadGateway,
 				"identity_unavailable", "could not resolve handle",
 				runID, nil)
 			return
 		}
 		logger.Debug("whoami: resolved handle",
-			slog.String("did", did.String()),
-			slog.String("handle", handle.String()),
-			slog.String("run_id", runID))
+			apiLogSuccessAttrs(runID, "whoami.get")...)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(WhoAmIResponse{DID: did, Handle: handle})

@@ -1,8 +1,11 @@
 package index
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"social.craftsky/appview/internal/tap"
@@ -70,6 +73,58 @@ func TestDispatcher_PropagatesDownstreamError(t *testing.T) {
 	err := d.Handle(context.Background(), tap.Event{Collection: "x.y.z"})
 	if !errors.Is(err, boom) {
 		t.Fatalf("got %v, want boom", err)
+	}
+}
+
+func TestDispatcher_LogOmitsRawRecordIdentity(t *testing.T) {
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})))
+	t.Cleanup(func() {
+		slog.SetDefault(previous)
+	})
+
+	d := NewDispatcher(&fakeIndexer{name: "fallback"})
+	d.Register("social.craftsky.feed.post", &fakeIndexer{name: "post"})
+
+	err := d.Handle(context.Background(), tap.Event{
+		URI:        "at://did:plc:alice/social.craftsky.feed.post/post1",
+		CID:        "bafySecret",
+		DID:        "did:plc:alice",
+		Rkey:       "post1",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := logs.String()
+	for _, want := range []string{
+		`"collection":"social.craftsky.feed.post"`,
+		`"action":"create"`,
+		`"fallback":false`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("logs missing %s:\n%s", want, out)
+		}
+	}
+
+	for _, forbidden := range []string{
+		"did:plc:alice",
+		"post1",
+		"at://",
+		"bafySecret",
+		`"uri"`,
+		`"did"`,
+		`"rkey"`,
+		`"cid"`,
+	} {
+		if strings.Contains(out, forbidden) {
+			t.Fatalf("logs contain raw identity/content field %q:\n%s", forbidden, out)
+		}
 	}
 }
 

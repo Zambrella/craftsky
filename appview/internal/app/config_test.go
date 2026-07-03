@@ -48,6 +48,10 @@ func testConfigFile(t *testing.T, contents string) string {
 		"OAUTH_SCOPES", "OAUTH_SESSION_EXPIRY", "OAUTH_SESSION_INACTIVITY",
 		"OAUTH_AUTH_REQUEST_EXPIRY", "CRAFTSKY_SESSION_LAST_SEEN_THROTTLE",
 		"MAX_POST_IMAGES", "MAX_IMAGE_UPLOAD_BYTES", "APPVIEW_JSON_BODY_LIMIT_BYTES",
+		"SENTRY_DSN", "SENTRY_RELEASE", "SENTRY_TRACING_ENABLED", "SENTRY_TRACES_SAMPLE_RATE",
+		"SENTRY_LOGS_ENABLED", "SENTRY_METRICS_ENABLED", "SENTRY_TAP_TRACING_ENABLED",
+		"SENTRY_TAP_TRACES_SAMPLE_RATE",
+		"APPVIEW_UNSAFE_LOG_RESPONSE_BODIES",
 		"APPVIEW_ENABLE_DEV_MODERATION",
 		"APPVIEW_DEV_MODERATION_TOKEN", "CRAFTSKY_DEV_LABELER_DID",
 		"APPVIEW_TRUSTED_MODERATION_SOURCE_DIDS"} {
@@ -73,6 +77,150 @@ func testConfigFile(t *testing.T, contents string) string {
 		t.Fatalf("close temp: %v", err)
 	}
 	return f.Name()
+}
+
+func TestLoadConfig_ObservabilityDefaultsAndValidation(t *testing.T) {
+	t.Run("empty sentry config disables export and unsafe body logging by default", func(t *testing.T) {
+		path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\n")
+		cfg, err := LoadConfig(EnvDev, path)
+		if err != nil {
+			t.Fatalf("LoadConfig: %v", err)
+		}
+		if cfg.SentryDSN != "" {
+			t.Fatalf("SentryDSN = %q, want empty", cfg.SentryDSN)
+		}
+		if cfg.SentryTracingEnabled {
+			t.Fatal("SentryTracingEnabled = true, want false")
+		}
+		if cfg.SentryTracesSampleRate != 0 {
+			t.Fatalf("SentryTracesSampleRate = %v, want 0", cfg.SentryTracesSampleRate)
+		}
+		if cfg.SentryLogsEnabled {
+			t.Fatal("SentryLogsEnabled = true, want false")
+		}
+		if cfg.SentryMetricsEnabled {
+			t.Fatal("SentryMetricsEnabled = true, want false")
+		}
+		if cfg.SentryTapTracingEnabled {
+			t.Fatal("SentryTapTracingEnabled = true, want false")
+		}
+		if cfg.SentryTapTracesSampleRate != 0 {
+			t.Fatalf("SentryTapTracesSampleRate = %v, want 0", cfg.SentryTapTracesSampleRate)
+		}
+		if cfg.UnsafeLogResponseBodies {
+			t.Fatal("UnsafeLogResponseBodies = true, want false")
+		}
+	})
+
+	t.Run("dsn only enables errors and panics but not logs tracing metrics or tap traces", func(t *testing.T) {
+		path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nSENTRY_DSN=https://public@example.invalid/1\n")
+		cfg, err := LoadConfig(EnvDev, path)
+		if err != nil {
+			t.Fatalf("LoadConfig: %v", err)
+		}
+		if cfg.SentryDSN == "" {
+			t.Fatal("SentryDSN = empty, want configured")
+		}
+		if cfg.SentryTracingEnabled {
+			t.Fatal("SentryTracingEnabled = true, want false")
+		}
+		if cfg.SentryLogsEnabled {
+			t.Fatal("SentryLogsEnabled = true, want false")
+		}
+		if cfg.SentryMetricsEnabled {
+			t.Fatal("SentryMetricsEnabled = true, want false")
+		}
+		if cfg.SentryTapTracingEnabled {
+			t.Fatal("SentryTapTracingEnabled = true, want false")
+		}
+	})
+
+	t.Run("explicit logs metrics and tap tracing flags are honored with dsn", func(t *testing.T) {
+		path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nSENTRY_DSN=https://public@example.invalid/1\nSENTRY_LOGS_ENABLED=true\nSENTRY_METRICS_ENABLED=true\nSENTRY_TAP_TRACING_ENABLED=true\nSENTRY_TAP_TRACES_SAMPLE_RATE=0.25\n")
+		cfg, err := LoadConfig(EnvDev, path)
+		if err != nil {
+			t.Fatalf("LoadConfig: %v", err)
+		}
+		if !cfg.SentryLogsEnabled {
+			t.Fatal("SentryLogsEnabled = false, want true")
+		}
+		if !cfg.SentryMetricsEnabled {
+			t.Fatal("SentryMetricsEnabled = false, want true")
+		}
+		if !cfg.SentryTapTracingEnabled {
+			t.Fatal("SentryTapTracingEnabled = false, want true")
+		}
+		if cfg.SentryTapTracesSampleRate != 0.25 {
+			t.Fatalf("SentryTapTracesSampleRate = %v, want 0.25", cfg.SentryTapTracesSampleRate)
+		}
+	})
+
+	t.Run("explicit sentry pillars are disabled without dsn", func(t *testing.T) {
+		path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nSENTRY_LOGS_ENABLED=true\nSENTRY_METRICS_ENABLED=true\nSENTRY_TAP_TRACING_ENABLED=true\nSENTRY_TAP_TRACES_SAMPLE_RATE=1\n")
+		cfg, err := LoadConfig(EnvDev, path)
+		if err != nil {
+			t.Fatalf("LoadConfig: %v", err)
+		}
+		if cfg.SentryLogsEnabled {
+			t.Fatal("SentryLogsEnabled = true without dsn, want false")
+		}
+		if cfg.SentryMetricsEnabled {
+			t.Fatal("SentryMetricsEnabled = true without dsn, want false")
+		}
+		if cfg.SentryTapTracingEnabled {
+			t.Fatal("SentryTapTracingEnabled = true without dsn, want false")
+		}
+		if cfg.SentryTapTracesSampleRate != 0 {
+			t.Fatalf("SentryTapTracesSampleRate = %v, want 0", cfg.SentryTapTracesSampleRate)
+		}
+	})
+
+	t.Run("prod tracing enabled without explicit sample rate defaults conservatively", func(t *testing.T) {
+		path := testConfigFile(t, "DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap:2480/channel\nSENTRY_DSN=https://public@example.invalid/1\nSENTRY_TRACING_ENABLED=true\n")
+		cfg, err := LoadConfig(EnvProd, path)
+		if err != nil {
+			t.Fatalf("LoadConfig: %v", err)
+		}
+		if !cfg.SentryTracingEnabled {
+			t.Fatal("SentryTracingEnabled = false, want true")
+		}
+		if cfg.SentryTracesSampleRate != 0.01 {
+			t.Fatalf("SentryTracesSampleRate = %v, want 0.01", cfg.SentryTracesSampleRate)
+		}
+	})
+
+	t.Run("sample rate must be between zero and one", func(t *testing.T) {
+		path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nSENTRY_DSN=https://public@example.invalid/1\nSENTRY_TRACING_ENABLED=true\nSENTRY_TRACES_SAMPLE_RATE=1.5\n")
+		_, err := LoadConfig(EnvDev, path)
+		if err == nil {
+			t.Fatal("expected sample rate validation error")
+		}
+		if !strings.Contains(err.Error(), "SENTRY_TRACES_SAMPLE_RATE") {
+			t.Fatalf("error = %v, want SENTRY_TRACES_SAMPLE_RATE", err)
+		}
+	})
+
+	t.Run("tap trace sample rate must be between zero and one", func(t *testing.T) {
+		path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nSENTRY_DSN=https://public@example.invalid/1\nSENTRY_TAP_TRACING_ENABLED=true\nSENTRY_TAP_TRACES_SAMPLE_RATE=-0.1\n")
+		_, err := LoadConfig(EnvDev, path)
+		if err == nil {
+			t.Fatal("expected tap trace sample rate validation error")
+		}
+		if !strings.Contains(err.Error(), "SENTRY_TAP_TRACES_SAMPLE_RATE") {
+			t.Fatalf("error = %v, want SENTRY_TAP_TRACES_SAMPLE_RATE", err)
+		}
+	})
+
+	t.Run("prod forces unsafe response body logging off", func(t *testing.T) {
+		path := testConfigFile(t, "DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap:2480/channel\nAPPVIEW_UNSAFE_LOG_RESPONSE_BODIES=true\n")
+		cfg, err := LoadConfig(EnvProd, path)
+		if err != nil {
+			t.Fatalf("LoadConfig: %v", err)
+		}
+		if cfg.UnsafeLogResponseBodies {
+			t.Fatal("UnsafeLogResponseBodies = true in prod, want forced false")
+		}
+	})
 }
 
 func TestLoadConfig_DevModerationRequiresTokenWhenEnabled(t *testing.T) {

@@ -40,7 +40,7 @@ func TestSearchStore_RecentSearchLifecycleDedupesPrunesAndHardDeletes(t *testing
 	t.Parallel()
 	pool := testdb.WithSchema(t, recentSearchStoreDDL)
 	ctx := context.Background()
-	store := api.NewSearchStore(pool)
+	store := api.NewSearchStore(pool, nil)
 	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 
 	query := recentReq(t, `{"type":"query","displayLabel":"Alpaca socks","payload":{"q":" Alpaca socks "}}`)

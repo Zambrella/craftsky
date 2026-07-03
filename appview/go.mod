@@ -5,6 +5,7 @@ go 1.26
 require (
 	github.com/bluesky-social/indigo v0.0.0-20260417172304-7da09df6081d
 	github.com/coder/websocket v1.8.14
+	github.com/getsentry/sentry-go v0.47.0
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/uuid v1.6.0
 	github.com/ipfs/go-cid v0.4.1
@@ -45,9 +46,9 @@ require (
 	gitlab.com/yawning/secp256k1-voi v0.0.0-20230925100816-f2616030848b // indirect
 	gitlab.com/yawning/tuplehash v0.0.0-20230713102510-df83abbf9a02 // indirect
 	golang.org/x/crypto v0.45.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	google.golang.org/protobuf v1.36.7 // indirect
 	lukechampine.com/blake3 v1.2.1 // indirect

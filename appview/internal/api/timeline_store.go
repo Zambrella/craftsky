@@ -14,6 +14,17 @@ import (
 // followed by the viewer, are top-level Craftsky post rows, and are ordered by
 // AppView index chronology.
 func (s *PostStore) ListTimeline(ctx context.Context, viewerDID string, limit int, cursor string) ([]*PostRow, string, error) {
+	var rows []*PostRow
+	var nextCursor string
+	err := s.observeDB(ctx, "feed.timeline", "/v1/feed/timeline", func(ctx context.Context) error {
+		var err error
+		rows, nextCursor, err = s.listTimelineObserved(ctx, viewerDID, limit, cursor)
+		return err
+	})
+	return rows, nextCursor, err
+}
+
+func (s *PostStore) listTimelineObserved(ctx context.Context, viewerDID string, limit int, cursor string) ([]*PostRow, string, error) {
 	curIndexedAt, curURI, err := decodeSeekCursor(cursor, "indexedAt")
 	if err != nil {
 		return nil, "", err

@@ -158,7 +158,8 @@ func (s *PostgresAuthStore) cleanupSessions(ctx context.Context) {
 	if _, err := s.pool.Exec(ctx,
 		`DELETE FROM oauth_sessions WHERE created_at < $1 OR updated_at < $2`,
 		expiry, inactivity); err != nil {
-		s.cfg.Logger.Warn("oauth_sessions cleanup failed", slog.String("err", err.Error()))
+		s.cfg.Logger.Warn("oauth_sessions cleanup failed",
+			authLogErrorAttrs("", "oauth.sessions.cleanup", "store")...)
 	}
 }
 
@@ -166,6 +167,7 @@ func (s *PostgresAuthStore) cleanupAuthRequests(ctx context.Context) {
 	cutoff := time.Now().Add(-s.cfg.AuthRequestExpiry)
 	if _, err := s.pool.Exec(ctx,
 		`DELETE FROM oauth_auth_requests WHERE created_at < $1`, cutoff); err != nil {
-		s.cfg.Logger.Warn("oauth_auth_requests cleanup failed", slog.String("err", err.Error()))
+		s.cfg.Logger.Warn("oauth_auth_requests cleanup failed",
+			authLogErrorAttrs("", "oauth.auth_requests.cleanup", "store")...)
 	}
 }

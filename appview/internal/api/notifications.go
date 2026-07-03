@@ -62,7 +62,8 @@ func ListNotificationsHandler(store NotificationReader, resolver HandleResolver,
 				envelope.WriteError(w, http.StatusBadRequest, "invalid_cursor", "cursor could not be decoded", runID, nil)
 				return
 			}
-			logger.Error("notifications: list failed", slog.String("did", viewerDID.String()), slog.String("err", err.Error()), slog.String("run_id", runID))
+			logger.Error("notifications: list failed",
+				apiLogErrorAttrs(runID, "notifications.list", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "notification list failed", runID, nil)
 			return
 		}
@@ -80,13 +81,15 @@ func ListNotificationsHandler(store NotificationReader, resolver HandleResolver,
 			}
 			handles, err := resolveHandlesForDIDs(r.Context(), dids, resolver)
 			if err != nil {
-				logger.Warn("notifications: ResolveHandle failed", slog.String("err", err.Error()), slog.String("run_id", runID))
+				logger.Warn("notifications: ResolveHandle failed",
+					apiLogErrorAttrs(runID, "notifications.list", "identity")...)
 				envelope.WriteError(w, http.StatusBadGateway, "identity_unavailable", "could not resolve handle", runID, nil)
 				return
 			}
 			summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
 			if err != nil {
-				logger.Error("notifications: EngagementSummaries failed", slog.String("did", viewerDID.String()), slog.String("err", err.Error()), slog.String("run_id", runID))
+				logger.Error("notifications: EngagementSummaries failed",
+					apiLogErrorAttrs(runID, "notifications.list", "engagement")...)
 				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "post engagement lookup failed", runID, nil)
 				return
 			}

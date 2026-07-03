@@ -95,6 +95,7 @@ func TestV1RoutePoliciesCoverRegisteredRoutes(t *testing.T) {
 		{"POST /v1/posts", RateClassWrite, BodyDefaultJSON},
 		{"POST /v1/blobs/images", RateClassUpload, BodyUpload},
 		{"GET /v1/dev/media/{name}", RateClassDevOnly, BodyNoBody},
+		{"GET /v1/dev/panic", RateClassDevOnly, BodyNoBody},
 		{"POST /v1/dev/moderation/ozone-events", RateClassDevOnly, BodyDefaultJSON},
 	} {
 		got, ok := seen[want.key]
@@ -178,6 +179,45 @@ func TestAddRoutes_V1WhoAmIWithoutDeviceIDReturns400(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "missing_device_id") {
 		t.Errorf("body = %q, want containing 'missing_device_id'", rec.Body.String())
+	}
+}
+
+func TestAddRoutes_MetricsEndpointIsRemoved(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 after /metrics removal; body=%s", rec.Code, rec.Body.String())
+	}
+	if body := rec.Body.String(); strings.Contains(body, "craftsky_appview") || strings.Contains(body, "# HELP") {
+		t.Fatalf("/metrics returned metrics output after removal: %s", body)
+	}
+}
+
+func TestAddRoutes_NoMetricsAuthBypassAndV1RoutesStillEnforceDevice(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	metricsReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	metricsRec := httptest.NewRecorder()
+	mux.ServeHTTP(metricsRec, metricsReq)
+	if metricsRec.Code != http.StatusNotFound {
+		t.Fatalf("/metrics status = %d, want 404 after removal; body=%s", metricsRec.Code, metricsRec.Body.String())
+	}
+
+	v1Req := httptest.NewRequest(http.MethodGet, "/v1/whoami", nil)
+	v1Req.Header.Set("Authorization", "Bearer anything")
+	v1Rec := httptest.NewRecorder()
+	mux.ServeHTTP(v1Rec, v1Req)
+	if v1Rec.Code == http.StatusOK {
+		t.Fatalf("/v1/whoami without auth/device status = 200, want an auth/device error")
+	}
+	if !strings.Contains(v1Rec.Body.String(), "missing_device_id") {
+		t.Fatalf("/v1/whoami body = %q, want missing_device_id", v1Rec.Body.String())
 	}
 }
 
@@ -704,6 +744,39 @@ func TestRoutes_DevModerationRouteUnavailableUnlessEnabled(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRoutes_DevPanicRouteIsDevOnly(t *testing.T) {
+	t.Run("dev route is registered", func(t *testing.T) {
+		deps := testDeps()
+		deps.Config = app.Config{Env: app.EnvDev}
+		mux := http.NewServeMux()
+		AddRoutes(context.Background(), mux, deps)
+
+		defer func() {
+			recovered := recover()
+			if recovered == nil {
+				t.Fatal("GET /v1/dev/panic did not panic")
+			}
+			if recovered != "synthetic appview dev panic" {
+				t.Fatalf("panic = %#v, want synthetic appview dev panic", recovered)
+			}
+		}()
+		mux.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/dev/panic", nil))
+	})
+
+	t.Run("prod route is not registered", func(t *testing.T) {
+		deps := testDeps()
+		deps.Config = app.Config{Env: app.EnvProd}
+		mux := http.NewServeMux()
+		AddRoutes(context.Background(), mux, deps)
+
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/dev/panic", nil))
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want 404; body=%s", rec.Code, rec.Body.String())
+		}
+	})
 }
 
 func TestRoutes_DevModerationRouteRequiresToken(t *testing.T) {

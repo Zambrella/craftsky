@@ -54,7 +54,6 @@ func (d *Dispatcher) Handle(ctx context.Context, ev tap.Event) error {
 	slog.Default().Debug("dispatch indexer",
 		slog.String("collection", ev.Collection.String()),
 		slog.String("action", ev.Action),
-		slog.String("uri", ev.URI.String()),
 		slog.String("indexer", fmt.Sprintf("%T", h)),
 		slog.Bool("fallback", !ok),
 	)

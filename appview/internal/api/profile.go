@@ -40,8 +40,7 @@ func GetProfileHandler(store ProfileReader, resolver HandleResolver, logger *slo
 		raw := strings.TrimPrefix(r.PathValue("handleOrDid"), "@")
 		runID := middleware.GetRunID(r.Context())
 		logger.Debug("profile get: resolving identity",
-			slog.String("input", raw),
-			slog.String("run_id", runID))
+			apiLogAttrs(runID, "profile.get")...)
 		did, err := resolveToDID(r.Context(), raw, resolver)
 		if err != nil {
 			switch {
@@ -50,19 +49,15 @@ func GetProfileHandler(store ProfileReader, resolver HandleResolver, logger *slo
 					"invalid_identifier", "not a valid handle or DID", runID, nil)
 			default:
 				logger.Warn("profile: ResolveDID failed",
-					slog.String("input", raw),
-					slog.String("err", err.Error()),
-					slog.String("run_id", runID))
+					apiLogErrorAttrs(runID, "profile.get", "identity")...)
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve identity", runID, nil)
 			}
 			return
 		}
 		logger.Debug("profile get: resolved identity",
-			slog.String("input", raw),
-			slog.String("did", did.String()),
-			slog.String("run_id", runID))
-		writeProfileResponse(w, r, store, resolver, did, logger)
+			apiLogSuccessAttrs(runID, "profile.get")...)
+		writeProfileResponse(w, r, store, resolver, did, "profile.get", logger)
 	})
 }
 
@@ -77,9 +72,8 @@ func GetMeProfileHandler(store ProfileReader, resolver HandleResolver, logger *s
 			return
 		}
 		logger.Debug("profile me: loading profile",
-			slog.String("did", did.String()),
-			slog.String("run_id", runID))
-		writeProfileResponse(w, r, store, resolver, did, logger)
+			apiLogAttrs(runID, "profile.me.get")...)
+		writeProfileResponse(w, r, store, resolver, did, "profile.me.get", logger)
 	})
 }
 
@@ -103,9 +97,7 @@ func GetMutualFollowersHandler(store ProfileGraphReader, resolver HandleResolver
 					"invalid_identifier", "not a valid handle or DID", runID, nil)
 			default:
 				logger.Warn("profile mutual followers: ResolveDID failed",
-					slog.String("input", raw),
-					slog.String("err", err.Error()),
-					slog.String("run_id", runID))
+					apiLogErrorAttrs(runID, "profile.mutual_followers.list", "identity")...)
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve identity", runID, nil)
 			}
@@ -122,10 +114,7 @@ func GetMutualFollowersHandler(store ProfileGraphReader, resolver HandleResolver
 				return
 			}
 			logger.Error("profile mutual followers: list failed",
-				slog.String("profile_did", profileDID.String()),
-				slog.String("viewer_did", viewerDID.String()),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				apiLogErrorAttrs(runID, "profile.mutual_followers.list", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "mutual followers list failed", runID, nil)
 			return
@@ -134,8 +123,7 @@ func GetMutualFollowersHandler(store ProfileGraphReader, resolver HandleResolver
 		items, err := buildProfileAccountSummaries(r.Context(), rows, resolver)
 		if err != nil {
 			logger.Warn("profile mutual followers: ResolveHandle failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				apiLogErrorAttrs(runID, "profile.mutual_followers.list", "identity")...)
 			envelope.WriteError(w, http.StatusBadGateway,
 				"identity_unavailable", "could not resolve handle", runID, nil)
 			return
@@ -169,6 +157,7 @@ func getMeGraphListHandler(
 ) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
+		operation := profileGraphListOperation(label)
 		did, ok := middleware.GetDID(r.Context())
 		if !ok {
 			envelope.WriteError(w, http.StatusInternalServerError,
@@ -185,9 +174,7 @@ func getMeGraphListHandler(
 				return
 			}
 			logger.Error("profile "+label+": list failed",
-				slog.String("did", did.String()),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				apiLogErrorAttrs(runID, operation, "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", label+" list failed", runID, nil)
 			return
@@ -195,8 +182,7 @@ func getMeGraphListHandler(
 		items, err := buildProfileAccountSummaries(r.Context(), rows, resolver)
 		if err != nil {
 			logger.Warn("profile "+label+": ResolveHandle failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				apiLogErrorAttrs(runID, operation, "identity")...)
 			envelope.WriteError(w, http.StatusBadGateway,
 				"identity_unavailable", "could not resolve handle", runID, nil)
 			return
@@ -240,6 +226,7 @@ func writeProfileResponse(
 	store ProfileReader,
 	resolver HandleResolver,
 	did syntax.DID,
+	operation string,
 	logger *slog.Logger,
 ) {
 	runID := middleware.GetRunID(r.Context())
@@ -260,33 +247,24 @@ func writeProfileResponse(
 			return
 		}
 		logger.Error("profile: store read failed",
-			slog.String("did", did.String()),
-			slog.String("err", err.Error()),
-			slog.String("run_id", runID))
+			apiLogErrorAttrs(runID, operation, "store")...)
 		envelope.WriteError(w, http.StatusInternalServerError,
 			"internal_error", "profile read failed", runID, nil)
 		return
 	}
 	logger.Debug("profile: store read succeeded",
-		slog.String("did", did.String()),
-		slog.Any("row", row),
-		slog.String("run_id", runID))
+		apiLogSuccessAttrs(runID, operation)...)
 	handle, err := resolver.ResolveHandle(r.Context(), did)
 	if err != nil {
 		logger.Warn("profile: ResolveHandle failed",
-			slog.String("did", did.String()),
-			slog.String("err", err.Error()),
-			slog.String("run_id", runID))
+			apiLogErrorAttrs(runID, operation, "identity")...)
 		envelope.WriteError(w, http.StatusBadGateway,
 			"identity_unavailable", "could not resolve handle", runID, nil)
 		return
 	}
 	resp := BuildProfileResponse(row, handle, row.IsCraftskyProfile)
 	logger.Debug("profile: response ready",
-		slog.String("did", did.String()),
-		slog.String("handle", handle.String()),
-		slog.Any("response", resp),
-		slog.String("run_id", runID))
+		apiLogSuccessAttrs(runID, operation)...)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(resp)
@@ -342,9 +320,7 @@ func PutMeProfileHandler(
 		}
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
 		logger.Debug("profile put: request started",
-			slog.String("did", did.String()),
-			slog.String("session_id", sessionID),
-			slog.String("run_id", runID))
+			pdsLogAttrs(runID, pdsOperationProfilePutBsky, pdsStageRequestBuild)...)
 
 		reqBody, err := DecodeProfilePut(r.Body)
 		if err != nil {
@@ -368,13 +344,12 @@ func PutMeProfileHandler(
 			return
 		}
 		logger.Debug("profile put: validated request",
-			slog.String("did", did.String()),
-			slog.Any("request", reqBody),
-			slog.String("run_id", runID))
+			pdsLogAttrs(runID, pdsOperationProfilePutBsky, pdsStageRequestBuild)...)
 
 		pds, err := newPDS(r.Context(), did, sessionID)
 		if err != nil {
-			logger.Error("profile: newPDS failed", slog.String("err", err.Error()))
+			logger.Error("profile: newPDS failed",
+				pdsLogErrorAttrs(runID, pdsOperationProfilePutBsky, pdsStageSessionResume, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_unavailable", "could not contact PDS", runID, err)
 			return
@@ -383,7 +358,8 @@ func PutMeProfileHandler(
 		// Read-before-write on Bluesky so we preserve avatar/banner.
 		var bsky map[string]any
 		if _, err := pds.GetRecord(r.Context(), did, blueskyProfileNSID, profileRecordKey, &bsky); err != nil {
-			logger.Warn("profile: bluesky getRecord failed", slog.String("err", err.Error()))
+			logger.Warn("profile: bluesky getRecord failed",
+				pdsLogErrorAttrs(runID, pdsOperationProfilePutBsky, pdsStagePDSRequest, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_read_failed", "could not read current bluesky profile", runID, err)
 			return
@@ -394,11 +370,7 @@ func PutMeProfileHandler(
 			"crafts": nonNilStrings(reqBody.Crafts),
 		}
 		logger.Debug("profile put: prepared PDS records",
-			slog.String("did", did.String()),
-			slog.Any("existing_bsky", bsky),
-			slog.Any("merged_bsky", mergedBsky),
-			slog.Any("craftsky", cskyBody),
-			slog.String("run_id", runID))
+			pdsLogAttrs(runID, pdsOperationProfilePutBsky, pdsStageRequestBuild)...)
 
 		// Buffered channels let each goroutine send without blocking; the
 		// receive below is what synchronises us with their completion.
@@ -424,17 +396,15 @@ func PutMeProfileHandler(
 			row := syntheticRow(did.String(), mergedBsky, reqBody.Crafts)
 			resp := BuildProfileResponse(row, handle, false)
 			logger.Debug("profile put: writes succeeded",
-				slog.String("did", did.String()),
-				slog.String("handle", handle.String()),
-				slog.Any("response", resp),
-				slog.String("run_id", runID))
+				pdsLogSuccessAttrs(runID, pdsOperationProfilePutBsky, pdsStagePDSRequest)...)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(resp)
 		case bskyErr != nil && cskyErr != nil:
 			logger.Error("profile: both PDS writes failed",
-				slog.String("bsky_err", bskyErr.Error()),
-				slog.String("csky_err", cskyErr.Error()))
+				append(pdsLogErrorAttrs(runID, pdsOperationProfilePutBsky, pdsStagePDSRequest, bskyErr),
+					slog.String("bsky_result", okOrFailed(bskyErr)),
+					slog.String("craftsky_result", okOrFailed(cskyErr)))...)
 			if errors.Is(bskyErr, auth.ErrPDSSessionExpired) {
 				writePDSError(w, http.StatusBadGateway,
 					"pds_write_failed", "both profile writes failed", runID, bskyErr)
@@ -449,7 +419,9 @@ func PutMeProfileHandler(
 				"pds_write_failed", "both profile writes failed", runID, nil)
 		default:
 			logger.Warn("profile: partial PDS write",
-				slog.Any("bsky_err", bskyErr), slog.Any("csky_err", cskyErr))
+				append(pdsLogErrorAttrs(runID, pdsOperationProfilePutBsky, pdsStagePDSRequest, firstErr(bskyErr, cskyErr)),
+					slog.String("bsky_result", okOrFailed(bskyErr)),
+					slog.String("craftsky_result", okOrFailed(cskyErr)))...)
 			if errors.Is(bskyErr, auth.ErrPDSSessionExpired) {
 				writePDSError(w, http.StatusBadGateway,
 					"pds_write_partial", "partial profile write", runID, bskyErr)

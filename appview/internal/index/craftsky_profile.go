@@ -88,7 +88,10 @@ func (c *CraftskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 		// acked by Tap. ev.DID is already validated at the WS boundary.
 		if bfErr := c.backfiller.Backfill(ctx, ev.DID); bfErr != nil {
 			c.logger.Warn("craftsky profile: bluesky backfill failed",
-				slog.String("did", ev.DID.String()), slog.String("err", bfErr.Error()))
+				slog.String("component", "indexer"),
+				slog.String("operation", "profile.backfill"),
+				slog.String("result", "error"),
+				slog.String("error_category", "backfill"))
 		}
 		return nil
 	case "delete":

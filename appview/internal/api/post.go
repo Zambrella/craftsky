@@ -56,9 +56,7 @@ func CreatePostHandler(
 		}
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
 		logger.Debug("post create: request started",
-			slog.String("did", did.String()),
-			slog.String("session_id", sessionID),
-			slog.String("run_id", runID))
+			pdsLogAttrs(runID, pdsOperationPostCreate, pdsStageRequestBuild)...)
 
 		req, err := DecodePostCreate(r.Body)
 		if err != nil {
@@ -88,21 +86,16 @@ func CreatePostHandler(
 			return
 		}
 		logger.Debug("post create: validated request",
-			slog.String("did", did.String()),
-			slog.Any("request", req),
-			slog.String("run_id", runID))
+			pdsLogAttrs(runID, pdsOperationPostCreate, pdsStageRequestBuild)...)
 
 		body := lexiconRecordBody(req)
 		logger.Debug("post create: prepared PDS record",
-			slog.String("did", did.String()),
-			slog.Any("record", body),
-			slog.String("run_id", runID))
+			pdsLogAttrs(runID, pdsOperationPostCreate, pdsStageRequestBuild)...)
 
 		pds, err := newPDS(r.Context(), did, sessionID)
 		if err != nil {
 			logger.Error("post: newPDS failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationPostCreate, pdsStageSessionResume, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_unavailable", "could not contact PDS", runID, err)
 			return
@@ -110,23 +103,18 @@ func CreatePostHandler(
 		uri, cid, err := pds.CreateRecord(r.Context(), did, craftskyPostNSID, body)
 		if err != nil {
 			logger.Warn("post: CreateRecord failed",
-				slog.String("did", did.String()), slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationPostCreate, pdsStagePDSRequest, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_write_failed", "could not write post", runID, err)
 			return
 		}
 		logger.Debug("post create: PDS record created",
-			slog.String("did", did.String()),
-			slog.String("uri", uri.String()),
-			slog.String("cid", string(cid)),
-			slog.String("run_id", runID))
+			pdsLogSuccessAttrs(runID, pdsOperationPostCreate, pdsStagePDSRequest)...)
 
 		row, err := syntheticPostRow(r, store, did, uri, cid, req)
 		if err != nil {
 			logger.Error("post: hydrate author failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationPostCreate, pdsStagePDSRequest, err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "post created but hydrate failed", runID, nil)
 			return
@@ -134,18 +122,14 @@ func CreatePostHandler(
 		handle, err := resolver.ResolveHandle(r.Context(), did)
 		if err != nil {
 			logger.Warn("post: ResolveHandle failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationPostCreate, pdsStagePDSRequest, err)...)
 			envelope.WriteError(w, http.StatusBadGateway,
 				"identity_unavailable", "could not resolve handle", runID, nil)
 			return
 		}
 		resp := BuildPostResponse(row, handle)
 		logger.Debug("post create: response ready",
-			slog.String("did", did.String()),
-			slog.String("handle", handle.String()),
-			slog.Any("response", resp),
-			slog.String("run_id", runID))
+			pdsLogSuccessAttrs(runID, pdsOperationPostCreate, pdsStagePDSRequest)...)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(resp)
@@ -365,10 +349,7 @@ func GetPostHandler(store PostReader, resolver HandleResolver, logger *slog.Logg
 		rkey := r.PathValue("rkey")
 		viewerDID, _ := middleware.GetDID(r.Context())
 		logger.Debug("post get: reading post",
-			slog.String("did", did.String()),
-			slog.String("rkey", rkey),
-			slog.String("viewer_did", viewerDID.String()),
-			slog.String("run_id", runID))
+			apiLogAttrs(runID, "post.get")...)
 		row, err := store.ReadOne(r.Context(), did.String(), rkey)
 		if errors.Is(err, ErrPostNotFound) {
 			envelope.WriteError(w, http.StatusNotFound,
@@ -377,10 +358,7 @@ func GetPostHandler(store PostReader, resolver HandleResolver, logger *slog.Logg
 		}
 		if err != nil {
 			logger.Error("post: ReadOne failed",
-				slog.String("did", did.String()),
-				slog.String("rkey", rkey),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				apiLogErrorAttrs(runID, "post.get", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "post read failed", runID, nil)
 			return
@@ -388,10 +366,7 @@ func GetPostHandler(store PostReader, resolver HandleResolver, logger *slog.Logg
 		summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), []string{row.URI})
 		if err != nil {
 			logger.Error("post: EngagementSummaries failed",
-				slog.String("did", did.String()),
-				slog.String("rkey", rkey),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				apiLogErrorAttrs(runID, "post.get", "engagement")...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "post engagement lookup failed", runID, nil)
 			return
@@ -399,9 +374,7 @@ func GetPostHandler(store PostReader, resolver HandleResolver, logger *slog.Logg
 		handle, err := resolver.ResolveHandle(r.Context(), did)
 		if err != nil {
 			logger.Warn("post: ResolveHandle failed",
-				slog.String("did", did.String()),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				apiLogErrorAttrs(runID, "post.get", "identity")...)
 			envelope.WriteError(w, http.StatusBadGateway,
 				"identity_unavailable", "could not resolve handle", runID, nil)
 			return
@@ -409,11 +382,7 @@ func GetPostHandler(store PostReader, resolver HandleResolver, logger *slog.Logg
 		resp := BuildPostResponse(row, handle)
 		applyEngagementSummary(resp, summaries[row.URI])
 		logger.Debug("post get: response ready",
-			slog.String("did", did.String()),
-			slog.String("rkey", rkey),
-			slog.String("uri", row.URI),
-			slog.Any("response", resp),
-			slog.String("run_id", runID))
+			apiLogSuccessAttrs(runID, "post.get")...)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(resp)
@@ -436,9 +405,7 @@ func ListCommentRepliesHandler(
 		}
 		rkey := r.PathValue("rkey")
 		logger.Debug("post replies: resolving target",
-			slog.String("did", did.String()),
-			slog.String("rkey", rkey),
-			slog.String("run_id", runID))
+			apiLogAttrs(runID, "post.replies.list")...)
 		target, err := store.ReadOne(r.Context(), did.String(), rkey)
 		if errors.Is(err, ErrPostNotFound) {
 			envelope.WriteError(w, http.StatusNotFound,
@@ -447,10 +414,7 @@ func ListCommentRepliesHandler(
 		}
 		if err != nil {
 			logger.Error("post replies: ReadOne failed",
-				slog.String("did", did.String()),
-				slog.String("rkey", rkey),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				apiLogErrorAttrs(runID, "post.replies.list", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "could not resolve post", runID, nil)
 			return
@@ -464,11 +428,8 @@ func ListCommentRepliesHandler(
 		limit := parseCommentLimit(r.URL.Query().Get("limit"))
 		cursor := r.URL.Query().Get("cursor")
 		logger.Debug("post replies: listing branch replies",
-			slog.String("target_uri", target.URI),
-			slog.String("root_uri", *target.ReplyRootURI),
-			slog.Int("limit", limit),
-			slog.String("cursor", cursor),
-			slog.String("run_id", runID))
+			append(apiLogAttrs(runID, "post.replies.list"),
+				slog.Int("limit", limit))...)
 		rows, nextCursor, err := store.ListCommentBranchReplies(r.Context(), target.URI, *target.ReplyRootURI, limit, cursor)
 		if err != nil {
 			if errors.Is(err, envelope.ErrInvalidCursor) {
@@ -477,9 +438,7 @@ func ListCommentRepliesHandler(
 				return
 			}
 			logger.Error("post replies: ListCommentBranchReplies failed",
-				slog.String("target_uri", target.URI),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				apiLogErrorAttrs(runID, "post.replies.list", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "reply list failed", runID, nil)
 			return
@@ -497,9 +456,7 @@ func ListCommentRepliesHandler(
 					parentRow, perr := store.ReadPostByURI(r.Context(), *row.ReplyParentURI)
 					if perr != nil && !errors.Is(perr, ErrPostNotFound) {
 						logger.Error("post replies: ReadPostByURI parent failed",
-							slog.String("parent_uri", *row.ReplyParentURI),
-							slog.String("err", perr.Error()),
-							slog.String("run_id", runID))
+							apiLogErrorAttrs(runID, "post.replies.list", "store")...)
 						envelope.WriteError(w, http.StatusInternalServerError,
 							"internal_error", "reply parent lookup failed", runID, nil)
 						return
@@ -512,9 +469,7 @@ func ListCommentRepliesHandler(
 			summaries, serr := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
 			if serr != nil {
 				logger.Error("post replies: EngagementSummaries failed",
-					slog.String("target_uri", target.URI),
-					slog.String("err", serr.Error()),
-					slog.String("run_id", runID))
+					apiLogErrorAttrs(runID, "post.replies.list", "engagement")...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "post engagement lookup failed", runID, nil)
 				return
@@ -522,8 +477,7 @@ func ListCommentRepliesHandler(
 			handles, herr := resolveHandlesForRows(r.Context(), hydratedRows, resolver)
 			if herr != nil {
 				logger.Warn("post replies: ResolveHandle failed",
-					slog.String("err", herr.Error()),
-					slog.String("run_id", runID))
+					apiLogErrorAttrs(runID, "post.replies.list", "identity")...)
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve handle", runID, nil)
 				return
@@ -549,11 +503,9 @@ func ListCommentRepliesHandler(
 		}
 		body := ReplyPage{Loaded: true, Items: items, Cursor: nextCursor}
 		logger.Debug("post replies: response ready",
-			slog.String("target_uri", target.URI),
-			slog.Int("rows", len(rows)),
-			slog.Int("items", len(items)),
-			slog.String("next_cursor", nextCursor),
-			slog.String("run_id", runID))
+			append(apiLogSuccessAttrs(runID, "post.replies.list"),
+				slog.Int("rows", len(rows)),
+				slog.Int("items", len(items)))...)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -577,9 +529,7 @@ func GetPostCommentsHandler(
 		}
 		rkey := r.PathValue("rkey")
 		logger.Debug("post comments: resolving root",
-			slog.String("did", did.String()),
-			slog.String("rkey", rkey),
-			slog.String("run_id", runID))
+			apiLogAttrs(runID, "post.comments.list")...)
 		root, err := store.ReadOne(r.Context(), did.String(), rkey)
 		if errors.Is(err, ErrPostNotFound) {
 			envelope.WriteError(w, http.StatusNotFound,
@@ -588,10 +538,7 @@ func GetPostCommentsHandler(
 		}
 		if err != nil {
 			logger.Error("post comments: ReadOne failed",
-				slog.String("did", did.String()),
-				slog.String("rkey", rkey),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				apiLogErrorAttrs(runID, "post.comments.list", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "post read failed", runID, nil)
 			return
@@ -607,13 +554,11 @@ func GetPostCommentsHandler(
 		limit := parseCommentLimit(r.URL.Query().Get("limit"))
 		cursor := r.URL.Query().Get("cursor")
 		logger.Debug("post comments: listing root comments",
-			slog.String("root_uri", root.URI),
-			slog.String("viewer_did", viewerDID.String()),
-			slog.String("sort", sortValue),
-			slog.Int("limit", limit),
-			slog.String("cursor", cursor),
-			slog.String("focus", r.URL.Query().Get("focus")),
-			slog.String("run_id", runID))
+			append(apiLogAttrs(runID, "post.comments.list"),
+				slog.String("sort", sortValue),
+				slog.Int("limit", limit),
+				slog.Bool("has_cursor", cursor != ""),
+				slog.Bool("has_focus", r.URL.Query().Get("focus") != ""))...)
 		focus := (*FocusContext)(nil)
 		focusedURI := ""
 		var focusedCommentRow *PostRow
@@ -628,9 +573,7 @@ func GetPostCommentsHandler(
 			focusedRow, ferr := store.ReadPostByURI(r.Context(), focusRaw)
 			if ferr != nil && !errors.Is(ferr, ErrPostNotFound) {
 				logger.Error("post comments: ReadPostByURI failed",
-					slog.String("focus", focusRaw),
-					slog.String("err", ferr.Error()),
-					slog.String("run_id", runID))
+					apiLogErrorAttrs(runID, "post.comments.list", "store")...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "focus read failed", runID, nil)
 				return
@@ -650,9 +593,7 @@ func GetPostCommentsHandler(
 						commentRow, cerr := resolveCommentAncestor(r.Context(), store, root.URI, *focusedRow.ReplyParentURI)
 						if cerr != nil {
 							logger.Error("post comments: resolve focus ancestor failed",
-								slog.String("parent", *focusedRow.ReplyParentURI),
-								slog.String("err", cerr.Error()),
-								slog.String("run_id", runID))
+								apiLogErrorAttrs(runID, "post.comments.list", "store")...)
 							envelope.WriteError(w, http.StatusInternalServerError,
 								"internal_error", "focus ancestor read failed", runID, nil)
 							return
@@ -679,9 +620,7 @@ func GetPostCommentsHandler(
 				return
 			}
 			logger.Error("post comments: ListRootComments failed",
-				slog.String("root_uri", root.URI),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				apiLogErrorAttrs(runID, "post.comments.list", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "comment list failed", runID, nil)
 			return
@@ -694,9 +633,7 @@ func GetPostCommentsHandler(
 			focusedBranchRows, focusedBranchCursor, err = store.ListCommentBranchReplies(r.Context(), focusedCommentRow.URI, root.URI, parseCommentLimit(""), "")
 			if err != nil {
 				logger.Error("post comments: ListCommentBranchReplies failed",
-					slog.String("comment_uri", focusedCommentRow.URI),
-					slog.String("err", err.Error()),
-					slog.String("run_id", runID))
+					apiLogErrorAttrs(runID, "post.comments.list", "store")...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "reply list failed", runID, nil)
 				return
@@ -705,10 +642,7 @@ func GetPostCommentsHandler(
 				focusedBranchRows, focusedBranchCursor, err = store.ListCommentBranchRepliesAround(r.Context(), focusedCommentRow.URI, root.URI, focusedReplyRow.URI, parseCommentLimit(""))
 				if err != nil {
 					logger.Error("post comments: ListCommentBranchRepliesAround failed",
-						slog.String("comment_uri", focusedCommentRow.URI),
-						slog.String("focus_uri", focusedReplyRow.URI),
-						slog.String("err", err.Error()),
-						slog.String("run_id", runID))
+						apiLogErrorAttrs(runID, "post.comments.list", "store")...)
 					envelope.WriteError(w, http.StatusInternalServerError,
 						"internal_error", "reply list failed", runID, nil)
 					return
@@ -721,9 +655,7 @@ func GetPostCommentsHandler(
 				parentRow, perr := store.ReadPostByURI(r.Context(), *row.ReplyParentURI)
 				if perr != nil && !errors.Is(perr, ErrPostNotFound) {
 					logger.Error("post comments: ReadPostByURI branch parent failed",
-						slog.String("parent_uri", *row.ReplyParentURI),
-						slog.String("err", perr.Error()),
-						slog.String("run_id", runID))
+						apiLogErrorAttrs(runID, "post.comments.list", "store")...)
 					envelope.WriteError(w, http.StatusInternalServerError,
 						"internal_error", "reply parent lookup failed", runID, nil)
 					return
@@ -747,9 +679,7 @@ func GetPostCommentsHandler(
 		summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
 		if err != nil {
 			logger.Error("post comments: EngagementSummaries failed",
-				slog.String("root_uri", root.URI),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				apiLogErrorAttrs(runID, "post.comments.list", "engagement")...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "post engagement lookup failed", runID, nil)
 			return
@@ -757,8 +687,7 @@ func GetPostCommentsHandler(
 		handles, err := resolveHandlesForRows(r.Context(), hydratedRows, resolver)
 		if err != nil {
 			logger.Warn("post comments: ResolveHandle failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				apiLogErrorAttrs(runID, "post.comments.list", "identity")...)
 			envelope.WriteError(w, http.StatusBadGateway,
 				"identity_unavailable", "could not resolve handle", runID, nil)
 			return
@@ -804,12 +733,11 @@ func GetPostCommentsHandler(
 			Focus:    focus,
 		}
 		logger.Debug("post comments: response ready",
-			slog.String("root_uri", root.URI),
-			slog.Int("comments", len(comments)),
-			slog.Int("items", len(items)),
-			slog.String("next_cursor", nextCursor),
-			slog.Any("focus", focus),
-			slog.String("run_id", runID))
+			append(apiLogSuccessAttrs(runID, "post.comments.list"),
+				slog.Int("comments", len(comments)),
+				slog.Int("items", len(items)),
+				slog.Bool("has_next_cursor", nextCursor != ""),
+				slog.Bool("has_focus", focus != nil))...)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -842,16 +770,11 @@ func DeletePostHandler(newPDS auth.PDSClientFactory, logger *slog.Logger) http.H
 		rkey := r.PathValue("rkey")
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
 		logger.Debug("post delete: request started",
-			slog.String("caller", caller.String()),
-			slog.String("did", did.String()),
-			slog.String("rkey", rkey),
-			slog.String("session_id", sessionID),
-			slog.String("run_id", runID))
+			pdsLogAttrs(runID, pdsOperationPostDelete, pdsStageRequestBuild)...)
 		pds, err := newPDS(r.Context(), did, sessionID)
 		if err != nil {
 			logger.Error("post: newPDS failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationPostDelete, pdsStageSessionResume, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_unavailable", "could not contact PDS", runID, err)
 			return
@@ -859,25 +782,18 @@ func DeletePostHandler(newPDS auth.PDSClientFactory, logger *slog.Logger) http.H
 		if err := pds.DeleteRecord(r.Context(), did, craftskyPostNSID, rkey); err != nil {
 			if errors.Is(err, auth.ErrRecordNotFound) {
 				logger.Debug("post delete: record already absent",
-					slog.String("did", did.String()),
-					slog.String("rkey", rkey),
-					slog.String("run_id", runID))
+					pdsLogAttrs(runID, pdsOperationPostDelete, pdsStagePDSRequest)...)
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
 			logger.Warn("post: DeleteRecord failed",
-				slog.String("did", did.String()),
-				slog.String("rkey", rkey),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationPostDelete, pdsStagePDSRequest, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_unavailable", "PDS delete failed", runID, err)
 			return
 		}
 		logger.Debug("post delete: PDS record deleted",
-			slog.String("did", did.String()),
-			slog.String("rkey", rkey),
-			slog.String("run_id", runID))
+			pdsLogSuccessAttrs(runID, pdsOperationPostDelete, pdsStagePDSRequest)...)
 		w.WriteHeader(http.StatusNoContent)
 	})
 }
@@ -905,10 +821,7 @@ func LikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *slog
 		}
 		rkey := r.PathValue("rkey")
 		logger.Debug("like: resolving target",
-			slog.String("caller", caller.String()),
-			slog.String("target_did", targetDID.String()),
-			slog.String("rkey", rkey),
-			slog.String("run_id", runID))
+			pdsLogAttrs(runID, pdsOperationLikeCreate, pdsStageRequestBuild)...)
 		target, err := store.ResolvePostTarget(r.Context(), targetDID.String(), rkey)
 		if err != nil {
 			if errors.Is(err, ErrPostNotFound) {
@@ -917,8 +830,7 @@ func LikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *slog
 				return
 			}
 			logger.Error("like: resolve target failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationLikeCreate, pdsStageRequestBuild, err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "could not resolve post", runID, nil)
 			return
@@ -926,17 +838,13 @@ func LikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *slog
 		active, err := store.FindActiveLike(r.Context(), caller.String(), target.URI)
 		if err == nil {
 			logger.Debug("like: active like already exists",
-				slog.String("caller", caller.String()),
-				slog.String("target_uri", target.URI),
-				slog.Any("interaction", active),
-				slog.String("run_id", runID))
+				pdsLogSuccessAttrs(runID, pdsOperationLikeCreate, pdsStageRequestBuild)...)
 			writeInteractionResponse(w, http.StatusOK, interactionResponseFromRow(active))
 			return
 		}
 		if !errors.Is(err, ErrInteractionNotFound) {
 			logger.Error("like: find active failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationLikeCreate, pdsStageRequestBuild, err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "could not read like", runID, nil)
 			return
@@ -946,15 +854,11 @@ func LikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *slog
 		body := likeRecordBody(target, createdAt)
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
 		logger.Debug("like: creating PDS record",
-			slog.String("caller", caller.String()),
-			slog.String("session_id", sessionID),
-			slog.Any("record", body),
-			slog.String("run_id", runID))
+			pdsLogAttrs(runID, pdsOperationLikeCreate, pdsStageRequestBuild)...)
 		pds, err := newPDS(r.Context(), caller, sessionID)
 		if err != nil {
 			logger.Error("like: newPDS failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationLikeCreate, pdsStageSessionResume, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_unavailable", "could not contact PDS", runID, err)
 			return
@@ -962,18 +866,13 @@ func LikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *slog
 		uri, cid, err := pds.CreateRecord(r.Context(), caller, craftskyLikeNSID, body)
 		if err != nil {
 			logger.Warn("like: CreateRecord failed",
-				slog.String("did", caller.String()), slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationLikeCreate, pdsStagePDSRequest, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_write_failed", "could not write like", runID, err)
 			return
 		}
 		logger.Debug("like: PDS record created",
-			slog.String("caller", caller.String()),
-			slog.String("uri", uri.String()),
-			slog.String("cid", string(cid)),
-			slog.String("target_uri", target.URI),
-			slog.String("run_id", runID))
+			pdsLogSuccessAttrs(runID, pdsOperationLikeCreate, pdsStagePDSRequest)...)
 		writeInteractionResponse(w, http.StatusCreated, &InteractionWriteResponse{
 			URI:       string(uri),
 			CID:       string(cid),
@@ -1002,10 +901,7 @@ func UnlikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *sl
 		}
 		rkey := r.PathValue("rkey")
 		logger.Debug("unlike: resolving target",
-			slog.String("caller", caller.String()),
-			slog.String("target_did", targetDID.String()),
-			slog.String("rkey", rkey),
-			slog.String("run_id", runID))
+			pdsLogAttrs(runID, pdsOperationLikeDelete, pdsStageRequestBuild)...)
 		target, err := store.ResolvePostTarget(r.Context(), targetDID.String(), rkey)
 		if err != nil {
 			if errors.Is(err, ErrPostNotFound) {
@@ -1014,8 +910,7 @@ func UnlikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *sl
 				return
 			}
 			logger.Error("unlike: resolve target failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationLikeDelete, pdsStageRequestBuild, err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "could not resolve post", runID, nil)
 			return
@@ -1023,32 +918,24 @@ func UnlikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *sl
 		active, err := store.FindActiveLike(r.Context(), caller.String(), target.URI)
 		if errors.Is(err, ErrInteractionNotFound) {
 			logger.Debug("unlike: active like absent",
-				slog.String("caller", caller.String()),
-				slog.String("target_uri", target.URI),
-				slog.String("run_id", runID))
+				pdsLogSuccessAttrs(runID, pdsOperationLikeDelete, pdsStageRequestBuild)...)
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		if err != nil {
 			logger.Error("unlike: find active failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationLikeDelete, pdsStageRequestBuild, err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "could not read like", runID, nil)
 			return
 		}
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
 		logger.Debug("unlike: deleting PDS record",
-			slog.String("caller", caller.String()),
-			slog.String("session_id", sessionID),
-			slog.String("like_rkey", active.Rkey),
-			slog.String("target_uri", target.URI),
-			slog.String("run_id", runID))
+			pdsLogAttrs(runID, pdsOperationLikeDelete, pdsStageRequestBuild)...)
 		pds, err := newPDS(r.Context(), caller, sessionID)
 		if err != nil {
 			logger.Error("unlike: newPDS failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationLikeDelete, pdsStageSessionResume, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_unavailable", "could not contact PDS", runID, err)
 			return
@@ -1056,25 +943,18 @@ func UnlikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *sl
 		if err := pds.DeleteRecord(r.Context(), caller, craftskyLikeNSID, active.Rkey); err != nil {
 			if errors.Is(err, auth.ErrRecordNotFound) {
 				logger.Debug("unlike: PDS record already absent",
-					slog.String("caller", caller.String()),
-					slog.String("like_rkey", active.Rkey),
-					slog.String("run_id", runID))
+					pdsLogAttrs(runID, pdsOperationLikeDelete, pdsStagePDSRequest)...)
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
 			logger.Warn("unlike: DeleteRecord failed",
-				slog.String("did", caller.String()),
-				slog.String("rkey", active.Rkey),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationLikeDelete, pdsStagePDSRequest, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_unavailable", "PDS delete failed", runID, err)
 			return
 		}
 		logger.Debug("unlike: PDS record deleted",
-			slog.String("caller", caller.String()),
-			slog.String("like_rkey", active.Rkey),
-			slog.String("run_id", runID))
+			pdsLogSuccessAttrs(runID, pdsOperationLikeDelete, pdsStagePDSRequest)...)
 		w.WriteHeader(http.StatusNoContent)
 	})
 }
@@ -1102,10 +982,7 @@ func RepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger *
 		}
 		rkey := r.PathValue("rkey")
 		logger.Debug("repost: resolving target",
-			slog.String("caller", caller.String()),
-			slog.String("target_did", targetDID.String()),
-			slog.String("rkey", rkey),
-			slog.String("run_id", runID))
+			pdsLogAttrs(runID, pdsOperationRepostCreate, pdsStageRequestBuild)...)
 		target, err := store.ResolvePostTarget(r.Context(), targetDID.String(), rkey)
 		if err != nil {
 			if errors.Is(err, ErrPostNotFound) {
@@ -1114,8 +991,7 @@ func RepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger *
 				return
 			}
 			logger.Error("repost: resolve target failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationRepostCreate, pdsStageRequestBuild, err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "could not resolve post", runID, nil)
 			return
@@ -1123,17 +999,13 @@ func RepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger *
 		active, err := store.FindActiveRepost(r.Context(), caller.String(), target.URI)
 		if err == nil {
 			logger.Debug("repost: active repost already exists",
-				slog.String("caller", caller.String()),
-				slog.String("target_uri", target.URI),
-				slog.Any("interaction", active),
-				slog.String("run_id", runID))
+				pdsLogSuccessAttrs(runID, pdsOperationRepostCreate, pdsStageRequestBuild)...)
 			writeInteractionResponse(w, http.StatusOK, interactionResponseFromRow(active))
 			return
 		}
 		if !errors.Is(err, ErrInteractionNotFound) {
 			logger.Error("repost: find active failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationRepostCreate, pdsStageRequestBuild, err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "could not read repost", runID, nil)
 			return
@@ -1143,15 +1015,11 @@ func RepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger *
 		body := repostRecordBody(target, createdAt)
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
 		logger.Debug("repost: creating PDS record",
-			slog.String("caller", caller.String()),
-			slog.String("session_id", sessionID),
-			slog.Any("record", body),
-			slog.String("run_id", runID))
+			pdsLogAttrs(runID, pdsOperationRepostCreate, pdsStageRequestBuild)...)
 		pds, err := newPDS(r.Context(), caller, sessionID)
 		if err != nil {
 			logger.Error("repost: newPDS failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationRepostCreate, pdsStageSessionResume, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_unavailable", "could not contact PDS", runID, err)
 			return
@@ -1159,18 +1027,13 @@ func RepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger *
 		uri, cid, err := pds.CreateRecord(r.Context(), caller, craftskyRepostNSID, body)
 		if err != nil {
 			logger.Warn("repost: CreateRecord failed",
-				slog.String("did", caller.String()), slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationRepostCreate, pdsStagePDSRequest, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_write_failed", "could not write repost", runID, err)
 			return
 		}
 		logger.Debug("repost: PDS record created",
-			slog.String("caller", caller.String()),
-			slog.String("uri", uri.String()),
-			slog.String("cid", string(cid)),
-			slog.String("target_uri", target.URI),
-			slog.String("run_id", runID))
+			pdsLogSuccessAttrs(runID, pdsOperationRepostCreate, pdsStagePDSRequest)...)
 		writeInteractionResponse(w, http.StatusCreated, &InteractionWriteResponse{
 			URI:       string(uri),
 			CID:       string(cid),
@@ -1199,10 +1062,7 @@ func UnrepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger
 		}
 		rkey := r.PathValue("rkey")
 		logger.Debug("unrepost: resolving target",
-			slog.String("caller", caller.String()),
-			slog.String("target_did", targetDID.String()),
-			slog.String("rkey", rkey),
-			slog.String("run_id", runID))
+			pdsLogAttrs(runID, pdsOperationRepostDelete, pdsStageRequestBuild)...)
 		target, err := store.ResolvePostTarget(r.Context(), targetDID.String(), rkey)
 		if err != nil {
 			if errors.Is(err, ErrPostNotFound) {
@@ -1211,8 +1071,7 @@ func UnrepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger
 				return
 			}
 			logger.Error("unrepost: resolve target failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationRepostDelete, pdsStageRequestBuild, err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "could not resolve post", runID, nil)
 			return
@@ -1220,32 +1079,24 @@ func UnrepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger
 		active, err := store.FindActiveRepost(r.Context(), caller.String(), target.URI)
 		if errors.Is(err, ErrInteractionNotFound) {
 			logger.Debug("unrepost: active repost absent",
-				slog.String("caller", caller.String()),
-				slog.String("target_uri", target.URI),
-				slog.String("run_id", runID))
+				pdsLogSuccessAttrs(runID, pdsOperationRepostDelete, pdsStageRequestBuild)...)
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		if err != nil {
 			logger.Error("unrepost: find active failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationRepostDelete, pdsStageRequestBuild, err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "could not read repost", runID, nil)
 			return
 		}
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
 		logger.Debug("unrepost: deleting PDS record",
-			slog.String("caller", caller.String()),
-			slog.String("session_id", sessionID),
-			slog.String("repost_rkey", active.Rkey),
-			slog.String("target_uri", target.URI),
-			slog.String("run_id", runID))
+			pdsLogAttrs(runID, pdsOperationRepostDelete, pdsStageRequestBuild)...)
 		pds, err := newPDS(r.Context(), caller, sessionID)
 		if err != nil {
 			logger.Error("unrepost: newPDS failed",
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationRepostDelete, pdsStageSessionResume, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_unavailable", "could not contact PDS", runID, err)
 			return
@@ -1253,25 +1104,18 @@ func UnrepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger
 		if err := pds.DeleteRecord(r.Context(), caller, craftskyRepostNSID, active.Rkey); err != nil {
 			if errors.Is(err, auth.ErrRecordNotFound) {
 				logger.Debug("unrepost: PDS record already absent",
-					slog.String("caller", caller.String()),
-					slog.String("repost_rkey", active.Rkey),
-					slog.String("run_id", runID))
+					pdsLogAttrs(runID, pdsOperationRepostDelete, pdsStagePDSRequest)...)
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
 			logger.Warn("unrepost: DeleteRecord failed",
-				slog.String("did", caller.String()),
-				slog.String("rkey", active.Rkey),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				pdsLogErrorAttrs(runID, pdsOperationRepostDelete, pdsStagePDSRequest, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_unavailable", "PDS delete failed", runID, err)
 			return
 		}
 		logger.Debug("unrepost: PDS record deleted",
-			slog.String("caller", caller.String()),
-			slog.String("repost_rkey", active.Rkey),
-			slog.String("run_id", runID))
+			pdsLogSuccessAttrs(runID, pdsOperationRepostDelete, pdsStagePDSRequest)...)
 		w.WriteHeader(http.StatusNoContent)
 	})
 }
@@ -1361,10 +1205,10 @@ func listAuthorPostsHandler(
 ) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
+		operation := postAuthorListOperation(logLabel)
 		raw := strings.TrimPrefix(r.PathValue("handleOrDid"), "@")
 		logger.Debug(logLabel+": resolving author",
-			slog.String("input", raw),
-			slog.String("run_id", runID))
+			apiLogAttrs(runID, operation)...)
 		did, err := resolveToDID(r.Context(), raw, resolver)
 		if err != nil {
 			switch {
@@ -1373,9 +1217,7 @@ func listAuthorPostsHandler(
 					"invalid_identifier", "not a valid handle or DID", runID, nil)
 			default:
 				logger.Warn(logLabel+": ResolveDID failed",
-					slog.String("input", raw),
-					slog.String("err", err.Error()),
-					slog.String("run_id", runID))
+					apiLogErrorAttrs(runID, operation, "identity")...)
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve identity", runID, nil)
 			}
@@ -1385,12 +1227,9 @@ func listAuthorPostsHandler(
 		cursor := r.URL.Query().Get("cursor")
 		viewerDID, _ := middleware.GetDID(r.Context())
 		logger.Debug(logLabel+": listing author records",
-			slog.String("input", raw),
-			slog.String("did", did.String()),
-			slog.String("viewer_did", viewerDID.String()),
-			slog.Int("limit", limit),
-			slog.String("cursor", cursor),
-			slog.String("run_id", runID))
+			append(apiLogAttrs(runID, operation),
+				slog.Int("limit", limit),
+				slog.Bool("has_cursor", cursor != ""))...)
 
 		rows, nextCursor, err := list(r.Context(), did.String(), limit, cursor)
 		if err != nil {
@@ -1400,9 +1239,7 @@ func listAuthorPostsHandler(
 				return
 			}
 			logger.Error(logLabel+": list failed",
-				slog.String("did", did.String()),
-				slog.String("err", err.Error()),
-				slog.String("run_id", runID))
+				apiLogErrorAttrs(runID, operation, "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "post list failed", runID, nil)
 			return
@@ -1417,9 +1254,7 @@ func listAuthorPostsHandler(
 			summaries, serr := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
 			if serr != nil {
 				logger.Error(logLabel+": EngagementSummaries failed",
-					slog.String("did", did.String()),
-					slog.String("err", serr.Error()),
-					slog.String("run_id", runID))
+					apiLogErrorAttrs(runID, operation, "engagement")...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "post engagement lookup failed", runID, nil)
 				return
@@ -1428,9 +1263,7 @@ func listAuthorPostsHandler(
 			handle, herr := resolver.ResolveHandle(r.Context(), did)
 			if herr != nil {
 				logger.Warn(logLabel+": ResolveHandle failed",
-					slog.String("did", did.String()),
-					slog.String("err", herr.Error()),
-					slog.String("run_id", runID))
+					apiLogErrorAttrs(runID, operation, "identity")...)
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve handle", runID, nil)
 				return
@@ -1446,11 +1279,10 @@ func listAuthorPostsHandler(
 			Cursor string          `json:"cursor,omitempty"`
 		}{Items: items, Cursor: nextCursor}
 		logger.Debug(logLabel+": response ready",
-			slog.String("did", did.String()),
-			slog.Int("rows", len(rows)),
-			slog.Int("items", len(items)),
-			slog.String("next_cursor", nextCursor),
-			slog.String("run_id", runID))
+			append(apiLogSuccessAttrs(runID, operation),
+				slog.Int("rows", len(rows)),
+				slog.Int("items", len(items)),
+				slog.Bool("has_next_cursor", nextCursor != ""))...)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)

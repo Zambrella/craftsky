@@ -8,6 +8,7 @@ import (
 	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 )
 
 const defaultJSONBodyLimitBytes int64 = 1024 * 1024
@@ -17,6 +18,7 @@ type v1Middleware struct {
 	deviceID  func(http.Handler) http.Handler
 	bodyLimit middleware.BodyLimitConfig
 	rateLimit map[RateClass]func(http.Handler) http.Handler
+	observer  *observability.Observer
 }
 
 func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handler {
@@ -30,16 +32,26 @@ func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handle
 	} else if policy.RateClass == RateClassAuth {
 		wrapped = m.deviceID(wrapped)
 	}
-	return middleware.BodyLimit(m.bodyLimit, middleware.BodyKind(policy.BodyKind), nil)(wrapped)
+	wrapped = middleware.BodyLimit(m.bodyLimit, middleware.BodyKind(policy.BodyKind), nil)(wrapped)
+	return middleware.HTTPInFlight(m.observer)(wrapped)
 }
 
 // AddRoutes registers all App View routes on mux.
 func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
+	observer := deps.Observability
+	if observer == nil {
+		observer = observability.New(observability.Config{Env: string(deps.Config.Env)})
+	}
+	inFlight := middleware.HTTPInFlight(observer)
+
 	// Public ops.
-	mux.Handle("GET /health", api.HealthHandler(deps.DB, deps.Logger))
-	mux.Handle("GET /healthz", api.NewHealthHandler(deps.DB, deps.Consumer))
+	mux.Handle("GET /health", inFlight(api.HealthHandler(deps.DB, deps.Logger)))
+	mux.Handle("GET /healthz", inFlight(api.NewHealthHandler(deps.DB, deps.Consumer)))
 	if deps.Config.Env == app.EnvDev {
-		mux.Handle("GET /v1/dev/media/{name}", api.DevMediaHandler())
+		mux.Handle("GET /v1/dev/media/{name}", inFlight(api.DevMediaHandler()))
+		mux.Handle("GET /v1/dev/panic", inFlight(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			panic("synthetic appview dev panic")
+		})))
 	}
 
 	// OAuth discovery endpoints (contracts with the AS; not versioned).
@@ -52,9 +64,9 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		deps.NewPDSClient,
 		deps.IdentityCacheUpdater,
 	)
-	mux.Handle("GET /oauth/client-metadata.json", oauthHandlers.ClientMetadataHandler())
-	mux.Handle("GET /oauth/jwks.json", oauthHandlers.JWKSHandler())
-	mux.Handle("GET /oauth/callback", oauthHandlers.CallbackHandler())
+	mux.Handle("GET /oauth/client-metadata.json", inFlight(oauthHandlers.ClientMetadataHandler()))
+	mux.Handle("GET /oauth/jwks.json", inFlight(oauthHandlers.JWKSHandler()))
+	mux.Handle("GET /oauth/callback", inFlight(oauthHandlers.CallbackHandler()))
 
 	// Middleware stacks.
 	authN := middleware.Authenticated(deps.AuthService, deps.Logger)
@@ -74,7 +86,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	if bodyLimitCfg.DefaultJSONBytes == 0 {
 		bodyLimitCfg.DefaultJSONBytes = defaultJSONBodyLimitBytes
 	}
-	v1mw := v1Middleware{authN: authN, deviceID: deviceID, bodyLimit: bodyLimitCfg, rateLimit: rateLimits}
+	v1mw := v1Middleware{authN: authN, deviceID: deviceID, bodyLimit: bodyLimitCfg, rateLimit: rateLimits, observer: observer}
 
 	// v1 — unauthenticated but device-id required.
 	mux.Handle("POST /v1/auth/login", v1mw.wrap(mustPolicy("POST", "/v1/auth/login"), oauthHandlers.LoginHandler()))
@@ -85,7 +97,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		MaxImageUploadBytes: deps.Config.MaxImageUploadBytes,
 	}
 	facetStore := api.NewFacetStore(deps.DB, deps.HandleResolver)
-	searchStore := api.NewSearchStore(deps.DB)
+	searchStore := api.NewSearchStore(deps.DB, observer)
 	mux.Handle("GET /v1/whoami", v1mw.wrap(mustPolicy("GET", "/v1/whoami"), api.WhoAmIHandler(deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/facets/mentions", v1mw.wrap(mustPolicy("GET", "/v1/facets/mentions"), api.ListFacetMentionSuggestionsHandler(facetStore, deps.Logger)))
 	mux.Handle("GET /v1/facets/mentions/resolve", v1mw.wrap(mustPolicy("GET", "/v1/facets/mentions/resolve"), api.ResolveFacetMentionHandler(facetStore, deps.Logger)))
@@ -113,7 +125,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("POST /v1/profiles/{handleOrDid}/reports", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/reports"), api.ReportProfileHandler(api.NewProfileReportTargetResolver(deps.ProfileStore, deps.HandleResolver), deps.ReportStore, deps.ReportForwarder, deps.Logger)))
 
 	// v1 — post handlers (authenticated + device-id required).
-	postStore := api.NewPostStore(deps.DB)
+	postStore := api.NewPostStore(deps.DB, observer)
 	mux.Handle("GET /v1/feed/timeline", v1mw.wrap(mustPolicy("GET", "/v1/feed/timeline"), api.ListTimelineHandler(postStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/notifications", v1mw.wrap(mustPolicy("GET", "/v1/notifications"), api.ListNotificationsHandler(postStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("POST /v1/blobs/images", v1mw.wrap(mustPolicy("POST", "/v1/blobs/images"), api.ImageBlobUploadHandler(deps.NewPDSClient, mediaLimits, deps.Logger)))
@@ -129,7 +141,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("POST /v1/posts/{did}/{rkey}/reports", v1mw.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/reports"), api.ReportPostHandler(postStore, deps.ReportStore, deps.ReportForwarder, deps.Logger)))
 	if deps.Config.Env == app.EnvDev && deps.Config.EnableDevModeration && deps.Config.DevModerationToken != "" {
 		mux.Handle("POST /v1/dev/moderation/ozone-events",
-			api.DevModerationOzoneEventsHandler(
+			inFlight(api.DevModerationOzoneEventsHandler(
 				deps.Config.DevModerationToken,
 				api.ModerationRequestConfig{
 					DefaultSourceDID:  deps.Config.DevLabelerDID,
@@ -137,12 +149,12 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 				},
 				deps.ModerationStore,
 				deps.Logger,
-			))
+			)))
 	}
 	mux.Handle("GET /v1/profiles/{handleOrDid}/posts", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/posts"), api.ListPostsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/profiles/{handleOrDid}/projects", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/projects"), api.ListProjectsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/profiles/{handleOrDid}/comments", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/comments"), api.ListCommentsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger)))
 
 	// Fallthrough.
-	mux.Handle("/", http.NotFoundHandler())
+	mux.Handle("/", inFlight(http.NotFoundHandler()))
 }

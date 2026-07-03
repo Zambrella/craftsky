@@ -15,6 +15,8 @@ import (
 // Middleware stack (outside-in):
 //
 //	Logging  (assigns run_id, logs every request)
+//	HTTPMetrics (records route/status/duration/size)
+//	Recovery (turns panics into safe v1 error envelopes where possible)
 //	CORS     (origin check, preflight handling)
 //	mux      (routing — Authenticated is applied per-route)
 func NewServer(ctx context.Context, deps *app.Deps) http.Handler {
@@ -23,6 +25,8 @@ func NewServer(ctx context.Context, deps *app.Deps) http.Handler {
 
 	var h http.Handler = mux
 	h = middleware.CORS(deps.Config.AllowedOrigins)(h)
+	h = middleware.Recovery(deps.Logger, deps.Observability)(h)
+	h = middleware.HTTPMetrics(deps.Observability)(h)
 	h = middleware.Logging(deps.Logger)(h)
 	return h
 }

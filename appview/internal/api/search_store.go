@@ -12,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 )
 
 type SearchPostRow struct {
@@ -40,6 +42,17 @@ type ProfileSearchRow struct {
 }
 
 func (s *SearchStore) SearchProfiles(ctx context.Context, viewerDID string, req ProfileSearchRequest) ([]ProfileSearchRow, string, error) {
+	var rows []ProfileSearchRow
+	var cursor string
+	err := s.observeDB(ctx, "search.profiles", "/v1/search/profiles", func(ctx context.Context) error {
+		var err error
+		rows, cursor, err = s.searchProfilesObserved(ctx, viewerDID, req)
+		return err
+	})
+	return rows, cursor, err
+}
+
+func (s *SearchStore) searchProfilesObserved(ctx context.Context, viewerDID string, req ProfileSearchRequest) ([]ProfileSearchRow, string, error) {
 	if s == nil || s.pool == nil {
 		return nil, "", fmt.Errorf("search store unavailable")
 	}
@@ -103,6 +116,17 @@ func (s *SearchStore) SearchProfiles(ctx context.Context, viewerDID string, req 
 }
 
 func (s *SearchStore) SearchHashtags(ctx context.Context, req HashtagSearchRequest, now time.Time) ([]HashtagSearchResult, string, error) {
+	var items []HashtagSearchResult
+	var cursor string
+	err := s.observeDB(ctx, "search.hashtags", "/v1/search/hashtags", func(ctx context.Context) error {
+		var err error
+		items, cursor, err = s.searchHashtagsObserved(ctx, req, now)
+		return err
+	})
+	return items, cursor, err
+}
+
+func (s *SearchStore) searchHashtagsObserved(ctx context.Context, req HashtagSearchRequest, now time.Time) ([]HashtagSearchResult, string, error) {
 	if s == nil || s.pool == nil {
 		return nil, "", fmt.Errorf("search store unavailable")
 	}
@@ -204,10 +228,28 @@ func BuildProfileSearchSummary(row ProfileSearchRow) ProfileSearchSummary {
 }
 
 func (s *SearchStore) SearchHashtagPosts(ctx context.Context, tag string, sort SearchSort, limit int, cursor string, now time.Time) ([]SearchPostRow, string, error) {
-	return s.searchPosts(ctx, searchPostQuery{Tag: tag, Sort: sort, Limit: limit, Cursor: cursor, Now: now})
+	var rows []SearchPostRow
+	var nextCursor string
+	err := s.observeDB(ctx, "search.hashtag_posts", "/v1/search/hashtags/{tag}/posts", func(ctx context.Context) error {
+		var err error
+		rows, nextCursor, err = s.searchPosts(ctx, searchPostQuery{Tag: tag, Sort: sort, Limit: limit, Cursor: cursor, Now: now})
+		return err
+	})
+	return rows, nextCursor, err
 }
 
 func (s *SearchStore) SearchPosts(ctx context.Context, req PostSearchRequest, now time.Time) ([]SearchPostRow, string, error) {
+	var rows []SearchPostRow
+	var cursor string
+	err := s.observeDB(ctx, "search.posts", "/v1/search/posts", func(ctx context.Context) error {
+		var err error
+		rows, cursor, err = s.searchPostsObserved(ctx, req, now)
+		return err
+	})
+	return rows, cursor, err
+}
+
+func (s *SearchStore) searchPostsObserved(ctx context.Context, req PostSearchRequest, now time.Time) ([]SearchPostRow, string, error) {
 	if strings.TrimSpace(req.Query) != "" {
 		return s.searchPostsByRelevance(ctx, req)
 	}
@@ -215,6 +257,17 @@ func (s *SearchStore) SearchPosts(ctx context.Context, req PostSearchRequest, no
 }
 
 func (s *SearchStore) SearchProjects(ctx context.Context, req ProjectSearchRequest, now time.Time) ([]SearchPostRow, string, error) {
+	var rows []SearchPostRow
+	var cursor string
+	err := s.observeDB(ctx, "search.projects", "/v1/search/projects", func(ctx context.Context) error {
+		var err error
+		rows, cursor, err = s.searchProjectsObserved(ctx, req, now)
+		return err
+	})
+	return rows, cursor, err
+}
+
+func (s *SearchStore) searchProjectsObserved(ctx context.Context, req ProjectSearchRequest, now time.Time) ([]SearchPostRow, string, error) {
 	if strings.TrimSpace(req.Query) != "" {
 		return s.searchProjectsByRelevance(ctx, req)
 	}
@@ -473,6 +526,16 @@ func projectFilterValues(req ProjectSearchRequest, key string) []string {
 }
 
 func (s *SearchStore) TopHashtags(ctx context.Context, req TopHashtagsRequest, now time.Time) ([]TopHashtagGroup, error) {
+	var groups []TopHashtagGroup
+	err := s.observeDB(ctx, "search.hashtags.top", "/v1/search/hashtags/top", func(ctx context.Context) error {
+		var err error
+		groups, err = s.topHashtagsObserved(ctx, req, now)
+		return err
+	})
+	return groups, err
+}
+
+func (s *SearchStore) topHashtagsObserved(ctx context.Context, req TopHashtagsRequest, now time.Time) ([]TopHashtagGroup, error) {
 	if s == nil || s.pool == nil {
 		return nil, fmt.Errorf("search store unavailable")
 	}
@@ -677,9 +740,20 @@ func scanPostRowWithExtraScore(scanner pgx.Row) (SearchPostRow, error) {
 
 func (s *SearchStore) EngagementSummaries(ctx context.Context, viewerDID string, postURIs []string) (map[string]EngagementSummary, error) {
 	if s.postStore == nil {
-		s.postStore = NewPostStore(s.pool)
+		s.postStore = NewPostStore(s.pool, s.observer)
 	}
 	return s.postStore.EngagementSummaries(ctx, viewerDID, postURIs)
+}
+
+func (s *SearchStore) observeDB(ctx context.Context, operation, routePattern string, fn func(context.Context) error) error {
+	if s == nil || s.observer == nil {
+		return fn(ctx)
+	}
+	return s.observer.ObserveDB(ctx, observability.DBOperation{
+		Operation:    operation,
+		RoutePattern: routePattern,
+		RunID:        middleware.GetRunID(ctx),
+	}, fn)
 }
 
 func PopularityScore(likes, visibleReplies, reposts int, createdAt, rankedAt time.Time) float64 {

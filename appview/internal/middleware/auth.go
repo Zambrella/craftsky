@@ -82,8 +82,7 @@ func Authenticated(authService auth.AuthService, logger *slog.Logger) func(http.
 				parsed, err := syntax.ParseDID(devDID)
 				if err != nil {
 					logger.Warn("auth: invalid X-Dev-DID header",
-						slog.String("dev_did", devDID),
-						slog.String("err", err.Error()),
+						slog.String("error_category", "validation"),
 						slog.String("run_id", GetRunID(r.Context())))
 					envelope.WriteError(w, http.StatusBadRequest, "invalid_dev_did", "X-Dev-DID is malformed", GetRunID(r.Context()), nil)
 					return
@@ -94,7 +93,7 @@ func Authenticated(authService auth.AuthService, logger *slog.Logger) func(http.
 			info, err := authService.Authenticate(ctx, token)
 			if err != nil {
 				logger.Warn("auth: Authenticate returned error",
-					slog.String("err", err.Error()),
+					slog.String("error_category", "auth"),
 					slog.String("run_id", GetRunID(r.Context())))
 				envelope.WriteError(w, http.StatusUnauthorized, "unauthorized", "authentication required", GetRunID(r.Context()), nil)
 				return

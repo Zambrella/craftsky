@@ -54,6 +54,7 @@ func V1RoutePolicies(env app.Env, cfg app.Config) []RoutePolicy {
 	policies := baseV1RoutePolicies()
 	if env == app.EnvDev {
 		policies = append(policies, RoutePolicy{Method: "GET", PathPattern: "/v1/dev/media/{name}", RateClass: RateClassDevOnly, BodyKind: BodyNoBody, DevOnly: true})
+		policies = append(policies, RoutePolicy{Method: "GET", PathPattern: "/v1/dev/panic", RateClass: RateClassDevOnly, BodyKind: BodyNoBody, DevOnly: true})
 		if cfg.EnableDevModeration && cfg.DevModerationToken != "" {
 			policies = append(policies, RoutePolicy{Method: "POST", PathPattern: "/v1/dev/moderation/ozone-events", RateClass: RateClassDevOnly, BodyKind: BodyDefaultJSON, DevOnly: true})
 		}
