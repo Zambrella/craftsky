@@ -112,6 +112,7 @@ func (o *Observer) ObserveTapLastEventAt(t time.Time) {
 		return
 	}
 	o.tapLastEventAt = t
+	o.metricRecorder.TapLastEventAge(context.Background(), time.Since(t))
 }
 
 func (o *Observer) ObserveIndexerSkipped(nsid string, reason string) {

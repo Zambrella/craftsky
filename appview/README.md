@@ -102,6 +102,7 @@ Metric names are internal ops details and use the `craftsky_appview` prefix wher
 - `craftsky_appview_http_requests_in_flight` gauge.
 - `craftsky_appview_db_operation_duration_seconds` histogram for bounded DB operations such as `search.posts`.
 - `craftsky_appview_pds_write_duration_seconds` histogram for bounded PDS/OAuth write-proxy operations.
+- `craftsky_appview_tap_last_event_age_seconds` gauge for firehose freshness.
 - Tap and indexer counters/histograms for bounded firehose processing stages.
 
 Sentry export is disabled unless `SENTRY_DSN` is set. With `SENTRY_DSN` alone, AppView sends only classified errors and recovered panics. Higher-volume pillars are independently gated:

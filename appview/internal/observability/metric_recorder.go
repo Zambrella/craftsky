@@ -34,6 +34,7 @@ type MetricRecorder interface {
 	DBOperation(ctx context.Context, operation, routePattern, resultClass string, duration time.Duration)
 	PDSOperation(ctx context.Context, operation, stage, result, category string, duration time.Duration)
 	TapConnected(ctx context.Context, connected bool)
+	TapLastEventAge(ctx context.Context, age time.Duration)
 	TapReconnect(ctx context.Context)
 	TapEventReceived(ctx context.Context, eventType string)
 	TapEventAcknowledged(ctx context.Context, result string)
@@ -49,7 +50,9 @@ func (noopMetricRecorder) HTTPRequestFinished(context.Context, string, string, i
 func (noopMetricRecorder) DBOperation(context.Context, string, string, string, time.Duration) {}
 func (noopMetricRecorder) PDSOperation(context.Context, string, string, string, string, time.Duration) {
 }
-func (noopMetricRecorder) TapConnected(context.Context, bool)           {}
+func (noopMetricRecorder) TapConnected(context.Context, bool) {}
+func (noopMetricRecorder) TapLastEventAge(context.Context, time.Duration) {
+}
 func (noopMetricRecorder) TapReconnect(context.Context)                 {}
 func (noopMetricRecorder) TapEventReceived(context.Context, string)     {}
 func (noopMetricRecorder) TapEventAcknowledged(context.Context, string) {}
@@ -57,8 +60,9 @@ func (noopMetricRecorder) TapIndexerRecord(context.Context, string, string, stri
 }
 
 type InMemoryMetricRecorder struct {
-	mu    sync.Mutex
-	calls []MetricCall
+	mu       sync.Mutex
+	calls    []MetricCall
+	inFlight map[string]int
 }
 
 func NewInMemoryMetricRecorder() *InMemoryMetricRecorder {
@@ -80,22 +84,26 @@ func (r *InMemoryMetricRecorder) Calls() []MetricCall {
 }
 
 func (r *InMemoryMetricRecorder) HTTPRequestStarted(_ context.Context, method, routePattern string) {
+	attrs := httpMetricAttributes(method, routePattern, 0)
+	value := r.changeInFlight(attrs, 1)
 	r.record(MetricCall{
 		Name:       "craftsky_appview_http_requests_in_flight",
 		Kind:       MetricKindGauge,
 		Unit:       "request",
-		Value:      1,
-		Attributes: httpMetricAttributes(method, routePattern, 0),
+		Value:      float64(value),
+		Attributes: attrs,
 	})
 }
 
 func (r *InMemoryMetricRecorder) HTTPRequestEnded(_ context.Context, method, routePattern string) {
+	attrs := httpMetricAttributes(method, routePattern, 0)
+	value := r.changeInFlight(attrs, -1)
 	r.record(MetricCall{
 		Name:       "craftsky_appview_http_requests_in_flight",
 		Kind:       MetricKindGauge,
 		Unit:       "request",
-		Value:      0,
-		Attributes: httpMetricAttributes(method, routePattern, 0),
+		Value:      float64(value),
+		Attributes: attrs,
 	})
 }
 
@@ -141,6 +149,13 @@ func (r *InMemoryMetricRecorder) TapConnected(_ context.Context, connected bool)
 		value = 1
 	}
 	r.record(MetricCall{Name: "craftsky_appview_tap_connected", Kind: MetricKindGauge, Value: value})
+}
+
+func (r *InMemoryMetricRecorder) TapLastEventAge(_ context.Context, age time.Duration) {
+	if age < 0 {
+		age = 0
+	}
+	r.record(MetricCall{Name: "craftsky_appview_tap_last_event_age_seconds", Kind: MetricKindGauge, Unit: "second", Value: age.Seconds()})
 }
 
 func (r *InMemoryMetricRecorder) TapReconnect(context.Context) {
@@ -189,33 +204,55 @@ func (r *InMemoryMetricRecorder) record(call MetricCall) {
 	r.calls = append(r.calls, call)
 }
 
+func (r *InMemoryMetricRecorder) changeInFlight(attrs map[string]string, delta int) int {
+	if r == nil {
+		return 0
+	}
+	key := metricAttributeKey(attrs)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.inFlight == nil {
+		r.inFlight = map[string]int{}
+	}
+	next := r.inFlight[key] + delta
+	if next < 0 {
+		next = 0
+	}
+	r.inFlight[key] = next
+	return next
+}
+
 type sentryMetricRecorder struct {
-	hub *sentry.Hub
+	hub      *sentry.Hub
+	mu       sync.Mutex
+	inFlight map[string]int
 }
 
 func newSentryMetricRecorder(hub *sentry.Hub) MetricRecorder {
 	if hub == nil {
 		return noopMetricRecorder{}
 	}
-	return sentryMetricRecorder{hub: hub}
+	return &sentryMetricRecorder{hub: hub, inFlight: map[string]int{}}
 }
 
-func (r sentryMetricRecorder) HTTPRequestStarted(ctx context.Context, method, routePattern string) {
-	r.gauge(ctx, "craftsky_appview_http_requests_in_flight", 1, "request", httpMetricAttributes(method, routePattern, 0))
+func (r *sentryMetricRecorder) HTTPRequestStarted(ctx context.Context, method, routePattern string) {
+	attrs := httpMetricAttributes(method, routePattern, 0)
+	r.gauge(ctx, "craftsky_appview_http_requests_in_flight", float64(r.changeInFlight(attrs, 1)), "request", attrs)
 }
 
-func (r sentryMetricRecorder) HTTPRequestEnded(ctx context.Context, method, routePattern string) {
-	r.gauge(ctx, "craftsky_appview_http_requests_in_flight", 0, "request", httpMetricAttributes(method, routePattern, 0))
+func (r *sentryMetricRecorder) HTTPRequestEnded(ctx context.Context, method, routePattern string) {
+	attrs := httpMetricAttributes(method, routePattern, 0)
+	r.gauge(ctx, "craftsky_appview_http_requests_in_flight", float64(r.changeInFlight(attrs, -1)), "request", attrs)
 }
 
-func (r sentryMetricRecorder) HTTPRequestFinished(ctx context.Context, method, routePattern string, status int, duration time.Duration, responseBytes int) {
+func (r *sentryMetricRecorder) HTTPRequestFinished(ctx context.Context, method, routePattern string, status int, duration time.Duration, responseBytes int) {
 	attrs := httpMetricAttributes(method, routePattern, status)
 	r.count(ctx, "craftsky_appview_http_requests_total", 1, "", attrs)
 	r.distribution(ctx, "craftsky_appview_http_request_duration_seconds", duration.Seconds(), "second", attrs)
 	r.distribution(ctx, "craftsky_appview_http_response_size_bytes", float64(responseBytes), "byte", attrs)
 }
 
-func (r sentryMetricRecorder) DBOperation(ctx context.Context, operation, routePattern, resultClass string, duration time.Duration) {
+func (r *sentryMetricRecorder) DBOperation(ctx context.Context, operation, routePattern, resultClass string, duration time.Duration) {
 	r.distribution(ctx, "craftsky_appview_db_operation_duration_seconds", duration.Seconds(), "second", map[string]string{
 		"operation":     safeMetricOperation(operation),
 		"route_pattern": safeMetricRoute(routePattern),
@@ -223,7 +260,7 @@ func (r sentryMetricRecorder) DBOperation(ctx context.Context, operation, routeP
 	})
 }
 
-func (r sentryMetricRecorder) PDSOperation(ctx context.Context, operation, stage, result, category string, duration time.Duration) {
+func (r *sentryMetricRecorder) PDSOperation(ctx context.Context, operation, stage, result, category string, duration time.Duration) {
 	r.distribution(ctx, "craftsky_appview_pds_write_duration_seconds", duration.Seconds(), "second", map[string]string{
 		"operation": safeMetricOperation(operation),
 		"stage":     safeMetricStage(stage),
@@ -232,7 +269,7 @@ func (r sentryMetricRecorder) PDSOperation(ctx context.Context, operation, stage
 	})
 }
 
-func (r sentryMetricRecorder) TapConnected(ctx context.Context, connected bool) {
+func (r *sentryMetricRecorder) TapConnected(ctx context.Context, connected bool) {
 	value := float64(0)
 	if connected {
 		value = 1
@@ -240,15 +277,22 @@ func (r sentryMetricRecorder) TapConnected(ctx context.Context, connected bool) 
 	r.gauge(ctx, "craftsky_appview_tap_connected", value, "", nil)
 }
 
-func (r sentryMetricRecorder) TapReconnect(ctx context.Context) {
+func (r *sentryMetricRecorder) TapLastEventAge(ctx context.Context, age time.Duration) {
+	if age < 0 {
+		age = 0
+	}
+	r.gauge(ctx, "craftsky_appview_tap_last_event_age_seconds", age.Seconds(), "second", nil)
+}
+
+func (r *sentryMetricRecorder) TapReconnect(ctx context.Context) {
 	r.count(ctx, "craftsky_appview_tap_reconnects_total", 1, "", nil)
 }
 
-func (r sentryMetricRecorder) TapEventReceived(ctx context.Context, eventType string) {
+func (r *sentryMetricRecorder) TapEventReceived(ctx context.Context, eventType string) {
 	r.count(ctx, "craftsky_appview_tap_events_received_total", 1, "", map[string]string{"type": SafeTapEventType(eventType)})
 }
 
-func (r sentryMetricRecorder) TapEventAcknowledged(ctx context.Context, result string) {
+func (r *sentryMetricRecorder) TapEventAcknowledged(ctx context.Context, result string) {
 	if safeMetricResult(result) == "error" {
 		r.count(ctx, "craftsky_appview_tap_ack_failures_total", 1, "", nil)
 		return
@@ -256,7 +300,7 @@ func (r sentryMetricRecorder) TapEventAcknowledged(ctx context.Context, result s
 	r.count(ctx, "craftsky_appview_tap_events_acknowledged_total", 1, "", nil)
 }
 
-func (r sentryMetricRecorder) TapIndexerRecord(ctx context.Context, nsid, result, reason string, duration time.Duration) {
+func (r *sentryMetricRecorder) TapIndexerRecord(ctx context.Context, nsid, result, reason string, duration time.Duration) {
 	attrs := map[string]string{"nsid": SafeNSIDLabel(nsid), "result": safeMetricResult(result), "reason": SafeTapReason(reason)}
 	r.count(ctx, "craftsky_appview_tap_indexer_records_total", 1, "", attrs)
 	if duration > 0 {
@@ -267,26 +311,44 @@ func (r sentryMetricRecorder) TapIndexerRecord(ctx context.Context, nsid, result
 	}
 }
 
-func (r sentryMetricRecorder) count(ctx context.Context, name string, value int64, unit string, attrs map[string]string) {
+func (r *sentryMetricRecorder) count(ctx context.Context, name string, value int64, unit string, attrs map[string]string) {
 	options := metricOptions(unit, attrs)
 	sentry.NewMeter(r.context(ctx)).Count(name, value, options...)
 }
 
-func (r sentryMetricRecorder) gauge(ctx context.Context, name string, value float64, unit string, attrs map[string]string) {
+func (r *sentryMetricRecorder) gauge(ctx context.Context, name string, value float64, unit string, attrs map[string]string) {
 	options := metricOptions(unit, attrs)
 	sentry.NewMeter(r.context(ctx)).Gauge(name, value, options...)
 }
 
-func (r sentryMetricRecorder) distribution(ctx context.Context, name string, value float64, unit string, attrs map[string]string) {
+func (r *sentryMetricRecorder) distribution(ctx context.Context, name string, value float64, unit string, attrs map[string]string) {
 	options := metricOptions(unit, attrs)
 	sentry.NewMeter(r.context(ctx)).Distribution(name, value, options...)
 }
 
-func (r sentryMetricRecorder) context(ctx context.Context) context.Context {
+func (r *sentryMetricRecorder) context(ctx context.Context) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	return sentry.SetHubOnContext(ctx, r.hub)
+}
+
+func (r *sentryMetricRecorder) changeInFlight(attrs map[string]string, delta int) int {
+	if r == nil {
+		return 0
+	}
+	key := metricAttributeKey(attrs)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.inFlight == nil {
+		r.inFlight = map[string]int{}
+	}
+	next := r.inFlight[key] + delta
+	if next < 0 {
+		next = 0
+	}
+	r.inFlight[key] = next
+	return next
 }
 
 func metricOptions(unit string, attrs map[string]string) []sentry.MeterOption {
@@ -404,4 +466,9 @@ func cloneMetricAttributes(attrs map[string]string) map[string]string {
 		out[key] = value
 	}
 	return out
+}
+
+func metricAttributeKey(attrs map[string]string) string {
+	normalized := cloneMetricAttributes(attrs)
+	return normalized["method"] + "\x00" + normalized["route_pattern"]
 }

@@ -83,6 +83,7 @@ func TestTapMetricsExposeIngestionAndIndexerSignals(t *testing.T) {
 	calls := recorder.Calls()
 	for _, want := range []string{
 		"craftsky_appview_tap_connected",
+		"craftsky_appview_tap_last_event_age_seconds",
 		"craftsky_appview_tap_reconnects_total",
 		"craftsky_appview_tap_events_received_total",
 		"craftsky_appview_tap_events_acknowledged_total",

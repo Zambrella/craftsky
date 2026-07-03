@@ -154,7 +154,13 @@ type observedPDSClient struct {
 }
 
 func (c observedPDSClient) GetRecord(ctx context.Context, repo syntax.DID, collection string, rkey string, out any) (string, error) {
-	return c.inner.GetRecord(ctx, repo, collection, rkey, out)
+	operation := pdsGetOperation(collection)
+	operationCtx, finish := c.observer.startPDSOperation(ctx, operation)
+	started := time.Now()
+	cid, err := c.inner.GetRecord(operationCtx, repo, collection, rkey, out)
+	c.observer.observePDSWrite(operationCtx, operation, PDSStagePDSRequest, err, time.Since(started))
+	finish(pdsResult(err))
+	return cid, err
 }
 
 func (c observedPDSClient) PutRecord(ctx context.Context, repo syntax.DID, collection string, rkey string, record any) error {
@@ -273,6 +279,17 @@ func pdsCategoryCaptured(category PDSCategory) bool {
 }
 
 func pdsPutOperation(collection string) PDSOperation {
+	switch collection {
+	case "app.bsky.actor.profile":
+		return PDSOperationProfilePutBsky
+	case "social.craftsky.actor.profile":
+		return PDSOperationProfilePutCraftsky
+	default:
+		return "unknown"
+	}
+}
+
+func pdsGetOperation(collection string) PDSOperation {
 	switch collection {
 	case "app.bsky.actor.profile":
 		return PDSOperationProfilePutBsky

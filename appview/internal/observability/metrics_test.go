@@ -102,12 +102,14 @@ func TestObserverSentryMetricsRequireExplicitMetricsGate(t *testing.T) {
 	}
 }
 
-func TestObserverHTTPInFlightRecordsStartAndEndValues(t *testing.T) {
+func TestObserverHTTPInFlightRecordsConcurrentActiveCounts(t *testing.T) {
 	recorder := NewInMemoryMetricRecorder()
 	observer := New(Config{Env: "test", MetricRecorder: recorder})
 
-	routePattern := observer.BeginHTTPRequest("GET", "/v1/whoami")
-	observer.EndHTTPRequest("GET", routePattern)
+	firstRoutePattern := observer.BeginHTTPRequest("GET", "/v1/whoami")
+	secondRoutePattern := observer.BeginHTTPRequest("GET", "/v1/whoami")
+	observer.EndHTTPRequest("GET", firstRoutePattern)
+	observer.EndHTTPRequest("GET", secondRoutePattern)
 
 	var values []float64
 	for _, call := range recorder.Calls() {
@@ -115,8 +117,8 @@ func TestObserverHTTPInFlightRecordsStartAndEndValues(t *testing.T) {
 			values = append(values, call.Value)
 		}
 	}
-	if !slices.Equal(values, []float64{1, 0}) {
-		t.Fatalf("in-flight values = %v, want [1 0]", values)
+	if !slices.Equal(values, []float64{1, 2, 1, 0}) {
+		t.Fatalf("in-flight values = %v, want [1 2 1 0]", values)
 	}
 }
 

@@ -15,12 +15,13 @@ import (
 )
 
 type fakePDSClient struct {
+	getErr    error
 	createErr error
 	uploadErr error
 }
 
 func (f fakePDSClient) GetRecord(context.Context, syntax.DID, string, string, any) (string, error) {
-	return "", nil
+	return "", f.getErr
 }
 func (f fakePDSClient) PutRecord(context.Context, syntax.DID, string, string, any) error {
 	return nil
@@ -146,6 +147,80 @@ func TestWrapPDSFactoryEmitsLogsSpansAndSentryForUnexpectedFailures(t *testing.T
 	for _, forbidden := range []string{"did:plc:writer", "session-secret", "secret body"} {
 		if strings.Contains(errorEvents[0].Message, forbidden) {
 			t.Fatalf("Sentry message contains forbidden value %q: %#v", forbidden, errorEvents[0])
+		}
+		for key, value := range tags {
+			if strings.Contains(key, forbidden) || strings.Contains(value, forbidden) {
+				t.Fatalf("Sentry tag contains forbidden value %q: %q=%q", forbidden, key, value)
+			}
+		}
+	}
+}
+
+func TestWrapPDSFactoryInstrumentsProfileReadBeforeWriteFailures(t *testing.T) {
+	recorder := NewInMemoryMetricRecorder()
+	transport := &sentry.MockTransport{}
+	observer := New(Config{
+		Env:             "test",
+		SentryDSN:       "https://public@example.invalid/1",
+		SentryTransport: transport,
+		MetricRecorder:  recorder,
+	})
+	pdsErr := errors.New("profile read failed for did:plc:writer with secret-token")
+	wrappedFactory := observer.WrapPDSFactory(func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
+		return fakePDSClient{getErr: pdsErr}, nil
+	})
+
+	client, err := wrappedFactory(context.Background(), syntax.DID("did:plc:writer"), "session-secret")
+	if err != nil {
+		t.Fatalf("wrapped factory: %v", err)
+	}
+	_, _ = client.GetRecord(context.Background(), syntax.DID("did:plc:writer"), "app.bsky.actor.profile", "self", &map[string]any{})
+
+	var sawProfileReadMetric bool
+	for _, call := range recorder.Calls() {
+		if call.Name == "craftsky_appview_pds_write_duration_seconds" &&
+			call.Attributes["operation"] == "profile.put_bsky" &&
+			call.Attributes["stage"] == "pds_request" &&
+			call.Attributes["result"] == "error" &&
+			call.Attributes["category"] == "unexpected" {
+			sawProfileReadMetric = true
+		}
+		if err := ValidateMetricCall(call); err != nil {
+			t.Fatalf("metric call failed validation: %v; call=%#v", err, call)
+		}
+	}
+	if !sawProfileReadMetric {
+		t.Fatalf("missing profile read-before-write PDS metric: %#v", recorder.Calls())
+	}
+
+	if !observer.Flush(50 * time.Millisecond) {
+		t.Fatal("observer Flush returned false")
+	}
+	var errorEvents []*sentry.Event
+	for _, event := range transport.Events() {
+		if event.Level == sentry.LevelError {
+			errorEvents = append(errorEvents, event)
+		}
+	}
+	if len(errorEvents) != 1 {
+		t.Fatalf("captured %d Sentry error events, want 1; all events=%#v", len(errorEvents), transport.Events())
+	}
+	tags := errorEvents[0].Tags
+	for key, want := range map[string]string{
+		"component":      "pds",
+		"operation":      "profile.put_bsky",
+		"failure_stage":  "pds_request",
+		"result":         "error",
+		"error_category": "unexpected",
+		"error_code":     "appview.unexpected",
+	} {
+		if tags[key] != want {
+			t.Fatalf("Sentry tag %q = %q, want %q; all tags=%#v", key, tags[key], want, tags)
+		}
+	}
+	for _, forbidden := range []string{"did:plc:writer", "session-secret", "secret-token"} {
+		if strings.Contains(errorEvents[0].Message, forbidden) || strings.Contains(errorEvents[0].Exception[0].Value, forbidden) {
+			t.Fatalf("Sentry event contains forbidden value %q: %#v", forbidden, errorEvents[0])
 		}
 		for key, value := range tags {
 			if strings.Contains(key, forbidden) || strings.Contains(value, forbidden) {
