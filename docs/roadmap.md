@@ -27,7 +27,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Rate limiting — per-token and per-device-id — [`2026-06-28-appview-architecture-hardening`](../changes/2026-06-28-appview-architecture-hardening/)
 - [x] CORS policy — [`2026-06-28-appview-architecture-hardening`](../changes/2026-06-28-appview-architecture-hardening/)
 - [x] Success response envelope — bare v1 success bodies retained; errors stay enveloped — [`2026-06-28-appview-architecture-hardening`](../changes/2026-06-28-appview-architecture-hardening/)
-- [ ] Observability — request logging format, request-ID propagation into downstream calls, metrics, tracing → own spec
+- [x] Observability — request logging format, request-ID propagation into downstream calls, metrics, tracing → own spec
 - [x] Search — posts by text, tag, craft type, materials (Postgres FTS vs separate service) → own spec
 - [ ] Reposts — `POST /v1/posts/{did}/{rkey}/reposts` etc. Lexicon already defined. Folds into Posts spec unless it grows.
 - [x] Blocks, mutes, reports — moderation endpoints → own spec (overlaps the v1 "report a post" moderation plan; reconcile when scoping)
