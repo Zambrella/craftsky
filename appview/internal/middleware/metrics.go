@@ -16,7 +16,9 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 			started := time.Now()
 			req := r
 			var traceSpan *observability.Span
+			var handlerSpan *observability.Span
 			spanFinished := false
+			handlerSpanFinished := false
 			if observer != nil {
 				// The marker lets lower layers record that they already captured
 				// or deliberately handled an error, so this middleware does not
@@ -32,10 +34,30 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 					},
 				})
 				traceSpan = span
-				req = req.WithContext(spanCtx)
+				handlerCtx, span := observer.StartSpan(spanCtx, observability.SpanContext{
+					Operation: "http.handler",
+					Component: "http",
+					Attributes: observability.EventContext{
+						"component":   "http",
+						"operation":   "http.handler",
+						"http_method": req.Method,
+					},
+				})
+				handlerSpan = span
+				req = req.WithContext(handlerCtx)
 				defer func() {
 					// If the downstream handler panics, normal span finalization below
 					// will be skipped. Close the span here so traces are not left open.
+					if handlerSpan != nil && !handlerSpanFinished {
+						handlerSpan.SetAttributes(observability.EventContext{
+							"component":     "http",
+							"operation":     "http.handler",
+							"route_pattern": observability.RoutePattern(req),
+							"http_method":   req.Method,
+							"result":        "error",
+						})
+						handlerSpan.Finish("error")
+					}
 					if traceSpan != nil && !spanFinished {
 						traceSpan.Finish("error")
 					}
@@ -53,6 +75,20 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 				result := "success"
 				if rw.status >= http.StatusInternalServerError {
 					result = "error"
+				}
+				if handlerSpan != nil {
+					handlerSpan.SetAttributes(observability.EventContext{
+						"component":         "http",
+						"operation":         "http.handler",
+						"route_pattern":     routePattern,
+						"http_method":       req.Method,
+						"http_status":       rw.status,
+						"http_status_class": strconv.Itoa(rw.status/100) + "xx",
+						"duration":          duration.String(),
+						"result":            result,
+					})
+					handlerSpan.Finish(result)
+					handlerSpanFinished = true
 				}
 				if traceSpan != nil {
 					traceSpan.SetTransactionName(req.Method + " " + routePattern)

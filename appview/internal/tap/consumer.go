@@ -279,9 +279,20 @@ func (c *WSConsumer) runOnce(ctx context.Context) (err error) {
 
 	for {
 		var env envelope
-		if err := wsjson.Read(ctx, conn, &env); err != nil {
+		readCtx, readSpan := c.startTapSpan(ctx, "tap.receive", false)
+		if err := wsjson.Read(readCtx, conn, &env); err != nil {
+			c.finishTapSpan(readSpan, "error", observability.EventContext{
+				"component": "tap",
+				"operation": "tap.receive",
+				"result":    "error",
+			})
 			return fmt.Errorf("read: %w", err)
 		}
+		c.finishTapSpan(readSpan, "success", observability.EventContext{
+			"component": "tap",
+			"operation": "tap.receive",
+			"result":    "success",
+		})
 		c.recordEvent()
 		if c.cfg.Observer != nil {
 			c.cfg.Observer.ObserveTapEventReceived(env.Type)
@@ -296,8 +307,14 @@ func (c *WSConsumer) runOnce(ctx context.Context) (err error) {
 				}
 				continue
 			}
+			decodeCtx, decodeSpan := c.startTapSpan(ctx, "tap.decode", false)
 			ev, err := decodeRecordEvent(env)
 			if err != nil {
+				c.finishTapSpan(decodeSpan, "error", observability.EventContext{
+					"component": "tap",
+					"operation": "tap.decode",
+					"result":    "error",
+				})
 				// Malformed identifiers in the envelope itself: this won't
 				// improve on retry, so ack and drop rather than letting
 				// Tap redeliver indefinitely.
@@ -314,6 +331,13 @@ func (c *WSConsumer) runOnce(ctx context.Context) (err error) {
 				}
 				continue
 			}
+			_ = decodeCtx
+			c.finishTapSpan(decodeSpan, "success", observability.EventContext{
+				"component": "tap",
+				"operation": "tap.decode",
+				"nsid":      observability.SafeNSIDLabel(ev.Collection.String()),
+				"result":    "success",
+			})
 			c.logger.Debug("tap record event received",
 				slog.Uint64("id", ev.ID),
 				slog.String("action", ev.Action),
@@ -371,13 +395,11 @@ func (c *WSConsumer) handleWithTimeout(ctx context.Context, ev Event) (err error
 	defer cancel()
 	var indexerSpan *observability.Span
 	if c.cfg.Observer != nil {
-		handleCtx, indexerSpan = c.cfg.Observer.StartSpan(handleCtx, observability.SpanContext{
-			Operation: "tap.indexer.handle",
-			Component: "tap_indexer",
-			Attributes: observability.EventContext{
-				"component": "tap_indexer",
-				"nsid":      observability.SafeNSIDLabel(ev.Collection.String()),
-			},
+		handleCtx, indexerSpan = c.cfg.Observer.StartTapSpan(handleCtx, "tap.indexer.handle", false)
+		indexerSpan.SetAttributes(observability.EventContext{
+			"component": "tap_indexer",
+			"operation": "tap.indexer.handle",
+			"nsid":      observability.SafeNSIDLabel(ev.Collection.String()),
 		})
 	}
 	defer func() {
@@ -446,11 +468,36 @@ func (c *WSConsumer) forgetRetry(id uint64) {
 }
 
 func (c *WSConsumer) sendAck(ctx context.Context, conn *websocket.Conn, id uint64) error {
-	err := wsjson.Write(ctx, conn, ackFrame{Type: "ack", ID: id})
+	ackCtx, ackSpan := c.startTapSpan(ctx, "tap.ack", false)
+	err := wsjson.Write(ackCtx, conn, ackFrame{Type: "ack", ID: id})
 	if c.cfg.Observer != nil {
 		c.cfg.Observer.ObserveTapEventAcknowledged(err)
 	}
+	result := "success"
+	if err != nil {
+		result = "error"
+	}
+	c.finishTapSpan(ackSpan, result, observability.EventContext{
+		"component": "tap",
+		"operation": "tap.ack",
+		"result":    result,
+	})
 	return err
+}
+
+func (c *WSConsumer) startTapSpan(ctx context.Context, operation string, force bool) (context.Context, *observability.Span) {
+	if c.cfg.Observer == nil {
+		return ctx, &observability.Span{}
+	}
+	return c.cfg.Observer.StartTapSpan(ctx, operation, force)
+}
+
+func (c *WSConsumer) finishTapSpan(span *observability.Span, result string, attrs observability.EventContext) {
+	if span == nil || !span.Enabled() {
+		return
+	}
+	span.SetAttributes(attrs)
+	span.Finish(result)
 }
 
 // decodeRecordEvent parses the wire envelope into a typed Event, validating

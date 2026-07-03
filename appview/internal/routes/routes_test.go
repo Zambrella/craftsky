@@ -181,7 +181,7 @@ func TestAddRoutes_V1WhoAmIWithoutDeviceIDReturns400(t *testing.T) {
 	}
 }
 
-func TestAddRoutes_MetricsIsPublicOpsEndpoint(t *testing.T) {
+func TestAddRoutes_MetricsEndpointIsRemoved(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, testDeps())
 
@@ -189,33 +189,23 @@ func TestAddRoutes_MetricsIsPublicOpsEndpoint(t *testing.T) {
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 after /metrics removal; body=%s", rec.Code, rec.Body.String())
 	}
-	if contentType := rec.Header().Get("Content-Type"); !strings.Contains(contentType, "text/plain") {
-		t.Fatalf("Content-Type = %q, want Prometheus text/plain exposition", contentType)
-	}
-	body := rec.Body.String()
-	if !strings.Contains(body, "craftsky_appview") {
-		t.Fatalf("body missing craftsky_appview metric: %s", body)
-	}
-	if strings.Contains(body, "missing_device_id") || strings.Contains(body, `"error"`) {
-		t.Fatalf("/metrics returned an app auth error envelope: %s", body)
+	if body := rec.Body.String(); strings.Contains(body, "craftsky_appview") || strings.Contains(body, "# HELP") {
+		t.Fatalf("/metrics returned metrics output after removal: %s", body)
 	}
 }
 
-func TestAddRoutes_MetricsBypassesV1AuthButV1RoutesDoNot(t *testing.T) {
+func TestAddRoutes_NoMetricsAuthBypassAndV1RoutesStillEnforceDevice(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, testDeps())
 
 	metricsReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
 	metricsRec := httptest.NewRecorder()
 	mux.ServeHTTP(metricsRec, metricsReq)
-	if metricsRec.Code != http.StatusOK {
-		t.Fatalf("/metrics status = %d, want 200; body=%s", metricsRec.Code, metricsRec.Body.String())
-	}
-	if strings.Contains(metricsRec.Body.String(), "missing_device_id") || strings.Contains(metricsRec.Body.String(), "unauthorized") {
-		t.Fatalf("/metrics appears to use v1 auth/device middleware: %s", metricsRec.Body.String())
+	if metricsRec.Code != http.StatusNotFound {
+		t.Fatalf("/metrics status = %d, want 404 after removal; body=%s", metricsRec.Code, metricsRec.Body.String())
 	}
 
 	v1Req := httptest.NewRequest(http.MethodGet, "/v1/whoami", nil)

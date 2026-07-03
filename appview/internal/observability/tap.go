@@ -1,6 +1,8 @@
 package observability
 
 import (
+	"context"
+	"math/rand"
 	"strings"
 	"time"
 )
@@ -50,29 +52,48 @@ func SafeTapReason(reason string) string {
 	}
 }
 
+func (o *Observer) StartTapSpan(ctx context.Context, operation string, force bool) (context.Context, *Span) {
+	if o == nil || !o.tracingEnabled {
+		return ctx, &Span{}
+	}
+	if !force {
+		if !o.tapTracingEnabled || o.tapTracesSampleRate <= 0 {
+			return ctx, &Span{}
+		}
+		if o.tapTracesSampleRate < 1 && rand.Float64() >= o.tapTracesSampleRate {
+			return ctx, &Span{}
+		}
+	}
+	return o.StartSpan(ctx, SpanContext{
+		Operation: operation,
+		Component: "tap",
+		Attributes: EventContext{
+			"component": "tap",
+			"operation": operation,
+		},
+	})
+}
+
 func (o *Observer) SetTapConnected(connected bool) {
 	if o == nil {
 		return
 	}
-	if connected {
-		o.tapConnected.Set(1)
-		return
-	}
-	o.tapConnected.Set(0)
+	o.metricRecorder.TapConnected(context.Background(), connected)
 }
 
 func (o *Observer) ObserveTapReconnect() {
 	if o == nil {
 		return
 	}
-	o.tapReconnects.Inc()
+	o.metricRecorder.TapReconnect(context.Background())
 }
 
 func (o *Observer) ObserveTapEventReceived(eventType string) {
 	if o == nil {
 		return
 	}
-	o.tapEventsReceived.WithLabelValues(SafeTapEventType(eventType)).Inc()
+	eventType = SafeTapEventType(eventType)
+	o.metricRecorder.TapEventReceived(context.Background(), eventType)
 }
 
 func (o *Observer) ObserveTapEventAcknowledged(err error) {
@@ -80,24 +101,26 @@ func (o *Observer) ObserveTapEventAcknowledged(err error) {
 		return
 	}
 	if err != nil {
-		o.tapAckFailures.Inc()
+		o.metricRecorder.TapEventAcknowledged(context.Background(), "error")
 		return
 	}
-	o.tapEventsAcked.Inc()
+	o.metricRecorder.TapEventAcknowledged(context.Background(), "success")
 }
 
 func (o *Observer) ObserveTapLastEventAt(t time.Time) {
 	if o == nil || t.IsZero() {
 		return
 	}
-	o.tapLastEventUnixNano.Store(t.UnixNano())
+	o.tapLastEventAt = t
 }
 
 func (o *Observer) ObserveIndexerSkipped(nsid string, reason string) {
 	if o == nil {
 		return
 	}
-	o.tapIndexerRecords.WithLabelValues(SafeNSIDLabel(nsid), "skipped", SafeTapReason(reason)).Inc()
+	label := SafeNSIDLabel(nsid)
+	reason = SafeTapReason(reason)
+	o.metricRecorder.TapIndexerRecord(context.Background(), label, "skipped", reason, 0)
 }
 
 func (o *Observer) ObserveIndexerHandled(nsid string, err error, duration time.Duration) {
@@ -111,6 +134,5 @@ func (o *Observer) ObserveIndexerHandled(nsid string, err error, duration time.D
 		reason = "indexer_error"
 	}
 	label := SafeNSIDLabel(nsid)
-	o.tapIndexerRecords.WithLabelValues(label, result, reason).Inc()
-	o.tapIndexerDuration.WithLabelValues(label, result).Observe(duration.Seconds())
+	o.metricRecorder.TapIndexerRecord(context.Background(), label, result, reason, duration)
 }

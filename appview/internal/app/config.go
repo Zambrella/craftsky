@@ -74,11 +74,15 @@ type Config struct {
 
 	// Observability. Sentry export/tracing stays disabled unless explicitly
 	// configured, and unsafe body logging is local-dev only.
-	SentryDSN               string
-	SentryRelease           string
-	SentryTracingEnabled    bool
-	SentryTracesSampleRate  float64
-	UnsafeLogResponseBodies bool
+	SentryDSN                 string
+	SentryRelease             string
+	SentryLogsEnabled         bool
+	SentryTracingEnabled      bool
+	SentryTracesSampleRate    float64
+	SentryMetricsEnabled      bool
+	SentryTapTracingEnabled   bool
+	SentryTapTracesSampleRate float64
+	UnsafeLogResponseBodies   bool
 
 	// Dev-only synthetic moderation controls. These fields are cleared in prod.
 	EnableDevModeration         bool
@@ -169,20 +173,43 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	cfg.RateLimits = DefaultRateLimitConfig()
 	cfg.SentryDSN = os.Getenv("SENTRY_DSN")
 	cfg.SentryRelease = os.Getenv("SENTRY_RELEASE")
+	if cfg.SentryLogsEnabled, err = boolEnv("SENTRY_LOGS_ENABLED", false); err != nil {
+		return Config{}, err
+	}
 	if cfg.SentryTracingEnabled, err = boolEnv("SENTRY_TRACING_ENABLED", false); err != nil {
 		return Config{}, err
 	}
 	if cfg.SentryTracesSampleRate, err = sampleRateEnv("SENTRY_TRACES_SAMPLE_RATE"); err != nil {
 		return Config{}, err
 	}
+	if cfg.SentryMetricsEnabled, err = boolEnv("SENTRY_METRICS_ENABLED", false); err != nil {
+		return Config{}, err
+	}
+	if cfg.SentryTapTracingEnabled, err = boolEnv("SENTRY_TAP_TRACING_ENABLED", false); err != nil {
+		return Config{}, err
+	}
+	if cfg.SentryTapTracesSampleRate, err = sampleRateEnv("SENTRY_TAP_TRACES_SAMPLE_RATE"); err != nil {
+		return Config{}, err
+	}
 	if cfg.SentryDSN == "" {
+		cfg.SentryLogsEnabled = false
 		cfg.SentryTracingEnabled = false
 		cfg.SentryTracesSampleRate = 0
+		cfg.SentryMetricsEnabled = false
+		cfg.SentryTapTracingEnabled = false
+		cfg.SentryTapTracesSampleRate = 0
 	} else if cfg.SentryTracingEnabled && os.Getenv("SENTRY_TRACES_SAMPLE_RATE") == "" {
 		if env == EnvProd {
 			cfg.SentryTracesSampleRate = 0.01
 		} else {
 			cfg.SentryTracesSampleRate = 1
+		}
+	}
+	if cfg.SentryDSN != "" && cfg.SentryTapTracingEnabled && os.Getenv("SENTRY_TAP_TRACES_SAMPLE_RATE") == "" {
+		if env == EnvProd {
+			cfg.SentryTapTracesSampleRate = 0.01
+		} else {
+			cfg.SentryTapTracesSampleRate = 1
 		}
 	}
 	if cfg.UnsafeLogResponseBodies, err = boolEnv("APPVIEW_UNSAFE_LOG_RESPONSE_BODIES", false); err != nil {

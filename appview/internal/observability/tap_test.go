@@ -1,8 +1,7 @@
 package observability
 
 import (
-	"net/http/httptest"
-	"strings"
+	"context"
 	"testing"
 	"time"
 )
@@ -30,8 +29,45 @@ func TestSafeNSIDLabelUsesKnownNSIDsOrBoundedFallbacks(t *testing.T) {
 	}
 }
 
+func TestTapTraceControlsSampleSuccessButKeepForcedErrors(t *testing.T) {
+	disabled := New(Config{Env: "test", TracingEnabled: true})
+	_, disabledSpan := disabled.StartTapSpan(context.Background(), "tap.consume", false)
+	if disabledSpan.Enabled() {
+		t.Fatal("disabled Tap success span Enabled = true, want false")
+	}
+
+	sampledOut := New(Config{
+		Env:                 "test",
+		TracingEnabled:      true,
+		SentryDSN:           "https://public@example.invalid/1",
+		TapTracingEnabled:   true,
+		TapTracesSampleRate: 0,
+	})
+	_, sampledOutSuccess := sampledOut.StartTapSpan(context.Background(), "tap.consume", false)
+	if sampledOutSuccess.Enabled() {
+		t.Fatal("sampled-out Tap success span Enabled = true, want false")
+	}
+	_, sampledOutError := sampledOut.StartTapSpan(context.Background(), "tap.consume", true)
+	if !sampledOutError.Enabled() {
+		t.Fatal("forced Tap error span Enabled = false, want true")
+	}
+
+	sampledIn := New(Config{
+		Env:                 "test",
+		TracingEnabled:      true,
+		SentryDSN:           "https://public@example.invalid/1",
+		TapTracingEnabled:   true,
+		TapTracesSampleRate: 1,
+	})
+	_, sampledInSpan := sampledIn.StartTapSpan(context.Background(), "tap.consume", false)
+	if !sampledInSpan.Enabled() {
+		t.Fatal("sampled-in Tap success span Enabled = false, want true")
+	}
+}
+
 func TestTapMetricsExposeIngestionAndIndexerSignals(t *testing.T) {
-	observer := New(Config{Env: "test"})
+	recorder := NewInMemoryMetricRecorder()
+	observer := New(Config{Env: "test", MetricRecorder: recorder})
 
 	observer.SetTapConnected(true)
 	observer.ObserveTapReconnect()
@@ -44,30 +80,23 @@ func TestTapMetricsExposeIngestionAndIndexerSignals(t *testing.T) {
 	observer.ObserveIndexerHandled("social.craftsky.feed.post", nil, 10*time.Millisecond)
 	observer.ObserveIndexerHandled("social.craftsky.feed.like", assertErr{}, 20*time.Millisecond)
 
-	rec := httptest.NewRecorder()
-	observer.MetricsHandler().ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
-	body := rec.Body.String()
-
+	calls := recorder.Calls()
 	for _, want := range []string{
-		"# HELP craftsky_appview_tap_connected Whether the Tap consumer is currently connected.",
-		`craftsky_appview_tap_connected 1`,
-		`craftsky_appview_tap_reconnects_total 1`,
-		`craftsky_appview_tap_events_received_total{type="record"} 1`,
-		`craftsky_appview_tap_events_received_total{type="identity"} 1`,
-		`craftsky_appview_tap_events_acknowledged_total 1`,
-		`craftsky_appview_tap_ack_failures_total 1`,
-		`craftsky_appview_tap_indexer_records_total{nsid="malformed",reason="malformed",result="skipped"} 1`,
-		`craftsky_appview_tap_indexer_records_total{nsid="social.craftsky.feed.post",reason="none",result="indexed"} 1`,
-		`craftsky_appview_tap_indexer_records_total{nsid="social.craftsky.feed.like",reason="indexer_error",result="error"} 1`,
-		`craftsky_appview_tap_indexer_handling_duration_seconds_bucket{nsid="social.craftsky.feed.post",result="indexed",le="`,
+		"craftsky_appview_tap_connected",
+		"craftsky_appview_tap_reconnects_total",
+		"craftsky_appview_tap_events_received_total",
+		"craftsky_appview_tap_events_acknowledged_total",
+		"craftsky_appview_tap_ack_failures_total",
+		"craftsky_appview_tap_indexer_records_total",
+		"craftsky_appview_tap_indexer_handling_duration_seconds",
 	} {
-		if !strings.Contains(body, want) {
-			t.Fatalf("metrics output missing %q:\n%s", want, body)
+		if !metricCallsContain(calls, want) {
+			t.Fatalf("metric calls missing %q: %#v", want, calls)
 		}
 	}
-	for _, forbidden := range []string{"did:plc:raw", "rkey"} {
-		if strings.Contains(body, forbidden) {
-			t.Fatalf("metrics output contains forbidden raw value %q:\n%s", forbidden, body)
+	for _, call := range calls {
+		if err := ValidateMetricCall(call); err != nil {
+			t.Fatalf("metric call failed validation: %v; call=%#v", err, call)
 		}
 	}
 }

@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/getsentry/sentry-go"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api"
@@ -508,28 +510,69 @@ func TestSearchStore_SearchPostsEmitsDBOperationTelemetry(t *testing.T) {
 	seedMember(t, pool, "did:plc:alice")
 	seedPost(t, pool, "did:plc:alice", "alpaca-post", "alpaca socks", base)
 
-	observer := observability.New(observability.Config{Env: "test"})
+	transport := &sentry.MockTransport{}
+	recorder := observability.NewInMemoryMetricRecorder()
+	observer := observability.New(observability.Config{
+		Env:              "test",
+		SentryDSN:        "https://public@example.invalid/1",
+		SentryTransport:  transport,
+		TracingEnabled:   true,
+		TracesSampleRate: 1,
+		MetricRecorder:   recorder,
+	})
 	store := api.NewSearchStore(pool, observer)
-	if _, _, err := store.SearchPosts(ctx, api.PostSearchRequest{Query: "alpaca", Sort: api.SearchSortChronological, Limit: 10}, base); err != nil {
+	traceCtx, root := observer.StartSpan(ctx, observability.SpanContext{Operation: "http.server", Component: "http"})
+	if _, _, err := store.SearchPosts(traceCtx, api.PostSearchRequest{Query: "alpaca", Sort: api.SearchSortChronological, Limit: 10}, base); err != nil {
 		t.Fatalf("SearchPosts: %v", err)
 	}
+	root.Finish("success")
+	if !observer.Flush(time.Second) {
+		t.Fatal("observer Flush returned false")
+	}
 
-	rec := httptest.NewRecorder()
-	observer.MetricsHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
-	body := rec.Body.String()
-	for _, want := range []string{
-		`craftsky_appview_db_operation_duration_seconds`,
-		`operation="search.posts"`,
-		`route_pattern="/v1/search/posts"`,
-		`result="success"`,
-	} {
-		if !strings.Contains(body, want) {
-			t.Fatalf("metrics missing %q:\n%s", want, body)
+	var sawDBMetric bool
+	for _, call := range recorder.Calls() {
+		if call.Name == "craftsky_appview_db_operation_duration_seconds" &&
+			call.Attributes["operation"] == "search.posts" &&
+			call.Attributes["route_pattern"] == "/v1/search/posts" {
+			sawDBMetric = true
+		}
+		if err := observability.ValidateMetricCall(call); err != nil {
+			t.Fatalf("metric call failed validation: %v; call=%#v", err, call)
 		}
 	}
-	if strings.Contains(body, "alpaca") {
-		t.Fatalf("metrics contain raw search query text:\n%s", body)
+	if !sawDBMetric {
+		t.Fatalf("missing search.posts DB metric call: %#v", recorder.Calls())
 	}
+
+	events := transport.Events()
+	if len(events) != 1 {
+		t.Fatalf("captured %d Sentry events, want 1 transaction", len(events))
+	}
+	if len(events[0].Spans) != 1 {
+		t.Fatalf("transaction spans = %d, want 1; event=%#v", len(events[0].Spans), events[0])
+	}
+	span := events[0].Spans[0]
+	if span.Op != "db.search.posts" {
+		t.Fatalf("DB span op = %q, want db.search.posts; span=%#v", span.Op, span)
+	}
+	if span.Data["operation"] != "search.posts" || span.Data["route_pattern"] != "/v1/search/posts" || span.Data["result"] != "success" {
+		t.Fatalf("DB span data missing bounded fields: %#v", span.Data)
+	}
+	for _, forbidden := range []string{"alpaca", "did:plc:alice", "SELECT"} {
+		if strings.Contains(span.Op, forbidden) {
+			t.Fatalf("DB span op contains forbidden value %q: %#v", forbidden, span)
+		}
+		for key, value := range span.Data {
+			if strings.Contains(key, forbidden) || strings.Contains(valueString(value), forbidden) {
+				t.Fatalf("DB span data contains forbidden value %q: %s=%#v", forbidden, key, value)
+			}
+		}
+	}
+}
+
+func valueString(value any) string {
+	return fmt.Sprint(value)
 }
 
 func TestSearchStore_SearchProjectsAppliesFilterSemantics(t *testing.T) {

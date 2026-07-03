@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -28,7 +27,8 @@ func (s serverStubResolver) ResolveDID(_ context.Context, _ syntax.Handle) (synt
 var _ api.HandleResolver = serverStubResolver{}
 
 func TestNewServer_HTTPMetricsUseRoutePattern(t *testing.T) {
-	observer := observability.New(observability.Config{Env: "test"})
+	recorder := observability.NewInMemoryMetricRecorder()
+	observer := observability.New(observability.Config{Env: "test", MetricRecorder: recorder})
 	deps := &app.Deps{
 		Config: app.Config{
 			Env:            app.EnvDev,
@@ -46,20 +46,18 @@ func TestNewServer_HTTPMetricsUseRoutePattern(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	metricsReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
-	metricsRec := httptest.NewRecorder()
-	handler.ServeHTTP(metricsRec, metricsReq)
-	body := metricsRec.Body.String()
-
-	if !strings.Contains(body, `craftsky_appview_http_requests_total`) {
-		t.Fatalf("metrics missing HTTP request counter:\n%s", body)
-	}
-	if !strings.Contains(body, `route_pattern="/v1/posts/{did}/{rkey}"`) {
-		t.Fatalf("metrics missing route pattern label:\n%s", body)
-	}
-	for _, forbidden := range []string{"did:plc:raw", "rkey123", "cursor=secret"} {
-		if strings.Contains(body, forbidden) {
-			t.Fatalf("metrics contain raw route/query value %q:\n%s", forbidden, body)
+	calls := recorder.Calls()
+	for _, call := range calls {
+		if call.Name != "craftsky_appview_http_requests_total" {
+			continue
 		}
+		if call.Attributes["route_pattern"] != "/v1/posts/{did}/{rkey}" {
+			t.Fatalf("route_pattern = %q, want /v1/posts/{did}/{rkey}; call=%#v", call.Attributes["route_pattern"], call)
+		}
+		if err := observability.ValidateMetricCall(call); err != nil {
+			t.Fatalf("HTTP metric call failed validation: %v; call=%#v", err, call)
+		}
+		return
 	}
+	t.Fatalf("missing HTTP request counter call: %#v", calls)
 }

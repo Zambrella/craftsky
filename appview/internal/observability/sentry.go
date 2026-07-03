@@ -3,6 +3,8 @@ package observability
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync/atomic"
 
 	"github.com/getsentry/sentry-go"
@@ -24,13 +26,14 @@ var allowedEventContextKeys = map[string]struct{}{
 	"http_status":       {},
 	"http_status_class": {},
 	"error_category":    {},
+	"error_code":        {},
 	"failure_stage":     {},
 	"duration":          {},
 	"result":            {},
 	"nsid":              {},
 	"tap_connected":     {},
 	"reconnect_attempt": {},
-	"run_id":            {},
+	"recovered_type":    {},
 	"sentry_trace_id":   {},
 	"sentry_span_id":    {},
 }
@@ -39,10 +42,46 @@ func SanitizeEventContext(ctx EventContext) EventContext {
 	out := EventContext{}
 	for key, value := range ctx {
 		if _, ok := allowedEventContextKeys[key]; ok {
-			out[key] = value
+			out[key] = sanitizeEventContextValue(key, value)
 		}
 	}
 	return out
+}
+
+func sanitizeEventContextValue(key string, value any) any {
+	switch key {
+	case "component", "operation":
+		return safeMetricOperation(fmt.Sprint(value))
+	case "route_pattern":
+		return safeMetricRoute(fmt.Sprint(value))
+	case "http_method":
+		return safeHTTPMethod(fmt.Sprint(value))
+	case "http_status":
+		switch v := value.(type) {
+		case int:
+			return safeHTTPStatus(v)
+		case string:
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				return "000"
+			}
+			return safeHTTPStatus(n)
+		default:
+			return "000"
+		}
+	case "http_status_class":
+		return safeHTTPStatusClassString(fmt.Sprint(value))
+	case "error_category":
+		return safeMetricCategory(fmt.Sprint(value))
+	case "error_code":
+		return safeMetricOperation(fmt.Sprint(value))
+	case "failure_stage":
+		return safeMetricStage(fmt.Sprint(value))
+	case "result":
+		return safeMetricResult(fmt.Sprint(value))
+	default:
+		return value
+	}
 }
 
 func (o *Observer) CaptureError(ctx context.Context, eventCtx EventContext, err error) {
@@ -50,7 +89,15 @@ func (o *Observer) CaptureError(ctx context.Context, eventCtx EventContext, err 
 		return
 	}
 	MarkCaptured(ctx)
-	o.capture(ctx, "appview actionable error", fmt.Sprintf("%T", err), "redacted", eventCtx)
+	classified := ClassifyError(err, eventCtx)
+	if eventCtx == nil {
+		eventCtx = EventContext{}
+	}
+	eventCtx["error_category"] = classified.Category
+	eventCtx["error_code"] = classified.Code
+	eventCtx["failure_stage"] = classified.Stage
+	eventCtx["result"] = classified.Result
+	o.capture(ctx, classified.Message, "AppViewError", classified.Code, eventCtx)
 }
 
 func (o *Observer) CapturePanic(ctx context.Context, eventCtx EventContext, recovered any) {
@@ -58,7 +105,12 @@ func (o *Observer) CapturePanic(ctx context.Context, eventCtx EventContext, reco
 		return
 	}
 	MarkCaptured(ctx)
-	o.capture(ctx, "appview panic recovered", fmt.Sprintf("%T", recovered), "redacted", eventCtx)
+	if eventCtx == nil {
+		eventCtx = EventContext{}
+	}
+	eventCtx["recovered_type"] = fmt.Sprintf("%T", recovered)
+	eventCtx["result"] = "error"
+	o.capture(ctx, "appview panic recovered", "AppViewPanic", "redacted", eventCtx)
 }
 
 func (o *Observer) capture(ctx context.Context, message, exceptionType, exceptionValue string, eventCtx EventContext) {
@@ -166,6 +218,7 @@ func (s *Span) SetTransactionName(name string) {
 	if s == nil || s.sentrySpan == nil || name == "" {
 		return
 	}
+	name = safeTransactionName(name)
 	transaction := s.sentrySpan.GetTransaction()
 	if transaction == nil {
 		s.sentrySpan.Name = name
@@ -185,12 +238,8 @@ func (o *Observer) StartSpan(ctx context.Context, spanCtx SpanContext) (context.
 	if o == nil || !o.tracingEnabled {
 		return ctx, &Span{}
 	}
-	if spanCtx.Operation == "" {
-		spanCtx.Operation = "unknown"
-	}
-	if spanCtx.Component == "" {
-		spanCtx.Component = "unknown"
-	}
+	spanCtx.Operation = safeMetricOperation(spanCtx.Operation)
+	spanCtx.Component = safeMetricOperation(spanCtx.Component)
 	if o.sentryHub != nil {
 		ctx = sentry.SetHubOnContext(ctx, o.sentryHub)
 		options := []sentry.SpanOption{}
@@ -219,4 +268,19 @@ func TraceIDs(ctx context.Context) (string, string) {
 		return "", ""
 	}
 	return ids.traceID, ids.spanID
+}
+
+func safeTransactionName(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "unknown"
+	}
+	parts := strings.SplitN(name, " ", 2)
+	if len(parts) == 2 {
+		method := safeHTTPMethod(parts[0])
+		if method != "OTHER" {
+			return method + " " + safeMetricRoute(parts[1])
+		}
+	}
+	return safeMetricOperation(name)
 }

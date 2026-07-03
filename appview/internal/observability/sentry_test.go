@@ -43,14 +43,14 @@ func TestSanitizeEventContextKeepsOnlyAllowedTechnicalFields(t *testing.T) {
 	for _, key := range []string{
 		"service", "environment", "release", "component", "operation", "route_pattern",
 		"http_method", "http_status", "http_status_class", "error_category", "failure_stage",
-		"duration", "result", "nsid", "tap_connected", "reconnect_attempt", "run_id",
+		"duration", "result", "nsid", "tap_connected", "reconnect_attempt",
 		"sentry_trace_id", "sentry_span_id",
 	} {
 		if _, ok := got[key]; !ok {
 			t.Fatalf("SanitizeEventContext missing allowed key %q in %#v", key, got)
 		}
 	}
-	for _, key := range []string{"did", "handle", "token", "request_body", "raw_path"} {
+	for _, key := range []string{"did", "handle", "token", "request_body", "raw_path", "run_id"} {
 		if _, ok := got[key]; ok {
 			t.Fatalf("SanitizeEventContext retained disallowed key %q in %#v", key, got)
 		}
@@ -79,6 +79,59 @@ func TestStartSpanAddsTraceIDsOnlyWhenTracingEnabled(t *testing.T) {
 	span.Finish("success")
 	if span.Result() != "success" {
 		t.Fatalf("span result = %q, want success", span.Result())
+	}
+}
+
+func TestSentryPillarGatesDefaultToErrorsOnlyWithDSN(t *testing.T) {
+	observer := New(Config{
+		Env:       "test",
+		SentryDSN: "https://public@example.invalid/1",
+	})
+	if observer.sentryClient == nil {
+		t.Fatal("sentryClient = nil, want configured client when DSN is present")
+	}
+	if observer.tracingEnabled {
+		t.Fatal("tracingEnabled = true, want false for DSN-only config")
+	}
+	if observer.logsEnabled {
+		t.Fatal("logsEnabled = true, want false for DSN-only config")
+	}
+	if observer.metricsEnabled {
+		t.Fatal("metricsEnabled = true, want false for DSN-only config")
+	}
+	if observer.tapTracingEnabled {
+		t.Fatal("tapTracingEnabled = true, want false for DSN-only config")
+	}
+}
+
+func TestSentryPillarGatesHonorExplicitFlags(t *testing.T) {
+	observer := New(Config{
+		Env:                 "test",
+		SentryDSN:           "https://public@example.invalid/1",
+		LogsEnabled:         true,
+		MetricsEnabled:      true,
+		TracingEnabled:      true,
+		TracesSampleRate:    1,
+		TapTracingEnabled:   true,
+		TapTracesSampleRate: 0.25,
+	})
+	if observer.sentryClient == nil {
+		t.Fatal("sentryClient = nil, want configured client when DSN is present")
+	}
+	if !observer.tracingEnabled {
+		t.Fatal("tracingEnabled = false, want true")
+	}
+	if !observer.logsEnabled {
+		t.Fatal("logsEnabled = false, want true")
+	}
+	if !observer.metricsEnabled {
+		t.Fatal("metricsEnabled = false, want true")
+	}
+	if !observer.tapTracingEnabled {
+		t.Fatal("tapTracingEnabled = false, want true")
+	}
+	if observer.tapTracesSampleRate != 0.25 {
+		t.Fatalf("tapTracesSampleRate = %v, want 0.25", observer.tapTracesSampleRate)
 	}
 }
 
@@ -144,6 +197,64 @@ func TestStartSpanExportsSentryTransactionAndChildSpan(t *testing.T) {
 	}
 }
 
+func TestStartSpanNormalizesUnsafeOperationAndAttributes(t *testing.T) {
+	transport := &sentry.MockTransport{}
+	observer := New(Config{
+		Env:              "test",
+		SentryDSN:        "https://public@example.invalid/1",
+		SentryTransport:  transport,
+		TracingEnabled:   true,
+		TracesSampleRate: 1,
+	})
+
+	rootCtx, root := observer.StartSpan(context.Background(), SpanContext{Operation: "http.server", Component: "http"})
+	root.SetTransactionName("GET /v1/posts/did:plc:raw?cursor=secret")
+	_, child := observer.StartSpan(rootCtx, SpanContext{
+		Operation: "/v1/posts/did:plc:raw",
+		Component: "http",
+		Attributes: EventContext{
+			"route_pattern": "/v1/posts/did:plc:raw?cursor=secret",
+			"operation":     "SELECT * FROM sessions WHERE token='secret-token'",
+			"token":         "secret-token",
+		},
+	})
+	child.Finish("success")
+	root.Finish("success")
+	if !observer.Flush(50 * time.Millisecond) {
+		t.Fatal("observer Flush returned false")
+	}
+
+	events := transport.Events()
+	if len(events) != 1 {
+		t.Fatalf("captured %d events, want 1 transaction", len(events))
+	}
+	event := events[0]
+	if event.Transaction != "GET unmatched" {
+		t.Fatalf("transaction = %q, want GET unmatched", event.Transaction)
+	}
+	if len(event.Spans) != 1 {
+		t.Fatalf("transaction spans = %d, want 1", len(event.Spans))
+	}
+	if event.Spans[0].Op != "unknown" {
+		t.Fatalf("child span op = %q, want unknown; span=%#v", event.Spans[0].Op, event.Spans[0])
+	}
+	for _, forbidden := range []string{"did:plc:raw", "cursor=secret", "secret-token", "SELECT"} {
+		if strings.Contains(event.Transaction, forbidden) {
+			t.Fatalf("transaction contains forbidden value %q: %#v", forbidden, event)
+		}
+		for _, span := range event.Spans {
+			if strings.Contains(span.Op, forbidden) || strings.Contains(span.Description, forbidden) {
+				t.Fatalf("span contains forbidden value %q: %#v", forbidden, span)
+			}
+			for key, value := range span.Data {
+				if strings.Contains(key, forbidden) || strings.Contains(fmt.Sprint(value), forbidden) {
+					t.Fatalf("span data contains forbidden value %q: %s=%#v", forbidden, key, value)
+				}
+			}
+		}
+	}
+}
+
 func TestFlushUsesConfiguredExternalTelemetryHook(t *testing.T) {
 	disabled := New(Config{Env: "test"})
 	if !disabled.Flush(50 * time.Millisecond) {
@@ -195,16 +306,59 @@ func TestCaptureErrorUsesSentryTransportWithSanitizedContext(t *testing.T) {
 	if event.Environment != "test" || event.Release != "abc123" {
 		t.Fatalf("event metadata env=%q release=%q, want test/abc123", event.Environment, event.Release)
 	}
-	if event.Tags["component"] != "http" || event.Tags["route_pattern"] != "/v1/panic" || event.Tags["run_id"] != "run-123" {
+	if event.Tags["component"] != "http" || event.Tags["route_pattern"] != "/v1/panic" {
 		t.Fatalf("event tags missing sanitized context: %#v", event.Tags)
 	}
-	for _, forbidden := range []string{"secret-token", "did:plc:raw", "raw_path", "token"} {
+	for _, forbidden := range []string{"secret-token", "did:plc:raw", "raw_path", "token", "run-123"} {
 		if strings.Contains(event.Message, forbidden) {
 			t.Fatalf("event message contains forbidden value %q: %#v", forbidden, event)
 		}
 		for key, value := range event.Tags {
 			if strings.Contains(key, forbidden) || strings.Contains(value, forbidden) {
 				t.Fatalf("event tag contains forbidden value %q: %q=%q", forbidden, key, value)
+			}
+		}
+	}
+}
+
+func TestCapturePanicIncludesRecoveredTypeWithoutRecoveredValue(t *testing.T) {
+	transport := &sentry.MockTransport{}
+	observer := New(Config{
+		Env:             "test",
+		SentryDSN:       "https://public@example.invalid/1",
+		SentryTransport: transport,
+	})
+
+	observer.CapturePanic(context.Background(), EventContext{
+		"component":     "http",
+		"route_pattern": "/v1/panic",
+		"run_id":        "run-123",
+	}, "panic contained did:plc:raw secret-token")
+	if !observer.Flush(50 * time.Millisecond) {
+		t.Fatal("Flush returned false")
+	}
+
+	events := transport.Events()
+	if len(events) != 1 {
+		t.Fatalf("captured %d events, want 1", len(events))
+	}
+	event := events[0]
+	if event.Exception[0].Type != "AppViewPanic" {
+		t.Fatalf("exception type = %q, want AppViewPanic", event.Exception[0].Type)
+	}
+	if event.Exception[0].Value != "redacted" {
+		t.Fatalf("exception value = %q, want redacted", event.Exception[0].Value)
+	}
+	if event.Tags["recovered_type"] != "string" {
+		t.Fatalf("recovered_type tag = %q, want string; tags=%#v", event.Tags["recovered_type"], event.Tags)
+	}
+	for _, forbidden := range []string{"did:plc:raw", "secret-token", "run-123", "panic contained"} {
+		if strings.Contains(event.Message, forbidden) || strings.Contains(event.Exception[0].Type, forbidden) || strings.Contains(event.Exception[0].Value, forbidden) {
+			t.Fatalf("panic event contains forbidden value %q: %#v", forbidden, event)
+		}
+		for key, value := range event.Tags {
+			if strings.Contains(key, forbidden) || strings.Contains(value, forbidden) {
+				t.Fatalf("panic tag contains forbidden value %q: %s=%s", forbidden, key, value)
 			}
 		}
 	}

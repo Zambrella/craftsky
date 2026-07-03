@@ -47,7 +47,6 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	// Public ops.
 	mux.Handle("GET /health", inFlight(api.HealthHandler(deps.DB, deps.Logger)))
 	mux.Handle("GET /healthz", inFlight(api.NewHealthHandler(deps.DB, deps.Consumer)))
-	mux.Handle("GET /metrics", inFlight(observer.MetricsHandler()))
 	if deps.Config.Env == app.EnvDev {
 		mux.Handle("GET /v1/dev/media/{name}", inFlight(api.DevMediaHandler()))
 	}

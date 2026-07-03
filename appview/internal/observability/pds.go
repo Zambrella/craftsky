@@ -219,29 +219,27 @@ func (o *Observer) observePDSWrite(ctx context.Context, operation PDSOperation, 
 	result := pdsResult(err)
 	category := ClassifyPDSError(err)
 	stage = NormalizePDSStage(string(stage))
-	o.pdsWriteDuration.WithLabelValues(string(operation), string(stage), result, string(category)).Observe(duration.Seconds())
+	o.metricRecorder.PDSOperation(ctx, string(operation), string(stage), result, string(category), duration)
 	traceID, spanID := TraceIDs(ctx)
-	attrs := []any{
-		slog.String("component", "pds"),
-		slog.String("operation", string(operation)),
-		slog.String("stage", string(stage)),
-		slog.String("result", result),
-		slog.String("error_category", string(category)),
-		slog.Duration("duration", duration),
-	}
+	localOnlyAttrs := []any{}
 	if traceID != "" {
-		attrs = append(attrs, slog.String("sentry_trace_id", traceID))
+		localOnlyAttrs = append(localOnlyAttrs, slog.String("sentry_trace_id", traceID))
 	}
 	if spanID != "" {
-		attrs = append(attrs, slog.String("sentry_span_id", spanID))
+		localOnlyAttrs = append(localOnlyAttrs, slog.String("sentry_span_id", spanID))
 	}
-	if o.logger != nil {
-		if err != nil {
-			o.logger.Warn("pds write completed", attrs...)
-		} else {
-			o.logger.Info("pds write completed", attrs...)
-		}
+	level := slog.LevelInfo
+	if err != nil {
+		level = slog.LevelWarn
 	}
+	o.Log(ctx, level, "pds write completed", EventContext{
+		"component":      "pds",
+		"operation":      string(operation),
+		"failure_stage":  string(stage),
+		"result":         result,
+		"error_category": string(category),
+		"duration":       duration.String(),
+	}, localOnlyAttrs...)
 	if err != nil {
 		if !pdsCategoryCaptured(category) {
 			MarkCaptured(ctx)

@@ -62,8 +62,11 @@ func TestRecovery_ReturnsV1EnvelopeAndContinuesServing(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("captured %d Sentry events, want 1", len(events))
 	}
-	if events[0].Tags["component"] != "http" || events[0].Tags["route_pattern"] != "/v1/panic" || events[0].Tags["run_id"] != body.RequestID {
+	if events[0].Tags["component"] != "http" || events[0].Tags["route_pattern"] != "/v1/panic" || events[0].Tags["recovered_type"] != "string" {
 		t.Fatalf("panic Sentry event missing safe context: %#v", events[0].Tags)
+	}
+	if _, ok := events[0].Tags["run_id"]; ok {
+		t.Fatalf("panic Sentry event retained high-cardinality run_id: %#v", events[0].Tags)
 	}
 
 	okReq := httptest.NewRequest(http.MethodGet, "/v1/ok", nil)

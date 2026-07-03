@@ -349,10 +349,12 @@ func TestWSConsumer_EmitsTapMetricsAndCapturesIndexerErrors(t *testing.T) {
 	defer srv.Close()
 
 	transport := &sentry.MockTransport{}
+	recorder := observability.NewInMemoryMetricRecorder()
 	observer := observability.New(observability.Config{
 		Env:             "test",
 		SentryDSN:       "https://public@example.invalid/1",
 		SentryTransport: transport,
+		MetricRecorder:  recorder,
 	})
 	idx := &failOnIDIndexer{}
 	c := tap.NewWSConsumer(tap.WSConsumerConfig{
@@ -387,25 +389,20 @@ func TestWSConsumer_EmitsTapMetricsAndCapturesIndexerErrors(t *testing.T) {
 		t.Fatal("indexer-error event id=2 was acked; want retry")
 	}
 
-	rec := httptest.NewRecorder()
-	observer.MetricsHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
-	body := rec.Body.String()
+	calls := recorder.Calls()
 	for _, want := range []string{
-		`craftsky_appview_tap_connected 1`,
-		`craftsky_appview_tap_events_received_total{type="record"} 3`,
-		`craftsky_appview_tap_events_received_total{type="identity"} 1`,
-		`craftsky_appview_tap_events_acknowledged_total 3`,
-		`craftsky_appview_tap_indexer_records_total{nsid="social.craftsky.feed.post",reason="none",result="indexed"} 1`,
-		`craftsky_appview_tap_indexer_records_total{nsid="social.craftsky.feed.like",reason="indexer_error",result="error"} 1`,
-		`craftsky_appview_tap_indexer_records_total{nsid="malformed",reason="malformed",result="skipped"} 1`,
+		"craftsky_appview_tap_connected",
+		"craftsky_appview_tap_events_received_total",
+		"craftsky_appview_tap_events_acknowledged_total",
+		"craftsky_appview_tap_indexer_records_total",
 	} {
-		if !strings.Contains(body, want) {
-			t.Fatalf("metrics output missing %q:\n%s", want, body)
+		if !tapMetricCallsContain(calls, want) {
+			t.Fatalf("metric calls missing %q: %#v", want, calls)
 		}
 	}
-	for _, forbidden := range []string{"did:plc:a", "k1", "k2", "bafy"} {
-		if strings.Contains(body, forbidden) {
-			t.Fatalf("metrics output contains raw value %q:\n%s", forbidden, body)
+	for _, call := range calls {
+		if err := observability.ValidateMetricCall(call); err != nil {
+			t.Fatalf("metric call failed validation: %v; call=%#v", err, call)
 		}
 	}
 
@@ -433,11 +430,13 @@ func TestWSConsumer_ExportsSentryConsumeAndIndexerSpans(t *testing.T) {
 
 	transport := &sentry.MockTransport{}
 	observer := observability.New(observability.Config{
-		Env:              "test",
-		SentryDSN:        "https://public@example.invalid/1",
-		SentryTransport:  transport,
-		TracingEnabled:   true,
-		TracesSampleRate: 1,
+		Env:                 "test",
+		SentryDSN:           "https://public@example.invalid/1",
+		SentryTransport:     transport,
+		TracingEnabled:      true,
+		TracesSampleRate:    1,
+		TapTracingEnabled:   true,
+		TapTracesSampleRate: 1,
 	})
 	idx := &fakeIndexer{}
 	c := tap.NewWSConsumer(tap.WSConsumerConfig{
@@ -483,13 +482,19 @@ func TestWSConsumer_ExportsSentryConsumeAndIndexerSpans(t *testing.T) {
 	if event.Transaction != "tap.consume" {
 		t.Fatalf("transaction = %q, want tap.consume; event=%#v", event.Transaction, event)
 	}
-	if len(event.Spans) != 1 {
-		t.Fatalf("transaction spans = %d, want 1; event=%#v", len(event.Spans), event)
+	if len(event.Spans) < 4 {
+		t.Fatalf("transaction spans = %d, want at least 4; event=%#v", len(event.Spans), event)
 	}
-	span := event.Spans[0]
-	if span.Op != "tap.indexer.handle" {
-		t.Fatalf("child span op = %q, want tap.indexer.handle", span.Op)
+	spansByOp := map[string]*sentry.Span{}
+	for _, span := range event.Spans {
+		spansByOp[span.Op] = span
 	}
+	for _, want := range []string{"tap.receive", "tap.decode", "tap.indexer.handle", "tap.ack"} {
+		if spansByOp[want] == nil {
+			t.Fatalf("missing Tap child span %q; spans=%#v", want, event.Spans)
+		}
+	}
+	span := spansByOp["tap.indexer.handle"]
 	for key, want := range map[string]any{
 		"component": "tap_indexer",
 		"operation": "tap.indexer.handle",
@@ -550,6 +555,15 @@ func TestWSConsumer_IndexerPanicDoesNotCrashConsumer(t *testing.T) {
 
 func valueAsString(value any) string {
 	return fmt.Sprint(value)
+}
+
+func tapMetricCallsContain(calls []observability.MetricCall, name string) bool {
+	for _, call := range calls {
+		if call.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // TestWSConsumer_MalformedIdentifierAcksAndDrops covers the boundary

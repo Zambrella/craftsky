@@ -92,25 +92,26 @@ Tests run on the **host** (the appview image has no Go toolchain), so Go must be
 
 AppView emits structured JSON logs with a per-request `run_id`, safe route-pattern fields, and no request or response bodies by default. Sensitive headers such as `Authorization`, `Cookie`, `DPoP`, and Craftsky device/session token headers are redacted in request logs.
 
-Prometheus metrics are exposed at:
+AppView does not expose a local `/metrics` endpoint. Metrics are recorded through AppView-domain methods and are sent to Sentry Application Metrics only when Sentry metrics are explicitly enabled. With no Sentry DSN, or with metrics disabled, runtime metric calls use a no-op recorder; tests can inject an in-memory recorder.
 
-```bash
-curl -s http://localhost:18080/metrics
-```
+Metric names are internal ops details and use the `craftsky_appview` prefix where Sentry permits. Current metric families include:
 
-The endpoint is an unauthenticated ops endpoint outside `/v1/*`; it does not use Craftsky app-session or device middleware. Production deployments must restrict `/metrics` with network policy, reverse proxy rules, or platform ingress controls. Public production exposure of `/metrics` is a deployment/security violation.
-
-Metric names are internal ops details for this slice and use the `craftsky_appview` prefix. Current metrics include:
-
-- `craftsky_appview_build_info` gauge with service/environment/release labels.
 - `craftsky_appview_http_requests_total` counter.
 - `craftsky_appview_http_request_duration_seconds` histogram.
 - `craftsky_appview_http_response_size_bytes` histogram.
 - `craftsky_appview_http_requests_in_flight` gauge.
 - `craftsky_appview_db_operation_duration_seconds` histogram for bounded DB operations such as `search.posts`.
 - `craftsky_appview_pds_write_duration_seconds` histogram for bounded PDS/OAuth write-proxy operations.
+- Tap and indexer counters/histograms for bounded firehose processing stages.
 
-Sentry export is disabled unless `SENTRY_DSN` is set. Optional tracing is controlled by `SENTRY_TRACING_ENABLED` and `SENTRY_TRACES_SAMPLE_RATE`; production defaults to conservative sampling when tracing is enabled without an explicit sample rate. When tracing and Sentry are configured, bounded observer spans are exported as Sentry SDK transactions/spans and also expose safe trace/span IDs for log and event correlation. This first observability slice does not configure OpenTelemetry/OTLP export, Prometheus exemplars, or Sentry Application Metrics.
+Sentry export is disabled unless `SENTRY_DSN` is set. With `SENTRY_DSN` alone, AppView sends only classified errors and recovered panics. Higher-volume pillars are independently gated:
+
+- `SENTRY_LOGS_ENABLED=true` sends safe filtered AppView log entries to Sentry logs. Local stdout JSON logs remain available either way.
+- `SENTRY_TRACING_ENABLED=true` exports bounded HTTP, DB, PDS/OAuth, and work-boundary transactions/spans. `SENTRY_TRACES_SAMPLE_RATE` controls normal trace sampling; production defaults conservatively when omitted.
+- `SENTRY_METRICS_ENABLED=true` exports AppView metrics to Sentry metrics.
+- `SENTRY_TAP_TRACING_ENABLED=true` enables sampled Tap/indexer success-path tracing. `SENTRY_TAP_TRACES_SAMPLE_RATE` controls that volume; forced error/panic Tap spans still bypass the success sampler when tracing is enabled.
+
+Sentry-bound events, logs, spans, and metrics use bounded route patterns, operation names, status/result classes, and sentinel error codes. Panic event values stay redacted. Local stdout logs may retain existing raw error strings where the current local logging policy already allowed them, but Sentry-bound logs and events do not export arbitrary raw error text. This implementation does not configure OpenTelemetry/OTLP export, Prometheus, or breadcrumbs as a primary log stream.
 
 ## OAuth
 

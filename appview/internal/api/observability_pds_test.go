@@ -22,7 +22,8 @@ import (
 )
 
 func TestPDSWriteHandlersEmitObservedOperations(t *testing.T) {
-	observer := observability.New(observability.Config{Env: "test"})
+	recorder := observability.NewInMemoryMetricRecorder()
+	observer := observability.New(observability.Config{Env: "test", MetricRecorder: recorder})
 
 	profilePDS := &fakePDSForPut{
 		getBsky:     func() (map[string]any, error) { return map[string]any{}, nil },
@@ -104,30 +105,39 @@ func TestPDSWriteHandlersEmitObservedOperations(t *testing.T) {
 	unfollowReq.SetPathValue("handleOrDid", "bob.example")
 	serveObservedPDSRequest(t, unfollowHandler, unfollowReq, http.StatusOK)
 
-	body := observedPDSMetrics(t, observer)
+	calls := recorder.Calls()
 	for _, want := range []string{
-		`operation="oauth.session_resume"`,
-		`operation="profile.put_bsky"`,
-		`operation="profile.put_craftsky"`,
-		`operation="post.create"`,
-		`operation="post.delete"`,
-		`operation="blob.upload"`,
-		`operation="follow.create"`,
-		`operation="follow.delete"`,
-		`operation="like.create"`,
-		`operation="like.delete"`,
-		`operation="repost.create"`,
-		`operation="repost.delete"`,
+		"oauth.session_resume",
+		"profile.put_bsky",
+		"profile.put_craftsky",
+		"post.create",
+		"post.delete",
+		"blob.upload",
+		"follow.create",
+		"follow.delete",
+		"like.create",
+		"like.delete",
+		"repost.create",
+		"repost.delete",
 	} {
-		if !strings.Contains(body, want) {
-			t.Fatalf("PDS metrics missing %q:\n%s", want, body)
+		if !metricCallWithOperation(calls, want) {
+			t.Fatalf("PDS metric calls missing operation %q: %#v", want, calls)
 		}
 	}
-	for _, forbidden := range []string{"did:plc:alice", "did:plc:bob", "post1", "like1", "repost1", "jpeg-bytes", "sess-alice"} {
-		if strings.Contains(body, forbidden) {
-			t.Fatalf("PDS metrics contain raw value %q:\n%s", forbidden, body)
+	for _, call := range calls {
+		if err := observability.ValidateMetricCall(call); err != nil {
+			t.Fatalf("PDS metric call failed validation: %v; call=%#v", err, call)
 		}
 	}
+}
+
+func metricCallWithOperation(calls []observability.MetricCall, operation string) bool {
+	for _, call := range calls {
+		if call.Name == "craftsky_appview_pds_write_duration_seconds" && call.Attributes["operation"] == operation {
+			return true
+		}
+	}
+	return false
 }
 
 func withOAuthSession(req *http.Request) *http.Request {
@@ -141,13 +151,6 @@ func serveObservedPDSRequest(t *testing.T, h http.Handler, req *http.Request, wa
 	if rec.Code != wantStatus {
 		t.Fatalf("%s %s status = %d, want %d; body=%s", req.Method, req.URL.Path, rec.Code, wantStatus, rec.Body.String())
 	}
-}
-
-func observedPDSMetrics(t *testing.T, observer *observability.Observer) string {
-	t.Helper()
-	rec := httptest.NewRecorder()
-	observer.MetricsHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
-	return rec.Body.String()
 }
 
 func TestPDSWriteHandlerLogsUseBoundedContextWithoutRawIdentitySessionOrContent(t *testing.T) {

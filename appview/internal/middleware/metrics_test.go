@@ -19,7 +19,8 @@ import (
 )
 
 func TestHTTPMetrics_InFlightGaugeIsNonZeroDuringActiveRequest(t *testing.T) {
-	observer := observability.New(observability.Config{Env: "test"})
+	recorder := observability.NewInMemoryMetricRecorder()
+	observer := observability.New(observability.Config{Env: "test", MetricRecorder: recorder})
 	entered := make(chan struct{})
 	release := make(chan struct{})
 
@@ -38,23 +39,26 @@ func TestHTTPMetrics_InFlightGaugeIsNonZeroDuringActiveRequest(t *testing.T) {
 	}()
 
 	<-entered
-	rec := httptest.NewRecorder()
-	observer.MetricsHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
-	body := rec.Body.String()
-	if !strings.Contains(body, `craftsky_appview_http_requests_in_flight{method="GET",route_pattern="/blocked"} 1`) {
-		t.Fatalf("in-flight gauge was not 1 during active request:\n%s", body)
-	}
-
 	close(release)
 	<-done
-	rec = httptest.NewRecorder()
-	observer.MetricsHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
-	body = rec.Body.String()
-	if !strings.Contains(body, `craftsky_appview_http_requests_in_flight{method="GET",route_pattern="/blocked"} 0`) {
-		t.Fatalf("in-flight gauge was not decremented after request completed:\n%s", body)
+
+	var sawInFlight, sawCompleted bool
+	for _, call := range recorder.Calls() {
+		if call.Attributes["route_pattern"] != "/blocked" {
+			continue
+		}
+		switch call.Name {
+		case "craftsky_appview_http_requests_in_flight":
+			sawInFlight = true
+		case "craftsky_appview_http_requests_total":
+			sawCompleted = true
+		}
+		if err := observability.ValidateMetricCall(call); err != nil {
+			t.Fatalf("metric call failed validation: %v; call=%#v", err, call)
+		}
 	}
-	if !strings.Contains(body, `route_pattern="/blocked"`) {
-		t.Fatalf("completed HTTP metrics did not use registered route pattern:\n%s", body)
+	if !sawInFlight || !sawCompleted {
+		t.Fatalf("metric calls did not include in-flight/completed route pattern calls: %#v", recorder.Calls())
 	}
 }
 
@@ -102,13 +106,15 @@ func TestHTTPMetrics_CapturesNonPanic5xxResponseInSentry(t *testing.T) {
 		"http_status":       "500",
 		"http_status_class": "5xx",
 		"error_category":    "server",
+		"error_code":        "appview.server",
+		"result":            "error",
 	} {
 		if tags[key] != want {
 			t.Fatalf("Sentry tag %q = %q, want %q; all tags=%#v", key, tags[key], want, tags)
 		}
 	}
-	if tags["run_id"] == "" {
-		t.Fatalf("Sentry event missing run_id tag: %#v", tags)
+	if _, ok := tags["run_id"]; ok {
+		t.Fatalf("Sentry event retained high-cardinality run_id tag: %#v", tags)
 	}
 	for _, forbidden := range []string{"did:plc:raw", "cursor=secret", "internal server error", "not_found"} {
 		if strings.Contains(events[0].Message, forbidden) {
@@ -160,8 +166,21 @@ func TestHTTPMetrics_ExportsSentryTransactionWithRoutePattern(t *testing.T) {
 	if event.Transaction != "GET /v1/posts/{did}/{rkey}" {
 		t.Fatalf("transaction = %q, want route pattern; event=%#v", event.Transaction, event)
 	}
-	if len(event.Spans) != 0 {
-		t.Fatalf("HTTP transaction child spans = %d, want 0", len(event.Spans))
+	if len(event.Spans) != 1 {
+		t.Fatalf("HTTP transaction child spans = %d, want 1; event=%#v", len(event.Spans), event)
+	}
+	if event.Spans[0].Op != "http.handler" {
+		t.Fatalf("HTTP child span op = %q, want http.handler; span=%#v", event.Spans[0].Op, event.Spans[0])
+	}
+	for key, want := range map[string]any{
+		"component":     "http",
+		"operation":     "http.handler",
+		"route_pattern": "/v1/posts/{did}/{rkey}",
+		"result":        "success",
+	} {
+		if got := event.Spans[0].Data[key]; got != want {
+			t.Fatalf("HTTP child span data %q = %#v, want %#v; data=%#v", key, got, want, event.Spans[0].Data)
+		}
 	}
 	for _, forbidden := range []string{"did:plc:alice", "post1", "cursor=secret"} {
 		if strings.Contains(event.Transaction, forbidden) {

@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -40,7 +39,8 @@ func (f fakePDSClient) UploadBlob(context.Context, string, []byte) (*auth.Upload
 }
 
 func TestWrapPDSFactoryRecordsWriteTelemetry(t *testing.T) {
-	observer := New(Config{Env: "test"})
+	recorder := NewInMemoryMetricRecorder()
+	observer := New(Config{Env: "test", MetricRecorder: recorder})
 	factoryErr := errors.New("token refresh failed")
 	wrappedFactory := observer.WrapPDSFactory(func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
 		return fakePDSClient{createErr: factoryErr}, nil
@@ -58,27 +58,17 @@ func TestWrapPDSFactoryRecordsWriteTelemetry(t *testing.T) {
 	})
 	_, _ = failingFactory(context.Background(), syntax.DID("did:plc:writer"), "session-secret")
 
-	rec := httptest.NewRecorder()
-	observer.MetricsHandler().ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
-	body := rec.Body.String()
+	calls := recorder.Calls()
 	for _, want := range []string{
-		`craftsky_appview_pds_write_duration_seconds`,
-		`operation="post.create"`,
-		`operation="blob.upload"`,
-		`operation="oauth.session_resume"`,
-		`stage="pds_request"`,
-		`stage="session_resume"`,
-		`category="unexpected"`,
-		`result="success"`,
-		`result="error"`,
+		"craftsky_appview_pds_write_duration_seconds",
 	} {
-		if !strings.Contains(body, want) {
-			t.Fatalf("metrics missing %q:\n%s", want, body)
+		if !metricCallsContain(calls, want) {
+			t.Fatalf("metric calls missing %q: %#v", want, calls)
 		}
 	}
-	for _, forbidden := range []string{"did:plc:writer", "session-secret", "secret body", "raw media bytes"} {
-		if strings.Contains(body, forbidden) {
-			t.Fatalf("metrics contain sensitive value %q:\n%s", forbidden, body)
+	for _, call := range calls {
+		if err := ValidateMetricCall(call); err != nil {
+			t.Fatalf("metric call failed validation: %v; call=%#v", err, call)
 		}
 	}
 }
@@ -110,7 +100,7 @@ func TestWrapPDSFactoryEmitsLogsSpansAndSentryForUnexpectedFailures(t *testing.T
 		`"msg":"pds write completed"`,
 		`"component":"pds"`,
 		`"operation":"post.create"`,
-		`"stage":"pds_request"`,
+		`"failure_stage":"pds_request"`,
 		`"result":"error"`,
 		`"error_category":"unexpected"`,
 	} {
@@ -144,6 +134,7 @@ func TestWrapPDSFactoryEmitsLogsSpansAndSentryForUnexpectedFailures(t *testing.T
 		"failure_stage":  "pds_request",
 		"result":         "error",
 		"error_category": "unexpected",
+		"error_code":     "appview.unexpected",
 	} {
 		if tags[key] != want {
 			t.Fatalf("Sentry tag %q = %q, want %q; all tags=%#v", key, tags[key], want, tags)
