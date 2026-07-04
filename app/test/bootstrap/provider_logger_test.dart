@@ -3,7 +3,6 @@ import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:logging/logging.dart';
 
 void main() {
   group('ProviderLogger', () {
@@ -129,19 +128,19 @@ final class _RecordingReporter implements ErrorReporter {
   void addBreadcrumb(SafeBreadcrumb breadcrumb) {}
 
   @override
-  Future<ReportResult> captureException(
+  Future<String?> captureException(
     Object error, {
     required ReportContext context,
     StackTrace? stackTrace,
   }) async {
     errors.add(error);
     contexts.add(context);
-    return const ReportResult.captured();
+    return '0123456789abcdef0123456789abcdef';
   }
 
   @override
-  Future<void> captureLog(
-    LogRecord record, {
+  Future<void> captureMessage(
+    String message, {
     required ReportContext context,
   }) async {}
 }

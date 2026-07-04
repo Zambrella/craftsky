@@ -23,15 +23,8 @@ void main() {
       for (final kind in AppErrorKind.values) {
         final metadata = kind.metadata;
 
-        expect(metadata.localizationKey, isNotEmpty, reason: kind.name);
         expect(metadata.sentryClassification, isNotEmpty, reason: kind.name);
         expect(metadata.severity, isA<AppErrorSeverity>(), reason: kind.name);
-        expect(metadata.surface, isA<AppErrorSurface>(), reason: kind.name);
-        expect(
-          metadata.actionPolicy,
-          isA<AppErrorActionPolicy>(),
-          reason: kind.name,
-        );
       }
     });
 

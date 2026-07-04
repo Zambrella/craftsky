@@ -1,16 +1,15 @@
 import 'package:flutter/foundation.dart';
-import 'package:logging/logging.dart';
 
 abstract interface class ErrorReporter {
   bool get enabled;
 
-  Future<ReportResult> captureException(
+  Future<String?> captureException(
     Object error, {
     required ReportContext context,
     StackTrace? stackTrace,
   });
 
-  Future<void> captureLog(LogRecord record, {required ReportContext context});
+  Future<void> captureMessage(String message, {required ReportContext context});
 
   void addBreadcrumb(SafeBreadcrumb breadcrumb);
 }
@@ -25,17 +24,17 @@ final class NoopErrorReporter implements ErrorReporter {
   void addBreadcrumb(SafeBreadcrumb breadcrumb) {}
 
   @override
-  Future<ReportResult> captureException(
+  Future<String?> captureException(
     Object error, {
     required ReportContext context,
     StackTrace? stackTrace,
   }) async {
-    return const ReportResult.disabled();
+    return null;
   }
 
   @override
-  Future<void> captureLog(
-    LogRecord record, {
+  Future<void> captureMessage(
+    String message, {
     required ReportContext context,
   }) async {}
 }
@@ -58,7 +57,7 @@ final class GuardedErrorReporter implements ErrorReporter {
   }
 
   @override
-  Future<ReportResult> captureException(
+  Future<String?> captureException(
     Object error, {
     required ReportContext context,
     StackTrace? stackTrace,
@@ -70,17 +69,17 @@ final class GuardedErrorReporter implements ErrorReporter {
         stackTrace: stackTrace,
       );
     } on Object catch (_) {
-      return const ReportResult.failed();
+      return null;
     }
   }
 
   @override
-  Future<void> captureLog(
-    LogRecord record, {
+  Future<void> captureMessage(
+    String message, {
     required ReportContext context,
   }) async {
     try {
-      await _delegate.captureLog(record, context: context);
+      await _delegate.captureMessage(message, context: context);
     } on Object catch (_) {
       // Reporting must never interrupt app code.
     }
@@ -125,21 +124,6 @@ final class SafeBreadcrumb {
 
   @override
   int get hashCode => Object.hash(category, message, Object.hashAll(data.keys));
-}
-
-enum ReportStatus { captured, disabled, failed }
-
-final class ReportResult {
-  const ReportResult.captured({this.eventId}) : status = ReportStatus.captured;
-  const ReportResult.disabled()
-    : status = ReportStatus.disabled,
-      eventId = null;
-  const ReportResult.failed() : status = ReportStatus.failed, eventId = null;
-
-  final ReportStatus status;
-  final String? eventId;
-
-  bool get hasEventId => eventId != null && eventId!.isNotEmpty;
 }
 
 bool _mapEquals(Map<String, Object?> a, Map<String, Object?> b) {

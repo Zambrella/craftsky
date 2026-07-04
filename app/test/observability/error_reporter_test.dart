@@ -1,13 +1,12 @@
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:logging/logging.dart';
 
 void main() {
   group('NoopErrorReporter', () {
     test('is disabled and returns a disabled capture result', () async {
       const reporter = NoopErrorReporter();
 
-      final result = await reporter.captureException(
+      final eventId = await reporter.captureException(
         StateError('boom'),
         stackTrace: StackTrace.current,
         context: const ReportContext(
@@ -18,16 +17,14 @@ void main() {
       );
 
       expect(reporter.enabled, isFalse);
-      expect(result.status, ReportStatus.disabled);
-      expect(result.eventId, isNull);
-      expect(result.hasEventId, isFalse);
+      expect(eventId, isNull);
     });
 
     test('does not throw for logs or breadcrumbs', () async {
       const reporter = NoopErrorReporter();
 
-      await reporter.captureLog(
-        LogRecord(Level.SEVERE, 'failed', 'test'),
+      await reporter.captureMessage(
+        'App log',
         context: const ReportContext(
           feature: 'test',
           operation: 'log',
@@ -49,7 +46,7 @@ void main() {
     test('turns reporter exceptions into failed capture results', () async {
       final reporter = GuardedErrorReporter(_ThrowingReporter());
 
-      final result = await reporter.captureException(
+      final eventId = await reporter.captureException(
         StateError('boom'),
         stackTrace: StackTrace.current,
         context: const ReportContext(
@@ -59,15 +56,14 @@ void main() {
         ),
       );
 
-      expect(result.status, ReportStatus.failed);
-      expect(result.eventId, isNull);
+      expect(eventId, isNull);
     });
 
     test('swallows log and breadcrumb reporter exceptions', () async {
       final reporter = GuardedErrorReporter(_ThrowingReporter());
 
-      await reporter.captureLog(
-        LogRecord(Level.SEVERE, 'failed', 'test'),
+      await reporter.captureMessage(
+        'App log',
         context: const ReportContext(
           feature: 'test',
           operation: 'log',
@@ -78,16 +74,6 @@ void main() {
         const SafeBreadcrumb(category: 'ui.action', message: 'retry'),
       );
     });
-  });
-
-  test('ReportResult recognizes non-empty event IDs', () {
-    expect(
-      const ReportResult.captured(
-        eventId: '0123456789abcdef0123456789abcdef',
-      ).hasEventId,
-      isTrue,
-    );
-    expect(const ReportResult.captured(eventId: '').hasEventId, isFalse);
   });
 }
 
@@ -101,7 +87,7 @@ final class _ThrowingReporter implements ErrorReporter {
   }
 
   @override
-  Future<ReportResult> captureException(
+  Future<String?> captureException(
     Object error, {
     required ReportContext context,
     StackTrace? stackTrace,
@@ -110,8 +96,8 @@ final class _ThrowingReporter implements ErrorReporter {
   }
 
   @override
-  Future<void> captureLog(
-    LogRecord record, {
+  Future<void> captureMessage(
+    String message, {
     required ReportContext context,
   }) async {
     throw StateError('log failed');

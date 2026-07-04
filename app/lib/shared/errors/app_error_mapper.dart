@@ -1,37 +1,27 @@
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 
-enum AppErrorSource {
-  api,
-  storage,
-  initialization,
-  routing,
-  action,
-  backgroundLoad,
-  provider,
-  unknown,
-}
-
 final class AppErrorMapper {
   const AppErrorMapper._();
 
   static AppError map(
     Object error, {
-    AppErrorSource source = AppErrorSource.unknown,
+    AppErrorKind fallbackKind = AppErrorKind.unexpected,
+    String source = 'unknown',
+    String? fallbackClassification,
   }) {
     return switch (error) {
       ApiException() => _mapApiException(error),
       FormatException() => _fallbackForSource(
+        fallbackKind,
         source,
         classification: 'parse.failed',
       ),
-      _ when source == AppErrorSource.storage => const AppError(
-        AppErrorKind.storageUnavailable,
-        reportableOverride: true,
-        sentryClassificationOverride: 'storage.failed',
-        safeDiagnostics: {'source': 'storage'},
+      _ => _fallbackForSource(
+        fallbackKind,
+        source,
+        classification: fallbackClassification,
       ),
-      _ => _fallbackForSource(source),
     };
   }
 
@@ -93,45 +83,12 @@ final class AppErrorMapper {
   }
 
   static AppError _fallbackForSource(
-    AppErrorSource source, {
+    AppErrorKind kind,
+    String source, {
     String? classification,
-  }) {
-    return switch (source) {
-      AppErrorSource.initialization => AppError(
-        AppErrorKind.initializationFailed,
-        sentryClassificationOverride: classification,
-        safeDiagnostics: const {'source': 'initialization'},
-      ),
-      AppErrorSource.routing => AppError(
-        AppErrorKind.navigationFailed,
-        sentryClassificationOverride: classification,
-        safeDiagnostics: const {'source': 'routing'},
-      ),
-      AppErrorSource.action => AppError(
-        AppErrorKind.actionFailed,
-        sentryClassificationOverride: classification,
-        safeDiagnostics: const {'source': 'action'},
-      ),
-      AppErrorSource.backgroundLoad => AppError(
-        AppErrorKind.backgroundLoadFailed,
-        sentryClassificationOverride: classification,
-        safeDiagnostics: const {'source': 'background_load'},
-      ),
-      AppErrorSource.provider => AppError(
-        AppErrorKind.backgroundLoadFailed,
-        sentryClassificationOverride: classification ?? 'provider.failed',
-        safeDiagnostics: const {'source': 'provider'},
-      ),
-      AppErrorSource.storage => AppError(
-        AppErrorKind.storageUnavailable,
-        sentryClassificationOverride: classification ?? 'storage.failed',
-        safeDiagnostics: const {'source': 'storage'},
-      ),
-      AppErrorSource.api || AppErrorSource.unknown => AppError(
-        AppErrorKind.unexpected,
-        sentryClassificationOverride: classification,
-        safeDiagnostics: const {'source': 'unknown'},
-      ),
-    };
-  }
+  }) => AppError(
+    kind,
+    sentryClassificationOverride: classification,
+    safeDiagnostics: {'source': source},
+  );
 }

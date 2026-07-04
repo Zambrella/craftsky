@@ -43,8 +43,8 @@ import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
+import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
-import 'package:craftsky_app/shared/errors/reportability_classifier.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
 import 'package:flutter/foundation.dart';
@@ -101,9 +101,11 @@ final class ProviderLogger extends ProviderObserver {
 
     final appError = AppErrorMapper.map(
       error,
-      source: AppErrorSource.provider,
+      fallbackKind: AppErrorKind.backgroundLoadFailed,
+      source: 'provider',
+      fallbackClassification: 'provider.failed',
     );
-    if (!ReportabilityClassifier.shouldReport(appError)) return;
+    if (!appError.reportable) return;
 
     final providerName = _providerFeature(context.provider.name);
     unawaited(

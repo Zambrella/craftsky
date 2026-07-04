@@ -1,7 +1,7 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
-import 'package:craftsky_app/shared/errors/app_error_presenter.dart';
 import 'package:flutter/material.dart';
 
 class ErrorScreen extends StatelessWidget {
@@ -15,7 +15,11 @@ class ErrorScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final appError = AppErrorMapper.map(error, source: AppErrorSource.routing);
+    final appError = AppErrorMapper.map(
+      error,
+      fallbackKind: AppErrorKind.navigationFailed,
+      source: 'routing',
+    );
     return Scaffold(
       body: Center(
         child: Padding(
@@ -35,7 +39,7 @@ class ErrorScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                AppErrorPresenter.message(l10n, appError),
+                appError.message(l10n),
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium,
               ),

@@ -44,26 +44,6 @@ final class SentryConfig {
       _ => localOptIn,
     };
   }
-
-  SentryFeatureOptions get options => const SentryFeatureOptions();
-}
-
-final class SentryFeatureOptions {
-  const SentryFeatureOptions({
-    this.sendDefaultPii = false,
-    this.enableLogs = true,
-    this.tracingEnabled = false,
-    this.profilingEnabled = false,
-    this.metricsEnabled = false,
-    this.sessionReplayEnabled = false,
-  });
-
-  final bool sendDefaultPii;
-  final bool enableLogs;
-  final bool tracingEnabled;
-  final bool profilingEnabled;
-  final bool metricsEnabled;
-  final bool sessionReplayEnabled;
 }
 
 String? _emptyToNull(String? value) {

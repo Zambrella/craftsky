@@ -1,3 +1,5 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+
 enum AppErrorKind {
   networkUnavailable,
   serviceUnavailable,
@@ -13,10 +15,6 @@ enum AppErrorKind {
 }
 
 enum AppErrorSeverity { info, warning, error }
-
-enum AppErrorSurface { fullScreen, inline, messenger, silent }
-
-enum AppErrorActionPolicy { none, retry, signIn, goHome }
 
 final class AppError {
   const AppError(
@@ -39,18 +37,12 @@ final class AppError {
 
 final class AppErrorMetadata {
   const AppErrorMetadata({
-    required this.localizationKey,
     required this.severity,
-    required this.surface,
-    required this.actionPolicy,
     required this.reportableByDefault,
     required this.sentryClassification,
   });
 
-  final String localizationKey;
   final AppErrorSeverity severity;
-  final AppErrorSurface surface;
-  final AppErrorActionPolicy actionPolicy;
   final bool reportableByDefault;
   final String sentryClassification;
 }
@@ -59,93 +51,87 @@ extension AppErrorKindMetadata on AppErrorKind {
   AppErrorMetadata get metadata {
     return switch (this) {
       AppErrorKind.networkUnavailable => const AppErrorMetadata(
-        localizationKey: 'errorNetworkUnavailable',
         severity: AppErrorSeverity.warning,
-        surface: AppErrorSurface.messenger,
-        actionPolicy: AppErrorActionPolicy.retry,
         reportableByDefault: false,
         sentryClassification: 'network.unavailable',
       ),
       AppErrorKind.serviceUnavailable => const AppErrorMetadata(
-        localizationKey: 'errorServiceUnavailable',
         severity: AppErrorSeverity.error,
-        surface: AppErrorSurface.inline,
-        actionPolicy: AppErrorActionPolicy.retry,
         reportableByDefault: false,
         sentryClassification: 'service.unavailable',
       ),
       AppErrorKind.sessionExpired => const AppErrorMetadata(
-        localizationKey: 'errorSessionExpired',
         severity: AppErrorSeverity.warning,
-        surface: AppErrorSurface.messenger,
-        actionPolicy: AppErrorActionPolicy.signIn,
         reportableByDefault: false,
         sentryClassification: 'auth.session_expired',
       ),
       AppErrorKind.permissionDenied => const AppErrorMetadata(
-        localizationKey: 'errorPermissionDenied',
         severity: AppErrorSeverity.warning,
-        surface: AppErrorSurface.inline,
-        actionPolicy: AppErrorActionPolicy.none,
         reportableByDefault: false,
         sentryClassification: 'permission.denied',
       ),
       AppErrorKind.contentUnavailable => const AppErrorMetadata(
-        localizationKey: 'errorContentUnavailable',
         severity: AppErrorSeverity.warning,
-        surface: AppErrorSurface.inline,
-        actionPolicy: AppErrorActionPolicy.none,
         reportableByDefault: false,
         sentryClassification: 'content.unavailable',
       ),
       AppErrorKind.storageUnavailable => const AppErrorMetadata(
-        localizationKey: 'errorStorageUnavailable',
         severity: AppErrorSeverity.error,
-        surface: AppErrorSurface.messenger,
-        actionPolicy: AppErrorActionPolicy.retry,
         reportableByDefault: true,
         sentryClassification: 'storage.unavailable',
       ),
       AppErrorKind.initializationFailed => const AppErrorMetadata(
-        localizationKey: 'errorInitializationFailed',
         severity: AppErrorSeverity.error,
-        surface: AppErrorSurface.fullScreen,
-        actionPolicy: AppErrorActionPolicy.retry,
         reportableByDefault: true,
         sentryClassification: 'initialization.failed',
       ),
       AppErrorKind.navigationFailed => const AppErrorMetadata(
-        localizationKey: 'errorNavigationFailed',
         severity: AppErrorSeverity.error,
-        surface: AppErrorSurface.fullScreen,
-        actionPolicy: AppErrorActionPolicy.goHome,
         reportableByDefault: true,
         sentryClassification: 'navigation.failed',
       ),
       AppErrorKind.actionFailed => const AppErrorMetadata(
-        localizationKey: 'errorActionFailed',
         severity: AppErrorSeverity.error,
-        surface: AppErrorSurface.messenger,
-        actionPolicy: AppErrorActionPolicy.retry,
         reportableByDefault: true,
         sentryClassification: 'action.failed',
       ),
       AppErrorKind.backgroundLoadFailed => const AppErrorMetadata(
-        localizationKey: 'errorBackgroundLoadFailed',
         severity: AppErrorSeverity.warning,
-        surface: AppErrorSurface.inline,
-        actionPolicy: AppErrorActionPolicy.retry,
         reportableByDefault: true,
         sentryClassification: 'background_load.failed',
       ),
       AppErrorKind.unexpected => const AppErrorMetadata(
-        localizationKey: 'errorUnexpected',
         severity: AppErrorSeverity.error,
-        surface: AppErrorSurface.messenger,
-        actionPolicy: AppErrorActionPolicy.retry,
         reportableByDefault: true,
         sentryClassification: 'unexpected',
       ),
+    };
+  }
+}
+
+extension AppErrorPresentation on AppError {
+  String message(AppLocalizations l10n) {
+    return switch (kind) {
+      AppErrorKind.networkUnavailable => l10n.errorNetworkUnavailable,
+      AppErrorKind.serviceUnavailable => l10n.errorServiceUnavailable,
+      AppErrorKind.sessionExpired => l10n.errorSessionExpired,
+      AppErrorKind.permissionDenied => l10n.errorPermissionDenied,
+      AppErrorKind.contentUnavailable => l10n.errorContentUnavailable,
+      AppErrorKind.storageUnavailable => l10n.errorStorageUnavailable,
+      AppErrorKind.initializationFailed => l10n.errorInitializationFailed,
+      AppErrorKind.navigationFailed => l10n.errorNavigationFailed,
+      AppErrorKind.actionFailed => l10n.errorActionFailed,
+      AppErrorKind.backgroundLoadFailed => l10n.errorBackgroundLoadFailed,
+      AppErrorKind.unexpected => l10n.errorUnexpected,
+    };
+  }
+
+  String? actionLabel(AppLocalizations l10n) {
+    return switch (kind) {
+      AppErrorKind.permissionDenied || AppErrorKind.contentUnavailable => null,
+      AppErrorKind.sessionExpired => l10n.errorActionSignIn,
+      AppErrorKind.navigationFailed => l10n.goHomeButton,
+      _ => l10n.retryButton,
     };
   }
 }

@@ -406,12 +406,6 @@ abstract class AppLocalizations {
   /// **'Sign in'**
   String get errorActionSignIn;
 
-  /// Copyable support reference shown only when Sentry returns an event ID for a reportable user-visible failure.
-  ///
-  /// In en, this message translates to:
-  /// **'Support reference: {reference}'**
-  String supportReferenceLabel(String reference);
-
   /// Label on the primary action button shown on a self-profile, opens the edit-profile flow.
   ///
   /// In en, this message translates to:

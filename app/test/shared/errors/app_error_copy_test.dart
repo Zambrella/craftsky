@@ -2,19 +2,18 @@ import 'dart:ui';
 
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
-import 'package:craftsky_app/shared/errors/app_error_presenter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('AppErrorPresenter', () {
+  group('AppError presentation', () {
     final l10n = lookupAppLocalizations(const Locale('en'));
 
     test('renders localized safe copy for every app error case', () {
       for (final kind in AppErrorKind.values) {
-        final message = AppErrorPresenter.message(l10n, AppError(kind));
+        final message = AppError(kind).message(l10n);
 
         expect(message, isNotEmpty, reason: kind.name);
-        expect(message, isNot(kind.metadata.localizationKey));
+        expect(message, isNot(kind.name));
       }
     });
 
@@ -33,48 +32,33 @@ void main() {
         '{"text"',
       ];
 
-      final message = AppErrorPresenter.message(
-        l10n,
-        const AppError(
-          AppErrorKind.initializationFailed,
-          safeDiagnostics: {
-            'raw': 'Exception: boot failed requestId=req_123 did:plc:alice',
-          },
-        ),
-      );
+      final message = const AppError(
+        AppErrorKind.initializationFailed,
+        safeDiagnostics: {
+          'raw': 'Exception: boot failed requestId=req_123 did:plc:alice',
+        },
+      ).message(l10n);
 
       for (final token in forbidden) {
         expect(message, isNot(contains(token)), reason: token);
       }
     });
 
-    test('renders localized action labels from action policy', () {
+    test('renders localized action labels from app error kind', () {
       expect(
-        AppErrorPresenter.actionLabel(
-          l10n,
-          const AppError(AppErrorKind.initializationFailed),
-        ),
+        const AppError(AppErrorKind.initializationFailed).actionLabel(l10n),
         l10n.retryButton,
       );
       expect(
-        AppErrorPresenter.actionLabel(
-          l10n,
-          const AppError(AppErrorKind.navigationFailed),
-        ),
+        const AppError(AppErrorKind.navigationFailed).actionLabel(l10n),
         l10n.goHomeButton,
       );
       expect(
-        AppErrorPresenter.actionLabel(
-          l10n,
-          const AppError(AppErrorKind.sessionExpired),
-        ),
+        const AppError(AppErrorKind.sessionExpired).actionLabel(l10n),
         l10n.errorActionSignIn,
       );
       expect(
-        AppErrorPresenter.actionLabel(
-          l10n,
-          const AppError(AppErrorKind.contentUnavailable),
-        ),
+        const AppError(AppErrorKind.contentUnavailable).actionLabel(l10n),
         isNull,
       );
     });

@@ -1,6 +1,6 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
-import 'package:craftsky_app/shared/errors/app_error_presenter.dart';
 import 'package:flutter/material.dart';
 
 class InitializationErrorScreen extends StatelessWidget {
@@ -19,7 +19,8 @@ class InitializationErrorScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final appError = AppErrorMapper.map(
       error,
-      source: AppErrorSource.initialization,
+      fallbackKind: AppErrorKind.initializationFailed,
+      source: 'initialization',
     );
     return Scaffold(
       body: Center(
@@ -40,7 +41,7 @@ class InitializationErrorScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                AppErrorPresenter.message(l10n, appError),
+                appError.message(l10n),
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium,
               ),

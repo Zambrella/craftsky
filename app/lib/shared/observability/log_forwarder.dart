@@ -15,18 +15,38 @@ final class LogForwarder {
         (record.level == Level.WARNING && promotedWarning);
     if (!shouldForward) return;
 
-    await _reporter.captureLog(
-      record,
-      context: ReportContext(
-        feature: record.loggerName,
-        operation: 'log',
-        classification: promotedWarning
-            ? 'log.warning.promoted'
-            : 'log.${record.level.name.toLowerCase()}',
-        severity: record.level.value >= Level.SEVERE.value
-            ? 'error'
-            : 'warning',
-      ),
+    final context = ReportContext(
+      feature: record.loggerName,
+      operation: 'log',
+      classification: promotedWarning
+          ? 'log.warning.promoted'
+          : 'log.${record.level.name.toLowerCase()}',
+      severity: record.level.value >= Level.SHOUT.value
+          ? 'fatal'
+          : record.level.value >= Level.SEVERE.value
+          ? 'error'
+          : 'warning',
     );
+
+    if (record.level.value >= Level.SEVERE.value &&
+        (record.error != null || record.stackTrace != null)) {
+      await _reporter.captureException(
+        record.error ?? _LogRecordException(record.message),
+        stackTrace: record.stackTrace,
+        context: context,
+      );
+      return;
+    }
+
+    await _reporter.captureMessage('App log', context: context);
   }
+}
+
+final class _LogRecordException implements Exception {
+  const _LogRecordException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'LogRecordException: $message';
 }

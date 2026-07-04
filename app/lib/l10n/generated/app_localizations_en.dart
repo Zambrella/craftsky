@@ -188,11 +188,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get errorActionSignIn => 'Sign in';
 
   @override
-  String supportReferenceLabel(String reference) {
-    return 'Support reference: $reference';
-  }
-
-  @override
   String get profileEditAction => 'Edit profile';
 
   @override

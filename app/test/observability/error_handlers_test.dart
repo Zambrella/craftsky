@@ -83,19 +83,19 @@ final class _RecordingReporter implements ErrorReporter {
   void addBreadcrumb(SafeBreadcrumb breadcrumb) {}
 
   @override
-  Future<ReportResult> captureException(
+  Future<String?> captureException(
     Object error, {
     required ReportContext context,
     StackTrace? stackTrace,
   }) async {
     errors.add(error);
     contexts.add(context);
-    return const ReportResult.captured();
+    return '0123456789abcdef0123456789abcdef';
   }
 
   @override
-  Future<void> captureLog(
-    LogRecord record, {
+  Future<void> captureMessage(
+    String message, {
     required ReportContext context,
   }) async {}
 }

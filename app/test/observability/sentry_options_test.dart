@@ -60,19 +60,5 @@ void main() {
       expect(config.release, 'craftsky@1.0.0+1');
       expect(config.dist, '1');
     });
-
-    test('keeps out-of-scope Sentry features disabled', () {
-      final options = SentryConfig.fromValues(
-        dsn: 'https://public@example.sentry.io/1',
-        environment: 'production',
-      ).options;
-
-      expect(options.sendDefaultPii, isFalse);
-      expect(options.enableLogs, isTrue);
-      expect(options.tracingEnabled, isFalse);
-      expect(options.profilingEnabled, isFalse);
-      expect(options.metricsEnabled, isFalse);
-      expect(options.sessionReplayEnabled, isFalse);
-    });
   });
 }

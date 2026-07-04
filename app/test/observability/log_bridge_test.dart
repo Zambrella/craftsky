@@ -21,9 +21,11 @@ void main() {
       );
       await forwarder.handle(LogRecord(Level.SHOUT, 'fatal', 'main'));
 
-      expect(reporter.records.map((r) => r.level), [Level.SEVERE, Level.SHOUT]);
+      expect(reporter.errors.single, isA<StateError>());
+      expect(reporter.messages, ['App log']);
       expect(reporter.contexts.first.feature, 'AuthController');
       expect(reporter.contexts.first.classification, 'log.severe');
+      expect(reporter.contexts.last.severity, 'fatal');
     });
 
     test('keeps ordinary warnings local unless promoted', () async {
@@ -31,14 +33,14 @@ void main() {
       final forwarder = LogForwarder(reporter);
 
       await forwarder.handle(LogRecord(Level.WARNING, 'warning', 'Profile'));
-      expect(reporter.records, isEmpty);
+      expect(reporter.messages, isEmpty);
 
       await forwarder.handle(
         LogRecord(Level.WARNING, 'warning', 'Profile'),
         promotedWarning: true,
       );
 
-      expect(reporter.records, hasLength(1));
+      expect(reporter.messages, ['App log']);
       expect(reporter.contexts.single.classification, 'log.warning.promoted');
     });
 
@@ -53,9 +55,8 @@ void main() {
       Logger('Profile').severe('profile failed', StateError('boom'), stack);
       await Future<void>.delayed(Duration.zero);
 
-      expect(reporter.records, hasLength(1));
-      expect(reporter.records.single.error, isA<StateError>());
-      expect(reporter.records.single.stackTrace, same(stack));
+      expect(reporter.errors.single, isA<StateError>());
+      expect(reporter.stacks.single, same(stack));
       expect(reporter.contexts.single.feature, 'Profile');
       expect(reporter.contexts.single.classification, 'log.severe');
     });
@@ -63,7 +64,9 @@ void main() {
 }
 
 final class _RecordingReporter implements ErrorReporter {
-  final records = <LogRecord>[];
+  final errors = <Object>[];
+  final stacks = <StackTrace?>[];
+  final messages = <String>[];
   final contexts = <ReportContext>[];
 
   @override
@@ -73,20 +76,23 @@ final class _RecordingReporter implements ErrorReporter {
   void addBreadcrumb(SafeBreadcrumb breadcrumb) {}
 
   @override
-  Future<ReportResult> captureException(
+  Future<String?> captureException(
     Object error, {
     required ReportContext context,
     StackTrace? stackTrace,
   }) async {
-    return const ReportResult.captured();
+    errors.add(error);
+    stacks.add(stackTrace);
+    contexts.add(context);
+    return '0123456789abcdef0123456789abcdef';
   }
 
   @override
-  Future<void> captureLog(
-    LogRecord record, {
+  Future<void> captureMessage(
+    String message, {
     required ReportContext context,
   }) async {
-    records.add(record);
+    messages.add(message);
     contexts.add(context);
   }
 }

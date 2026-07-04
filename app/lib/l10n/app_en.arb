@@ -175,12 +175,6 @@
   "errorActionSignIn": "Sign in",
   "@errorActionSignIn": { "description": "Action label shown when an error requires the user to sign in again." },
 
-  "supportReferenceLabel": "Support reference: {reference}",
-  "@supportReferenceLabel": {
-    "description": "Copyable support reference shown only when Sentry returns an event ID for a reportable user-visible failure.",
-    "placeholders": { "reference": { "type": "String", "example": "0123456789abcdef0123456789abcdef" } }
-  },
-
   "profileEditAction": "Edit profile",
   "@profileEditAction": { "description": "Label on the primary action button shown on a self-profile, opens the edit-profile flow." },
 
