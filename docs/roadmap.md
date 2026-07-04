@@ -49,7 +49,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Post detail / thread view
 - [x] Follow / unfollow interactions
 - [x] Notifications screen
-- [ ] Error-handling UX (how do we surface `error` codes from the envelope to users?)
+- [x] Error-handling UX (how do we surface `error` codes from the envelope to users?)
 - [x] Rich text — facets, mentions, links, hashtags
 - [ ] Quote posts
 - [ ] Profile settings screen — handle change, avatar upload, privacy controls
@@ -110,6 +110,7 @@ Scoped but not urgent. Ordered roughly by expected sequence, not strictly priori
 - [ ] **App-layer encryption** of `oauth_sessions.data` — OAuth BFF §6.
 - [ ] **Client-key rotation** that survives user sessions — OAuth BFF §6.
 - [ ] **standard.site** - Add support for https://standard.site/
+- [ ] **Error tracing** - Link together Flutter and AppView error reporting.
 
 ### Flutter app
 
