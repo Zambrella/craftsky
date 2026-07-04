@@ -1,10 +1,9 @@
 // Zed tasks for the Craftsky monorepo.
 //
-// The Flutter app lives under app/. Every Flutter task uses
-// `cwd: "$ZED_WORKTREE_ROOT/app"` because Zed's cwd default for tasks is
-// the current project root (which can differ from the repo root depending on
-// how the workspace is opened); anchoring to $ZED_WORKTREE_ROOT makes tasks
-// work regardless of which directory Zed's file tree starts at.
+// The Flutter app lives under app/. Tasks that call Flutter or Dart directly
+// use `cwd: "$ZED_WORKTREE_ROOT/app"`. Tasks that go through `just` use
+// `cwd: "$ZED_WORKTREE_ROOT"` so the shared repo-level recipes can inject the
+// same app config files used from the terminal.
 //
 // Docs: https://zed.dev/docs/tasks
 [
@@ -23,27 +22,20 @@
   },
   // ---------- Flutter run: per-device ----------
   //
-  // Each `flutter run` task injects CRAFTSKY_API_BASE_URL via --dart-define
-  // so the app knows where to reach the AppView in dev. Chrome / macOS /
-  // iOS simulator all resolve "localhost" to the host machine, so they use
-  // http://localhost:18080. The Android emulator task uses 10.0.2.2:18080
-  // because Android routes localhost to the emulator itself, not the host.
-  // (The in-code debug default — `http://10.0.2.2:18080` — still applies if
-  // a task runs without --dart-define; we set it explicitly so release
-  // builds launched from Zed don't throw `StateError`.)
+  // Flutter app config is passed with --dart-define-from-file through the
+  // matching `just app-run-*` recipes. Chrome / macOS / iOS simulator use
+  // app/config/local.env. Android uses app/config/local-android.env because
+  // Android routes localhost to the emulator itself, not the host.
   //
   // Port 18080 is the host-side mapping in docker-compose.yml; the
   // appview container itself listens on 8080 internally.
   {
     "label": "flutter run — Chrome",
-    "command": "flutter",
+    "command": "just",
     "args": [
-      "run",
-      "-d",
-      "chrome",
-      "--dart-define=CRAFTSKY_API_BASE_URL=http://localhost:18080"
+      "app-run-chrome"
     ],
-    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
     "reveal": "always",
@@ -53,12 +45,11 @@
   },
   {
     "label": "flutter run",
-    "command": "flutter",
+    "command": "just",
     "args": [
-      "run",
-      "--dart-define=CRAFTSKY_API_BASE_URL=http://localhost:18080"
+      "app-run"
     ],
-    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
     "reveal": "always",
@@ -68,14 +59,11 @@
   },
   {
     "label": "flutter run — macOS",
-    "command": "flutter",
+    "command": "just",
     "args": [
-      "run",
-      "-d",
-      "macos",
-      "--dart-define=CRAFTSKY_API_BASE_URL=http://localhost:18080"
+      "app-run-macos"
     ],
-    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
     "reveal": "always",
@@ -85,14 +73,11 @@
   },
   {
     "label": "flutter run — iOS simulator",
-    "command": "flutter",
+    "command": "just",
     "args": [
-      "run",
-      "-d",
-      "ios",
-      "--dart-define=CRAFTSKY_API_BASE_URL=http://localhost:18080"
+      "app-run-ios"
     ],
-    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
     "reveal": "always",
@@ -102,12 +87,11 @@
   },
   {
     "label": "flutter run — Android emulator",
-    "command": "flutter",
+    "command": "just",
     "args": [
-      "run",
-      "--dart-define=CRAFTSKY_API_BASE_URL=http://10.0.2.2:18080"
+      "app-run-android"
     ],
-    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
     "reveal": "always",
@@ -115,17 +99,15 @@
       "flutter-run"
     ]
   },
-  // Interactive device picker — Flutter prompts in the terminal.
-  // Defaults to the localhost base URL; swap to `10.0.2.2` if picking
-  // the Android emulator.
+  // Interactive device picker — Flutter prompts in the terminal. This uses
+  // local.env; use the Android emulator task for local-android.env.
   {
     "label": "flutter run — pick device",
-    "command": "flutter",
+    "command": "just",
     "args": [
-      "run",
-      "--dart-define=CRAFTSKY_API_BASE_URL=http://localhost:18080"
+      "app-run"
     ],
-    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
     "reveal": "always",
@@ -181,11 +163,11 @@
   // ---------- Quality gate ----------
   {
     "label": "flutter analyze",
-    "command": "flutter",
+    "command": "just",
     "args": [
-      "analyze"
+      "app-analyze"
     ],
-    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always",
     "tags": [
       "check"
@@ -220,11 +202,11 @@
   // ---------- Tests ----------
   {
     "label": "flutter test",
-    "command": "flutter",
+    "command": "just",
     "args": [
-      "test"
+      "app-test"
     ],
-    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always",
     "tags": [
       "test"
@@ -247,12 +229,11 @@
   // ---------- Builds ----------
   {
     "label": "flutter build web",
-    "command": "flutter",
+    "command": "just",
     "args": [
-      "build",
-      "web"
+      "app-build-web"
     ],
-    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always",
     "tags": [
       "build"
@@ -260,13 +241,11 @@
   },
   {
     "label": "flutter build ios — no codesign",
-    "command": "flutter",
+    "command": "just",
     "args": [
-      "build",
-      "ios",
-      "--no-codesign"
+      "app-build-ios"
     ],
-    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always",
     "tags": [
       "build"
@@ -274,12 +253,11 @@
   },
   {
     "label": "flutter build apk",
-    "command": "flutter",
+    "command": "just",
     "args": [
-      "build",
-      "apk"
+      "app-build-apk"
     ],
-    "cwd": "$ZED_WORKTREE_ROOT/app",
+    "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always",
     "tags": [
       "build"

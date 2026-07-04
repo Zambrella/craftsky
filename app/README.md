@@ -35,15 +35,40 @@ Native bundle IDs are rooted at `social.craftsky` (reverse of `craftsky.social`)
 ### Base URL
 
 The app talks to the AppView via `CRAFTSKY_API_BASE_URL`. In debug builds the
-default is `http://10.0.2.2:8080` (Android emulator → host). iOS simulator
-runs need an override:
+default is `http://10.0.2.2:18080` (Android emulator → host). Chrome, macOS,
+and iOS simulator runs use `localhost` instead.
+
+Initialize local app config once:
 
 ```bash
-flutter run --dart-define=CRAFTSKY_API_BASE_URL=http://localhost:8080
+just app-env-init
 ```
 
-Release builds **require** `--dart-define`; the app throws on first API call
-if it's missing.
+Then run from the repo root:
+
+```bash
+just app-run-ios
+just app-run-android
+just app-run-chrome
+```
+
+Under the hood these recipes call Flutter with
+`--dart-define-from-file=app/config/<env>.env`. Release builds **require** a
+config file with `CRAFTSKY_API_BASE_URL`; the app throws on first API call if
+it's missing.
+
+Sentry runtime config uses the same files:
+
+```env
+SENTRY_DSN=
+SENTRY_ENVIRONMENT=development
+SENTRY_RELEASE=
+SENTRY_DIST=
+SENTRY_LOCAL_OPT_IN=false
+```
+
+Keep Sentry upload credentials (`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`,
+`SENTRY_PROJECT`) in CI secrets or your shell environment, not in app config.
 
 ## Deep links
 

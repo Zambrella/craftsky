@@ -7,6 +7,8 @@ appview/tmp/
 # Env
 .env
 .env.local
+app/config/*.env
+!app/config/*.env.example
 
 # Dev-only media fixtures stay local; the directory README remains tracked.
 appview/devmedia/*
