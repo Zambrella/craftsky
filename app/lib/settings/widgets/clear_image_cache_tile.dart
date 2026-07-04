@@ -1,3 +1,6 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
+import 'package:craftsky_app/shared/errors/app_error_presenter.dart';
 import 'package:craftsky_app/shared/image/clear_image_cache_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +13,7 @@ class ClearImageCacheTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final state = ref.watch(clearImageCacheProvider);
 
     ref.listen(clearImageCacheProvider, (prev, next) {
@@ -17,7 +21,11 @@ class ClearImageCacheTile extends ConsumerWidget {
         case (AsyncLoading(), AsyncData()):
           context.showInfo('Image cache cleared');
         case (AsyncLoading(), AsyncError(:final error)):
-          context.showError('Could not clear cache: $error');
+          final appError = AppErrorMapper.map(
+            error,
+            source: AppErrorSource.action,
+          );
+          context.showError(AppErrorPresenter.message(l10n, appError));
         case _:
           break;
       }

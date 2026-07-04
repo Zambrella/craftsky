@@ -43,6 +43,9 @@ import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
+import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
+import 'package:craftsky_app/shared/errors/reportability_classifier.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -58,8 +61,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 final _log = Logger('bootstrap');
 
+Duration? appProviderRetry(int retryCount, Object error) => null;
+
 final class ProviderLogger extends ProviderObserver {
-  const ProviderLogger();
+  const ProviderLogger({this.reporter = const NoopErrorReporter()});
+
+  final ErrorReporter reporter;
 
   static final _log = Logger('ProviderLogger');
 
@@ -91,7 +98,38 @@ final class ProviderLogger extends ProviderObserver {
       error,
       stackTrace,
     );
+
+    final appError = AppErrorMapper.map(
+      error,
+      source: AppErrorSource.provider,
+    );
+    if (!ReportabilityClassifier.shouldReport(appError)) return;
+
+    final providerName = _providerFeature(context.provider.name);
+    unawaited(
+      reporter.captureException(
+        error,
+        stackTrace: stackTrace,
+        context: ReportContext(
+          feature: providerName,
+          operation: 'provider',
+          classification: appError.sentryClassification,
+          severity: appError.metadata.severity.name,
+          safeDiagnostics: {
+            ...appError.safeDiagnostics,
+            'appErrorKind': appError.kind.name,
+            'feature': providerName,
+            'classification': appError.sentryClassification,
+          },
+        ),
+      ),
+    );
   }
+}
+
+String _providerFeature(String? name) {
+  if (name == null || name.isEmpty) return 'riverpod.provider';
+  return name;
 }
 
 String _formatProviderValue(Object provider, Object? value) {
@@ -139,7 +177,10 @@ String _formatDataValue(Object provider, Object? value) {
 ///
 /// IMPORTANT: must never throw in production. Anything that *can* fail
 /// belongs in `appDependenciesProvider`, which has loading/error UI.
-Future<void> bootstrap(WidgetsBinding widgetsBinding) async {
+Future<void> bootstrap(
+  WidgetsBinding widgetsBinding, {
+  ErrorReporter reporter = const NoopErrorReporter(),
+}) async {
   _log.fine('bootstrap starting');
 
   // Web: path URL strategy (no `#` in URLs).
@@ -148,7 +189,11 @@ Future<void> bootstrap(WidgetsBinding widgetsBinding) async {
   if (kIsWeb) {
     _log.fine('web detected, skipping native init');
     runApp(
-      const ProviderScope(observers: [ProviderLogger()], child: App()),
+      ProviderScope(
+        observers: [ProviderLogger(reporter: reporter)],
+        retry: appProviderRetry,
+        child: const App(),
+      ),
     );
     return;
   }
@@ -185,7 +230,10 @@ Future<void> bootstrap(WidgetsBinding widgetsBinding) async {
   // authenticated routes; if the provider hasn't resolved by the time
   // the session Dio fires its first request, the server 400s. The
   // eager await here guarantees the future is hot before runApp.
-  final probe = ProviderContainer(observers: const [ProviderLogger()]);
+  final probe = ProviderContainer(
+    observers: [ProviderLogger(reporter: reporter)],
+    retry: appProviderRetry,
+  );
   try {
     probe.read(dioProvider);
     await probe.read(deviceIdProvider.future);
@@ -196,7 +244,11 @@ Future<void> bootstrap(WidgetsBinding widgetsBinding) async {
   _log.fine('bootstrap complete');
 
   runApp(
-    const ProviderScope(observers: [ProviderLogger()], child: App()),
+    ProviderScope(
+      observers: [ProviderLogger(reporter: reporter)],
+      retry: appProviderRetry,
+      child: const App(),
+    ),
   );
 }
 

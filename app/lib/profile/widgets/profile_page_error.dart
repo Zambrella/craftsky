@@ -1,4 +1,6 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
+import 'package:craftsky_app/shared/errors/app_error_presenter.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +22,10 @@ class ProfilePageError extends StatelessWidget {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
+    final appError = AppErrorMapper.map(
+      error,
+      source: AppErrorSource.backgroundLoad,
+    );
     return Center(
       child: Padding(
         padding: EdgeInsets.all(spacing.sp6),
@@ -33,7 +39,7 @@ class ProfilePageError extends StatelessWidget {
             ),
             SizedBox(height: spacing.sp2),
             Text(
-              '$error',
+              AppErrorPresenter.message(l10n, appError),
               // `outline` carries the brand's ink3 (tertiary text) per
               // the ColorScheme override in app_theme.dart.
               style: theme.textTheme.bodySmall?.copyWith(

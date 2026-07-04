@@ -1,3 +1,4 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:craftsky_app/settings/widgets/clear_image_cache_tile.dart';
 import 'package:craftsky_app/settings/widgets/sign_out_tile.dart';
@@ -10,7 +11,13 @@ void main() {
     'SettingsPage renders title, ClearImageCacheTile, and SignOutTile',
     (tester) async {
       await tester.pumpWidget(
-        const ProviderScope(child: MaterialApp(home: SettingsPage())),
+        const ProviderScope(
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: SettingsPage(),
+          ),
+        ),
       );
       expect(find.text('Settings'), findsWidgets);
       expect(find.text('Followers'), findsOneWidget);

@@ -108,6 +108,20 @@ void main() {
       expect(find.text('No projects yet.'), findsOneWidget);
     });
 
+    testWidgets('shows safe copy when projects fail to load', (tester) async {
+      final repo = FakePostRepository(
+        onListProjectsByAuthor: (_, {cursor, limit}) async =>
+            throw StateError('project query failed for did:plc:alice'),
+      );
+
+      await _pump(tester, repo: repo);
+      await tester.pumpAndSettle();
+
+      expect(find.text("This didn't load. Please try again."), findsOneWidget);
+      expect(find.textContaining('project query failed'), findsNothing);
+      expect(find.textContaining('did:plc:alice'), findsNothing);
+    });
+
     testWidgets('scrolling near the end appends the next page', (tester) async {
       final calls = <({String? cursor, int? limit})>[];
       final repo = FakePostRepository(

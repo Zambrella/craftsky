@@ -109,6 +109,7 @@ Scoped but not urgent. Ordered roughly by expected sequence, not strictly priori
 - [ ] **Sweeper process** for revoked Craftsky sessions — replaces lazy cleanup at scale.
 - [ ] **App-layer encryption** of `oauth_sessions.data` — OAuth BFF §6.
 - [ ] **Client-key rotation** that survives user sessions — OAuth BFF §6.
+- [ ] **standard.site** - Add support for https://standard.site/
 
 ### Flutter app
 

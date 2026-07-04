@@ -160,6 +160,36 @@ void main() {
       expect(find.textContaining('raw unsafe reason fixture'), findsNothing);
     });
 
+    testWidgets('profile load failure hides raw exception diagnostics', (
+      tester,
+    ) async {
+      final repo = FakeProfileRepository(
+        onFetch: (_) async =>
+            throw StateError('profile fetch failed for did:plc:alice'),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProfilePage(handle: 'alice.bsky.social'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text("This didn't load. Please try again."), findsOneWidget);
+      expect(find.textContaining('profile fetch failed'), findsNothing);
+      expect(find.textContaining('did:plc:alice'), findsNothing);
+    });
+
     testWidgets('visitor profile report action submits through report sheet', (
       tester,
     ) async {

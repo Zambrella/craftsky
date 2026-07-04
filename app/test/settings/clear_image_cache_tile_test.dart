@@ -1,3 +1,4 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/settings/widgets/clear_image_cache_tile.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -34,6 +35,8 @@ Future<_PumpResult> _pump(
       child: MessengerScope(
         messenger: messenger,
         child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: ClearImageCacheTile()),
         ),
       ),
@@ -79,7 +82,8 @@ void main() {
 
       expect(h.messenger.calls.length, 1);
       expect(h.messenger.calls.first.$1, 'error');
-      expect(h.messenger.calls.first.$2, contains('Could not clear cache'));
+      expect(h.messenger.calls.first.$2, "That didn't work. Please try again.");
+      expect(h.messenger.calls.first.$2, isNot(contains('disk full')));
     });
   });
 }

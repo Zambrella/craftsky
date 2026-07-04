@@ -1,6 +1,8 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_post_feed_slivers.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
+import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
+import 'package:craftsky_app/shared/errors/app_error_presenter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -35,7 +37,10 @@ class ProfileProjectsTab extends ConsumerWidget {
             ref.read(userProjectsProvider(handle).notifier).replace(post),
       ),
       AsyncError(:final error) => ProfileTabErrorSliver(
-        message: error.toString(),
+        message: AppErrorPresenter.message(
+          l10n,
+          AppErrorMapper.map(error, source: AppErrorSource.backgroundLoad),
+        ),
         onRetry: () => ref.invalidate(userProjectsProvider(handle)),
       ),
       _ => const ProfileTabLoadingSliver(),

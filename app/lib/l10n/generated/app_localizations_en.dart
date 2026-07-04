@@ -147,6 +147,52 @@ class AppLocalizationsEn extends AppLocalizations {
   String get goHomeButton => 'Go home';
 
   @override
+  String get errorNetworkUnavailable =>
+      'You\'re offline. Check your connection and try again.';
+
+  @override
+  String get errorServiceUnavailable =>
+      'Craftsky is having trouble right now. Please try again.';
+
+  @override
+  String get errorSessionExpired => 'Please sign in again.';
+
+  @override
+  String get errorPermissionDenied => 'You don\'t have permission to do that.';
+
+  @override
+  String get errorContentUnavailable => 'That content is no longer available.';
+
+  @override
+  String get errorStorageUnavailable =>
+      'Craftsky couldn\'t access secure storage. Please try again.';
+
+  @override
+  String get errorInitializationFailed =>
+      'Craftsky couldn\'t finish starting. Please try again.';
+
+  @override
+  String get errorNavigationFailed => 'That page couldn\'t be opened.';
+
+  @override
+  String get errorActionFailed => 'That didn\'t work. Please try again.';
+
+  @override
+  String get errorBackgroundLoadFailed =>
+      'This didn\'t load. Please try again.';
+
+  @override
+  String get errorUnexpected => 'Something went wrong. Please try again.';
+
+  @override
+  String get errorActionSignIn => 'Sign in';
+
+  @override
+  String supportReferenceLabel(String reference) {
+    return 'Support reference: $reference';
+  }
+
+  @override
   String get profileEditAction => 'Edit profile';
 
   @override

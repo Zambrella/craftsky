@@ -334,6 +334,84 @@ abstract class AppLocalizations {
   /// **'Go home'**
   String get goHomeButton;
 
+  /// Safe generic error message shown when the app cannot reach the network.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re offline. Check your connection and try again.'**
+  String get errorNetworkUnavailable;
+
+  /// Safe generic error message shown when the Craftsky service is unavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Craftsky is having trouble right now. Please try again.'**
+  String get errorServiceUnavailable;
+
+  /// Safe generic error message shown when the user's session is no longer valid.
+  ///
+  /// In en, this message translates to:
+  /// **'Please sign in again.'**
+  String get errorSessionExpired;
+
+  /// Safe generic error message shown when the user cannot access an action or resource.
+  ///
+  /// In en, this message translates to:
+  /// **'You don\'t have permission to do that.'**
+  String get errorPermissionDenied;
+
+  /// Safe generic error message shown when a post, project, profile, or other content cannot be found.
+  ///
+  /// In en, this message translates to:
+  /// **'That content is no longer available.'**
+  String get errorContentUnavailable;
+
+  /// Safe generic error message shown when local secure storage cannot be read or written.
+  ///
+  /// In en, this message translates to:
+  /// **'Craftsky couldn\'t access secure storage. Please try again.'**
+  String get errorStorageUnavailable;
+
+  /// Safe generic error message shown on the initialization error screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Craftsky couldn\'t finish starting. Please try again.'**
+  String get errorInitializationFailed;
+
+  /// Safe generic error message shown on the routing error screen.
+  ///
+  /// In en, this message translates to:
+  /// **'That page couldn\'t be opened.'**
+  String get errorNavigationFailed;
+
+  /// Safe generic error message shown when a user action fails.
+  ///
+  /// In en, this message translates to:
+  /// **'That didn\'t work. Please try again.'**
+  String get errorActionFailed;
+
+  /// Safe generic error message shown for inline background-load failures.
+  ///
+  /// In en, this message translates to:
+  /// **'This didn\'t load. Please try again.'**
+  String get errorBackgroundLoadFailed;
+
+  /// Safe generic fallback error message for unexpected failures.
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong. Please try again.'**
+  String get errorUnexpected;
+
+  /// Action label shown when an error requires the user to sign in again.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in'**
+  String get errorActionSignIn;
+
+  /// Copyable support reference shown only when Sentry returns an event ID for a reportable user-visible failure.
+  ///
+  /// In en, this message translates to:
+  /// **'Support reference: {reference}'**
+  String supportReferenceLabel(String reference);
+
   /// Label on the primary action button shown on a self-profile, opens the edit-profile flow.
   ///
   /// In en, this message translates to:
