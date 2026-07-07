@@ -101,3 +101,62 @@ lexgen:
 # Wire into CI when CI exists.
 lexgen-check: lexgen
     git diff --exit-code appview/internal/lexicon/craftsky appview/cmd/lexgen
+
+# Create ignored local Flutter config files from committed examples.
+app-env-init:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for name in local local-android; do
+      target="app/config/${name}.env"
+      example="app/config/${name}.env.example"
+      if [[ ! -f "$target" ]]; then
+        cp "$example" "$target"
+        echo "Created $target"
+      fi
+    done
+
+# Run the Flutter app with local config and Flutter's interactive device picker.
+app-run *ARGS: app-env-init
+    cd app && flutter run --dart-define-from-file=config/local.env {{ARGS}}
+
+app-run-chrome: app-env-init
+    cd app && flutter run -d chrome --dart-define-from-file=config/local.env
+
+app-run-macos: app-env-init
+    cd app && flutter run -d macos --dart-define-from-file=config/local.env
+
+app-run-ios: app-env-init
+    cd app && flutter run -d ios --dart-define-from-file=config/local.env
+
+app-run-android: app-env-init
+    cd app && flutter run --dart-define-from-file=config/local-android.env
+
+app-analyze:
+    cd app && flutter analyze
+
+app-test *ARGS:
+    cd app && flutter test {{ARGS}}
+
+app-build-web ENV="production":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    config="config/{{ENV}}.env"
+    test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
+    cd app
+    flutter build web --dart-define-from-file="$config"
+
+app-build-ios ENV="production":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    config="config/{{ENV}}.env"
+    test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
+    cd app
+    flutter build ios --no-codesign --dart-define-from-file="$config"
+
+app-build-apk ENV="production":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    config="config/{{ENV}}.env"
+    test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
+    cd app
+    flutter build apk --dart-define-from-file="$config"

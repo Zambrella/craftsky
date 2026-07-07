@@ -139,6 +139,42 @@
   "goHomeButton": "Go home",
   "@goHomeButton": { "description": "Button label on routing ErrorScreen returning to HomeRoute." },
 
+  "errorNetworkUnavailable": "You're offline. Check your connection and try again.",
+  "@errorNetworkUnavailable": { "description": "Safe generic error message shown when the app cannot reach the network." },
+
+  "errorServiceUnavailable": "Craftsky is having trouble right now. Please try again.",
+  "@errorServiceUnavailable": { "description": "Safe generic error message shown when the Craftsky service is unavailable." },
+
+  "errorSessionExpired": "Please sign in again.",
+  "@errorSessionExpired": { "description": "Safe generic error message shown when the user's session is no longer valid." },
+
+  "errorPermissionDenied": "You don't have permission to do that.",
+  "@errorPermissionDenied": { "description": "Safe generic error message shown when the user cannot access an action or resource." },
+
+  "errorContentUnavailable": "That content is no longer available.",
+  "@errorContentUnavailable": { "description": "Safe generic error message shown when a post, project, profile, or other content cannot be found." },
+
+  "errorStorageUnavailable": "Craftsky couldn't access secure storage. Please try again.",
+  "@errorStorageUnavailable": { "description": "Safe generic error message shown when local secure storage cannot be read or written." },
+
+  "errorInitializationFailed": "Craftsky couldn't finish starting. Please try again.",
+  "@errorInitializationFailed": { "description": "Safe generic error message shown on the initialization error screen." },
+
+  "errorNavigationFailed": "That page couldn't be opened.",
+  "@errorNavigationFailed": { "description": "Safe generic error message shown on the routing error screen." },
+
+  "errorActionFailed": "That didn't work. Please try again.",
+  "@errorActionFailed": { "description": "Safe generic error message shown when a user action fails." },
+
+  "errorBackgroundLoadFailed": "This didn't load. Please try again.",
+  "@errorBackgroundLoadFailed": { "description": "Safe generic error message shown for inline background-load failures." },
+
+  "errorUnexpected": "Something went wrong. Please try again.",
+  "@errorUnexpected": { "description": "Safe generic fallback error message for unexpected failures." },
+
+  "errorActionSignIn": "Sign in",
+  "@errorActionSignIn": { "description": "Action label shown when an error requires the user to sign in again." },
+
   "profileEditAction": "Edit profile",
   "@profileEditAction": { "description": "Label on the primary action button shown on a self-profile, opens the edit-profile flow." },
 

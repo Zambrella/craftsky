@@ -38,6 +38,7 @@ dependencies:
   pinch_zoom: ^2.0.1
   pub_semver: ^2.2.0
   riverpod_annotation: ^4.0.2
+  sentry_flutter: ^9.23.0
   shared_preferences: ^2.5.4
   smooth_page_indicator: ^2.0.1
   timeago: ^3.7.1
@@ -54,6 +55,7 @@ dev_dependencies:
   path_provider_platform_interface: ^2.1.2
   plugin_platform_interface: ^2.1.8
   riverpod_generator: ^4.0.3
+  sentry_dart_plugin: ^3.4.0
   sqflite: ^2.4.2
   very_good_analysis: ^10.2.0
 
@@ -64,3 +66,8 @@ flutter:
     - assets/design/paper-grain.svg
     - assets/design/logo/
     - assets/design/icons/
+
+sentry:
+  upload_debug_symbols: true
+  upload_source_maps: true
+  upload_sources: true

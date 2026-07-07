@@ -75,20 +75,23 @@ class _ProfileScaffold extends ConsumerWidget {
     // across users.
     final bannerColor = swatches.clay;
 
-    return Scaffold(
-      body: switch (profileAsync) {
-        AsyncValue(:final value?) => _ProfileBody(
+    return switch (profileAsync) {
+      AsyncValue(:final value?) => Scaffold(
+        body: _ProfileBody(
           profile: value,
           isOwnProfile: isOwnProfile,
           bannerColor: bannerColor,
         ),
-        AsyncError(:final error) => ProfilePageError(
+      ),
+      AsyncError(:final error) => Scaffold(
+        appBar: Navigator.of(context).canPop() ? AppBar() : null,
+        body: ProfilePageError(
           error: error,
           onRetry: () => ref.invalidate(userProfileProvider(handle)),
         ),
-        _ => const Center(child: StitchProgressIndicator()),
-      },
-    );
+      ),
+      _ => const Scaffold(body: Center(child: StitchProgressIndicator())),
+    };
   }
 }
 
