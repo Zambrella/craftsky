@@ -748,6 +748,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postUnrepostAction => 'Unrepost';
 
   @override
+  String get postQuoteAction => 'Quote';
+
+  @override
+  String get postShareAction => 'Share';
+
+  @override
+  String postRepostedBy(String name) {
+    return 'Reposted by $name';
+  }
+
+  @override
+  String get postQuoteHidden => 'Quoted post hidden';
+
+  @override
+  String get postQuoteUnavailable => 'Quoted post unavailable';
+
+  @override
   String get postDeleteAction => 'Delete post';
 
   @override

@@ -136,6 +136,9 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
                 onRepost: () => ref
                     .read(toggleRepostPostProvider.notifier)
                     .toggle(post: post),
+                onQuote: () => unawaited(
+                  showPostComposerSheet(context, quoteTarget: post),
+                ),
                 onDelete: isOwnProfile
                     ? () => _confirmDelete(context, ref, post)
                     : null,

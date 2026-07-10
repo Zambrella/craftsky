@@ -5,6 +5,7 @@ import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/projects/models/project.dart';
@@ -20,6 +21,7 @@ class ApiPostRepository implements PostRepository {
   Future<Post> create({
     required String text,
     PostReply? reply,
+    PostRef? quote,
     Project? project,
     List<CreatePostImage>? images,
     List<Map<String, dynamic>>? facets,
@@ -28,9 +30,18 @@ class ApiPostRepository implements PostRepository {
       project == null || reply == null,
       'Project posts cannot be replies',
     );
+    assert(
+      quote == null || reply == null,
+      'Quote posts cannot be replies',
+    );
+    assert(
+      quote == null || project == null,
+      'Project posts cannot be quote posts',
+    );
     return _api.createPost(
       text: text,
       reply: reply,
+      quote: quote,
       project: project,
       images: images,
       facets: facets,
@@ -105,7 +116,7 @@ class ApiPostRepository implements PostRepository {
   }) => _api.listProjectsByAuthor(handleOrDid, cursor: cursor, limit: limit);
 
   @override
-  Future<PostPage> listTimeline({String? cursor, int? limit}) =>
+  Future<TimelinePage> listTimeline({String? cursor, int? limit}) =>
       _api.listTimeline(cursor: cursor, limit: limit);
 
   @override

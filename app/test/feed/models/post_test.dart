@@ -24,6 +24,7 @@ void main() {
         'tags': ['knitting'],
         'likeCount': 7,
         'repostCount': 2,
+        'quoteCount': 0,
         'replyCount': 4,
         'viewerHasLiked': true,
         'viewerHasReposted': false,
@@ -100,6 +101,7 @@ void main() {
         'tags': <String>[],
         'likeCount': 0,
         'repostCount': 0,
+        'quoteCount': 0,
         'replyCount': 0,
         'viewerHasLiked': false,
         'viewerHasReposted': false,
@@ -121,6 +123,89 @@ void main() {
       expect(post.toMap(), json);
     });
 
+    test('UT-006 decodes quote count and compact quote preview', () {
+      final json = {
+        'uri': 'at://did:plc:bob/social.craftsky.feed.post/quote',
+        'cid': 'bafyquote',
+        'rkey': 'quote',
+        'text': 'This is useful context.',
+        'tags': <String>[],
+        'likeCount': 0,
+        'repostCount': 2,
+        'quoteCount': 3,
+        'replyCount': 0,
+        'viewerHasLiked': false,
+        'viewerHasReposted': false,
+        'viewerHasReplied': false,
+        'quote': {
+          'uri': 'at://did:plc:carol/social.craftsky.feed.post/root',
+          'cid': 'bafyroot',
+        },
+        'quoteView': {
+          'state': 'visible',
+          'post': {
+            'uri': 'at://did:plc:carol/social.craftsky.feed.post/root',
+            'cid': 'bafyroot',
+            'text': 'Original post',
+            'createdAt': '2026-05-04T18:20:00.000Z',
+            'author': {
+              'did': 'did:plc:carol',
+              'handle': 'carol.craftsky.social',
+              'displayName': 'Carol',
+            },
+            'images': [
+              {
+                'cid': 'bafkpreview',
+                'mime': 'image/jpeg',
+                'size': 42,
+                'alt': 'Preview image',
+              },
+            ],
+          },
+        },
+        'createdAt': '2026-05-04T18:23:45.000Z',
+        'indexedAt': '2026-05-04T18:23:47.000Z',
+        'author': {'did': 'did:plc:bob', 'handle': 'bob.craftsky.social'},
+      };
+
+      final post = PostMapper.fromMap(json);
+
+      expect(post.quoteCount, 3);
+      expect(post.quoteView?.state, 'visible');
+      expect(
+        post.quoteView?.post?.uri,
+        'at://did:plc:carol/social.craftsky.feed.post/root',
+      );
+      expect(post.quoteView?.post?.author.handle, 'carol.craftsky.social');
+      expect(post.quoteView?.post?.images, hasLength(1));
+      expect(post.toMap(), json);
+    });
+
+    test('UT-006 defaults absent quote count and quote view', () {
+      final json = {
+        'uri': 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
+        'cid': 'bafy123',
+        'rkey': '3lf2abc',
+        'text': 'hello',
+        'tags': <String>[],
+        'likeCount': 0,
+        'repostCount': 0,
+        'quoteCount': 0,
+        'replyCount': 0,
+        'viewerHasLiked': false,
+        'viewerHasReposted': false,
+        'viewerHasReplied': false,
+        'createdAt': '2026-05-04T18:23:45.000Z',
+        'indexedAt': '2026-05-04T18:23:47.000Z',
+        'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
+      };
+
+      final post = PostMapper.fromMap(json);
+
+      expect(post.quoteCount, 0);
+      expect(post.quoteView, isNull);
+    });
+
     test('UT-008 exposes optional project metadata for project posts', () {
       final json = {
         'uri': 'at://did:plc:alice/social.craftsky.feed.post/3lf2project',
@@ -130,6 +215,7 @@ void main() {
         'tags': <String>[],
         'likeCount': 0,
         'repostCount': 0,
+        'quoteCount': 0,
         'replyCount': 0,
         'viewerHasLiked': false,
         'viewerHasReposted': false,
@@ -166,6 +252,7 @@ void main() {
         'tags': <String>[],
         'likeCount': 0,
         'repostCount': 0,
+        'quoteCount': 0,
         'replyCount': 0,
         'viewerHasLiked': false,
         'viewerHasReposted': false,

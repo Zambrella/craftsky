@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -52,10 +53,10 @@ func seedQuotePost(t *testing.T, pool *pgxpool.Pool, did, rkey, text, quoteURI, 
 	return uri
 }
 
-func timelineURIs(rows []*api.PostRow) []string {
-	out := make([]string, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, row.URI)
+func timelineURIs(items []*api.TimelineFeedItemRow) []string {
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		out = append(out, item.Post.URI)
 	}
 	return out
 }
@@ -130,6 +131,38 @@ func TestTimelineStore_ListTimeline_FiltersHiddenPostsAndAuthors(t *testing.T) {
 	}
 }
 
+func TestTimelineStore_ListTimeline_OmitsRepostsOfHiddenSubjects(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	base := time.Date(2026, 5, 28, 12, 15, 0, 0, time.UTC)
+
+	for _, did := range []string{"did:plc:viewer", "did:plc:bob", "did:plc:carol"} {
+		seedMember(t, pool, did)
+	}
+	seedFollow(t, pool, "did:plc:viewer", "did:plc:bob", "follow-bob")
+	hiddenSubject := seedPost(t, pool, "did:plc:carol", "hidden", "hidden subject", base)
+	visibleSubject := seedPost(t, pool, "did:plc:carol", "visible", "visible subject", base.Add(time.Minute))
+	hiddenRepost := seedInteraction(t, pool, "repost", "did:plc:bob", "hidden-repost", hiddenSubject, false)
+	visibleRepost := seedInteraction(t, pool, "repost", "did:plc:bob", "visible-repost", visibleSubject, false)
+	seedModerationOutput(t, pool, "post", "did:plc:carol", hiddenSubject, "hide", base.Add(2*time.Minute))
+
+	store := api.NewPostStore(pool)
+	items, _, err := store.ListTimeline(context.Background(), "did:plc:viewer", 20, "")
+	if err != nil {
+		t.Fatalf("ListTimeline: %v", err)
+	}
+	gotKeys := make([]string, 0, len(items))
+	for _, item := range items {
+		gotKeys = append(gotKeys, item.ItemKey)
+	}
+	if slices.Contains(gotKeys, "repost:"+hiddenRepost) {
+		t.Fatalf("timeline item keys = %v, leaked hidden subject repost %s", gotKeys, hiddenRepost)
+	}
+	if !slices.Contains(gotKeys, "repost:"+visibleRepost) {
+		t.Fatalf("timeline item keys = %v, want visible subject repost %s", gotKeys, visibleRepost)
+	}
+}
+
 func TestTimelineStore_ListTimeline_FiltersBeforeLimitForDeterministicPagination(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, timelineStoreDDL)
@@ -168,36 +201,64 @@ func TestTimelineStore_ListTimeline_FiltersBeforeLimitForDeterministicPagination
 	}
 }
 
-func TestTimelineStore_ListTimeline_ExcludesConversationAndRepostActivity(t *testing.T) {
+func TestTimelineStore_ListTimeline_IncludesFollowedRepostActivityWithReasonAndExcludesReplies(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, timelineStoreDDL)
 	base := time.Date(2026, 5, 28, 13, 0, 0, 0, time.UTC)
 
 	seedMember(t, pool, "did:plc:viewer")
-	seedMember(t, pool, "did:plc:alice")
-	seedFollow(t, pool, "did:plc:viewer", "did:plc:alice", "follow-alice")
+	seedMember(t, pool, "did:plc:bob")
+	seedMember(t, pool, "did:plc:carol")
+	seedBskyProfile(t, pool, "did:plc:bob", "Bob", "bafybob")
+	seedFollow(t, pool, "did:plc:viewer", "did:plc:bob", "follow-bob")
 
-	root := seedPost(t, pool, "did:plc:alice", "root", "root post", base.Add(5*time.Minute))
-	quote := seedQuotePost(t, pool, "did:plc:alice", "quote", "quote post", root, "bafyroot", base.Add(4*time.Minute))
-	comment := seedReplyPost(t, pool, "did:plc:alice", "comment", "comment", root, root, base.Add(3*time.Minute))
-	reply := seedReplyPost(t, pool, "did:plc:alice", "reply", "nested reply", root, comment, base.Add(2*time.Minute))
-	repost := seedInteraction(t, pool, "repost", "did:plc:alice", "repost-root", root, false)
+	root := seedPost(t, pool, "did:plc:carol", "root", "root post", base.Add(2*time.Minute))
+	quote := seedQuotePost(t, pool, "did:plc:bob", "quote", "quote post", root, "bafyroot", base.Add(4*time.Minute))
+	comment := seedReplyPost(t, pool, "did:plc:bob", "comment", "comment", root, root, base.Add(3*time.Minute))
+	reply := seedReplyPost(t, pool, "did:plc:bob", "reply", "nested reply", root, comment, base.Add(time.Minute))
+	repost := seedInteraction(t, pool, "repost", "did:plc:bob", "repost-root", root, false)
+	repostAt := base.Add(5 * time.Minute)
+	if _, err := pool.Exec(context.Background(), `UPDATE craftsky_reposts SET created_at = $1, indexed_at = $1 WHERE uri = $2`, repostAt, repost); err != nil {
+		t.Fatalf("update repost time: %v", err)
+	}
 
 	store := api.NewPostStore(pool)
-	rows, _, err := store.ListTimeline(context.Background(), "did:plc:viewer", 20, "")
+	items, _, err := store.ListTimeline(context.Background(), "did:plc:viewer", 20, "")
 	if err != nil {
 		t.Fatalf("ListTimeline: %v", err)
 	}
-	got := timelineURIs(rows)
+	got := timelineURIs(items)
 	for _, want := range []string{root, quote} {
 		if !slices.Contains(got, want) {
 			t.Fatalf("timeline URIs = %v, want containing %s", got, want)
 		}
 	}
-	for _, excluded := range []string{comment, reply, repost} {
+	for _, excluded := range []string{comment, reply} {
 		if slices.Contains(got, excluded) {
 			t.Fatalf("timeline URIs = %v, must not contain conversation/repost activity %s", got, excluded)
 		}
+	}
+	if len(items) == 0 || items[0].ItemKind != "repost" {
+		t.Fatalf("first item = %+v, want repost item", items)
+	}
+	repostItem := items[0]
+	if repostItem.ItemKey != "repost:"+repost {
+		t.Fatalf("repost item key = %q, want %q", repostItem.ItemKey, "repost:"+repost)
+	}
+	if repostItem.Post == nil || repostItem.Post.URI != root {
+		t.Fatalf("repost item post = %+v, want original %s", repostItem.Post, root)
+	}
+	if repostItem.Repost == nil {
+		t.Fatal("repost item reason = nil, want reposter metadata")
+	}
+	if repostItem.Repost.URI != repost || repostItem.Repost.DID != "did:plc:bob" || repostItem.Repost.CID != "bafyrepost-root" {
+		t.Fatalf("repost reason = %+v, want Bob repost identity", repostItem.Repost)
+	}
+	if repostItem.Repost.AuthorDisplayName == nil || *repostItem.Repost.AuthorDisplayName != "Bob" {
+		t.Fatalf("repost reason displayName = %v, want Bob", repostItem.Repost.AuthorDisplayName)
+	}
+	if !repostItem.Repost.IndexedAt.Equal(repostAt) || !repostItem.ActivityAt.Equal(repostAt) {
+		t.Fatalf("repost timestamps = reason %v activity %v, want %v", repostItem.Repost.IndexedAt, repostItem.ActivityAt, repostAt)
 	}
 }
 
@@ -274,6 +335,62 @@ func TestTimelineStore_ListTimeline_PaginatesWithOpaqueSeekCursor(t *testing.T) 
 	}
 	if got, want := timelineURIs(third), []string{post5}; !slices.Equal(got, want) {
 		t.Fatalf("third page = %v, want %v", got, want)
+	}
+}
+
+func TestTimelineStore_ListTimeline_PaginatesMixedPostsAndRepostsWithFeedItemCursor(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	tied := time.Date(2026, 5, 28, 15, 15, 0, 0, time.UTC)
+
+	for _, did := range []string{"did:plc:viewer", "did:plc:bob", "did:plc:carol", "did:plc:dana"} {
+		seedMember(t, pool, did)
+	}
+	seedFollow(t, pool, "did:plc:viewer", "did:plc:bob", "follow-bob")
+	seedFollow(t, pool, "did:plc:viewer", "did:plc:dana", "follow-dana")
+
+	root := seedPost(t, pool, "did:plc:carol", "root", "root post", tied.Add(-time.Hour))
+	repost := seedInteraction(t, pool, "repost", "did:plc:bob", "repost-root", root, false)
+	if _, err := pool.Exec(context.Background(), `UPDATE craftsky_reposts SET created_at = $1, indexed_at = $1 WHERE uri = $2`, tied, repost); err != nil {
+		t.Fatalf("update repost time: %v", err)
+	}
+	danaPost := seedPost(t, pool, "did:plc:dana", "post", "dana post", tied)
+
+	store := api.NewPostStore(pool)
+	first, cursor, err := store.ListTimeline(context.Background(), "did:plc:viewer", 1, "")
+	if err != nil {
+		t.Fatalf("ListTimeline first: %v", err)
+	}
+	if cursor == "" {
+		t.Fatal("first cursor = empty, want next page cursor")
+	}
+	if len(first) != 1 || first[0].ItemKey != "repost:"+repost {
+		t.Fatalf("first page = %+v, want repost item %s", first, repost)
+	}
+	payload, err := envelope.DecodeCursor(cursor)
+	if err != nil {
+		t.Fatalf("decode cursor: %v", err)
+	}
+	if payload["itemKey"] != first[0].ItemKey {
+		t.Fatalf("cursor itemKey = %v, want %s", payload["itemKey"], first[0].ItemKey)
+	}
+	if _, ok := payload["uri"]; ok {
+		t.Fatalf("cursor leaked old uri tie-breaker key: %v", payload)
+	}
+
+	second, nextCursor, err := store.ListTimeline(context.Background(), "did:plc:viewer", 1, cursor)
+	if err != nil {
+		t.Fatalf("ListTimeline second: %v", err)
+	}
+	if len(second) != 1 || second[0].ItemKey != "post:"+danaPost {
+		t.Fatalf("second page = %+v, want authored post %s", second, danaPost)
+	}
+	if second[0].ItemKey == first[0].ItemKey {
+		t.Fatalf("duplicate item across pages: first=%s second=%s", first[0].ItemKey, second[0].ItemKey)
+	}
+
+	if nextCursor != "" {
+		t.Fatalf("second cursor = %q, want exhausted timeline", nextCursor)
 	}
 }
 

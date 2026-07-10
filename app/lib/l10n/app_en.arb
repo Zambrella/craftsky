@@ -733,6 +733,29 @@
   "postUnrepostAction": "Unrepost",
   "@postUnrepostAction": { "description": "Tooltip for removing a repost." },
 
+  "postQuoteAction": "Quote",
+  "@postQuoteAction": { "description": "Menu label for creating a quote post." },
+
+  "postShareAction": "Share",
+  "@postShareAction": { "description": "Tooltip for opening repost and quote actions for a post." },
+
+  "postRepostedBy": "Reposted by {name}",
+  "@postRepostedBy": {
+    "description": "Timeline attribution shown above a post when a followed account reposted it.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Alice"
+      }
+    }
+  },
+
+  "postQuoteHidden": "Quoted post hidden",
+  "@postQuoteHidden": { "description": "Placeholder shown when a quoted post is hidden by moderation or policy." },
+
+  "postQuoteUnavailable": "Quoted post unavailable",
+  "@postQuoteUnavailable": { "description": "Placeholder shown when a quoted post is missing, deleted, or unavailable." },
+
   "postDeleteAction": "Delete post",
   "@postDeleteAction": { "description": "Tooltip and menu label for deleting a post." },
 

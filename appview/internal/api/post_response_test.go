@@ -108,6 +108,98 @@ func TestBuildPostResponse_JSONIncludesEngagementFields(t *testing.T) {
 	}
 }
 
+func TestBuildPostResponse_JSONIncludesQuoteCount(t *testing.T) {
+	t.Parallel()
+	resp := api.BuildPostResponse(baseRow(), syntax.Handle("alice.example"))
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(data), `"quoteCount":0`) {
+		t.Fatalf("missing quoteCount in %s", data)
+	}
+}
+
+func TestTimelineFeedItemResponse_JSONUsesCamelCase(t *testing.T) {
+	t.Parallel()
+	displayName := "Bob"
+	resp := &api.TimelineFeedItemResponse{
+		ItemKey: "repost:at://did:plc:bob/social.craftsky.feed.repost/rp1",
+		Post: &api.PostResponse{
+			URI:        "at://did:plc:carol/social.craftsky.feed.post/root",
+			CID:        "bafyroot",
+			Rkey:       "root",
+			Text:       "hello",
+			Tags:       []string{},
+			QuoteCount: 2,
+			Author: api.PostAuthor{
+				DID:    "did:plc:carol",
+				Handle: "carol.example",
+			},
+		},
+		Reason: &api.TimelineReasonRepost{
+			Type: "repost",
+			By: api.PostAuthor{
+				DID:         "did:plc:bob",
+				Handle:      "bob.example",
+				DisplayName: &displayName,
+			},
+			URI:       "at://did:plc:bob/social.craftsky.feed.repost/rp1",
+			CID:       "bafyrepost",
+			CreatedAt: time.Date(2026, 5, 4, 12, 1, 0, 0, time.UTC),
+			IndexedAt: time.Date(2026, 5, 4, 12, 2, 0, 0, time.UTC),
+		},
+	}
+
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	got := string(data)
+	for _, key := range []string{`"itemKey"`, `"quoteCount":2`, `"displayName":"Bob"`, `"createdAt"`, `"indexedAt"`} {
+		if !strings.Contains(got, key) {
+			t.Fatalf("missing camelCase key %s in %s", key, got)
+		}
+	}
+	for _, forbidden := range []string{"item_key", "quote_count", "display_name", "created_at", "indexed_at"} {
+		if strings.Contains(got, forbidden) {
+			t.Fatalf("snake_case key %q leaked in %s", forbidden, got)
+		}
+	}
+}
+
+func TestBuildQuoteView_BuildsCompactPreviewWithoutNestedQuoteView(t *testing.T) {
+	t.Parallel()
+	row := baseRow()
+	row.QuoteURI = ptrStr("at://did:plc:dana/social.craftsky.feed.post/nested")
+	row.QuoteCID = ptrStr("bafynested")
+	row.Images = json.RawMessage(`[
+		{"cid":"bafkimage","mime":"image/jpeg","size":10,"alt":"preview"}
+	]`)
+
+	view := api.BuildQuoteView(&api.QuoteViewRow{State: "visible", Post: row}, syntax.Handle("alice.example"))
+
+	if view.State != "visible" || view.Post == nil {
+		t.Fatalf("quote view = %+v, want visible preview", view)
+	}
+	if view.Post.URI != row.URI || view.Post.CID != row.CID || view.Post.Text != row.Text {
+		t.Fatalf("preview post = %+v, want row summary", view.Post)
+	}
+	if view.Post.Author.DID != row.DID || view.Post.Author.Handle != "alice.example" {
+		t.Fatalf("preview author = %+v", view.Post.Author)
+	}
+	if len(view.Post.Images) != 1 || view.Post.Images[0].CID != "bafkimage" {
+		t.Fatalf("preview images = %+v", view.Post.Images)
+	}
+	data, err := json.Marshal(view)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(data), "quoteView") || strings.Contains(string(data), "quote") {
+		t.Fatalf("nested quote fields leaked in compact preview: %s", data)
+	}
+}
+
 func TestBuildPostResponse_IncludesProjectForProjectRows(t *testing.T) {
 	t.Parallel()
 	title := "Hitchhiker Shawl"

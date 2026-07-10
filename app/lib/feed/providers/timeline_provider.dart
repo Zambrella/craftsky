@@ -1,4 +1,5 @@
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/models/timeline_state.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -43,8 +44,11 @@ class Timeline extends _$Timeline {
   void prepend(Post post) {
     final current = state.value;
     if (current == null) return;
-    if (current.items.any((item) => item.uri == post.uri)) return;
-    state = AsyncData(current.copyWith(items: [post, ...current.items]));
+    final item = TimelineItem(itemKey: 'post:${post.uri}', post: post);
+    if (current.items.any((existing) => existing.itemKey == item.itemKey)) {
+      return;
+    }
+    state = AsyncData(current.copyWith(items: [item, ...current.items]));
   }
 
   void replace(Post post) {
@@ -54,7 +58,7 @@ class Timeline extends _$Timeline {
       current.copyWith(
         items: [
           for (final item in current.items)
-            if (item.uri == post.uri) post else item,
+            if (item.post.uri == post.uri) item.copyWith(post: post) else item,
         ],
       ),
     );
@@ -65,7 +69,7 @@ class Timeline extends _$Timeline {
     if (current == null) return;
     state = AsyncData(
       current.copyWith(
-        items: current.items.where((post) => post.uri != uri).toList(),
+        items: current.items.where((item) => item.post.uri != uri).toList(),
       ),
     );
   }
@@ -89,19 +93,22 @@ void removeFromLiveTimelineCache(Ref ref, AtUri uri) {
   }
 }
 
-List<Post> _dedupe(List<Post> posts) {
+List<TimelineItem> _dedupe(List<TimelineItem> items) {
   final seen = <String>{};
   return [
-    for (final post in posts)
-      if (seen.add(post.uri)) post,
+    for (final item in items)
+      if (seen.add(item.itemKey)) item,
   ];
 }
 
-List<Post> _appendDeduped(List<Post> current, List<Post> next) {
-  final seen = current.map((post) => post.uri).toSet();
+List<TimelineItem> _appendDeduped(
+  List<TimelineItem> current,
+  List<TimelineItem> next,
+) {
+  final seen = current.map((item) => item.itemKey).toSet();
   return [
     ...current,
-    for (final post in next)
-      if (seen.add(post.uri)) post,
+    for (final item in next)
+      if (seen.add(item.itemKey)) item,
   ];
 }

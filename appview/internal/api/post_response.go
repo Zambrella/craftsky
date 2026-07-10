@@ -53,17 +53,45 @@ type PostResponse struct {
 	Tags              []string            `json:"tags"`
 	LikeCount         int                 `json:"likeCount"`
 	RepostCount       int                 `json:"repostCount"`
+	QuoteCount        int                 `json:"quoteCount"`
 	ReplyCount        int                 `json:"replyCount"`
 	ViewerHasLiked    bool                `json:"viewerHasLiked"`
 	ViewerHasReposted bool                `json:"viewerHasReposted"`
 	ViewerHasReplied  bool                `json:"viewerHasReplied"`
 	Reply             *ResponseReply      `json:"reply"`
 	Quote             *ResponseStrongRef  `json:"quote"`
+	QuoteView         *QuoteView          `json:"quoteView,omitempty"`
 	CreatedAt         time.Time           `json:"createdAt"`
 	IndexedAt         time.Time           `json:"indexedAt"`
 	Author            PostAuthor          `json:"author"`
 	Moderation        *ModerationMetadata `json:"moderation,omitempty"`
 	Project           *Project            `json:"project,omitempty"`
+}
+
+// QuoteViewRow is the store-level quote preview hydration result. Visible
+// rows include a compact PostRow; hidden and unavailable rows intentionally do
+// not include post data.
+type QuoteViewRow struct {
+	State string
+	Post  *PostRow
+}
+
+// QuoteView is the public compact one-level view of a quoted post.
+type QuoteView struct {
+	State string            `json:"state"`
+	Post  *QuotePreviewPost `json:"post,omitempty"`
+}
+
+// QuotePreviewPost is intentionally smaller than PostResponse and never
+// includes nested quote previews.
+type QuotePreviewPost struct {
+	URI       string          `json:"uri"`
+	CID       string          `json:"cid"`
+	Text      string          `json:"text"`
+	Author    PostAuthor      `json:"author"`
+	Images    []PostImageView `json:"images,omitempty"`
+	Project   *Project        `json:"project,omitempty"`
+	CreatedAt time.Time       `json:"createdAt"`
 }
 
 // ModerationMetadata is the safe, generic moderation response shape shared by
@@ -196,6 +224,35 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle) *PostResponse {
 	return resp
 }
 
+func BuildQuoteView(row *QuoteViewRow, handle syntax.Handle) *QuoteView {
+	if row == nil {
+		return nil
+	}
+	view := &QuoteView{State: row.State}
+	if row.Post == nil || row.State != "visible" {
+		return view
+	}
+	author := PostAuthor{
+		DID:         row.Post.DID,
+		Handle:      handle.String(),
+		DisplayName: row.Post.AuthorDisplayName,
+		AvatarCID:   row.Post.AuthorAvatarCID,
+	}
+	if avatar := synthBlobURL("avatar", row.Post.DID, row.Post.AuthorAvatarCID, row.Post.AuthorAvatarMime); avatar != "" {
+		author.Avatar = &avatar
+	}
+	view.Post = &QuotePreviewPost{
+		URI:       row.Post.URI,
+		CID:       row.Post.CID,
+		Text:      row.Post.Text,
+		Author:    author,
+		Images:    buildPostImageViews(row.Post),
+		Project:   row.Post.Project,
+		CreatedAt: row.Post.CreatedAt.UTC(),
+	}
+	return view
+}
+
 func buildPostImageViews(row *PostRow) []PostImageView {
 	if row == nil || len(row.Images) == 0 {
 		return nil
@@ -248,6 +305,7 @@ func devMediaURL(name string) string {
 func applyEngagementSummary(resp *PostResponse, summary EngagementSummary) {
 	resp.LikeCount = summary.LikeCount
 	resp.RepostCount = summary.RepostCount
+	resp.QuoteCount = summary.QuoteCount
 	resp.ReplyCount = summary.ReplyCount
 	resp.ViewerHasLiked = summary.ViewerHasLiked
 	resp.ViewerHasReposted = summary.ViewerHasReposted

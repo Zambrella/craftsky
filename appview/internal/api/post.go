@@ -34,6 +34,7 @@ type LikeStore interface {
 // RepostStore is the read-side interaction subset needed by repost/unrepost handlers.
 type RepostStore interface {
 	ResolvePostTarget(ctx context.Context, did, rkey string) (*PostTargetRef, error)
+	ResolveShareTarget(ctx context.Context, did, rkey string) (*ShareTargetRef, error)
 	FindActiveRepost(ctx context.Context, did, subjectURI string) (*InteractionRow, error)
 }
 
@@ -85,6 +86,29 @@ func CreatePostHandler(
 				"validation_failed", "validation failed", runID, nil)
 			return
 		}
+		if req.Embed != nil && req.Embed.Quote != nil {
+			target, err := validateQuoteShareTarget(r.Context(), store, *req.Embed.Quote)
+			if err != nil {
+				fe, isFE := err.(*FieldError)
+				if isFE {
+					envelope.WriteError(w, http.StatusUnprocessableEntity,
+						fe.Code, "validation failed", runID, fe.Fields)
+					return
+				}
+				if errors.Is(err, ErrPostNotFound) {
+					envelope.WriteError(w, http.StatusNotFound,
+						"post_not_found", "post not found", runID, nil)
+					return
+				}
+				logger.Error("post: validate quote target failed",
+					pdsLogErrorAttrs(runID, pdsOperationPostCreate, pdsStageRequestBuild, err)...)
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "could not resolve quote target", runID, nil)
+				return
+			}
+			req.Embed.Quote.URI = target.URI
+			req.Embed.Quote.CID = target.CID
+		}
 		logger.Debug("post create: validated request",
 			pdsLogAttrs(runID, pdsOperationPostCreate, pdsStageRequestBuild)...)
 
@@ -128,12 +152,41 @@ func CreatePostHandler(
 			return
 		}
 		resp := BuildPostResponse(row, handle)
+		if err := attachQuoteView(r.Context(), store, resolver, resp); err != nil {
+			logger.Error("post create: QuoteViewRows failed",
+				pdsLogErrorAttrs(runID, pdsOperationPostCreate, pdsStagePDSRequest, err)...)
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "post created but quote lookup failed", runID, nil)
+			return
+		}
 		logger.Debug("post create: response ready",
 			pdsLogSuccessAttrs(runID, pdsOperationPostCreate, pdsStagePDSRequest)...)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(resp)
 	})
+}
+
+func validateQuoteShareTarget(ctx context.Context, store PostReader, ref StrongRef) (*ShareTargetRef, error) {
+	aturi, err := syntax.ParseATURI(ref.URI)
+	if err != nil {
+		return nil, &FieldError{Code: "validation_failed", Fields: map[string]string{"embed.quote.uri": "must be a valid AT-URI"}}
+	}
+	if aturi.Collection().String() != craftskyPostNSID || aturi.RecordKey().String() == "" {
+		return nil, &FieldError{Code: "validation_failed", Fields: map[string]string{"target": "must reference a Craftsky post"}}
+	}
+	did, err := syntax.ParseDID(aturi.Authority().String())
+	if err != nil {
+		return nil, &FieldError{Code: "validation_failed", Fields: map[string]string{"target": "must reference a DID-authored Craftsky post"}}
+	}
+	target, err := store.ResolveShareTarget(ctx, did.String(), aturi.RecordKey().String())
+	if err != nil {
+		return nil, err
+	}
+	if target.IsReply {
+		return nil, &FieldError{Code: "validation_failed", Fields: map[string]string{"target": "reply posts cannot be quoted"}}
+	}
+	return target, nil
 }
 
 // lexiconRecordBody translates the wire request into the lexicon-shaped
@@ -381,12 +434,73 @@ func GetPostHandler(store PostReader, resolver HandleResolver, logger *slog.Logg
 		}
 		resp := BuildPostResponse(row, handle)
 		applyEngagementSummary(resp, summaries[row.URI])
+		if err := attachQuoteView(r.Context(), store, resolver, resp); err != nil {
+			logger.Error("post: QuoteViewRows failed",
+				apiLogErrorAttrs(runID, "post.get", "quote_view")...)
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "post quote lookup failed", runID, nil)
+			return
+		}
 		logger.Debug("post get: response ready",
 			apiLogSuccessAttrs(runID, "post.get")...)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(resp)
 	})
+}
+
+type quoteViewReader interface {
+	QuoteViewRows(ctx context.Context, refs []ResponseStrongRef) (map[string]*QuoteViewRow, error)
+}
+
+func attachQuoteView(ctx context.Context, store quoteViewReader, resolver HandleResolver, resp *PostResponse) error {
+	return attachQuoteViews(ctx, store, resolver, []*PostResponse{resp})
+}
+
+func attachQuoteViews(ctx context.Context, store quoteViewReader, resolver HandleResolver, responses []*PostResponse) error {
+	refs := make([]ResponseStrongRef, 0, len(responses))
+	for _, resp := range responses {
+		if resp == nil || resp.Quote == nil {
+			continue
+		}
+		refs = append(refs, *resp.Quote)
+	}
+	if len(refs) == 0 {
+		return nil
+	}
+	views, err := store.QuoteViewRows(ctx, refs)
+	if err != nil {
+		return err
+	}
+	handles := map[string]syntax.Handle{}
+	for _, resp := range responses {
+		if resp == nil || resp.Quote == nil {
+			continue
+		}
+		viewRow := views[resp.Quote.URI]
+		if viewRow == nil {
+			resp.QuoteView = &QuoteView{State: "unavailable"}
+			continue
+		}
+		var handle syntax.Handle
+		if viewRow.Post != nil {
+			cached, ok := handles[viewRow.Post.DID]
+			if !ok {
+				did, err := syntax.ParseDID(viewRow.Post.DID)
+				if err != nil {
+					return err
+				}
+				cached, err = resolver.ResolveHandle(ctx, did)
+				if err != nil {
+					return err
+				}
+				handles[viewRow.Post.DID] = cached
+			}
+			handle = cached
+		}
+		resp.QuoteView = BuildQuoteView(viewRow, handle)
+	}
+	return nil
 }
 
 // ListCommentRepliesHandler serves GET /v1/posts/{did}/{rkey}/replies.
@@ -499,6 +613,17 @@ func ListCommentRepliesHandler(
 					}
 				}
 				items = append(items, item)
+			}
+			responses := make([]*PostResponse, 0, len(items))
+			for i := range items {
+				responses = append(responses, items[i].Post)
+			}
+			if err := attachQuoteViews(r.Context(), store, resolver, responses); err != nil {
+				logger.Error("post replies: QuoteViewRows failed",
+					apiLogErrorAttrs(runID, "post.replies.list", "quote_view")...)
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "post quote lookup failed", runID, nil)
+				return
 			}
 		}
 		body := ReplyPage{Loaded: true, Items: items, Cursor: nextCursor}
@@ -731,6 +856,13 @@ func GetPostCommentsHandler(
 			Comments: CommentPage{Items: items, Cursor: nextCursor},
 			Sort:     sortValue,
 			Focus:    focus,
+		}
+		if err := attachQuoteViews(r.Context(), store, resolver, collectCommentSectionPostResponses(body)); err != nil {
+			logger.Error("post comments: QuoteViewRows failed",
+				apiLogErrorAttrs(runID, "post.comments.list", "quote_view")...)
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "post quote lookup failed", runID, nil)
+			return
 		}
 		logger.Debug("post comments: response ready",
 			append(apiLogSuccessAttrs(runID, "post.comments.list"),
@@ -983,7 +1115,7 @@ func RepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger *
 		rkey := r.PathValue("rkey")
 		logger.Debug("repost: resolving target",
 			pdsLogAttrs(runID, pdsOperationRepostCreate, pdsStageRequestBuild)...)
-		target, err := store.ResolvePostTarget(r.Context(), targetDID.String(), rkey)
+		target, err := store.ResolveShareTarget(r.Context(), targetDID.String(), rkey)
 		if err != nil {
 			if errors.Is(err, ErrPostNotFound) {
 				envelope.WriteError(w, http.StatusNotFound,
@@ -994,6 +1126,11 @@ func RepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger *
 				pdsLogErrorAttrs(runID, pdsOperationRepostCreate, pdsStageRequestBuild, err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "could not resolve post", runID, nil)
+			return
+		}
+		if target.IsReply {
+			envelope.WriteError(w, http.StatusUnprocessableEntity,
+				"validation_failed", "validation failed", runID, map[string]string{"target": "reply posts cannot be reposted"})
 			return
 		}
 		active, err := store.FindActiveRepost(r.Context(), caller.String(), target.URI)
@@ -1012,7 +1149,7 @@ func RepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger *
 		}
 
 		createdAt := time.Now().UTC()
-		body := repostRecordBody(target, createdAt)
+		body := repostRecordBody(&PostTargetRef{URI: target.URI, CID: target.CID}, createdAt)
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
 		logger.Debug("repost: creating PDS record",
 			pdsLogAttrs(runID, pdsOperationRepostCreate, pdsStageRequestBuild)...)
@@ -1273,6 +1410,13 @@ func listAuthorPostsHandler(
 				applyEngagementSummary(resp, summaries[row.URI])
 				items = append(items, resp)
 			}
+			if err := attachQuoteViews(r.Context(), store, resolver, items); err != nil {
+				logger.Error(logLabel+": QuoteViewRows failed",
+					apiLogErrorAttrs(runID, operation, "quote_view")...)
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "post quote lookup failed", runID, nil)
+				return
+			}
 		}
 		body := struct {
 			Items  []*PostResponse `json:"items"`
@@ -1345,6 +1489,34 @@ func buildReplyPage(rows []*PostRow, cursor string, commentRow *PostRow, hydrate
 		items = append(items, buildReplyItem(row, parentRow, commentRow, handles, summaries))
 	}
 	return ReplyPage{Loaded: true, Items: items, Cursor: cursor}
+}
+
+func collectCommentSectionPostResponses(body *CommentSectionResponse) []*PostResponse {
+	if body == nil {
+		return nil
+	}
+	responses := make([]*PostResponse, 0, 1+len(body.Comments.Items))
+	if body.Post != nil {
+		responses = append(responses, body.Post)
+	}
+	for i := range body.Comments.Items {
+		item := &body.Comments.Items[i]
+		if item.Post != nil {
+			responses = append(responses, item.Post)
+		}
+		responses = append(responses, collectReplyPagePostResponses(item.Replies)...)
+	}
+	return responses
+}
+
+func collectReplyPagePostResponses(page ReplyPage) []*PostResponse {
+	responses := make([]*PostResponse, 0, len(page.Items))
+	for i := range page.Items {
+		if page.Items[i].Post != nil {
+			responses = append(responses, page.Items[i].Post)
+		}
+	}
+	return responses
 }
 
 func buildReplyItem(row, parentRow, commentRow *PostRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary) ReplyItem {

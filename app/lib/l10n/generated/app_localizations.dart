@@ -1426,6 +1426,36 @@ abstract class AppLocalizations {
   /// **'Unrepost'**
   String get postUnrepostAction;
 
+  /// Menu label for creating a quote post.
+  ///
+  /// In en, this message translates to:
+  /// **'Quote'**
+  String get postQuoteAction;
+
+  /// Tooltip for opening repost and quote actions for a post.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get postShareAction;
+
+  /// Timeline attribution shown above a post when a followed account reposted it.
+  ///
+  /// In en, this message translates to:
+  /// **'Reposted by {name}'**
+  String postRepostedBy(String name);
+
+  /// Placeholder shown when a quoted post is hidden by moderation or policy.
+  ///
+  /// In en, this message translates to:
+  /// **'Quoted post hidden'**
+  String get postQuoteHidden;
+
+  /// Placeholder shown when a quoted post is missing, deleted, or unavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Quoted post unavailable'**
+  String get postQuoteUnavailable;
+
   /// Tooltip and menu label for deleting a post.
   ///
   /// In en, this message translates to:

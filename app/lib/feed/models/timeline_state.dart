@@ -1,4 +1,4 @@
-import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
 part 'timeline_state.mapper.dart';
@@ -12,7 +12,7 @@ part 'timeline_state.mapper.dart';
 class TimelineState with TimelineStateMappable {
   const TimelineState({required this.items, this.cursor});
 
-  final List<Post> items;
+  final List<TimelineItem> items;
   final String? cursor;
 
   bool get hasMore => cursor != null;

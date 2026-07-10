@@ -745,6 +745,13 @@ func (s *SearchStore) EngagementSummaries(ctx context.Context, viewerDID string,
 	return s.postStore.EngagementSummaries(ctx, viewerDID, postURIs)
 }
 
+func (s *SearchStore) QuoteViewRows(ctx context.Context, refs []ResponseStrongRef) (map[string]*QuoteViewRow, error) {
+	if s.postStore == nil {
+		s.postStore = NewPostStore(s.pool, s.observer)
+	}
+	return s.postStore.QuoteViewRows(ctx, refs)
+}
+
 func (s *SearchStore) observeDB(ctx context.Context, operation, routePattern string, fn func(context.Context) error) error {
 	if s == nil || s.observer == nil {
 		return fn(ctx)

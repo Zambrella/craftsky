@@ -1,10 +1,14 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
@@ -13,12 +17,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../fakes/image_cache_fakes.dart';
+
 Post _post({
   String text = 'Cast on for the Hitchhiker shawl tonight.',
   List<Map<String, dynamic>>? facets,
   String? displayName,
   int likeCount = 0,
   int repostCount = 0,
+  int quoteCount = 0,
   int replyCount = 0,
   bool viewerHasLiked = false,
   bool viewerHasReposted = false,
@@ -27,6 +34,8 @@ Post _post({
   DateTime? createdAt,
   ModerationMetadata? moderation,
   Project? project,
+  PostReply? reply,
+  QuoteView? quoteView,
 }) {
   return Post(
     uri: 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
@@ -37,10 +46,12 @@ Post _post({
     tags: const [],
     likeCount: likeCount,
     repostCount: repostCount,
+    quoteCount: quoteCount,
     replyCount: replyCount,
     viewerHasLiked: viewerHasLiked,
     viewerHasReposted: viewerHasReposted,
     viewerHasReplied: viewerHasReplied,
+    reply: reply,
     images: images,
     createdAt: createdAt ?? DateTime.now().subtract(const Duration(minutes: 3)),
     indexedAt: DateTime.now().subtract(const Duration(minutes: 2)),
@@ -51,6 +62,7 @@ Post _post({
     ),
     moderation: moderation,
     project: project,
+    quoteView: quoteView,
   );
 }
 
@@ -260,6 +272,248 @@ void main() {
       expect(replyCount.style?.color, BrandColors.clay);
       expect(likeCount.style?.color, BrandColors.red);
       expect(repostCount.style?.color, BrandColors.moss);
+    });
+
+    testWidgets('renders combined share count from reposts and quotes', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(post: _post(repostCount: 2, quoteCount: 3)),
+      );
+
+      expect(find.text('5'), findsOneWidget);
+      expect(find.text('2'), findsNothing);
+      expect(find.text('3'), findsNothing);
+    });
+
+    testWidgets('renders tappable repost attribution inside the card', (
+      tester,
+    ) async {
+      var reposterTaps = 0;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(),
+          repostReason: RepostReason(
+            type: RepostReasonType.repost,
+            by: PostAuthor(
+              did: 'did:plc:bob',
+              handle: 'bob.craftsky.social',
+              displayName: 'Bob',
+            ),
+            uri: 'at://did:plc:bob/social.craftsky.feed.repost/repost-target',
+            createdAt: DateTime(2026, 5, 22, 13),
+            indexedAt: DateTime(2026, 5, 22, 13),
+          ),
+          onReposterTap: () => reposterTaps++,
+        ),
+      );
+
+      final attribution = find.text('Reposted by Bob');
+      expect(attribution, findsOneWidget);
+      expect(
+        find.ancestor(of: attribution, matching: find.byType(CraftskyCard)),
+        findsOneWidget,
+      );
+
+      await tester.tap(attribution);
+      expect(reposterTaps, 1);
+    });
+
+    testWidgets('renders visible quote preview', (tester) async {
+      var quotedPostTaps = 0;
+      var quotedAuthorTaps = 0;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            text: 'My take on this pattern.',
+            quoteView: QuoteView(
+              state: 'visible',
+              post: QuotePreviewPost(
+                uri: 'at://did:plc:bob/social.craftsky.feed.post/target',
+                cid: 'bafyquote',
+                text: 'Original quoted post',
+                author: PostAuthor(
+                  did: 'did:plc:bob',
+                  handle: 'bob.craftsky.social',
+                  displayName: 'Bob',
+                  avatar: 'https://cdn.example.com/bob.jpg',
+                ),
+                createdAt: DateTime(2026, 5, 22, 12),
+              ),
+            ),
+          ),
+          onQuotedPostTap: () => quotedPostTaps++,
+          onQuotedAuthorTap: () => quotedAuthorTaps++,
+        ),
+      );
+
+      expect(find.text('My take on this pattern.'), findsOneWidget);
+      expect(find.text('Original quoted post'), findsOneWidget);
+      expect(find.text('Bob'), findsOneWidget);
+      expect(find.text('@bob.craftsky.social'), findsOneWidget);
+      expect(find.byType(ProfileAvatar), findsNWidgets(2));
+      expect(
+        tester.widget<ProfileAvatar>(find.byType(ProfileAvatar).last).avatarUrl,
+        'https://cdn.example.com/bob.jpg',
+      );
+
+      await tester.tap(find.text('Bob'));
+      expect(quotedAuthorTaps, 1);
+      expect(quotedPostTaps, 0);
+
+      await tester.tap(find.text('Original quoted post'));
+      expect(quotedPostTaps, 1);
+    });
+
+    testWidgets('renders only the first image from a quoted normal post', (
+      tester,
+    ) async {
+      final fakeCache = FakeBaseCacheManager();
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            quoteView: QuoteView(
+              state: 'visible',
+              post: QuotePreviewPost(
+                uri: 'at://did:plc:bob/social.craftsky.feed.post/target',
+                cid: 'bafyquote',
+                text: 'Original quoted post',
+                author: PostAuthor(
+                  did: 'did:plc:bob',
+                  handle: 'bob.craftsky.social',
+                ),
+                images: [
+                  PostImage(
+                    cid: 'bafkfirst',
+                    mime: 'image/jpeg',
+                    size: 10,
+                    alt: 'First quoted image',
+                    thumb: 'https://cdn.example.com/first-thumb.jpg',
+                    fullsize: 'https://cdn.example.com/first-full.jpg',
+                  ),
+                  PostImage(
+                    cid: 'bafksecond',
+                    mime: 'image/jpeg',
+                    size: 10,
+                    alt: 'Second quoted image',
+                    thumb: 'https://cdn.example.com/second-thumb.jpg',
+                  ),
+                ],
+                createdAt: DateTime(2026, 5, 22, 12),
+              ),
+            ),
+          ),
+        ),
+        overrides: [
+          feedImageCacheManagerProvider.overrideWith((ref) => fakeCache),
+        ],
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('quote-preview-image')), findsOneWidget);
+      final image = tester.widget<CachedNetworkImage>(
+        find.byType(CachedNetworkImage),
+      );
+      expect(image.imageUrl, 'https://cdn.example.com/first-thumb.jpg');
+      expect(image.cacheManager, same(fakeCache));
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label == 'First quoted image',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label == 'Second quoted image',
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+      'renders the first image and project name for a quoted project',
+      (
+        tester,
+      ) async {
+        final fakeCache = FakeBaseCacheManager();
+        await _pump(
+          tester,
+          PostCard(
+            post: _post(
+              quoteView: QuoteView(
+                state: 'visible',
+                post: QuotePreviewPost(
+                  uri: 'at://did:plc:bob/social.craftsky.feed.post/project',
+                  cid: 'bafyproject',
+                  text: 'A finished project.',
+                  author: PostAuthor(
+                    did: 'did:plc:bob',
+                    handle: 'bob.craftsky.social',
+                  ),
+                  images: [
+                    PostImage(
+                      cid: 'bafkproject',
+                      mime: 'image/jpeg',
+                      size: 10,
+                      alt: 'Finished blue shawl',
+                      thumb: 'https://cdn.example.com/project-thumb.jpg',
+                    ),
+                  ],
+                  project: const Project(
+                    common: ProjectCommon(
+                      craftType: ProjectOptionCatalogs.knittingCraftToken,
+                      title: 'Hitchhiker Shawl',
+                    ),
+                  ),
+                  createdAt: DateTime(2026, 5, 22, 12),
+                ),
+              ),
+            ),
+          ),
+          overrides: [
+            feedImageCacheManagerProvider.overrideWith((ref) => fakeCache),
+          ],
+        );
+        await tester.pump();
+
+        expect(find.byKey(const Key('quote-preview-image')), findsOneWidget);
+        expect(find.text('Hitchhiker Shawl'), findsOneWidget);
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Semantics &&
+                widget.properties.label == 'Finished blue shawl',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets('renders quote preview placeholders', (tester) async {
+      await _pump(
+        tester,
+        Column(
+          children: [
+            PostCard(
+              post: _post(quoteView: const QuoteView(state: 'hidden')),
+            ),
+            PostCard(
+              post: _post(quoteView: const QuoteView(state: 'unavailable')),
+            ),
+          ],
+        ),
+      );
+
+      expect(find.text('Quoted post hidden'), findsOneWidget);
+      expect(find.text('Quoted post unavailable'), findsOneWidget);
     });
 
     testWidgets('colours reply label when viewer has replied', (tester) async {
@@ -675,6 +929,70 @@ void main() {
       );
     });
 
+    testWidgets('opens share menu with repost and quote choices', (
+      tester,
+    ) async {
+      var reposts = 0;
+      var quotes = 0;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(),
+          onRepost: () => reposts++,
+          onQuote: () => quotes++,
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.repeat));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Repost'), findsOneWidget);
+      expect(find.text('Quote'), findsOneWidget);
+
+      await tester.tap(find.text('Quote'));
+      await tester.pumpAndSettle();
+
+      expect(reposts, 0);
+      expect(quotes, 1);
+    });
+
+    testWidgets('share count opens the same menu', (tester) async {
+      await _pump(
+        tester,
+        PostCard(post: _post(repostCount: 2), onRepost: () {}, onQuote: () {}),
+      );
+
+      await tester.tap(find.text('2'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Repost'), findsOneWidget);
+      expect(find.text('Quote'), findsOneWidget);
+    });
+
+    testWidgets('hides share action for reply posts', (tester) async {
+      final root = PostRef(
+        uri: 'at://did:plc:alice/social.craftsky.feed.post/root',
+        cid: 'bafyroot',
+      );
+      final parent = PostRef(
+        uri: 'at://did:plc:alice/social.craftsky.feed.post/parent',
+        cid: 'bafyparent',
+      );
+
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            reply: PostReply(root: root, parent: parent),
+          ),
+          onRepost: () {},
+          onQuote: () {},
+        ),
+      );
+
+      expect(find.byIcon(Icons.repeat), findsNothing);
+    });
+
     testWidgets('invokes interaction callbacks', (tester) async {
       var replies = 0;
       var likes = 0;
@@ -692,6 +1010,8 @@ void main() {
       await tester.tap(find.byIcon(Icons.favorite_border));
       await tester.tap(find.byIcon(Icons.chat_bubble_outline));
       await tester.tap(find.byIcon(Icons.repeat));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Repost'));
 
       expect(replies, 1);
       expect(likes, 1);
