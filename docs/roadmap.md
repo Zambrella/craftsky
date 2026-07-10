@@ -77,6 +77,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [ ] Email infrastructure — transactional provider for the moderation reports inbox and any future account emails
 - [ ] First-PDS decision — where do first users' accounts live? Self-hosted Craftsky PDS, bsky.social, or third-party? Ties into the handle-suffix decision but is a separate question
 - [ ] Secrets management for local dev — `.env` handling conventions, `.env.example`, what's safe to commit
+- [ ] CDN
 
 ### Product / community
 
