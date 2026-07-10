@@ -11,6 +11,7 @@ import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
+import 'package:craftsky_app/feed/widgets/timeline_item_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -137,7 +138,7 @@ class _FeedLoadedSlivers extends ConsumerWidget {
               }
               final item = items[index];
               final post = item.post;
-              return _TimelineItemCard(
+              return TimelineItemCard(
                 item: item,
                 child: PostCard(
                   post: post,
@@ -223,51 +224,6 @@ class _FeedLoadedSlivers extends ConsumerWidget {
       message: l10n.postDeleteMessage,
       confirmLabel: l10n.postDeleteConfirm,
       onConfirm: () => ref.read(deletePostProvider.notifier).delete(post: post),
-    );
-  }
-}
-
-class _TimelineItemCard extends StatelessWidget {
-  const _TimelineItemCard({required this.item, required this.child});
-
-  final TimelineItem item;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final reason = item.reason;
-    if (reason == null) return child;
-
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    final displayName = reason.by.displayName ?? reason.by.handle;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
-          child: Row(
-            children: [
-              Icon(
-                Icons.repeat,
-                size: 16,
-                color: theme.colorScheme.outline,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  l10n.postRepostedBy(displayName),
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.outline,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-        child,
-      ],
     );
   }
 }

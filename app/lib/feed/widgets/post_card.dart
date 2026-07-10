@@ -14,6 +14,7 @@ import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 const _postCardMenuWidth = 48.0;
 const _postCardActionIconSize = 22.0;
@@ -508,7 +509,7 @@ class _PostCardShareAction extends StatelessWidget {
     final color = isSelected
         ? selectedColor
         : theme.colorScheme.onSurfaceVariant;
-    final countLabel = _compactCountLabel(count);
+    final countLabel = _compactCountLabel(context, count);
 
     return Builder(
       builder: (buttonContext) {
@@ -610,7 +611,7 @@ class _PostCardAction extends StatelessWidget {
     final color = isSelected
         ? selectedColor
         : theme.colorScheme.onSurfaceVariant;
-    final countLabel = _compactCountLabel(count);
+    final countLabel = _compactCountLabel(context, count);
     return Semantics(
       label: tooltip,
       button: true,
@@ -655,22 +656,9 @@ class _PostCardAction extends StatelessWidget {
   }
 }
 
-String? _compactCountLabel(int count) {
+String? _compactCountLabel(BuildContext context, int count) {
   if (count == 0) return null;
-  if (count.abs() < 1000) return '$count';
-
-  final absoluteCount = count.abs();
-  final sign = count.isNegative ? '-' : '';
-  if (absoluteCount < 999950) {
-    return '$sign${_trimCompactNumber(absoluteCount / 1000)}k';
-  }
-  if (absoluteCount < 999950000) {
-    return '$sign${_trimCompactNumber(absoluteCount / 1000000)}m';
-  }
-  return '$sign${_trimCompactNumber(absoluteCount / 1000000000)}b';
-}
-
-String _trimCompactNumber(double value) {
-  final digits = value < 10 ? 1 : 0;
-  return value.toStringAsFixed(digits).replaceFirst(RegExp(r'\.0$'), '');
+  final locale = Localizations.localeOf(context).toLanguageTag();
+  final formatter = NumberFormat.compact(locale: locale)..significantDigits = 2;
+  return formatter.format(count).toLowerCase();
 }
