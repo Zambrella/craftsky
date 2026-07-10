@@ -11,7 +11,6 @@ import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
-import 'package:craftsky_app/feed/widgets/timeline_item_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -138,32 +137,30 @@ class _FeedLoadedSlivers extends ConsumerWidget {
               }
               final item = items[index];
               final post = item.post;
-              return TimelineItemCard(
-                item: item,
-                child: PostCard(
-                  post: post,
-                  onTap: () => PostThreadRoute(
-                    did: post.author.did,
-                    rkey: post.rkey,
-                  ).push<void>(context),
-                  onLike: () => ref
-                      .read(toggleLikePostProvider.notifier)
-                      .toggle(post: post),
-                  onRepost: () => ref
-                      .read(toggleRepostPostProvider.notifier)
-                      .toggle(post: post),
-                  onQuote: () => unawaited(
-                    showPostComposerSheet(context, quoteTarget: post),
-                  ),
-                  onReply: () => _replyAndOpenThread(context, ref, post),
-                  onDelete: auth is SignedIn && post.author.did == auth.did
-                      ? () => _confirmDelete(context, ref, post)
-                      : null,
-                  onReport: auth is SignedIn && post.author.did != auth.did
-                      ? () => showPostReportSheet(context, ref, post)
-                      : null,
-                  replyTooltip: l10n.postCommentAction,
+              return PostCard(
+                post: post,
+                repostReason: item.reason,
+                onTap: () => PostThreadRoute(
+                  did: post.author.did,
+                  rkey: post.rkey,
+                ).push<void>(context),
+                onLike: () => ref
+                    .read(toggleLikePostProvider.notifier)
+                    .toggle(post: post),
+                onRepost: () => ref
+                    .read(toggleRepostPostProvider.notifier)
+                    .toggle(post: post),
+                onQuote: () => unawaited(
+                  showPostComposerSheet(context, quoteTarget: post),
                 ),
+                onReply: () => _replyAndOpenThread(context, ref, post),
+                onDelete: auth is SignedIn && post.author.did == auth.did
+                    ? () => _confirmDelete(context, ref, post)
+                    : null,
+                onReport: auth is SignedIn && post.author.did != auth.did
+                    ? () => showPostReportSheet(context, ref, post)
+                    : null,
+                replyTooltip: l10n.postCommentAction,
               );
             },
           ),

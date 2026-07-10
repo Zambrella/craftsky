@@ -1,8 +1,10 @@
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
@@ -281,7 +283,43 @@ void main() {
       expect(find.text('3'), findsNothing);
     });
 
+    testWidgets('renders tappable repost attribution inside the card', (
+      tester,
+    ) async {
+      var reposterTaps = 0;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(),
+          repostReason: RepostReason(
+            type: RepostReasonType.repost,
+            by: PostAuthor(
+              did: 'did:plc:bob',
+              handle: 'bob.craftsky.social',
+              displayName: 'Bob',
+            ),
+            uri: 'at://did:plc:bob/social.craftsky.feed.repost/repost-target',
+            createdAt: DateTime(2026, 5, 22, 13),
+            indexedAt: DateTime(2026, 5, 22, 13),
+          ),
+          onReposterTap: () => reposterTaps++,
+        ),
+      );
+
+      final attribution = find.text('Reposted by Bob');
+      expect(attribution, findsOneWidget);
+      expect(
+        find.ancestor(of: attribution, matching: find.byType(CraftskyCard)),
+        findsOneWidget,
+      );
+
+      await tester.tap(attribution);
+      expect(reposterTaps, 1);
+    });
+
     testWidgets('renders visible quote preview', (tester) async {
+      var quotedPostTaps = 0;
+      var quotedAuthorTaps = 0;
       await _pump(
         tester,
         PostCard(
@@ -297,11 +335,14 @@ void main() {
                   did: 'did:plc:bob',
                   handle: 'bob.craftsky.social',
                   displayName: 'Bob',
+                  avatar: 'https://cdn.example.com/bob.jpg',
                 ),
                 createdAt: DateTime(2026, 5, 22, 12),
               ),
             ),
           ),
+          onQuotedPostTap: () => quotedPostTaps++,
+          onQuotedAuthorTap: () => quotedAuthorTaps++,
         ),
       );
 
@@ -309,6 +350,18 @@ void main() {
       expect(find.text('Original quoted post'), findsOneWidget);
       expect(find.text('Bob'), findsOneWidget);
       expect(find.text('@bob.craftsky.social'), findsOneWidget);
+      expect(find.byType(ProfileAvatar), findsNWidgets(2));
+      expect(
+        tester.widget<ProfileAvatar>(find.byType(ProfileAvatar).last).avatarUrl,
+        'https://cdn.example.com/bob.jpg',
+      );
+
+      await tester.tap(find.text('Bob'));
+      expect(quotedAuthorTaps, 1);
+      expect(quotedPostTaps, 0);
+
+      await tester.tap(find.text('Original quoted post'));
+      expect(quotedPostTaps, 1);
     });
 
     testWidgets('renders quote preview placeholders', (tester) async {

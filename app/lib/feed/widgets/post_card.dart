@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_uri.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -31,6 +33,9 @@ class PostCard extends StatelessWidget {
     this.onLike,
     this.onRepost,
     this.onQuote,
+    this.onQuotedPostTap,
+    this.onQuotedAuthorTap,
+    this.onReposterTap,
     this.onDelete,
     this.onReport,
     this.deleteTooltip,
@@ -43,6 +48,7 @@ class PostCard extends StatelessWidget {
     this.isHighlighted = false,
     this.style = PostCardStyle.card,
     this.projectVariant = ProjectCardVariant.summary,
+    this.repostReason,
   });
 
   final Post post;
@@ -51,6 +57,9 @@ class PostCard extends StatelessWidget {
   final VoidCallback? onLike;
   final VoidCallback? onRepost;
   final VoidCallback? onQuote;
+  final VoidCallback? onQuotedPostTap;
+  final VoidCallback? onQuotedAuthorTap;
+  final VoidCallback? onReposterTap;
   final VoidCallback? onDelete;
   final VoidCallback? onReport;
   final String? deleteTooltip;
@@ -63,6 +72,7 @@ class PostCard extends StatelessWidget {
   final bool isHighlighted;
   final PostCardStyle style;
   final ProjectCardVariant projectVariant;
+  final RepostReason? repostReason;
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +92,32 @@ class PostCard extends StatelessWidget {
     void openAuthorProfile() => UserProfileRoute(
       handle: post.author.handle.toString(),
     ).push<void>(context);
+    final quotedPost = post.quoteView?.post;
+    final quotedPostParts = quotedPost == null
+        ? null
+        : parseCraftskyPostUri(quotedPost.uri);
+    final openQuotedPost =
+        onQuotedPostTap ??
+        (quotedPostParts == null
+            ? null
+            : () => PostThreadRoute(
+                did: quotedPostParts.did,
+                rkey: quotedPostParts.rkey,
+              ).push<void>(context));
+    final openQuotedAuthor =
+        onQuotedAuthorTap ??
+        (quotedPost == null
+            ? null
+            : () => UserProfileRoute(
+                handle: quotedPost.author.handle.toString(),
+              ).push<void>(context));
+    final openReposter =
+        onReposterTap ??
+        (repostReason == null
+            ? null
+            : () => UserProfileRoute(
+                handle: repostReason!.by.handle.toString(),
+              ).push<void>(context));
 
     final content = AnimatedContainer(
       duration: const Duration(milliseconds: 350),
@@ -114,6 +150,13 @@ class PostCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (repostReason case final reason?) ...[
+                      _RepostAttribution(
+                        reason: reason,
+                        onTap: openReposter,
+                      ),
+                      SizedBox(height: spacing.sp2),
+                    ],
                     Row(
                       children: [
                         _PostCardAuthorTapTarget(
@@ -172,7 +215,11 @@ class PostCard extends StatelessWidget {
                     ),
                     if (post.quoteView case final quoteView?) ...[
                       SizedBox(height: spacing.sp3),
-                      _QuotePreviewCard(quoteView: quoteView),
+                      _QuotePreviewCard(
+                        quoteView: quoteView,
+                        onPostTap: openQuotedPost,
+                        onAuthorTap: openQuotedAuthor,
+                      ),
                     ],
                     SizedBox(height: spacing.sp2),
                     if (!isFlat) const CraftskyDivider(),
@@ -251,6 +298,38 @@ class PostCard extends StatelessWidget {
   }
 }
 
+class _RepostAttribution extends StatelessWidget {
+  const _RepostAttribution({required this.reason, required this.onTap});
+
+  final RepostReason reason;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final displayName = reason.by.displayName ?? reason.by.handle;
+    return Row(
+      children: [
+        Icon(Icons.repeat, size: 16, color: theme.colorScheme.outline),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _PostCardAuthorTapTarget(
+            onTap: onTap,
+            child: Text(
+              l10n.postRepostedBy(displayName),
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _PostCardHeader extends StatelessWidget {
   const _PostCardHeader({
     required this.displayName,
@@ -291,13 +370,14 @@ class _PostCardHeader extends StatelessWidget {
 class _PostCardAuthorTapTarget extends StatelessWidget {
   const _PostCardAuthorTapTarget({required this.onTap, required this.child});
 
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
+      enabled: onTap != null,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
@@ -394,9 +474,15 @@ class _PostCardMenu extends StatelessWidget {
 }
 
 class _QuotePreviewCard extends StatelessWidget {
-  const _QuotePreviewCard({required this.quoteView});
+  const _QuotePreviewCard({
+    required this.quoteView,
+    required this.onPostTap,
+    required this.onAuthorTap,
+  });
 
   final QuoteView quoteView;
+  final VoidCallback? onPostTap;
+  final VoidCallback? onAuthorTap;
 
   @override
   Widget build(BuildContext context) {
@@ -407,74 +493,98 @@ class _QuotePreviewCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final post = quoteView.post;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: swatches.paper2,
+    return Material(
+      color: swatches.paper2,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(radii.r2),
-        border: Border.all(color: swatches.borderHair),
+        side: BorderSide(color: swatches.borderHair),
       ),
-      child: Padding(
-        padding: EdgeInsets.all(spacing.sp3),
-        child: switch ((quoteView.state, post)) {
-          ('visible', final quoted?) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _QuotePreviewAuthor(author: quoted.author),
-              SizedBox(height: spacing.sp2),
-              Text(
-                quoted.text,
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: quoteView.state == 'visible' && post != null ? onPostTap : null,
+        child: Padding(
+          padding: EdgeInsets.all(spacing.sp3),
+          child: switch ((quoteView.state, post)) {
+            ('visible', final quoted?) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _QuotePreviewAuthor(
+                  author: quoted.author,
+                  onTap: onAuthorTap,
+                ),
+                SizedBox(height: spacing.sp2),
+                Text(
+                  quoted.text,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ],
+            ),
+            ('hidden', _) => Text(
+              l10n.postQuoteHidden,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.outline,
               ),
-            ],
-          ),
-          ('hidden', _) => Text(
-            l10n.postQuoteHidden,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.outline,
             ),
-          ),
-          _ => Text(
-            l10n.postQuoteUnavailable,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.outline,
+            _ => Text(
+              l10n.postQuoteUnavailable,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
             ),
-          ),
-        },
+          },
+        ),
       ),
     );
   }
 }
 
 class _QuotePreviewAuthor extends StatelessWidget {
-  const _QuotePreviewAuthor({required this.author});
+  const _QuotePreviewAuthor({required this.author, required this.onTap});
 
   final PostAuthor author;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final displayName = author.displayName;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (displayName != null && displayName.trim().isNotEmpty)
-          Text(
-            displayName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.titleSmall,
+    final avatarSeed = displayName ?? author.handle;
+    return _PostCardAuthorTapTarget(
+      onTap: onTap,
+      child: Row(
+        children: [
+          ProfileAvatar(
+            seed: avatarSeed,
+            avatarUrl: author.avatar,
+            size: ProfileAvatarSize.small,
           ),
-        Text(
-          '@${author.handle}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.outline,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (displayName != null && displayName.trim().isNotEmpty)
+                  Text(
+                    displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall,
+                  ),
+                Text(
+                  '@${author.handle}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
