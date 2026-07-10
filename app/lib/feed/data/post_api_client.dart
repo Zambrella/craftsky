@@ -3,6 +3,7 @@ import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/projects/models/project.dart';
@@ -44,17 +45,27 @@ class PostApiClient {
   Future<Post> createPost({
     required String text,
     PostReply? reply,
+    PostRef? quote,
     Project? project,
     List<CreatePostImage>? images,
     List<Map<String, dynamic>>? facets,
   }) => unwrapApi(() async {
     assertProjectCreateIsTopLevel(project: project, reply: reply);
+    assert(
+      quote == null || reply == null,
+      'Quote posts cannot be replies',
+    );
+    assert(
+      quote == null || project == null,
+      'Project posts cannot be quote posts',
+    );
     final res = await _dio.post<Map<String, dynamic>>(
       '/v1/posts',
       data: {
         'text': text,
         'project': ?project?.toCreateMap(),
         'reply': ?reply?.toMap(),
+        'embed': ?quote == null ? null : {'quote': quote.toMap()},
         'images': ?images?.map((image) => image.toMap()).toList(),
         'facets': ?facets,
       },
@@ -189,7 +200,7 @@ class PostApiClient {
   });
 
   /// GET /v1/feed/timeline — authenticated home timeline.
-  Future<PostPage> listTimeline({String? cursor, int? limit}) =>
+  Future<TimelinePage> listTimeline({String? cursor, int? limit}) =>
       unwrapApi(() async {
         final res = await _dio.get<Map<String, dynamic>>(
           '/v1/feed/timeline',
@@ -198,7 +209,7 @@ class PostApiClient {
             'limit': ?limit?.toString(),
           },
         );
-        return PostPageMapper.fromMap(res.data!);
+        return TimelinePageMapper.fromMap(res.data!);
       });
 
   /// GET /v1/profiles/@{handleOrDid}/comments — newest-first.

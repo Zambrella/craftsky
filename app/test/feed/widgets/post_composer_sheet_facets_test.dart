@@ -85,11 +85,37 @@ void main() {
         ]),
       );
     });
+
+    testWidgets('submits quote target through create provider', (
+      tester,
+    ) async {
+      final quoteTarget = _post('timeline post target');
+      final repo = FakePostRepository(
+        onCreate: ({required text, reply, images}) async => _post(text),
+      );
+
+      await _openComposer(
+        tester,
+        quoteTarget: quoteTarget,
+        overrides: [postRepositoryProvider.overrideWithValue(repo)],
+      );
+
+      expect(find.text('timeline post target'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField).first, 'quote commentary');
+      await _pumpUntilPostEnabled(tester);
+      await tester.tap(find.widgetWithText(TextButton, 'Post'));
+      await tester.pumpAndSettle();
+
+      expect(repo.lastCreateQuote?.uri, quoteTarget.uri);
+      expect(repo.lastCreateQuote?.cid, quoteTarget.cid);
+    });
   });
 }
 
 Future<void> _openComposer(
   WidgetTester tester, {
+  Post? quoteTarget,
   List<dynamic> overrides = const [],
 }) async {
   await tester.pumpWidget(
@@ -109,8 +135,9 @@ Future<void> _openComposer(
                     Navigator.of(context).push<Post?>(
                       MaterialPageRoute<Post?>(
                         fullscreenDialog: true,
-                        builder: (_) => const PostComposerSheet(
+                        builder: (_) => PostComposerSheet(
                           composerId: 'facet-composer',
+                          quoteTarget: quoteTarget,
                         ),
                       ),
                     ),

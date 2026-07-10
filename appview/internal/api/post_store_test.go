@@ -600,6 +600,26 @@ func TestPostStore_ListByAuthor_ExcludesCommentsRepliesAndProjects(t *testing.T)
 	}
 }
 
+func TestPostStore_ListByAuthor_IncludesAuthoredQuotePostsAndExcludesReposts(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	seedMember(t, pool, "did:plc:bob")
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	target := seedPost(t, pool, "did:plc:bob", "target", "target", base)
+	quote := seedQuotePost(t, pool, "did:plc:alice", "quote", "quote commentary", target, "bafytarget", base.Add(time.Minute))
+	seedInteraction(t, pool, "repost", "did:plc:alice", "repost-target", target, false)
+
+	rows, cursor, err := api.NewPostStore(pool).ListByAuthor(context.Background(), "did:plc:alice", 50, "")
+	if err != nil {
+		t.Fatalf("ListByAuthor: %v", err)
+	}
+	if cursor != "" {
+		t.Fatalf("cursor = %q, want empty", cursor)
+	}
+	assertPostRowURIs(t, rows, []string{quote})
+}
+
 func TestPostStore_ListProjectsByAuthor_ReturnsOnlyTopLevelProjects(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)
@@ -911,6 +931,45 @@ func TestPostStore_ResolveTargetAndFindActiveInteractions(t *testing.T) {
 	}
 }
 
+func TestPostStore_ResolveShareTarget_ReturnsEligibilityAndFiltersHidden(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:alice", "root", "root", base)
+	project := seedPost(t, pool, "did:plc:alice", "project", "project", base.Add(time.Minute))
+	seedProjectMaterialization(t, pool, project, "social.craftsky.feed.defs#knitting", "Project")
+	reply := seedReplyPost(t, pool, "did:plc:alice", "reply", "reply", root, root, base.Add(2*time.Minute))
+	hidden := seedPost(t, pool, "did:plc:alice", "hidden", "hidden", base.Add(3*time.Minute))
+	seedModerationOutput(t, pool, "post", "did:plc:alice", hidden, "hide", base.Add(4*time.Minute))
+
+	store := api.NewPostStore(pool)
+	rootTarget, err := store.ResolveShareTarget(context.Background(), "did:plc:alice", "root")
+	if err != nil {
+		t.Fatalf("ResolveShareTarget root: %v", err)
+	}
+	if rootTarget.URI != root || rootTarget.IsReply || rootTarget.IsProject {
+		t.Fatalf("root target = %+v", rootTarget)
+	}
+	projectTarget, err := store.ResolveShareTarget(context.Background(), "did:plc:alice", "project")
+	if err != nil {
+		t.Fatalf("ResolveShareTarget project: %v", err)
+	}
+	if projectTarget.URI != project || projectTarget.IsReply || !projectTarget.IsProject {
+		t.Fatalf("project target = %+v", projectTarget)
+	}
+	replyTarget, err := store.ResolveShareTarget(context.Background(), "did:plc:alice", "reply")
+	if err != nil {
+		t.Fatalf("ResolveShareTarget reply: %v", err)
+	}
+	if replyTarget.URI != reply || !replyTarget.IsReply {
+		t.Fatalf("reply target = %+v", replyTarget)
+	}
+	if _, err := store.ResolveShareTarget(context.Background(), "did:plc:alice", "hidden"); !errors.Is(err, api.ErrPostNotFound) {
+		t.Fatalf("hidden target err = %v, want ErrPostNotFound", err)
+	}
+}
+
 func TestPostStore_EngagementSummaries_ActiveOnlyAndViewerStates(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)
@@ -927,6 +986,10 @@ func TestPostStore_EngagementSummaries_ActiveOnlyAndViewerStates(t *testing.T) {
 	seedInteraction(t, pool, "repost", "did:plc:bob", "repost-p1", post1, false)
 	seedInteraction(t, pool, "repost", "did:plc:bob", "repost-p2-deleted", post2, true)
 	seedInteraction(t, pool, "repost", "did:plc:carol", "repost-p2", post2, false)
+	seedQuotePost(t, pool, "did:plc:carol", "quote-p1-a", "quote p1 a", post1, "bafyp1", base.Add(90*time.Minute))
+	seedQuotePost(t, pool, "did:plc:dave", "quote-p1-b", "quote p1 b", post1, "bafyp1", base.Add(95*time.Minute))
+	hiddenQuote := seedQuotePost(t, pool, "did:plc:dave", "quote-p1-hidden", "hidden quote", post1, "bafyp1", base.Add(100*time.Minute))
+	seedModerationOutput(t, pool, "post", "did:plc:dave", hiddenQuote, "hide", base.Add(101*time.Minute))
 	reply1 := seedReplyPost(t, pool, "did:plc:bob", "reply1", "reply", post1, post1, base.Add(2*time.Hour))
 	seedReplyPost(t, pool, "did:plc:carol", "reply2", "reply", post1, post1, base.Add(3*time.Hour))
 	seedReplyPost(t, pool, "did:plc:dave", "grandchild", "nested", post1, reply1, base.Add(4*time.Hour))
@@ -936,10 +999,10 @@ func TestPostStore_EngagementSummaries_ActiveOnlyAndViewerStates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EngagementSummaries: %v", err)
 	}
-	if got := summaries[post1]; got.LikeCount != 2 || got.RepostCount != 1 || got.ReplyCount != 3 || !got.ViewerHasLiked || !got.ViewerHasReposted || !got.ViewerHasReplied {
+	if got := summaries[post1]; got.LikeCount != 2 || got.RepostCount != 1 || got.QuoteCount != 2 || got.ReplyCount != 3 || !got.ViewerHasLiked || !got.ViewerHasReposted || !got.ViewerHasReplied {
 		t.Fatalf("post1 summary = %+v", got)
 	}
-	if got := summaries[post2]; got.LikeCount != 1 || got.RepostCount != 1 || got.ReplyCount != 0 || !got.ViewerHasLiked || got.ViewerHasReposted || got.ViewerHasReplied {
+	if got := summaries[post2]; got.LikeCount != 1 || got.RepostCount != 1 || got.QuoteCount != 0 || got.ReplyCount != 0 || !got.ViewerHasLiked || got.ViewerHasReposted || got.ViewerHasReplied {
 		t.Fatalf("post2 summary = %+v", got)
 	}
 }
@@ -969,6 +1032,65 @@ func TestPostStore_EngagementSummaries_ViewerHasRepliedIsDirectChildOnly(t *test
 	}
 	if got := summaries[reply]; !got.ViewerHasReplied {
 		t.Fatalf("reply summary = %+v, want direct viewer reply true", got)
+	}
+}
+
+func TestPostStore_EngagementSummaries_QuoteOnlyViewerDoesNotSetReposted(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	seedMember(t, pool, "did:plc:bob")
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	subject := seedPost(t, pool, "did:plc:alice", "subject", "subject", base)
+	seedQuotePost(t, pool, "did:plc:bob", "quote-subject", "quote commentary", subject, "bafysubject", base.Add(time.Minute))
+
+	summaries, err := api.NewPostStore(pool).EngagementSummaries(context.Background(), "did:plc:bob", []string{subject})
+	if err != nil {
+		t.Fatalf("EngagementSummaries: %v", err)
+	}
+	got := summaries[subject]
+	if got.QuoteCount != 1 {
+		t.Fatalf("QuoteCount = %d, want 1", got.QuoteCount)
+	}
+	if got.ViewerHasReposted {
+		t.Fatalf("ViewerHasReposted = true for quote-only viewer")
+	}
+}
+
+func TestPostStore_QuoteViewRows_ReturnsVisibleHiddenAndUnavailableStates(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:carol"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	visible := seedPost(t, pool, "did:plc:carol", "visible", "visible quote target", base)
+	nestedTarget := seedPost(t, pool, "did:plc:carol", "nested-target", "nested target", base.Add(time.Minute))
+	nestedQuote := seedQuotePost(t, pool, "did:plc:carol", "nested-quote", "quote of quote", nestedTarget, "bafynested", base.Add(2*time.Minute))
+	hidden := seedPost(t, pool, "did:plc:carol", "hidden", "hidden target", base.Add(3*time.Minute))
+	seedModerationOutput(t, pool, "post", "did:plc:carol", hidden, "hide", base.Add(4*time.Minute))
+	missing := "at://did:plc:carol/social.craftsky.feed.post/missing"
+
+	views, err := api.NewPostStore(pool).QuoteViewRows(context.Background(), []api.ResponseStrongRef{
+		{URI: visible, CID: "bafycid"},
+		{URI: nestedQuote, CID: "bafycid-nested-quote"},
+		{URI: hidden, CID: "bafycid-hidden"},
+		{URI: missing, CID: "bafymissing"},
+	})
+	if err != nil {
+		t.Fatalf("QuoteViewRows: %v", err)
+	}
+	if got := views[visible]; got == nil || got.State != "visible" || got.Post == nil || got.Post.URI != visible {
+		t.Fatalf("visible quote view = %+v", got)
+	}
+	if got := views[nestedQuote]; got == nil || got.State != "visible" || got.Post == nil || got.Post.QuoteURI == nil || *got.Post.QuoteURI != nestedTarget {
+		t.Fatalf("nested quote view = %+v", got)
+	}
+	if got := views[hidden]; got == nil || got.State != "hidden" || got.Post != nil {
+		t.Fatalf("hidden quote view = %+v", got)
+	}
+	if got := views[missing]; got == nil || got.State != "unavailable" || got.Post != nil {
+		t.Fatalf("missing quote view = %+v", got)
 	}
 }
 

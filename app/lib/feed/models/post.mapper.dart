@@ -26,6 +26,7 @@ class PostMapper extends ClassMapperBase<Post> {
       PostImageMapper.ensureInitialized();
       PostReplyMapper.ensureInitialized();
       PostRefMapper.ensureInitialized();
+      QuoteViewMapper.ensureInitialized();
       ModerationMetadataMapper.ensureInitialized();
       ProjectMapper.ensureInitialized();
     }
@@ -86,6 +87,13 @@ class PostMapper extends ClassMapperBase<Post> {
     'viewerHasReposted',
     _$viewerHasReposted,
   );
+  static int _$quoteCount(Post v) => v.quoteCount;
+  static const Field<Post, int> _f$quoteCount = Field(
+    'quoteCount',
+    _$quoteCount,
+    opt: true,
+    def: 0,
+  );
   static bool _$viewerHasReplied(Post v) => v.viewerHasReplied;
   static const Field<Post, bool> _f$viewerHasReplied = Field(
     'viewerHasReplied',
@@ -117,6 +125,12 @@ class PostMapper extends ClassMapperBase<Post> {
     _$quote,
     opt: true,
   );
+  static QuoteView? _$quoteView(Post v) => v.quoteView;
+  static const Field<Post, QuoteView> _f$quoteView = Field(
+    'quoteView',
+    _$quoteView,
+    opt: true,
+  );
   static ModerationMetadata? _$moderation(Post v) => v.moderation;
   static const Field<Post, ModerationMetadata> _f$moderation = Field(
     'moderation',
@@ -145,11 +159,13 @@ class PostMapper extends ClassMapperBase<Post> {
     #replyCount: _f$replyCount,
     #viewerHasLiked: _f$viewerHasLiked,
     #viewerHasReposted: _f$viewerHasReposted,
+    #quoteCount: _f$quoteCount,
     #viewerHasReplied: _f$viewerHasReplied,
     #images: _f$images,
     #facets: _f$facets,
     #reply: _f$reply,
     #quote: _f$quote,
+    #quoteView: _f$quoteView,
     #moderation: _f$moderation,
     #project: _f$project,
   };
@@ -171,11 +187,13 @@ class PostMapper extends ClassMapperBase<Post> {
       replyCount: data.dec(_f$replyCount),
       viewerHasLiked: data.dec(_f$viewerHasLiked),
       viewerHasReposted: data.dec(_f$viewerHasReposted),
+      quoteCount: data.dec(_f$quoteCount),
       viewerHasReplied: data.dec(_f$viewerHasReplied),
       images: data.dec(_f$images),
       facets: data.dec(_f$facets),
       reply: data.dec(_f$reply),
       quote: data.dec(_f$quote),
+      quoteView: data.dec(_f$quoteView),
       moderation: data.dec(_f$moderation),
       project: data.dec(_f$project),
     );
@@ -239,6 +257,7 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
   get facets;
   PostReplyCopyWith<$R, PostReply, PostReply>? get reply;
   PostRefCopyWith<$R, PostRef, PostRef>? get quote;
+  QuoteViewCopyWith<$R, QuoteView, QuoteView>? get quoteView;
   ModerationMetadataCopyWith<$R, ModerationMetadata, ModerationMetadata>?
   get moderation;
   ProjectCopyWith<$R, Project, Project>? get project;
@@ -256,11 +275,13 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
     int? replyCount,
     bool? viewerHasLiked,
     bool? viewerHasReposted,
+    int? quoteCount,
     bool? viewerHasReplied,
     List<PostImage>? images,
     List<Map<String, dynamic>>? facets,
     PostReply? reply,
     PostRef? quote,
+    QuoteView? quoteView,
     ModerationMetadata? moderation,
     Project? project,
   });
@@ -312,6 +333,9 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
   PostRefCopyWith<$R, PostRef, PostRef>? get quote =>
       $value.quote?.copyWith.$chain((v) => call(quote: v));
   @override
+  QuoteViewCopyWith<$R, QuoteView, QuoteView>? get quoteView =>
+      $value.quoteView?.copyWith.$chain((v) => call(quoteView: v));
+  @override
   ModerationMetadataCopyWith<$R, ModerationMetadata, ModerationMetadata>?
   get moderation =>
       $value.moderation?.copyWith.$chain((v) => call(moderation: v));
@@ -333,11 +357,13 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     int? replyCount,
     bool? viewerHasLiked,
     bool? viewerHasReposted,
+    int? quoteCount,
     bool? viewerHasReplied,
     Object? images = $none,
     Object? facets = $none,
     Object? reply = $none,
     Object? quote = $none,
+    Object? quoteView = $none,
     Object? moderation = $none,
     Object? project = $none,
   }) => $apply(
@@ -355,11 +381,13 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       if (replyCount != null) #replyCount: replyCount,
       if (viewerHasLiked != null) #viewerHasLiked: viewerHasLiked,
       if (viewerHasReposted != null) #viewerHasReposted: viewerHasReposted,
+      if (quoteCount != null) #quoteCount: quoteCount,
       if (viewerHasReplied != null) #viewerHasReplied: viewerHasReplied,
       if (images != $none) #images: images,
       if (facets != $none) #facets: facets,
       if (reply != $none) #reply: reply,
       if (quote != $none) #quote: quote,
+      if (quoteView != $none) #quoteView: quoteView,
       if (moderation != $none) #moderation: moderation,
       if (project != $none) #project: project,
     }),
@@ -382,11 +410,13 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       #viewerHasReposted,
       or: $value.viewerHasReposted,
     ),
+    quoteCount: data.get(#quoteCount, or: $value.quoteCount),
     viewerHasReplied: data.get(#viewerHasReplied, or: $value.viewerHasReplied),
     images: data.get(#images, or: $value.images),
     facets: data.get(#facets, or: $value.facets),
     reply: data.get(#reply, or: $value.reply),
     quote: data.get(#quote, or: $value.quote),
+    quoteView: data.get(#quoteView, or: $value.quoteView),
     moderation: data.get(#moderation, or: $value.moderation),
     project: data.get(#project, or: $value.project),
   );
@@ -1163,5 +1193,357 @@ class _PostRefCopyWithImpl<$R, $Out>
   @override
   PostRefCopyWith<$R2, PostRef, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
       _PostRefCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class QuoteViewMapper extends ClassMapperBase<QuoteView> {
+  QuoteViewMapper._();
+
+  static QuoteViewMapper? _instance;
+  static QuoteViewMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = QuoteViewMapper._());
+      QuotePreviewPostMapper.ensureInitialized();
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'QuoteView';
+
+  static String _$state(QuoteView v) => v.state;
+  static const Field<QuoteView, String> _f$state = Field('state', _$state);
+  static QuotePreviewPost? _$post(QuoteView v) => v.post;
+  static const Field<QuoteView, QuotePreviewPost> _f$post = Field(
+    'post',
+    _$post,
+    opt: true,
+  );
+
+  @override
+  final MappableFields<QuoteView> fields = const {
+    #state: _f$state,
+    #post: _f$post,
+  };
+  @override
+  final bool ignoreNull = true;
+
+  static QuoteView _instantiate(DecodingData data) {
+    return QuoteView(state: data.dec(_f$state), post: data.dec(_f$post));
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static QuoteView fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<QuoteView>(map);
+  }
+
+  static QuoteView fromJson(String json) {
+    return ensureInitialized().decodeJson<QuoteView>(json);
+  }
+}
+
+mixin QuoteViewMappable {
+  String toJson() {
+    return QuoteViewMapper.ensureInitialized().encodeJson<QuoteView>(
+      this as QuoteView,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return QuoteViewMapper.ensureInitialized().encodeMap<QuoteView>(
+      this as QuoteView,
+    );
+  }
+
+  QuoteViewCopyWith<QuoteView, QuoteView, QuoteView> get copyWith =>
+      _QuoteViewCopyWithImpl<QuoteView, QuoteView>(
+        this as QuoteView,
+        $identity,
+        $identity,
+      );
+  @override
+  String toString() {
+    return QuoteViewMapper.ensureInitialized().stringifyValue(
+      this as QuoteView,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return QuoteViewMapper.ensureInitialized().equalsValue(
+      this as QuoteView,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return QuoteViewMapper.ensureInitialized().hashValue(this as QuoteView);
+  }
+}
+
+extension QuoteViewValueCopy<$R, $Out> on ObjectCopyWith<$R, QuoteView, $Out> {
+  QuoteViewCopyWith<$R, QuoteView, $Out> get $asQuoteView =>
+      $base.as((v, t, t2) => _QuoteViewCopyWithImpl<$R, $Out>(v, t, t2));
+}
+
+abstract class QuoteViewCopyWith<$R, $In extends QuoteView, $Out>
+    implements ClassCopyWith<$R, $In, $Out> {
+  QuotePreviewPostCopyWith<$R, QuotePreviewPost, QuotePreviewPost>? get post;
+  $R call({String? state, QuotePreviewPost? post});
+  QuoteViewCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
+}
+
+class _QuoteViewCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, QuoteView, $Out>
+    implements QuoteViewCopyWith<$R, QuoteView, $Out> {
+  _QuoteViewCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<QuoteView> $mapper =
+      QuoteViewMapper.ensureInitialized();
+  @override
+  QuotePreviewPostCopyWith<$R, QuotePreviewPost, QuotePreviewPost>? get post =>
+      $value.post?.copyWith.$chain((v) => call(post: v));
+  @override
+  $R call({String? state, Object? post = $none}) => $apply(
+    FieldCopyWithData({
+      if (state != null) #state: state,
+      if (post != $none) #post: post,
+    }),
+  );
+  @override
+  QuoteView $make(CopyWithData data) => QuoteView(
+    state: data.get(#state, or: $value.state),
+    post: data.get(#post, or: $value.post),
+  );
+
+  @override
+  QuoteViewCopyWith<$R2, QuoteView, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  ) => _QuoteViewCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
+  QuotePreviewPostMapper._();
+
+  static QuotePreviewPostMapper? _instance;
+  static QuotePreviewPostMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = QuotePreviewPostMapper._());
+      MapperContainer.globals.useAll([AtUriMapper(), CidMapper()]);
+      PostAuthorMapper.ensureInitialized();
+      PostImageMapper.ensureInitialized();
+      ProjectMapper.ensureInitialized();
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'QuotePreviewPost';
+
+  static AtUri _$uri(QuotePreviewPost v) => v.uri;
+  static dynamic _arg$uri(f) => f<AtUri>();
+  static const Field<QuotePreviewPost, String> _f$uri = Field(
+    'uri',
+    _$uri,
+    arg: _arg$uri,
+  );
+  static Cid _$cid(QuotePreviewPost v) => v.cid;
+  static dynamic _arg$cid(f) => f<Cid>();
+  static const Field<QuotePreviewPost, String> _f$cid = Field(
+    'cid',
+    _$cid,
+    arg: _arg$cid,
+  );
+  static String _$text(QuotePreviewPost v) => v.text;
+  static const Field<QuotePreviewPost, String> _f$text = Field('text', _$text);
+  static PostAuthor _$author(QuotePreviewPost v) => v.author;
+  static const Field<QuotePreviewPost, PostAuthor> _f$author = Field(
+    'author',
+    _$author,
+  );
+  static DateTime _$createdAt(QuotePreviewPost v) => v.createdAt;
+  static const Field<QuotePreviewPost, DateTime> _f$createdAt = Field(
+    'createdAt',
+    _$createdAt,
+  );
+  static List<PostImage>? _$images(QuotePreviewPost v) => v.images;
+  static const Field<QuotePreviewPost, List<PostImage>> _f$images = Field(
+    'images',
+    _$images,
+    opt: true,
+  );
+  static Project? _$project(QuotePreviewPost v) => v.project;
+  static const Field<QuotePreviewPost, Project> _f$project = Field(
+    'project',
+    _$project,
+    opt: true,
+  );
+
+  @override
+  final MappableFields<QuotePreviewPost> fields = const {
+    #uri: _f$uri,
+    #cid: _f$cid,
+    #text: _f$text,
+    #author: _f$author,
+    #createdAt: _f$createdAt,
+    #images: _f$images,
+    #project: _f$project,
+  };
+  @override
+  final bool ignoreNull = true;
+
+  static QuotePreviewPost _instantiate(DecodingData data) {
+    return QuotePreviewPost(
+      uri: data.dec(_f$uri),
+      cid: data.dec(_f$cid),
+      text: data.dec(_f$text),
+      author: data.dec(_f$author),
+      createdAt: data.dec(_f$createdAt),
+      images: data.dec(_f$images),
+      project: data.dec(_f$project),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static QuotePreviewPost fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<QuotePreviewPost>(map);
+  }
+
+  static QuotePreviewPost fromJson(String json) {
+    return ensureInitialized().decodeJson<QuotePreviewPost>(json);
+  }
+}
+
+mixin QuotePreviewPostMappable {
+  String toJson() {
+    return QuotePreviewPostMapper.ensureInitialized()
+        .encodeJson<QuotePreviewPost>(this as QuotePreviewPost);
+  }
+
+  Map<String, dynamic> toMap() {
+    return QuotePreviewPostMapper.ensureInitialized()
+        .encodeMap<QuotePreviewPost>(this as QuotePreviewPost);
+  }
+
+  QuotePreviewPostCopyWith<QuotePreviewPost, QuotePreviewPost, QuotePreviewPost>
+  get copyWith =>
+      _QuotePreviewPostCopyWithImpl<QuotePreviewPost, QuotePreviewPost>(
+        this as QuotePreviewPost,
+        $identity,
+        $identity,
+      );
+  @override
+  String toString() {
+    return QuotePreviewPostMapper.ensureInitialized().stringifyValue(
+      this as QuotePreviewPost,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return QuotePreviewPostMapper.ensureInitialized().equalsValue(
+      this as QuotePreviewPost,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return QuotePreviewPostMapper.ensureInitialized().hashValue(
+      this as QuotePreviewPost,
+    );
+  }
+}
+
+extension QuotePreviewPostValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, QuotePreviewPost, $Out> {
+  QuotePreviewPostCopyWith<$R, QuotePreviewPost, $Out>
+  get $asQuotePreviewPost =>
+      $base.as((v, t, t2) => _QuotePreviewPostCopyWithImpl<$R, $Out>(v, t, t2));
+}
+
+abstract class QuotePreviewPostCopyWith<$R, $In extends QuotePreviewPost, $Out>
+    implements ClassCopyWith<$R, $In, $Out> {
+  PostAuthorCopyWith<$R, PostAuthor, PostAuthor> get author;
+  ListCopyWith<$R, PostImage, PostImageCopyWith<$R, PostImage, PostImage>>?
+  get images;
+  ProjectCopyWith<$R, Project, Project>? get project;
+  $R call({
+    String? uri,
+    String? cid,
+    String? text,
+    PostAuthor? author,
+    DateTime? createdAt,
+    List<PostImage>? images,
+    Project? project,
+  });
+  QuotePreviewPostCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _QuotePreviewPostCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, QuotePreviewPost, $Out>
+    implements QuotePreviewPostCopyWith<$R, QuotePreviewPost, $Out> {
+  _QuotePreviewPostCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<QuotePreviewPost> $mapper =
+      QuotePreviewPostMapper.ensureInitialized();
+  @override
+  PostAuthorCopyWith<$R, PostAuthor, PostAuthor> get author =>
+      $value.author.copyWith.$chain((v) => call(author: v));
+  @override
+  ListCopyWith<$R, PostImage, PostImageCopyWith<$R, PostImage, PostImage>>?
+  get images => $value.images != null
+      ? ListCopyWith(
+          $value.images!,
+          (v, t) => v.copyWith.$chain(t),
+          (v) => call(images: v),
+        )
+      : null;
+  @override
+  ProjectCopyWith<$R, Project, Project>? get project =>
+      $value.project?.copyWith.$chain((v) => call(project: v));
+  @override
+  $R call({
+    String? uri,
+    String? cid,
+    String? text,
+    PostAuthor? author,
+    DateTime? createdAt,
+    Object? images = $none,
+    Object? project = $none,
+  }) => $apply(
+    FieldCopyWithData({
+      if (uri != null) #uri: uri,
+      if (cid != null) #cid: cid,
+      if (text != null) #text: text,
+      if (author != null) #author: author,
+      if (createdAt != null) #createdAt: createdAt,
+      if (images != $none) #images: images,
+      if (project != $none) #project: project,
+    }),
+  );
+  @override
+  QuotePreviewPost $make(CopyWithData data) => QuotePreviewPost(
+    uri: data.get(#uri, or: $value.uri),
+    cid: data.get(#cid, or: $value.cid),
+    text: data.get(#text, or: $value.text),
+    author: data.get(#author, or: $value.author),
+    createdAt: data.get(#createdAt, or: $value.createdAt),
+    images: data.get(#images, or: $value.images),
+    project: data.get(#project, or: $value.project),
+  );
+
+  @override
+  QuotePreviewPostCopyWith<$R2, QuotePreviewPost, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  ) => _QuotePreviewPostCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 

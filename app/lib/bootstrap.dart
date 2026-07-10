@@ -10,6 +10,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_image_blob.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/models/user_posts_state.dart';
 import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart'
     as post_comment_section_provider;
@@ -265,6 +266,7 @@ void initializeMappers() {
   PostMapper.ensureInitialized();
   PostCommentSectionMapper.ensureInitialized();
   PostPageMapper.ensureInitialized();
+  TimelinePageMapper.ensureInitialized();
   CreatePostImageMapper.ensureInitialized();
   UploadedImageBlobMapper.ensureInitialized();
   UserPostsStateMapper.ensureInitialized();

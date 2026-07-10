@@ -420,5 +420,8 @@ func buildSearchPostResponses(ctx context.Context, rows []SearchPostRow, viewerD
 		applyEngagementSummary(resp, summaries[row.Post.URI])
 		items = append(items, resp)
 	}
+	if err := attachQuoteViews(ctx, store, resolver, items); err != nil {
+		return nil, err
+	}
 	return items, nil
 }

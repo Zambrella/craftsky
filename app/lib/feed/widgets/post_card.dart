@@ -29,6 +29,7 @@ class PostCard extends StatelessWidget {
     this.onTap,
     this.onLike,
     this.onRepost,
+    this.onQuote,
     this.onDelete,
     this.onReport,
     this.deleteTooltip,
@@ -48,6 +49,7 @@ class PostCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLike;
   final VoidCallback? onRepost;
+  final VoidCallback? onQuote;
   final VoidCallback? onDelete;
   final VoidCallback? onReport;
   final String? deleteTooltip;
@@ -72,6 +74,7 @@ class PostCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final displayName = post.author.displayName ?? post.author.handle;
     final isFlat = style == PostCardStyle.flat;
+    final canShowShareAction = showRepostAction && post.reply == null;
     final borderRadius = isFlat
         ? BorderRadius.zero
         : BorderRadius.circular(radii.r3);
@@ -166,6 +169,10 @@ class PostCard extends StatelessWidget {
                       facets: post.facets,
                       style: theme.textTheme.bodyLarge,
                     ),
+                    if (post.quoteView case final quoteView?) ...[
+                      SizedBox(height: spacing.sp3),
+                      _QuotePreviewCard(quoteView: quoteView),
+                    ],
                     SizedBox(height: spacing.sp2),
                     if (!isFlat) const CraftskyDivider(),
                     Row(
@@ -195,16 +202,18 @@ class PostCard extends StatelessWidget {
                                   : null,
                               onPressed: onReply,
                             ),
-                            if (showRepostAction)
-                              _PostCardAction(
-                                icon: Icons.repeat,
-                                count: post.repostCount,
+                            if (canShowShareAction)
+                              _PostCardShareAction(
+                                count: post.repostCount + post.quoteCount,
                                 isSelected: post.viewerHasReposted,
                                 selectedColor: semanticColors.success,
-                                tooltip: post.viewerHasReposted
+                                tooltip: l10n.postShareAction,
+                                repostLabel: post.viewerHasReposted
                                     ? l10n.postUnrepostAction
                                     : l10n.postRepostAction,
-                                onPressed: onRepost,
+                                quoteLabel: l10n.postQuoteAction,
+                                onRepost: onRepost,
+                                onQuote: onQuote,
                               ),
                           ],
                         ),
@@ -383,6 +392,198 @@ class _PostCardMenu extends StatelessWidget {
   }
 }
 
+class _QuotePreviewCard extends StatelessWidget {
+  const _QuotePreviewCard({required this.quoteView});
+
+  final QuoteView quoteView;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final radii = theme.extension<RadiusTheme>()!;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    final l10n = AppLocalizations.of(context);
+    final post = quoteView.post;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: swatches.paper2,
+        borderRadius: BorderRadius.circular(radii.r2),
+        border: Border.all(color: swatches.borderHair),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(spacing.sp3),
+        child: switch ((quoteView.state, post)) {
+          ('visible', final quoted?) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _QuotePreviewAuthor(author: quoted.author),
+              SizedBox(height: spacing.sp2),
+              Text(
+                quoted.text,
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium,
+              ),
+            ],
+          ),
+          ('hidden', _) => Text(
+            l10n.postQuoteHidden,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.outline,
+            ),
+          ),
+          _ => Text(
+            l10n.postQuoteUnavailable,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.outline,
+            ),
+          ),
+        },
+      ),
+    );
+  }
+}
+
+class _QuotePreviewAuthor extends StatelessWidget {
+  const _QuotePreviewAuthor({required this.author});
+
+  final PostAuthor author;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final displayName = author.displayName;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (displayName != null && displayName.trim().isNotEmpty)
+          Text(
+            displayName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleSmall,
+          ),
+        Text(
+          '@${author.handle}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.outline,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PostCardShareAction extends StatelessWidget {
+  const _PostCardShareAction({
+    required this.count,
+    required this.selectedColor,
+    required this.tooltip,
+    required this.repostLabel,
+    required this.quoteLabel,
+    this.isSelected = false,
+    this.onRepost,
+    this.onQuote,
+  });
+
+  final int count;
+  final Color selectedColor;
+  final String tooltip;
+  final String repostLabel;
+  final String quoteLabel;
+  final bool isSelected;
+  final VoidCallback? onRepost;
+  final VoidCallback? onQuote;
+
+  bool get _isEnabled => onRepost != null || onQuote != null;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final color = isSelected
+        ? selectedColor
+        : theme.colorScheme.onSurfaceVariant;
+    final countLabel = _compactCountLabel(count);
+
+    return Builder(
+      builder: (buttonContext) {
+        void openMenu() {
+          if (!_isEnabled) return;
+          unawaited(_showMenu(buttonContext));
+        }
+
+        return Semantics(
+          label: tooltip,
+          button: true,
+          enabled: _isEnabled,
+          onTap: _isEnabled ? openMenu : null,
+          child: ExcludeSemantics(
+            child: Tooltip(
+              message: tooltip,
+              excludeFromSemantics: true,
+              child: TextButton.icon(
+                icon: Icon(
+                  Icons.repeat,
+                  color: color,
+                  size: _postCardActionIconSize,
+                ),
+                onPressed: _isEnabled ? openMenu : null,
+                style: TextButton.styleFrom(
+                  foregroundColor: color,
+                  disabledForegroundColor: color,
+                  padding: EdgeInsets.symmetric(horizontal: spacing.sp1),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  alignment: Alignment.centerLeft,
+                ),
+                label: countLabel != null
+                    ? Text(
+                        countLabel,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: color,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showMenu(BuildContext context) {
+    return showCraftskyContextMenu(
+      context,
+      position: craftskyContextMenuAnchorPosition(context),
+      groups: [
+        CraftskyContextMenuGroup(
+          items: [
+            if (onRepost != null)
+              CraftskyContextMenuItem(
+                text: repostLabel,
+                icon: Icons.repeat,
+                onPressed: onRepost,
+                isSelected: isSelected,
+              ),
+            if (onQuote != null)
+              CraftskyContextMenuItem(
+                text: quoteLabel,
+                icon: Icons.format_quote,
+                onPressed: onQuote,
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class _PostCardAction extends StatelessWidget {
   const _PostCardAction({
     required this.icon,
@@ -452,24 +653,24 @@ class _PostCardAction extends StatelessWidget {
       ),
     );
   }
+}
 
-  String? _compactCountLabel(int count) {
-    if (count == 0) return null;
-    if (count.abs() < 1000) return '$count';
+String? _compactCountLabel(int count) {
+  if (count == 0) return null;
+  if (count.abs() < 1000) return '$count';
 
-    final absoluteCount = count.abs();
-    final sign = count.isNegative ? '-' : '';
-    if (absoluteCount < 999950) {
-      return '$sign${_trimCompactNumber(absoluteCount / 1000)}k';
-    }
-    if (absoluteCount < 999950000) {
-      return '$sign${_trimCompactNumber(absoluteCount / 1000000)}m';
-    }
-    return '$sign${_trimCompactNumber(absoluteCount / 1000000000)}b';
+  final absoluteCount = count.abs();
+  final sign = count.isNegative ? '-' : '';
+  if (absoluteCount < 999950) {
+    return '$sign${_trimCompactNumber(absoluteCount / 1000)}k';
   }
-
-  String _trimCompactNumber(double value) {
-    final digits = value < 10 ? 1 : 0;
-    return value.toStringAsFixed(digits).replaceFirst(RegExp(r'\.0$'), '');
+  if (absoluteCount < 999950000) {
+    return '$sign${_trimCompactNumber(absoluteCount / 1000000)}m';
   }
+  return '$sign${_trimCompactNumber(absoluteCount / 1000000000)}b';
+}
+
+String _trimCompactNumber(double value) {
+  final digits = value < 10 ? 1 : 0;
+  return value.toStringAsFixed(digits).replaceFirst(RegExp(r'\.0$'), '');
 }

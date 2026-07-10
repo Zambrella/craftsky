@@ -1,6 +1,7 @@
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
@@ -50,6 +51,14 @@ Post _post({
     reply: reply,
     project: project,
   ),
+);
+
+TimelinePage _timelinePage(List<Post> posts, {String? cursor}) => TimelinePage(
+  items: [
+    for (final post in posts)
+      TimelineItem(itemKey: 'post:${post.uri}', post: post),
+  ],
+  cursor: cursor,
 );
 
 const _project = Project(
@@ -246,7 +255,7 @@ void main() {
     test('top-level success prepends into live timeline provider', () async {
       final fake = FakePostRepository(
         onListTimeline: ({cursor, limit}) async =>
-            PostPage(items: [_post(rkey: 'old')]),
+            _timelinePage([_post(rkey: 'old')]),
         onCreate: ({required text, reply, images}) async => _post(rkey: 'new'),
       );
       final container = ProviderContainer.test(
@@ -258,7 +267,59 @@ void main() {
       await container.read(createPostProvider.notifier).create(text: 'hi');
 
       final timeline = container.read(timelineProvider).value!;
-      expect(timeline.items.map((p) => p.rkey), ['new', 'old']);
+      expect(timeline.items.map((item) => item.post.rkey), ['new', 'old']);
+    });
+
+    test('quote create uses normal top-level cache path', () async {
+      final target = _post(rkey: 'target');
+      final quote = PostRef(uri: target.uri, cid: target.cid);
+      final fake = FakePostRepository(
+        onListTimeline: ({cursor, limit}) async =>
+            _timelinePage([_post(rkey: 'old-timeline')]),
+        onListByAuthor: (id, {cursor, limit}) async =>
+            PostPage(items: [_post(rkey: 'old-profile')]),
+        onCreate: ({required text, reply, images}) async =>
+            _post(rkey: 'quote-post'),
+      );
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      await container.read(timelineProvider.future);
+      await container.read(userPostsProvider('did:plc:alice').future);
+      await container.read(userPostsProvider('alice.craftsky.social').future);
+
+      await container
+          .read(createPostProvider.notifier)
+          .create(text: 'quote commentary', quote: quote);
+
+      expect(fake.lastCreateQuote?.uri, quote.uri);
+      expect(fake.lastCreateQuote?.cid, quote.cid);
+      expect(container.read(createPostProvider).value?.quote?.uri, quote.uri);
+      expect(
+        container
+            .read(timelineProvider)
+            .value!
+            .items
+            .map((item) => item.post.rkey),
+        ['quote-post', 'old-timeline'],
+      );
+      expect(
+        container
+            .read(userPostsProvider('did:plc:alice'))
+            .value!
+            .items
+            .map((p) => p.rkey),
+        ['quote-post', 'old-profile'],
+      );
+      expect(
+        container
+            .read(userPostsProvider('alice.craftsky.social'))
+            .value!
+            .items
+            .map((p) => p.rkey),
+        ['quote-post', 'old-profile'],
+      );
     });
 
     test('reply success does not insert reply as timeline row', () async {
@@ -268,7 +329,7 @@ void main() {
         parent: PostRef(uri: target.uri, cid: target.cid),
       );
       final fake = FakePostRepository(
-        onListTimeline: ({cursor, limit}) async => PostPage(items: [target]),
+        onListTimeline: ({cursor, limit}) async => _timelinePage([target]),
         onCreate: ({required text, reply, images}) async =>
             _post(rkey: 'reply', reply: replyRef),
       );
@@ -283,7 +344,7 @@ void main() {
           .create(text: 'reply', reply: replyRef);
 
       final timeline = container.read(timelineProvider).value!;
-      expect(timeline.items.map((p) => p.rkey), ['target']);
+      expect(timeline.items.map((item) => item.post.rkey), ['target']);
     });
 
     test('reset() returns to AsyncData(null)', () async {
@@ -355,7 +416,7 @@ void main() {
       () async {
         final fake = FakePostRepository(
           onListTimeline: ({cursor, limit}) async =>
-              PostPage(items: [_post(rkey: 'old')]),
+              _timelinePage([_post(rkey: 'old')]),
           onListByAuthor: (id, {cursor, limit}) async =>
               PostPage(items: [_post(rkey: 'old-post')]),
           onListProjectsByAuthor: (id, {cursor, limit}) async => PostPage(
@@ -381,7 +442,11 @@ void main() {
             .create(text: 'project', project: _project);
 
         expect(
-          container.read(timelineProvider).value!.items.map((p) => p.rkey),
+          container
+              .read(timelineProvider)
+              .value!
+              .items
+              .map((item) => item.post.rkey),
           [
             'new-project',
             'old',

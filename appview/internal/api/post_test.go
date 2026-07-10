@@ -139,8 +139,12 @@ type fakePostStore struct {
 	authorErr              error
 	engagement             map[string]api.EngagementSummary
 	engagementErr          error
+	quoteViews             map[string]*api.QuoteViewRow
+	quoteViewsErr          error
 	target                 *api.PostTargetRef
 	targetErr              error
+	shareTarget            *api.ShareTargetRef
+	shareTargetErr         error
 	activeLike             *api.InteractionRow
 	activeLikeErr          error
 	activeRepost           *api.InteractionRow
@@ -155,9 +159,12 @@ type fakePostStore struct {
 	lastListProjectsCursor string
 	lastEngagementViewer   string
 	lastEngagementURIs     []string
+	lastQuoteViewRefs      []api.ResponseStrongRef
 	engagementCalls        int
 	lastTargetDID          string
 	lastTargetRkey         string
+	lastShareTargetDID     string
+	lastShareTargetRkey    string
 	lastActiveLikeDID      string
 	lastActiveLikeURI      string
 	lastActiveRepostDID    string
@@ -249,6 +256,21 @@ func (f *fakePostStore) ResolvePostTarget(_ context.Context, did, rkey string) (
 	}
 	return f.target, nil
 }
+
+func (f *fakePostStore) ResolveShareTarget(_ context.Context, did, rkey string) (*api.ShareTargetRef, error) {
+	f.lastShareTargetDID = did
+	f.lastShareTargetRkey = rkey
+	if f.shareTargetErr != nil {
+		return nil, f.shareTargetErr
+	}
+	if f.shareTarget != nil {
+		return f.shareTarget, nil
+	}
+	if f.target != nil {
+		return &api.ShareTargetRef{URI: f.target.URI, CID: f.target.CID}, nil
+	}
+	return nil, api.ErrPostNotFound
+}
 func (f *fakePostStore) FindActiveLike(_ context.Context, did, subjectURI string) (*api.InteractionRow, error) {
 	f.lastActiveLikeDID = did
 	f.lastActiveLikeURI = subjectURI
@@ -285,6 +307,21 @@ func (f *fakePostStore) EngagementSummaries(_ context.Context, viewerDID string,
 	}
 	for uri, summary := range f.engagement {
 		out[uri] = summary
+	}
+	return out, nil
+}
+
+func (f *fakePostStore) QuoteViewRows(_ context.Context, refs []api.ResponseStrongRef) (map[string]*api.QuoteViewRow, error) {
+	f.lastQuoteViewRefs = append([]api.ResponseStrongRef(nil), refs...)
+	if f.quoteViewsErr != nil {
+		return nil, f.quoteViewsErr
+	}
+	out := make(map[string]*api.QuoteViewRow, len(refs))
+	for _, ref := range refs {
+		out[ref.URI] = &api.QuoteViewRow{State: "unavailable"}
+	}
+	for uri, view := range f.quoteViews {
+		out[uri] = view
 	}
 	return out, nil
 }
@@ -603,11 +640,34 @@ func TestRepostPost_CreatesPDSRepostRecord(t *testing.T) {
 	if resp.Subject.URI != store.target.URI || resp.Subject.CID != store.target.CID {
 		t.Errorf("resp subject = %+v", resp.Subject)
 	}
-	if store.lastTargetDID != "did:plc:bob" || store.lastTargetRkey != "post1" {
-		t.Errorf("target lookup = %q/%q", store.lastTargetDID, store.lastTargetRkey)
+	if store.lastShareTargetDID != "did:plc:bob" || store.lastShareTargetRkey != "post1" {
+		t.Errorf("share target lookup = %q/%q", store.lastShareTargetDID, store.lastShareTargetRkey)
 	}
 	if store.lastActiveRepostDID != "did:plc:alice" || store.lastActiveRepostURI != store.target.URI {
 		t.Errorf("active lookup = %q/%q", store.lastActiveRepostDID, store.lastActiveRepostURI)
+	}
+}
+
+func TestRepostPost_AllowsSelfRepost(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{
+		createURI: syntax.ATURI("at://did:plc:alice/social.craftsky.feed.repost/selfRepost"),
+		createCID: syntax.CID("bafySelfRepost"),
+	}
+	store := &fakePostStore{shareTarget: &api.ShareTargetRef{URI: "at://did:plc:alice/social.craftsky.feed.post/own", CID: "bafyOwn"}}
+	h := api.RepostPostHandler(store, newPDSFactory(pds), nilLogger())
+	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:alice/own/reposts", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if store.lastShareTargetDID != "did:plc:alice" || store.lastShareTargetRkey != "own" {
+		t.Fatalf("share target lookup = %s/%s", store.lastShareTargetDID, store.lastShareTargetRkey)
+	}
+	if pds.lastCreateRepo != "did:plc:alice" || pds.lastCreateColl != "social.craftsky.feed.repost" {
+		t.Fatalf("CreateRecord repo/coll = %q/%q", pds.lastCreateRepo, pds.lastCreateColl)
 	}
 }
 
@@ -640,6 +700,34 @@ func TestRepostPost_AlreadyRepostedReturnsExistingIdentity(t *testing.T) {
 	}
 }
 
+func TestRepostPost_RejectsReplyTargetBeforePDSWrite(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{
+		shareTarget: &api.ShareTargetRef{
+			URI:     "at://did:plc:bob/social.craftsky.feed.post/reply",
+			CID:     "bafyReply",
+			IsReply: true,
+		},
+	}
+	h := api.RepostPostHandler(store, newPDSFactory(pds), nilLogger())
+	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/reply/reposts", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.createCalls != 0 {
+		t.Fatalf("CreateRecord calls = %d, want 0", pds.createCalls)
+	}
+	var body envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body.Error != "validation_failed" {
+		t.Fatalf("error = %q, want validation_failed", body.Error)
+	}
+}
+
 func TestRepostPost_RejectsNonEmptyBody(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}
@@ -667,7 +755,7 @@ func TestRepostPost_RejectsNonEmptyBody(t *testing.T) {
 
 func TestRepostPost_MissingSubjectReturns404(t *testing.T) {
 	t.Parallel()
-	store := &fakePostStore{targetErr: api.ErrPostNotFound}
+	store := &fakePostStore{shareTargetErr: api.ErrPostNotFound}
 	h := api.RepostPostHandler(store, newPDSFactory(&fakePDS{}), nilLogger())
 	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/missing/reposts", "", "did:plc:alice")
 	rr := httptest.NewRecorder()
@@ -721,7 +809,7 @@ func TestRepostPost_NewPDSFailureReturns502(t *testing.T) {
 
 func TestRepostPost_TargetLookupFailureReturns500(t *testing.T) {
 	t.Parallel()
-	store := &fakePostStore{targetErr: errors.New("database unavailable")}
+	store := &fakePostStore{shareTargetErr: errors.New("database unavailable")}
 	h := api.RepostPostHandler(store, newPDSFactory(&fakePDS{}), nilLogger())
 	req := authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/reposts", "", "did:plc:alice")
 	rr := httptest.NewRecorder()
@@ -778,6 +866,33 @@ func TestUnrepostPost_ExistingDeletesPDSRecord(t *testing.T) {
 	}
 	if pds.deleteCalls != 1 {
 		t.Errorf("deleteCalls = %d, want 1", pds.deleteCalls)
+	}
+}
+
+func TestUnrepostPost_WithAuthoredQuoteDeletesOnlyStraightRepost(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	quoteRkey := "quote1"
+	store := &fakePostStore{
+		target:       &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"},
+		activeRepost: &api.InteractionRow{URI: "at://did:plc:alice/social.craftsky.feed.repost/repost1", DID: "did:plc:alice", Rkey: "repost1", CID: "bafyRepost", SubjectURI: "at://did:plc:bob/social.craftsky.feed.post/post1", SubjectCID: "bafyPost"},
+	}
+	h := api.UnrepostPostHandler(store, newPDSFactory(pds), nilLogger())
+	req := authedPostPathReq(http.MethodDelete, "/v1/posts/did:plc:bob/post1/reposts", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.deleteCalls != 1 {
+		t.Fatalf("deleteCalls = %d, want 1", pds.deleteCalls)
+	}
+	if pds.lastDeleteColl != "social.craftsky.feed.repost" || pds.lastDeleteRkey != "repost1" {
+		t.Fatalf("DeleteRecord = coll %q rkey %q, want straight repost", pds.lastDeleteColl, pds.lastDeleteRkey)
+	}
+	if pds.lastDeleteColl == "social.craftsky.feed.post" || pds.lastDeleteRkey == quoteRkey {
+		t.Fatalf("DeleteRecord targeted quote post coll %q rkey %q", pds.lastDeleteColl, pds.lastDeleteRkey)
 	}
 }
 
@@ -1041,7 +1156,7 @@ func TestCreatePost_PDSSessionExpiredReturns401(t *testing.T) {
 func TestCreatePost_QuoteEmbed_TranslatedToLexiconShape(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDS{}
-	store := &fakePostStore{}
+	store := &fakePostStore{shareTarget: &api.ShareTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/r1", CID: "bafyB"}}
 	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
 	body := `{"text":"hi","embed":{"quote":{"uri":"at://did:plc:bob/social.craftsky.feed.post/r1","cid":"bafyB"}}}`
 	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
@@ -1058,6 +1173,194 @@ func TestCreatePost_QuoteEmbed_TranslatedToLexiconShape(t *testing.T) {
 	r, _ := embed["record"].(map[string]any)
 	if r["uri"] != "at://did:plc:bob/social.craftsky.feed.post/r1" {
 		t.Errorf("embed.record.uri = %v", r["uri"])
+	}
+}
+
+func TestCreatePost_QuoteEmbed_UsesResolvedTargetCID(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{
+		shareTarget: &api.ShareTargetRef{
+			URI: "at://did:plc:bob/social.craftsky.feed.post/r1",
+			CID: "bafyActual",
+		},
+	}
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
+	body := `{"text":"hi","embed":{"quote":{"uri":"at://did:plc:bob/social.craftsky.feed.post/r1","cid":"bafyStale"}}}`
+	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	rec, _ := pds.lastCreateRec.(map[string]any)
+	embed, _ := rec["embed"].(map[string]any)
+	record, _ := embed["record"].(map[string]any)
+	if record["uri"] != "at://did:plc:bob/social.craftsky.feed.post/r1" || record["cid"] != "bafyActual" {
+		t.Fatalf("quote record = %+v, want resolved target strongRef", record)
+	}
+	var resp api.PostResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("response JSON: %v", err)
+	}
+	if resp.Quote == nil || resp.Quote.CID != "bafyActual" {
+		t.Fatalf("response quote = %+v, want resolved target CID", resp.Quote)
+	}
+}
+
+func TestCreatePost_QuoteEmbed_AttachesCompactQuoteView(t *testing.T) {
+	t.Parallel()
+	quoteURI := "at://did:plc:bob/social.craftsky.feed.post/r1"
+	quoteCID := "bafyActual"
+	pds := &fakePDS{}
+	quoted := testPostRow("did:plc:bob", "r1", "quoted text", time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC))
+	quoted.CID = quoteCID
+	store := &fakePostStore{
+		shareTarget: &api.ShareTargetRef{
+			URI: quoteURI,
+			CID: quoteCID,
+		},
+		quoteViews: map[string]*api.QuoteViewRow{
+			quoteURI: {State: "visible", Post: quoted},
+		},
+	}
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+		"did:plc:bob":   "bob.example",
+	}}, api.DefaultMediaLimits(), nilLogger())
+	body := `{"text":"hi","embed":{"quote":{"uri":"at://did:plc:bob/social.craftsky.feed.post/r1","cid":"bafyStale"}}}`
+	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if len(store.lastQuoteViewRefs) != 1 || store.lastQuoteViewRefs[0].URI != quoteURI || store.lastQuoteViewRefs[0].CID != quoteCID {
+		t.Fatalf("quote view refs = %+v", store.lastQuoteViewRefs)
+	}
+	var resp api.PostResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("response JSON: %v", err)
+	}
+	if resp.Quote == nil || resp.Quote.CID != quoteCID {
+		t.Fatalf("response quote = %+v, want resolved target CID", resp.Quote)
+	}
+	if resp.QuoteView == nil || resp.QuoteView.State != "visible" || resp.QuoteView.Post == nil {
+		t.Fatalf("quoteView = %+v, want visible preview", resp.QuoteView)
+	}
+	if resp.QuoteView.Post.URI != quoteURI || resp.QuoteView.Post.Text != "quoted text" || resp.QuoteView.Post.Author.Handle != "bob.example" {
+		t.Fatalf("quoteView.post = %+v", resp.QuoteView.Post)
+	}
+}
+
+func TestCreatePost_AllowsMultipleQuotePostsForSameSubject(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{shareTarget: &api.ShareTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/r1", CID: "bafyB"}}
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
+	body := `{"text":"another angle","embed":{"quote":{"uri":"at://did:plc:bob/social.craftsky.feed.post/r1","cid":"bafyB"}}}`
+
+	for i := 0; i < 2; i++ {
+		req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if rr.Code != http.StatusCreated {
+			t.Fatalf("request %d status = %d, body = %s", i+1, rr.Code, rr.Body.String())
+		}
+	}
+	if pds.createCalls != 2 {
+		t.Fatalf("createCalls = %d, want 2 independent quote post writes", pds.createCalls)
+	}
+	if store.lastShareTargetDID != "did:plc:bob" || store.lastShareTargetRkey != "r1" {
+		t.Fatalf("last share target = %s/%s", store.lastShareTargetDID, store.lastShareTargetRkey)
+	}
+}
+
+func TestCreatePost_AllowsSelfQuote(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{shareTarget: &api.ShareTargetRef{URI: "at://did:plc:alice/social.craftsky.feed.post/own", CID: "bafyOwn"}}
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
+	body := `{"text":"adding more context","embed":{"quote":{"uri":"at://did:plc:alice/social.craftsky.feed.post/own","cid":"bafyOwn"}}}`
+	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if store.lastShareTargetDID != "did:plc:alice" || store.lastShareTargetRkey != "own" {
+		t.Fatalf("share target lookup = %s/%s", store.lastShareTargetDID, store.lastShareTargetRkey)
+	}
+	rec, _ := pds.lastCreateRec.(map[string]any)
+	embed, _ := rec["embed"].(map[string]any)
+	record, _ := embed["record"].(map[string]any)
+	if record["uri"] != "at://did:plc:alice/social.craftsky.feed.post/own" {
+		t.Fatalf("quote target uri = %v", record["uri"])
+	}
+}
+
+func TestCreatePost_QuoteRejectsReplyTargetBeforePDSWrite(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{
+		shareTarget: &api.ShareTargetRef{
+			URI:     "at://did:plc:bob/social.craftsky.feed.post/reply",
+			CID:     "bafyReply",
+			IsReply: true,
+		},
+	}
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
+	body := `{"text":"hi","embed":{"quote":{"uri":"at://did:plc:bob/social.craftsky.feed.post/reply","cid":"bafyReply"}}}`
+	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.createCalls != 0 {
+		t.Fatalf("CreateRecord calls = %d, want 0", pds.createCalls)
+	}
+	var env envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&env)
+	if env.Error != "validation_failed" {
+		t.Fatalf("error = %q, want validation_failed", env.Error)
+	}
+	if store.lastShareTargetDID != "did:plc:bob" || store.lastShareTargetRkey != "reply" {
+		t.Fatalf("share target lookup = %q/%q", store.lastShareTargetDID, store.lastShareTargetRkey)
+	}
+}
+
+func TestCreatePost_ProjectQuoteRejectedBeforePDSWrite(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	store := &fakePostStore{}
+	h := api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
+	body := `{
+		"text":"project quote",
+		"project":{"common":{"craftType":"social.craftsky.feed.defs#knitting"}},
+		"embed":{"quote":{"uri":"at://did:plc:bob/social.craftsky.feed.post/target","cid":"bafyTarget"}}
+	}`
+	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if pds.createCalls != 0 {
+		t.Fatalf("CreateRecord calls = %d, want 0", pds.createCalls)
+	}
+	if store.lastShareTargetDID != "" || store.lastShareTargetRkey != "" {
+		t.Fatalf("share target lookup = %q/%q, want none", store.lastShareTargetDID, store.lastShareTargetRkey)
+	}
+	var env envelope.Error
+	_ = json.NewDecoder(rr.Body).Decode(&env)
+	if env.Error != "validation_failed" {
+		t.Fatalf("error = %q, want validation_failed", env.Error)
 	}
 }
 
@@ -1275,6 +1578,59 @@ func TestGetPost_WithImages_ReturnsRenderReadyMetadata(t *testing.T) {
 	}
 	if img.Thumb == "" || img.Fullsize == "" {
 		t.Fatalf("urls missing: %+v", img)
+	}
+}
+
+func TestGetPost_WithQuote_AttachesCompactQuoteView(t *testing.T) {
+	t.Parallel()
+	quoteURI := "at://did:plc:carol/social.craftsky.feed.post/root"
+	quoteCID := "bafyroot"
+	row := &api.PostRow{
+		URI:      "at://did:plc:alice/social.craftsky.feed.post/rk1",
+		DID:      "did:plc:alice",
+		Rkey:     "rk1",
+		CID:      "bafycid",
+		Text:     "quote commentary",
+		QuoteURI: &quoteURI,
+		QuoteCID: &quoteCID,
+	}
+	quoted := &api.PostRow{
+		URI:  quoteURI,
+		DID:  "did:plc:carol",
+		Rkey: "root",
+		CID:  quoteCID,
+		Text: "original text",
+	}
+	store := &fakePostStore{
+		one: row,
+		quoteViews: map[string]*api.QuoteViewRow{
+			quoteURI: {State: "visible", Post: quoted},
+		},
+	}
+	h := api.GetPostHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+		"did:plc:carol": "carol.example",
+	}}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/rk1", "", "did:plc:alice")
+	req.SetPathValue("did", "did:plc:alice")
+	req.SetPathValue("rkey", "rk1")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.PostResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(store.lastQuoteViewRefs) != 1 || store.lastQuoteViewRefs[0].URI != quoteURI || store.lastQuoteViewRefs[0].CID != quoteCID {
+		t.Fatalf("quote view refs = %+v", store.lastQuoteViewRefs)
+	}
+	if resp.QuoteView == nil || resp.QuoteView.State != "visible" || resp.QuoteView.Post == nil {
+		t.Fatalf("quoteView = %+v, want visible preview", resp.QuoteView)
+	}
+	if resp.QuoteView.Post.URI != quoteURI || resp.QuoteView.Post.Author.Handle != "carol.example" {
+		t.Fatalf("quoteView.post = %+v", resp.QuoteView.Post)
 	}
 }
 
@@ -1503,6 +1859,57 @@ func TestGetPostComments_ReturnsRootAndCommentsOnly(t *testing.T) {
 	}
 	if store.lastCommentRootURI != root.URI || store.lastCommentLimit != 10 || store.lastCommentCursor != "" || store.lastCommentSort != "oldest" || store.lastCommentViewerDID != "did:plc:viewer" {
 		t.Fatalf("comment lookup = root:%q limit:%d cursor:%q sort:%q viewer:%q", store.lastCommentRootURI, store.lastCommentLimit, store.lastCommentCursor, store.lastCommentSort, store.lastCommentViewerDID)
+	}
+}
+
+func TestGetPostComments_AttachesQuoteViewsToPostShapedResponses(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	rootQuoteURI := "at://did:plc:carol/social.craftsky.feed.post/root-target"
+	rootQuoteCID := "bafyRootTarget"
+	commentQuoteURI := "at://did:plc:dave/social.craftsky.feed.post/hidden-target"
+	commentQuoteCID := "bafyHiddenTarget"
+	root := testPostRow("did:plc:alice", "root", "root quote commentary", base)
+	root.QuoteURI = &rootQuoteURI
+	root.QuoteCID = &rootQuoteCID
+	comment := testReplyRow("did:plc:bob", "comment1", "comment quote commentary", root.URI, root.URI, base.Add(time.Minute))
+	comment.QuoteURI = &commentQuoteURI
+	comment.QuoteCID = &commentQuoteCID
+	quotedRoot := testPostRow("did:plc:carol", "root-target", "quoted root target", base.Add(-time.Minute))
+	store := &fakePostStore{
+		one:         root,
+		commentRows: []*api.PostRow{comment},
+		quoteViews: map[string]*api.QuoteViewRow{
+			rootQuoteURI:    {State: "visible", Post: quotedRoot},
+			commentQuoteURI: {State: "hidden"},
+		},
+	}
+	h := api.GetPostCommentsHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+		"did:plc:bob":   "bob.example",
+		"did:plc:carol": "carol.example",
+	}}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/comments", "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp api.CommentSectionResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(store.lastQuoteViewRefs) != 2 {
+		t.Fatalf("quote view refs = %+v, want 2 refs", store.lastQuoteViewRefs)
+	}
+	if resp.Post.QuoteView == nil || resp.Post.QuoteView.State != "visible" || resp.Post.QuoteView.Post == nil {
+		t.Fatalf("root quoteView = %+v, want visible preview", resp.Post.QuoteView)
+	}
+	if resp.Post.QuoteView.Post.Author.Handle != "carol.example" {
+		t.Fatalf("root quote preview author = %+v", resp.Post.QuoteView.Post.Author)
+	}
+	if len(resp.Comments.Items) != 1 || resp.Comments.Items[0].Post.QuoteView == nil || resp.Comments.Items[0].Post.QuoteView.State != "hidden" {
+		t.Fatalf("comment item = %+v, want hidden quoteView", resp.Comments.Items)
 	}
 }
 
@@ -2287,6 +2694,49 @@ func TestListPosts_HappyPath_PaginatesCorrectly(t *testing.T) {
 	}
 	if resp.Cursor != "next-cursor-opaque" {
 		t.Errorf("cursor = %q", resp.Cursor)
+	}
+}
+
+func TestListPosts_AttachesQuoteViewsToAuthoredQuotePosts(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	quoteURI := "at://did:plc:carol/social.craftsky.feed.post/root"
+	quoteCID := "bafyroot"
+	row := testPostRow("did:plc:alice", "quote1", "quote commentary", base)
+	row.QuoteURI = &quoteURI
+	row.QuoteCID = &quoteCID
+	quoted := testPostRow("did:plc:carol", "root", "quoted original", base.Add(-time.Minute))
+	store := &fakePostStore{
+		listRows: []*api.PostRow{row},
+		quoteViews: map[string]*api.QuoteViewRow{
+			quoteURI: {State: "visible", Post: quoted},
+		},
+	}
+	h := api.ListPostsByAuthorHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+		"did:plc:carol": "carol.example",
+	}}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts", "", "did:plc:viewer")
+	req.SetPathValue("handleOrDid", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp struct {
+		Items []api.PostResponse `json:"items"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(store.lastQuoteViewRefs) != 1 || store.lastQuoteViewRefs[0].URI != quoteURI || store.lastQuoteViewRefs[0].CID != quoteCID {
+		t.Fatalf("quote view refs = %+v", store.lastQuoteViewRefs)
+	}
+	if len(resp.Items) != 1 || resp.Items[0].QuoteView == nil || resp.Items[0].QuoteView.State != "visible" || resp.Items[0].QuoteView.Post == nil {
+		t.Fatalf("items = %+v, want visible quoteView", resp.Items)
+	}
+	if resp.Items[0].QuoteView.Post.Author.Handle != "carol.example" {
+		t.Fatalf("quote preview author = %+v", resp.Items[0].QuoteView.Post.Author)
 	}
 }
 

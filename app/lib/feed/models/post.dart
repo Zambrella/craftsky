@@ -42,11 +42,13 @@ class Post with PostMappable {
     required this.replyCount,
     required this.viewerHasLiked,
     required this.viewerHasReposted,
+    this.quoteCount = 0,
     this.viewerHasReplied = false,
     this.images,
     this.facets,
     this.reply,
     this.quote,
+    this.quoteView,
     this.moderation,
     this.project,
   }) : uri = AtUri.parse(uri),
@@ -61,17 +63,55 @@ class Post with PostMappable {
   final List<String> tags;
   final PostReply? reply;
   final PostRef? quote;
+  final QuoteView? quoteView;
   final DateTime createdAt;
   final DateTime indexedAt;
   final PostAuthor author;
   final int likeCount;
   final int repostCount;
+  final int quoteCount;
   final int replyCount;
   final bool viewerHasLiked;
   final bool viewerHasReposted;
   final bool viewerHasReplied;
   final List<PostImage>? images;
   final ModerationMetadata? moderation;
+  final Project? project;
+}
+
+/// Compact one-level preview for quoted content. The AppView owns visibility
+/// policy and sends stable states so quote posts can remain renderable when the
+/// target is unavailable.
+@MappableClass(ignoreNull: true)
+class QuoteView with QuoteViewMappable {
+  const QuoteView({required this.state, this.post});
+
+  final String state;
+  final QuotePreviewPost? post;
+}
+
+@MappableClass(
+  ignoreNull: true,
+  includeCustomMappers: [AtUriMapper(), CidMapper()],
+)
+class QuotePreviewPost with QuotePreviewPostMappable {
+  QuotePreviewPost({
+    required String uri,
+    required String cid,
+    required this.text,
+    required this.author,
+    required this.createdAt,
+    this.images,
+    this.project,
+  }) : uri = AtUri.parse(uri),
+       cid = Cid.parse(cid);
+
+  final AtUri uri;
+  final Cid cid;
+  final String text;
+  final PostAuthor author;
+  final DateTime createdAt;
+  final List<PostImage>? images;
   final Project? project;
 }
 

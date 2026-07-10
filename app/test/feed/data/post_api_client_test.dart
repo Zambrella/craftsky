@@ -4,6 +4,7 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/projects/models/project.dart';
@@ -138,6 +139,33 @@ void main() {
       ).createPost(text: '#Mending', facets: facets);
 
       expect(post.text, '#Mending');
+    });
+
+    test('includes quote embed in create body when provided', () async {
+      final dio = buildDio();
+      final quote = PostRef(
+        uri: 'at://did:plc:bob/social.craftsky.feed.post/target',
+        cid: 'bafy_target',
+      );
+      DioAdapter(dio: dio).onPost(
+        '/v1/posts',
+        (server) => server.reply(201, samplePost(text: 'quote commentary')),
+        data: {
+          'text': 'quote commentary',
+          'embed': {
+            'quote': {
+              'uri': 'at://did:plc:bob/social.craftsky.feed.post/target',
+              'cid': 'bafy_target',
+            },
+          },
+        },
+      );
+
+      final post = await PostApiClient(
+        dio,
+      ).createPost(text: 'quote commentary', quote: quote);
+
+      expect(post.text, 'quote commentary');
     });
 
     test('sends nested root and parent refs when reply is provided', () async {
@@ -543,21 +571,74 @@ void main() {
   });
 
   group('PostApiClient.listTimeline', () {
-    test('GETs /v1/feed/timeline with no cursor and parses PostPage', () async {
+    test(
+      'GETs /v1/feed/timeline with no cursor and parses TimelinePage',
+      () async {
+        final dio = buildDio();
+        DioAdapter(dio: dio).onGet(
+          '/v1/feed/timeline',
+          (server) => server.reply(200, {
+            'items': [
+              {
+                'itemKey':
+                    'post:at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
+                'post': samplePost(),
+              },
+            ],
+            'cursor': 'next-cursor',
+          }),
+        );
+
+        final page = await PostApiClient(dio).listTimeline();
+
+        expect(page.items, hasLength(1));
+        expect(page.items.single.itemKey, contains('3lf2abc'));
+        expect(page.items.single.post.text, 'hello');
+        expect(page.cursor, 'next-cursor');
+      },
+    );
+
+    test('preserves feed item wrappers and repost reasons', () async {
       final dio = buildDio();
       DioAdapter(dio: dio).onGet(
         '/v1/feed/timeline',
         (server) => server.reply(200, {
-          'items': [samplePost()],
-          'cursor': 'next-cursor',
+          'items': [
+            {
+              'itemKey':
+                  'post:at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
+              'post': samplePost(text: 'wrapped post'),
+              'reason': {
+                'type': 'repost',
+                'by': {
+                  'did': 'did:plc:bob',
+                  'handle': 'bob.craftsky.social',
+                },
+                'uri': 'at://did:plc:bob/social.craftsky.feed.repost/r1',
+                'cid': 'bafyRepost',
+                'createdAt': '2026-05-04T18:22:45.000Z',
+                'indexedAt': '2026-05-04T18:22:47.000Z',
+              },
+            },
+          ],
         }),
       );
 
       final page = await PostApiClient(dio).listTimeline();
 
       expect(page.items, hasLength(1));
-      expect(page.items.single.text, 'hello');
-      expect(page.cursor, 'next-cursor');
+      final item = page.items.single;
+      expect(
+        item.itemKey,
+        'post:at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
+      );
+      expect(item.post.text, 'wrapped post');
+      expect(item.reason?.type, RepostReasonType.repost);
+      expect(item.reason?.by.handle, 'bob.craftsky.social');
+      expect(
+        item.reason?.uri,
+        'at://did:plc:bob/social.craftsky.feed.repost/r1',
+      );
     });
 
     test('passes cursor and limit as query params', () async {

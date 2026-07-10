@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
-import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,6 +29,30 @@ Map<String, dynamic> _samplePostMap({required String rkey, String? did}) => {
 Post _samplePost({required String rkey, String? did}) =>
     PostMapper.fromMap(_samplePostMap(rkey: rkey, did: did));
 
+TimelineItem _timelinePost(Post post, {String? itemKey}) => TimelineItem(
+  itemKey: itemKey ?? 'post:${post.uri}',
+  post: post,
+);
+
+TimelineItem _repostItem({
+  required String itemKey,
+  required Post post,
+  required String reposterDid,
+  required String reposterHandle,
+}) => TimelineItem(
+  itemKey: itemKey,
+  post: post,
+  reason: RepostReason(
+    type: RepostReasonType.repost,
+    by: PostAuthor(did: reposterDid, handle: reposterHandle),
+    uri:
+        'at://$reposterDid/social.craftsky.feed.repost/${itemKey.split(':').last}',
+    cid: 'bafy_repost_${itemKey.split(':').last}',
+    createdAt: DateTime.parse('2026-05-04T18:24:00.000Z'),
+    indexedAt: DateTime.parse('2026-05-04T18:24:01.000Z'),
+  ),
+);
+
 void main() {
   setUpAll(initializeMappers);
 
@@ -39,10 +63,10 @@ void main() {
         onListTimeline: ({cursor, limit}) async {
           expect(cursor, isNull);
           seenLimit = limit;
-          return PostPage(
+          return TimelinePage(
             items: [
-              _samplePost(rkey: 'a'),
-              _samplePost(rkey: 'b'),
+              _timelinePost(_samplePost(rkey: 'a')),
+              _timelinePost(_samplePost(rkey: 'b')),
             ],
             cursor: 'next',
           );
@@ -56,10 +80,53 @@ void main() {
       final state = await container.read(timelineProvider.future);
 
       expect(seenLimit, timelinePageLimit);
-      expect(state.items.map((p) => p.rkey), ['a', 'b']);
+      expect(state.items.map((item) => item.post.rkey), ['a', 'b']);
       expect(state.cursor, 'next');
       expect(state.hasMore, isTrue);
     });
+
+    test(
+      'keeps duplicate repost feed items for the same post by itemKey',
+      () async {
+        final original = _samplePost(rkey: 'shared', did: 'did:plc:carol');
+        final fake = FakePostRepository(
+          onListTimeline: ({cursor, limit}) async => TimelinePage(
+            items: [
+              _repostItem(
+                itemKey:
+                    'repost:at://did:plc:bob/social.craftsky.feed.repost/r1',
+                post: original,
+                reposterDid: 'did:plc:bob',
+                reposterHandle: 'bob.craftsky.social',
+              ),
+              _repostItem(
+                itemKey:
+                    'repost:at://did:plc:dana/social.craftsky.feed.repost/r2',
+                post: original,
+                reposterDid: 'did:plc:dana',
+                reposterHandle: 'dana.craftsky.social',
+              ),
+            ],
+          ),
+        );
+
+        final container = ProviderContainer.test(
+          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        );
+
+        final state = await container.read(timelineProvider.future);
+
+        expect(state.items, hasLength(2));
+        expect(state.items.map((item) => item.itemKey), [
+          'repost:at://did:plc:bob/social.craftsky.feed.repost/r1',
+          'repost:at://did:plc:dana/social.craftsky.feed.repost/r2',
+        ]);
+        expect(state.items.map((item) => item.post.uri), [
+          original.uri,
+          original.uri,
+        ]);
+      },
+    );
   });
 
   group('timelineProvider loadMore', () {
@@ -71,13 +138,13 @@ void main() {
           call++;
           expect(limit, timelinePageLimit);
           if (call == 1) {
-            return PostPage(
-              items: [_samplePost(rkey: 'a')],
+            return TimelinePage(
+              items: [_timelinePost(_samplePost(rkey: 'a'))],
               cursor: 'opaque:abc',
             );
           }
           nextPageCursor = cursor;
-          return PostPage(items: [_samplePost(rkey: 'b')]);
+          return TimelinePage(items: [_timelinePost(_samplePost(rkey: 'b'))]);
         },
       );
 
@@ -90,7 +157,7 @@ void main() {
 
       final state = container.read(timelineProvider).value!;
       expect(nextPageCursor, 'opaque:abc');
-      expect(state.items.map((p) => p.rkey), ['a', 'b']);
+      expect(state.items.map((item) => item.post.rkey), ['a', 'b']);
       expect(state.cursor, isNull);
       expect(state.hasMore, isFalse);
     });
@@ -101,8 +168,8 @@ void main() {
         onListTimeline: ({cursor, limit}) async {
           call++;
           if (call == 1) {
-            return PostPage(
-              items: [_samplePost(rkey: 'a')],
+            return TimelinePage(
+              items: [_timelinePost(_samplePost(rkey: 'a'))],
               cursor: 'c1',
             );
           }
@@ -110,7 +177,7 @@ void main() {
             throw Exception('network down');
           }
           expect(cursor, 'c1');
-          return PostPage(items: [_samplePost(rkey: 'b')]);
+          return TimelinePage(items: [_timelinePost(_samplePost(rkey: 'b'))]);
         },
       );
 
@@ -123,13 +190,13 @@ void main() {
 
       final mid = container.read(timelineProvider);
       expect(mid.hasError, isTrue);
-      expect(mid.value?.items.map((p) => p.rkey), ['a']);
+      expect(mid.value?.items.map((item) => item.post.rkey), ['a']);
       expect(mid.value?.cursor, 'c1');
 
       await container.read(timelineProvider.notifier).loadMore();
 
       final after = container.read(timelineProvider).value!;
-      expect(after.items.map((p) => p.rkey), ['a', 'b']);
+      expect(after.items.map((item) => item.post.rkey), ['a', 'b']);
     });
 
     test('no-op when hasMore is false', () async {
@@ -137,7 +204,7 @@ void main() {
       final fake = FakePostRepository(
         onListTimeline: ({cursor, limit}) async {
           calls++;
-          return const PostPage(items: []);
+          return const TimelinePage(items: []);
         },
       );
 
@@ -153,13 +220,13 @@ void main() {
 
     test('no-op when a previous loadMore is still in flight', () async {
       var calls = 0;
-      final gate = Completer<PostPage>();
+      final gate = Completer<TimelinePage>();
       final fake = FakePostRepository(
         onListTimeline: ({cursor, limit}) async {
           calls++;
           if (calls == 1) {
-            return PostPage(
-              items: [_samplePost(rkey: 'a')],
+            return TimelinePage(
+              items: [_timelinePost(_samplePost(rkey: 'a'))],
               cursor: 'c1',
             );
           }
@@ -182,7 +249,9 @@ void main() {
 
       expect(calls, 2);
 
-      gate.complete(PostPage(items: [_samplePost(rkey: 'b')]));
+      gate.complete(
+        TimelinePage(items: [_timelinePost(_samplePost(rkey: 'b'))]),
+      );
       await firstLoadMore;
     });
   });
@@ -193,7 +262,8 @@ void main() {
       () async {
         final old = _samplePost(rkey: 'old');
         final fake = FakePostRepository(
-          onListTimeline: ({cursor, limit}) async => PostPage(items: [old]),
+          onListTimeline: ({cursor, limit}) async =>
+              TimelinePage(items: [_timelinePost(old)]),
         );
         final container = ProviderContainer.test(
           overrides: [postRepositoryProvider.overrideWithValue(fake)],
@@ -206,7 +276,7 @@ void main() {
           ..prepend(old);
 
         final state = container.read(timelineProvider).value!;
-        expect(state.items.map((p) => p.rkey), ['new', 'old']);
+        expect(state.items.map((item) => item.post.rkey), ['new', 'old']);
       },
     );
 
@@ -217,12 +287,15 @@ void main() {
         onListTimeline: ({cursor, limit}) async {
           call++;
           if (call == 1) {
-            return PostPage(items: [duplicate], cursor: 'c1');
+            return TimelinePage(
+              items: [_timelinePost(duplicate)],
+              cursor: 'c1',
+            );
           }
-          return PostPage(
+          return TimelinePage(
             items: [
-              duplicate,
-              _samplePost(rkey: 'b'),
+              _timelinePost(duplicate),
+              _timelinePost(_samplePost(rkey: 'b')),
             ],
           );
         },
@@ -235,7 +308,7 @@ void main() {
       await container.read(timelineProvider.notifier).loadMore();
 
       final state = container.read(timelineProvider).value!;
-      expect(state.items.map((p) => p.rkey), ['a', 'b']);
+      expect(state.items.map((item) => item.post.rkey), ['a', 'b']);
     });
 
     test(
@@ -244,7 +317,8 @@ void main() {
         final a = _samplePost(rkey: 'a');
         final b = _samplePost(rkey: 'b');
         final fake = FakePostRepository(
-          onListTimeline: ({cursor, limit}) async => PostPage(items: [a, b]),
+          onListTimeline: ({cursor, limit}) async =>
+              TimelinePage(items: [_timelinePost(a), _timelinePost(b)]),
         );
         final container = ProviderContainer.test(
           overrides: [postRepositoryProvider.overrideWithValue(fake)],
@@ -256,7 +330,52 @@ void main() {
           ..removeByUri(a.uri);
 
         final state = container.read(timelineProvider).value!;
-        expect(state.items.map((p) => p.rkey), ['b']);
+        expect(state.items.map((item) => item.post.rkey), ['b']);
+      },
+    );
+
+    test(
+      'replace patches every timeline item with a matching post URI',
+      () async {
+        final original = _samplePost(rkey: 'shared', did: 'did:plc:carol');
+        final fake = FakePostRepository(
+          onListTimeline: ({cursor, limit}) async => TimelinePage(
+            items: [
+              _repostItem(
+                itemKey:
+                    'repost:at://did:plc:bob/social.craftsky.feed.repost/r1',
+                post: original,
+                reposterDid: 'did:plc:bob',
+                reposterHandle: 'bob.craftsky.social',
+              ),
+              _repostItem(
+                itemKey:
+                    'repost:at://did:plc:dana/social.craftsky.feed.repost/r2',
+                post: original,
+                reposterDid: 'did:plc:dana',
+                reposterHandle: 'dana.craftsky.social',
+              ),
+            ],
+          ),
+        );
+        final container = ProviderContainer.test(
+          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        );
+
+        await container.read(timelineProvider.future);
+        container
+            .read(timelineProvider.notifier)
+            .replace(
+              original.copyWith(repostCount: 7, viewerHasReposted: true),
+            );
+
+        final state = container.read(timelineProvider).value!;
+        expect(state.items, hasLength(2));
+        expect(state.items.map((item) => item.post.repostCount), [7, 7]);
+        expect(state.items.map((item) => item.post.viewerHasReposted), [
+          true,
+          true,
+        ]);
       },
     );
   });

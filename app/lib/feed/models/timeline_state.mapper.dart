@@ -15,7 +15,7 @@ class TimelineStateMapper extends ClassMapperBase<TimelineState> {
   static TimelineStateMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = TimelineStateMapper._());
-      PostMapper.ensureInitialized();
+      TimelineItemMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -23,8 +23,8 @@ class TimelineStateMapper extends ClassMapperBase<TimelineState> {
   @override
   final String id = 'TimelineState';
 
-  static List<Post> _$items(TimelineState v) => v.items;
-  static const Field<TimelineState, List<Post>> _f$items = Field(
+  static List<TimelineItem> _$items(TimelineState v) => v.items;
+  static const Field<TimelineState, List<TimelineItem>> _f$items = Field(
     'items',
     _$items,
   );
@@ -110,8 +110,13 @@ extension TimelineStateValueCopy<$R, $Out>
 
 abstract class TimelineStateCopyWith<$R, $In extends TimelineState, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
-  ListCopyWith<$R, Post, PostCopyWith<$R, Post, Post>> get items;
-  $R call({List<Post>? items, String? cursor});
+  ListCopyWith<
+    $R,
+    TimelineItem,
+    TimelineItemCopyWith<$R, TimelineItem, TimelineItem>
+  >
+  get items;
+  $R call({List<TimelineItem>? items, String? cursor});
   TimelineStateCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
 
@@ -124,14 +129,18 @@ class _TimelineStateCopyWithImpl<$R, $Out>
   late final ClassMapperBase<TimelineState> $mapper =
       TimelineStateMapper.ensureInitialized();
   @override
-  ListCopyWith<$R, Post, PostCopyWith<$R, Post, Post>> get items =>
-      ListCopyWith(
-        $value.items,
-        (v, t) => v.copyWith.$chain(t),
-        (v) => call(items: v),
-      );
+  ListCopyWith<
+    $R,
+    TimelineItem,
+    TimelineItemCopyWith<$R, TimelineItem, TimelineItem>
+  >
+  get items => ListCopyWith(
+    $value.items,
+    (v, t) => v.copyWith.$chain(t),
+    (v) => call(items: v),
+  );
   @override
-  $R call({List<Post>? items, Object? cursor = $none}) => $apply(
+  $R call({List<TimelineItem>? items, Object? cursor = $none}) => $apply(
     FieldCopyWithData({
       if (items != null) #items: items,
       if (cursor != $none) #cursor: cursor,

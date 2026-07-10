@@ -4,7 +4,7 @@ import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
-import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
@@ -62,6 +62,40 @@ Post _post(
   ),
 );
 
+TimelineItem _timelinePost(Post post, {String? itemKey}) => TimelineItem(
+  itemKey: itemKey ?? 'post:${post.uri}',
+  post: post,
+);
+
+TimelinePage _timelinePage(List<Post> posts, {String? cursor}) => TimelinePage(
+  items: [for (final post in posts) _timelinePost(post)],
+  cursor: cursor,
+);
+
+TimelineItem _repostItem({
+  required String itemKey,
+  required Post post,
+  required String reposterDid,
+  required String reposterHandle,
+  required String reposterName,
+}) => TimelineItem(
+  itemKey: itemKey,
+  post: post,
+  reason: RepostReason(
+    type: RepostReasonType.repost,
+    by: PostAuthor(
+      did: reposterDid,
+      handle: reposterHandle,
+      displayName: reposterName,
+    ),
+    uri:
+        'at://$reposterDid/social.craftsky.feed.repost/${itemKey.split('/').last}',
+    cid: 'bafy_${itemKey.split('/').last}',
+    createdAt: DateTime.parse('2026-05-04T18:24:00.000Z'),
+    indexedAt: DateTime.parse('2026-05-04T18:24:01.000Z'),
+  ),
+);
+
 InteractionWriteResponse _interaction(Post post) => InteractionWriteResponse(
   uri: 'at://did:plc:viewer/social.craftsky.feed.like/like1',
   cid: 'bafy_like',
@@ -99,7 +133,7 @@ void main() {
   setUpAll(initializeMappers);
 
   testWidgets('FeedPage renders timeline loading state', (tester) async {
-    final gate = Completer<PostPage>();
+    final gate = Completer<TimelinePage>();
     await _pump(
       tester,
       FakePostRepository(onListTimeline: ({cursor, limit}) => gate.future),
@@ -109,7 +143,7 @@ void main() {
     expect(find.byType(StitchProgressIndicator), findsOneWidget);
     expect(find.text('timeline post a'), findsNothing);
 
-    gate.complete(const PostPage(items: []));
+    gate.complete(const TimelinePage(items: []));
   });
 
   testWidgets('FeedPage renders loaded timeline post cards', (tester) async {
@@ -117,7 +151,7 @@ void main() {
       tester,
       FakePostRepository(
         onListTimeline: ({cursor, limit}) async =>
-            PostPage(items: [_post('a'), _post('b')]),
+            _timelinePage([_post('a'), _post('b')]),
       ),
     );
 
@@ -128,13 +162,54 @@ void main() {
     expect(find.textContaining('@alice.craftsky.social'), findsWidgets);
   });
 
+  testWidgets('FeedPage renders duplicate repost items with attribution', (
+    tester,
+  ) async {
+    final original = _post(
+      'shared',
+      did: 'did:plc:carol',
+      handle: 'carol.craftsky.social',
+    );
+    await _pump(
+      tester,
+      FakePostRepository(
+        onListTimeline: ({cursor, limit}) async => TimelinePage(
+          items: [
+            _repostItem(
+              itemKey: 'repost:at://did:plc:bob/social.craftsky.feed.repost/r1',
+              post: original,
+              reposterDid: 'did:plc:bob',
+              reposterHandle: 'bob.craftsky.social',
+              reposterName: 'Bob',
+            ),
+            _repostItem(
+              itemKey:
+                  'repost:at://did:plc:dana/social.craftsky.feed.repost/r2',
+              post: original,
+              reposterDid: 'did:plc:dana',
+              reposterHandle: 'dana.craftsky.social',
+              reposterName: 'Dana',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reposted by Bob'), findsOneWidget);
+    expect(find.text('Reposted by Dana'), findsOneWidget);
+    expect(find.text('timeline post shared'), findsNWidgets(2));
+  });
+
   testWidgets('FeedPage renders empty state without suggestions', (
     tester,
   ) async {
     await _pump(
       tester,
       FakePostRepository(
-        onListTimeline: ({cursor, limit}) async => const PostPage(items: []),
+        onListTimeline: ({cursor, limit}) async =>
+            const TimelinePage(items: []),
       ),
     );
 
@@ -154,7 +229,7 @@ void main() {
         onListTimeline: ({cursor, limit}) async {
           calls++;
           if (!allowSuccess) throw Exception('boom');
-          return PostPage(items: [_post('a')]);
+          return _timelinePage([_post('a')]);
         },
       ),
     );
@@ -182,13 +257,13 @@ void main() {
         onListTimeline: ({cursor, limit}) async {
           calls++;
           if (calls == 1) {
-            return PostPage(
-              items: [for (var i = 0; i < 12; i++) _post('page1-$i')],
+            return _timelinePage(
+              [for (var i = 0; i < 12; i++) _post('page1-$i')],
               cursor: 'c1',
             );
           }
           nextCursor = cursor;
-          return PostPage(items: [_post('page2')]);
+          return _timelinePage([_post('page2')]);
         },
       ),
     );
@@ -220,14 +295,14 @@ void main() {
         onListTimeline: ({cursor, limit}) async {
           calls++;
           if (calls == 1) {
-            return PostPage(
-              items: [for (var i = 0; i < 12; i++) _post('page1-$i')],
+            return _timelinePage(
+              [for (var i = 0; i < 12; i++) _post('page1-$i')],
               cursor: 'c1',
             );
           }
           nextCursors.add(cursor);
           if (!allowNextPage) throw Exception('next page failed');
-          return PostPage(items: [_post('page2')]);
+          return _timelinePage([_post('page2')]);
         },
       ),
     );
@@ -280,7 +355,7 @@ void main() {
           postRepositoryProvider.overrideWithValue(
             FakePostRepository(
               onListTimeline: ({cursor, limit}) async =>
-                  PostPage(items: [_post('tapme')]),
+                  _timelinePage([_post('tapme')]),
             ),
           ),
         ],
@@ -310,7 +385,7 @@ void main() {
     await _pump(
       tester,
       FakePostRepository(
-        onListTimeline: ({cursor, limit}) async => PostPage(items: [post]),
+        onListTimeline: ({cursor, limit}) async => _timelinePage([post]),
         onLike: (did, rkey) async {
           calls.add('like:$did/$rkey');
           return _interaction(post);
@@ -326,7 +401,9 @@ void main() {
     await tester.tap(find.byIcon(Icons.favorite_border));
     await tester.pump();
     await tester.tap(find.byIcon(Icons.repeat));
-    await tester.pump();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Repost'));
+    await tester.pumpAndSettle();
 
     expect(calls, [
       'like:did:plc:alice/actions',
@@ -335,13 +412,41 @@ void main() {
     expect(find.byIcon(Icons.favorite), findsOneWidget);
   });
 
+  testWidgets('FeedPage quote action opens composer with quote target', (
+    tester,
+  ) async {
+    final target = _post('quote-target');
+    final created = _post('quote-created');
+    final repo = FakePostRepository(
+      onListTimeline: ({cursor, limit}) async => _timelinePage([target]),
+      onCreate: ({required text, reply, images}) async => created,
+    );
+    await _pump(tester, repo);
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.repeat));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Quote'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('timeline post quote-target'), findsWidgets);
+
+    await tester.enterText(find.byType(TextField).first, 'quote commentary');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(TextButton, 'Post'));
+    await tester.pumpAndSettle();
+
+    expect(repo.lastCreateQuote?.uri, target.uri);
+    expect(repo.lastCreateQuote?.cid, target.cid);
+  });
+
   testWidgets('FeedPage shows an error when liking fails', (tester) async {
     final post = _post('like-fails');
     final messenger = RecordingMessenger();
     await _pump(
       tester,
       FakePostRepository(
-        onListTimeline: ({cursor, limit}) async => PostPage(items: [post]),
+        onListTimeline: ({cursor, limit}) async => _timelinePage([post]),
         onLike: (did, rkey) async => throw Exception('pds write failed'),
       ),
       messenger: messenger,
@@ -369,7 +474,7 @@ void main() {
       overrides: [
         postRepositoryProvider.overrideWithValue(
           FakePostRepository(
-            onListTimeline: ({cursor, limit}) async => PostPage(items: [root]),
+            onListTimeline: ({cursor, limit}) async => _timelinePage([root]),
             onCreate: ({required text, reply, images}) async => created,
           ),
         ),
@@ -426,10 +531,10 @@ void main() {
 
     final timeline = container.read(timelineProvider).value!;
     expect(timeline.items, hasLength(1));
-    expect(timeline.items.single.uri, root.uri);
-    expect(timeline.items.single.replyCount, 4);
-    expect(timeline.items.single.viewerHasReplied, isTrue);
-    expect(timeline.items.any((post) => post.uri == created.uri), isFalse);
+    expect(timeline.items.single.post.uri, root.uri);
+    expect(timeline.items.single.post.replyCount, 4);
+    expect(timeline.items.single.post.viewerHasReplied, isTrue);
+    expect(timeline.items.any((item) => item.post.uri == created.uri), isFalse);
   });
 
   testWidgets('FeedPage only exposes delete for own rows and removes row', (
@@ -452,7 +557,7 @@ void main() {
           postRepositoryProvider.overrideWithValue(
             FakePostRepository(
               onListTimeline: ({cursor, limit}) async =>
-                  PostPage(items: [own, other]),
+                  _timelinePage([own, other]),
               onDelete: (did, rkey) async => deleted.add('$did/$rkey'),
             ),
           ),
@@ -500,11 +605,9 @@ void main() {
     await _pump(
       tester,
       FakePostRepository(
-        onListTimeline: ({cursor, limit}) async => PostPage(
-          items: [
-            _post('other', did: 'did:plc:bob', handle: 'bob.craftsky.social'),
-          ],
-        ),
+        onListTimeline: ({cursor, limit}) async => _timelinePage([
+          _post('other', did: 'did:plc:bob', handle: 'bob.craftsky.social'),
+        ]),
         onReport: (did, rkey, submission) async {
           submittedTarget = '$did/$rkey';
           submitted = submission;
@@ -548,7 +651,7 @@ void main() {
       tester,
       FakePostRepository(
         onListTimeline: ({cursor, limit}) async =>
-            PostPage(items: [_post('old')]),
+            _timelinePage([_post('old')]),
         onCreateWithFacets:
             ({required text, reply, project, images, facets}) async {
               capturedReply = reply;

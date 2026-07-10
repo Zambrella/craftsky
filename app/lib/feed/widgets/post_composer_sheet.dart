@@ -17,21 +17,34 @@ import 'package:uuid/uuid.dart';
 Future<Post?> showPostComposerSheet(
   BuildContext context, {
   Post? replyTarget,
+  Post? quoteTarget,
 }) {
   return Navigator.of(context, rootNavigator: true).push<Post?>(
     MaterialPageRoute<Post?>(
       fullscreenDialog: true,
-      builder: (_) => PostComposerSheet(replyTarget: replyTarget),
+      builder: (_) => PostComposerSheet(
+        replyTarget: replyTarget,
+        quoteTarget: quoteTarget,
+      ),
     ),
   );
 }
 
 class PostComposerSheet extends ConsumerStatefulWidget {
-  const PostComposerSheet({super.key, this.replyTarget, this.composerId});
+  const PostComposerSheet({
+    super.key,
+    this.replyTarget,
+    this.quoteTarget,
+    this.composerId,
+  }) : assert(
+         replyTarget == null || quoteTarget == null,
+         'replyTarget and quoteTarget are mutually exclusive',
+       );
 
   static const maxCharacters = 2000;
 
   final Post? replyTarget;
+  final Post? quoteTarget;
   final String? composerId;
 
   @override
@@ -78,6 +91,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     final imagesProvider = composerImagesProvider(_composerId);
     final imagesState = ref.watch(imagesProvider);
     final isReply = widget.replyTarget != null;
+    final isQuote = widget.quoteTarget != null;
     final trimmedText = _text.trim();
     final tooLong = _text.length > PostComposerSheet.maxCharacters;
     final canSubmit =
@@ -133,7 +147,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
         backgroundColor: swatches.paper,
         appBar: AppBar(
           title: Text(
-            isReply ? l10n.postComposeReplyTitle : l10n.postComposeTitle,
+            isReply
+                ? l10n.postComposeReplyTitle
+                : isQuote
+                ? l10n.postQuoteAction
+                : l10n.postComposeTitle,
             style: theme.textTheme.titleLarge,
           ),
           actions: [
@@ -164,7 +182,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (widget.replyTarget case final replyTarget?) ...[
-                  _ReplyTargetPreview(post: replyTarget),
+                  _ComposerTargetPreview(post: replyTarget),
+                  SizedBox(height: spacing.sp4),
+                ],
+                if (widget.quoteTarget case final quoteTarget?) ...[
+                  _ComposerTargetPreview(post: quoteTarget),
                   SizedBox(height: spacing.sp4),
                 ],
                 FacetAutocompleteEditor(
@@ -246,6 +268,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
         .create(
           text: trimmedText,
           reply: _replyFor(widget.replyTarget),
+          quote: _quoteFor(widget.quoteTarget),
           images: widget.replyTarget == null
               ? imagesState.toCreatePostImages()
               : null,
@@ -254,8 +277,13 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
   }
 }
 
-class _ReplyTargetPreview extends StatelessWidget {
-  const _ReplyTargetPreview({required this.post});
+PostRef? _quoteFor(Post? target) {
+  if (target == null) return null;
+  return PostRef(uri: target.uri, cid: target.cid);
+}
+
+class _ComposerTargetPreview extends StatelessWidget {
+  const _ComposerTargetPreview({required this.post});
 
   final Post post;
 

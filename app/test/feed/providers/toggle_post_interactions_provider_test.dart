@@ -2,6 +2,7 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
@@ -54,6 +55,13 @@ Post _post({
     viewerHasReposted: viewerHasReposted,
     project: project,
   ),
+);
+
+TimelinePage _timelinePage(List<Post> posts) => TimelinePage(
+  items: [
+    for (final post in posts)
+      TimelineItem(itemKey: 'post:${post.uri}', post: post),
+  ],
 );
 
 const _project = Project(
@@ -158,7 +166,7 @@ void main() {
       final post = _post(rkey: 'a', likeCount: 2);
       var shouldFail = false;
       final fake = FakePostRepository(
-        onListTimeline: ({cursor, limit}) async => PostPage(items: [post]),
+        onListTimeline: ({cursor, limit}) async => _timelinePage([post]),
         onLike: (did, rkey) async {
           if (shouldFail) throw Exception('boom');
           return _interaction(post);
@@ -171,7 +179,7 @@ void main() {
       await container.read(timelineProvider.future);
       await container.read(toggleLikePostProvider.notifier).toggle(post: post);
 
-      var current = container.read(timelineProvider).value!.items.single;
+      var current = container.read(timelineProvider).value!.items.single.post;
       expect(current.viewerHasLiked, isTrue);
       expect(current.likeCount, 3);
 
@@ -180,7 +188,7 @@ void main() {
           .read(toggleLikePostProvider.notifier)
           .toggle(post: current);
 
-      current = container.read(timelineProvider).value!.items.single;
+      current = container.read(timelineProvider).value!.items.single.post;
       expect(container.read(toggleLikePostProvider).hasError, isTrue);
       expect(current.viewerHasLiked, isTrue);
       expect(current.likeCount, 3);
@@ -333,7 +341,7 @@ void main() {
       final post = _post(rkey: 'a', repostCount: 1);
       var shouldFail = false;
       final fake = FakePostRepository(
-        onListTimeline: ({cursor, limit}) async => PostPage(items: [post]),
+        onListTimeline: ({cursor, limit}) async => _timelinePage([post]),
         onRepost: (did, rkey) async {
           if (shouldFail) throw Exception('boom');
           return _interaction(post);
@@ -348,7 +356,7 @@ void main() {
           .read(toggleRepostPostProvider.notifier)
           .toggle(post: post);
 
-      var current = container.read(timelineProvider).value!.items.single;
+      var current = container.read(timelineProvider).value!.items.single.post;
       expect(current.viewerHasReposted, isTrue);
       expect(current.repostCount, 2);
 
@@ -357,11 +365,35 @@ void main() {
           .read(toggleRepostPostProvider.notifier)
           .toggle(post: current);
 
-      current = container.read(timelineProvider).value!.items.single;
+      current = container.read(timelineProvider).value!.items.single.post;
       expect(container.read(toggleRepostPostProvider).hasError, isTrue);
       expect(current.viewerHasReposted, isTrue);
       expect(current.repostCount, 2);
     });
+
+    test(
+      'does not insert optimistic repost items into timeline cache',
+      () async {
+        final target = _post(rkey: 'target', repostCount: 1);
+        final existing = _post(rkey: 'existing');
+        final fake = FakePostRepository(
+          onListTimeline: ({cursor, limit}) async => _timelinePage([existing]),
+          onRepost: (did, rkey) async => _interaction(target),
+        );
+        final container = ProviderContainer.test(
+          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        );
+
+        await container.read(timelineProvider.future);
+        await container
+            .read(toggleRepostPostProvider.notifier)
+            .toggle(post: target);
+
+        final timeline = container.read(timelineProvider).value!.items;
+        expect(timeline.map((item) => item.post.rkey.toString()), ['existing']);
+        expect(timeline, hasLength(1));
+      },
+    );
 
     test(
       'IT-009 patches and rolls back project repost caches for did/handle keys',

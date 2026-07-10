@@ -193,7 +193,9 @@ void main() {
       await tester.tap(find.byIcon(Icons.favorite_border));
       await tester.pump();
       await tester.tap(find.byIcon(Icons.repeat));
-      await tester.pump();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Repost'));
+      await tester.pumpAndSettle();
 
       expect(calls, [
         'like:did:plc:alice/a',

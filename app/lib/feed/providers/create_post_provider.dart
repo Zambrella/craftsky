@@ -35,6 +35,7 @@ class CreatePost extends _$CreatePost {
   Future<void> create({
     required String text,
     PostReply? reply,
+    PostRef? quote,
     Project? project,
     List<CreatePostImage>? images,
     List<Map<String, dynamic>>? facets,
@@ -46,9 +47,18 @@ class CreatePost extends _$CreatePost {
         project == null || reply == null,
         'Project posts cannot be replies',
       );
+      assert(
+        quote == null || reply == null,
+        'Quote posts cannot be replies',
+      );
+      assert(
+        quote == null || project == null,
+        'Project posts cannot be quote posts',
+      );
       final created = await repo.create(
         text: text,
         reply: reply,
+        quote: quote,
         project: project,
         images: images,
         facets: facets,
@@ -56,6 +66,9 @@ class CreatePost extends _$CreatePost {
       var post = created;
       if (reply != null && post.reply == null) {
         post = post.copyWith(reply: reply);
+      }
+      if (quote != null && post.quote == null) {
+        post = post.copyWith(quote: quote);
       }
       if (project != null && post.project == null) {
         post = post.copyWith(project: project);

@@ -80,6 +80,15 @@ type PostTargetRef struct {
 	CID string
 }
 
+// ShareTargetRef is the indexed post identity and eligibility metadata for
+// amplification actions such as reposts and quote posts.
+type ShareTargetRef struct {
+	URI       string
+	CID       string
+	IsReply   bool
+	IsProject bool
+}
+
 // InteractionRow is an active indexed like or repost record.
 type InteractionRow struct {
 	URI        string
@@ -107,6 +116,7 @@ type ViewerReplyState struct {
 type EngagementSummary struct {
 	LikeCount         int
 	RepostCount       int
+	QuoteCount        int
 	ReplyCount        int
 	ViewerHasLiked    bool
 	ViewerHasReposted bool
@@ -127,6 +137,8 @@ type PostReader interface {
 	ListCommentBranchRepliesAround(ctx context.Context, commentURI, rootURI, focusURI string, limit int) (rows []*PostRow, nextCursor string, err error)
 	ReadAuthor(ctx context.Context, did string) (*PostAuthorRow, error)
 	EngagementSummaries(ctx context.Context, viewerDID string, postURIs []string) (map[string]EngagementSummary, error)
+	QuoteViewRows(ctx context.Context, refs []ResponseStrongRef) (map[string]*QuoteViewRow, error)
+	ResolveShareTarget(ctx context.Context, did, rkey string) (*ShareTargetRef, error)
 }
 
 // ReadPostByURI returns the post identified by AT-URI.
@@ -606,6 +618,27 @@ func (s *PostStore) ResolvePostTarget(ctx context.Context, did, rkey string) (*P
 	return out, nil
 }
 
+// ResolveShareTarget returns visible indexed target metadata for share actions.
+func (s *PostStore) ResolveShareTarget(ctx context.Context, did, rkey string) (*ShareTargetRef, error) {
+	q := `
+		SELECT p.uri, p.cid,
+		       (p.reply_root_uri IS NOT NULL OR p.reply_parent_uri IS NOT NULL) AS is_reply,
+		       p.is_project
+		FROM craftsky_posts p
+		WHERE p.did = $1 AND p.rkey = $2
+		` + postVisibleModerationPredicate + `
+	`
+	out := &ShareTargetRef{}
+	err := s.pool.QueryRow(ctx, q, did, rkey).Scan(&out.URI, &out.CID, &out.IsReply, &out.IsProject)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrPostNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("post resolve share target %s/%s: %w", did, rkey, err)
+	}
+	return out, nil
+}
+
 // ResolvePostReportTarget returns the canonical indexed post snapshot used for
 // report eligibility and private report persistence. It intentionally checks
 // indexed existence only; moderation visibility filters must not make stale or
@@ -699,6 +732,44 @@ func (s *PostStore) CountActiveLikes(ctx context.Context, postURIs []string) (ma
 // CountActiveReposts returns active repost counts keyed by post URI.
 func (s *PostStore) CountActiveReposts(ctx context.Context, postURIs []string) (map[string]int, error) {
 	return s.countActiveInteractions(ctx, "craftsky_reposts", "repost", postURIs)
+}
+
+// CountVisibleQuotes returns visible top-level quote-post counts keyed by the
+// quoted subject URI.
+func (s *PostStore) CountVisibleQuotes(ctx context.Context, postURIs []string) (map[string]int, error) {
+	out := make(map[string]int, len(postURIs))
+	if len(postURIs) == 0 {
+		return out, nil
+	}
+	for _, uri := range postURIs {
+		out[uri] = 0
+	}
+	q := `
+		SELECT p.quote_uri, count(*)::int
+		FROM craftsky_posts p
+		WHERE p.quote_uri = ANY($1::text[])
+		  AND p.reply_root_uri IS NULL
+		  AND p.reply_parent_uri IS NULL
+		` + postVisibleModerationPredicate + `
+		GROUP BY p.quote_uri
+	`
+	rows, err := s.pool.Query(ctx, q, postURIs)
+	if err != nil {
+		return nil, fmt.Errorf("quote count visible: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var uri string
+		var count int
+		if err := rows.Scan(&uri, &count); err != nil {
+			return nil, fmt.Errorf("quote count visible scan: %w", err)
+		}
+		out[uri] = count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("quote count visible iter: %w", err)
+	}
+	return out, nil
 }
 
 // CountDescendantReplies returns all descendant reply counts keyed by ancestor
@@ -867,6 +938,10 @@ func (s *PostStore) engagementSummariesObserved(ctx context.Context, viewerDID s
 	if err != nil {
 		return nil, err
 	}
+	quoteCounts, err := s.CountVisibleQuotes(ctx, postURIs)
+	if err != nil {
+		return nil, err
+	}
 	replyCounts, err := s.CountDescendantReplies(ctx, postURIs)
 	if err != nil {
 		return nil, err
@@ -885,11 +960,78 @@ func (s *PostStore) engagementSummariesObserved(ctx context.Context, viewerDID s
 		out[uri] = EngagementSummary{
 			LikeCount:         likeCounts[uri],
 			RepostCount:       repostCounts[uri],
+			QuoteCount:        quoteCounts[uri],
 			ReplyCount:        replyCounts[uri],
 			ViewerHasLiked:    state.HasLiked,
 			ViewerHasReposted: state.HasReposted,
 			ViewerHasReplied:  replyState.HasReplied,
 		}
+	}
+	return out, nil
+}
+
+// QuoteViewRows returns compact quote-preview hydration rows keyed by quoted
+// URI. Missing/unindexed/deleted refs are unavailable; indexed rows hidden by
+// moderation are hidden; visible rows include the target PostRow.
+func (s *PostStore) QuoteViewRows(ctx context.Context, refs []ResponseStrongRef) (map[string]*QuoteViewRow, error) {
+	out := make(map[string]*QuoteViewRow, len(refs))
+	uris := make([]string, 0, len(refs))
+	seen := make(map[string]struct{}, len(refs))
+	for _, ref := range refs {
+		if ref.URI == "" {
+			continue
+		}
+		out[ref.URI] = &QuoteViewRow{State: "unavailable"}
+		if _, ok := seen[ref.URI]; ok {
+			continue
+		}
+		seen[ref.URI] = struct{}{}
+		uris = append(uris, ref.URI)
+	}
+	if len(uris) == 0 {
+		return out, nil
+	}
+
+	q := `
+		SELECT ` + postSelectColumns + `
+		FROM craftsky_posts p
+		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
+		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
+		WHERE p.uri = ANY($1::text[])
+		` + postVisibleModerationPredicate + `
+	`
+	rows, err := s.pool.Query(ctx, q, uris)
+	if err != nil {
+		return nil, fmt.Errorf("quote view rows: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		row, scanErr := scanPostRow(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("quote view rows scan: %w", scanErr)
+		}
+		out[row.URI] = &QuoteViewRow{State: "visible", Post: row}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("quote view rows iter: %w", err)
+	}
+
+	hiddenRows, err := s.pool.Query(ctx, `SELECT uri FROM craftsky_posts WHERE uri = ANY($1::text[])`, uris)
+	if err != nil {
+		return nil, fmt.Errorf("quote view hidden rows: %w", err)
+	}
+	defer hiddenRows.Close()
+	for hiddenRows.Next() {
+		var uri string
+		if err := hiddenRows.Scan(&uri); err != nil {
+			return nil, fmt.Errorf("quote view hidden rows scan: %w", err)
+		}
+		if current := out[uri]; current != nil && current.State == "unavailable" {
+			out[uri] = &QuoteViewRow{State: "hidden"}
+		}
+	}
+	if err := hiddenRows.Err(); err != nil {
+		return nil, fmt.Errorf("quote view hidden rows iter: %w", err)
 	}
 	return out, nil
 }

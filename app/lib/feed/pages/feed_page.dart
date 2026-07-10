@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
@@ -55,7 +56,7 @@ class FeedPage extends ConsumerWidget {
           SliverAppBar(title: Text(l10n.feedTitle), pinned: true),
           switch (timelineAsync) {
             AsyncValue(:final value?) => _FeedLoadedSlivers(
-              posts: value.items,
+              items: value.items,
               hasMore: value.hasMore,
               isLoadingMore: timelineAsync.isLoading,
               hasLoadMoreError: timelineAsync.hasError,
@@ -76,13 +77,13 @@ class FeedPage extends ConsumerWidget {
 
 class _FeedLoadedSlivers extends ConsumerWidget {
   const _FeedLoadedSlivers({
-    required this.posts,
+    required this.items,
     required this.hasMore,
     required this.isLoadingMore,
     required this.hasLoadMoreError,
   });
 
-  final List<Post> posts;
+  final List<TimelineItem> items;
   final bool hasMore;
   final bool isLoadingMore;
   final bool hasLoadMoreError;
@@ -115,50 +116,57 @@ class _FeedLoadedSlivers extends ConsumerWidget {
             ),
           ),
         ),
-        if (posts.isEmpty)
+        if (items.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
             child: Center(child: Text(l10n.feedEmpty)),
           )
         else
           SliverList.builder(
-            itemCount: posts.length,
+            itemCount: items.length,
             itemBuilder: (context, index) {
               if (hasMore &&
                   !isLoadingMore &&
                   !hasLoadMoreError &&
-                  index >= posts.length - _autoLoadMoreThreshold) {
+                  index >= items.length - _autoLoadMoreThreshold) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (context.mounted) {
                     unawaited(ref.read(timelineProvider.notifier).loadMore());
                   }
                 });
               }
-              final post = posts[index];
-              return PostCard(
-                post: post,
-                onTap: () => PostThreadRoute(
-                  did: post.author.did,
-                  rkey: post.rkey,
-                ).push<void>(context),
-                onLike: () => ref
-                    .read(toggleLikePostProvider.notifier)
-                    .toggle(post: post),
-                onRepost: () => ref
-                    .read(toggleRepostPostProvider.notifier)
-                    .toggle(post: post),
-                onReply: () => _replyAndOpenThread(context, ref, post),
-                onDelete: auth is SignedIn && post.author.did == auth.did
-                    ? () => _confirmDelete(context, ref, post)
-                    : null,
-                onReport: auth is SignedIn && post.author.did != auth.did
-                    ? () => showPostReportSheet(context, ref, post)
-                    : null,
-                replyTooltip: l10n.postCommentAction,
+              final item = items[index];
+              final post = item.post;
+              return _TimelineItemCard(
+                item: item,
+                child: PostCard(
+                  post: post,
+                  onTap: () => PostThreadRoute(
+                    did: post.author.did,
+                    rkey: post.rkey,
+                  ).push<void>(context),
+                  onLike: () => ref
+                      .read(toggleLikePostProvider.notifier)
+                      .toggle(post: post),
+                  onRepost: () => ref
+                      .read(toggleRepostPostProvider.notifier)
+                      .toggle(post: post),
+                  onQuote: () => unawaited(
+                    showPostComposerSheet(context, quoteTarget: post),
+                  ),
+                  onReply: () => _replyAndOpenThread(context, ref, post),
+                  onDelete: auth is SignedIn && post.author.did == auth.did
+                      ? () => _confirmDelete(context, ref, post)
+                      : null,
+                  onReport: auth is SignedIn && post.author.did != auth.did
+                      ? () => showPostReportSheet(context, ref, post)
+                      : null,
+                  replyTooltip: l10n.postCommentAction,
+                ),
               );
             },
           ),
-        if (posts.isNotEmpty && (isLoadingMore || hasLoadMoreError))
+        if (items.isNotEmpty && (isLoadingMore || hasLoadMoreError))
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -215,6 +223,51 @@ class _FeedLoadedSlivers extends ConsumerWidget {
       message: l10n.postDeleteMessage,
       confirmLabel: l10n.postDeleteConfirm,
       onConfirm: () => ref.read(deletePostProvider.notifier).delete(post: post),
+    );
+  }
+}
+
+class _TimelineItemCard extends StatelessWidget {
+  const _TimelineItemCard({required this.item, required this.child});
+
+  final TimelineItem item;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final reason = item.reason;
+    if (reason == null) return child;
+
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final displayName = reason.by.displayName ?? reason.by.handle;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
+          child: Row(
+            children: [
+              Icon(
+                Icons.repeat,
+                size: 16,
+                color: theme.colorScheme.outline,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  l10n.postRepostedBy(displayName),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+        child,
+      ],
     );
   }
 }
