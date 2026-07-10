@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
@@ -10,12 +11,14 @@ import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 const _postCardMenuWidth = 48.0;
@@ -513,6 +516,15 @@ class _QuotePreviewCard extends StatelessWidget {
                   onTap: onAuthorTap,
                 ),
                 SizedBox(height: spacing.sp2),
+                if (quoted.images?.firstOrNull case final image?) ...[
+                  _QuotePreviewImage(image: image),
+                  SizedBox(height: spacing.sp2),
+                ],
+                if (quoted.project?.common.title?.trim() case final title?
+                    when title.isNotEmpty) ...[
+                  Text(title, style: theme.textTheme.titleMedium),
+                  SizedBox(height: spacing.sp2),
+                ],
                 Text(
                   quoted.text,
                   maxLines: 4,
@@ -534,6 +546,40 @@ class _QuotePreviewCard extends StatelessWidget {
               ),
             ),
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _QuotePreviewImage extends ConsumerWidget {
+  const _QuotePreviewImage({required this.image});
+
+  final PostImage image;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final radii = Theme.of(context).extension<RadiusTheme>()!;
+    final imageUrl = image.thumb ?? image.fullsize;
+
+    return ClipRRect(
+      key: const Key('quote-preview-image'),
+      borderRadius: BorderRadius.circular(radii.r1),
+      child: SizedBox(
+        width: double.infinity,
+        height: 160,
+        child: Semantics(
+          label: image.alt,
+          image: true,
+          child: imageUrl == null
+              ? const DecoratedBox(
+                  decoration: BoxDecoration(color: Color(0xFFEAEAEA)),
+                )
+              : CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  cacheManager: ref.watch(feedImageCacheManagerProvider),
+                  fit: BoxFit.cover,
+                ),
         ),
       ),
     );

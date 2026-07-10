@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
@@ -7,6 +8,7 @@ import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
@@ -14,6 +16,8 @@ import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../fakes/image_cache_fakes.dart';
 
 Post _post({
   String text = 'Cast on for the Hitchhiker shawl tonight.',
@@ -363,6 +367,135 @@ void main() {
       await tester.tap(find.text('Original quoted post'));
       expect(quotedPostTaps, 1);
     });
+
+    testWidgets('renders only the first image from a quoted normal post', (
+      tester,
+    ) async {
+      final fakeCache = FakeBaseCacheManager();
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            quoteView: QuoteView(
+              state: 'visible',
+              post: QuotePreviewPost(
+                uri: 'at://did:plc:bob/social.craftsky.feed.post/target',
+                cid: 'bafyquote',
+                text: 'Original quoted post',
+                author: PostAuthor(
+                  did: 'did:plc:bob',
+                  handle: 'bob.craftsky.social',
+                ),
+                images: [
+                  PostImage(
+                    cid: 'bafkfirst',
+                    mime: 'image/jpeg',
+                    size: 10,
+                    alt: 'First quoted image',
+                    thumb: 'https://cdn.example.com/first-thumb.jpg',
+                    fullsize: 'https://cdn.example.com/first-full.jpg',
+                  ),
+                  PostImage(
+                    cid: 'bafksecond',
+                    mime: 'image/jpeg',
+                    size: 10,
+                    alt: 'Second quoted image',
+                    thumb: 'https://cdn.example.com/second-thumb.jpg',
+                  ),
+                ],
+                createdAt: DateTime(2026, 5, 22, 12),
+              ),
+            ),
+          ),
+        ),
+        overrides: [
+          feedImageCacheManagerProvider.overrideWith((ref) => fakeCache),
+        ],
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('quote-preview-image')), findsOneWidget);
+      final image = tester.widget<CachedNetworkImage>(
+        find.byType(CachedNetworkImage),
+      );
+      expect(image.imageUrl, 'https://cdn.example.com/first-thumb.jpg');
+      expect(image.cacheManager, same(fakeCache));
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label == 'First quoted image',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label == 'Second quoted image',
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+      'renders the first image and project name for a quoted project',
+      (
+        tester,
+      ) async {
+        final fakeCache = FakeBaseCacheManager();
+        await _pump(
+          tester,
+          PostCard(
+            post: _post(
+              quoteView: QuoteView(
+                state: 'visible',
+                post: QuotePreviewPost(
+                  uri: 'at://did:plc:bob/social.craftsky.feed.post/project',
+                  cid: 'bafyproject',
+                  text: 'A finished project.',
+                  author: PostAuthor(
+                    did: 'did:plc:bob',
+                    handle: 'bob.craftsky.social',
+                  ),
+                  images: [
+                    PostImage(
+                      cid: 'bafkproject',
+                      mime: 'image/jpeg',
+                      size: 10,
+                      alt: 'Finished blue shawl',
+                      thumb: 'https://cdn.example.com/project-thumb.jpg',
+                    ),
+                  ],
+                  project: const Project(
+                    common: ProjectCommon(
+                      craftType: ProjectOptionCatalogs.knittingCraftToken,
+                      title: 'Hitchhiker Shawl',
+                    ),
+                  ),
+                  createdAt: DateTime(2026, 5, 22, 12),
+                ),
+              ),
+            ),
+          ),
+          overrides: [
+            feedImageCacheManagerProvider.overrideWith((ref) => fakeCache),
+          ],
+        );
+        await tester.pump();
+
+        expect(find.byKey(const Key('quote-preview-image')), findsOneWidget);
+        expect(find.text('Hitchhiker Shawl'), findsOneWidget);
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Semantics &&
+                widget.properties.label == 'Finished blue shawl',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
 
     testWidgets('renders quote preview placeholders', (tester) async {
       await _pump(
