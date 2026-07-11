@@ -30,9 +30,10 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Observability — request logging format, request-ID propagation into downstream calls, metrics, tracing → own spec
 - [x] Search — posts by text, tag, craft type, materials (Postgres FTS vs separate service) → own spec
 - [x] Reposts — `POST /v1/posts/{did}/{rkey}/reposts` etc. Lexicon already defined. Folds into Posts spec unless it grows.
-- [x] Blocks, mutes, reports — moderation endpoints → own spec (overlaps the v1 "report a post" moderation plan; reconcile when scoping)
+- [x] Reports — moderation endpoints → own spec (overlaps the v1 "report a post" moderation plan; reconcile when scoping)
 - [ ] Push notification registration — `POST /v1/notifications/devices` etc. → own spec
 - [ ] How to handle different languages
+- [ ] Blocking, muting
 
 ### Flutter app
 
@@ -53,6 +54,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Rich text — facets, mentions, links, hashtags
 - [x] Quote posts
 - [ ] Profile settings screen — handle change, avatar upload, privacy controls
+- [ ] Multi-account support
 
 ### Lexicons
 
