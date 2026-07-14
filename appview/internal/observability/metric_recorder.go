@@ -39,6 +39,9 @@ type MetricRecorder interface {
 	TapEventReceived(ctx context.Context, eventType string)
 	TapEventAcknowledged(ctx context.Context, result string)
 	TapIndexerRecord(ctx context.Context, nsid, result, reason string, duration time.Duration)
+	NotificationDecision(ctx context.Context, category, result string)
+	PushDelivery(ctx context.Context, platform, result string)
+	PushQueue(ctx context.Context, pending int, oldestAge time.Duration)
 }
 
 type noopMetricRecorder struct{}
@@ -58,6 +61,9 @@ func (noopMetricRecorder) TapEventReceived(context.Context, string)     {}
 func (noopMetricRecorder) TapEventAcknowledged(context.Context, string) {}
 func (noopMetricRecorder) TapIndexerRecord(context.Context, string, string, string, time.Duration) {
 }
+func (noopMetricRecorder) NotificationDecision(context.Context, string, string) {}
+func (noopMetricRecorder) PushDelivery(context.Context, string, string)         {}
+func (noopMetricRecorder) PushQueue(context.Context, int, time.Duration)        {}
 
 type InMemoryMetricRecorder struct {
 	mu       sync.Mutex
@@ -177,6 +183,16 @@ func (r *InMemoryMetricRecorder) TapEventAcknowledged(_ context.Context, result 
 		return
 	}
 	r.record(MetricCall{Name: "craftsky_appview_tap_events_acknowledged_total", Kind: MetricKindCounter, Value: 1})
+}
+func (r *InMemoryMetricRecorder) NotificationDecision(_ context.Context, category, result string) {
+	r.record(MetricCall{Name: "craftsky_appview_notifications_total", Kind: MetricKindCounter, Value: 1, Attributes: map[string]string{"category": safeMetricCategory(category), "result": safeMetricResult(result)}})
+}
+func (r *InMemoryMetricRecorder) PushDelivery(_ context.Context, platform, result string) {
+	r.record(MetricCall{Name: "craftsky_appview_push_deliveries_total", Kind: MetricKindCounter, Value: 1, Attributes: map[string]string{"platform": safeMetricCategory(platform), "result": safeMetricResult(result)}})
+}
+func (r *InMemoryMetricRecorder) PushQueue(_ context.Context, pending int, age time.Duration) {
+	r.record(MetricCall{Name: "craftsky_appview_push_pending", Kind: MetricKindGauge, Value: float64(pending)})
+	r.record(MetricCall{Name: "craftsky_appview_push_oldest_pending_age_seconds", Kind: MetricKindGauge, Unit: "second", Value: age.Seconds()})
 }
 
 func (r *InMemoryMetricRecorder) TapIndexerRecord(_ context.Context, nsid, result, reason string, duration time.Duration) {
@@ -309,6 +325,16 @@ func (r *sentryMetricRecorder) TapIndexerRecord(ctx context.Context, nsid, resul
 			"result": attrs["result"],
 		})
 	}
+}
+func (r *sentryMetricRecorder) NotificationDecision(ctx context.Context, category, result string) {
+	r.count(ctx, "craftsky_appview_notifications_total", 1, "", map[string]string{"category": safeMetricCategory(category), "result": safeMetricResult(result)})
+}
+func (r *sentryMetricRecorder) PushDelivery(ctx context.Context, platform, result string) {
+	r.count(ctx, "craftsky_appview_push_deliveries_total", 1, "", map[string]string{"platform": safeMetricCategory(platform), "result": safeMetricResult(result)})
+}
+func (r *sentryMetricRecorder) PushQueue(ctx context.Context, pending int, age time.Duration) {
+	r.gauge(ctx, "craftsky_appview_push_pending", float64(pending), "", nil)
+	r.gauge(ctx, "craftsky_appview_push_oldest_pending_age_seconds", age.Seconds(), "second", nil)
 }
 
 func (r *sentryMetricRecorder) count(ctx context.Context, name string, value int64, unit string, attrs map[string]string) {

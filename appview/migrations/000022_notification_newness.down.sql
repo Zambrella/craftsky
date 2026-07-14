@@ -1,0 +1,7 @@
+DROP TRIGGER notification_events_newness_revision_trigger ON notification_events;
+DROP FUNCTION set_notification_newness_revision();
+DROP TABLE notification_seen_state;
+DROP INDEX notification_events_active_newness_idx;
+DROP INDEX notification_events_recipient_newness_idx;
+ALTER TABLE notification_events DROP COLUMN newness_revision;
+DROP SEQUENCE notification_newness_revision_seq;

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,6 +26,8 @@ type fakeNotificationStore struct {
 	lastLimit    int
 	lastCursor   string
 	engagementIn []string
+	handles      map[string]syntax.Handle
+	handleCalls  int
 }
 
 func (f *fakeNotificationStore) ListNotifications(_ context.Context, viewerDID string, limit int, cursor string) ([]*api.NotificationRow, string, error) {
@@ -44,6 +47,44 @@ func (f *fakeNotificationStore) EngagementSummaries(_ context.Context, _ string,
 		out[uri] = summary
 	}
 	return out, nil
+}
+
+func (f *fakeNotificationStore) NotificationHandles(_ context.Context, dids []string) (map[string]syntax.Handle, error) {
+	f.handleCalls++
+	out := make(map[string]syntax.Handle, len(dids))
+	for _, did := range dids {
+		if handle, ok := f.handles[did]; ok {
+			out[did] = handle
+		}
+	}
+	return out, nil
+}
+
+func TestNotificationsHandlerUsesOneIndexedHandleBatchAndSurvivesMissingActors(t *testing.T) {
+	rows := make([]*api.NotificationRow, 0, 50)
+	for i := 0; i < 50; i++ {
+		rows = append(rows, &api.NotificationRow{
+			ID: fmt.Sprintf("id-%d", i), Type: api.NotificationTypeFollow,
+			ActorDID: fmt.Sprintf("did:plc:actor%d", i), CreatedAt: time.Now(), IndexedAt: time.Now(),
+		})
+	}
+	store := &fakeNotificationStore{rows: rows, handles: map[string]syntax.Handle{"did:plc:actor0": "actor0.example"}}
+	handler := api.ListNotificationsHandler(store, fakeResolver{err: errors.New("directory unavailable")}, nilLogger())
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, authedReq(http.MethodGet, "/v1/notifications?limit=50", "", "did:plc:viewer"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if store.handleCalls != 1 {
+		t.Fatalf("handle batch calls=%d, want 1", store.handleCalls)
+	}
+	var page api.NotificationPage
+	if err := json.Unmarshal(rec.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 50 || !page.Items[0].Actor.Available || page.Items[1].Actor.Available {
+		t.Fatalf("actor availability not explicit: first=%+v second=%+v", page.Items[0].Actor, page.Items[1].Actor)
+	}
 }
 
 func TestNotificationsHandler_IgnoresUnknownParamsUsesLimitsAndSessionViewer(t *testing.T) {
@@ -79,7 +120,9 @@ func TestNotificationsHandler_IgnoresUnknownParamsUsesLimitsAndSessionViewer(t *
 
 func TestNotificationsHandler_ReturnsCamelCaseNotificationPage(t *testing.T) {
 	subject := testPostRow("did:plc:viewer", "root", "viewer post", time.Date(2026, 5, 28, 17, 0, 0, 0, time.UTC))
-	store := &fakeNotificationStore{rows: []*api.NotificationRow{
+	store := &fakeNotificationStore{handles: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example", "did:plc:viewer": "viewer.example",
+	}, rows: []*api.NotificationRow{
 		{
 			Type: api.NotificationTypeLike, URI: "at://did:plc:alice/social.craftsky.feed.like/like1", CID: "bafylike", Rkey: "like1",
 			ActorDID: "did:plc:alice", CreatedAt: subject.CreatedAt, IndexedAt: subject.IndexedAt, SubjectPost: subject,
@@ -137,6 +180,92 @@ func TestNotificationsHandler_ReturnsCamelCaseNotificationPage(t *testing.T) {
 	for _, key := range []string{"URI", "CID", "Rkey"} {
 		if _, ok := replyRaw[key]; ok {
 			t.Fatalf("reply raw = %v, must not contain Go field key %q", replyRaw, key)
+		}
+	}
+}
+
+func TestNotificationsHandlerReturnsCompleteTypeSpecificReferenceMatrix(t *testing.T) {
+	now := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
+	postFor := func(rkey string) *api.PostRow {
+		return testPostRow("did:plc:viewer", rkey, "visible", now)
+	}
+	ref := func(uri, cid, rkey string) api.NotificationReference {
+		return api.NotificationReference{Available: true, URI: uri, CID: cid, Rkey: rkey}
+	}
+	postRef := func(uri, cid string) *api.NotificationReference {
+		value := ref(uri, cid, "")
+		return &value
+	}
+	rows := []*api.NotificationRow{}
+	for i, category := range []api.NotificationType{
+		api.NotificationTypeFollow, api.NotificationTypeLike, api.NotificationTypeRepost,
+		api.NotificationTypeReply, api.NotificationTypeMention, api.NotificationTypeQuote,
+		api.NotificationTypeEverythingElse,
+	} {
+		source := ref(fmt.Sprintf("at://did:plc:alice/event/%d", i), fmt.Sprintf("source-cid-%d", i), fmt.Sprintf("r%d", i))
+		row := &api.NotificationRow{ID: fmt.Sprintf("id-%d", i), Type: category, ActorDID: "did:plc:alice", CreatedAt: now, IndexedAt: now, References: api.NotificationReferences{Source: source}}
+		switch category {
+		case api.NotificationTypeLike, api.NotificationTypeRepost:
+			row.SubjectPost = postFor(string(category))
+			row.References.Subject = postRef(row.SubjectPost.URI, row.SubjectPost.CID)
+		case api.NotificationTypeReply:
+			row.SubjectPost = postFor("reply-parent")
+			row.References.Subject = postRef(row.SubjectPost.URI, row.SubjectPost.CID)
+			row.References.Parent = postRef(row.SubjectPost.URI, row.SubjectPost.CID)
+			row.References.Root = postRef(row.SubjectPost.URI, row.SubjectPost.CID)
+			row.Reply = &api.NotificationReplyRef{Available: true, URI: source.URI, CID: source.CID, Rkey: source.Rkey}
+		case api.NotificationTypeMention:
+			row.SubjectPost = postFor("mention")
+			row.References.Subject = postRef(row.SubjectPost.URI, row.SubjectPost.CID)
+		case api.NotificationTypeQuote:
+			row.SubjectPost = postFor("quote")
+			quotedURI := "at://did:plc:viewer/social.craftsky.feed.post/quoted"
+			quotedCID := "quoted-cid"
+			row.SubjectPost.QuoteURI = &quotedURI
+			row.SubjectPost.QuoteCID = &quotedCID
+			row.References.Subject = postRef(row.SubjectPost.URI, row.SubjectPost.CID)
+			row.References.Quoted = postRef(quotedURI, quotedCID)
+		}
+		rows = append(rows, row)
+	}
+	store := &fakeNotificationStore{rows: rows, handles: map[string]syntax.Handle{"did:plc:alice": "alice.example", "did:plc:viewer": "viewer.example"}}
+	recorder := httptest.NewRecorder()
+	api.ListNotificationsHandler(store, fakeResolver{}, nilLogger()).ServeHTTP(recorder, authedReq(http.MethodGet, "/v1/notifications", "", "did:plc:viewer"))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var page api.NotificationPage
+	if err := json.Unmarshal(recorder.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 7 {
+		t.Fatalf("items=%d", len(page.Items))
+	}
+	for _, item := range page.Items {
+		if !item.References.Source.Available || item.URI == "" || item.CID == "" || item.Rkey == "" {
+			t.Fatalf("%s source=%+v item=%+v", item.Type, item.References.Source, item)
+		}
+		switch item.Type {
+		case api.NotificationTypeFollow, api.NotificationTypeEverythingElse:
+			if item.SubjectPost != nil || item.Reply != nil || item.ContentAvailable != nil || item.References.Subject != nil || item.References.Parent != nil || item.References.Root != nil || item.References.Quoted != nil {
+				t.Fatalf("%s has unrelated metadata: %+v", item.Type, item)
+			}
+		case api.NotificationTypeLike, api.NotificationTypeRepost:
+			if item.SubjectPost == nil || item.References.Subject == nil || item.ContentAvailable == nil || !*item.ContentAvailable || item.Reply != nil || item.References.Parent != nil || item.References.Root != nil || item.References.Quoted != nil {
+				t.Fatalf("%s metadata=%+v", item.Type, item)
+			}
+		case api.NotificationTypeReply:
+			if item.SubjectPost == nil || item.Reply == nil || !item.Reply.Available || item.References.Subject == nil || item.References.Parent == nil || item.References.Root == nil || item.References.Quoted != nil || item.ContentAvailable == nil || !*item.ContentAvailable {
+				t.Fatalf("reply metadata=%+v", item)
+			}
+		case api.NotificationTypeMention:
+			if item.SubjectPost == nil || item.References.Subject == nil || item.Reply != nil || item.References.Parent != nil || item.References.Root != nil || item.References.Quoted != nil || item.ContentAvailable == nil || !*item.ContentAvailable {
+				t.Fatalf("mention metadata=%+v", item)
+			}
+		case api.NotificationTypeQuote:
+			if item.SubjectPost == nil || item.SubjectPost.Quote == nil || item.References.Subject == nil || item.References.Quoted == nil || item.Reply != nil || item.References.Parent != nil || item.References.Root != nil || item.ContentAvailable == nil || !*item.ContentAvailable {
+				t.Fatalf("quote metadata=%+v", item)
+			}
 		}
 	}
 }

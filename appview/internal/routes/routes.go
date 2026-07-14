@@ -126,8 +126,16 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 
 	// v1 — post handlers (authenticated + device-id required).
 	postStore := api.NewPostStore(deps.DB, observer)
+	oauthHandlers.NotificationSubscriptions = postStore
 	mux.Handle("GET /v1/feed/timeline", v1mw.wrap(mustPolicy("GET", "/v1/feed/timeline"), api.ListTimelineHandler(postStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/notifications", v1mw.wrap(mustPolicy("GET", "/v1/notifications"), api.ListNotificationsHandler(postStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/notifications/new-count", v1mw.wrap(mustPolicy("GET", "/v1/notifications/new-count"), api.NotificationNewCountHandler(postStore, deps.Logger)))
+	mux.Handle("POST /v1/notifications/seen", v1mw.wrap(mustPolicy("POST", "/v1/notifications/seen"), api.MarkNotificationsSeenHandler(postStore, deps.Logger)))
+	mux.Handle("GET /v1/notifications/preferences", v1mw.wrap(mustPolicy("GET", "/v1/notifications/preferences"), api.GetNotificationPreferencesHandler(postStore, deps.Logger)))
+	mux.Handle("PATCH /v1/notifications/preferences", v1mw.wrap(mustPolicy("PATCH", "/v1/notifications/preferences"), api.PatchNotificationPreferencesHandler(postStore, deps.Logger)))
+	mux.Handle("POST /v1/notifications/devices", v1mw.wrap(mustPolicy("POST", "/v1/notifications/devices"), api.RegisterNotificationDeviceHandler(postStore, deps.Logger)))
+	mux.Handle("DELETE /v1/notifications/devices/{accountSubscriptionId}", v1mw.wrap(mustPolicy("DELETE", "/v1/notifications/devices/{accountSubscriptionId}"), api.RemoveNotificationDeviceHandler(postStore, deps.Logger)))
+	mux.Handle("GET /v1/notifications/{notificationId}", v1mw.wrap(mustPolicy("GET", "/v1/notifications/{notificationId}"), api.ResolveNotificationHandler(postStore, deps.Logger)))
 	mux.Handle("POST /v1/blobs/images", v1mw.wrap(mustPolicy("POST", "/v1/blobs/images"), api.ImageBlobUploadHandler(deps.NewPDSClient, mediaLimits, deps.Logger)))
 	mux.Handle("POST /v1/posts", v1mw.wrap(mustPolicy("POST", "/v1/posts"), api.CreatePostHandler(postStore, deps.NewPDSClient, deps.HandleResolver, mediaLimits, deps.Logger)))
 	mux.Handle("GET /v1/posts/{did}/{rkey}", v1mw.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}"), api.GetPostHandler(postStore, deps.HandleResolver, deps.Logger)))

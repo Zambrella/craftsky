@@ -94,6 +94,8 @@ func TestV1RoutePoliciesCoverRegisteredRoutes(t *testing.T) {
 		{"GET /v1/search/posts", RateClassSearch, BodyNoBody},
 		{"POST /v1/posts", RateClassWrite, BodyDefaultJSON},
 		{"POST /v1/blobs/images", RateClassUpload, BodyUpload},
+		{"GET /v1/notifications/new-count", RateClassRead, BodyNoBody},
+		{"POST /v1/notifications/seen", RateClassWrite, BodyNoBody},
 		{"GET /v1/dev/media/{name}", RateClassDevOnly, BodyNoBody},
 		{"GET /v1/dev/panic", RateClassDevOnly, BodyNoBody},
 		{"POST /v1/dev/moderation/ozone-events", RateClassDevOnly, BodyDefaultJSON},

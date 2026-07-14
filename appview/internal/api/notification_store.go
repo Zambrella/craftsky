@@ -8,26 +8,47 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"social.craftsky/appview/internal/api/envelope"
 )
 
 type NotificationType string
 
 const (
-	NotificationTypeFollow  NotificationType = "follow"
-	NotificationTypeLike    NotificationType = "like"
-	NotificationTypeRepost  NotificationType = "repost"
-	NotificationTypeReply   NotificationType = "reply"
-	NotificationTypeMention NotificationType = "mention"
+	NotificationTypeFollow         NotificationType = "follow"
+	NotificationTypeLike           NotificationType = "like"
+	NotificationTypeRepost         NotificationType = "repost"
+	NotificationTypeReply          NotificationType = "reply"
+	NotificationTypeMention        NotificationType = "mention"
+	NotificationTypeQuote          NotificationType = "quote"
+	NotificationTypeEverythingElse NotificationType = "everythingElse"
 )
 
 type NotificationReplyRef struct {
-	URI  string `json:"uri"`
-	CID  string `json:"cid"`
-	Rkey string `json:"rkey"`
+	Available bool   `json:"available"`
+	URI       string `json:"uri,omitempty"`
+	CID       string `json:"cid,omitempty"`
+	Rkey      string `json:"rkey,omitempty"`
+}
+
+type NotificationReference struct {
+	Available bool   `json:"available"`
+	URI       string `json:"uri,omitempty"`
+	CID       string `json:"cid,omitempty"`
+	Rkey      string `json:"rkey,omitempty"`
+}
+
+type NotificationReferences struct {
+	Source  NotificationReference  `json:"source"`
+	Subject *NotificationReference `json:"subject,omitempty"`
+	Parent  *NotificationReference `json:"parent,omitempty"`
+	Root    *NotificationReference `json:"root,omitempty"`
+	Quoted  *NotificationReference `json:"quoted,omitempty"`
 }
 
 type NotificationRow struct {
+	ID   string
 	Type NotificationType
 	URI  string
 	CID  string
@@ -42,145 +63,134 @@ type NotificationRow struct {
 
 	SubjectPost *PostRow
 	Reply       *NotificationReplyRef
+	References  NotificationReferences
+}
+
+func (s *PostStore) NotificationHandles(ctx context.Context, dids []string) (map[string]syntax.Handle, error) {
+	out := make(map[string]syntax.Handle)
+	if len(dids) == 0 {
+		return out, nil
+	}
+	rows, err := s.pool.Query(ctx, `SELECT did,handle FROM atproto_identity_cache WHERE did=ANY($1)`, dids)
+	if err != nil {
+		return nil, fmt.Errorf("notification handle batch: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var did string
+		var handle syntax.Handle
+		if err := rows.Scan(&did, &handle); err != nil {
+			return nil, fmt.Errorf("notification handle scan: %w", err)
+		}
+		out[did] = handle
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("notification handle rows: %w", err)
+	}
+	return out, nil
 }
 
 func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, limit int, cursor string) ([]*NotificationRow, string, error) {
-	curIndexedAt, curURI, err := decodeSeekCursor(cursor, "indexedAt")
+	curActivityAt, curID, err := decodeSeekCursor(cursor, "activityAt")
 	if err != nil {
 		return nil, "", err
 	}
 
 	q := `
-		WITH events AS (
-			SELECT
-				'follow'::text AS event_type,
-				f.uri, f.cid, f.rkey,
-				f.did AS actor_did,
-				f.created_at, f.indexed_at,
-				NULL::text AS subject_uri
-			FROM atproto_follows f
-			WHERE f.subject_did = $1
-			  AND f.did <> $1
-			UNION ALL
-			SELECT
-				'like'::text AS event_type,
-				l.uri, l.cid, l.rkey,
-				l.did AS actor_did,
-				l.created_at, l.indexed_at,
-				p.uri AS subject_uri
-			FROM craftsky_likes l
-			JOIN craftsky_posts p ON p.uri = l.subject_uri
-			WHERE p.did = $1
-			  AND l.did <> $1
-			  AND l.deleted_at IS NULL
-			UNION ALL
-			SELECT
-				'repost'::text AS event_type,
-				r.uri, r.cid, r.rkey,
-				r.did AS actor_did,
-				r.created_at, r.indexed_at,
-				p.uri AS subject_uri
-			FROM craftsky_reposts r
-			JOIN craftsky_posts p ON p.uri = r.subject_uri
-			WHERE p.did = $1
-			  AND r.did <> $1
-			  AND r.deleted_at IS NULL
-			UNION ALL
-			SELECT
-				'reply'::text AS event_type,
-				reply.uri, reply.cid, reply.rkey,
-				reply.did AS actor_did,
-				reply.created_at, reply.indexed_at,
-				parent.uri AS subject_uri
-			FROM craftsky_posts reply
-			JOIN craftsky_posts parent ON parent.uri = reply.reply_parent_uri
-			WHERE parent.did = $1
-			  AND reply.did <> $1
-			UNION ALL
-			SELECT
-				'mention'::text AS event_type,
-				p.uri, p.cid, p.rkey,
-				p.did AS actor_did,
-				m.created_at, m.indexed_at,
-				p.uri AS subject_uri
-			FROM craftsky_post_mentions m
-			JOIN craftsky_posts p ON p.uri = m.post_uri
-			WHERE m.mentioned_did = $1
-			  AND p.did <> $1
+		WITH page_events AS MATERIALIZED (
+			SELECT e.*
+			FROM notification_events e
+			WHERE e.recipient_did = $1
+			  AND e.state = 'active'
+			  AND ($2::timestamptz IS NULL
+			       OR (e.activity_at, e.id) < ($2::timestamptz, $3::uuid))
 			  AND NOT EXISTS (
 				SELECT 1
-				FROM craftsky_posts parent
-				WHERE parent.uri = p.reply_parent_uri
-				  AND parent.did = $1
+				FROM moderation_outputs mo
+				WHERE mo.action = 'apply'
+				  AND mo.subject_type = 'account'
+				  AND mo.subject_did = e.actor_did
+				  AND mo.value IN ('hide', 'takedown')
+				  AND (mo.expires_at IS NULL OR mo.expires_at > now())
+				  AND NOT EXISTS (
+					SELECT 1
+					FROM moderation_outputs neg
+					WHERE neg.action = 'negate'
+					  AND neg.source_did = mo.source_did
+					  AND neg.subject_type = mo.subject_type
+					  AND neg.subject_did = mo.subject_did
+					  AND neg.value = mo.value
+					  AND (neg.expires_at IS NULL OR neg.expires_at > now())
+					  AND neg.indexed_at > mo.indexed_at
+				  )
 			  )
+			ORDER BY e.activity_at DESC, e.id DESC
+			LIMIT $4
+		),
+		reference_uris AS (
+			SELECT source_uri AS uri FROM page_events WHERE category IN ('reply','mention','quote')
+			UNION SELECT subject_uri FROM page_events WHERE subject_uri IS NOT NULL
+			UNION SELECT parent_uri FROM page_events WHERE parent_uri IS NOT NULL
+			UNION SELECT root_uri FROM page_events WHERE root_uri IS NOT NULL
+			UNION SELECT quoted_uri FROM page_events WHERE quoted_uri IS NOT NULL
+			UNION
+			SELECT p.quote_uri
+			FROM craftsky_posts p
+			JOIN page_events e ON e.subject_uri=p.uri
+			WHERE p.quote_uri IS NOT NULL
+		),
+		visible_posts AS (
+			SELECT p.*
+			FROM craftsky_posts p
+			JOIN reference_uris refs ON refs.uri=p.uri
+			WHERE NOT EXISTS (
+				SELECT 1 FROM moderation_outputs mo
+				WHERE mo.action='apply' AND mo.value IN ('hide','takedown')
+				  AND (mo.expires_at IS NULL OR mo.expires_at>now())
+				  AND ((mo.subject_type='post' AND mo.subject_uri=p.uri)
+				       OR (mo.subject_type='account' AND mo.subject_did=p.did))
+				  AND NOT EXISTS (
+					SELECT 1 FROM moderation_outputs neg
+					WHERE neg.action='negate' AND neg.source_did=mo.source_did
+					  AND neg.subject_type=mo.subject_type AND neg.subject_did=mo.subject_did
+					  AND neg.value=mo.value AND (neg.expires_at IS NULL OR neg.expires_at>now())
+					  AND neg.indexed_at>mo.indexed_at
+					  AND (mo.subject_type='account' OR neg.subject_uri=mo.subject_uri)
+				  )
+			)
 		)
 		SELECT
-			e.event_type,
-			e.uri, e.cid, e.rkey,
+			e.id::text, e.category,
+			e.source_uri, e.source_cid, e.source_rkey,
+			CASE WHEN e.category IN ('reply','mention','quote') THEN source_post.uri IS NOT NULL ELSE true END,
+			e.subject_uri,e.subject_cid,(e.subject_uri IS NOT NULL AND sp.uri IS NOT NULL),
+			e.parent_uri,e.parent_cid,(e.parent_uri IS NOT NULL AND parent_post.uri IS NOT NULL),
+			e.root_uri,e.root_cid,(e.root_uri IS NOT NULL AND root_post.uri IS NOT NULL),
+			e.quoted_uri,e.quoted_cid,(e.quoted_uri IS NOT NULL AND quoted_post.uri IS NOT NULL),
+			CASE WHEN sp.quote_uri IS NULL THEN true ELSE subject_quote.uri IS NOT NULL END,
 			e.actor_did,
 			actor_bp.display_name AS actor_display_name,
 			actor_bp.avatar_cid AS actor_avatar_cid,
-			e.created_at, e.indexed_at,
+			e.activity_at, e.indexed_at,
 			sp.uri, sp.did, sp.rkey, sp.cid, sp.text, sp.facets, sp.images,
 			sp.reply_root_uri, sp.reply_root_cid, sp.reply_parent_uri, sp.reply_parent_cid,
 			sp.quote_uri, sp.quote_cid, sp.tags, sp.created_at, sp.indexed_at,
 			sp.is_project, sp.project_craft_type, spp.raw_project,
 			sbp.display_name, sbp.avatar_cid
-		FROM events e
+		FROM page_events e
 		LEFT JOIN bluesky_profiles actor_bp ON actor_bp.did = e.actor_did
-		LEFT JOIN craftsky_posts sp ON sp.uri = e.subject_uri
+		LEFT JOIN visible_posts source_post ON source_post.uri=e.source_uri
+		LEFT JOIN visible_posts sp ON sp.uri=e.subject_uri
+		LEFT JOIN visible_posts parent_post ON parent_post.uri=e.parent_uri
+		LEFT JOIN visible_posts root_post ON root_post.uri=e.root_uri
+		LEFT JOIN visible_posts quoted_post ON quoted_post.uri=e.quoted_uri
+		LEFT JOIN visible_posts subject_quote ON subject_quote.uri=sp.quote_uri
 		LEFT JOIN craftsky_project_posts spp ON spp.uri = sp.uri
 		LEFT JOIN bluesky_profiles sbp ON sbp.did = sp.did
-		WHERE ($2::timestamptz IS NULL
-		       OR (e.indexed_at, e.uri) < ($2::timestamptz, $3::text))
-		  AND NOT EXISTS (
-			SELECT 1
-			FROM moderation_outputs mo
-			WHERE mo.action = 'apply'
-			  AND mo.subject_type = 'account'
-			  AND mo.subject_did = e.actor_did
-			  AND mo.value IN ('hide', 'takedown')
-			  AND (mo.expires_at IS NULL OR mo.expires_at > now())
-			  AND NOT EXISTS (
-				SELECT 1
-				FROM moderation_outputs neg
-				WHERE neg.action = 'negate'
-				  AND neg.source_did = mo.source_did
-				  AND neg.subject_type = mo.subject_type
-				  AND neg.subject_did = mo.subject_did
-				  AND neg.value = mo.value
-				  AND (neg.expires_at IS NULL OR neg.expires_at > now())
-				  AND neg.indexed_at > mo.indexed_at
-			  )
-		  )
-		  AND NOT EXISTS (
-			SELECT 1
-			FROM moderation_outputs mo
-			WHERE mo.action = 'apply'
-			  AND mo.value IN ('hide', 'takedown')
-			  AND (mo.expires_at IS NULL OR mo.expires_at > now())
-			  AND (
-				(mo.subject_type = 'post' AND mo.subject_uri = e.subject_uri)
-				OR (mo.subject_type = 'account' AND sp.did IS NOT NULL AND mo.subject_did = sp.did)
-			  )
-			  AND NOT EXISTS (
-				SELECT 1
-				FROM moderation_outputs neg
-				WHERE neg.action = 'negate'
-				  AND neg.source_did = mo.source_did
-				  AND neg.subject_type = mo.subject_type
-				  AND neg.subject_did = mo.subject_did
-				  AND neg.value = mo.value
-				  AND (neg.expires_at IS NULL OR neg.expires_at > now())
-				  AND neg.indexed_at > mo.indexed_at
-				  AND (mo.subject_type = 'account' OR neg.subject_uri = mo.subject_uri)
-			  )
-		  )
-		ORDER BY e.indexed_at DESC, e.uri DESC
-		LIMIT $4
+		ORDER BY e.activity_at DESC, e.id DESC
 	`
 	queryLimit := limit + 1
-	rows, err := s.pool.Query(ctx, q, viewerDID, curIndexedAt, curURI, queryLimit)
+	rows, err := s.pool.Query(ctx, q, viewerDID, curActivityAt, curID, queryLimit)
 	if err != nil {
 		return nil, "", fmt.Errorf("notification list %s: %w", viewerDID, err)
 	}
@@ -191,9 +201,18 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		row := &NotificationRow{}
 		var eventType string
 		var subject notificationSubjectScan
+		var sourceURI, sourceCID, sourceRkey string
+		var sourceAvailable, subjectAvailable, parentAvailable, rootAvailable, quotedAvailable, subjectQuoteAvailable bool
+		var subjectURI, subjectCID, parentURI, parentCID, rootURI, rootCID, quotedURI, quotedCID sql.NullString
 		if err := rows.Scan(
+			&row.ID,
 			&eventType,
-			&row.URI, &row.CID, &row.Rkey,
+			&sourceURI, &sourceCID, &sourceRkey, &sourceAvailable,
+			&subjectURI, &subjectCID, &subjectAvailable,
+			&parentURI, &parentCID, &parentAvailable,
+			&rootURI, &rootCID, &rootAvailable,
+			&quotedURI, &quotedCID, &quotedAvailable,
+			&subjectQuoteAvailable,
 			&row.ActorDID, &row.ActorDisplayName, &row.ActorAvatarCID,
 			&row.CreatedAt, &row.IndexedAt,
 			&subject.URI, &subject.DID, &subject.Rkey, &subject.CID, &subject.Text, &subject.Facets, &subject.Images,
@@ -205,11 +224,25 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			return nil, "", fmt.Errorf("notification list scan: %w", err)
 		}
 		row.Type = NotificationType(eventType)
+		row.References = NotificationReferences{
+			Source:  *notificationReference(sql.NullString{String: sourceURI, Valid: true}, sql.NullString{String: sourceCID, Valid: true}, sourceRkey, sourceAvailable),
+			Subject: notificationReference(subjectURI, subjectCID, "", subjectAvailable),
+			Parent:  notificationReference(parentURI, parentCID, "", parentAvailable),
+			Root:    notificationReference(rootURI, rootCID, "", rootAvailable),
+			Quoted:  notificationReference(quotedURI, quotedCID, "", quotedAvailable),
+		}
+		if sourceAvailable {
+			row.URI, row.CID, row.Rkey = sourceURI, sourceCID, sourceRkey
+		}
 		if subject.URI.Valid {
 			row.SubjectPost = subject.postRow()
+			if !subjectQuoteAvailable {
+				row.SubjectPost.QuoteURI = nil
+				row.SubjectPost.QuoteCID = nil
+			}
 		}
 		if row.Type == NotificationTypeReply {
-			row.Reply = &NotificationReplyRef{URI: row.URI, CID: row.CID, Rkey: row.Rkey}
+			row.Reply = &NotificationReplyRef{Available: sourceAvailable, URI: row.URI, CID: row.CID, Rkey: row.Rkey}
 		}
 		out = append(out, row)
 	}
@@ -222,13 +255,26 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 	out = out[:limit]
 	last := out[len(out)-1]
 	next, err := envelope.EncodeCursor(map[string]any{
-		"indexedAt": last.IndexedAt.UTC().Format(time.RFC3339Nano),
-		"uri":       last.URI,
+		"activityAt": last.CreatedAt.UTC().Format(time.RFC3339Nano),
+		"uri":        last.ID,
 	})
 	if err != nil {
 		return nil, "", fmt.Errorf("encode notification cursor: %w", err)
 	}
 	return out, next, nil
+}
+
+func notificationReference(uri, cid sql.NullString, rkey string, available bool) *NotificationReference {
+	if !uri.Valid || uri.String == "" {
+		return nil
+	}
+	ref := &NotificationReference{Available: available}
+	if available {
+		ref.URI = uri.String
+		ref.CID = cid.String
+		ref.Rkey = rkey
+	}
+	return ref
 }
 
 type notificationSubjectScan struct {

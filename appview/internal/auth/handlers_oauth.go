@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,8 +25,14 @@ type HTTPHandlers struct {
 	DevMode          bool // emits the session token in the callback HTML when true
 	// NewPDSClient builds a PDSClient scoped to the given OAuth session.
 	// Injected so tests can supply a mock without standing up indigo.
-	NewPDSClient         PDSClientFactory
-	IdentityCacheUpdater IdentityCacheUpdater
+	NewPDSClient              PDSClientFactory
+	IdentityCacheUpdater      IdentityCacheUpdater
+	NotificationSubscriptions NotificationSubscriptionCleaner
+}
+
+type NotificationSubscriptionCleaner interface {
+	DeactivateForInstallation(context.Context, string, string) error
+	DeactivateForAccount(context.Context, string) error
 }
 
 func NewHTTPHandlers(

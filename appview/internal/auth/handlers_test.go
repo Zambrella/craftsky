@@ -260,6 +260,38 @@ func TestLogout_SingleDevice_SetsRevokedAt(t *testing.T) {
 	}
 }
 
+type failingNotificationCleaner struct{}
+
+func (failingNotificationCleaner) DeactivateForInstallation(context.Context, string, string) error {
+	return errors.New("cleanup failed")
+}
+func (failingNotificationCleaner) DeactivateForAccount(context.Context, string) error {
+	return errors.New("cleanup failed")
+}
+
+func TestLogoutFailsClosedWhenNotificationCleanupFails(t *testing.T) {
+	h := handlersFixture(t, "")
+	h.NotificationSubscriptions = failingNotificationCleaner{}
+	token := seedSession(t, h, "did:plc:a", "s1")
+	req := httptest.NewRequest("POST", "/auth/logout", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	ctx := middleware.WithDID(req.Context(), "did:plc:a")
+	ctx = middleware.WithOAuthSessionID(ctx, "s1")
+	ctx = middleware.WithDeviceID(ctx, "device-a")
+	recorder := httptest.NewRecorder()
+	h.LogoutHandler().ServeHTTP(recorder, req.WithContext(ctx))
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d", recorder.Code)
+	}
+	var revokedAt *time.Time
+	if err := h.Pool.QueryRow(context.Background(), `SELECT revoked_at FROM craftsky_sessions WHERE account_did='did:plc:a'`).Scan(&revokedAt); err != nil {
+		t.Fatal(err)
+	}
+	if revokedAt != nil {
+		t.Fatal("session revoked despite failed push cleanup")
+	}
+}
+
 func TestLogout_AllDevices_RevokeAllCleansUpEvenIfOAuthLogoutFails(t *testing.T) {
 	h := handlersFixture(t, "")
 	seedSession(t, h, "did:plc:b", "s1")

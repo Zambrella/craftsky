@@ -13,6 +13,12 @@ import (
 )
 
 const atprotoFollowsDDL = `
+CREATE TABLE craftsky_profiles (
+	did TEXT PRIMARY KEY,
+	record_cid TEXT NOT NULL,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 CREATE TABLE atproto_follows (
 	uri         TEXT        NOT NULL PRIMARY KEY,
 	did         TEXT        NOT NULL,
