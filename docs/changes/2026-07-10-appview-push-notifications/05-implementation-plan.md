@@ -5,7 +5,8 @@
 - Tests: `02-acceptance-tests.md`
 - Document review: `03-document-review.md`
 - Coding plan: `04-coding-plan.md`
-- Implementation approval: explicitly granted by the user on 2026-07-11
+- Original implementation approval: explicitly granted by the user on 2026-07-11
+- Account-wide notification newness follow-up approval: explicitly granted by the user on 2026-07-14
 
 ## Implementation Rules
 - Do not implement behavior without a linked requirement ID.
@@ -158,6 +159,62 @@ Each remediation step follows the same red-green-refactor rule as the original i
 - `go vet ./...` passed.
 - `git diff --check` passed.
 - Automated tests did not contact Firebase. MAN-001 and MAN-002 remain pre-production provider/device gates.
+
+## Account-Wide Notification Newness Follow-Up
+
+Follow-up inputs: revised `01-requirements.md` through `04-coding-plan.md`, approved document review dated 2026-07-14, and explicit user implementation approval dated 2026-07-14.
+
+| Order | Test IDs | Requirement IDs | Acceptance Criteria | Status |
+|---:|---|---|---|---|
+| 44 | IT-032 | FR-034, NFR-007 | AC-047, AC-051 | Complete |
+| 45 | IT-033, REG-009 | BR-004, FR-035, FR-038, RULE-007, NFR-007 | AC-045, AC-048, AC-051 | Complete |
+| 46 | IT-034 | FR-036, RULE-007 | AC-046, AC-049 | Complete |
+| 47 | AT-010, IT-035 | FR-037, RULE-007 | AC-050 | Complete |
+
+### Step 44: IT-032
+
+- Write failing test: apply migration 000022 and prove inserted/genuinely reactivated notifications advance revision while exact replay and retraction do not.
+- Run command: `cd appview && go test ./internal/notifications -run TestNotificationNewness -count=1` plus the focused migration suite.
+- Confirmed failure: focused real-Postgres test failed because `000022_notification_newness.up.sql` did not exist.
+- Implement: added an additive revision sequence/column, active recipient/revision index, account acknowledgement table, and an update trigger that advances only genuine activation updates.
+- Refactor: kept lifecycle SQL unchanged; the database owns monotonic revision allocation consistently across every producer using the shared activation query.
+- Notes: Exact replay and retraction preserve the revision; reactivation advances it. A red-green refinement added separate active-count and all-state high-water account/revision indexes. Focused notification and migration suites pass against local Compose Postgres.
+
+### Step 45: IT-033 and REG-009
+
+- Write failing test: first-use count, marker threshold, retracted/actor-hidden exclusion, camelCase response, and proof that list/count GET requests do not mutate state.
+- Run command: `cd appview && go test ./internal/api -run 'TestNotification(NewCount|GetRoutesRemainReadOnly)' -count=1`.
+- Confirmed failure: API package failed to compile because `NotificationNewCountHandler` and the count store contract did not exist.
+- Implement: added the camelCase count response, authenticated handler, and indexed account/revision query excluding retracted and actor-hidden/taken-down notifications.
+- Refactor: used the same apply/negate actor-moderation predicate as the durable list and added a list/count agreement assertion.
+- Notes: First-use count, marker threshold, visibility agreement, and read-only GET state all pass against local Compose Postgres.
+
+### Step 46: IT-034
+
+- Write failing test: capture revision R inside mark-seen, commit R+1 concurrently, and prove the marker stops at R with greatest-value conflict handling.
+- Run command: `cd appview && go test ./internal/api -run TestNotificationMarkSeenSnapshot -count=1`.
+- Confirmed failure: API package failed to compile because `PostStore.MarkNotificationsSeen` did not exist.
+- Implement: added one `INSERT ... SELECT max(revision) ... ON CONFLICT` statement using greatest-value semantics plus a bodyless authenticated handler returning 204.
+- Refactor: kept count and acknowledgement behind narrow interfaces; no list handler or GET path can write marker state.
+- Notes: The deterministic test holds the marker row, observes the mark statement waiting on its lock, commits a newer notification, then proves the statement snapshot acknowledges only the earlier revision. The concurrent event remains new; a later explicit POST clears it.
+
+### Step 47: AT-010 and IT-035
+
+- Write failing test: Alice acknowledges from either of two devices while Bob shares one device; Alice clears account-wide and Bob remains unchanged.
+- Run command: `cd appview && go test ./internal/routes -run TestNotificationNewnessAccountWide -count=1`.
+- Confirmed failure: the literal count route was absent, so Go's dynamic notification-ID route handled `new-count` and returned `notification_not_found`.
+- Implement: registered authenticated/device-required read and write policies plus literal count and seen routes backed by the shared `PostStore`.
+- Refactor: added explicit policy-table regression coverage for read/write rate and no-body semantics.
+- Notes: Alice's acknowledgement from device A clears device B, repeated GET prefetches do not clear state, and Bob's count on the shared device remains unchanged. Focused route and policy tests pass.
+
+### Follow-Up Verification
+
+- Focused lifecycle and migration tests passed against local Compose Postgres.
+- Focused count, list-visibility, snapshot-race, route, and policy tests passed.
+- Race-enabled focused suites passed: `go test -race ./internal/notifications ./internal/db ./internal/api ./internal/routes -count=1`.
+- Canonical repository suite passed: `just test` (`go test -race ./...` against Compose Postgres).
+- `go vet ./...` passed.
+- Automated tests did not contact Firebase. Existing MAN-001 and MAN-002 remain unrelated pre-production provider/device gates for push delivery.
 
 ## Re-review Remediation
 

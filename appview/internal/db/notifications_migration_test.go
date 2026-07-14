@@ -93,3 +93,48 @@ func TestNotificationsMigrationCreatesPrivateDurableSchemaWithoutBackfill(t *tes
 		}
 	}
 }
+
+func TestNotificationNewnessMigrationAddsAccountRevisionState(t *testing.T) {
+	base, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	if err != nil {
+		t.Fatalf("read base migration: %v", err)
+	}
+	newness, err := os.ReadFile("../../migrations/000022_notification_newness.up.sql")
+	if err != nil {
+		t.Fatalf("read newness migration: %v", err)
+	}
+
+	pool := testdb.WithSchema(t, "")
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, string(base)); err != nil {
+		t.Fatalf("apply base migration: %v", err)
+	}
+	if _, err := pool.Exec(ctx, string(newness)); err != nil {
+		t.Fatalf("apply newness migration: %v", err)
+	}
+
+	var columnNotNull, tableExists, sequenceExists bool
+	if err := pool.QueryRow(ctx, `
+		SELECT attnotnull
+		FROM pg_attribute
+		WHERE attrelid = 'notification_events'::regclass
+		  AND attname = 'newness_revision'
+	`).Scan(&columnNotNull); err != nil {
+		t.Fatalf("lookup revision column: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT to_regclass(current_schema() || '.notification_seen_state') IS NOT NULL`).Scan(&tableExists); err != nil {
+		t.Fatalf("lookup seen table: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT to_regclass(current_schema() || '.notification_newness_revision_seq') IS NOT NULL`).Scan(&sequenceExists); err != nil {
+		t.Fatalf("lookup revision sequence: %v", err)
+	}
+	if !columnNotNull || !tableExists || !sequenceExists {
+		t.Fatalf("newness schema columnNotNull=%v table=%v sequence=%v", columnNotNull, tableExists, sequenceExists)
+	}
+	if !indexExists(t, pool, "notification_events_active_newness_idx") {
+		t.Fatal("notification_events_active_newness_idx missing")
+	}
+	if !indexExists(t, pool, "notification_events_recipient_newness_idx") {
+		t.Fatal("notification_events_recipient_newness_idx missing")
+	}
+}

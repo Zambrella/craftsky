@@ -101,6 +101,30 @@ Answer: Treat the new authenticated registration as the token's current installa
 
 Decision / implication: This supports reinstall/restore and provider token reuse without allowing a token collision to merge account authorization across installation identities. A stale old installation cannot continue receiving pushes after the rebind.
 
+### Q12: Is notification newness account-wide or device-specific?
+
+Answer: Account-wide. Opening the notification page for an account on one device clears that account's new count on every device. Different accounts on the same installation remain independent.
+
+Decision / implication: Persist one acknowledgement marker per account DID, not per installation, device, session, or account subscription.
+
+### Q13: How does the client read and clear the new count?
+
+Answer: Use a read-only `GET /v1/notifications/new-count` endpoint and an explicit `POST /v1/notifications/seen` operation. Flutter calls the write only once the notification page is actually displayed; fetching or prefetching the notification list does not mutate newness state.
+
+Decision / implication: Preserve the API rule that GET requests are read-only and avoid clearing a badge because of background refresh, retry, or prefetch behavior.
+
+### Q14: What does "new" mean?
+
+Answer: A currently listable active notification is new when its latest genuine activation revision is later than the account's last acknowledged revision. Exact Tap replays do not create a new revision. Retraction removes a notification from the count, while a genuine reactivation or semantic source replacement receives a later revision and becomes new again.
+
+Decision / implication: Use a monotonic server-side revision rather than a timestamp or per-row `readAt`. This makes delayed federation, tied timestamps, reactivation, and concurrent acknowledgement deterministic.
+
+### Q15: What happens when a notification arrives while mark-seen is running?
+
+Answer: Mark-seen advances only through the operation's database snapshot. A notification committed after that snapshot remains new.
+
+Decision / implication: The acknowledgement operation records a captured high-water revision rather than `now()` or an unbounded value selected after the write begins.
+
 ## 4. Candidate Approaches
 
 ### Option A: Durable notification events plus transactional delivery outbox
@@ -170,11 +194,12 @@ The current derived feed is useful for an in-app MVP but cannot reliably drive p
 - G-003: Provide type-specific metadata sufficient for Flutter to render and navigate every supported notification.
 - G-004: Keep Tap ingestion reliable when FCM is slow or unavailable.
 - G-005: Protect device tokens and minimize information exposed on lock screens and through push-provider payloads.
+- G-006: Let Flutter display an accurate account-wide count of notification activity that is new since the account last acknowledged the notification page.
 
 ## 8. Non-Goals
 
 - NG-001: Flutter UI, permission prompts, Firebase client SDK setup, token-refresh listeners, or deep-link implementation.
-- NG-002: Read/unread state, badges, mark-all-read, grouping, aggregation, or notification digests.
+- NG-002: Per-notification read/unread state, per-device newness, individual mark-read operations, server-rendered badges, grouping, aggregation, or notification digests.
 - NG-003: Per-account activity subscriptions such as “notify me whenever this person posts.”
 - NG-004: Email, SMS, web push, or any provider other than FCM-backed Android/iOS delivery.
 - NG-005: Localized server push copy; first-pass push copy is English.
@@ -204,7 +229,7 @@ The current derived feed is useful for an in-app MVP but cannot reliably drive p
 
 ## 11. Desired Behavior
 
-Tap ingestion identifies eligible recipients, selects one canonical category per recipient/event, applies the recipient's scope at event time, and inserts or reactivates a coalesced durable notification idempotently. A first activation with push enabled creates one pending delivery for every active account subscription on registered installations; later reactivations never enqueue another push for the same actor/category/subject relationship. A corresponding deletion event retracts the notification, removes it from `GET /v1/notifications`, and cancels unsent deliveries. A notification-resolution endpoint retains enough tombstone metadata to route an already-delivered push to its precise target or a safe fallback. A separate background worker claims pending deliveries and sends combined notification-and-data FCM messages with bounded retries and a six-hour delivery deadline.
+Tap ingestion identifies eligible recipients, selects one canonical category per recipient/event, applies the recipient's scope at event time, and inserts or reactivates a coalesced durable notification idempotently. Each genuine activation receives a monotonic newness revision; exact replays do not. A first activation with push enabled creates one pending delivery for every active account subscription on registered installations; later reactivations never enqueue another push for the same actor/category/subject relationship. A corresponding deletion event retracts the notification, removes it from `GET /v1/notifications` and the new count, and cancels unsent deliveries. A read-only endpoint returns the number of active, currently listable revisions newer than the account-wide acknowledgement marker, and an explicit mark-seen operation advances that marker through a database snapshot without consuming concurrently created notifications. A notification-resolution endpoint retains enough tombstone metadata to route an already-delivered push to its precise target or a safe fallback. A separate background worker claims pending deliveries and sends combined notification-and-data FCM messages with bounded retries and a six-hour delivery deadline.
 
 ## 12. Requirements
 
@@ -213,6 +238,7 @@ Tap ingestion identifies eligible recipients, selects one canonical category per
 | BR-001 | Business | Must | Craftsky members shall receive durable in-app notifications for eligible social activity directed at them. | Keeps social activity understandable and stable. | Prompt / user decisions | AC-001, AC-009 |
 | BR-002 | Business | Must | Eligible activity shall be deliverable as push to each active recipient account subscription according to preferences effective when the event occurs. | Provides timely notification across devices and accounts without retroactive preference rewrites. | Prompt / user decisions | AC-002, AC-014, AC-015 |
 | BR-003 | Business | Must | Notification categories shall be `like`, `follow`, `reply`, `mention`, `quote`, `repost`, and `everythingElse`. | Matches the reviewed user-facing controls without unsupported repost attribution. | Prompt / grilling decisions | AC-003, AC-011 |
+| BR-004 | Business | Must | Craftsky members shall be able to see how many currently listable notifications are new since they last acknowledged the notification page. | Enables an accurate navigation badge without introducing per-item unread management. | Follow-up user request | AC-045, AC-046 |
 | FR-001 | Functional | Must | The AppView shall persist one durable notification per eligible `(recipient, actor, canonical category, subject)`, with a stable opaque notification ID and lifecycle state. | Enables coalescing, pagination, retraction, reactivation, and push lookup. | Recommended direction / grilling decisions | AC-001, AC-004, AC-009, AC-032, AC-035 |
 | FR-002 | Functional | Must | Notification creation shall be idempotent when the same Tap event is retried or replayed. | Tap delivery is retryable and must not duplicate user activity. | Indexer invariant | AC-004 |
 | FR-003 | Functional | Must | Notification intent and any initial push-delivery rows shall be committed atomically with the corresponding indexed source event, without making an FCM request inside that transaction. | Prevents lost intent and avoids provider coupling. | Discovery | AC-005, AC-016 |
@@ -246,18 +272,25 @@ Tap ingestion identifies eligible recipients, selects one canonical category per
 | FR-031 | Functional | Must | The first pass shall send one push intent per eligible event without server-side burst aggregation, grouping, or digests. | Keeps delivery semantics deterministic until real usage demonstrates a need for aggregation. | Grilling decision | AC-042 |
 | FR-032 | Functional | Must | Block and mute state shall not be invented by this notification feature; integration with a future authoritative block/mute model is deferred. Existing content availability and takedown checks still apply. | Avoids creating notification-only social policy unsupported elsewhere in Craftsky. | Codebase finding / grilling decision | AC-043 |
 | FR-033 | Functional | Must | When an FCM token already belongs to a different active installation, authenticated registration shall atomically rebind it to the current `X-Craftsky-Device-Id`, deactivate the old installation and its subscriptions, and cancel their unsent deliveries without transferring subscriptions to the new installation. The new installation shall gain only the authenticated account's explicitly registered subscription. | Preserves one active token owner while preventing cross-installation account authorization leakage during reinstall, restore, or provider token reuse. | Document review decision | AC-044 |
+| FR-034 | Functional | Must | The AppView shall assign a monotonically increasing newness revision whenever a notification is first activated, genuinely reactivated, or replaced by a semantically new source; exact idempotent replays and retractions shall not advance the revision. | Provides a deterministic arrival/activation order independent of source timestamps and process clocks. | Follow-up design decision | AC-047 |
+| FR-035 | Functional | Must | `GET /v1/notifications/new-count` shall return `{newCount: N}` for the authenticated account, where `N` is the number of active notifications eligible to appear in the normal notification list whose newness revision is later than the account's acknowledgement marker. Retracted notifications and notifications excluded by current list-level visibility policy shall not be counted. | Keeps the badge consistent with the list surface and preserves read-only GET semantics. | Follow-up user decision | AC-045, AC-048 |
+| FR-036 | Functional | Must | `POST /v1/notifications/seen` shall require the existing authenticated account and device middleware, accept no body, atomically advance that account's acknowledgement marker through the greatest notification revision visible to the operation's database snapshot, never move the marker backwards, and return `204 No Content`. | Clears current new activity without consuming a notification committed after the acknowledgement snapshot. | Follow-up user decision | AC-046, AC-049 |
+| FR-037 | Functional | Must | Notification newness state shall be scoped by account DID across all devices, installations, sessions, and account subscriptions; acknowledging one account shall not affect another account. | Matches the selected account-wide product semantics and multi-account isolation model. | Follow-up user decision | AC-050 |
+| FR-038 | Functional | Must | An account with no acknowledgement row shall treat all active, currently listable durable notifications as new. | Gives deterministic first-use behavior without a registration-time or login-time baseline side effect. | Follow-up design decision | AC-045 |
 | NFR-001 | Non-functional | Must | FCM latency or outage shall not block Tap event acknowledgements or database indexing. | Protects AppView convergence. | Architecture | AC-016 |
 | NFR-002 | Non-functional | Must | Device tokens and FCM credentials shall never be written to logs, Sentry attributes, metrics labels, API responses after registration, or notification payload diagnostics. | Tokens and credentials are sensitive operational data. | Security / privacy | AC-027 |
 | NFR-003 | Non-functional | Must | All new `/v1/*` JSON shall use camelCase, standard error envelopes, existing authentication, and required device-ID middleware. | Preserves the AppView API contract. | AGENTS / API architecture | AC-028 |
 | NFR-004 | Non-functional | Must | Production startup shall fail clearly when push delivery is enabled without valid required FCM configuration; development and tests shall support an injected fake or disabled sender. | Avoids silently dropping production push. | Operational discovery | AC-029 |
 | NFR-005 | Non-functional | Should | Normal notification page hydration and delivery claiming should use bounded/batched queries and appropriate indexes rather than per-item database lookups. | Controls load on a high-traffic path. | Codebase patterns | AC-030 |
 | NFR-006 | Non-functional | Should | The dispatcher should begin processing new jobs promptly under normal operation and expose queue age so latency regressions are measurable. | Timeliness is central to push usefulness. | Product goal | AC-031 |
+| NFR-007 | Non-functional | Should | New-count and mark-seen queries should use an account/revision index and bounded snapshot operations rather than scanning or updating individual notification rows. | Keeps badge polling and acknowledgement inexpensive as notification history grows. | Codebase architecture | AC-051 |
 | RULE-001 | Business rule | Must | `People I follow` means the recipient follows the notification actor at source-event ingestion time. | Removes ambiguity about graph direction and timing. | User decision / discovery | AC-013 |
 | RULE-002 | Business rule | Must | For each category, `scope` decides whether an event creates a notification at all: `everyone` accepts every otherwise-eligible non-self actor, while `peopleIFollow` accepts only actors the recipient follows. Every accepted event appears in the in-app feed. `pushEnabled` independently decides whether that accepted event also creates push deliveries. There is no separate control for hiding accepted events from the in-app feed. | Makes the relationship between scope, in-app visibility, and push delivery explicit. | User decision | AC-011, AC-012, AC-037 |
 | RULE-003 | Business rule | Must | Later preference and follow-graph changes shall not retroactively change notifications, but deletion of source activity or required destination content shall retract affected notifications. | Distinguishes preference timing from event relevance. | User decisions | AC-010, AC-013, AC-032 |
 | RULE-004 | Business rule | Must | Push delivery is at-least-once; the AppView shall minimize duplicates but cannot guarantee exactly-once delivery across an external FCM acceptance/database-commit boundary. | States an unavoidable distributed-systems limit. | Discovery risk | AC-021 |
 | RULE-005 | Business rule | Must | `everythingElse` shall have stored/default preferences but no source-event producer in this pass. | Reserves the requested control without inventing events. | Scope decision | AC-003, AC-011 |
 | RULE-006 | Business rule | Must | Like/repost-of-repost categories shall not exist until Craftsky has trustworthy causal attribution; AppView shall never approximate them by notifying every reposter. | Prevents false attribution and unbounded fan-out. | Grilling decision | AC-003, AC-007 |
+| RULE-007 | Business rule | Must | "New" is a high-water account state, not a permanent property of an individual notification. Opening or reading a list does not clear it; only the explicit authenticated mark-seen operation advances the account marker. | Prevents prefetches from mutating state and keeps the first pass intentionally simpler than per-item unread behavior. | Follow-up user decision | AC-046, AC-050 |
 
 ## 13. Acceptance Criteria
 
@@ -307,6 +340,13 @@ Tap ingestion identifies eligible recipients, selects one canonical category per
 | AC-042 | FR-031 | Given many eligible events occur in a burst, then each event creates its own push intent and the AppView does not delay them for aggregation or digest construction. |
 | AC-043 | FR-032 | Given no authoritative Craftsky block/mute model exists, then this pass neither creates notification-specific block/mute state nor claims block/mute enforcement. |
 | AC-044 | FR-033 | Given an active installation owns an FCM token, when an authenticated registration presents that token with a different device ID, then AppView atomically deactivates the old installation and subscriptions, cancels their unsent deliveries, binds the token to the new installation, creates only the authenticated account's new subscription, and transfers no old subscription or routing ID. |
+| AC-045 | BR-004, FR-035, FR-038 | Given an account has never acknowledged notifications and has active listable notifications, when it requests the new-count endpoint, then the response is `200 {"newCount": N}` with every such notification counted exactly once. |
+| AC-046 | BR-004, FR-036, RULE-007 | Given an account has new notifications, when it successfully posts to mark-seen and then requests the count, then mark-seen returns 204 and the count is zero without requiring notification-list pagination. |
+| AC-047 | FR-034 | Given exact Tap replay, retraction, and genuine reactivation cases, then replay and retraction do not allocate a later newness revision, while reactivation/source replacement does and becomes new without creating a second push delivery. |
+| AC-048 | FR-035 | Given retracted notifications and notifications currently excluded by the notification list's actor visibility policy, when the count is requested, then neither contributes to `newCount`. |
+| AC-049 | FR-036 | Given mark-seen captures revision R and a new notification commits at R+1 before mark-seen returns, then the marker advances through R and the later notification remains new. |
+| AC-050 | FR-037, RULE-007 | Given one account is active on two devices and shares one device with another account, when the first account marks notifications seen on either device, then its count clears on both devices and the other account's count is unchanged. |
+| AC-051 | NFR-007 | Given a large notification history, when count and mark-seen queries are explained or inspected, then they use account/revision indexes and update only the one account acknowledgement row. |
 
 ## 14. Edge Cases
 
@@ -334,6 +374,11 @@ Tap ingestion identifies eligible recipients, selects one canonical category per
 | EC-020 | Delivery reaches its six-hour deadline during backoff or after FCM acceptance. | AppView stops retrying, and provider TTL prevents later delivery beyond the original deadline. | FR-013, FR-028 |
 | EC-021 | Notification actor permanently deletes their account/repository. | Caused notifications and unsent deliveries are hard-deleted; stale push resolution returns not-found and Flutter falls back to the notifications surface. | FR-023, FR-030 |
 | EC-022 | An FCM token is registered under a new device ID while its old installation has several account subscriptions and unsent deliveries. | The old installation and all of its subscriptions are deactivated, its unsent deliveries are cancelled, the token is rebound to the new installation, and only the currently authenticated account is subscribed there with a new opaque routing ID. | FR-033 |
+| EC-023 | A notification arrives while mark-seen is executing. | The acknowledgement stops at the captured snapshot revision; the concurrent notification remains new. | FR-036 |
+| EC-024 | The list is prefetched or refreshed in the background. | Newness state is unchanged because notification GET routes are read-only. | FR-036, RULE-007 |
+| EC-025 | A notification is retracted before acknowledgement. | It no longer contributes to the count; the marker does not need a per-notification update. | FR-034, FR-035 |
+| EC-026 | A previously retracted relationship is genuinely recreated. | The stable notification receives a later newness revision and counts as new, but no second push delivery is created. | FR-018, FR-034 |
+| EC-027 | Two devices acknowledge the same account concurrently. | Monotonic upsert semantics retain the greatest captured revision and never move the marker backwards. | FR-036, FR-037 |
 
 ## 15. Data / Persistence Impact
 
@@ -343,12 +388,15 @@ Tap ingestion identifies eligible recipients, selects one canonical category per
   - Push installations keyed by Craftsky device ID, containing platform, the current send-capable FCM token, active state, and lifecycle timestamps.
   - Account subscriptions joining an installation to an authenticated recipient DID, containing an opaque installation-specific routing ID, active state, and lifecycle timestamps.
   - Per-subscription push delivery/outbox rows containing notification/subscription references, status, attempts, next-attempt time, absolute six-hour deadline, claim/lease state, provider result classification, and timestamps.
+  - A monotonic newness revision on each durable notification's latest genuine activation.
+  - One account acknowledgement row keyed by recipient DID, containing the greatest acknowledged newness revision and update timestamp.
 - Required uniqueness/invariants:
   - Unique coalesced notification for `(recipient DID, actor DID, canonical category, subject identity)`.
   - Unique preference for `(DID, category)`.
   - One active installation per Craftsky device ID and one active installation owner for an FCM token; cross-device token registration atomically deactivates the old owner without transferring subscriptions.
   - One active account subscription per `(installation ID, recipient DID)` with a unique opaque routing ID.
   - Unique delivery for `(notification ID, account subscription ID)`; reactivation cannot create another delivery.
+  - One acknowledgement marker per account DID; concurrent writes use greatest-value semantics and never move it backwards.
 - Reference policy:
   - Notification event/source references are retained as text/stable identifiers and must not cascade-delete with mutable index rows; deletion processing updates the notification lifecycle explicitly.
   - Retraction creates a tombstone rather than immediately hard-deleting the row so already-delivered notification IDs remain safely resolvable.
@@ -371,7 +419,7 @@ Tap ingestion identifies eligible recipients, selects one canonical category per
 | `quote` | Actor, quote post, quoted recipient-authored post | Show quote context; open quote post. |
 | `everythingElse` | Stable notification ID and future versioned event reference | Reserved; no producer in this pass. |
 
-- Schema migration required: Yes, to create new private AppView tables and indexes.
+- Schema migration required: Yes, including an additive follow-up migration for notification revisions, the account acknowledgement table, and the active account/revision count index.
 - Historical data migration/backfill required: No.
 - Existing derived notification data: Not copied; durable history begins at feature enablement.
 - Retention: No automatic purge in this pass. A future retention policy must preserve product expectations and delivery diagnostics.
@@ -381,6 +429,8 @@ Tap ingestion identifies eligible recipients, selects one canonical category per
 - UI: No Flutter implementation in this pass; requirements intentionally define future settings, registration, rendering, and open behavior.
 - API:
   - Change `GET /v1/notifications` to read durable events while preserving authenticated, paginated AppView conventions.
+  - Add read-only `GET /v1/notifications/new-count`, returning `{"newCount": N}` for the authenticated account.
+  - Add bodyless `POST /v1/notifications/seen`, returning 204 after advancing the authenticated account's snapshot-safe acknowledgement marker.
   - Add `GET /v1/notifications/{notificationId}` to resolve active or retracted notifications into authorized precise/fallback navigation metadata.
   - Add `GET /v1/notifications/preferences`.
   - Add partial update semantics at `PATCH /v1/notifications/preferences`.
@@ -401,6 +451,7 @@ Tap ingestion identifies eligible recipients, selects one canonical category per
 - Authentication: All preference and device endpoints require the existing Craftsky session and device-ID middleware.
 - Authorization:
   - Notification list/preferences are always scoped from the authenticated DID, never a request-supplied DID.
+  - New-count and mark-seen derive account scope only from the authenticated DID. Device ID remains required by existing `/v1/*` middleware but does not partition the acknowledgement marker.
   - Notification-ID resolution returns data only when the authenticated DID owns that notification; cross-user IDs use non-enumerating not-found behavior.
   - Installation upsert cannot create a subscription for a DID other than the authenticated account; subscription removal cannot affect another account except through explicit invalid-token installation cleanup.
   - Cross-device token rebinding may deactivate the old installation and cancel its unsent work, but it must not transfer, return, or infer any old account subscription or routing ID.
@@ -451,6 +502,9 @@ Tap ingestion identifies eligible recipients, selects one canonical category per
 | RISK-011 | Multi-account routing opens a notification under the wrong local account. | Authorization failure or confusing navigation. | Opaque per-installation subscription IDs, local account mapping, account-scoped resolution, and non-enumerating not-found behavior. |
 | RISK-012 | Permanent actor deletion leaves notification-derived personal data behind. | Privacy and product-lifecycle mismatch. | Hard-delete caused notifications and unsent deliveries; make stale push 404 fallback a client contract. |
 | RISK-013 | A provider token reused under a new device ID merges or preserves stale account authorization. | Pushes may route to the wrong installation or reveal another account's activity. | Enforce one active token owner; atomically deactivate the old installation/subscriptions, cancel unsent work, and create only the current authenticated subscription without transfer. |
+| RISK-014 | Mark-seen uses wall-clock time or observes notifications committed after its snapshot. | A concurrent notification can be cleared before the user sees it. | Use monotonic revisions and capture the acknowledgement high-water value inside one database transaction before the upsert. |
+| RISK-015 | Count visibility drifts from the notification list. | The app shows a badge that cannot be reconciled with visible notifications. | Reuse the list-level active/actor-visibility predicate and add count/list regression coverage. |
+| RISK-016 | A list GET mutates acknowledgement state. | Prefetch or retry silently clears the badge. | Keep list/count GETs read-only and require explicit POST `/v1/notifications/seen`. |
 
 ## 20. Assumptions
 
@@ -463,6 +517,7 @@ Tap ingestion identifies eligible recipients, selects one canonical category per
 | ASM-005 | A normal schema migration is acceptable even though no historical data migration/backfill is needed. | Without schema migrations, the persistent design cannot be implemented. |
 | ASM-006 | Existing indexed content availability and takedown state are the only visibility inputs available to notification hydration in this pass. | An authoritative block/mute or broader moderation model must be integrated when it exists. |
 | ASM-007 | Flutter's planned multi-account store can map an opaque per-installation account-subscription ID to the correct local account before resolving a push. | The routing contract would need revision before Flutter implementation. |
+| ASM-008 | On first use, existing active listable durable notifications should all appear as new. | A different rollout baseline would require creating acknowledgement rows during deployment/login instead. |
 
 ## 21. Open Questions
 
@@ -475,23 +530,23 @@ Tap ingestion identifies eligible recipients, selects one canonical category per
 
 ## 22. Review Status
 
-Status: Approved with notes
+Status: Approved
 Risk level: High
 Review recommended: Required
 Reviewer: Codex
-Date: 2026-07-11
-Notes: Requirements and test design are approved for coding planning after resolving cross-device token rebinding, per-test traceability, and deletion rollback coverage. The change remains High risk because it stores private device routing data, adds an external delivery integration and long-lived worker, changes notification persistence semantics, and must preserve moderation/privacy boundaries. Explicit user approval is still required before implementation begins.
+Date: 2026-07-14
+Notes: The account-wide new-count addition uses a monotonic activation revision, read-only count endpoint, explicit snapshot-safe mark-seen operation, and per-account marker. The user explicitly approved document updates and implementation on 2026-07-14. The overall change remains High risk because it stores private device routing data, adds an external delivery integration and long-lived worker, changes notification persistence semantics, and must preserve moderation/privacy and concurrency boundaries.
 
 ## 23. Handoff To Test Design
 
 - Requirements file: `01-requirements.md`
 - Next test specification: `02-acceptance-tests.md`
-- Must-cover requirement IDs: BR-001 through BR-003; FR-001 through FR-033; NFR-001 through NFR-004; RULE-001 through RULE-006.
+- Must-cover requirement IDs: BR-001 through BR-004; FR-001 through FR-038; NFR-001 through NFR-004; RULE-001 through RULE-007. NFR-005 through NFR-007 remain Should-level but should receive automated coverage.
 - Suggested test levels:
   - Unit: eligibility/category precedence, preference defaults/patching, coalescing/reactivation, payload redaction, local account routing, retry classification/backoff/deadline, limit/config validation.
-  - Database integration: transactional event/outbox creation and retraction (including forced rollback on deletion), hard deletion, idempotency, tombstone resolution, pagination, installation/subscription fan-out, token rotation and cross-device safe rebinding, multi-account logout, and concurrent job claims.
-  - HTTP integration: auth/device middleware, preference/installation/subscription contracts, camelCase/error envelopes, ordinary and all-session logout behavior.
+  - Database integration: transactional event/outbox creation and retraction (including forced rollback on deletion), hard deletion, idempotency, tombstone resolution, pagination, monotonic newness revision, account-wide acknowledgement, snapshot races, installation/subscription fan-out, token rotation and cross-device safe rebinding, multi-account logout, and concurrent job claims.
+  - HTTP integration: auth/device middleware, new-count/mark-seen, preference/installation/subscription contracts, camelCase/error envelopes, ordinary and all-session logout behavior.
   - Worker integration with fake sender: combined payload, success, retry, six-hour expiry/TTL, permanent token failure, cancellation, multi-worker claiming, crash/lease recovery.
   - Regression: current notification categories, content availability filtering, Tap replay behavior, logout/session behavior, and AppView startup/shutdown.
   - Manual/provider sandbox: one Android and one iOS FCM delivery using non-production Firebase configuration.
-- Blocking open questions: None for test design, but the requirements require explicit user approval because risk is High.
+- Blocking open questions: None. The user explicitly approved implementation on 2026-07-14.

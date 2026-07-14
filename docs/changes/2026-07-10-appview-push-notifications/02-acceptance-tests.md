@@ -15,6 +15,7 @@ Risk level: **High** (carried forward). Document review and explicit approval ar
 | BR-001 | AC-001, AC-009 | IT-001, IT-006 | Integration | Yes |
 | BR-002 | AC-002, AC-014, AC-015 | IT-002, IT-008, IT-009 | Integration / HTTP | Yes |
 | BR-003 | AC-003, AC-011 | UT-001, IT-007 | Unit / HTTP | Yes |
+| BR-004 | AC-045, AC-046 | AT-010, IT-033, IT-034 | Acceptance / Integration | Yes |
 | FR-001 | AC-001, AC-004, AC-009, AC-032, AC-035 | IT-001, IT-003, IT-006, IT-017, IT-020 | Integration | Yes |
 | FR-002 | AC-004 | IT-003 | Integration | Yes |
 | FR-003 | AC-005, AC-016 | IT-004, AT-006 | Integration / Acceptance | Yes |
@@ -48,20 +49,27 @@ Risk level: **High** (carried forward). Document review and explicit approval ar
 | FR-031 | AC-042 | IT-026 | Integration | Yes |
 | FR-032 | AC-043 | REG-006 | Regression / structure | Yes |
 | FR-033 | AC-044 | IT-031 | HTTP / DB integration | Yes |
+| FR-034 | AC-047 | IT-032 | DB integration | Yes |
+| FR-035 | AC-045, AC-048 | IT-033, REG-009 | HTTP / DB integration | Yes |
+| FR-036 | AC-046, AC-049 | AT-010, IT-034 | HTTP / DB integration | Yes |
+| FR-037 | AC-050 | IT-035 | HTTP / DB integration | Yes |
+| FR-038 | AC-045 | IT-033 | HTTP / DB integration | Yes |
 | NFR-001 | AC-016 | AT-006 | Acceptance | Yes |
 | NFR-002 | AC-027 | UT-008, IT-027 | Unit / Integration | Yes |
 | NFR-003 | AC-028 | AT-007 | HTTP acceptance | Yes |
 | NFR-004 | AC-029 | UT-009, REG-004 | Unit / Regression | Yes |
 | NFR-005 | AC-030 | IT-028 | Integration / schema | Yes |
 | NFR-006 | AC-031 | IT-029 | Integration | Yes |
+| NFR-007 | AC-051 | IT-032, IT-033 | Schema / Integration | Yes |
 | RULE-001 | AC-013 | UT-003, IT-010 | Unit / Integration | Yes |
 | RULE-002 | AC-011, AC-012, AC-037 | UT-002, UT-003, IT-007, IT-010 | Unit / Integration | Yes |
 | RULE-003 | AC-010, AC-013, AC-032 | IT-005, IT-010, IT-017 | Integration | Yes |
 | RULE-004 | AC-021 | IT-015, REG-007 | Integration / Regression | Yes |
 | RULE-005 | AC-003, AC-011 | UT-001, IT-007 | Unit / HTTP | Yes |
 | RULE-006 | AC-003, AC-007 | UT-001, AT-003 | Unit / Acceptance | Yes |
+| RULE-007 | AC-046, AC-050 | AT-010, IT-034, IT-035, REG-009 | Acceptance / Integration / Regression | Yes |
 
-The Should requirements NFR-005 and NFR-006 are included because query shape and delivery latency are major operational risks. Every AC-001 through AC-044 is covered.
+The Should requirements NFR-005 through NFR-007 are included because query shape and delivery latency are major operational risks. Every AC-001 through AC-051 is covered.
 
 ## 3. Acceptance Scenarios
 
@@ -231,6 +239,25 @@ Scenario: A provider token moves to a new device identity
   And no old subscription or routing ID is transferred
 ```
 
+### AT-010: Account-wide new count is cleared explicitly
+Requirement IDs: BR-004, FR-035, FR-036, FR-037, RULE-007
+Acceptance Criteria: AC-045, AC-046, AC-049, AC-050
+Priority: Must
+Level: Acceptance
+Automation Target: `appview/internal/routes/notification_newness_test.go`
+
+```gherkin
+Scenario: Viewing notifications acknowledges one account across devices
+  Given Alice has new notifications and is signed in on devices A and B
+  And Bob is also signed in on device A with separate new notifications
+  When Alice reads her new count on either device
+  Then the count is unchanged
+  When Alice explicitly marks notifications seen
+  Then Alice's count is zero on devices A and B
+  And Bob's count is unchanged
+  And a notification committed after Alice's acknowledgement snapshot remains new
+```
+
 ## 4. Unit Test Cases
 
 | ID | Requirement IDs | Acceptance Criteria | Description | Inputs | Expected Result | Automation Target |
@@ -280,6 +307,10 @@ Scenario: A provider token moves to a new device identity
 | IT-029 | NFR-006 | AC-031 | Record queue and delivery metrics. | Seed aged pending work and each outcome; run observation/dispatch. | Queue depth, oldest age, and classified outcomes recorded with validated low-cardinality attributes. | `appview/internal/observability/push_test.go` |
 | IT-030 | FR-012 | AC-016, AC-019 | Concurrent claims and lease recovery. | Run two dispatchers against same rows; stop owner; advance past lease. | Normally one owner/send per claim; uncommitted expired lease is recoverable; cancellation shuts workers down. | `appview/internal/push/dispatcher_concurrency_test.go` |
 | IT-031 | FR-009, FR-010, FR-033 | AC-044 | Safely rebind one token across device IDs. | Register a token on device A with multiple account subscriptions and unsent work; register the same token as authenticated Alice on device B. | Device A and all its subscriptions are inactive, its unsent work is cancelled, device B uniquely owns the token, only Alice is subscribed with a new opaque routing ID, and no old authorization is transferred or returned. | `appview/internal/api/notification_devices_test.go` |
+| IT-032 | FR-034, NFR-007 | AC-047, AC-051 | Migrate and maintain monotonic notification revisions. | Apply the follow-up migration; insert, exact-replay, retract, reactivate, and semantically replace a notification. | Existing/new rows have revisions; exact replay and retraction preserve the revision; genuine reactivation/replacement advances it; the active account/revision index exists. | `appview/internal/notifications/newness_test.go`, `appview/internal/db/notifications_migration_test.go` |
+| IT-033 | BR-004, FR-035, FR-038, NFR-007 | AC-045, AC-048, AC-051 | Count new listable notifications for an unacknowledged and acknowledged account. | Seed active, retracted, actor-hidden, older-seen, and newer-unseen notifications; call the endpoint through the handler/route. | Response is camelCase and counts only active listable revisions above the marker; first use counts all active listable rows; query is index-supported. | `appview/internal/api/notification_newness_test.go` |
+| IT-034 | FR-036, RULE-007 | AC-046, AC-049 | Mark seen through a captured snapshot without consuming a concurrent event. | Seed revision R, capture the acknowledgement snapshot, commit R+1 before the acknowledgement upsert, then read count. | POST returns 204, marker is R, and R+1 remains new; repeated/concurrent acknowledgement never moves the marker backwards. | `appview/internal/api/notification_newness_test.go` |
+| IT-035 | FR-037, RULE-007 | AC-050 | Share acknowledgement across devices while isolating accounts. | Alice calls count/seen with two device IDs; Bob shares one device and has independent notifications. | Alice's one account marker clears both device views; Bob's marker/count is unchanged. | `appview/internal/routes/notification_newness_test.go` |
 
 ## 6. Regression Tests
 
@@ -293,6 +324,7 @@ Scenario: A provider token moves to a new device identity
 | REG-006 | No notification-only block/mute data model or filtering claim is introduced. | FR-032 | AC-043 | Migration/schema and classifier tests assert eligibility inputs are only specified preferences, follow snapshot, self, membership, and existing availability/takedown state. |
 | REG-007 | Successful jobs remain terminal while at-least-once crash recovery remains explicit. | RULE-004 | AC-021 | Dispatcher tests separately assert no normal resend after success and permitted resend after acceptance-before-commit lease recovery. |
 | REG-008 | Existing logout/session behavior does not remove another local account. | FR-016 | AC-017, AC-038 | Run current auth/session regression tests plus shared-installation account removal cases. |
+| REG-009 | Notification GET routes remain read-only and count visibility matches the list. | FR-035, FR-036, RULE-007 | AC-048 | Repeatedly fetch/prefetch the list and count without POST; assert the marker is unchanged, actor-hidden/retracted rows are absent from both surfaces, and a later explicit POST is the only clearing action. |
 
 ## 7. Test Data
 
@@ -307,6 +339,7 @@ Scenario: A provider token moves to a new device identity
 | TD-007 | Privacy sentinels | Unique fake token, credential, DID, handle, AT-URI, text, title, and image URL | UT-007, UT-008, IT-027 |
 | TD-008 | Visibility/deletion states | Available, missing, taken-down, source-deleted, destination-deleted, actor-repository-deleted | IT-017, IT-019, IT-022 |
 | TD-009 | Preference timeline | Defaults, partial patches, push-off interval, scope/follow changes around distinct events | IT-007, IT-010, IT-025 |
+| TD-010 | Notification newness and snapshot races | Alice on two device IDs; Bob sharing one; ordered activation revisions; active/retracted/actor-hidden rows; transaction barrier around mark-seen | AT-010, IT-032–IT-035, REG-009 |
 
 ## 8. Manual Checks
 
@@ -329,7 +362,7 @@ Scenario: A provider token moves to a new device identity
 ## 10. Out Of Scope
 
 - Flutter UI, permission prompts, Firebase client SDK integration, token-refresh listeners, and deep-link implementation.
-- Read/unread state, badges, grouping, aggregation, digests, and server-side burst suppression.
+- Per-notification read/unread state, per-device acknowledgement, individual mark-read operations, badge rendering, grouping, aggregation, digests, and server-side burst suppression.
 - Historical backfill, automatic retention/purge, or reconciliation for missing subjects.
 - Email, SMS, web push, raw APNs delivery, notification-specific block/mute state, and temporary deactivation behavior.
 - Lexicon/PDS notification records and via-repost attribution.
@@ -341,11 +374,11 @@ Scenario: A provider token moves to a new device identity
 - Test specification: `02-acceptance-tests.md`
 - Next review artifact: `03-document-review.md`
 - External Plannotator review, if the user initiates it outside this skill: `docs/changes/2026-07-10-appview-push-notifications/`
-- Recommended first failing test for implementation: `UT-001`, defining the closed category set and excluding unsupported via-repost categories. The first vertical database sequence is then migration/index invariants in `IT-028`, followed by one producer's creation and deletion atomicity cases in `IT-004`.
-- Suggested test order for implementation: category/preference/eligibility unit tests; migration invariants; transactional ingestion and replay; producer classification; durable list/resolution; device/subscription APIs; lifecycle/reactivation/deletion; dispatcher retry/TTL/payload; concurrency; observability; route and startup regressions; provider manual checks.
+- Recommended first failing test for the approved follow-up: `IT-032` migration/revision invariants, followed by `IT-033` count behavior, `IT-034` snapshot-safe acknowledgement, and `IT-035` account/device isolation.
+- Suggested test order for the approved follow-up: monotonic revision migration/lifecycle; count contract and visibility; snapshot-safe acknowledgement; account-wide cross-device and multi-account behavior; existing notification/API regression suites; full race-enabled suite.
 - Commands discovered:
   - Full suite from repository root (compose Postgres required): `just test`
   - Full AppView suite from `appview/`: `TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test -race ./...`
   - Focused packages from `appview/`: `go test ./internal/notifications ./internal/index ./internal/api ./internal/routes ./internal/push ./internal/app ./internal/observability`
   - Tests using `internal/testdb.WithSchema` skip when neither `TEST_DATABASE_URL` nor `DATABASE_URL` is set.
-- Blocking gaps: None for document review. Because risk is High, document review and explicit approval are required before implementation.
+- Blocking gaps: None for document review. The user explicitly approved implementation on 2026-07-14; document review remains required before coding planning under the High-risk workflow.

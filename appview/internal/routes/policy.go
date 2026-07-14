@@ -101,6 +101,8 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "POST", PathPattern: "/v1/profiles/{handleOrDid}/reports", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AuthRequired: true},
 		{Method: "GET", PathPattern: "/v1/feed/timeline", RateClass: RateClassRead, BodyKind: BodyNoBody, AuthRequired: true},
 		{Method: "GET", PathPattern: "/v1/notifications", RateClass: RateClassRead, BodyKind: BodyNoBody, AuthRequired: true},
+		{Method: "GET", PathPattern: "/v1/notifications/new-count", RateClass: RateClassRead, BodyKind: BodyNoBody, AuthRequired: true},
+		{Method: "POST", PathPattern: "/v1/notifications/seen", RateClass: RateClassWrite, BodyKind: BodyNoBody, AuthRequired: true},
 		{Method: "GET", PathPattern: "/v1/notifications/preferences", RateClass: RateClassRead, BodyKind: BodyNoBody, AuthRequired: true},
 		{Method: "PATCH", PathPattern: "/v1/notifications/preferences", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AuthRequired: true},
 		{Method: "POST", PathPattern: "/v1/notifications/devices", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AuthRequired: true},

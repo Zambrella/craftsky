@@ -4,7 +4,7 @@
 
 - Requirements: `01-requirements.md`
 - Tests: `02-acceptance-tests.md`
-- Document review: `03-document-review.md` — Approved with notes, High risk
+- Document review: `03-document-review.md` — Approved, High risk (re-reviewed 2026-07-14)
 - Repository guidance: `AGENTS.md`
 - Architecture references:
   - `atproto-craft-social-app-reference.md`
@@ -15,7 +15,7 @@
   - Follow, interaction, post, profile, dispatcher, and Tap consumer paths under `appview/internal/index/` and `appview/internal/tap/`
   - App dependency/configuration and process lifecycle under `appview/internal/app/` and `appview/cmd/appview/`
   - Session/logout, observability, migrations, and real-Postgres test helpers
-- Approval gate: this document authorizes planning only. Explicit user approval is still required before implementation because the reviewed risk is High.
+- Approval gate: the user explicitly approved the account-wide newness REST design, document updates, and AppView implementation on 2026-07-14.
 
 ## 2. Implementation Strategy
 
@@ -25,6 +25,7 @@ Implement one durable, private AppView notification subsystem with four boundari
 2. Existing Tap indexers continue to own their source-row transactions, but call the notification service with the same `pgx.Tx` before commit. This makes source mutation, notification activation/retraction, and delivery fan-out one atomic unit and keeps FCM completely off the Tap acknowledgement path.
 3. `internal/api` exposes the durable list/resolution, preference, and device contracts through existing `/v1/` middleware and route-policy conventions.
 4. `internal/push` claims per-subscription outbox rows in bounded batches, resolves the installation's current token at send time, sends through an injected `Sender`, and records a terminal or retry state. The production adapter uses the official Firebase Admin Go SDK; automated tests use fakes only.
+5. Notification newness remains a small account-scoped layer over durable events: each genuine activation receives a monotonic revision, `GET /v1/notifications/new-count` counts active listable revisions after the account marker, and `POST /v1/notifications/seen` advances that marker through a captured database snapshot.
 
 The first implementation slice is deliberately narrow: define categories, add the migration and query/index contract, then make one like create/delete path transactional end to end. Only after that slice is green should the same seam expand to repost, follow, reply, mention, and quote producers. This preserves the sequencing requested by `03-document-review.md` DR-004.
 
@@ -45,6 +46,7 @@ No source table is backfilled. Durable notification history begins only when new
 | Push delivery | No worker or provider dependency | Add claim/lease dispatcher, retry/deadline policy, minimal payload builder, Firebase adapter, and graceful lifecycle | FR-012–FR-015, FR-024, FR-027, FR-028, FR-031, RULE-004, NFR-001, NFR-004 | UT-006, UT-007, UT-009, IT-013–IT-016, IT-023, IT-025, IT-026, IT-030, REG-004, REG-007 |
 | Observability/privacy | Existing observer has safe logs, Sentry, and metrics abstractions | Extend the recorder/observer with bounded push metrics and sanitized outcome logging; never attach tokens, credentials, IDs, or payload content | NFR-002, NFR-006 | UT-008, IT-027, IT-029 |
 | Route contract | Central route-policy table and standard v1 middleware | Register notification routes with read/write policies, camelCase JSON, standard errors, auth, device ID, rate/body limits | NFR-003, FR-006, FR-009, FR-026 | AT-007, IT-007, IT-008, IT-024 |
+| Notification newness | Durable rows have activity/index timestamps but no acknowledgement state | Add monotonic activation revisions, one account-wide high-water marker, a read-only count route, and an explicit snapshot-safe mark-seen route | BR-004, FR-034–FR-038, RULE-007, NFR-007 | AT-010, IT-032–IT-035, REG-009 |
 
 ## 4. Files And Modules
 
@@ -52,6 +54,7 @@ No source table is backfilled. Durable notification history begins only when new
 |---|---|---|---|---|
 | `appview/migrations/000021_appview_notifications.up.sql` | Create | Create five private notification tables, checks, uniqueness constraints, claim/pagination indexes, and no backfill | FR-001, FR-005, FR-007, FR-009–FR-015, FR-018, FR-021, FR-025, FR-029, FR-033, NFR-005 | IT-028, REG-005, REG-006 |
 | `appview/migrations/000021_appview_notifications.down.sql` | Create | Drop the new tables in dependency order | Same as migration | IT-028 |
+| `appview/migrations/000022_notification_newness.up.sql` / `.down.sql` | Create | Add the monotonic revision sequence/column, account acknowledgement table, active count index, and all-state high-water index without rewriting applied migration 000021 | FR-034–FR-038, NFR-007 | IT-032, IT-033 |
 | `appview/sqlc.yaml` | Create | Activate the repository's intended `sqlc` model/query generation for the new subsystem, using migration schemas and `pgx/v5` | FR-001–FR-016, FR-021, NFR-005 | Build/compile guard for all store tests |
 | `appview/queries/notifications.sql` | Create | Typed event activation/retraction, list/resolution, eligibility snapshot, and hydration-key queries | FR-001–FR-005, FR-018, FR-021–FR-023, FR-026, FR-030 | IT-001–IT-006, IT-017–IT-020, IT-022, IT-024 |
 | `appview/queries/notification_preferences.sql` | Create | Effective preference reads and partial per-category upserts | FR-006–FR-008 | IT-007, IT-010, IT-025 |
@@ -64,6 +67,7 @@ No source table is backfilled. Durable notification history begins only when new
 | `appview/internal/notifications/eligibility.go` | Create | Pure event-time eligibility decision with self/follow/scope/push inputs | FR-008, FR-020, FR-027, RULE-001, RULE-002 | UT-003, IT-010, IT-025 |
 | `appview/internal/notifications/classify.go` | Create | Per-recipient reply > quote > mention selection and direct like/repost recipient rules | FR-017, FR-019, FR-020, RULE-006 | UT-004, AT-002–AT-004 |
 | `appview/internal/notifications/service.go` | Create | Transaction-aware activation/retraction/fan-out and actor-deletion orchestration | FR-001–FR-003, FR-011, FR-018, FR-021, FR-023, FR-030 | IT-001–IT-005, IT-018, IT-020, IT-022 |
+| `appview/internal/notifications/service.go` | Change | Allocate a new revision only on inserted/genuinely updated activation; leave replay and retraction revisions unchanged | FR-034 | IT-032 |
 | `appview/internal/notifications/store.go` | Create | Wrap generated queries, UUID creation, clock, and transaction boundaries for APIs/devices | FR-001, FR-005–FR-016, FR-026, FR-033 | IT-006–IT-017, IT-021, IT-024, IT-031 |
 | `appview/internal/notifications/*_test.go` | Create | Unit tests UT-001–UT-004 and focused store tests | Linked requirements above | UT-001–UT-004 |
 | `appview/internal/index/craftsky_interaction.go` | Change | Accept transaction-aware notification service; activate/retract likes and reposts inside source transaction | FR-002, FR-003, FR-017, FR-018, FR-021 | AT-002, AT-003, IT-003–IT-005, IT-020, REG-002 |
@@ -80,11 +84,15 @@ No source table is backfilled. Durable notification history begins only when new
 | `appview/internal/api/notification_resolution.go` | Create | Owner-only active/tombstone resolution with precise/fallback target and non-enumerating 404 | FR-023, FR-026, FR-030 | IT-017, IT-024 |
 | `appview/internal/api/notification_preferences.go` | Create | GET effective defaults and PATCH partial category values | FR-006–FR-008 | IT-007, AT-007 |
 | `appview/internal/api/notification_devices.go` | Create | POST registration/rebind and DELETE owned account subscription without token echo | FR-009, FR-010, FR-016, FR-029, FR-033 | IT-008, IT-011, IT-012, IT-021, IT-031, AT-008, AT-009 |
+| `appview/internal/api/notification_newness.go` | Create | Expose camelCase count and bodyless 204 mark-seen handlers through a narrow store interface | BR-004, FR-035–FR-038, RULE-007 | AT-010, IT-033–IT-035, REG-009 |
+| `appview/internal/api/notification_store.go` | Change | Add indexed count and transaction-scoped greatest-revision acknowledgement methods sharing the list actor-visibility predicate | FR-035, FR-036, NFR-007 | IT-033, IT-034, REG-009 |
+| `appview/internal/api/notification_newness_test.go` | Create | Real-Postgres count, first-use, visibility, replay/reactivation, snapshot, and account-isolation coverage | FR-034–FR-038, RULE-007, NFR-007 | IT-032–IT-035, REG-009 |
 | `appview/internal/api/notification_*_test.go` | Create/Change | HTTP/store/response tests listed in the acceptance specification | FR-004–FR-010, FR-022, FR-023, FR-026, FR-033 | UT-005, IT-006–IT-008, IT-017, IT-019, IT-021, IT-024, IT-031 |
 | `appview/internal/auth/handlers.go` or current constructor file | Change | Accept a narrow push-subscription cleanup dependency | FR-016 | IT-011, IT-021, REG-008 |
 | `appview/internal/auth/handlers_session.go` | Change | Clean current-device subscription before ordinary session revoke; clean all account subscriptions before all-session revoke | FR-016 | IT-011, IT-021, REG-008 |
 | `appview/internal/routes/policy.go` | Change | Add policy entries for list resolution, preferences, registration, and removal | NFR-003 | AT-007, route policy regression |
 | `appview/internal/routes/routes.go` | Change | Register new handlers using existing auth/device/body/rate middleware and inject dedicated stores | FR-006, FR-009, FR-026, NFR-003 | AT-007, IT-007, IT-008, IT-024 |
+| `appview/internal/routes/policy.go`, `routes.go` | Change | Register literal `/new-count` read and `/seen` write routes ahead of the notification-ID surface with standard v1 middleware | FR-035, FR-036, NFR-003 | AT-010, IT-035, REG-009 |
 | `appview/internal/routes/notification_routes_test.go` | Create | Exercise auth, device ID, invalid JSON, camelCase envelope, and cross-owner 404 through the mux | NFR-003, FR-026 | AT-007 |
 | `appview/internal/push/sender.go` | Create | Narrow provider-neutral sender request/result/error contract | FR-012–FR-015, NFR-004 | UT-009, IT-013–IT-016 |
 | `appview/internal/push/firebase_sender.go` | Create | Firebase Admin Go adapter using one token per delivery and typed error classification | FR-012–FR-014, FR-024, FR-028 | UT-007, UT-009, manual MAN-001/MAN-002 |
@@ -132,7 +140,13 @@ notification_events
   first_activity_at/activity_at/indexed_at TIMESTAMPTZ not null
   initial_push_evaluated_at TIMESTAMPTZ not null
   retracted_at/retraction_reason TIMESTAMPTZ/TEXT null
+  newness_revision BIGINT not null default nextval(notification_newness_revision_seq)
   unique(recipient_did, actor_did, category, subject_key)
+
+notification_seen_state
+  account_did TEXT primary key
+  last_seen_revision BIGINT not null default 0
+  updated_at TIMESTAMPTZ not null
 
 notification_preferences
   account_did/category/scope/push_enabled/created_at/updated_at
@@ -163,6 +177,8 @@ push_deliveries
 - `reply` / `mention` / `quote`: the authored source post URI; the same post can still produce separate rows for different recipients, with per-recipient canonical classification.
 
 `initial_push_evaluated_at` is set on first insertion even when push is disabled or the recipient has no active subscriptions. Reactivation updates `activity_at`, source identity, and lifecycle state but never performs fan-out again. An exact replay of the active current `(source_uri, source_cid)` is a no-op and does not move the row to the top.
+
+`newness_revision` is allocated from a Postgres sequence on first insertion and on the same genuine activation updates that already move the row to the feed top. Exact replay and retraction retain it. `notification_seen_state` is keyed only by account DID. Mark-seen runs in one transaction: capture the greatest currently committed revision for the account, then upsert `GREATEST(existing, captured)`; a later transaction's revision remains above the marker.
 
 Required indexes include:
 
@@ -246,6 +262,12 @@ For profile/account deletion:
 ```text
 GET /v1/notifications?limit=&cursor=
   -> {items: [...], cursor?: "..."}
+
+GET /v1/notifications/new-count
+  -> {newCount: 0}
+
+POST /v1/notifications/seen
+  -> 204 No Content
 
 GET /v1/notifications/{notificationId}
   -> owner-only active/retracted resolution
@@ -389,6 +411,8 @@ Routes to add to both `baseV1RoutePolicies()` and `AddRoutes()`:
 | Method / Route | Rate Class | Body Kind | Auth / Device | Surface |
 |---|---|---|---|---|
 | `GET /v1/notifications` | Read | No body | Required | Existing route, durable source |
+| `GET /v1/notifications/new-count` | Read | No body | Required | Account-wide active/listable revision count; no mutation |
+| `POST /v1/notifications/seen` | Write | No body | Required | Snapshot-safe account acknowledgement; 204 |
 | `GET /v1/notifications/{notificationId}` | Read | No body | Required | Resolve active/tombstone target |
 | `GET /v1/notifications/preferences` | Read | No body | Required | Seven effective preferences |
 | `PATCH /v1/notifications/preferences` | Write | Default JSON | Required | Partial preference update |
@@ -415,6 +439,12 @@ The existing `NotificationItem` changes additively to include stable `id` and `q
 | Permanent actor deletion | Hard-delete caused notifications and unsent work; stale/unknown resolution is identical 404 | FR-023, FR-030 | IT-022 |
 | Unavailable/taken-down content | Return explicit unavailable state or safe fallback; never leak stale presentation data | FR-023, FR-032 | IT-017, IT-019, REG-003, REG-006 |
 | Empty feed | Return `items: []` and omit cursor | FR-004, FR-005 | IT-006 |
+| No acknowledgement row | Count every active/listable durable revision as new without creating state | FR-035, FR-038 | IT-033 |
+| List/count prefetch | GET routes leave the account marker unchanged | FR-036, RULE-007 | REG-009 |
+| Concurrent notification during mark-seen | Capture R, upsert through R, leave R+1 new | FR-036 | IT-034 |
+| Concurrent devices acknowledge same account | Store the greatest captured revision and never regress | FR-036, FR-037 | IT-034, IT-035 |
+| Shared device with multiple accounts | Each authenticated DID reads/writes only its own marker | FR-037 | AT-010, IT-035 |
+| Retracted or actor-hidden notification | Exclude from count using the same active/list-level actor visibility predicate | FR-035 | IT-033, REG-009 |
 | Tied activity timestamps | Order by activity time then stable ID; opaque cursor round-trips both | FR-005 | IT-006 |
 | Cross-owner notification/subscription ID | Non-enumerating standard 404 | FR-026, NFR-003 | IT-024, AT-007 |
 | Repeated registration, same device/token/account | Return existing active routing ID; do not duplicate installation/subscription | FR-009, FR-010 | IT-008 |
@@ -466,6 +496,15 @@ The order below is the TDD order, not merely a coverage list. Each row should st
 | 28 | REG-005, REG-006 | migration/structure suites | Old source rows; schema inspection | No-backfill and no-block/mute guards absent |
 | 29 | MAN-001, MAN-002 | Non-production Firebase Android/iOS | Real test project/APNs sandbox after automated suite | Provider/OS path not yet proven |
 
+Approved follow-up TDD order after the existing implementation:
+
+| Order | Test ID | Target | Setup / Fixture | Initial Expected Failure |
+|---:|---|---|---|---|
+| 30 | IT-032 | `internal/notifications/newness_test.go`, migration tests | Apply `000022`; activation/replay/retract/reactivate lifecycle | Revision schema and lifecycle allocation absent |
+| 31 | IT-033, REG-009 | `internal/api/notification_newness_test.go` | Active/retracted/hidden rows above/below marker | Count store/handler/route absent; GET mutation regression unproved |
+| 32 | IT-034 | `internal/api/notification_newness_test.go` | Deterministic transaction snapshot with concurrent insert | Snapshot-safe greatest-value acknowledgement absent |
+| 33 | AT-010, IT-035 | `internal/routes/notification_newness_test.go` | Alice on two devices; Bob sharing one | Account-wide and cross-account behavior absent |
+
 Focused commands by phase, from `appview/`:
 
 ```text
@@ -508,14 +547,14 @@ After query changes, run the new `just sqlc`/`just sqlc-check` generation guard 
 - Out of scope:
   - Flutter Firebase SDK, permission/token-refresh/open handling, settings UI, or quote decoder work.
   - Lexicon/PDS records or ADRs.
-  - Historical backfill/reconciliation, retention purge, read state, badges, grouping, aggregation, digests.
+  - Historical backfill/reconciliation, retention purge, per-notification read state, per-device acknowledgement, badge rendering, grouping, aggregation, digests.
   - Block/mute integration, temporary account-deactivation semantics, raw APNs provider, web push, CLI operations.
 
 ## 11. Risks And Open Questions
 
 | ID | Type | Description | Impact | Resolution |
 |---|---|---|---|---|
-| CPQ-001 | Blocking for implementation | High-risk implementation has not yet received explicit user approval | TDD implementation must not start | User reviews this plan and explicitly approves `implement-tdd` |
+| CPQ-001 | Resolved | High-risk implementation approval | TDD implementation may proceed | User explicitly approved document updates and AppView implementation on 2026-07-14 |
 | CPQ-002 | Resolved | Concrete FCM client/auth mechanism | Affects dependency/config/provider errors | Use official Firebase Admin Go SDK v4, explicit Firebase project ID, and ADC; keep `Sender` fakeable |
 | CPQ-003 | Resolved | Query-count verification mechanism from GAP-003 | Exact pgx instrumentation could add test complexity | Use batch-shaped query APIs, migration/index assertions, and `EXPLAIN (FORMAT JSON)` for feed/claim queries; add a tracer only if implementation reveals an N+1 path |
 | CPQ-004 | Resolved | Permanent repository deletion signal | Current consumer drops identity events | Decode Tap identity status and hard-delete only on terminal `deleted`; all temporary statuses remain unchanged/out of scope |
@@ -529,13 +568,12 @@ After query changes, run the new `just sqlc`/`just sqlc-check` generation guard 
 
 - Coding plan: `04-coding-plan.md`
 - TDD execution plan: `05-implementation-plan.md`
-- Start with test: `UT-001` in `appview/internal/notifications/category_test.go`
-- First focused command: `cd appview && go test ./internal/notifications`
-- First database follow-up: `IT-028` in `appview/internal/db/notifications_migration_test.go`
-- First transactional vertical slice: like activation/deletion cases from `IT-004`, then IT-001/IT-002/IT-003 for persistence, fan-out, and replay
+- Start the approved follow-up with test: `IT-032` covering migration/revision lifecycle.
+- First focused command: `cd appview && go test ./internal/notifications -run TestNotificationNewness -count=1`
+- Follow with `IT-033` count/visibility, `IT-034` snapshot acknowledgement, and `IT-035` account/device isolation.
 - Full validation command: from repository root, `just test` with compose Postgres running
 - Notes:
-  - Create/update `05-implementation-plan.md` only after explicit implementation approval.
+  - Update `05-implementation-plan.md` with steps 44 onward before code changes; implementation approval is already recorded.
   - Follow strict red-green-refactor ordering; do not scaffold every package before the first vertical slice is green.
   - Automated tests must never contact Firebase.
   - Read back and reconcile this plan with `01-requirements.md`, `02-acceptance-tests.md`, and `03-document-review.md` if implementation discoveries change an interface or route; product behavior changes require returning to the earlier workflow stage.
