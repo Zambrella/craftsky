@@ -18,6 +18,7 @@ import (
 
 type NotificationReader interface {
 	ListNotifications(ctx context.Context, viewerDID string, limit int, cursor string) ([]*NotificationRow, string, error)
+	NotificationHandles(ctx context.Context, dids []string) (map[string]syntax.Handle, error)
 	EngagementSummaries(ctx context.Context, viewerDID string, postURIs []string) (map[string]EngagementSummary, error)
 }
 
@@ -27,25 +28,29 @@ type NotificationPage struct {
 }
 
 type NotificationItem struct {
-	URI         string                `json:"uri"`
-	CID         string                `json:"cid"`
-	Rkey        string                `json:"rkey"`
-	Type        NotificationType      `json:"type"`
-	Actor       NotificationActor     `json:"actor"`
-	CreatedAt   string                `json:"createdAt"`
-	IndexedAt   string                `json:"indexedAt"`
-	SubjectPost *PostResponse         `json:"subjectPost,omitempty"`
-	Reply       *NotificationReplyRef `json:"reply,omitempty"`
+	ID               string                 `json:"id"`
+	URI              string                 `json:"uri,omitempty"`
+	CID              string                 `json:"cid,omitempty"`
+	Rkey             string                 `json:"rkey,omitempty"`
+	Type             NotificationType       `json:"type"`
+	Actor            NotificationActor      `json:"actor"`
+	References       NotificationReferences `json:"references"`
+	CreatedAt        string                 `json:"createdAt"`
+	IndexedAt        string                 `json:"indexedAt"`
+	SubjectPost      *PostResponse          `json:"subjectPost,omitempty"`
+	Reply            *NotificationReplyRef  `json:"reply,omitempty"`
+	ContentAvailable *bool                  `json:"contentAvailable,omitempty"`
 }
 
 type NotificationActor struct {
+	Available   bool    `json:"available"`
 	DID         string  `json:"did"`
 	Handle      string  `json:"handle"`
 	DisplayName *string `json:"displayName,omitempty"`
 	AvatarCID   *string `json:"avatarCid,omitempty"`
 }
 
-func ListNotificationsHandler(store NotificationReader, resolver HandleResolver, logger *slog.Logger) http.Handler {
+func ListNotificationsHandler(store NotificationReader, _ HandleResolver, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
 		viewerDID, ok := middleware.GetDID(r.Context())
@@ -79,11 +84,11 @@ func ListNotificationsHandler(store NotificationReader, resolver HandleResolver,
 					postURIs = append(postURIs, row.SubjectPost.URI)
 				}
 			}
-			handles, err := resolveHandlesForDIDs(r.Context(), dids, resolver)
+			handles, err := store.NotificationHandles(r.Context(), dids)
 			if err != nil {
-				logger.Warn("notifications: ResolveHandle failed",
-					apiLogErrorAttrs(runID, "notifications.list", "identity")...)
-				envelope.WriteError(w, http.StatusBadGateway, "identity_unavailable", "could not resolve handle", runID, nil)
+				logger.Error("notifications: indexed handle batch failed",
+					apiLogErrorAttrs(runID, "notifications.list", "store")...)
+				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "notification identity lookup failed", runID, nil)
 				return
 			}
 			summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
@@ -120,40 +125,43 @@ func parseNotificationLimit(raw string) int {
 }
 
 func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary) *NotificationItem {
+	actorHandle, actorAvailable := handles[row.ActorDID]
 	item := &NotificationItem{
-		URI: row.URI, CID: row.CID, Rkey: row.Rkey, Type: row.Type,
+		ID:   row.ID,
+		Type: row.Type,
 		Actor: NotificationActor{
+			Available:   actorAvailable,
 			DID:         row.ActorDID,
-			Handle:      handles[row.ActorDID].String(),
+			Handle:      actorHandle.String(),
 			DisplayName: row.ActorDisplayName,
 			AvatarCID:   row.ActorAvatarCID,
 		},
-		CreatedAt: row.CreatedAt.UTC().Format(time.RFC3339),
-		IndexedAt: row.IndexedAt.UTC().Format(time.RFC3339),
-		Reply:     row.Reply,
+		CreatedAt:  row.CreatedAt.UTC().Format(time.RFC3339),
+		IndexedAt:  row.IndexedAt.UTC().Format(time.RFC3339),
+		Reply:      row.Reply,
+		References: row.References,
+	}
+	if row.References.Source.Available {
+		item.URI = row.References.Source.URI
+		item.CID = row.References.Source.CID
+		item.Rkey = row.References.Source.Rkey
+	}
+	if !actorAvailable {
+		item.Actor.DisplayName = nil
+		item.Actor.AvatarCID = nil
 	}
 	if row.SubjectPost != nil {
 		post := BuildPostResponse(row.SubjectPost, handles[row.SubjectPost.DID])
 		applyEngagementSummary(post, summaries[row.SubjectPost.URI])
 		item.SubjectPost = post
 	}
-	return item
-}
-
-func resolveHandlesForDIDs(ctx context.Context, dids []string, resolver HandleResolver) (map[string]syntax.Handle, error) {
-	out := make(map[string]syntax.Handle, len(dids))
-	for _, did := range dids {
-		if did == "" {
-			continue
-		}
-		if _, ok := out[did]; ok {
-			continue
-		}
-		handle, err := resolver.ResolveHandle(ctx, syntax.DID(did))
-		if err != nil {
-			return nil, err
-		}
-		out[did] = handle
+	switch row.Type {
+	case NotificationTypeLike, NotificationTypeRepost:
+		available := row.References.Subject != nil && row.References.Subject.Available
+		item.ContentAvailable = &available
+	case NotificationTypeReply, NotificationTypeMention, NotificationTypeQuote:
+		available := row.References.Source.Available
+		item.ContentAvailable = &available
 	}
-	return out, nil
+	return item
 }

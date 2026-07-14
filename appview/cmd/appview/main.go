@@ -92,6 +92,17 @@ func run(ctx context.Context, args []string) error {
 				slog.String("error_category", "consumer"))
 		}
 	}()
+	pushDone := make(chan struct{})
+	if deps.PushDispatcher != nil {
+		go func() {
+			defer close(pushDone)
+			if err := deps.PushDispatcher.Run(consumerCtx, deps.Config.PushPollInterval, "appview"); err != nil && !errors.Is(err, context.Canceled) {
+				deps.Logger.Error("push dispatcher exited", slog.String("result", "error"))
+			}
+		}()
+	} else {
+		close(pushDone)
+	}
 
 	// listenErr receives the result of ListenAndServe. A non-nil,
 	// non-ErrServerClosed error (e.g. port already in use) must unblock
@@ -136,6 +147,7 @@ func run(ctx context.Context, args []string) error {
 	// shutdown log lines report in a predictable order.
 	consumerCancel()
 	<-consumerDone
+	<-pushDone
 	deps.Logger.Info("shutdown: tap consumer stopped")
 	// Drain the listener goroutine's final send.
 	<-listenErr

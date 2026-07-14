@@ -50,10 +50,16 @@ type Config struct {
 	AllowedOrigins []string
 	DevDID         string // populated in dev only; empty in prod
 
-	TapWSURL        string
-	TapAckTimeout   time.Duration
-	TapReconnectMax time.Duration
-	TapMaxRetries   int
+	TapWSURL          string
+	TapAckTimeout     time.Duration
+	TapReconnectMax   time.Duration
+	TapMaxRetries     int
+	PushEnabled       bool
+	FirebaseProjectID string
+	PushBatchSize     int
+	PushPollInterval  time.Duration
+	PushLeaseDuration time.Duration
+	PushSendTimeout   time.Duration
 
 	// OAuth-related.
 	OAuthHostname                   string        // empty in dev (localhost mode)
@@ -161,6 +167,31 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if cfg.CraftskySessionLastSeenThrottle, err = durationEnv("CRAFTSKY_SESSION_LAST_SEEN_THROTTLE", 5*time.Minute); err != nil {
 		return Config{}, err
 	}
+	if cfg.PushEnabled, err = boolEnv("PUSH_ENABLED", false); err != nil {
+		return Config{}, err
+	}
+	cfg.FirebaseProjectID = strings.TrimSpace(os.Getenv("FIREBASE_PROJECT_ID"))
+	if cfg.PushBatchSize, err = boundedIntEnv("PUSH_BATCH_SIZE", 100, 1, 500); err != nil {
+		return Config{}, err
+	}
+	if cfg.PushPollInterval, err = durationEnv("PUSH_POLL_INTERVAL", time.Second); err != nil || cfg.PushPollInterval <= 0 {
+		if err == nil {
+			err = fmt.Errorf("PUSH_POLL_INTERVAL must be positive")
+		}
+		return Config{}, err
+	}
+	if cfg.PushLeaseDuration, err = durationEnv("PUSH_LEASE_DURATION", time.Minute); err != nil || cfg.PushLeaseDuration <= 0 {
+		if err == nil {
+			err = fmt.Errorf("PUSH_LEASE_DURATION must be positive")
+		}
+		return Config{}, err
+	}
+	if cfg.PushSendTimeout, err = durationEnv("PUSH_SEND_TIMEOUT", 10*time.Second); err != nil || cfg.PushSendTimeout <= 0 {
+		if err == nil {
+			err = fmt.Errorf("PUSH_SEND_TIMEOUT must be positive")
+		}
+		return Config{}, err
+	}
 	if cfg.MaxPostImages, err = boundedIntEnv("MAX_POST_IMAGES", api.DefaultMaxPostImages, 1, api.DefaultMaxPostImages); err != nil {
 		return Config{}, err
 	}
@@ -262,6 +293,9 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	// Prod validation: if hostname is set, confidential client requires the key.
 	if cfg.Env == EnvProd && cfg.OAuthHostname != "" && cfg.OAuthClientSecretKey == "" {
 		return Config{}, fmt.Errorf("OAUTH_CLIENT_SECRET_KEY is required in prod when OAUTH_HOSTNAME is set")
+	}
+	if cfg.Env == EnvProd && cfg.PushEnabled && cfg.FirebaseProjectID == "" {
+		return Config{}, fmt.Errorf("FIREBASE_PROJECT_ID is required in prod when PUSH_ENABLED=true")
 	}
 
 	return cfg, nil

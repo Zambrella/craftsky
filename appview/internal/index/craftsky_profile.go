@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
+	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -25,9 +26,10 @@ import (
 // Bluesky mirror, since membership is defined by presence in
 // craftsky_profiles.
 type CraftskyProfile struct {
-	pool       *pgxpool.Pool
-	backfiller BlueskyBackfiller
-	logger     *slog.Logger
+	pool          *pgxpool.Pool
+	backfiller    BlueskyBackfiller
+	logger        *slog.Logger
+	actorDeletion notifications.ActorDeletion
 }
 
 var _ Indexer = (*CraftskyProfile)(nil)
@@ -36,11 +38,15 @@ var _ Indexer = (*CraftskyProfile)(nil)
 // Handle commits a genuinely new membership row; it may be a no-op in
 // tests. A nil logger defaults to slog.Default() to keep call sites that
 // don't care about structured logging concise.
-func NewCraftskyProfile(pool *pgxpool.Pool, backfiller BlueskyBackfiller, logger *slog.Logger) *CraftskyProfile {
+func NewCraftskyProfile(pool *pgxpool.Pool, backfiller BlueskyBackfiller, logger *slog.Logger, actorDeletions ...notifications.ActorDeletion) *CraftskyProfile {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &CraftskyProfile{pool: pool, backfiller: backfiller, logger: logger}
+	actorDeletion := notifications.ActorDeletion(notifications.NoopActorDeletion{})
+	if len(actorDeletions) > 0 && actorDeletions[0] != nil {
+		actorDeletion = actorDeletions[0]
+	}
+	return &CraftskyProfile{pool: pool, backfiller: backfiller, logger: logger, actorDeletion: actorDeletion}
 }
 
 const craftskyProfileNSID syntax.NSID = "social.craftsky.actor.profile"
@@ -105,6 +111,9 @@ func (c *CraftskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 // mirror in a single transaction. See spec §3.1.
 func (c *CraftskyProfile) handleDelete(ctx context.Context, did syntax.DID) error {
 	return pgx.BeginFunc(ctx, c.pool, func(tx pgx.Tx) error {
+		if err := c.actorDeletion.HardDeleteByActor(ctx, tx, did); err != nil {
+			return fmt.Errorf("delete actor notifications %s: %w", did, err)
+		}
 		if _, err := tx.Exec(ctx,
 			`DELETE FROM craftsky_profiles WHERE did = $1`, did); err != nil {
 			return fmt.Errorf("delete craftsky_profiles %s: %w", did, err)

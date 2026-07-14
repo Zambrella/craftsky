@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
+	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/postutil"
 	"social.craftsky/appview/internal/tap"
 )
@@ -26,17 +27,22 @@ import (
 // before its author's craftsky_profiles row is dropped permanently for now;
 // see the design spec for the post-backfiller follow-up.
 type CraftskyPost struct {
-	pool   *pgxpool.Pool
-	logger *slog.Logger
+	pool      *pgxpool.Pool
+	logger    *slog.Logger
+	lifecycle notifications.Lifecycle
 }
 
 var _ Indexer = (*CraftskyPost)(nil)
 
-func NewCraftskyPost(pool *pgxpool.Pool, logger *slog.Logger) *CraftskyPost {
+func NewCraftskyPost(pool *pgxpool.Pool, logger *slog.Logger, lifecycles ...notifications.Lifecycle) *CraftskyPost {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &CraftskyPost{pool: pool, logger: logger}
+	lifecycle := notifications.Lifecycle(notifications.NoopLifecycle{})
+	if len(lifecycles) > 0 && lifecycles[0] != nil {
+		lifecycle = lifecycles[0]
+	}
+	return &CraftskyPost{pool: pool, logger: logger, lifecycle: lifecycle}
 }
 
 const craftskyPostNSID syntax.NSID = "social.craftsky.feed.post"
@@ -186,10 +192,136 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	if err := syncPostMentions(ctx, tx, ev.URI, mentions, createdAt); err != nil {
 		return err
 	}
+	if err := c.activatePostNotifications(ctx, tx, ev, rec, mentions, createdAt); err != nil {
+		return err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit upsert %s: %w", ev.URI, err)
 	}
 	return nil
+}
+
+func (c *CraftskyPost) activatePostNotifications(ctx context.Context, tx pgx.Tx, ev tap.Event, rec indexedPostRecord, mentions []string, createdAt time.Time) error {
+	reasons := make(map[syntax.DID]notifications.PostReasons)
+	addPostAuthor := func(uri any, apply func(notifications.PostReasons) notifications.PostReasons) error {
+		value, ok := uri.(string)
+		if !ok || value == "" {
+			return nil
+		}
+		var did syntax.DID
+		if err := tx.QueryRow(ctx, `SELECT did FROM craftsky_posts WHERE uri = $1`, value).Scan(&did); err != nil {
+			if err == pgx.ErrNoRows {
+				return nil
+			}
+			return err
+		}
+		reasons[did] = apply(reasons[did])
+		return nil
+	}
+	if rec.Reply != nil && rec.Reply.Parent != nil {
+		if err := addPostAuthor(rec.Reply.Parent.Uri, func(r notifications.PostReasons) notifications.PostReasons { r.Reply = true; return r }); err != nil {
+			return fmt.Errorf("classify reply notification: %w", err)
+		}
+	}
+	if rec.Embed != nil && rec.Embed.FeedPost_QuoteEmbed != nil && rec.Embed.FeedPost_QuoteEmbed.Record != nil {
+		if err := addPostAuthor(rec.Embed.FeedPost_QuoteEmbed.Record.Uri, func(r notifications.PostReasons) notifications.PostReasons { r.Quote = true; return r }); err != nil {
+			return fmt.Errorf("classify quote notification: %w", err)
+		}
+	}
+	for _, rawDID := range mentions {
+		did, err := syntax.ParseDID(rawDID)
+		if err != nil {
+			return fmt.Errorf("parse mention DID: %w", err)
+		}
+		r := reasons[did]
+		r.Mention = true
+		reasons[did] = r
+	}
+	for recipient, recipientReasons := range reasons {
+		category, ok := notifications.ClassifyPostReason(recipientReasons)
+		if !ok || recipient == ev.DID {
+			continue
+		}
+		var recipientIsMember bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM craftsky_profiles WHERE did=$1)`, recipient).Scan(&recipientIsMember); err != nil {
+			return fmt.Errorf("check notification recipient membership: %w", err)
+		}
+		if !recipientIsMember {
+			continue
+		}
+		if err := c.lifecycle.Activate(ctx, tx, notifications.Activation{
+			RecipientDID: recipient,
+			ActorDID:     ev.DID,
+			Category:     category,
+			SubjectKey:   ev.URI.String(),
+			SourceURI:    ev.URI,
+			SourceCID:    ev.CID,
+			SourceRkey:   ev.Rkey,
+			SubjectURI:   postNotificationSubjectURI(category, ev, rec),
+			SubjectCID:   postNotificationSubjectCID(category, ev, rec),
+			ParentURI:    postReplyParentURI(rec),
+			ParentCID:    postReplyParentCID(rec),
+			RootURI:      postReplyRootURI(rec),
+			RootCID:      postReplyRootCID(rec),
+			QuotedURI:    postQuotedURI(rec),
+			QuotedCID:    postQuotedCID(rec),
+			ActivityAt:   createdAt,
+		}); err != nil {
+			return fmt.Errorf("activate %s notification: %w", category, err)
+		}
+	}
+	return nil
+}
+
+func postReplyParentURI(rec indexedPostRecord) syntax.ATURI {
+	if rec.Reply != nil && rec.Reply.Parent != nil {
+		return syntax.ATURI(rec.Reply.Parent.Uri)
+	}
+	return ""
+}
+func postReplyParentCID(rec indexedPostRecord) syntax.CID {
+	if rec.Reply != nil && rec.Reply.Parent != nil {
+		return syntax.CID(rec.Reply.Parent.Cid)
+	}
+	return ""
+}
+func postReplyRootURI(rec indexedPostRecord) syntax.ATURI {
+	if rec.Reply != nil && rec.Reply.Root != nil {
+		return syntax.ATURI(rec.Reply.Root.Uri)
+	}
+	return ""
+}
+func postReplyRootCID(rec indexedPostRecord) syntax.CID {
+	if rec.Reply != nil && rec.Reply.Root != nil {
+		return syntax.CID(rec.Reply.Root.Cid)
+	}
+	return ""
+}
+func postQuotedURI(rec indexedPostRecord) syntax.ATURI {
+	if rec.Embed != nil && rec.Embed.FeedPost_QuoteEmbed != nil && rec.Embed.FeedPost_QuoteEmbed.Record != nil {
+		return syntax.ATURI(rec.Embed.FeedPost_QuoteEmbed.Record.Uri)
+	}
+	return ""
+}
+func postQuotedCID(rec indexedPostRecord) syntax.CID {
+	if rec.Embed != nil && rec.Embed.FeedPost_QuoteEmbed != nil && rec.Embed.FeedPost_QuoteEmbed.Record != nil {
+		return syntax.CID(rec.Embed.FeedPost_QuoteEmbed.Record.Cid)
+	}
+	return ""
+}
+
+func postNotificationSubjectURI(category notifications.Category, ev tap.Event, rec indexedPostRecord) syntax.ATURI {
+	if category == notifications.Reply && rec.Reply != nil && rec.Reply.Parent != nil {
+		return syntax.ATURI(rec.Reply.Parent.Uri)
+	}
+	return ev.URI
+}
+
+func postNotificationSubjectCID(category notifications.Category, ev tap.Event, rec indexedPostRecord) syntax.CID {
+	if category == notifications.Reply && rec.Reply != nil && rec.Reply.Parent != nil {
+		return syntax.CID(rec.Reply.Parent.Cid)
+	}
+	return ev.CID
 }
 
 type indexedProject struct {
@@ -575,9 +707,20 @@ func jsonRaw(m map[string]json.RawMessage, key string) any {
 }
 
 func (c *CraftskyPost) handleDelete(ctx context.Context, ev tap.Event) error {
-	if _, err := c.pool.Exec(ctx,
+	tx, err := c.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin delete %s: %w", ev.URI, err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx,
 		`DELETE FROM craftsky_posts WHERE uri = $1`, ev.URI); err != nil {
 		return fmt.Errorf("delete %s: %w", ev.URI, err)
+	}
+	if err := c.lifecycle.Retract(ctx, tx, notifications.Retraction{SourceURI: ev.URI, Reason: "sourceDeleted"}); err != nil {
+		return fmt.Errorf("retract notification for %s: %w", ev.URI, err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit delete %s: %w", ev.URI, err)
 	}
 	return nil
 }

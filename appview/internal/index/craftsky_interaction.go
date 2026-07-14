@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -24,6 +26,8 @@ func handleCraftskyInteractionUpsert(
 	pool *pgxpool.Pool,
 	ev tap.Event,
 	table string,
+	category notifications.Category,
+	lifecycle notifications.Lifecycle,
 	decode func(json.RawMessage) (craftskyInteractionRecord, error),
 ) error {
 	isMember, err := isCraftskyMember(ctx, pool, ev.DID)
@@ -52,14 +56,14 @@ func handleCraftskyInteractionUpsert(
 	}
 	defer tx.Rollback(ctx)
 
-	var subjectExists bool
+	var recipientDID syntax.DID
 	if err := tx.QueryRow(ctx,
-		`SELECT EXISTS (SELECT 1 FROM craftsky_posts WHERE uri = $1)`, rec.SubjectURI).
-		Scan(&subjectExists); err != nil {
+		`SELECT did FROM craftsky_posts WHERE uri = $1`, rec.SubjectURI).
+		Scan(&recipientDID); err != nil {
+		if err == pgx.ErrNoRows {
+			return nil
+		}
 		return fmt.Errorf("subject check %s: %w", rec.SubjectURI, err)
-	}
-	if !subjectExists {
-		return nil
 	}
 
 	if _, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -90,19 +94,47 @@ func handleCraftskyInteractionUpsert(
 		return fmt.Errorf("upsert %s: %w", ev.URI, err)
 	}
 
+	if recipientDID != ev.DID {
+		if err := lifecycle.Activate(ctx, tx, notifications.Activation{
+			RecipientDID: recipientDID,
+			ActorDID:     ev.DID,
+			Category:     category,
+			SubjectKey:   rec.SubjectURI,
+			SourceURI:    ev.URI,
+			SourceCID:    ev.CID,
+			SourceRkey:   ev.Rkey,
+			SubjectURI:   syntax.ATURI(rec.SubjectURI),
+			SubjectCID:   syntax.CID(rec.SubjectCID),
+			ActivityAt:   createdAt,
+		}); err != nil {
+			return fmt.Errorf("activate notification for %s: %w", ev.URI, err)
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit %s: %w", ev.URI, err)
 	}
 	return nil
 }
 
-func handleCraftskyInteractionDelete(ctx context.Context, pool *pgxpool.Pool, ev tap.Event, table string) error {
-	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+func handleCraftskyInteractionDelete(ctx context.Context, pool *pgxpool.Pool, ev tap.Event, table string, lifecycle notifications.Lifecycle) error {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin delete %s: %w", ev.URI, err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, fmt.Sprintf(`
 		UPDATE %s
 		SET deleted_at = now(), indexed_at = now()
 		WHERE uri = $1 AND deleted_at IS NULL
 	`, table), ev.URI); err != nil {
 		return fmt.Errorf("soft-delete %s: %w", ev.URI, err)
+	}
+	if err := lifecycle.Retract(ctx, tx, notifications.Retraction{SourceURI: ev.URI, Reason: "sourceDeleted"}); err != nil {
+		return fmt.Errorf("retract notification for %s: %w", ev.URI, err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit delete %s: %w", ev.URI, err)
 	}
 	return nil
 }

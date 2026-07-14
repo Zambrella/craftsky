@@ -212,6 +212,20 @@ func (h *HTTPHandlers) LogoutHandler() http.Handler {
 		}
 		all := r.URL.Query().Get("all") == "true"
 		token := bearerToken(r)
+		if h.NotificationSubscriptions != nil {
+			var cleanupErr error
+			if all {
+				cleanupErr = h.NotificationSubscriptions.DeactivateForAccount(r.Context(), did.String())
+			} else {
+				deviceID, _ := ctxkeys.GetDeviceID(r.Context())
+				cleanupErr = h.NotificationSubscriptions.DeactivateForInstallation(r.Context(), did.String(), deviceID)
+			}
+			if cleanupErr != nil {
+				h.Logger.Error("logout notification cleanup failed", authLogErrorAttrs(runID, "logout", "notification_store")...)
+				envelope.WriteError(w, http.StatusInternalServerError, "internal", "internal error", runID, nil)
+				return
+			}
+		}
 		h.Logger.Debug("logout: request started",
 			append(authLogAttrs(runID, "logout"),
 				slog.Bool("all", all),

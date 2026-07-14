@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/index"
+	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -68,6 +70,59 @@ type interactionIndexerCase struct {
 	table      string
 	typeID     string
 	newIndexer func(*pgxpool.Pool) index.Indexer
+}
+
+func TestInteractionNotificationsTargetOnlyDirectAuthor(t *testing.T) {
+	for _, tc := range interactionIndexerCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			pool := testdb.WithSchema(t, craftskyInteractionsDDL)
+			migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
+				t.Fatal(err)
+			}
+			seedCraftskyMember(t, pool, "did:plc:actor")
+			seedCraftskyMember(t, pool, "did:plc:reposter")
+			seedCraftskySubjectPost(t, pool, "at://did:plc:author/social.craftsky.feed.post/post1")
+			if _, err := pool.Exec(context.Background(), `
+				INSERT INTO craftsky_reposts
+					(uri, did, rkey, cid, subject_uri, subject_cid, record, created_at)
+				VALUES
+					('at://did:plc:reposter/social.craftsky.feed.repost/r0', 'did:plc:reposter', 'r0', 'c0',
+					 'at://did:plc:author/social.craftsky.feed.post/post1', 'subjectcid', '{}', now())
+			`); err != nil {
+				t.Fatal(err)
+			}
+
+			var idx index.Indexer
+			if tc.name == "like" {
+				idx = index.NewCraftskyLike(pool, testLogger(), notifications.NewService())
+			} else {
+				idx = index.NewCraftskyRepost(pool, testLogger(), notifications.NewService())
+			}
+			ev := interactionEvent(tc, "r1", "bafy1", "at://did:plc:author/social.craftsky.feed.post/post1", "subjectcid")
+			if err := idx.Handle(context.Background(), ev); err != nil {
+				t.Fatal(err)
+			}
+
+			var recipient, category string
+			if err := pool.QueryRow(context.Background(), `SELECT recipient_did, category FROM notification_events`).Scan(&recipient, &category); err != nil {
+				t.Fatal(err)
+			}
+			if recipient != "did:plc:author" || category != tc.name {
+				t.Fatalf("recipient=%s category=%s", recipient, category)
+			}
+			var reposterCount int
+			if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM notification_events WHERE recipient_did = 'did:plc:reposter'`).Scan(&reposterCount); err != nil {
+				t.Fatal(err)
+			}
+			if reposterCount != 0 {
+				t.Fatalf("reposter received %d notifications", reposterCount)
+			}
+		})
+	}
 }
 
 func interactionIndexerCases() []interactionIndexerCase {

@@ -81,13 +81,18 @@ func (NotImplemented) State() ConnState {
 
 // WSConsumerConfig wires a WSConsumer. All fields are required.
 type WSConsumerConfig struct {
-	URL          string // ws://tap:2480/channel
-	Indexer      HandlerIndexer
-	AckTimeout   time.Duration // per-event Handle deadline
-	ReconnectMax time.Duration // cap for exponential reconnect backoff
-	MaxRetries   int           // poison-pill threshold per event id
-	Logger       *slog.Logger  // optional; nil → slog.Default()
-	Observer     *observability.Observer
+	URL             string // ws://tap:2480/channel
+	Indexer         HandlerIndexer
+	AckTimeout      time.Duration // per-event Handle deadline
+	ReconnectMax    time.Duration // cap for exponential reconnect backoff
+	MaxRetries      int           // poison-pill threshold per event id
+	Logger          *slog.Logger  // optional; nil → slog.Default()
+	Observer        *observability.Observer
+	IdentityHandler IdentityDeletionHandler
+}
+
+type IdentityDeletionHandler interface {
+	HandleIdentityDeleted(context.Context, syntax.DID) error
 }
 
 // HandlerIndexer is the narrow interface the consumer needs. Defined here
@@ -368,7 +373,22 @@ func (c *WSConsumer) runOnce(ctx context.Context) (err error) {
 				return fmt.Errorf("ack: %w", err)
 			}
 		case "identity":
-			// Drop identity events at debug.
+			var identity struct {
+				DID    string `json:"did"`
+				Status string `json:"status"`
+			}
+			if err := json.Unmarshal(env.Identity, &identity); err != nil {
+				continue
+			}
+			if identity.Status == "deleted" && c.cfg.IdentityHandler != nil {
+				did, err := syntax.ParseDID(identity.DID)
+				if err != nil {
+					continue
+				}
+				if err := c.cfg.IdentityHandler.HandleIdentityDeleted(ctx, did); err != nil {
+					continue
+				}
+			}
 			c.logger.Debug("tap identity event received", slog.Uint64("id", env.ID))
 			if c.cfg.Observer != nil {
 				c.cfg.Observer.ObserveIndexerSkipped("", "identity")

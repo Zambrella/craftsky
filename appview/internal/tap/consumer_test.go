@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/getsentry/sentry-go"
@@ -25,6 +26,24 @@ type fakeIndexer struct {
 	mu       sync.Mutex
 	events   []tap.Event
 	failOnce bool // if true, next Handle returns error (then resets to false)
+}
+
+type identityDeletionSpy struct {
+	mu   sync.Mutex
+	dids []syntax.DID
+}
+
+func (s *identityDeletionSpy) HandleIdentityDeleted(_ context.Context, did syntax.DID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dids = append(s.dids, did)
+	return nil
+}
+
+func (s *identityDeletionSpy) DIDs() []syntax.DID {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]syntax.DID(nil), s.dids...)
 }
 
 func (f *fakeIndexer) Handle(ctx context.Context, ev tap.Event) error {
@@ -180,6 +199,37 @@ func TestWSConsumer_HappyPath(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("Run did not return after cancel")
+	}
+}
+
+func TestWSConsumer_ForwardsOnlyTerminalIdentityDeletion(t *testing.T) {
+	frames := []string{
+		`{"id":1,"type":"identity","identity":{"did":"did:plc:actor","status":"active"}}`,
+		`{"id":2,"type":"identity","identity":{"did":"did:plc:actor","status":"deactivated"}}`,
+		`{"id":3,"type":"identity","identity":{"did":"did:plc:actor","status":"takendown"}}`,
+		`{"id":4,"type":"identity","identity":{"did":"did:plc:actor","status":"deleted"}}`,
+	}
+	ft := newFakeTap(frames)
+	srv := httptest.NewServer(ft.handler(t))
+	defer srv.Close()
+	spy := &identityDeletionSpy{}
+	c := tap.NewWSConsumer(tap.WSConsumerConfig{
+		URL: strings.Replace(srv.URL, "http://", "ws://", 1), Indexer: &fakeIndexer{},
+		AckTimeout: time.Second, ReconnectMax: time.Second, MaxRetries: 5, IdentityHandler: spy,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	go c.Run(ctx)
+	for i := 0; i < len(frames); i++ {
+		select {
+		case <-ft.acks:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for identity ack")
+		}
+	}
+	got := spy.DIDs()
+	if len(got) != 1 || got[0] != "did:plc:actor" {
+		t.Fatalf("deleted DIDs=%v", got)
 	}
 }
 

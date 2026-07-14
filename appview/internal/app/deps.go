@@ -19,7 +19,9 @@ import (
 	"social.craftsky/appview/internal/db"
 	"social.craftsky/appview/internal/index"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/push"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -49,8 +51,9 @@ type Deps struct {
 	// without constructing an identity.Directory.
 	HandleResolver api.HandleResolver
 
-	Consumer tap.Consumer
-	Indexer  index.Indexer
+	Consumer       tap.Consumer
+	Indexer        index.Indexer
+	PushDispatcher *push.Dispatcher
 
 	// ProfileStore serves the /v1/profiles endpoints.
 	ProfileStore *api.ProfileStore
@@ -133,25 +136,18 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	identityDir := identity.DefaultDirectory()
 
 	anonPDS := auth.NewAnonymousPDSClient(identityDir, 5*time.Second)
-	dispatcher := newIndexerDispatcher(pool, anonPDS, logger)
+	observer := observability.New(observability.Config{
+		Env: string(cfg.Env), Release: cfg.SentryRelease, LogsEnabled: cfg.SentryLogsEnabled, TracingEnabled: cfg.SentryTracingEnabled, TracesSampleRate: cfg.SentryTracesSampleRate, MetricsEnabled: cfg.SentryMetricsEnabled, TapTracingEnabled: cfg.SentryTapTracingEnabled, TapTracesSampleRate: cfg.SentryTapTracesSampleRate, SentryDSN: cfg.SentryDSN, Logger: logger,
+	})
+	lifecycle := notifications.NewService(observer)
+	dispatcher := newIndexerDispatcher(pool, anonPDS, logger, lifecycle)
 
 	deps := &Deps{
-		Config:      cfg,
-		Logger:      logger,
-		DB:          pool,
-		RateLimiter: rateLimiter,
-		Observability: observability.New(observability.Config{
-			Env:                 string(cfg.Env),
-			Release:             cfg.SentryRelease,
-			LogsEnabled:         cfg.SentryLogsEnabled,
-			TracingEnabled:      cfg.SentryTracingEnabled,
-			TracesSampleRate:    cfg.SentryTracesSampleRate,
-			MetricsEnabled:      cfg.SentryMetricsEnabled,
-			TapTracingEnabled:   cfg.SentryTapTracingEnabled,
-			TapTracesSampleRate: cfg.SentryTapTracesSampleRate,
-			SentryDSN:           cfg.SentryDSN,
-			Logger:              logger,
-		}),
+		Config:               cfg,
+		Logger:               logger,
+		DB:                   pool,
+		RateLimiter:          rateLimiter,
+		Observability:        observer,
 		OAuthApp:             oauthApp,
 		OAuthStore:           oauthStore,
 		CraftskySessionStore: craftskyStore,
@@ -159,15 +155,24 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		Indexer:              dispatcher,
 		Consumer:             tap.NotImplemented{}, // temp, replaced below
 	}
+	if cfg.PushEnabled {
+		sender, err := push.NewFirebaseSender(ctx, cfg.FirebaseProjectID)
+		if err != nil {
+			pool.Close()
+			return nil, nil, fmt.Errorf("firebase messaging init: %w", err)
+		}
+		deps.PushDispatcher = push.NewDispatcher(pool, sender, push.DispatcherOptions{BatchSize: cfg.PushBatchSize, LeaseDuration: cfg.PushLeaseDuration, SendTimeout: cfg.PushSendTimeout, Observer: observer})
+	}
 
 	deps.Consumer = tap.NewWSConsumer(tap.WSConsumerConfig{
-		URL:          cfg.TapWSURL,
-		Indexer:      dispatcher,
-		AckTimeout:   cfg.TapAckTimeout,
-		ReconnectMax: cfg.TapReconnectMax,
-		MaxRetries:   cfg.TapMaxRetries,
-		Logger:       logger,
-		Observer:     deps.Observability,
+		URL:             cfg.TapWSURL,
+		Indexer:         dispatcher,
+		AckTimeout:      cfg.TapAckTimeout,
+		ReconnectMax:    cfg.TapReconnectMax,
+		MaxRetries:      cfg.TapMaxRetries,
+		Logger:          logger,
+		Observer:        deps.Observability,
+		IdentityHandler: notifications.NewActorDeletionService(pool),
 	})
 	if cfg.Env == EnvDev {
 		deps.HandleResolver = api.DevHandleResolver{
@@ -238,20 +243,25 @@ func (d *Deps) expirePDSSession(ctx context.Context, did syntax.DID, sid string)
 	}
 }
 
-func newIndexerDispatcher(pool *pgxpool.Pool, anonPDS auth.PDSClient, logger *slog.Logger) *index.Dispatcher {
+func newIndexerDispatcher(pool *pgxpool.Pool, anonPDS auth.PDSClient, logger *slog.Logger, lifecycles ...notifications.Lifecycle) *index.Dispatcher {
+	lifecycle := notifications.Lifecycle(notifications.NoopLifecycle{})
+	if len(lifecycles) > 0 && lifecycles[0] != nil {
+		lifecycle = lifecycles[0]
+	}
 	dispatcher := index.NewDispatcher(index.NotImplemented{})
 	blueskyIdx := index.NewBlueskyProfile(pool)
 	backfiller := index.NewBlueskyBackfiller(anonPDS, blueskyIdx)
+	actorDeletion := notifications.NewActorDeletionService(pool)
 	dispatcher.Register("social.craftsky.actor.profile",
-		index.NewCraftskyProfile(pool, backfiller, logger))
+		index.NewCraftskyProfile(pool, backfiller, logger, actorDeletion))
 	dispatcher.Register("social.craftsky.feed.post",
-		index.NewCraftskyPost(pool, logger))
+		index.NewCraftskyPost(pool, logger, lifecycle))
 	dispatcher.Register("social.craftsky.feed.like",
-		index.NewCraftskyLike(pool, logger))
+		index.NewCraftskyLike(pool, logger, lifecycle))
 	dispatcher.Register("social.craftsky.feed.repost",
-		index.NewCraftskyRepost(pool, logger))
+		index.NewCraftskyRepost(pool, logger, lifecycle))
 	dispatcher.Register("app.bsky.graph.follow",
-		index.NewBlueskyFollow(pool))
+		index.NewBlueskyFollow(pool, lifecycle))
 	dispatcher.Register("app.bsky.actor.profile", blueskyIdx)
 	return dispatcher
 }
