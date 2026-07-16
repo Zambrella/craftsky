@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 /// Visual treatment for a [CraftskyContextMenuItem].
 enum CraftskyContextMenuItemStyle { normal, destructive }
 
-/// Configuration for a single row in a Craftsky context menu.
+/// Configuration for a single row in a CraftSky context menu.
 class CraftskyContextMenuItem {
   const CraftskyContextMenuItem({
     required this.text,
@@ -54,7 +54,7 @@ RelativeRect craftskyContextMenuAnchorPosition(BuildContext context) {
   );
 }
 
-/// Icon button that opens a responsive Craftsky context menu.
+/// Icon button that opens a responsive CraftSky context menu.
 class CraftskyContextMenuButton extends StatelessWidget {
   const CraftskyContextMenuButton({
     required this.groups,
@@ -86,7 +86,7 @@ class CraftskyContextMenuButton extends StatelessWidget {
   }
 }
 
-/// Shows a Craftsky context menu as a bottom sheet on compact screens and an
+/// Shows a CraftSky context menu as a bottom sheet on compact screens and an
 /// anchored popup menu on larger screens.
 Future<void> showCraftskyContextMenu(
   BuildContext context, {

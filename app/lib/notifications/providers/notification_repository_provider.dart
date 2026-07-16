@@ -11,3 +11,27 @@ final notificationApiClientProvider = Provider<NotificationApiClient>(
 final notificationRepositoryProvider = Provider<NotificationRepository>(
   (ref) => ApiNotificationRepository(ref.watch(notificationApiClientProvider)),
 );
+
+final notificationNewnessRepositoryProvider =
+    Provider<NotificationNewnessRepository>(
+      (ref) =>
+          ApiNotificationRepository(ref.watch(notificationApiClientProvider)),
+    );
+
+final notificationPreferencesRepositoryProvider =
+    Provider<NotificationPreferencesRepository>(
+      (ref) =>
+          ApiNotificationRepository(ref.watch(notificationApiClientProvider)),
+    );
+
+final notificationDeviceRepositoryProvider =
+    Provider<NotificationDeviceRepository>(
+      (ref) =>
+          ApiNotificationRepository(ref.watch(notificationApiClientProvider)),
+    );
+
+final notificationResolutionRepositoryProvider =
+    Provider<NotificationResolutionRepository>(
+      (ref) =>
+          ApiNotificationRepository(ref.watch(notificationApiClientProvider)),
+    );

@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:craftsky_app/shared/rich_text/facet_syntax.dart';
 import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 
-/// Plain-text token detected by Craftsky's supported facet rules.
+/// Plain-text token detected by CraftSky's supported facet rules.
 sealed class FacetToken {
   const FacetToken({
     required this.charStart,

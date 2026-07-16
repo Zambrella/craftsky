@@ -106,7 +106,7 @@ void main() {
     expect(profile.handle.toString(), 'alice.craftsky.social');
   });
 
-  test('POST follow uses Craftsky endpoint and no token fields', () async {
+  test('POST follow uses CraftSky endpoint and no token fields', () async {
     final dio = buildDio();
     DioAdapter(dio: dio).onPost(
       '/v1/profiles/@bob.craftsky.social/follows',
@@ -120,7 +120,7 @@ void main() {
     expect(profile.did.toString(), 'did:plc:alice');
   });
 
-  test('DELETE unfollow uses Craftsky endpoint and no token fields', () async {
+  test('DELETE unfollow uses CraftSky endpoint and no token fields', () async {
     final dio = buildDio();
     DioAdapter(dio: dio).onDelete(
       '/v1/profiles/@bob.craftsky.social/follows',

@@ -97,7 +97,7 @@ abstract class AppLocalizations {
   /// The app's title, used in MaterialApp.title and as an AppBar title.
   ///
   /// In en, this message translates to:
-  /// **'Craftsky'**
+  /// **'CraftSky'**
   String get appTitle;
 
   /// Muted subtitle on the placeholder HomePage.
@@ -171,6 +171,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{actor} mentioned you'**
   String notificationMentionRow(String actor);
+
+  /// Notification row title for a quote.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} quoted your post'**
+  String notificationQuoteRow(String actor);
+
+  /// No description provided for @notificationGenericRow.
+  ///
+  /// In en, this message translates to:
+  /// **'New activity'**
+  String get notificationGenericRow;
+
+  /// No description provided for @notificationUnavailableRow.
+  ///
+  /// In en, this message translates to:
+  /// **'Activity unavailable'**
+  String get notificationUnavailableRow;
+
+  /// No description provided for @notificationSettingsAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification settings'**
+  String get notificationSettingsAction;
+
+  /// No description provided for @notificationSettingsIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Category preferences apply to all devices signed in to this account.'**
+  String get notificationSettingsIntro;
+
+  /// No description provided for @notificationDeviceDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications are disabled on this device'**
+  String get notificationDeviceDisabled;
+
+  /// No description provided for @notificationDeviceDisabledDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Account preferences still apply. Enable alerts in system settings.'**
+  String get notificationDeviceDisabledDescription;
+
+  /// No description provided for @notificationOpenSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open settings'**
+  String get notificationOpenSettings;
+
+  /// No description provided for @notificationCategoryLikes.
+  ///
+  /// In en, this message translates to:
+  /// **'Likes'**
+  String get notificationCategoryLikes;
+
+  /// No description provided for @notificationCategoryFollows.
+  ///
+  /// In en, this message translates to:
+  /// **'Follows'**
+  String get notificationCategoryFollows;
+
+  /// No description provided for @notificationCategoryReplies.
+  ///
+  /// In en, this message translates to:
+  /// **'Replies'**
+  String get notificationCategoryReplies;
+
+  /// No description provided for @notificationCategoryMentions.
+  ///
+  /// In en, this message translates to:
+  /// **'Mentions'**
+  String get notificationCategoryMentions;
+
+  /// No description provided for @notificationCategoryQuotes.
+  ///
+  /// In en, this message translates to:
+  /// **'Quotes'**
+  String get notificationCategoryQuotes;
+
+  /// No description provided for @notificationCategoryReposts.
+  ///
+  /// In en, this message translates to:
+  /// **'Reposts'**
+  String get notificationCategoryReposts;
+
+  /// No description provided for @notificationCategoryEverythingElse.
+  ///
+  /// In en, this message translates to:
+  /// **'Everything else'**
+  String get notificationCategoryEverythingElse;
+
+  /// No description provided for @notificationPreferenceFrom.
+  ///
+  /// In en, this message translates to:
+  /// **'From'**
+  String get notificationPreferenceFrom;
+
+  /// No description provided for @notificationScopeEveryone.
+  ///
+  /// In en, this message translates to:
+  /// **'Everyone'**
+  String get notificationScopeEveryone;
+
+  /// No description provided for @notificationScopePeopleIFollow.
+  ///
+  /// In en, this message translates to:
+  /// **'People I follow'**
+  String get notificationScopePeopleIFollow;
+
+  /// No description provided for @notificationPushEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Push notifications'**
+  String get notificationPushEnabled;
+
+  /// No description provided for @notificationPreferenceSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save notification preference'**
+  String get notificationPreferenceSaveError;
+
+  /// No description provided for @notificationBannerOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get notificationBannerOpen;
+
+  /// Accessible in-app notification badge label.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 new activity} other{{count} new activities}}'**
+  String notificationNewActivityCount(int count);
 
   /// Title and main heading on the welcome page.
   ///
@@ -340,10 +472,10 @@ abstract class AppLocalizations {
   /// **'You\'re offline. Check your connection and try again.'**
   String get errorNetworkUnavailable;
 
-  /// Safe generic error message shown when the Craftsky service is unavailable.
+  /// Safe generic error message shown when the CraftSky service is unavailable.
   ///
   /// In en, this message translates to:
-  /// **'Craftsky is having trouble right now. Please try again.'**
+  /// **'CraftSky is having trouble right now. Please try again.'**
   String get errorServiceUnavailable;
 
   /// Safe generic error message shown when the user's session is no longer valid.
@@ -367,13 +499,13 @@ abstract class AppLocalizations {
   /// Safe generic error message shown when local secure storage cannot be read or written.
   ///
   /// In en, this message translates to:
-  /// **'Craftsky couldn\'t access secure storage. Please try again.'**
+  /// **'CraftSky couldn\'t access secure storage. Please try again.'**
   String get errorStorageUnavailable;
 
   /// Safe generic error message shown on the initialization error screen.
   ///
   /// In en, this message translates to:
-  /// **'Craftsky couldn\'t finish starting. Please try again.'**
+  /// **'CraftSky couldn\'t finish starting. Please try again.'**
   String get errorInitializationFailed;
 
   /// Safe generic error message shown on the routing error screen.
@@ -436,10 +568,10 @@ abstract class AppLocalizations {
   /// **'Unfollow'**
   String get profileFollowingAction;
 
-  /// Marker shown on a profile page for an atproto account that does not have a Craftsky profile record.
+  /// Marker shown on a profile page for an atproto account that does not have a CraftSky profile record.
   ///
   /// In en, this message translates to:
-  /// **'Non Craftsky profile'**
+  /// **'Non CraftSky profile'**
   String get profileNonCraftskyMarker;
 
   /// Tab label for the Posts tab on the profile screen.
@@ -1507,19 +1639,19 @@ abstract class AppLocalizations {
   /// Body text of the delete-post confirmation dialog.
   ///
   /// In en, this message translates to:
-  /// **'This removes the post from Craftsky.'**
+  /// **'This removes the post from CraftSky.'**
   String get postDeleteMessage;
 
   /// Body text of the delete-comment confirmation dialog.
   ///
   /// In en, this message translates to:
-  /// **'This removes the comment from Craftsky.'**
+  /// **'This removes the comment from CraftSky.'**
   String get commentDeleteMessage;
 
   /// Body text of the delete-reply confirmation dialog.
   ///
   /// In en, this message translates to:
-  /// **'This removes the reply from Craftsky.'**
+  /// **'This removes the reply from CraftSky.'**
   String get replyDeleteMessage;
 
   /// Confirm button label in the delete-post confirmation dialog.
@@ -1567,19 +1699,19 @@ abstract class AppLocalizations {
   /// Generic inline warning copy for a warned post.
   ///
   /// In en, this message translates to:
-  /// **'This post may not follow Craftsky community guidelines.'**
+  /// **'This post may not follow CraftSky community guidelines.'**
   String get moderationWarningPost;
 
   /// Generic inline warning copy for a warned profile.
   ///
   /// In en, this message translates to:
-  /// **'This profile may not follow Craftsky community guidelines.'**
+  /// **'This profile may not follow CraftSky community guidelines.'**
   String get moderationWarningProfile;
 
   /// Generic inline warning copy for posts by a warned author.
   ///
   /// In en, this message translates to:
-  /// **'This author may not follow Craftsky community guidelines.'**
+  /// **'This author may not follow CraftSky community guidelines.'**
   String get moderationWarningAuthor;
 
   /// Primary action label in the report dialog/sheet.

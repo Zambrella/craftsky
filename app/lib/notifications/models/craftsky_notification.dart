@@ -1,10 +1,19 @@
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:dart_mappable/dart_mappable.dart';
 
-enum CraftskyNotificationType { follow, like, repost, reply, mention }
+part 'craftsky_notification.mapper.dart';
+
+const int _notificationValueMethods =
+    GenerateMethods.decode |
+    GenerateMethods.encode |
+    GenerateMethods.equals |
+    GenerateMethods.copy;
 
 sealed class CraftskyNotification {
   const CraftskyNotification({
+    required this.id,
     required this.uri,
     required this.cid,
     required this.rkey,
@@ -13,6 +22,7 @@ sealed class CraftskyNotification {
     required this.indexedAt,
   });
 
+  final String id;
   final AtUri uri;
   final Cid cid;
   final RecordKey rkey;
@@ -20,11 +30,15 @@ sealed class CraftskyNotification {
   final DateTime createdAt;
   final DateTime indexedAt;
 
-  CraftskyNotificationType get type;
+  NotificationCategory get type;
 
   static CraftskyNotification fromMap(Map<String, dynamic> map) {
     final type = map['type'] as String;
     final common = NotificationCommon.fromMap(map);
+    final category = _category(type);
+    if (!common.actor.available || map['contentAvailable'] == false) {
+      return UnavailableNotification(common, originalType: category);
+    }
     return switch (type) {
       'follow' => FollowNotification(common),
       'like' => LikeNotification(
@@ -56,14 +70,31 @@ sealed class CraftskyNotification {
           map['subjectPost'] as Map<String, dynamic>,
         ),
       ),
-      _ => throw FormatException('unknown notification type: $type'),
+      'quote' => QuoteNotification(
+        common,
+        subjectPost: PostMapper.fromMap(
+          map['subjectPost'] as Map<String, dynamic>,
+        ),
+      ),
+      'everythingElse' => GenericNotification(
+        common,
+        originalType: NotificationCategory.everythingElse,
+      ),
+      _ => GenericNotification(
+        common,
+        originalType: NotificationCategory.unknown,
+      ),
     };
   }
+
+  static NotificationCategory _category(String value) =>
+      NotificationCategory.fromWireValue(value);
 }
 
 final class FollowNotification extends CraftskyNotification {
   FollowNotification(NotificationCommon common)
     : super(
+        id: common.id,
         uri: common.uri,
         cid: common.cid,
         rkey: common.rkey,
@@ -73,7 +104,7 @@ final class FollowNotification extends CraftskyNotification {
       );
 
   @override
-  CraftskyNotificationType get type => CraftskyNotificationType.follow;
+  NotificationCategory get type => NotificationCategory.follow;
 }
 
 sealed class SubjectPostNotification extends CraftskyNotification {
@@ -82,6 +113,7 @@ sealed class SubjectPostNotification extends CraftskyNotification {
     required this.subjectPost,
   }) : super(
          uri: common.uri,
+         id: common.id,
          cid: common.cid,
          rkey: common.rkey,
          actor: common.actor,
@@ -96,14 +128,14 @@ final class LikeNotification extends SubjectPostNotification {
   LikeNotification(super.common, {required super.subjectPost});
 
   @override
-  CraftskyNotificationType get type => CraftskyNotificationType.like;
+  NotificationCategory get type => NotificationCategory.like;
 }
 
 final class RepostNotification extends SubjectPostNotification {
   RepostNotification(super.common, {required super.subjectPost});
 
   @override
-  CraftskyNotificationType get type => CraftskyNotificationType.repost;
+  NotificationCategory get type => NotificationCategory.repost;
 }
 
 final class ReplyNotification extends SubjectPostNotification {
@@ -112,65 +144,124 @@ final class ReplyNotification extends SubjectPostNotification {
   final NotificationReplyRef? reply;
 
   @override
-  CraftskyNotificationType get type => CraftskyNotificationType.reply;
+  NotificationCategory get type => NotificationCategory.reply;
 }
 
 final class MentionNotification extends SubjectPostNotification {
   MentionNotification(super.common, {required super.subjectPost});
 
   @override
-  CraftskyNotificationType get type => CraftskyNotificationType.mention;
+  NotificationCategory get type => NotificationCategory.mention;
 }
 
-final class NotificationActor {
-  NotificationActor({
-    required String did,
-    required String handle,
+final class QuoteNotification extends SubjectPostNotification {
+  QuoteNotification(super.common, {required super.subjectPost});
+
+  @override
+  NotificationCategory get type => NotificationCategory.quote;
+}
+
+final class GenericNotification extends CraftskyNotification {
+  GenericNotification(
+    NotificationCommon common, {
+    required this.originalType,
+  }) : super(
+         id: common.id,
+         uri: common.uri,
+         cid: common.cid,
+         rkey: common.rkey,
+         actor: common.actor,
+         createdAt: common.createdAt,
+         indexedAt: common.indexedAt,
+       );
+
+  final NotificationCategory originalType;
+
+  @override
+  NotificationCategory get type => originalType;
+}
+
+final class UnavailableNotification extends CraftskyNotification {
+  UnavailableNotification(
+    NotificationCommon common, {
+    required this.originalType,
+  }) : super(
+         id: common.id,
+         uri: common.uri,
+         cid: common.cid,
+         rkey: common.rkey,
+         actor: common.actor,
+         createdAt: common.createdAt,
+         indexedAt: common.indexedAt,
+       );
+
+  final NotificationCategory originalType;
+
+  @override
+  NotificationCategory get type => originalType;
+}
+
+@MappableClass(
+  generateMethods: _notificationValueMethods,
+  includeCustomMappers: [DidMapper(), HandleMapper(), CidMapper()],
+)
+final class NotificationActor with NotificationActorMappable {
+  const NotificationActor({
+    required this.did,
+    required this.handle,
     this.displayName,
-    String? avatarCid,
-  }) : did = Did.parse(did),
-       handle = Handle.parse(handle),
-       avatarCid = avatarCid == null ? null : Cid.parse(avatarCid);
+    this.avatarCid,
+    this.available = true,
+  });
 
   factory NotificationActor.fromMap(Map<String, dynamic> map) =>
-      NotificationActor(
-        did: map['did'] as String,
-        handle: map['handle'] as String,
-        displayName: map['displayName'] as String?,
-        avatarCid: map['avatarCid'] as String?,
-      );
+      NotificationActorMapper.fromMap({
+        ...map,
+        'did': (map['did'] as String?)?.isNotEmpty == true
+            ? map['did']
+            : 'did:plc:unavailable',
+        'handle': (map['handle'] as String?)?.isNotEmpty == true
+            ? map['handle']
+            : 'unavailable.invalid',
+        'available': map['available'] as bool? ?? true,
+      });
 
   final Did did;
   final Handle handle;
   final String? displayName;
   final Cid? avatarCid;
+  final bool available;
 
-  String get displayLabel => displayName ?? handle.toString();
+  String get displayLabel =>
+      available ? displayName ?? handle.toString() : 'Unavailable account';
 }
 
-final class NotificationReplyRef {
-  NotificationReplyRef({
-    required String uri,
-    required String cid,
-    required String rkey,
-  }) : uri = AtUri.parse(uri),
-       cid = Cid.parse(cid),
-       rkey = RecordKey.parse(rkey);
+@MappableClass(
+  generateMethods: _notificationValueMethods,
+  includeCustomMappers: [AtUriMapper(), CidMapper(), RecordKeyMapper()],
+)
+final class NotificationReplyRef with NotificationReplyRefMappable {
+  const NotificationReplyRef({
+    required this.uri,
+    required this.cid,
+    required this.rkey,
+  });
 
   factory NotificationReplyRef.fromMap(Map<String, dynamic> map) =>
-      NotificationReplyRef(
-        uri: map['uri'] as String,
-        cid: map['cid'] as String,
-        rkey: map['rkey'] as String,
-      );
+      NotificationReplyRefMapper.fromMap(map);
 
   final AtUri uri;
   final Cid cid;
   final RecordKey rkey;
 }
 
-final class NotificationCommon {
-  NotificationCommon({
+@MappableClass(
+  generateMethods: _notificationValueMethods,
+  includeCustomMappers: [AtUriMapper(), CidMapper(), RecordKeyMapper()],
+)
+final class NotificationCommon with NotificationCommonMappable {
+  const NotificationCommon({
+    required this.id,
     required this.uri,
     required this.cid,
     required this.rkey,
@@ -179,17 +270,25 @@ final class NotificationCommon {
     required this.indexedAt,
   });
 
-  factory NotificationCommon.fromMap(Map<String, dynamic> map) =>
-      NotificationCommon(
-        uri: AtUri.parse(map['uri'] as String),
-        cid: Cid.parse(map['cid'] as String),
-        rkey: RecordKey.parse(map['rkey'] as String),
-        actor: NotificationActor.fromMap(map['actor'] as Map<String, dynamic>),
-        createdAt: DateTime.parse(map['createdAt'] as String),
-        indexedAt: DateTime.parse(map['indexedAt'] as String),
-      );
+  factory NotificationCommon.fromMap(Map<String, dynamic> map) {
+    final uri =
+        map['uri'] as String? ??
+        'at://did:plc:unavailable/social.craftsky.notification/unavailable';
+    final actor = NotificationActor.fromMap(
+      map['actor'] as Map<String, dynamic>,
+    );
+    return NotificationCommonMapper.fromMap({
+      ...map,
+      'id': map['id'] as String? ?? uri,
+      'uri': uri,
+      'cid': map['cid'] as String? ?? 'unavailable',
+      'rkey': map['rkey'] as String? ?? 'unavailable',
+      'actor': actor.toMap(),
+    });
+  }
 
   final AtUri uri;
+  final String id;
   final Cid cid;
   final RecordKey rkey;
   final NotificationActor actor;

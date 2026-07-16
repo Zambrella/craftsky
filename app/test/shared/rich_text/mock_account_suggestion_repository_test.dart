@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('MockAccountSuggestionRepository', () {
     test(
-      'UT-012 filters non-Craftsky accounts and sorts followed first',
+      'UT-012 filters non-CraftSky accounts and sorts followed first',
       () async {
         final repository = MockAccountSuggestionRepository(
           accounts: const [

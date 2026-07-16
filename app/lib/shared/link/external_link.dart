@@ -14,7 +14,7 @@ typedef ExternalLinkConfirmer =
       Uri uri,
     );
 
-/// Parses user-provided link text into an HTTP(S) URI Craftsky can open.
+/// Parses user-provided link text into an HTTP(S) URI CraftSky can open.
 Uri? normalizeExternalLinkUri(String? value) {
   final trimmed = value?.trim();
   if (trimmed == null || trimmed.isEmpty) return null;
@@ -50,7 +50,7 @@ Future<bool> launchExternalLink(Uri uri) {
   );
 }
 
-/// Shows the standard Craftsky external-link confirmation dialog.
+/// Shows the standard CraftSky external-link confirmation dialog.
 Future<bool> showOpenLinkDialog(BuildContext context, Uri uri) async {
   final theme = Theme.of(context);
   final spacing = theme.extension<SpacingTheme>()!;
@@ -67,7 +67,7 @@ Future<bool> showOpenLinkDialog(BuildContext context, Uri uri) async {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('This will open outside Craftsky.'),
+          const Text('This will open outside CraftSky.'),
           SizedBox(height: spacing.sp3),
           SelectableText(
             uri.toString(),

@@ -8,6 +8,7 @@ import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/handoff_api_client_provider.dart';
 import 'package:craftsky_app/auth/providers/pending_auth_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/notifications/providers/notification_lifecycle_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
@@ -125,10 +126,18 @@ class AuthController extends _$AuthController {
   Future<void> signOut() async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
+      final auth = ref.read(authSessionProvider).value;
+      var confirmedLogout = false;
       try {
         await ref.read(authApiClientProvider).logout();
+        confirmedLogout = true;
       } on ApiException catch (e, st) {
         _log.warning('logout network/server error; clearing locally', e, st);
+      }
+      if (auth case SignedIn(:final did)) {
+        await ref
+            .read(notificationSignOutCleanupProvider)
+            .run(did: did.toString(), confirmedLogout: confirmedLogout);
       }
       if (!ref.mounted) return;
       await ref.read(secureTokenStorageProvider).clear();

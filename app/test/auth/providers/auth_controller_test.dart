@@ -11,6 +11,8 @@ import 'package:craftsky_app/auth/providers/handoff_api_client_provider.dart';
 import 'package:craftsky_app/auth/providers/pending_auth_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/bootstrap.dart';
+import 'package:craftsky_app/notifications/providers/notification_lifecycle_provider.dart';
+import 'package:craftsky_app/notifications/services/notification_sign_out_cleanup.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
@@ -21,13 +23,19 @@ import 'package:flutter_test/flutter_test.dart';
 // --- Fakes (services, not notifiers — per riverpod.md Testing rules) ---
 
 class _FakeStorage implements SecureTokenStorage {
+  _FakeStorage({this.onClear});
+
+  final void Function()? onClear;
   StoredSession? _v;
   @override
   Future<StoredSession?> read() async => _v;
   @override
   Future<void> write(StoredSession s) async => _v = s;
   @override
-  Future<void> clear() async => _v = null;
+  Future<void> clear() async {
+    onClear?.call();
+    _v = null;
+  }
 }
 
 class _FakeAuthApi implements AuthApiClient {
@@ -79,6 +87,7 @@ ProviderContainer _container({
   _FakeAuthApi? api,
   _FakeHandoffApi? handoff,
   _LaunchRecorder? launch,
+  NotificationSignOutCleanup? notificationCleanup,
 }) {
   storage ??= _FakeStorage();
   api ??= _FakeAuthApi();
@@ -100,6 +109,10 @@ ProviderContainer _container({
       // Stub deviceIdProvider so completeFromDeepLink doesn't touch
       // the real FlutterSecureStorage (unavailable in unit tests).
       deviceIdProvider.overrideWith((ref) async => 'test-device-id'),
+      if (notificationCleanup != null)
+        notificationSignOutCleanupProvider.overrideWithValue(
+          notificationCleanup,
+        ),
     ],
   );
 }
@@ -276,23 +289,68 @@ void main() {
   );
 
   test(
-    'signOut clears storage + flips SignedOut even on server failure',
+    'IT-011 confirmed signOut removes binding before local session only',
     () async {
-      final storage = _FakeStorage();
+      final events = <String>[];
+      final storage = _FakeStorage(onClear: () => events.add('storage-clear'));
       await storage.write(
         StoredSession(token: 't', did: 'did:plc:test', handle: 'h.test'),
+      );
+      final cleanup = NotificationSignOutCleanup(
+        deleteProviderToken: () async => events.add('token-delete'),
+        removeRoutingBinding: (did) async => events.add('binding:$did'),
+      );
+      final container = _container(
+        storage: storage,
+        api: _FakeAuthApi(onLogout: () async => events.add('server-logout')),
+        notificationCleanup: cleanup,
+      );
+
+      await container.read(authSessionProvider.future);
+      await container.read(authControllerProvider.notifier).signOut();
+
+      expect(events, [
+        'server-logout',
+        'binding:did:plc:test',
+        'storage-clear',
+      ]);
+      expect(container.read(authSessionProvider).value, isA<SignedOut>());
+    },
+  );
+
+  test(
+    'IT-011 failed signOut deletes token and binding before local session',
+    () async {
+      final events = <String>[];
+      final storage = _FakeStorage(onClear: () => events.add('storage-clear'));
+      await storage.write(
+        StoredSession(token: 't', did: 'did:plc:test', handle: 'h.test'),
+      );
+      final cleanup = NotificationSignOutCleanup(
+        deleteProviderToken: () async => events.add('token-delete'),
+        removeRoutingBinding: (did) async => events.add('binding:$did'),
       );
       final container = _container(
         storage: storage,
         api: _FakeAuthApi(
-          onLogout: () async => throw const ApiNetworkError('offline'),
+          onLogout: () async {
+            events.add('server-logout');
+            throw const ApiNetworkError('offline');
+          },
         ),
+        notificationCleanup: cleanup,
       );
 
       await container.read(authSessionProvider.future);
       await container.read(authControllerProvider.notifier).signOut();
 
       expect(await storage.read(), isNull);
+      expect(events, [
+        'server-logout',
+        'token-delete',
+        'binding:did:plc:test',
+        'storage-clear',
+      ]);
       expect(container.read(authSessionProvider).value, isA<SignedOut>());
     },
   );

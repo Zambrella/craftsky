@@ -26,7 +26,7 @@ const List<CraftskySelectOption<String>> _colourOptions = [
   CraftskySelectOption(value: 'pink', label: 'Pink'),
 ];
 
-@Preview(name: 'Single select', group: 'Craftsky inputs', size: Size(420, 360))
+@Preview(name: 'Single select', group: 'CraftSky inputs', size: Size(420, 360))
 Widget craftskySingleSelectPreview() {
   return const _SelectPreviewFrame(
     child: CraftskySingleSelectInput<String>(
@@ -40,7 +40,7 @@ Widget craftskySingleSelectPreview() {
 
 @Preview(
   name: 'Single select with search',
-  group: 'Craftsky inputs',
+  group: 'CraftSky inputs',
   size: Size(420, 460),
 )
 Widget craftskySingleSelectSearchPreview() {
@@ -55,7 +55,7 @@ Widget craftskySingleSelectSearchPreview() {
   );
 }
 
-@Preview(name: 'Multi select', group: 'Craftsky inputs', size: Size(420, 520))
+@Preview(name: 'Multi select', group: 'CraftSky inputs', size: Size(420, 520))
 Widget craftskyMultiSelectPreview() {
   return const _SelectPreviewFrame(
     child: CraftskySearchableMultiSelectInput<String>(
@@ -68,7 +68,7 @@ Widget craftskyMultiSelectPreview() {
   );
 }
 
-@Preview(name: 'Token input', group: 'Craftsky inputs', size: Size(420, 420))
+@Preview(name: 'Token input', group: 'CraftSky inputs', size: Size(420, 420))
 Widget craftskyTokenInputPreview() {
   return const _SelectPreviewFrame(
     child: CraftskyTokenInput(

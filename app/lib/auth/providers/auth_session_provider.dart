@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/auth/providers/auth_api_client_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/notifications/providers/notification_lifecycle_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -39,7 +40,7 @@ class AuthSession extends _$AuthSession {
       if (!ref.mounted) return;
 
       if (who.did != stored.did) {
-        await _clearLocalState();
+        await _clearLocalState(did: stored.did);
         return;
       }
       if (who.handle != stored.handle) {
@@ -56,13 +57,18 @@ class AuthSession extends _$AuthSession {
       }
       // else: handles match; nothing to do.
     } on ApiUnauthorized {
-      await _clearLocalState();
+      await _clearLocalState(did: stored.did);
     } on ApiNetworkError {
       // Offline; keep cached SignedIn. Next cold start revalidates.
     }
   }
 
-  Future<void> _clearLocalState() async {
+  Future<void> _clearLocalState({String? did}) async {
+    if (did != null) {
+      await ref
+          .read(notificationSignOutCleanupProvider)
+          .run(did: did, confirmedLogout: false);
+    }
     await ref.read(secureTokenStorageProvider).clear();
     if (!ref.mounted) return;
     state = const AsyncData(SignedOut());

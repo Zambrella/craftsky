@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
+import 'package:craftsky_app/notifications/providers/notification_seen_provider.dart';
 import 'package:craftsky_app/notifications/providers/notifications_provider.dart';
 import 'package:craftsky_app/notifications/widgets/notification_row.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,13 +20,25 @@ class NotificationsPage extends ConsumerWidget {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          SliverAppBar(title: Text(l10n.notificationsTitle), pinned: true),
+          SliverAppBar(
+            title: Text(l10n.notificationsTitle),
+            pinned: true,
+            actions: [
+              IconButton(
+                tooltip: l10n.notificationSettingsAction,
+                onPressed: () =>
+                    const NotificationSettingsRoute().push<void>(context),
+                icon: const Icon(Icons.settings_outlined),
+              ),
+            ],
+          ),
           switch (notifications) {
             AsyncValue(:final value?) => _NotificationsLoadedSlivers(
               items: value.items,
               hasMore: value.hasMore,
               isLoadingMore: notifications.isLoading,
               hasLoadMoreError: notifications.hasError,
+              renderToken: value.renderToken,
             ),
             _ when notifications.hasError => _NotificationsErrorSliver(
               onRetry: () => ref.invalidate(notificationsProvider),
@@ -44,15 +60,22 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
     required this.hasMore,
     required this.isLoadingMore,
     required this.hasLoadMoreError,
+    required this.renderToken,
   });
 
   final List<CraftskyNotification> items;
   final bool hasMore;
   final bool isLoadingMore;
   final bool hasLoadMoreError;
+  final int renderToken;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(
+        ref.read(notificationSeenProvider).afterSuccessfulRender(renderToken),
+      );
+    });
     final l10n = AppLocalizations.of(context);
     if (items.isEmpty) {
       return SliverFillRemaining(

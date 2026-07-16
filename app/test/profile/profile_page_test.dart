@@ -123,7 +123,7 @@ void main() {
       expect(find.text('0'), findsOneWidget);
       expect(find.text('projects'), findsOneWidget);
       expect(find.text('12 mutual followers'), findsOneWidget);
-      expect(find.text('Non Craftsky profile'), findsNothing);
+      expect(find.text('Non CraftSky profile'), findsNothing);
     });
 
     testWidgets('warned profile shows generic warning copy', (tester) async {
@@ -154,7 +154,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.text('This profile may not follow Craftsky community guidelines.'),
+        find.text('This profile may not follow CraftSky community guidelines.'),
         findsOneWidget,
       );
       expect(find.textContaining('raw unsafe reason fixture'), findsNothing);
@@ -413,7 +413,7 @@ void main() {
       expect(find.text('Follow'), findsNothing);
     });
 
-    testWidgets('non-Craftsky profile shows marker and unknown counts', (
+    testWidgets('non-CraftSky profile shows marker and unknown counts', (
       tester,
     ) async {
       final profile = Profile(
@@ -442,7 +442,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Non Craftsky profile'), findsOneWidget);
+      expect(find.text('Non CraftSky profile'), findsOneWidget);
       expect(find.text('342'), findsNothing);
       expect(find.text('1200'), findsNothing);
       expect(find.textContaining('Joined'), findsNothing);

@@ -91,6 +91,7 @@ void main() {
 
 FollowNotification _follow(String rkey) =>
     CraftskyNotification.fromMap({
+          'id': 'notification-$rkey',
           'uri': 'at://did:plc:alice/app.bsky.graph.follow/$rkey',
           'cid': 'bafy$rkey',
           'rkey': rkey,

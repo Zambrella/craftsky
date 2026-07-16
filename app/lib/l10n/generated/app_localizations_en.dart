@@ -9,7 +9,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appTitle => 'Craftsky';
+  String get appTitle => 'CraftSky';
 
   @override
   String get homeSubtitle => 'Scaffold ready';
@@ -57,6 +57,86 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String notificationMentionRow(String actor) {
     return '$actor mentioned you';
+  }
+
+  @override
+  String notificationQuoteRow(String actor) {
+    return '$actor quoted your post';
+  }
+
+  @override
+  String get notificationGenericRow => 'New activity';
+
+  @override
+  String get notificationUnavailableRow => 'Activity unavailable';
+
+  @override
+  String get notificationSettingsAction => 'Notification settings';
+
+  @override
+  String get notificationSettingsIntro =>
+      'Category preferences apply to all devices signed in to this account.';
+
+  @override
+  String get notificationDeviceDisabled =>
+      'Notifications are disabled on this device';
+
+  @override
+  String get notificationDeviceDisabledDescription =>
+      'Account preferences still apply. Enable alerts in system settings.';
+
+  @override
+  String get notificationOpenSettings => 'Open settings';
+
+  @override
+  String get notificationCategoryLikes => 'Likes';
+
+  @override
+  String get notificationCategoryFollows => 'Follows';
+
+  @override
+  String get notificationCategoryReplies => 'Replies';
+
+  @override
+  String get notificationCategoryMentions => 'Mentions';
+
+  @override
+  String get notificationCategoryQuotes => 'Quotes';
+
+  @override
+  String get notificationCategoryReposts => 'Reposts';
+
+  @override
+  String get notificationCategoryEverythingElse => 'Everything else';
+
+  @override
+  String get notificationPreferenceFrom => 'From';
+
+  @override
+  String get notificationScopeEveryone => 'Everyone';
+
+  @override
+  String get notificationScopePeopleIFollow => 'People I follow';
+
+  @override
+  String get notificationPushEnabled => 'Push notifications';
+
+  @override
+  String get notificationPreferenceSaveError =>
+      'Could not save notification preference';
+
+  @override
+  String get notificationBannerOpen => 'Open';
+
+  @override
+  String notificationNewActivityCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count new activities',
+      one: '1 new activity',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -152,7 +232,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get errorServiceUnavailable =>
-      'Craftsky is having trouble right now. Please try again.';
+      'CraftSky is having trouble right now. Please try again.';
 
   @override
   String get errorSessionExpired => 'Please sign in again.';
@@ -165,11 +245,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get errorStorageUnavailable =>
-      'Craftsky couldn\'t access secure storage. Please try again.';
+      'CraftSky couldn\'t access secure storage. Please try again.';
 
   @override
   String get errorInitializationFailed =>
-      'Craftsky couldn\'t finish starting. Please try again.';
+      'CraftSky couldn\'t finish starting. Please try again.';
 
   @override
   String get errorNavigationFailed => 'That page couldn\'t be opened.';
@@ -203,7 +283,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileFollowingAction => 'Unfollow';
 
   @override
-  String get profileNonCraftskyMarker => 'Non Craftsky profile';
+  String get profileNonCraftskyMarker => 'Non CraftSky profile';
 
   @override
   String get profileTabPosts => 'Posts';
@@ -789,13 +869,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get replyDeleteTitle => 'Delete reply?';
 
   @override
-  String get postDeleteMessage => 'This removes the post from Craftsky.';
+  String get postDeleteMessage => 'This removes the post from CraftSky.';
 
   @override
-  String get commentDeleteMessage => 'This removes the comment from Craftsky.';
+  String get commentDeleteMessage => 'This removes the comment from CraftSky.';
 
   @override
-  String get replyDeleteMessage => 'This removes the reply from Craftsky.';
+  String get replyDeleteMessage => 'This removes the reply from CraftSky.';
 
   @override
   String get postDeleteConfirm => 'Delete';
@@ -820,15 +900,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get moderationWarningPost =>
-      'This post may not follow Craftsky community guidelines.';
+      'This post may not follow CraftSky community guidelines.';
 
   @override
   String get moderationWarningProfile =>
-      'This profile may not follow Craftsky community guidelines.';
+      'This profile may not follow CraftSky community guidelines.';
 
   @override
   String get moderationWarningAuthor =>
-      'This author may not follow Craftsky community guidelines.';
+      'This author may not follow CraftSky community guidelines.';
 
   @override
   String get reportSubmit => 'Submit';

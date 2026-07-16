@@ -7,7 +7,7 @@ import 'package:dart_mappable/dart_mappable.dart';
 
 part 'facet_suggestion_repository.mapper.dart';
 
-/// Repository for local/mock Craftsky account suggestions.
+/// Repository for local/mock CraftSky account suggestions.
 abstract interface class AccountSuggestionRepository
     implements MentionResolver {
   /// Searches account suggestions for [query].
@@ -45,7 +45,7 @@ class AccountSuggestion with AccountSuggestionMappable {
   /// Avatar URL shown in suggestions.
   final String? avatar;
 
-  /// Whether the account belongs to Craftsky for this Flutter-only slice.
+  /// Whether the account belongs to CraftSky for this Flutter-only slice.
   final bool isCraftskyProfile;
 
   /// Whether the current viewer follows this account.

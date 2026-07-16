@@ -3,7 +3,7 @@ import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 
-@Preview(name: 'Text inputs', group: 'Craftsky inputs', size: Size(420, 520))
+@Preview(name: 'Text inputs', group: 'CraftSky inputs', size: Size(420, 520))
 Widget craftskyTextInputsPreview() {
   return const _InputPreviewFrame(
     child: Column(
@@ -33,7 +33,7 @@ Widget craftskyTextInputsPreview() {
 
 @Preview(
   name: 'Multiline input',
-  group: 'Craftsky inputs',
+  group: 'CraftSky inputs',
   size: Size(420, 420),
 )
 Widget craftskyMultilineInputPreview() {
@@ -50,7 +50,7 @@ Widget craftskyMultilineInputPreview() {
   );
 }
 
-@Preview(name: 'Number inputs', group: 'Craftsky inputs', size: Size(420, 420))
+@Preview(name: 'Number inputs', group: 'CraftSky inputs', size: Size(420, 420))
 Widget craftskyNumberInputsPreview() {
   return const _InputPreviewFrame(
     child: Column(
@@ -83,7 +83,7 @@ Widget craftskyNumberInputsPreview() {
 
 @Preview(
   name: 'Text inputs large type',
-  group: 'Craftsky inputs',
+  group: 'CraftSky inputs',
   size: Size(360, 560),
   textScaleFactor: 1.4,
 )

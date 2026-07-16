@@ -9,6 +9,7 @@ import 'package:craftsky_app/design_playground/pages/design_playground_page.dart
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
+import 'package:craftsky_app/notifications/pages/notification_settings_page.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
@@ -164,6 +165,12 @@ GoRouter goRouter(Ref ref) {
         TypedGoRoute<NotificationsRoute>(
           path: RouteLocations.notifications,
           name: 'notifications',
+          routes: [
+            TypedGoRoute<NotificationSettingsRoute>(
+              path: RouteLocations.notificationSettingsChild,
+              name: 'notification-settings',
+            ),
+          ],
         ),
       ],
     ),
@@ -273,6 +280,18 @@ class NotificationsRoute extends GoRouteData with $NotificationsRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const NotificationsPage();
+}
+
+class NotificationSettingsRoute extends GoRouteData
+    with $NotificationSettingsRoute {
+  const NotificationSettingsRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const NotificationSettingsPage();
 }
 
 class ProfileRoute extends GoRouteData with $ProfileRoute {

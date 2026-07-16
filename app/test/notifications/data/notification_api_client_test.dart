@@ -24,4 +24,27 @@ void main() {
     expect(page.items, isEmpty);
     expect(page.cursor, isNull);
   });
+
+  test('IT-005 posts seen without a request body', () async {
+    final dio = buildDio();
+    RequestOptions? captured;
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          captured = options;
+          handler.next(options);
+        },
+      ),
+    );
+    DioAdapter(dio: dio).onPost(
+      '/v1/notifications/seen',
+      (server) => server.reply(204, null),
+    );
+
+    await NotificationApiClient(dio).markSeen();
+
+    expect(captured?.method, 'POST');
+    expect(captured?.path, '/v1/notifications/seen');
+    expect(captured?.data, isNull);
+  });
 }

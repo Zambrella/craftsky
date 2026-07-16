@@ -1,3 +1,6 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/notifications/models/notification_badge.dart';
+import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
@@ -53,17 +56,37 @@ class AppShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final formFactor = FormFactorWidget.of(context);
+    final notificationBadge = NotificationBadge.fromCount(
+      ref.watch(notificationNewCountProvider).value ?? 0,
+    );
 
     if (formFactor.isLarge) {
+      final textDirection = Directionality.of(context);
       return Scaffold(
         body: Row(
+          // Put the nested branch navigator first in semantics order so its
+          // route boundary does not suppress the rail. Reverse only the Row's
+          // layout direction to keep the rail on the leading edge.
+          textDirection: switch (textDirection) {
+            TextDirection.ltr => TextDirection.rtl,
+            TextDirection.rtl => TextDirection.ltr,
+          },
           children: [
-            _ShellNavigationRail(
-              selectedIndex: navigationShell.currentIndex,
-              onDestinationSelected: _goBranch,
+            Expanded(
+              child: Directionality(
+                textDirection: textDirection,
+                child: navigationShell,
+              ),
             ),
             const CraftskyDivider(axis: Axis.vertical),
-            Expanded(child: navigationShell),
+            Directionality(
+              textDirection: textDirection,
+              child: _ShellNavigationRail(
+                selectedIndex: navigationShell.currentIndex,
+                onDestinationSelected: _goBranch,
+                notificationBadge: notificationBadge,
+              ),
+            ),
           ],
         ),
       );
@@ -74,6 +97,7 @@ class AppShell extends ConsumerWidget {
       bottomNavigationBar: _ShellNavigationBar(
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: _goBranch,
+        notificationBadge: notificationBadge,
       ),
     );
   }
@@ -90,10 +114,12 @@ class _ShellNavigationBar extends StatelessWidget {
   const _ShellNavigationBar({
     required this.selectedIndex,
     required this.onDestinationSelected,
+    required this.notificationBadge,
   });
 
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
+  final NotificationBadge notificationBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -110,11 +136,22 @@ class _ShellNavigationBar extends StatelessWidget {
           labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
           onDestinationSelected: onDestinationSelected,
           destinations: [
-            for (final d in _destinations)
+            for (final (index, d) in _destinations.indexed)
               NavigationDestination(
-                icon: Icon(d.icon),
-                selectedIcon: Icon(d.selectedIcon),
-                label: d.label,
+                icon: _DestinationIcon(
+                  icon: d.icon,
+                  badge: index == 3 ? notificationBadge : null,
+                ),
+                selectedIcon: _DestinationIcon(
+                  icon: d.selectedIcon,
+                  badge: index == 3 ? notificationBadge : null,
+                ),
+                label: _destinationSemanticsLabel(
+                  context,
+                  index: index,
+                  destination: d,
+                  notificationBadge: notificationBadge,
+                ),
               ),
           ],
         ),
@@ -127,10 +164,12 @@ class _ShellNavigationRail extends StatelessWidget {
   const _ShellNavigationRail({
     required this.selectedIndex,
     required this.onDestinationSelected,
+    required this.notificationBadge,
   });
 
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
+  final NotificationBadge notificationBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -139,13 +178,56 @@ class _ShellNavigationRail extends StatelessWidget {
       onDestinationSelected: onDestinationSelected,
       labelType: NavigationRailLabelType.all,
       destinations: [
-        for (final d in _destinations)
+        for (final (index, d) in _destinations.indexed)
           NavigationRailDestination(
-            icon: Icon(d.icon),
-            selectedIcon: Icon(d.selectedIcon),
-            label: Text(d.label),
+            icon: _DestinationIcon(
+              icon: d.icon,
+              badge: index == 3 ? notificationBadge : null,
+            ),
+            selectedIcon: _DestinationIcon(
+              icon: d.selectedIcon,
+              badge: index == 3 ? notificationBadge : null,
+            ),
+            label: Semantics(
+              label: _destinationSemanticsLabel(
+                context,
+                index: index,
+                destination: d,
+                notificationBadge: notificationBadge,
+              ),
+              excludeSemantics: true,
+              child: Text(d.label),
+            ),
           ),
       ],
     );
+  }
+}
+
+String _destinationSemanticsLabel(
+  BuildContext context, {
+  required int index,
+  required _DestinationSpec destination,
+  required NotificationBadge notificationBadge,
+}) {
+  if (index != 3 || !notificationBadge.visible) return destination.label;
+  final countLabel = AppLocalizations.of(
+    context,
+  ).notificationNewActivityCount(notificationBadge.count);
+  return '${destination.label}, $countLabel';
+}
+
+class _DestinationIcon extends StatelessWidget {
+  const _DestinationIcon({required this.icon, this.badge});
+
+  final IconData icon;
+  final NotificationBadge? badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = badge;
+    final child = Icon(icon);
+    if (value == null || !value.visible) return child;
+    return Badge(label: Text(value.label), child: child);
   }
 }

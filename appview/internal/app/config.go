@@ -294,8 +294,8 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if cfg.Env == EnvProd && cfg.OAuthHostname != "" && cfg.OAuthClientSecretKey == "" {
 		return Config{}, fmt.Errorf("OAUTH_CLIENT_SECRET_KEY is required in prod when OAUTH_HOSTNAME is set")
 	}
-	if cfg.Env == EnvProd && cfg.PushEnabled && cfg.FirebaseProjectID == "" {
-		return Config{}, fmt.Errorf("FIREBASE_PROJECT_ID is required in prod when PUSH_ENABLED=true")
+	if cfg.PushEnabled && cfg.FirebaseProjectID == "" {
+		return Config{}, fmt.Errorf("FIREBASE_PROJECT_ID is required when PUSH_ENABLED=true")
 	}
 
 	return cfg, nil

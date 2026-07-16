@@ -1,5 +1,5 @@
 name: craftsky_app
-description: "Craftsky — crafting-focused social platform on AT Protocol."
+description: "CraftSky — crafting-focused social platform on AT Protocol."
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -9,6 +9,7 @@ environment:
 
 dependencies:
   animated_list_plus: ^0.5.2
+  app_settings: ^7.0.0
   at_primitives: ^1.0.0
   cached_network_image: ^3.4.1
   cupertino_icons: ^1.0.8
@@ -16,6 +17,8 @@ dependencies:
   device_info_plus: ^13.1.0
   dio: ^5.7.0
   dynamic_color: ^1.8.1
+  firebase_core: ^4.12.1
+  firebase_messaging: ^16.4.3
   flex_color_scheme: ^8.4.0
   flutter:
     sdk: flutter
