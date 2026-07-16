@@ -61,7 +61,9 @@ Paths below are implementation targets. Generated `.g.dart` and localization fil
 |---|---|---|---|---|
 | `app/pubspec.yaml`, `app/pubspec.lock` | Change | Add `firebase_core`, `firebase_messaging`, and a small native app-settings launcher dependency; do not add a local-notification package | FR-001, FR-002, FR-018 | AT-001, AT-008, REG-001, MAN-004 |
 | `app/lib/firebase_options.dart` | Generate | Checked-in non-secret FlutterFire options for Android/iOS in `craftsky-app` | FR-001 | AT-001, REG-006 |
-| `app/lib/notifications/models/notification_open_event.dart` | Create | Redacted value types and allowlisted provider-data parser; bounded unknown `type` becomes generic | FR-008, FR-009, NFR-001, RULE-003 | UT-002, UT-003, AT-004, AT-005 |
+| `app/lib/notifications/models/notification_id.dart` | Create | Validated UUID notification identifier with redacted string output and API-only wire access | FR-008, FR-009, NFR-001, RULE-003 | UT-002, AT-004, AT-005 |
+| `app/lib/notifications/models/account_subscription_id.dart` | Create | Validated bounded routing identifier with redacted string output and secure-routing wire access | FR-008, FR-009, NFR-001, RULE-003 | UT-003, AT-004, AT-005 |
+| `app/lib/notifications/models/notification_open_event.dart` | Create | Allowlisted provider-data parser and open-source/category composition; bounded unknown `type` becomes generic | FR-008, FR-009, NFR-001, RULE-003 | UT-002, UT-003, AT-004, AT-005 |
 | `app/lib/notifications/models/notification_delivery_event.dart` | Create | Provider-neutral foreground receipt plus initial/background/foreground open source enum and bounded visible copy | FR-002, FR-007, FR-008 | AT-003, AT-004, UT-018 |
 | `app/lib/notifications/models/notification_permission.dart` | Create | `notDetermined` / `authorized` / `denied` domain status and pure permission action policy | FR-003, FR-006, FR-018, FR-023 | UT-001, UT-016, AT-002 |
 | `app/lib/notifications/models/notification_resolution.dart` | Create | Decode AppView resolution and represent post/profile/Notifications navigation intents without provider destinations | FR-010, RULE-003 | UT-004, IT-004 |
@@ -157,7 +159,7 @@ NotificationPreferencesRepository.load() -> NotificationPreferences
 NotificationPreferencesRepository.patch(NotificationPreferencePatch) -> NotificationPreferences
 ```
 
-`NotificationApiClient` is the only HTTP implementation and uses the existing session Dio, bearer token, device-ID header, camelCase bodies, and standard error mapping. Requests are exact:
+`ApiNotificationRepository` is the only HTTP implementation and uses the existing session Dio, bearer token, device-ID header, camelCase bodies, and standard error mapping. Requests are exact:
 
 ```text
 POST  /v1/notifications/devices
@@ -278,25 +280,24 @@ The Firebase sender adds only the APNs default sound request under `APNS.Payload
 
 ## 6. State, Providers, Controllers, Or DI
 
-Use manual always-alive `Provider`/`AsyncNotifierProvider` declarations in the existing notification feature style unless code generation materially simplifies a family. The coordinator provider must not rebuild when readiness changes: it creates one owner, uses `ref.listen` to forward readiness, and disposes the owner only with the container.
+Every notification provider uses `riverpod_annotation` code generation and a colocated generated part. `@Riverpod(keepAlive: true)` preserves the original always-alive ownership semantics, generated function providers preserve repository/service override seams, and generated notifier providers own new-count, pagination, and preference state. The provider-neutral effect stream uses `Raw<Stream<NotificationEffect>>` so generation retains the synchronous stream API rather than wrapping it in `AsyncValue`. Disposable controllers and the notification runtime register cleanup with `ref.onDispose`.
 
 ```text
 bootstrapFirebaseNotificationService()
   -> notificationServiceProvider override
 
 authSessionProvider + onboardingStatusProvider(current DID)
-  -> notificationReadinessProvider
-  -> ref.listen inside notificationCoordinatorProvider (always alive)
+  -> NotificationEffectHost readiness projection
+  -> notificationRuntimeProvider.updateReadiness (always alive)
 
 notificationServiceProvider
 notificationPermissionProvider
 notification routing storage/repositories
-notificationReadinessProvider
-  -> notificationCoordinatorProvider
+  -> notificationRuntimeProvider
        owns service subscriptions once
        exposes private effect stream
 
-notificationCoordinatorProvider.effects
+notificationEffectStreamProvider
   -> NotificationEffectHost (one active UI subscription)
        -> AppMessenger
        -> typed GoRouter routes
@@ -320,14 +321,14 @@ notificationPermissionProvider
 
 Provider choices:
 
-- `notificationServiceProvider`: `Provider<NotificationService>`, always alive, production override from bootstrap, fake-safe unavailable default.
-- `notificationCoordinatorProvider`: `Provider<NotificationCoordinator>`, always alive, explicit `start`/`dispose`; one owner of provider streams.
-- `notificationReadinessProvider`: derived `Provider<NotificationReadiness>` watching the current auth state and only that DID's onboarding provider.
-- `notificationPermissionProvider`: `AsyncNotifierProvider`; `build/check` has no prompt side effect, while `requestIfEligible` is explicit.
-- `notificationNewCountProvider`: `AsyncNotifierProvider<int>`; explicit trigger method, no periodic invalidation.
-- `notificationsProvider`: retain existing `AsyncNotifierProvider` and pagination behavior, with stable-ID dedupe and first-page render token.
-- `notificationSeenProvider`: `AsyncNotifierProvider<void>` or mutation controller with token guard; its state is not used to clear the badge optimistically.
-- `notificationPreferencesProvider`: `AsyncNotifierProvider<NotificationPreferencesState>` with per-field generations and failure sequence.
+- `notificationServiceProvider`: generated always-alive functional provider, production override from bootstrap, fake-safe unavailable default.
+- `notificationRuntimeProvider`: generated always-alive functional provider with explicit runtime `start` and `ref.onDispose` cleanup; one owner of provider streams.
+- `notificationPermissionProvider`: generated always-alive future provider whose read has no prompt side effect.
+- `notificationNewCountProvider`: generated always-alive async notifier with an explicit refresh method and no periodic invalidation.
+- `notificationsProvider`: generated always-alive async notifier retaining pagination, stable-ID dedupe, and the first-page render token.
+- `notificationSeenProvider`: generated always-alive functional provider exposing the render-token acknowledgement coordinator; it does not clear the badge optimistically.
+- `notificationPreferencesProvider`: generated always-alive async notifier with per-field generations and failure sequencing.
+- Repository, routing-storage, sign-out-cleanup, effect-stream, and controller providers are generated functional providers; all public provider names and test override seams remain stable.
 
 Do not put provider events containing raw notification IDs, routing IDs, DIDs, URIs, tokens, or payload copy into Riverpod state because `ProviderLogger` observes state changes. Coordinator effects remain on its private stream, value types have redacted stringification, and logs use allowlisted lifecycle/outcome classes only.
 

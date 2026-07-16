@@ -1,20 +1,18 @@
 import 'dart:async';
 
 import 'package:craftsky_app/notifications/data/api_notification_repository.dart';
-import 'package:craftsky_app/notifications/data/notification_api_client.dart';
+import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
+import 'package:craftsky_app/notifications/models/notification_id.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/models/notification_permission.dart';
-import 'package:craftsky_app/notifications/services/foreground_notification_handler.dart';
-import 'package:craftsky_app/notifications/services/notification_coordinator.dart';
 import 'package:craftsky_app/notifications/services/notification_registration_coordinator.dart';
 import 'package:craftsky_app/notifications/services/notification_resolution_policy.dart';
 import 'package:craftsky_app/notifications/services/notification_routing_storage.dart';
 import 'package:craftsky_app/notifications/services/notification_runtime.dart';
 import 'package:craftsky_app/notifications/services/notification_service.dart';
-import 'package:craftsky_app/notifications/services/notification_service_owner.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,7 +42,7 @@ void main() {
           });
         },
       );
-      final repository = ApiNotificationRepository(NotificationApiClient(dio));
+      final repository = ApiNotificationRepository(dio);
       final routing = NotificationRoutingStorage(_MemoryRoutingBackend());
       await routing.replace(alice, binding);
       final effects = StreamController<NotificationEffect>.broadcast();
@@ -104,30 +102,19 @@ NotificationRuntime _runtime({
 }) {
   final service = _FakeNotificationService();
   final registration = NotificationRegistrationCoordinator(
+    service: service,
     platform: NotificationPlatform.ios,
-    getToken: service.getToken,
     register: ({required platform, required token}) async =>
         AccountSubscriptionId.parse('unused'),
     saveBinding: ({required did, required binding}) async {},
   );
   return NotificationRuntime(
-    coordinator: NotificationCoordinator(
-      service: service,
-      registration: registration,
-    ),
-    owner: NotificationServiceOwner(
-      service: service,
-      onTokenRefresh: registration.onTokenRefresh,
-      onForegroundEvent: (_) {},
-      onOpen: (_) {},
-    ),
+    service: service,
+    registration: registration,
     routingStorage: routing,
     resolutionRepository: resolutionRepository,
-    foregroundHandler: ForegroundNotificationHandler(
-      showBanner: (_) {},
-      invalidateList: () {},
-      refreshCount: () {},
-    ),
+    invalidateList: () {},
+    refreshCount: () {},
     effects: effects,
   );
 }

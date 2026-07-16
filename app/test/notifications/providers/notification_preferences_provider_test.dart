@@ -11,23 +11,25 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('UT-010 stale failure cannot roll back a newer edit', () async {
     final repository = _PreferencesRepository();
-    final container = ProviderContainer(
+    final container = ProviderContainer.test(
       overrides: [
         notificationPreferencesRepositoryProvider.overrideWithValue(repository),
       ],
     );
-    addTearDown(container.dispose);
     await container.read(notificationPreferencesProvider.future);
 
-    final notifier = container.read(notificationPreferencesProvider.notifier);
-    final first = notifier.setPushEnabled(
-      NotificationCategory.like,
-      value: false,
-    );
-    final second = notifier.setPushEnabled(
-      NotificationCategory.like,
-      value: true,
-    );
+    final first = container
+        .read(notificationPreferencesProvider.notifier)
+        .setPushEnabled(
+          NotificationCategory.like,
+          value: false,
+        );
+    final second = container
+        .read(notificationPreferencesProvider.notifier)
+        .setPushEnabled(
+          NotificationCategory.like,
+          value: true,
+        );
     expect(
       container
           .read(notificationPreferencesProvider)

@@ -100,4 +100,31 @@ void main() {
     expect(handler, isNot(contains('go_router')));
     expect(handler, isNot(contains('Logger')));
   });
+
+  test('UT-016 / AT-012 keeps provider presentation bounded', () {
+    final adapter = File(
+      'lib/notifications/services/firebase_notification_service.dart',
+    ).readAsStringSync();
+
+    expect(
+      adapter,
+      contains(
+        'setForegroundNotificationPresentationOptions(\n'
+        '        alert: false,\n'
+        '        badge: false,\n'
+        '        sound: false,',
+      ),
+    );
+    expect(
+      adapter,
+      contains(
+        'requestPermission(\n'
+        '      alert: true,\n'
+        '      badge: false,\n'
+        '      sound: true,',
+      ),
+    );
+    expect(adapter, isNot(contains('localNotification')));
+    expect(adapter, isNot(contains('vibration')));
+  });
 }

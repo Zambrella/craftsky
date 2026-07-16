@@ -5,7 +5,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
-import 'package:craftsky_app/notifications/models/notification_open_event.dart';
+import 'package:craftsky_app/notifications/models/notification_id.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
 import 'package:craftsky_app/notifications/models/notification_resolution.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';

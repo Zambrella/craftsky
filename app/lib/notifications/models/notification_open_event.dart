@@ -1,62 +1,8 @@
+import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
-import 'package:flutter/foundation.dart';
+import 'package:craftsky_app/notifications/models/notification_id.dart';
 
 enum NotificationOpenSource { foregroundBanner, backgroundOpen, initialOpen }
-
-@immutable
-final class NotificationId {
-  factory NotificationId.parse(String value) {
-    if (!_uuidPattern.hasMatch(value)) {
-      throw const FormatException('Invalid notification ID');
-    }
-    return NotificationId._(value);
-  }
-  const NotificationId._(this.wireValue);
-
-  static final _uuidPattern = RegExp(
-    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
-    caseSensitive: false,
-  );
-
-  /// Wire access is reserved for the notification API adapter.
-  final String wireValue;
-
-  @override
-  bool operator ==(Object other) =>
-      other is NotificationId && other.wireValue == wireValue;
-
-  @override
-  int get hashCode => wireValue.hashCode;
-
-  @override
-  String toString() => '<redacted-notification-id>';
-}
-
-@immutable
-final class AccountSubscriptionId {
-  factory AccountSubscriptionId.parse(String value) {
-    if (!_identifierPattern.hasMatch(value)) {
-      throw const FormatException('Invalid account subscription ID');
-    }
-    return AccountSubscriptionId._(value);
-  }
-  const AccountSubscriptionId._(this.wireValue);
-
-  static final _identifierPattern = RegExp(r'^[A-Za-z0-9_-]{1,128}$');
-
-  /// Wire access is reserved for secure routing storage and comparison.
-  final String wireValue;
-
-  @override
-  bool operator ==(Object other) =>
-      other is AccountSubscriptionId && other.wireValue == wireValue;
-
-  @override
-  int get hashCode => wireValue.hashCode;
-
-  @override
-  String toString() => '<redacted-account-subscription-id>';
-}
 
 final class NotificationOpenEvent {
   const NotificationOpenEvent({

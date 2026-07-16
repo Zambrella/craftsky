@@ -1,9 +1,10 @@
 import 'dart:async';
 
+import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
+import 'package:craftsky_app/notifications/models/notification_id.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/models/notification_resolution.dart';
 import 'package:craftsky_app/notifications/services/notification_resolution_policy.dart';
-import 'package:craftsky_app/notifications/services/notification_routing_policy.dart';
 
 typedef NotificationBindingLoader =
     Future<AccountSubscriptionId?> Function(String did);
@@ -30,10 +31,7 @@ final class NotificationOpenCoordinator {
 
   Future<void> open(NotificationOpenEvent event) async {
     final storedBinding = await _loadBinding(currentDid);
-    if (!NotificationRoutingPolicy.canResolve(
-      storedBinding: storedBinding,
-      eventBinding: event.accountSubscriptionId,
-    )) {
+    if (storedBinding == null || storedBinding != event.accountSubscriptionId) {
       await _onUnavailable();
       return;
     }

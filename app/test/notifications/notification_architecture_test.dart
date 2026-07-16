@@ -29,29 +29,7 @@ void main() {
     expect(offenders, isEmpty);
   });
 
-  test('REG-009 one provider owns the service and one root mounts effects', () {
-    final ownerReferences = [
-      for (final file in notificationFiles)
-        if (file.readAsStringSync().contains('NotificationServiceOwner('))
-          file.path,
-    ];
-    expect(
-      ownerReferences,
-      unorderedEquals([
-        'lib/notifications/providers/notification_runtime_provider.dart',
-        'lib/notifications/services/notification_service_owner.dart',
-      ]),
-    );
-    expect(
-      _occurrences(
-        File(
-          'lib/notifications/providers/notification_runtime_provider.dart',
-        ).readAsStringSync(),
-        'NotificationServiceOwner(',
-      ),
-      1,
-    );
-
+  test('REG-009 one root mounts notification effects', () {
     final appSource = File('lib/app.dart').readAsStringSync();
     expect(_occurrences(appSource, 'NotificationEffectHost('), 1);
     for (final file
@@ -95,6 +73,43 @@ void main() {
     ).readAsStringSync();
     expect(routingStorage, isNot(contains('notificationId')));
     expect(routingStorage, isNot(contains('ForegroundNotificationEvent')));
+  });
+
+  test('notification providers use Riverpod code generation', () {
+    final providerFiles = Directory('lib/notifications/providers')
+        .listSync()
+        .whereType<File>()
+        .where(
+          (file) =>
+              file.path.endsWith('.dart') && !file.path.endsWith('.g.dart'),
+        );
+
+    for (final file in providerFiles) {
+      final source = file.readAsStringSync();
+      final basename = file.uri.pathSegments.last.replaceFirst('.dart', '');
+      expect(
+        source,
+        contains("part '$basename.g.dart';"),
+        reason: '${file.path} must include its generated Riverpod part',
+      );
+      expect(
+        source,
+        anyOf(contains('@riverpod'), contains('@Riverpod(')),
+        reason: '${file.path} must declare generated providers',
+      );
+      expect(
+        source,
+        isNot(
+          matches(
+            RegExp(
+              r'\b(?:Provider|FutureProvider|StreamProvider|'
+              r'NotifierProvider|AsyncNotifierProvider)\s*<',
+            ),
+          ),
+        ),
+        reason: '${file.path} must not construct providers manually',
+      );
+    }
   });
 }
 

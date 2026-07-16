@@ -1,37 +1,30 @@
 import 'package:craftsky_app/notifications/data/api_notification_repository.dart';
-import 'package:craftsky_app/notifications/data/notification_api_client.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-final notificationApiClientProvider = Provider<NotificationApiClient>(
-  (ref) => NotificationApiClient(ref.watch(dioProvider)),
-);
+part 'notification_repository_provider.g.dart';
 
-final notificationRepositoryProvider = Provider<NotificationRepository>(
-  (ref) => ApiNotificationRepository(ref.watch(notificationApiClientProvider)),
-);
+@Riverpod(keepAlive: true)
+ApiNotificationRepository notificationApiRepository(Ref ref) =>
+    ApiNotificationRepository(ref.watch(dioProvider));
 
-final notificationNewnessRepositoryProvider =
-    Provider<NotificationNewnessRepository>(
-      (ref) =>
-          ApiNotificationRepository(ref.watch(notificationApiClientProvider)),
-    );
+@Riverpod(keepAlive: true)
+NotificationRepository notificationRepository(Ref ref) =>
+    ref.watch(notificationApiRepositoryProvider);
 
-final notificationPreferencesRepositoryProvider =
-    Provider<NotificationPreferencesRepository>(
-      (ref) =>
-          ApiNotificationRepository(ref.watch(notificationApiClientProvider)),
-    );
+@Riverpod(keepAlive: true)
+NotificationNewnessRepository notificationNewnessRepository(Ref ref) =>
+    ref.watch(notificationApiRepositoryProvider);
 
-final notificationDeviceRepositoryProvider =
-    Provider<NotificationDeviceRepository>(
-      (ref) =>
-          ApiNotificationRepository(ref.watch(notificationApiClientProvider)),
-    );
+@Riverpod(keepAlive: true)
+NotificationPreferencesRepository notificationPreferencesRepository(Ref ref) =>
+    ref.watch(notificationApiRepositoryProvider);
 
-final notificationResolutionRepositoryProvider =
-    Provider<NotificationResolutionRepository>(
-      (ref) =>
-          ApiNotificationRepository(ref.watch(notificationApiClientProvider)),
-    );
+@Riverpod(keepAlive: true)
+NotificationDeviceRepository notificationDeviceRepository(Ref ref) =>
+    ref.watch(notificationApiRepositoryProvider);
+
+@Riverpod(keepAlive: true)
+NotificationResolutionRepository notificationResolutionRepository(Ref ref) =>
+    ref.watch(notificationApiRepositoryProvider);

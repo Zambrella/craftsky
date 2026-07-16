@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
+import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
+import 'package:craftsky_app/notifications/models/notification_id.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/models/notification_permission.dart';
 import 'package:craftsky_app/notifications/models/notification_resolution.dart';
@@ -14,13 +16,10 @@ import 'package:craftsky_app/notifications/providers/notification_permission_pro
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_runtime_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_service_provider.dart';
-import 'package:craftsky_app/notifications/services/foreground_notification_handler.dart';
-import 'package:craftsky_app/notifications/services/notification_coordinator.dart';
 import 'package:craftsky_app/notifications/services/notification_registration_coordinator.dart';
 import 'package:craftsky_app/notifications/services/notification_routing_storage.dart';
 import 'package:craftsky_app/notifications/services/notification_runtime.dart';
 import 'package:craftsky_app/notifications/services/notification_service.dart';
-import 'package:craftsky_app/notifications/services/notification_service_owner.dart';
 import 'package:craftsky_app/notifications/widgets/notification_effect_host.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -198,31 +197,19 @@ NotificationRuntime _runtime(
   void Function()? refreshCount,
 }) {
   final registration = NotificationRegistrationCoordinator(
+    service: service,
     platform: NotificationPlatform.ios,
-    getToken: service.getToken,
     register: ({required platform, required token}) async =>
         AccountSubscriptionId.parse('binding'),
     saveBinding: ({required did, required binding}) async {},
   );
-  late final NotificationRuntime runtime;
-  return runtime = NotificationRuntime(
-    coordinator: NotificationCoordinator(
-      service: service,
-      registration: registration,
-    ),
-    owner: NotificationServiceOwner(
-      service: service,
-      onTokenRefresh: registration.onTokenRefresh,
-      onForegroundEvent: (event) => runtime.receiveForegroundEvent(event),
-      onOpen: (event) => runtime.receiveOpen(event),
-    ),
+  return NotificationRuntime(
+    service: service,
+    registration: registration,
     routingStorage: NotificationRoutingStorage(_MemoryRoutingBackend()),
     resolutionRepository: _UnavailableResolutionRepository(),
-    foregroundHandler: ForegroundNotificationHandler(
-      showBanner: (event) => effects.add(NotificationBannerEffect(event)),
-      invalidateList: invalidateList ?? () {},
-      refreshCount: refreshCount ?? () {},
-    ),
+    invalidateList: invalidateList ?? () {},
+    refreshCount: refreshCount ?? () {},
     effects: effects,
   );
 }

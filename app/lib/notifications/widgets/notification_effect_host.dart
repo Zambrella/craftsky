@@ -44,9 +44,7 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
     unawaited(ref.read(notificationRuntimeProvider).resume());
     if (_did == null || !_onboarded) return;
     unawaited(
-      ref
-          .read(notificationNewCountProvider.notifier)
-          .refreshFor(NotificationNewCountTrigger.resume),
+      ref.read(notificationNewCountProvider.notifier).refresh(),
     );
   }
 

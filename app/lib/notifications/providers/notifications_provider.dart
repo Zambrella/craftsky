@@ -1,15 +1,15 @@
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/notifications/models/notifications_state.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'notifications_provider.g.dart';
 
 const notificationsPageLimit = 20;
 int _nextRenderToken = 0;
 
-final notificationsProvider =
-    AsyncNotifierProvider<Notifications, NotificationsState>(Notifications.new);
-
-class Notifications extends AsyncNotifier<NotificationsState> {
+@Riverpod(keepAlive: true)
+class Notifications extends _$Notifications {
   @override
   Future<NotificationsState> build() async {
     final repo = ref.watch(notificationRepositoryProvider);
@@ -22,8 +22,9 @@ class Notifications extends AsyncNotifier<NotificationsState> {
   }
 
   Future<void> loadMore() async {
-    final current = state.value;
-    if (current == null || !current.hasMore || state.isLoading) return;
+    if (!state.hasValue || state.isLoading) return;
+    final current = state.requireValue;
+    if (!current.hasMore) return;
 
     state = const AsyncLoading<NotificationsState>();
 

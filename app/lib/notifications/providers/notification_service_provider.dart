@@ -1,6 +1,8 @@
 import 'package:craftsky_app/notifications/services/notification_service.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-final notificationServiceProvider = Provider<NotificationService>(
-  (ref) => const UnavailableNotificationService(),
-);
+part 'notification_service_provider.g.dart';
+
+@Riverpod(keepAlive: true)
+NotificationService notificationService(Ref ref) =>
+    const UnavailableNotificationService();

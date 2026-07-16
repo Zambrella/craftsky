@@ -1,5 +1,5 @@
-import 'package:craftsky_app/notifications/data/notification_api_client.dart';
-import 'package:craftsky_app/notifications/models/notification_open_event.dart';
+import 'package:craftsky_app/notifications/data/api_notification_repository.dart';
+import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/services/notification_registration_coordinator.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,7 +18,7 @@ void main() {
         data: {'platform': 'android', 'token': 'SENSITIVE_FAKE_TOKEN'},
       );
 
-      final binding = await NotificationApiClient(dio).registerDevice(
+      final binding = await ApiNotificationRepository(dio).register(
         platform: NotificationPlatform.android,
         token: 'SENSITIVE_FAKE_TOKEN',
       );

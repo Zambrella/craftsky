@@ -1,4 +1,5 @@
-import 'package:craftsky_app/notifications/models/notification_open_event.dart';
+import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
+import 'package:craftsky_app/notifications/models/notification_id.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
 import 'package:craftsky_app/notifications/models/notification_preferences.dart';
 import 'package:craftsky_app/notifications/models/notification_resolution.dart';

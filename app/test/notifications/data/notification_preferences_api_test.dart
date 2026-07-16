@@ -1,4 +1,4 @@
-import 'package:craftsky_app/notifications/data/notification_api_client.dart';
+import 'package:craftsky_app/notifications/data/api_notification_repository.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_preferences.dart';
 import 'package:dio/dio.dart';
@@ -24,7 +24,7 @@ void main() {
       }),
     );
 
-    final preferences = await NotificationApiClient(dio).getPreferences();
+    final preferences = await ApiNotificationRepository(dio).load();
 
     expect(
       preferences.known[NotificationCategory.like]?.scope,
@@ -65,7 +65,7 @@ void main() {
       },
     );
 
-    final preferences = await NotificationApiClient(dio).patchPreferences(
+    final preferences = await ApiNotificationRepository(dio).patch(
       NotificationPreferencePatch.scope(
         NotificationCategory.quote,
         value: NotificationPreferenceScope.peopleIFollow,

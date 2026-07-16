@@ -1,8 +1,10 @@
+// The explicit values below document the notification presentation contract.
+// ignore_for_file: avoid_redundant_argument_values
+
 import 'package:app_settings/app_settings.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/models/notification_permission.dart';
-import 'package:craftsky_app/notifications/services/notification_presentation_policy.dart';
 import 'package:craftsky_app/notifications/services/notification_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
@@ -14,9 +16,9 @@ final class FirebaseNotificationService implements NotificationService {
   @override
   Future<void> initialize() =>
       _messaging.setForegroundNotificationPresentationOptions(
-        alert: NotificationPresentationPolicy.foreground.alert,
-        badge: NotificationPresentationPolicy.foreground.badge,
-        sound: NotificationPresentationPolicy.foreground.sound,
+        alert: false,
+        badge: false,
+        sound: false,
       );
 
   @override
@@ -30,9 +32,9 @@ final class FirebaseNotificationService implements NotificationService {
   @override
   Future<NotificationPermission> requestPermission() async {
     final settings = await _messaging.requestPermission(
-      alert: NotificationPresentationPolicy.permissionRequest.alert,
-      badge: NotificationPresentationPolicy.permissionRequest.badge,
-      sound: NotificationPresentationPolicy.permissionRequest.sound,
+      alert: true,
+      badge: false,
+      sound: true,
     );
     return _mapPermission(settings.authorizationStatus);
   }

@@ -1,43 +1,82 @@
+// Public constructor labels stay descriptive while dependencies remain private.
+// ignore_for_file: prefer_initializing_formals
+
 import 'dart:async';
 
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
-import 'package:craftsky_app/notifications/services/foreground_notification_handler.dart';
-import 'package:craftsky_app/notifications/services/notification_coordinator.dart';
 import 'package:craftsky_app/notifications/services/notification_open_coordinator.dart';
+import 'package:craftsky_app/notifications/services/notification_registration_coordinator.dart';
 import 'package:craftsky_app/notifications/services/notification_resolution_policy.dart';
 import 'package:craftsky_app/notifications/services/notification_routing_storage.dart';
-import 'package:craftsky_app/notifications/services/notification_service_owner.dart';
+import 'package:craftsky_app/notifications/services/notification_service.dart';
 import 'package:craftsky_app/notifications/services/pending_notification_open.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 final class NotificationRuntime {
   NotificationRuntime({
-    required this._coordinator,
-    required this._owner,
-    required this._routingStorage,
-    required this._resolutionRepository,
-    required this._foregroundHandler,
-    required this._effects,
-  });
+    required NotificationService service,
+    required NotificationRegistrationCoordinator registration,
+    required NotificationRoutingStorage routingStorage,
+    required NotificationResolutionRepository resolutionRepository,
+    required FutureOr<void> Function() invalidateList,
+    required FutureOr<void> Function() refreshCount,
+    required StreamController<NotificationEffect> effects,
+  }) : _service = service,
+       _registration = registration,
+       _routingStorage = routingStorage,
+       _resolutionRepository = resolutionRepository,
+       _invalidateList = invalidateList,
+       _refreshCount = refreshCount,
+       _effects = effects;
 
-  final NotificationCoordinator _coordinator;
-  final NotificationServiceOwner _owner;
+  final NotificationService _service;
+  final NotificationRegistrationCoordinator _registration;
   final NotificationRoutingStorage _routingStorage;
   final NotificationResolutionRepository _resolutionRepository;
-  final ForegroundNotificationHandler _foregroundHandler;
+  final FutureOr<void> Function() _invalidateList;
+  final FutureOr<void> Function() _refreshCount;
   final StreamController<NotificationEffect> _effects;
   final PendingNotificationOpen _pending = PendingNotificationOpen();
+  final _subscriptions = <StreamSubscription<Object?>>[];
 
+  Future<void>? _startFuture;
+  bool _disposed = false;
   Did? _did;
   NotificationOpenReadiness _readiness =
       NotificationOpenReadiness.requiresSignIn;
   Did? _lastReadinessDid;
   bool? _lastOnboarded;
 
-  Future<void> start() => _owner.start();
+  Future<void> start() => _startFuture ??= _start();
+
+  Future<void> _start() async {
+    if (_disposed) return;
+    await _service.initialize();
+    if (_disposed) return;
+
+    _subscriptions
+      ..add(
+        _service.tokenRefreshes.listen(
+          (token) => unawaited(_registration.onTokenRefresh(token)),
+        ),
+      )
+      ..add(
+        _service.foregroundEvents.listen(
+          (event) => unawaited(receiveForegroundEvent(event)),
+        ),
+      )
+      ..add(
+        _service.openedNotifications.listen(
+          (event) => unawaited(receiveOpen(event)),
+        ),
+      );
+
+    final initialOpen = await _service.takeInitialOpen();
+    if (!_disposed && initialOpen != null) await receiveOpen(initialOpen);
+  }
 
   Future<void> updateReadiness({
     required Did? did,
@@ -52,7 +91,7 @@ final class NotificationRuntime {
         : onboarded
         ? NotificationOpenReadiness.ready
         : NotificationOpenReadiness.transient;
-    await _coordinator.updateReadiness(did: did, onboarded: onboarded);
+    await _registration.updateReadiness(did: did, onboarded: onboarded);
     final pending = _pending.updateReadiness(_readiness);
     if (pending != null) await _processOpen(pending);
   }
@@ -64,9 +103,13 @@ final class NotificationRuntime {
 
   Future<void> receiveForegroundEvent(
     ForegroundNotificationEvent event,
-  ) async => _foregroundHandler.handle(event);
+  ) async {
+    _effects.add(NotificationBannerEffect(event));
+    await _invalidateList();
+    await _refreshCount();
+  }
 
-  Future<void> resume() => _coordinator.retryRegistration();
+  Future<void> resume() => _registration.retryRegistration();
 
   Future<void> _processOpen(NotificationOpenEvent event) async {
     final did = _did;
@@ -90,5 +133,13 @@ final class NotificationRuntime {
     }
   }
 
-  Future<void> dispose() => _owner.dispose();
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    for (final subscription in _subscriptions) {
+      await subscription.cancel();
+    }
+    _subscriptions.clear();
+    await _service.dispose();
+  }
 }

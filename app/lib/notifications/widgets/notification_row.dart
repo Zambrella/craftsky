@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
-import 'package:craftsky_app/notifications/models/notification_open_event.dart';
+import 'package:craftsky_app/notifications/models/notification_id.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/notifications/services/notification_navigation.dart';
 import 'package:craftsky_app/notifications/services/notification_resolution_policy.dart';

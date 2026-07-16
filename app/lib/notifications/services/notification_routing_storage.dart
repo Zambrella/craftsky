@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:craftsky_app/notifications/models/notification_open_event.dart';
+import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 

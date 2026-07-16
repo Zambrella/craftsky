@@ -1,18 +1,13 @@
 import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_preferences.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-final notificationPreferencesProvider =
-    AsyncNotifierProvider<
-      NotificationPreferencesNotifier,
-      NotificationPreferences
-    >(
-      NotificationPreferencesNotifier.new,
-    );
+part 'notification_preferences_provider.g.dart';
 
+@Riverpod(keepAlive: true, name: 'notificationPreferencesProvider')
 class NotificationPreferencesNotifier
-    extends AsyncNotifier<NotificationPreferences> {
+    extends _$NotificationPreferencesNotifier {
   final _generations =
       <(NotificationCategory, NotificationPreferenceField), int>{};
 

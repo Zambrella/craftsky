@@ -1,4 +1,6 @@
+import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
+import 'package:craftsky_app/notifications/models/notification_id.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/models/notification_resolution.dart';
 import 'package:craftsky_app/notifications/services/notification_open_coordinator.dart';
@@ -45,9 +47,12 @@ void main() {
   test('AT-005 rejects stale or missing bindings without HTTP', () async {
     var resolveCalls = 0;
     var unavailableCalls = 0;
+    AccountSubscriptionId? storedBinding = AccountSubscriptionId.parse(
+      'current',
+    );
     final coordinator = NotificationOpenCoordinator(
       currentDid: 'did:plc:current',
-      loadBinding: (_) async => AccountSubscriptionId.parse('current'),
+      loadBinding: (_) async => storedBinding,
       resolve: (_) async {
         resolveCalls++;
         throw StateError('must not resolve');
@@ -57,9 +62,11 @@ void main() {
     );
 
     await coordinator.open(_event('stale'));
+    storedBinding = null;
+    await coordinator.open(_event('current'));
 
     expect(resolveCalls, 0);
-    expect(unavailableCalls, 1);
+    expect(unavailableCalls, 2);
   });
 }
 

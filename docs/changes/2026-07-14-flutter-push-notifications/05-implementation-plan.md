@@ -9,6 +9,8 @@
 - Implementation approval: explicit `implement-tdd` invocation on 2026-07-15
 - Correction input: `06-implementation-review.md` — Changes required
 - Correction approval: explicit `Address required changes` selection on 2026-07-15
+- Simplification input: `06-implementation-review.md` — Approved with notes, IR-007–IR-012
+- Simplification approval: explicit `Implement all those things` instruction on 2026-07-16
 
 ## Implementation Rules
 
@@ -73,6 +75,29 @@ The correction pass follows `06-implementation-review.md` and keeps the original
 ## Implementation Steps
 
 Each automated step follows the same loop: add only the named focused test(s), run the smallest command, record the meaningful red result, implement the minimum linked behavior, rerun to green, run nearby regressions, refactor only while green, and record the exact evidence below.
+
+### Approved Simplification Pass Order
+
+This pass changes internal layout only. It keeps the original behavior requirements and public test IDs while implementing IR-007–IR-012 from the approved follow-up review.
+
+| Simplification Step | Review Findings | Test IDs | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---:|---|---|---|---|---|
+| S1 | IR-008 | IT-003, IT-006 | FR-011, FR-013–FR-016, NFR-002 | AC-010, AC-012–AC-014, AC-023 | Fails: capability providers construct separate forwarding adapters |
+| S2 | IR-009 | UT-007, IT-008, REG-004 | FR-013 | AC-020 | Fails: callers require trigger taxonomy for identical refresh work |
+| S3 | IR-007, IR-011 | UT-012, UT-018, IT-007, IT-010, REG-009 | FR-002, FR-007, FR-019, NFR-002 | AC-006, AC-015, AC-019 | Fails: runtime does not directly own service lifecycle and foreground effects |
+| S4 | IR-010 | UT-001, UT-013, IT-002 | FR-003–FR-006, FR-018 | AC-003–AC-005, AC-013 | Fails: permission and token registration use separate lifecycle coordinators |
+| S5 | IR-012 | UT-003, UT-008, UT-016, IT-005, IT-012, AT-012 | FR-009, FR-014, FR-023, RULE-003, RULE-005 | AC-008, AC-012, AC-021, AC-027 | Fails: one-use policies remain separate from their observable owner flows |
+
+- Guardrails: retain the provider-neutral `NotificationService`, Firebase import boundary, exact once-only subscription behavior, latest-token and DID fencing, secure routing storage, AppView-only resolution authority, pending-open readiness behavior, seen-after-render behavior, and silent foreground presentation.
+- Verification cadence: run the smallest focused test for each red-green loop, then the complete notification suite after each consolidation. Run linked auth/router/observability and canonical checks after S5.
+- S1 — IR-008 / IT-003 / IT-006: added a provider-container test requiring all five narrow repository providers to expose one shared HTTP adapter. Red failed because `notificationApiRepositoryProvider` did not exist and each capability constructed a separate forwarding wrapper. Moved the Dio route implementations directly into `ApiNotificationRepository`, removed `NotificationApiClient`, and retained every narrow interface/provider override while sharing one adapter instance. The focused provider/API/device/preferences run passed 6 tests.
+- S2 — IR-009 / UT-007 / IT-008 / REG-004: replaced the trigger-classification unit test with a provider test requiring one fetch for each explicit refresh request. Red failed because the notifier exposed only `refreshFor(trigger)`. Removed the seven-value trigger enum and policy, changed the notifier to `refresh()`, and updated the existing resume, foreground, and mark-seen call sites. The focused count/lifecycle/seen/shell/architecture run passed 10 tests; the existing no-`Timer` and no-icon-badge guards remain in place.
+- S3 — IR-007 / IR-011 / UT-012 / UT-018 / IT-007 / IT-010 / REG-009: added a behavioral runtime test requiring idempotent start, one listener per provider-neutral stream, one initial-open read, one banner/list/count sequence per duplicate foreground callback, and complete cancellation on disposal. Red failed because `NotificationRuntime` did not accept or own the service. Moved initialization, subscriptions, initial-open consumption, foreground effects, and disposal into the runtime; removed `NotificationServiceOwner`, `ForegroundNotificationHandler`, their callback cycle, and the source-layout ownership assertion. The focused runtime/effect/open/architecture run passed 8 tests, then the complete notification suite passed 68 tests.
+- S4 — IR-010 / UT-001 / UT-013 / IT-002: replaced the separate permission and token tests with one registration-lifecycle suite. Red failed because `NotificationRegistrationCoordinator` accepted only token callbacks and exposed no readiness or permission-recheck API. Moved permission checking/requesting, readiness, resume recovery, token retrieval, latest-token retention, single-flight registration, and DID-before-save fencing into one coordinator; removed `NotificationCoordinator` and `NotificationPermissionPolicy`. The focused registration/runtime/effect/open run passed 11 tests, then the complete notification suite passed 66 tests.
+- S4 concurrency follow-up — UT-013 / FR-005 / FR-006: a final public-lifecycle audit added two race tests for token refresh and DID replacement during an in-flight registration. The latest-token test failed because the first consolidated version returned the existing future without draining the changed token. The coordinator now serializes registrations and drains only revisions that arrive during the active attempt; unchanged failures still stop until a later explicit trigger, and old-DID results are discarded before saving. The combined lifecycle suite passed 8 tests.
+- S5 — IR-012 / UT-003 / UT-008 / UT-016 / IT-005 / IT-012 / AT-012: added an adapter-boundary test requiring the exact foreground and permission presentation values. Red failed because those values were hidden behind an intermediate presentation object. Inlined the three Firebase presentation fields in the adapter, folded the render-token set into `NotificationSeenCoordinator`, and inlined the missing/stale binding check in `NotificationOpenCoordinator`; removed the presentation, seen, and routing policy files and their implementation-mirroring unit tests. The retained seen-after-render, stale/missing-binding-with-no-HTTP, Firebase configuration, open-flow, and seen-flow tests passed, then the complete notification suite passed 65 behavioral tests. The lower count reflects deletion of structure-coupled tests, not lost behavior coverage.
+- Generated-provider follow-up: added an architecture test requiring every notification provider source to include its generated part, use `@riverpod`/`@Riverpod`, and avoid manual provider constructors. Red failed on the existing manual declarations. Converted all nine provider source files to generated declarations, preserved every public provider name and `isAutoDispose: false` lifetime, declared the effect stream as `Raw<Stream<NotificationEffect>>`, retained all override APIs, moved pagination to the rule-prescribed `state.requireValue` pattern, and updated provider tests to `ProviderContainer.test()`. Build generation completed successfully; the architecture/provider slice passed 13 tests and the complete notification suite passed 68 tests.
+- Identifier-model follow-up: moved `NotificationId` and `AccountSubscriptionId` out of `notification_open_event.dart` into dedicated model files. API resolution/durable rows now import only `NotificationId`; registration/secure routing import only `AccountSubscriptionId`; open-event consumers import the event plus identifiers only when their own signatures require them. Added direct parsing/equality/wire/redaction tests for each identifier while retaining the provider-data rejection matrix. The focused identifier/routing/open-flow slice passed 18 tests, the complete notification suite passed 72 tests, and full Flutter analysis remained clean.
 
 ### Implementation Review Correction Pass
 
@@ -169,21 +194,22 @@ Each automated step follows the same loop: add only the named focused test(s), r
 
 ## Final Verification
 
-- Correction-focused notification suite: `cd app && flutter test test/notifications` passed 63 tests.
+- Simplification, generated-provider, and identifier-model notification suite: `cd app && flutter test test/notifications` passed 72 behavioral/architecture tests, including direct identifier contracts, the in-flight registration race cases, and generated-provider guard.
 - Linked auth/router/observability regression suite: `cd app && flutter test test/auth test/router test/observability test/shared/errors` passed 98 tests.
-- Cross-feature Flutter regression suite: canonical `just app-test` ran 841 tests; 840 passed and the unchanged `test/feed/pages/post_comment_section_page_test.dart` case `wires repost action for the root post` failed with the same empty repost-call ledger recorded before the correction pass. No feed implementation or test file is changed by this slice.
-- `dart analyze` and canonical `just app-analyze`: passed with no issues.
-- Focused AppView tests: passed for `./internal/push ./internal/app ./internal/api ./internal/routes`.
-- Repository `just app-test`: partial — same single unrelated feed failure above; all 63 notification tests and linked auth/router/observability tests pass.
+- Targeted analysis: `cd app && dart analyze lib/notifications test/notifications` passed with no issues.
+- Focused AppView tests: `cd appview && go test ./internal/push ./internal/app ./internal/api ./internal/routes -count=1` passed all four packages.
+- Repository Flutter tests: the last canonical `just app-test`, immediately before the identifier-only file split, ran 846 tests; 845 passed and the unchanged `test/feed/pages/post_comment_section_page_test.dart` case `wires repost action for the root post` failed with the same empty repost-call ledger recorded before this simplification pass. The subsequent identifier split passed all 72 notification tests and full Flutter analysis; no feed implementation or test file is changed by this slice.
 - Repository `just app-analyze`: passed — no issues found.
-- Repository `just test`: passed with the race detector after allowing local httptest/Postgres network access.
+- Repository `just test`: passed with the race detector and local Postgres.
 - `git diff --check`: passed.
 - Sender gate: verified `appview/environments/dev.env` contains `PUSH_ENABLED=false`; no live sender invocation occurred.
-- Diff-to-requirement traceability review: completed; resume retry and 404-vs-network mapping gaps found during review were closed with focused red/green tests.
+- Diff-to-requirement traceability review: completed; IR-007–IR-012 were implemented without changing the approved observable behavior or Firebase/security boundaries.
 
 ## Completion Checklist
 
 - [x] IR-001–IR-005 corrected through red-green-refactor loops
+- [x] IR-007–IR-012 implemented through staged red-green-refactor loops
+- [x] All notification providers generated under the repository Riverpod rules
 - [x] All Must requirements covered by tests or documented gaps
 - [x] All planned Must automated behavior passing in the focused and linked suites
 - [x] Relevant notification/auth/AppView regressions passing; unrelated baseline failures documented accurately

@@ -1,39 +1,15 @@
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-enum NotificationNewCountTrigger {
-  ready,
-  resume,
-  foregroundEvent,
-  pageRefresh,
-  markSeen,
-  elapsedTimer,
-  unrelatedRebuild,
-}
+part 'notification_new_count_provider.g.dart';
 
-abstract final class NotificationNewCountPolicy {
-  static bool shouldRefresh(NotificationNewCountTrigger trigger) =>
-      switch (trigger) {
-        NotificationNewCountTrigger.ready ||
-        NotificationNewCountTrigger.resume ||
-        NotificationNewCountTrigger.foregroundEvent ||
-        NotificationNewCountTrigger.pageRefresh ||
-        NotificationNewCountTrigger.markSeen => true,
-        NotificationNewCountTrigger.elapsedTimer ||
-        NotificationNewCountTrigger.unrelatedRebuild => false,
-      };
-}
-
-final notificationNewCountProvider =
-    AsyncNotifierProvider<NotificationNewCount, int>(NotificationNewCount.new);
-
-class NotificationNewCount extends AsyncNotifier<int> {
+@Riverpod(keepAlive: true)
+class NotificationNewCount extends _$NotificationNewCount {
   @override
   Future<int> build() =>
       ref.watch(notificationNewnessRepositoryProvider).count();
 
-  Future<void> refreshFor(NotificationNewCountTrigger trigger) async {
-    if (!NotificationNewCountPolicy.shouldRefresh(trigger)) return;
+  Future<void> refresh() async {
     final next = await AsyncValue.guard(
       ref.read(notificationNewnessRepositoryProvider).count,
     );
