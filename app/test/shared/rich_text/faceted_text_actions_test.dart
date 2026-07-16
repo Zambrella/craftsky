@@ -64,7 +64,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Open link?'), findsOneWidget);
-      expect(find.text('This will open outside Craftsky.'), findsOneWidget);
+      expect(find.text('This will open outside CraftSky.'), findsOneWidget);
       expect(find.text('https://craftsky.social'), findsOneWidget);
       expect(launched, isNull);
 

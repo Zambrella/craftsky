@@ -1,7 +1,7 @@
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
-/// Zero-padding hairline divider using the Craftsky border hair colour.
+/// Zero-padding hairline divider using the CraftSky border hair colour.
 class CraftskyDivider extends StatelessWidget {
   const CraftskyDivider({
     this.axis = Axis.horizontal,

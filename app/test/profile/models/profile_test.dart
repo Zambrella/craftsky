@@ -7,7 +7,7 @@ void main() {
   setUpAll(initializeMappers);
 
   group('Profile', () {
-    test('decodes follow-state and Craftsky count fields', () {
+    test('decodes follow-state and CraftSky count fields', () {
       final json = {
         'did': 'did:plc:alice',
         'handle': 'alice.craftsky.social',
@@ -38,7 +38,7 @@ void main() {
       expect(profile.moderation?.warningKind, 'profile');
     });
 
-    test('allows non-Craftsky profiles with unknown counts', () {
+    test('allows non-CraftSky profiles with unknown counts', () {
       final json = {
         'did': 'did:plc:carol',
         'handle': 'carol.bsky.social',

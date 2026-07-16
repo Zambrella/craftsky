@@ -2,6 +2,7 @@ import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/initialization_error_screen.dart';
 import 'package:craftsky_app/initialization_loading_screen.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/notifications/widgets/notification_effect_host.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
@@ -63,7 +64,9 @@ class _ReadyApp extends ConsumerWidget {
         builder: (context, child) {
           return TextScaleFactorClamper(
             child: FormFactorWidget(
-              child: child ?? const SizedBox.shrink(),
+              child: NotificationEffectHost(
+                child: child ?? const SizedBox.shrink(),
+              ),
             ),
           );
         },

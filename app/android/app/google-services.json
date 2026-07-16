@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "485328793105",
+    "project_id": "craftsky-app",
+    "storage_bucket": "craftsky-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:485328793105:android:f1d679aba6f5fcc4c1cbb0",
+        "android_client_info": {
+          "package_name": "social.craftsky.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCCwYduT2YcB0kFPeO3qx13CjDLBFp_oBQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

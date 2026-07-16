@@ -1114,7 +1114,7 @@ void main() {
       );
 
       expect(
-        find.text('This author may not follow Craftsky community guidelines.'),
+        find.text('This author may not follow CraftSky community guidelines.'),
         findsOneWidget,
       );
       expect(find.textContaining('raw unsafe reason fixture'), findsNothing);

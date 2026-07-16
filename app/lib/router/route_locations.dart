@@ -15,6 +15,7 @@ class RouteLocations {
   static const search = '/search';
   static const searchTagsChild = 'tags';
   static const notifications = '/notifications';
+  static const notificationSettingsChild = 'settings';
   static const postThread = '/posts/:did/:rkey';
   static const profile = '/profile';
   static const savedChild = 'saved';

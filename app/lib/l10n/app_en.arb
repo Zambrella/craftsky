@@ -1,7 +1,7 @@
 {
   "@@locale": "en",
 
-  "appTitle": "Craftsky",
+  "appTitle": "CraftSky",
   "@appTitle": { "description": "The app's title, used in MaterialApp.title and as an AppBar title." },
 
   "homeSubtitle": "Scaffold ready",
@@ -56,6 +56,37 @@
   "@notificationMentionRow": {
     "description": "Notification row title for a mention activity.",
     "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
+  "notificationQuoteRow": "{actor} quoted your post",
+  "@notificationQuoteRow": {
+    "description": "Notification row title for a quote.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+  "notificationGenericRow": "New activity",
+  "notificationUnavailableRow": "Activity unavailable",
+  "notificationSettingsAction": "Notification settings",
+  "notificationSettingsIntro": "Category preferences apply to all devices signed in to this account.",
+  "notificationDeviceDisabled": "Notifications are disabled on this device",
+  "notificationDeviceDisabledDescription": "Account preferences still apply. Enable alerts in system settings.",
+  "notificationOpenSettings": "Open settings",
+  "notificationCategoryLikes": "Likes",
+  "notificationCategoryFollows": "Follows",
+  "notificationCategoryReplies": "Replies",
+  "notificationCategoryMentions": "Mentions",
+  "notificationCategoryQuotes": "Quotes",
+  "notificationCategoryReposts": "Reposts",
+  "notificationCategoryEverythingElse": "Everything else",
+  "notificationPreferenceFrom": "From",
+  "notificationScopeEveryone": "Everyone",
+  "notificationScopePeopleIFollow": "People I follow",
+  "notificationPushEnabled": "Push notifications",
+  "notificationPreferenceSaveError": "Could not save notification preference",
+  "notificationBannerOpen": "Open",
+  "notificationNewActivityCount": "{count, plural, =1{1 new activity} other{{count} new activities}}",
+  "@notificationNewActivityCount": {
+    "description": "Accessible in-app notification badge label.",
+    "placeholders": { "count": { "type": "int", "example": "12" } }
   },
 
   "welcomeTitle": "Welcome",
@@ -142,8 +173,8 @@
   "errorNetworkUnavailable": "You're offline. Check your connection and try again.",
   "@errorNetworkUnavailable": { "description": "Safe generic error message shown when the app cannot reach the network." },
 
-  "errorServiceUnavailable": "Craftsky is having trouble right now. Please try again.",
-  "@errorServiceUnavailable": { "description": "Safe generic error message shown when the Craftsky service is unavailable." },
+  "errorServiceUnavailable": "CraftSky is having trouble right now. Please try again.",
+  "@errorServiceUnavailable": { "description": "Safe generic error message shown when the CraftSky service is unavailable." },
 
   "errorSessionExpired": "Please sign in again.",
   "@errorSessionExpired": { "description": "Safe generic error message shown when the user's session is no longer valid." },
@@ -154,10 +185,10 @@
   "errorContentUnavailable": "That content is no longer available.",
   "@errorContentUnavailable": { "description": "Safe generic error message shown when a post, project, profile, or other content cannot be found." },
 
-  "errorStorageUnavailable": "Craftsky couldn't access secure storage. Please try again.",
+  "errorStorageUnavailable": "CraftSky couldn't access secure storage. Please try again.",
   "@errorStorageUnavailable": { "description": "Safe generic error message shown when local secure storage cannot be read or written." },
 
-  "errorInitializationFailed": "Craftsky couldn't finish starting. Please try again.",
+  "errorInitializationFailed": "CraftSky couldn't finish starting. Please try again.",
   "@errorInitializationFailed": { "description": "Safe generic error message shown on the initialization error screen." },
 
   "errorNavigationFailed": "That page couldn't be opened.",
@@ -190,8 +221,8 @@
   "profileFollowingAction": "Unfollow",
   "@profileFollowingAction": { "description": "Label on the follow button on a visitor profile when the viewer is already following them." },
 
-  "profileNonCraftskyMarker": "Non Craftsky profile",
-  "@profileNonCraftskyMarker": { "description": "Marker shown on a profile page for an atproto account that does not have a Craftsky profile record." },
+  "profileNonCraftskyMarker": "Non CraftSky profile",
+  "@profileNonCraftskyMarker": { "description": "Marker shown on a profile page for an atproto account that does not have a CraftSky profile record." },
 
   "profileTabPosts": "Posts",
   "@profileTabPosts": { "description": "Tab label for the Posts tab on the profile screen." },
@@ -780,13 +811,13 @@
   "replyDeleteTitle": "Delete reply?",
   "@replyDeleteTitle": { "description": "Title of the delete-reply confirmation dialog." },
 
-  "postDeleteMessage": "This removes the post from Craftsky.",
+  "postDeleteMessage": "This removes the post from CraftSky.",
   "@postDeleteMessage": { "description": "Body text of the delete-post confirmation dialog." },
 
-  "commentDeleteMessage": "This removes the comment from Craftsky.",
+  "commentDeleteMessage": "This removes the comment from CraftSky.",
   "@commentDeleteMessage": { "description": "Body text of the delete-comment confirmation dialog." },
 
-  "replyDeleteMessage": "This removes the reply from Craftsky.",
+  "replyDeleteMessage": "This removes the reply from CraftSky.",
   "@replyDeleteMessage": { "description": "Body text of the delete-reply confirmation dialog." },
 
   "postDeleteConfirm": "Delete",
@@ -810,13 +841,13 @@
   "profileReportAction": "Report profile",
   "@profileReportAction": { "description": "Tooltip/action label for reporting a visitor profile." },
 
-  "moderationWarningPost": "This post may not follow Craftsky community guidelines.",
+  "moderationWarningPost": "This post may not follow CraftSky community guidelines.",
   "@moderationWarningPost": { "description": "Generic inline warning copy for a warned post." },
 
-  "moderationWarningProfile": "This profile may not follow Craftsky community guidelines.",
+  "moderationWarningProfile": "This profile may not follow CraftSky community guidelines.",
   "@moderationWarningProfile": { "description": "Generic inline warning copy for a warned profile." },
 
-  "moderationWarningAuthor": "This author may not follow Craftsky community guidelines.",
+  "moderationWarningAuthor": "This author may not follow CraftSky community guidelines.",
   "@moderationWarningAuthor": { "description": "Generic inline warning copy for posts by a warned author." },
 
   "reportSubmit": "Submit",

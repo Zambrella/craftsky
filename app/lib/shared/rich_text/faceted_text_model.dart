@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-/// AT Protocol rich-text facet feature type constants supported by Craftsky.
+/// AT Protocol rich-text facet feature type constants supported by CraftSky.
 abstract final class FacetFeatureType {
   /// Mention facet feature type.
   static const mention = 'app.bsky.richtext.facet#mention';

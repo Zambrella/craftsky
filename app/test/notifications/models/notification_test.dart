@@ -1,5 +1,6 @@
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
+import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -81,6 +82,82 @@ void main() {
     expect(
       (page.items[4] as MentionNotification).subjectPost.text,
       'viewer post',
+    );
+  });
+
+  test('UT-005 / AT-006 decodes seven types, unknown, and tombstones', () {
+    final availablePost = post();
+    final items = <Map<String, dynamic>>[
+      {...base('follow', 'follow'), 'id': 'id-follow'},
+      {...base('like', 'like'), 'id': 'id-like', 'subjectPost': availablePost},
+      {
+        ...base('repost', 'repost'),
+        'id': 'id-repost',
+        'subjectPost': availablePost,
+      },
+      {
+        ...base('reply', 'reply'),
+        'id': 'id-reply',
+        'subjectPost': availablePost,
+      },
+      {
+        ...base('mention', 'mention'),
+        'id': 'id-mention',
+        'subjectPost': availablePost,
+      },
+      {
+        ...base('quote', 'quote'),
+        'id': 'id-quote',
+        'subjectPost': availablePost,
+      },
+      {...base('everythingElse', 'other'), 'id': 'id-other'},
+      {...base('futureCategory', 'future'), 'id': 'id-future'},
+      {
+        ...base('like', 'gone'),
+        'id': 'id-gone',
+        'contentAvailable': false,
+        'actor': {'available': false},
+      },
+    ];
+
+    final decoded = items.map(CraftskyNotification.fromMap).toList();
+
+    expect(
+      decoded.map((item) => item.type),
+      [
+        NotificationCategory.follow,
+        NotificationCategory.like,
+        NotificationCategory.repost,
+        NotificationCategory.reply,
+        NotificationCategory.mention,
+        NotificationCategory.quote,
+        NotificationCategory.everythingElse,
+        NotificationCategory.unknown,
+        NotificationCategory.like,
+      ],
+    );
+    expect(decoded.map((item) => item.id), contains('id-quote'));
+    expect(decoded[7], isA<GenericNotification>());
+    expect(decoded[8], isA<UnavailableNotification>());
+  });
+
+  test('nested AppView values use generated mapping and copyWith', () {
+    final decodedActor = NotificationActor.fromMap(actor());
+    final renamedActor = decodedActor.copyWith(displayName: 'Alicia');
+    final reply = NotificationReplyRefMapper.fromMap({
+      'uri': 'at://did:plc:alice/social.craftsky.feed.post/reply1',
+      'cid': 'bafyreply1',
+      'rkey': 'reply1',
+    });
+
+    expect(renamedActor.displayName, 'Alicia');
+    expect(reply.rkey.toString(), 'reply1');
+    expect(
+      reply.toMap(),
+      containsPair(
+        'uri',
+        'at://did:plc:alice/social.craftsky.feed.post/reply1',
+      ),
     );
   });
 }

@@ -295,7 +295,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Open link?'), findsOneWidget);
-      expect(find.text('This will open outside Craftsky.'), findsOneWidget);
+      expect(find.text('This will open outside CraftSky.'), findsOneWidget);
       expect(
         find.text('https://example.com/patterns/top?utm_source=feed#details'),
         findsOneWidget,

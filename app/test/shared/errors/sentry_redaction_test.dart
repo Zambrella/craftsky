@@ -47,5 +47,32 @@ void main() {
 
       expect(sanitized, {'appViewRequestId': 'req_123'});
     });
+
+    test('REG-002 drops every notification and account sentinel field', () {
+      const sentinels = {
+        'firebaseToken': 'fcm-token-sensitive-value',
+        'accountSubscriptionId': 'routing-sensitive-value',
+        'notificationId': '018f47a2-4b0e-7f39-a621-9f6f6c75e312',
+        'did': 'did:plc:sensitive-account',
+        'handle': 'sensitive.craftsky.social',
+        'atUri': 'at://did:plc:sensitive/social.craftsky.feed.post/secret',
+        'providerPayload': 'private provider copy',
+        'credential': 'credential-sensitive-value',
+      };
+      final sanitized = SentrySanitizer.sanitizeContext({
+        'classification': 'notification.unavailable',
+        'endpointCategory': 'appview.notifications.detail',
+        ...sentinels,
+      });
+
+      expect(sanitized, {
+        'classification': 'notification.unavailable',
+        'endpointCategory': 'appview.notifications.detail',
+      });
+      final encoded = sanitized.toString();
+      for (final sentinel in sentinels.values) {
+        expect(encoded, isNot(contains(sentinel)));
+      }
+    });
   });
 }

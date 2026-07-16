@@ -30,7 +30,7 @@ class AuthApiClient {
     return WhoAmIMapper.fromMap(res.data!);
   });
 
-  /// POST /v1/auth/logout — revokes the current Craftsky session
+  /// POST /v1/auth/logout — revokes the current CraftSky session
   /// (single-device). Server responds 204.
   Future<void> logout() => unwrapApi(() async {
     await _dio.post<void>('/v1/auth/logout');

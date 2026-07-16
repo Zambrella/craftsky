@@ -21,6 +21,12 @@ import 'package:craftsky_app/feed/providers/user_posts_provider.dart'
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
+import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
+import 'package:craftsky_app/notifications/models/notification_category.dart';
+import 'package:craftsky_app/notifications/models/notification_preferences.dart';
+import 'package:craftsky_app/notifications/models/notifications_state.dart';
+import 'package:craftsky_app/notifications/providers/notification_service_provider.dart';
+import 'package:craftsky_app/notifications/services/firebase_notification_bootstrap.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
@@ -223,6 +229,8 @@ Future<void> bootstrap(
     );
   }
 
+  final notificationService = await bootstrapFirebaseNotificationService();
+
   // Fail fast if --dart-define=CRAFTSKY_API_BASE_URL is missing in a
   // release build. Building the provider throws StateError before any
   // networking is attempted. We dispose the throwaway container so the
@@ -250,6 +258,9 @@ Future<void> bootstrap(
     ProviderScope(
       observers: [ProviderLogger(reporter: reporter)],
       retry: appProviderRetry,
+      overrides: [
+        notificationServiceProvider.overrideWithValue(notificationService),
+      ],
       child: const App(),
     ),
   );
@@ -274,6 +285,13 @@ void initializeMappers() {
   ModerationMetadataMapper.ensureInitialized();
   ReportResultMapper.ensureInitialized();
   ReportSubmissionMapper.ensureInitialized();
+  NotificationCategoryMapper.ensureInitialized();
+  NotificationActorMapper.ensureInitialized();
+  NotificationReplyRefMapper.ensureInitialized();
+  NotificationCommonMapper.ensureInitialized();
+  NotificationPreferenceScopeMapper.ensureInitialized();
+  NotificationPreferenceMapper.ensureInitialized();
+  NotificationsStateMapper.ensureInitialized();
   ProjectMapper.ensureInitialized();
   ProjectBrowseQueryMapper.ensureInitialized();
   ProjectBrowseFiltersMapper.ensureInitialized();

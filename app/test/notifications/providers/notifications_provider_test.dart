@@ -16,10 +16,9 @@ void main() {
     final repo = _FakeNotificationRepository()
       ..responses.add(Future<NotificationPage>.error(Exception('nope')))
       ..responses.add(Future.value(NotificationPage(items: [_follow('one')])));
-    final container = ProviderContainer(
+    final container = ProviderContainer.test(
       overrides: [notificationRepositoryProvider.overrideWithValue(repo)],
     );
-    addTearDown(container.dispose);
     final sub = container.listen(
       notificationsProvider,
       (_, _) {},
@@ -42,10 +41,9 @@ void main() {
         Future.value(NotificationPage(items: [_follow('one')], cursor: 'next')),
       )
       ..responses.add(Future.value(NotificationPage(items: [_follow('two')])));
-    final container = ProviderContainer(
+    final container = ProviderContainer.test(
       overrides: [notificationRepositoryProvider.overrideWithValue(repo)],
     );
-    addTearDown(container.dispose);
 
     await container.read(notificationsProvider.future);
     await container.read(notificationsProvider.notifier).loadMore();
@@ -67,10 +65,9 @@ void main() {
           ),
         )
         ..responses.add(gate.future);
-      final container = ProviderContainer(
+      final container = ProviderContainer.test(
         overrides: [notificationRepositoryProvider.overrideWithValue(repo)],
       );
-      addTearDown(container.dispose);
 
       await container.read(notificationsProvider.future);
       final firstLoadMore = container
@@ -91,6 +88,7 @@ void main() {
 
 FollowNotification _follow(String rkey) =>
     CraftskyNotification.fromMap({
+          'id': 'notification-$rkey',
           'uri': 'at://did:plc:alice/app.bsky.graph.follow/$rkey',
           'cid': 'bafy$rkey',
           'rkey': rkey,

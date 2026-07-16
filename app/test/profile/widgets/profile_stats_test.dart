@@ -54,7 +54,7 @@ void main() {
       expect(find.text('7'), findsNothing);
     });
 
-    testWidgets('hides account age for non-Craftsky profiles', (tester) async {
+    testWidgets('hides account age for non-CraftSky profiles', (tester) async {
       final profile = Profile(
         did: 'did:plc:carol',
         handle: 'carol.bsky.social',

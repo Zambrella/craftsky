@@ -1,11 +1,11 @@
 {
-    "name": "craftsky_app",
-    "short_name": "craftsky_app",
+    "name": "CraftSky",
+    "short_name": "CraftSky",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Crafting-focused social platform on AT Protocol.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -4,7 +4,7 @@
 
 import 'package:craftsky_app/shared/rich_text/facet_token_parser.dart';
 
-/// Resolves visible Craftsky handles to DIDs without network access.
+/// Resolves visible CraftSky handles to DIDs without network access.
 abstract interface class MentionResolver {
   /// Returns the DID for [handle], or `null` when the local resolver does not
   /// know the handle.

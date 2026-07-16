@@ -25,4 +25,7 @@ func TestFirebaseSenderBuildsCombinedMessageWithBoundedTTL(t *testing.T) {
 	if m.Token != "token" || m.Android == nil || m.Android.TTL == nil || *m.Android.TTL != time.Hour || m.APNS.Headers["apns-expiration"] != "4600" || m.Data["notificationId"] != "notification" {
 		t.Fatalf("message=%+v", m)
 	}
+	if m.APNS.Payload == nil || m.APNS.Payload.Aps == nil || m.APNS.Payload.Aps.Sound != "default" {
+		t.Fatalf("apns payload=%+v, want default sound", m.APNS.Payload)
+	}
 }

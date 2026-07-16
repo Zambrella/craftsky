@@ -4,14 +4,22 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
+import 'package:craftsky_app/notifications/models/notification_category.dart';
+import 'package:craftsky_app/notifications/models/notification_id.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
+import 'package:craftsky_app/notifications/models/notification_resolution.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
+import 'package:craftsky_app/notifications/widgets/notification_row.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+
+import '../fakes/recording_messenger.dart';
 
 void main() {
   setUpAll(initializeMappers);
@@ -190,6 +198,78 @@ void main() {
     expect(threadStates.last.pathParameters['rkey'], 'root');
     expect(threadStates.last.uri.queryParameters['focus'], isNull);
   });
+
+  testWidgets(
+    'AT-006 generic rows resolve through AppView and tombstones warn',
+    (tester) async {
+      final resolution = _RecordingResolutionRepository();
+      final messenger = RecordingMessenger();
+      final generic = _generic('00000000-0000-0000-0000-000000000001');
+      final unavailable = _unavailable(
+        '00000000-0000-0000-0000-000000000002',
+      );
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => Scaffold(
+              body: Column(
+                children: [
+                  NotificationRow(notification: generic),
+                  NotificationRow(notification: unavailable),
+                ],
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/profile/:handle',
+            builder: (context, state) => const Scaffold(
+              body: Text('Resolved profile'),
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            notificationResolutionRepositoryProvider.overrideWithValue(
+              resolution,
+            ),
+          ],
+          child: MessengerScope(
+            messenger: messenger,
+            child: MaterialApp.router(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              routerConfig: router,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('New activity'));
+      await tester.pumpAndSettle();
+      expect(
+        resolution.ids.map((id) => id.wireValue),
+        ['00000000-0000-0000-0000-000000000001'],
+      );
+      expect(find.text('Resolved profile'), findsOneWidget);
+
+      router.go('/');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Activity unavailable'));
+      await tester.pump();
+
+      expect(resolution.ids, hasLength(1));
+      expect(messenger.calls, hasLength(1));
+      expect(messenger.calls.single.$1, 'warning');
+      expect(messenger.calls.single.$2, 'Activity unavailable');
+      expect(find.text('Resolved profile'), findsNothing);
+    },
+  );
 }
 
 class _TestApp extends StatelessWidget {
@@ -249,6 +329,25 @@ ReplyNotification _reply(String rkey, {bool includeFocus = true}) =>
         })
         as ReplyNotification;
 
+GenericNotification _generic(String id) =>
+    CraftskyNotification.fromMap({
+          ..._baseNotification('futureCategory', 'generic'),
+          'id': id,
+        })
+        as GenericNotification;
+
+UnavailableNotification _unavailable(String id) =>
+    CraftskyNotification.fromMap({
+          ..._baseNotification('like', 'unavailable'),
+          'id': id,
+          'actor': {
+            'did': 'did:plc:alice',
+            'handle': 'alice.craftsky.social',
+            'available': false,
+          },
+        })
+        as UnavailableNotification;
+
 Map<String, dynamic> _baseNotification(String type, String rkey) => {
   'uri': 'at://did:plc:alice/social.craftsky.feed.$type/$rkey',
   'cid': 'bafy$rkey',
@@ -299,6 +398,22 @@ class _QueueNotificationRepository implements NotificationRepository {
   Future<NotificationPage> list({String? cursor, int? limit}) {
     calls.add(_Call(cursor: cursor, limit: limit));
     return responses.removeAt(0);
+  }
+}
+
+class _RecordingResolutionRepository
+    implements NotificationResolutionRepository {
+  final ids = <NotificationId>[];
+
+  @override
+  Future<NotificationResolution> resolve(NotificationId id) async {
+    ids.add(id);
+    return NotificationResolution(
+      id: id,
+      category: NotificationCategory.unknown,
+      state: NotificationResolutionState.active,
+      target: NotificationProfileTarget(Did.parse('did:plc:resolved')),
+    );
   }
 }
 

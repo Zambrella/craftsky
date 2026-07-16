@@ -107,7 +107,7 @@ void main() {
       expect(find.byType(InitializationErrorScreen), findsOneWidget);
       expect(find.text('Initialization Failed'), findsOneWidget);
       expect(
-        find.text("Craftsky couldn't finish starting. Please try again."),
+        find.text("CraftSky couldn't finish starting. Please try again."),
         findsOneWidget,
       );
       expect(find.text('Exception: boot failed'), findsNothing);
