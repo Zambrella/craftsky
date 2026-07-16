@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
+cd "$repo_root"
+
+compose=(docker compose -f "$repo_root/docker-compose.yml")
+adc_path=""
+gcloud_config_dir="${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}"
+
+# Respect an explicit ADC path first, then fall back to gcloud's standard
+# developer credential location. A missing or unreadable credential is normal:
+# the base Compose configuration leaves push delivery disabled.
+if [[ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" && -f "$GOOGLE_APPLICATION_CREDENTIALS" && -r "$GOOGLE_APPLICATION_CREDENTIALS" ]]; then
+  adc_path="$GOOGLE_APPLICATION_CREDENTIALS"
+elif [[ -f "$gcloud_config_dir/application_default_credentials.json" && -r "$gcloud_config_dir/application_default_credentials.json" ]]; then
+  adc_path="$gcloud_config_dir/application_default_credentials.json"
+fi
+
+if [[ -n "$adc_path" ]]; then
+  export FIREBASE_ADC_PATH="$adc_path"
+  compose+=(-f "$repo_root/docker-compose.push.yml")
+  printf '%s\n' 'Firebase ADC found; push notifications enabled.' >&2
+else
+  printf '%s\n' 'Firebase ADC not found; push notifications disabled.' >&2
+fi
+
+exec "${compose[@]}" "$@"

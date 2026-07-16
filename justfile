@@ -13,11 +13,11 @@ worktree-cleanup *ARGS:
 
 # Start the full compose stack in the foreground.
 dev:
-    docker compose up --build
+    ./scripts/compose-dev up --build
 
 # Start detached.
 dev-d:
-    docker compose up -d --build
+    ./scripts/compose-dev up -d --build
 
 # Stop and remove containers. Volumes are preserved.
 down:

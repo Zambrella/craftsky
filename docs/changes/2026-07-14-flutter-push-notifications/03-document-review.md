@@ -35,7 +35,7 @@ No blocking contradiction, missing Must coverage, or unresolved product decision
 ## Risk And Approval Review
 
 - Risk level: High. The change crosses OS permissions, Firebase/APNs configuration, background execution, auth-gated registration, secure account routing, sign-out/401 cleanup, native identifiers, and a narrow AppView sender change.
-- Review requirement: Coding planning may proceed. Implementation still requires explicit user approval after the coding plan because the workflow documents mark this as high risk. Physical-device delivery must not begin until the bounded sender gate is prepared, and iOS delivery requires the APNs authentication key to be configured outside the repository.
+- Review requirement: Coding planning may proceed. Implementation still requires explicit user approval after the coding plan because the workflow documents mark this as high risk. Physical-device delivery must not begin until credential-aware startup reports push enabled and the intended local device/account is recorded; iOS delivery also requires the APNs authentication key to be configured outside the repository.
 - Approval notes: Keep Firebase types at the adapter boundary, maintain one coordinator owner, preserve AppView resolution as the only navigation authority, keep non-production sending disabled outside a bounded manual check, and do not widen the AppView change beyond the default APNs sound and configuration-gate assertion.
 
 ## Coding Plan Readiness

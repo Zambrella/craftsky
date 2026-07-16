@@ -51,7 +51,7 @@ No PDS token, PDS write, lexicon, migration, new AppView route, new JSON shape, 
 | Preferences | No client models, API calls, provider, settings route, or UI | Add seven-category full-screen settings, independent scope/push controls, optimistic per-field PATCH, unknown preservation, and denied-device warning | BR-004, FR-015–FR-018, FR-024, RULE-004, RULE-008 | UT-009–UT-011, AT-008, IT-006, IT-009, MAN-004 |
 | Sign-out cleanup | Explicit and 401 sign-out clear only session state | Add one idempotent notification cleanup service used before session clearing; preserve device ID; delete FCM token only for unconfirmed cleanup | FR-021 | UT-019, AT-010, IT-011, MAN-003 |
 | Privacy and diagnostics | Error mapping already emits bounded endpoint categories and Sentry allowlists | Add safe notification endpoint categories and classification-only lifecycle logs; prevent model/effect stringification from exposing payload or IDs | NFR-001, NFR-002 | UT-002, IT-013, REG-001, REG-002 |
-| AppView follow-ups | APNs config has expiration only; push defaults false but project validation is prod-only | Add APNs default sound; require project ID whenever push is explicitly enabled; make dev default-off explicit | FR-025, FR-026 | AT-012, IT-014, IT-015, REG-007, REG-010, MAN-002, MAN-005 |
+| AppView follow-ups | APNs config has expiration only; push defaults false but project validation is prod-only | Add APNs default sound; require project ID whenever push is enabled; select enabled development Compose configuration automatically when readable ADC exists and otherwise retain disabled startup | FR-025, FR-026 | AT-012, IT-014, IT-015, REG-007, REG-010, MAN-002, MAN-005 |
 
 ## 4. Files And Modules
 
@@ -110,8 +110,8 @@ Paths below are implementation targets. Generated `.g.dart` and localization fil
 | `app/ios/Runner/GoogleService-Info.plist` | Create | Checked-in Firebase iOS client configuration for `craftsky-app` / `social.craftsky.app` | FR-001 | AT-001, REG-006 |
 | `app/ios/Runner/Runner.entitlements`, `Info.plist`, `Runner.xcodeproj/project.pbxproj` | Create/Change | Set bundle ID, add Firebase plist resource, enable Push Notifications and remote-notification background mode, and wire entitlements | FR-001, FR-023 | AT-001, AT-012, REG-006, MAN-002 |
 | `appview/internal/push/firebase_sender.go`, `_test.go` | Change | Add APNs `aps.sound = "default"`; assert complete payload parity otherwise | FR-025 | AT-012, IT-014, REG-007, MAN-002 |
-| `appview/internal/app/config.go`, `push_config_test.go` | Change | Keep false default and require project ID whenever `PUSH_ENABLED=true`, including dev | FR-026 | IT-015, REG-010, MAN-005 |
-| `appview/environments/dev.env` | Change | Make `PUSH_ENABLED=false` explicit and document temporary manual override without credentials in source | FR-026 | IT-015, MAN-005 |
+| `appview/internal/app/config.go`, `push_config_test.go` | Change | Keep the safe false fallback and require project ID whenever `PUSH_ENABLED=true`, including dev | FR-026 | IT-015, REG-010, MAN-005 |
+| `scripts/compose-dev`, `docker-compose.push.yml`, `justfile`, `appview/environments/dev.env` | Create/Change | Make `just dev` detect readable external ADC, enable push through a read-only Compose secret when present, and retain normal disabled startup when absent | FR-026 | IT-015, MAN-005 |
 | `app/test/notifications/**`, named auth/router/l10n/observability tests, and focused AppView tests | Create/Change | Implement UT-001–UT-019, AT-001–AT-012, IT-001–IT-015, REG-001–REG-010 using fakes/mocked Dio/static inspection | All | All automated IDs |
 
 ## 5. Services, Interfaces, And Data Flow
@@ -276,7 +276,7 @@ Token deletion failure is classified without token/error payload details and nev
 
 The Firebase sender adds only the APNs default sound request under `APNS.Payload.Aps.Sound`. Its regression test compares token, notification copy, data map, Android TTL/config, APNs expiration, and result classification before asserting the new sound field.
 
-`LoadConfig` continues to default `PUSH_ENABLED` to false in every environment. If explicitly true in dev or prod, `FIREBASE_PROJECT_ID` must be non-empty before dependency construction. `appview/environments/dev.env` records the normal `false` state explicitly. Credentials remain Application Default Credentials supplied outside the repository.
+`LoadConfig` continues to default `PUSH_ENABLED` to false in every environment. If true in dev or prod, `FIREBASE_PROJECT_ID` must be non-empty before dependency construction. `scripts/compose-dev` checks an explicit `GOOGLE_APPLICATION_CREDENTIALS` path and then gcloud's standard ADC location: readable ADC selects the push override and read-only secret mount, while absent ADC retains the base disabled configuration. Credentials remain outside the repository.
 
 ## 6. State, Providers, Controllers, Or DI
 
@@ -419,7 +419,8 @@ The page is one scrollable `Scaffold` containing:
 | Successful logout | Remove current binding, preserve token/other binding/device ID | FR-021 | UT-019, AT-010, IT-011 |
 | Failed logout or 401; token deletion fails | Attempt deletion before session clear, then always remove binding and complete local sign-out | FR-021 | UT-019, AT-010, IT-011 |
 | Background handler invoked | Complete without UI/provider mutation or payload logging | FR-020 | IT-013, REG-005 |
-| Non-production normal startup | Push dispatcher disabled; no real Firebase sender | FR-026 | IT-015, MAN-005 |
+| Development startup with readable ADC | Select push override, mount ADC read-only, and enable dispatcher | FR-026 | IT-015, MAN-005 |
+| Development startup without readable ADC | Use base configuration; push dispatcher remains disabled without blocking startup | FR-026 | IT-015, MAN-005 |
 | Explicit push enablement missing project ID | Fail AppView config validation with safe key name | FR-026 | IT-015 |
 
 ## 9. Test Implementation Plan
@@ -479,7 +480,7 @@ just app-analyze
 just test
 ```
 
-Native/provider checks run only after all automated suites are green and the manual session starts with `PUSH_ENABLED=false`. MAN-001/MAN-002 temporarily enable sending for the named devices and restore/verify false afterward.
+Native/provider checks run only after all automated suites are green. MAN-001/MAN-002 confirm that credential-aware development startup reports push enabled and record the intended local device/account before generating test events.
 
 ## 10. Sequencing And Guardrails
 
@@ -512,7 +513,7 @@ Native/provider checks run only after all automated suites are green and the man
   - Successful server logout retains the FCM token; unconfirmed cleanup attempts deletion before session clear; every path removes only the current DID binding and preserves device ID.
   - Android manifest metadata and channel creation use the same resource ID; keep the AppView Android payload unchanged.
   - The AppView change is limited to APNs default sound and enabled-config validation; no route, payload data, eligibility, delivery, database, or lexicon change.
-  - `PUSH_ENABLED=false` is the verified state before and after every non-production physical-device check.
+  - Credential-aware development startup must report whether push is enabled; physical-device checks record the intended local device/account before generating events.
   - Preserve unrelated dirty-worktree changes; this stage edits only `04-coding-plan.md`.
 - Out of scope:
   - Web/desktop push, raw APNs, multi-account UI/simultaneous sessions, local inbox/cache, per-item read state, per-device unread state.
@@ -549,5 +550,5 @@ No product or architecture question blocks a useful coding plan. CPQ-001 is the 
 - Next slice: UT-003/UT-015 routing policy and secure DID-keyed binding storage.
 - Notes:
   - Keep strict red-green-refactor order and the test sequence in Section 9.
-  - Do not perform native/provider manual checks until automated suites pass and the bounded sender gate is recorded.
+  - Do not perform native/provider manual checks until automated suites pass, credential-aware startup reports push enabled, and the intended local device/account is recorded.
   - Stop for explicit user approval before dependency, source, native project, AppView, or generated-file changes.

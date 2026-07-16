@@ -20,7 +20,7 @@
 - Refactor only after tests pass.
 - Keep traceability updated.
 - Keep Firebase types inside the approved adapter/bootstrap/background boundary.
-- Do not run physical-device delivery until automated verification is green and the bounded sender gate starts from `PUSH_ENABLED=false`.
+- Do not run physical-device delivery until automated verification is green, credential-aware startup reports push enabled, and the intended local device/account is recorded.
 - Do not commit or push during this stage unless the user explicitly asks.
 
 ## Test Order
@@ -185,12 +185,13 @@ This pass changes internal layout only. It keeps the original behavior requireme
 - Step 22 — IT-013: the constrained entry-point test failed because Firebase initialization was not injectable. Kept the top-level retained handler and added only an optional initializer seam; the handler still performs Firebase initialization alone and never reads/logs payload data or touches UI, routing, providers, or navigation.
 - Step 23 — IT-014/REG-007: the existing complete-message regression failed on missing APNs payload. Added only `aps.sound = "default"`; token, visible copy, data map, Android TTL/config, APNs expiration, provider call, and result classification remain on the existing path.
 - Step 24 — IT-015/REG-010: the expanded configuration test proved dev could enable push without a Firebase project. Validation now requires `FIREBASE_PROJECT_ID` whenever `PUSH_ENABLED=true` in any environment, while the default remains false; `environments/dev.env` records the normal disabled state explicitly.
+- Credential-aware development follow-up — `scripts/compose-dev` now selects the Firebase Compose override when an explicit or standard gcloud ADC file is readable, otherwise retaining the base disabled configuration. `just dev` and `just dev-d` use that helper; ADC remains an external read-only secret.
 - Refactors: only while the focused and nearby suites are green.
 
 ### Step 25: MAN-001–MAN-005
 - Status: blocked on external physical-device and APNs/FCM credential prerequisites; not run.
-- Guardrail: verify `PUSH_ENABLED=false` before and after any bounded delivery session.
-- Notes: `appview/environments/dev.env` remains `PUSH_ENABLED=false`; no bounded sender session was started, and automated success does not imply live delivery.
+- Guardrail: confirm startup reports push enabled and record the intended local device/account before generating physical-device test events.
+- Notes: `appview/environments/dev.env` remains the safe false fallback; readable ADC automatically selects the enabled override. No sender session was started, and automated success does not imply live delivery.
 
 ## Final Verification
 
@@ -202,7 +203,7 @@ This pass changes internal layout only. It keeps the original behavior requireme
 - Repository `just app-analyze`: passed — no issues found.
 - Repository `just test`: passed with the race detector and local Postgres.
 - `git diff --check`: passed.
-- Sender gate: verified `appview/environments/dev.env` contains `PUSH_ENABLED=false`; no live sender invocation occurred.
+- Development sender selection: verified missing ADC resolves `PUSH_ENABLED=false`, while readable ADC resolves `PUSH_ENABLED=true` with `GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/firebase_adc`; no live sender invocation occurred.
 - Diff-to-requirement traceability review: completed; IR-007–IR-012 were implemented without changing the approved observable behavior or Firebase/security boundaries.
 
 ## Completion Checklist

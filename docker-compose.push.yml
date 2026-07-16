@@ -1,0 +1,15 @@
+services:
+  appview:
+    environment:
+      PUSH_ENABLED: "true"
+      FIREBASE_PROJECT_ID: craftsky-app
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase_adc
+    secrets:
+      - firebase_adc
+
+secrets:
+  firebase_adc:
+    # scripts/compose-dev selects either GOOGLE_APPLICATION_CREDENTIALS or the
+    # standard gcloud ADC file. The credential remains outside the repository
+    # and is exposed only to AppView as a read-only Compose secret.
+    file: ${FIREBASE_ADC_PATH}
