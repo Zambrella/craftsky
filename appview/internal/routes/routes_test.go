@@ -200,6 +200,21 @@ func TestAddRoutes_MetricsEndpointIsRemoved(t *testing.T) {
 	}
 }
 
+func TestAddRoutes_NotificationResolutionRouteIsRemoved(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/v1/notifications/00000000-0000-0000-0000-000000000001",
+		nil,
+	)
+	_, pattern := mux.Handler(req)
+	if pattern != "/" {
+		t.Fatalf("former notification resolution path matched %q, want fallback route", pattern)
+	}
+}
+
 func TestAddRoutes_NoMetricsAuthBypassAndV1RoutesStillEnforceDevice(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, testDeps())

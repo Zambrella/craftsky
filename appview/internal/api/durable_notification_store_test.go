@@ -27,6 +27,13 @@ func TestNotificationStoreListsOnlyActiveDurableEventsWithStablePagination(t *te
 	seedMember(t, pool, "did:plc:viewer")
 	seedMember(t, pool, "did:plc:alice")
 	seedBskyProfile(t, pool, "did:plc:alice", "Alice", "avatar")
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
+		VALUES ('at://did:plc:viewer/app.bsky.graph.follow/alice', 'did:plc:viewer',
+		        'alice', 'follow-cid', 'did:plc:alice', '{}'::jsonb, now())
+	`); err != nil {
+		t.Fatal(err)
+	}
 	activity := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
 	for _, row := range []struct{ id, state string }{
 		{"00000000-0000-0000-0000-000000000003", "active"},
@@ -52,14 +59,14 @@ func TestNotificationStoreListsOnlyActiveDurableEventsWithStablePagination(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(first) != 1 || first[0].ID != "00000000-0000-0000-0000-000000000003" || cursor == "" {
+	if len(first) != 1 || first[0].ID != "00000000-0000-0000-0000-000000000003" || !first[0].ActorViewerIsFollowing || cursor == "" {
 		t.Fatalf("first=%+v cursor=%q", first, cursor)
 	}
 	second, finalCursor, err := store.ListNotifications(context.Background(), "did:plc:viewer", 1, cursor)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(second) != 1 || second[0].ID != "00000000-0000-0000-0000-000000000002" || finalCursor != "" {
+	if len(second) != 1 || second[0].ID != "00000000-0000-0000-0000-000000000002" || !second[0].ActorViewerIsFollowing || finalCursor != "" {
 		t.Fatalf("second=%+v cursor=%q", second, finalCursor)
 	}
 }

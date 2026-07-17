@@ -16,8 +16,11 @@ import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/errors/notification_destination_error.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
@@ -74,7 +77,14 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
       ),
     );
     final formFactor = FormFactorWidget.of(context);
-    final visibleSection = sectionAsync.value ?? _lastSection;
+    final destinationError = sectionAsync.error;
+    final isPermanentError =
+        destinationError != null &&
+        classifyNotificationDestinationError(destinationError) ==
+            NotificationDestinationErrorKind.permanentUnavailable;
+    final visibleSection = isPermanentError
+        ? null
+        : sectionAsync.value ?? _lastSection;
     if (sectionAsync case AsyncData(:final value)) {
       _lastSection = value;
     }
@@ -136,52 +146,83 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
       });
     return Scaffold(
       appBar: AppBar(title: Text(l10n.postThreadTitle)),
-      body: switch ((sectionAsync, visibleSection)) {
-        (_, final section?) => _CommentSectionBody(
-          section: section,
-          did: widget.did,
-          rkey: widget.rkey,
-          focus: widget.focus,
-          createdTargetUri: _createdTargetUri,
-          viewerDid: viewerDid,
-          showInlineComposer: formFactor.isLarge,
-          isLoadingMoreComments: pageLoaderAsync.isLoading,
-          isRefreshingComments: isRefreshingComments,
-          onNearEnd: () => ref
-              .read(
-                postCommentPageLoaderProvider(
-                  widget.did,
-                  widget.rkey,
-                  sort: _sort,
-                  focus: widget.focus,
-                ).notifier,
-              )
-              .load(),
-          onCollapseReplies: (commentUri) => ref
-              .read(
+      body: isPermanentError
+          ? _ThreadError(
+              error: destinationError,
+              onRetry: () => ref.invalidate(
                 postCommentSectionProvider(
                   widget.did,
                   widget.rkey,
                   sort: _sort,
                   focus: widget.focus,
-                ).notifier,
-              )
-              .collapseReplies(commentUri),
-          selectedSort: _sort,
-          onSortChanged: (sort) => setState(() => _sort = sort),
-        ),
-        (AsyncError(), _) => _ThreadError(
-          onRetry: () => ref.invalidate(
-            postCommentSectionProvider(
-              widget.did,
-              widget.rkey,
-              sort: _sort,
-              focus: widget.focus,
-            ),
-          ),
-        ),
-        _ => const Center(child: StitchProgressIndicator()),
-      },
+                ),
+              ),
+            )
+          : switch ((sectionAsync, visibleSection)) {
+              (_, final section?) => Column(
+                children: [
+                  if (destinationError != null)
+                    _ThreadError(
+                      error: destinationError,
+                      onRetry: () => ref.invalidate(
+                        postCommentSectionProvider(
+                          widget.did,
+                          widget.rkey,
+                          sort: _sort,
+                          focus: widget.focus,
+                        ),
+                      ),
+                    ),
+                  Expanded(
+                    child: _CommentSectionBody(
+                      section: section,
+                      did: widget.did,
+                      rkey: widget.rkey,
+                      focus: widget.focus,
+                      createdTargetUri: _createdTargetUri,
+                      viewerDid: viewerDid,
+                      showInlineComposer: formFactor.isLarge,
+                      isLoadingMoreComments: pageLoaderAsync.isLoading,
+                      isRefreshingComments: isRefreshingComments,
+                      onNearEnd: () => ref
+                          .read(
+                            postCommentPageLoaderProvider(
+                              widget.did,
+                              widget.rkey,
+                              sort: _sort,
+                              focus: widget.focus,
+                            ).notifier,
+                          )
+                          .load(),
+                      onCollapseReplies: (commentUri) => ref
+                          .read(
+                            postCommentSectionProvider(
+                              widget.did,
+                              widget.rkey,
+                              sort: _sort,
+                              focus: widget.focus,
+                            ).notifier,
+                          )
+                          .collapseReplies(commentUri),
+                      selectedSort: _sort,
+                      onSortChanged: (sort) => setState(() => _sort = sort),
+                    ),
+                  ),
+                ],
+              ),
+              (AsyncError(:final error), _) => _ThreadError(
+                error: error,
+                onRetry: () => ref.invalidate(
+                  postCommentSectionProvider(
+                    widget.did,
+                    widget.rkey,
+                    sort: _sort,
+                    focus: widget.focus,
+                  ),
+                ),
+              ),
+              _ => const Center(child: StitchProgressIndicator()),
+            },
       bottomNavigationBar: switch (visibleSection) {
         final value? when formFactor.isSmall => _ReplyPrompt(
           key: const ValueKey('threadStickyReplyPrompt'),
@@ -912,19 +953,25 @@ class _CommentReplyControls extends StatelessWidget {
 }
 
 class _ThreadError extends StatelessWidget {
-  const _ThreadError({required this.onRetry});
+  const _ThreadError({required this.error, required this.onRetry});
 
+  final Object error;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Center(
-      child: TextButton.icon(
-        onPressed: onRetry,
-        icon: const Icon(Icons.refresh),
-        label: Text(l10n.retryButton),
-      ),
+    return NotificationDestinationErrorState(
+      error: error,
+      onRetry: onRetry,
+      onBack: () {
+        final navigator = Navigator.of(context);
+        if (navigator.canPop()) {
+          navigator.pop();
+        } else {
+          const FeedRoute().go(context);
+        }
+      },
+      onViewNotifications: () => const NotificationsRoute().go(context),
     );
   }
 }

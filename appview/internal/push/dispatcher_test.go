@@ -120,6 +120,97 @@ func (s *scriptedSender) requestCount() int {
 	return len(s.requests)
 }
 
+func TestDispatcherIT001ProjectsCanonicalRoutingFacts(t *testing.T) {
+	pool := dispatcherPool(t)
+	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
+	const sourceURI = "at://did:plc:actor/social.craftsky.feed.post/source"
+	const subjectURI = "at://did:plc:recipient/social.craftsky.feed.post/subject"
+	const rootURI = "at://did:plc:root/social.craftsky.feed.post/root"
+	if _, err := pool.Exec(
+		context.Background(),
+		`UPDATE notification_events SET source_uri=$1,subject_uri=$2,root_uri=$3 WHERE id='00000000-0000-0000-0000-000000000001'`,
+		sourceURI,
+		subjectURI,
+		rootURI,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	sender := &scriptedSender{}
+	now := time.Now().UTC()
+	dispatcher := NewDispatcher(pool, sender, DispatcherOptions{Now: func() time.Time { return now }})
+	if n, err := dispatcher.ProcessBatch(context.Background(), "worker"); err != nil || n != 1 {
+		t.Fatalf("n=%d err=%v", n, err)
+	}
+	if len(sender.requests) != 1 {
+		t.Fatalf("send requests = %d", len(sender.requests))
+	}
+
+	request := sender.requests[0]
+	if request.RoutingFacts.ActorDID.String() != "did:plc:actor" ||
+		request.RoutingFacts.SourceURI.String() != sourceURI ||
+		request.RoutingFacts.SubjectURI.String() != subjectURI ||
+		request.RoutingFacts.RootURI.String() != rootURI {
+		t.Fatalf("routing facts = %#v", request.RoutingFacts)
+	}
+	if request.Token != "secret-token" ||
+		request.Platform != "ios" ||
+		request.AccountSubscriptionID != "30000000-0000-0000-0000-000000000001" ||
+		request.ActorDisplayName != "Alice" ||
+		request.TTL <= 0 {
+		t.Fatalf("unchanged send metadata = %#v", request)
+	}
+}
+
+func TestDispatcherIT012ProjectsTargetContentRole(t *testing.T) {
+	tests := []struct {
+		name       string
+		category   string
+		subjectURI string
+		quotedURI  string
+		want       ContentRole
+	}{
+		{"root post", "like", "at://did:plc:viewer/social.craftsky.feed.post/root", "", ContentRolePost},
+		{"direct comment", "like", "at://did:plc:viewer/social.craftsky.feed.post/comment", "", ContentRoleComment},
+		{"nested reply", "reply", "at://did:plc:viewer/social.craftsky.feed.post/reply", "", ContentRoleReply},
+		{"quoted target", "quote", "at://did:plc:actor/social.craftsky.feed.post/quote", "at://did:plc:viewer/social.craftsky.feed.post/comment", ContentRoleComment},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pool := dispatcherPool(t)
+			seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
+			if _, err := pool.Exec(context.Background(), `
+				INSERT INTO craftsky_posts(uri,reply_root_uri,reply_parent_uri) VALUES
+				('at://did:plc:viewer/social.craftsky.feed.post/root',NULL,NULL),
+				('at://did:plc:viewer/social.craftsky.feed.post/comment','at://did:plc:viewer/social.craftsky.feed.post/root','at://did:plc:viewer/social.craftsky.feed.post/root'),
+				('at://did:plc:viewer/social.craftsky.feed.post/reply','at://did:plc:viewer/social.craftsky.feed.post/root','at://did:plc:viewer/social.craftsky.feed.post/comment')
+			`); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(
+				context.Background(),
+				`UPDATE notification_events SET category=$1,subject_uri=$2,quoted_uri=NULLIF($3,'') WHERE id='00000000-0000-0000-0000-000000000001'`,
+				test.category,
+				test.subjectURI,
+				test.quotedURI,
+			); err != nil {
+				t.Fatal(err)
+			}
+
+			sender := &scriptedSender{}
+			now := time.Now().UTC()
+			dispatcher := NewDispatcher(pool, sender, DispatcherOptions{Now: func() time.Time { return now }})
+			if n, err := dispatcher.ProcessBatch(context.Background(), "worker"); err != nil || n != 1 {
+				t.Fatalf("n=%d err=%v", n, err)
+			}
+			if got := sender.requests[0].RoutingFacts.TargetRole; got != test.want {
+				t.Fatalf("target role = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestDispatcherRetriesThenSucceedsAndDoesNotResendSuccess(t *testing.T) {
 	pool := dispatcherPool(t)
 	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
@@ -409,7 +500,10 @@ func TestDispatcherBoundsInFlightSendByAbsoluteDeadline(t *testing.T) {
 }
 
 func TestDispatcherRunRecoversFromTransientStoreFailure(t *testing.T) {
-	pool := testdb.WithSchema(t, `CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);`)
+	pool := testdb.WithSchema(t, `
+		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
+		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
+	`)
 	sender := &scriptedSender{}
 	d := NewDispatcher(pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -490,7 +584,10 @@ func TestDispatcherTelemetryNeverExposesProviderSentinels(t *testing.T) {
 
 func dispatcherPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	pool := testdb.WithSchema(t, `CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);`)
+	pool := testdb.WithSchema(t, `
+		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
+		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
+	`)
 	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)

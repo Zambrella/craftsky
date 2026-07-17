@@ -11,7 +11,8 @@ import (
 //
 //   - hostname == ""               → localhost/public client via NewLocalhostConfig
 //     (callback http://127.0.0.1:18080/oauth/callback — matches the host
-//     port docker-compose.yml publishes the appview on).
+//     port docker-compose.yml publishes the appview on; the Android dev
+//     recipe reverse-maps that loopback port from the emulator).
 //   - hostname != "" and key == "" → public client at that hostname (test scenario).
 //   - hostname != "" and key != "" → confidential client via SetClientSecret.
 //

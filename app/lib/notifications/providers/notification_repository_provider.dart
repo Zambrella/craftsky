@@ -24,7 +24,3 @@ NotificationPreferencesRepository notificationPreferencesRepository(Ref ref) =>
 @Riverpod(keepAlive: true)
 NotificationDeviceRepository notificationDeviceRepository(Ref ref) =>
     ref.watch(notificationApiRepositoryProvider);
-
-@Riverpod(keepAlive: true)
-NotificationResolutionRepository notificationResolutionRepository(Ref ref) =>
-    ref.watch(notificationApiRepositoryProvider);

@@ -154,17 +154,53 @@ abstract class AppLocalizations {
   /// **'{actor} liked your post'**
   String notificationLikeRow(String actor);
 
+  /// Notification row title for a like activity on the viewer's direct comment.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} liked your comment'**
+  String notificationLikeCommentRow(String actor);
+
+  /// Notification row title for a like activity on the viewer's nested reply.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} liked your reply'**
+  String notificationLikeReplyRow(String actor);
+
   /// Notification row title for a repost activity on the viewer's post.
   ///
   /// In en, this message translates to:
   /// **'{actor} reposted your post'**
   String notificationRepostRow(String actor);
 
-  /// Notification row title for a reply activity on the viewer's post.
+  /// Notification row title for a repost activity on the viewer's direct comment.
   ///
   /// In en, this message translates to:
-  /// **'{actor} replied to your post'**
+  /// **'{actor} reposted your comment'**
+  String notificationRepostCommentRow(String actor);
+
+  /// Notification row title for a repost activity on the viewer's nested reply.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} reposted your reply'**
+  String notificationRepostReplyRow(String actor);
+
+  /// Notification row title for a direct comment activity on the viewer's root post.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} commented on your post'**
   String notificationReplyRow(String actor);
+
+  /// Notification row title for a response to the viewer's direct comment.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} replied to your comment'**
+  String notificationReplyToCommentRow(String actor);
+
+  /// Notification row title for a response to the viewer's nested reply.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} replied to your reply'**
+  String notificationReplyToReplyRow(String actor);
 
   /// Notification row title for a mention activity.
   ///
@@ -435,6 +471,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Retry'**
   String get retryButton;
+
+  /// Generic button label for returning to the previous screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get backButton;
+
+  /// Title shown when a post or profile opened from a notification is permanently unavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This is no longer available'**
+  String get notificationDestinationUnavailableTitle;
+
+  /// Safe explanation shown when a notification destination is permanently unavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This post or profile may have been deleted or hidden.'**
+  String get notificationDestinationUnavailableBody;
+
+  /// Action returning from an unavailable notification destination to the notifications list.
+  ///
+  /// In en, this message translates to:
+  /// **'View notifications'**
+  String get notificationDestinationViewNotifications;
+
+  /// Title shown when a notification destination fails for a retryable reason.
+  ///
+  /// In en, this message translates to:
+  /// **'That didn\'t load'**
+  String get notificationDestinationRetryTitle;
+
+  /// Safe explanation shown when loading a notification destination can be retried.
+  ///
+  /// In en, this message translates to:
+  /// **'Check your connection and try again.'**
+  String get notificationDestinationRetryBody;
 
   /// Empty state shown on the main chronological Feed tab when the home timeline has no posts.
   ///

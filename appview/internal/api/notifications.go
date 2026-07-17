@@ -43,11 +43,13 @@ type NotificationItem struct {
 }
 
 type NotificationActor struct {
-	Available   bool    `json:"available"`
-	DID         string  `json:"did"`
-	Handle      string  `json:"handle"`
-	DisplayName *string `json:"displayName,omitempty"`
-	AvatarCID   *string `json:"avatarCid,omitempty"`
+	Available         bool    `json:"available"`
+	DID               string  `json:"did"`
+	Handle            string  `json:"handle"`
+	DisplayName       *string `json:"displayName,omitempty"`
+	Avatar            *string `json:"avatar,omitempty"`
+	AvatarCID         *string `json:"avatarCid,omitempty"`
+	ViewerIsFollowing bool    `json:"viewerIsFollowing"`
 }
 
 func ListNotificationsHandler(store NotificationReader, _ HandleResolver, logger *slog.Logger) http.Handler {
@@ -130,16 +132,20 @@ func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handl
 		ID:   row.ID,
 		Type: row.Type,
 		Actor: NotificationActor{
-			Available:   actorAvailable,
-			DID:         row.ActorDID,
-			Handle:      actorHandle.String(),
-			DisplayName: row.ActorDisplayName,
-			AvatarCID:   row.ActorAvatarCID,
+			Available:         actorAvailable,
+			DID:               row.ActorDID,
+			Handle:            actorHandle.String(),
+			DisplayName:       row.ActorDisplayName,
+			AvatarCID:         row.ActorAvatarCID,
+			ViewerIsFollowing: row.ActorViewerIsFollowing,
 		},
 		CreatedAt:  row.CreatedAt.UTC().Format(time.RFC3339),
 		IndexedAt:  row.IndexedAt.UTC().Format(time.RFC3339),
 		Reply:      row.Reply,
 		References: row.References,
+	}
+	if avatar := synthBlobURL("avatar", row.ActorDID, row.ActorAvatarCID, row.ActorAvatarMime); avatar != "" {
+		item.Actor.Avatar = &avatar
 	}
 	if row.References.Source.Available {
 		item.URI = row.References.Source.URI
@@ -148,6 +154,7 @@ func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handl
 	}
 	if !actorAvailable {
 		item.Actor.DisplayName = nil
+		item.Actor.Avatar = nil
 		item.Actor.AvatarCID = nil
 	}
 	if row.SubjectPost != nil {

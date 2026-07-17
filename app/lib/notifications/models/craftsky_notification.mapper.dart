@@ -40,11 +40,24 @@ class NotificationActorMapper extends ClassMapperBase<NotificationActor> {
     _$displayName,
     opt: true,
   );
+  static String? _$avatar(NotificationActor v) => v.avatar;
+  static const Field<NotificationActor, String> _f$avatar = Field(
+    'avatar',
+    _$avatar,
+    opt: true,
+  );
   static Cid? _$avatarCid(NotificationActor v) => v.avatarCid;
   static const Field<NotificationActor, Cid> _f$avatarCid = Field(
     'avatarCid',
     _$avatarCid,
     opt: true,
+  );
+  static bool _$viewerIsFollowing(NotificationActor v) => v.viewerIsFollowing;
+  static const Field<NotificationActor, bool> _f$viewerIsFollowing = Field(
+    'viewerIsFollowing',
+    _$viewerIsFollowing,
+    opt: true,
+    def: false,
   );
   static bool _$available(NotificationActor v) => v.available;
   static const Field<NotificationActor, bool> _f$available = Field(
@@ -59,7 +72,9 @@ class NotificationActorMapper extends ClassMapperBase<NotificationActor> {
     #did: _f$did,
     #handle: _f$handle,
     #displayName: _f$displayName,
+    #avatar: _f$avatar,
     #avatarCid: _f$avatarCid,
+    #viewerIsFollowing: _f$viewerIsFollowing,
     #available: _f$available,
   };
 
@@ -68,7 +83,9 @@ class NotificationActorMapper extends ClassMapperBase<NotificationActor> {
       did: data.dec(_f$did),
       handle: data.dec(_f$handle),
       displayName: data.dec(_f$displayName),
+      avatar: data.dec(_f$avatar),
       avatarCid: data.dec(_f$avatarCid),
+      viewerIsFollowing: data.dec(_f$viewerIsFollowing),
       available: data.dec(_f$available),
     );
   }
@@ -141,7 +158,9 @@ abstract class NotificationActorCopyWith<
     Did? did,
     Handle? handle,
     String? displayName,
+    String? avatar,
     Cid? avatarCid,
+    bool? viewerIsFollowing,
     bool? available,
   });
   NotificationActorCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
@@ -162,14 +181,18 @@ class _NotificationActorCopyWithImpl<$R, $Out>
     Did? did,
     Handle? handle,
     Object? displayName = $none,
+    Object? avatar = $none,
     Object? avatarCid = $none,
+    bool? viewerIsFollowing,
     bool? available,
   }) => $apply(
     FieldCopyWithData({
       if (did != null) #did: did,
       if (handle != null) #handle: handle,
       if (displayName != $none) #displayName: displayName,
+      if (avatar != $none) #avatar: avatar,
       if (avatarCid != $none) #avatarCid: avatarCid,
+      if (viewerIsFollowing != null) #viewerIsFollowing: viewerIsFollowing,
       if (available != null) #available: available,
     }),
   );
@@ -178,7 +201,12 @@ class _NotificationActorCopyWithImpl<$R, $Out>
     did: data.get(#did, or: $value.did),
     handle: data.get(#handle, or: $value.handle),
     displayName: data.get(#displayName, or: $value.displayName),
+    avatar: data.get(#avatar, or: $value.avatar),
     avatarCid: data.get(#avatarCid, or: $value.avatarCid),
+    viewerIsFollowing: data.get(
+      #viewerIsFollowing,
+      or: $value.viewerIsFollowing,
+    ),
     available: data.get(#available, or: $value.available),
   );
 

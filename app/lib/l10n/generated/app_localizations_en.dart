@@ -45,13 +45,43 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String notificationLikeCommentRow(String actor) {
+    return '$actor liked your comment';
+  }
+
+  @override
+  String notificationLikeReplyRow(String actor) {
+    return '$actor liked your reply';
+  }
+
+  @override
   String notificationRepostRow(String actor) {
     return '$actor reposted your post';
   }
 
   @override
+  String notificationRepostCommentRow(String actor) {
+    return '$actor reposted your comment';
+  }
+
+  @override
+  String notificationRepostReplyRow(String actor) {
+    return '$actor reposted your reply';
+  }
+
+  @override
   String notificationReplyRow(String actor) {
-    return '$actor replied to your post';
+    return '$actor commented on your post';
+  }
+
+  @override
+  String notificationReplyToCommentRow(String actor) {
+    return '$actor replied to your comment';
+  }
+
+  @override
+  String notificationReplyToReplyRow(String actor) {
+    return '$actor replied to your reply';
   }
 
   @override
@@ -210,6 +240,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get retryButton => 'Retry';
+
+  @override
+  String get backButton => 'Back';
+
+  @override
+  String get notificationDestinationUnavailableTitle =>
+      'This is no longer available';
+
+  @override
+  String get notificationDestinationUnavailableBody =>
+      'This post or profile may have been deleted or hidden.';
+
+  @override
+  String get notificationDestinationViewNotifications => 'View notifications';
+
+  @override
+  String get notificationDestinationRetryTitle => 'That didn\'t load';
+
+  @override
+  String get notificationDestinationRetryBody =>
+      'Check your connection and try again.';
 
   @override
   String get feedEmpty => 'Your feed is quiet.';

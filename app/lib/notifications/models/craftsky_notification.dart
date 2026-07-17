@@ -210,7 +210,9 @@ final class NotificationActor with NotificationActorMappable {
     required this.did,
     required this.handle,
     this.displayName,
+    this.avatar,
     this.avatarCid,
+    this.viewerIsFollowing = false,
     this.available = true,
   });
 
@@ -229,11 +231,23 @@ final class NotificationActor with NotificationActorMappable {
   final Did did;
   final Handle handle;
   final String? displayName;
+  final String? avatar;
   final Cid? avatarCid;
+  final bool viewerIsFollowing;
   final bool available;
 
   String get displayLabel =>
       available ? displayName ?? handle.toString() : 'Unavailable account';
+
+  /// Prefer the AppView's display-ready URL, while supporting notification
+  /// responses from an older local AppView that expose only the public CID.
+  String? get displayAvatarUrl {
+    if (avatar case final value? when value.isNotEmpty) return value;
+    if (avatarCid case final cid? when !cid.startsWith('devmedia:')) {
+      return 'https://cdn.bsky.app/img/avatar/plain/$did/$cid@jpeg';
+    }
+    return null;
+  }
 }
 
 @MappableClass(

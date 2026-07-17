@@ -4,15 +4,15 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
-import 'package:craftsky_app/notifications/models/notification_category.dart';
-import 'package:craftsky_app/notifications/models/notification_id.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
-import 'package:craftsky_app/notifications/models/notification_resolution.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/notifications/widgets/notification_row.dart';
-import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import '../fakes/recording_messenger.dart';
+import '../profile/fakes/fake_profile_repository.dart';
 
 void main() {
   setUpAll(initializeMappers);
@@ -67,9 +68,286 @@ void main() {
     expect(find.text('Alice followed you'), findsOneWidget);
     expect(find.text('Alice liked your post'), findsOneWidget);
     expect(find.text('Alice reposted your post'), findsOneWidget);
-    expect(find.text('Alice replied to your post'), findsOneWidget);
+    expect(find.text('Alice commented on your post'), findsOneWidget);
     expect(find.text('viewer post'), findsNWidgets(3));
     expect(find.text('alice.craftsky.social followed you'), findsOneWidget);
+  });
+
+  testWidgets('UT-016 uses post, comment, and reply language in rows', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      _TestApp(
+        home: Scaffold(
+          body: ListView(
+            children: [
+              NotificationRow(notification: _like('like-post')),
+              NotificationRow(
+                notification: _like(
+                  'like-comment',
+                  subjectPost: _commentPost(),
+                ),
+              ),
+              NotificationRow(
+                notification: _like(
+                  'like-reply',
+                  subjectPost: _replyPost(),
+                ),
+              ),
+              NotificationRow(notification: _repost('repost-post')),
+              NotificationRow(
+                notification: _repost(
+                  'repost-comment',
+                  subjectPost: _commentPost(),
+                ),
+              ),
+              NotificationRow(
+                notification: _repost(
+                  'repost-reply',
+                  subjectPost: _replyPost(),
+                ),
+              ),
+              NotificationRow(notification: _reply('response-post')),
+              NotificationRow(
+                notification: _reply(
+                  'response-comment',
+                  subjectPost: _commentPost(),
+                ),
+              ),
+              NotificationRow(
+                notification: _reply(
+                  'response-reply',
+                  subjectPost: _replyPost(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (final text in [
+      'Alice liked your post',
+      'Alice liked your comment',
+      'Alice liked your reply',
+      'Alice reposted your post',
+      'Alice reposted your comment',
+      'Alice reposted your reply',
+      'Alice commented on your post',
+      'Alice replied to your comment',
+      'Alice replied to your reply',
+    ]) {
+      expect(find.text(text), findsOneWidget, reason: text);
+    }
+  });
+
+  testWidgets(
+    'UT-018 rows show actor avatars, action icons, and relative time',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        _TestApp(
+          home: Scaffold(
+            body: ListView(
+              children: [
+                NotificationRow(notification: _follow('follow')),
+                NotificationRow(notification: _like('like')),
+                NotificationRow(notification: _repost('repost')),
+                NotificationRow(notification: _reply('reply')),
+                NotificationRow(notification: _mention('mention')),
+                NotificationRow(notification: _quote('quote')),
+                NotificationRow(
+                  notification: _generic(
+                    '00000000-0000-0000-0000-000000000001',
+                    type: 'everythingElse',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProfileAvatar), findsNWidgets(7));
+      expect(find.text('Follow'), findsOneWidget);
+      expect(
+        tester
+            .widget<ProfileAvatar>(find.byType(ProfileAvatar).first)
+            .avatarUrl,
+        'https://cdn.example/avatar/alice.jpg',
+      );
+      for (final icon in [
+        Icons.person_add_alt_outlined,
+        Icons.favorite_outline,
+        Icons.repeat,
+        Icons.chat_bubble_outline,
+        Icons.alternate_email,
+        Icons.format_quote,
+        Icons.notifications_none,
+      ]) {
+        expect(find.byIcon(icon), findsOneWidget, reason: '$icon');
+      }
+
+      final actorText = find.byWidgetPredicate(
+        (widget) =>
+            widget is Text &&
+            widget.textSpan?.toPlainText().startsWith('Alice ') == true,
+      );
+      expect(actorText, findsWidgets);
+      final actorSpan =
+          tester.widget<Text>(actorText.first).textSpan! as TextSpan;
+      final boldActor = actorSpan.children!.whereType<TextSpan>().firstWhere(
+        (span) => span.text == 'Alice',
+      );
+      expect(boldActor.style?.fontWeight, FontWeight.bold);
+      expect(
+        tester.getTopLeft(find.byType(ProfileAvatar).first).dy,
+        lessThan(tester.getTopLeft(actorText.first).dy),
+      );
+
+      final createdAt = DateTime.parse('2026-05-28T13:00:00Z');
+      final elapsedDays = DateTime.now().difference(createdAt).inDays;
+      expect(find.text('${elapsedDays}d'), findsNWidgets(7));
+      expect(
+        tester
+            .widgetList<Tooltip>(find.byType(Tooltip))
+            .every(
+              (tooltip) => tooltip.message?.contains('2026') ?? false,
+            ),
+        isTrue,
+      );
+    },
+  );
+
+  testWidgets('UT-021 derives an actor avatar URL from an older CID response', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _TestApp(
+        home: Scaffold(
+          body: NotificationRow(
+            notification: _follow('legacy-avatar', includeAvatarUrl: false),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<ProfileAvatar>(find.byType(ProfileAvatar)).avatarUrl,
+      'https://cdn.bsky.app/img/avatar/plain/did:plc:alice/bafyavatar@jpeg',
+    );
+    expect(
+      _follow(
+        'legacy-devmedia-avatar',
+        includeAvatarUrl: false,
+        avatarCid: 'devmedia:alice-avatar',
+      ).actor.displayAvatarUrl,
+      isNull,
+    );
+  });
+
+  testWidgets('UT-023 follow notification toggles Follow and Unfollow', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    Profile result({required bool viewerIsFollowing}) => Profile(
+      did: 'did:plc:alice',
+      handle: 'alice.craftsky.social',
+      displayName: 'Alice',
+      crafts: const [],
+      viewerIsFollowing: viewerIsFollowing,
+    );
+    final repository = FakeProfileRepository(
+      onFollow: (handleOrDid) async {
+        calls.add('follow:$handleOrDid');
+        return result(viewerIsFollowing: true);
+      },
+      onUnfollow: (handleOrDid) async {
+        calls.add('unfollow:$handleOrDid');
+        return result(viewerIsFollowing: false);
+      },
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          profileRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: _TestApp(
+          home: Scaffold(
+            body: NotificationRow(
+              notification: _follow(
+                'follow-action',
+                viewerIsFollowing: true,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unfollow'), findsOneWidget);
+    expect(find.text('Follow'), findsNothing);
+
+    await tester.tap(find.text('Unfollow'));
+    await tester.pumpAndSettle();
+    expect(calls, ['unfollow:did:plc:alice']);
+    expect(find.text('Follow'), findsOneWidget);
+
+    await tester.tap(find.text('Follow'));
+    await tester.pumpAndSettle();
+    expect(calls, [
+      'unfollow:did:plc:alice',
+      'follow:did:plc:alice',
+    ]);
+    expect(find.text('Unfollow'), findsOneWidget);
+  });
+
+  testWidgets('UT-023 follow notification rolls back a failed mutation', (
+    tester,
+  ) async {
+    final messenger = RecordingMessenger();
+    final repository = FakeProfileRepository(
+      onFollow: (_) => Future<Profile>.error(Exception('follow failed')),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          profileRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: _TestApp(
+          home: MessengerScope(
+            messenger: messenger,
+            child: Scaffold(
+              body: NotificationRow(
+                notification: _follow('failed-follow-action'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Follow'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Follow'), findsOneWidget);
+    expect(messenger.calls, hasLength(1));
+    expect(messenger.calls.single.$1, 'error');
+    expect(messenger.calls.single.$2, 'Could not update follow state.');
   });
 
   testWidgets('preserves rows during load-more progress and retry', (
@@ -110,6 +388,10 @@ void main() {
   testWidgets('row taps navigate to profile, subject thread, and focus', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     GoRouterState? profileState;
     final threadStates = <GoRouterState>[];
     final router = GoRouter(
@@ -154,6 +436,7 @@ void main() {
           ),
         ],
         child: MaterialApp.router(
+          theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: router,
@@ -183,7 +466,7 @@ void main() {
     router.go('/');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Alice replied to your post').first);
+    await tester.tap(find.text('Alice commented on your post').first);
     await tester.pumpAndSettle();
     expect(
       threadStates.last.uri.queryParameters['focus'],
@@ -192,82 +475,134 @@ void main() {
     router.go('/');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Alice replied to your post').last);
+    await tester.tap(find.text('Alice commented on your post').last);
     await tester.pumpAndSettle();
     expect(threadStates.last.pathParameters['did'], 'did:plc:viewer');
     expect(threadStates.last.pathParameters['rkey'], 'root');
     expect(threadStates.last.uri.queryParameters['focus'], isNull);
   });
 
-  testWidgets(
-    'AT-006 generic rows resolve through AppView and tombstones warn',
-    (tester) async {
-      final resolution = _RecordingResolutionRepository();
-      final messenger = RecordingMessenger();
-      final generic = _generic('00000000-0000-0000-0000-000000000001');
-      final unavailable = _unavailable(
-        '00000000-0000-0000-0000-000000000002',
-      );
-      final router = GoRouter(
-        initialLocation: '/',
-        routes: [
-          GoRoute(
-            path: '/',
-            builder: (context, state) => Scaffold(
-              body: Column(
-                children: [
-                  NotificationRow(notification: generic),
-                  NotificationRow(notification: unavailable),
-                ],
+  testWidgets('BUG-002 liked comment opens its root thread with focus', (
+    tester,
+  ) async {
+    GoRouterState? threadState;
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => Scaffold(
+            body: NotificationRow(
+              notification: _like(
+                'like-comment',
+                subjectPost: _commentPost(),
               ),
             ),
           ),
-          GoRoute(
-            path: '/profile/:handle',
-            builder: (context, state) => const Scaffold(
-              body: Text('Resolved profile'),
-            ),
-          ),
-        ],
+        ),
+        GoRoute(
+          path: '/posts/:did/:rkey',
+          builder: (_, state) {
+            threadState = state;
+            return const Scaffold(body: Text('Thread route'));
+          },
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Alice liked your comment'));
+    await tester.pumpAndSettle();
+
+    expect(threadState?.pathParameters['did'], 'did:plc:root-author');
+    expect(threadState?.pathParameters['rkey'], 'root');
+    expect(
+      threadState?.uri.queryParameters['focus'],
+      'at://did:plc:viewer/social.craftsky.feed.post/comment',
+    );
+  });
+
+  testWidgets(
+    'AT-009 generic and unknown rows are inert while tombstones warn',
+    (tester) async {
+      final messenger = RecordingMessenger();
+      final generic = _generic(
+        '00000000-0000-0000-0000-000000000001',
+        type: 'everythingElse',
+      );
+      final unknown = _generic(
+        '00000000-0000-0000-0000-000000000003',
+        type: 'futureCategory',
+      );
+      final unavailable = _unavailable(
+        '00000000-0000-0000-0000-000000000002',
       );
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [
-            notificationResolutionRepositoryProvider.overrideWithValue(
-              resolution,
-            ),
-          ],
           child: MessengerScope(
             messenger: messenger,
-            child: MaterialApp.router(
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              routerConfig: router,
+              home: Scaffold(
+                body: Column(
+                  children: [
+                    NotificationRow(notification: generic),
+                    NotificationRow(notification: unknown),
+                    NotificationRow(notification: unavailable),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('New activity'));
-      await tester.pumpAndSettle();
-      expect(
-        resolution.ids.map((id) => id.wireValue),
-        ['00000000-0000-0000-0000-000000000001'],
+      final genericText = find.byWidgetPredicate(
+        (widget) =>
+            widget is Text &&
+            widget.textSpan?.toPlainText().contains('New activity') == true,
       );
-      expect(find.text('Resolved profile'), findsOneWidget);
+      final informationalRows = tester.widgetList<InkWell>(
+        find.ancestor(
+          of: genericText,
+          matching: find.byType(InkWell),
+        ),
+      );
+      expect(informationalRows, hasLength(2));
+      expect(informationalRows.every((row) => row.onTap == null), isTrue);
 
-      router.go('/');
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Activity unavailable'));
+      await tester.tap(genericText.first, warnIfMissed: false);
+      await tester.tap(genericText.last, warnIfMissed: false);
+      await tester.pump();
+      expect(messenger.calls, isEmpty);
+
+      final unavailableText = find.byWidgetPredicate(
+        (widget) =>
+            widget is Text &&
+            widget.textSpan?.toPlainText().contains('Activity unavailable') ==
+                true,
+      );
+      await tester.tap(unavailableText);
       await tester.pump();
 
-      expect(resolution.ids, hasLength(1));
       expect(messenger.calls, hasLength(1));
       expect(messenger.calls.single.$1, 'warning');
       expect(messenger.calls.single.$2, 'Activity unavailable');
-      expect(find.text('Resolved profile'), findsNothing);
     },
   );
 }
@@ -278,14 +613,23 @@ class _TestApp extends StatelessWidget {
   final Widget home;
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
-    supportedLocales: AppLocalizations.supportedLocales,
-    home: home,
+  Widget build(BuildContext context) => ProviderScope(
+    child: MaterialApp(
+      theme: AppTheme.lightThemeData,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: home,
+    ),
   );
 }
 
-FollowNotification _follow(String rkey, {String? displayName = 'Alice'}) =>
+FollowNotification _follow(
+  String rkey, {
+  String? displayName = 'Alice',
+  bool includeAvatarUrl = true,
+  String avatarCid = 'bafyavatar',
+  bool viewerIsFollowing = false,
+}) =>
     CraftskyNotification.fromMap({
           'uri': 'at://did:plc:alice/app.bsky.graph.follow/$rkey',
           'cid': 'bafy$rkey',
@@ -295,31 +639,45 @@ FollowNotification _follow(String rkey, {String? displayName = 'Alice'}) =>
             'did': 'did:plc:alice',
             'handle': 'alice.craftsky.social',
             'displayName': ?displayName,
+            if (includeAvatarUrl)
+              'avatar': 'https://cdn.example/avatar/alice.jpg',
+            'avatarCid': avatarCid,
+            'viewerIsFollowing': viewerIsFollowing,
           },
           'createdAt': '2026-05-28T13:00:00Z',
           'indexedAt': '2026-05-28T13:00:01Z',
         })
         as FollowNotification;
 
-LikeNotification _like(String rkey) =>
+LikeNotification _like(
+  String rkey, {
+  Map<String, dynamic>? subjectPost,
+}) =>
     CraftskyNotification.fromMap({
           ..._baseNotification('like', rkey),
-          'subjectPost': _post(),
+          'subjectPost': subjectPost ?? _post(),
         })
         as LikeNotification;
 
-RepostNotification _repost(String rkey) =>
+RepostNotification _repost(
+  String rkey, {
+  Map<String, dynamic>? subjectPost,
+}) =>
     CraftskyNotification.fromMap({
           ..._baseNotification('repost', rkey),
-          'subjectPost': _post(),
+          'subjectPost': subjectPost ?? _post(),
         })
         as RepostNotification;
 
-ReplyNotification _reply(String rkey, {bool includeFocus = true}) =>
+ReplyNotification _reply(
+  String rkey, {
+  bool includeFocus = true,
+  Map<String, dynamic>? subjectPost,
+}) =>
     CraftskyNotification.fromMap({
           ..._baseNotification('reply', rkey),
           'uri': 'at://did:plc:alice/social.craftsky.feed.post/$rkey',
-          'subjectPost': _post(),
+          'subjectPost': subjectPost ?? _post(),
           if (includeFocus)
             'reply': {
               'uri': 'at://did:plc:alice/social.craftsky.feed.post/$rkey',
@@ -329,9 +687,23 @@ ReplyNotification _reply(String rkey, {bool includeFocus = true}) =>
         })
         as ReplyNotification;
 
-GenericNotification _generic(String id) =>
+MentionNotification _mention(String rkey) =>
     CraftskyNotification.fromMap({
-          ..._baseNotification('futureCategory', 'generic'),
+          ..._baseNotification('mention', rkey),
+          'subjectPost': _post(),
+        })
+        as MentionNotification;
+
+QuoteNotification _quote(String rkey) =>
+    CraftskyNotification.fromMap({
+          ..._baseNotification('quote', rkey),
+          'subjectPost': _post(),
+        })
+        as QuoteNotification;
+
+GenericNotification _generic(String id, {required String type}) =>
+    CraftskyNotification.fromMap({
+          ..._baseNotification(type, 'generic'),
           'id': id,
         })
         as GenericNotification;
@@ -357,6 +729,7 @@ Map<String, dynamic> _baseNotification(String type, String rkey) => {
     'did': 'did:plc:alice',
     'handle': 'alice.craftsky.social',
     'displayName': 'Alice',
+    'avatar': 'https://cdn.example/avatar/alice.jpg',
   },
   'createdAt': '2026-05-28T13:00:00Z',
   'indexedAt': '2026-05-28T13:00:01Z',
@@ -379,6 +752,42 @@ Map<String, dynamic> _post() => {
   'author': {'did': 'did:plc:viewer', 'handle': 'viewer.craftsky.social'},
 };
 
+Map<String, dynamic> _commentPost() => {
+  ..._post(),
+  'uri': 'at://did:plc:viewer/social.craftsky.feed.post/comment',
+  'cid': 'bafycomment',
+  'rkey': 'comment',
+  'text': 'viewer comment',
+  'reply': {
+    'root': {
+      'uri': 'at://did:plc:root-author/social.craftsky.feed.post/root',
+      'cid': 'bafyroot',
+    },
+    'parent': {
+      'uri': 'at://did:plc:root-author/social.craftsky.feed.post/root',
+      'cid': 'bafyroot',
+    },
+  },
+};
+
+Map<String, dynamic> _replyPost() => {
+  ..._commentPost(),
+  'uri': 'at://did:plc:viewer/social.craftsky.feed.post/reply',
+  'cid': 'bafyreply',
+  'rkey': 'reply',
+  'text': 'viewer reply',
+  'reply': {
+    'root': {
+      'uri': 'at://did:plc:root-author/social.craftsky.feed.post/root',
+      'cid': 'bafyroot',
+    },
+    'parent': {
+      'uri': 'at://did:plc:viewer/social.craftsky.feed.post/comment',
+      'cid': 'bafycomment',
+    },
+  },
+};
+
 class _FakeNotificationRepository implements NotificationRepository {
   const _FakeNotificationRepository(this.page);
 
@@ -398,22 +807,6 @@ class _QueueNotificationRepository implements NotificationRepository {
   Future<NotificationPage> list({String? cursor, int? limit}) {
     calls.add(_Call(cursor: cursor, limit: limit));
     return responses.removeAt(0);
-  }
-}
-
-class _RecordingResolutionRepository
-    implements NotificationResolutionRepository {
-  final ids = <NotificationId>[];
-
-  @override
-  Future<NotificationResolution> resolve(NotificationId id) async {
-    ids.add(id);
-    return NotificationResolution(
-      id: id,
-      category: NotificationCategory.unknown,
-      state: NotificationResolutionState.active,
-      target: NotificationProfileTarget(Did.parse('did:plc:resolved')),
-    );
   }
 }
 

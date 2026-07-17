@@ -22,9 +22,5 @@ void main() {
       same(adapter),
     );
     expect(container.read(notificationDeviceRepositoryProvider), same(adapter));
-    expect(
-      container.read(notificationResolutionRepositoryProvider),
-      same(adapter),
-    );
   });
 }

@@ -111,6 +111,64 @@ void main() {
       );
     }
   });
+
+  test('IT-008 notification resolution client surface is removed', () {
+    for (final path in [
+      'lib/notifications/models/notification_id.dart',
+      'lib/notifications/models/notification_resolution.dart',
+      'lib/notifications/services/notification_resolution_policy.dart',
+    ]) {
+      expect(File(path).existsSync(), isFalse, reason: '$path still exists');
+    }
+
+    final allSource = notificationFiles
+        .map((file) => file.readAsStringSync())
+        .join('\n');
+    for (final token in [
+      'NotificationResolution',
+      'notificationResolutionRepository',
+      'NotificationId',
+    ]) {
+      expect(allSource, isNot(contains(token)), reason: '$token still exists');
+    }
+  });
+
+  test('UT-015 routing domain stays provider, UI, and network neutral', () {
+    for (final path in [
+      'lib/notifications/models/notification_open_event.dart',
+      'lib/notifications/models/notification_destination.dart',
+      'lib/notifications/services/notification_destination_inference.dart',
+    ]) {
+      final source = File(path).readAsStringSync();
+      for (final forbidden in [
+        'firebase_',
+        'package:flutter/',
+        'package:dio/',
+        '/data/',
+        '/providers/',
+        '/widgets/',
+      ]) {
+        expect(
+          source,
+          isNot(contains(forbidden)),
+          reason: '$path imports or references $forbidden',
+        );
+      }
+    }
+
+    final firebaseImporters = <String>[];
+    for (final file in notificationFiles) {
+      if (file.readAsStringSync().contains('package:firebase_messaging/')) {
+        firebaseImporters.add(file.path);
+      }
+    }
+    firebaseImporters.sort();
+    expect(firebaseImporters, [
+      'lib/notifications/services/firebase_notification_background_handler.dart',
+      'lib/notifications/services/firebase_notification_bootstrap.dart',
+      'lib/notifications/services/firebase_notification_service.dart',
+    ]);
+  });
 }
 
 int _occurrences(String source, String token) =>

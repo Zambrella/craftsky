@@ -56,7 +56,11 @@ void main() {
         'did': 'did:plc:sensitive-account',
         'handle': 'sensitive.craftsky.social',
         'atUri': 'at://did:plc:sensitive/social.craftsky.feed.post/secret',
+        'focusUri':
+            'at://did:plc:sensitive/social.craftsky.feed.post/secret-focus',
         'providerPayload': 'private provider copy',
+        'rawPayload': '{"private":"raw notification payload"}',
+        'providerError': 'provider failed for sensitive token and DID',
         'credential': 'credential-sensitive-value',
       };
       final sanitized = SentrySanitizer.sanitizeContext({

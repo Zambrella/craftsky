@@ -40,15 +40,51 @@
     "placeholders": { "actor": { "type": "String", "example": "Alice" } }
   },
 
+  "notificationLikeCommentRow": "{actor} liked your comment",
+  "@notificationLikeCommentRow": {
+    "description": "Notification row title for a like activity on the viewer's direct comment.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
+  "notificationLikeReplyRow": "{actor} liked your reply",
+  "@notificationLikeReplyRow": {
+    "description": "Notification row title for a like activity on the viewer's nested reply.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
   "notificationRepostRow": "{actor} reposted your post",
   "@notificationRepostRow": {
     "description": "Notification row title for a repost activity on the viewer's post.",
     "placeholders": { "actor": { "type": "String", "example": "Alice" } }
   },
 
-  "notificationReplyRow": "{actor} replied to your post",
+  "notificationRepostCommentRow": "{actor} reposted your comment",
+  "@notificationRepostCommentRow": {
+    "description": "Notification row title for a repost activity on the viewer's direct comment.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
+  "notificationRepostReplyRow": "{actor} reposted your reply",
+  "@notificationRepostReplyRow": {
+    "description": "Notification row title for a repost activity on the viewer's nested reply.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
+  "notificationReplyRow": "{actor} commented on your post",
   "@notificationReplyRow": {
-    "description": "Notification row title for a reply activity on the viewer's post.",
+    "description": "Notification row title for a direct comment activity on the viewer's root post.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
+  "notificationReplyToCommentRow": "{actor} replied to your comment",
+  "@notificationReplyToCommentRow": {
+    "description": "Notification row title for a response to the viewer's direct comment.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
+  "notificationReplyToReplyRow": "{actor} replied to your reply",
+  "@notificationReplyToReplyRow": {
+    "description": "Notification row title for a response to the viewer's nested reply.",
     "placeholders": { "actor": { "type": "String", "example": "Alice" } }
   },
 
@@ -154,6 +190,24 @@
 
   "retryButton": "Retry",
   "@retryButton": { "description": "Retry-action button label on InitializationErrorScreen." },
+
+  "backButton": "Back",
+  "@backButton": { "description": "Generic button label for returning to the previous screen." },
+
+  "notificationDestinationUnavailableTitle": "This is no longer available",
+  "@notificationDestinationUnavailableTitle": { "description": "Title shown when a post or profile opened from a notification is permanently unavailable." },
+
+  "notificationDestinationUnavailableBody": "This post or profile may have been deleted or hidden.",
+  "@notificationDestinationUnavailableBody": { "description": "Safe explanation shown when a notification destination is permanently unavailable." },
+
+  "notificationDestinationViewNotifications": "View notifications",
+  "@notificationDestinationViewNotifications": { "description": "Action returning from an unavailable notification destination to the notifications list." },
+
+  "notificationDestinationRetryTitle": "That didn't load",
+  "@notificationDestinationRetryTitle": { "description": "Title shown when a notification destination fails for a retryable reason." },
+
+  "notificationDestinationRetryBody": "Check your connection and try again.",
+  "@notificationDestinationRetryBody": { "description": "Safe explanation shown when loading a notification destination can be retried." },
 
   "feedEmpty": "Your feed is quiet.",
   "@feedEmpty": { "description": "Empty state shown on the main chronological Feed tab when the home timeline has no posts." },

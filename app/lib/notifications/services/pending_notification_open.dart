@@ -3,10 +3,10 @@ import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 enum NotificationOpenReadiness { transient, ready, requiresSignIn }
 
 final class PendingNotificationOpen {
-  NotificationOpenEvent? _pending;
+  NotificationOpenAttempt? _pending;
 
-  NotificationOpenEvent? receive(
-    NotificationOpenEvent event, {
+  NotificationOpenAttempt? receive(
+    NotificationOpenAttempt event, {
     required NotificationOpenReadiness readiness,
   }) {
     switch (readiness) {
@@ -21,7 +21,9 @@ final class PendingNotificationOpen {
     }
   }
 
-  NotificationOpenEvent? updateReadiness(NotificationOpenReadiness readiness) {
+  NotificationOpenAttempt? updateReadiness(
+    NotificationOpenReadiness readiness,
+  ) {
     switch (readiness) {
       case NotificationOpenReadiness.transient:
         return null;

@@ -87,6 +87,61 @@ func TestNotificationsHandlerUsesOneIndexedHandleBatchAndSurvivesMissingActors(t
 	}
 }
 
+func TestNotificationsHandlerUT020IncludesDisplayReadyActorAvatar(t *testing.T) {
+	avatarCID := "bafy-avatar"
+	avatarMIME := "image/jpeg"
+	store := &fakeNotificationStore{
+		handles: map[string]syntax.Handle{"did:plc:alice": "alice.example"},
+		rows: []*api.NotificationRow{{
+			ID: "avatar-notification", Type: api.NotificationTypeFollow,
+			ActorDID: "did:plc:alice", ActorAvatarCID: &avatarCID, ActorAvatarMime: &avatarMIME,
+			CreatedAt: time.Now(), IndexedAt: time.Now(),
+		}},
+	}
+	handler := api.ListNotificationsHandler(store, fakeResolver{}, nilLogger())
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, authedReq(http.MethodGet, "/v1/notifications", "", "did:plc:viewer"))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var page api.NotificationPage
+	if err := json.Unmarshal(rec.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Actor.Avatar == nil {
+		t.Fatalf("actor=%+v, want display-ready avatar", page.Items[0].Actor)
+	}
+	if got, want := *page.Items[0].Actor.Avatar, "https://cdn.bsky.app/img/avatar/plain/did:plc:alice/bafy-avatar@jpeg"; got != want {
+		t.Fatalf("avatar=%q, want %q", got, want)
+	}
+}
+
+func TestNotificationsHandlerUT022IncludesActorFollowState(t *testing.T) {
+	store := &fakeNotificationStore{
+		handles: map[string]syntax.Handle{"did:plc:alice": "alice.example"},
+		rows: []*api.NotificationRow{{
+			ID: "follow-state-notification", Type: api.NotificationTypeFollow,
+			ActorDID: "did:plc:alice", ActorViewerIsFollowing: true,
+			CreatedAt: time.Now(), IndexedAt: time.Now(),
+		}},
+	}
+	handler := api.ListNotificationsHandler(store, fakeResolver{}, nilLogger())
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, authedReq(http.MethodGet, "/v1/notifications", "", "did:plc:viewer"))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var page api.NotificationPage
+	if err := json.Unmarshal(rec.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || !page.Items[0].Actor.ViewerIsFollowing {
+		t.Fatalf("actor=%+v, want viewerIsFollowing=true", page.Items[0].Actor)
+	}
+}
+
 func TestNotificationsHandler_IgnoresUnknownParamsUsesLimitsAndSessionViewer(t *testing.T) {
 	tests := []struct {
 		name       string

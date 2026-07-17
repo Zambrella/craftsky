@@ -9,6 +9,7 @@ import 'package:craftsky_app/notifications/providers/notification_permission_pro
 import 'package:craftsky_app/notifications/providers/notification_runtime_provider.dart';
 import 'package:craftsky_app/notifications/services/notification_navigation.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
@@ -75,14 +76,18 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
             onPressed: () => unawaited(
               ref
                   .read(notificationRuntimeProvider)
-                  .receiveOpen(event.openEvent),
+                  .receiveOpen(event.openAttempt),
             ),
           ),
         );
       case NotificationUnavailableEffect():
         context.showWarning(l10n.notificationUnavailableRow);
       case NotificationNavigationEffect(:final outcome):
-        navigateToNotificationOutcome(context, outcome);
+        navigateToNotificationOutcome(
+          context,
+          ref.read(goRouterProvider),
+          outcome,
+        );
     }
   }
 
