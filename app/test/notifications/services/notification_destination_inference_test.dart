@@ -5,6 +5,29 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('BUG-002 like facts route a comment through its root thread', () {
+    const subjectUri =
+        'at://did:plc:commenter/social.craftsky.feed.post/comment';
+    const rootUri = 'at://did:plc:author/social.craftsky.feed.post/root';
+
+    final attempt = NotificationOpenAttempt.fromProviderData(
+      _providerData(
+        type: 'like',
+        subjectUri: subjectUri,
+        rootUri: rootUri,
+      ),
+    );
+    final outcome = NotificationDestinationInference.forFacts(attempt.facts);
+
+    expect(
+      outcome.destination,
+      PostDestination(
+        AtUri.parse(rootUri),
+        focusUri: AtUri.parse(subjectUri),
+      ),
+    );
+  });
+
   test('UT-004 infers every destination from canonical category facts', () {
     const actorDid = 'did:plc:alice';
     const subjectUri = 'at://did:plc:subject/social.craftsky.feed.post/subject';
@@ -16,11 +39,19 @@ void main() {
             expected: ProfileDestination(Did.parse(actorDid)),
           ),
           (
-            data: _providerData(type: 'like', subjectUri: subjectUri),
+            data: _providerData(
+              type: 'like',
+              subjectUri: subjectUri,
+              rootUri: subjectUri,
+            ),
             expected: PostDestination(AtUri.parse(subjectUri)),
           ),
           (
-            data: _providerData(type: 'repost', subjectUri: subjectUri),
+            data: _providerData(
+              type: 'repost',
+              subjectUri: subjectUri,
+              rootUri: subjectUri,
+            ),
             expected: PostDestination(AtUri.parse(subjectUri)),
           ),
           (
@@ -99,6 +130,7 @@ Map<String, Object?> _providerData({
   required String type,
   String? actorDid,
   String? subjectUri,
+  String? rootUri,
   String? sourceUri,
 }) => <String, Object?>{
   'payloadVersion': '1',
@@ -106,5 +138,6 @@ Map<String, Object?> _providerData({
   'accountSubscriptionId': 'subscription_Abc123',
   'actorDid': ?actorDid,
   'subjectUri': ?subjectUri,
+  'rootUri': ?rootUri,
   'sourceUri': ?sourceUri,
 };

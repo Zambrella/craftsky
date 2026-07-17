@@ -32,7 +32,9 @@ void main() {
         _attempt(
           binding: binding.wireValue,
           type: 'like',
-          subjectUri: 'at://did:plc:actor/social.craftsky.feed.post/subject',
+          subjectUri:
+              'at://did:plc:commenter/social.craftsky.feed.post/comment',
+          rootUri: 'at://did:plc:author/social.craftsky.feed.post/root',
         ),
       );
       final direct = await directEffect as NotificationNavigationEffect;
@@ -41,7 +43,10 @@ void main() {
         direct.outcome.destination,
         PostDestination(
           AtUri.parse(
-            'at://did:plc:actor/social.craftsky.feed.post/subject',
+            'at://did:plc:author/social.craftsky.feed.post/root',
+          ),
+          focusUri: AtUri.parse(
+            'at://did:plc:commenter/social.craftsky.feed.post/comment',
           ),
         ),
       );
@@ -117,11 +122,13 @@ NotificationOpenAttempt _attempt({
   required String binding,
   required String type,
   String? subjectUri,
+  String? rootUri,
 }) => NotificationOpenAttempt.fromProviderData({
   'payloadVersion': '1',
   'type': type,
   'accountSubscriptionId': binding,
   'subjectUri': ?subjectUri,
+  'rootUri': ?rootUri,
 });
 
 NotificationRuntime _runtime({

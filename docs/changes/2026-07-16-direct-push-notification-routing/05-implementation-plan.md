@@ -358,3 +358,207 @@
 - AppView tests were not rerun during the correction pass because IR-001 through IR-003 changed only Flutter source/tests and the implementation record; the original correction input already records canonical `just test` success for the unchanged AppView diff.
 - MAN-001 through MAN-005 remain physical-device/provider release gates and were not run.
 - No commit or push was created because stage commits remain disabled.
+
+## Manual Device Finding Correction Pass
+
+| Step | Finding / Test | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---:|---|---|---|---|
+| 27 | BUG-001 / root effect-host router-context test | FR-007, FR-013 | AC-001, AC-013 | Fails because the `MaterialApp.router.builder` context is above GoRouter |
+| 28 | BUG-002 / liked-comment root-thread routing tests | FR-002, FR-003, FR-007, FR-017 | AC-003, AC-007, AC-016 | Fails because a comment `subjectUri` is used as the root thread |
+
+### Step 27: BUG-001 / FR-007
+
+- Write failing test: Mounted the root effect host through `MaterialApp.router.builder`, emitted a post navigation effect, and required the thread route to render.
+- Run command: `cd app && flutter test test/notifications/notification_effect_host_test.dart --plain-name 'BUG-001 root effect host navigates from MaterialApp.router builder'`.
+- Confirmed failure: Yes. The test raised `No GoRouter found in context` through the same `NotificationEffectHost` and generated `PostThreadRoute.push` stack as the physical Android background-open report.
+- Implement: Pass the provider-owned `GoRouter` instance to notification navigation and call `router.go` / `router.push` with typed route locations; retain the widget context only for localized feedback.
+- Run command: Same focused command.
+- Refactor: Kept typed route construction in `notification_navigation.dart`; no second navigator key or listener was added.
+- Notes: Passed. Root effects no longer depend on the builder context being below GoRouter's inherited scope.
+
+### Step 28: BUG-002 / FR-003
+
+- Write failing test: Added a notification-row widget test for a liked comment, a provider-neutral fact inference test, an interaction-index test for durable canonical root storage, a dispatcher projection assertion, and an exact provider payload assertion.
+- Run command: Focused plain-name Flutter commands for the row and inference tests; real-Postgres focused Go commands for `TestInteractionNotificationStoresCommentRoot` and `TestDispatcherIT001ProjectsCanonicalRoutingFacts`; focused `TestBuildPayloadUT011ExactNotificationFactMatrix`.
+- Confirmed failure: Yes. The row routed to the comment author's DID/rkey instead of the root; inference returned the subject destination instead of root plus focus; the durable `root_uri` was `NULL`; the dispatcher request lacked `RootURI`; and like/repost payload data lacked `rootUri`.
+- Implement: In-app rows derive the canonical thread root from the hydrated subject post and focus a differing comment. Interaction activation stores `COALESCE(reply_root_uri, uri)` and its CID. Dispatch carries that root as a typed routing fact, like/repost provider data requires bounded `subjectUri` plus `rootUri`, and Flutter routes to the root while focusing a differing subject.
+- Run command: All focused commands above, followed by combined parser/inference/open-flow/effect/list/router Flutter suites and complete AppView push/index packages.
+- Refactor: Centralized hydrated-post thread routing in `NotificationRow._openPost`; kept payload inference pure and preserved the existing single root effect host and authenticated destination read.
+- Notes: Passed. Live AppView logs showed the failing comments request returning `400`, and read-only database inspection proved the selected notification subject was a comment whose `reply_root_uri` pointed to another post. No migration or backfill was added; newly generated like/repost pushes use the corrected clean-cutover contract, while existing in-app rows route correctly from hydrated post data.
+
+## Manual Device Finding Final Verification
+
+- BUG-001 reproduced the physical Android `No GoRouter found in context` stack, then passed after navigation used the provider-owned router instance.
+- BUG-002 row, parser/inference, interaction-index, dispatcher, and exact-payload tests each produced a meaningful red before their minimum implementation and now pass.
+- Combined Flutter notification/open/list/router set: passed 22 tests.
+- Complete Flutter notification suite plus notification router test: passed 77 tests.
+- Broader notification/destination/router feature gate: passed 114 tests.
+- Complete AppView push and index packages: passed.
+- Canonical race-enabled `just test`: passed across every AppView package.
+- Canonical `just app-analyze`: passed with no issues.
+- Canonical `just app-test`: completed 865 tests with only the same unrelated pre-existing failure in `post_comment_section_page_test.dart` — `wires repost action for the root post`; no new failure appeared.
+- `git diff --check`: passed.
+- The running AppView logs and development database were inspected read-only. No Flutter terminal session was attached to this Codex task, so Flutter runtime evidence came from the user-provided logs and the exact widget reproduction.
+- Fresh physical background/terminated opens and a newly generated like/repost-on-comment notification remain manual verification gates after rebuilding AppView and the Flutter app. Previously delivered version-1 like/repost payloads do not contain the newly required `rootUri` and intentionally use the clean-cutover fallback.
+- No commit or push was created because stage commits remain disabled.
+
+## Notification Language Correction Pass
+
+| Step | Test | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---:|---|---|---|---|
+| 29 | UT-016 | FR-020 | AC-023 | Fails because in-app rows hard-code post wording and call every response a reply to a post |
+| 30 | UT-017 | FR-020 | AC-023 | Fails because OS-visible copy is selected only from category and hard-codes post wording |
+| 31 | IT-012 | FR-020 | AC-023 | Fails because the dispatcher does not project indexed target role into the send request |
+
+### Step 29: UT-016 / FR-020
+
+- Write failing test: Added a widget matrix with like, repost, and response rows targeting a root post, direct comment, and nested reply.
+- Run command: `cd app && flutter test test/notifications/notifications_page_test.dart --plain-name 'UT-016 uses post, comment, and reply language in rows'`.
+- Confirmed failure: Yes. The test found three `Alice liked your post` rows because all subject roles used the same hard-coded copy.
+- Implement: Classified each hydrated subject from its reply root/parent structure and selected localized post/comment/reply copy. A response to a root now says `commented on your post`; deeper responses say `replied to your comment` or `replied to your reply`.
+- Run command: Regenerated localization output, formatted the touched Dart files, and reran the same focused test.
+- Refactor: Kept the role classifier private to the row presentation boundary and reused the existing `Post.reply` model; no notification API field was added.
+- Notes: Passed 1 focused widget test after the meaningful red failure. Neutral mention copy and root-only quote copy remain unchanged.
+
+### Step 30: UT-017 / FR-020
+
+- Write failing test: Added a table-driven AppView payload test covering like, repost, reply/comment, and quote bodies for post, comment, and reply targets while comparing each data map to its role-neutral baseline.
+- Run command: `cd appview && go test ./internal/push -run TestBuildPayloadUT017UsesConversationRoleInVisibleCopy -count=1`.
+- Confirmed failure: Yes. The test did not compile because no bounded content-role type or payload input existed.
+- Implement: Added the internal `ContentRole` enum to push facts and selected content-free visible bodies from category plus role. Unknown/absent roles retain the root-post fallback; mentions, follows, and generic activity remain neutral.
+- Run command: Formatted the Go files and reran the focused test with shared Go build-cache access.
+- Refactor: Centralized visible action selection in `visibleBody`; the role is not serialized into provider data.
+- Notes: Passed the 12-case copy matrix. Exact provider data remained unchanged for every role.
+
+### Step 31: IT-012 / FR-020
+
+- Write failing test: Added a real-Postgres dispatcher matrix for root posts, direct comments, nested replies, and a quote whose copy target comes from `quoted_uri`.
+- Run command: `cd appview && TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test ./internal/push -run TestDispatcherIT012ProjectsTargetContentRole -count=1 -v`.
+- Confirmed failure: Yes. An initial run without the test database was correctly identified as skipped rather than counted as red. With the real database enabled, all four cases received an empty role instead of post/comment/reply.
+- Implement: The existing claim query now joins the category-specific target post (`quoted_uri` for quote, otherwise `subject_uri`) and classifies its indexed reply structure into the bounded internal role passed to `BuildPayload`.
+- Run command: Formatted the dispatcher and reran the same real-Postgres test.
+- Refactor: Kept role projection inside the existing claim/send path; no migration, payload key, provider content, notification-list API field, or extra lookup request was added.
+- Notes: Passed all 4 real-Postgres cases after the meaningful red failure.
+
+## Notification Language Correction Final Verification
+
+- UT-016 in-app row matrix: passed after a meaningful red showing all three like targets rendered as `liked your post`.
+- UT-017 OS-visible payload matrix: passed all 12 category/role cases after the missing bounded-role compile failure; every role produced the same provider data map as its baseline.
+- IT-012 dispatcher projection: passed all 4 real-Postgres cases after the empty-role red failure. The first no-database run was explicitly treated as skipped evidence, not as a pass.
+- Complete Flutter notification suite: passed all 77 tests.
+- Complete AppView push package: passed after updating the two intentional minimal-schema fixtures to include the newly read `craftsky_posts` table.
+- Canonical race-enabled `just test`: passed across every AppView package.
+- Canonical `just app-analyze`: passed with no issues.
+- Canonical `just app-test`: completed 866 tests with only the same unrelated pre-existing failure in `post_comment_section_page_test.dart` — `wires repost action for the root post`; no new failure appeared.
+- `git diff --check`: passed.
+- A fresh physical OS notification remains the final visual/device check after rebuilding AppView and Flutter. Previously delivered notifications retain their already-rendered OS copy.
+- No commit or push was created because stage commits remain disabled.
+
+## Notification Row Context Follow-Up
+
+| Step | Test | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---:|---|---|---|---|
+| 32 | UT-018 | FR-021 | AC-024 | Fails because rows render no actor avatar, category icon, or relative timestamp |
+| 33 | UT-020 | FR-021 | AC-024 | Fails because the notification actor response has no display-ready avatar URL |
+
+### Step 32: UT-018 / FR-021
+
+- Write failing test: Rendered follow, like, repost, reply, mention, quote, and generic rows and required seven shared profile avatars, the exact category icon matrix, seven compact relative timestamps, and full timestamp tooltips.
+- Run command: `cd app && flutter test test/notifications/notifications_page_test.dart --plain-name 'UT-018 rows show actor avatars, action icons, and relative time'`.
+- Confirmed failure: Yes. The widget test found zero `ProfileAvatar` widgets.
+- Implement: Added a bounded category-to-icon presentation, rendered the existing small `ProfileAvatar`, decoded the actor's display-ready avatar URL, and placed the notification creation time beside the row copy.
+- Refactor: Extracted the post card's compact `now`/minute/hour/day timestamp and localized full tooltip into `RelativeTimeText`, then reused it on posts and notification rows.
+- Notes: Passed the focused widget matrix and the combined notification-page/post-card suite after adding the standard Craftsky theme and Riverpod scope to the affected test harnesses.
+
+### Step 33: UT-020 / FR-021
+
+- Write failing test: Required the existing notifications handler to return the canonical CDN avatar URL from an indexed actor avatar CID and MIME.
+- Run command: `cd appview && go test ./internal/api -run TestNotificationsHandlerUT020IncludesDisplayReadyActorAvatar -count=1`.
+- Confirmed failure: Yes. The test failed to compile because `NotificationRow` had no actor avatar MIME and `NotificationActor` had no display-ready `Avatar` field.
+- Implement: Selected actor avatar MIME in the existing list query and synthesized the additive `actor.avatar` response with the same canonical helper used by profile/post responses. Unavailable actors clear both avatar URL and CID.
+- Refactor: Kept avatar hydration inside the existing notification list request; no per-row API call, migration, endpoint, or client-side CDN assumption was added.
+- Notes: Passed the focused handler test and the complete AppView API package.
+
+## Notification Row Context Final Verification
+
+- UT-018 widget matrix: passed after the meaningful zero-avatar red failure.
+- UT-020 AppView response: passed after the missing-field compile failure.
+- Combined notification-page and post-card widget suites: passed all 52 tests.
+- Complete Flutter notification suite: passed all 78 tests after updating one intentional page test harness with the real Craftsky theme.
+- Complete AppView API package: passed.
+- Canonical race-enabled `just test`: passed across every AppView package.
+- Canonical `just app-analyze`: passed with no issues.
+- Canonical `just app-test`: completed 867 tests with only the same unrelated pre-existing failure in `post_comment_section_page_test.dart` — `wires repost action for the root post`; no new failure appeared.
+- Physical-device visual inspection remains a manual gate after rebuilding AppView and Flutter so the additive actor avatar URL is present.
+- No commit or push was created because stage commits remain disabled.
+
+## Notification Row Visual Correction Pass
+
+| Step | Test | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---:|---|---|---|---|
+| 34 | UT-018 | FR-021 | AC-024 | Fails because rows use filled icons, place the avatar beside the copy, and do not bold the actor name |
+| 35 | UT-021 | FR-021 | AC-024 | Fails because responses without the additive actor `avatar` URL render only the initial even when `avatarCid` is present |
+
+### Step 34: UT-018 / FR-021
+
+- Write failing test: Required each category to use the outlined notification-settings icon, required the profile avatar to be vertically above the actor copy, and required the actor span to be bold.
+- Run command: `cd app && flutter test test/notifications/notifications_page_test.dart --plain-name 'UT-018 rows show actor avatars, action icons, and relative time'`.
+- Confirmed failure: Yes. After increasing the test viewport to expose the complete matrix, the first missing expectation was the outlined follow icon.
+- Implement: Replaced the list-tile layout with an accessible ink row whose content column places `ProfileAvatar` above the rich notification copy, then bolded the actor substring without assuming a localization placeholder order.
+- Refactor: Extracted `notificationCategoryIcon` and reused its outlined icon matrix from both notification settings and rows; retained category colors and inert generic-row behavior.
+
+### Step 35: UT-021 / FR-021
+
+- Write failing test: Decode notification actor JSON containing only DID plus a public avatar CID and require a canonical display avatar URL.
+- Run command: `cd app && flutter test test/notifications/notifications_page_test.dart --plain-name 'UT-021 derives an actor avatar URL from an older CID response'`.
+- Confirmed failure: Yes. The decoded actor's display avatar URL was `null`.
+- Implement: Added `displayAvatarUrl`, which prefers the additive AppView URL and otherwise derives the canonical public CDN URL from the actor DID and avatar CID.
+- Refactor: Development-media CIDs deliberately remain on the initial fallback because their base URL cannot be reconstructed safely; a rebuilt AppView supplies their display-ready URL.
+- Runtime evidence: Recent local notification actors had non-empty avatar CID/MIME values in Postgres, and a synthesized canonical CDN URL returned HTTP 200 with `image/jpeg`. The running AppView container predated the additive `actor.avatar` response, explaining the observed initial-only rendering.
+
+## Notification Row Visual Correction Final Verification
+
+- UT-018 outlined-icon/layout/bold-name matrix: passed after the meaningful missing-outlined-icon failure.
+- UT-021 older-response avatar compatibility: passed after the meaningful null-avatar failure, including the guarded development-media case.
+- Complete Flutter notification suite: passed all 79 tests.
+- Canonical `just app-analyze`: passed with no issues.
+- `dart format`: all five touched Dart files were already formatted.
+- `git diff --check`: passed.
+- A Flutter hot restart or rebuild is required to load the new row widget. Rebuilding the local AppView is still recommended so its additive display-ready `actor.avatar` field covers development-media avatars; public CID avatars work with the compatibility fallback immediately.
+- No commit or push was created because stage commits remain disabled.
+
+## Follow Notification Action Follow-Up
+
+| Step | Test | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---:|---|---|---|---|
+| 36 | UT-022, IT-014 | FR-022 | AC-025 | Fails because neither the notification store row nor actor response exposes the viewer-to-actor follow relationship |
+| 37 | UT-023 | FR-022 | AC-025 | Fails because a follow-notification row contains no Follow/Unfollow control |
+
+### Step 36: UT-022 / IT-014 / FR-022
+
+- Write failing test: Required a followed actor row to serialize `viewerIsFollowing=true` in the existing notification actor object.
+- Run command: `cd appview && go test ./internal/api -run TestNotificationsHandlerUT022IncludesActorFollowState -count=1`.
+- Confirmed failure: Yes. The test failed to compile because `NotificationRow` and `NotificationActor` had no follow-state fields.
+- Implement: Added an indexed `EXISTS` projection against `atproto_follows` scoped by the authenticated viewer DID, scanned it with each notification row, and emitted the additive camelCase boolean.
+- Refactor: Kept relationship hydration inside the existing paginated notification query; no endpoint, migration, or per-row Flutter fetch was introduced.
+- Integration evidence: The real-Postgres pagination test seeds viewer-to-actor follow state and requires it on both pages.
+
+### Step 37: UT-023 / FR-022
+
+- Write failing test: Required a follow row to start at Follow/Unfollow from actor state, toggle through the existing profile repository by actor DID, adopt each returned profile state, and avoid row navigation.
+- Run command: `cd app && flutter test test/notifications/notifications_page_test.dart --plain-name 'UT-023 follow notification toggles Follow and Unfollow'`.
+- Confirmed failure: Yes. No Follow button was present.
+- Implement: Added a compact `ChunkyButton` only for available follow rows, with optimistic local state, disabled in-flight behavior, authoritative response adoption, localized rollback feedback, and invalidation of DID- and handle-keyed profile caches.
+- Refactor: Reused existing profile Follow/Unfollow labels and repository mutations; nested button gesture handling prevents the containing row from opening the profile.
+
+## Follow Notification Action Final Verification
+
+- UT-022 handler response: passed after the meaningful missing-field compile failure.
+- IT-014 real-Postgres relationship projection: passed for both pages of the seeded notification list.
+- UT-023 widget mutation and rollback cases: passed after the meaningful missing-button failure.
+- Complete Flutter notification suite: passed all 81 tests after enlarging one intentional navigation-test viewport for the taller follow row.
+- Canonical race-enabled `just test`: passed across every AppView package.
+- Canonical `flutter analyze`: passed with no issues.
+- `dart format`, `gofmt`, and `git diff --check`: passed.
+- Rebuild both AppView and Flutter before device testing because the button's initial state depends on the additive `actor.viewerIsFollowing` response field.
+- No commit or push was created because stage commits remain disabled.

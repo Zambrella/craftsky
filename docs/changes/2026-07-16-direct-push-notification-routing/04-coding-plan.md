@@ -43,6 +43,9 @@ No database migration, lexicon change, PDS access change, new route, dependency 
 | Resolver cutover | AppView GET resolver plus Flutter repository/model/policy and generic-row resolution | Delete all resolution-only surfaces and route policy; make generic/unknown rows inert | FR-001, FR-011, FR-014, FR-015 | AC-011, AC-014, AC-015 | AT-003, AT-009, IT-008, IT-011, REG-008 |
 | Privacy/observability | Redacted identifier wrappers, safe endpoint categories, classification-only observers | Keep facts out of strings, logs, Sentry, analytics, metrics, feedback, and snapshots; add sentinel coverage | NFR-002, RULE-001 | AC-017 | UT-010, IT-010, REG-007 |
 | Unchanged notification behavior | Durable eligibility/newness/list/seen/preferences and provider delivery suites | Run unchanged as regressions; only provider routing metadata and resolver behavior change | RULE-006 | AC-020 | REG-001, REG-002, REG-003, REG-004, REG-005, REG-006, REG-010 |
+| Visible notification wording | OS copy hard-codes `post`; in-app rows hard-code `post`/`replied` | Classify root post/direct comment/nested reply from indexed or hydrated reply structure and use the same vocabulary on both surfaces | FR-020 | AC-023 | AT-010, UT-016, UT-017, IT-012 |
+| In-app row context | Rows show only action copy and optional post text | Add a Bluesky-style actor column with avatar above the bold name, share outlined category icons with notification settings, add compact relative time, return a display-ready avatar, and retain a DID/CID compatibility fallback | FR-021 | AC-024 | UT-018, UT-020, UT-021 |
+| Follow-row relationship action | Follow activity is navigational only and the response has no current viewer-to-actor relationship | Project `viewerIsFollowing` in the existing actor response and add a compact optimistic Follow/Unfollow control backed by the profile repository | FR-022 | AC-025 | UT-022, UT-023, IT-014 |
 
 ## 4. Files And Modules
 
@@ -51,13 +54,17 @@ Generated `.g.dart` and localization files are regenerated from their source and
 | Path / Module | Create / Change | Purpose | Requirement IDs | Test IDs |
 |---|---|---|---|---|
 | `appview/internal/push/sender.go` | Change | Remove provider-facing `NotificationID`; add typed canonical `ActorDID`, `SourceURI`, and `SubjectURI` routing facts to `SendRequest` | FR-001, FR-002, FR-014, FR-017 | UT-011, IT-001, REG-008 |
+| `appview/internal/push/sender.go`, `dispatcher.go` | Change | Carry a bounded internal target-content role derived from indexed root/parent structure; do not add a provider data key | FR-020 | IT-012 |
 | `appview/internal/push/dispatcher.go` | Change | Select canonical facts from `notification_events` during the existing claim and pass them to the sender without altering leases/retries/TTL | FR-002, FR-017, RULE-006 | IT-001, REG-002 |
 | `appview/internal/push/payload.go` | Change | Build the exact version 1 flat data map and preserve generic visible copy | FR-001, FR-002, FR-004, FR-014, NFR-003, RULE-001 | UT-011, UT-012, IT-002, REG-001 |
+| `appview/internal/push/payload.go`, `payload_test.go`, `firebase_sender_test.go` | Change | Select content-free role-aware visible copy for post/comment/reply targets while preserving the exact data contract | FR-020 | UT-017, IT-012 |
 | `appview/internal/push/firebase_sender.go` | Change | Pass canonical facts to `BuildPayload`; keep provider result classification and platform TTL/sound behavior unchanged | FR-001, FR-002, RULE-006 | IT-002, REG-002 |
 | `appview/internal/push/payload_test.go` | Change | Cover every category's exact key matrix, forbidden keys/copy, public-fact bounds, and maximum reply payload | FR-001, FR-002, FR-004, FR-014, FR-017, NFR-003, RULE-001 | UT-011, UT-012, IT-002, REG-001 |
 | `appview/internal/push/dispatcher_test.go`, `firebase_sender_test.go` | Change | Assert durable fact projection, serialized FCM data, and unchanged delivery behavior | FR-002, FR-017, RULE-006 | IT-001, IT-002, REG-002 |
 | `appview/internal/api/notification_resolution.go` | Delete | Remove the owner-scoped resolution handler, DTOs, interface, store query, and resolution-only visibility helpers | FR-015 | IT-008, REG-008 |
 | `appview/internal/api/notification_resolution_test.go` | Delete | Remove obsolete resolver behavior tests; destination authorization remains in post/profile API suites | FR-008, FR-015 | IT-005, IT-008 |
+| `appview/internal/api/notification_store.go`, `notifications.go`, `notifications_test.go` | Change | Select actor avatar MIME with the existing notification query and add the canonical display-ready avatar URL to the actor response | FR-021 | UT-020 |
+| `appview/internal/api/notification_store.go`, `notifications.go`, `notifications_test.go`, `durable_notification_store_test.go` | Change | Select the viewer-to-actor follow relationship in the existing notification query and expose it as additive camelCase actor state | FR-022 | UT-022, IT-014 |
 | `appview/internal/routes/routes.go`, `policy.go` | Change | Unregister `GET /v1/notifications/{notificationId}` and remove its route policy | FR-015 | IT-008, REG-008 |
 | `appview/internal/routes/routes_test.go` | Change | Assert the former GET path is absent and no matching route policy remains | FR-015 | IT-008, REG-008 |
 | `appview/internal/api/post_test.go`, `profile_test.go` | Change | Add/retain direct-identifier visibility, moderation, named-not-found, and unauthorized read assertions | BR-002, FR-008, RULE-002, RULE-005 | IT-005 |
@@ -79,6 +86,11 @@ Generated `.g.dart` and localization files are regenerated from their source and
 | `app/lib/notifications/models/notification_resolution.dart`, `notification_id.dart` | Delete | Remove resolution-only wire models and notification-ID wrapper; durable feed row IDs remain strings in `CraftskyNotification` | FR-014, FR-015 | IT-008, REG-008 |
 | `app/lib/notifications/services/notification_resolution_policy.dart` | Delete | Remove server-resolution destination/failure policy replaced by local fact inference and destination-page error handling | FR-003, FR-015 | UT-004, UT-005, IT-008 |
 | `app/lib/notifications/widgets/notification_row.dart` | Change | Give generic/unknown rows `onTap: null`; preserve known typed navigation and unavailable-row feedback | FR-015, RULE-006 | AT-009, UT-013, IT-011, REG-005 |
+| `app/lib/notifications/widgets/notification_row.dart`, `app/lib/l10n/app_en.arb` | Change / Generate | Classify hydrated targets as post/comment/reply and render localized role-aware like/repost/response copy | FR-020 | AT-010, UT-016 |
+| `app/lib/notifications/widgets/notification_row.dart`, `app/lib/notifications/models/craftsky_notification.dart` | Change | Prefer the display-ready actor avatar, derive a canonical public DID/CID fallback, and render the avatar above the bold actor name with compact relative time | FR-021 | UT-018, UT-020, UT-021 |
+| `app/lib/notifications/widgets/notification_row.dart`, `app/lib/notifications/models/craftsky_notification.dart`, generated mapper | Change / Generate | Decode initial follow state and render a compact follow-row-only button using the existing localized profile labels and profile repository mutation, with optimistic rollback and profile-cache invalidation | FR-022 | UT-023 |
+| `app/lib/notifications/widgets/notification_category_icon.dart`, `app/lib/notifications/pages/notification_settings_page.dart` | Create / Change | Centralize the outlined category icon matrix and reuse it in both settings and notification rows so the two surfaces cannot drift | FR-021 | UT-018 |
+| `app/lib/shared/time/relative_time_text.dart`, `app/lib/feed/widgets/post_card.dart` | Create / Change | Extract the post-card relative timestamp into a shared widget with the existing compact format and full localized tooltip | FR-021 | UT-018, REG-004 |
 | `app/lib/shared/errors/notification_destination_error.dart` | Create | Purely classify permanent, transient, and authentication-loss destination errors without recording identifiers | FR-009, FR-010, NFR-002 | AT-006, AT-007, UT-009, IT-006, IT-007 |
 | `app/lib/shared/widgets/notification_destination_error_state.dart` | Create | Shared localized/accessibility surface for permanent Back/View notifications and transient Retry; auth loss renders no notification-specific state | FR-009, FR-010, NFR-005 | AT-006, AT-007, IT-006, IT-007 |
 | `app/lib/feed/pages/post_thread_page.dart` | Change | Pass the actual provider error to the shared state; make permanent errors take precedence over `_lastSection` so cached content is hidden; keep route/focus in place | FR-009, FR-010, RULE-005 | AT-006, AT-007, IT-006, IT-007, IT-009 |
@@ -100,7 +112,7 @@ Generated `.g.dart` and localization files are regenerated from their source and
 
 ### AppView payload projection
 
-The database schema already stores every required canonical value. No migration or notification-lifecycle change is needed. The claim query adds `n.actor_did`, `n.source_uri`, and nullable `n.subject_uri`; unrelated parent/root/quoted references are deliberately not passed to the provider builder.
+The database schema already stores every required canonical value, so no migration is needed. Interaction notification activation records the subject post's canonical root, and the claim query selects `n.actor_did`, `n.source_uri`, nullable `n.subject_uri`, and nullable `n.root_uri`; unrelated parent/quoted references are not passed to the provider builder.
 
 ```text
 // Partial Go shapes only.
@@ -108,6 +120,7 @@ type RoutingFacts struct {
     ActorDID   syntax.DID
     SourceURI  syntax.ATURI
     SubjectURI syntax.ATURI // zero value when the category does not use it
+    RootURI    syntax.ATURI // canonical thread root for like/repost
 }
 
 type SendRequest struct {
@@ -133,7 +146,7 @@ func BuildPayload(
 | Category | Added fact keys |
 |---|---|
 | `follow` | `actorDid` |
-| `like`, `repost` | `subjectUri` |
+| `like`, `repost` | `subjectUri`, `rootUri` |
 | `mention`, `quote` | `sourceUri` |
 | `reply` | `subjectUri`, `sourceUri` |
 | `everythingElse` | None |
@@ -171,7 +184,7 @@ final class InvalidNotificationFacts extends NotificationFactOutcome {
 
 Parsing rules:
 
-- Read only `payloadVersion`, `type`, `accountSubscriptionId`, `actorDid`, `subjectUri`, and `sourceUri`; ignore every other key.
+- Read only `payloadVersion`, `type`, `accountSubscriptionId`, `actorDid`, `subjectUri`, `rootUri`, and `sourceUri`; ignore every other key.
 - Parse the account-subscription ID independently, even when version/type/facts are invalid.
 - Require exact version string `1` and the existing bounded type identifier syntax.
 - For known categories, parse only required facts. A valid DID uses the existing atproto DID validator. A post fact must be an `at://` URI in `social.craftsky.feed.post` with a valid DID authority and record key. Enforce the contract bounds before constructing typed values.
@@ -287,7 +300,7 @@ Readiness behavior stays:
 | Fact outcome | Typed route behavior |
 |---|---|
 | Follow `actorDid` | `UserProfileRoute(handle: actorDid.toString()).push` |
-| Like/repost `subjectUri` | Parse DID/rkey and `PostThreadRoute(...).push` |
+| Like/repost `subjectUri` + `rootUri` | Root DID/rkey in `PostThreadRoute`; differing subject URI in `focus` |
 | Mention/quote `sourceUri` | Parse DID/rkey and `PostThreadRoute(...).push` |
 | Reply `subjectUri` + `sourceUri` | Subject DID/rkey in `PostThreadRoute`; source URI in `focus` |
 | Everything else | `NotificationsRoute().go` |
@@ -368,6 +381,9 @@ Tests run in strict red-green-refactor order. Provider-neutral Flutter tests use
 | 21 | REG-003 | Existing notification lifecycle/index suites | Existing eligibility, preferences, coalescing, snapshot fixtures | Any unintended server lifecycle change fails |
 | 22 | REG-004 | AppView list/newness and Flutter list/count/seen/badge suites | Existing durable/list/render/newness fixtures | Any state regression outside open routing fails |
 | 23 | MAN-001, MAN-002, MAN-003, MAN-004, MAN-005 | Physical Android/iOS and debug request trace | Real eligible events, stale targets, multi-account retained OS notification | Provider/OS lifecycle and qualitative request order remain unproven by host tests |
+| 24 | UT-016 | `app/test/notifications/notifications_page_test.dart` | Hydrated root post, direct comment, and nested reply fixtures | Current row copy calls every like/repost target a post and every response a reply to a post |
+| 25 | UT-017 | `appview/internal/push/payload_test.go` | Category and target-role visible-copy matrix | Current OS body is selected only from category and hard-codes post wording |
+| 26 | IT-012 | `appview/internal/push/dispatcher_test.go` | Durable events whose target rows have root/direct/nested reply structure | Dispatcher does not project a target role into the send request |
 
 Focused commands by phase:
 
@@ -426,7 +442,7 @@ Manual checks start only after automated verification is green and real FCM/APNs
   - Keep Firebase imports/listeners confined to the existing adapter. The runtime, parser, inference, coordinator, navigation outcome, and tests stay provider-neutral.
   - Keep exactly one runtime owner and one root effect host; do not add another listener, queue, receipt store, timer, or dedupe layer.
   - Preserve callback at-least-once behavior and latest-only transient readiness semantics.
-  - Keep visible push copy, preference/eligibility/coalescing/newness/seen/list/badge/sound/TTL/retry/invalid-token behavior unchanged.
+  - Keep visible push copy content-free and bounded; only FR-020's post/comment/reply wording may change. Preserve preference/eligibility/coalescing/newness/seen/list/badge/sound/TTL/retry/invalid-token behavior.
   - Delete resolver producer and consumer surfaces together; do not leave a compatibility route or hidden fallback call.
   - Do not delete `notification_events.id`, `push_deliveries.notification_id`, or durable notification-feed row IDs; only remove the provider-open resolution identifier.
   - Do not modify migrations, lexicons, PDS writes, route paths other than removing the resolver, dependencies, native projects, or provider credentials.

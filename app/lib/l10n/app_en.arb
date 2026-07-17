@@ -40,15 +40,51 @@
     "placeholders": { "actor": { "type": "String", "example": "Alice" } }
   },
 
+  "notificationLikeCommentRow": "{actor} liked your comment",
+  "@notificationLikeCommentRow": {
+    "description": "Notification row title for a like activity on the viewer's direct comment.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
+  "notificationLikeReplyRow": "{actor} liked your reply",
+  "@notificationLikeReplyRow": {
+    "description": "Notification row title for a like activity on the viewer's nested reply.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
   "notificationRepostRow": "{actor} reposted your post",
   "@notificationRepostRow": {
     "description": "Notification row title for a repost activity on the viewer's post.",
     "placeholders": { "actor": { "type": "String", "example": "Alice" } }
   },
 
-  "notificationReplyRow": "{actor} replied to your post",
+  "notificationRepostCommentRow": "{actor} reposted your comment",
+  "@notificationRepostCommentRow": {
+    "description": "Notification row title for a repost activity on the viewer's direct comment.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
+  "notificationRepostReplyRow": "{actor} reposted your reply",
+  "@notificationRepostReplyRow": {
+    "description": "Notification row title for a repost activity on the viewer's nested reply.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
+  "notificationReplyRow": "{actor} commented on your post",
   "@notificationReplyRow": {
-    "description": "Notification row title for a reply activity on the viewer's post.",
+    "description": "Notification row title for a direct comment activity on the viewer's root post.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
+  "notificationReplyToCommentRow": "{actor} replied to your comment",
+  "@notificationReplyToCommentRow": {
+    "description": "Notification row title for a response to the viewer's direct comment.",
+    "placeholders": { "actor": { "type": "String", "example": "Alice" } }
+  },
+
+  "notificationReplyToReplyRow": "{actor} replied to your reply",
+  "@notificationReplyToReplyRow": {
+    "description": "Notification row title for a response to the viewer's nested reply.",
     "placeholders": { "actor": { "type": "String", "example": "Alice" } }
   },
 

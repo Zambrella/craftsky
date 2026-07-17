@@ -54,9 +54,11 @@ type NotificationRow struct {
 	CID  string
 	Rkey string
 
-	ActorDID         string
-	ActorDisplayName *string
-	ActorAvatarCID   *string
+	ActorDID               string
+	ActorDisplayName       *string
+	ActorAvatarCID         *string
+	ActorAvatarMime        *string
+	ActorViewerIsFollowing bool
 
 	CreatedAt time.Time
 	IndexedAt time.Time
@@ -171,6 +173,13 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			e.actor_did,
 			actor_bp.display_name AS actor_display_name,
 			actor_bp.avatar_cid AS actor_avatar_cid,
+			actor_bp.avatar_mime AS actor_avatar_mime,
+			EXISTS (
+				SELECT 1
+				FROM atproto_follows actor_follow
+				WHERE actor_follow.did = $1
+				  AND actor_follow.subject_did = e.actor_did
+			) AS actor_viewer_is_following,
 			e.activity_at, e.indexed_at,
 			sp.uri, sp.did, sp.rkey, sp.cid, sp.text, sp.facets, sp.images,
 			sp.reply_root_uri, sp.reply_root_cid, sp.reply_parent_uri, sp.reply_parent_cid,
@@ -213,7 +222,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			&rootURI, &rootCID, &rootAvailable,
 			&quotedURI, &quotedCID, &quotedAvailable,
 			&subjectQuoteAvailable,
-			&row.ActorDID, &row.ActorDisplayName, &row.ActorAvatarCID,
+			&row.ActorDID, &row.ActorDisplayName, &row.ActorAvatarCID, &row.ActorAvatarMime, &row.ActorViewerIsFollowing,
 			&row.CreatedAt, &row.IndexedAt,
 			&subject.URI, &subject.DID, &subject.Rkey, &subject.CID, &subject.Text, &subject.Facets, &subject.Images,
 			&subject.ReplyRootURI, &subject.ReplyRootCID, &subject.ReplyParentURI, &subject.ReplyParentCID,

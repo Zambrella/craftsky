@@ -49,7 +49,10 @@ func (s *privacyIntegrationSender) Calls() []push.SendRequest {
 }
 
 func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *testing.T) {
-	pool := testdb.WithSchema(t, `CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);`)
+	pool := testdb.WithSchema(t, `
+		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
+		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
+	`)
 	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)

@@ -15,12 +15,13 @@ func TestBuildPayloadUT011ExactNotificationFactMatrix(t *testing.T) {
 	facts := RoutingFacts{
 		ActorDID:   syntax.DID("did:plc:actor"),
 		SubjectURI: syntax.ATURI("at://did:plc:subject/social.craftsky.feed.post/subject"),
+		RootURI:    syntax.ATURI("at://did:plc:root/social.craftsky.feed.post/root"),
 		SourceURI:  syntax.ATURI("at://did:plc:source/social.craftsky.feed.post/source"),
 	}
 	tests := map[notifications.Category]map[string]string{
 		notifications.Follow:         {"actorDid": facts.ActorDID.String()},
-		notifications.Like:           {"subjectUri": facts.SubjectURI.String()},
-		notifications.Repost:         {"subjectUri": facts.SubjectURI.String()},
+		notifications.Like:           {"subjectUri": facts.SubjectURI.String(), "rootUri": facts.RootURI.String()},
+		notifications.Repost:         {"subjectUri": facts.SubjectURI.String(), "rootUri": facts.RootURI.String()},
 		notifications.Mention:        {"sourceUri": facts.SourceURI.String()},
 		notifications.Quote:          {"sourceUri": facts.SourceURI.String()},
 		notifications.Reply:          {"subjectUri": facts.SubjectURI.String(), "sourceUri": facts.SourceURI.String()},
@@ -56,6 +57,41 @@ func TestBuildPayloadUT011ExactNotificationFactMatrix(t *testing.T) {
 	unnamed := BuildPayload(notifications.Like, "routing-id", "", facts)
 	if unnamed.Title != "Someone" {
 		t.Fatalf("unnamed title = %q", unnamed.Title)
+	}
+}
+
+func TestBuildPayloadUT017UsesConversationRoleInVisibleCopy(t *testing.T) {
+	tests := []struct {
+		name     string
+		category notifications.Category
+		role     ContentRole
+		want     string
+	}{
+		{"like post", notifications.Like, ContentRolePost, "liked your post"},
+		{"like comment", notifications.Like, ContentRoleComment, "liked your comment"},
+		{"like reply", notifications.Like, ContentRoleReply, "liked your reply"},
+		{"repost post", notifications.Repost, ContentRolePost, "reposted your post"},
+		{"repost comment", notifications.Repost, ContentRoleComment, "reposted your comment"},
+		{"repost reply", notifications.Repost, ContentRoleReply, "reposted your reply"},
+		{"comment on post", notifications.Reply, ContentRolePost, "commented on your post"},
+		{"reply to comment", notifications.Reply, ContentRoleComment, "replied to your comment"},
+		{"reply to reply", notifications.Reply, ContentRoleReply, "replied to your reply"},
+		{"quote post", notifications.Quote, ContentRolePost, "quoted your post"},
+		{"quote comment", notifications.Quote, ContentRoleComment, "quoted your comment"},
+		{"quote reply", notifications.Quote, ContentRoleReply, "quoted your reply"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			baseline := BuildPayload(test.category, "routing-id", "Alice", RoutingFacts{})
+			payload := BuildPayload(test.category, "routing-id", "Alice", RoutingFacts{TargetRole: test.role})
+			if payload.Body != test.want {
+				t.Fatalf("body = %q, want %q", payload.Body, test.want)
+			}
+			if !reflect.DeepEqual(payload.Data, baseline.Data) {
+				t.Fatalf("role changed provider data: got %#v, want %#v", payload.Data, baseline.Data)
+			}
+		})
 	}
 }
 

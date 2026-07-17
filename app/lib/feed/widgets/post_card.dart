@@ -13,6 +13,7 @@ import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
+import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
@@ -181,7 +182,10 @@ class PostCard extends StatelessWidget {
                         SizedBox(
                           width: _postCardMenuWidth,
                           child: Center(
-                            child: _PostCardTime(postedAt: post.createdAt),
+                            child: RelativeTimeText(
+                              timestamp: post.createdAt,
+                              textAlign: TextAlign.end,
+                            ),
                           ),
                         ),
                       ],
@@ -387,46 +391,6 @@ class _PostCardAuthorTapTarget extends StatelessWidget {
         child: child,
       ),
     );
-  }
-}
-
-class _PostCardTime extends StatelessWidget {
-  const _PostCardTime({required this.postedAt});
-
-  final DateTime postedAt;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Tooltip(
-      message: _fullTimestamp(context, postedAt),
-      child: Text(
-        _relativeTime(postedAt),
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.outline,
-        ),
-        textAlign: TextAlign.end,
-      ),
-    );
-  }
-
-  String _fullTimestamp(BuildContext context, DateTime when) {
-    final local = when.toLocal();
-    final material = MaterialLocalizations.of(context);
-    final date = material.formatFullDate(local);
-    final time = material.formatTimeOfDay(
-      TimeOfDay.fromDateTime(local),
-      alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
-    );
-    return '$date at $time ${local.timeZoneName}';
-  }
-
-  String _relativeTime(DateTime when) {
-    final delta = DateTime.now().difference(when);
-    if (delta.inMinutes < 1) return 'now';
-    if (delta.inMinutes < 60) return '${delta.inMinutes}m';
-    if (delta.inHours < 24) return '${delta.inHours}h';
-    return '${delta.inDays}d';
   }
 }
 

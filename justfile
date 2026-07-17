@@ -129,6 +129,9 @@ app-run-ios: app-env-init
     cd app && flutter run -d ios --dart-define-from-file=config/local.env
 
 app-run-android: app-env-init
+    # atproto's localhost OAuth client only permits loopback redirect URIs.
+    # Make the emulator's 127.0.0.1:18080 reach the host AppView callback.
+    adb reverse tcp:18080 tcp:18080
     cd app && flutter run --dart-define-from-file=config/local-android.env
 
 app-analyze:

@@ -37,6 +37,9 @@ The non-blocking latency question from the requirements does not block test desi
 | FR-017 | AC-003, AC-016 | UT-011, IT-001 | Unit / Integration | Yes |
 | FR-018 | AC-022 | AT-008, UT-008, IT-003 | Acceptance / Unit / Integration | Yes |
 | FR-019 | AC-005, AC-021 | AT-003, UT-002, UT-003 | Acceptance / Unit | Yes |
+| FR-020 | AC-023 | AT-010, UT-016, UT-017, IT-012 | Acceptance / Unit / Integration | Yes |
+| FR-021 | AC-024 | UT-018, UT-020, UT-021 | Unit / Widget | Yes |
+| FR-022 | AC-025 | UT-022, UT-023, IT-014 | Unit / Widget / Integration | Yes |
 | NFR-001 | AC-007 | AT-001, UT-007, IT-003, MAN-005 | Acceptance / Unit / Integration / Manual | Yes, plus manual |
 | NFR-002 | AC-017 | UT-010, IT-010, REG-007 | Unit / Integration / Regression | Yes |
 | NFR-003 | AC-018 | UT-012, IT-002 | Unit / Integration | Yes |
@@ -76,8 +79,8 @@ Feature: Direct notification routing
     Examples:
       | type           | facts                         | destination                         |
       | follow         | actorDid                      | actor DID profile                   |
-      | like           | subjectUri                    | subject post thread                 |
-      | repost         | subjectUri                    | subject post thread                 |
+      | like           | subjectUri and rootUri        | root thread, subject focused if different |
+      | repost         | subjectUri and rootUri        | root thread, subject focused if different |
       | mention        | sourceUri                     | source post thread                  |
       | quote          | sourceUri                     | quoting source post thread          |
       | reply          | subjectUri and sourceUri      | subject thread focused on source    |
@@ -324,6 +327,35 @@ Feature: Generic notification rows
       | unknown category |
 ```
 
+### AT-010: Notification copy uses the target's conversation role
+
+Requirement IDs: FR-020
+
+Acceptance Criteria: AC-023
+
+Priority: Must
+
+Level: Acceptance
+
+Automation Target: `app/test/notifications/notifications_page_test.dart`, `appview/internal/push/payload_test.go`, `appview/internal/push/dispatcher_test.go`
+
+```gherkin
+Feature: Role-aware notification wording
+  Scenario Outline: Visible notification copy names the actual target role
+    Given notification activity targets a <target role>
+    When the OS notification is built or the in-app row is rendered
+    Then the visible copy uses <expected noun or action>
+
+    Examples:
+      | target role              | expected noun or action       |
+      | root post                | post                          |
+      | direct comment           | comment                       |
+      | nested reply             | reply                         |
+      | new direct child of post | commented on your post        |
+      | response to comment      | replied to your comment       |
+      | response to reply        | replied to your reply         |
+```
+
 ## 4. Unit Test Cases
 
 | ID | Requirement IDs | Acceptance Criteria | Description | Inputs | Expected Result | Automation Target |
@@ -331,7 +363,7 @@ Feature: Generic notification rows
 | UT-001 | FR-001, FR-005, FR-006, FR-011, FR-012, FR-014 | AC-002, AC-005, AC-006, AC-011, AC-012, AC-014 | Parse the common provider envelope into a structured provider-neutral open attempt. | Valid/missing/malformed `payloadVersion`, `type`, and `accountSubscriptionId`; legacy `notificationId`. | A valid binding is preserved independently from fact validity; missing/malformed version or type produces an invalid-facts outcome that can be handled after binding validation; missing/malformed binding produces an invalid-binding outcome; `notificationId` is ignored and absent from the domain attempt. | `app/test/notifications/models/notification_open_event_test.dart` |
 | UT-002 | FR-002, FR-012, FR-019 | AC-002, AC-005, AC-012, AC-021 | Enforce the per-category required-fact matrix while ignoring extras. | All known categories, required fields, missing fields, and destination-shaped extras, each with a valid binding. | Each category accepts only its valid required facts; missing/malformed facts produce an invalid-facts outcome that retains the valid binding; extras do not invalidate or influence routing. | `app/test/notifications/models/notification_open_event_test.dart` |
 | UT-003 | FR-005, FR-019 | AC-005, AC-021 | Validate public identifiers at the provider boundary. | Valid/invalid DIDs; valid post AT-URIs; non-post collections; malformed and arbitrary URLs. | Only typed DIDs and `social.craftsky.feed.post` AT-URIs reach domain logic; extras remain unused. | `app/test/notifications/models/notification_open_event_test.dart` |
-| UT-004 | FR-002, FR-003, FR-016 | AC-003, AC-016 | Infer destinations from notification category and canonical facts. | Complete version 1 fact fixtures for all categories. | Exact Q4 mapping is returned, including reply subject thread and source focus; no AppView/GoRouter path input is required. | `app/test/notifications/services/notification_destination_inference_test.dart` (new) |
+| UT-004 | FR-002, FR-003, FR-016 | AC-003, AC-016 | Infer destinations from notification category and canonical facts. | Complete version 1 fact fixtures for all categories. | Exact Q4 mapping is returned, including like/repost root thread with differing subject focus and reply subject thread with source focus; no AppView/GoRouter path input is required. | `app/test/notifications/services/notification_destination_inference_test.dart` (new) |
 | UT-005 | FR-011, FR-012, RULE-004 | AC-011, AC-012 | Classify fact outcomes after successful binding validation. | Pre-cutover payload; unsupported/malformed version; malformed type; malformed known facts; unknown valid type, all carrying a valid matching binding. | Invalid/legacy fact outcomes request Notifications plus feedback; unknown valid type requests Notifications quietly. | `app/test/notifications/services/notification_destination_inference_test.dart` (new) |
 | UT-006 | FR-006, RULE-003 | AC-006 | Apply the DID-keyed account-subscription gate before any routing or fact fallback. | Matching binding; missing/malformed payload binding; missing local binding; stale and mismatched bindings. | Only a valid matching binding proceeds to fact inference/fallback; every other state emits generic unavailable feedback with zero route/network calls, including zero Notifications fallback calls. | `app/test/notifications/providers/notification_open_coordinator_test.dart` |
 | UT-007 | BR-001, FR-007, NFR-001 | AC-001, AC-007 | Prove navigation emission is not serially dependent on network work. | Valid event, matching binding, route spy, destination-load future held incomplete. | Typed navigation emits while the destination future remains incomplete and no resolver exists/calls. | `app/test/notifications/providers/notification_open_coordinator_test.dart` |
@@ -343,6 +375,14 @@ Feature: Generic notification rows
 | UT-013 | FR-015 | AC-015 | Render generic/unknown feed rows without interaction. | Generic and unknown `CraftskyNotification` rows. | Row is informational, has no tap callback/semantics action, and cannot call a resolution repository. | `app/test/notifications/notifications_page_test.dart` |
 | UT-014 | FR-016 | AC-003, AC-016 | Construct the typed reply route safely. | Valid subject post URI and source reply URI. | Path uses subject DID/rkey and `focus` contains the source reply URI; no arbitrary path is executed. | `app/test/router/notification_open_routing_test.dart` (new) |
 | UT-015 | NFR-004 | AC-019 | Preserve the provider-neutral testing boundary. | Source/import scan and fakes for parser, inference, readiness, binding, and navigation. | Domain/coordinator suites run without Firebase initialization, FCM, OS permission, or a device; Firebase stays in its adapter. | `app/test/notifications/notification_architecture_test.dart` |
+| UT-016 | FR-020 | AC-023 | Render role-aware in-app row copy. | Like, repost, and response rows whose hydrated target is a root post, direct comment, or nested reply. | Rows use post/comment/reply nouns and use `commented on` only for a direct child of a root. | `app/test/notifications/notifications_page_test.dart` |
+| UT-017 | FR-020 | AC-023 | Build role-aware OS-visible copy without adding routing data. | Current categories with post, comment, and reply target roles. | Notification title/body uses the correct bounded English action while the exact provider data map remains unchanged. | `appview/internal/push/payload_test.go` |
+| UT-018 | FR-021 | AC-024 | Render complete Bluesky-style in-app notification identity/action/recency context. | Follow, like, repost, reply, mention, quote, and generic rows with an actor avatar URL and fixed creation time. | Every row contains `ProfileAvatar` above its actor copy, a bold actor name, the outlined icon shared with notification settings, compact relative time, and a full timestamp tooltip. | `app/test/notifications/notifications_page_test.dart` |
+| UT-020 | FR-021 | AC-024 | Return a display-ready actor avatar from the notification API. | Indexed actor avatar CID and MIME plus resolved handle. | The additive actor `avatar` field uses the canonical CDN URL while the existing CID remains available. | `appview/internal/api/notifications_test.go` |
+| UT-021 | FR-021 | AC-024 | Preserve real public avatars while the additive AppView avatar URL is absent. | Notification actor JSON containing DID and public avatar CID but no `avatar` field. | The Flutter model derives the canonical CDN avatar URL; a development-media CID remains on the standard initial fallback rather than inventing an invalid URL. | `app/test/notifications/notifications_page_test.dart` |
+| UT-022 | FR-022 | AC-025 | Serialize current actor follow state in the existing notification response. | A follow notification row whose actor is currently followed by the authenticated viewer. | The additive camelCase actor `viewerIsFollowing` field is `true`; absent/false state remains `false`. | `appview/internal/api/notifications_test.go` |
+| UT-023 | FR-022 | AC-025 | Render and toggle the follow-notification relationship control. | A follow row starting at `viewerIsFollowing=true` with a fake profile repository returning unfollowed then followed profiles. | The row starts at Unfollow, invokes unfollow by actor DID, changes to Follow, invokes follow by actor DID, returns to Unfollow, and the nested button does not trigger row navigation; the category matrix contains exactly one follow control. | `app/test/notifications/notifications_page_test.dart` |
+| IT-014 | FR-022 | AC-025 | Project the authenticated viewer's current actor relationship with the notification page. | Real Postgres notification events plus an active `atproto_follows` row from viewer to actor. | Every listed notification row for that actor has `ActorViewerIsFollowing=true`, including across pagination. | `appview/internal/api/durable_notification_store_test.go` |
 
 ## 5. Integration Test Cases
 
@@ -359,12 +399,13 @@ Feature: Generic notification rows
 | IT-009 | FR-016 | AC-003, AC-016 | Carry reply focus through typed router into the thread fetch. | Router harness with subject URI and source focus URI; recording post repository. | Navigate from a reply fact event. | Route decodes subject DID/rkey and passes source URI as focus to the comment-section request/rendering path. | `app/test/router/notification_open_routing_test.dart` (new), `app/test/feed/pages/post_comment_section_page_test.dart` |
 | IT-010 | NFR-002, RULE-001 | AC-017 | Scan success/fallback/failure paths for identifier leakage. | Unique sentinels for token, binding, notification ID, DID, AT-URI, focus URI, payload, and provider error. | Exercise AppView build/send diagnostics and Flutter parse/navigation/error/reporting paths. | Logs, Sentry, analytics, metrics labels, exceptions, feedback, and snapshots contain none of the sentinels or raw payload. | `appview/internal/observability/push_integration_test.go`, `app/test/shared/errors/sentry_redaction_test.dart`, `app/test/notifications/notification_architecture_test.dart` |
 | IT-011 | FR-015 | AC-015 | Keep known notification rows useful while generic rows become inert. | Notifications page with every known category, generic, unknown, and unavailable rows. | Tap each row where interactive. | Known rows retain profile/post/reply navigation; generic/unknown rows do nothing; unavailable rows retain explicit unavailable feedback. | `app/test/notifications/notifications_page_test.dart` |
+| IT-012 | FR-020 | AC-023 | Project the target's conversation role into provider-visible copy. | Durable events targeting indexed root posts, direct comments, and nested replies. | Claim and dispatch each delivery. | The send request carries only a bounded internal target-role enum derived from indexed reply structure; provider routing data gains no new key. | `appview/internal/push/dispatcher_test.go` |
 
 ## 6. Regression Tests
 
 | ID | Existing Behavior Protected | Requirement IDs | Acceptance Criteria | Test | Automation Target |
 |---|---|---|---|---|---|
-| REG-001 | Visible push title/body remains generic and bounded. | FR-004, RULE-006 | AC-004, AC-020 | Assert current category copy/fallback actor label is unchanged while data facts change. | `appview/internal/push/payload_test.go` |
+| REG-001 | Visible push title/body remains content-free and bounded. | FR-004, FR-020, RULE-006 | AC-004, AC-020, AC-023 | Assert the fallback actor label and content exclusions remain unchanged while role-aware category wording varies only by target structure. | `appview/internal/push/payload_test.go` |
 | REG-002 | Delivery claiming, fencing, TTL, cancellation, provider retry, and invalid-token cleanup remain unchanged. | RULE-006 | AC-020 | Run existing dispatcher, retry, and sender suites after adding canonical facts. | `appview/internal/push/dispatcher_test.go`, `appview/internal/push/retry_test.go`, `appview/internal/push/firebase_sender_test.go` |
 | REG-003 | Eligibility, preferences, coalescing, and preference snapshots remain unchanged. | RULE-006 | AC-020 | Run existing notification policy/lifecycle suites. | `appview/internal/notifications/*_test.go`, `appview/internal/index/notification_*_test.go` |
 | REG-004 | Notification list, new count, seen acknowledgement, sound, and badge behavior remain unchanged. | RULE-006 | AC-020 | Run AppView newness/list tests and Flutter list/badge/seen suites. | `appview/internal/api/notifications_test.go`, `appview/internal/api/notification_newness_test.go`, `app/test/notifications/notifications_page_test.dart`, `app/test/notifications/notification_seen_flow_test.dart`, `app/test/notifications/app_shell_notification_badge_test.dart` |
@@ -380,7 +421,7 @@ Feature: Generic notification rows
 | ID | Purpose | Data | Used By |
 |---|---|---|---|
 | TD-001 | Valid common version 1 contract | `payloadVersion=1`, bounded known `type`, valid `accountSubscriptionId`, and explicit source enum. | AT-001, AT-004, UT-001, IT-003, IT-004 |
-| TD-002 | Exact category fact matrix | Follow actor DID; like/repost subject post URI; mention/quote source post URI; reply subject and source post URIs; everything-else no reference. Use distinct sentinels so accidental substitutions are visible. | AT-001, AT-005, UT-002, UT-004, UT-011, IT-001, IT-002, IT-009 |
+| TD-002 | Exact category fact matrix | Follow actor DID; like/repost subject and canonical root post URIs; mention/quote source post URI; reply subject and source post URIs; everything-else no reference. Use distinct sentinels so accidental substitutions are visible. | AT-001, AT-005, UT-002, UT-004, UT-011, IT-001, IT-002, IT-009 |
 | TD-003 | Malformed facts with valid binding | Missing fact fields, empty/oversized fact values, invalid DID, arbitrary URL, non-post AT-URI, invalid type characters, and malformed/unsupported versions, all paired with a valid matching `accountSubscriptionId`. | AT-003, UT-001, UT-002, UT-003, UT-005, REG-009 |
 | TD-004 | Forward-compatible unknown type | Syntactically valid bounded type such as `projectInvite2` plus destination-shaped extras. | AT-003, UT-002, UT-005 |
 | TD-005 | Binding isolation | Current DID with matching, missing/malformed payload, missing local, stale, and different-account `accountSubscriptionId` values; non-binding facts remain valid. | AT-002, UT-001, UT-006, IT-004, MAN-004 |

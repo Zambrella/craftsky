@@ -154,17 +154,53 @@ abstract class AppLocalizations {
   /// **'{actor} liked your post'**
   String notificationLikeRow(String actor);
 
+  /// Notification row title for a like activity on the viewer's direct comment.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} liked your comment'**
+  String notificationLikeCommentRow(String actor);
+
+  /// Notification row title for a like activity on the viewer's nested reply.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} liked your reply'**
+  String notificationLikeReplyRow(String actor);
+
   /// Notification row title for a repost activity on the viewer's post.
   ///
   /// In en, this message translates to:
   /// **'{actor} reposted your post'**
   String notificationRepostRow(String actor);
 
-  /// Notification row title for a reply activity on the viewer's post.
+  /// Notification row title for a repost activity on the viewer's direct comment.
   ///
   /// In en, this message translates to:
-  /// **'{actor} replied to your post'**
+  /// **'{actor} reposted your comment'**
+  String notificationRepostCommentRow(String actor);
+
+  /// Notification row title for a repost activity on the viewer's nested reply.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} reposted your reply'**
+  String notificationRepostReplyRow(String actor);
+
+  /// Notification row title for a direct comment activity on the viewer's root post.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} commented on your post'**
   String notificationReplyRow(String actor);
+
+  /// Notification row title for a response to the viewer's direct comment.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} replied to your comment'**
+  String notificationReplyToCommentRow(String actor);
+
+  /// Notification row title for a response to the viewer's nested reply.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} replied to your reply'**
+  String notificationReplyToReplyRow(String actor);
 
   /// Notification row title for a mention activity.
   ///

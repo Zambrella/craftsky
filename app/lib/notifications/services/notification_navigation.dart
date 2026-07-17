@@ -6,9 +6,11 @@ import 'package:craftsky_app/notifications/models/notification_destination.dart'
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:flutter/widgets.dart';
+import 'package:go_router/go_router.dart';
 
 void navigateToNotificationOutcome(
   BuildContext context,
+  GoRouter router,
   NotificationOpenOutcome outcome,
 ) {
   if (outcome.feedback != null) {
@@ -18,16 +20,18 @@ void navigateToNotificationOutcome(
   }
   switch (outcome.destination) {
     case NotificationsDestination():
-      const NotificationsRoute().go(context);
+      router.go(const NotificationsRoute().location);
     case ProfileDestination(:final did):
-      unawaited(UserProfileRoute(handle: did.toString()).push<void>(context));
+      unawaited(
+        router.push<void>(UserProfileRoute(handle: did.toString()).location),
+      );
     case final PostDestination destination:
       final route = postThreadRouteForNotification(destination);
       if (route == null) {
-        const NotificationsRoute().go(context);
+        router.go(const NotificationsRoute().location);
         return;
       }
-      unawaited(route.push<void>(context));
+      unawaited(router.push<void>(route.location));
   }
 }
 

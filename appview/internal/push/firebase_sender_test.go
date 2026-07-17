@@ -25,12 +25,14 @@ func TestFirebaseSenderBuildsCombinedMessageWithBoundedTTL(t *testing.T) {
 	client := &captureFirebaseClient{}
 	sender := &FirebaseSender{client: client, now: func() time.Time { return time.Unix(1000, 0) }}
 	const subjectURI = "at://did:plc:subject/social.craftsky.feed.post/subject"
+	const rootURI = "at://did:plc:root/social.craftsky.feed.post/root"
 	result, err := sender.Send(context.Background(), SendRequest{
 		Token:                 "token",
 		Category:              notifications.Like,
 		AccountSubscriptionID: "routing",
 		RoutingFacts: RoutingFacts{
 			SubjectURI: syntax.ATURI(subjectURI),
+			RootURI:    syntax.ATURI(rootURI),
 		},
 		ActorDisplayName: "Alice",
 		TTL:              time.Hour,
@@ -47,6 +49,7 @@ func TestFirebaseSenderBuildsCombinedMessageWithBoundedTTL(t *testing.T) {
 		"type":                  "like",
 		"accountSubscriptionId": "routing",
 		"subjectUri":            subjectURI,
+		"rootUri":               rootURI,
 	}
 	if !reflect.DeepEqual(m.Data, wantData) {
 		t.Fatalf("data=%#v, want %#v", m.Data, wantData)

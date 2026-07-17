@@ -57,6 +57,12 @@ Under the hood these recipes call Flutter with
 config file with `CRAFTSKY_API_BASE_URL`; the app throws on first API call if
 it's missing.
 
+`just app-run-android` also installs an ADB reverse mapping from the emulator's
+`127.0.0.1:18080` to the host's `127.0.0.1:18080`. The app still uses
+`10.0.2.2:18080` for normal API requests, but atproto's localhost OAuth client
+requires its browser callback to use a loopback address. The reverse mapping
+lets that callback reach the local AppView from Android.
+
 Sentry runtime config uses the same files:
 
 ```env

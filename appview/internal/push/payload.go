@@ -14,15 +14,7 @@ func BuildPayload(category notifications.Category, routingID, actorDisplayName s
 	if actorDisplayName == "" {
 		actorDisplayName = "Someone"
 	}
-	action := map[notifications.Category]string{
-		notifications.Like:           "liked your post",
-		notifications.Follow:         "followed you",
-		notifications.Reply:          "replied to your post",
-		notifications.Mention:        "mentioned you",
-		notifications.Quote:          "quoted your post",
-		notifications.Repost:         "reposted your post",
-		notifications.EverythingElse: "sent you a notification",
-	}[category]
+	action := visibleBody(category, facts.TargetRole)
 	data := map[string]string{
 		"payloadVersion":        "1",
 		"type":                  string(category),
@@ -33,6 +25,7 @@ func BuildPayload(category notifications.Category, routingID, actorDisplayName s
 		addRoutingFact(data, "actorDid", facts.ActorDID.String())
 	case notifications.Like, notifications.Repost:
 		addRoutingFact(data, "subjectUri", facts.SubjectURI.String())
+		addRoutingFact(data, "rootUri", facts.RootURI.String())
 	case notifications.Mention, notifications.Quote:
 		addRoutingFact(data, "sourceUri", facts.SourceURI.String())
 	case notifications.Reply:
@@ -43,6 +36,32 @@ func BuildPayload(category notifications.Category, routingID, actorDisplayName s
 		Title: actorDisplayName,
 		Body:  action,
 		Data:  data,
+	}
+}
+
+func visibleBody(category notifications.Category, role ContentRole) string {
+	if role != ContentRoleComment && role != ContentRoleReply {
+		role = ContentRolePost
+	}
+	noun := string(role)
+	switch category {
+	case notifications.Like:
+		return "liked your " + noun
+	case notifications.Follow:
+		return "followed you"
+	case notifications.Reply:
+		if role == ContentRolePost {
+			return "commented on your post"
+		}
+		return "replied to your " + noun
+	case notifications.Mention:
+		return "mentioned you"
+	case notifications.Quote:
+		return "quoted your " + noun
+	case notifications.Repost:
+		return "reposted your " + noun
+	default:
+		return "sent you a notification"
 	}
 }
 

@@ -19,10 +19,21 @@ const (
 )
 
 type ProviderResult struct{ Class ResultClass }
+
+type ContentRole string
+
+const (
+	ContentRolePost    ContentRole = "post"
+	ContentRoleComment ContentRole = "comment"
+	ContentRoleReply   ContentRole = "reply"
+)
+
 type RoutingFacts struct {
 	ActorDID   syntax.DID
 	SourceURI  syntax.ATURI
 	SubjectURI syntax.ATURI
+	RootURI    syntax.ATURI
+	TargetRole ContentRole
 }
 type SendRequest struct {
 	Token                 string

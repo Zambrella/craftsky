@@ -5,6 +5,7 @@ import 'package:craftsky_app/notifications/models/notification_preferences.dart'
 import 'package:craftsky_app/notifications/providers/notification_permission_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_preferences_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_service_provider.dart';
+import 'package:craftsky_app/notifications/widgets/notification_category_icon.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
@@ -172,7 +173,10 @@ class _PreferenceSection extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(_categoryIcon(category), color: theme.colorScheme.primary),
+              Icon(
+                notificationCategoryIcon(category),
+                color: theme.colorScheme.primary,
+              ),
               SizedBox(width: spacing.sp2),
               Expanded(
                 child: Text(
@@ -243,17 +247,6 @@ class _PreferenceSection extends ConsumerWidget {
     );
   }
 }
-
-IconData _categoryIcon(NotificationCategory category) => switch (category) {
-  NotificationCategory.like => Icons.favorite_outline,
-  NotificationCategory.follow => Icons.person_add_alt_outlined,
-  NotificationCategory.reply => Icons.chat_bubble_outline,
-  NotificationCategory.mention => Icons.alternate_email,
-  NotificationCategory.quote => Icons.format_quote,
-  NotificationCategory.repost => Icons.repeat,
-  NotificationCategory.everythingElse ||
-  NotificationCategory.unknown => Icons.notifications_none,
-};
 
 String _categoryLabel(
   AppLocalizations l10n,

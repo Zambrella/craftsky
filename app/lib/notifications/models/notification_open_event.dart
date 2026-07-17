@@ -20,12 +20,14 @@ final class ValidNotificationFacts extends NotificationFactOutcome {
     required this.category,
     this.actorDid,
     this.subjectUri,
+    this.rootUri,
     this.sourceUri,
   });
 
   final NotificationCategory category;
   final Did? actorDid;
   final AtUri? subjectUri;
+  final AtUri? rootUri;
   final AtUri? sourceUri;
 
   @override
@@ -86,16 +88,19 @@ final class NotificationOpenAttempt {
             NotificationFactFailureClass.missingOrMalformedRequiredFacts,
           ),
         },
-        NotificationCategory.like || NotificationCategory.repost =>
-          switch (_parsePostUri(data['subjectUri'])) {
-            final subjectUri? => ValidNotificationFacts._(
-              category: category,
-              subjectUri: subjectUri,
-            ),
-            null => const InvalidNotificationFacts(
-              NotificationFactFailureClass.missingOrMalformedRequiredFacts,
-            ),
-          },
+        NotificationCategory.like || NotificationCategory.repost => switch ((
+          _parsePostUri(data['subjectUri']),
+          _parsePostUri(data['rootUri']),
+        )) {
+          (final subjectUri?, final rootUri?) => ValidNotificationFacts._(
+            category: category,
+            subjectUri: subjectUri,
+            rootUri: rootUri,
+          ),
+          _ => const InvalidNotificationFacts(
+            NotificationFactFailureClass.missingOrMalformedRequiredFacts,
+          ),
+        },
         NotificationCategory.mention || NotificationCategory.quote =>
           switch (_parsePostUri(data['sourceUri'])) {
             final sourceUri? => ValidNotificationFacts._(

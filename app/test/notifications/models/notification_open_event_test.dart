@@ -65,11 +65,12 @@ void main() {
   test('UT-002 enforces required facts and ignores every extra', () {
     const actorDid = 'did:plc:alice';
     const subjectUri = 'at://did:plc:subject/social.craftsky.feed.post/subject';
+    const rootUri = 'at://did:plc:root/social.craftsky.feed.post/root';
     const sourceUri = 'at://did:plc:source/social.craftsky.feed.post/source';
     final cases = <({String type, List<String> required})>[
       (type: 'follow', required: ['actorDid']),
-      (type: 'like', required: ['subjectUri']),
-      (type: 'repost', required: ['subjectUri']),
+      (type: 'like', required: ['subjectUri', 'rootUri']),
+      (type: 'repost', required: ['subjectUri', 'rootUri']),
       (type: 'mention', required: ['sourceUri']),
       (type: 'quote', required: ['sourceUri']),
       (type: 'reply', required: ['subjectUri', 'sourceUri']),
@@ -83,6 +84,7 @@ void main() {
         'accountSubscriptionId': routingId,
         'actorDid': actorDid,
         'subjectUri': subjectUri,
+        'rootUri': rootUri,
         'sourceUri': sourceUri,
         'route': '/must/not/be/used',
         'url': 'https://must.not.be/used.example',
@@ -100,6 +102,10 @@ void main() {
         testCase.required.contains('subjectUri')
             ? AtUri.parse(subjectUri)
             : null,
+      );
+      expect(
+        facts.rootUri,
+        testCase.required.contains('rootUri') ? AtUri.parse(rootUri) : null,
       );
       expect(
         facts.sourceUri,
@@ -127,23 +133,28 @@ void main() {
   });
 
   test('UT-003 and REG-009 reject untrusted public identifiers', () {
+    const rootUri = 'at://did:plc:root/social.craftsky.feed.post/root';
     final invalid = <Map<String, Object?>>[
       _providerData(type: 'follow', actorDid: 'not-a-did'),
       _providerData(
         type: 'like',
         subjectUri: 'https://craftsky.social/posts/arbitrary',
+        rootUri: rootUri,
       ),
       _providerData(
         type: 'like',
         subjectUri: 'at://did:plc:alice/social.craftsky.project/project',
+        rootUri: rootUri,
       ),
       _providerData(
         type: 'like',
         subjectUri: 'at://not-a-did/social.craftsky.feed.post/post',
+        rootUri: rootUri,
       ),
       _providerData(
         type: 'like',
         subjectUri: 'at://did:plc:alice/social.craftsky.feed.post/..',
+        rootUri: rootUri,
       ),
       _providerData(type: 'follow', actorDid: 'did:plc:${'a' * 1017}'),
       _providerData(type: 'follow', actorDid: 'did:plc:unicodé'),
@@ -198,6 +209,7 @@ Map<String, Object?> _providerData({
   required String type,
   String? actorDid,
   String? subjectUri,
+  String? rootUri,
   String? sourceUri,
 }) => <String, Object?>{
   'payloadVersion': '1',
@@ -205,5 +217,6 @@ Map<String, Object?> _providerData({
   'accountSubscriptionId': 'subscription_Abc123',
   'actorDid': ?actorDid,
   'subjectUri': ?subjectUri,
+  'rootUri': ?rootUri,
   'sourceUri': ?sourceUri,
 };

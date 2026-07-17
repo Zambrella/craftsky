@@ -144,8 +144,14 @@ Prints a multibase-encoded P-256 private key to stdout. Paste into your
 local prod-style `.env` as `OAUTH_CLIENT_SECRET_KEY`. Never commit.
 
 In dev (`OAUTH_HOSTNAME` unset) the appview runs as a public client
-against `http://127.0.0.1:8080/oauth/callback` and does not require a
+against `http://127.0.0.1:18080/oauth/callback` and does not require a
 client secret.
+
+The compose stack publishes that callback on host port `18080`. Android
+emulators cannot otherwise reach the host through their own loopback address,
+so `just app-run-android` installs `adb reverse tcp:18080 tcp:18080` before
+launching Flutter. Keep the OAuth callback on `127.0.0.1`: atproto's localhost
+client profile does not permit `10.0.2.2` as a redirect host.
 
 ### Running the OAuth flow manually (dev)
 

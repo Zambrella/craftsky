@@ -57,9 +57,12 @@ func handleCraftskyInteractionUpsert(
 	defer tx.Rollback(ctx)
 
 	var recipientDID syntax.DID
+	var rootURI syntax.ATURI
+	var rootCID syntax.CID
 	if err := tx.QueryRow(ctx,
-		`SELECT did FROM craftsky_posts WHERE uri = $1`, rec.SubjectURI).
-		Scan(&recipientDID); err != nil {
+		`SELECT did, COALESCE(reply_root_uri, uri), COALESCE(reply_root_cid, cid)
+		 FROM craftsky_posts WHERE uri = $1`, rec.SubjectURI).
+		Scan(&recipientDID, &rootURI, &rootCID); err != nil {
 		if err == pgx.ErrNoRows {
 			return nil
 		}
@@ -105,6 +108,8 @@ func handleCraftskyInteractionUpsert(
 			SourceRkey:   ev.Rkey,
 			SubjectURI:   syntax.ATURI(rec.SubjectURI),
 			SubjectCID:   syntax.CID(rec.SubjectCID),
+			RootURI:      rootURI,
+			RootCID:      rootCID,
 			ActivityAt:   createdAt,
 		}); err != nil {
 			return fmt.Errorf("activate notification for %s: %w", ev.URI, err)

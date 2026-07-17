@@ -63,7 +63,8 @@ type claimedDelivery struct {
 	category                                           notifications.Category
 	actorDID                                           syntax.DID
 	sourceURI                                          syntax.ATURI
-	subjectURI                                         sql.NullString
+	subjectURI, rootURI                                sql.NullString
+	targetRole                                         ContentRole
 	routingID, token, platform                         string
 	leaseToken                                         string
 	actorName                                          sql.NullString
@@ -97,8 +98,19 @@ func (d *Dispatcher) claim(ctx context.Context, _ string) ([]claimedDelivery, er
 	// installation are eligible. SKIP LOCKED lets another dispatcher claim a
 	// different batch instead of blocking on these rows.
 	rows, err := tx.Query(ctx, `
-		SELECT d.id,d.notification_id,d.account_subscription_id,i.id,n.category,n.actor_did,n.source_uri,n.subject_uri,s.routing_id,i.fcm_token,i.platform,b.display_name,d.attempts,d.deadline_at
-		FROM push_deliveries d JOIN notification_events n ON n.id=d.notification_id JOIN push_account_subscriptions s ON s.id=d.account_subscription_id JOIN push_installations i ON i.id=s.installation_id LEFT JOIN bluesky_profiles b ON b.did=n.actor_did
+		SELECT d.id,d.notification_id,d.account_subscription_id,i.id,n.category,n.actor_did,n.source_uri,n.subject_uri,n.root_uri,
+			CASE
+				WHEN target.uri IS NULL OR target.reply_root_uri IS NULL THEN 'post'
+				WHEN target.reply_parent_uri = target.reply_root_uri THEN 'comment'
+				ELSE 'reply'
+			END,
+			s.routing_id,i.fcm_token,i.platform,b.display_name,d.attempts,d.deadline_at
+		FROM push_deliveries d
+		JOIN notification_events n ON n.id=d.notification_id
+		JOIN push_account_subscriptions s ON s.id=d.account_subscription_id
+		JOIN push_installations i ON i.id=s.installation_id
+		LEFT JOIN bluesky_profiles b ON b.did=n.actor_did
+		LEFT JOIN craftsky_posts target ON target.uri = CASE WHEN n.category='quote' THEN n.quoted_uri ELSE n.subject_uri END
 		WHERE d.status IN ('pending','retry') AND d.next_attempt_at<=$1 AND s.active AND i.active ORDER BY d.next_attempt_at,d.id FOR UPDATE OF d SKIP LOCKED LIMIT $2`, now, d.options.BatchSize)
 	if err != nil {
 		return nil, err
@@ -107,7 +119,7 @@ func (d *Dispatcher) claim(ctx context.Context, _ string) ([]claimedDelivery, er
 	var out []claimedDelivery
 	for rows.Next() {
 		var item claimedDelivery
-		if err := rows.Scan(&item.id, &item.notificationID, &item.subscriptionID, &item.installationID, &item.category, &item.actorDID, &item.sourceURI, &item.subjectURI, &item.routingID, &item.token, &item.platform, &item.actorName, &item.attempts, &item.deadline); err != nil {
+		if err := rows.Scan(&item.id, &item.notificationID, &item.subscriptionID, &item.installationID, &item.category, &item.actorDID, &item.sourceURI, &item.subjectURI, &item.rootURI, &item.targetRole, &item.routingID, &item.token, &item.platform, &item.actorName, &item.attempts, &item.deadline); err != nil {
 			return nil, err
 		}
 		// Attempts counts claims, not confirmed sends. It is incremented before
@@ -190,6 +202,8 @@ func (d *Dispatcher) ProcessBatch(ctx context.Context, worker string) (int, erro
 				ActorDID:   item.actorDID,
 				SourceURI:  item.sourceURI,
 				SubjectURI: syntax.ATURI(item.subjectURI.String),
+				RootURI:    syntax.ATURI(item.rootURI.String),
+				TargetRole: item.targetRole,
 			},
 			ActorDisplayName: item.actorName.String,
 			Platform:         item.platform,

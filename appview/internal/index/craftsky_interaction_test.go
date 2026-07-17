@@ -125,6 +125,49 @@ func TestInteractionNotificationsTargetOnlyDirectAuthor(t *testing.T) {
 	}
 }
 
+func TestInteractionNotificationStoresCommentRoot(t *testing.T) {
+	pool := testdb.WithSchema(t, craftskyInteractionsDDL)
+	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	seedCraftskyMember(t, pool, "did:plc:actor")
+	seedCraftskyMember(t, pool, "did:plc:author")
+	seedCraftskyMember(t, pool, "did:plc:commenter")
+	const rootURI = "at://did:plc:author/social.craftsky.feed.post/root"
+	const commentURI = "at://did:plc:commenter/social.craftsky.feed.post/comment"
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO craftsky_posts
+			(uri, did, rkey, cid, text, record, created_at,
+			 reply_root_uri, reply_root_cid, reply_parent_uri, reply_parent_cid)
+		VALUES
+			($1, 'did:plc:author', 'root', 'rootcid', 'root', '{}', now(), NULL, NULL, NULL, NULL),
+			($2, 'did:plc:commenter', 'comment', 'commentcid', 'comment', '{}', now(), $1, 'rootcid', $1, 'rootcid')
+	`, rootURI, commentURI); err != nil {
+		t.Fatal(err)
+	}
+
+	idx := index.NewCraftskyLike(pool, testLogger(), notifications.NewService())
+	ev := interactionEvent(interactionIndexerCases()[0], "like-comment", "likecid", commentURI, "commentcid")
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatal(err)
+	}
+
+	var subjectURI, storedRootURI string
+	if err := pool.QueryRow(
+		context.Background(),
+		`SELECT subject_uri, root_uri FROM notification_events`,
+	).Scan(&subjectURI, &storedRootURI); err != nil {
+		t.Fatal(err)
+	}
+	if subjectURI != commentURI || storedRootURI != rootURI {
+		t.Fatalf("subject=%q root=%q, want comment and canonical root", subjectURI, storedRootURI)
+	}
+}
+
 func interactionIndexerCases() []interactionIndexerCase {
 	return []interactionIndexerCase{
 		{

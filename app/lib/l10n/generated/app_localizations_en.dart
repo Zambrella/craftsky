@@ -45,13 +45,43 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String notificationLikeCommentRow(String actor) {
+    return '$actor liked your comment';
+  }
+
+  @override
+  String notificationLikeReplyRow(String actor) {
+    return '$actor liked your reply';
+  }
+
+  @override
   String notificationRepostRow(String actor) {
     return '$actor reposted your post';
   }
 
   @override
+  String notificationRepostCommentRow(String actor) {
+    return '$actor reposted your comment';
+  }
+
+  @override
+  String notificationRepostReplyRow(String actor) {
+    return '$actor reposted your reply';
+  }
+
+  @override
   String notificationReplyRow(String actor) {
-    return '$actor replied to your post';
+    return '$actor commented on your post';
+  }
+
+  @override
+  String notificationReplyToCommentRow(String actor) {
+    return '$actor replied to your comment';
+  }
+
+  @override
+  String notificationReplyToReplyRow(String actor) {
+    return '$actor replied to your reply';
   }
 
   @override

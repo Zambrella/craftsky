@@ -2,13 +2,15 @@
 
 ## Verdict
 
-Status: Approved
+Status: Superseded — re-review required
 
 Reviewer: Codex
 
 Date: 2026-07-17
 
 Risk level: High
+
+Post-review note: Manual Android and in-app notification testing found two additional defects after this approval. The TDD correction and evidence are recorded as BUG-001 and BUG-002 in `05-implementation-plan.md`; the current diff requires a new implementation review before this approval can be treated as current.
 
 ## Summary
 

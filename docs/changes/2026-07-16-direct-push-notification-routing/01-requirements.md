@@ -68,13 +68,13 @@ Answer:
 - Common fields are `payloadVersion`, `type`, and `accountSubscriptionId`; `notificationId` is no longer needed in the provider open contract.
 - Version 1 sends only the minimum category-specific facts:
   - `follow`: `actorDid`
-  - `like`, `repost`: `subjectUri`
+  - `like`, `repost`: `subjectUri` and `rootUri`
   - `mention`, `quote`: `sourceUri`
   - `reply`: `subjectUri` and `sourceUri`
   - `everythingElse`: no destination reference
 - Flutter mapping is:
   - `follow` -> actor profile using `actorDid`
-  - `like`, `repost` -> the interacted-with post using `subjectUri`
+  - `like`, `repost` -> the root thread using `rootUri`, focused on the interacted-with post from `subjectUri` when it is a comment
   - `mention` -> the post containing the mention using `sourceUri`
   - `quote` -> the actor's quoting post using `sourceUri`
   - `reply` -> the parent/subject thread using `subjectUri`, focused on the reply identified by `sourceUri`
@@ -123,6 +123,12 @@ Decision / implication: Restoration or onboarding readiness for the already auth
 Answer: No.
 
 Decision / implication: Generic and unknown feed rows are informational and non-tappable because the user is already on the only safe destination. Known rows with unavailable hydrated content retain their explicit unavailable behavior.
+
+### Q11: How should notification copy distinguish posts, comments, and replies?
+
+Answer: Use Craftsky's existing conversation vocabulary consistently in both OS-visible notifications and the in-app Notifications page. A root record is a post, a direct child of that root is a comment, and a deeper child is a reply.
+
+Decision / implication: Interaction copy names the actual target role: for example, `liked your post`, `liked your comment`, or `liked your reply`. A new direct child says `commented on your post`; a nested response says `replied to your comment` or `replied to your reply` according to the parent being answered. Neutral copy such as `mentioned you` remains neutral. Role classification comes from indexed reply root/parent structure and does not add post text or another provider-data routing fact.
 
 ## 4. Candidate Approaches
 
@@ -205,6 +211,7 @@ Notification taps currently wait for a notification-specific AppView request bef
 - G-004: Handle stale, deleted, hidden, malformed, unknown, cross-account, pre-cutover, and offline opens predictably.
 - G-005: Keep the provider-neutral notification architecture and one unified open path across foreground, background, and terminated app states.
 - G-006: Remove obsolete notification-resolution payload, API, model, repository, policy, and routing behavior that exists only for the pre-launch implementation.
+- G-007: Use the same post/comment/reply vocabulary in OS-visible and in-app notification copy.
 
 ## 8. Non-Goals
 
@@ -244,7 +251,7 @@ AppView sends version 1 minimal notification facts with each push and no longer 
 | BR-001 | Business | Must | A member opening a newly generated notification shall reach the intended in-app destination without waiting for a notification-specific AppView resolution request. | Reduces tap-to-navigation latency and simplifies the normal open path. | Initial request / User answer | AC-001, AC-007 |
 | BR-002 | Business | Must | Direct notification routing shall preserve account isolation and shall not bypass AppView content availability or moderation enforcement. | Latency must not trade away the actual authorization boundary. | Discovery / Architectural rules | AC-006, AC-008 |
 | FR-001 | Functional | Must | AppView shall replace notification-ID provider routing with a versioned minimal notification-fact contract in FCM data payloads containing common `payloadVersion`, `type`, and `accountSubscriptionId` fields. | Provides explicit schema selection and account context without an obsolete resolution identifier. | Recommended direction / Grilling decision | AC-002, AC-014 |
-| FR-002 | Functional | Must | Payload version 1 shall contain only the minimum category-specific facts defined in Q4: `actorDid` for follow; `subjectUri` for like/repost; `sourceUri` for mention/quote; `subjectUri` plus `sourceUri` for reply; and no destination reference for everything-else. | Keeps payloads bounded while supplying the facts Flutter needs. | Grilling decision | AC-002, AC-003, AC-018 |
+| FR-002 | Functional | Must | Payload version 1 shall contain only the minimum category-specific facts defined in Q4: `actorDid` for follow; `subjectUri` plus canonical `rootUri` for like/repost; `sourceUri` for mention/quote; `subjectUri` plus `sourceUri` for reply; and no destination reference for everything-else. | Keeps payloads bounded while supplying the facts Flutter needs, including a valid thread root when the interacted-with post is a comment. | Grilling decision / Manual device finding | AC-002, AC-003, AC-018 |
 | FR-003 | Functional | Must | Flutter shall own category-to-destination inference according to Q4; AppView shall supply canonical facts but shall not send `routeKind`, final client paths, or other navigation policy. | Keeps UI navigation logic in the app and avoids coupling AppView to Flutter routes. | Grilling decision | AC-003, AC-016 |
 | FR-004 | Functional | Must | Push-visible title/body copy shall remain generic, and only the data portion may add public target DIDs and AT-URIs; post text, project data, mention text, image URLs, handles, tokens, credentials, and session data shall remain absent. | Narrows the privacy change to public routing identifiers. | User answer / Existing privacy contract | AC-004 |
 | FR-005 | Functional | Must | Flutter shall parse provider data through an allowlist into provider-neutral typed values, validating `payloadVersion`, bounded `type`, account-subscription ID, DID, and Craftsky post AT-URIs before use. | Treats all provider data as untrusted input. | Existing pattern / Security analysis | AC-005 |
@@ -262,6 +269,9 @@ AppView sends version 1 minimal notification facts with each push and no longer 
 | FR-017 | Functional | Must | Payload production shall copy only the category's required canonical actor/source/subject facts from the durable notification event, never deriving a final route from localized copy or accepting a client-supplied destination. | Keeps server facts deterministic while leaving route policy in Flutter. | Codebase finding / Grilling decision | AC-003, AC-016 |
 | FR-018 | Functional | Must | During transient restoration/onboarding readiness, Flutter shall retain only the latest in-memory notification open; requiring actual sign-in shall discard it permanently, even if the same account later signs in. | Preserves current intent without carrying navigation across an authentication boundary or adding a queue. | Grilling decision | AC-022 |
 | FR-019 | Functional | Must | For a known category, Flutter shall require and use only that category's required facts, ignore all extra fields, and never use extras to infer or alter a destination. | Allows harmless payload additions without widening navigation authority. | Grilling decision | AC-005, AC-021 |
+| FR-020 | Functional | Must | Where notification copy names an interaction target, OS-visible bodies and known in-app rows shall distinguish a root post, a direct comment, and a nested reply using Craftsky's existing conversation vocabulary; a direct response to a root shall say `commented on your post`, while a response to a comment/reply shall say `replied to your comment` / `replied to your reply`. Neutral categories remain neutral, and quote retains post wording in-app because Craftsky permits quoting root posts only. | Prevents notification copy from calling every variable interaction target a post or every response a reply. | User device-testing follow-up | AC-023 |
+| FR-021 | Functional | Must | Every in-app notification row shall show the actor's profile avatar above a bold actor name, the same outlined category icon used by notification settings, and the same compact relative timestamp plus full timestamp tooltip used by post cards. Flutter shall prefer AppView's display-ready actor avatar URL, derive the canonical public avatar URL from the existing actor DID and non-development avatar CID when that additive field is absent, and use the standard initial only when no usable image reference exists. No per-row client request shall be required. | Makes activity scannable, keeps category imagery consistent, and ensures existing AppView responses still show real public avatars during an additive API rollout. | User UI follow-up / Bluesky reference | AC-024 |
+| FR-022 | Functional | Must | An available follow-notification row shall show a compact Follow or Unfollow button beneath its copy. The initial label shall reflect whether the authenticated viewer currently follows the actor, supplied by AppView in the existing notification response. Tapping shall optimistically invoke the existing profile follow/unfollow mutation, prevent re-entry, update from the authoritative response, refresh cached actor profiles, roll back with localized feedback on failure, and shall not open the actor profile. Other notification categories and unavailable actors shall not show this control. | Lets members reciprocate or remove a relationship directly from the activity surface without introducing a second follow API or ambiguous initial state. | User UI follow-up | AC-025 |
 | NFR-001 | Non-functional | Must | For valid version 1 opens, no network operation shall be awaited between successful readiness/binding validation and route navigation. | Makes the latency improvement measurable and regression-testable. | Initial request | AC-007 |
 | NFR-002 | Non-functional | Must | FCM tokens, account-subscription IDs, notification IDs, route DIDs, AT-URIs, focus URIs, full payloads, and credentials shall not appear in logs, Sentry contexts, analytics, metrics labels, or user-facing diagnostics. | Public identifiers are permitted in transit, not in telemetry. | Existing security model / User answer | AC-017 |
 | NFR-003 | Non-functional | Must | The notification-fact payload shall remain a bounded flat string map and shall not add unbounded content or a second serialization format. | Preserves provider limits and the existing FCM integration shape. | Provider constraint / Architectural rules | AC-018 |
@@ -279,8 +289,8 @@ AppView sends version 1 minimal notification facts with each push and no longer 
 | ID | Requirement IDs | Acceptance Criterion |
 |---|---|---|
 | AC-001 | BR-001, FR-007 | Given a valid version 1 push for the ready current account, when the member opens it, then the app begins typed destination navigation without first waiting for notification-ID resolution. |
-| AC-002 | FR-001, FR-002 | Given each current category, when AppView builds a payload, then it includes `payloadVersion=1`, `type`, `accountSubscriptionId`, exactly the category's minimum required `actorDid`/`subjectUri`/`sourceUri` facts, and no `notificationId`, `routeKind`, final path, or unnecessary canonical references. |
-| AC-003 | FR-002, FR-003, FR-016, FR-017 | Given valid facts for each current category, when Flutter infers the destination, then follow opens the actor DID profile; like/repost open the subject post; mention opens the source post; quote opens the quoting source post; reply opens the subject thread focused on the source reply; and everything-else opens Notifications. |
+| AC-002 | FR-001, FR-002 | Given each current category, when AppView builds a payload, then it includes `payloadVersion=1`, `type`, `accountSubscriptionId`, exactly the category's minimum required `actorDid`/`subjectUri`/`rootUri`/`sourceUri` facts, and no `notificationId`, `routeKind`, final path, or unnecessary canonical references. |
+| AC-003 | FR-002, FR-003, FR-016, FR-017 | Given valid facts for each current category, when Flutter infers the destination, then follow opens the actor DID profile; like/repost open the canonical root thread and focus a differing subject comment; mention opens the source post; quote opens the quoting source post; reply opens the subject thread focused on the source reply; and everything-else opens Notifications. |
 | AC-004 | FR-004, RULE-001 | Given a sent push, when its visible and data fields are inspected, then only the approved generic copy, category, account-subscription binding, version metadata, and minimum public notification facts are present, with no notification ID, prohibited content, token, credential, handle, or session data. |
 | AC-005 | FR-005, FR-019 | Given valid and invalid payload versions, types, account-subscription IDs, DIDs, AT-URIs, category-required facts, extra fields, and arbitrary URLs, when Flutter parses provider data, then only validated provider-neutral facts enter the domain event, required fields are enforced, and extras are ignored for routing. |
 | AC-006 | BR-002, FR-006, RULE-003 | Given a missing, stale, or different account-subscription binding, when a notification is opened, then Flutter neither navigates nor calls notification resolution and shows only generic unavailable feedback after readiness. |
@@ -293,13 +303,16 @@ AppView sends version 1 minimal notification facts with each push and no longer 
 | AC-013 | FR-013 | Given equivalent valid fact events from a foreground banner, background notification tap, and terminated initial message, when processed, then all three traverse the same validation/inference policy and produce the same navigation outcome exactly once per callback. |
 | AC-014 | FR-001, FR-014 | Given a valid version 1 push and provider-neutral open event, when their fields are inspected, then neither requires or carries `notificationId`, while durable in-app notification rows may retain their own IDs. |
 | AC-015 | FR-015 | Given the clean cutover is complete, when AppView routes and Flutter notification-open/feed-row code are inspected, then the notification-resolution endpoint and resolution-only client types/calls are absent, while generic or unknown feed rows have no tap action. |
-| AC-016 | FR-003, FR-016, FR-017 | Given each durable notification event, when AppView builds provider data, then it copies only the category's canonical facts and no Flutter route policy; reply data preserves subject thread plus source reply so Flutter can focus it. |
+| AC-016 | FR-003, FR-016, FR-017 | Given each durable notification event, when AppView builds provider data, then it copies only the category's canonical facts and no Flutter route policy; like/repost data preserves subject plus canonical root, and reply data preserves subject thread plus source reply, so Flutter can focus the interacted post in its valid thread. |
 | AC-017 | NFR-002, RULE-001 | Given sentinel route identifiers, common IDs, tokens, and payload data across parse, success, fallback, and failure paths, when logs, Sentry, analytics, metrics, and user-facing diagnostics are inspected, then no sentinel identifier or raw payload appears. |
 | AC-018 | FR-002, NFR-003 | Given the largest supported version 1 fact payload, when the provider message is built, then data remains a bounded flat string map containing only common and minimum category-specific fields, with no embedded object/list serialization or content body. |
 | AC-019 | NFR-004 | Given automated direct-routing tests, when they run, then provider-neutral fakes cover fact parsing, inference, readiness, binding, and navigation without initializing Firebase, contacting FCM, requesting OS permission, or requiring a device. |
 | AC-020 | RULE-006 | Given direct push routing is introduced, when notification preference, eligibility, delivery, TTL, sound, badge, list, new-count, and seen regression suites run, then their existing behavior remains unchanged except for the replacement push data contract and removal of notification-resolution behavior. |
 | AC-021 | FR-012, FR-019 | Given a known category with all required valid facts plus unexpected extras, when opened, then Flutter ignores the extras and routes normally; when a required fact is absent/malformed, it opens Notifications with brief unable-to-open feedback. |
 | AC-022 | FR-018 | Given multiple opens during transient readiness, when readiness becomes ready, then only the latest open is processed; when readiness requires sign-in, all pending opens are discarded and do not reappear after sign-in. |
+| AC-023 | FR-020 | Given like/repost/response activity targeting a root post, direct comment, or nested reply, when AppView builds OS-visible copy or Flutter renders the corresponding known notification row, then the copy uses `post`, `comment`, or `reply` for that target; a direct child of a root is described as commenting on the post, while deeper responses are described as replies to the comment/reply being answered. Neutral mention/follow/generic copy remains neutral; OS quote copy uses the indexed quoted target, while in-app quote remains root-post wording under the existing quote policy. |
+| AC-024 | FR-021 | Given any available notification category, when its in-app row renders, then the outlined settings-page category icon appears in the action gutter; the actor's shared profile avatar appears above the bold actor name using the AppView-provided URL, a canonical DID/CID fallback, or finally the standard initial; and a compact `now`/minute/hour/day timestamp has a full localized timestamp tooltip. |
+| AC-025 | FR-022 | Given an available follow notification, when its row renders, then exactly one compact control shows Follow or Unfollow from the authenticated viewer's current indexed relationship; when tapped, it changes optimistically, calls the existing DID-targeted profile mutation once, adopts the returned state, and does not navigate. Given mutation failure, it restores the previous state and shows localized error feedback. Non-follow and unavailable rows show no follow control. |
 
 ## 14. Edge Cases
 
@@ -350,13 +363,14 @@ AppView sends version 1 minimal notification facts with each push and no longer 
   - Post and profile destinations distinguish permanent unavailable/not-found outcomes from transient retryable failures.
   - Permanent unavailable UI remains on the destination and includes Back and View notifications actions.
   - Generic/unknown feed rows are informational and non-interactive.
+  - Known notification rows use role-aware post/comment/reply wording derived from the hydrated target post.
 - API:
   - No new JSON/HTTP route is required.
   - Existing destination routes remain authoritative.
   - Remove `GET /v1/notifications/{notificationId}` and its owner-scoped resolution store surface.
 - Push provider contract:
   - Existing combined notification-and-data messages replace `notificationId` routing with versioned minimal notification facts.
-  - Visible notification copy remains generic and unchanged.
+  - Visible notification copy remains content-free but becomes role-aware from indexed post structure; no role is added to provider routing data.
 - CLI: None identified.
 - Background jobs:
   - The push dispatcher reads only the category's durable canonical facts required by payload version 1.
