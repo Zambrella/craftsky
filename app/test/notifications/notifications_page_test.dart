@@ -4,14 +4,10 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
-import 'package:craftsky_app/notifications/models/notification_category.dart';
-import 'package:craftsky_app/notifications/models/notification_id.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
-import 'package:craftsky_app/notifications/models/notification_resolution.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/notifications/widgets/notification_row.dart';
-import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
@@ -200,74 +196,63 @@ void main() {
   });
 
   testWidgets(
-    'AT-006 generic rows resolve through AppView and tombstones warn',
+    'AT-009 generic and unknown rows are inert while tombstones warn',
     (tester) async {
-      final resolution = _RecordingResolutionRepository();
       final messenger = RecordingMessenger();
-      final generic = _generic('00000000-0000-0000-0000-000000000001');
+      final generic = _generic(
+        '00000000-0000-0000-0000-000000000001',
+        type: 'everythingElse',
+      );
+      final unknown = _generic(
+        '00000000-0000-0000-0000-000000000003',
+        type: 'futureCategory',
+      );
       final unavailable = _unavailable(
         '00000000-0000-0000-0000-000000000002',
-      );
-      final router = GoRouter(
-        initialLocation: '/',
-        routes: [
-          GoRoute(
-            path: '/',
-            builder: (context, state) => Scaffold(
-              body: Column(
-                children: [
-                  NotificationRow(notification: generic),
-                  NotificationRow(notification: unavailable),
-                ],
-              ),
-            ),
-          ),
-          GoRoute(
-            path: '/profile/:handle',
-            builder: (context, state) => const Scaffold(
-              body: Text('Resolved profile'),
-            ),
-          ),
-        ],
       );
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [
-            notificationResolutionRepositoryProvider.overrideWithValue(
-              resolution,
-            ),
-          ],
           child: MessengerScope(
             messenger: messenger,
-            child: MaterialApp.router(
+            child: MaterialApp(
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              routerConfig: router,
+              home: Scaffold(
+                body: Column(
+                  children: [
+                    NotificationRow(notification: generic),
+                    NotificationRow(notification: unknown),
+                    NotificationRow(notification: unavailable),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('New activity'));
-      await tester.pumpAndSettle();
-      expect(
-        resolution.ids.map((id) => id.wireValue),
-        ['00000000-0000-0000-0000-000000000001'],
+      final informationalTiles = tester.widgetList<ListTile>(
+        find.ancestor(
+          of: find.text('New activity'),
+          matching: find.byType(ListTile),
+        ),
       );
-      expect(find.text('Resolved profile'), findsOneWidget);
+      expect(informationalTiles, hasLength(2));
+      expect(informationalTiles.every((tile) => tile.onTap == null), isTrue);
 
-      router.go('/');
-      await tester.pumpAndSettle();
+      await tester.tap(find.text('New activity').first, warnIfMissed: false);
+      await tester.tap(find.text('New activity').last, warnIfMissed: false);
+      await tester.pump();
+      expect(messenger.calls, isEmpty);
+
       await tester.tap(find.text('Activity unavailable'));
       await tester.pump();
 
-      expect(resolution.ids, hasLength(1));
       expect(messenger.calls, hasLength(1));
       expect(messenger.calls.single.$1, 'warning');
       expect(messenger.calls.single.$2, 'Activity unavailable');
-      expect(find.text('Resolved profile'), findsNothing);
     },
   );
 }
@@ -329,9 +314,9 @@ ReplyNotification _reply(String rkey, {bool includeFocus = true}) =>
         })
         as ReplyNotification;
 
-GenericNotification _generic(String id) =>
+GenericNotification _generic(String id, {required String type}) =>
     CraftskyNotification.fromMap({
-          ..._baseNotification('futureCategory', 'generic'),
+          ..._baseNotification(type, 'generic'),
           'id': id,
         })
         as GenericNotification;
@@ -398,22 +383,6 @@ class _QueueNotificationRepository implements NotificationRepository {
   Future<NotificationPage> list({String? cursor, int? limit}) {
     calls.add(_Call(cursor: cursor, limit: limit));
     return responses.removeAt(0);
-  }
-}
-
-class _RecordingResolutionRepository
-    implements NotificationResolutionRepository {
-  final ids = <NotificationId>[];
-
-  @override
-  Future<NotificationResolution> resolve(NotificationId id) async {
-    ids.add(id);
-    return NotificationResolution(
-      id: id,
-      category: NotificationCategory.unknown,
-      state: NotificationResolutionState.active,
-      target: NotificationProfileTarget(Did.parse('did:plc:resolved')),
-    );
   }
 }
 

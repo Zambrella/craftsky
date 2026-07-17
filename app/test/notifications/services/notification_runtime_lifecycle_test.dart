@@ -1,117 +1,103 @@
 import 'dart:async';
 
-import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
-import 'package:craftsky_app/notifications/models/notification_category.dart';
+import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
-import 'package:craftsky_app/notifications/models/notification_id.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/models/notification_permission.dart';
-import 'package:craftsky_app/notifications/models/notification_resolution.dart';
 import 'package:craftsky_app/notifications/services/notification_registration_coordinator.dart';
 import 'package:craftsky_app/notifications/services/notification_routing_storage.dart';
 import 'package:craftsky_app/notifications/services/notification_runtime.dart';
 import 'package:craftsky_app/notifications/services/notification_service.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test(
-    'UT-012 / UT-018 / IT-010 runtime owns streams and foreground effects',
-    () async {
-      final service = _RecordingService();
-      final effects = StreamController<NotificationEffect>.broadcast();
-      var listInvalidations = 0;
-      var countRefreshes = 0;
-      final registration = NotificationRegistrationCoordinator(
+  test('IT-004 AT-004 REG-010 unify callback sources at least once', () async {
+    final binding = AccountSubscriptionId.parse('binding');
+    final did = Did.parse('did:plc:viewer');
+    final foreground = ForegroundNotificationEvent(
+      title: 'New activity',
+      body: 'Someone followed you',
+      openAttempt: _attempt(NotificationOpenSource.foregroundBanner),
+    );
+    final background = _attempt(NotificationOpenSource.backgroundOpen);
+    final initial = _attempt(NotificationOpenSource.initialOpen);
+    final service = _RecordingService(initialOpen: initial);
+    final effects = StreamController<NotificationEffect>.broadcast();
+    final routing = NotificationRoutingStorage(_MemoryRoutingBackend());
+    await routing.replace(did, binding);
+    final runtime = NotificationRuntime(
+      service: service,
+      registration: NotificationRegistrationCoordinator(
         service: service,
         platform: NotificationPlatform.ios,
-        register: ({required platform, required token}) async =>
-            AccountSubscriptionId.parse('binding'),
+        register: ({required platform, required token}) async => binding,
         saveBinding: ({required did, required binding}) async {},
-      );
-      final runtime = NotificationRuntime(
-        service: service,
-        registration: registration,
-        routingStorage: NotificationRoutingStorage(_MemoryRoutingBackend()),
-        resolutionRepository: _UnusedResolutionRepository(),
-        invalidateList: () => listInvalidations++,
-        refreshCount: () => countRefreshes++,
-        effects: effects,
-      );
-      addTearDown(effects.close);
-      addTearDown(service.close);
+      ),
+      routingStorage: routing,
+      invalidateList: () {},
+      refreshCount: () {},
+      effects: effects,
+    );
+    addTearDown(effects.close);
+    addTearDown(service.close);
+    addTearDown(runtime.dispose);
+    await runtime.updateReadiness(did: did, onboarded: true);
 
-      await runtime.start();
-      await runtime.start();
+    final outcomes = effects.stream
+        .where((effect) => effect is NotificationNavigationEffect)
+        .cast<NotificationNavigationEffect>()
+        .take(4)
+        .toList();
+    await runtime.start();
+    service.openController
+      ..add(background)
+      ..add(background);
+    await runtime.receiveOpen(foreground.openAttempt);
 
-      expect(service.initializeCalls, 1);
-      expect(service.initialOpenCalls, 1);
-      expect(service.tokenController.hasListener, isTrue);
-      expect(service.eventController.hasListener, isTrue);
-      expect(service.openController.hasListener, isTrue);
-
-      final event = _foregroundEvent();
-      final receivedEffects = effects.stream.take(2).toList();
-      service.eventController
-        ..add(event)
-        ..add(event);
-
-      expect(
-        await receivedEffects,
-        everyElement(isA<NotificationBannerEffect>()),
-      );
-      await Future<void>.delayed(Duration.zero);
-      expect(listInvalidations, 2);
-      expect(countRefreshes, 2);
-
-      await runtime.dispose();
-
-      expect(service.disposeCalls, 1);
-      expect(service.tokenController.hasListener, isFalse);
-      expect(service.eventController.hasListener, isFalse);
-      expect(service.openController.hasListener, isFalse);
-    },
-  );
+    final received = await outcomes;
+    expect(service.initializeCalls, 1);
+    expect(service.initialOpenCalls, 1);
+    expect(received, hasLength(4));
+    expect(
+      received.map((effect) => effect.outcome.destination),
+      everyElement(ProfileDestination(Did.parse('did:plc:actor'))),
+    );
+  });
 }
 
-ForegroundNotificationEvent _foregroundEvent() => ForegroundNotificationEvent(
-  title: 'New activity',
-  body: 'Someone interacted with your work',
-  openEvent: NotificationOpenEvent(
-    notificationId: NotificationId.parse(
-      '00000000-0000-0000-0000-000000000001',
-    ),
-    category: NotificationCategory.like,
-    accountSubscriptionId: AccountSubscriptionId.parse('binding'),
-    source: NotificationOpenSource.foregroundBanner,
-  ),
-);
+NotificationOpenAttempt _attempt(NotificationOpenSource source) =>
+    NotificationOpenAttempt.fromProviderData(
+      {
+        'payloadVersion': '1',
+        'type': 'follow',
+        'accountSubscriptionId': 'binding',
+        'actorDid': 'did:plc:actor',
+      },
+      source: source,
+    );
 
 final class _RecordingService implements NotificationService {
-  final tokenController = StreamController<String>.broadcast();
-  final eventController =
-      StreamController<ForegroundNotificationEvent>.broadcast();
-  final openController = StreamController<NotificationOpenEvent>.broadcast();
+  _RecordingService({required this.initialOpen});
+
+  final NotificationOpenAttempt initialOpen;
+  final openController = StreamController<NotificationOpenAttempt>.broadcast();
   int initializeCalls = 0;
   int initialOpenCalls = 0;
-  int disposeCalls = 0;
 
-  Future<void> close() async {
-    await tokenController.close();
-    await eventController.close();
-    await openController.close();
-  }
+  Future<void> close() => openController.close();
 
   @override
   Future<void> deleteToken() async {}
 
   @override
-  Future<void> dispose() async => disposeCalls++;
+  Future<void> dispose() async {}
 
   @override
   Stream<ForegroundNotificationEvent> get foregroundEvents =>
-      eventController.stream;
+      const Stream.empty();
 
   @override
   Future<NotificationPermission> getPermission() async =>
@@ -124,7 +110,7 @@ final class _RecordingService implements NotificationService {
   Future<void> initialize() async => initializeCalls++;
 
   @override
-  Stream<NotificationOpenEvent> get openedNotifications =>
+  Stream<NotificationOpenAttempt> get openedNotifications =>
       openController.stream;
 
   @override
@@ -135,20 +121,13 @@ final class _RecordingService implements NotificationService {
       NotificationPermission.denied;
 
   @override
-  Future<NotificationOpenEvent?> takeInitialOpen() async {
+  Future<NotificationOpenAttempt?> takeInitialOpen() async {
     initialOpenCalls++;
-    return null;
+    return initialOpen;
   }
 
   @override
-  Stream<String> get tokenRefreshes => tokenController.stream;
-}
-
-final class _UnusedResolutionRepository
-    implements NotificationResolutionRepository {
-  @override
-  Future<NotificationResolution> resolve(NotificationId id) =>
-      throw UnimplementedError();
+  Stream<String> get tokenRefreshes => const Stream.empty();
 }
 
 final class _MemoryRoutingBackend implements NotificationRoutingStorageBackend {

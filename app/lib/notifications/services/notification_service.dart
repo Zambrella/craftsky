@@ -10,8 +10,8 @@ abstract interface class NotificationService {
   Future<String?> getToken();
   Stream<String> get tokenRefreshes;
   Stream<ForegroundNotificationEvent> get foregroundEvents;
-  Stream<NotificationOpenEvent> get openedNotifications;
-  Future<NotificationOpenEvent?> takeInitialOpen();
+  Stream<NotificationOpenAttempt> get openedNotifications;
+  Future<NotificationOpenAttempt?> takeInitialOpen();
   Future<void> deleteToken();
   Future<void> openSystemNotificationSettings();
 }
@@ -40,7 +40,8 @@ final class UnavailableNotificationService implements NotificationService {
   Future<void> initialize() async {}
 
   @override
-  Stream<NotificationOpenEvent> get openedNotifications => const Stream.empty();
+  Stream<NotificationOpenAttempt> get openedNotifications =>
+      const Stream.empty();
 
   @override
   Future<void> openSystemNotificationSettings() async {}
@@ -50,7 +51,7 @@ final class UnavailableNotificationService implements NotificationService {
       NotificationPermission.denied;
 
   @override
-  Future<NotificationOpenEvent?> takeInitialOpen() async => null;
+  Future<NotificationOpenAttempt?> takeInitialOpen() async => null;
 
   @override
   Stream<String> get tokenRefreshes => const Stream.empty();

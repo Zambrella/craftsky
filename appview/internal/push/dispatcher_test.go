@@ -120,6 +120,45 @@ func (s *scriptedSender) requestCount() int {
 	return len(s.requests)
 }
 
+func TestDispatcherIT001ProjectsCanonicalRoutingFacts(t *testing.T) {
+	pool := dispatcherPool(t)
+	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
+	const sourceURI = "at://did:plc:actor/social.craftsky.feed.post/source"
+	const subjectURI = "at://did:plc:recipient/social.craftsky.feed.post/subject"
+	if _, err := pool.Exec(
+		context.Background(),
+		`UPDATE notification_events SET source_uri=$1,subject_uri=$2 WHERE id='00000000-0000-0000-0000-000000000001'`,
+		sourceURI,
+		subjectURI,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	sender := &scriptedSender{}
+	now := time.Now().UTC()
+	dispatcher := NewDispatcher(pool, sender, DispatcherOptions{Now: func() time.Time { return now }})
+	if n, err := dispatcher.ProcessBatch(context.Background(), "worker"); err != nil || n != 1 {
+		t.Fatalf("n=%d err=%v", n, err)
+	}
+	if len(sender.requests) != 1 {
+		t.Fatalf("send requests = %d", len(sender.requests))
+	}
+
+	request := sender.requests[0]
+	if request.RoutingFacts.ActorDID.String() != "did:plc:actor" ||
+		request.RoutingFacts.SourceURI.String() != sourceURI ||
+		request.RoutingFacts.SubjectURI.String() != subjectURI {
+		t.Fatalf("routing facts = %#v", request.RoutingFacts)
+	}
+	if request.Token != "secret-token" ||
+		request.Platform != "ios" ||
+		request.AccountSubscriptionID != "30000000-0000-0000-0000-000000000001" ||
+		request.ActorDisplayName != "Alice" ||
+		request.TTL <= 0 {
+		t.Fatalf("unchanged send metadata = %#v", request)
+	}
+}
+
 func TestDispatcherRetriesThenSucceedsAndDoesNotResendSuccess(t *testing.T) {
 	pool := dispatcherPool(t)
 	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))

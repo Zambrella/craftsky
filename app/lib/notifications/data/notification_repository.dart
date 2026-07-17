@@ -1,8 +1,6 @@
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
-import 'package:craftsky_app/notifications/models/notification_id.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
 import 'package:craftsky_app/notifications/models/notification_preferences.dart';
-import 'package:craftsky_app/notifications/models/notification_resolution.dart';
 import 'package:craftsky_app/notifications/services/notification_registration_coordinator.dart';
 
 // Repository interfaces are intentionally one-method seams for AppView-backed
@@ -20,12 +18,6 @@ abstract interface class NotificationDeviceRepository {
     required NotificationPlatform platform,
     required String token,
   });
-}
-
-// Ignored because resolution is a deliberately narrow adapter boundary.
-// ignore: one_member_abstracts
-abstract interface class NotificationResolutionRepository {
-  Future<NotificationResolution> resolve(NotificationId id);
 }
 
 abstract interface class NotificationNewnessRepository {

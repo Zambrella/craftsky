@@ -75,7 +75,7 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
             onPressed: () => unawaited(
               ref
                   .read(notificationRuntimeProvider)
-                  .receiveOpen(event.openEvent),
+                  .receiveOpen(event.openAttempt),
             ),
           ),
         );

@@ -2,22 +2,17 @@ import 'dart:async';
 
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
-import 'package:craftsky_app/notifications/models/notification_id.dart';
-import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
-import 'package:craftsky_app/notifications/services/notification_navigation.dart';
-import 'package:craftsky_app/notifications/services/notification_resolution_policy.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class NotificationRow extends ConsumerWidget {
+class NotificationRow extends StatelessWidget {
   const NotificationRow({required this.notification, super.key});
 
   final CraftskyNotification notification;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final actor = notification.actor.displayLabel;
     final (title, subtitle) = switch (notification) {
@@ -48,11 +43,11 @@ class NotificationRow extends ConsumerWidget {
     return ListTile(
       title: Text(title),
       subtitle: subtitle == null ? null : Text(subtitle),
-      onTap: () => _open(context, ref),
+      onTap: notification is GenericNotification ? null : () => _open(context),
     );
   }
 
-  void _open(BuildContext context, WidgetRef ref) {
+  void _open(BuildContext context) {
     switch (notification) {
       case FollowNotification(:final actor):
         unawaited(
@@ -70,7 +65,7 @@ class NotificationRow extends ConsumerWidget {
           ).push<void>(context),
         );
       case GenericNotification():
-        unawaited(_resolveGeneric(context, ref));
+        break;
       case UnavailableNotification():
         context.showWarning(
           AppLocalizations.of(context).notificationUnavailableRow,
@@ -85,20 +80,5 @@ class NotificationRow extends ConsumerWidget {
           ).push<void>(context),
         );
     }
-  }
-
-  Future<void> _resolveGeneric(BuildContext context, WidgetRef ref) async {
-    final outcome = await () async {
-      try {
-        final resolution = await ref
-            .read(notificationResolutionRepositoryProvider)
-            .resolve(NotificationId.parse(notification.id));
-        return NotificationResolutionPolicy.forResolution(resolution);
-      } on Object catch (error) {
-        return NotificationResolutionPolicy.forException(error);
-      }
-    }();
-    if (!context.mounted) return;
-    navigateToNotificationOutcome(context, outcome);
   }
 }

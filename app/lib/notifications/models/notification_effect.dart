@@ -1,5 +1,5 @@
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
-import 'package:craftsky_app/notifications/services/notification_resolution_policy.dart';
+import 'package:craftsky_app/notifications/models/notification_destination.dart';
 
 sealed class NotificationEffect {
   const NotificationEffect();
@@ -12,7 +12,7 @@ final class NotificationBannerEffect extends NotificationEffect {
 
 final class NotificationNavigationEffect extends NotificationEffect {
   const NotificationNavigationEffect(this.outcome);
-  final NotificationResolutionOutcome outcome;
+  final NotificationOpenOutcome outcome;
 }
 
 final class NotificationUnavailableEffect extends NotificationEffect {

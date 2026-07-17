@@ -1,15 +1,12 @@
-import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
-import 'package:craftsky_app/notifications/models/notification_category.dart';
-import 'package:craftsky_app/notifications/models/notification_id.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/services/pending_notification_open.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('UT-014 / AT-011 retains latest only through transient readiness', () {
+  test('UT-008 and AT-008 retain latest and clear at sign-in', () {
     final pending = PendingNotificationOpen();
-    final first = _event('00000000-0000-0000-0000-000000000001');
-    final second = _event('00000000-0000-0000-0000-000000000002');
+    final first = _attempt(NotificationOpenSource.foregroundBanner);
+    final second = _attempt(NotificationOpenSource.initialOpen);
 
     expect(
       pending.receive(first, readiness: NotificationOpenReadiness.transient),
@@ -34,9 +31,12 @@ void main() {
   });
 }
 
-NotificationOpenEvent _event(String id) => NotificationOpenEvent(
-  notificationId: NotificationId.parse(id),
-  category: NotificationCategory.like,
-  accountSubscriptionId: AccountSubscriptionId.parse('binding'),
-  source: NotificationOpenSource.backgroundOpen,
-);
+NotificationOpenAttempt _attempt(NotificationOpenSource source) =>
+    NotificationOpenAttempt.fromProviderData(
+      {
+        'payloadVersion': '1',
+        'type': 'everythingElse',
+        'accountSubscriptionId': 'binding',
+      },
+      source: source,
+    );

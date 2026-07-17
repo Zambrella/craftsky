@@ -64,13 +64,15 @@ func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *te
 		recipientDID       = "did:plc:privacyrecipient"
 		actorDID           = "did:plc:privacyactor"
 		handleSentinel     = "sentinel-handle.example"
-		uriSentinel        = "at://did:plc:privacyactor/social.craftsky.feed.post/sentinel-uri"
+		sourceURISentinel  = "at://did:plc:privacyactor/social.craftsky.feed.post/sentinel-source"
+		subjectURISentinel = "at://did:plc:privacyactor/social.craftsky.feed.post/sentinel-subject"
 		textSentinel       = "SENTINEL_POST_TEXT"
 		titleSentinel      = "SENTINEL_PROJECT_TITLE"
 		imageSentinel      = "https://images.invalid/SENTINEL_IMAGE.jpg"
 		payloadSentinel    = `{"fullPayload":"SENTINEL_FULL_PAYLOAD"}`
+		providerError      = "SENTINEL_PROVIDER_ERROR"
 	)
-	forbidden := []string{tokenSentinel, credentialSentinel, recipientDID, actorDID, handleSentinel, uriSentinel, textSentinel, titleSentinel, imageSentinel, payloadSentinel, "SENTINEL_FULL_PAYLOAD"}
+	forbidden := []string{tokenSentinel, credentialSentinel, recipientDID, actorDID, handleSentinel, sourceURISentinel, subjectURISentinel, textSentinel, titleSentinel, imageSentinel, payloadSentinel, "SENTINEL_FULL_PAYLOAD", providerError}
 	failureText := strings.Join(forbidden, " ")
 
 	var stdout bytes.Buffer
@@ -93,6 +95,13 @@ func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *te
 	if response.Code != http.StatusOK {
 		t.Fatalf("registration status=%d body=%s", response.Code, response.Body.String())
 	}
+	var registration struct {
+		AccountSubscriptionID string `json:"accountSubscriptionId"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &registration); err != nil || registration.AccountSubscriptionID == "" {
+		t.Fatalf("registration response=%q err=%v", response.Body.String(), err)
+	}
+	forbidden = append(forbidden, registration.AccountSubscriptionID)
 
 	if _, err := pool.Exec(context.Background(), `INSERT INTO bluesky_profiles(did,display_name) VALUES($1,'Alice')`, actorDID); err != nil {
 		t.Fatal(err)
@@ -103,10 +112,10 @@ func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *te
 		t.Fatal(err)
 	}
 	activation := notifications.Activation{
-		RecipientDID: syntax.DID(recipientDID), ActorDID: syntax.DID(actorDID), Category: notifications.Like,
+		RecipientDID: syntax.DID(recipientDID), ActorDID: syntax.DID(actorDID), Category: notifications.Reply,
 		SubjectKey: strings.Join([]string{handleSentinel, textSentinel, titleSentinel, imageSentinel, payloadSentinel}, "|"),
-		SourceURI:  syntax.ATURI(uriSentinel), SourceCID: "sentinel-source-cid", SourceRkey: "sentinel-uri",
-		SubjectURI: syntax.ATURI(uriSentinel), SubjectCID: "sentinel-subject-cid", ActivityAt: base,
+		SourceURI:  syntax.ATURI(sourceURISentinel), SourceCID: "sentinel-source-cid", SourceRkey: "sentinel-source",
+		SubjectURI: syntax.ATURI(subjectURISentinel), SubjectCID: "sentinel-subject-cid", ActivityAt: base,
 	}
 	if err := notifications.NewService(observer).Activate(context.Background(), tx, activation); err != nil {
 		_ = tx.Rollback(context.Background())
@@ -134,16 +143,30 @@ func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *te
 	if len(calls) != 2 || calls[0].Token != tokenSentinel || calls[1].Token != tokenSentinel {
 		t.Fatalf("provider boundary calls=%+v", calls)
 	}
-	payloadBytes, err := json.Marshal(push.BuildPayload(calls[0].NotificationID, calls[0].Category, calls[0].AccountSubscriptionID, calls[0].ActorDisplayName))
+	payloadBytes, err := json.Marshal(push.BuildPayload(calls[0].Category, calls[0].AccountSubscriptionID, calls[0].ActorDisplayName, calls[0].RoutingFacts))
 	if err != nil {
 		t.Fatal(err)
+	}
+	providerPayload := string(payloadBytes)
+	for _, required := range []string{registration.AccountSubscriptionID, sourceURISentinel, subjectURISentinel} {
+		if !strings.Contains(providerPayload, required) {
+			t.Fatalf("provider payload omitted required routing fact %q: %s", required, providerPayload)
+		}
+	}
+	for _, private := range []string{tokenSentinel, credentialSentinel, textSentinel, titleSentinel, imageSentinel, payloadSentinel, providerError} {
+		if strings.Contains(providerPayload, private) {
+			t.Fatalf("provider payload leaked private value %q: %s", private, providerPayload)
+		}
 	}
 	var providerClass string
 	if err := pool.QueryRow(context.Background(), `SELECT provider_result_class FROM push_deliveries`).Scan(&providerClass); err != nil {
 		t.Fatal(err)
 	}
 
-	observable := response.Body.String() + "\n" + stdout.String() + "\n" + string(payloadBytes) + "\n" + providerClass
+	// Registration responses and provider payloads intentionally contain the
+	// account binding and category-required public routing facts. Telemetry must
+	// not copy any of those boundary values.
+	observable := stdout.String() + "\n" + providerClass
 	for _, call := range recorder.Calls() {
 		observable += fmt.Sprintf("\n%+v", call)
 	}

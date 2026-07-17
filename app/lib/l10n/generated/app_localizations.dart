@@ -436,6 +436,42 @@ abstract class AppLocalizations {
   /// **'Retry'**
   String get retryButton;
 
+  /// Generic button label for returning to the previous screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get backButton;
+
+  /// Title shown when a post or profile opened from a notification is permanently unavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This is no longer available'**
+  String get notificationDestinationUnavailableTitle;
+
+  /// Safe explanation shown when a notification destination is permanently unavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This post or profile may have been deleted or hidden.'**
+  String get notificationDestinationUnavailableBody;
+
+  /// Action returning from an unavailable notification destination to the notifications list.
+  ///
+  /// In en, this message translates to:
+  /// **'View notifications'**
+  String get notificationDestinationViewNotifications;
+
+  /// Title shown when a notification destination fails for a retryable reason.
+  ///
+  /// In en, this message translates to:
+  /// **'That didn\'t load'**
+  String get notificationDestinationRetryTitle;
+
+  /// Safe explanation shown when loading a notification destination can be retried.
+  ///
+  /// In en, this message translates to:
+  /// **'Check your connection and try again.'**
+  String get notificationDestinationRetryBody;
+
   /// Empty state shown on the main chronological Feed tab when the home timeline has no posts.
   ///
   /// In en, this message translates to:

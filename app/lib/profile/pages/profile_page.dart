@@ -11,7 +11,6 @@ import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.da
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_meta_section.dart';
-import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
 import 'package:craftsky_app/profile/widgets/profile_sliver_app_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_about_tab.dart';
@@ -20,7 +19,9 @@ import 'package:craftsky_app/profile/widgets/profile_tabs/profile_empty_tab.dart
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_posts_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_projects_tab.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/errors/notification_destination_error.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -74,25 +75,63 @@ class _ProfileScaffold extends ConsumerWidget {
     // record. For now, every banner is clay so the layout is stable
     // across users.
     final bannerColor = swatches.clay;
+    final destinationError = profileAsync.error;
+    if (destinationError != null &&
+        classifyNotificationDestinationError(destinationError) ==
+            NotificationDestinationErrorKind.permanentUnavailable) {
+      return Scaffold(
+        appBar: Navigator.of(context).canPop() ? AppBar() : null,
+        body: _destinationErrorState(context, ref, destinationError),
+      );
+    }
 
     return switch (profileAsync) {
       AsyncValue(:final value?) => Scaffold(
-        body: _ProfileBody(
-          profile: value,
-          isOwnProfile: isOwnProfile,
-          bannerColor: bannerColor,
-        ),
+        body: switch (destinationError) {
+          final error? => Column(
+            children: [
+              _destinationErrorState(context, ref, error),
+              Expanded(
+                child: _ProfileBody(
+                  profile: value,
+                  isOwnProfile: isOwnProfile,
+                  bannerColor: bannerColor,
+                ),
+              ),
+            ],
+          ),
+          null => _ProfileBody(
+            profile: value,
+            isOwnProfile: isOwnProfile,
+            bannerColor: bannerColor,
+          ),
+        },
       ),
       AsyncError(:final error) => Scaffold(
         appBar: Navigator.of(context).canPop() ? AppBar() : null,
-        body: ProfilePageError(
-          error: error,
-          onRetry: () => ref.invalidate(userProfileProvider(handle)),
-        ),
+        body: _destinationErrorState(context, ref, error),
       ),
       _ => const Scaffold(body: Center(child: StitchProgressIndicator())),
     };
   }
+
+  Widget _destinationErrorState(
+    BuildContext context,
+    WidgetRef ref,
+    Object error,
+  ) => NotificationDestinationErrorState(
+    error: error,
+    onRetry: () => ref.invalidate(userProfileProvider(handle)),
+    onBack: () {
+      final navigator = Navigator.of(context);
+      if (navigator.canPop()) {
+        navigator.pop();
+      } else {
+        const FeedRoute().go(context);
+      }
+    },
+    onViewNotifications: () => const NotificationsRoute().go(context),
+  );
 }
 
 class _ProfileBody extends ConsumerWidget {

@@ -53,21 +53,18 @@ final class FirebaseNotificationService implements NotificationService {
       .cast<ForegroundNotificationEvent>();
 
   @override
-  Stream<NotificationOpenEvent> get openedNotifications => FirebaseMessaging
-      .onMessageOpenedApp
-      .map(
-        (message) => NotificationOpenEvent.tryParseProviderData(
+  Stream<NotificationOpenAttempt> get openedNotifications =>
+      FirebaseMessaging.onMessageOpenedApp.map(
+        (message) => NotificationOpenAttempt.fromProviderData(
           message.data,
         ),
-      )
-      .where((event) => event != null)
-      .cast<NotificationOpenEvent>();
+      );
 
   @override
-  Future<NotificationOpenEvent?> takeInitialOpen() async {
+  Future<NotificationOpenAttempt?> takeInitialOpen() async {
     final message = await _messaging.getInitialMessage();
     if (message == null) return null;
-    return NotificationOpenEvent.tryParseProviderData(
+    return NotificationOpenAttempt.fromProviderData(
       message.data,
       source: NotificationOpenSource.initialOpen,
     );
@@ -94,15 +91,15 @@ final class FirebaseNotificationService implements NotificationService {
     RemoteMessage message,
   ) {
     final notification = message.notification;
-    final openEvent = NotificationOpenEvent.tryParseProviderData(
+    final openAttempt = NotificationOpenAttempt.fromProviderData(
       message.data,
       source: NotificationOpenSource.foregroundBanner,
     );
-    if (notification == null || openEvent == null) return null;
+    if (notification == null) return null;
     return ForegroundNotificationEvent(
       title: notification.title ?? '',
       body: notification.body ?? '',
-      openEvent: openEvent,
+      openAttempt: openAttempt,
     );
   }
 }

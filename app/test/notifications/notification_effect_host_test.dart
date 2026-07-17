@@ -5,12 +5,9 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
-import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
-import 'package:craftsky_app/notifications/models/notification_id.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/models/notification_permission.dart';
-import 'package:craftsky_app/notifications/models/notification_resolution.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_permission_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
@@ -163,12 +160,15 @@ void main() {
       final event = ForegroundNotificationEvent(
         title: 'New activity',
         body: 'Someone replied',
-        openEvent: NotificationOpenEvent(
-          notificationId: NotificationId.parse(
-            '00000000-0000-4000-8000-000000000001',
-          ),
-          category: NotificationCategory.reply,
-          accountSubscriptionId: AccountSubscriptionId.parse('binding'),
+        openAttempt: NotificationOpenAttempt.fromProviderData(
+          {
+            'payloadVersion': '1',
+            'type': 'reply',
+            'accountSubscriptionId': 'binding',
+            'subjectUri':
+                'at://did:plc:subject/social.craftsky.feed.post/subject',
+            'sourceUri': 'at://did:plc:source/social.craftsky.feed.post/source',
+          },
           source: NotificationOpenSource.foregroundBanner,
         ),
       );
@@ -207,7 +207,6 @@ NotificationRuntime _runtime(
     service: service,
     registration: registration,
     routingStorage: NotificationRoutingStorage(_MemoryRoutingBackend()),
-    resolutionRepository: _UnavailableResolutionRepository(),
     invalidateList: invalidateList ?? () {},
     refreshCount: refreshCount ?? () {},
     effects: effects,
@@ -242,7 +241,8 @@ final class _FakeNotificationService implements NotificationService {
   Future<void> initialize() async {}
 
   @override
-  Stream<NotificationOpenEvent> get openedNotifications => const Stream.empty();
+  Stream<NotificationOpenAttempt> get openedNotifications =>
+      const Stream.empty();
 
   @override
   Future<void> openSystemNotificationSettings() async {}
@@ -251,7 +251,7 @@ final class _FakeNotificationService implements NotificationService {
   Future<NotificationPermission> requestPermission() async => permission;
 
   @override
-  Future<NotificationOpenEvent?> takeInitialOpen() async => null;
+  Future<NotificationOpenAttempt?> takeInitialOpen() async => null;
 
   @override
   Stream<String> get tokenRefreshes => const Stream.empty();
@@ -269,13 +269,6 @@ final class _RecordingNewnessRepository
 
   @override
   Future<void> markSeen() async {}
-}
-
-final class _UnavailableResolutionRepository
-    implements NotificationResolutionRepository {
-  @override
-  Future<NotificationResolution> resolve(NotificationId id) =>
-      throw StateError('not used');
 }
 
 final class _MemoryRoutingBackend implements NotificationRoutingStorageBackend {

@@ -13,8 +13,11 @@ import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -185,9 +188,204 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text("This didn't load. Please try again."), findsOneWidget);
+      expect(find.text("That didn't load"), findsOneWidget);
+      expect(find.text('Check your connection and try again.'), findsOneWidget);
       expect(find.textContaining('profile fetch failed'), findsNothing);
       expect(find.textContaining('did:plc:alice'), findsNothing);
+    });
+
+    testWidgets('profile 404 shows permanent notification recovery actions', (
+      tester,
+    ) async {
+      final repo = FakeProfileRepository(
+        onFetch: (_) async => throw const ApiBadRequest(
+          'profile_not_found',
+          details: ApiFailureDetails(statusCode: 404),
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProfilePage(handle: 'missing.bsky.social'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('This is no longer available'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Back'), findsOneWidget);
+      expect(
+        find.widgetWithText(TextButton, 'View notifications'),
+        findsOneWidget,
+      );
+      expect(find.text('Try again'), findsNothing);
+    });
+
+    testWidgets('permanent refresh error hides previously loaded profile', (
+      tester,
+    ) async {
+      var calls = 0;
+      final repo = FakeProfileRepository(
+        onFetch: (_) async {
+          if (calls++ == 0) {
+            return Profile(
+              did: 'did:plc:alice',
+              handle: 'alice.bsky.social',
+              displayName: 'Previously loaded private profile',
+              crafts: const [],
+            );
+          }
+          throw const ApiBadRequest(
+            'profile_not_found',
+            details: ApiFailureDetails(statusCode: 404),
+          );
+        },
+      );
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          profileRepositoryProvider.overrideWithValue(repo),
+          postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+        ],
+        retry: (_, _) => null,
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProfilePage(handle: 'alice.bsky.social'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Previously loaded private profile'), findsWidgets);
+
+      container.invalidate(userProfileProvider('alice.bsky.social'));
+      await tester.pumpAndSettle();
+
+      expect(calls, 2);
+      expect(find.text('This is no longer available'), findsOneWidget);
+      expect(find.text('Previously loaded private profile'), findsNothing);
+    });
+
+    testWidgets('transient profile failure retries only the destination load', (
+      tester,
+    ) async {
+      var calls = 0;
+      final repo = FakeProfileRepository(
+        onFetch: (_) async {
+          if (calls++ == 0) throw const ApiServerError('http_500');
+          return Profile(
+            did: 'did:plc:alice',
+            handle: 'alice.bsky.social',
+            displayName: 'Loaded after retry',
+            crafts: const [],
+          );
+        },
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          retry: (_, _) => null,
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProfilePage(handle: 'alice.bsky.social'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(TextButton, 'Retry'), findsOneWidget);
+      expect(calls, 1);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Retry'));
+      await tester.pumpAndSettle();
+
+      expect(calls, 2);
+      expect(find.text('Loaded after retry'), findsWidgets);
+      expect(
+        find.descendant(
+          of: find.byType(NotificationDestinationErrorState),
+          matching: find.text('Retry'),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('transient profile refresh keeps destination Retry available', (
+      tester,
+    ) async {
+      var calls = 0;
+      final repo = FakeProfileRepository(
+        onFetch: (_) async {
+          if (calls++ == 0) {
+            return Profile(
+              did: 'did:plc:alice',
+              handle: 'alice.bsky.social',
+              displayName: 'Authenticated cached profile',
+              crafts: const [],
+            );
+          }
+          throw const ApiServerError('http_500');
+        },
+      );
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          profileRepositoryProvider.overrideWithValue(repo),
+          postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+        ],
+        retry: (_, _) => null,
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProfilePage(handle: 'alice.bsky.social'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Authenticated cached profile'), findsWidgets);
+
+      container.invalidate(userProfileProvider('alice.bsky.social'));
+      await tester.pumpAndSettle();
+
+      expect(calls, 2);
+      expect(find.text('Authenticated cached profile'), findsWidgets);
+      expect(
+        find.descendant(
+          of: find.byType(NotificationDestinationErrorState),
+          matching: find.widgetWithText(TextButton, 'Retry'),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('profile load failure on pushed route can navigate back', (
@@ -235,14 +433,15 @@ void main() {
       await tester.tap(find.text('Open profile'));
       await tester.pumpAndSettle();
 
-      expect(find.text("This didn't load. Please try again."), findsOneWidget);
+      expect(find.text("That didn't load"), findsOneWidget);
+      expect(find.text('Check your connection and try again.'), findsOneWidget);
       expect(find.byTooltip('Back'), findsOneWidget);
 
       await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
 
       expect(find.text('Open profile'), findsOneWidget);
-      expect(find.text("This didn't load. Please try again."), findsNothing);
+      expect(find.text("That didn't load"), findsNothing);
     });
 
     testWidgets('visitor profile report action submits through report sheet', (

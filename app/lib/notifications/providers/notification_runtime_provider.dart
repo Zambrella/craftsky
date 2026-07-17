@@ -41,7 +41,6 @@ NotificationRuntime notificationRuntime(Ref ref) {
     service: service,
     registration: registration,
     routingStorage: ref.watch(notificationRoutingStorageProvider),
-    resolutionRepository: ref.watch(notificationResolutionRepositoryProvider),
     invalidateList: () => ref.invalidate(notificationsProvider),
     refreshCount: () =>
         ref.read(notificationNewCountProvider.notifier).refresh(),

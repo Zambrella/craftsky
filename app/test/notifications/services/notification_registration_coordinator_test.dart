@@ -265,7 +265,8 @@ final class _FakeService implements NotificationService {
   Future<void> initialize() async {}
 
   @override
-  Stream<NotificationOpenEvent> get openedNotifications => const Stream.empty();
+  Stream<NotificationOpenAttempt> get openedNotifications =>
+      const Stream.empty();
 
   @override
   Future<void> openSystemNotificationSettings() async {}
@@ -277,7 +278,7 @@ final class _FakeService implements NotificationService {
   }
 
   @override
-  Future<NotificationOpenEvent?> takeInitialOpen() async => null;
+  Future<NotificationOpenAttempt?> takeInitialOpen() async => null;
 
   @override
   Stream<String> get tokenRefreshes => const Stream.empty();

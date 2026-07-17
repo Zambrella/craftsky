@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"social.craftsky/appview/internal/notifications"
 )
 
@@ -17,11 +19,16 @@ const (
 )
 
 type ProviderResult struct{ Class ResultClass }
+type RoutingFacts struct {
+	ActorDID   syntax.DID
+	SourceURI  syntax.ATURI
+	SubjectURI syntax.ATURI
+}
 type SendRequest struct {
 	Token                 string
-	NotificationID        string
 	Category              notifications.Category
 	AccountSubscriptionID string
+	RoutingFacts          RoutingFacts
 	ActorDisplayName      string
 	Platform              string
 	TTL                   time.Duration

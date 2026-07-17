@@ -3,13 +3,11 @@
 
 import 'dart:async';
 
-import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/services/notification_open_coordinator.dart';
 import 'package:craftsky_app/notifications/services/notification_registration_coordinator.dart';
-import 'package:craftsky_app/notifications/services/notification_resolution_policy.dart';
 import 'package:craftsky_app/notifications/services/notification_routing_storage.dart';
 import 'package:craftsky_app/notifications/services/notification_service.dart';
 import 'package:craftsky_app/notifications/services/pending_notification_open.dart';
@@ -20,14 +18,12 @@ final class NotificationRuntime {
     required NotificationService service,
     required NotificationRegistrationCoordinator registration,
     required NotificationRoutingStorage routingStorage,
-    required NotificationResolutionRepository resolutionRepository,
     required FutureOr<void> Function() invalidateList,
     required FutureOr<void> Function() refreshCount,
     required StreamController<NotificationEffect> effects,
   }) : _service = service,
        _registration = registration,
        _routingStorage = routingStorage,
-       _resolutionRepository = resolutionRepository,
        _invalidateList = invalidateList,
        _refreshCount = refreshCount,
        _effects = effects;
@@ -35,7 +31,6 @@ final class NotificationRuntime {
   final NotificationService _service;
   final NotificationRegistrationCoordinator _registration;
   final NotificationRoutingStorage _routingStorage;
-  final NotificationResolutionRepository _resolutionRepository;
   final FutureOr<void> Function() _invalidateList;
   final FutureOr<void> Function() _refreshCount;
   final StreamController<NotificationEffect> _effects;
@@ -47,6 +42,7 @@ final class NotificationRuntime {
   Did? _did;
   NotificationOpenReadiness _readiness =
       NotificationOpenReadiness.requiresSignIn;
+  int _readinessRevision = 0;
   Did? _lastReadinessDid;
   bool? _lastOnboarded;
 
@@ -91,12 +87,13 @@ final class NotificationRuntime {
         : onboarded
         ? NotificationOpenReadiness.ready
         : NotificationOpenReadiness.transient;
+    _readinessRevision++;
     await _registration.updateReadiness(did: did, onboarded: onboarded);
     final pending = _pending.updateReadiness(_readiness);
     if (pending != null) await _processOpen(pending);
   }
 
-  Future<void> receiveOpen(NotificationOpenEvent event) async {
+  Future<void> receiveOpen(NotificationOpenAttempt event) async {
     final ready = _pending.receive(event, readiness: _readiness);
     if (ready != null) await _processOpen(ready);
   }
@@ -111,27 +108,30 @@ final class NotificationRuntime {
 
   Future<void> resume() => _registration.retryRegistration();
 
-  Future<void> _processOpen(NotificationOpenEvent event) async {
+  Future<void> _processOpen(NotificationOpenAttempt event) async {
     final did = _did;
     if (did == null) return;
+    final readinessRevision = _readinessRevision;
     final opener = NotificationOpenCoordinator(
       currentDid: did.toString(),
       loadBinding: (_) => _routingStorage.read(did),
-      resolve: _resolutionRepository.resolve,
-      onOutcome: (outcome) =>
-          _effects.add(NotificationNavigationEffect(outcome)),
-      onUnavailable: () => _effects.add(const NotificationUnavailableEffect()),
+      onOutcome: (outcome) {
+        if (!_isCurrentOpen(did, readinessRevision)) return;
+        _effects.add(NotificationNavigationEffect(outcome));
+      },
+      onUnavailable: () {
+        if (!_isCurrentOpen(did, readinessRevision)) return;
+        _effects.add(const NotificationUnavailableEffect());
+      },
     );
-    try {
-      await opener.open(event);
-    } on Object catch (error) {
-      _effects.add(
-        NotificationNavigationEffect(
-          NotificationResolutionPolicy.forException(error),
-        ),
-      );
-    }
+    await opener.open(event);
   }
+
+  bool _isCurrentOpen(Did did, int readinessRevision) =>
+      !_disposed &&
+      _readinessRevision == readinessRevision &&
+      _readiness == NotificationOpenReadiness.ready &&
+      _did == did;
 
   Future<void> dispose() async {
     if (_disposed) return;

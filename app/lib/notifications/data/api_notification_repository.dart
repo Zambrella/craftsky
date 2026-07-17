@@ -1,9 +1,7 @@
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
-import 'package:craftsky_app/notifications/models/notification_id.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
 import 'package:craftsky_app/notifications/models/notification_preferences.dart';
-import 'package:craftsky_app/notifications/models/notification_resolution.dart';
 import 'package:craftsky_app/notifications/services/notification_registration_coordinator.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
 import 'package:dio/dio.dart';
@@ -12,7 +10,6 @@ class ApiNotificationRepository
     implements
         NotificationRepository,
         NotificationDeviceRepository,
-        NotificationResolutionRepository,
         NotificationNewnessRepository,
         NotificationPreferencesRepository {
   const ApiNotificationRepository(this._dio);
@@ -43,16 +40,6 @@ class ApiNotificationRepository
       response.data!['accountSubscriptionId'] as String,
     );
   });
-
-  @override
-  Future<NotificationResolution> resolve(NotificationId id) => unwrapApi(
-    () async {
-      final response = await _dio.get<Map<String, dynamic>>(
-        '/v1/notifications/${id.wireValue}',
-      );
-      return NotificationResolution.fromMap(response.data!);
-    },
-  );
 
   @override
   Future<int> count() => unwrapApi(() async {

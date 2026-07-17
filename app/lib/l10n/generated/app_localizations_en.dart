@@ -212,6 +212,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get retryButton => 'Retry';
 
   @override
+  String get backButton => 'Back';
+
+  @override
+  String get notificationDestinationUnavailableTitle =>
+      'This is no longer available';
+
+  @override
+  String get notificationDestinationUnavailableBody =>
+      'This post or profile may have been deleted or hidden.';
+
+  @override
+  String get notificationDestinationViewNotifications => 'View notifications';
+
+  @override
+  String get notificationDestinationRetryTitle => 'That didn\'t load';
+
+  @override
+  String get notificationDestinationRetryBody =>
+      'Check your connection and try again.';
+
+  @override
   String get feedEmpty => 'Your feed is quiet.';
 
   @override

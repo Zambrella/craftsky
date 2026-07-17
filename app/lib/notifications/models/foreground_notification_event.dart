@@ -4,15 +4,15 @@ final class ForegroundNotificationEvent {
   const ForegroundNotificationEvent({
     required this.title,
     required this.body,
-    required this.openEvent,
+    required this.openAttempt,
   });
 
   final String title;
   final String body;
-  final NotificationOpenEvent openEvent;
+  final NotificationOpenAttempt openAttempt;
 
   @override
   String toString() =>
-      'ForegroundNotificationEvent(category: ${openEvent.category}, '
-      'source: ${openEvent.source}, copy: <redacted>)';
+      'ForegroundNotificationEvent(facts: ${openAttempt.facts.runtimeType}, '
+      'source: ${openAttempt.source}, copy: <redacted>)';
 }
