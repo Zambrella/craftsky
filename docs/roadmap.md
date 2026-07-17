@@ -19,7 +19,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Feed: `GET /v1/feed/timeline` → own spec
 - [x] Profiles: `GET /v1/profiles/@{handleOrDid}`, `GET /v1/profiles/@{handleOrDid}/posts`, `PATCH /v1/profiles/me`, `PUT /v1/profiles/me`, follow/unfollow → own spec (writes go via a shared DPoP-signed PDS helper built on `indigo/atproto/auth/oauth`; spec it as part of the first write endpoint that lands, reuse thereafter)
 - [x] Posts: `GET /v1/posts/{did}/{rkey}`, thread, create, delete, like, unlike → own spec (splits into reads / writes if it gets big; writes use the same shared PDS helper)
-- [ ] Notifications: `GET /v1/notifications` → own spec
+- [x] Notifications: `GET /v1/notifications` → own spec
 - [x] Blob upload (required for images on posts) → own spec; may trigger TMB upgrade per OAuth BFF §6
 - [x] Indexer: consume Tap → populate `posts`, `follows`, `likes`, `blocks` tables for Craftsky lexicons → own spec (replaces the `000001_bluesky_posts_sample` placeholder)
 - [x] Request body size limits — [`2026-06-28-appview-architecture-hardening`](../changes/2026-06-28-appview-architecture-hardening/)
@@ -31,7 +31,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Search — posts by text, tag, craft type, materials (Postgres FTS vs separate service) → own spec
 - [x] Reposts — `POST /v1/posts/{did}/{rkey}/reposts` etc. Lexicon already defined. Folds into Posts spec unless it grows.
 - [x] Reports — moderation endpoints → own spec (overlaps the v1 "report a post" moderation plan; reconcile when scoping)
-- [ ] Push notification registration — `POST /v1/notifications/devices` etc. → own spec
+- [x] Push notification registration — `POST /v1/notifications/devices` etc. → own spec
 - [ ] How to handle different languages
 - [ ] Blocking, muting
 
