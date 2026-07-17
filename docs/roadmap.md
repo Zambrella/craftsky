@@ -34,6 +34,8 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Push notification registration — `POST /v1/notifications/devices` etc. → own spec
 - [ ] How to handle different languages
 - [ ] Blocking, muting
+- [ ] Save posts
+- [ ] Pro and Business subscriptions
 
 ### Flutter app
 
