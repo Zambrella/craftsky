@@ -17,6 +17,8 @@ import (
 	"social.craftsky/appview/internal/observability"
 )
 
+const statusClientClosedRequest = 499
+
 // GetRunID extracts the per-request ID injected by the Logging middleware.
 // Returns "" if no middleware ran (e.g. from a test that skipped it).
 //
@@ -57,10 +59,14 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 			rw := &responseLogger{ResponseWriter: w, status: http.StatusOK}
 			next.ServeHTTP(rw, req)
 			routePattern := observability.RecordedRoutePattern(req.Context(), observability.RoutePattern(req))
+			status := rw.status
+			if req.Context().Err() == context.Canceled {
+				status = statusClientClosedRequest
+			}
 			responseAttrs := []any{
 				slog.String("method", r.Method),
 				slog.String("route_pattern", routePattern),
-				slog.Int("status", rw.status),
+				slog.Int("status", status),
 				slog.Int("bytes", rw.bytes),
 				slog.Duration("duration", time.Since(started)),
 				slog.String("run_id", runID),

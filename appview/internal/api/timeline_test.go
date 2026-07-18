@@ -2,11 +2,14 @@
 package api_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -70,6 +73,27 @@ func TestTimelineHandler_InvalidCursorUsesStandardErrorEnvelope(t *testing.T) {
 	}
 	if env.Error != "invalid_cursor" || env.Message == "" {
 		t.Fatalf("envelope = %+v, want invalid_cursor with message", env)
+	}
+}
+
+func TestTimelineHandler_ClientCancellationDoesNotBecomeServerError(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	store := &fakeTimelineStore{err: context.Canceled}
+	handler := api.ListTimelineHandler(store, fakeResolver{handleFor: "viewer.example"}, logger)
+
+	req := authedReq(http.MethodGet, "/v1/feed/timeline", "", "did:plc:viewer")
+	ctx, cancel := context.WithCancel(req.Context())
+	cancel()
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK || rec.Body.Len() != 0 {
+		t.Fatalf("canceled request wrote status/body %d/%q, want no server response", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(logs.String(), `"level":"ERROR"`) {
+		t.Fatalf("canceled request emitted an error log: %s", logs.String())
 	}
 }
 

@@ -24,33 +24,32 @@ final class ActiveAccountIdentity {
 /// mounted and persists its switcher/navigation identity against that lease.
 // The builder's concrete auto-dispose provider type is intentionally inferred.
 // ignore: specify_nonobvious_property_types
-final activeAccountIdentityProvider =
-    FutureProvider.autoDispose<ActiveAccountIdentity?>(
-      (ref) async {
-        final target = ref.watch(
-          sessionRegistryProvider.select(_activeIdentityTarget),
-        );
-        if (target == null) return null;
-
-        final profile = await ref.watch(
-          userProfileProvider(target.handle).future,
-        );
-        final current = ref.read(sessionRegistryProvider).value;
-        if (current?.activeLease?.session != target.lease) return null;
-
-        await ref
-            .read(sessionRegistryProvider.notifier)
-            .updateCachedIdentity(
-              target.lease,
-              displayName: profile.displayName,
-              avatarUrl: profile.avatar,
-            );
-        final afterUpdate = ref.read(sessionRegistryProvider).value;
-        return ref.mounted && afterUpdate?.activeLease?.session == target.lease
-            ? ActiveAccountIdentity(lease: target.lease, profile: profile)
-            : null;
-      },
+final activeAccountIdentityProvider = FutureProvider.autoDispose<ActiveAccountIdentity?>(
+  (ref) async {
+    final target = ref.watch(
+      sessionRegistryProvider.select(_activeIdentityTarget),
     );
+    if (target == null) return null;
+
+    final profile = await ref.watch(
+      userProfileProvider(target.handle).future,
+    );
+    final current = ref.read(sessionRegistryProvider).value;
+    if (current?.activeLease?.session != target.lease) return null;
+
+    await ref
+        .read(sessionRegistryProvider.notifier)
+        .updateCachedIdentity(
+          target.lease,
+          displayName: profile.displayName,
+          avatarUrl: profile.avatar,
+        );
+    final afterUpdate = ref.read(sessionRegistryProvider).value;
+    return ref.mounted && afterUpdate?.activeLease?.session == target.lease
+        ? ActiveAccountIdentity(lease: target.lease, profile: profile)
+        : null;
+  },
+);
 
 _ActiveIdentityTarget? _activeIdentityTarget(
   AsyncValue<registry.SessionRegistry> state,

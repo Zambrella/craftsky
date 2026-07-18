@@ -62,6 +62,9 @@ func ListTimelineHandler(store TimelineReader, resolver HandleResolver, logger *
 		cursor := r.URL.Query().Get("cursor")
 		rows, nextCursor, err := store.ListTimeline(r.Context(), viewerDID.String(), limit, cursor)
 		if err != nil {
+			if requestCanceled(r.Context(), err) {
+				return
+			}
 			if errors.Is(err, envelope.ErrInvalidCursor) {
 				envelope.WriteError(w, http.StatusBadRequest,
 					"invalid_cursor", "cursor could not be decoded", runID, nil)

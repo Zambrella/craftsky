@@ -2,6 +2,7 @@
 package api_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -208,6 +209,31 @@ func TestGetProfile_CountsUnavailable(t *testing.T) {
 	_ = json.Unmarshal(rr.Body.Bytes(), &env)
 	if env.Error != "profile_counts_unavailable" {
 		t.Errorf("code = %q", env.Error)
+	}
+}
+
+func TestGetProfile_ClientCancellationDoesNotBecomeServerError(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	handler := api.GetProfileHandler(
+		&fakeStore{err: context.Canceled},
+		fakeResolver{},
+		logger,
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/profiles/@did:plc:gone", nil)
+	req.SetPathValue("handleOrDid", "did:plc:gone")
+	ctx, cancel := context.WithCancel(req.Context())
+	cancel()
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK || rec.Body.Len() != 0 {
+		t.Fatalf("canceled request wrote status/body %d/%q, want no server response", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(logs.String(), `"level":"ERROR"`) {
+		t.Fatalf("canceled request emitted an error log: %s", logs.String())
 	}
 }
 

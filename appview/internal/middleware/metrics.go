@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -71,19 +72,26 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 				routePattern := observability.RoutePattern(req)
 				observability.RecordRoutePattern(req.Context(), routePattern)
 				duration := time.Since(started)
-				observer.ObserveHTTPRequest(req.Method, routePattern, rw.status, duration, rw.bytes)
+				observedStatus := rw.status
 				result := "success"
-				if rw.status >= http.StatusInternalServerError {
+				if errors.Is(req.Context().Err(), context.Canceled) {
+					// The peer has already gone away, so any downstream 5xx response
+					// is not a server failure and cannot be delivered. Keep the
+					// conventional 499 classification internal to telemetry.
+					observedStatus = statusClientClosedRequest
+					result = "canceled"
+				} else if rw.status >= http.StatusInternalServerError {
 					result = "error"
 				}
+				observer.ObserveHTTPRequest(req.Method, routePattern, observedStatus, duration, rw.bytes)
 				if handlerSpan != nil {
 					handlerSpan.SetAttributes(observability.EventContext{
 						"component":         "http",
 						"operation":         "http.handler",
 						"route_pattern":     routePattern,
 						"http_method":       req.Method,
-						"http_status":       rw.status,
-						"http_status_class": strconv.Itoa(rw.status/100) + "xx",
+						"http_status":       observedStatus,
+						"http_status_class": strconv.Itoa(observedStatus/100) + "xx",
 						"duration":          duration.String(),
 						"result":            result,
 					})
@@ -94,8 +102,8 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 						"component":         "http",
 						"route_pattern":     routePattern,
 						"http_method":       req.Method,
-						"http_status":       rw.status,
-						"http_status_class": strconv.Itoa(rw.status/100) + "xx",
+						"http_status":       observedStatus,
+						"http_status_class": strconv.Itoa(observedStatus/100) + "xx",
 						"duration":          duration.String(),
 						"result":            result,
 						"run_id":            GetRunID(req.Context()),
@@ -103,13 +111,13 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 				}
 				// If a request ends as a 5xx and no deeper layer captured a more
 				// specific error, emit one generic HTTP error event as a fallback.
-				if rw.status >= http.StatusInternalServerError && !observability.CaptureRecorded(req.Context()) {
+				if observedStatus >= http.StatusInternalServerError && !observability.CaptureRecorded(req.Context()) {
 					observer.CaptureError(req.Context(), observability.EventContext{
 						"component":         "http",
 						"route_pattern":     routePattern,
 						"http_method":       req.Method,
-						"http_status":       rw.status,
-						"http_status_class": strconv.Itoa(rw.status/100) + "xx",
+						"http_status":       observedStatus,
+						"http_status_class": strconv.Itoa(observedStatus/100) + "xx",
 						"error_category":    "server",
 						"duration":          duration.String(),
 						"run_id":            GetRunID(req.Context()),

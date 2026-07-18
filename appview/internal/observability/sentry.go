@@ -2,6 +2,7 @@ package observability
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -86,6 +87,10 @@ func sanitizeEventContextValue(key string, value any) any {
 
 func (o *Observer) CaptureError(ctx context.Context, eventCtx EventContext, err error) {
 	if o == nil || o.sentryClient == nil || err == nil {
+		return
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+		MarkCaptured(ctx)
 		return
 	}
 	MarkCaptured(ctx)

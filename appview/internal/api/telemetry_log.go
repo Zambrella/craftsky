@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 
 	"social.craftsky/appview/internal/observability"
@@ -76,6 +78,10 @@ func apiLogErrorAttrs(runID, operation, category string) []any {
 
 func apiLogInvalidAttrs(runID, operation string) []any {
 	return append(apiLogAttrs(runID, operation), slog.String("result", "invalid"))
+}
+
+func requestCanceled(ctx context.Context, err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled)
 }
 
 func postAuthorListOperation(label string) string {

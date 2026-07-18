@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -44,6 +45,22 @@ func TestLogging_InjectsRunIDAndLogs(t *testing.T) {
 	}
 	if !strings.Contains(logged, seenRunID) {
 		t.Errorf("log missing run_id %q: %s", seenRunID, logged)
+	}
+}
+
+func TestLogging_CompletionClassifiesClientCancellationAs499(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	ctx, cancel := context.WithCancel(context.Background())
+	handler := Logging(logger)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		cancel()
+	}))
+
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/feed/timeline", nil).WithContext(ctx))
+
+	logged := buf.String()
+	if !strings.Contains(logged, `"msg":"Request completed"`) || !strings.Contains(logged, `"status":499`) {
+		t.Fatalf("canceled request completion was not classified as 499: %s", logged)
 	}
 }
 

@@ -129,6 +129,53 @@ func TestHTTPMetrics_CapturesNonPanic5xxResponseInSentry(t *testing.T) {
 	}
 }
 
+func TestHTTPMetrics_DoesNotCaptureClientCanceledRequestAsServerError(t *testing.T) {
+	transport := &sentry.MockTransport{}
+	recorder := observability.NewInMemoryMetricRecorder()
+	observer := observability.New(observability.Config{
+		Env:             "test",
+		MetricRecorder:  recorder,
+		SentryDSN:       "https://public@example.invalid/1",
+		SentryTransport: transport,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1/feed/timeline", func(w http.ResponseWriter, r *http.Request) {
+		cancel()
+		envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "timeline list failed", GetRunID(r.Context()), nil)
+	})
+	handler := Logging(slog.New(slog.NewTextHandler(io.Discard, nil)))(HTTPMetrics(observer)(mux))
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/feed/timeline", nil).WithContext(ctx))
+
+	if !observer.Flush(50 * time.Millisecond) {
+		t.Fatal("observer Flush returned false")
+	}
+	if events := transport.Events(); len(events) != 0 {
+		t.Fatalf("captured %d Sentry events for a client-canceled request, want 0; first=%#v", len(events), events[0])
+	}
+
+	var completed *observability.MetricCall
+	for _, call := range recorder.Calls() {
+		if call.Name == "craftsky_appview_http_requests_total" {
+			call := call
+			completed = &call
+			break
+		}
+	}
+	if completed == nil {
+		t.Fatalf("missing completed HTTP request metric: %#v", recorder.Calls())
+	}
+	if got := completed.Attributes["status"]; got != "499" {
+		t.Fatalf("canceled request metric status = %q, want 499; call=%#v", got, completed)
+	}
+	if got := completed.Attributes["status_class"]; got != "4xx" {
+		t.Fatalf("canceled request metric status class = %q, want 4xx; call=%#v", got, completed)
+	}
+}
+
 func TestHTTPMetrics_CapturesNonPanic5xxBeforeFinishingActiveSpan(t *testing.T) {
 	transport := &sentry.MockTransport{}
 	observer := observability.New(observability.Config{

@@ -87,3 +87,25 @@ func TestCaptureErrorUsesClassifiedSentinelWithoutRawErrorDetails(t *testing.T) 
 		}
 	}
 }
+
+func TestCaptureErrorDoesNotReportClientCancellation(t *testing.T) {
+	transport := &sentry.MockTransport{}
+	observer := New(Config{
+		Env:             "test",
+		SentryDSN:       "https://public@example.invalid/1",
+		SentryTransport: transport,
+	})
+	ctx, cancel := context.WithCancel(WithCaptureMarker(context.Background()))
+	cancel()
+
+	observer.CaptureError(ctx, EventContext{"component": "pds"}, context.Canceled)
+	if !observer.Flush(50 * time.Millisecond) {
+		t.Fatal("Flush returned false")
+	}
+	if events := transport.Events(); len(events) != 0 {
+		t.Fatalf("captured %d Sentry events for client cancellation, want 0; first=%#v", len(events), events[0])
+	}
+	if !CaptureRecorded(ctx) {
+		t.Fatal("client cancellation was not marked handled for outer fallback capture")
+	}
+}

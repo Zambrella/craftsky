@@ -236,6 +236,9 @@ func writeProfileResponse(
 	}
 	row, err := store.Read(r.Context(), did.String(), viewerDID)
 	if err != nil {
+		if requestCanceled(r.Context(), err) {
+			return
+		}
 		if errors.Is(err, ErrProfileNotFound) {
 			envelope.WriteError(w, http.StatusNotFound,
 				"profile_not_found", "profile not found", runID, nil)
