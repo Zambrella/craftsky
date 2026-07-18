@@ -4,6 +4,8 @@ Guidance for AI agents and human contributors working in this repository.
 
 ## Project Overview
 
+**The app is not in production with no active users so breaking changes are not a thing.**
+
 Craftsky is a crafting-focused social platform built on the [AT Protocol](https://atproto.com). It is a federated, user-owned alternative to Instagram/Pinterest for the crafting community.
 
 Read [atproto-craft-social-app-reference.md](atproto-craft-social-app-reference.md) before making architectural decisions — it captures the full design rationale (PDS vs App View split, auth flow, lexicon design, tech stack choices).
