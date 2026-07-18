@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
@@ -19,11 +20,14 @@ class ReportPost extends _$ReportPost {
     required ReportSubmission submission,
   }) async {
     if (state.isLoading) return;
+    final ownership = captureActiveAccountOperation(ref);
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    final result = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
       return repo.report(did, rkey, submission);
     });
+    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+    state = result;
   }
 
   void reset() => state = const AsyncData(null);

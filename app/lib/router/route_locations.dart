@@ -5,6 +5,7 @@ class RouteLocations {
 
   static const welcome = '/welcome';
   static const signIn = '/sign-in';
+  static const addAccount = '/add-account';
   static const authComplete = '/auth/complete';
   static const onboarding = '/onboarding';
   static const feed = '/feed';

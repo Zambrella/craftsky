@@ -8,7 +8,7 @@ part of 'handoff_api_client_provider.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Family-keyed by (token, deviceId): one instance per in-flight
+/// Family-keyed by a redacted credential wrapper: one instance per in-flight
 /// handoff. Not keep-alive — auto-disposes when no one watches it, so
 /// the token doesn't linger.
 ///
@@ -21,7 +21,7 @@ part of 'handoff_api_client_provider.dart';
 @ProviderFor(handoffApiClient)
 final handoffApiClientProvider = HandoffApiClientFamily._();
 
-/// Family-keyed by (token, deviceId): one instance per in-flight
+/// Family-keyed by a redacted credential wrapper: one instance per in-flight
 /// handoff. Not keep-alive — auto-disposes when no one watches it, so
 /// the token doesn't linger.
 ///
@@ -39,7 +39,7 @@ final class HandoffApiClientProvider
           HandoffApiClient
         >
     with $Provider<HandoffApiClient> {
-  /// Family-keyed by (token, deviceId): one instance per in-flight
+  /// Family-keyed by a redacted credential wrapper: one instance per in-flight
   /// handoff. Not keep-alive — auto-disposes when no one watches it, so
   /// the token doesn't linger.
   ///
@@ -50,7 +50,7 @@ final class HandoffApiClientProvider
   /// keeps the provider itself synchronous.
   HandoffApiClientProvider._({
     required HandoffApiClientFamily super.from,
-    required (String, String) super.argument,
+    required HandoffClientKey super.argument,
   }) : super(
          retry: null,
          name: r'handoffApiClientProvider',
@@ -66,7 +66,7 @@ final class HandoffApiClientProvider
   String toString() {
     return r'handoffApiClientProvider'
         ''
-        '$argument';
+        '($argument)';
   }
 
   @$internal
@@ -76,8 +76,8 @@ final class HandoffApiClientProvider
 
   @override
   HandoffApiClient create(Ref ref) {
-    final argument = this.argument as (String, String);
-    return handoffApiClient(ref, argument.$1, argument.$2);
+    final argument = this.argument as HandoffClientKey;
+    return handoffApiClient(ref, argument);
   }
 
   /// {@macro riverpod.override_with_value}
@@ -99,9 +99,9 @@ final class HandoffApiClientProvider
   }
 }
 
-String _$handoffApiClientHash() => r'49586d92a3e4bd2e94c83d4110103ea83c95fb57';
+String _$handoffApiClientHash() => r'cc34af0f3913c026326e22f8d5288903ada6154d';
 
-/// Family-keyed by (token, deviceId): one instance per in-flight
+/// Family-keyed by a redacted credential wrapper: one instance per in-flight
 /// handoff. Not keep-alive — auto-disposes when no one watches it, so
 /// the token doesn't linger.
 ///
@@ -112,7 +112,7 @@ String _$handoffApiClientHash() => r'49586d92a3e4bd2e94c83d4110103ea83c95fb57';
 /// keeps the provider itself synchronous.
 
 final class HandoffApiClientFamily extends $Family
-    with $FunctionalFamilyOverride<HandoffApiClient, (String, String)> {
+    with $FunctionalFamilyOverride<HandoffApiClient, HandoffClientKey> {
   HandoffApiClientFamily._()
     : super(
         retry: null,
@@ -122,7 +122,7 @@ final class HandoffApiClientFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Family-keyed by (token, deviceId): one instance per in-flight
+  /// Family-keyed by a redacted credential wrapper: one instance per in-flight
   /// handoff. Not keep-alive — auto-disposes when no one watches it, so
   /// the token doesn't linger.
   ///
@@ -132,8 +132,8 @@ final class HandoffApiClientFamily extends $Family
   /// `deviceIdProvider.future` and pass the value explicitly — this
   /// keeps the provider itself synchronous.
 
-  HandoffApiClientProvider call(String token, String deviceId) =>
-      HandoffApiClientProvider._(argument: (token, deviceId), from: this);
+  HandoffApiClientProvider call(HandoffClientKey key) =>
+      HandoffApiClientProvider._(argument: key, from: this);
 
   @override
   String toString() => r'handoffApiClientProvider';

@@ -1,5 +1,10 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
+    show sessionRegistryProvider;
+import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
@@ -19,6 +24,47 @@ import '../fakes/fake_post_repository.dart';
 
 void main() {
   group('PostComposerSheet discard confirmation', () {
+    testWidgets('IT-012 shared account guard cancels or closes dirty compose', (
+      tester,
+    ) async {
+      final registry = SessionRegistry.empty()
+          .upsertAndActivate(
+            token: 'bob-token',
+            did: 'did:plc:bob',
+            handle: 'bob.test',
+          )
+          .upsertAndActivate(
+            token: 'alice-token',
+            did: 'did:plc:alice',
+            handle: 'alice.test',
+          );
+      await _openComposer(tester, registry: registry);
+      await tester.enterText(find.byType(TextField).first, 'A cardigan WIP');
+      await tester.pump();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PostComposerSheet)),
+      );
+      final owner = registry.activeLease!.session;
+
+      final cancelled = container
+          .read(unsavedWorkGuardProvider)
+          .confirmLeave(owner);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Keep editing'));
+      await tester.pumpAndSettle();
+      expect(await cancelled, isFalse);
+      expect(find.text('New post'), findsOneWidget);
+
+      final confirmed = container
+          .read(unsavedWorkGuardProvider)
+          .confirmLeave(owner);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard'));
+      await tester.pumpAndSettle();
+      expect(await confirmed, isTrue);
+      expect(find.text('Host'), findsOneWidget);
+    });
+
     testWidgets('closes immediately when the composer is unchanged', (
       tester,
     ) async {
@@ -139,10 +185,19 @@ Future<void> _openComposer(
   WidgetTester tester, {
   List<dynamic> overrides = const [],
   String? composerId,
+  SessionRegistry? registry,
 }) async {
+  final providerOverrides = List<dynamic>.from(overrides);
+  if (registry != null) {
+    providerOverrides.add(
+      secureSessionRegistryStorageProvider.overrideWithValue(
+        _RegistryStorage(registry),
+      ),
+    );
+  }
   await tester.pumpWidget(
     ProviderScope(
-      overrides: List.from(overrides),
+      overrides: List.from(providerOverrides),
       child: MessengerScope(
         messenger: RecordingMessenger(),
         child: MaterialApp(
@@ -183,8 +238,29 @@ Future<void> _openComposer(
     ),
   );
 
+  if (registry != null) {
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(MaterialApp)),
+    );
+    await container.read(sessionRegistryProvider.future);
+  }
+
   await tester.tap(find.text('Open composer'));
   await tester.pumpAndSettle();
+}
+
+final class _RegistryStorage implements SessionRegistryStorage {
+  _RegistryStorage(this.registry);
+
+  SessionRegistry registry;
+
+  @override
+  Future<SessionRegistry> read() async => registry;
+
+  @override
+  Future<void> write(SessionRegistry registry) async {
+    this.registry = registry;
+  }
 }
 
 Future<void> _pumpUntilPostEnabled(WidgetTester tester) async {

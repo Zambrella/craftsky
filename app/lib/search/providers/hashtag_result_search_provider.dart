@@ -1,3 +1,4 @@
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/search/models/search_queries.dart';
 import 'package:craftsky_app/search/models/search_result_state.dart';
 import 'package:craftsky_app/search/providers/hashtag_search_provider.dart';
@@ -23,6 +24,7 @@ class HashtagResultSearch extends _$HashtagResultSearch {
     if (!state.hasValue || state.isLoading) return;
     final current = state.requireValue;
     if (!current.hasMore) return;
+    final ownership = captureActiveAccountOperation(ref);
     state = const AsyncLoading<HashtagSearchResultsState>();
     final next = await AsyncValue.guard(() async {
       final page = await ref
@@ -37,7 +39,7 @@ class HashtagResultSearch extends _$HashtagResultSearch {
         cursor: page.cursor,
       );
     });
-    if (!ref.mounted) return;
+    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
     state = next;
   }
 }

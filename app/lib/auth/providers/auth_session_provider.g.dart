@@ -8,27 +8,15 @@ part of 'auth_session_provider.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Sole source of truth for the app's auth state. Cold start reads
-/// secure storage once and emits an optimistic `SignedIn` immediately
-/// (if a session exists), then background-validates via `/whoami`.
-/// Later updates come through `setSignedIn` / `setSignedOut`, called
-/// by `AuthController` and the global 401 interceptor.
+/// Token-free UI/router projection of the durable session registry.
 
 @ProviderFor(AuthSession)
 final authSessionProvider = AuthSessionProvider._();
 
-/// Sole source of truth for the app's auth state. Cold start reads
-/// secure storage once and emits an optimistic `SignedIn` immediately
-/// (if a session exists), then background-validates via `/whoami`.
-/// Later updates come through `setSignedIn` / `setSignedOut`, called
-/// by `AuthController` and the global 401 interceptor.
+/// Token-free UI/router projection of the durable session registry.
 final class AuthSessionProvider
     extends $AsyncNotifierProvider<AuthSession, AuthState> {
-  /// Sole source of truth for the app's auth state. Cold start reads
-  /// secure storage once and emits an optimistic `SignedIn` immediately
-  /// (if a session exists), then background-validates via `/whoami`.
-  /// Later updates come through `setSignedIn` / `setSignedOut`, called
-  /// by `AuthController` and the global 401 interceptor.
+  /// Token-free UI/router projection of the durable session registry.
   AuthSessionProvider._()
     : super(
         from: null,
@@ -48,13 +36,9 @@ final class AuthSessionProvider
   AuthSession create() => AuthSession();
 }
 
-String _$authSessionHash() => r'360b560bb30f80b5af7b24da6a0885d15e0bfb01';
+String _$authSessionHash() => r'cfd2012757b96da102e7e4fec9c5415494e54f04';
 
-/// Sole source of truth for the app's auth state. Cold start reads
-/// secure storage once and emits an optimistic `SignedIn` immediately
-/// (if a session exists), then background-validates via `/whoami`.
-/// Later updates come through `setSignedIn` / `setSignedOut`, called
-/// by `AuthController` and the global 401 interceptor.
+/// Token-free UI/router projection of the durable session registry.
 
 abstract class _$AuthSession extends $AsyncNotifier<AuthState> {
   FutureOr<AuthState> build();

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
@@ -41,8 +42,9 @@ class SaveProfile extends _$SaveProfile {
     UploadedBlob? banner,
     bool clearBanner = false,
   }) async {
+    final ownership = captureActiveAccountOperation(ref);
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    final result = await AsyncValue.guard(() async {
       final repo = ref.read(profileRepositoryProvider);
       final updated = await repo.updateMe(
         displayName: displayName,
@@ -53,7 +55,7 @@ class SaveProfile extends _$SaveProfile {
         banner: banner,
         clearBanner: clearBanner,
       );
-      if (!ref.mounted) return null;
+      if (!isActiveAccountOperationCurrent(ref, ownership)) return null;
 
       // Push the authoritative server response into any
       // userProfileProvider entries that are already alive. We guard
@@ -68,6 +70,8 @@ class SaveProfile extends _$SaveProfile {
 
       return updated;
     });
+    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+    state = result;
   }
 
   /// Resets the notifier back to its idle state. Call after consuming a

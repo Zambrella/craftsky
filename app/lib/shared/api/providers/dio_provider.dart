@@ -1,11 +1,22 @@
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart'
+    as import_registry;
+import 'package:craftsky_app/auth/providers/account_boundary_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/api/providers/session_auth_interceptor.dart';
 import 'package:craftsky_app/shared/api/providers/sign_out_on_401_interceptor.dart';
+import 'package:craftsky_app/shared/device/device_id_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'dio_provider.g.dart';
+
+typedef _ClientTarget = ({String token, String did, int generation});
+typedef _AccountClientSelection = ({bool loaded, _ClientTarget? target});
 
 /// Android emulator maps the host machine to 10.0.2.2. iOS simulator
 /// reaches localhost directly. Android is the more common footgun so
@@ -42,20 +53,118 @@ BaseOptions baseDioOptions() {
 }
 
 @Riverpod(keepAlive: true)
-Dio dio(Ref ref) {
-  // Interceptor ordering matters:
-  //   1. SessionAuthInterceptor — attaches Bearer on outgoing requests.
-  //   2. ErrorMappingInterceptor — converts DioException → ApiException
-  //      in .error, PRESERVING response/statusCode on the replacement.
-  //   3. SignOutOn401Interceptor — reads err.response?.statusCode == 401
-  //      to decide whether to sign out. If (2) ever stops preserving
-  //      response, (3) silently breaks in prod (tests use synthetic
-  //      DioException objects with statusCode already set).
-  final dio = Dio(baseDioOptions());
-  dio.interceptors.addAll([
-    SessionAuthInterceptor.fromRef(ref),
+Dio anonymousDio(Ref ref) {
+  final client = Dio(baseDioOptions());
+  client.interceptors.addAll([
+    SessionAuthInterceptor.anonymous(
+      readDeviceId: () => ref.read(deviceIdProvider.future),
+    ),
     const ErrorMappingInterceptor(),
-    SignOutOn401Interceptor.fromRef(ref),
   ]);
-  return dio;
+  ref.onDispose(() => client.close(force: true));
+  return client;
+}
+
+@riverpod
+Future<Dio> accountDio(Ref ref, AccountKey account) async {
+  var selection = ref.watch(
+    sessionRegistryProvider.select(
+      (state) => _accountClientSelection(state, account),
+    ),
+  );
+  if (!selection.loaded) {
+    await ref.read(sessionRegistryProvider.future);
+    selection = _accountClientSelection(
+      ref.read(sessionRegistryProvider),
+      account,
+    );
+  }
+  final deviceId = await ref.watch(deviceIdProvider.future);
+  if (!ref.mounted) throw StateError('Account client disposed during build');
+  final target = selection.target;
+  if (target == null) throw StateError('Account session unavailable');
+  final lease = AccountSessionLease(
+    account: account,
+    sessionGeneration: target.generation,
+  );
+  final client = Dio(baseDioOptions());
+  client.interceptors.addAll([
+    SessionAuthInterceptor.fixed(
+      token: target.token,
+      readDeviceId: () async => deviceId,
+    ),
+    const ErrorMappingInterceptor(),
+    SignOutOn401Interceptor.withLease(
+      lease: lease,
+      invalidate: ref.read(accountSessionInvalidatorProvider),
+    ),
+  ]);
+  ref.onDispose(() => client.close(force: true));
+  return client;
+}
+
+@Riverpod(keepAlive: true)
+Dio dio(Ref ref) {
+  final active = ref.watch(
+    sessionRegistryProvider.select(_activeClientTarget),
+  );
+  final client = Dio(baseDioOptions());
+  if (active == null) {
+    client.interceptors.addAll([
+      SessionAuthInterceptor.anonymous(
+        readDeviceId: () => ref.read(deviceIdProvider.future),
+      ),
+      const ErrorMappingInterceptor(),
+    ]);
+  } else {
+    final lease = AccountSessionLease(
+      account: AccountKey(active.did),
+      sessionGeneration: active.generation,
+    );
+    client.interceptors.addAll([
+      SessionAuthInterceptor.fixed(
+        token: active.token,
+        readDeviceId: () => ref.read(deviceIdProvider.future),
+      ),
+      const ErrorMappingInterceptor(),
+      SignOutOn401Interceptor.withLease(
+        lease: lease,
+        invalidate: ref.read(accountSessionInvalidatorProvider),
+      ),
+    ]);
+  }
+  ref.onDispose(() => client.close(force: true));
+  return client;
+}
+
+_ClientTarget? _activeClientTarget(
+  AsyncValue<import_registry.SessionRegistry> state,
+) {
+  final registry = state.value;
+  final activeDid = registry?.activeDid;
+  final session = activeDid == null ? null : registry?.sessions[activeDid];
+  return session == null
+      ? null
+      : (
+          token: session.token,
+          did: session.did.value,
+          generation: session.sessionGeneration,
+        );
+}
+
+_AccountClientSelection _accountClientSelection(
+  AsyncValue<import_registry.SessionRegistry> state,
+  AccountKey account,
+) {
+  final session = state.value?.sessions[account.did];
+  return (
+    loaded: state.hasValue,
+    target: session == null
+        ? null
+        : (
+            token: session.token,
+            did: session.did.value,
+            generation: session.sessionGeneration,
+          ),
+  );
 }

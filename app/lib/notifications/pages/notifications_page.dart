@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/notifications/providers/notification_seen_provider.dart';
@@ -15,7 +17,14 @@ class NotificationsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final notifications = ref.watch(notificationsProvider);
+    final owner = ref
+        .watch(sessionRegistryProvider)
+        .value
+        ?.activeLease
+        ?.session;
+    final notifications = owner == null
+        ? ref.watch(notificationsProvider)
+        : ref.watch(accountNotificationsProvider(owner.account));
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       body: CustomScrollView(
@@ -39,9 +48,16 @@ class NotificationsPage extends ConsumerWidget {
               isLoadingMore: notifications.isLoading,
               hasLoadMoreError: notifications.hasError,
               renderToken: value.renderToken,
+              owner: value.owner,
             ),
             _ when notifications.hasError => _NotificationsErrorSliver(
-              onRetry: () => ref.invalidate(notificationsProvider),
+              onRetry: () {
+                if (owner != null) {
+                  ref.invalidate(accountNotificationsProvider(owner.account));
+                } else {
+                  ref.invalidate(notificationsProvider);
+                }
+              },
             ),
             _ => const SliverFillRemaining(
               hasScrollBody: false,
@@ -61,6 +77,7 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
     required this.isLoadingMore,
     required this.hasLoadMoreError,
     required this.renderToken,
+    required this.owner,
   });
 
   final List<CraftskyNotification> items;
@@ -68,13 +85,23 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
   final bool isLoadingMore;
   final bool hasLoadMoreError;
   final int renderToken;
+  final AccountSessionLease? owner;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(
-        ref.read(notificationSeenProvider).afterSuccessfulRender(renderToken),
-      );
+      final rowOwner = owner;
+      if (rowOwner == null) {
+        unawaited(
+          ref.read(notificationSeenProvider).afterSuccessfulRender(renderToken),
+        );
+      } else {
+        unawaited(
+          ref
+              .read(accountNotificationSeenProvider(rowOwner.account).future)
+              .then((seen) => seen.afterSuccessfulRender(renderToken)),
+        );
+      }
     });
     final l10n = AppLocalizations.of(context);
     if (items.isEmpty) {
@@ -88,7 +115,7 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
         SliverList.builder(
           itemCount: items.length,
           itemBuilder: (context, index) =>
-              NotificationRow(notification: items[index]),
+              NotificationRow(notification: items[index], owner: owner),
         ),
         if (isLoadingMore || hasLoadMoreError || hasMore)
           SliverToBoxAdapter(
@@ -98,14 +125,12 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
                 child: switch ((isLoadingMore, hasLoadMoreError)) {
                   (true, _) => const StitchProgressIndicator(),
                   (_, true) => TextButton.icon(
-                    onPressed: () =>
-                        ref.read(notificationsProvider.notifier).loadMore(),
+                    onPressed: () => _loadMore(ref),
                     icon: const Icon(Icons.refresh),
                     label: Text(l10n.retryButton),
                   ),
                   _ => TextButton(
-                    onPressed: () =>
-                        ref.read(notificationsProvider.notifier).loadMore(),
+                    onPressed: () => _loadMore(ref),
                     child: Text(l10n.notificationsLoadMore),
                   ),
                 },
@@ -114,6 +139,19 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
           ),
       ],
     );
+  }
+
+  void _loadMore(WidgetRef ref) {
+    final rowOwner = owner;
+    if (rowOwner == null) {
+      unawaited(ref.read(notificationsProvider.notifier).loadMore());
+    } else {
+      unawaited(
+        ref
+            .read(accountNotificationsProvider(rowOwner.account).notifier)
+            .loadMore(),
+      );
+    }
   }
 }
 

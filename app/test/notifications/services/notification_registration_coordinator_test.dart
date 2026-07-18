@@ -1,234 +1,182 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/models/notification_permission.dart';
 import 'package:craftsky_app/notifications/services/notification_registration_coordinator.dart';
 import 'package:craftsky_app/notifications/services/notification_service.dart';
-import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final alice = Did.parse('did:plc:alice');
-  final bob = Did.parse('did:plc:bob');
+  final alice = _lease('did:plc:alice', 1);
+  final bob = _lease('did:plc:bob', 2);
 
-  group('UT-001 / UT-013 / IT-002 registration lifecycle', () {
-    test('gates permission and registration on account readiness', () async {
+  test('UT-011 registers active and inactive retained accounts', () async {
+    final service = _FakeService(
+      permission: NotificationPermission.authorized,
+      token: 'provider-token',
+    );
+    final registrations = <AccountSessionLease>[];
+    final saved = <AccountSessionLease>[];
+    final coordinator = _coordinator(
+      service,
+      onRegister: (lease, token) {
+        registrations.add(lease);
+        expect(token, 'provider-token');
+      },
+      onSave: saved.add,
+    );
+
+    await coordinator.updateAccounts([alice, bob]);
+
+    expect(registrations, unorderedEquals([alice, bob]));
+    expect(saved, unorderedEquals([alice, bob]));
+  });
+
+  test('UT-011 gates all accounts on installation permission', () async {
+    final denied = _FakeService(
+      permission: NotificationPermission.denied,
+      token: 'provider-token',
+    );
+    var registrations = 0;
+    await _coordinator(
+      denied,
+      onRegister: (_, _) => registrations++,
+    ).updateAccounts([alice, bob]);
+    expect(registrations, 0);
+
+    final prompt = _FakeService(
+      permission: NotificationPermission.notDetermined,
+      token: 'provider-token',
+    );
+    await _coordinator(
+      prompt,
+      onRegister: (_, _) => registrations++,
+    ).updateAccounts([alice, bob]);
+    expect(prompt.permissionRequests, 1);
+    expect(registrations, 2);
+  });
+
+  test(
+    'IT-004 retries one account failure and refreshes every account',
+    () async {
       final service = _FakeService(
-        permission: NotificationPermission.notDetermined,
-        token: 'token',
+        permission: NotificationPermission.authorized,
+        token: 'token-a',
       );
-      var registrations = 0;
+      final attempts = <(AccountSessionLease, String)>[];
+      var bobFailures = 1;
       final coordinator = _coordinator(
         service,
-        onRegister: (_) => registrations++,
+        onRegister: (lease, token) {
+          attempts.add((lease, token));
+          if (lease == bob && bobFailures-- > 0) throw Exception('transient');
+        },
       );
 
-      await coordinator.updateReadiness(did: null, onboarded: false);
-      await coordinator.updateReadiness(did: alice, onboarded: false);
-      expect(service.permissionRequests, 0);
-      expect(registrations, 0);
+      await coordinator.updateAccounts([alice, bob]);
+      await coordinator.retryRegistration();
+      await coordinator.onTokenRefresh('token-b');
 
-      await coordinator.updateReadiness(did: alice, onboarded: true);
+      expect(attempts.where((entry) => entry.$1 == alice), [
+        (alice, 'token-a'),
+        (alice, 'token-b'),
+      ]);
+      expect(attempts.where((entry) => entry.$1 == bob), [
+        (bob, 'token-a'),
+        (bob, 'token-a'),
+        (bob, 'token-b'),
+      ]);
+    },
+  );
 
-      expect(service.permissionRequests, 1);
-      expect(registrations, 1);
-    });
+  test('UT-011 removed or reauthenticated account cannot save late', () async {
+    final service = _FakeService(
+      permission: NotificationPermission.authorized,
+      token: 'provider-token',
+    );
+    final started = Completer<void>();
+    final release = Completer<void>();
+    final saved = <AccountSessionLease>[];
+    final coordinator = _coordinator(
+      service,
+      onRegister: (lease, _) async {
+        if (lease == bob) {
+          started.complete();
+          await release.future;
+        }
+      },
+      onSave: saved.add,
+    );
 
-    test(
-      'defers refreshes and registers the latest token when ready',
-      () async {
-        final service = _FakeService(
-          permission: NotificationPermission.authorized,
-        );
-        final tokens = <String>[];
-        final coordinator = _coordinator(
-          service,
-          onRegister: tokens.add,
-        );
+    final initial = coordinator.updateAccounts([alice, bob]);
+    await started.future;
+    final reauthenticatedBob = _lease('did:plc:bob', 3);
+    final changed = coordinator.updateAccounts([alice, reauthenticatedBob]);
+    release.complete();
+    await Future.wait([initial, changed]);
 
-        await coordinator.onTokenRefresh('tokenA');
-        await coordinator.onTokenRefresh('tokenB');
-        expect(tokens, isEmpty);
+    expect(saved, containsAll([alice, reauthenticatedBob]));
+    expect(saved, isNot(contains(bob)));
+  });
 
-        await coordinator.updateReadiness(did: alice, onboarded: true);
-
-        expect(tokens, ['tokenB']);
+  test('UT-011 serializes token revisions and settles latest', () async {
+    final service = _FakeService(
+      permission: NotificationPermission.authorized,
+      token: 'token-a',
+    );
+    final started = Completer<void>();
+    final release = Completer<void>();
+    final tokens = <String>[];
+    var activeRuns = 0;
+    var maxActiveRuns = 0;
+    final coordinator = _coordinator(
+      service,
+      onRegister: (_, token) async {
+        tokens.add(token);
+        activeRuns++;
+        maxActiveRuns = activeRuns > maxActiveRuns ? activeRuns : maxActiveRuns;
+        if (token == 'token-a') {
+          started.complete();
+          await release.future;
+        }
+        activeRuns--;
       },
     );
 
-    test('skips empty tokens and retries failure on a later trigger', () async {
-      final service = _FakeService(
-        permission: NotificationPermission.authorized,
-        token: '',
-      );
-      var attempts = 0;
-      final coordinator = _coordinator(
-        service,
-        onRegister: (_) {
-          attempts++;
-          if (attempts == 1) throw Exception('transient');
-        },
-      );
+    final readiness = coordinator.updateAccounts([alice]);
+    await started.future;
+    final refresh = coordinator.onTokenRefresh('token-b');
+    release.complete();
+    await Future.wait([readiness, refresh]);
 
-      await coordinator.updateReadiness(did: alice, onboarded: true);
-      expect(attempts, 0);
-
-      service.token = 'tokenC';
-      await coordinator.retryRegistration();
-      expect(attempts, 1);
-
-      await Future<void>.delayed(Duration.zero);
-      expect(attempts, 1, reason: 'failure must not create a retry loop');
-
-      await coordinator.retryRegistration();
-      expect(attempts, 2);
-    });
-
-    test('never registers after readiness becomes ineligible', () async {
-      final service = _FakeService(
-        permission: NotificationPermission.authorized,
-        token: 'token',
-      );
-      var registrations = 0;
-      final coordinator = _coordinator(
-        service,
-        onRegister: (_) => registrations++,
-      );
-
-      await coordinator.updateReadiness(did: null, onboarded: false);
-      await coordinator.onTokenRefresh('newToken');
-
-      expect(registrations, 0);
-    });
-
-    test('keeps the app usable when permission lookup fails', () async {
-      final service = _FakeService(
-        permission: NotificationPermission.authorized,
-        token: 'token',
-      )..permissionError = Exception('provider unavailable');
-
-      await _coordinator(
-        service,
-        onRegister: (_) => fail('must not register'),
-      ).updateReadiness(did: alice, onboarded: true);
-    });
-
-    test('rechecks denied permission on resume without prompting', () async {
-      final service = _FakeService(
-        permission: NotificationPermission.denied,
-        token: 'token',
-      );
-      var registrations = 0;
-      final coordinator = _coordinator(
-        service,
-        onRegister: (_) => registrations++,
-      );
-
-      await coordinator.updateReadiness(did: alice, onboarded: true);
-      expect(registrations, 0);
-
-      service.permission = NotificationPermission.authorized;
-      await coordinator.retryRegistration();
-
-      expect(service.permissionChecks, 2);
-      expect(service.permissionRequests, 0);
-      expect(registrations, 1);
-    });
-
-    test('serializes overlap and finishes with the latest token', () async {
-      final firstRegistrationStarted = Completer<void>();
-      final releaseFirstRegistration = Completer<void>();
-      final registrations = <String>[];
-      var activeRegistrations = 0;
-      var maxActiveRegistrations = 0;
-      final service = _FakeService(
-        permission: NotificationPermission.authorized,
-        token: 'tokenA',
-      );
-      final coordinator = _coordinator(
-        service,
-        onRegister: (token) async {
-          registrations.add(token);
-          activeRegistrations++;
-          if (activeRegistrations > maxActiveRegistrations) {
-            maxActiveRegistrations = activeRegistrations;
-          }
-          if (token == 'tokenA') {
-            firstRegistrationStarted.complete();
-            await releaseFirstRegistration.future;
-          }
-          activeRegistrations--;
-        },
-      );
-
-      final readiness = coordinator.updateReadiness(
-        did: alice,
-        onboarded: true,
-      );
-      await firstRegistrationStarted.future;
-      final refresh = coordinator.onTokenRefresh('tokenB');
-      releaseFirstRegistration.complete();
-      await Future.wait([readiness, refresh]);
-
-      expect(registrations, ['tokenA', 'tokenB']);
-      expect(maxActiveRegistrations, 1);
-    });
-
-    test('drops an old-DID result and registers the current DID', () async {
-      final firstRegistrationStarted = Completer<void>();
-      final releaseFirstRegistration = Completer<void>();
-      final registrations = <String>[];
-      final savedDids = <Did>[];
-      final service = _FakeService(
-        permission: NotificationPermission.authorized,
-        token: 'token',
-      );
-      final coordinator = _coordinator(
-        service,
-        onRegister: (token) async {
-          registrations.add(token);
-          if (registrations.length == 1) {
-            firstRegistrationStarted.complete();
-            await releaseFirstRegistration.future;
-          }
-        },
-        onSave: savedDids.add,
-      );
-
-      final aliceReadiness = coordinator.updateReadiness(
-        did: alice,
-        onboarded: true,
-      );
-      await firstRegistrationStarted.future;
-      final bobReadiness = coordinator.updateReadiness(
-        did: bob,
-        onboarded: true,
-      );
-      await Future<void>.delayed(Duration.zero);
-      releaseFirstRegistration.complete();
-      await Future.wait([aliceReadiness, bobReadiness]);
-
-      expect(registrations, ['token', 'token']);
-      expect(savedDids, [bob]);
-    });
+    expect(tokens, ['token-a', 'token-b']);
+    expect(maxActiveRuns, 1);
   });
 }
 
+AccountSessionLease _lease(String did, int generation) => AccountSessionLease(
+  account: AccountKey(did),
+  sessionGeneration: generation,
+);
+
 NotificationRegistrationCoordinator _coordinator(
   _FakeService service, {
-  required FutureOr<void> Function(String token) onRegister,
-  FutureOr<void> Function(Did did)? onSave,
+  required FutureOr<void> Function(AccountSessionLease lease, String token)
+  onRegister,
+  FutureOr<void> Function(AccountSessionLease lease)? onSave,
 }) => NotificationRegistrationCoordinator(
   service: service,
   platform: NotificationPlatform.ios,
-  register: ({required platform, required token}) async {
-    await onRegister(token);
+  registerAccount: ({required lease, required platform, required token}) async {
+    await onRegister(lease, token);
     return AccountSubscriptionId.parse('binding');
   },
-  saveBinding: ({required did, required binding}) async {
-    await onSave?.call(did);
+  saveBindingForLease: ({required lease, required binding}) async {
+    await onSave?.call(lease);
   },
 );
 
@@ -243,14 +191,11 @@ final class _FakeService implements NotificationService {
 
   @override
   Future<void> deleteToken() async {}
-
   @override
   Future<void> dispose() async {}
-
   @override
   Stream<ForegroundNotificationEvent> get foregroundEvents =>
       const Stream.empty();
-
   @override
   Future<NotificationPermission> getPermission() async {
     permissionChecks++;
@@ -260,17 +205,13 @@ final class _FakeService implements NotificationService {
 
   @override
   Future<String?> getToken() async => token;
-
   @override
   Future<void> initialize() async {}
-
   @override
   Stream<NotificationOpenAttempt> get openedNotifications =>
       const Stream.empty();
-
   @override
   Future<void> openSystemNotificationSettings() async {}
-
   @override
   Future<NotificationPermission> requestPermission() async {
     permissionRequests++;
@@ -279,7 +220,6 @@ final class _FakeService implements NotificationService {
 
   @override
   Future<NotificationOpenAttempt?> takeInitialOpen() async => null;
-
   @override
   Stream<String> get tokenRefreshes => const Stream.empty();
 }

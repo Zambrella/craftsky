@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/search/models/recent_search.dart';
 import 'package:craftsky_app/search/providers/blank_search_provider.dart';
 import 'package:craftsky_app/search/providers/search_repository_provider.dart';
@@ -17,11 +18,12 @@ class SaveRecentSearch extends _$SaveRecentSearch {
   FutureOr<RecentSearchItem?> build() => null;
 
   Future<RecentSearchItem> save(SaveRecentSearchRequest request) async {
+    final ownership = captureActiveAccountOperation(ref);
     state = const AsyncLoading();
     final saved = await ref
         .read(searchRepositoryProvider)
         .saveRecentSearch(request);
-    if (!ref.mounted) return saved;
+    if (!isActiveAccountOperationCurrent(ref, ownership)) return saved;
     ref
       ..invalidate(recentSearchPageProvider)
       ..invalidate(blankSearchProvider);
@@ -36,9 +38,10 @@ class DeleteRecentSearch extends _$DeleteRecentSearch {
   FutureOr<void> build() => null;
 
   Future<void> delete(String id) async {
+    final ownership = captureActiveAccountOperation(ref);
     state = const AsyncLoading();
     await ref.read(searchRepositoryProvider).deleteRecentSearch(id);
-    if (!ref.mounted) return;
+    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
     ref
       ..invalidate(recentSearchPageProvider)
       ..invalidate(blankSearchProvider);

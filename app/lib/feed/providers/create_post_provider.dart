@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
@@ -40,8 +41,9 @@ class CreatePost extends _$CreatePost {
     List<CreatePostImage>? images,
     List<Map<String, dynamic>>? facets,
   }) async {
+    final ownership = captureActiveAccountOperation(ref);
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    final result = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
       assert(
         project == null || reply == null,
@@ -73,7 +75,7 @@ class CreatePost extends _$CreatePost {
       if (project != null && post.project == null) {
         post = post.copyWith(project: project);
       }
-      if (!ref.mounted) return null;
+      if (!isActiveAccountOperationCurrent(ref, ownership)) return null;
 
       if (reply == null) {
         prependLiveTimelineCache(ref, post);
@@ -92,6 +94,8 @@ class CreatePost extends _$CreatePost {
 
       return post;
     });
+    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+    state = result;
   }
 
   /// Resets the notifier to its idle state. Call after consuming a

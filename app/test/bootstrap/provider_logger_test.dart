@@ -3,6 +3,7 @@ import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 
 void main() {
   group('ProviderLogger', () {
@@ -113,6 +114,41 @@ void main() {
         reporter.contexts.single.safeDiagnostics.values.join(' '),
         isNot(contains('did:plc:secret')),
       );
+    });
+
+    test('UT-014 redacts arbitrary provider failure text', () async {
+      const sentinels = [
+        'private-token-sentinel',
+        'routing-id-sentinel',
+        'did:plc:private-sentinel',
+        'private.handle.test',
+      ];
+      final reporter = _RecordingReporter();
+      final records = <LogRecord>[];
+      final previousLevel = Logger.root.level;
+      Logger.root.level = Level.ALL;
+      final subscription = Logger.root.onRecord.listen(records.add);
+      addTearDown(() async {
+        await subscription.cancel();
+        Logger.root.level = previousLevel;
+      });
+      final provider = FutureProvider<int>(
+        name: 'safeProvider',
+        (ref) => throw StateError(sentinels.join(' ')),
+      );
+      final container = ProviderContainer(
+        retry: appProviderRetry,
+        observers: [ProviderLogger(reporter: reporter)],
+      );
+      addTearDown(container.dispose);
+
+      await expectLater(container.read(provider.future), throwsStateError);
+      await Future<void>.delayed(Duration.zero);
+
+      final diagnostic = '${records.join(' ')} ${reporter.errors.join(' ')}';
+      for (final sentinel in sentinels) {
+        expect(diagnostic, isNot(contains(sentinel)));
+      }
     });
   });
 }

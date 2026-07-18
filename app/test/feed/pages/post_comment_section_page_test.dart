@@ -650,7 +650,9 @@ void main() {
     await _pumpCommentSection(tester, repo: repo);
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.repeat));
-    await tester.pump();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Repost'));
+    await tester.pumpAndSettle();
 
     expect(calls, ['did:plc:alice/root']);
     expect(find.text('1'), findsOneWidget);

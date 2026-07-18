@@ -39,12 +39,42 @@ class StoredSessionMapper extends ClassMapperBase<StoredSession> {
     _$handle,
     arg: _arg$handle,
   );
+  static int _$sessionGeneration(StoredSession v) => v.sessionGeneration;
+  static const Field<StoredSession, int> _f$sessionGeneration = Field(
+    'sessionGeneration',
+    _$sessionGeneration,
+    opt: true,
+    def: 0,
+  );
+  static int _$lastUsedOrdinal(StoredSession v) => v.lastUsedOrdinal;
+  static const Field<StoredSession, int> _f$lastUsedOrdinal = Field(
+    'lastUsedOrdinal',
+    _$lastUsedOrdinal,
+    opt: true,
+    def: 0,
+  );
+  static String? _$cachedDisplayName(StoredSession v) => v.cachedDisplayName;
+  static const Field<StoredSession, String> _f$cachedDisplayName = Field(
+    'cachedDisplayName',
+    _$cachedDisplayName,
+    opt: true,
+  );
+  static String? _$cachedAvatarUrl(StoredSession v) => v.cachedAvatarUrl;
+  static const Field<StoredSession, String> _f$cachedAvatarUrl = Field(
+    'cachedAvatarUrl',
+    _$cachedAvatarUrl,
+    opt: true,
+  );
 
   @override
   final MappableFields<StoredSession> fields = const {
     #token: _f$token,
     #did: _f$did,
     #handle: _f$handle,
+    #sessionGeneration: _f$sessionGeneration,
+    #lastUsedOrdinal: _f$lastUsedOrdinal,
+    #cachedDisplayName: _f$cachedDisplayName,
+    #cachedAvatarUrl: _f$cachedAvatarUrl,
   };
 
   static StoredSession _instantiate(DecodingData data) {
@@ -52,6 +82,10 @@ class StoredSessionMapper extends ClassMapperBase<StoredSession> {
       token: data.dec(_f$token),
       did: data.dec(_f$did),
       handle: data.dec(_f$handle),
+      sessionGeneration: data.dec(_f$sessionGeneration),
+      lastUsedOrdinal: data.dec(_f$lastUsedOrdinal),
+      cachedDisplayName: data.dec(_f$cachedDisplayName),
+      cachedAvatarUrl: data.dec(_f$cachedAvatarUrl),
     );
   }
 
@@ -117,7 +151,15 @@ extension StoredSessionValueCopy<$R, $Out>
 
 abstract class StoredSessionCopyWith<$R, $In extends StoredSession, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
-  $R call({String? token, String? did, String? handle});
+  $R call({
+    String? token,
+    String? did,
+    String? handle,
+    int? sessionGeneration,
+    int? lastUsedOrdinal,
+    String? cachedDisplayName,
+    String? cachedAvatarUrl,
+  });
   StoredSessionCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
 
@@ -130,11 +172,23 @@ class _StoredSessionCopyWithImpl<$R, $Out>
   late final ClassMapperBase<StoredSession> $mapper =
       StoredSessionMapper.ensureInitialized();
   @override
-  $R call({String? token, String? did, String? handle}) => $apply(
+  $R call({
+    String? token,
+    String? did,
+    String? handle,
+    int? sessionGeneration,
+    int? lastUsedOrdinal,
+    Object? cachedDisplayName = $none,
+    Object? cachedAvatarUrl = $none,
+  }) => $apply(
     FieldCopyWithData({
       if (token != null) #token: token,
       if (did != null) #did: did,
       if (handle != null) #handle: handle,
+      if (sessionGeneration != null) #sessionGeneration: sessionGeneration,
+      if (lastUsedOrdinal != null) #lastUsedOrdinal: lastUsedOrdinal,
+      if (cachedDisplayName != $none) #cachedDisplayName: cachedDisplayName,
+      if (cachedAvatarUrl != $none) #cachedAvatarUrl: cachedAvatarUrl,
     }),
   );
   @override
@@ -142,6 +196,16 @@ class _StoredSessionCopyWithImpl<$R, $Out>
     token: data.get(#token, or: $value.token),
     did: data.get(#did, or: $value.did),
     handle: data.get(#handle, or: $value.handle),
+    sessionGeneration: data.get(
+      #sessionGeneration,
+      or: $value.sessionGeneration,
+    ),
+    lastUsedOrdinal: data.get(#lastUsedOrdinal, or: $value.lastUsedOrdinal),
+    cachedDisplayName: data.get(
+      #cachedDisplayName,
+      or: $value.cachedDisplayName,
+    ),
+    cachedAvatarUrl: data.get(#cachedAvatarUrl, or: $value.cachedAvatarUrl),
   );
 
   @override

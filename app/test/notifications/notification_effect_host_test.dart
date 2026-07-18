@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
@@ -266,14 +267,15 @@ NotificationRuntime _runtime(
   final registration = NotificationRegistrationCoordinator(
     service: service,
     platform: NotificationPlatform.ios,
-    register: ({required platform, required token}) async =>
-        AccountSubscriptionId.parse('binding'),
-    saveBinding: ({required did, required binding}) async {},
+    registerAccount:
+        ({required lease, required platform, required token}) async =>
+            AccountSubscriptionId.parse('binding'),
+    saveBindingForLease: ({required lease, required binding}) async {},
   );
   return NotificationRuntime(
     service: service,
     registration: registration,
-    routingStorage: NotificationRoutingStorage(_MemoryRoutingBackend()),
+    routingStorage: const NotificationRoutingStorage(SessionRegistry.empty),
     invalidateList: invalidateList ?? () {},
     refreshCount: refreshCount ?? () {},
     effects: effects,
@@ -336,17 +338,4 @@ final class _RecordingNewnessRepository
 
   @override
   Future<void> markSeen() async {}
-}
-
-final class _MemoryRoutingBackend implements NotificationRoutingStorageBackend {
-  String? value;
-
-  @override
-  Future<void> delete() async => value = null;
-
-  @override
-  Future<String?> read() async => value;
-
-  @override
-  Future<void> write(String value) async => this.value = value;
 }

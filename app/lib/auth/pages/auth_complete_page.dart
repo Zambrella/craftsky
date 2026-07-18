@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class AuthCompletePage extends ConsumerStatefulWidget {
   const AuthCompletePage({required this.token, super.key});
@@ -32,6 +34,11 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(authControllerProvider, (previous, next) {
+      if (previous case AsyncLoading() when next is AsyncData<void>) {
+        GoRouter.maybeOf(context)?.go(RouteLocations.home);
+      }
+    });
     final state = ref.watch(authControllerProvider);
 
     return Scaffold(

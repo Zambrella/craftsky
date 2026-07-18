@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
@@ -16,6 +17,7 @@ class ToggleLikePost extends _$ToggleLikePost {
   FutureOr<Post?> build() => null;
 
   Future<void> toggle({required Post post}) async {
+    final ownership = captureActiveAccountOperation(ref);
     final next = post.copyWith(
       viewerHasLiked: !post.viewerHasLiked,
       likeCount: post.viewerHasLiked
@@ -37,7 +39,7 @@ class ToggleLikePost extends _$ToggleLikePost {
         await repo.unlike(post.author.did, post.rkey);
       }
     } on Object catch (error, stackTrace) {
-      if (!ref.mounted) return;
+      if (!isActiveAccountOperationCurrent(ref, ownership)) return;
       updateLiveUserPostCaches(ref, post);
       updateLiveUserProjectCaches(ref, post);
       updateLiveUserCommentCaches(ref, post);

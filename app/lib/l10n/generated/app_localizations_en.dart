@@ -182,6 +182,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get signInTitle => 'Sign in';
 
   @override
+  String get addAccountTitle => 'Add account';
+
+  @override
+  String get addAccountDescription =>
+      'Sign in to another account. Your current account stays signed in.';
+
+  @override
+  String get accountSwitcherAdd => 'Add account';
+
+  @override
+  String get accountSwitcherMaximum => 'Maximum of 5 accounts';
+
+  @override
+  String get accountSwitcherTooltip => 'Switch account';
+
+  @override
+  String get accountSwitcherLongPressHint => 'Long press to switch account';
+
+  @override
+  String get accountSwitchingLabel => 'Switching account';
+
+  @override
+  String get accountIdentityFallback => 'Account';
+
+  @override
   String get signInHandleLabel => 'Handle';
 
   @override
@@ -270,6 +295,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get messengerDismiss => 'Dismiss';
+
+  @override
+  String get signOutSuccess => 'Signed out successfully.';
+
+  @override
+  String signOutSuccessWithAccount(String handle) {
+    return 'Signed out successfully. Now signed in as @$handle.';
+  }
 
   @override
   String get routingErrorTitle => 'Something went wrong';

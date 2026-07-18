@@ -1,83 +1,93 @@
-import 'dart:convert';
-
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
-import 'package:craftsky_app/shared/atproto/identifiers.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-abstract interface class NotificationRoutingStorageBackend {
-  Future<String?> read();
-  Future<void> write(String value);
-  Future<void> delete();
+sealed class NotificationRecipientResolution {
+  const NotificationRecipientResolution();
+
+  @override
+  String toString() => switch (this) {
+    ExactNotificationRecipient() => 'ExactNotificationRecipient(<redacted>)',
+    InvalidNotificationRecipient() => 'InvalidNotificationRecipient()',
+    RemovedNotificationRecipient() => 'RemovedNotificationRecipient()',
+  };
 }
 
-final class FlutterSecureNotificationRoutingStorageBackend
-    implements NotificationRoutingStorageBackend {
-  const FlutterSecureNotificationRoutingStorageBackend(this._storage);
+final class ExactNotificationRecipient extends NotificationRecipientResolution {
+  const ExactNotificationRecipient(this.lease);
 
-  static const _key = 'craftsky_notification_routing_bindings';
-
-  final FlutterSecureStorage _storage;
-
-  @override
-  Future<void> delete() => _storage.delete(key: _key);
-
-  @override
-  Future<String?> read() => _storage.read(key: _key);
-
-  @override
-  Future<void> write(String value) => _storage.write(key: _key, value: value);
+  final AccountSessionLease lease;
 }
 
+final class InvalidNotificationRecipient
+    extends NotificationRecipientResolution {
+  const InvalidNotificationRecipient();
+}
+
+final class RemovedNotificationRecipient
+    extends NotificationRecipientResolution {
+  const RemovedNotificationRecipient();
+}
+
+/// Registry-backed adapter for the secure DID-to-routing-ID binding map.
+///
+/// Resolution returns a session-generation lease rather than a DID so an open
+/// cannot cross account removal or reauthentication while it is in flight.
 final class NotificationRoutingStorage {
-  const NotificationRoutingStorage(this._backend);
+  const NotificationRoutingStorage(this._readRegistry);
 
-  final NotificationRoutingStorageBackend _backend;
+  final SessionRegistry Function() _readRegistry;
 
-  Future<AccountSubscriptionId?> read(Did did) async {
-    final bindings = await _readBindings();
-    final value = bindings[did];
+  bool isCurrentLease(AccountSessionLease lease) =>
+      _readRegistry().leaseFor(lease.account) == lease;
+
+  bool isActiveLease(AccountSessionLease lease) =>
+      _readRegistry().activeLease?.session == lease;
+
+  StoredSession? sessionFor(AccountSessionLease lease) {
+    final registry = _readRegistry();
+    return registry.leaseFor(lease.account) == lease
+        ? registry.sessions[lease.account.did]
+        : null;
+  }
+
+  AccountSubscriptionId? read(AccountSessionLease lease) {
+    final registry = _readRegistry();
+    if (registry.leaseFor(lease.account) != lease) return null;
+    final value = registry.routingBindings[lease.account.did];
     if (value == null) return null;
     try {
       return AccountSubscriptionId.parse(value);
     } on FormatException {
-      await _backend.delete();
       return null;
     }
   }
 
-  Future<void> replace(Did did, AccountSubscriptionId binding) async {
-    final bindings = await _readBindings();
-    bindings[did] = binding.wireValue;
-    await _backend.write(jsonEncode(bindings));
-  }
+  NotificationRecipientResolution resolve(AccountSubscriptionId? binding) {
+    if (binding == null) return const InvalidNotificationRecipient();
+    final registry = _readRegistry();
+    final matchingDids = <String>[];
+    var hasMalformedBinding = false;
 
-  Future<void> remove(Did did) async {
-    final bindings = await _readBindings();
-    if (bindings.remove(did) == null) return;
-    if (bindings.isEmpty) {
-      await _backend.delete();
-      return;
-    }
-    await _backend.write(jsonEncode(bindings));
-  }
-
-  Future<Map<String, String>> _readBindings() async {
-    final raw = await _backend.read();
-    if (raw == null) return <String, String>{};
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! Map<String, dynamic>) {
-        throw const FormatException('Invalid routing bindings');
+    for (final entry in registry.routingBindings.entries) {
+      try {
+        final candidate = AccountSubscriptionId.parse(entry.value);
+        if (candidate == binding) matchingDids.add(entry.key.value);
+      } on FormatException {
+        hasMalformedBinding = true;
       }
-      return decoded.map((key, value) {
-        if (value is! String) {
-          throw const FormatException('Invalid routing binding');
-        }
-        return MapEntry(key, value);
-      });
-    } on Object {
-      await _backend.delete();
-      return <String, String>{};
     }
+
+    if (hasMalformedBinding || matchingDids.length > 1) {
+      return const InvalidNotificationRecipient();
+    }
+    if (matchingDids.isEmpty) return const RemovedNotificationRecipient();
+
+    final lease = registry.leaseFor(AccountKey(matchingDids.single));
+    return lease == null
+        ? const RemovedNotificationRecipient()
+        : ExactNotificationRecipient(lease);
   }
 }

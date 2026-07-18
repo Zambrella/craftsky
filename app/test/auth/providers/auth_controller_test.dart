@@ -3,16 +3,23 @@ import 'package:craftsky_app/auth/data/handoff_api_client.dart';
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/models/pending_auth.dart' as model;
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
+import 'package:craftsky_app/auth/providers/account_boundary_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_api_client_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/handoff_api_client_provider.dart';
 import 'package:craftsky_app/auth/providers/pending_auth_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
+    show sessionRegistryProvider;
+import 'package:craftsky_app/auth/services/session_validation_coordinator.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/notifications/providers/notification_lifecycle_provider.dart';
+import 'package:craftsky_app/notifications/providers/notification_sign_out_recovery_provider.dart';
 import 'package:craftsky_app/notifications/services/notification_sign_out_cleanup.dart';
+import 'package:craftsky_app/notifications/services/notification_sign_out_recovery.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
@@ -23,9 +30,6 @@ import 'package:flutter_test/flutter_test.dart';
 // --- Fakes (services, not notifiers — per riverpod.md Testing rules) ---
 
 class _FakeStorage implements SecureTokenStorage {
-  _FakeStorage({this.onClear});
-
-  final void Function()? onClear;
   StoredSession? _v;
   @override
   Future<StoredSession?> read() async => _v;
@@ -33,8 +37,25 @@ class _FakeStorage implements SecureTokenStorage {
   Future<void> write(StoredSession s) async => _v = s;
   @override
   Future<void> clear() async {
-    onClear?.call();
     _v = null;
+  }
+}
+
+class _FakeRegistryStorage implements SessionRegistryStorage {
+  _FakeRegistryStorage(this.value);
+
+  SessionRegistry value;
+  bool failWrites = false;
+
+  @override
+  Future<SessionRegistry> read() async => value;
+
+  @override
+  Future<void> write(SessionRegistry registry) async {
+    if (failWrites) {
+      throw const SessionRegistryStorageException('writeFailed');
+    }
+    value = registry;
   }
 }
 
@@ -88,14 +109,24 @@ ProviderContainer _container({
   _FakeHandoffApi? handoff,
   _LaunchRecorder? launch,
   NotificationSignOutCleanup? notificationCleanup,
+  NotificationSignOutRecovery? signOutRecovery,
+  _FakeRegistryStorage? registryStorage,
+  Future<void> Function()? invalidateAccountState,
+  Future<void> Function()? resetToHome,
 }) {
   storage ??= _FakeStorage();
-  api ??= _FakeAuthApi();
+  final resolvedApi = api ?? _FakeAuthApi();
   launch ??= _LaunchRecorder();
   return ProviderContainer.test(
     overrides: [
       secureTokenStorageProvider.overrideWithValue(storage),
-      authApiClientProvider.overrideWithValue(api),
+      if (registryStorage != null)
+        secureSessionRegistryStorageProvider.overrideWithValue(registryStorage),
+      sessionValidationLauncherProvider.overrideWithValue((_) async {}),
+      authApiClientProvider.overrideWithValue(resolvedApi),
+      accountAuthApiClientProvider.overrideWith(
+        (ref, account) async => resolvedApi,
+      ),
       authUrlLauncherProvider.overrideWithValue(launch.launch),
       // Override the handoff family for ANY (token, deviceId) — the
       // test passes a specific token and the override serves that.
@@ -113,6 +144,14 @@ ProviderContainer _container({
         notificationSignOutCleanupProvider.overrideWithValue(
           notificationCleanup,
         ),
+      if (signOutRecovery != null)
+        notificationSignOutRecoveryProvider.overrideWithValue(signOutRecovery),
+      if (invalidateAccountState != null)
+        accountStateInvalidatorProvider.overrideWithValue(
+          invalidateAccountState,
+        ),
+      if (resetToHome != null)
+        accountHomeResetProvider.overrideWithValue(resetToHome),
     ],
   );
 }
@@ -238,11 +277,14 @@ void main() {
   test(
     'completeFromDeepLink happy path writes storage + flips SignedIn',
     () async {
-      final storage = _FakeStorage();
+      final registryStorage = _FakeRegistryStorage(SessionRegistry.empty());
       final handoff = _FakeHandoffApi(
         () async => WhoAmI(did: 'did:plc:a', handle: 'a.bsky.social'),
       );
-      final container = _container(storage: storage, handoff: handoff);
+      final container = _container(
+        handoff: handoff,
+        registryStorage: registryStorage,
+      );
 
       // Seed AuthSession build so setSignedIn lands on a ready state.
       await container.read(authSessionProvider.future);
@@ -252,16 +294,73 @@ void main() {
           .read(authControllerProvider.notifier)
           .completeFromDeepLink('tok');
 
-      final state = container.read(authSessionProvider).value;
+      final state = await container.read(authSessionProvider.future);
       expect(state, isA<SignedIn>());
-      expect((state! as SignedIn).did, 'did:plc:a');
+      expect((state as SignedIn).did, 'did:plc:a');
 
-      final stored = await storage.read();
-      expect(stored?.token, 'tok');
-      expect(stored?.did, 'did:plc:a');
+      final stored = await registryStorage.read();
+      expect(stored.sessions['did:plc:a']?.token, 'tok');
+      expect(stored.activeDid, 'did:plc:a');
       expect(container.read(pendingAuthProvider), isNull);
     },
   );
+
+  test('Add account completion preserves A and activates new B', () async {
+    final boundaryEvents = <String>[];
+    final initial = SessionRegistry.empty().upsertAndActivate(
+      token: 'token-a',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final registryStorage = _FakeRegistryStorage(initial);
+    final handoff = _FakeHandoffApi(
+      () async => WhoAmI(did: 'did:plc:bob', handle: 'bob.test'),
+    );
+    final container = _container(
+      handoff: handoff,
+      registryStorage: registryStorage,
+      invalidateAccountState: () async => boundaryEvents.add('invalidate'),
+    );
+    await container.read(sessionRegistryProvider.future);
+    container.read(pendingAuthProvider.notifier).start('bob.test');
+
+    await container
+        .read(authControllerProvider.notifier)
+        .completeFromDeepLink('token-b');
+
+    final registry = container.read(sessionRegistryProvider).requireValue;
+    expect(registry.sessions.keys, {'did:plc:alice', 'did:plc:bob'});
+    expect(registry.activeDid, 'did:plc:bob');
+    expect(registry.sessions['did:plc:bob']?.token, 'token-b');
+    expect(boundaryEvents, ['invalidate']);
+    expect(container.read(pendingAuthProvider), isNull);
+  });
+
+  test('Add account storage failure preserves the entire A snapshot', () async {
+    final initial = SessionRegistry.empty().upsertAndActivate(
+      token: 'token-a',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final registryStorage = _FakeRegistryStorage(initial)..failWrites = true;
+    final container = _container(
+      handoff: _FakeHandoffApi(
+        () async => WhoAmI(did: 'did:plc:bob', handle: 'bob.test'),
+      ),
+      registryStorage: registryStorage,
+    );
+    await container.read(sessionRegistryProvider.future);
+    container.read(pendingAuthProvider.notifier).start('bob.test');
+
+    await container
+        .read(authControllerProvider.notifier)
+        .completeFromDeepLink('token-b');
+
+    final registry = container.read(sessionRegistryProvider).requireValue;
+    expect(registry.toJson(), initial.toJson());
+    expect(container.read(authControllerProvider).error, isA<StorageFailure>());
+    expect(container.read(pendingAuthProvider), isNull);
+  });
 
   test(
     'completeFromDeepLink whoami failure clears pending, leaves storage empty',
@@ -289,69 +388,125 @@ void main() {
   );
 
   test(
-    'IT-011 confirmed signOut removes binding before local session only',
+    'confirmed signOut removes only active A and selects retained B',
     () async {
       final events = <String>[];
-      final storage = _FakeStorage(onClear: () => events.add('storage-clear'));
-      await storage.write(
-        StoredSession(token: 't', did: 'did:plc:test', handle: 'h.test'),
-      );
+      final initial = SessionRegistry.empty()
+          .upsertAndActivate(
+            token: 'token-b',
+            did: 'did:plc:bob',
+            handle: 'bob.test',
+          )
+          .upsertAndActivate(
+            token: 'token-a',
+            did: 'did:plc:alice',
+            handle: 'alice.test',
+          );
+      final registryStorage = _FakeRegistryStorage(initial);
       final cleanup = NotificationSignOutCleanup(
         deleteProviderToken: () async => events.add('token-delete'),
         removeRoutingBinding: (did) async => events.add('binding:$did'),
       );
       final container = _container(
-        storage: storage,
         api: _FakeAuthApi(onLogout: () async => events.add('server-logout')),
         notificationCleanup: cleanup,
+        registryStorage: registryStorage,
+        invalidateAccountState: () async => events.add('invalidate-account'),
+        resetToHome: () async => events.add('home'),
       );
 
       await container.read(authSessionProvider.future);
-      await container.read(authControllerProvider.notifier).signOut();
+      final result = await container
+          .read(authControllerProvider.notifier)
+          .signOut();
 
-      expect(events, [
-        'server-logout',
-        'binding:did:plc:test',
-        'storage-clear',
-      ]);
-      expect(container.read(authSessionProvider).value, isA<SignedOut>());
+      expect(events, ['server-logout', 'invalidate-account', 'home']);
+      expect(result?.activeHandle, 'bob.test');
+      final registry = container.read(sessionRegistryProvider).requireValue;
+      expect(registry.sessions.keys, {'did:plc:bob'});
+      expect(registry.activeDid, 'did:plc:bob');
+      expect(
+        (await container.read(authSessionProvider.future) as SignedIn).did,
+        'did:plc:bob',
+      );
     },
   );
 
-  test(
-    'IT-011 failed signOut deletes token and binding before local session',
-    () async {
-      final events = <String>[];
-      final storage = _FakeStorage(onClear: () => events.add('storage-clear'));
-      await storage.write(
-        StoredSession(token: 't', did: 'did:plc:test', handle: 'h.test'),
-      );
-      final cleanup = NotificationSignOutCleanup(
-        deleteProviderToken: () async => events.add('token-delete'),
-        removeRoutingBinding: (did) async => events.add('binding:$did'),
-      );
-      final container = _container(
-        storage: storage,
-        api: _FakeAuthApi(
-          onLogout: () async {
-            events.add('server-logout');
-            throw const ApiNetworkError('offline');
-          },
-        ),
-        notificationCleanup: cleanup,
-      );
+  test('confirmed signOut of the last account projects SignedOut', () async {
+    final initial = SessionRegistry.empty().upsertAndActivate(
+      token: 'token-a',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final container = _container(
+      registryStorage: _FakeRegistryStorage(initial),
+      api: _FakeAuthApi(),
+      notificationCleanup: NotificationSignOutCleanup(
+        deleteProviderToken: () async {},
+        removeRoutingBinding: (_) async {},
+      ),
+    );
+    await container.read(authSessionProvider.future);
 
-      await container.read(authSessionProvider.future);
-      await container.read(authControllerProvider.notifier).signOut();
+    final result = await container
+        .read(authControllerProvider.notifier)
+        .signOut();
 
-      expect(await storage.read(), isNull);
-      expect(events, [
-        'server-logout',
-        'token-delete',
-        'binding:did:plc:test',
-        'storage-clear',
-      ]);
-      expect(container.read(authSessionProvider).value, isA<SignedOut>());
-    },
-  );
+    expect(result?.activeHandle, isNull);
+    expect(await container.read(authSessionProvider.future), isA<SignedOut>());
+    expect(
+      container.read(sessionRegistryProvider).requireValue.sessions,
+      isEmpty,
+    );
+  });
+
+  test('IT-010 failed signOut quarantines before provider rotation', () async {
+    final events = <String>[];
+    final initial = SessionRegistry.empty().upsertAndActivate(
+      token: 't',
+      did: 'did:plc:test',
+      handle: 'h.test',
+    );
+    final registryStorage = _FakeRegistryStorage(initial);
+    late ProviderContainer container;
+    final recovery = NotificationSignOutRecovery(
+      readRegistry: () => container.read(sessionRegistryProvider).requireValue,
+      quarantineAndRemove: (lease) async {
+        events.add('snapshot-quarantine');
+        await container
+            .read(sessionRegistryProvider.notifier)
+            .quarantineAndRemove(lease);
+      },
+      deleteCleanupCredential: (cleanup) => container
+          .read(sessionRegistryProvider.notifier)
+          .deletePendingCleanup(cleanup),
+      deleteProviderToken: () async => events.add('token-delete'),
+      logoutCleanup: (_) async => NotificationCleanupResult.retryable,
+      resumeRegistration: () async {},
+    );
+    container = _container(
+      registryStorage: registryStorage,
+      api: _FakeAuthApi(
+        onLogout: () async {
+          events.add('server-logout');
+          throw const ApiNetworkError('offline');
+        },
+      ),
+      signOutRecovery: recovery,
+    );
+
+    await container.read(authSessionProvider.future);
+    await container.read(authControllerProvider.notifier).signOut();
+
+    final registry = container.read(sessionRegistryProvider).requireValue;
+    expect(registry.sessions, isEmpty);
+    expect(registry.pendingCleanups, hasLength(1));
+    expect(events, [
+      'server-logout',
+      'snapshot-quarantine',
+      'token-delete',
+    ]);
+    await Future<void>.delayed(Duration.zero);
+    expect(await container.read(authSessionProvider.future), isA<SignedOut>());
+  });
 }

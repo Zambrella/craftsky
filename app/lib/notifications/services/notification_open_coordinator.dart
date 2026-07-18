@@ -3,42 +3,80 @@
 
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/services/notification_destination_inference.dart';
+import 'package:craftsky_app/notifications/services/notification_routing_storage.dart';
+import 'package:craftsky_app/notifications/services/pending_notification_open.dart';
 
-typedef NotificationBindingLoader =
-    Future<AccountSubscriptionId?> Function(String did);
+typedef NotificationRecipientResolver =
+    NotificationRecipientResolution Function(AccountSubscriptionId? binding);
+typedef NotificationLeaseGuard = bool Function(AccountSessionLease lease);
+typedef NotificationAccountActivator =
+    Future<AccountActivationResult> Function(AccountSessionLease lease);
 typedef NotificationOutcomeCallback =
     FutureOr<void> Function(NotificationOpenOutcome outcome);
 typedef NotificationUnavailableCallback = FutureOr<void> Function();
 
 final class NotificationOpenCoordinator {
   const NotificationOpenCoordinator({
-    required this.currentDid,
-    required NotificationBindingLoader loadBinding,
+    required NotificationRecipientResolver resolveRecipient,
+    required NotificationLeaseGuard isCurrentLease,
+    required NotificationAccountActivator activate,
     required NotificationOutcomeCallback onOutcome,
     required NotificationUnavailableCallback onUnavailable,
-  }) : _loadBinding = loadBinding,
+    required NotificationUnavailableCallback onRemovedAccount,
+  }) : _resolveRecipient = resolveRecipient,
+       _isCurrentLease = isCurrentLease,
+       _activate = activate,
        _onOutcome = onOutcome,
-       _onUnavailable = onUnavailable;
+       _onUnavailable = onUnavailable,
+       _onRemovedAccount = onRemovedAccount;
 
-  final String currentDid;
-  final NotificationBindingLoader _loadBinding;
+  final NotificationRecipientResolver _resolveRecipient;
+  final NotificationLeaseGuard _isCurrentLease;
+  final NotificationAccountActivator _activate;
   final NotificationOutcomeCallback _onOutcome;
   final NotificationUnavailableCallback _onUnavailable;
+  final NotificationUnavailableCallback _onRemovedAccount;
 
   Future<void> open(NotificationOpenAttempt attempt) async {
-    final payloadBinding = attempt.accountSubscriptionId;
-    final storedBinding = await _loadBinding(currentDid);
-    if (payloadBinding == null ||
-        storedBinding == null ||
-        storedBinding != payloadBinding) {
-      await _onUnavailable();
-      return;
-    }
+    await openResolved(
+      PendingNotificationOpenWork(
+        attempt: attempt,
+        resolution: _resolveRecipient(attempt.accountSubscriptionId),
+      ),
+    );
+  }
 
-    await _onOutcome(NotificationDestinationInference.forFacts(attempt.facts));
+  Future<void> openResolved(PendingNotificationOpenWork work) async {
+    final attempt = work.attempt;
+    final resolution = work.resolution;
+    switch (resolution) {
+      case InvalidNotificationRecipient():
+        await _onUnavailable();
+        return;
+      case RemovedNotificationRecipient():
+        await _onRemovedAccount();
+        return;
+      case ExactNotificationRecipient(:final lease):
+        if (!_isCurrentLease(lease)) {
+          await _onRemovedAccount();
+          return;
+        }
+        final activation = await _activate(lease);
+        if (activation == AccountActivationResult.cancelled) return;
+        if (activation == AccountActivationResult.stale ||
+            !_isCurrentLease(lease)) {
+          await _onRemovedAccount();
+          return;
+        }
+        await _onOutcome(
+          NotificationDestinationInference.forFacts(attempt.facts),
+        );
+    }
   }
 }

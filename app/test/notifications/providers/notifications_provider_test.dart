@@ -1,5 +1,9 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart' as auth_model;
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
@@ -11,6 +15,55 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   setUpAll(initializeMappers);
+
+  test('IT-006 notification lists remain account-scoped', () async {
+    final alice = AccountKey('did:plc:alice');
+    final bob = AccountKey('did:plc:bob');
+    final repositories = <AccountKey, NotificationRepository>{
+      alice: _FakeNotificationRepository()
+        ..responses.add(
+          Future.value(NotificationPage(items: [_follow('alice')])),
+        ),
+      bob: _FakeNotificationRepository()
+        ..responses.add(
+          Future.value(NotificationPage(items: [_follow('bob')])),
+        ),
+    };
+    final registry = auth_model.SessionRegistry.empty()
+        .upsertAndActivate(
+          token: 'alice-token',
+          did: alice.did.value,
+          handle: 'alice.test',
+        )
+        .upsertAndActivate(
+          token: 'bob-token',
+          did: bob.did.value,
+          handle: 'bob.test',
+        );
+    final container = ProviderContainer.test(
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _RegistryStorage(registry),
+        ),
+        accountNotificationRepositoryProvider.overrideWith(
+          (ref, account) async => repositories[account]!,
+        ),
+      ],
+    );
+    await container.read(sessionRegistryProvider.future);
+
+    final aliceState = await container.read(
+      accountNotificationsProvider(alice).future,
+    );
+    final bobState = await container.read(
+      accountNotificationsProvider(bob).future,
+    );
+
+    expect(aliceState.items.single.rkey.toString(), 'alice');
+    expect(bobState.items.single.rkey.toString(), 'bob');
+    expect(aliceState.owner?.account, alice);
+    expect(bobState.owner?.account, bob);
+  });
 
   test('initial load retries after failure', () async {
     final repo = _FakeNotificationRepository()
@@ -114,4 +167,18 @@ final class _Call {
   const _Call({this.cursor, this.limit});
   final String? cursor;
   final int? limit;
+}
+
+final class _RegistryStorage implements SessionRegistryStorage {
+  _RegistryStorage(this.registry);
+
+  auth_model.SessionRegistry registry;
+
+  @override
+  Future<auth_model.SessionRegistry> read() async => registry;
+
+  @override
+  Future<void> write(auth_model.SessionRegistry registry) async {
+    this.registry = registry;
+  }
 }

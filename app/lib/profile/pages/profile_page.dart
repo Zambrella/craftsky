@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
@@ -70,6 +71,26 @@ class _ProfileScaffold extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(userProfileProvider(handle));
+    if (isOwnProfile) {
+      ref.listen(userProfileProvider(handle), (previous, next) {
+        final profile = next.value;
+        final lease = ref
+            .read(sessionRegistryProvider)
+            .value
+            ?.activeLease
+            ?.session;
+        if (profile == null || lease == null) return;
+        unawaited(
+          ref
+              .read(sessionRegistryProvider.notifier)
+              .updateCachedIdentity(
+                lease,
+                displayName: profile.displayName,
+                avatarUrl: profile.avatar,
+              ),
+        );
+      });
+    }
     final swatches = Theme.of(context).extension<BrandSwatchTheme>()!;
     // Per-user banner colour will eventually come from the profile
     // record. For now, every banner is clay so the layout is stable

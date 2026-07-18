@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
@@ -16,6 +17,7 @@ class ToggleRepostPost extends _$ToggleRepostPost {
   FutureOr<Post?> build() => null;
 
   Future<void> toggle({required Post post}) async {
+    final ownership = captureActiveAccountOperation(ref);
     final next = post.copyWith(
       viewerHasReposted: !post.viewerHasReposted,
       repostCount: post.viewerHasReposted
@@ -37,7 +39,7 @@ class ToggleRepostPost extends _$ToggleRepostPost {
         await repo.unrepost(post.author.did, post.rkey);
       }
     } on Object catch (error, stackTrace) {
-      if (!ref.mounted) return;
+      if (!isActiveAccountOperationCurrent(ref, ownership)) return;
       updateLiveUserPostCaches(ref, post);
       updateLiveUserProjectCaches(ref, post);
       updateLiveUserCommentCaches(ref, post);

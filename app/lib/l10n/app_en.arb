@@ -137,6 +137,30 @@
   "signInTitle": "Sign in",
   "@signInTitle": { "description": "App-bar title on the sign-in page." },
 
+  "addAccountTitle": "Add account",
+  "@addAccountTitle": { "description": "App-bar title when adding another retained account." },
+
+  "addAccountDescription": "Sign in to another account. Your current account stays signed in.",
+  "@addAccountDescription": { "description": "Explains that adding an account preserves the current account." },
+
+  "accountSwitcherAdd": "Add account",
+  "@accountSwitcherAdd": { "description": "Action for starting another account sign-in." },
+
+  "accountSwitcherMaximum": "Maximum of 5 accounts",
+  "@accountSwitcherMaximum": { "description": "Helper shown when the retained-account limit is reached." },
+
+  "accountSwitcherTooltip": "Switch account",
+  "@accountSwitcherTooltip": { "description": "Accessible label for opening the account switcher." },
+
+  "accountSwitcherLongPressHint": "Long press to switch account",
+  "@accountSwitcherLongPressHint": { "description": "Compact navigation hint for opening the account switcher." },
+
+  "accountSwitchingLabel": "Switching account",
+  "@accountSwitchingLabel": { "description": "Accessible progress label during an account transition." },
+
+  "accountIdentityFallback": "Account",
+  "@accountIdentityFallback": { "description": "Identity fallback when cached account metadata is unavailable." },
+
   "signInHandleLabel": "Handle",
   "@signInHandleLabel": { "description": "Label for the handle input on the sign-in page." },
 
@@ -217,6 +241,15 @@
 
   "messengerDismiss": "Dismiss",
   "@messengerDismiss": { "description": "Semantics label and tooltip on the close icon shown on sticky warning/error messages dispatched via AppMessenger." },
+
+  "signOutSuccess": "Signed out successfully.",
+  "@signOutSuccess": { "description": "Transient confirmation shown after the member signs out their final retained account." },
+
+  "signOutSuccessWithAccount": "Signed out successfully. Now signed in as @{handle}.",
+  "@signOutSuccessWithAccount": {
+    "description": "Transient confirmation shown after sign-out activates another retained account.",
+    "placeholders": { "handle": { "type": "String", "example": "alice.test" } }
+  },
 
   "routingErrorTitle": "Something went wrong",
   "@routingErrorTitle": { "description": "Headline on ErrorScreen (from GoRouter.errorBuilder)." },

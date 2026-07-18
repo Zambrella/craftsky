@@ -1,3 +1,4 @@
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/models/timeline_state.dart';
@@ -22,6 +23,7 @@ class Timeline extends _$Timeline {
   Future<void> loadMore() async {
     final current = state.value;
     if (current == null || !current.hasMore || state.isLoading) return;
+    final ownership = captureActiveAccountOperation(ref);
 
     state = const AsyncLoading<TimelineState>();
 
@@ -37,7 +39,7 @@ class Timeline extends _$Timeline {
       );
     });
 
-    if (!ref.mounted) return;
+    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
     state = next;
   }
 

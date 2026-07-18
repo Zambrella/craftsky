@@ -1,8 +1,4 @@
-import 'package:craftsky_app/auth/models/auth_state.dart';
-import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
-import 'package:craftsky_app/shared/device/device_id_provider.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Paths on which the Authorization header should never be attached.
 /// X-Craftsky-Device-Id is sent on ALL paths including these — the
@@ -10,28 +6,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 const _anonymousPaths = <String>{'/v1/auth/login'};
 
 class SessionAuthInterceptor extends Interceptor {
-  /// Production constructor.
-  SessionAuthInterceptor.fromRef(Ref ref)
-    : _readAuth = (() => ref.read(authSessionProvider)),
-      _readDeviceId = (() => ref.read(deviceIdProvider.future));
-
-  /// Back-compat test constructor — injects a fixed dummy device-id
-  /// so existing tests that only care about the Authorization header
-  /// keep working without a constructor rewrite.
-  SessionAuthInterceptor.withReader(
-    AsyncValue<AuthState> Function() readAuth,
-  ) : _readAuth = readAuth,
-      _readDeviceId = (() async => 'test-device-id');
-
-  /// Full test constructor — both readers explicit.
-  SessionAuthInterceptor.withReaders({
-    required AsyncValue<AuthState> Function() readAuth,
+  /// Account-bound constructor. The bearer is captured once and cannot change
+  /// if another account becomes active while a request is in flight.
+  SessionAuthInterceptor.fixed({
+    required String token,
     required Future<String> Function() readDeviceId,
-  }) : this._(readAuth, readDeviceId);
+  }) : this._(() => token, readDeviceId);
 
-  SessionAuthInterceptor._(this._readAuth, this._readDeviceId);
+  SessionAuthInterceptor.anonymous({
+    required Future<String> Function() readDeviceId,
+  }) : this._(() => null, readDeviceId);
 
-  final AsyncValue<AuthState> Function() _readAuth;
+  SessionAuthInterceptor._(this._readToken, this._readDeviceId);
+
+  final String? Function() _readToken;
   final Future<String> Function() _readDeviceId;
 
   // Dio's base signature is `void onRequest(...)`. We declare `void`
@@ -51,9 +39,9 @@ class SessionAuthInterceptor extends Interceptor {
     options.headers['X-Craftsky-Device-Id'] = deviceId;
 
     if (!_anonymousPaths.contains(options.path)) {
-      final auth = _readAuth().value;
-      if (auth is SignedIn) {
-        options.headers['Authorization'] = 'Bearer ${auth.token}';
+      final token = _readToken();
+      if (token != null) {
+        options.headers['Authorization'] = 'Bearer $token';
       }
     }
     handler.next(options);

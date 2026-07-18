@@ -1,3 +1,5 @@
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_permission.dart';
@@ -19,7 +21,15 @@ class NotificationSettingsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final preferences = ref.watch(notificationPreferencesProvider);
+    final account = ref
+        .watch(sessionRegistryProvider)
+        .value
+        ?.activeLease
+        ?.session
+        .account;
+    final preferences = account == null
+        ? ref.watch(notificationPreferencesProvider)
+        : ref.watch(accountNotificationPreferencesProvider(account));
     final permission = ref.watch(notificationPermissionProvider).value;
     final l10n = AppLocalizations.of(context);
     return Scaffold(
@@ -28,10 +38,19 @@ class NotificationSettingsPage extends ConsumerWidget {
         AsyncData(:final value) => _SettingsContent(
           preferences: value,
           permission: permission,
+          account: account,
         ),
         AsyncError() => Center(
           child: FilledButton(
-            onPressed: () => ref.invalidate(notificationPreferencesProvider),
+            onPressed: () {
+              if (account != null) {
+                ref.invalidate(
+                  accountNotificationPreferencesProvider(account),
+                );
+              } else {
+                ref.invalidate(notificationPreferencesProvider);
+              }
+            },
             child: Text(l10n.retryButton),
           ),
         ),
@@ -42,10 +61,15 @@ class NotificationSettingsPage extends ConsumerWidget {
 }
 
 class _SettingsContent extends ConsumerWidget {
-  const _SettingsContent({required this.preferences, required this.permission});
+  const _SettingsContent({
+    required this.preferences,
+    required this.permission,
+    required this.account,
+  });
 
   final NotificationPreferences preferences;
   final NotificationPermission? permission;
+  final AccountKey? account;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -85,6 +109,7 @@ class _SettingsContent extends ConsumerWidget {
                   _PreferenceSection(
                     category: category,
                     preference: preference,
+                    account: account,
                   ),
                   SizedBox(height: spacing.sp4),
                 ],
@@ -155,10 +180,15 @@ class _PermissionWarning extends StatelessWidget {
 }
 
 class _PreferenceSection extends ConsumerWidget {
-  const _PreferenceSection({required this.category, required this.preference});
+  const _PreferenceSection({
+    required this.category,
+    required this.preference,
+    required this.account,
+  });
 
   final NotificationCategory category;
   final NotificationPreference preference;
+  final AccountKey? account;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -203,9 +233,17 @@ class _PreferenceSection extends ConsumerWidget {
             ],
             onChanged: (value) async {
               if (value == null) return;
-              final saved = await ref
-                  .read(notificationPreferencesProvider.notifier)
-                  .setScope(category, value: value);
+              final saved = account == null
+                  ? await ref
+                        .read(notificationPreferencesProvider.notifier)
+                        .setScope(category, value: value)
+                  : await ref
+                        .read(
+                          accountNotificationPreferencesProvider(
+                            account!,
+                          ).notifier,
+                        )
+                        .setScope(category, value: value);
               if (!saved && context.mounted) {
                 context.showError(
                   l10n.notificationPreferenceSaveError,
@@ -231,9 +269,17 @@ class _PreferenceSection extends ConsumerWidget {
                   ),
                   value: preference.pushEnabled,
                   onChanged: (value) async {
-                    final saved = await ref
-                        .read(notificationPreferencesProvider.notifier)
-                        .setPushEnabled(category, value: value);
+                    final saved = account == null
+                        ? await ref
+                              .read(notificationPreferencesProvider.notifier)
+                              .setPushEnabled(category, value: value)
+                        : await ref
+                              .read(
+                                accountNotificationPreferencesProvider(
+                                  account!,
+                                ).notifier,
+                              )
+                              .setPushEnabled(category, value: value);
                     if (!saved && context.mounted) {
                       context.showError(l10n.notificationPreferenceSaveError);
                     }

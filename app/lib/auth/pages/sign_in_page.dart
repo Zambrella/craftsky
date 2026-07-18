@@ -11,8 +11,12 @@ import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+enum SignInMode { signIn, addAccount }
+
 class SignInPage extends ConsumerStatefulWidget {
-  const SignInPage({super.key});
+  const SignInPage({super.key, this.mode = SignInMode.signIn});
+
+  final SignInMode mode;
 
   @override
   ConsumerState<SignInPage> createState() => _SignInPageState();
@@ -44,13 +48,26 @@ class _SignInPageState extends ConsumerState<SignInPage> {
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.signInTitle)),
+      appBar: AppBar(
+        title: Text(
+          widget.mode == SignInMode.addAccount
+              ? l10n.addAccountTitle
+              : l10n.signInTitle,
+        ),
+      ),
       body: Padding(
         padding: EdgeInsets.all(spacing.sp5),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (widget.mode == SignInMode.addAccount) ...[
+              Text(
+                l10n.addAccountDescription,
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              SizedBox(height: spacing.sp5),
+            ],
             BrandTextField(
               label: l10n.signInHandleLabel,
               hintText: 'alice.bsky.social',

@@ -1,3 +1,4 @@
+import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/notifications/data/api_notification_repository.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
@@ -24,3 +25,36 @@ NotificationPreferencesRepository notificationPreferencesRepository(Ref ref) =>
 @Riverpod(keepAlive: true)
 NotificationDeviceRepository notificationDeviceRepository(Ref ref) =>
     ref.watch(notificationApiRepositoryProvider);
+
+@riverpod
+Future<NotificationDeviceRepository> accountNotificationDeviceRepository(
+  Ref ref,
+  AccountKey account,
+) => ref.watch(accountNotificationApiRepositoryProvider(account).future);
+
+@riverpod
+Future<NotificationRepository> accountNotificationRepository(
+  Ref ref,
+  AccountKey account,
+) => ref.watch(accountNotificationApiRepositoryProvider(account).future);
+
+@riverpod
+Future<NotificationNewnessRepository> accountNotificationNewnessRepository(
+  Ref ref,
+  AccountKey account,
+) => ref.watch(accountNotificationApiRepositoryProvider(account).future);
+
+@riverpod
+Future<NotificationPreferencesRepository>
+accountNotificationPreferencesRepository(
+  Ref ref,
+  AccountKey account,
+) => ref.watch(accountNotificationApiRepositoryProvider(account).future);
+
+@riverpod
+Future<ApiNotificationRepository> accountNotificationApiRepository(
+  Ref ref,
+  AccountKey account,
+) async => ApiNotificationRepository(
+  await ref.watch(accountDioProvider(account).future),
+);

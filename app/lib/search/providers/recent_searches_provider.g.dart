@@ -72,7 +72,7 @@ final class SaveRecentSearchProvider
   SaveRecentSearch create() => SaveRecentSearch();
 }
 
-String _$saveRecentSearchHash() => r'bb2f4d1e02b79cc550538c71e1c8618006a4ea6a';
+String _$saveRecentSearchHash() => r'cc7a9e5bb3e9fb6eca4ad588c211a8e476f1a496';
 
 abstract class _$SaveRecentSearch extends $AsyncNotifier<RecentSearchItem?> {
   FutureOr<RecentSearchItem?> build();
@@ -118,7 +118,7 @@ final class DeleteRecentSearchProvider
 }
 
 String _$deleteRecentSearchHash() =>
-    r'b228e01298e85445441066e48964c03f596e498f';
+    r'b4fec9fcf8d1a4b9db7f0347c91dc873c3d29004';
 
 abstract class _$DeleteRecentSearch extends $AsyncNotifier<void> {
   FutureOr<void> build();

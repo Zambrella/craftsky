@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
@@ -30,11 +31,12 @@ class DeletePost extends _$DeletePost {
   FutureOr<Post?> build() => null;
 
   Future<void> delete({required Post post}) async {
+    final ownership = captureActiveAccountOperation(ref);
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    final result = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
       await repo.delete(post.author.did, post.rkey);
-      if (!ref.mounted) return null;
+      if (!isActiveAccountOperationCurrent(ref, ownership)) return null;
 
       if (post.project == null) {
         for (final id in <String>{post.author.did, post.author.handle}) {
@@ -49,6 +51,8 @@ class DeletePost extends _$DeletePost {
 
       return post;
     });
+    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+    state = result;
   }
 
   void reset() => state = const AsyncData(null);

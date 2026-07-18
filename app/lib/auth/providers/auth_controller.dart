@@ -1,14 +1,14 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/auth_error.dart';
-import 'package:craftsky_app/auth/models/auth_state.dart';
-import 'package:craftsky_app/auth/models/stored_session.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/auth/providers/account_boundary_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_api_client_provider.dart';
-import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/handoff_api_client_provider.dart';
 import 'package:craftsky_app/auth/providers/pending_auth_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
-import 'package:craftsky_app/notifications/providers/notification_lifecycle_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/notifications/providers/notification_sign_out_recovery_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
@@ -18,6 +18,20 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
 part 'auth_controller.g.dart';
+
+class SignOutResult {
+  const SignOutResult._({this.activeHandle});
+
+  const SignOutResult.signedOut() : this._();
+
+  const SignOutResult.switchedTo(String handle)
+    : this._(activeHandle: handle);
+
+  final String? activeHandle;
+
+  @override
+  String toString() => 'SignOutResult(<redacted>)';
+}
 
 final _log = Logger('AuthController');
 
@@ -94,27 +108,37 @@ class AuthController extends _$AuthController {
       // One-shot client; the token + deviceId are in its
       // BaseOptions.headers. No global provider state, no need to clear
       // anything on exit beyond pending-auth.
-      final handoff = ref.read(handoffApiClientProvider(token, deviceId));
+      final handoff = ref.read(
+        handoffApiClientProvider(
+          HandoffClientKey(token: token, deviceId: deviceId),
+        ),
+      );
       try {
         final who = await handoff.whoami();
         if (!ref.mounted) return;
 
-        final storage = ref.read(secureTokenStorageProvider);
         try {
-          await storage.write(
-            StoredSession(token: token, did: who.did, handle: who.handle),
-          );
-        } on Object catch (e, st) {
-          _log.warning('SecureTokenStorage.write failed', e, st);
-          throw StorageFailure(e);
+          final current = await ref.read(sessionRegistryProvider.future);
+          await ref
+              .read(sessionRegistryProvider.notifier)
+              .upsertAndActivate(
+                token: token,
+                did: who.did,
+                handle: who.handle,
+                beforePublish: current.sessions.isEmpty
+                    ? null
+                    : ref.read(accountStateInvalidatorProvider),
+              );
+        } on SessionRegistryStorageException catch (error) {
+          _log.warning('session registry write failed');
+          throw StorageFailure(error);
+        } on AccountLimitReached {
+          rethrow;
+        } on Object catch (error) {
+          _log.warning('session registry mutation failed');
+          throw StorageFailure(error);
         }
         if (!ref.mounted) return;
-
-        ref
-            .read(authSessionProvider.notifier)
-            .setSignedIn(
-              SignedIn(did: who.did, handle: who.handle, token: token),
-            );
       } finally {
         if (ref.mounted) {
           ref.read(pendingAuthProvider.notifier).clear();
@@ -123,26 +147,40 @@ class AuthController extends _$AuthController {
     });
   }
 
-  Future<void> signOut() async {
+  Future<SignOutResult?> signOut() async {
+    SignOutResult? result;
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      final auth = ref.read(authSessionProvider).value;
+      final registry = await ref.read(sessionRegistryProvider.future);
+      final lease = registry.activeLease?.session;
+      if (lease == null) return;
       var confirmedLogout = false;
       try {
-        await ref.read(authApiClientProvider).logout();
+        final api = await ref.read(
+          accountAuthApiClientProvider(lease.account).future,
+        );
+        await api.logout();
         confirmedLogout = true;
       } on ApiException catch (e, st) {
         _log.warning('logout network/server error; clearing locally', e, st);
       }
-      if (auth case SignedIn(:final did)) {
-        await ref
-            .read(notificationSignOutCleanupProvider)
-            .run(did: did.toString(), confirmedLogout: confirmedLogout);
+      if (confirmedLogout) {
+        await ref.read(sessionRegistryProvider.notifier).removeConfirmed(lease);
+      } else {
+        await ref.read(notificationSignOutRecoveryProvider).begin(lease);
       }
-      if (!ref.mounted) return;
-      await ref.read(secureTokenStorageProvider).clear();
-      if (!ref.mounted) return;
-      ref.read(authSessionProvider.notifier).setSignedOut();
+      await ref.read(accountStateInvalidatorProvider)();
+      final next = ref.read(sessionRegistryProvider).requireValue;
+      final activeDid = next.activeDid;
+      if (activeDid == null) {
+        result = const SignOutResult.signedOut();
+      } else {
+        result = SignOutResult.switchedTo(
+          next.sessions[activeDid]!.handle.value,
+        );
+        await ref.read(accountHomeResetProvider)();
+      }
     });
+    return state.hasError ? null : result;
   }
 }

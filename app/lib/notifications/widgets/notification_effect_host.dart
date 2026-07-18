@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_permission_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_runtime_provider.dart';
+import 'package:craftsky_app/notifications/providers/notification_sign_out_recovery_provider.dart';
 import 'package:craftsky_app/notifications/services/notification_navigation.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -36,16 +38,28 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _subscription = ref.read(notificationEffectStreamProvider).listen(_handle);
+    unawaited(ref.read(notificationSignOutRecoveryProvider).retry());
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
     ref.invalidate(notificationPermissionProvider);
-    unawaited(ref.read(notificationRuntimeProvider).resume());
+    unawaited(ref.read(notificationSignOutRecoveryProvider).retry());
     if (_did == null || !_onboarded) return;
+    final active = ref
+        .read(sessionRegistryProvider)
+        .value
+        ?.activeLease
+        ?.session;
+    if (active == null) {
+      unawaited(ref.read(notificationNewCountProvider.notifier).refresh());
+      return;
+    }
     unawaited(
-      ref.read(notificationNewCountProvider.notifier).refresh(),
+      ref
+          .read(accountNotificationNewCountProvider(active.account).notifier)
+          .refresh(),
     );
   }
 
@@ -68,20 +82,29 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
     if (!mounted) return;
     final l10n = AppLocalizations.of(context);
     switch (effect) {
-      case NotificationBannerEffect(:final event):
+      case NotificationBannerEffect(
+        :final event,
+        :final resolution,
+        :final recipient,
+      ):
         context.showInfo(
-          '${event.title}\n${event.body}',
+          '${event.title}\n${event.body}'
+          '${recipient == null ? '' : '\nFor @${recipient.handle}'}',
           action: MessageAction(
             label: l10n.notificationBannerOpen,
             onPressed: () => unawaited(
               ref
                   .read(notificationRuntimeProvider)
-                  .receiveOpen(event.openAttempt),
+                  .receiveResolvedOpen(event.openAttempt, resolution),
             ),
           ),
         );
       case NotificationUnavailableEffect():
         context.showWarning(l10n.notificationUnavailableRow);
+      case NotificationRemovedAccountEffect():
+        context.showWarning(
+          'This notification belongs to an account that is no longer signed in',
+        );
       case NotificationNavigationEffect(:final outcome):
         navigateToNotificationOutcome(
           context,

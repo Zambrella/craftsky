@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
@@ -16,6 +17,7 @@ class ToggleFollowProfile extends _$ToggleFollowProfile {
     required String cacheKey,
     required Profile profile,
   }) async {
+    final ownership = captureActiveAccountOperation(ref);
     final optimistic = profile.copyWith(
       viewerIsFollowing: !profile.viewerIsFollowing,
       followerCount: _optimisticFollowerCount(profile),
@@ -31,13 +33,13 @@ class ToggleFollowProfile extends _$ToggleFollowProfile {
       final updated = profile.viewerIsFollowing
           ? await repo.unfollow(cacheKey)
           : await repo.follow(cacheKey);
-      if (!ref.mounted) return;
+      if (!isActiveAccountOperationCurrent(ref, ownership)) return;
       if (ref.exists(userProfileProvider(cacheKey))) {
         ref.read(userProfileProvider(cacheKey).notifier).setCached(updated);
       }
       state = AsyncData(updated);
     } on Object catch (error, stackTrace) {
-      if (!ref.mounted) return;
+      if (!isActiveAccountOperationCurrent(ref, ownership)) return;
       if (ref.exists(userProfileProvider(cacheKey))) {
         ref.read(userProfileProvider(cacheKey).notifier).setCached(profile);
       }

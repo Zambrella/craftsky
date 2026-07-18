@@ -6,17 +6,17 @@ void main() {
     expect(const SignedOut(), const SignedOut());
   });
 
-  test('SignedIn carries did, handle, token', () {
-    final s = SignedIn(did: 'did:plc:a', handle: 'a.bsky.social', token: 'tok');
+  test('SignedIn carries only redacted UI identity', () {
+    final s = SignedIn(did: 'did:plc:a', handle: 'a.bsky.social');
     expect(s.did, 'did:plc:a');
     expect(s.handle, 'a.bsky.social');
-    expect(s.token, 'tok');
+    expect('$s', 'SignedIn(<redacted>)');
   });
 
   test('AuthState pattern-matches exhaustively', () {
     final values = <AuthState>[
       const SignedOut(),
-      SignedIn(did: 'did:plc:test', handle: 'h.test', token: 't'),
+      SignedIn(did: 'did:plc:test', handle: 'h.test'),
     ];
     for (final v in values) {
       final label = switch (v) {

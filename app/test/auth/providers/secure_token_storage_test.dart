@@ -1,10 +1,27 @@
 import 'dart:convert';
 
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+class _InterruptingBackend implements SessionRegistryStorageBackend {
+  final values = <String, String>{};
+  bool corruptNextWrite = false;
+
+  @override
+  Future<String?> read(String key) async => values[key];
+
+  @override
+  Future<void> write(String key, String value) async {
+    values[key] = corruptNextWrite
+        ? value.substring(0, value.length ~/ 2)
+        : value;
+    corruptNextWrite = false;
+  }
+}
 
 void main() {
   setUpAll(initializeMappers);
@@ -69,4 +86,65 @@ void main() {
       expect(session?.token, 't');
     },
   );
+
+  test(
+    'alternates complete registry snapshots and restores the newest',
+    () async {
+      const secureStorage = FlutterSecureStorage();
+      final storage = SecureSessionRegistryStorage(secureStorage);
+      final first = SessionRegistry.empty().upsertAndActivate(
+        token: 'token-alice',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final second = first.upsertAndActivate(
+        token: 'token-bob',
+        did: 'did:plc:bob',
+        handle: 'bob.test',
+      );
+
+      await storage.write(first);
+      await storage.write(second);
+
+      final restored = await storage.read();
+      expect(restored.revision, second.revision);
+      expect(restored.activeDid, 'did:plc:bob');
+      expect(restored.sessions.keys, {'did:plc:alice', 'did:plc:bob'});
+      expect(
+        await secureStorage.read(key: SecureSessionRegistryStorage.slotAKey),
+        isNotNull,
+      );
+      expect(
+        await secureStorage.read(key: SecureSessionRegistryStorage.slotBKey),
+        isNotNull,
+      );
+    },
+  );
+
+  test('keeps the previous winner when target read-back is corrupt', () async {
+    final backend = _InterruptingBackend();
+    final storage = SecureSessionRegistryStorage.withBackend(backend);
+    final first = SessionRegistry.empty().upsertAndActivate(
+      token: 'token-alice',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final second = first.upsertAndActivate(
+      token: 'token-bob',
+      did: 'did:plc:bob',
+      handle: 'bob.test',
+    );
+    await storage.write(first);
+
+    backend.corruptNextWrite = true;
+    await expectLater(
+      storage.write(second),
+      throwsA(isA<SessionRegistryStorageException>()),
+    );
+
+    final restored = await storage.read();
+    expect(restored.revision, first.revision);
+    expect(restored.sessions.keys, {'did:plc:alice'});
+    expect(restored.activeDid, 'did:plc:alice');
+  });
 }

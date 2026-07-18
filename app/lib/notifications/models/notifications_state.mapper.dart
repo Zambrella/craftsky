@@ -36,12 +36,19 @@ class NotificationsStateMapper extends ClassMapperBase<NotificationsState> {
     _$cursor,
     opt: true,
   );
+  static AccountSessionLease? _$owner(NotificationsState v) => v.owner;
+  static const Field<NotificationsState, AccountSessionLease> _f$owner = Field(
+    'owner',
+    _$owner,
+    opt: true,
+  );
 
   @override
   final MappableFields<NotificationsState> fields = const {
     #items: _f$items,
     #renderToken: _f$renderToken,
     #cursor: _f$cursor,
+    #owner: _f$owner,
   };
 
   static NotificationsState _instantiate(DecodingData data) {
@@ -49,6 +56,7 @@ class NotificationsStateMapper extends ClassMapperBase<NotificationsState> {
       items: data.dec(_f$items),
       renderToken: data.dec(_f$renderToken),
       cursor: data.dec(_f$cursor),
+      owner: data.dec(_f$owner),
     );
   }
 
@@ -108,6 +116,7 @@ abstract class NotificationsStateCopyWith<
     List<CraftskyNotification>? items,
     int? renderToken,
     String? cursor,
+    AccountSessionLease? owner,
   });
   NotificationsStateCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -138,11 +147,13 @@ class _NotificationsStateCopyWithImpl<$R, $Out>
     List<CraftskyNotification>? items,
     int? renderToken,
     Object? cursor = $none,
+    Object? owner = $none,
   }) => $apply(
     FieldCopyWithData({
       if (items != null) #items: items,
       if (renderToken != null) #renderToken: renderToken,
       if (cursor != $none) #cursor: cursor,
+      if (owner != $none) #owner: owner,
     }),
   );
   @override
@@ -150,6 +161,7 @@ class _NotificationsStateCopyWithImpl<$R, $Out>
     items: data.get(#items, or: $value.items),
     renderToken: data.get(#renderToken, or: $value.renderToken),
     cursor: data.get(#cursor, or: $value.cursor),
+    owner: data.get(#owner, or: $value.owner),
   );
 
   @override

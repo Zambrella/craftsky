@@ -89,7 +89,6 @@ GoRouter goRouter(Ref ref) {
   return GoRouter(
     initialLocation: RouteLocations.welcome,
     navigatorKey: _NavigatorKeys.rootNavigatorKey,
-    debugLogDiagnostics: true,
     refreshListenable: refresh,
     redirect: (context, state) {
       final loc = state.matchedLocation;
@@ -109,9 +108,7 @@ GoRouter goRouter(Ref ref) {
               : RouteLocations.welcome;
         case SignedIn(:final did):
           final onboarded = ref.read(onboardingStatusProvider(did));
-          if (loc == RouteLocations.authComplete) {
-            return onboarded ? RouteLocations.home : RouteLocations.onboarding;
-          }
+          if (loc == RouteLocations.authComplete) return null;
           if (!onboarded && loc != RouteLocations.onboarding) {
             return RouteLocations.onboarding;
           }
@@ -359,6 +356,21 @@ class SignInRoute extends GoRouteData with $SignInRoute {
 
   @override
   Widget build(BuildContext context, GoRouterState state) => const SignInPage();
+}
+
+@TypedGoRoute<AddAccountRoute>(
+  path: RouteLocations.addAccount,
+  name: 'add-account',
+)
+class AddAccountRoute extends GoRouteData with $AddAccountRoute {
+  const AddAccountRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const SignInPage(mode: SignInMode.addAccount);
 }
 
 @TypedGoRoute<AuthCompleteRoute>(

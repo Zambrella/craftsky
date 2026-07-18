@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
@@ -26,15 +27,33 @@ void main() {
     final initial = _attempt(NotificationOpenSource.initialOpen);
     final service = _RecordingService(initialOpen: initial);
     final effects = StreamController<NotificationEffect>.broadcast();
-    final routing = NotificationRoutingStorage(_MemoryRoutingBackend());
-    await routing.replace(did, binding);
+    final baseRegistry = SessionRegistry.empty().upsertAndActivate(
+      token: 'viewer-token',
+      did: did.value,
+      handle: 'viewer.test',
+    );
+    final registry = SessionRegistry(
+      revision: baseRegistry.revision,
+      nextSessionGeneration: baseRegistry.nextSessionGeneration,
+      nextUseOrdinal: baseRegistry.nextUseOrdinal,
+      activationGeneration: baseRegistry.activationGeneration,
+      activeDid: baseRegistry.activeDid?.value,
+      sessions: {
+        for (final entry in baseRegistry.sessions.entries)
+          entry.key.value: entry.value,
+      },
+      routingBindings: {did.value: binding.wireValue},
+    );
+    final routing = NotificationRoutingStorage(() => registry);
     final runtime = NotificationRuntime(
       service: service,
       registration: NotificationRegistrationCoordinator(
         service: service,
         platform: NotificationPlatform.ios,
-        register: ({required platform, required token}) async => binding,
-        saveBinding: ({required did, required binding}) async {},
+        registerAccount:
+            ({required lease, required platform, required token}) async =>
+                binding,
+        saveBindingForLease: ({required lease, required binding}) async {},
       ),
       routingStorage: routing,
       invalidateList: () {},
@@ -128,17 +147,4 @@ final class _RecordingService implements NotificationService {
 
   @override
   Stream<String> get tokenRefreshes => const Stream.empty();
-}
-
-final class _MemoryRoutingBackend implements NotificationRoutingStorageBackend {
-  String? value;
-
-  @override
-  Future<void> delete() async => value = null;
-
-  @override
-  Future<String?> read() async => value;
-
-  @override
-  Future<void> write(String value) async => this.value = value;
 }

@@ -13,7 +13,7 @@ class SignedInAuthSession extends AuthSession {
 
   @override
   Future<AuthState> build() async =>
-      SignedIn(did: did, handle: 'test.bsky.social', token: 'tok');
+      SignedIn(did: did, handle: 'test.bsky.social');
 }
 
 class PendingOnboardingStatus extends OnboardingStatus {

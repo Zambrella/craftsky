@@ -1,9 +1,22 @@
+import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'notification_seen_provider.g.dart';
+
+@Riverpod(keepAlive: true)
+Future<NotificationSeenCoordinator> accountNotificationSeen(
+  Ref ref,
+  AccountKey account,
+) async => NotificationSeenCoordinator(
+  repository: await ref.watch(
+    accountNotificationNewnessRepositoryProvider(account).future,
+  ),
+  refreshCount: () =>
+      ref.read(accountNotificationNewCountProvider(account).notifier).refresh(),
+);
 
 @Riverpod(keepAlive: true)
 NotificationSeenCoordinator notificationSeen(Ref ref) =>

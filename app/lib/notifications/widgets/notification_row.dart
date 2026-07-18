@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart' as auth_model;
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -17,13 +20,19 @@ import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class NotificationRow extends StatelessWidget {
-  const NotificationRow({required this.notification, super.key});
+bool canOpenNotificationRow(
+  AccountSessionLease owner,
+  auth_model.SessionRegistry registry,
+) => registry.activeLease?.session == owner;
+
+class NotificationRow extends ConsumerWidget {
+  const NotificationRow({required this.notification, this.owner, super.key});
 
   final CraftskyNotification notification;
+  final AccountSessionLease? owner;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final actor = notification.actor.displayLabel;
@@ -78,7 +87,7 @@ class NotificationRow extends StatelessWidget {
     };
     final onTap = notification is GenericNotification
         ? null
-        : () => _open(context);
+        : () => _open(context, ref);
     return Material(
       type: MaterialType.transparency,
       child: InkWell(
@@ -151,7 +160,15 @@ class NotificationRow extends StatelessWidget {
     );
   }
 
-  void _open(BuildContext context) {
+  void _open(BuildContext context, WidgetRef ref) {
+    final rowOwner = owner;
+    if (rowOwner != null &&
+        !canOpenNotificationRow(
+          rowOwner,
+          ref.read(sessionRegistryProvider).requireValue,
+        )) {
+      return;
+    }
     switch (notification) {
       case FollowNotification(:final actor):
         unawaited(

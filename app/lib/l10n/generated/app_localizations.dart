@@ -364,6 +364,54 @@ abstract class AppLocalizations {
   /// **'Sign in'**
   String get signInTitle;
 
+  /// App-bar title when adding another retained account.
+  ///
+  /// In en, this message translates to:
+  /// **'Add account'**
+  String get addAccountTitle;
+
+  /// Explains that adding an account preserves the current account.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to another account. Your current account stays signed in.'**
+  String get addAccountDescription;
+
+  /// Action for starting another account sign-in.
+  ///
+  /// In en, this message translates to:
+  /// **'Add account'**
+  String get accountSwitcherAdd;
+
+  /// Helper shown when the retained-account limit is reached.
+  ///
+  /// In en, this message translates to:
+  /// **'Maximum of 5 accounts'**
+  String get accountSwitcherMaximum;
+
+  /// Accessible label for opening the account switcher.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch account'**
+  String get accountSwitcherTooltip;
+
+  /// Compact navigation hint for opening the account switcher.
+  ///
+  /// In en, this message translates to:
+  /// **'Long press to switch account'**
+  String get accountSwitcherLongPressHint;
+
+  /// Accessible progress label during an account transition.
+  ///
+  /// In en, this message translates to:
+  /// **'Switching account'**
+  String get accountSwitchingLabel;
+
+  /// Identity fallback when cached account metadata is unavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get accountIdentityFallback;
+
   /// Label for the handle input on the sign-in page.
   ///
   /// In en, this message translates to:
@@ -525,6 +573,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Dismiss'**
   String get messengerDismiss;
+
+  /// Transient confirmation shown after the member signs out their final retained account.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed out successfully.'**
+  String get signOutSuccess;
+
+  /// Transient confirmation shown after sign-out activates another retained account.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed out successfully. Now signed in as @{handle}.'**
+  String signOutSuccessWithAccount(String handle);
 
   /// Headline on ErrorScreen (from GoRouter.errorBuilder).
   ///

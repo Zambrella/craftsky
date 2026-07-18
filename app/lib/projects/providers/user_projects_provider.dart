@@ -1,3 +1,4 @@
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/author_post_cache.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
@@ -26,6 +27,7 @@ class UserProjects extends _$UserProjects {
     if (!state.hasValue || state.isLoading) return;
     final current = state.requireValue;
     if (!current.hasMore) return;
+    final ownership = captureActiveAccountOperation(ref);
 
     state = const AsyncLoading<UserProjectsState>();
 
@@ -42,7 +44,7 @@ class UserProjects extends _$UserProjects {
       );
     });
 
-    if (!ref.mounted) return;
+    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
     state = next;
   }
 

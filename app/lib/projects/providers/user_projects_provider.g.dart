@@ -50,7 +50,7 @@ final class UserProjectsProvider
   }
 }
 
-String _$userProjectsHash() => r'0a8a8b24f43e22a4f975f7f0361af80e99f95e65';
+String _$userProjectsHash() => r'1eaf27e9c37e11913f4e3073edc5e8110d8decd4';
 
 final class UserProjectsFamily extends $Family
     with

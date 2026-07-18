@@ -50,7 +50,7 @@ final class ProjectSearchProvider
   }
 }
 
-String _$projectSearchHash() => r'796ce8d4de85a052711b580c350e2ff2ebb4a70f';
+String _$projectSearchHash() => r'f1effc126cb990cf9d31e0efc7d66f9a3eb2a5ef';
 
 final class ProjectSearchFamily extends $Family
     with

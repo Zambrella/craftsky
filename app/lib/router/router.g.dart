@@ -10,6 +10,7 @@ List<RouteBase> get $appRoutes => [
   $appShellRoute,
   $welcomeRoute,
   $signInRoute,
+  $addAccountRoute,
   $authCompleteRoute,
   $onboardingRoute,
   $postThreadRoute,
@@ -407,6 +408,34 @@ mixin $SignInRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
+RouteBase get $addAccountRoute => GoRouteData.$route(
+  path: '/add-account',
+  name: 'add-account',
+  parentNavigatorKey: AddAccountRoute.$parentNavigatorKey,
+  factory: $AddAccountRoute._fromState,
+);
+
+mixin $AddAccountRoute on GoRouteData {
+  static AddAccountRoute _fromState(GoRouterState state) =>
+      const AddAccountRoute();
+
+  @override
+  String get location => GoRouteData.$location('/add-account');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
 RouteBase get $authCompleteRoute => GoRouteData.$route(
   path: '/auth/complete',
   name: 'auth-complete',
@@ -584,4 +613,4 @@ final class GoRouterProvider
   }
 }
 
-String _$goRouterHash() => r'4f281ca69e50d81ef2b5b56c8ecbbc8a051b1ef1';
+String _$goRouterHash() => r'd7c4006c77889245a28a8bdcb7498226054726d7';

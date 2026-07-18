@@ -68,6 +68,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 final _log = Logger('bootstrap');
 
+final class RedactedProviderFailure implements Exception {
+  const RedactedProviderFailure();
+
+  @override
+  String toString() => 'RedactedProviderFailure()';
+}
+
 Duration? appProviderRetry(int retryCount, Object error) => null;
 
 final class ProviderLogger extends ProviderObserver {
@@ -85,10 +92,10 @@ final class ProviderLogger extends ProviderObserver {
   ) {
     _log.fine(
       'provider updated: '
-      'provider=${context.provider}, '
+      'provider=${_providerFeature(context.provider.name)}, '
       'previousValue=${_formatProviderValue(context.provider, previousValue)}, '
       'newValue=${_formatProviderValue(context.provider, newValue)}, '
-      'mutation=${context.mutation}',
+      'mutation=${context.mutation?.runtimeType}',
     );
   }
 
@@ -100,10 +107,8 @@ final class ProviderLogger extends ProviderObserver {
   ) {
     _log.warning(
       'provider failed: '
-      'provider=${context.provider}, '
-      'mutation=${context.mutation}',
-      error,
-      stackTrace,
+      'provider=${_providerFeature(context.provider.name)}, '
+      'mutation=${context.mutation?.runtimeType}',
     );
 
     final appError = AppErrorMapper.map(
@@ -117,7 +122,7 @@ final class ProviderLogger extends ProviderObserver {
     final providerName = _providerFeature(context.provider.name);
     unawaited(
       reporter.captureException(
-        error,
+        const RedactedProviderFailure(),
         stackTrace: stackTrace,
         context: ReportContext(
           feature: providerName,
@@ -155,10 +160,10 @@ String _formatAsyncValue(Object provider, AsyncValue<Object?> value) {
     AsyncLoading() => 'AsyncLoading()',
     AsyncError(:final error, :final value?) =>
       'AsyncError('
-          'error: $error, '
+          'errorType: ${error.runtimeType}, '
           'previous: ${_formatDataValue(provider, value)}'
           ')',
-    AsyncError(:final error) => 'AsyncError(error: $error)',
+    AsyncError(:final error) => 'AsyncError(errorType: ${error.runtimeType})',
     AsyncData(:final value) =>
       'AsyncData(${_formatDataValue(provider, value)})',
   };

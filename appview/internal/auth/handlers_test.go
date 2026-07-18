@@ -16,6 +16,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
+	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
@@ -257,6 +258,87 @@ func TestLogout_SingleDevice_SetsRevokedAt(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("oauth_sessions count: got %d want 1", count)
+	}
+}
+
+func TestLogout_SharedInstallation_IsolatesAccountSessionAndSubscription(t *testing.T) {
+	h := handlersFixture(t, "")
+	h.NotificationSubscriptions = api.NewPostStore(h.Pool)
+	tokenA := seedSession(t, h, "did:plc:a", "s1")
+	seedSession(t, h, "did:plc:b", "s2")
+
+	ctx := context.Background()
+	if _, err := h.Pool.Exec(ctx, `
+		CREATE TABLE push_installations (
+		  id UUID PRIMARY KEY,
+		  device_id TEXT NOT NULL UNIQUE,
+		  platform TEXT NOT NULL,
+		  fcm_token TEXT NOT NULL,
+		  active BOOLEAN NOT NULL DEFAULT true,
+		  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		  deactivated_at TIMESTAMPTZ
+		);
+		CREATE TABLE push_account_subscriptions (
+		  id UUID PRIMARY KEY,
+		  installation_id UUID NOT NULL REFERENCES push_installations(id) ON DELETE CASCADE,
+		  account_did TEXT NOT NULL,
+		  routing_id UUID NOT NULL UNIQUE,
+		  active BOOLEAN NOT NULL DEFAULT true,
+		  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		  deactivated_at TIMESTAMPTZ,
+		  UNIQUE (installation_id, account_did)
+		);
+		CREATE TABLE push_deliveries (
+		  id UUID PRIMARY KEY,
+		  account_subscription_id UUID NOT NULL REFERENCES push_account_subscriptions(id) ON DELETE CASCADE,
+		  status TEXT NOT NULL,
+		  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		  lease_owner TEXT,
+		  lease_expires_at TIMESTAMPTZ
+		);
+		INSERT INTO push_installations (id, device_id, platform, fcm_token)
+		VALUES ('10000000-0000-0000-0000-000000000001', 'shared-device', 'ios', 'shared-token');
+		INSERT INTO push_account_subscriptions (id, installation_id, account_did, routing_id)
+		VALUES
+		  ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'did:plc:a', '30000000-0000-0000-0000-000000000001'),
+		  ('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'did:plc:b', '30000000-0000-0000-0000-000000000002')
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("POST", "/auth/logout", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenA)
+	reqCtx := middleware.WithDID(req.Context(), "did:plc:a")
+	reqCtx = middleware.WithOAuthSessionID(reqCtx, "s1")
+	reqCtx = middleware.WithDeviceID(reqCtx, "shared-device")
+	recorder := httptest.NewRecorder()
+	h.LogoutHandler().ServeHTTP(recorder, req.WithContext(reqCtx))
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+
+	var activeA, activeB int
+	if err := h.Pool.QueryRow(ctx, `SELECT count(*) FROM craftsky_sessions WHERE account_did='did:plc:a' AND revoked_at IS NULL`).Scan(&activeA); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Pool.QueryRow(ctx, `SELECT count(*) FROM craftsky_sessions WHERE account_did='did:plc:b' AND revoked_at IS NULL`).Scan(&activeB); err != nil {
+		t.Fatal(err)
+	}
+	if activeA != 0 || activeB != 1 {
+		t.Fatalf("active sessions: A=%d B=%d, want A=0 B=1", activeA, activeB)
+	}
+
+	var subscriptionA, subscriptionB bool
+	if err := h.Pool.QueryRow(ctx, `SELECT active FROM push_account_subscriptions WHERE account_did='did:plc:a'`).Scan(&subscriptionA); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Pool.QueryRow(ctx, `SELECT active FROM push_account_subscriptions WHERE account_did='did:plc:b'`).Scan(&subscriptionB); err != nil {
+		t.Fatal(err)
+	}
+	if subscriptionA || !subscriptionB {
+		t.Fatalf("active subscriptions: A=%t B=%t, want A=false B=true", subscriptionA, subscriptionB)
 	}
 }
 

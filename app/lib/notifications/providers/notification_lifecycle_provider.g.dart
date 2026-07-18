@@ -56,7 +56,7 @@ final class NotificationRoutingStorageProvider
 }
 
 String _$notificationRoutingStorageHash() =>
-    r'2560d6f50be7d1e6dd73e003ddfd59d8e8618d7e';
+    r'bbd3146f4b65a2355721c7e08022d4d7b634494d';
 
 @ProviderFor(notificationSignOutCleanup)
 final notificationSignOutCleanupProvider =
@@ -105,4 +105,4 @@ final class NotificationSignOutCleanupProvider
 }
 
 String _$notificationSignOutCleanupHash() =>
-    r'45870350137d4d5aa48da8fac0f24daccaacefa0';
+    r'bdd1838cea332c53c4e832fa58356d11652057ba';

@@ -1,3 +1,4 @@
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/user_posts_state.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
@@ -26,6 +27,7 @@ class UserComments extends _$UserComments {
     if (!state.hasValue || state.isLoading) return;
     final current = state.requireValue;
     if (!current.hasMore) return;
+    final ownership = captureActiveAccountOperation(ref);
 
     state = const AsyncLoading<UserPostsState>();
 
@@ -42,7 +44,7 @@ class UserComments extends _$UserComments {
       );
     });
 
-    if (!ref.mounted) return;
+    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
     state = next;
   }
 

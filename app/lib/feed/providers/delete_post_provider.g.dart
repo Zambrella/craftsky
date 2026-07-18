@@ -78,7 +78,7 @@ final class DeletePostProvider
   DeletePost create() => DeletePost();
 }
 
-String _$deletePostHash() => r'f259e1ddc37a04bab47ace4afff6be1a6b208b44';
+String _$deletePostHash() => r'c700c6f30facba70ec4c3e18b8e48cbd5e8eb200';
 
 /// Standalone delete-a-post mutation notifier. Takes the full [Post]
 /// because the cache update needs `did`, `handle`, and `rkey` to splice

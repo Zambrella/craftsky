@@ -3,84 +3,89 @@
 
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/notification_permission.dart';
 import 'package:craftsky_app/notifications/services/notification_service.dart';
-import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 enum NotificationPlatform { android, ios }
 
-typedef NotificationDeviceRegistrar =
+typedef NotificationAccountRegistrar =
     Future<AccountSubscriptionId> Function({
+      required AccountSessionLease lease,
       required NotificationPlatform platform,
       required String token,
     });
-typedef NotificationBindingSaver =
+typedef NotificationLeaseBindingSaver =
     Future<void> Function({
-      required Did did,
+      required AccountSessionLease lease,
       required AccountSubscriptionId binding,
     });
 
+/// Coordinates installation-scoped permission/token state with independent
+/// account-scoped registration work.
 final class NotificationRegistrationCoordinator {
   NotificationRegistrationCoordinator({
     required NotificationService service,
     required this.platform,
-    required NotificationDeviceRegistrar register,
-    required NotificationBindingSaver saveBinding,
+    required NotificationAccountRegistrar registerAccount,
+    required NotificationLeaseBindingSaver saveBindingForLease,
   }) : _service = service,
-       _register = register,
-       _saveBinding = saveBinding;
+       _registerAccount = registerAccount,
+       _saveBindingForLease = saveBindingForLease;
 
   final NotificationService _service;
   final NotificationPlatform platform;
-  final NotificationDeviceRegistrar _register;
-  final NotificationBindingSaver _saveBinding;
+  final NotificationAccountRegistrar _registerAccount;
+  final NotificationLeaseBindingSaver _saveBindingForLease;
 
-  Did? _did;
-  bool _onboarded = false;
-  bool _eligible = false;
+  Map<AccountKey, AccountSessionLease> _eligible = const {};
+  final Map<AccountSessionLease, String> _settledToken = {};
   String? _latestToken;
+  bool _authorized = false;
+  int _revision = 0;
   Future<void>? _inFlight;
-  int _registrationRevision = 0;
 
-  Future<void> updateReadiness({
-    required Did? did,
-    required bool onboarded,
-  }) async {
-    _setReadiness(did: did, onboarded: onboarded);
-    if (did == null || !onboarded) {
-      _setEligible(false);
+  Future<void> updateAccounts(List<AccountSessionLease> accounts) async {
+    final next = {for (final lease in accounts) lease.account: lease};
+    if (!_sameAccounts(_eligible, next)) {
+      _eligible = Map.unmodifiable(next);
+      _settledToken.removeWhere(
+        (lease, _) => _eligible[lease.account] != lease,
+      );
+      _revision++;
+    }
+    if (_eligible.isEmpty) {
+      _setAuthorized(false);
       return;
     }
 
     try {
       var permission = await _service.getPermission();
-      if (!_isCurrent(did)) return;
+      if (_eligible.isEmpty) return;
       if (permission == NotificationPermission.notDetermined) {
         permission = await _service.requestPermission();
       }
-      if (!_isCurrent(did)) return;
-      await _setEligibility(
-        did: did,
-        eligible: permission == NotificationPermission.authorized,
-      );
+      _setAuthorized(permission == NotificationPermission.authorized);
+      if (!_authorized) return;
+      await _refreshToken();
+      await _attemptRegistration();
     } on Object {
-      if (_did == did) _setEligible(false);
+      _setAuthorized(false);
     }
   }
 
   Future<void> retryRegistration() async {
-    final did = _did;
-    if (did == null || !_onboarded) return;
+    if (_eligible.isEmpty) return;
     try {
       final permission = await _service.getPermission();
-      if (!_isCurrent(did)) return;
-      await _setEligibility(
-        did: did,
-        eligible: permission == NotificationPermission.authorized,
-      );
+      _setAuthorized(permission == NotificationPermission.authorized);
+      if (!_authorized) return;
+      await _refreshToken();
+      await _attemptRegistration();
     } on Object {
-      if (_did == did) _setEligible(false);
+      _setAuthorized(false);
     }
   }
 
@@ -90,36 +95,16 @@ final class NotificationRegistrationCoordinator {
     await _attemptRegistration();
   }
 
-  bool _isCurrent(Did did) => _did == did && _onboarded;
-
-  void _setReadiness({required Did? did, required bool onboarded}) {
-    if (_did == did && _onboarded == onboarded) return;
-    _did = did;
-    _onboarded = onboarded;
-    _registrationRevision++;
-  }
-
-  void _setEligible(bool value) {
-    if (_eligible == value) return;
-    _eligible = value;
-    _registrationRevision++;
+  void _setAuthorized(bool value) {
+    if (_authorized == value) return;
+    _authorized = value;
+    _revision++;
   }
 
   void _setLatestToken(String token) {
     if (_latestToken == token) return;
     _latestToken = token;
-    _registrationRevision++;
-  }
-
-  Future<void> _setEligibility({
-    required Did did,
-    required bool eligible,
-  }) async {
-    if (!_isCurrent(did)) return;
-    _setEligible(eligible);
-    if (!eligible) return;
-    await _refreshToken();
-    await _attemptRegistration();
+    _revision++;
   }
 
   Future<void> _refreshToken() async {
@@ -127,14 +112,14 @@ final class NotificationRegistrationCoordinator {
       final token = await _service.getToken();
       if (token != null && token.isNotEmpty) _setLatestToken(token);
     } on Object {
-      // Registration is opportunistic. A later eligible trigger retries.
+      // Registration is opportunistic. A later lifecycle trigger retries.
     }
   }
 
   Future<void> _attemptRegistration() async {
     final existing = _inFlight;
     if (existing != null) return existing;
-    if (!_eligible || _did == null || _latestToken == null) return;
+    if (!_authorized || _eligible.isEmpty || _latestToken == null) return;
 
     final attempt = _drainRegistrationChanges();
     _inFlight = attempt;
@@ -146,26 +131,52 @@ final class NotificationRegistrationCoordinator {
   }
 
   Future<void> _drainRegistrationChanges() async {
-    while (_eligible) {
-      final did = _did;
+    while (_authorized && _eligible.isNotEmpty) {
       final token = _latestToken;
-      if (did == null || token == null || token.isEmpty) return;
-      final revision = _registrationRevision;
-      await _registerAndSave(did: did, token: token);
-      if (_registrationRevision == revision) return;
+      if (token == null || token.isEmpty) return;
+      final revision = _revision;
+      final unsettled = _eligible.values
+          .where((lease) => _settledToken[lease] != token)
+          .toList(growable: false);
+      await Future.wait([
+        for (final lease in unsettled) _registerAndSave(lease, token),
+      ]);
+      if (_revision == revision) return;
     }
   }
 
-  Future<void> _registerAndSave({
-    required Did did,
-    required String token,
-  }) async {
+  Future<void> _registerAndSave(
+    AccountSessionLease lease,
+    String token,
+  ) async {
     try {
-      final binding = await _register(platform: platform, token: token);
-      if (!_eligible || _did != did) return;
-      await _saveBinding(did: did, binding: binding);
+      final binding = await _registerAccount(
+        lease: lease,
+        platform: platform,
+        token: token,
+      );
+      if (!_authorized ||
+          _latestToken != token ||
+          _eligible[lease.account] != lease) {
+        return;
+      }
+      await _saveBindingForLease(lease: lease, binding: binding);
+      if (_latestToken == token && _eligible[lease.account] == lease) {
+        _settledToken[lease] = token;
+      }
     } on Object {
-      // Keep the latest token in memory for a later readiness/resume trigger.
+      // Failure remains scoped to this lease and retryable on the next trigger.
     }
+  }
+
+  static bool _sameAccounts(
+    Map<AccountKey, AccountSessionLease> left,
+    Map<AccountKey, AccountSessionLease> right,
+  ) {
+    if (left.length != right.length) return false;
+    for (final entry in left.entries) {
+      if (right[entry.key] != entry.value) return false;
+    }
+    return true;
   }
 }

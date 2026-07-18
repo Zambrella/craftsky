@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
@@ -118,15 +121,20 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   bool _attemptedSubmit = false;
   String? _formValidationError;
   int? _lastImageNoticeId;
+  AccountSessionLease? _unsavedOwner;
+  UnsavedWorkRegistration? _unsavedRegistration;
+  late final UnsavedWorkGuard _unsavedGuard;
 
   @override
   void initState() {
     super.initState();
+    _unsavedGuard = ref.read(unsavedWorkGuardProvider);
     _composerId = widget.composerId ?? const Uuid().v4();
   }
 
   @override
   void dispose() {
+    _unsavedGuard.unregister(_unsavedRegistration);
     _scrollController.dispose();
     _bodyController.dispose();
     _bodyFocusNode.dispose();
@@ -175,6 +183,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       formValues: formValues,
       initialFormValues: _initialFormValues,
     );
+    _ensureUnsavedWorkRegistration();
     ref
       ..listen(createPostProvider, (previous, next) {
         switch ((previous, next)) {
@@ -380,6 +389,41 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       message: l10n.postComposeDiscardMessage,
       confirmLabel: l10n.postComposeDiscardConfirm,
       cancelLabel: l10n.postComposeDiscardCancel,
+    );
+  }
+
+  void _ensureUnsavedWorkRegistration() {
+    final owner = ref.read(sessionRegistryProvider).value?.activeLease?.session;
+    if (owner == null || owner == _unsavedOwner) return;
+    _unsavedOwner = owner;
+    _unsavedRegistration = _unsavedGuard.replace(
+      _unsavedRegistration,
+      owner: owner,
+      isDirty: _hasUnsavedProject,
+      confirmAndClose: () async {
+        if (!mounted) return true;
+        final discard = await _confirmDiscard();
+        if (!discard || !mounted) return false;
+        Navigator.of(context).pop();
+        await Future<void>.delayed(Duration.zero);
+        return true;
+      },
+    );
+  }
+
+  bool _hasUnsavedProject() {
+    if (!mounted) return false;
+    final imagesState = ref.read(composerImagesProvider(_composerId));
+    final formValues = {
+      ..._initialFormValues,
+      ...?_formKey.currentState?.instantValue,
+    };
+    return ProjectComposerDraftState.hasDraft(
+      bodyText: _bodyText,
+      initialBodyText: '',
+      imageCount: imagesState.images.length,
+      formValues: formValues,
+      initialFormValues: _initialFormValues,
     );
   }
 

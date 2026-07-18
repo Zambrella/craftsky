@@ -15,17 +15,11 @@ final class SignedIn extends AuthState {
   SignedIn({
     required String did,
     required String handle,
-    required this.token,
   }) : did = Did.parse(did),
        handle = Handle.parse(handle);
 
   final Did did;
   final Handle handle;
-  final String token;
-
-  /// Token is redacted in string form so logs + error screens can't
-  /// accidentally leak it via `'$state'` or `toString`.
   @override
-  String toString() =>
-      'SignedIn(did: $did, handle: $handle, token: <redacted>)';
+  String toString() => 'SignedIn(<redacted>)';
 }

@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
@@ -165,10 +168,14 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
 
   _ProfileImageDraft _avatarDraft = const _ProfileImageDraft();
   _ProfileImageDraft _bannerDraft = const _ProfileImageDraft();
+  AccountSessionLease? _unsavedOwner;
+  UnsavedWorkRegistration? _unsavedRegistration;
+  late final UnsavedWorkGuard _unsavedGuard;
 
   @override
   void initState() {
     super.initState();
+    _unsavedGuard = ref.read(unsavedWorkGuardProvider);
     _displayNameController = TextEditingController(
       text: widget.profile.displayName,
     );
@@ -194,6 +201,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
 
   @override
   void dispose() {
+    _unsavedGuard.unregister(_unsavedRegistration);
     _displayNameController.dispose();
     _bioController.dispose();
     _displayNameFocusNode.dispose();
@@ -322,6 +330,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
 
   @override
   Widget build(BuildContext context) {
+    _ensureUnsavedWorkRegistration();
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
@@ -525,6 +534,25 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
           ),
         ),
       ),
+    );
+  }
+
+  void _ensureUnsavedWorkRegistration() {
+    final owner = ref.read(sessionRegistryProvider).value?.activeLease?.session;
+    if (owner == null || owner == _unsavedOwner) return;
+    _unsavedOwner = owner;
+    _unsavedRegistration = _unsavedGuard.replace(
+      _unsavedRegistration,
+      owner: owner,
+      isDirty: () => mounted && _hasChanges,
+      confirmAndClose: () async {
+        if (!mounted) return true;
+        final discard = await _confirmDiscard();
+        if (!discard || !mounted) return false;
+        Navigator.of(context).pop();
+        await Future<void>.delayed(Duration.zero);
+        return true;
+      },
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
@@ -58,14 +59,15 @@ class UserProfile extends _$UserProfile {
     final previous = state;
     final current = previous.value;
     if (current == null) return;
+    final ownership = captureActiveAccountOperation(ref);
 
     state = AsyncData(optimistic(current));
     try {
       final updated = await apply(ref.read(profileRepositoryProvider));
-      if (!ref.mounted) return;
+      if (!isActiveAccountOperationCurrent(ref, ownership)) return;
       state = AsyncData(updated);
     } on Object catch (e, st) {
-      if (!ref.mounted) return;
+      if (!isActiveAccountOperationCurrent(ref, ownership)) return;
       state = previous;
       state = AsyncError(e, st);
     }

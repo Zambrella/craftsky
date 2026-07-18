@@ -1,8 +1,11 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
-import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/models/notification_permission.dart';
@@ -10,138 +13,169 @@ import 'package:craftsky_app/notifications/services/notification_registration_co
 import 'package:craftsky_app/notifications/services/notification_routing_storage.dart';
 import 'package:craftsky_app/notifications/services/notification_runtime.dart';
 import 'package:craftsky_app/notifications/services/notification_service.dart';
+import 'package:craftsky_app/notifications/widgets/notification_row.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test(
-    'UT-007 IT-003 AT-001 emit direct outcomes without a resolver',
-    () async {
-      final alice = Did.parse('did:plc:alice');
-      final binding = AccountSubscriptionId.parse('alice_binding');
-      final routing = NotificationRoutingStorage(_MemoryRoutingBackend());
-      await routing.replace(alice, binding);
-      final effects = StreamController<NotificationEffect>.broadcast();
-      final runtime = _runtime(routing: routing, effects: effects);
-      addTearDown(effects.close);
-      addTearDown(runtime.dispose);
-      await runtime.updateReadiness(did: alice, onboarded: true);
+  test('UT-008 rejects a row outside its producing account lease', () {
+    var registry = _registry();
+    final alice = registry.activeLease!.session;
 
-      final directEffect = effects.stream.first;
-      await runtime.receiveOpen(
-        _attempt(
-          binding: binding.wireValue,
-          type: 'like',
-          subjectUri:
-              'at://did:plc:commenter/social.craftsky.feed.post/comment',
-          rootUri: 'at://did:plc:author/social.craftsky.feed.post/root',
-        ),
-      );
-      final direct = await directEffect as NotificationNavigationEffect;
+    expect(canOpenNotificationRow(alice, registry), isTrue);
+    registry = registry.activate(
+      registry.leaseFor(AccountKey('did:plc:bob'))!,
+    );
+    expect(canOpenNotificationRow(alice, registry), isFalse);
+  });
 
-      expect(
-        direct.outcome.destination,
-        PostDestination(
-          AtUri.parse(
-            'at://did:plc:author/social.craftsky.feed.post/root',
-          ),
-          focusUri: AtUri.parse(
-            'at://did:plc:commenter/social.craftsky.feed.post/comment',
-          ),
-        ),
-      );
-      expect(direct.outcome.feedback, isNull);
+  test('IT-005 activates exact recipient before runtime navigation', () async {
+    var registry = _registry();
+    final operations = <String>[];
+    final effects = StreamController<NotificationEffect>.broadcast();
+    final runtime = _runtime(
+      routing: NotificationRoutingStorage(() => registry),
+      effects: effects,
+      activate: (lease) async {
+        operations.add('activate');
+        registry = registry.activate(lease);
+        return AccountActivationResult.activated;
+      },
+    );
+    addTearDown(runtime.dispose);
+    addTearDown(effects.close);
+    await runtime.updateReadiness(
+      did: Did.parse('did:plc:alice'),
+      onboarded: true,
+    );
 
-      final legacyEffect = effects.stream.first;
-      await runtime.receiveOpen(
-        NotificationOpenAttempt.fromProviderData({
-          'type': 'like',
-          'accountSubscriptionId': binding.wireValue,
-          'notificationId': '00000000-0000-0000-0000-000000000001',
-        }),
-      );
-      final legacy = await legacyEffect as NotificationNavigationEffect;
-      expect(legacy.outcome.destination, const NotificationsDestination());
-      expect(legacy.outcome.feedback, NotificationOpenFeedback.unableToOpen);
+    final effectFuture = effects.stream.first;
+    await runtime.receiveOpen(_attempt('bob_binding'));
+    final effect = await effectFuture;
+    operations.add('navigate');
 
-      final unavailableEffect = effects.stream.first;
-      await runtime.receiveOpen(
-        _attempt(binding: 'stale_binding', type: 'everythingElse'),
+    expect(effect, isA<NotificationNavigationEffect>());
+    expect(operations, ['activate', 'navigate']);
+    expect(registry.activeDid?.value, 'did:plc:bob');
+  });
+
+  test('IT-005 separates invalid and removed-account outcomes', () async {
+    final registry = _registry();
+    final effects = StreamController<NotificationEffect>.broadcast();
+    final runtime = _runtime(
+      routing: NotificationRoutingStorage(() => registry),
+      effects: effects,
+    );
+    addTearDown(runtime.dispose);
+    addTearDown(effects.close);
+    await runtime.updateReadiness(
+      did: Did.parse('did:plc:alice'),
+      onboarded: true,
+    );
+
+    final invalid = effects.stream.first;
+    await runtime.receiveOpen(_attempt(null));
+    expect(await invalid, isA<NotificationUnavailableEffect>());
+
+    final removed = effects.stream.first;
+    await runtime.receiveOpen(_attempt('removed_binding'));
+    expect(await removed, isA<NotificationRemovedAccountEffect>());
+  });
+
+  test('IT-005 identifies an inactive foreground recipient', () async {
+    final registry = _registry();
+    final refreshedAccounts = <AccountKey>[];
+    final effects = StreamController<NotificationEffect>.broadcast();
+    final runtime = _runtime(
+      routing: NotificationRoutingStorage(() => registry),
+      effects: effects,
+      refreshAccountCount: refreshedAccounts.add,
+    );
+    addTearDown(runtime.dispose);
+    addTearDown(effects.close);
+
+    final banner = effects.stream.first;
+    await runtime.receiveForegroundEvent(
+      ForegroundNotificationEvent(
+        title: 'A liked your post',
+        body: 'Open the notification',
+        openAttempt: _attempt('bob_binding'),
+      ),
+    );
+    final effect = await banner as NotificationBannerEffect;
+
+    expect(effect.event.title, 'A liked your post');
+    expect(effect.recipient?.handle, 'bob.test');
+    expect(effect.recipient?.avatarUrl, isNull);
+    expect(effect.resolution, isA<ExactNotificationRecipient>());
+    expect(effect.toString(), isNot(contains('bob.test')));
+
+    await runtime.receiveForegroundEvent(
+      ForegroundNotificationEvent(
+        title: 'Duplicate delivery',
+        body: 'Same server state',
+        openAttempt: _attempt('bob_binding'),
+      ),
+    );
+    expect(refreshedAccounts, [
+      AccountKey('did:plc:bob'),
+      AccountKey('did:plc:bob'),
+    ]);
+  });
+}
+
+SessionRegistry _registry() {
+  final base = SessionRegistry.empty()
+      .upsertAndActivate(
+        token: 'bob-token',
+        did: 'did:plc:bob',
+        handle: 'bob.test',
+      )
+      .upsertAndActivate(
+        token: 'alice-token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
       );
-      expect(await unavailableEffect, isA<NotificationUnavailableEffect>());
+  return SessionRegistry(
+    revision: base.revision,
+    nextSessionGeneration: base.nextSessionGeneration,
+    nextUseOrdinal: base.nextUseOrdinal,
+    activationGeneration: base.activationGeneration,
+    activeDid: base.activeDid?.value,
+    sessions: {
+      for (final entry in base.sessions.entries) entry.key.value: entry.value,
     },
-  );
-
-  test(
-    'IR-003 discards an in-flight open across account readiness changes',
-    () async {
-      final alice = Did.parse('did:plc:alice');
-      final bob = Did.parse('did:plc:bob');
-      final binding = AccountSubscriptionId.parse('alice_binding');
-
-      for (final nextDid in <Did?>[null, bob]) {
-        final backend = _BlockingRoutingBackend();
-        final routing = NotificationRoutingStorage(backend);
-        await routing.replace(alice, binding);
-        final effects = StreamController<NotificationEffect>.broadcast();
-        final emitted = <NotificationEffect>[];
-        final subscription = effects.stream.listen(emitted.add);
-        final runtime = _runtime(routing: routing, effects: effects);
-        await runtime.updateReadiness(did: alice, onboarded: true);
-        backend.blockNextRead();
-
-        final open = runtime.receiveOpen(
-          _attempt(binding: binding.wireValue, type: 'everythingElse'),
-        );
-        await backend.readStarted;
-        await runtime.updateReadiness(
-          did: nextDid,
-          onboarded: nextDid != null,
-        );
-        backend.releaseRead();
-        await open;
-        await Future<void>.delayed(Duration.zero);
-
-        expect(
-          emitted,
-          isEmpty,
-          reason: nextDid == null
-              ? 'sign-in-required must discard the old in-flight open'
-              : 'an account switch must discard the old in-flight open',
-        );
-
-        await subscription.cancel();
-        await runtime.dispose();
-        await effects.close();
-      }
+    routingBindings: const {
+      'did:plc:alice': 'alice_binding',
+      'did:plc:bob': 'bob_binding',
     },
   );
 }
 
-NotificationOpenAttempt _attempt({
-  required String binding,
-  required String type,
-  String? subjectUri,
-  String? rootUri,
-}) => NotificationOpenAttempt.fromProviderData({
-  'payloadVersion': '1',
-  'type': type,
-  'accountSubscriptionId': binding,
-  'subjectUri': ?subjectUri,
-  'rootUri': ?rootUri,
-});
+NotificationOpenAttempt _attempt(String? binding) =>
+    NotificationOpenAttempt.fromProviderData({
+      'payloadVersion': '1',
+      'type': 'everythingElse',
+      'accountSubscriptionId': ?binding,
+    });
 
 NotificationRuntime _runtime({
   required NotificationRoutingStorage routing,
   required StreamController<NotificationEffect> effects,
+  Future<AccountActivationResult> Function(
+    AccountSessionLease lease,
+  )?
+  activate,
+  void Function(AccountKey account)? refreshAccountCount,
 }) {
   final service = _FakeNotificationService();
   final registration = NotificationRegistrationCoordinator(
     service: service,
     platform: NotificationPlatform.ios,
-    register: ({required platform, required token}) async =>
-        AccountSubscriptionId.parse('unused'),
-    saveBinding: ({required did, required binding}) async {},
+    registerAccount:
+        ({required lease, required platform, required token}) async =>
+            AccountSubscriptionId.parse('unused'),
+    saveBindingForLease: ({required lease, required binding}) async {},
   );
   return NotificationRuntime(
     service: service,
@@ -150,91 +184,36 @@ NotificationRuntime _runtime({
     invalidateList: () {},
     refreshCount: () {},
     effects: effects,
+    activateRecipient: activate,
+    refreshAccountCount: refreshAccountCount,
   );
 }
 
 final class _FakeNotificationService implements NotificationService {
   @override
   Future<void> deleteToken() async {}
-
   @override
   Future<void> dispose() async {}
-
   @override
   Stream<ForegroundNotificationEvent> get foregroundEvents =>
       const Stream.empty();
-
   @override
   Future<NotificationPermission> getPermission() async =>
       NotificationPermission.authorized;
-
   @override
   Future<String?> getToken() async => null;
-
   @override
   Future<void> initialize() async {}
-
   @override
   Stream<NotificationOpenAttempt> get openedNotifications =>
       const Stream.empty();
-
   @override
   Future<void> openSystemNotificationSettings() async {}
-
   @override
   Future<NotificationPermission> requestPermission() async =>
       NotificationPermission.authorized;
-
   @override
   Future<NotificationOpenAttempt?> takeInitialOpen() async => null;
-
   @override
   Stream<String> get tokenRefreshes => const Stream.empty();
-}
-
-final class _MemoryRoutingBackend implements NotificationRoutingStorageBackend {
-  String? value;
-
-  @override
-  Future<void> delete() async => value = null;
-
-  @override
-  Future<String?> read() async => value;
-
-  @override
-  Future<void> write(String value) async => this.value = value;
-}
-
-final class _BlockingRoutingBackend
-    implements NotificationRoutingStorageBackend {
-  String? value;
-  Completer<String?>? _blockedRead;
-  late Completer<void> _readStarted;
-
-  Future<void> get readStarted => _readStarted.future;
-
-  void blockNextRead() {
-    _blockedRead = Completer<String?>();
-    _readStarted = Completer<void>();
-  }
-
-  void releaseRead() {
-    final blockedRead = _blockedRead!;
-    _blockedRead = null;
-    blockedRead.complete(value);
-  }
-
-  @override
-  Future<void> delete() async => value = null;
-
-  @override
-  Future<String?> read() {
-    final blockedRead = _blockedRead;
-    if (blockedRead == null) return Future.value(value);
-    _readStarted.complete();
-    return blockedRead.future;
-  }
-
-  @override
-  Future<void> write(String value) async => this.value = value;
 }
