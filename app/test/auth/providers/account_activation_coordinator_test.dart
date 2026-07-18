@@ -7,7 +7,7 @@ import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart'
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('activates locally across a visible hard state boundary', () async {
+  test('activates locally across a hard state boundary', () async {
     var registry = SessionRegistry.empty()
         .upsertAndActivate(
           token: 'token-alice',
@@ -28,37 +28,22 @@ void main() {
     final oldActive = registry.activeLease;
     final target = registry.leaseFor(AccountKey('did:plc:bob'))!;
     final operations = <String>[];
-    AccountTransition? transition;
     final coordinator = AccountActivationCoordinator(
       readRegistry: () => registry,
       commitActivation: (lease) async {
         operations.add('commit');
         registry = registry.activate(lease);
       },
-      publishTransition: (value) {
-        operations.add(value == null ? 'clear-transition' : 'transition');
-        transition = value;
-      },
       invalidateAccountState: () async => operations.add('invalidate'),
       resetToHome: () async => operations.add('home'),
     );
 
-    final result = await coordinator.activate(
-      target,
-      source: AccountActivationSource.manual,
-    );
+    final result = await coordinator.activate(target);
 
     expect(result, AccountActivationResult.activated);
     expect(registry.activeDid, 'did:plc:bob');
     expect(registry.isCurrent(oldActive), isFalse);
-    expect(transition, isNull);
-    expect(operations, [
-      'transition',
-      'commit',
-      'invalidate',
-      'home',
-      'clear-transition',
-    ]);
+    expect(operations, ['invalidate', 'commit', 'home']);
   });
 
   test('coalesces duplicate activation requests for the same lease', () async {
@@ -89,19 +74,12 @@ void main() {
         await releaseCommit.future;
         registry = registry.activate(lease);
       },
-      publishTransition: (_) {},
       invalidateAccountState: () async {},
       resetToHome: () async {},
     );
 
-    final first = coordinator.activate(
-      target,
-      source: AccountActivationSource.manual,
-    );
-    final duplicate = coordinator.activate(
-      target,
-      source: AccountActivationSource.notification,
-    );
+    final first = coordinator.activate(target);
+    final duplicate = coordinator.activate(target);
     await Future<void>.delayed(Duration.zero);
     expect(commits, 1);
 
@@ -138,16 +116,12 @@ void main() {
           commits++;
           registry = registry.activate(lease);
         },
-        publishTransition: (_) {},
         invalidateAccountState: () async {},
         resetToHome: () async {},
       );
 
       expect(
-        await coordinator.activate(
-          target,
-          source: AccountActivationSource.notification,
-        ),
+        await coordinator.activate(target),
         AccountActivationResult.cancelled,
       );
       expect(confirmations, 1);
@@ -184,16 +158,12 @@ void main() {
         operations.add('commit');
         registry = registry.activate(lease);
       },
-      publishTransition: (_) {},
       invalidateAccountState: () async {},
       resetToHome: () async {},
     );
 
     expect(
-      await coordinator.activate(
-        target,
-        source: AccountActivationSource.manual,
-      ),
+      await coordinator.activate(target),
       AccountActivationResult.activated,
     );
     expect(operations, ['confirm-and-close', 'commit']);

@@ -89,7 +89,6 @@ SessionRegistry _registry() {
         handle: 'alice.test',
       );
   return SessionRegistry(
-    revision: base.revision,
     nextSessionGeneration: base.nextSessionGeneration,
     nextUseOrdinal: base.nextUseOrdinal,
     activationGeneration: base.activationGeneration,

@@ -1,11 +1,9 @@
 import 'dart:async';
 
-import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/account_switcher_state.dart';
 import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart';
 import 'package:craftsky_app/auth/providers/account_boundary_provider.dart';
-import 'package:craftsky_app/auth/providers/account_transition_provider.dart';
 import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
@@ -85,9 +83,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     _activation = AccountActivationCoordinator(
       readRegistry: () => ref.read(sessionRegistryProvider).requireValue,
       commitActivation: ref.read(sessionRegistryProvider.notifier).activate,
-      publishTransition: (transition) =>
-          ref.read(accountTransitionStateProvider.notifier).transition =
-              transition,
       invalidateAccountState: ref.read(accountStateInvalidatorProvider),
       resetToHome: () async => context.go(RouteLocations.home),
       confirmLeave: ref.read(unsavedWorkGuardProvider).confirmLeave,
@@ -192,15 +187,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         showDragHandle: true,
         builder: (sheetContext) => _LiveAccountSwitcherContent(
           fallbackState: state,
-          onSelect: (lease) {
-            Navigator.pop(sheetContext);
-            unawaited(
-              _activation.activate(
-                lease,
-                source: AccountActivationSource.manual,
-              ),
-            );
-          },
+          onSelect: _activation.activate,
           onAddAccount: () {
             Navigator.pop(sheetContext);
             unawaited(context.push(RouteLocations.addAccount));
@@ -232,15 +219,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             width: 320,
             child: _LiveAccountSwitcherContent(
               fallbackState: state,
-              onSelect: (lease) {
-                Navigator.pop(context);
-                unawaited(
-                  _activation.activate(
-                    lease,
-                    source: AccountActivationSource.manual,
-                  ),
-                );
-              },
+              onSelect: _activation.activate,
               onAddAccount: () {
                 Navigator.pop(context);
                 unawaited(context.push(RouteLocations.addAccount));
@@ -253,7 +232,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 }
 
-class _LiveAccountSwitcherContent extends ConsumerWidget {
+class _LiveAccountSwitcherContent extends ConsumerStatefulWidget {
   const _LiveAccountSwitcherContent({
     required this.fallbackState,
     required this.onSelect,
@@ -261,34 +240,45 @@ class _LiveAccountSwitcherContent extends ConsumerWidget {
   });
 
   final AccountSwitcherState fallbackState;
-  final ValueChanged<AccountSessionLease> onSelect;
+  final Future<AccountActivationResult> Function(AccountSessionLease) onSelect;
   final VoidCallback onAddAccount;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_LiveAccountSwitcherContent> createState() =>
+      _LiveAccountSwitcherContentState();
+}
+
+class _LiveAccountSwitcherContentState
+    extends ConsumerState<_LiveAccountSwitcherContent> {
+  AccountSessionLease? _activating;
+
+  @override
+  Widget build(BuildContext context) {
     final registry = ref.watch(sessionRegistryProvider).value;
     final state = registry == null
-        ? fallbackState
-        : AccountSwitcherState.fromRegistry(
-            registry,
-            notificationCounts: {
-              for (final did in registry.sessions.keys)
-                AccountKey(did.value):
-                    ref
-                        .watch(
-                          accountNotificationNewCountProvider(
-                            AccountKey(did.value),
-                          ),
-                        )
-                        .value ??
-                    0,
-            },
-          );
+        ? widget.fallbackState
+        : AccountSwitcherState.fromRegistry(registry);
     return AccountSwitcherContent(
       state: state,
-      onSelect: onSelect,
-      onAddAccount: onAddAccount,
+      activating: _activating,
+      onSelect: (lease) => unawaited(_activate(lease)),
+      onAddAccount: widget.onAddAccount,
     );
+  }
+
+  Future<void> _activate(AccountSessionLease lease) async {
+    if (_activating != null) return;
+    setState(() => _activating = lease);
+    try {
+      final result = await widget.onSelect(lease);
+      if (!mounted) return;
+      if (result == AccountActivationResult.activated ||
+          result == AccountActivationResult.alreadyActive) {
+        await Navigator.maybePop(context);
+      }
+    } finally {
+      if (mounted) setState(() => _activating = null);
+    }
   }
 }
 

@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
-import 'package:craftsky_app/auth/models/pending_session_cleanup.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
@@ -13,22 +12,18 @@ class AccountLimitReached implements Exception {
   String toString() => 'AccountLimitReached';
 }
 
-/// A complete, versioned snapshot of the accounts retained by this install.
+/// The complete account state retained by this install.
 ///
-/// Persistence deliberately uses an explicit codec so future versions can
-/// reject unsupported top-level shapes while recovering valid entries from a
-/// supported snapshot independently.
+/// The codec is intentionally strict: a malformed snapshot is unusable as a
+/// whole, so secure-storage callers fail closed to a signed-out registry.
 class SessionRegistry {
   SessionRegistry({
-    required this.revision,
     required this.nextSessionGeneration,
     required this.nextUseOrdinal,
     required this.activationGeneration,
     required String? activeDid,
     required Map<String, StoredSession> sessions,
     Map<String, String> routingBindings = const {},
-    List<PendingSessionCleanup> pendingCleanups = const [],
-    this.schemaVersion = currentSchemaVersion,
   }) : activeDid = activeDid == null ? null : Did.parse(activeDid),
        sessions = Map.unmodifiable({
          for (final MapEntry(key: did, value: session) in sessions.entries)
@@ -38,34 +33,9 @@ class SessionRegistry {
          for (final MapEntry(key: did, value: binding)
              in routingBindings.entries)
            Did.parse(did): binding,
-       }),
-       pendingCleanups = List.unmodifiable(pendingCleanups);
-
-  /// Recovers the newest supported top-level snapshot from the two journal
-  /// slots. Slot A wins revision ties. If neither slot is usable, callers get
-  /// an empty signed-out registry rather than data from a malformed snapshot.
-  factory SessionRegistry.recover({String? slotA, String? slotB}) {
-    SessionRegistry? decode(String? source) {
-      if (source == null) return null;
-      try {
-        return SessionRegistry.fromJson(source);
-      } on Object {
-        return null;
-      }
-    }
-
-    final decodedA = decode(slotA);
-    final decodedB = decode(slotB);
-    if (decodedA != null &&
-        (decodedB == null || decodedA.revision >= decodedB.revision)) {
-      return decodedA;
-    }
-    if (decodedB != null) return decodedB;
-    return SessionRegistry.empty();
-  }
+       });
 
   factory SessionRegistry.empty() => SessionRegistry(
-    revision: 0,
     nextSessionGeneration: 1,
     nextUseOrdinal: 1,
     activationGeneration: 0,
@@ -86,33 +56,20 @@ class SessionRegistry {
     if (rawSessions is! Map<String, Object?>) {
       throw const FormatException('Invalid session registry sessions');
     }
-
     final sessions = <String, StoredSession>{};
     for (final MapEntry(key: did, :value) in rawSessions.entries) {
-      try {
-        if (value is! Map<String, Object?>) {
-          throw const FormatException('Invalid session registry entry');
-        }
-        final entryDid = value['did'];
-        if (entryDid != did) {
-          throw const FormatException('Mismatched session registry DID');
-        }
-        sessions[did] = StoredSession(
-          token: _requiredString(value, 'token'),
-          did: did,
-          handle: _requiredString(value, 'handle'),
-          sessionGeneration: _requiredPositiveInt(
-            value,
-            'sessionGeneration',
-          ),
-          lastUsedOrdinal: _requiredPositiveInt(value, 'lastUsedOrdinal'),
-          cachedDisplayName: value['cachedDisplayName'] as String?,
-          cachedAvatarUrl: value['cachedAvatarUrl'] as String?,
-        );
-      } on Object {
-        // Entries are independent recovery units. A malformed account must not
-        // discard other usable sessions in the same verified journal slot.
+      if (value is! Map<String, Object?> || value['did'] != did) {
+        throw const FormatException('Invalid session registry entry');
       }
+      sessions[did] = StoredSession(
+        token: _requiredString(value, 'token'),
+        did: did,
+        handle: _requiredString(value, 'handle'),
+        sessionGeneration: _requiredPositiveInt(value, 'sessionGeneration'),
+        lastUsedOrdinal: _requiredPositiveInt(value, 'lastUsedOrdinal'),
+        cachedDisplayName: _optionalString(value, 'cachedDisplayName'),
+        cachedAvatarUrl: _optionalString(value, 'cachedAvatarUrl'),
+      );
     }
 
     final routingBindings = <String, String>{};
@@ -122,109 +79,59 @@ class SessionRegistry {
         throw const FormatException('Invalid routing bindings');
       }
       for (final MapEntry(key: did, :value) in rawRoutingBindings.entries) {
-        try {
-          Did.parse(did);
-          if (value is! String) throw const FormatException();
-          routingBindings[did] = value;
-        } on Object {
-          // Bindings are independent recovery units just like sessions.
+        Did.parse(did);
+        if (value is! String) {
+          throw const FormatException('Invalid routing binding');
         }
-      }
-    }
-
-    final pendingCleanups = <PendingSessionCleanup>[];
-    final rawPendingCleanups = decoded['pendingCleanups'];
-    if (rawPendingCleanups != null) {
-      if (rawPendingCleanups is! List<Object?>) {
-        throw const FormatException('Invalid pending cleanups');
-      }
-      for (final value in rawPendingCleanups) {
-        try {
-          if (value is! Map<String, Object?>) throw const FormatException();
-          pendingCleanups.add(
-            PendingSessionCleanup(
-              account: AccountKey(_requiredString(value, 'did')),
-              sessionGeneration: _requiredPositiveInt(
-                value,
-                'sessionGeneration',
-              ),
-              token: _requiredString(value, 'token'),
-            ),
-          );
-        } on Object {
-          // Cleanup entries are independent recovery units.
-        }
+        routingBindings[did] = value;
       }
     }
 
     final rawActiveDid = decoded['activeDid'];
-    final requestedActiveDid = rawActiveDid is String ? rawActiveDid : null;
-    final repairedActiveDid = sessions.containsKey(requestedActiveDid)
-        ? requestedActiveDid
-        : _mostRecentlyUsedDid(sessions);
+    final String? activeDid;
+    if (rawActiveDid == null && sessions.isEmpty) {
+      activeDid = null;
+    } else if (rawActiveDid is String && sessions.containsKey(rawActiveDid)) {
+      activeDid = rawActiveDid;
+    } else {
+      throw const FormatException('Invalid active session');
+    }
 
-    final revision = _requiredNonNegativeInt(decoded, 'revision');
-    final storedNextSessionGeneration = _requiredPositiveInt(
+    final nextSessionGeneration = _requiredPositiveInt(
       decoded,
       'nextSessionGeneration',
     );
-    var highestSessionGeneration = 0;
+    final nextUseOrdinal = _requiredPositiveInt(decoded, 'nextUseOrdinal');
     for (final session in sessions.values) {
-      if (session.sessionGeneration > highestSessionGeneration) {
-        highestSessionGeneration = session.sessionGeneration;
+      if (session.sessionGeneration >= nextSessionGeneration ||
+          session.lastUsedOrdinal >= nextUseOrdinal) {
+        throw const FormatException('Invalid registry counters');
       }
     }
-    for (final cleanup in pendingCleanups) {
-      if (cleanup.sessionGeneration > highestSessionGeneration) {
-        highestSessionGeneration = cleanup.sessionGeneration;
-      }
-    }
-    final nextSessionGeneration =
-        storedNextSessionGeneration > highestSessionGeneration
-        ? storedNextSessionGeneration
-        : highestSessionGeneration + 1;
-    final storedNextUseOrdinal = _requiredPositiveInt(
-      decoded,
-      'nextUseOrdinal',
-    );
-    var highestUseOrdinal = 0;
-    for (final session in sessions.values) {
-      if (session.lastUsedOrdinal > highestUseOrdinal) {
-        highestUseOrdinal = session.lastUsedOrdinal;
-      }
-    }
-    final nextUseOrdinal = storedNextUseOrdinal > highestUseOrdinal
-        ? storedNextUseOrdinal
-        : highestUseOrdinal + 1;
-    final activationGeneration = _requiredNonNegativeInt(
-      decoded,
-      'activationGeneration',
-    );
 
     return SessionRegistry(
-      revision: revision,
       nextSessionGeneration: nextSessionGeneration,
       nextUseOrdinal: nextUseOrdinal,
-      activationGeneration: activationGeneration,
-      activeDid: repairedActiveDid,
+      activationGeneration: _requiredNonNegativeInt(
+        decoded,
+        'activationGeneration',
+      ),
+      activeDid: activeDid,
       sessions: sessions,
       routingBindings: routingBindings,
-      pendingCleanups: pendingCleanups,
     );
   }
 
   static const currentSchemaVersion = 1;
   static const maxRetainedAccounts = 5;
+  static const _unchanged = Object();
 
-  final int schemaVersion;
-  final int revision;
   final int nextSessionGeneration;
   final int nextUseOrdinal;
   final int activationGeneration;
   final Did? activeDid;
   final Map<Did, StoredSession> sessions;
   final Map<Did, String> routingBindings;
-  final List<PendingSessionCleanup> pendingCleanups;
 
   List<StoredSession> get orderedSessions {
     final ordered = sessions.values.toList()
@@ -279,15 +186,14 @@ class SessionRegistry {
         sessions.length >= maxRetainedAccounts) {
       throw const AccountLimitReached();
     }
-    return SessionRegistry(
-      revision: revision + 1,
+    return _copyWith(
       nextSessionGeneration: nextSessionGeneration + 1,
       nextUseOrdinal: nextUseOrdinal + 1,
       activationGeneration: activationGeneration + 1,
-      activeDid: did,
+      activeDid: parsedDid,
       sessions: {
-        for (final entry in sessions.entries) entry.key.value: entry.value,
-        parsedDid.value: StoredSession(
+        ...sessions,
+        parsedDid: StoredSession(
           token: token,
           did: did,
           handle: handle,
@@ -297,11 +203,6 @@ class SessionRegistry {
           cachedAvatarUrl: cachedAvatarUrl,
         ),
       },
-      routingBindings: {
-        for (final entry in routingBindings.entries)
-          entry.key.value: entry.value,
-      },
-      pendingCleanups: pendingCleanups,
     );
   }
 
@@ -313,58 +214,38 @@ class SessionRegistry {
     }
     if (activeDid == target.account.did) return this;
 
-    return SessionRegistry(
-      revision: revision + 1,
-      nextSessionGeneration: nextSessionGeneration,
+    return _copyWith(
       nextUseOrdinal: nextUseOrdinal + 1,
       activationGeneration: activationGeneration + 1,
-      activeDid: target.account.did.value,
+      activeDid: target.account.did,
       sessions: {
-        for (final entry in sessions.entries)
-          entry.key.value: entry.key == target.account.did
-              ? StoredSession(
-                  token: entry.value.token,
-                  did: entry.value.did.value,
-                  handle: entry.value.handle.value,
-                  sessionGeneration: entry.value.sessionGeneration,
-                  lastUsedOrdinal: nextUseOrdinal,
-                  cachedDisplayName: entry.value.cachedDisplayName,
-                  cachedAvatarUrl: entry.value.cachedAvatarUrl,
-                )
-              : entry.value,
+        ...sessions,
+        target.account.did: StoredSession(
+          token: current.token,
+          did: current.did.value,
+          handle: current.handle.value,
+          sessionGeneration: current.sessionGeneration,
+          lastUsedOrdinal: nextUseOrdinal,
+          cachedDisplayName: current.cachedDisplayName,
+          cachedAvatarUrl: current.cachedAvatarUrl,
+        ),
       },
-      routingBindings: {
-        for (final entry in routingBindings.entries)
-          entry.key.value: entry.value,
-      },
-      pendingCleanups: pendingCleanups,
     );
   }
 
   SessionRegistry remove(String did) {
     final parsedDid = Did.parse(did);
     if (!sessions.containsKey(parsedDid)) return this;
-
-    final remaining = <String, StoredSession>{
-      for (final entry in sessions.entries)
-        if (entry.key != parsedDid) entry.key.value: entry.value,
-    };
+    final remaining = {...sessions}..remove(parsedDid);
     final removedActive = parsedDid == activeDid;
-
-    return SessionRegistry(
-      revision: revision + 1,
-      nextSessionGeneration: nextSessionGeneration,
-      nextUseOrdinal: nextUseOrdinal,
+    final bindings = {...routingBindings}..remove(parsedDid);
+    return _copyWith(
       activationGeneration: removedActive
           ? activationGeneration + 1
           : activationGeneration,
       activeDid: removedActive ? _mostRecentlyUsedDid(remaining) : activeDid,
       sessions: remaining,
-      routingBindings: {
-        for (final entry in routingBindings.entries)
-          if (entry.key != parsedDid) entry.key.value: entry.value,
-      },
-      pendingCleanups: pendingCleanups,
+      routingBindings: bindings,
     );
   }
 
@@ -375,21 +256,8 @@ class SessionRegistry {
     if (leaseFor(lease.account) != lease) {
       throw StateError('Account session unavailable');
     }
-    return SessionRegistry(
-      revision: revision + 1,
-      nextSessionGeneration: nextSessionGeneration,
-      nextUseOrdinal: nextUseOrdinal,
-      activationGeneration: activationGeneration,
-      activeDid: activeDid?.value,
-      sessions: {
-        for (final entry in sessions.entries) entry.key.value: entry.value,
-      },
-      routingBindings: {
-        for (final entry in routingBindings.entries)
-          entry.key.value: entry.value,
-        lease.account.did.value: binding,
-      },
-      pendingCleanups: pendingCleanups,
+    return _copyWith(
+      routingBindings: {...routingBindings, lease.account.did: binding},
     );
   }
 
@@ -398,82 +266,8 @@ class SessionRegistry {
         !routingBindings.containsKey(lease.account.did)) {
       return this;
     }
-    return SessionRegistry(
-      revision: revision + 1,
-      nextSessionGeneration: nextSessionGeneration,
-      nextUseOrdinal: nextUseOrdinal,
-      activationGeneration: activationGeneration,
-      activeDid: activeDid?.value,
-      sessions: {
-        for (final entry in sessions.entries) entry.key.value: entry.value,
-      },
-      routingBindings: {
-        for (final entry in routingBindings.entries)
-          if (entry.key != lease.account.did) entry.key.value: entry.value,
-      },
-      pendingCleanups: pendingCleanups,
-    );
-  }
-
-  /// Atomically makes [lease] unavailable and retains the credential needed
-  /// to finish its server-side cleanup after connectivity returns.
-  SessionRegistry quarantineAndRemove(AccountSessionLease lease) {
-    final stored = sessions[lease.account.did];
-    if (stored == null || stored.sessionGeneration != lease.sessionGeneration) {
-      return this;
-    }
-
-    final remaining = <String, StoredSession>{
-      for (final entry in sessions.entries)
-        if (entry.key != lease.account.did) entry.key.value: entry.value,
-    };
-    final removedActive = activeDid == lease.account.did;
-    final cleanup = PendingSessionCleanup(
-      account: lease.account,
-      sessionGeneration: lease.sessionGeneration,
-      token: stored.token,
-    );
-
-    return SessionRegistry(
-      revision: revision + 1,
-      nextSessionGeneration: nextSessionGeneration,
-      nextUseOrdinal: nextUseOrdinal,
-      activationGeneration: removedActive
-          ? activationGeneration + 1
-          : activationGeneration,
-      activeDid: removedActive ? _mostRecentlyUsedDid(remaining) : activeDid,
-      sessions: remaining,
-      routingBindings: {
-        for (final entry in routingBindings.entries)
-          if (entry.key != lease.account.did) entry.key.value: entry.value,
-      },
-      pendingCleanups: [
-        for (final pending in pendingCleanups)
-          if (pending != cleanup) pending,
-        cleanup,
-      ],
-    );
-  }
-
-  SessionRegistry removePendingCleanup(PendingSessionCleanup cleanup) {
-    if (!pendingCleanups.contains(cleanup)) return this;
-    return SessionRegistry(
-      revision: revision + 1,
-      nextSessionGeneration: nextSessionGeneration,
-      nextUseOrdinal: nextUseOrdinal,
-      activationGeneration: activationGeneration,
-      activeDid: activeDid?.value,
-      sessions: {
-        for (final entry in sessions.entries) entry.key.value: entry.value,
-      },
-      routingBindings: {
-        for (final entry in routingBindings.entries)
-          entry.key.value: entry.value,
-      },
-      pendingCleanups: [
-        for (final pending in pendingCleanups)
-          if (pending != cleanup) pending,
-      ],
+    return _copyWith(
+      routingBindings: {...routingBindings}..remove(lease.account.did),
     );
   }
 
@@ -490,37 +284,24 @@ class SessionRegistry {
         stored.cachedAvatarUrl == avatarUrl) {
       return this;
     }
-    return SessionRegistry(
-      revision: revision + 1,
-      nextSessionGeneration: nextSessionGeneration,
-      nextUseOrdinal: nextUseOrdinal,
-      activationGeneration: activationGeneration,
-      activeDid: activeDid?.value,
+    return _copyWith(
       sessions: {
-        for (final entry in sessions.entries)
-          entry.key.value: entry.key == lease.account.did
-              ? StoredSession(
-                  token: entry.value.token,
-                  did: entry.value.did.value,
-                  handle: entry.value.handle.value,
-                  sessionGeneration: entry.value.sessionGeneration,
-                  lastUsedOrdinal: entry.value.lastUsedOrdinal,
-                  cachedDisplayName: displayName,
-                  cachedAvatarUrl: avatarUrl,
-                )
-              : entry.value,
+        ...sessions,
+        lease.account.did: StoredSession(
+          token: stored.token,
+          did: stored.did.value,
+          handle: stored.handle.value,
+          sessionGeneration: stored.sessionGeneration,
+          lastUsedOrdinal: stored.lastUsedOrdinal,
+          cachedDisplayName: displayName,
+          cachedAvatarUrl: avatarUrl,
+        ),
       },
-      routingBindings: {
-        for (final entry in routingBindings.entries)
-          entry.key.value: entry.value,
-      },
-      pendingCleanups: pendingCleanups,
     );
   }
 
   String toJson() => jsonEncode({
-    'schemaVersion': schemaVersion,
-    'revision': revision,
+    'schemaVersion': currentSchemaVersion,
     'nextSessionGeneration': nextSessionGeneration,
     'nextUseOrdinal': nextUseOrdinal,
     'activationGeneration': activationGeneration,
@@ -529,14 +310,6 @@ class SessionRegistry {
       for (final MapEntry(key: did, value: binding) in routingBindings.entries)
         did: binding,
     },
-    'pendingCleanups': [
-      for (final cleanup in pendingCleanups)
-        {
-          'did': cleanup.account.did,
-          'sessionGeneration': cleanup.sessionGeneration,
-          'token': cleanup.token,
-        },
-    ],
     'sessions': {
       for (final MapEntry(key: did, value: session) in sessions.entries)
         did: {
@@ -551,6 +324,36 @@ class SessionRegistry {
     },
   });
 
+  SessionRegistry _copyWith({
+    int? nextSessionGeneration,
+    int? nextUseOrdinal,
+    int? activationGeneration,
+    Object? activeDid = _unchanged,
+    Map<Did, StoredSession>? sessions,
+    Map<Did, String>? routingBindings,
+  }) {
+    final resolvedActiveDid = identical(activeDid, _unchanged)
+        ? this.activeDid
+        : activeDid as Did?;
+    final resolvedSessions = sessions ?? this.sessions;
+    final resolvedBindings = routingBindings ?? this.routingBindings;
+    return SessionRegistry(
+      nextSessionGeneration:
+          nextSessionGeneration ?? this.nextSessionGeneration,
+      nextUseOrdinal: nextUseOrdinal ?? this.nextUseOrdinal,
+      activationGeneration: activationGeneration ?? this.activationGeneration,
+      activeDid: resolvedActiveDid?.value,
+      sessions: {
+        for (final entry in resolvedSessions.entries)
+          entry.key.value: entry.value,
+      },
+      routingBindings: {
+        for (final entry in resolvedBindings.entries)
+          entry.key.value: entry.value,
+      },
+    );
+  }
+
   @override
   String toString() => 'SessionRegistry(<redacted>)';
 
@@ -558,6 +361,14 @@ class SessionRegistry {
     final value = map[key];
     if (value is! String) throw FormatException('Invalid $key');
     return value;
+  }
+
+  static String? _optionalString(Map<String, Object?> map, String key) {
+    final value = map[key];
+    if (value != null && value is! String) {
+      throw FormatException('Invalid $key');
+    }
+    return value as String?;
   }
 
   static int _requiredInt(Map<String, Object?> map, String key) {
@@ -578,7 +389,7 @@ class SessionRegistry {
     return value;
   }
 
-  static String? _mostRecentlyUsedDid(Map<String, StoredSession> sessions) {
+  static Did? _mostRecentlyUsedDid(Map<Did, StoredSession> sessions) {
     if (sessions.isEmpty) return null;
     final entries = sessions.entries.toList()
       ..sort((left, right) {
@@ -587,7 +398,7 @@ class SessionRegistry {
         );
         return ordinalComparison != 0
             ? ordinalComparison
-            : left.key.compareTo(right.key);
+            : left.key.value.compareTo(right.key.value);
       });
     return entries.first.key;
   }

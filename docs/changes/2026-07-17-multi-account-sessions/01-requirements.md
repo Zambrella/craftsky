@@ -406,3 +406,34 @@ Notes: Grilling completed on 2026-07-17 with all product questions resolved. The
   - Integration: two real sessions on one installation, online/offline cold start, inactive validation, inactive-account count display, push receipt for both accounts, visually identified inactive-account foreground notification, notification open from foreground/background/terminated states, canceled guarded switch, offline sign-out plus shared-token recovery, and one-account expiry.
   - Regression: single-account sign-in, onboarding routing, unsaved-edit protection, OS notification visible copy, notification preferences/new-count seen behavior, API bearer selection, and sign-out cleanup.
 - Blocking open questions: None.
+
+## 24. Approved Simplification Amendment
+
+Approved by the user on 2026-07-18 after implementation complexity review. This section supersedes conflicting earlier wording in Q3, Q6, Q8, FR-001, FR-004, FR-016, FR-020, FR-024, FR-026, NFR-003, AC-008, AC-023, AC-027, AC-029, AC-031, EC-002, EC-015, EC-020, and the persistence/recovery portions of sections 15 through 19.
+
+| ID | Type | Priority | Amended Requirement | Acceptance Criteria |
+|---|---|---|---|---|
+| SIM-FR-001 | Functional | Must | Persist the complete versioned multi-account registry in one platform-secure-storage snapshot. A missing snapshot restores signed out. A read failure, unsupported version, malformed JSON, or malformed registry entry fails closed to an empty signed-out registry; the member may sign in again. A failed write does not publish the attempted in-memory mutation. No legacy single-account migration, alternating journal, read-back verification, partial-entry salvage, or pending-cleanup credential is required. | SIM-AC-001 |
+| SIM-FR-002 | Functional | Must | Manual Sign out removes the selected account locally only after AppView logout succeeds or authoritatively returns unauthorized. A network, cancellation, or server failure keeps the selected account active and retained, surfaces the existing failure state, emits no success message, and allows retry. No offline sign-out, cleanup-only credential, provider-token rotation, or deferred logout recovery is required. Account-scoped `401` invalidation outside manual Sign out remains lease-bound and may remove only that authoritative session. | SIM-AC-002 |
+| SIM-FR-003 | Functional | Must | Restore the active cached session immediately and validate only the active session through authenticated `whoami`. Inactive sessions are not swept at startup; they are checked lazily when selected or first used by account-bound network work. Transient failures retain the account and authoritative unauthorized or identity-mismatch outcomes remove only the unchanged lease. | SIM-AC-003 |
+| SIM-FR-004 | Functional | Must | The switcher identifies and selects retained accounts without unread badges on inactive rows. The active account's existing navigation/notification surfaces retain their normal account-scoped new-count behavior after activation. Foreground delivery to an inactive account need not fetch or cache a count solely for the switcher. | SIM-AC-004 |
+| SIM-FR-005 | Functional | Must | Manual activation keeps the open switcher visible, disables all account/Add actions, and shows bounded loading state until activation succeeds, is cancelled, becomes stale, or fails. Successful activation then dismisses the switcher and resets to Home. No application-wide account-transition model, provider, identity overlay, or activation-source enum is required. Fixed clients, lease/generation checks, account-state invalidation, and stale-result fencing remain mandatory. Notification activation may use the same coordinator without presenting switcher UI. | SIM-AC-005 |
+| SIM-NFR-001 | Maintainability | Should | Remove superseded single-account storage/provider/mapper/bootstrap code, inert switcher action/helper state, unused activation-source state, and duplicated registry-provider mutation pipelines. Immutable registry rebuild helpers may reduce repetition but must preserve session and activation generation behavior. | SIM-AC-006 |
+
+### Amended Acceptance Criteria
+
+| ID | Acceptance Criterion |
+|---|---|
+| SIM-AC-001 | Given a valid multi-account snapshot, restart restores all sessions and the active account; given missing, unreadable, unsupported, or malformed storage, restart is signed out without exposing or partially using stored credentials; given a write failure, the previously published registry remains active. |
+| SIM-AC-002 | Given retained A and B with A active, a transient manual logout failure keeps both accounts and A active and shows no success; successful or authoritative-unauthorized logout removes only A and activates B on Home. |
+| SIM-AC-003 | Given active A and inactive B/C at startup, A restores and validates without any B/C `whoami` call; selecting or first using B validates or invalidates only B through its fixed account context. |
+| SIM-AC-004 | Given A active and B/C inactive, opening the switcher performs no inactive new-count fetch and renders no inactive badges; after B activates, B's normal active notification count remains account-scoped. |
+| SIM-AC-005 | Given the switcher is open and B is selected, its rows and Add action become disabled and loading is visible until the activation result; successful activation closes the switcher and lands on B's Home without a global transition overlay, and late A work still cannot publish as B. |
+| SIM-AC-006 | Production and generated sources contain no legacy `craftsky_session` storage provider/mapper, pending-cleanup/recovery path, inactive-validation scheduler, inactive-switcher count wiring, transition overlay/provider, unused activation-source/action state, or duplicated ordinary registry mutation pipeline. |
+
+### Preserved Boundaries
+
+- Multi-account sessions, additive OAuth, five-account enforcement, deterministic MRU fallback, offline account switching, exact notification-recipient routing, multi-account push registration, account-scoped preferences/lists/seen state, foreground recipient identity, and unsaved-work confirmation remain in scope.
+- Fixed captured bearer clients, lease-scoped `401` invalidation, DID/session/activation ownership checks, explicit account-state invalidation, and late completion rejection remain mandatory.
+- Session tokens and routing bindings remain in platform secure storage and redacted from diagnostics. Corrupt storage fails signed out rather than attempting partial credential recovery.
+- FR-026 and its cleanup-only credential/recovery behavior are removed. IT-013 remains useful for confirmed AppView logout isolation but no longer covers offline recovery.

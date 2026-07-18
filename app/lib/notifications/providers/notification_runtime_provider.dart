@@ -57,7 +57,6 @@ NotificationRuntime notificationRuntime(Ref ref) {
   final activation = AccountActivationCoordinator(
     readRegistry: () => ref.read(sessionRegistryProvider).requireValue,
     commitActivation: ref.read(sessionRegistryProvider.notifier).activate,
-    publishTransition: (_) {},
     invalidateAccountState: ref.read(accountStateInvalidatorProvider),
     resetToHome: () async => ref.read(goRouterProvider).go(RouteLocations.home),
     confirmLeave: ref.read(unsavedWorkGuardProvider).confirmLeave,
@@ -75,14 +74,10 @@ NotificationRuntime notificationRuntime(Ref ref) {
         .read(accountNotificationNewCountProvider(account).notifier)
         .refresh(),
     effects: effects,
-    activateRecipient: (lease) => activation.activate(
-      lease,
-      source: AccountActivationSource.notification,
-    ),
+    activateRecipient: activation.activate,
     eligibleAccounts: () {
       final registry = ref.read(sessionRegistryProvider).value;
       if (registry == null) return const [];
-      if (registry.pendingCleanups.isNotEmpty) return const [];
       return [
         for (final account in registry.sessions.keys)
           if (ref.read(onboardingStatusProvider(account)))

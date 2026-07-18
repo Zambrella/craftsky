@@ -99,7 +99,7 @@ void main() {
   );
 
   test(
-    'IT-009 switching retained accounts does not relaunch validation',
+    'SIM-UT-003 validates retained accounts only when they become active',
     () async {
       final registry = SessionRegistry.empty()
           .upsertAndActivate(
@@ -112,19 +112,20 @@ void main() {
             did: 'did:plc:alice',
             handle: 'alice.test',
           );
-      final launches = <SessionRegistry>[];
+      final launches = <AccountKey>[];
       final container = ProviderContainer.test(
         overrides: [
           secureSessionRegistryStorageProvider.overrideWithValue(
             _FakeRegistryStorage(registry),
           ),
-          sessionValidationLauncherProvider.overrideWithValue((snapshot) async {
-            launches.add(snapshot);
+          sessionValidationLauncherProvider.overrideWithValue((lease) async {
+            launches.add(lease.account);
           }),
         ],
       );
       await container.read(authSessionProvider.future);
       await Future<void>.delayed(Duration.zero);
+      expect(launches, [AccountKey('did:plc:alice')]);
       final bobLease = container
           .read(sessionRegistryProvider)
           .requireValue
@@ -134,7 +135,10 @@ void main() {
       await container.read(authSessionProvider.future);
       await Future<void>.delayed(Duration.zero);
 
-      expect(launches, hasLength(1));
+      expect(launches, [
+        AccountKey('did:plc:alice'),
+        AccountKey('did:plc:bob'),
+      ]);
     },
   );
 }

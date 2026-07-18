@@ -33,7 +33,6 @@ void main() {
       handle: 'viewer.test',
     );
     final registry = SessionRegistry(
-      revision: baseRegistry.revision,
       nextSessionGeneration: baseRegistry.nextSessionGeneration,
       nextUseOrdinal: baseRegistry.nextUseOrdinal,
       activationGeneration: baseRegistry.activationGeneration,

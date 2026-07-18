@@ -1,13 +1,10 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
-import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/auth/services/session_validation_coordinator.dart';
-import 'package:craftsky_app/notifications/providers/notification_lifecycle_provider.dart';
-import 'package:craftsky_app/notifications/services/notification_sign_out_cleanup.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:craftsky_app/shared/api/providers/session_auth_interceptor.dart';
 import 'package:craftsky_app/shared/api/providers/sign_out_on_401_interceptor.dart';
@@ -26,17 +23,6 @@ final class _RegistryStorage implements SessionRegistryStorage {
 
   @override
   Future<void> write(SessionRegistry registry) async => value = registry;
-}
-
-final class _LegacyStorage implements SecureTokenStorage {
-  @override
-  Future<void> clear() async {}
-
-  @override
-  Future<StoredSession?> read() async => null;
-
-  @override
-  Future<void> write(StoredSession session) async {}
 }
 
 final class _RequestHandler extends RequestInterceptorHandler {
@@ -81,15 +67,8 @@ void main() {
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(initial),
           ),
-          secureTokenStorageProvider.overrideWithValue(_LegacyStorage()),
           sessionValidationLauncherProvider.overrideWithValue((_) async {}),
           deviceIdProvider.overrideWith((ref) async => 'device-id'),
-          notificationSignOutCleanupProvider.overrideWithValue(
-            NotificationSignOutCleanup(
-              deleteProviderToken: () async {},
-              removeRoutingBinding: (_) async {},
-            ),
-          ),
         ],
       );
       await container.read(authSessionProvider.future);
@@ -145,15 +124,8 @@ void main() {
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(initial),
           ),
-          secureTokenStorageProvider.overrideWithValue(_LegacyStorage()),
           sessionValidationLauncherProvider.overrideWithValue((_) async {}),
           deviceIdProvider.overrideWith((ref) async => 'device-id'),
-          notificationSignOutCleanupProvider.overrideWithValue(
-            NotificationSignOutCleanup(
-              deleteProviderToken: () async {},
-              removeRoutingBinding: (_) async {},
-            ),
-          ),
         ],
       );
       await container.read(authSessionProvider.future);

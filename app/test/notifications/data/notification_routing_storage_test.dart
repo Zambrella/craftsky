@@ -81,7 +81,6 @@ SessionRegistry _withBindings(
   SessionRegistry registry,
   Map<String, String> bindings,
 ) => SessionRegistry(
-  revision: registry.revision,
   nextSessionGeneration: registry.nextSessionGeneration,
   nextUseOrdinal: registry.nextUseOrdinal,
   activationGeneration: registry.activationGeneration,

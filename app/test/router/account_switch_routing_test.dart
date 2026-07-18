@@ -24,15 +24,11 @@ void main() {
       final coordinator = AccountActivationCoordinator(
         readRegistry: () => registry,
         commitActivation: (lease) async => registry = registry.activate(lease),
-        publishTransition: (_) {},
         invalidateAccountState: () async {},
         resetToHome: () async => location = RouteLocations.home,
       );
 
-      await coordinator.activate(
-        target,
-        source: AccountActivationSource.manual,
-      );
+      await coordinator.activate(target);
       // A later content failure has no authority to roll activation back.
       final contentFailure = StateError('offline');
 

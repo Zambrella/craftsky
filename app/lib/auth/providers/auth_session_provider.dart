@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/services/session_validation_coordinator.dart';
@@ -10,18 +11,18 @@ part 'auth_session_provider.g.dart';
 /// Token-free UI/router projection of the durable session registry.
 @Riverpod(keepAlive: true)
 class AuthSession extends _$AuthSession {
+  AccountSessionLease? _lastValidationLease;
+
   @override
   Future<AuthState> build() async {
     final registry = await ref.watch(sessionRegistryProvider.future);
-    final activeDid = registry.activeDid;
-    final active = activeDid == null ? null : registry.sessions[activeDid];
-    if (active == null) return const SignedOut();
-    if (ref.read(sessionValidationLaunchGuardProvider).shouldLaunch(registry)) {
-      unawaited(ref.read(sessionValidationLauncherProvider)(registry));
+    final activeLease = registry.activeLease?.session;
+    if (activeLease == null) return const SignedOut();
+    final active = registry.sessions[activeLease.account.did]!;
+    if (_lastValidationLease != activeLease) {
+      _lastValidationLease = activeLease;
+      unawaited(ref.read(sessionValidationLauncherProvider)(activeLease));
     }
     return SignedIn(did: active.did.value, handle: active.handle.value);
   }
-
-  /// Temporary compatibility for callers migrated in the sign-out loop.
-  void setSignedOut() => state = const AsyncData(SignedOut());
 }

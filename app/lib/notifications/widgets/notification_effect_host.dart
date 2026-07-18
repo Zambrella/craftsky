@@ -8,7 +8,6 @@ import 'package:craftsky_app/notifications/models/notification_effect.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_permission_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_runtime_provider.dart';
-import 'package:craftsky_app/notifications/providers/notification_sign_out_recovery_provider.dart';
 import 'package:craftsky_app/notifications/services/notification_navigation.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -38,14 +37,12 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _subscription = ref.read(notificationEffectStreamProvider).listen(_handle);
-    unawaited(ref.read(notificationSignOutRecoveryProvider).retry());
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
     ref.invalidate(notificationPermissionProvider);
-    unawaited(ref.read(notificationSignOutRecoveryProvider).retry());
     if (_did == null || !_onboarded) return;
     final active = ref
         .read(sessionRegistryProvider)

@@ -62,10 +62,11 @@ class AccountSessionInvalidationCoordinator {
     final captured = before.leaseFor(lease.account);
     final removesActive = before.activeLease?.session == lease;
 
-    await invalidateLease(lease);
-    if (captured != lease || !removesActive) return;
+    if (captured != lease) return;
 
-    await invalidateAccountState();
+    if (removesActive) await invalidateAccountState();
+    await invalidateLease(lease);
+    if (!removesActive) return;
     final after = await readRegistry();
     if (after.activeDid != null) await resetHome();
   }

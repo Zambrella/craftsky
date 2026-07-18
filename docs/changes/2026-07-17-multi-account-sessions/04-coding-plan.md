@@ -481,3 +481,27 @@ No blocking implementation question remains. High-risk implementation still requ
 - Preserve test order: registry/MRU and journal; fixed clients/`401`; activation boundary; additive OAuth/failure preservation; startup validation; confirmed sign-out plus `IT-013`; notification routing; registration; counts/state; unsaved-work guard; offline recovery; switcher UI; privacy/regression/manual checks.
 - Required verification: generated files, `dart analyze`, focused Flutter suites, `just test`, MAN-001–MAN-003 before release.
 - Do not implement, commit, push, or open a PR until separately authorized.
+
+## 13. Approved Simplification Amendment
+
+Approved by the user on 2026-07-18. This strategy supersedes the journal/recovery, inactive-validation/count, and global-transition portions above while preserving the account boundary.
+
+1. Keep `SessionRegistry` as the immutable DID-keyed domain model, but make its codec strict and remove revision selection, two-slot recovery, tolerant partial-entry salvage, and pending cleanups. `SecureSessionRegistryStorage` reads and writes one `craftsky_session_registry` value. Missing or invalid reads return `SessionRegistry.empty()`; failed writes throw and the notifier does not publish.
+2. Delete the legacy `SecureTokenStorage`, its Riverpod provider/generated output, `StoredSession` dart-mappable mapper/bootstrap registration, and `AuthSession.setSignedOut()` compatibility method.
+3. Make manual sign-out online-confirmed. `204` and authoritative unauthorized remove the captured lease; transient API failures rethrow into controller state and leave the registry, active pointer, routing binding, provider token, and UI state unchanged. Delete `PendingSessionCleanup`, `NotificationSignOutRecovery`, their provider/generated files, recovery lifecycle wiring, and recovery tests.
+4. Project auth from a minimal active-session selection. Launch `whoami` only for that active lease; remove the inactive worker pool and ownership launch guard. Inactive fixed-client work continues to receive lease-scoped `401` handling.
+5. Remove notification counts from `AccountSwitcherRow` and all inactive count watches/refresh callbacks used only by the switcher. Keep the active account's existing navigation/list count provider.
+6. Remove `AccountActivationSource`, `AccountTransition`, `accountTransitionStateProvider`, and `AccountTransitionOverlay`. `AccountSwitcherContent` owns a pending-selection state, disables all actions, and displays progress while its async selection callback runs. The shell awaits the existing coordinator and dismisses the surface only after successful activation.
+7. Remove `AccountSwitcherAction`, `actions`, `addAccountHelper`, and duplicated notifier mutation bodies. Route ordinary registry changes through one serialized `_mutate` helper and reduce immutable registry reconstruction with a private rebuild helper without changing generation semantics.
+
+### Simplification Guardrails
+
+- Do not remove fixed clients, `AccountSessionLease`, `ActiveAccountLease`, activation generation, explicit account-state invalidation, stale-result guards, exact notification routing, multi-account registration, or unsaved-work confirmation.
+- A storage decode failure must never expose a partially decoded credential set. A storage write failure must never publish the attempted registry state.
+- A transient manual sign-out failure must never remove an account, delete/rotate the provider token, emit success, or select a fallback.
+- Switcher-local loading is presentation only; notification activation remains headless and the coordinator remains the single activation/unsaved-work boundary.
+- No AppView route, migration, API shape, dependency, or lexicon change is planned.
+
+### Simplification Test Order
+
+`SIM-UT-001`, `SIM-UT-002`, `SIM-UT-003`, `SIM-UT-004`, `SIM-IT-005`, `SIM-REG-006`, then generated output, analysis, focused/broad Flutter regressions, `just test`, and `git diff --check`.

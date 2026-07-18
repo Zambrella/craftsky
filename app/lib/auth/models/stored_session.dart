@@ -1,14 +1,7 @@
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
-import 'package:dart_mappable/dart_mappable.dart';
 
-part 'stored_session.mapper.dart';
-
-/// Single JSON blob we persist to `flutter_secure_storage` under the
-/// key `craftsky_session`. `did` and `handle` are cached so cold start
-/// can render an optimistic `SignedIn(did, handle)` without waiting
-/// for a `/whoami` round-trip — background validation reconciles them.
-@MappableClass(includeCustomMappers: [DidMapper(), HandleMapper()])
-class StoredSession with StoredSessionMappable {
+/// One retained account entry inside the secure session-registry snapshot.
+class StoredSession {
   StoredSession({
     required this.token,
     required String did,

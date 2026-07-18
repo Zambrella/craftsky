@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/pending_auth.dart';
-import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -277,7 +276,6 @@ void initializeMappers() {
   CraftskyDeviceInfoMapper.ensureInitialized();
   LoginResponseMapper.ensureInitialized();
   WhoAmIMapper.ensureInitialized();
-  StoredSessionMapper.ensureInitialized();
   PendingAuthMapper.ensureInitialized();
   PostMapper.ensureInitialized();
   PostCommentSectionMapper.ensureInitialized();

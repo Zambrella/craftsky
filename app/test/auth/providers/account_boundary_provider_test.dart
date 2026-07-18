@@ -221,14 +221,10 @@ void main() {
         commitActivation: container
             .read(sessionRegistryProvider.notifier)
             .activate,
-        publishTransition: (_) {},
         invalidateAccountState: container.read(accountStateInvalidatorProvider),
         resetToHome: () async {},
       );
-      await coordinator.activate(
-        target,
-        source: AccountActivationSource.manual,
-      );
+      await coordinator.activate(target);
       for (var index = 0; index < 5; index++) {
         await Future<void>.delayed(Duration.zero);
       }

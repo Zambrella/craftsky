@@ -427,6 +427,109 @@ Results:
 - No dependency, migration, or lexicon files changed. No commit, push, or pull request was created.
 - `MAN-001`–`MAN-003` remain the documented physical-device/platform pre-release gate.
 
+## Approved Complexity Simplification Pass
+
+### Inputs
+
+- Complexity review: `06-implementation-review.md` — Approved with notes, IR-007 through IR-012.
+- Requirement/test/coding-plan amendments: approved by the user on 2026-07-18.
+- Scope: single fail-closed snapshot, online-confirmed sign-out, lazy inactive validation, no inactive switcher badges, switcher-local activation progress, and obsolete compatibility/boilerplate removal.
+
+### Simplification Test Order
+
+| Step | Test ID | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---|---|---|---|---|
+| P1 | SIM-UT-001 | SIM-FR-001, NFR-002 | SIM-AC-001 | Fails: storage and codec still implement a tolerant two-slot journal and pending cleanup entries |
+| P2 | SIM-UT-002 | SIM-FR-002, FR-016, FR-018 | SIM-AC-002 | Fails: transient logout removes/quarantines the active account and starts recovery |
+| P3 | SIM-UT-003 | SIM-FR-003, FR-017 | SIM-AC-003 | Fails: startup schedules inactive `whoami` calls through a worker pool and launch guard |
+| P4 | SIM-UT-004 | SIM-FR-004, RULE-002 | SIM-AC-004 | Fails: switcher rows/watchers still expose and fetch inactive badges |
+| P5 | SIM-IT-005 | SIM-FR-005, FR-007, FR-009, NFR-001 | SIM-AC-005 | Fails: manual activation closes the switcher immediately and uses a global transition overlay |
+| P6 | SIM-REG-006 | SIM-NFR-001, SIM-FR-001, SIM-FR-005 | SIM-AC-006 | Fails: legacy storage/mapper, unused action/source state, recovery files, and duplicated mutation bodies remain |
+
+### Simplification Steps
+
+#### P1: SIM-UT-001
+
+- Write failing test: require one secure-storage key, strict whole-snapshot decoding, signed-out fallback for corrupt reads, and surfaced write failures.
+- Run command: focused `secure_token_storage_test.dart` and `session_registry_test.dart` cases.
+- Confirmed failure: Yes. The single-key API did not exist and the codec salvaged valid accounts from a partially corrupt registry.
+- Implement: Replaced the alternating journal with `craftsky_session_registry`; reads fail closed to `SessionRegistry.empty()`, writes target only that key, and the codec rejects any malformed entry or counter.
+- Run command: both focused SIM-UT-001 tests — passed.
+- Refactor: Removed registry revision/recovery state and consolidated registry reconstruction behind `_copyWith`.
+- Notes: A corrupt snapshot now requires signing in again by design; a failed write is never published to Riverpod state.
+
+#### P2: SIM-UT-002
+
+- Write failing test: make logout fail with `ApiNetworkError` and require the exact active registry snapshot and UI boundary to remain unchanged.
+- Run command: focused AuthController SIM-UT-002 case.
+- Confirmed failure: Yes. The controller quarantined the active account and created a pending cleanup credential.
+- Implement: Only a completed logout or `ApiUnauthorized` permits local removal. Other API failures are retained and surfaced for retry.
+- Run command: focused test and complete AuthController suite — passed.
+- Refactor: Deleted pending cleanup storage, recovery coordination/provider, and startup/resume retry hooks.
+- Notes: Account state is invalidated before publishing a confirmed fallback account, preserving the hard account boundary without a global overlay.
+
+#### P3: SIM-UT-003
+
+- Write failing test: require startup to launch validation for Alice only, then launch Bob only after Bob becomes active.
+- Run command: focused auth-session-provider SIM-UT-003 case.
+- Confirmed failure: Yes. The ownership launch guard prevented activation from launching Bob's lazy validation.
+- Implement: AuthSession now tracks the last active lease and schedules `whoami` only for a newly active lease.
+- Run command: focused test and complete auth-session-provider suite — passed.
+- Refactor: Removed the inactive worker pool, concurrency setting, ownership-map launch guard, and coordinator test.
+- Notes: Invalid inactive credentials remain retained until that account is activated.
+
+#### P4: SIM-UT-004
+
+- Write failing test: open the switcher with an inactive unread count and require no badge or inactive count fetch.
+- Run command: focused account-switcher SIM-UT-004 cases.
+- Confirmed failure: Yes. The row rendered `7` and opening the switcher subscribed to Bob's count provider.
+- Implement: Switcher rows contain identity/selection only; the shell retains the active navigation badge.
+- Run command: focused widget cases and complete account-switcher suite — passed.
+- Refactor: Removed notification-count inputs, row badge state, and live inactive count watches.
+- Notes: No notification repository or routing semantics changed.
+
+#### P5: SIM-IT-005
+
+- Write failing test: require the target row to show an inline progress indicator while all switcher actions are disabled.
+- Run command: focused SIM-IT-005 widget case.
+- Confirmed failure: Yes. `AccountSwitcherContent` had no local activation state and the caller closed it immediately.
+- Implement: `_LiveAccountSwitcherContent` now owns the activation future, keeps the surface open while busy, and closes it after activation succeeds.
+- Run command: focused test and complete account-switcher suite — passed.
+- Refactor: Removed the global transition provider/widget and activation source/transition models.
+- Notes: Account state is invalidated before activation publishes the target registry, so removing the global visual shield does not weaken account isolation.
+
+#### P6: SIM-REG-006
+
+- Write/update regression check: search production/tests for journal keys, pending cleanups, legacy storage/mappers, transition models, action enums, and inactive notification inputs.
+- Run command: `rg` over `app/lib` and `app/test` for the removed symbols.
+- Confirmed failure: Yes. Every obsolete family still had production and test references at the start of the pass.
+- Implement/refactor: Removed the legacy `SecureTokenStorage`, StoredSession mapper, pending-cleanup/recovery and unused notification-cleanup files, transition files, switcher action/helper state, and duplicated registry-provider mutation bodies.
+- Run command: final `rg` returned no matches; generated output, analysis, complete Flutter tests, Go race tests, and `git diff --check` passed.
+- Notes: Fixed account clients, leases, exact notification routing, account-scoped invalidation, and stale-result fences remain intact.
+
+### Simplification Completion Checklist
+
+- [x] Amended Must requirements covered by focused tests
+- [x] All simplification tests passing
+- [x] Fixed clients, account leases, exact notification routing, and stale-result fences preserved
+- [x] Generated outputs and localization current
+- [x] Relevant focused and complete Flutter tests passing
+- [x] AppView Go tests passing
+- [x] `git diff --check` passing
+- [x] `05-implementation-plan.md` read back after final update
+- [x] No commit, push, or pull request created without separate authorization
+
+### Simplification Final Verification
+
+- `dart run build_runner build` — passed and wrote 101 current outputs. The existing non-failing analyzer language-version warning remains.
+- `flutter analyze` — passed with no issues.
+- Complete `flutter test --reporter compact` — passed (904 tests).
+- Repository `just test` — passed, including the race-enabled Go suite.
+- Removed-symbol regression search — passed with no matches.
+- `git diff --check` — passed.
+- Net implementation/test change removes substantially more code than it adds; no dependency, migration, API, or lexicon changes were required.
+- No commit, push, or pull request was created.
+
 ## Account-Switch Request-Storm Correction Pass
 
 ### Inputs

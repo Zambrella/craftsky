@@ -1,5 +1,4 @@
 import 'package:craftsky_app/app_dependencies.dart';
-import 'package:craftsky_app/auth/widgets/account_transition_overlay.dart';
 import 'package:craftsky_app/initialization_error_screen.dart';
 import 'package:craftsky_app/initialization_loading_screen.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -66,9 +65,7 @@ class _ReadyApp extends ConsumerWidget {
           return TextScaleFactorClamper(
             child: FormFactorWidget(
               child: NotificationEffectHost(
-                child: AccountTransitionOverlay(
-                  child: child ?? const SizedBox.shrink(),
-                ),
+                child: child ?? const SizedBox.shrink(),
               ),
             ),
           );

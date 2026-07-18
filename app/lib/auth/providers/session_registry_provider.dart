@@ -1,5 +1,4 @@
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
-import 'package:craftsky_app/auth/models/pending_session_cleanup.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart' as registry;
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
@@ -23,68 +22,31 @@ class SessionRegistry extends _$SessionRegistry {
     String? cachedDisplayName,
     String? cachedAvatarUrl,
     Future<void> Function()? beforePublish,
-  }) {
-    final operation = _pendingMutation.then((_) async {
-      final current = state.requireValue;
-      final next = current.upsertAndActivate(
-        token: token,
-        did: did,
-        handle: handle,
-        cachedDisplayName: cachedDisplayName,
-        cachedAvatarUrl: cachedAvatarUrl,
-      );
-      await ref.read(secureSessionRegistryStorageProvider).write(next);
-      if (!ref.mounted) return;
-      await beforePublish?.call();
-      if (!ref.mounted) return;
-      state = AsyncData(next);
-    });
-    _pendingMutation = operation.then<void>(
-      (_) {},
-      onError: (Object _, StackTrace _) {},
-    );
-    return operation;
-  }
+  }) => _mutate(
+    (current) => current.upsertAndActivate(
+      token: token,
+      did: did,
+      handle: handle,
+      cachedDisplayName: cachedDisplayName,
+      cachedAvatarUrl: cachedAvatarUrl,
+    ),
+    beforePublish: beforePublish,
+  );
 
   Future<void> invalidate(AccountSessionLease lease) {
     return removeConfirmed(lease);
   }
 
-  Future<void> removeConfirmed(AccountSessionLease lease) {
-    final operation = _pendingMutation.then((_) async {
-      final current = state.requireValue;
-      final stored = current.sessions[lease.account.did];
-      if (stored == null ||
-          stored.sessionGeneration != lease.sessionGeneration) {
-        return;
-      }
-      final next = current.remove(lease.account.did.value);
-      await ref.read(secureSessionRegistryStorageProvider).write(next);
-      if (!ref.mounted) return;
-      state = AsyncData(next);
-    });
-    _pendingMutation = operation.then<void>(
-      (_) {},
-      onError: (Object _, StackTrace _) {},
-    );
-    return operation;
-  }
+  Future<void> removeConfirmed(AccountSessionLease lease) => _mutate((current) {
+    final stored = current.sessions[lease.account.did];
+    if (stored == null || stored.sessionGeneration != lease.sessionGeneration) {
+      return current;
+    }
+    return current.remove(lease.account.did.value);
+  });
 
-  Future<void> activate(AccountSessionLease lease) {
-    final operation = _pendingMutation.then((_) async {
-      final current = state.requireValue;
-      final next = current.activate(lease);
-      if (identical(next, current)) return;
-      await ref.read(secureSessionRegistryStorageProvider).write(next);
-      if (!ref.mounted) return;
-      state = AsyncData(next);
-    });
-    _pendingMutation = operation.then<void>(
-      (_) {},
-      onError: (Object _, StackTrace _) {},
-    );
-    return operation;
-  }
+  Future<void> activate(AccountSessionLease lease) =>
+      _mutate((current) => current.activate(lease));
 
   Future<void> saveRoutingBinding(
     AccountSessionLease lease,
@@ -95,12 +57,6 @@ class SessionRegistry extends _$SessionRegistry {
 
   Future<void> removeRoutingBinding(AccountSessionLease lease) =>
       _mutate((current) => current.removeRoutingBinding(lease));
-
-  Future<void> quarantineAndRemove(AccountSessionLease lease) =>
-      _mutate((current) => current.quarantineAndRemove(lease));
-
-  Future<void> deletePendingCleanup(PendingSessionCleanup cleanup) =>
-      _mutate((current) => current.removePendingCleanup(cleanup));
 
   Future<void> updateCachedIdentity(
     AccountSessionLease lease, {
@@ -116,13 +72,16 @@ class SessionRegistry extends _$SessionRegistry {
 
   Future<void> _mutate(
     registry.SessionRegistry Function(registry.SessionRegistry current)
-    transform,
-  ) {
+    transform, {
+    Future<void> Function()? beforePublish,
+  }) {
     final operation = _pendingMutation.then((_) async {
       final current = state.requireValue;
       final next = transform(current);
       if (identical(next, current)) return;
       await ref.read(secureSessionRegistryStorageProvider).write(next);
+      if (!ref.mounted) return;
+      await beforePublish?.call();
       if (!ref.mounted) return;
       state = AsyncData(next);
     });

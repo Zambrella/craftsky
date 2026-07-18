@@ -8,7 +8,6 @@ import 'package:craftsky_app/auth/providers/handoff_api_client_provider.dart';
 import 'package:craftsky_app/auth/providers/pending_auth_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
-import 'package:craftsky_app/notifications/providers/notification_sign_out_recovery_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
@@ -24,8 +23,7 @@ class SignOutResult {
 
   const SignOutResult.signedOut() : this._();
 
-  const SignOutResult.switchedTo(String handle)
-    : this._(activeHandle: handle);
+  const SignOutResult.switchedTo(String handle) : this._(activeHandle: handle);
 
   final String? activeHandle;
 
@@ -154,22 +152,24 @@ class AuthController extends _$AuthController {
       final registry = await ref.read(sessionRegistryProvider.future);
       final lease = registry.activeLease?.session;
       if (lease == null) return;
-      var confirmedLogout = false;
       try {
         final api = await ref.read(
           accountAuthApiClientProvider(lease.account).future,
         );
         await api.logout();
-        confirmedLogout = true;
-      } on ApiException catch (e, st) {
-        _log.warning('logout network/server error; clearing locally', e, st);
-      }
-      if (confirmedLogout) {
-        await ref.read(sessionRegistryProvider.notifier).removeConfirmed(lease);
-      } else {
-        await ref.read(notificationSignOutRecoveryProvider).begin(lease);
+      } on ApiUnauthorized {
+        // The server has already made this credential unusable, which is an
+        // authoritative confirmation that local removal is safe.
+      } on ApiException catch (error, stackTrace) {
+        _log.warning(
+          'logout was not confirmed; retaining the account for retry',
+          error,
+          stackTrace,
+        );
+        rethrow;
       }
       await ref.read(accountStateInvalidatorProvider)();
+      await ref.read(sessionRegistryProvider.notifier).removeConfirmed(lease);
       final next = ref.read(sessionRegistryProvider).requireValue;
       final activeDid = next.activeDid;
       if (activeDid == null) {

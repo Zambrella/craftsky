@@ -238,7 +238,7 @@ void main() {
   );
 
   testWidgets(
-    'IT-006 inactive notification counts load only while switcher is open',
+    'SIM-UT-004 switcher never loads inactive notification counts',
     (tester) async {
       final alice = AccountKey('did:plc:alice');
       final bob = AccountKey('did:plc:bob');
@@ -270,12 +270,12 @@ void main() {
       await tester.longPress(find.byTooltip('Switch account').first);
       await tester.pumpAndSettle();
 
-      expect(repositories[bob]!.countCalls, 1);
+      expect(repositories[bob]!.countCalls, 0);
     },
   );
 
   testWidgets(
-    'UT-017 IT-011 content selects accounts and adds without remove',
+    'SIM-UT-004 inactive switcher rows do not show unread badges',
     (
       tester,
     ) async {
@@ -291,10 +291,7 @@ void main() {
             did: 'did:plc:alice',
             handle: 'alice.test',
           );
-      final state = AccountSwitcherState.fromRegistry(
-        registry,
-        notificationCounts: {AccountKey('did:plc:bob'): 7},
-      );
+      final state = AccountSwitcherState.fromRegistry(registry);
       final selected = <String>[];
       var adds = 0;
 
@@ -315,7 +312,7 @@ void main() {
       expect(find.text('alice.test'), findsOneWidget);
       expect(find.text('Bob'), findsOneWidget);
       expect(find.text('@bob.test'), findsOneWidget);
-      expect(find.text('7'), findsOneWidget);
+      expect(find.text('7'), findsNothing);
       expect(find.text('Add account'), findsOneWidget);
       expect(find.textContaining('Sign out'), findsNothing);
       expect(find.byIcon(Icons.delete_outline), findsNothing);
@@ -364,6 +361,52 @@ void main() {
           .flagsCollection
           .isSelected,
       Tristate.isTrue,
+    );
+  });
+
+  testWidgets('SIM-IT-005 activation loads and disables inside switcher', (
+    tester,
+  ) async {
+    final registry = SessionRegistry.empty()
+        .upsertAndActivate(
+          token: 'bob-token',
+          did: 'did:plc:bob',
+          handle: 'bob.test',
+        )
+        .upsertAndActivate(
+          token: 'alice-token',
+          did: 'did:plc:alice',
+          handle: 'alice.test',
+        );
+    final bob = registry.leaseFor(AccountKey('did:plc:bob'))!;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: AccountSwitcherContent(
+            state: AccountSwitcherState.fromRegistry(registry),
+            activating: bob,
+            onSelect: (_) => fail('busy switcher must not select'),
+            onAddAccount: () => fail('busy switcher must not add'),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(
+      tester
+          .widget<ListTile>(find.widgetWithText(ListTile, 'bob.test'))
+          .enabled,
+      isFalse,
+    );
+    expect(
+      tester
+          .widget<ListTile>(find.widgetWithText(ListTile, 'Add account'))
+          .enabled,
+      isFalse,
     );
   });
 

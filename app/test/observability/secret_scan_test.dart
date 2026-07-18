@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_switcher_state.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
-import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart';
 import 'package:craftsky_app/auth/providers/handoff_api_client_provider.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
@@ -70,7 +69,6 @@ void main() {
       AccountKey(did),
       AccountSwitcherState.fromRegistry(registry),
       ...AccountSwitcherState.fromRegistry(registry).rows,
-      AccountTransition(lease),
       attempt,
       foreground,
       resolution,
@@ -81,7 +79,6 @@ void main() {
         recipient: recipient,
       ),
       AccountSubscriptionId.parse(routing),
-      registry.quarantineAndRemove(lease).pendingCleanups.single,
     ].join(' ');
 
     for (final sentinel in [token, routing, did, handle, displayName, avatar]) {

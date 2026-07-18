@@ -77,7 +77,7 @@ void main() {
     );
 
     final current = container.read(sessionRegistryProvider).requireValue;
-    expect(current.revision, original.revision);
+    expect(current.toJson(), original.toJson());
     expect(current.sessions.keys, {'did:plc:alice'});
     expect(storage.value.sessions.keys, {'did:plc:alice'});
   });

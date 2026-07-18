@@ -430,3 +430,23 @@ Feature: Foreground notification identity
   - From `app/`, when generated Riverpod/mapper code changes: `dart run build_runner build`
   - From repository root, required for the AppView contract even if production server code is unchanged: `just test`
 - Blocking gaps: None after document correction. `GAP-001`, `GAP-002`, and `GAP-005` require explicit treatment because risk is High; `GAP-003` is addressed by planned `IT-013` and mandatory AppView verification.
+
+## 12. Approved Simplification Test Amendment
+
+Approved by the user on 2026-07-18. These tests supersede the prior partial-write journal, offline cleanup recovery, inactive startup sweep, inactive switcher count, and global transition-overlay expectations in UT-001, UT-004, UT-009, UT-010, UT-013, IT-001, IT-003, IT-006, IT-009, IT-010, AT-004, AT-006, AT-010, AT-011, MAN-001, MAN-002, MAN-003, TD-002, TD-006, TD-008, GAP-003, and GAP-005. Other account-isolation assertions in those tests remain applicable.
+
+| Order | Test ID | Requirement IDs | Acceptance Criteria | Focused Behavior | Automation Target |
+|---|---|---|---|---|---|
+| 1 | SIM-UT-001 | SIM-FR-001, NFR-002 | SIM-AC-001 | One secure snapshot round-trips valid accounts, missing/corrupt/unsupported/read-failed storage returns empty signed-out state, and a failed write does not publish. | `app/test/auth/models/session_registry_test.dart`, `app/test/auth/providers/secure_token_storage_test.dart`, `app/test/auth/providers/account_session_registry_provider_test.dart` |
+| 2 | SIM-UT-002 | SIM-FR-002, FR-016, FR-018 | SIM-AC-002 | Transient manual logout failure retains the complete registry and active account with no success result; success and authoritative unauthorized remove only the selected lease. | `app/test/auth/providers/auth_controller_test.dart`, `app/test/settings/sign_out_tile_test.dart` |
+| 3 | SIM-UT-003 | SIM-FR-003, FR-017 | SIM-AC-003 | Startup calls `whoami` only for the active lease; inactive sessions remain until selected/used, where account-bound unauthorized handling removes only that lease. | `app/test/auth/providers/auth_session_provider_test.dart`, `app/test/auth/services/session_validation_coordinator_test.dart` |
+| 4 | SIM-UT-004 | SIM-FR-004, RULE-002 | SIM-AC-004 | Opening the switcher creates no inactive count requests and renders no inactive badges; active navigation count behavior remains green. | `app/test/auth/models/account_switcher_state_test.dart`, `app/test/router/app_shell_account_switcher_test.dart` |
+| 5 | SIM-IT-005 | SIM-FR-005, FR-007, FR-009, NFR-001 | SIM-AC-005 | A pending manual activation disables switcher rows/Add and shows progress; success dismisses it and resets Home; there is no global transition overlay and stale completion protection remains. | `app/test/auth/providers/account_activation_coordinator_test.dart`, `app/test/router/app_shell_account_switcher_test.dart`, `app/test/auth/providers/account_boundary_provider_test.dart` |
+| 6 | SIM-REG-006 | SIM-NFR-001, SIM-FR-001, SIM-FR-005 | SIM-AC-006 | Source/call-site scan and focused regressions prove obsolete compatibility/recovery/transition/count/validation symbols are absent while serialized registry mutation and account boundaries remain green. | `app/test/observability/secret_scan_test.dart` plus `rg`/generated-output verification |
+
+### Revised Gaps And Manual Checks
+
+- Platform secure-storage encryption remains a manual platform concern, but partial entry/journal recovery is no longer required. The accepted failure mode is local sign-out and reauthentication.
+- Physical-device multi-account push delivery and exact recipient opens remain a manual check. Offline sign-out and replacement-token recovery are no longer part of that check.
+- Visual/accessibility inspection should verify switcher-local progress and disabled semantics; no global identity transition overlay is expected.
+- The AppView shared-installation confirmed-logout isolation test remains required. Cleanup-failure behavior now proves that the client can retry while its local account stays retained.

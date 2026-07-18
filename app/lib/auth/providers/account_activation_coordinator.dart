@@ -3,25 +3,13 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 
-enum AccountActivationSource { manual, notification }
-
 enum AccountActivationResult { activated, alreadyActive, stale, cancelled }
-
-final class AccountTransition {
-  const AccountTransition(this.target);
-
-  final AccountSessionLease target;
-
-  @override
-  String toString() => 'AccountTransition(<redacted>)';
-}
 
 /// Enforces the local account boundary independently of network availability.
 class AccountActivationCoordinator {
   AccountActivationCoordinator({
     required this.readRegistry,
     required this.commitActivation,
-    required this.publishTransition,
     required this.invalidateAccountState,
     required this.resetToHome,
     Future<bool> Function(AccountSessionLease owner)? confirmLeave,
@@ -29,7 +17,6 @@ class AccountActivationCoordinator {
 
   final SessionRegistry Function() readRegistry;
   final Future<void> Function(AccountSessionLease lease) commitActivation;
-  final void Function(AccountTransition? transition) publishTransition;
   final Future<void> Function() invalidateAccountState;
   final Future<void> Function() resetToHome;
   final Future<bool> Function(AccountSessionLease owner) confirmLeave;
@@ -37,12 +24,9 @@ class AccountActivationCoordinator {
   AccountSessionLease? _inFlightTarget;
   Future<AccountActivationResult>? _inFlight;
 
-  Future<AccountActivationResult> activate(
-    AccountSessionLease target, {
-    required AccountActivationSource source,
-  }) {
+  Future<AccountActivationResult> activate(AccountSessionLease target) {
     if (_inFlightTarget == target) return _inFlight!;
-    final operation = _activate(target, source: source);
+    final operation = _activate(target);
     _inFlightTarget = target;
     _inFlight = operation;
     unawaited(
@@ -54,10 +38,7 @@ class AccountActivationCoordinator {
     return operation;
   }
 
-  Future<AccountActivationResult> _activate(
-    AccountSessionLease target, {
-    required AccountActivationSource source,
-  }) async {
+  Future<AccountActivationResult> _activate(AccountSessionLease target) async {
     final registry = readRegistry();
     if (registry.leaseFor(target.account) != target) {
       return AccountActivationResult.stale;
@@ -78,15 +59,10 @@ class AccountActivationCoordinator {
       return AccountActivationResult.alreadyActive;
     }
 
-    publishTransition(AccountTransition(target));
-    try {
-      await commitActivation(target);
-      await invalidateAccountState();
-      await resetToHome();
-      return AccountActivationResult.activated;
-    } finally {
-      publishTransition(null);
-    }
+    await invalidateAccountState();
+    await commitActivation(target);
+    await resetToHome();
+    return AccountActivationResult.activated;
   }
 
   static Future<bool> _allowLeave(AccountSessionLease _) async => true;

@@ -9,16 +9,19 @@ class AccountSwitcherContent extends StatelessWidget {
     required this.state,
     required this.onSelect,
     required this.onAddAccount,
+    this.activating,
     super.key,
   });
 
   final AccountSwitcherState state;
   final ValueChanged<AccountSessionLease> onSelect;
   final VoidCallback onAddAccount;
+  final AccountSessionLease? activating;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final busy = activating != null;
     return SafeArea(
       child: ListView(
         shrinkWrap: true,
@@ -29,7 +32,7 @@ class AccountSwitcherContent extends StatelessWidget {
               selected: row.isCurrent,
               child: ListTile(
                 selected: row.isCurrent,
-                enabled: !row.isCurrent,
+                enabled: !busy && !row.isCurrent,
                 leading: AccountAvatar(
                   avatarUrl: row.avatarUrl,
                   selected: row.isCurrent,
@@ -38,23 +41,26 @@ class AccountSwitcherContent extends StatelessWidget {
                 subtitle: row.displayLabel == row.handle
                     ? null
                     : Text('@${row.handle}'),
-                trailing: row.badge.visible
-                    ? Badge(label: Text(row.badge.label))
+                trailing: row.lease == activating
+                    ? const SizedBox.square(
+                        dimension: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : row.isCurrent
                     ? const Icon(Icons.check)
                     : null,
-                onTap: row.isCurrent ? null : () => onSelect(row.lease),
+                onTap: busy || row.isCurrent ? null : () => onSelect(row.lease),
               ),
             ),
           const Divider(),
           ListTile(
-            enabled: state.canAddAccount,
+            enabled: !busy && state.canAddAccount,
             leading: const Icon(Icons.person_add_alt_1),
             title: Text(l10n.accountSwitcherAdd),
-            subtitle: state.addAccountHelper == null
+            subtitle: state.canAddAccount
                 ? null
                 : Text(l10n.accountSwitcherMaximum),
-            onTap: state.canAddAccount ? onAddAccount : null,
+            onTap: !busy && state.canAddAccount ? onAddAccount : null,
           ),
         ],
       ),
