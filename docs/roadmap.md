@@ -56,7 +56,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Rich text — facets, mentions, links, hashtags
 - [x] Quote posts
 - [ ] Profile settings screen — handle change, avatar upload, privacy controls
-- [ ] Multi-account support
+- [x] Multi-account support
 
 ### Lexicons
 
