@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
@@ -7,7 +8,9 @@ import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
+import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
@@ -46,6 +49,10 @@ class ProfilePage extends ConsumerWidget {
       SignedIn(:final handle) => handle,
       _ => null,
     };
+    final viewerAccount = switch (auth) {
+      SignedIn(:final did) => AccountKey(did.toString()),
+      _ => null,
+    };
 
     final targetHandle = handle ?? myHandle;
     if (targetHandle == null) {
@@ -58,15 +65,21 @@ class ProfilePage extends ConsumerWidget {
     return _ProfileScaffold(
       handle: targetHandle,
       isOwnProfile: targetHandle == myHandle,
+      viewerAccount: viewerAccount,
     );
   }
 }
 
 class _ProfileScaffold extends ConsumerWidget {
-  const _ProfileScaffold({required this.handle, required this.isOwnProfile});
+  const _ProfileScaffold({
+    required this.handle,
+    required this.isOwnProfile,
+    required this.viewerAccount,
+  });
 
   final String handle;
   final bool isOwnProfile;
+  final AccountKey? viewerAccount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -117,6 +130,7 @@ class _ProfileScaffold extends ConsumerWidget {
                   profile: value,
                   isOwnProfile: isOwnProfile,
                   bannerColor: bannerColor,
+                  viewerAccount: viewerAccount,
                 ),
               ),
             ],
@@ -125,6 +139,7 @@ class _ProfileScaffold extends ConsumerWidget {
             profile: value,
             isOwnProfile: isOwnProfile,
             bannerColor: bannerColor,
+            viewerAccount: viewerAccount,
           ),
         },
       ),
@@ -160,11 +175,13 @@ class _ProfileBody extends ConsumerWidget {
     required this.profile,
     required this.isOwnProfile,
     required this.bannerColor,
+    required this.viewerAccount,
   });
 
   final Profile profile;
   final bool isOwnProfile;
   final Color bannerColor;
+  final AccountKey? viewerAccount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -179,18 +196,53 @@ class _ProfileBody extends ConsumerWidget {
       }
     });
 
+    final serverRelationship = ProfileRelationship.fromProfileFlags(
+      muted: profile.muted,
+      blocking: profile.blocking,
+      blockedBy: profile.blockedBy,
+    );
+    final account = viewerAccount;
+    final provider = account == null || isOwnProfile
+        ? null
+        : profileRelationshipProvider(account, profile.did.toString());
+    final cached = provider == null ? null : ref.watch(provider);
+    if (provider != null && !(cached?.initialized ?? false)) {
+      unawaited(
+        Future<void>.microtask(
+          () => ref.read(provider.notifier).seed(serverRelationship),
+        ),
+      );
+    }
+    final relationship = cached?.initialized ?? false
+        ? cached!
+        : serverRelationship;
+    final actions = _actionsFor(context, ref, relationship);
+
+    if (relationship.hasBlock) {
+      return _BlockedProfileView(
+        profile: profile,
+        bannerColor: bannerColor,
+        actions: actions,
+        relationship: relationship,
+      );
+    }
     return DefaultTabController(
       length: ProfileTab.values.length,
       child: _ProfileScrollView(
         profile: profile,
         bannerColor: bannerColor,
-        actions: _actionsFor(context, ref),
+        actions: actions,
         isOwnProfile: isOwnProfile,
+        relationship: relationship,
       ),
     );
   }
 
-  ProfileActionSet _actionsFor(BuildContext context, WidgetRef ref) {
+  ProfileActionSet _actionsFor(
+    BuildContext context,
+    WidgetRef ref,
+    ProfileRelationship relationship,
+  ) {
     final l10n = AppLocalizations.of(context);
     if (isOwnProfile) {
       return SelfProfileActionSet(
@@ -202,7 +254,11 @@ class _ProfileBody extends ConsumerWidget {
     final toggleState = ref.watch(toggleFollowProfileProvider);
     return VisitorProfileActionSet(
       isFollowing: profile.viewerIsFollowing,
-      isBusy: toggleState.isLoading,
+      isBusy: toggleState.isLoading || relationship.pendingAction != null,
+      isMuted: relationship.muted,
+      isBlocking: relationship.blocking,
+      canFollow: !relationship.hasBlock,
+      canToggleMute: !relationship.hasBlock || relationship.muted,
       onFollowToggle: () {
         unawaited(
           ref
@@ -215,7 +271,89 @@ class _ProfileBody extends ConsumerWidget {
       },
       onShare: () => context.showInfo(l10n.profileShareComingSoon),
       onReport: () => showProfileReportSheet(context, ref, profile.handle),
+      onMuteToggle: () => unawaited(
+        _mutateRelationship(
+          context,
+          ref,
+          relationship.muted
+              ? ProfileRelationshipAction.unmute
+              : ProfileRelationshipAction.mute,
+        ),
+      ),
+      onBlockToggle: () => unawaited(
+        _confirmAndMutateBlock(context, ref, relationship.blocking),
+      ),
     );
+  }
+
+  Future<void> _confirmAndMutateBlock(
+    BuildContext context,
+    WidgetRef ref,
+    bool isBlocking,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          isBlocking
+              ? l10n.profileUnblockConfirmTitle
+              : l10n.profileBlockConfirmTitle,
+        ),
+        content: Text(
+          isBlocking
+              ? l10n.profileUnblockConfirmBody
+              : l10n.profileBlockConfirmBody,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.actionCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              isBlocking ? l10n.profileUnblockAction : l10n.profileBlockAction,
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await _mutateRelationship(
+      context,
+      ref,
+      isBlocking
+          ? ProfileRelationshipAction.unblock
+          : ProfileRelationshipAction.block,
+    );
+  }
+
+  Future<void> _mutateRelationship(
+    BuildContext context,
+    WidgetRef ref,
+    ProfileRelationshipAction action,
+  ) async {
+    final account = viewerAccount;
+    if (account == null) return;
+    final provider = profileRelationshipProvider(
+      account,
+      profile.did.toString(),
+    );
+    await ref.read(provider.notifier).mutate(action);
+    if (!context.mounted) return;
+    final l10n = AppLocalizations.of(context);
+    final result = ref.read(provider);
+    if (result.lastError != null) {
+      context.showError(l10n.profileRelationshipError);
+      return;
+    }
+    context.showInfo(switch (action) {
+      ProfileRelationshipAction.mute => l10n.profileMuteSuccess,
+      ProfileRelationshipAction.unmute => l10n.profileUnmuteSuccess,
+      ProfileRelationshipAction.block => l10n.profileBlockSuccess,
+      ProfileRelationshipAction.unblock => l10n.profileUnblockSuccess,
+    });
   }
 }
 
@@ -232,12 +370,14 @@ class _ProfileScrollView extends StatelessWidget {
     required this.bannerColor,
     required this.actions,
     required this.isOwnProfile,
+    required this.relationship,
   });
 
   final Profile profile;
   final Color bannerColor;
   final ProfileActionSet actions;
   final bool isOwnProfile;
+  final ProfileRelationship relationship;
 
   @override
   Widget build(BuildContext context) {
@@ -266,6 +406,10 @@ class _ProfileScrollView extends StatelessWidget {
                   alt: _profileImageAlt(profile, 'profile banner'),
                 ),
         ),
+        if (relationship.kind != ProfileRelationshipKind.none)
+          SliverToBoxAdapter(
+            child: _RelationshipAnnotation(relationship: relationship),
+          ),
         SliverToBoxAdapter(
           child: ProfileMetaSection(
             profile: profile,
@@ -308,6 +452,64 @@ class _ProfileScrollView extends StatelessWidget {
         ? profile.displayName!
         : '@${profile.handle}';
     return '$name $imageLabel';
+  }
+}
+
+class _BlockedProfileView extends StatelessWidget {
+  const _BlockedProfileView({
+    required this.profile,
+    required this.bannerColor,
+    required this.actions,
+    required this.relationship,
+  });
+
+  final Profile profile;
+  final Color bannerColor;
+  final ProfileActionSet actions;
+  final ProfileRelationship relationship;
+
+  @override
+  Widget build(BuildContext context) => CustomScrollView(
+    slivers: [
+      ProfileSliverAppBar(
+        handle: profile.handle,
+        displayName: profile.displayName,
+        bannerColor: bannerColor,
+        avatarUrl: profile.avatar,
+        actions: actions,
+      ),
+      SliverToBoxAdapter(
+        child: _RelationshipAnnotation(relationship: relationship),
+      ),
+    ],
+  );
+}
+
+class _RelationshipAnnotation extends StatelessWidget {
+  const _RelationshipAnnotation({required this.relationship});
+
+  final ProfileRelationship relationship;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final label = switch (relationship.kind) {
+      ProfileRelationshipKind.none => '',
+      ProfileRelationshipKind.muted => l10n.profileMuteAnnotation,
+      ProfileRelationshipKind.blocking => l10n.profileBlockingAnnotation,
+      ProfileRelationshipKind.blockedBy => l10n.profileBlockedByAnnotation,
+      ProfileRelationshipKind.mutualBlock => l10n.profileMutualBlockAnnotation,
+    };
+    return Semantics(
+      liveRegion: true,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+      ),
+    );
   }
 }
 

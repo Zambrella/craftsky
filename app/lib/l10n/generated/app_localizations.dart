@@ -688,6 +688,216 @@ abstract class AppLocalizations {
   /// **'Share'**
   String get profileShareAction;
 
+  /// Accessible tooltip for the visitor profile More menu.
+  ///
+  /// In en, this message translates to:
+  /// **'More profile actions'**
+  String get profileMoreActions;
+
+  /// Action that privately mutes a profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Mute account'**
+  String get profileMuteAction;
+
+  /// Action that removes a private profile mute.
+  ///
+  /// In en, this message translates to:
+  /// **'Unmute account'**
+  String get profileUnmuteAction;
+
+  /// Destructive action that publicly blocks a profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Block account'**
+  String get profileBlockAction;
+
+  /// Action that removes the viewer's public profile block.
+  ///
+  /// In en, this message translates to:
+  /// **'Unblock account'**
+  String get profileUnblockAction;
+
+  /// Viewer-only annotation on a muted profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Muted account'**
+  String get profileMuteAnnotation;
+
+  /// Annotation on a profile the viewer has blocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked by you'**
+  String get profileBlockingAnnotation;
+
+  /// Annotation on a profile whose owner blocked the viewer.
+  ///
+  /// In en, this message translates to:
+  /// **'This account has blocked you'**
+  String get profileBlockedByAnnotation;
+
+  /// Annotation when both accounts own a block.
+  ///
+  /// In en, this message translates to:
+  /// **'You have blocked each other'**
+  String get profileMutualBlockAnnotation;
+
+  /// Feedback after a mute or block mutation rolls back.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not update account relationship.'**
+  String get profileRelationshipError;
+
+  /// Feedback after muting a profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Account muted.'**
+  String get profileMuteSuccess;
+
+  /// Feedback after unmuting a profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Account unmuted.'**
+  String get profileUnmuteSuccess;
+
+  /// Feedback after blocking a profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Account blocked.'**
+  String get profileBlockSuccess;
+
+  /// Feedback after unblocking a profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Account unblocked.'**
+  String get profileUnblockSuccess;
+
+  /// Title of the public block confirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Block this account?'**
+  String get profileBlockConfirmTitle;
+
+  /// Consequences and public visibility warning in the block confirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocking is public on the AT Protocol. You will no longer see or interact with each other\'s content.'**
+  String get profileBlockConfirmBody;
+
+  /// Title of the unblock confirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Unblock this account?'**
+  String get profileUnblockConfirmTitle;
+
+  /// Consequences shown in the unblock confirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'You may see and interact with each other\'s content again.'**
+  String get profileUnblockConfirmBody;
+
+  /// Generic cancel action.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get actionCancel;
+
+  /// Generic confirmation action.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm'**
+  String get actionConfirm;
+
+  /// Accessibility hint for actions that can remove content or a public relationship.
+  ///
+  /// In en, this message translates to:
+  /// **'Destructive action'**
+  String get destructiveActionHint;
+
+  /// Settings entry and page title for private mutes.
+  ///
+  /// In en, this message translates to:
+  /// **'Muted accounts'**
+  String get settingsMutedAccounts;
+
+  /// Settings entry and page title for public blocks.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked accounts'**
+  String get settingsBlockedAccounts;
+
+  /// Empty state for the muted-account list.
+  ///
+  /// In en, this message translates to:
+  /// **'You have not muted any accounts.'**
+  String get settingsMutedAccountsEmpty;
+
+  /// Empty state for the blocked-account list.
+  ///
+  /// In en, this message translates to:
+  /// **'You have not blocked any accounts.'**
+  String get settingsBlockedAccountsEmpty;
+
+  /// Safe load error for the muted-account list.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load muted accounts.'**
+  String get settingsMutedAccountsError;
+
+  /// Safe load error for the blocked-account list.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load blocked accounts.'**
+  String get settingsBlockedAccountsError;
+
+  /// Retry action for relationship-list load failures.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get relationshipListRetry;
+
+  /// Pagination action for relationship lists.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more'**
+  String get relationshipListLoadMore;
+
+  /// Row action in the muted-account list.
+  ///
+  /// In en, this message translates to:
+  /// **'Unmute'**
+  String get relationshipListUnmute;
+
+  /// Row action in the blocked-account list.
+  ///
+  /// In en, this message translates to:
+  /// **'Unblock'**
+  String get relationshipListUnblock;
+
+  /// Safe row-level relationship mutation error.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not update this account.'**
+  String get relationshipListMutationError;
+
+  /// Content-free placeholder for a muted post or quote.
+  ///
+  /// In en, this message translates to:
+  /// **'Post from a muted account'**
+  String get postMutedPlaceholder;
+
+  /// Generic content-free placeholder for blocked or unavailable content.
+  ///
+  /// In en, this message translates to:
+  /// **'Post unavailable'**
+  String get postUnavailablePlaceholder;
+
+  /// Temporary reveal action for muted content.
+  ///
+  /// In en, this message translates to:
+  /// **'Show post'**
+  String get postRevealAction;
+
   /// Label on the follow button on a visitor profile when the viewer is not yet following them.
   ///
   /// In en, this message translates to:

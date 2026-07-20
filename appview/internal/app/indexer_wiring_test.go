@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -47,9 +49,34 @@ CREATE TABLE atproto_follows (
     UNIQUE (did, rkey),
     UNIQUE (did, subject_did)
 );
+CREATE TABLE atproto_blocks (
+    uri         TEXT        NOT NULL PRIMARY KEY,
+    blocker_did TEXT        NOT NULL,
+    rkey        TEXT        NOT NULL,
+    cid         TEXT        NOT NULL,
+    subject_did TEXT        NOT NULL,
+    record      JSONB       NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL,
+    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (blocker_did, rkey)
+);
+CREATE INDEX atproto_blocks_blocker_subject_idx ON atproto_blocks (blocker_did, subject_did);
+CREATE INDEX atproto_blocks_subject_blocker_idx ON atproto_blocks (subject_did, blocker_did);
+CREATE TABLE notification_events (
+    id UUID PRIMARY KEY,
+    recipient_did TEXT NOT NULL,
+    actor_did TEXT NOT NULL
+);
+CREATE TABLE push_deliveries (
+    notification_id UUID NOT NULL REFERENCES notification_events(id),
+    status TEXT NOT NULL,
+    lease_owner TEXT,
+    lease_expires_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 CREATE TABLE craftsky_posts (
     uri              TEXT        NOT NULL PRIMARY KEY,
-    did              TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    did              TEXT        NOT NULL,
     rkey             TEXT        NOT NULL,
     cid              TEXT        NOT NULL,
     text             TEXT        NOT NULL,
@@ -69,7 +96,7 @@ CREATE TABLE craftsky_posts (
 );
 CREATE TABLE craftsky_likes (
     uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    did         TEXT        NOT NULL,
     rkey        TEXT        NOT NULL,
     cid         TEXT        NOT NULL,
     subject_uri TEXT        NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
@@ -84,7 +111,7 @@ CREATE UNIQUE INDEX craftsky_likes_did_subject_uri_active_unique
     ON craftsky_likes (did, subject_uri) WHERE deleted_at IS NULL;
 CREATE TABLE craftsky_reposts (
     uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    did         TEXT        NOT NULL,
     rkey        TEXT        NOT NULL,
     cid         TEXT        NOT NULL,
     subject_uri TEXT        NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
@@ -100,6 +127,15 @@ CREATE UNIQUE INDEX craftsky_reposts_did_subject_uri_active_unique
 `
 
 type noopPDSClient struct{}
+
+type recordingRepositoryTracker struct {
+	dids []syntax.DID
+}
+
+func (r *recordingRepositoryTracker) AddRepo(_ context.Context, did syntax.DID) error {
+	r.dids = append(r.dids, did)
+	return nil
+}
 
 func (noopPDSClient) GetRecord(context.Context, syntax.DID, string, string, any) (string, error) {
 	return "", nil
@@ -192,6 +228,67 @@ func TestNewIndexerDispatcherRegistersBlueskyFollow(t *testing.T) {
 	}
 	if count != 1 {
 		t.Errorf("atproto_follows count = %d; want 1", count)
+	}
+}
+
+func TestBlockCollectionIsDispatchedAndConfiguredExactlyOnce(t *testing.T) {
+	pool := testdb.WithSchema(t, indexerWiringDDL)
+	dispatcher := newIndexerDispatcher(pool, noopPDSClient{}, slog.Default())
+
+	ev := tap.Event{
+		URI:        "at://did:plc:actor/app.bsky.graph.block/block1",
+		CID:        "bafyblock1",
+		DID:        "did:plc:actor",
+		Collection: "app.bsky.graph.block",
+		Rkey:       "block1",
+		Action:     "create",
+		Record: json.RawMessage(`{
+			"$type": "app.bsky.graph.block",
+			"subject": "did:plc:author",
+			"createdAt": "2026-07-19T12:00:00Z"
+		}`),
+	}
+	if err := dispatcher.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle block through dispatcher: %v", err)
+	}
+	var count int
+	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM atproto_blocks`).Scan(&count); err != nil {
+		t.Fatalf("count blocks: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("atproto_blocks count = %d, want 1", count)
+	}
+
+	compose, err := os.ReadFile("../../../docker-compose.yml")
+	if err != nil {
+		t.Fatalf("read docker-compose.yml: %v", err)
+	}
+	if got := strings.Count(string(compose), "app.bsky.graph.block"); got != 1 {
+		t.Fatalf("docker-compose app.bsky.graph.block occurrences = %d, want exactly 1", got)
+	}
+	if strings.Contains(string(compose), "social.craftsky.graph.block") {
+		t.Fatal("docker-compose configured a local Craftsky block collection")
+	}
+}
+
+func TestIndexerDispatcherRequestsTapTrackingWhenMembershipRowIsCreated(t *testing.T) {
+	pool := testdb.WithSchema(t, indexerWiringDDL)
+	tracker := &recordingRepositoryTracker{}
+	dispatcher := newIndexerDispatcherWithTracker(pool, noopPDSClient{}, slog.Default(), tracker, nil)
+	ev := tap.Event{
+		URI:        "at://did:plc:joining/social.craftsky.actor.profile/self",
+		CID:        "bafy-joining",
+		DID:        "did:plc:joining",
+		Collection: "social.craftsky.actor.profile",
+		Rkey:       "self",
+		Action:     "create",
+		Record:     json.RawMessage(`{"crafts":["sewing"]}`),
+	}
+	if err := dispatcher.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("index joining profile: %v", err)
+	}
+	if len(tracker.dids) != 1 || tracker.dids[0] != ev.DID {
+		t.Fatalf("tracking requests = %v, want %s", tracker.dids, ev.DID)
 	}
 }
 

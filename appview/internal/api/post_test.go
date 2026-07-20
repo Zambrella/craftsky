@@ -22,6 +22,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/relationships"
 )
 
 // fakePDS records the last call. zero-value methods succeed; populate
@@ -112,6 +113,11 @@ func failingPDSFactory(err error) auth.PDSClientFactory {
 
 // fakePostStore implements api.PostReader for handler tests.
 type fakePostStore struct {
+	authorizationErr       error
+	authorizationCalls     []authorizationCall
+	relationshipStates     map[syntax.DID]relationships.State
+	relationshipStateErr   error
+	blockedPairs           map[api.RelationshipPair]bool
 	one                    *api.PostRow
 	oneErr                 error
 	listRows               []*api.PostRow
@@ -179,6 +185,43 @@ type fakePostStore struct {
 	lastReplyLimit         int
 	lastReplyCursor        string
 	lastReplyFocusURI      string
+}
+
+type authorizationCall struct {
+	Actor     syntax.DID
+	Subject   syntax.DID
+	Operation relationships.Operation
+}
+
+func (f *fakePostStore) AuthorizeDirectedInteraction(_ context.Context, actor, subject syntax.DID, operation relationships.Operation) error {
+	f.authorizationCalls = append(f.authorizationCalls, authorizationCall{Actor: actor, Subject: subject, Operation: operation})
+	return f.authorizationErr
+}
+
+func (f *fakePostStore) RelationshipState(_ context.Context, _ syntax.DID, subject syntax.DID) (relationships.State, error) {
+	if f.relationshipStateErr != nil {
+		return relationships.State{}, f.relationshipStateErr
+	}
+	return f.relationshipStates[subject], nil
+}
+
+func (f *fakePostStore) RelationshipStates(_ context.Context, _ syntax.DID, subjects []syntax.DID) (map[syntax.DID]relationships.State, error) {
+	if f.relationshipStateErr != nil {
+		return nil, f.relationshipStateErr
+	}
+	out := make(map[syntax.DID]relationships.State, len(subjects))
+	for _, subject := range subjects {
+		out[subject] = f.relationshipStates[subject]
+	}
+	return out, nil
+}
+
+func (f *fakePostStore) BlockedPairs(_ context.Context, pairs []api.RelationshipPair) (map[api.RelationshipPair]bool, error) {
+	out := make(map[api.RelationshipPair]bool, len(pairs))
+	for _, pair := range pairs {
+		out[pair] = f.blockedPairs[pair]
+	}
+	return out, nil
 }
 
 func (f *fakePostStore) ReadOne(_ context.Context, did, rkey string) (*api.PostRow, error) {
@@ -424,6 +467,215 @@ func TestLikePost_CreatesPDSLikeRecord(t *testing.T) {
 	}
 	if store.lastActiveLikeDID != "did:plc:alice" || store.lastActiveLikeURI != store.target.URI {
 		t.Errorf("active lookup = %q/%q", store.lastActiveLikeDID, store.lastActiveLikeURI)
+	}
+}
+
+func TestGetPostBlockedPairReturnsGenericPayloadWithoutHydration(t *testing.T) {
+	t.Parallel()
+	row := testPostRow("did:plc:bob", "post1", "protected text sentinel", time.Now())
+	row.Images = json.RawMessage(`[{"cid":"protected-image","mime":"image/jpeg","alt":"secret"}]`)
+	store := &fakePostStore{
+		one: row,
+		relationshipStates: map[syntax.DID]relationships.State{
+			"did:plc:bob": {BlockedBy: true},
+		},
+	}
+	h := api.GetPostHandler(store, fakeResolver{handleFor: "bob.example"}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:bob/post1", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if strings.Contains(rr.Body.String(), "protected") || store.engagementCalls != 0 {
+		t.Fatalf("unsafe response or hydration: body=%s engagementCalls=%d", rr.Body.String(), store.engagementCalls)
+	}
+	var body map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &body)
+	if body["availability"] != "blocked" || body["text"] != nil || body["author"] != nil || body["uri"] != nil {
+		t.Fatalf("body = %+v", body)
+	}
+}
+
+func TestGetPostThirdPartyQuoteCannotBridgeBlockedAuthors(t *testing.T) {
+	t.Parallel()
+	quotedURI := "at://did:plc:bob/social.craftsky.feed.post/quoted"
+	quotedCID := "bafyQuoted"
+	row := testPostRow("did:plc:carol", "quote", "Carol context", time.Now())
+	row.QuoteURI = &quotedURI
+	row.QuoteCID = &quotedCID
+	quoted := testPostRow("did:plc:bob", "quoted", "protected quote sentinel", time.Now())
+	store := &fakePostStore{
+		one: row,
+		quoteViews: map[string]*api.QuoteViewRow{
+			quotedURI: {State: "visible", Post: quoted},
+		},
+		blockedPairs: map[api.RelationshipPair]bool{
+			{First: "did:plc:carol", Second: "did:plc:bob"}: true,
+		},
+	}
+	h := api.GetPostHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:carol": "carol.example", "did:plc:bob": "bob.example",
+	}}, nilLogger())
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:carol/quote", "", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK || strings.Contains(rr.Body.String(), "protected quote sentinel") {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	var body map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &body)
+	quoteView := body["quoteView"].(map[string]any)
+	if quoteView["state"] != "blocked" || quoteView["post"] != nil {
+		t.Fatalf("quoteView = %+v", quoteView)
+	}
+}
+
+func TestListCommentRepliesShapesMutedBranchAndOmitsBlockedBranch(t *testing.T) {
+	t.Parallel()
+	rootURI := "at://did:plc:root/social.craftsky.feed.post/root"
+	commentURI := "at://did:plc:commenter/social.craftsky.feed.post/comment"
+	target := testReplyRow("did:plc:commenter", "comment", "comment", rootURI, rootURI, time.Now())
+	muted := testReplyRow("did:plc:bob", "muted", "protected muted text", rootURI, commentURI, time.Now().Add(time.Second))
+	child := testReplyRow("did:plc:carol", "child", "descendant text", rootURI, muted.URI, time.Now().Add(2*time.Second))
+
+	for _, test := range []struct {
+		name      string
+		state     relationships.State
+		wantItems int
+		wantState string
+	}{
+		{name: "mute collapses full descendant branch", state: relationships.State{Muted: true}, wantItems: 1, wantState: "muted"},
+		{name: "block omits full descendant branch", state: relationships.State{Blocking: true}, wantItems: 0},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := &fakePostStore{
+				one:       target,
+				replyRows: []*api.PostRow{muted, child},
+				relationshipStates: map[syntax.DID]relationships.State{
+					"did:plc:bob": test.state,
+				},
+			}
+			h := api.ListCommentRepliesHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+				"did:plc:bob": "bob.example", "did:plc:carol": "carol.example",
+			}}, nilLogger())
+			req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:commenter/comment/replies", "", "did:plc:alice")
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusOK {
+				t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+			}
+			var body map[string]any
+			_ = json.Unmarshal(rr.Body.Bytes(), &body)
+			items := body["items"].([]any)
+			if len(items) != test.wantItems || strings.Contains(rr.Body.String(), "protected muted text") || strings.Contains(rr.Body.String(), "descendant text") {
+				t.Fatalf("body = %s", rr.Body.String())
+			}
+			if test.wantState != "" {
+				post := items[0].(map[string]any)["post"].(map[string]any)
+				if post["availability"] != test.wantState {
+					t.Fatalf("post = %+v", post)
+				}
+			}
+		})
+	}
+}
+
+func TestDirectedPostCreatesRejectBlockedPairBeforePDSWrite(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		operation relationships.Operation
+		handler   func(*fakePostStore, *fakePDS) http.Handler
+		request   func() *http.Request
+	}{
+		{
+			name:      "like",
+			operation: relationships.OperationLikeCreate,
+			handler: func(store *fakePostStore, pds *fakePDS) http.Handler {
+				return api.LikePostHandler(store, newPDSFactory(pds), nilLogger())
+			},
+			request: func() *http.Request {
+				return authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/likes", "", "did:plc:alice")
+			},
+		},
+		{
+			name:      "repost",
+			operation: relationships.OperationRepostCreate,
+			handler: func(store *fakePostStore, pds *fakePDS) http.Handler {
+				return api.RepostPostHandler(store, newPDSFactory(pds), nilLogger())
+			},
+			request: func() *http.Request {
+				return authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/reposts", "", "did:plc:alice")
+			},
+		},
+		{
+			name:      "reply",
+			operation: relationships.OperationReplyCreate,
+			handler: func(store *fakePostStore, pds *fakePDS) http.Handler {
+				return api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
+			},
+			request: func() *http.Request {
+				body := `{"text":"reply","reply":{"root":{"uri":"at://did:plc:bob/social.craftsky.feed.post/root","cid":"bafyRoot"},"parent":{"uri":"at://did:plc:bob/social.craftsky.feed.post/post1","cid":"bafyPost"}}}`
+				return authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
+			},
+		},
+		{
+			name:      "quote",
+			operation: relationships.OperationQuoteCreate,
+			handler: func(store *fakePostStore, pds *fakePDS) http.Handler {
+				return api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
+			},
+			request: func() *http.Request {
+				body := `{"text":"quote","embed":{"quote":{"uri":"at://did:plc:bob/social.craftsky.feed.post/post1","cid":"bafyPost"}}}`
+				return authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
+			},
+		},
+		{
+			name:      "mention",
+			operation: relationships.OperationMentionCreate,
+			handler: func(store *fakePostStore, pds *fakePDS) http.Handler {
+				return api.CreatePostHandler(store, newPDSFactory(pds), fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
+			},
+			request: func() *http.Request {
+				body := `{"text":"@bob.example","facets":[{"index":{"byteStart":0,"byteEnd":12},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:bob"}]}]}`
+				return authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pds := &fakePDS{}
+			store := &fakePostStore{
+				authorizationErr: api.ErrInteractionBlocked,
+				target:           &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"},
+				shareTarget:      &api.ShareTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"},
+			}
+			rr := httptest.NewRecorder()
+			test.handler(store, pds).ServeHTTP(rr, test.request())
+
+			if rr.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+			}
+			var env envelope.Error
+			_ = json.NewDecoder(rr.Body).Decode(&env)
+			if env.Error != "interaction_blocked" {
+				t.Fatalf("error = %q, want interaction_blocked", env.Error)
+			}
+			if pds.createCalls != 0 {
+				t.Fatalf("PDS CreateRecord calls = %d, want 0", pds.createCalls)
+			}
+			if len(store.authorizationCalls) != 1 || store.authorizationCalls[0] != (authorizationCall{
+				Actor: "did:plc:alice", Subject: "did:plc:bob", Operation: test.operation,
+			}) {
+				t.Fatalf("authorization calls = %+v", store.authorizationCalls)
+			}
+		})
 	}
 }
 
@@ -1539,6 +1791,38 @@ func TestGetPost_HappyPath(t *testing.T) {
 	}
 	if store.engagementCalls != 1 || len(store.lastEngagementURIs) != 1 || store.lastEngagementURIs[0] != row.URI || store.lastEngagementViewer != "did:plc:alice" {
 		t.Errorf("engagement lookup = calls:%d viewer:%q uris:%v", store.engagementCalls, store.lastEngagementViewer, store.lastEngagementURIs)
+	}
+}
+
+func TestGetPostIncludesAuthorViewerRelationshipState(t *testing.T) {
+	t.Parallel()
+	row := &api.PostRow{
+		URI: "at://did:plc:bob/social.craftsky.feed.post/rk1",
+		DID: "did:plc:bob", Rkey: "rk1", CID: "bafy", Text: "hi",
+	}
+	store := &fakePostStore{
+		one: row,
+		relationshipStates: map[syntax.DID]relationships.State{
+			syntax.DID("did:plc:bob"): {Muted: true},
+		},
+	}
+	h := api.GetPostHandler(store, fakeResolver{handleFor: "bob.example"}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/posts/did:plc:bob/rk1", "", "did:plc:alice")
+	req.SetPathValue("did", "did:plc:bob")
+	req.SetPathValue("rkey", "rk1")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	author := body["author"].(map[string]any)
+	if author["muted"] != true || author["blocking"] != false || author["blockedBy"] != false {
+		t.Fatalf("author viewer state = %#v", author)
 	}
 }
 

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart' as model;
+import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -131,6 +132,14 @@ class PostCommentRepliesLoader extends _$PostCommentRepliesLoader {
   }) {}
 
   Future<void> load() async {
+    await _load(revealParent: false);
+  }
+
+  Future<void> revealMutedBranch() async {
+    await _load(revealParent: true);
+  }
+
+  Future<void> _load({required bool revealParent}) async {
     if (state.isLoading) return;
 
     final current = ref
@@ -147,16 +156,34 @@ class PostCommentRepliesLoader extends _$PostCommentRepliesLoader {
 
     state = const AsyncLoading();
     final result = await AsyncValue.guard(() async {
+      final parts = parseCraftskyPostUri(comment.post.uri);
+      final authorDid = parts?.did ?? comment.post.author.did;
+      final postRkey = parts?.rkey ?? comment.post.rkey;
+      final revealed = revealParent
+          ? await ref.read(postRepositoryProvider).fetch(authorDid, postRkey)
+          : null;
       final page = await ref
           .read(postRepositoryProvider)
           .listCommentBranchReplies(
-            comment.post.author.did,
-            comment.post.rkey,
+            authorDid,
+            postRkey,
             cursor: comment.replies.cursor,
             limit: 10,
           );
       final replies = [...comment.replies.items, ...page.items];
       if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+      if (revealed != null) {
+        ref
+            .read(
+              postCommentSectionProvider(
+                did,
+                rkey,
+                sort: sort,
+                focus: focus,
+              ).notifier,
+            )
+            .replacePost(revealed);
+      }
       ref
           .read(
             postCommentSectionProvider(

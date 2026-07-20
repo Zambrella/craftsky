@@ -27,6 +27,7 @@ type HTTPHandlers struct {
 	// Injected so tests can supply a mock without standing up indigo.
 	NewPDSClient              PDSClientFactory
 	IdentityCacheUpdater      IdentityCacheUpdater
+	RepositoryTracker         RepositoryTracker
 	NotificationSubscriptions NotificationSubscriptionCleaner
 }
 
@@ -126,7 +127,7 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 				"Sign-in succeeded but we couldn't initialise your profile. Please try again.")
 			return
 		}
-		if err := InitializeProfileAndIdentityCache(r.Context(), pdsClient, sessData.AccountDID, h.IdentityCacheUpdater, h.Logger); err != nil {
+		if err := InitializeProfileAndIdentityCache(r.Context(), pdsClient, sessData.AccountDID, h.IdentityCacheUpdater, h.Logger, h.RepositoryTracker); err != nil {
 			h.Logger.Warn("InitializeProfile failed",
 				authLogErrorAttrs(runID, "oauth.callback", "profile_init")...)
 			switch {

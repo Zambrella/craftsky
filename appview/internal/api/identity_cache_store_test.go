@@ -94,7 +94,40 @@ CREATE TABLE moderation_outputs (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     indexed_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-`
+` + profileRelationshipDDL
+
+func TestFacetMentionSuggestionsOmitBlockedAccounts(t *testing.T) {
+	pool := testdb.WithSchema(t, facetStoreDDL)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_profiles (did, record_cid)
+		VALUES ('did:plc:viewer', 'viewer-cid'), ('did:plc:alice', 'alice-cid'), ('did:plc:alina', 'alina-cid')
+	`); err != nil {
+		t.Fatalf("seed mention members: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_identity_cache (did, handle, handle_lower, resolved_at)
+		VALUES
+		  ('did:plc:alice', 'alice.example', 'alice.example', $1),
+		  ('did:plc:alina', 'alina.example', 'alina.example', $1)
+	`, now); err != nil {
+		t.Fatalf("seed mention identities: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
+		VALUES ('at://did:plc:alice/app.bsky.graph.block/viewer', 'did:plc:alice', 'viewer', 'block-cid', 'did:plc:viewer', '{}', now())
+	`); err != nil {
+		t.Fatalf("seed mention block: %v", err)
+	}
+	rows, err := api.NewFacetStore(pool).SearchMentionSuggestions(ctx, "did:plc:viewer", "ali", 10, now)
+	if err != nil {
+		t.Fatalf("SearchMentionSuggestions: %v", err)
+	}
+	if len(rows) != 1 || rows[0].DID != "did:plc:alina" {
+		t.Fatalf("blocked mention suggestions = %+v, want only Alina", rows)
+	}
+}
 
 func TestFacetStoreSearchMentionSuggestionsUsesFreshSeparateIdentityCache(t *testing.T) {
 	t.Parallel()
@@ -225,7 +258,7 @@ func TestFacetStoreResolveMentionRefreshesCacheAndFiltersCraftskyProfiles(t *tes
 	}
 	store := api.NewFacetStore(pool, resolver)
 
-	row, err := store.ResolveMention(ctx, syntax.Handle("alice.craftsky.social"), now)
+	row, err := store.ResolveMention(ctx, syntax.DID("did:plc:viewer"), syntax.Handle("alice.craftsky.social"), now)
 	if err != nil {
 		t.Fatalf("ResolveMention Alice: %v", err)
 	}
@@ -240,7 +273,7 @@ func TestFacetStoreResolveMentionRefreshesCacheAndFiltersCraftskyProfiles(t *tes
 		t.Fatalf("resolved_at = %s, want %s", resolvedAt, now)
 	}
 
-	_, err = store.ResolveMention(ctx, syntax.Handle("mallory.example"), now)
+	_, err = store.ResolveMention(ctx, syntax.DID("did:plc:viewer"), syntax.Handle("mallory.example"), now)
 	if !errors.Is(err, api.ErrMentionNotFound) {
 		t.Fatalf("Mallory err = %v, want ErrMentionNotFound", err)
 	}
@@ -250,6 +283,23 @@ func TestFacetStoreResolveMentionRefreshesCacheAndFiltersCraftskyProfiles(t *tes
 	}
 	if malloryRows != 0 {
 		t.Fatalf("Mallory cache rows = %d, want 0", malloryRows)
+	}
+}
+
+func TestFacetStoreResolveMentionRejectsFreshCachedNonMember(t *testing.T) {
+	pool := testdb.WithSchema(t, facetStoreDDL)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_identity_cache (did, handle, handle_lower, resolved_at)
+		VALUES ('did:plc:external', 'external.example', 'external.example', $1)
+	`, now); err != nil {
+		t.Fatalf("seed fresh non-member cache: %v", err)
+	}
+
+	_, err := api.NewFacetStore(pool).ResolveMention(ctx, syntax.DID("did:plc:viewer"), syntax.Handle("external.example"), now)
+	if !errors.Is(err, api.ErrMentionNotFound) {
+		t.Fatalf("fresh cached non-member error = %v, want ErrMentionNotFound", err)
 	}
 }
 
@@ -282,7 +332,7 @@ func TestFacetStoreResolveMentionRefreshesReassignedStaleHandle(t *testing.T) {
 	}
 	store := api.NewFacetStore(pool, resolver)
 
-	row, err := store.ResolveMention(ctx, syntax.Handle("alice.craftsky.social"), now)
+	row, err := store.ResolveMention(ctx, syntax.DID("did:plc:viewer"), syntax.Handle("alice.craftsky.social"), now)
 	if err != nil {
 		t.Fatalf("ResolveMention reassigned handle: %v", err)
 	}
@@ -309,7 +359,7 @@ func TestFacetStoreSearchHashtagSuggestionsCountsRecentRootPosts(t *testing.T) {
 	pool := testdb.WithSchema(t, facetStoreDDL+`
 CREATE TABLE craftsky_posts (
     uri              TEXT        NOT NULL PRIMARY KEY,
-    did              TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    did              TEXT        NOT NULL,
     rkey             TEXT        NOT NULL,
     cid              TEXT        NOT NULL,
     text             TEXT        NOT NULL,
@@ -367,7 +417,7 @@ func TestFacetStoreSearchHashtagSuggestionsTreatsWildcardQueryLiterally(t *testi
 	pool := testdb.WithSchema(t, facetStoreDDL+`
 CREATE TABLE craftsky_posts (
     uri              TEXT        NOT NULL PRIMARY KEY,
-    did              TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    did              TEXT        NOT NULL,
     rkey             TEXT        NOT NULL,
     cid              TEXT        NOT NULL,
     text             TEXT        NOT NULL,

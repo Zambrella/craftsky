@@ -378,5 +378,43 @@ void main() {
         ]);
       },
     );
+
+    test(
+      'IT-009 suppressActor removes authored and repost-attributed rows',
+      () async {
+        final bobPost = _samplePost(rkey: 'bob', did: 'did:plc:bob');
+        final carolPost = _samplePost(rkey: 'carol', did: 'did:plc:carol');
+        final fake = FakePostRepository(
+          onListTimeline: ({cursor, limit}) async => TimelinePage(
+            items: [
+              _timelinePost(bobPost),
+              _repostItem(
+                itemKey:
+                    'repost:at://did:plc:bob/social.craftsky.feed.repost/r1',
+                post: carolPost,
+                reposterDid: 'did:plc:bob',
+                reposterHandle: 'bob.craftsky.social',
+              ),
+              _timelinePost(carolPost),
+            ],
+          ),
+        );
+        final container = ProviderContainer.test(
+          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        );
+
+        await container.read(timelineProvider.future);
+        container.read(timelineProvider.notifier).suppressActor('did:plc:bob');
+
+        expect(
+          container
+              .read(timelineProvider)
+              .requireValue
+              .items
+              .map((item) => item.itemKey),
+          ['post:${carolPost.uri}'],
+        );
+      },
+    );
   });
 }

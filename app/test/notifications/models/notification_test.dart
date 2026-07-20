@@ -160,4 +160,18 @@ void main() {
       ),
     );
   });
+
+  test('AT-006 decodes notification-actor viewer relationship state', () {
+    final decoded = NotificationActor.fromMap({
+      ...actor(),
+      'muted': false,
+      'blocking': true,
+      'blockedBy': false,
+    });
+
+    expect(decoded.muted, isFalse);
+    expect(decoded.blocking, isTrue);
+    expect(decoded.blockedBy, isFalse);
+    expect(decoded.hasViewerState, isTrue);
+  });
 }

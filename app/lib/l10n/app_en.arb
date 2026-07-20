@@ -302,6 +302,111 @@
   "profileShareAction": "Share",
   "@profileShareAction": { "description": "Tooltip on the share icon button shown on a visitor profile, and on the collapsed-bar trailing action." },
 
+  "profileMoreActions": "More profile actions",
+  "@profileMoreActions": { "description": "Accessible tooltip for the visitor profile More menu." },
+
+  "profileMuteAction": "Mute account",
+  "@profileMuteAction": { "description": "Action that privately mutes a profile." },
+
+  "profileUnmuteAction": "Unmute account",
+  "@profileUnmuteAction": { "description": "Action that removes a private profile mute." },
+
+  "profileBlockAction": "Block account",
+  "@profileBlockAction": { "description": "Destructive action that publicly blocks a profile." },
+
+  "profileUnblockAction": "Unblock account",
+  "@profileUnblockAction": { "description": "Action that removes the viewer's public profile block." },
+
+  "profileMuteAnnotation": "Muted account",
+  "@profileMuteAnnotation": { "description": "Viewer-only annotation on a muted profile." },
+
+  "profileBlockingAnnotation": "Blocked by you",
+  "@profileBlockingAnnotation": { "description": "Annotation on a profile the viewer has blocked." },
+
+  "profileBlockedByAnnotation": "This account has blocked you",
+  "@profileBlockedByAnnotation": { "description": "Annotation on a profile whose owner blocked the viewer." },
+
+  "profileMutualBlockAnnotation": "You have blocked each other",
+  "@profileMutualBlockAnnotation": { "description": "Annotation when both accounts own a block." },
+
+  "profileRelationshipError": "Could not update account relationship.",
+  "@profileRelationshipError": { "description": "Feedback after a mute or block mutation rolls back." },
+
+  "profileMuteSuccess": "Account muted.",
+  "@profileMuteSuccess": { "description": "Feedback after muting a profile." },
+
+  "profileUnmuteSuccess": "Account unmuted.",
+  "@profileUnmuteSuccess": { "description": "Feedback after unmuting a profile." },
+
+  "profileBlockSuccess": "Account blocked.",
+  "@profileBlockSuccess": { "description": "Feedback after blocking a profile." },
+
+  "profileUnblockSuccess": "Account unblocked.",
+  "@profileUnblockSuccess": { "description": "Feedback after unblocking a profile." },
+
+  "profileBlockConfirmTitle": "Block this account?",
+  "@profileBlockConfirmTitle": { "description": "Title of the public block confirmation." },
+
+  "profileBlockConfirmBody": "Blocking is public on the AT Protocol. You will no longer see or interact with each other's content.",
+  "@profileBlockConfirmBody": { "description": "Consequences and public visibility warning in the block confirmation." },
+
+  "profileUnblockConfirmTitle": "Unblock this account?",
+  "@profileUnblockConfirmTitle": { "description": "Title of the unblock confirmation." },
+
+  "profileUnblockConfirmBody": "You may see and interact with each other's content again.",
+  "@profileUnblockConfirmBody": { "description": "Consequences shown in the unblock confirmation." },
+
+  "actionCancel": "Cancel",
+  "@actionCancel": { "description": "Generic cancel action." },
+
+  "actionConfirm": "Confirm",
+  "@actionConfirm": { "description": "Generic confirmation action." },
+
+  "destructiveActionHint": "Destructive action",
+  "@destructiveActionHint": { "description": "Accessibility hint for actions that can remove content or a public relationship." },
+
+  "settingsMutedAccounts": "Muted accounts",
+  "@settingsMutedAccounts": { "description": "Settings entry and page title for private mutes." },
+
+  "settingsBlockedAccounts": "Blocked accounts",
+  "@settingsBlockedAccounts": { "description": "Settings entry and page title for public blocks." },
+
+  "settingsMutedAccountsEmpty": "You have not muted any accounts.",
+  "@settingsMutedAccountsEmpty": { "description": "Empty state for the muted-account list." },
+
+  "settingsBlockedAccountsEmpty": "You have not blocked any accounts.",
+  "@settingsBlockedAccountsEmpty": { "description": "Empty state for the blocked-account list." },
+
+  "settingsMutedAccountsError": "Could not load muted accounts.",
+  "@settingsMutedAccountsError": { "description": "Safe load error for the muted-account list." },
+
+  "settingsBlockedAccountsError": "Could not load blocked accounts.",
+  "@settingsBlockedAccountsError": { "description": "Safe load error for the blocked-account list." },
+
+  "relationshipListRetry": "Try again",
+  "@relationshipListRetry": { "description": "Retry action for relationship-list load failures." },
+
+  "relationshipListLoadMore": "Load more",
+  "@relationshipListLoadMore": { "description": "Pagination action for relationship lists." },
+
+  "relationshipListUnmute": "Unmute",
+  "@relationshipListUnmute": { "description": "Row action in the muted-account list." },
+
+  "relationshipListUnblock": "Unblock",
+  "@relationshipListUnblock": { "description": "Row action in the blocked-account list." },
+
+  "relationshipListMutationError": "Could not update this account.",
+  "@relationshipListMutationError": { "description": "Safe row-level relationship mutation error." },
+
+  "postMutedPlaceholder": "Post from a muted account",
+  "@postMutedPlaceholder": { "description": "Content-free placeholder for a muted post or quote." },
+
+  "postUnavailablePlaceholder": "Post unavailable",
+  "@postUnavailablePlaceholder": { "description": "Generic content-free placeholder for blocked or unavailable content." },
+
+  "postRevealAction": "Show post",
+  "@postRevealAction": { "description": "Temporary reveal action for muted content." },
+
   "profileFollowAction": "Follow",
   "@profileFollowAction": { "description": "Label on the follow button on a visitor profile when the viewer is not yet following them." },
 

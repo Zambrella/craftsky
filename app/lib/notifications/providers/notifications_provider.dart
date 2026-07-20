@@ -50,6 +50,10 @@ class AccountNotifications extends _$AccountNotifications {
     });
     if (ref.mounted) state = next;
   }
+
+  int suppressActor(String did) => _suppressActor(state, did, (next) {
+    state = next;
+  });
 }
 
 @Riverpod(keepAlive: true)
@@ -91,6 +95,27 @@ class Notifications extends _$Notifications {
     if (!ref.mounted) return;
     state = next;
   }
+
+  int suppressActor(String did) => _suppressActor(state, did, (next) {
+    state = next;
+  });
+}
+
+int _suppressActor(
+  AsyncValue<NotificationsState> current,
+  String did,
+  void Function(AsyncValue<NotificationsState>) update,
+) {
+  final value = current.value;
+  if (value == null) return 0;
+  final retained = value.items
+      .where((item) => item.actor.did.toString() != did)
+      .toList();
+  final removed = value.items.length - retained.length;
+  if (removed > 0) {
+    update(AsyncData(value.copyWith(items: retained)));
+  }
+  return removed;
 }
 
 List<CraftskyNotification> _dedupe(List<CraftskyNotification> items) {

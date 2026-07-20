@@ -7,6 +7,26 @@ void main() {
   setUpAll(initializeMappers);
 
   group('Post', () {
+    test('UT-005 decodes content-free muted and blocked placeholders', () {
+      final muted = PostMapper.fromMap({
+        'uri': 'at://did:plc:bob/social.craftsky.feed.post/muted',
+        'availability': 'muted',
+        'relationship': {'state': 'muted', 'revealable': true},
+      });
+      final blocked = PostMapper.fromMap({
+        'availability': 'blocked',
+        'relationship': {'state': 'blocked', 'revealable': false},
+      });
+
+      expect(muted.isProtected, isTrue);
+      expect(muted.relationship?.revealable, isTrue);
+      expect(muted.text, isEmpty);
+      expect(blocked.isProtected, isTrue);
+      expect(blocked.availability, 'blocked');
+      expect(blocked.relationship?.revealable, isFalse);
+      expect(blocked.text, isEmpty);
+    });
+
     test('round-trips a fully-populated wire payload', () {
       final json = {
         'uri': 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
@@ -121,6 +141,21 @@ void main() {
       expect(post.images, isNull);
       expect(post.tags, isEmpty);
       expect(post.toMap(), json);
+    });
+
+    test('AT-003 decodes post-author viewer relationship state', () {
+      final author = PostAuthorMapper.fromMap({
+        'did': 'did:plc:alice',
+        'handle': 'alice.craftsky.social',
+        'muted': true,
+        'blocking': false,
+        'blockedBy': false,
+      });
+
+      expect(author.muted, isTrue);
+      expect(author.blocking, isFalse);
+      expect(author.blockedBy, isFalse);
+      expect(author.hasViewerState, isTrue);
     });
 
     test('UT-006 decodes quote count and compact quote preview', () {

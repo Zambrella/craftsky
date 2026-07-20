@@ -26,6 +26,20 @@ func TestNotificationNewnessAccountWideAcrossDevicesAndIsolatedByAccount(t *test
 			t.Fatalf("apply migration %s: %v", path, err)
 		}
 	}
+	if _, err := pool.Exec(ctx, `
+		CREATE TABLE actor_mutes (
+			owner_did TEXT NOT NULL,
+			subject_did TEXT NOT NULL,
+			PRIMARY KEY (owner_did, subject_did)
+		);
+		CREATE TABLE atproto_blocks (
+			uri TEXT PRIMARY KEY,
+			blocker_did TEXT NOT NULL,
+			subject_did TEXT NOT NULL
+		);
+	`); err != nil {
+		t.Fatalf("create relationship tables: %v", err)
+	}
 
 	insert := func(id, recipient string) {
 		t.Helper()

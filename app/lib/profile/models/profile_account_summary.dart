@@ -12,6 +12,9 @@ class ProfileAccountSummary with ProfileAccountSummaryMappable {
     this.displayName,
     this.description,
     this.avatar,
+    this.muted = false,
+    this.blocking = false,
+    this.blockedBy = false,
   }) : did = Did.parse(did),
        handle = Handle.parse(handle);
 
@@ -21,4 +24,7 @@ class ProfileAccountSummary with ProfileAccountSummaryMappable {
   final String? displayName;
   final String? description;
   final String? avatar;
+  final bool muted;
+  final bool blocking;
+  final bool blockedBy;
 }

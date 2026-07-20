@@ -61,6 +61,50 @@ func timelineURIs(items []*api.TimelineFeedItemRow) []string {
 	return out
 }
 
+func TestTimelineFiltersMuteBlockAndRepostAttributionBeforePagination(t *testing.T) {
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	ctx := context.Background()
+	for _, did := range []string{"did:plc:viewer", "did:plc:bob", "did:plc:carol", "did:plc:dana", "did:plc:erin"} {
+		seedMember(t, pool, did)
+		if did != "did:plc:viewer" {
+			seedFollow(t, pool, "did:plc:viewer", did, "follow-"+did[len("did:plc:"):])
+		}
+	}
+	base := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+	bobNewest := seedPost(t, pool, "did:plc:bob", "bob-newest", "hidden muted", base.Add(10*time.Minute))
+	carol := seedPost(t, pool, "did:plc:carol", "carol", "eligible", base.Add(9*time.Minute))
+	repost := seedInteraction(t, pool, "repost", "did:plc:carol", "repost-bob", bobNewest, false)
+	if _, err := pool.Exec(ctx, `UPDATE craftsky_reposts SET created_at = $1, indexed_at = $1 WHERE uri = $2`, base.Add(8*time.Minute), repost); err != nil {
+		t.Fatalf("date repost: %v", err)
+	}
+	seedPost(t, pool, "did:plc:dana", "dana", "hidden blocked", base.Add(7*time.Minute))
+	erin := seedPost(t, pool, "did:plc:erin", "erin", "eligible", base.Add(6*time.Minute))
+	viewer := seedPost(t, pool, "did:plc:viewer", "viewer", "own", base.Add(5*time.Minute))
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO actor_mutes (owner_did, subject_did) VALUES ('did:plc:viewer', 'did:plc:bob');
+		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
+		VALUES ('at://did:plc:dana/app.bsky.graph.block/viewer', 'did:plc:dana', 'viewer', 'block-cid', 'did:plc:viewer', '{}', now());
+	`); err != nil {
+		t.Fatalf("seed relationships: %v", err)
+	}
+
+	store := api.NewPostStore(pool)
+	first, cursor, err := store.ListTimeline(ctx, "did:plc:viewer", 2, "")
+	if err != nil {
+		t.Fatalf("first page: %v", err)
+	}
+	if got, want := timelineURIs(first), []string{carol, erin}; !slices.Equal(got, want) || cursor == "" {
+		t.Fatalf("first page = %v cursor=%q, want %v and cursor", got, cursor, want)
+	}
+	second, next, err := store.ListTimeline(ctx, "did:plc:viewer", 2, cursor)
+	if err != nil {
+		t.Fatalf("second page: %v", err)
+	}
+	if got, want := timelineURIs(second), []string{viewer}; !slices.Equal(got, want) || next != "" {
+		t.Fatalf("second page = %v cursor=%q, want %v and terminal", got, next, want)
+	}
+}
+
 func TestTimelineStore_ListTimeline_ReturnsOwnAndFollowedEligiblePostsOnly(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, timelineStoreDDL)

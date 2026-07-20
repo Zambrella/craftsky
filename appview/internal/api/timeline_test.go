@@ -429,6 +429,9 @@ func TestTimelineHandler_ReturnsFeedItemsWithRepostReason(t *testing.T) {
 	if item.Reason.By.DID != "did:plc:bob" || item.Reason.By.Handle != "bob.example" || item.Reason.By.DisplayName == nil || *item.Reason.By.DisplayName != "Bob" {
 		t.Fatalf("reason.by = %+v, want Bob actor summary", item.Reason.By)
 	}
+	if item.Reason.By.Muted || item.Reason.By.Blocking || item.Reason.By.BlockedBy {
+		t.Fatalf("reason.by relationship state = %+v, want known visible state", item.Reason.By)
+	}
 	if item.Reason.URI != "at://did:plc:bob/social.craftsky.feed.repost/rp1" || item.Reason.CID != "bafyrepost" {
 		t.Fatalf("reason identity = %+v", item.Reason)
 	}

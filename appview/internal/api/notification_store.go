@@ -104,6 +104,15 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			FROM notification_events e
 			WHERE e.recipient_did = $1
 			  AND e.state = 'active'
+			  AND NOT EXISTS (
+				SELECT 1 FROM actor_mutes mute
+				WHERE mute.owner_did = $1 AND mute.subject_did = e.actor_did
+			  )
+			  AND NOT EXISTS (
+				SELECT 1 FROM atproto_blocks block
+				WHERE (block.blocker_did = $1 AND block.subject_did = e.actor_did)
+				   OR (block.blocker_did = e.actor_did AND block.subject_did = $1)
+			  )
 			  AND ($2::timestamptz IS NULL
 			       OR (e.activity_at, e.id) < ($2::timestamptz, $3::uuid))
 			  AND NOT EXISTS (
@@ -129,6 +138,14 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			ORDER BY e.activity_at DESC, e.id DESC
 			LIMIT $4
 		),
+		blocked_reference_events AS (
+			SELECT e.id
+			FROM page_events e
+			JOIN craftsky_posts source_post ON source_post.uri = e.source_uri
+			WHERE ` + postReplyAuthorBlockedPredicate("source_post") + `
+			   OR ` + postMentionAuthorBlockedPredicate("source_post") + `
+			   OR ` + postQuoteAuthorBlockedPredicate("source_post") + `
+		),
 		reference_uris AS (
 			SELECT source_uri AS uri FROM page_events WHERE category IN ('reply','mention','quote')
 			UNION SELECT subject_uri FROM page_events WHERE subject_uri IS NOT NULL
@@ -146,6 +163,11 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			FROM craftsky_posts p
 			JOIN reference_uris refs ON refs.uri=p.uri
 			WHERE NOT EXISTS (
+				SELECT 1 FROM atproto_blocks block
+				WHERE (block.blocker_did = $1 AND block.subject_did = p.did)
+				   OR (block.blocker_did = p.did AND block.subject_did = $1)
+			)
+			AND NOT EXISTS (
 				SELECT 1 FROM moderation_outputs mo
 				WHERE mo.action='apply' AND mo.value IN ('hide','takedown')
 				  AND (mo.expires_at IS NULL OR mo.expires_at>now())
@@ -165,10 +187,10 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			e.id::text, e.category,
 			e.source_uri, e.source_cid, e.source_rkey,
 			CASE WHEN e.category IN ('reply','mention','quote') THEN source_post.uri IS NOT NULL ELSE true END,
-			e.subject_uri,e.subject_cid,(e.subject_uri IS NOT NULL AND sp.uri IS NOT NULL),
-			e.parent_uri,e.parent_cid,(e.parent_uri IS NOT NULL AND parent_post.uri IS NOT NULL),
-			e.root_uri,e.root_cid,(e.root_uri IS NOT NULL AND root_post.uri IS NOT NULL),
-			e.quoted_uri,e.quoted_cid,(e.quoted_uri IS NOT NULL AND quoted_post.uri IS NOT NULL),
+			e.subject_uri,e.subject_cid,(e.subject_uri IS NOT NULL AND sp.uri IS NOT NULL AND blocked_reference.id IS NULL),
+			e.parent_uri,e.parent_cid,(e.parent_uri IS NOT NULL AND parent_post.uri IS NOT NULL AND blocked_reference.id IS NULL),
+			e.root_uri,e.root_cid,(e.root_uri IS NOT NULL AND root_post.uri IS NOT NULL AND blocked_reference.id IS NULL),
+			e.quoted_uri,e.quoted_cid,(e.quoted_uri IS NOT NULL AND quoted_post.uri IS NOT NULL AND blocked_reference.id IS NULL),
 			CASE WHEN sp.quote_uri IS NULL THEN true ELSE subject_quote.uri IS NOT NULL END,
 			e.actor_did,
 			actor_bp.display_name AS actor_display_name,
@@ -188,11 +210,12 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			sbp.display_name, sbp.avatar_cid
 		FROM page_events e
 		LEFT JOIN bluesky_profiles actor_bp ON actor_bp.did = e.actor_did
-		LEFT JOIN visible_posts source_post ON source_post.uri=e.source_uri
-		LEFT JOIN visible_posts sp ON sp.uri=e.subject_uri
-		LEFT JOIN visible_posts parent_post ON parent_post.uri=e.parent_uri
-		LEFT JOIN visible_posts root_post ON root_post.uri=e.root_uri
-		LEFT JOIN visible_posts quoted_post ON quoted_post.uri=e.quoted_uri
+		LEFT JOIN blocked_reference_events blocked_reference ON blocked_reference.id = e.id
+		LEFT JOIN visible_posts source_post ON source_post.uri=e.source_uri AND blocked_reference.id IS NULL
+		LEFT JOIN visible_posts sp ON sp.uri=e.subject_uri AND blocked_reference.id IS NULL
+		LEFT JOIN visible_posts parent_post ON parent_post.uri=e.parent_uri AND blocked_reference.id IS NULL
+		LEFT JOIN visible_posts root_post ON root_post.uri=e.root_uri AND blocked_reference.id IS NULL
+		LEFT JOIN visible_posts quoted_post ON quoted_post.uri=e.quoted_uri AND blocked_reference.id IS NULL
 		LEFT JOIN visible_posts subject_quote ON subject_quote.uri=sp.quote_uri
 		LEFT JOIN craftsky_project_posts spp ON spp.uri = sp.uri
 		LEFT JOIN bluesky_profiles sbp ON sbp.did = sp.did

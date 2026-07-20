@@ -29,6 +29,7 @@ class PostMapper extends ClassMapperBase<Post> {
       QuoteViewMapper.ensureInitialized();
       ModerationMetadataMapper.ensureInitialized();
       ProjectMapper.ensureInitialized();
+      ContentRelationshipMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -143,6 +144,18 @@ class PostMapper extends ClassMapperBase<Post> {
     _$project,
     opt: true,
   );
+  static String? _$availability(Post v) => v.availability;
+  static const Field<Post, String> _f$availability = Field(
+    'availability',
+    _$availability,
+    opt: true,
+  );
+  static ContentRelationship? _$relationship(Post v) => v.relationship;
+  static const Field<Post, ContentRelationship> _f$relationship = Field(
+    'relationship',
+    _$relationship,
+    opt: true,
+  );
 
   @override
   final MappableFields<Post> fields = const {
@@ -168,10 +181,14 @@ class PostMapper extends ClassMapperBase<Post> {
     #quoteView: _f$quoteView,
     #moderation: _f$moderation,
     #project: _f$project,
+    #availability: _f$availability,
+    #relationship: _f$relationship,
   };
   @override
   final bool ignoreNull = true;
 
+  @override
+  final MappingHook hook = const PostWireHook();
   static Post _instantiate(DecodingData data) {
     return Post(
       uri: data.dec(_f$uri),
@@ -196,6 +213,8 @@ class PostMapper extends ClassMapperBase<Post> {
       quoteView: data.dec(_f$quoteView),
       moderation: data.dec(_f$moderation),
       project: data.dec(_f$project),
+      availability: data.dec(_f$availability),
+      relationship: data.dec(_f$relationship),
     );
   }
 
@@ -261,6 +280,8 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
   ModerationMetadataCopyWith<$R, ModerationMetadata, ModerationMetadata>?
   get moderation;
   ProjectCopyWith<$R, Project, Project>? get project;
+  ContentRelationshipCopyWith<$R, ContentRelationship, ContentRelationship>?
+  get relationship;
   $R call({
     String? uri,
     String? cid,
@@ -284,6 +305,8 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
     QuoteView? quoteView,
     ModerationMetadata? moderation,
     Project? project,
+    String? availability,
+    ContentRelationship? relationship,
   });
   PostCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
@@ -343,6 +366,10 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
   ProjectCopyWith<$R, Project, Project>? get project =>
       $value.project?.copyWith.$chain((v) => call(project: v));
   @override
+  ContentRelationshipCopyWith<$R, ContentRelationship, ContentRelationship>?
+  get relationship =>
+      $value.relationship?.copyWith.$chain((v) => call(relationship: v));
+  @override
   $R call({
     String? uri,
     String? cid,
@@ -366,6 +393,8 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     Object? quoteView = $none,
     Object? moderation = $none,
     Object? project = $none,
+    Object? availability = $none,
+    Object? relationship = $none,
   }) => $apply(
     FieldCopyWithData({
       if (uri != null) #uri: uri,
@@ -390,6 +419,8 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       if (quoteView != $none) #quoteView: quoteView,
       if (moderation != $none) #moderation: moderation,
       if (project != $none) #project: project,
+      if (availability != $none) #availability: availability,
+      if (relationship != $none) #relationship: relationship,
     }),
   );
   @override
@@ -419,6 +450,8 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     quoteView: data.get(#quoteView, or: $value.quoteView),
     moderation: data.get(#moderation, or: $value.moderation),
     project: data.get(#project, or: $value.project),
+    availability: data.get(#availability, or: $value.availability),
+    relationship: data.get(#relationship, or: $value.relationship),
   );
 
   @override
@@ -479,6 +512,24 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
     opt: true,
     arg: _arg$avatarCid,
   );
+  static bool? _$muted(PostAuthor v) => v.muted;
+  static const Field<PostAuthor, bool> _f$muted = Field(
+    'muted',
+    _$muted,
+    opt: true,
+  );
+  static bool? _$blocking(PostAuthor v) => v.blocking;
+  static const Field<PostAuthor, bool> _f$blocking = Field(
+    'blocking',
+    _$blocking,
+    opt: true,
+  );
+  static bool? _$blockedBy(PostAuthor v) => v.blockedBy;
+  static const Field<PostAuthor, bool> _f$blockedBy = Field(
+    'blockedBy',
+    _$blockedBy,
+    opt: true,
+  );
 
   @override
   final MappableFields<PostAuthor> fields = const {
@@ -487,6 +538,9 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
     #displayName: _f$displayName,
     #avatar: _f$avatar,
     #avatarCid: _f$avatarCid,
+    #muted: _f$muted,
+    #blocking: _f$blocking,
+    #blockedBy: _f$blockedBy,
   };
   @override
   final bool ignoreNull = true;
@@ -498,6 +552,9 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
       displayName: data.dec(_f$displayName),
       avatar: data.dec(_f$avatar),
       avatarCid: data.dec(_f$avatarCid),
+      muted: data.dec(_f$muted),
+      blocking: data.dec(_f$blocking),
+      blockedBy: data.dec(_f$blockedBy),
     );
   }
 
@@ -567,6 +624,9 @@ abstract class PostAuthorCopyWith<$R, $In extends PostAuthor, $Out>
     String? displayName,
     String? avatar,
     String? avatarCid,
+    bool? muted,
+    bool? blocking,
+    bool? blockedBy,
   });
   PostAuthorCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
@@ -586,6 +646,9 @@ class _PostAuthorCopyWithImpl<$R, $Out>
     Object? displayName = $none,
     Object? avatar = $none,
     Object? avatarCid = $none,
+    Object? muted = $none,
+    Object? blocking = $none,
+    Object? blockedBy = $none,
   }) => $apply(
     FieldCopyWithData({
       if (did != null) #did: did,
@@ -593,6 +656,9 @@ class _PostAuthorCopyWithImpl<$R, $Out>
       if (displayName != $none) #displayName: displayName,
       if (avatar != $none) #avatar: avatar,
       if (avatarCid != $none) #avatarCid: avatarCid,
+      if (muted != $none) #muted: muted,
+      if (blocking != $none) #blocking: blocking,
+      if (blockedBy != $none) #blockedBy: blockedBy,
     }),
   );
   @override
@@ -602,6 +668,9 @@ class _PostAuthorCopyWithImpl<$R, $Out>
     displayName: data.get(#displayName, or: $value.displayName),
     avatar: data.get(#avatar, or: $value.avatar),
     avatarCid: data.get(#avatarCid, or: $value.avatarCid),
+    muted: data.get(#muted, or: $value.muted),
+    blocking: data.get(#blocking, or: $value.blocking),
+    blockedBy: data.get(#blockedBy, or: $value.blockedBy),
   );
 
   @override
@@ -1212,6 +1281,12 @@ class QuoteViewMapper extends ClassMapperBase<QuoteView> {
 
   static String _$state(QuoteView v) => v.state;
   static const Field<QuoteView, String> _f$state = Field('state', _$state);
+  static bool? _$revealable(QuoteView v) => v.revealable;
+  static const Field<QuoteView, bool> _f$revealable = Field(
+    'revealable',
+    _$revealable,
+    opt: true,
+  );
   static QuotePreviewPost? _$post(QuoteView v) => v.post;
   static const Field<QuoteView, QuotePreviewPost> _f$post = Field(
     'post',
@@ -1222,13 +1297,18 @@ class QuoteViewMapper extends ClassMapperBase<QuoteView> {
   @override
   final MappableFields<QuoteView> fields = const {
     #state: _f$state,
+    #revealable: _f$revealable,
     #post: _f$post,
   };
   @override
   final bool ignoreNull = true;
 
   static QuoteView _instantiate(DecodingData data) {
-    return QuoteView(state: data.dec(_f$state), post: data.dec(_f$post));
+    return QuoteView(
+      state: data.dec(_f$state),
+      revealable: data.dec(_f$revealable),
+      post: data.dec(_f$post),
+    );
   }
 
   @override
@@ -1291,7 +1371,7 @@ extension QuoteViewValueCopy<$R, $Out> on ObjectCopyWith<$R, QuoteView, $Out> {
 abstract class QuoteViewCopyWith<$R, $In extends QuoteView, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
   QuotePreviewPostCopyWith<$R, QuotePreviewPost, QuotePreviewPost>? get post;
-  $R call({String? state, QuotePreviewPost? post});
+  $R call({String? state, bool? revealable, QuotePreviewPost? post});
   QuoteViewCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
 
@@ -1307,15 +1387,18 @@ class _QuoteViewCopyWithImpl<$R, $Out>
   QuotePreviewPostCopyWith<$R, QuotePreviewPost, QuotePreviewPost>? get post =>
       $value.post?.copyWith.$chain((v) => call(post: v));
   @override
-  $R call({String? state, Object? post = $none}) => $apply(
-    FieldCopyWithData({
-      if (state != null) #state: state,
-      if (post != $none) #post: post,
-    }),
-  );
+  $R call({String? state, Object? revealable = $none, Object? post = $none}) =>
+      $apply(
+        FieldCopyWithData({
+          if (state != null) #state: state,
+          if (revealable != $none) #revealable: revealable,
+          if (post != $none) #post: post,
+        }),
+      );
   @override
   QuoteView $make(CopyWithData data) => QuoteView(
     state: data.get(#state, or: $value.state),
+    revealable: data.get(#revealable, or: $value.revealable),
     post: data.get(#post, or: $value.post),
   );
 
@@ -1545,5 +1628,146 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
   QuotePreviewPostCopyWith<$R2, QuotePreviewPost, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   ) => _QuotePreviewPostCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class ContentRelationshipMapper extends ClassMapperBase<ContentRelationship> {
+  ContentRelationshipMapper._();
+
+  static ContentRelationshipMapper? _instance;
+  static ContentRelationshipMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = ContentRelationshipMapper._());
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'ContentRelationship';
+
+  static String _$state(ContentRelationship v) => v.state;
+  static const Field<ContentRelationship, String> _f$state = Field(
+    'state',
+    _$state,
+  );
+  static bool _$revealable(ContentRelationship v) => v.revealable;
+  static const Field<ContentRelationship, bool> _f$revealable = Field(
+    'revealable',
+    _$revealable,
+  );
+
+  @override
+  final MappableFields<ContentRelationship> fields = const {
+    #state: _f$state,
+    #revealable: _f$revealable,
+  };
+
+  static ContentRelationship _instantiate(DecodingData data) {
+    return ContentRelationship(
+      state: data.dec(_f$state),
+      revealable: data.dec(_f$revealable),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static ContentRelationship fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<ContentRelationship>(map);
+  }
+
+  static ContentRelationship fromJson(String json) {
+    return ensureInitialized().decodeJson<ContentRelationship>(json);
+  }
+}
+
+mixin ContentRelationshipMappable {
+  String toJson() {
+    return ContentRelationshipMapper.ensureInitialized()
+        .encodeJson<ContentRelationship>(this as ContentRelationship);
+  }
+
+  Map<String, dynamic> toMap() {
+    return ContentRelationshipMapper.ensureInitialized()
+        .encodeMap<ContentRelationship>(this as ContentRelationship);
+  }
+
+  ContentRelationshipCopyWith<
+    ContentRelationship,
+    ContentRelationship,
+    ContentRelationship
+  >
+  get copyWith =>
+      _ContentRelationshipCopyWithImpl<
+        ContentRelationship,
+        ContentRelationship
+      >(this as ContentRelationship, $identity, $identity);
+  @override
+  String toString() {
+    return ContentRelationshipMapper.ensureInitialized().stringifyValue(
+      this as ContentRelationship,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return ContentRelationshipMapper.ensureInitialized().equalsValue(
+      this as ContentRelationship,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return ContentRelationshipMapper.ensureInitialized().hashValue(
+      this as ContentRelationship,
+    );
+  }
+}
+
+extension ContentRelationshipValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, ContentRelationship, $Out> {
+  ContentRelationshipCopyWith<$R, ContentRelationship, $Out>
+  get $asContentRelationship => $base.as(
+    (v, t, t2) => _ContentRelationshipCopyWithImpl<$R, $Out>(v, t, t2),
+  );
+}
+
+abstract class ContentRelationshipCopyWith<
+  $R,
+  $In extends ContentRelationship,
+  $Out
+>
+    implements ClassCopyWith<$R, $In, $Out> {
+  $R call({String? state, bool? revealable});
+  ContentRelationshipCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _ContentRelationshipCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, ContentRelationship, $Out>
+    implements ContentRelationshipCopyWith<$R, ContentRelationship, $Out> {
+  _ContentRelationshipCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<ContentRelationship> $mapper =
+      ContentRelationshipMapper.ensureInitialized();
+  @override
+  $R call({String? state, bool? revealable}) => $apply(
+    FieldCopyWithData({
+      if (state != null) #state: state,
+      if (revealable != null) #revealable: revealable,
+    }),
+  );
+  @override
+  ContentRelationship $make(CopyWithData data) => ContentRelationship(
+    state: data.get(#state, or: $value.state),
+    revealable: data.get(#revealable, or: $value.revealable),
+  );
+
+  @override
+  ContentRelationshipCopyWith<$R2, ContentRelationship, $Out2>
+  $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
+      _ContentRelationshipCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 

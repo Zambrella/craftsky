@@ -8,6 +8,8 @@ import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/notifications/widgets/notification_category_icon.dart';
+import 'package:craftsky_app/profile/models/profile_relationship.dart';
+import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
@@ -33,6 +35,45 @@ class NotificationRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final registry = ref.watch(sessionRegistryProvider).value;
+    final account = owner?.account ?? registry?.activeLease?.session.account;
+    final actorRelationshipProvider =
+        account == null ||
+            !notification.actor.available ||
+            account.did == notification.actor.did
+        ? null
+        : profileRelationshipProvider(
+            account,
+            notification.actor.did.toString(),
+          );
+    final cachedRelationship = actorRelationshipProvider == null
+        ? null
+        : ref.watch(actorRelationshipProvider);
+    final serverRelationship = notification.actor.hasViewerState
+        ? ProfileRelationship.fromProfileFlags(
+            muted: notification.actor.muted ?? false,
+            blocking: notification.actor.blocking ?? false,
+            blockedBy: notification.actor.blockedBy ?? false,
+          )
+        : const ProfileRelationship(initialized: true);
+    if (actorRelationshipProvider != null &&
+        !(cachedRelationship?.initialized ?? false)) {
+      unawaited(
+        Future<void>.microtask(
+          () => ref
+              .read(actorRelationshipProvider.notifier)
+              .seed(serverRelationship),
+        ),
+      );
+    }
+    final relationship = cachedRelationship?.initialized ?? false
+        ? cachedRelationship
+        : notification.actor.hasViewerState
+        ? serverRelationship
+        : null;
+    if ((relationship?.muted ?? false) || (relationship?.hasBlock ?? false)) {
+      return const SizedBox.shrink();
+    }
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final actor = notification.actor.displayLabel;

@@ -13,7 +13,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/relationships"
 )
 
 // ErrPostNotFound is returned by PostStore.ReadOne when no row matches.
@@ -126,6 +128,10 @@ type EngagementSummary struct {
 // PostReader is the read-side interface handlers depend on. Tests inject
 // fakes; production uses *PostStore.
 type PostReader interface {
+	DirectedInteractionAuthorizer
+	RelationshipState(context.Context, syntax.DID, syntax.DID) (relationships.State, error)
+	RelationshipStates(context.Context, syntax.DID, []syntax.DID) (map[syntax.DID]relationships.State, error)
+	BlockedPairs(context.Context, []RelationshipPair) (map[RelationshipPair]bool, error)
 	ReadOne(ctx context.Context, did, rkey string) (*PostRow, error)
 	ReadPostByURI(ctx context.Context, uri string) (*PostRow, error)
 	ListByAuthor(ctx context.Context, did string, limit int, cursor string) (rows []*PostRow, nextCursor string, err error)
@@ -139,6 +145,11 @@ type PostReader interface {
 	EngagementSummaries(ctx context.Context, viewerDID string, postURIs []string) (map[string]EngagementSummary, error)
 	QuoteViewRows(ctx context.Context, refs []ResponseStrongRef) (map[string]*QuoteViewRow, error)
 	ResolveShareTarget(ctx context.Context, did, rkey string) (*ShareTargetRef, error)
+}
+
+type RelationshipPair struct {
+	First  syntax.DID
+	Second syntax.DID
 }
 
 // ReadPostByURI returns the post identified by AT-URI.
@@ -182,6 +193,9 @@ func (s *PostStore) ListRootComments(ctx context.Context, rootURI, viewerDID, so
 		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.reply_parent_uri = $1
+		  AND NOT ` + postAuthorBlockedPredicate("p", "$5") + `
+		  AND NOT ` + postReplyAuthorBlockedPredicate("p") + `
+		  AND NOT ` + postMentionAuthorBlockedPredicate("p") + `
 		` + postVisibleModerationPredicate + `
 		  AND ($2::timestamptz IS NULL
 		       OR (p.created_at, p.uri) ` + seekComparator + ` ($2::timestamptz, $3::text))
@@ -220,14 +234,22 @@ func (s *PostStore) ListRootComments(ctx context.Context, rootURI, viewerDID, so
 }
 
 func (s *PostStore) commentBranchHasRepliesAfter(ctx context.Context, commentURI, rootURI string, createdAt time.Time, uri string) (bool, error) {
+	viewerDID, _ := middleware.GetDID(ctx)
 	q := `
-		WITH RECURSIVE branch(uri, created_at, depth) AS (
-			SELECT p.uri, p.created_at, 1
+		WITH RECURSIVE branch(uri, created_at, depth, protected, muted_ancestor_uri) AS (
+			SELECT p.uri, p.created_at, 1,
+				` + postAuthorBlockedPredicate("p", "$5") + ` OR ` + postReplyAuthorBlockedPredicate("p") + ` OR ` + postMentionAuthorBlockedPredicate("p") + `,
+				CASE WHEN ` + postAuthorMutedPredicate("p", "$5") + ` THEN p.uri END
 			FROM craftsky_posts p
 			WHERE p.reply_parent_uri = $1
 			  AND p.reply_root_uri = $2
 			UNION ALL
-			SELECT child.uri, child.created_at, parent.depth + 1
+			SELECT child.uri, child.created_at, parent.depth + 1,
+				parent.protected OR ` + postAuthorBlockedPredicate("child", "$5") + ` OR ` + postReplyAuthorBlockedPredicate("child") + ` OR ` + postMentionAuthorBlockedPredicate("child") + `,
+				COALESCE(
+					parent.muted_ancestor_uri,
+					CASE WHEN ` + postAuthorMutedPredicate("child", "$5") + ` THEN child.uri END
+				)
 			FROM craftsky_posts child
 			JOIN branch parent ON child.reply_parent_uri = parent.uri
 			WHERE child.reply_root_uri = $2
@@ -238,11 +260,13 @@ func (s *PostStore) commentBranchHasRepliesAfter(ctx context.Context, commentURI
 			FROM branch
 			JOIN craftsky_posts p ON p.uri = branch.uri
 			WHERE (branch.created_at, branch.uri) > ($3::timestamptz, $4::text)
+			  AND NOT branch.protected
+			  AND (branch.muted_ancestor_uri IS NULL OR branch.muted_ancestor_uri = branch.uri)
 			` + postVisibleModerationPredicate + `
 		)
 	`
 	var hasMore bool
-	if err := s.pool.QueryRow(ctx, q, commentURI, rootURI, createdAt, uri).Scan(&hasMore); err != nil {
+	if err := s.pool.QueryRow(ctx, q, commentURI, rootURI, createdAt, uri, viewerDID).Scan(&hasMore); err != nil {
 		return false, fmt.Errorf("reply list branch has more comment=%s root=%s: %w", commentURI, rootURI, err)
 	}
 	return hasMore, nil
@@ -260,6 +284,142 @@ func NewPostStore(pool *pgxpool.Pool, observer ...*observability.Observer) *Post
 		store.observer = observer[0]
 	}
 	return store
+}
+
+func (s *PostStore) AuthorizeDirectedInteraction(
+	ctx context.Context,
+	actor syntax.DID,
+	subject syntax.DID,
+	operation relationships.Operation,
+) error {
+	started := time.Now()
+	metricOperation := directedAuthorizationMetricOperation(operation)
+	relationshipStore := relationships.NewStore(s.pool)
+	if err := relationships.RequireCurrentMember(ctx, relationshipStore, subject); err != nil {
+		if s.observer != nil {
+			errorClass := "store"
+			if errors.Is(err, relationships.ErrProfileNotFound) {
+				errorClass = "membership"
+			}
+			s.observer.ObserveRelationshipOutcome(metricOperation, "membership", "error", errorClass, time.Since(started))
+		}
+		return err
+	}
+	state, err := relationshipStore.State(ctx, actor, subject)
+	if err != nil {
+		if s.observer != nil {
+			s.observer.ObserveRelationshipOutcome(metricOperation, "store", "error", "store", time.Since(started))
+		}
+		return err
+	}
+	if !relationships.Authorize(operation, state, false).Allowed {
+		if s.observer != nil {
+			s.observer.ObserveRelationshipOutcome(metricOperation, "policy", "denied", "policy", time.Since(started))
+		}
+		return ErrInteractionBlocked
+	}
+	return nil
+}
+
+func directedAuthorizationMetricOperation(operation relationships.Operation) string {
+	switch operation {
+	case relationships.OperationFollowCreate:
+		return "authorization_follow"
+	case relationships.OperationLikeCreate:
+		return "authorization_like"
+	case relationships.OperationRepostCreate:
+		return "authorization_repost"
+	case relationships.OperationReplyCreate:
+		return "authorization_reply"
+	case relationships.OperationQuoteCreate:
+		return "authorization_quote"
+	case relationships.OperationMentionCreate:
+		return "authorization_mention"
+	default:
+		return "authorization"
+	}
+}
+
+func (s *PostStore) RelationshipState(ctx context.Context, viewer, subject syntax.DID) (relationships.State, error) {
+	states, err := s.RelationshipStates(ctx, viewer, []syntax.DID{subject})
+	if err != nil {
+		return relationships.State{}, err
+	}
+	state, ok := states[subject]
+	if !ok {
+		return relationships.State{}, relationships.ErrProfileNotFound
+	}
+	return state, nil
+}
+
+func (s *PostStore) RelationshipStates(ctx context.Context, viewer syntax.DID, subjects []syntax.DID) (map[syntax.DID]relationships.State, error) {
+	out := make(map[syntax.DID]relationships.State)
+	if len(subjects) == 0 {
+		return out, nil
+	}
+	values := make([]string, 0, len(subjects))
+	for _, subject := range subjects {
+		values = append(values, subject.String())
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT cp.did,
+			EXISTS (SELECT 1 FROM actor_mutes mute WHERE mute.owner_did = $1 AND mute.subject_did = cp.did),
+			EXISTS (SELECT 1 FROM atproto_blocks block WHERE block.blocker_did = $1 AND block.subject_did = cp.did),
+			EXISTS (SELECT 1 FROM atproto_blocks block WHERE block.blocker_did = cp.did AND block.subject_did = $1)
+		FROM craftsky_profiles cp
+		WHERE cp.did = ANY($2)
+	`, viewer, values)
+	if err != nil {
+		return nil, fmt.Errorf("batch post relationship state: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var did syntax.DID
+		var state relationships.State
+		if err := rows.Scan(&did, &state.Muted, &state.Blocking, &state.BlockedBy); err != nil {
+			return nil, fmt.Errorf("scan post relationship state: %w", err)
+		}
+		out[did] = state
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate post relationship state: %w", err)
+	}
+	return out, nil
+}
+
+func (s *PostStore) BlockedPairs(ctx context.Context, pairs []RelationshipPair) (map[RelationshipPair]bool, error) {
+	out := make(map[RelationshipPair]bool, len(pairs))
+	if len(pairs) == 0 {
+		return out, nil
+	}
+	first := make([]string, 0, len(pairs))
+	second := make([]string, 0, len(pairs))
+	for _, pair := range pairs {
+		first = append(first, pair.First.String())
+		second = append(second, pair.Second.String())
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT pair.first_did, pair.second_did,
+			EXISTS (
+				SELECT 1 FROM atproto_blocks block
+				WHERE (block.blocker_did = pair.first_did AND block.subject_did = pair.second_did)
+				   OR (block.blocker_did = pair.second_did AND block.subject_did = pair.first_did)
+			)
+		FROM unnest($1::text[], $2::text[]) AS pair(first_did, second_did)
+	`, first, second)
+	if err != nil {
+		return nil, fmt.Errorf("batch reference block pairs: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var pair RelationshipPair
+		var blocked bool
+		if err := rows.Scan(&pair.First, &pair.Second, &blocked); err != nil {
+			return nil, fmt.Errorf("scan reference block pair: %w", err)
+		}
+		out[pair] = blocked
+	}
+	return out, rows.Err()
 }
 
 const postSelectColumns = `
@@ -339,6 +499,55 @@ const postVisibleModerationPredicate = `
 			  )
 		  )
 `
+
+func postAuthorBlockedPredicate(alias, viewerParam string) string {
+	return `EXISTS (
+		SELECT 1 FROM atproto_blocks block
+		WHERE (block.blocker_did = ` + viewerParam + ` AND block.subject_did = ` + alias + `.did)
+		   OR (block.blocker_did = ` + alias + `.did AND block.subject_did = ` + viewerParam + `)
+	)`
+}
+
+func postAuthorMutedPredicate(alias, viewerParam string) string {
+	return `EXISTS (
+		SELECT 1 FROM actor_mutes mute
+		WHERE mute.owner_did = ` + viewerParam + `
+		  AND mute.subject_did = ` + alias + `.did
+	)`
+}
+
+func postReplyAuthorBlockedPredicate(alias string) string {
+	return `EXISTS (
+		SELECT 1
+		FROM craftsky_posts parent_post
+		JOIN atproto_blocks block ON
+			(block.blocker_did = parent_post.did AND block.subject_did = ` + alias + `.did)
+			OR (block.blocker_did = ` + alias + `.did AND block.subject_did = parent_post.did)
+		WHERE parent_post.uri = ` + alias + `.reply_parent_uri
+	)`
+}
+
+func postMentionAuthorBlockedPredicate(alias string) string {
+	return `EXISTS (
+		SELECT 1
+		FROM craftsky_post_mentions mention
+		JOIN atproto_blocks block ON
+			(block.blocker_did = mention.mentioned_did AND block.subject_did = ` + alias + `.did)
+			OR (block.blocker_did = ` + alias + `.did AND block.subject_did = mention.mentioned_did)
+		WHERE mention.post_uri = ` + alias + `.uri
+	)`
+}
+
+func postQuoteAuthorBlockedPredicate(alias string) string {
+	return `EXISTS (
+		SELECT 1
+		FROM craftsky_posts quoted_post
+		JOIN atproto_blocks block ON
+			(block.blocker_did = quoted_post.did AND block.subject_did = ` + alias + `.did)
+			OR (block.blocker_did = ` + alias + `.did AND block.subject_did = quoted_post.did)
+		WHERE quoted_post.uri = ` + alias + `.quote_uri
+	)`
+}
 
 func scanPostRow(scanner pgx.Row) (*PostRow, error) {
 	out := &PostRow{}
@@ -640,20 +849,25 @@ func (s *PostStore) ResolveShareTarget(ctx context.Context, did, rkey string) (*
 }
 
 // ResolvePostReportTarget returns the canonical indexed post snapshot used for
-// report eligibility and private report persistence. It intentionally checks
-// indexed existence only; moderation visibility filters must not make stale or
-// race report submissions ineligible.
+// report eligibility and private report persistence. Platform moderation does
+// not make a current member's addressable post ineligible, but membership loss
+// hides the retained public record from all user-facing report targets.
 func (s *PostStore) ResolvePostReportTarget(ctx context.Context, did syntax.DID, rkey syntax.RecordKey) (*PostReportTarget, error) {
-	ref, err := s.ResolvePostTarget(ctx, did.String(), rkey.String())
-	if err != nil {
-		return nil, err
+	const q = `
+		SELECT p.uri, p.cid
+		FROM craftsky_posts p
+		JOIN craftsky_profiles profile ON profile.did = p.did
+		WHERE p.did = $1 AND p.rkey = $2
+	`
+	out := &PostReportTarget{DID: did.String(), Rkey: rkey.String()}
+	err := s.pool.QueryRow(ctx, q, did, rkey).Scan(&out.URI, &out.CIDSnapshot)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrPostNotFound
 	}
-	return &PostReportTarget{
-		DID:         did.String(),
-		Rkey:        rkey.String(),
-		URI:         ref.URI,
-		CIDSnapshot: ref.CID,
-	}, nil
+	if err != nil {
+		return nil, fmt.Errorf("post resolve report target %s/%s: %w", did, rkey, err)
+	}
+	return out, nil
 }
 
 func scanInteractionRow(scanner pgx.Row) (*InteractionRow, error) {
@@ -1054,14 +1268,22 @@ func (s *PostStore) ListCommentBranchReplies(ctx context.Context, commentURI, ro
 		return nil, "", err
 	}
 
+	viewerDID, _ := middleware.GetDID(ctx)
 	q := `
-		WITH RECURSIVE branch(uri, created_at, depth) AS (
-			SELECT p.uri, p.created_at, 1
+		WITH RECURSIVE branch(uri, created_at, depth, protected, muted_ancestor_uri) AS (
+			SELECT p.uri, p.created_at, 1,
+				` + postAuthorBlockedPredicate("p", "$6") + ` OR ` + postReplyAuthorBlockedPredicate("p") + ` OR ` + postMentionAuthorBlockedPredicate("p") + `,
+				CASE WHEN ` + postAuthorMutedPredicate("p", "$6") + ` THEN p.uri END
 			FROM craftsky_posts p
 			WHERE p.reply_parent_uri = $1
 			  AND p.reply_root_uri = $2
 			UNION ALL
-			SELECT child.uri, child.created_at, parent.depth + 1
+			SELECT child.uri, child.created_at, parent.depth + 1,
+				parent.protected OR ` + postAuthorBlockedPredicate("child", "$6") + ` OR ` + postReplyAuthorBlockedPredicate("child") + ` OR ` + postMentionAuthorBlockedPredicate("child") + `,
+				COALESCE(
+					parent.muted_ancestor_uri,
+					CASE WHEN ` + postAuthorMutedPredicate("child", "$6") + ` THEN child.uri END
+				)
 			FROM craftsky_posts child
 			JOIN branch parent ON child.reply_parent_uri = parent.uri
 			WHERE child.reply_root_uri = $2
@@ -1072,6 +1294,8 @@ func (s *PostStore) ListCommentBranchReplies(ctx context.Context, commentURI, ro
 			JOIN craftsky_posts p ON p.uri = branch.uri
 			WHERE ($3::timestamptz IS NULL
 			       OR (branch.created_at, branch.uri) > ($3::timestamptz, $4::text))
+			  AND NOT branch.protected
+			  AND (branch.muted_ancestor_uri IS NULL OR branch.muted_ancestor_uri = branch.uri)
 			` + postVisibleModerationPredicate + `
 			ORDER BY branch.created_at ASC, branch.uri ASC
 			LIMIT $5
@@ -1085,7 +1309,7 @@ func (s *PostStore) ListCommentBranchReplies(ctx context.Context, commentURI, ro
 		` + postVisibleModerationPredicate + `
 		ORDER BY page.created_at ASC, page.uri ASC
 	`
-	rows, err := s.pool.Query(ctx, q, commentURI, rootURI, curCreatedAt, curURI, limit)
+	rows, err := s.pool.Query(ctx, q, commentURI, rootURI, curCreatedAt, curURI, limit, viewerDID)
 	if err != nil {
 		return nil, "", fmt.Errorf("reply list branch comment=%s root=%s: %w", commentURI, rootURI, err)
 	}
@@ -1120,28 +1344,43 @@ func (s *PostStore) ListCommentBranchReplies(ctx context.Context, commentURI, ro
 // includes focusURI, ending at the focused reply so deep links can render the
 // target without loading every earlier branch reply.
 func (s *PostStore) ListCommentBranchRepliesAround(ctx context.Context, commentURI, rootURI, focusURI string, limit int) ([]*PostRow, string, error) {
+	viewerDID, _ := middleware.GetDID(ctx)
 	q := `
-		WITH RECURSIVE branch(uri, created_at, depth) AS (
-			SELECT p.uri, p.created_at, 1
+		WITH RECURSIVE branch(uri, created_at, depth, protected, muted_ancestor_uri) AS (
+			SELECT p.uri, p.created_at, 1,
+				` + postAuthorBlockedPredicate("p", "$5") + ` OR ` + postReplyAuthorBlockedPredicate("p") + ` OR ` + postMentionAuthorBlockedPredicate("p") + `,
+				CASE WHEN ` + postAuthorMutedPredicate("p", "$5") + ` THEN p.uri END
 			FROM craftsky_posts p
 			WHERE p.reply_parent_uri = $1
 			  AND p.reply_root_uri = $2
 			UNION ALL
-			SELECT child.uri, child.created_at, parent.depth + 1
+			SELECT child.uri, child.created_at, parent.depth + 1,
+				parent.protected OR ` + postAuthorBlockedPredicate("child", "$5") + ` OR ` + postReplyAuthorBlockedPredicate("child") + ` OR ` + postMentionAuthorBlockedPredicate("child") + `,
+				COALESCE(
+					parent.muted_ancestor_uri,
+					CASE WHEN ` + postAuthorMutedPredicate("child", "$5") + ` THEN child.uri END
+				)
 			FROM craftsky_posts child
 			JOIN branch parent ON child.reply_parent_uri = parent.uri
 			WHERE child.reply_root_uri = $2
 			  AND parent.depth < 64
-		), focus AS (
-			SELECT uri, created_at
+		), focus_target AS (
+			SELECT COALESCE(muted_ancestor_uri, uri) AS uri
 			FROM branch
 			WHERE uri = $3
+		), focus AS (
+			SELECT branch.uri, branch.created_at
+			FROM branch
+			JOIN focus_target ON focus_target.uri = branch.uri
+			WHERE NOT branch.protected
 		), page AS (
 			SELECT branch.uri, branch.created_at
 			FROM branch
 			JOIN focus ON true
 			JOIN craftsky_posts p ON p.uri = branch.uri
 			WHERE (branch.created_at, branch.uri) <= (focus.created_at, focus.uri)
+			  AND NOT branch.protected
+			  AND (branch.muted_ancestor_uri IS NULL OR branch.muted_ancestor_uri = branch.uri)
 			` + postVisibleModerationPredicate + `
 			ORDER BY branch.created_at DESC, branch.uri DESC
 			LIMIT $4
@@ -1159,7 +1398,7 @@ func (s *PostStore) ListCommentBranchRepliesAround(ctx context.Context, commentU
 		` + postVisibleModerationPredicate + `
 		ORDER BY ordered_page.created_at ASC, ordered_page.uri ASC
 	`
-	rows, err := s.pool.Query(ctx, q, commentURI, rootURI, focusURI, limit)
+	rows, err := s.pool.Query(ctx, q, commentURI, rootURI, focusURI, limit, viewerDID)
 	if err != nil {
 		return nil, "", fmt.Errorf("reply list branch around comment=%s root=%s focus=%s: %w", commentURI, rootURI, focusURI, err)
 	}

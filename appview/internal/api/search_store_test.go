@@ -44,6 +44,58 @@ CREATE TABLE atproto_identity_cache (
 );
 `
 
+func TestSearchProfilesOmitsBlockedAccountExceptExactHandleManagementShell(t *testing.T) {
+	pool := testdb.WithSchema(t, searchStoreDDL)
+	ctx := context.Background()
+	for _, did := range []string{"did:plc:viewer", "did:plc:bob", "did:plc:carol"} {
+		seedMember(t, pool, did)
+	}
+	seedSearchIdentity(t, pool, "did:plc:viewer", "viewer.example", "Viewer", "viewer bio")
+	seedSearchIdentity(t, pool, "did:plc:bob", "bob.example", "Bob Maker", "blocked bio")
+	seedSearchIdentity(t, pool, "did:plc:carol", "carol.example", "Carol", "carol bio")
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
+		VALUES ('at://did:plc:viewer/app.bsky.graph.block/bob', 'did:plc:viewer', 'bob', 'block-cid', 'did:plc:bob', '{}', now())
+	`); err != nil {
+		t.Fatalf("seed block: %v", err)
+	}
+	store := api.NewSearchStore(pool, nil)
+
+	ordinary, _, err := store.SearchProfiles(ctx, "did:plc:viewer", api.ProfileSearchRequest{Query: "bob", Limit: 10})
+	if err != nil {
+		t.Fatalf("ordinary blocked search: %v", err)
+	}
+	if len(ordinary) != 0 {
+		t.Fatalf("ordinary search exposed blocked account: %+v", ordinary)
+	}
+	exact, _, err := store.SearchProfiles(ctx, "did:plc:viewer", api.ProfileSearchRequest{Query: "bob.example", Limit: 10})
+	if err != nil {
+		t.Fatalf("exact blocked search: %v", err)
+	}
+	if len(exact) != 1 || exact[0].DID != "did:plc:bob" || !exact[0].Blocking || exact[0].BlockedBy {
+		t.Fatalf("exact management row = %+v", exact)
+	}
+	raw, err := json.Marshal(api.BuildProfileSearchSummary(exact[0]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var shell map[string]any
+	_ = json.Unmarshal(raw, &shell)
+	for _, forbidden := range []string{"description", "crafts", "viewerIsFollowing"} {
+		if _, ok := shell[forbidden]; ok {
+			t.Fatalf("exact blocked shell leaked %q: %s", forbidden, raw)
+		}
+	}
+
+	carol, _, err := store.SearchProfiles(ctx, "did:plc:carol", api.ProfileSearchRequest{Query: "bob", Limit: 10})
+	if err != nil {
+		t.Fatalf("unrelated search: %v", err)
+	}
+	if len(carol) != 1 || carol[0].Description == nil || *carol[0].Description != "blocked bio" {
+		t.Fatalf("unrelated search result = %+v", carol)
+	}
+}
+
 func seedSearchProject(t *testing.T, pool *pgxpool.Pool, did, rkey, text, craftType, title string, createdAt time.Time) string {
 	t.Helper()
 	uri := seedPost(t, pool, did, rkey, text, createdAt)
@@ -408,6 +460,35 @@ func TestSearchStore_SearchHashtagPostsUsesStoredTagEqualityOnly(t *testing.T) {
 	got := searchURIs(rows)
 	if !slices.Equal(got, []string{exact, projectExact}) {
 		t.Fatalf("hashtag URIs = %v; substring=%s textOnly=%s reply=%s must be absent", got, substring, textOnly, reply)
+	}
+}
+
+func TestSearchStoreRelationshipFiltersBeforeHashtagPagination(t *testing.T) {
+	pool := testdb.WithSchema(t, searchStoreDDL)
+	base := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+	for _, did := range []string{"did:plc:viewer", "did:plc:bob", "did:plc:carol", "did:plc:dave"} {
+		seedMember(t, pool, did)
+	}
+	for i, did := range []string{"did:plc:bob", "did:plc:carol", "did:plc:dave"} {
+		uri := seedPost(t, pool, did, fmt.Sprintf("p%d", i), "knit", base.Add(time.Duration(3-i)*time.Minute))
+		if _, err := pool.Exec(context.Background(), `UPDATE craftsky_posts SET tags=ARRAY['knit']::text[] WHERE uri=$1`, uri); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO actor_mutes(owner_did,subject_did) VALUES('did:plc:viewer','did:plc:bob');
+		INSERT INTO atproto_blocks(uri,blocker_did,rkey,cid,subject_did,record,created_at)
+		VALUES('at://did:plc:carol/app.bsky.graph.block/r1','did:plc:carol','r1','cid','did:plc:viewer','{}',now())
+	`); err != nil {
+		t.Fatal(err)
+	}
+	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
+	rows, cursor, err := api.NewSearchStore(pool, nil).SearchHashtagPosts(ctx, "knit", api.SearchSortChronological, 1, "", base.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].Post.DID != "did:plc:dave" || cursor != "" {
+		t.Fatalf("rows=%+v cursor=%q, want only eligible Dave", rows, cursor)
 	}
 }
 

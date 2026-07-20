@@ -21,14 +21,39 @@ void main() {
 
     expect(repository.countCalls, 3);
   });
+
+  test(
+    'AT-006 suppress decrements the loaded badge without going below zero',
+    () async {
+      final repository = _RecordingNewnessRepository(initialCount: 3);
+      final container = ProviderContainer.test(
+        overrides: [
+          notificationNewnessRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+
+      await container.read(notificationNewCountProvider.future);
+      container.read(notificationNewCountProvider.notifier)
+        ..suppress(2)
+        ..suppress(4);
+
+      expect(container.read(notificationNewCountProvider).requireValue, 0);
+    },
+  );
 }
 
 final class _RecordingNewnessRepository
     implements NotificationNewnessRepository {
+  _RecordingNewnessRepository({this.initialCount});
+
+  final int? initialCount;
   int countCalls = 0;
 
   @override
-  Future<int> count() async => ++countCalls;
+  Future<int> count() async {
+    countCalls++;
+    return initialCount ?? countCalls;
+  }
 
   @override
   Future<void> markSeen() async {}

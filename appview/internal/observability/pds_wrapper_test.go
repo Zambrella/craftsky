@@ -20,6 +20,40 @@ type fakePDSClient struct {
 	uploadErr error
 }
 
+type fakeListPDSClient struct {
+	fakePDSClient
+	records []auth.PDSRecord
+	cursor  string
+}
+
+func (f fakeListPDSClient) ListRecords(context.Context, syntax.DID, string, string, int) ([]auth.PDSRecord, string, error) {
+	return f.records, f.cursor, nil
+}
+
+func TestWrapPDSFactoryPreservesRecordListingCapability(t *testing.T) {
+	observer := New(Config{Env: "test", MetricRecorder: NewInMemoryMetricRecorder()})
+	want := []auth.PDSRecord{{URI: "at://did:plc:alice/app.bsky.graph.block/one", CID: "bafy-one"}}
+	wrappedFactory := observer.WrapPDSFactory(func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
+		return fakeListPDSClient{records: want, cursor: "next-page"}, nil
+	})
+
+	client, err := wrappedFactory(context.Background(), syntax.DID("did:plc:alice"), "session")
+	if err != nil {
+		t.Fatalf("wrapped factory: %v", err)
+	}
+	lister, ok := client.(auth.PDSRecordLister)
+	if !ok {
+		t.Fatal("wrapped PDS client lost PDSRecordLister capability")
+	}
+	records, cursor, err := lister.ListRecords(context.Background(), syntax.DID("did:plc:alice"), "app.bsky.graph.block", "", 100)
+	if err != nil {
+		t.Fatalf("ListRecords: %v", err)
+	}
+	if len(records) != 1 || records[0].URI != want[0].URI || cursor != "next-page" {
+		t.Fatalf("records/cursor = %+v/%q, want %+v/%q", records, cursor, want, "next-page")
+	}
+}
+
 func (f fakePDSClient) GetRecord(context.Context, syntax.DID, string, string, any) (string, error) {
 	return "", f.getErr
 }

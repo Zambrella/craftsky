@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -19,20 +21,29 @@ import (
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/postutil"
+	"social.craftsky/appview/internal/relationships"
 )
 
 const craftskyPostNSID = "social.craftsky.feed.post"
 const craftskyLikeNSID = "social.craftsky.feed.like"
 const craftskyRepostNSID = "social.craftsky.feed.repost"
 
+var ErrInteractionBlocked = errors.New("interaction blocked")
+
+type DirectedInteractionAuthorizer interface {
+	AuthorizeDirectedInteraction(context.Context, syntax.DID, syntax.DID, relationships.Operation) error
+}
+
 // LikeStore is the read-side interaction subset needed by like/unlike handlers.
 type LikeStore interface {
+	DirectedInteractionAuthorizer
 	ResolvePostTarget(ctx context.Context, did, rkey string) (*PostTargetRef, error)
 	FindActiveLike(ctx context.Context, did, subjectURI string) (*InteractionRow, error)
 }
 
 // RepostStore is the read-side interaction subset needed by repost/unrepost handlers.
 type RepostStore interface {
+	DirectedInteractionAuthorizer
 	ResolvePostTarget(ctx context.Context, did, rkey string) (*PostTargetRef, error)
 	ResolveShareTarget(ctx context.Context, did, rkey string) (*ShareTargetRef, error)
 	FindActiveRepost(ctx context.Context, did, subjectURI string) (*InteractionRow, error)
@@ -108,6 +119,32 @@ func CreatePostHandler(
 			}
 			req.Embed.Quote.URI = target.URI
 			req.Embed.Quote.CID = target.CID
+			quoteDID, _ := subjectDIDFromATURI(target.URI)
+			if !authorizeDirectedInteraction(w, r, store, did, quoteDID, relationships.OperationQuoteCreate) {
+				return
+			}
+		}
+		if req.Reply != nil {
+			replyDID, err := subjectDIDFromATURI(req.Reply.Parent.URI)
+			if err != nil {
+				envelope.WriteError(w, http.StatusUnprocessableEntity,
+					"validation_failed", "validation failed", runID, map[string]string{"reply.parent.uri": "must identify a DID-authored post"})
+				return
+			}
+			if !authorizeDirectedInteraction(w, r, store, did, replyDID, relationships.OperationReplyCreate) {
+				return
+			}
+		}
+		mentioned, err := mentionedDIDs(req)
+		if err != nil {
+			envelope.WriteError(w, http.StatusUnprocessableEntity,
+				"validation_failed", "validation failed", runID, map[string]string{"facets": "mention DID is invalid"})
+			return
+		}
+		for _, subject := range mentioned {
+			if !authorizeDirectedInteraction(w, r, store, did, subject, relationships.OperationMentionCreate) {
+				return
+			}
 		}
 		logger.Debug("post create: validated request",
 			pdsLogAttrs(runID, pdsOperationPostCreate, pdsStageRequestBuild)...)
@@ -187,6 +224,87 @@ func validateQuoteShareTarget(ctx context.Context, store PostReader, ref StrongR
 		return nil, &FieldError{Code: "validation_failed", Fields: map[string]string{"target": "reply posts cannot be quoted"}}
 	}
 	return target, nil
+}
+
+func subjectDIDFromATURI(uri string) (syntax.DID, error) {
+	aturi, err := syntax.ParseATURI(uri)
+	if err != nil {
+		return "", err
+	}
+	return syntax.ParseDID(aturi.Authority().String())
+}
+
+func mentionedDIDs(req PostCreateRequest) ([]syntax.DID, error) {
+	raw, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil, err
+	}
+	seen := map[syntax.DID]struct{}{}
+	var walk func(any) error
+	walk = func(node any) error {
+		switch typed := node.(type) {
+		case []any:
+			for _, item := range typed {
+				if err := walk(item); err != nil {
+					return err
+				}
+			}
+		case map[string]any:
+			if typed["$type"] == "app.bsky.richtext.facet#mention" {
+				did, err := syntax.ParseDID(fmt.Sprint(typed["did"]))
+				if err != nil {
+					return err
+				}
+				seen[did] = struct{}{}
+			}
+			for _, item := range typed {
+				if err := walk(item); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	if err := walk(value); err != nil {
+		return nil, err
+	}
+	out := make([]syntax.DID, 0, len(seen))
+	for did := range seen {
+		out = append(out, did)
+	}
+	slices.Sort(out)
+	return out, nil
+}
+
+func authorizeDirectedInteraction(
+	w http.ResponseWriter,
+	r *http.Request,
+	authorizer DirectedInteractionAuthorizer,
+	actor, subject syntax.DID,
+	operation relationships.Operation,
+) bool {
+	err := authorizer.AuthorizeDirectedInteraction(r.Context(), actor, subject, operation)
+	if err == nil {
+		return true
+	}
+	runID := middleware.GetRunID(r.Context())
+	if errors.Is(err, relationships.ErrProfileNotFound) {
+		envelope.WriteError(w, http.StatusNotFound,
+			"profile_not_found", "profile not found", runID, nil)
+		return false
+	}
+	if errors.Is(err, ErrInteractionBlocked) {
+		envelope.WriteError(w, http.StatusForbidden,
+			"interaction_blocked", "interaction is not allowed across a block", runID, nil)
+		return false
+	}
+	envelope.WriteError(w, http.StatusInternalServerError,
+		"internal_error", "could not authorize interaction", runID, nil)
+	return false
 }
 
 // lexiconRecordBody translates the wire request into the lexicon-shaped
@@ -416,6 +534,23 @@ func GetPostHandler(store PostReader, resolver HandleResolver, logger *slog.Logg
 				"internal_error", "post read failed", runID, nil)
 			return
 		}
+		relationshipState, err := store.RelationshipState(r.Context(), viewerDID, did)
+		if errors.Is(err, relationships.ErrProfileNotFound) {
+			envelope.WriteError(w, http.StatusNotFound,
+				"profile_not_found", "profile not found", runID, nil)
+			return
+		}
+		if err != nil {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "post relationship lookup failed", runID, nil)
+			return
+		}
+		if relationshipState.HasBlock() {
+			resp := BuildPostResponse(row, "")
+			ApplyPostRelationshipPolicy(resp, relationshipState, relationships.SurfaceDirectPost)
+			writeJSON(w, http.StatusOK, resp)
+			return
+		}
 		summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), []string{row.URI})
 		if err != nil {
 			logger.Error("post: EngagementSummaries failed",
@@ -433,6 +568,7 @@ func GetPostHandler(store PostReader, resolver HandleResolver, logger *slog.Logg
 			return
 		}
 		resp := BuildPostResponse(row, handle)
+		ApplyPostAuthorViewerState(resp, relationshipState)
 		applyEngagementSummary(resp, summaries[row.URI])
 		if err := attachQuoteView(r.Context(), store, resolver, resp); err != nil {
 			logger.Error("post: QuoteViewRows failed",
@@ -472,6 +608,55 @@ func attachQuoteViews(ctx context.Context, store quoteViewReader, resolver Handl
 	if err != nil {
 		return err
 	}
+	viewerDID, hasViewer := middleware.GetDID(ctx)
+	subjects := make([]syntax.DID, 0, len(views))
+	for _, viewRow := range views {
+		if viewRow == nil || viewRow.Post == nil {
+			continue
+		}
+		did, err := syntax.ParseDID(viewRow.Post.DID)
+		if err != nil {
+			return err
+		}
+		subjects = append(subjects, did)
+	}
+	states := map[syntax.DID]relationships.State{}
+	if relationshipReader, ok := store.(interface {
+		RelationshipStates(context.Context, syntax.DID, []syntax.DID) (map[syntax.DID]relationships.State, error)
+	}); ok && hasViewer && len(subjects) > 0 {
+		states, err = relationshipReader.RelationshipStates(ctx, viewerDID, subjects)
+		if err != nil {
+			return err
+		}
+	}
+	pairsByResponse := make(map[*PostResponse]RelationshipPair)
+	pairs := make([]RelationshipPair, 0, len(responses))
+	for _, resp := range responses {
+		if resp == nil || resp.Quote == nil {
+			continue
+		}
+		viewRow := views[resp.Quote.URI]
+		if viewRow == nil || viewRow.Post == nil {
+			continue
+		}
+		first, firstErr := syntax.ParseDID(resp.Author.DID)
+		second, secondErr := syntax.ParseDID(viewRow.Post.DID)
+		if firstErr != nil || secondErr != nil {
+			continue
+		}
+		pair := RelationshipPair{First: first, Second: second}
+		pairsByResponse[resp] = pair
+		pairs = append(pairs, pair)
+	}
+	blockedPairs := map[RelationshipPair]bool{}
+	if pairReader, ok := store.(interface {
+		BlockedPairs(context.Context, []RelationshipPair) (map[RelationshipPair]bool, error)
+	}); ok && len(pairs) > 0 {
+		blockedPairs, err = pairReader.BlockedPairs(ctx, pairs)
+		if err != nil {
+			return err
+		}
+	}
 	handles := map[string]syntax.Handle{}
 	for _, resp := range responses {
 		if resp == nil || resp.Quote == nil {
@@ -484,6 +669,17 @@ func attachQuoteViews(ctx context.Context, store quoteViewReader, resolver Handl
 		}
 		var handle syntax.Handle
 		if viewRow.Post != nil {
+			if blockedPairs[pairsByResponse[resp]] {
+				resp.QuoteView = &QuoteView{State: "blocked"}
+				continue
+			}
+			postDID, _ := syntax.ParseDID(viewRow.Post.DID)
+			state := states[postDID]
+			if decision := relationships.Decide(relationships.ModerationVisible, state, relationships.SurfaceQuote); decision == relationships.DecisionMutedPlaceholder || decision == relationships.DecisionBlockedPlaceholder {
+				resp.QuoteView = &QuoteView{State: "visible"}
+				ApplyQuoteRelationshipPolicy(resp.QuoteView, state)
+				continue
+			}
 			cached, ok := handles[viewRow.Post.DID]
 			if !ok {
 				did, err := syntax.ParseDID(viewRow.Post.DID)
@@ -561,6 +757,12 @@ func ListCommentRepliesHandler(
 		items := make([]ReplyItem, 0, len(rows))
 		if len(rows) > 0 {
 			viewerDID, _ := middleware.GetDID(r.Context())
+			states, stateErr := relationshipStatesForRows(r.Context(), store, viewerDID, rows)
+			if stateErr != nil {
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "reply relationship lookup failed", runID, nil)
+				return
+			}
 			postURIs := make([]string, 0, len(rows))
 			hydratedRows := make([]*PostRow, 0, len(rows)*2)
 			for _, row := range rows {
@@ -614,6 +816,7 @@ func ListCommentRepliesHandler(
 				}
 				items = append(items, item)
 			}
+			items = shapeReplyItems(items, rows, states)
 			responses := make([]*PostResponse, 0, len(items))
 			for i := range items {
 				responses = append(responses, items[i].Post)
@@ -675,6 +878,23 @@ func GetPostCommentsHandler(
 		}
 
 		viewerDID, _ := middleware.GetDID(r.Context())
+		rootRelationship, err := store.RelationshipState(r.Context(), viewerDID, did)
+		if errors.Is(err, relationships.ErrProfileNotFound) {
+			envelope.WriteError(w, http.StatusNotFound, "profile_not_found", "profile not found", runID, nil)
+			return
+		}
+		if err != nil {
+			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "post relationship lookup failed", runID, nil)
+			return
+		}
+		if rootRelationship.HasBlock() {
+			rootPost := BuildPostResponse(root, "")
+			ApplyPostRelationshipPolicy(rootPost, rootRelationship, relationships.SurfaceDirectPost)
+			writeJSON(w, http.StatusOK, &CommentSectionResponse{
+				Post: rootPost, Comments: CommentPage{Items: []CommentItem{}}, Sort: parseCommentSort(r.URL.Query().Get("sort")),
+			})
+			return
+		}
 		sortValue := parseCommentSort(r.URL.Query().Get("sort"))
 		limit := parseCommentLimit(r.URL.Query().Get("limit"))
 		cursor := r.URL.Query().Get("cursor")
@@ -797,6 +1017,12 @@ func GetPostCommentsHandler(
 		}
 		hydratedRows = append(hydratedRows, focusedBranchRows...)
 		hydratedRows = append(hydratedRows, focusedBranchParentRows...)
+		states, err := relationshipStatesForRows(r.Context(), store, viewerDID, hydratedRows)
+		if err != nil {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "thread relationship lookup failed", runID, nil)
+			return
+		}
 		postURIs := make([]string, 0, len(hydratedRows))
 		for _, row := range hydratedRows {
 			postURIs = append(postURIs, row.URI)
@@ -857,6 +1083,7 @@ func GetPostCommentsHandler(
 			Sort:     sortValue,
 			Focus:    focus,
 		}
+		body.Comments.Items = shapeCommentItems(body.Comments.Items, hydratedRows, states)
 		if err := attachQuoteViews(r.Context(), store, resolver, collectCommentSectionPostResponses(body)); err != nil {
 			logger.Error("post comments: QuoteViewRows failed",
 				apiLogErrorAttrs(runID, "post.comments.list", "quote_view")...)
@@ -875,6 +1102,87 @@ func GetPostCommentsHandler(
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(body)
 	})
+}
+
+func relationshipStatesForRows(
+	ctx context.Context,
+	store PostReader,
+	viewer syntax.DID,
+	rows []*PostRow,
+) (map[syntax.DID]relationships.State, error) {
+	seen := make(map[syntax.DID]struct{})
+	subjects := make([]syntax.DID, 0, len(rows))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		did, err := syntax.ParseDID(row.DID)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := seen[did]; ok {
+			continue
+		}
+		seen[did] = struct{}{}
+		subjects = append(subjects, did)
+	}
+	return store.RelationshipStates(ctx, viewer, subjects)
+}
+
+func shapeReplyItems(items []ReplyItem, rows []*PostRow, states map[syntax.DID]relationships.State) []ReplyItem {
+	out := make([]ReplyItem, 0, len(items))
+	protected := make(map[string]bool)
+	for i, item := range items {
+		if i >= len(rows) || item.Post == nil {
+			continue
+		}
+		row := rows[i]
+		if row.ReplyParentURI != nil && protected[*row.ReplyParentURI] {
+			protected[row.URI] = true
+			continue
+		}
+		did, _ := syntax.ParseDID(row.DID)
+		state := states[did]
+		if state.HasBlock() {
+			protected[row.URI] = true
+			continue
+		}
+		if state.Muted {
+			ApplyPostRelationshipPolicy(item.Post, state, relationships.SurfaceThread)
+			item.ReplyingTo = nil
+			protected[row.URI] = true
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func shapeCommentItems(items []CommentItem, rows []*PostRow, states map[syntax.DID]relationships.State) []CommentItem {
+	out := make([]CommentItem, 0, len(items))
+	rowsByURI := make(map[string]*PostRow, len(rows))
+	for _, row := range rows {
+		rowsByURI[row.URI] = row
+	}
+	for _, item := range items {
+		if item.Post == nil {
+			continue
+		}
+		row := rowsByURI[item.Post.URI]
+		if row == nil {
+			continue
+		}
+		did, _ := syntax.ParseDID(row.DID)
+		state := states[did]
+		if state.HasBlock() {
+			continue
+		}
+		if state.Muted {
+			ApplyPostRelationshipPolicy(item.Post, state, relationships.SurfaceThread)
+			item.Replies = ReplyPage{Loaded: false, Items: []ReplyItem{}}
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 // DeletePostHandler serves DELETE /v1/posts/{did}/{rkey}. Idempotent —
@@ -965,6 +1273,9 @@ func LikePostHandler(store LikeStore, newPDS auth.PDSClientFactory, logger *slog
 				pdsLogErrorAttrs(runID, pdsOperationLikeCreate, pdsStageRequestBuild, err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "could not resolve post", runID, nil)
+			return
+		}
+		if !authorizeDirectedInteraction(w, r, store, caller, targetDID, relationships.OperationLikeCreate) {
 			return
 		}
 		active, err := store.FindActiveLike(r.Context(), caller.String(), target.URI)
@@ -1126,6 +1437,9 @@ func RepostPostHandler(store RepostStore, newPDS auth.PDSClientFactory, logger *
 				pdsLogErrorAttrs(runID, pdsOperationRepostCreate, pdsStageRequestBuild, err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "could not resolve post", runID, nil)
+			return
+		}
+		if !authorizeDirectedInteraction(w, r, store, caller, targetDID, relationships.OperationRepostCreate) {
 			return
 		}
 		if target.IsReply {
@@ -1360,9 +1674,26 @@ func listAuthorPostsHandler(
 			}
 			return
 		}
+		viewerDID, _ := middleware.GetDID(r.Context())
+		relationshipState, err := store.RelationshipState(r.Context(), viewerDID, did)
+		if errors.Is(err, relationships.ErrProfileNotFound) {
+			envelope.WriteError(w, http.StatusNotFound,
+				"profile_not_found", "profile not found", runID, nil)
+			return
+		}
+		if err != nil {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "relationship lookup failed", runID, nil)
+			return
+		}
+		if relationshipState.HasBlock() {
+			writeJSON(w, http.StatusOK, struct {
+				Items []*PostResponse `json:"items"`
+			}{Items: []*PostResponse{}})
+			return
+		}
 		limit := parseLimit(r.URL.Query().Get("limit"))
 		cursor := r.URL.Query().Get("cursor")
-		viewerDID, _ := middleware.GetDID(r.Context())
 		logger.Debug(logLabel+": listing author records",
 			append(apiLogAttrs(runID, operation),
 				slog.Int("limit", limit),

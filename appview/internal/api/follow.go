@@ -15,6 +15,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/relationships"
 )
 
 const blueskyFollowCollection = "app.bsky.graph.follow"
@@ -56,6 +57,19 @@ func FollowProfileHandler(
 		if caller == target {
 			envelope.WriteError(w, http.StatusBadRequest,
 				"self_follow_not_allowed", "cannot follow yourself", runID, nil)
+			return
+		}
+		targetProfile, err := requireFollowTargetMember(r.Context(), profiles, caller, target)
+		if err != nil {
+			writeFollowTargetMembershipError(w, runID, err)
+			return
+		}
+		authorization := relationships.Authorize(relationships.OperationFollowCreate, relationships.State{
+			Muted: targetProfile.Muted, Blocking: targetProfile.Blocking, BlockedBy: targetProfile.BlockedBy,
+		}, false)
+		if !authorization.Allowed {
+			envelope.WriteError(w, http.StatusForbidden,
+				"interaction_blocked", "interaction is not allowed across a block", runID, nil)
 			return
 		}
 
@@ -126,6 +140,10 @@ func UnfollowProfileHandler(
 				"self_follow_not_allowed", "cannot unfollow yourself", runID, nil)
 			return
 		}
+		if _, err := requireFollowTargetMember(r.Context(), profiles, caller, target); err != nil {
+			writeFollowTargetMembershipError(w, runID, err)
+			return
+		}
 
 		active, err := graph.FindActiveFollow(r.Context(), caller.String(), target.String())
 		if err != nil {
@@ -154,6 +172,32 @@ func UnfollowProfileHandler(
 
 		writeFollowProfileResponse(w, r, profiles, resolver, target, followingOverride(false))
 	})
+}
+
+func requireFollowTargetMember(ctx context.Context, profiles ProfileReader, caller, target syntax.DID) (*ProfileRow, error) {
+	row, err := profiles.Read(ctx, target.String(), caller.String())
+	if err != nil {
+		return nil, err
+	}
+	if row == nil || !row.IsCraftskyProfile {
+		return nil, ErrProfileNotFound
+	}
+	return row, nil
+}
+
+func writeFollowTargetMembershipError(w http.ResponseWriter, runID string, err error) {
+	if errors.Is(err, ErrProfileNotFound) {
+		envelope.WriteError(w, http.StatusNotFound,
+			"profile_not_found", "profile not found", runID, nil)
+		return
+	}
+	if errors.Is(err, ErrProfileCountsUnavailable) {
+		envelope.WriteError(w, http.StatusInternalServerError,
+			"profile_counts_unavailable", "required profile counts unavailable", runID, nil)
+		return
+	}
+	envelope.WriteError(w, http.StatusInternalServerError,
+		"internal_error", "profile read failed", runID, nil)
 }
 
 func writeFollowProfileResponse(

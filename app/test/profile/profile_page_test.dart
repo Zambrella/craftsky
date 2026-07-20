@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
@@ -11,6 +12,7 @@ import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
+import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
@@ -77,7 +79,7 @@ void main() {
       expect(find.byIcon(Icons.settings_outlined), findsWidgets);
     });
 
-    testWidgets('visitor profile renders Follow + Share actions', (
+    testWidgets('visitor profile renders Follow + Mute actions', (
       tester,
     ) async {
       final profile = Profile(
@@ -102,11 +104,14 @@ void main() {
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
           ],
-          child: MaterialApp(
-            theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProfilePage(handle: 'alice.bsky.social'),
+          child: MessengerScope(
+            messenger: RecordingMessenger(),
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const ProfilePage(handle: 'alice.bsky.social'),
+            ),
           ),
         ),
       );
@@ -114,9 +119,8 @@ void main() {
 
       expect(find.text('Follow'), findsOneWidget);
       expect(find.text('Unfollow'), findsNothing);
-      // Share is icon-only in the action row plus the share icon in
-      // the collapsed-state trailing slot.
-      expect(find.byIcon(Icons.ios_share_outlined), findsWidgets);
+      expect(find.byTooltip('Mute account'), findsWidgets);
+      expect(find.byTooltip('Share'), findsNothing);
       expect(find.text('Edit profile'), findsNothing);
       expect(find.text('following'), findsNothing);
       expect(find.text('followers'), findsNothing);
@@ -127,6 +131,165 @@ void main() {
       expect(find.text('projects'), findsOneWidget);
       expect(find.text('12 mutual followers'), findsOneWidget);
       expect(find.text('Non CraftSky profile'), findsNothing);
+    });
+
+    testWidgets(
+      'blocked profile renders only identity, annotation, and actions',
+      (
+        tester,
+      ) async {
+        final profile = Profile(
+          did: 'did:plc:other',
+          handle: 'alice.bsky.social',
+          displayName: 'Alice',
+          description: 'must not render',
+          crafts: const ['quilting'],
+          followerCount: 99,
+          blocking: true,
+        );
+        final repo = FakeProfileRepository(onFetch: (_) async => profile);
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authSessionProvider.overrideWith(SignedInAuthSession.new),
+              profileRepositoryProvider.overrideWithValue(repo),
+              postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+            ],
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const ProfilePage(handle: 'alice.bsky.social'),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Blocked by you'), findsOneWidget);
+        expect(find.text('must not render'), findsNothing);
+        expect(find.text('quilting'), findsNothing);
+        expect(find.text('99'), findsNothing);
+        expect(find.text('Follow'), findsNothing);
+        expect(find.text('Posts'), findsNothing);
+
+        await tester.tap(find.byTooltip('More profile actions'));
+        await tester.pumpAndSettle();
+        expect(find.text('Unblock account'), findsOneWidget);
+        expect(find.text('Mute account'), findsNothing);
+        expect(find.text('Report profile'), findsOneWidget);
+      },
+    );
+
+    testWidgets('block action confirms public consequence before mutation', (
+      tester,
+    ) async {
+      var blockCalls = 0;
+      String? blockTarget;
+      final account = AccountKey('did:plc:test');
+      final profile = Profile(
+        did: 'did:plc:other',
+        handle: 'alice.bsky.social',
+        displayName: 'Alice',
+        crafts: const [],
+      );
+      final repo = FakeProfileRepository(
+        onFetch: (_) async => profile,
+        onBlock: (target) async {
+          blockCalls++;
+          blockTarget = target;
+          return const ProfileRelationship(blocking: true);
+        },
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            accountRelationshipRepositoryProvider(
+              account,
+            ).overrideWith((ref) async => repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MessengerScope(
+            messenger: RecordingMessenger(),
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const ProfilePage(handle: 'alice.bsky.social'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('More profile actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Block account'));
+      await tester.pumpAndSettle();
+      expect(find.text('Block this account?'), findsOneWidget);
+      expect(find.textContaining('public on the AT Protocol'), findsOneWidget);
+      expect(blockCalls, 0);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Block account'));
+      await tester.pumpAndSettle();
+      expect(blockCalls, 1);
+      expect(blockTarget, 'did:plc:other');
+      expect(find.text('Blocked by you'), findsOneWidget);
+    });
+
+    testWidgets('mute icon applies mute without opening More menu', (
+      tester,
+    ) async {
+      var muteCalls = 0;
+      final account = AccountKey('did:plc:test');
+      final profile = Profile(
+        did: 'did:plc:other',
+        handle: 'alice.bsky.social',
+        displayName: 'Alice',
+        crafts: const [],
+      );
+      final repo = FakeProfileRepository(
+        onFetch: (_) async => profile,
+        onMute: (target) async {
+          expect(target, 'did:plc:other');
+          muteCalls++;
+          return const ProfileRelationship(muted: true);
+        },
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            accountRelationshipRepositoryProvider(
+              account,
+            ).overrideWith((ref) async => repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MessengerScope(
+            messenger: RecordingMessenger(),
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const ProfilePage(handle: 'alice.bsky.social'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Mute account').first);
+      await tester.pumpAndSettle();
+
+      expect(muteCalls, 1);
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.text('Muted account'), findsOneWidget);
+      expect(find.byTooltip('Unmute account'), findsWidgets);
     });
 
     testWidgets('warned profile shows generic warning copy', (tester) async {
@@ -485,7 +648,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Report profile'));
+      await tester.tap(find.byTooltip('More profile actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Report profile'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Spam'));
       await tester.pump();
@@ -860,7 +1025,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byIcon(Icons.ios_share_outlined).first);
+      await tester.tap(find.byTooltip('More profile actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share'));
+      await tester.pumpAndSettle();
       expect(messenger.calls.length, 1);
       expect(messenger.calls.first.$1, 'info');
       expect(messenger.calls.first.$2, 'Share coming soon.');

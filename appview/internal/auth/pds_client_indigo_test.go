@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
@@ -30,6 +31,41 @@ func TestTranslateGetRecordError_RecordNotFoundByName(t *testing.T) {
 	}
 	if got := translateGetRecordError(apiErr); !errors.Is(got, ErrRecordNotFound) {
 		t.Errorf("want ErrRecordNotFound; got %v", got)
+	}
+}
+
+func TestIndigoPDSClientListRecordsReturnsTypedPaginatedBlocks(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/xrpc/com.atproto.repo.listRecords" || r.Method != http.MethodGet {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		query := r.URL.Query()
+		if query.Get("repo") != "did:plc:alice" || query.Get("collection") != "app.bsky.graph.block" || query.Get("cursor") != "page-1" || query.Get("limit") != "100" {
+			t.Fatalf("unexpected query: %s", r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"cursor":"page-2",
+			"records":[{
+				"uri":"at://did:plc:alice/app.bsky.graph.block/one",
+				"cid":"bafy-one",
+				"value":{"$type":"app.bsky.graph.block","subject":"did:plc:bob","createdAt":"2026-07-19T12:00:00Z"}
+			}]
+		}`))
+	}))
+	defer srv.Close()
+
+	client := &IndigoPDSClient{Client: atclient.NewAPIClient(srv.URL)}
+	records, cursor, err := client.ListRecords(context.Background(), syntax.DID("did:plc:alice"), "app.bsky.graph.block", "page-1", 100)
+	if err != nil {
+		t.Fatalf("ListRecords: %v", err)
+	}
+	if cursor != "page-2" || len(records) != 1 || records[0].URI.String() != "at://did:plc:alice/app.bsky.graph.block/one" || records[0].CID != syntax.CID("bafy-one") {
+		t.Fatalf("records/cursor = %+v/%q", records, cursor)
+	}
+	block, ok := records[0].Value.(*bsky.GraphBlock)
+	if !ok || block.Subject != "did:plc:bob" {
+		t.Fatalf("record value = %#v (%T), want typed block", records[0].Value, records[0].Value)
 	}
 }
 

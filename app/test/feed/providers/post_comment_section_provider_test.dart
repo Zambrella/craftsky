@@ -350,5 +350,66 @@ void main() {
         'b-reply-1',
       ]);
     });
+
+    test(
+      'UT-005 reveal loads muted parent and descendants by URI ownership',
+      () async {
+        final placeholder = PostMapper.fromMap({
+          'uri': 'at://did:plc:bob/social.craftsky.feed.post/muted-comment',
+          'availability': 'muted',
+          'relationship': {'state': 'muted', 'revealable': true},
+        });
+        final comment = CommentItem(
+          post: placeholder,
+          placement: CommentPlacement.normal,
+          replies: const ReplyPage(loaded: false, items: []),
+        );
+        final fetched = _post('did:plc:bob', 'muted-comment', 1);
+        Did? fetchedDid;
+        RecordKey? fetchedRkey;
+        final fake = FakePostRepository(
+          onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+              _section(comments: [comment], cursor: null),
+          onFetch: (did, rkey) async {
+            fetchedDid = did;
+            fetchedRkey = rkey;
+            return fetched;
+          },
+          onListCommentBranchReplies: (did, rkey, {cursor, limit}) async =>
+              ReplyPage(loaded: true, items: [_reply('child', 2)]),
+        );
+        final container = ProviderContainer.test(
+          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        );
+        final sectionSubscription = container.listen(
+          postCommentSectionProvider(_aliceDid, _rootRkey),
+          (_, _) {},
+        );
+        addTearDown(sectionSubscription.close);
+        await container.read(
+          postCommentSectionProvider(_aliceDid, _rootRkey).future,
+        );
+        final loader = postCommentRepliesLoaderProvider(
+          _aliceDid,
+          _rootRkey,
+          commentUri: placeholder.uri,
+        );
+        final loaderSubscription = container.listen(loader, (_, _) {});
+        addTearDown(loaderSubscription.close);
+
+        await container.read(loader.notifier).revealMutedBranch();
+
+        expect(fetchedDid, Did.parse('did:plc:bob'));
+        expect(fetchedRkey, RecordKey.parse('muted-comment'));
+        final revealed = container
+            .read(postCommentSectionProvider(_aliceDid, _rootRkey))
+            .value!
+            .comments
+            .items
+            .single;
+        expect(revealed.post.text, 'post muted-comment');
+        expect(revealed.replies.items.single.post.rkey, 'child');
+      },
+    );
   });
 }
