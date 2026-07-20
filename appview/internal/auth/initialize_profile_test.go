@@ -18,6 +18,16 @@ type fakeIdentityCacheUpdater struct {
 	err  error
 }
 
+type fakeRepositoryTracker struct {
+	dids []syntax.DID
+	err  error
+}
+
+func (f *fakeRepositoryTracker) AddRepo(_ context.Context, did syntax.DID) error {
+	f.dids = append(f.dids, did)
+	return f.err
+}
+
 func (f *fakeIdentityCacheUpdater) UpsertCurrentHandle(_ context.Context, did syntax.DID) error {
 	f.dids = append(f.dids, did)
 	return f.err
@@ -176,6 +186,33 @@ func TestInitializeProfileAndIdentityCacheLogsAndContinuesWhenUpsertFails(t *tes
 	}
 	if len(updater.dids) != 1 {
 		t.Fatalf("updater calls = %d, want 1", len(updater.dids))
+	}
+}
+
+func TestInitializeProfileAndIdentityCacheRequestsRepositoryTrackingOnEverySuccess(t *testing.T) {
+	t.Parallel()
+	m := &mockPDS{
+		getRecord: func(coll, _ string, out any) (string, error) {
+			if coll == bskyNSID {
+				*(out.(*map[string]any)) = map[string]any{"displayName": "Alice"}
+				return "", nil
+			}
+			*(out.(*map[string]any)) = map[string]any{"crafts": []any{"sewing"}}
+			return "", nil
+		},
+		putRecord: func(_, _ string, _ any) error { return nil },
+	}
+	tracker := &fakeRepositoryTracker{err: errors.New("Tap temporarily unavailable")}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	did := syntax.DID("did:plc:returning")
+
+	for i := 0; i < 2; i++ {
+		if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, did, nil, logger, tracker); err != nil {
+			t.Fatalf("InitializeProfileAndIdentityCache retry %d: %v", i, err)
+		}
+	}
+	if len(tracker.dids) != 2 || tracker.dids[0] != did || tracker.dids[1] != did {
+		t.Fatalf("tracking requests = %v, want DID twice", tracker.dids)
 	}
 }
 

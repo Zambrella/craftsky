@@ -1,10 +1,17 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
+import 'package:craftsky_app/profile/models/profile_relationship.dart';
+import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
+import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
@@ -17,7 +24,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../fakes/auth_session_fakes.dart';
 import '../../fakes/image_cache_fakes.dart';
+import '../../profile/fakes/fake_profile_repository.dart';
 
 Post _post({
   String text = 'Cast on for the Hitchhiker shawl tonight.',
@@ -36,6 +45,9 @@ Post _post({
   Project? project,
   PostReply? reply,
   QuoteView? quoteView,
+  bool? authorMuted,
+  bool? authorBlocking,
+  bool? authorBlockedBy,
 }) {
   return Post(
     uri: 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
@@ -59,6 +71,9 @@ Post _post({
       did: 'did:plc:alice',
       handle: 'alice.craftsky.social',
       displayName: displayName,
+      muted: authorMuted,
+      blocking: authorBlocking,
+      blockedBy: authorBlockedBy,
     ),
     moderation: moderation,
     project: project,
@@ -514,6 +529,57 @@ void main() {
 
       expect(find.text('Quoted post hidden'), findsOneWidget);
       expect(find.text('Quoted post unavailable'), findsOneWidget);
+    });
+
+    testWidgets('muted quote is revealable and blocked quote is not', (
+      tester,
+    ) async {
+      var reveals = 0;
+      await _pump(
+        tester,
+        Column(
+          children: [
+            PostCard(
+              post: _post(
+                quoteView: const QuoteView(
+                  state: 'muted',
+                  revealable: true,
+                ),
+              ),
+              onRevealQuotedPost: () => reveals++,
+            ),
+            PostCard(
+              post: _post(
+                quoteView: const QuoteView(
+                  state: 'blocked',
+                  revealable: false,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      expect(find.text('Post from a muted account'), findsOneWidget);
+      expect(find.text('Show post'), findsOneWidget);
+      expect(find.text('Post unavailable'), findsOneWidget);
+      await tester.tap(find.text('Show post'));
+      expect(reveals, 1);
+    });
+
+    testWidgets('protected post card never renders sentinel content', (
+      tester,
+    ) async {
+      final post = PostMapper.fromMap({
+        'availability': 'blocked',
+        'relationship': {'state': 'blocked', 'revealable': false},
+      });
+      await _pump(tester, PostCard(post: post));
+
+      expect(find.text('Post unavailable'), findsOneWidget);
+      expect(find.byIcon(Icons.favorite_border), findsNothing);
+      expect(find.byIcon(Icons.more_horiz), findsNothing);
+      expect(find.textContaining('unavailable.invalid'), findsNothing);
     });
 
     testWidgets('colours reply label when viewer has replied', (tester) async {
@@ -1100,6 +1166,128 @@ void main() {
 
       expect(find.text('Report post'), findsNothing);
     });
+
+    testWidgets('top-level card disappears as soon as mute starts', (
+      tester,
+    ) async {
+      final completer = Completer<ProfileRelationship>();
+      final account = AccountKey('did:plc:test');
+      final repo = FakeProfileRepository(onMute: (_) => completer.future);
+      await _pump(
+        tester,
+        PostCard(post: _post(), hideWhenAuthorProtected: true),
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          accountRelationshipRepositoryProvider(
+            account,
+          ).overrideWith((ref) async => repo),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mute account'));
+      await tester.pump();
+
+      expect(
+        find.text('Cast on for the Hitchhiker shawl tonight.'),
+        findsNothing,
+      );
+      completer.complete(const ProfileRelationship(muted: true));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('IT-009 repost row disappears when reposter mute starts', (
+      tester,
+    ) async {
+      final completer = Completer<ProfileRelationship>();
+      final account = AccountKey('did:plc:test');
+      final repo = FakeProfileRepository(onMute: (_) => completer.future);
+      final reason = RepostReason(
+        type: RepostReasonType.repost,
+        by: PostAuthor(
+          did: 'did:plc:bob',
+          handle: 'bob.craftsky.social',
+          muted: false,
+          blocking: false,
+          blockedBy: false,
+        ),
+        uri: 'at://did:plc:bob/social.craftsky.feed.repost/r1',
+        createdAt: DateTime(2026, 7, 19),
+        indexedAt: DateTime(2026, 7, 19),
+      );
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(),
+          repostReason: reason,
+          hideWhenAuthorProtected: true,
+        ),
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          accountRelationshipRepositoryProvider(
+            account,
+          ).overrideWith((ref) async => repo),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PostCard)),
+      );
+      unawaited(
+        container
+            .read(
+              profileRelationshipProvider(account, 'did:plc:bob').notifier,
+            )
+            .mutate(ProfileRelationshipAction.mute),
+      );
+      await tester.pump();
+
+      expect(
+        find.text('Cast on for the Hitchhiker shawl tonight.'),
+        findsNothing,
+      );
+      completer.complete(const ProfileRelationship(muted: true));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets(
+      'AT-003 fresh muted post shows annotation and Unmute action',
+      (tester) async {
+        final account = AccountKey('did:plc:test');
+        await _pump(
+          tester,
+          PostCard(
+            post: _post(
+              authorMuted: true,
+              authorBlocking: false,
+              authorBlockedBy: false,
+            ),
+          ),
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            accountRelationshipRepositoryProvider(
+              account,
+            ).overrideWith((ref) async => FakeProfileRepository()),
+          ],
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Muted account'), findsOneWidget);
+        expect(
+          find.text('Cast on for the Hitchhiker shawl tonight.'),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.byIcon(Icons.more_horiz));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Unmute account'), findsOneWidget);
+        expect(find.text('Mute account'), findsNothing);
+      },
+    );
 
     testWidgets('renders generic warning copy without raw reason text', (
       tester,

@@ -361,6 +361,115 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileShareAction => 'Share';
 
   @override
+  String get profileMoreActions => 'More profile actions';
+
+  @override
+  String get profileMuteAction => 'Mute account';
+
+  @override
+  String get profileUnmuteAction => 'Unmute account';
+
+  @override
+  String get profileBlockAction => 'Block account';
+
+  @override
+  String get profileUnblockAction => 'Unblock account';
+
+  @override
+  String get profileMuteAnnotation => 'Muted account';
+
+  @override
+  String get profileBlockingAnnotation => 'Blocked by you';
+
+  @override
+  String get profileBlockedByAnnotation => 'This account has blocked you';
+
+  @override
+  String get profileMutualBlockAnnotation => 'You have blocked each other';
+
+  @override
+  String get profileRelationshipError =>
+      'Could not update account relationship.';
+
+  @override
+  String get profileMuteSuccess => 'Account muted.';
+
+  @override
+  String get profileUnmuteSuccess => 'Account unmuted.';
+
+  @override
+  String get profileBlockSuccess => 'Account blocked.';
+
+  @override
+  String get profileUnblockSuccess => 'Account unblocked.';
+
+  @override
+  String get profileBlockConfirmTitle => 'Block this account?';
+
+  @override
+  String get profileBlockConfirmBody =>
+      'Blocking is public on the AT Protocol. You will no longer see or interact with each other\'s content.';
+
+  @override
+  String get profileUnblockConfirmTitle => 'Unblock this account?';
+
+  @override
+  String get profileUnblockConfirmBody =>
+      'You may see and interact with each other\'s content again.';
+
+  @override
+  String get actionCancel => 'Cancel';
+
+  @override
+  String get actionConfirm => 'Confirm';
+
+  @override
+  String get destructiveActionHint => 'Destructive action';
+
+  @override
+  String get settingsMutedAccounts => 'Muted accounts';
+
+  @override
+  String get settingsBlockedAccounts => 'Blocked accounts';
+
+  @override
+  String get settingsMutedAccountsEmpty => 'You have not muted any accounts.';
+
+  @override
+  String get settingsBlockedAccountsEmpty =>
+      'You have not blocked any accounts.';
+
+  @override
+  String get settingsMutedAccountsError => 'Could not load muted accounts.';
+
+  @override
+  String get settingsBlockedAccountsError => 'Could not load blocked accounts.';
+
+  @override
+  String get relationshipListRetry => 'Try again';
+
+  @override
+  String get relationshipListLoadMore => 'Load more';
+
+  @override
+  String get relationshipListUnmute => 'Unmute';
+
+  @override
+  String get relationshipListUnblock => 'Unblock';
+
+  @override
+  String get relationshipListMutationError => 'Could not update this account.';
+
+  @override
+  String get postMutedPlaceholder => 'Post from a muted account';
+
+  @override
+  String get postUnavailablePlaceholder => 'Post unavailable';
+
+  @override
+  String get postRevealAction => 'Show post';
+
+  @override
   String get profileFollowAction => 'Follow';
 
   @override

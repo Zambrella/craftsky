@@ -30,6 +30,24 @@ type PDSClient interface {
 	UploadBlob(ctx context.Context, contentType string, body []byte) (*UploadedBlob, error)
 }
 
+type PDSRecord struct {
+	URI   syntax.ATURI
+	CID   syntax.CID
+	Value any
+}
+
+// PDSRecordLister is a narrow optional capability used by public block
+// reconciliation when Tap has not projected a newly written record yet.
+type PDSRecordLister interface {
+	ListRecords(
+		ctx context.Context,
+		repo syntax.DID,
+		collection string,
+		cursor string,
+		limit int,
+	) (records []PDSRecord, nextCursor string, err error)
+}
+
 // UploadedBlob is normalized metadata returned from com.atproto.repo.uploadBlob.
 // Raw preserves the atproto blob object for pass-through into later record writes.
 type UploadedBlob struct {

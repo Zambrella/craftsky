@@ -2,10 +2,10 @@ package api
 
 import "testing"
 
-func TestFollowAccountQueryConfig_FollowingRequiresCraftskyProfile(t *testing.T) {
+func TestFollowAccountQueryConfig_BothDirectionsRequireCraftskyProfile(t *testing.T) {
 	followers := followAccountQueryConfig("followers")
-	if followers.craftskyJoin != "" {
-		t.Fatalf("followers craftskyJoin = %q, want empty", followers.craftskyJoin)
+	if followers.craftskyJoin == "" {
+		t.Fatal("followers craftskyJoin is empty, want Craftsky profile filter")
 	}
 
 	following := followAccountQueryConfig("following")

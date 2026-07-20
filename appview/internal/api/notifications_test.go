@@ -142,6 +142,30 @@ func TestNotificationsHandlerUT022IncludesActorFollowState(t *testing.T) {
 	}
 }
 
+func TestNotificationsHandlerAT006IncludesActorViewerRelationshipState(t *testing.T) {
+	store := &fakeNotificationStore{
+		handles: map[string]syntax.Handle{"did:plc:alice": "alice.example"},
+		rows: []*api.NotificationRow{{
+			ID: "relationship-state-notification", Type: api.NotificationTypeFollow,
+			ActorDID: "did:plc:alice", CreatedAt: time.Now(), IndexedAt: time.Now(),
+		}},
+	}
+	recorder := httptest.NewRecorder()
+	api.ListNotificationsHandler(store, fakeResolver{}, nilLogger()).ServeHTTP(
+		recorder,
+		authedReq(http.MethodGet, "/v1/notifications", "", "did:plc:viewer"),
+	)
+
+	var page api.NotificationPage
+	if err := json.Unmarshal(recorder.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	actor := page.Items[0].Actor
+	if actor.Muted || actor.Blocking || actor.BlockedBy {
+		t.Fatalf("actor relationship state = %+v, want known visible state", actor)
+	}
+}
+
 func TestNotificationsHandler_IgnoresUnknownParamsUsesLimitsAndSessionViewer(t *testing.T) {
 	tests := []struct {
 		name       string

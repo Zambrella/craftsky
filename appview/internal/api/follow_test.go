@@ -441,12 +441,12 @@ func seedCraftskyProfilesForFollowHandler(t *testing.T, pool *pgxpool.Pool, ctx 
 	}
 }
 
-func TestFollowProfileHandler_AllowsNonCraftskyTarget(t *testing.T) {
+func TestFollowProfileHandler_RejectsNonCraftskyTargetBeforePDSWrite(t *testing.T) {
 	t.Parallel()
 
 	graph := &fakeFollowGraphStore{}
 	pds := &fakeFollowPDS{createURI: "at://did:plc:alice/app.bsky.graph.follow/f2", createCID: "bafyfollow2"}
-	profiles := &fakeFollowProfileStore{row: &api.ProfileRow{DID: "did:plc:carol", Crafts: []string{}, CreatedAt: time.Now(), IsCraftskyProfile: false}}
+	profiles := &fakeFollowProfileStore{err: api.ErrProfileNotFound}
 	resolver := fakeResolver{didFor: "did:plc:carol", handleFor: "carol.bsky.social"}
 
 	h := api.FollowProfileHandler(
@@ -466,11 +466,49 @@ func TestFollowProfileHandler_AllowsNonCraftskyTarget(t *testing.T) {
 
 	h.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusOK {
+	if rr.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, body=%s", rr.Code, rr.Body.String())
 	}
-	if subj, _ := pds.createRecord["subject"].(string); subj != "did:plc:carol" {
-		t.Fatalf("subject=%q want did:plc:carol", subj)
+	if pds.createCollection != "" {
+		t.Fatalf("non-member caused PDS write to %q", pds.createCollection)
+	}
+}
+
+func TestFollowProfileHandlerRejectsEitherBlockDirectionBeforePDSWrite(t *testing.T) {
+	for _, tc := range []struct {
+		name                string
+		blocking, blockedBy bool
+	}{
+		{name: "outbound", blocking: true},
+		{name: "inbound", blockedBy: true},
+		{name: "mutual", blocking: true, blockedBy: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pds := &fakeFollowPDS{}
+			profiles := &fakeFollowProfileStore{row: &api.ProfileRow{
+				DID: "did:plc:bob", IsCraftskyProfile: true,
+				Blocking: tc.blocking, BlockedBy: tc.blockedBy,
+			}}
+			h := api.FollowProfileHandler(
+				&fakeFollowGraphStore{}, profiles,
+				fakeResolver{didFor: "did:plc:bob", handleFor: "bob.example"},
+				func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return pds, nil },
+				nilLogger(),
+			)
+			req := httptest.NewRequest(http.MethodPost, "/v1/profiles/@bob.example/follows", nil)
+			req.SetPathValue("handleOrDid", "bob.example")
+			req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:alice"))
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, req)
+			if rr.Code != http.StatusForbidden {
+				t.Fatalf("status = %d body=%s", rr.Code, rr.Body.String())
+			}
+			var body map[string]any
+			_ = json.Unmarshal(rr.Body.Bytes(), &body)
+			if body["error"] != "interaction_blocked" || pds.createCollection != "" {
+				t.Fatalf("body=%v PDS collection=%q", body, pds.createCollection)
+			}
+		})
 	}
 }
 

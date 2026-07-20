@@ -19,6 +19,7 @@ part 'post.mapper.dart';
 /// rendering feed cards and full-screen galleries.
 @MappableClass(
   ignoreNull: true,
+  hook: PostWireHook(),
   includeCustomMappers: [
     DidMapper(),
     HandleMapper(),
@@ -51,6 +52,8 @@ class Post with PostMappable {
     this.quoteView,
     this.moderation,
     this.project,
+    this.availability,
+    this.relationship,
   }) : uri = AtUri.parse(uri),
        cid = Cid.parse(cid),
        rkey = RecordKey.parse(rkey);
@@ -77,6 +80,52 @@ class Post with PostMappable {
   final List<PostImage>? images;
   final ModerationMetadata? moderation;
   final Project? project;
+  final String? availability;
+  final ContentRelationship? relationship;
+
+  bool get isProtected => availability == 'muted' || availability == 'blocked';
+}
+
+class PostWireHook extends MappingHook {
+  const PostWireHook();
+
+  @override
+  Object? beforeDecode(Object? value) {
+    if (value is! Map<String, dynamic>) return value;
+    final availability = value['availability'];
+    if (availability != 'muted' && availability != 'blocked') return value;
+    return <String, dynamic>{
+      'uri':
+          value['uri'] ??
+          'at://did:plc:unavailable/social.craftsky.feed.post/unavailable',
+      'cid': 'unavailable',
+      'rkey': 'unavailable',
+      'text': '',
+      'tags': <String>[],
+      'createdAt': '1970-01-01T00:00:00.000Z',
+      'indexedAt': '1970-01-01T00:00:00.000Z',
+      'author': const {
+        'did': 'did:plc:unavailable',
+        'handle': 'unavailable.invalid',
+      },
+      'likeCount': 0,
+      'repostCount': 0,
+      'quoteCount': 0,
+      'replyCount': 0,
+      'viewerHasLiked': false,
+      'viewerHasReposted': false,
+      'viewerHasReplied': false,
+      ...value,
+    };
+  }
+}
+
+@MappableClass()
+class ContentRelationship with ContentRelationshipMappable {
+  const ContentRelationship({required this.state, required this.revealable});
+
+  final String state;
+  final bool revealable;
 }
 
 /// Compact one-level preview for quoted content. The AppView owns visibility
@@ -84,9 +133,10 @@ class Post with PostMappable {
 /// target is unavailable.
 @MappableClass(ignoreNull: true)
 class QuoteView with QuoteViewMappable {
-  const QuoteView({required this.state, this.post});
+  const QuoteView({required this.state, this.revealable, this.post});
 
   final String state;
+  final bool? revealable;
   final QuotePreviewPost? post;
 }
 
@@ -160,6 +210,9 @@ class PostAuthor with PostAuthorMappable {
     this.displayName,
     this.avatar,
     String? avatarCid,
+    this.muted,
+    this.blocking,
+    this.blockedBy,
   }) : did = Did.parse(did),
        handle = Handle.parse(handle),
        avatarCid = avatarCid == null ? null : Cid.parse(avatarCid);
@@ -169,6 +222,12 @@ class PostAuthor with PostAuthorMappable {
   final String? displayName;
   final String? avatar;
   final Cid? avatarCid;
+  final bool? muted;
+  final bool? blocking;
+  final bool? blockedBy;
+
+  bool get hasViewerState =>
+      muted != null || blocking != null || blockedBy != null;
 }
 
 /// `(uri, cid)` reference to another atproto record. Used for reply

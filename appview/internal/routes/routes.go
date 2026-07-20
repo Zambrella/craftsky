@@ -64,6 +64,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		deps.NewPDSClient,
 		deps.IdentityCacheUpdater,
 	)
+	oauthHandlers.RepositoryTracker = deps.RepositoryTracker
 	mux.Handle("GET /oauth/client-metadata.json", inFlight(oauthHandlers.ClientMetadataHandler()))
 	mux.Handle("GET /oauth/jwks.json", inFlight(oauthHandlers.JWKSHandler()))
 	mux.Handle("GET /oauth/callback", inFlight(oauthHandlers.CallbackHandler()))
@@ -122,6 +123,12 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("GET /v1/profiles/{handleOrDid}/mutual-followers", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/mutual-followers"), api.GetMutualFollowersHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("POST /v1/profiles/{handleOrDid}/follows", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/follows"), api.FollowProfileHandler(deps.FollowStore, deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger)))
 	mux.Handle("DELETE /v1/profiles/{handleOrDid}/follows", v1mw.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/follows"), api.UnfollowProfileHandler(deps.FollowStore, deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger)))
+	mux.Handle("POST /v1/profiles/{handleOrDid}/mutes", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/mutes"), api.MuteProfileHandler(deps.RelationshipMutations, deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("DELETE /v1/profiles/{handleOrDid}/mutes", v1mw.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/mutes"), api.UnmuteProfileHandler(deps.RelationshipMutations, deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("POST /v1/profiles/{handleOrDid}/blocks", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/blocks"), api.BlockProfileHandler(deps.RelationshipMutations, deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("DELETE /v1/profiles/{handleOrDid}/blocks", v1mw.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/blocks"), api.UnblockProfileHandler(deps.RelationshipMutations, deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/profiles/me/mutes", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me/mutes"), api.ListMutedProfilesHandler(deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/profiles/me/blocks", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me/blocks"), api.ListBlockedProfilesHandler(deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("POST /v1/profiles/{handleOrDid}/reports", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/reports"), api.ReportProfileHandler(api.NewProfileReportTargetResolver(deps.ProfileStore, deps.HandleResolver), deps.ReportStore, deps.ReportForwarder, deps.Logger)))
 
 	// v1 — post handlers (authenticated + device-id required).

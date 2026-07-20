@@ -1,4 +1,6 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
+import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/widgets/clear_image_cache_tile.dart';
 import 'package:craftsky_app/settings/widgets/sign_out_tile.dart';
 import 'package:flutter/material.dart';
@@ -21,6 +23,7 @@ class _SettingsPageBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       children: [
         ListTile(
@@ -30,6 +33,28 @@ class _SettingsPageBody extends ConsumerWidget {
             MaterialPageRoute<void>(
               builder: (_) =>
                   const FollowListPage(kind: FollowListKind.followers),
+            ),
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.volume_off_outlined),
+          title: Text(l10n.settingsMutedAccounts),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const RelationshipListPage(
+                kind: RelationshipListKind.muted,
+              ),
+            ),
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.block_outlined),
+          title: Text(l10n.settingsBlockedAccounts),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const RelationshipListPage(
+                kind: RelationshipListKind.blocked,
+              ),
             ),
           ),
         ),

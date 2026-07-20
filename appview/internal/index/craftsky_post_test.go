@@ -27,7 +27,7 @@ CREATE TABLE craftsky_profiles (
 );
 CREATE TABLE craftsky_posts (
     uri              TEXT        NOT NULL PRIMARY KEY,
-    did              TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    did              TEXT        NOT NULL,
     rkey             TEXT        NOT NULL,
     cid              TEXT        NOT NULL,
 
@@ -105,7 +105,7 @@ CREATE TABLE craftsky_post_mentions (
     indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (post_uri, mentioned_did)
 );
-`
+` + relationshipNotificationPolicyDDL
 
 // seedCraftskyMember inserts a craftsky_profiles row so a post for did
 // can pass the membership check.
@@ -1408,7 +1408,7 @@ func TestCraftskyPost_Delete_Nonexistent_NoOp(t *testing.T) {
 	}
 }
 
-func TestCraftskyPost_CascadeOnProfileDelete(t *testing.T) {
+func TestCraftskyPost_PreservesPublicRecordOnMembershipDelete(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, craftskyPostsDDL)
 	seedCraftskyMember(t, pool, "did:plc:cc")
@@ -1422,13 +1422,14 @@ func TestCraftskyPost_CascadeOnProfileDelete(t *testing.T) {
 		Rkey:       "r",
 		Collection: "social.craftsky.feed.post",
 		Action:     "create",
-		Record:     json.RawMessage(`{"text":"will cascade","createdAt":"` + fixedCreatedAt + `"}`),
+		Record:     json.RawMessage(`{"text":"must survive membership loss","createdAt":"` + fixedCreatedAt + `"}`),
 	}
 	if err := idx.Handle(ctx, create); err != nil {
 		t.Fatal(err)
 	}
 
-	// Delete the parent profile row directly. The FK cascade should fire.
+	// Membership loss hides public records at read time; it must not delete the
+	// indexed source record that can become eligible again on rejoin.
 	if _, err := pool.Exec(ctx,
 		`DELETE FROM craftsky_profiles WHERE did = $1`, create.DID); err != nil {
 		t.Fatalf("delete profile: %v", err)
@@ -1437,7 +1438,7 @@ func TestCraftskyPost_CascadeOnProfileDelete(t *testing.T) {
 	var count int
 	_ = pool.QueryRow(ctx,
 		`SELECT count(*) FROM craftsky_posts WHERE did = $1`, create.DID).Scan(&count)
-	if count != 0 {
-		t.Errorf("post count = %d after profile delete, want 0 (cascade missing?)", count)
+	if count != 1 {
+		t.Errorf("post count = %d after profile delete, want 1 retained public record", count)
 	}
 }

@@ -21,6 +21,12 @@ class AccountNotificationNewCount extends _$AccountNotificationNewCount {
     final next = await AsyncValue.guard(repository.count);
     if (ref.mounted) state = next;
   }
+
+  void suppress(int count) {
+    final current = state.value;
+    if (current == null || count <= 0) return;
+    state = AsyncData((current - count).clamp(0, current));
+  }
 }
 
 @Riverpod(keepAlive: true)
@@ -34,5 +40,11 @@ class NotificationNewCount extends _$NotificationNewCount {
       ref.read(notificationNewnessRepositoryProvider).count,
     );
     if (ref.mounted) state = next;
+  }
+
+  void suppress(int count) {
+    final current = state.value;
+    if (current == null || count <= 0) return;
+    state = AsyncData((current - count).clamp(0, current));
   }
 }

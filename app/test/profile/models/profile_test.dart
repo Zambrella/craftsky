@@ -15,6 +15,9 @@ void main() {
         'description': 'textile person',
         'crafts': ['sewing'],
         'viewerIsFollowing': true,
+        'muted': true,
+        'blocking': false,
+        'blockedBy': true,
         'isCraftskyProfile': true,
         'followerCount': 12,
         'followingCount': 34,
@@ -28,6 +31,9 @@ void main() {
       final profile = ProfileMapper.fromMap(json);
 
       expect(profile.viewerIsFollowing, isTrue);
+      expect(profile.muted, isTrue);
+      expect(profile.blocking, isFalse);
+      expect(profile.blockedBy, isTrue);
       expect(profile.isCraftskyProfile, isTrue);
       expect(profile.followerCount, 12);
       expect(profile.followingCount, 34);
@@ -69,6 +75,9 @@ void main() {
             'description': 'quilts',
             'avatar': 'https://cdn.example/avatar.jpg',
             'isCraftskyProfile': true,
+            'muted': false,
+            'blocking': true,
+            'blockedBy': false,
           },
         ],
         'cursor': 'opaque-next',
@@ -85,6 +94,9 @@ void main() {
       expect(account.description, 'quilts');
       expect(account.avatar, 'https://cdn.example/avatar.jpg');
       expect(account.isCraftskyProfile, isTrue);
+      expect(account.muted, isFalse);
+      expect(account.blocking, isTrue);
+      expect(account.blockedBy, isFalse);
     });
 
     test('decodes missing cursor as null', () {

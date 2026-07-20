@@ -75,6 +75,23 @@ class Timeline extends _$Timeline {
       ),
     );
   }
+
+  int suppressActor(String did) {
+    final current = state.value;
+    if (current == null) return 0;
+    final retained = current.items
+        .where(
+          (item) =>
+              item.post.author.did.toString() != did &&
+              item.reason?.by.did.toString() != did,
+        )
+        .toList();
+    final removed = current.items.length - retained.length;
+    if (removed > 0) {
+      state = AsyncData(current.copyWith(items: retained));
+    }
+    return removed;
+  }
 }
 
 void prependLiveTimelineCache(Ref ref, Post post) {

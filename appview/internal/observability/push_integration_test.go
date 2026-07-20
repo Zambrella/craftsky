@@ -60,6 +60,20 @@ func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *te
 	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := pool.Exec(context.Background(), `
+		CREATE TABLE actor_mutes (
+			owner_did TEXT NOT NULL,
+			subject_did TEXT NOT NULL,
+			PRIMARY KEY (owner_did, subject_did)
+		);
+		CREATE TABLE atproto_blocks (
+			uri TEXT PRIMARY KEY,
+			blocker_did TEXT NOT NULL,
+			subject_did TEXT NOT NULL
+		);
+	`); err != nil {
+		t.Fatal(err)
+	}
 
 	const (
 		tokenSentinel      = "SENTINEL_FCM_TOKEN"

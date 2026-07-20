@@ -9,6 +9,8 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"social.craftsky/appview/internal/relationships"
 )
 
 type FacetStore struct {
@@ -109,6 +111,11 @@ func (s *FacetStore) SearchMentionSuggestions(ctx context.Context, viewerDID syn
 		JOIN craftsky_profiles cp ON cp.did = ic.did
 		LEFT JOIN bluesky_profiles bp ON bp.did = ic.did
 		WHERE ic.resolved_at >= $2
+		  AND NOT EXISTS (
+			SELECT 1 FROM atproto_blocks b
+			WHERE (b.blocker_did = $1 AND b.subject_did = ic.did)
+			   OR (b.blocker_did = ic.did AND b.subject_did = $1)
+		  )
 		  AND (
 			ic.handle_lower LIKE '%' || $4 || '%' ESCAPE '\'
 			OR lower(coalesce(bp.display_name, '')) LIKE '%' || $4 || '%' ESCAPE '\'
@@ -197,13 +204,16 @@ func (s *FacetStore) SearchHashtagSuggestions(ctx context.Context, query string,
 	return out, nil
 }
 
-func (s *FacetStore) ResolveMention(ctx context.Context, handle syntax.Handle, now time.Time) (IdentityCacheRow, error) {
+func (s *FacetStore) ResolveMention(ctx context.Context, viewerDID syntax.DID, handle syntax.Handle, now time.Time) (IdentityCacheRow, error) {
 	if s.identityCache == nil {
 		return IdentityCacheRow{}, ErrMentionNotFound
 	}
 	if cached, err := s.identityCache.FreshByHandle(ctx, handle, now); err != nil {
 		return IdentityCacheRow{}, err
 	} else if cached != nil {
+		if err := s.authorizeMention(ctx, viewerDID, cached.DID); err != nil {
+			return IdentityCacheRow{}, err
+		}
 		return *cached, nil
 	}
 	if s.resolver == nil {
@@ -220,6 +230,9 @@ func (s *FacetStore) ResolveMention(ctx context.Context, handle syntax.Handle, n
 	if !isCraftsky {
 		return IdentityCacheRow{}, ErrMentionNotFound
 	}
+	if err := s.authorizeMention(ctx, viewerDID, did); err != nil {
+		return IdentityCacheRow{}, err
+	}
 	canonicalHandle, err := s.resolver.ResolveHandle(ctx, did)
 	if err != nil || canonicalHandle.String() == "" {
 		return IdentityCacheRow{}, ErrMentionNotFound
@@ -228,4 +241,15 @@ func (s *FacetStore) ResolveMention(ctx context.Context, handle syntax.Handle, n
 		return IdentityCacheRow{}, err
 	}
 	return IdentityCacheRow{DID: did, Handle: canonicalHandle, ResolvedAt: now}, nil
+}
+
+func (s *FacetStore) authorizeMention(ctx context.Context, viewerDID, subjectDID syntax.DID) error {
+	state, err := relationships.NewStore(s.pool).State(ctx, viewerDID, subjectDID)
+	if err != nil {
+		return err
+	}
+	if !relationships.Authorize(relationships.OperationMentionCreate, state, false).Allowed {
+		return ErrInteractionBlocked
+	}
+	return nil
 }

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+
+	"social.craftsky/appview/internal/relationships"
 )
 
 var postImageMimeExt = map[string]string{
@@ -25,6 +27,9 @@ type PostAuthor struct {
 	DisplayName *string `json:"displayName"`
 	Avatar      *string `json:"avatar,omitempty"`
 	AvatarCID   *string `json:"avatarCid"`
+	Muted       bool    `json:"muted"`
+	Blocking    bool    `json:"blocking"`
+	BlockedBy   bool    `json:"blockedBy"`
 }
 
 // ResponseStrongRef is the JSON wire shape of a strongRef on a response
@@ -44,28 +49,54 @@ type ResponseReply struct {
 // PostResponse is the canonical wire shape returned by every
 // post-shaped endpoint (POST, GET single, list items).
 type PostResponse struct {
-	URI               string              `json:"uri"`
-	CID               string              `json:"cid"`
-	Rkey              string              `json:"rkey"`
-	Text              string              `json:"text"`
-	Images            []PostImageView     `json:"images,omitempty"`
-	Facets            json.RawMessage     `json:"facets"`
-	Tags              []string            `json:"tags"`
-	LikeCount         int                 `json:"likeCount"`
-	RepostCount       int                 `json:"repostCount"`
-	QuoteCount        int                 `json:"quoteCount"`
-	ReplyCount        int                 `json:"replyCount"`
-	ViewerHasLiked    bool                `json:"viewerHasLiked"`
-	ViewerHasReposted bool                `json:"viewerHasReposted"`
-	ViewerHasReplied  bool                `json:"viewerHasReplied"`
-	Reply             *ResponseReply      `json:"reply"`
-	Quote             *ResponseStrongRef  `json:"quote"`
-	QuoteView         *QuoteView          `json:"quoteView,omitempty"`
-	CreatedAt         time.Time           `json:"createdAt"`
-	IndexedAt         time.Time           `json:"indexedAt"`
-	Author            PostAuthor          `json:"author"`
-	Moderation        *ModerationMetadata `json:"moderation,omitempty"`
-	Project           *Project            `json:"project,omitempty"`
+	URI               string               `json:"uri"`
+	CID               string               `json:"cid"`
+	Rkey              string               `json:"rkey"`
+	Text              string               `json:"text"`
+	Images            []PostImageView      `json:"images,omitempty"`
+	Facets            json.RawMessage      `json:"facets"`
+	Tags              []string             `json:"tags"`
+	LikeCount         int                  `json:"likeCount"`
+	RepostCount       int                  `json:"repostCount"`
+	QuoteCount        int                  `json:"quoteCount"`
+	ReplyCount        int                  `json:"replyCount"`
+	ViewerHasLiked    bool                 `json:"viewerHasLiked"`
+	ViewerHasReposted bool                 `json:"viewerHasReposted"`
+	ViewerHasReplied  bool                 `json:"viewerHasReplied"`
+	Reply             *ResponseReply       `json:"reply"`
+	Quote             *ResponseStrongRef   `json:"quote"`
+	QuoteView         *QuoteView           `json:"quoteView,omitempty"`
+	CreatedAt         time.Time            `json:"createdAt"`
+	IndexedAt         time.Time            `json:"indexedAt"`
+	Author            PostAuthor           `json:"author"`
+	Moderation        *ModerationMetadata  `json:"moderation,omitempty"`
+	Project           *Project             `json:"project,omitempty"`
+	Availability      string               `json:"-"`
+	Relationship      *ContentRelationship `json:"-"`
+}
+
+type ContentRelationship struct {
+	State      string `json:"state"`
+	Revealable bool   `json:"revealable"`
+}
+
+func (p PostResponse) MarshalJSON() ([]byte, error) {
+	if p.Relationship == nil || p.Availability == "" {
+		type postAlias PostResponse
+		return json.Marshal(postAlias(p))
+	}
+	placeholder := struct {
+		URI          string               `json:"uri,omitempty"`
+		Availability string               `json:"availability"`
+		Relationship *ContentRelationship `json:"relationship"`
+	}{
+		Availability: p.Availability,
+		Relationship: p.Relationship,
+	}
+	if p.Availability == "muted" {
+		placeholder.URI = p.URI
+	}
+	return json.Marshal(placeholder)
 }
 
 // QuoteViewRow is the store-level quote preview hydration result. Visible
@@ -78,8 +109,48 @@ type QuoteViewRow struct {
 
 // QuoteView is the public compact one-level view of a quoted post.
 type QuoteView struct {
-	State string            `json:"state"`
-	Post  *QuotePreviewPost `json:"post,omitempty"`
+	State      string            `json:"state"`
+	Revealable bool              `json:"revealable"`
+	Post       *QuotePreviewPost `json:"post,omitempty"`
+}
+
+func ApplyPostRelationshipPolicy(resp *PostResponse, state relationships.State, surface relationships.Surface) {
+	if resp == nil {
+		return
+	}
+	switch relationships.Decide(relationships.ModerationVisible, state, surface) {
+	case relationships.DecisionMutedPlaceholder:
+		resp.Availability = "muted"
+		resp.Relationship = &ContentRelationship{State: "muted", Revealable: true}
+	case relationships.DecisionBlockedPlaceholder:
+		resp.Availability = "blocked"
+		resp.Relationship = &ContentRelationship{State: "blocked"}
+	}
+}
+
+func ApplyPostAuthorViewerState(resp *PostResponse, state relationships.State) {
+	if resp == nil {
+		return
+	}
+	resp.Author.Muted = state.Muted
+	resp.Author.Blocking = state.Blocking
+	resp.Author.BlockedBy = state.BlockedBy
+}
+
+func ApplyQuoteRelationshipPolicy(view *QuoteView, state relationships.State) {
+	if view == nil || view.State != "visible" {
+		return
+	}
+	switch relationships.Decide(relationships.ModerationVisible, state, relationships.SurfaceQuote) {
+	case relationships.DecisionMutedPlaceholder:
+		view.State = "muted"
+		view.Revealable = true
+		view.Post = nil
+	case relationships.DecisionBlockedPlaceholder:
+		view.State = "blocked"
+		view.Revealable = false
+		view.Post = nil
+	}
 }
 
 // QuotePreviewPost is intentionally smaller than PostResponse and never

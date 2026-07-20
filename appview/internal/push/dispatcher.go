@@ -111,7 +111,17 @@ func (d *Dispatcher) claim(ctx context.Context, _ string) ([]claimedDelivery, er
 		JOIN push_installations i ON i.id=s.installation_id
 		LEFT JOIN bluesky_profiles b ON b.did=n.actor_did
 		LEFT JOIN craftsky_posts target ON target.uri = CASE WHEN n.category='quote' THEN n.quoted_uri ELSE n.subject_uri END
-		WHERE d.status IN ('pending','retry') AND d.next_attempt_at<=$1 AND s.active AND i.active ORDER BY d.next_attempt_at,d.id FOR UPDATE OF d SKIP LOCKED LIMIT $2`, now, d.options.BatchSize)
+		WHERE d.status IN ('pending','retry') AND d.next_attempt_at<=$1 AND s.active AND i.active
+		  AND NOT EXISTS (
+			SELECT 1 FROM actor_mutes mute
+			WHERE mute.owner_did = n.recipient_did AND mute.subject_did = n.actor_did
+		  )
+		  AND NOT EXISTS (
+			SELECT 1 FROM atproto_blocks block
+			WHERE (block.blocker_did = n.recipient_did AND block.subject_did = n.actor_did)
+			   OR (block.blocker_did = n.actor_did AND block.subject_did = n.recipient_did)
+		  )
+		ORDER BY d.next_attempt_at,d.id FOR UPDATE OF d SKIP LOCKED LIMIT $2`, now, d.options.BatchSize)
 	if err != nil {
 		return nil, err
 	}
@@ -274,11 +284,21 @@ func (d *Dispatcher) ownsCurrentDelivery(ctx context.Context, item claimedDelive
 		SELECT EXISTS(
 			SELECT 1
 			FROM push_deliveries d
+			JOIN notification_events n ON n.id=d.notification_id
 			JOIN push_account_subscriptions s ON s.id=d.account_subscription_id
 			JOIN push_installations i ON i.id=s.installation_id
 			WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2 AND d.lease_expires_at>$6
 			  AND s.id=$3 AND s.active
 			  AND i.id=$4 AND i.active AND i.fcm_token=$5
+			  AND NOT EXISTS (
+				SELECT 1 FROM actor_mutes mute
+				WHERE mute.owner_did = n.recipient_did AND mute.subject_did = n.actor_did
+			  )
+			  AND NOT EXISTS (
+				SELECT 1 FROM atproto_blocks block
+				WHERE (block.blocker_did = n.recipient_did AND block.subject_did = n.actor_did)
+				   OR (block.blocker_did = n.actor_did AND block.subject_did = n.recipient_did)
+			  )
 		)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now).Scan(&owned)
 	return owned, err
 }

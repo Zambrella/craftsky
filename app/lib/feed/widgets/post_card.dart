@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/auth_state.dart';
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
@@ -8,6 +11,8 @@ import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
+import 'package:craftsky_app/profile/models/profile_relationship.dart';
+import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -28,7 +33,7 @@ const _postCardActionIconSize = 22.0;
 enum PostCardStyle { card, flat }
 
 /// Card-shaped post row used by the feed and the profile Posts tab.
-class PostCard extends StatelessWidget {
+class PostCard extends ConsumerWidget {
   const PostCard({
     required this.post,
     super.key,
@@ -39,6 +44,8 @@ class PostCard extends StatelessWidget {
     this.onQuote,
     this.onQuotedPostTap,
     this.onQuotedAuthorTap,
+    this.onRevealQuotedPost,
+    this.onRevealPost,
     this.onReposterTap,
     this.onDelete,
     this.onReport,
@@ -53,6 +60,7 @@ class PostCard extends StatelessWidget {
     this.style = PostCardStyle.card,
     this.projectVariant = ProjectCardVariant.summary,
     this.repostReason,
+    this.hideWhenAuthorProtected = false,
   });
 
   final Post post;
@@ -63,6 +71,8 @@ class PostCard extends StatelessWidget {
   final VoidCallback? onQuote;
   final VoidCallback? onQuotedPostTap;
   final VoidCallback? onQuotedAuthorTap;
+  final VoidCallback? onRevealQuotedPost;
+  final VoidCallback? onRevealPost;
   final VoidCallback? onReposterTap;
   final VoidCallback? onDelete;
   final VoidCallback? onReport;
@@ -77,9 +87,88 @@ class PostCard extends StatelessWidget {
   final PostCardStyle style;
   final ProjectCardVariant projectVariant;
   final RepostReason? repostReason;
+  final bool hideWhenAuthorProtected;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (post.isProtected) {
+      return _ProtectedPostCard(post: post, onReveal: onRevealPost);
+    }
+    final auth = ref.watch(authSessionProvider).value;
+    final isViewerOwned = auth is SignedIn && auth.did == post.author.did;
+    final account = auth is SignedIn ? AccountKey(auth.did.toString()) : null;
+    final relationshipProvider = account == null || isViewerOwned
+        ? null
+        : profileRelationshipProvider(account, post.author.did.toString());
+    final relationship = relationshipProvider == null
+        ? null
+        : ref.watch(relationshipProvider);
+    final authorViewerRelationship = post.author.hasViewerState
+        ? ProfileRelationship.fromProfileFlags(
+            muted: post.author.muted ?? false,
+            blocking: post.author.blocking ?? false,
+            blockedBy: post.author.blockedBy ?? false,
+          )
+        : const ProfileRelationship(initialized: true);
+    if (relationshipProvider != null && !(relationship?.initialized ?? false)) {
+      unawaited(
+        Future<void>.microtask(
+          () => ref
+              .read(relationshipProvider.notifier)
+              .seed(authorViewerRelationship),
+        ),
+      );
+    }
+    final effectiveRelationship = relationship?.initialized ?? false
+        ? relationship
+        : post.author.hasViewerState
+        ? authorViewerRelationship
+        : null;
+    final reposter = repostReason?.by;
+    final isReposterViewerOwned =
+        auth is SignedIn && reposter != null && auth.did == reposter.did;
+    final reposterRelationshipProvider =
+        reposter == null || account == null || isReposterViewerOwned
+        ? null
+        : reposter.did == post.author.did
+        ? relationshipProvider
+        : profileRelationshipProvider(account, reposter.did.toString());
+    final reposterRelationship = reposterRelationshipProvider == null
+        ? null
+        : reposterRelationshipProvider == relationshipProvider
+        ? relationship
+        : ref.watch(reposterRelationshipProvider);
+    final reposterViewerRelationship = reposter?.hasViewerState ?? false
+        ? ProfileRelationship.fromProfileFlags(
+            muted: reposter?.muted ?? false,
+            blocking: reposter?.blocking ?? false,
+            blockedBy: reposter?.blockedBy ?? false,
+          )
+        : const ProfileRelationship(initialized: true);
+    if (reposterRelationshipProvider != null &&
+        reposterRelationshipProvider != relationshipProvider &&
+        !(reposterRelationship?.initialized ?? false)) {
+      unawaited(
+        Future<void>.microtask(
+          () => ref
+              .read(reposterRelationshipProvider.notifier)
+              .seed(reposterViewerRelationship),
+        ),
+      );
+    }
+    final effectiveReposterRelationship =
+        reposterRelationship?.initialized ?? false
+        ? reposterRelationship
+        : reposter?.hasViewerState ?? false
+        ? reposterViewerRelationship
+        : null;
+    if (hideWhenAuthorProtected &&
+        ((effectiveRelationship?.muted ?? false) ||
+            (effectiveRelationship?.hasBlock ?? false) ||
+            (effectiveReposterRelationship?.muted ?? false) ||
+            (effectiveReposterRelationship?.hasBlock ?? false))) {
+      return const SizedBox.shrink();
+    }
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final radii = theme.extension<RadiusTheme>()!;
@@ -161,6 +250,18 @@ class PostCard extends StatelessWidget {
                       ),
                       SizedBox(height: spacing.sp2),
                     ],
+                    if (effectiveRelationship?.muted ?? false) ...[
+                      Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          l10n.profileMuteAnnotation,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: spacing.sp2),
+                    ],
                     Row(
                       children: [
                         _PostCardAuthorTapTarget(
@@ -226,6 +327,7 @@ class PostCard extends StatelessWidget {
                         quoteView: quoteView,
                         onPostTap: openQuotedPost,
                         onAuthorTap: openQuotedAuthor,
+                        onReveal: onRevealQuotedPost,
                       ),
                     ],
                     SizedBox(height: spacing.sp2),
@@ -279,6 +381,30 @@ class PostCard extends StatelessWidget {
                           tooltip: deleteTooltip,
                           label: deleteLabel,
                           reportLabel: reportLabel,
+                          isMuted: effectiveRelationship?.muted ?? false,
+                          isBlocking: effectiveRelationship?.blocking ?? false,
+                          isRelationshipBusy:
+                              effectiveRelationship?.pendingAction != null,
+                          onMuteToggle: relationshipProvider == null
+                              ? null
+                              : () => unawaited(
+                                  _mutateAuthorRelationship(
+                                    context,
+                                    ref,
+                                    effectiveRelationship?.muted ?? false
+                                        ? ProfileRelationshipAction.unmute
+                                        : ProfileRelationshipAction.mute,
+                                  ),
+                                ),
+                          onBlockToggle: relationshipProvider == null
+                              ? null
+                              : () => unawaited(
+                                  _confirmBlockAuthor(
+                                    context,
+                                    ref,
+                                    effectiveRelationship?.blocking ?? false,
+                                  ),
+                                ),
                         ),
                       ],
                     ),
@@ -301,6 +427,87 @@ class PostCard extends StatelessWidget {
         spacing.sp2,
       ),
       child: content,
+    );
+  }
+
+  Future<void> _confirmBlockAuthor(
+    BuildContext context,
+    WidgetRef ref,
+    bool isBlocking,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          isBlocking
+              ? l10n.profileUnblockConfirmTitle
+              : l10n.profileBlockConfirmTitle,
+        ),
+        content: Text(
+          isBlocking
+              ? l10n.profileUnblockConfirmBody
+              : l10n.profileBlockConfirmBody,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.actionCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              isBlocking ? l10n.profileUnblockAction : l10n.profileBlockAction,
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await _mutateAuthorRelationship(
+      context,
+      ref,
+      isBlocking
+          ? ProfileRelationshipAction.unblock
+          : ProfileRelationshipAction.block,
+    );
+  }
+
+  Future<void> _mutateAuthorRelationship(
+    BuildContext context,
+    WidgetRef ref,
+    ProfileRelationshipAction action,
+  ) async {
+    final auth = ref.read(authSessionProvider).value;
+    if (auth is! SignedIn) return;
+    final provider = profileRelationshipProvider(
+      AccountKey(auth.did.toString()),
+      post.author.did.toString(),
+    );
+    await ref.read(provider.notifier).mutate(action);
+    if (!context.mounted) return;
+    final failed = ref.read(provider).lastError != null;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          failed
+              ? AppLocalizations.of(context).profileRelationshipError
+              : switch (action) {
+                  ProfileRelationshipAction.mute => AppLocalizations.of(
+                    context,
+                  ).profileMuteSuccess,
+                  ProfileRelationshipAction.unmute => AppLocalizations.of(
+                    context,
+                  ).profileUnmuteSuccess,
+                  ProfileRelationshipAction.block => AppLocalizations.of(
+                    context,
+                  ).profileBlockSuccess,
+                  ProfileRelationshipAction.unblock => AppLocalizations.of(
+                    context,
+                  ).profileUnblockSuccess,
+                },
+        ),
+      ),
     );
   }
 }
@@ -398,6 +605,11 @@ class _PostCardMenu extends StatelessWidget {
   const _PostCardMenu({
     required this.onDelete,
     required this.onReport,
+    required this.isMuted,
+    required this.isBlocking,
+    required this.isRelationshipBusy,
+    required this.onMuteToggle,
+    required this.onBlockToggle,
     this.tooltip,
     this.label,
     this.reportLabel,
@@ -408,6 +620,11 @@ class _PostCardMenu extends StatelessWidget {
   final String? tooltip;
   final String? label;
   final String? reportLabel;
+  final bool isMuted;
+  final bool isBlocking;
+  final bool isRelationshipBusy;
+  final VoidCallback? onMuteToggle;
+  final VoidCallback? onBlockToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -419,6 +636,24 @@ class _PostCardMenu extends StatelessWidget {
         groups: [
           CraftskyContextMenuGroup(
             items: [
+              if (onMuteToggle != null)
+                CraftskyContextMenuItem(
+                  text: isMuted
+                      ? l10n.profileUnmuteAction
+                      : l10n.profileMuteAction,
+                  icon: Icons.volume_off_outlined,
+                  onPressed: isRelationshipBusy ? null : onMuteToggle,
+                ),
+              if (onBlockToggle != null)
+                CraftskyContextMenuItem(
+                  text: isBlocking
+                      ? l10n.profileUnblockAction
+                      : l10n.profileBlockAction,
+                  icon: Icons.block_outlined,
+                  onPressed: isRelationshipBusy ? null : onBlockToggle,
+                  style: CraftskyContextMenuItemStyle.destructive,
+                  semanticHint: isBlocking ? null : l10n.destructiveActionHint,
+                ),
               if (onReport != null)
                 CraftskyContextMenuItem(
                   text: reportLabel ?? l10n.postReportAction,
@@ -445,11 +680,13 @@ class _QuotePreviewCard extends StatelessWidget {
     required this.quoteView,
     required this.onPostTap,
     required this.onAuthorTap,
+    required this.onReveal,
   });
 
   final QuoteView quoteView;
   final VoidCallback? onPostTap;
   final VoidCallback? onAuthorTap;
+  final VoidCallback? onReveal;
 
   @override
   Widget build(BuildContext context) {
@@ -503,6 +740,28 @@ class _QuotePreviewCard extends StatelessWidget {
                 color: theme.colorScheme.outline,
               ),
             ),
+            ('muted', _) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.postMutedPlaceholder,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
+                ),
+                if (quoteView.revealable == true && onReveal != null)
+                  TextButton(
+                    onPressed: onReveal,
+                    child: Text(l10n.postRevealAction),
+                  ),
+              ],
+            ),
+            ('blocked', _) => Text(
+              l10n.postUnavailablePlaceholder,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
             _ => Text(
               l10n.postQuoteUnavailable,
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -510,6 +769,46 @@ class _QuotePreviewCard extends StatelessWidget {
               ),
             ),
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _ProtectedPostCard extends StatelessWidget {
+  const _ProtectedPostCard({required this.post, required this.onReveal});
+
+  final Post post;
+  final VoidCallback? onReveal;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final muted = post.availability == 'muted';
+    return Semantics(
+      label: muted
+          ? l10n.postMutedPlaceholder
+          : l10n.postUnavailablePlaceholder,
+      child: CraftskyCard(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                muted
+                    ? l10n.postMutedPlaceholder
+                    : l10n.postUnavailablePlaceholder,
+              ),
+              if (muted &&
+                  post.relationship?.revealable == true &&
+                  onReveal != null)
+                TextButton(
+                  onPressed: onReveal,
+                  child: Text(l10n.postRevealAction),
+                ),
+            ],
+          ),
         ),
       ),
     );

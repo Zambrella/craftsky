@@ -39,6 +39,7 @@ type MetricRecorder interface {
 	TapEventReceived(ctx context.Context, eventType string)
 	TapEventAcknowledged(ctx context.Context, result string)
 	TapIndexerRecord(ctx context.Context, nsid, result, reason string, duration time.Duration)
+	RelationshipOperation(ctx context.Context, operation, stage, result, errorClass string, duration time.Duration)
 	NotificationDecision(ctx context.Context, category, result string)
 	PushDelivery(ctx context.Context, platform, result string)
 	PushQueue(ctx context.Context, pending int, oldestAge time.Duration)
@@ -60,6 +61,8 @@ func (noopMetricRecorder) TapReconnect(context.Context)                 {}
 func (noopMetricRecorder) TapEventReceived(context.Context, string)     {}
 func (noopMetricRecorder) TapEventAcknowledged(context.Context, string) {}
 func (noopMetricRecorder) TapIndexerRecord(context.Context, string, string, string, time.Duration) {
+}
+func (noopMetricRecorder) RelationshipOperation(context.Context, string, string, string, string, time.Duration) {
 }
 func (noopMetricRecorder) NotificationDecision(context.Context, string, string) {}
 func (noopMetricRecorder) PushDelivery(context.Context, string, string)         {}
@@ -210,6 +213,21 @@ func (r *InMemoryMetricRecorder) TapIndexerRecord(_ context.Context, nsid, resul
 	}
 }
 
+func (r *InMemoryMetricRecorder) RelationshipOperation(_ context.Context, operation, stage, result, errorClass string, duration time.Duration) {
+	r.record(MetricCall{
+		Name:  "craftsky_appview_relationship_operation_duration_seconds",
+		Kind:  MetricKindDistribution,
+		Unit:  "second",
+		Value: duration.Seconds(),
+		Attributes: map[string]string{
+			"operation":   safeRelationshipOperation(operation),
+			"stage":       safeRelationshipStage(stage),
+			"result":      safeRelationshipResult(result),
+			"error_class": safeRelationshipErrorClass(errorClass),
+		},
+	})
+}
+
 func (r *InMemoryMetricRecorder) record(call MetricCall) {
 	if r == nil {
 		return
@@ -325,6 +343,14 @@ func (r *sentryMetricRecorder) TapIndexerRecord(ctx context.Context, nsid, resul
 			"result": attrs["result"],
 		})
 	}
+}
+func (r *sentryMetricRecorder) RelationshipOperation(ctx context.Context, operation, stage, result, errorClass string, duration time.Duration) {
+	r.distribution(ctx, "craftsky_appview_relationship_operation_duration_seconds", duration.Seconds(), "second", map[string]string{
+		"operation":   safeRelationshipOperation(operation),
+		"stage":       safeRelationshipStage(stage),
+		"result":      safeRelationshipResult(result),
+		"error_class": safeRelationshipErrorClass(errorClass),
+	})
 }
 func (r *sentryMetricRecorder) NotificationDecision(ctx context.Context, category, result string) {
 	r.count(ctx, "craftsky_appview_notifications_total", 1, "", map[string]string{"category": safeMetricCategory(category), "result": safeMetricResult(result)})
@@ -453,6 +479,42 @@ func safeMetricOperation(operation string) string {
 		return "unknown"
 	}
 	return operation
+}
+
+func safeRelationshipOperation(operation string) string {
+	switch strings.TrimSpace(operation) {
+	case "mute", "unmute", "block", "unblock", "index_create", "index_update", "index_delete", "backfill", "authorization_follow", "authorization_like", "authorization_repost", "authorization_reply", "authorization_quote", "authorization_mention", "notification_suppression", "push_cancellation":
+		return strings.TrimSpace(operation)
+	default:
+		return "unknown"
+	}
+}
+
+func safeRelationshipStage(stage string) string {
+	switch strings.TrimSpace(stage) {
+	case "request", "membership", "policy", "decode", "validate", "store", "pds", "delivery", "lag", "backfill", "complete":
+		return strings.TrimSpace(stage)
+	default:
+		return "unknown"
+	}
+}
+
+func safeRelationshipResult(result string) string {
+	switch strings.TrimSpace(result) {
+	case "success", "error", "denied", "suppressed", "canceled", "none", "some", "many":
+		return strings.TrimSpace(result)
+	default:
+		return "unknown"
+	}
+}
+
+func safeRelationshipErrorClass(errorClass string) string {
+	switch strings.TrimSpace(errorClass) {
+	case "none", "validation", "membership", "policy", "store", "pds", "timeout", "canceled", "internal":
+		return strings.TrimSpace(errorClass)
+	default:
+		return "unknown"
+	}
 }
 
 func safeMetricStage(stage string) string {

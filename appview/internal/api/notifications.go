@@ -50,6 +50,9 @@ type NotificationActor struct {
 	Avatar            *string `json:"avatar,omitempty"`
 	AvatarCID         *string `json:"avatarCid,omitempty"`
 	ViewerIsFollowing bool    `json:"viewerIsFollowing"`
+	Muted             bool    `json:"muted"`
+	Blocking          bool    `json:"blocking"`
+	BlockedBy         bool    `json:"blockedBy"`
 }
 
 func ListNotificationsHandler(store NotificationReader, _ HandleResolver, logger *slog.Logger) http.Handler {

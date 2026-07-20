@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/push"
+	"social.craftsky/appview/internal/relationships"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -59,8 +61,14 @@ type Deps struct {
 	ProfileStore *api.ProfileStore
 	// IdentityCacheUpdater upserts authenticated users' current handles after profile initialization.
 	IdentityCacheUpdater auth.IdentityCacheUpdater
+	// RepositoryTracker requests ordinary Tap tracking/backfill on membership and OAuth initialization.
+	RepositoryTracker auth.RepositoryTracker
 	// FollowStore serves follow graph read/write operations for /v1/profiles/*/follows.
 	FollowStore *api.FollowStore
+	// RelationshipStore owns private mutes and reads the Tap-owned block projection.
+	RelationshipStore *relationships.Store
+	// RelationshipMutations is the narrow handler-facing mutation service.
+	RelationshipMutations api.RelationshipMutationService
 	// ReportStore persists AppView-private moderation report intake.
 	ReportStore *api.ReportStore
 	// ReportForwarder prepares future report forwarding metadata without live PDS/Ozone submission.
@@ -136,11 +144,16 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	identityDir := identity.DefaultDirectory()
 
 	anonPDS := auth.NewAnonymousPDSClient(identityDir, 5*time.Second)
+	repositoryTracker, err := tap.NewAdminClient(cfg.TapWSURL, &http.Client{Timeout: 5 * time.Second})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("build Tap admin client: %w", err)
+	}
 	observer := observability.New(observability.Config{
 		Env: string(cfg.Env), Release: cfg.SentryRelease, LogsEnabled: cfg.SentryLogsEnabled, TracingEnabled: cfg.SentryTracingEnabled, TracesSampleRate: cfg.SentryTracesSampleRate, MetricsEnabled: cfg.SentryMetricsEnabled, TapTracingEnabled: cfg.SentryTapTracingEnabled, TapTracesSampleRate: cfg.SentryTapTracesSampleRate, SentryDSN: cfg.SentryDSN, Logger: logger,
 	})
 	lifecycle := notifications.NewService(observer)
-	dispatcher := newIndexerDispatcher(pool, anonPDS, logger, lifecycle)
+	dispatcher := newIndexerDispatcherWithTracker(pool, anonPDS, logger, repositoryTracker, observer, lifecycle)
 
 	deps := &Deps{
 		Config:               cfg,
@@ -151,6 +164,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		OAuthApp:             oauthApp,
 		OAuthStore:           oauthStore,
 		CraftskySessionStore: craftskyStore,
+		RepositoryTracker:    repositoryTracker,
 		HandleResolver:       api.DirectoryHandleResolver{Directory: identityDir},
 		Indexer:              dispatcher,
 		Consumer:             tap.NotImplemented{}, // temp, replaced below
@@ -181,9 +195,10 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		}
 	}
 
-	deps.ProfileStore = api.NewProfileStore(pool, anonPDS)
+	deps.ProfileStore = api.NewProfileStore(pool)
 	deps.IdentityCacheUpdater = api.NewIdentityCacheService(pool, deps.HandleResolver, time.Now)
 	deps.FollowStore = api.NewFollowStore(pool)
+	deps.RelationshipStore = relationships.NewStore(pool)
 	deps.ReportStore = api.NewReportStore(pool)
 	deps.ReportForwarder = api.NewPlaceholderReportForwarder(time.Now)
 	deps.ModerationStore = api.NewModerationStore(pool)
@@ -203,6 +218,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 			},
 		}, nil
 	})
+	deps.RelationshipMutations = relationships.NewMutationService(deps.RelationshipStore, deps.NewPDSClient, time.Now, deps.Observability)
 
 	var once sync.Once
 	cleanup := func() {
@@ -244,13 +260,24 @@ func (d *Deps) expirePDSSession(ctx context.Context, did syntax.DID, sid string)
 }
 
 func newIndexerDispatcher(pool *pgxpool.Pool, anonPDS auth.PDSClient, logger *slog.Logger, lifecycles ...notifications.Lifecycle) *index.Dispatcher {
+	return newIndexerDispatcherWithTracker(pool, anonPDS, logger, nil, nil, lifecycles...)
+}
+
+func newIndexerDispatcherWithTracker(
+	pool *pgxpool.Pool,
+	anonPDS auth.PDSClient,
+	logger *slog.Logger,
+	repositoryTracker tap.RepositoryTracker,
+	observer index.RelationshipObserver,
+	lifecycles ...notifications.Lifecycle,
+) *index.Dispatcher {
 	lifecycle := notifications.Lifecycle(notifications.NoopLifecycle{})
 	if len(lifecycles) > 0 && lifecycles[0] != nil {
 		lifecycle = lifecycles[0]
 	}
 	dispatcher := index.NewDispatcher(index.NotImplemented{})
 	blueskyIdx := index.NewBlueskyProfile(pool)
-	backfiller := index.NewBlueskyBackfiller(anonPDS, blueskyIdx)
+	backfiller := index.NewObservedBlueskyBackfiller(anonPDS, blueskyIdx, repositoryTracker, observer)
 	actorDeletion := notifications.NewActorDeletionService(pool)
 	dispatcher.Register("social.craftsky.actor.profile",
 		index.NewCraftskyProfile(pool, backfiller, logger, actorDeletion))
@@ -262,6 +289,8 @@ func newIndexerDispatcher(pool *pgxpool.Pool, anonPDS auth.PDSClient, logger *sl
 		index.NewCraftskyRepost(pool, logger, lifecycle))
 	dispatcher.Register("app.bsky.graph.follow",
 		index.NewBlueskyFollow(pool, lifecycle))
+	dispatcher.Register("app.bsky.graph.block",
+		index.NewBlueskyBlock(pool, observer))
 	dispatcher.Register("app.bsky.actor.profile", blueskyIdx)
 	return dispatcher
 }

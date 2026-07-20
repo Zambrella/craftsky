@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
@@ -9,6 +11,8 @@ import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/notifications/widgets/notification_row.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_relationship.dart';
+import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -348,6 +352,64 @@ void main() {
     expect(messenger.calls, hasLength(1));
     expect(messenger.calls.single.$1, 'error');
     expect(messenger.calls.single.$2, 'Could not update follow state.');
+  });
+
+  testWidgets('AT-006 loaded notification disappears when actor mute starts', (
+    tester,
+  ) async {
+    final account = AccountKey('did:plc:viewer');
+    final completer = Completer<ProfileRelationship>();
+    final relationshipRepository = FakeProfileRepository(
+      onMute: (_) => completer.future,
+    );
+    final notification = CraftskyNotification.fromMap({
+      ..._baseNotification('follow', 'pending-mute'),
+      'actor': {
+        'did': 'did:plc:alice',
+        'handle': 'alice.craftsky.social',
+        'displayName': 'Alice',
+        'muted': false,
+        'blocking': false,
+        'blockedBy': false,
+      },
+    });
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          accountRelationshipRepositoryProvider(
+            account,
+          ).overrideWith((ref) async => relationshipRepository),
+        ],
+        child: _TestApp(
+          home: Scaffold(
+            body: NotificationRow(
+              notification: notification,
+              owner: AccountSessionLease(
+                account: account,
+                sessionGeneration: 1,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(NotificationRow)),
+    );
+    unawaited(
+      container
+          .read(
+            profileRelationshipProvider(account, 'did:plc:alice').notifier,
+          )
+          .mutate(ProfileRelationshipAction.mute),
+    );
+    await tester.pump();
+
+    expect(find.text('Alice followed you'), findsNothing);
+    completer.complete(const ProfileRelationship(muted: true));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('preserves rows during load-more progress and retry', (

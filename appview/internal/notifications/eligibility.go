@@ -2,14 +2,18 @@ package notifications
 
 import "fmt"
 
+import "social.craftsky/appview/internal/relationships"
+
 type EligibilityInput struct {
 	Preference            Preference
 	IsSelf                bool
 	RecipientFollowsActor bool
+	Relationship          relationships.State
 }
 
 type EligibilityDecision struct {
 	Accepted    bool
+	Eligible    bool
 	PushEnabled bool
 }
 
@@ -26,5 +30,8 @@ func EvaluateEligibility(input EligibilityInput) (EligibilityDecision, error) {
 	if input.Preference.Scope == PeopleIFollow && !input.RecipientFollowsActor {
 		return EligibilityDecision{}, nil
 	}
-	return EligibilityDecision{Accepted: true, PushEnabled: input.Preference.PushEnabled}, nil
+	if input.Relationship.Muted || input.Relationship.HasBlock() {
+		return EligibilityDecision{Accepted: true}, nil
+	}
+	return EligibilityDecision{Accepted: true, Eligible: true, PushEnabled: input.Preference.PushEnabled}, nil
 }

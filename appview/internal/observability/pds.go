@@ -144,13 +144,32 @@ func (o *Observer) WrapPDSFactory(factory auth.PDSClientFactory) auth.PDSClientF
 		if err != nil || client == nil {
 			return client, err
 		}
-		return observedPDSClient{inner: client, observer: o}, nil
+		observed := observedPDSClient{inner: client, observer: o}
+		if lister, ok := client.(auth.PDSRecordLister); ok {
+			return observedPDSListClient{observedPDSClient: observed, lister: lister}, nil
+		}
+		return observed, nil
 	}
 }
 
 type observedPDSClient struct {
 	inner    auth.PDSClient
 	observer *Observer
+}
+
+type observedPDSListClient struct {
+	observedPDSClient
+	lister auth.PDSRecordLister
+}
+
+func (c observedPDSListClient) ListRecords(
+	ctx context.Context,
+	repo syntax.DID,
+	collection string,
+	cursor string,
+	limit int,
+) ([]auth.PDSRecord, string, error) {
+	return c.lister.ListRecords(ctx, repo, collection, cursor, limit)
 }
 
 func (c observedPDSClient) GetRecord(ctx context.Context, repo syntax.DID, collection string, rkey string, out any) (string, error) {

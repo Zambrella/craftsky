@@ -18,6 +18,7 @@ import 'package:craftsky_app/notifications/providers/notification_preferences_pr
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_seen_provider.dart';
 import 'package:craftsky_app/notifications/providers/notifications_provider.dart';
+import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/report_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/save_profile_provider.dart';
@@ -89,6 +90,8 @@ final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
       ..invalidate(toggleLikePostProvider)
       ..invalidate(toggleRepostPostProvider)
       ..invalidate(profileRepositoryProvider)
+      ..invalidate(accountRelationshipRepositoryProvider)
+      ..invalidate(profileRelationshipControllerProvider)
       ..invalidate(userProfileProvider)
       ..invalidate(saveProfileProvider)
       ..invalidate(reportProfileProvider)

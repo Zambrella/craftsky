@@ -243,3 +243,79 @@ func TestBuildProfileResponse_ModerationWarningMetadataIsGeneric(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildProfileResponseShapesViewerRelativeRelationshipFlags(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name                       string
+		muted, blocking, blockedBy bool
+	}{
+		{name: "none"},
+		{name: "muted", muted: true},
+		{name: "blocking", blocking: true},
+		{name: "blocked by", blockedBy: true},
+		{name: "mutual", blocking: true, blockedBy: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			row := &api.ProfileRow{
+				DID: "did:plc:bob", Crafts: []string{"sewing"}, CreatedAt: time.Now(),
+				Muted: tc.muted, Blocking: tc.blocking, BlockedBy: tc.blockedBy,
+			}
+			out := api.BuildProfileResponse(row, "bob.example", true)
+			if out.Muted != tc.muted || out.Blocking != tc.blocking || out.BlockedBy != tc.blockedBy {
+				t.Fatalf("relationship flags = muted %v blocking %v blockedBy %v", out.Muted, out.Blocking, out.BlockedBy)
+			}
+		})
+	}
+}
+
+func TestBuildProfileResponseStripsBlockedProfileToMinimumShell(t *testing.T) {
+	t.Parallel()
+	count := 12
+	row := &api.ProfileRow{
+		DID: "did:plc:bob", Crafts: []string{"sewing"}, CreatedAt: time.Now(),
+		DisplayName: strPtr("Bob"), Description: strPtr("private across a block"),
+		AvatarCID: strPtr("baf-avatar"), AvatarMime: strPtr("image/jpeg"),
+		BannerCID: strPtr("baf-banner"), BannerMime: strPtr("image/png"),
+		FollowerCount: &count, FollowingCount: &count, MutualFollowerCount: &count,
+		PostCount: &count, PostsLast7Days: &count, ProjectCount: &count,
+		ViewerIsFollowing: true, IsCraftskyProfile: true,
+		Muted: true, Blocking: true,
+	}
+	out := api.BuildProfileResponse(row, "bob.example", true)
+	raw, err := json.Marshal(out)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	for _, key := range []string{"did", "handle", "displayName", "avatar", "isCraftskyProfile", "muted", "blocking", "blockedBy"} {
+		if _, ok := body[key]; !ok {
+			t.Fatalf("minimum shell missing %q: %s", key, raw)
+		}
+	}
+	for _, key := range []string{
+		"description", "banner", "crafts", "createdAt", "viewerIsFollowing",
+		"followerCount", "followingCount", "mutualFollowerCount",
+		"postCount", "postsLast7Days", "projectCount", "moderation",
+	} {
+		if _, ok := body[key]; ok {
+			t.Fatalf("blocked shell leaked %q: %s", key, raw)
+		}
+	}
+}
+
+func TestBuildProfileAccountSummaryIncludesViewerRelationshipFlags(t *testing.T) {
+	t.Parallel()
+	row := &api.ProfileAccountRow{
+		DID: "did:plc:bob", IsCraftskyProfile: true,
+		Muted: true, Blocking: true, BlockedBy: false,
+	}
+	out := api.BuildProfileAccountSummary(row, "bob.example")
+	if !out.Muted || !out.Blocking || out.BlockedBy {
+		t.Fatalf("summary relationship flags = %+v", out)
+	}
+}

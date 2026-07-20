@@ -3,7 +3,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -14,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api/envelope"
-	"social.craftsky/appview/internal/auth"
 )
 
 // ErrProfileNotFound is returned by ProfileStore.Read when the DID has
@@ -40,6 +38,9 @@ type ProfileRow struct {
 	PostsLast7Days        *int
 	ProjectCount          *int
 	ViewerIsFollowing     bool
+	Muted                 bool
+	Blocking              bool
+	BlockedBy             bool
 	IsCraftskyProfile     bool
 	DisplayName           *string
 	Description           *string
@@ -59,6 +60,9 @@ type ProfileAccountRow struct {
 	AvatarCID         *string
 	AvatarMime        *string
 	IsCraftskyProfile bool
+	Muted             bool
+	Blocking          bool
+	BlockedBy         bool
 	FollowCreatedAt   time.Time
 	FollowURI         string
 }
@@ -90,8 +94,7 @@ const profileVisibleModerationPredicate = `
 // /v1/profiles/* handlers. It owns no business logic; merges, validation,
 // and URL synthesis live in the handler layer.
 type ProfileStore struct {
-	pool            *pgxpool.Pool
-	blueskyHydrator auth.PDSClient
+	pool *pgxpool.Pool
 }
 
 type ProfileReportTargetResolver struct {
@@ -130,12 +133,8 @@ func (r ProfileReportTargetResolver) ResolveAccountReportTarget(ctx context.Cont
 	return target, nil
 }
 
-func NewProfileStore(pool *pgxpool.Pool, blueskyHydrator ...auth.PDSClient) *ProfileStore {
-	store := &ProfileStore{pool: pool}
-	if len(blueskyHydrator) > 0 {
-		store.blueskyHydrator = blueskyHydrator[0]
-	}
-	return store
+func NewProfileStore(pool *pgxpool.Pool) *ProfileStore {
+	return &ProfileStore{pool: pool}
 }
 
 // ResolveAccountReportTarget returns a canonical account DID snapshot for
@@ -150,18 +149,6 @@ func (s *ProfileStore) ResolveAccountReportTarget(ctx context.Context, handleOrD
 	if err != nil {
 		return nil, fmt.Errorf("profile report target %s: %w", did.String(), err)
 	}
-	if !exists && s.blueskyHydrator != nil {
-		if hydrateErr := s.hydrateNonCraftsky(ctx, did.String()); hydrateErr != nil {
-			if errors.Is(hydrateErr, ErrProfileNotFound) {
-				return nil, ErrProfileNotFound
-			}
-			return nil, hydrateErr
-		}
-		exists, err = s.accountProfileExists(ctx, did.String())
-		if err != nil {
-			return nil, fmt.Errorf("profile report target %s after hydrate: %w", did.String(), err)
-		}
-	}
 	if !exists {
 		return nil, ErrProfileNotFound
 	}
@@ -172,7 +159,6 @@ func (s *ProfileStore) accountProfileExists(ctx context.Context, did string) (bo
 	var exists bool
 	if err := s.pool.QueryRow(ctx, `
 		SELECT EXISTS (SELECT 1 FROM craftsky_profiles WHERE did = $1)
-		    OR EXISTS (SELECT 1 FROM bluesky_profiles WHERE did = $1)
 	`, did).Scan(&exists); err != nil {
 		return false, err
 	}
@@ -266,8 +252,34 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 					SELECT 1
 					FROM atproto_follows f
 					WHERE f.did = $2 AND f.subject_did = cp.did
+					  AND NOT EXISTS (
+						SELECT 1 FROM atproto_blocks b
+						WHERE (b.blocker_did = $2 AND b.subject_did = cp.did)
+						   OR (b.blocker_did = cp.did AND b.subject_did = $2)
+					  )
 				)
 			END AS viewer_is_following,
+			CASE
+				WHEN $2 = '' OR $2 = cp.did THEN false
+				ELSE EXISTS (
+					SELECT 1 FROM actor_mutes m
+					WHERE m.owner_did = $2 AND m.subject_did = cp.did
+				)
+			END AS muted,
+			CASE
+				WHEN $2 = '' OR $2 = cp.did THEN false
+				ELSE EXISTS (
+					SELECT 1 FROM atproto_blocks b
+					WHERE b.blocker_did = $2 AND b.subject_did = cp.did
+				)
+			END AS blocking,
+			CASE
+				WHEN $2 = '' OR $2 = cp.did THEN false
+				ELSE EXISTS (
+					SELECT 1 FROM atproto_blocks b
+					WHERE b.blocker_did = cp.did AND b.subject_did = $2
+				)
+			END AS blocked_by,
 			bp.display_name, bp.description,
 			bp.avatar_cid, bp.avatar_mime,
 			bp.banner_cid, bp.banner_mime,
@@ -313,13 +325,14 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 		&mutualFollowerCount,
 		&postCount, &postsLast7Days, &projectCount,
 		&out.ViewerIsFollowing,
+		&out.Muted, &out.Blocking, &out.BlockedBy,
 		&out.DisplayName, &out.Description,
 		&out.AvatarCID, &out.AvatarMime,
 		&out.BannerCID, &out.BannerMime,
 		&out.ModerationWarningKind,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return s.readNonCraftsky(ctx, profileDID, viewerDID)
+		return nil, ErrProfileNotFound
 	}
 	if err != nil {
 		if strings.Contains(err.Error(), "atproto_follows") {
@@ -352,8 +365,18 @@ func (s *ProfileStore) ListMutualFollowers(ctx context.Context, viewerDID string
 		FROM atproto_follows viewer_follow
 		JOIN atproto_follows mutual_follow
 		  ON mutual_follow.did = viewer_follow.subject_did
+		JOIN craftsky_profiles mutual_cp ON mutual_cp.did = viewer_follow.subject_did
 		WHERE viewer_follow.did = $1
 		  AND mutual_follow.subject_did = $2
+		  AND NOT EXISTS (
+			SELECT 1 FROM atproto_blocks b
+			WHERE (b.blocker_did = $1 AND b.subject_did = $2)
+			   OR (b.blocker_did = $2 AND b.subject_did = $1)
+			   OR (b.blocker_did = $1 AND b.subject_did = viewer_follow.subject_did)
+			   OR (b.blocker_did = viewer_follow.subject_did AND b.subject_did = $1)
+			   OR (b.blocker_did = $2 AND b.subject_did = viewer_follow.subject_did)
+			   OR (b.blocker_did = viewer_follow.subject_did AND b.subject_did = $2)
+		  )
 	`, viewerDID, profileDID).Scan(&total); err != nil {
 		return nil, "", 0, fmt.Errorf("mutual follower count %s->%s: %w", viewerDID, profileDID, err)
 	}
@@ -366,15 +389,27 @@ func (s *ProfileStore) ListMutualFollowers(ctx context.Context, viewerDID string
 			bp.avatar_cid,
 			bp.avatar_mime,
 			(cp.did IS NOT NULL) AS is_craftsky_profile,
+			EXISTS (SELECT 1 FROM actor_mutes m WHERE m.owner_did = $1 AND m.subject_did = viewer_follow.subject_did),
+			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = $1 AND b.subject_did = viewer_follow.subject_did),
+			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = viewer_follow.subject_did AND b.subject_did = $1),
 			mutual_follow.created_at,
 			mutual_follow.uri
 		FROM atproto_follows viewer_follow
 		JOIN atproto_follows mutual_follow
 		  ON mutual_follow.did = viewer_follow.subject_did
 		LEFT JOIN bluesky_profiles bp ON bp.did = viewer_follow.subject_did
-		LEFT JOIN craftsky_profiles cp ON cp.did = viewer_follow.subject_did
+		JOIN craftsky_profiles cp ON cp.did = viewer_follow.subject_did
 		WHERE viewer_follow.did = $1
 		  AND mutual_follow.subject_did = $2
+		  AND NOT EXISTS (
+			SELECT 1 FROM atproto_blocks b
+			WHERE (b.blocker_did = $1 AND b.subject_did = $2)
+			   OR (b.blocker_did = $2 AND b.subject_did = $1)
+			   OR (b.blocker_did = $1 AND b.subject_did = viewer_follow.subject_did)
+			   OR (b.blocker_did = viewer_follow.subject_did AND b.subject_did = $1)
+			   OR (b.blocker_did = $2 AND b.subject_did = viewer_follow.subject_did)
+			   OR (b.blocker_did = viewer_follow.subject_did AND b.subject_did = $2)
+		  )
 		  AND ($3::timestamptz IS NULL
 		       OR (mutual_follow.created_at, mutual_follow.uri) < ($3::timestamptz, $4::text))
 		ORDER BY mutual_follow.created_at DESC, mutual_follow.uri DESC
@@ -422,9 +457,15 @@ func (s *ProfileStore) listFollowAccounts(ctx context.Context, kind string, did 
 	}
 
 	queryConfig := followAccountQueryConfig(kind)
+	eligibleWhere := queryConfig.whereExpr + `
+		AND NOT EXISTS (
+			SELECT 1 FROM atproto_blocks b
+			WHERE (b.blocker_did = $1 AND b.subject_did = ` + queryConfig.accountExpr + `)
+			   OR (b.blocker_did = ` + queryConfig.accountExpr + ` AND b.subject_did = $1)
+		)`
 
 	var total int
-	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM atproto_follows f `+queryConfig.craftskyJoin+` WHERE `+queryConfig.whereExpr, did).Scan(&total); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM atproto_follows f `+queryConfig.craftskyJoin+` WHERE `+eligibleWhere, did).Scan(&total); err != nil {
 		return nil, "", 0, fmt.Errorf("%s count %s: %w", kind, did, err)
 	}
 
@@ -436,13 +477,16 @@ func (s *ProfileStore) listFollowAccounts(ctx context.Context, kind string, did 
 			bp.avatar_cid,
 			bp.avatar_mime,
 			(cp.did IS NOT NULL) AS is_craftsky_profile,
+			EXISTS (SELECT 1 FROM actor_mutes m WHERE m.owner_did = $1 AND m.subject_did = ` + queryConfig.accountExpr + `),
+			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = $1 AND b.subject_did = ` + queryConfig.accountExpr + `),
+			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = ` + queryConfig.accountExpr + ` AND b.subject_did = $1),
 			f.created_at,
 			f.uri
 		FROM atproto_follows f
 		` + queryConfig.craftskyJoin + `
 		LEFT JOIN bluesky_profiles bp ON bp.did = ` + queryConfig.accountExpr + `
 		LEFT JOIN craftsky_profiles cp ON cp.did = ` + queryConfig.accountExpr + `
-		WHERE ` + queryConfig.whereExpr + `
+		WHERE ` + eligibleWhere + `
 		  AND ($2::timestamptz IS NULL OR (f.created_at, f.uri) < ($2::timestamptz, $3::text))
 		ORDER BY f.created_at DESC, f.uri DESC
 		LIMIT $4
@@ -486,8 +530,9 @@ func followAccountQueryConfig(kind string) followAccountQueryConfigSpec {
 		}
 	}
 	return followAccountQueryConfigSpec{
-		accountExpr: "f.did",
-		whereExpr:   "f.subject_did = $1",
+		accountExpr:  "f.did",
+		whereExpr:    "f.subject_did = $1",
+		craftskyJoin: "JOIN craftsky_profiles follower_cp ON follower_cp.did = f.did",
 	}
 }
 
@@ -500,6 +545,9 @@ func scanProfileAccountRow(scanner pgx.Row) (*ProfileAccountRow, error) {
 		&out.AvatarCID,
 		&out.AvatarMime,
 		&out.IsCraftskyProfile,
+		&out.Muted,
+		&out.Blocking,
+		&out.BlockedBy,
 		&out.FollowCreatedAt,
 		&out.FollowURI,
 	)
@@ -519,208 +567,4 @@ func encodeProfileAccountCursor(rows []*ProfileAccountRow, limit int) (string, e
 		return "", fmt.Errorf("encode profile account cursor: %w", err)
 	}
 	return next, nil
-}
-
-func (s *ProfileStore) readNonCraftsky(ctx context.Context, profileDID string, viewerDID string) (*ProfileRow, error) {
-	policy, err := s.activeAccountProfilePolicy(ctx, profileDID)
-	if err != nil {
-		return nil, err
-	}
-	if policy.Hidden {
-		return nil, ErrProfileNotFound
-	}
-	out, err := s.readNonCraftskyCached(ctx, profileDID, viewerDID)
-	if errors.Is(err, ErrProfileNotFound) && s.blueskyHydrator != nil {
-		if hydrateErr := s.hydrateNonCraftsky(ctx, profileDID); hydrateErr != nil {
-			return nil, hydrateErr
-		}
-		out, err = s.readNonCraftskyCached(ctx, profileDID, viewerDID)
-	}
-	if err == nil && policy.Warned {
-		warningKind := "profile"
-		out.ModerationWarningKind = &warningKind
-	}
-	return out, err
-}
-
-type accountProfilePolicy struct {
-	Hidden bool
-	Warned bool
-}
-
-func (s *ProfileStore) activeAccountProfilePolicy(ctx context.Context, profileDID string) (accountProfilePolicy, error) {
-	var policy accountProfilePolicy
-	if err := s.pool.QueryRow(ctx, `
-		SELECT
-			EXISTS (
-				SELECT 1
-				FROM moderation_outputs mo
-				WHERE mo.action = 'apply'
-				  AND mo.subject_type = 'account'
-				  AND mo.subject_did = $1
-				  AND mo.value IN ('hide', 'takedown')
-				  AND (mo.expires_at IS NULL OR mo.expires_at > now())
-				  AND NOT EXISTS (
-					SELECT 1
-					FROM moderation_outputs neg
-					WHERE neg.action = 'negate'
-					  AND neg.source_did = mo.source_did
-					  AND neg.subject_type = mo.subject_type
-					  AND neg.subject_did = mo.subject_did
-					  AND neg.value = mo.value
-					  AND (neg.expires_at IS NULL OR neg.expires_at > now())
-					  AND neg.indexed_at > mo.indexed_at
-				  )
-			) AS hidden,
-			EXISTS (
-				SELECT 1
-				FROM moderation_outputs mo
-				WHERE mo.action = 'apply'
-				  AND mo.subject_type = 'account'
-				  AND mo.subject_did = $1
-				  AND mo.value = 'warn'
-				  AND (mo.expires_at IS NULL OR mo.expires_at > now())
-				  AND NOT EXISTS (
-					SELECT 1
-					FROM moderation_outputs neg
-					WHERE neg.action = 'negate'
-					  AND neg.source_did = mo.source_did
-					  AND neg.subject_type = mo.subject_type
-					  AND neg.subject_did = mo.subject_did
-					  AND neg.value = mo.value
-					  AND (neg.expires_at IS NULL OR neg.expires_at > now())
-					  AND neg.indexed_at > mo.indexed_at
-				  )
-			) AS warned
-	`, profileDID).Scan(&policy.Hidden, &policy.Warned); err != nil {
-		return accountProfilePolicy{}, fmt.Errorf("profile account moderation policy %s: %w", profileDID, err)
-	}
-	return policy, nil
-}
-
-func (s *ProfileStore) readNonCraftskyCached(ctx context.Context, profileDID string, viewerDID string) (*ProfileRow, error) {
-	const q = `
-		SELECT
-			did,
-			display_name,
-			description,
-			avatar_cid,
-			avatar_mime,
-			banner_cid,
-			banner_mime
-		FROM bluesky_profiles
-		WHERE did = $1
-	`
-	out := &ProfileRow{}
-	err := s.pool.QueryRow(ctx, q, profileDID).Scan(
-		&out.DID,
-		&out.DisplayName,
-		&out.Description,
-		&out.AvatarCID,
-		&out.AvatarMime,
-		&out.BannerCID,
-		&out.BannerMime,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrProfileNotFound
-	}
-	if err != nil {
-		return nil, fmt.Errorf("non-craftsky profile read %s: %w", profileDID, err)
-	}
-	viewerIsFollowing, err := s.viewerFollows(ctx, viewerDID, profileDID)
-	if err != nil {
-		return nil, err
-	}
-	out.ViewerIsFollowing = viewerIsFollowing
-	out.Crafts = []string{}
-	out.IsCraftskyProfile = false
-	return out, nil
-}
-
-func (s *ProfileStore) viewerFollows(ctx context.Context, viewerDID string, profileDID string) (bool, error) {
-	if viewerDID == "" || viewerDID == profileDID {
-		return false, nil
-	}
-	var exists bool
-	if err := s.pool.QueryRow(ctx, `
-		SELECT EXISTS (
-			SELECT 1 FROM atproto_follows
-			WHERE did = $1 AND subject_did = $2
-		)
-	`, viewerDID, profileDID).Scan(&exists); err != nil {
-		if strings.Contains(err.Error(), "atproto_follows") {
-			return false, fmt.Errorf("%w: %v", ErrProfileCountsUnavailable, err)
-		}
-		return false, fmt.Errorf("profile viewer follow %s->%s: %w", viewerDID, profileDID, err)
-	}
-	return exists, nil
-}
-
-type hydratedBlueskyProfile struct {
-	DisplayName *string                 `json:"displayName,omitempty"`
-	Description *string                 `json:"description,omitempty"`
-	Avatar      *hydratedBlueskyBlobRef `json:"avatar,omitempty"`
-	Banner      *hydratedBlueskyBlobRef `json:"banner,omitempty"`
-}
-
-type hydratedBlueskyBlobRef struct {
-	Ref struct {
-		Link string `json:"$link"`
-	} `json:"ref"`
-	MimeType string `json:"mimeType"`
-}
-
-func (s *ProfileStore) hydrateNonCraftsky(ctx context.Context, profileDID string) error {
-	did, err := syntax.ParseDID(profileDID)
-	if err != nil {
-		return fmt.Errorf("hydrate profile parse did %s: %w", profileDID, err)
-	}
-
-	var rec map[string]any
-	cid, err := s.blueskyHydrator.GetRecord(ctx, did, blueskyProfileNSID, profileRecordKey, &rec)
-	if errors.Is(err, auth.ErrRecordNotFound) {
-		return ErrProfileNotFound
-	}
-	if err != nil {
-		return fmt.Errorf("hydrate bluesky profile %s: %w", profileDID, err)
-	}
-
-	raw, err := json.Marshal(rec)
-	if err != nil {
-		return fmt.Errorf("hydrate bluesky profile marshal %s: %w", profileDID, err)
-	}
-	var parsed hydratedBlueskyProfile
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return fmt.Errorf("hydrate bluesky profile decode %s: %w", profileDID, err)
-	}
-
-	var avatarCID, avatarMime, bannerCID, bannerMime *string
-	if parsed.Avatar != nil && parsed.Avatar.Ref.Link != "" {
-		avatarCID = &parsed.Avatar.Ref.Link
-		avatarMime = &parsed.Avatar.MimeType
-	}
-	if parsed.Banner != nil && parsed.Banner.Ref.Link != "" {
-		bannerCID = &parsed.Banner.Ref.Link
-		bannerMime = &parsed.Banner.MimeType
-	}
-
-	if _, err := s.pool.Exec(ctx, `
-		INSERT INTO bluesky_profiles
-			(did, display_name, description,
-			 avatar_cid, avatar_mime, banner_cid, banner_mime, record_cid)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		ON CONFLICT (did) DO UPDATE SET
-			display_name = EXCLUDED.display_name,
-			description  = EXCLUDED.description,
-			avatar_cid   = EXCLUDED.avatar_cid,
-			avatar_mime  = EXCLUDED.avatar_mime,
-			banner_cid   = EXCLUDED.banner_cid,
-			banner_mime  = EXCLUDED.banner_mime,
-			record_cid   = EXCLUDED.record_cid,
-			indexed_at   = now()
-		WHERE bluesky_profiles.record_cid IS DISTINCT FROM EXCLUDED.record_cid
-	`, profileDID, parsed.DisplayName, parsed.Description, avatarCID, avatarMime, bannerCID, bannerMime, cid); err != nil {
-		return fmt.Errorf("hydrate bluesky profile upsert %s: %w", profileDID, err)
-	}
-	return nil
 }

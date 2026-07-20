@@ -11,6 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/relationships"
 )
 
 func ptrStr(s string) *string { return &s }
@@ -68,6 +69,67 @@ func TestBuildPostResponse_MinimalPost(t *testing.T) {
 	b, _ := json.Marshal(resp.Tags)
 	if string(b) != "[]" {
 		t.Errorf("tags = %s", b)
+	}
+}
+
+func TestPostResponseRelationshipPlaceholdersDiscardProtectedPayload(t *testing.T) {
+	tests := []struct {
+		name       string
+		state      relationships.State
+		surface    relationships.Surface
+		wantState  string
+		revealable bool
+		wantURI    bool
+	}{
+		{name: "muted thread branch", state: relationships.State{Muted: true}, surface: relationships.SurfaceThread, wantState: "muted", revealable: true, wantURI: true},
+		{name: "blocked direct post", state: relationships.State{BlockedBy: true}, surface: relationships.SurfaceDirectPost, wantState: "blocked", revealable: false, wantURI: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			resp := api.BuildPostResponse(baseRow(), syntax.Handle("alice.example"))
+			resp.Text = "protected text sentinel"
+			api.ApplyPostRelationshipPolicy(resp, test.state, test.surface)
+			raw, err := json.Marshal(resp)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var body map[string]any
+			if err := json.Unmarshal(raw, &body); err != nil {
+				t.Fatal(err)
+			}
+			if body["availability"] != test.wantState || strings.Contains(string(raw), "protected text sentinel") || body["text"] != nil || body["author"] != nil || body["images"] != nil {
+				t.Fatalf("unsafe placeholder = %s", raw)
+			}
+			relationship := body["relationship"].(map[string]any)
+			if relationship["state"] != test.wantState || relationship["revealable"] != test.revealable {
+				t.Fatalf("relationship = %+v", relationship)
+			}
+			_, hasURI := body["uri"]
+			if hasURI != test.wantURI {
+				t.Fatalf("uri present=%v, want %v: %s", hasURI, test.wantURI, raw)
+			}
+		})
+	}
+}
+
+func TestQuoteRelationshipPolicyDropsStalePreview(t *testing.T) {
+	row := &api.QuoteViewRow{State: "visible", Post: baseRow()}
+	for _, test := range []struct {
+		name       string
+		state      relationships.State
+		wantState  string
+		revealable bool
+	}{
+		{name: "muted", state: relationships.State{Muted: true}, wantState: "muted", revealable: true},
+		{name: "blocked", state: relationships.State{Blocking: true}, wantState: "blocked", revealable: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			view := api.BuildQuoteView(row, syntax.Handle("alice.example"))
+			api.ApplyQuoteRelationshipPolicy(view, test.state)
+			if view.State != test.wantState || view.Revealable != test.revealable || view.Post != nil {
+				t.Fatalf("view = %+v", view)
+			}
+		})
 	}
 }
 

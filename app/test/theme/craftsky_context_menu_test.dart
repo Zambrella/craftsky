@@ -196,5 +196,32 @@ void main() {
       expect(tapped, isFalse);
       expect(find.byType(BottomSheet), findsOneWidget);
     });
+
+    testWidgets('disabled menu button does not open a menu', (tester) async {
+      await pumpHarness(
+        tester,
+        size: const Size(390, 844),
+        child: CraftskyContextMenuButton(
+          enabled: false,
+          groups: [
+            CraftskyContextMenuGroup(
+              items: [
+                CraftskyContextMenuItem(
+                  text: 'Share',
+                  icon: Icons.ios_share_outlined,
+                  onPressed: () {},
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.text('Share'), findsNothing);
+    });
   });
 }

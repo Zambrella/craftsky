@@ -60,7 +60,17 @@ func (s *PostStore) listTimelineObserved(ctx context.Context, viewerDID string, 
 			UNION
 			SELECT f.subject_did
 			FROM atproto_follows f
+			JOIN craftsky_profiles followed_cp ON followed_cp.did = f.subject_did
 			WHERE f.did = $1
+			  AND NOT EXISTS (
+				SELECT 1 FROM actor_mutes m
+				WHERE m.owner_did = $1 AND m.subject_did = f.subject_did
+			  )
+			  AND NOT EXISTS (
+				SELECT 1 FROM atproto_blocks b
+				WHERE (b.blocker_did = $1 AND b.subject_did = f.subject_did)
+				   OR (b.blocker_did = f.subject_did AND b.subject_did = $1)
+			  )
 		), feed AS (
 			SELECT
 				'post'::text AS item_kind,
@@ -93,9 +103,19 @@ func (s *PostStore) listTimelineObserved(ctx context.Context, viewerDID string, 
 			FROM craftsky_reposts r
 			JOIN eligible_authors a ON a.did = r.did
 			JOIN craftsky_posts p ON p.uri = r.subject_uri
+			JOIN craftsky_profiles subject_cp ON subject_cp.did = p.did
 			WHERE r.deleted_at IS NULL
 			  AND p.reply_root_uri IS NULL
 			  AND p.reply_parent_uri IS NULL
+			  AND NOT EXISTS (
+				SELECT 1 FROM actor_mutes m
+				WHERE m.owner_did = $1 AND m.subject_did = p.did
+			  )
+			  AND NOT EXISTS (
+				SELECT 1 FROM atproto_blocks b
+				WHERE (b.blocker_did = $1 AND b.subject_did = p.did)
+				   OR (b.blocker_did = p.did AND b.subject_did = $1)
+			  )
 			` + postVisibleModerationPredicate + `
 		)
 		SELECT

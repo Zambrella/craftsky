@@ -13,7 +13,10 @@ import (
 )
 
 func TestNotificationNewnessRevisionTracksGenuineActivations(t *testing.T) {
-	pool := testdb.WithSchema(t, "")
+	pool := testdb.WithSchema(t, `
+		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL, subject_did TEXT NOT NULL, PRIMARY KEY(owner_did, subject_did));
+		CREATE TABLE atproto_blocks(uri TEXT PRIMARY KEY, blocker_did TEXT NOT NULL, subject_did TEXT NOT NULL);
+	`)
 	ctx := context.Background()
 	for _, path := range []string{
 		"../../migrations/000021_appview_notifications.up.sql",
@@ -94,4 +97,54 @@ func TestNotificationNewnessRevisionTracksGenuineActivations(t *testing.T) {
 	if reactivated := revision(); reactivated <= first {
 		t.Fatalf("reactivation revision = %d, want greater than %d", reactivated, first)
 	}
+}
+
+func TestNotificationSuppressionEmitsBoundedRelationshipOutcome(t *testing.T) {
+	pool := testdb.WithSchema(t, `
+		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL, subject_did TEXT NOT NULL, PRIMARY KEY(owner_did, subject_did));
+		CREATE TABLE atproto_blocks(uri TEXT PRIMARY KEY, blocker_did TEXT NOT NULL, subject_did TEXT NOT NULL);
+	`)
+	ctx := context.Background()
+	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO actor_mutes(owner_did,subject_did) VALUES('did:plc:recipient','did:plc:private-target')`); err != nil {
+		t.Fatal(err)
+	}
+	observer := &notificationRelationshipObserver{}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if err := notifications.NewService(observer).Activate(ctx, tx, notifications.Activation{
+		RecipientDID: "did:plc:recipient",
+		ActorDID:     "did:plc:private-target",
+		Category:     notifications.Like,
+		SubjectKey:   "private-subject",
+		SourceURI:    "at://did:plc:private-target/social.craftsky.feed.like/private-rkey",
+		ActivityAt:   time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if observer.operation != "notification_suppression" || observer.stage != "policy" || observer.result != "suppressed" || observer.errorClass != "none" {
+		t.Fatalf("relationship outcome = %+v", observer)
+	}
+}
+
+type notificationRelationshipObserver struct {
+	operation, stage, result, errorClass string
+}
+
+func (o *notificationRelationshipObserver) ObserveNotificationDecision(string, string) {}
+
+func (o *notificationRelationshipObserver) ObserveRelationshipOutcome(operation, stage, result, errorClass string, _ time.Duration) {
+	o.operation = operation
+	o.stage = stage
+	o.result = result
+	o.errorClass = errorClass
 }
