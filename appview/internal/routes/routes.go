@@ -3,10 +3,12 @@ package routes
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
 )
@@ -16,6 +18,7 @@ const defaultJSONBodyLimitBytes int64 = 1024 * 1024
 type v1Middleware struct {
 	authN     func(http.Handler) http.Handler
 	deviceID  func(http.Handler) http.Handler
+	member    func(http.Handler) http.Handler
 	bodyLimit middleware.BodyLimitConfig
 	rateLimit map[RateClass]func(http.Handler) http.Handler
 	observer  *observability.Observer
@@ -23,6 +26,9 @@ type v1Middleware struct {
 
 func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handler {
 	wrapped := handler
+	if policy.CurrentMemberRequired {
+		wrapped = m.member(wrapped)
+	}
 	if rl := m.rateLimit[policy.RateClass]; rl != nil {
 		wrapped = rl(wrapped)
 	}
@@ -67,10 +73,22 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("GET /oauth/client-metadata.json", inFlight(oauthHandlers.ClientMetadataHandler()))
 	mux.Handle("GET /oauth/jwks.json", inFlight(oauthHandlers.JWKSHandler()))
 	mux.Handle("GET /oauth/callback", inFlight(oauthHandlers.CallbackHandler()))
+	// Meta callbacks are deliberately absent unless the complete integration
+	// was validated and wired at startup. They never share Craftsky auth/body
+	// middleware because signature verification covers the exact raw bytes.
+	if deps.InstagramWebhook != nil {
+		mux.Handle("GET /integrations/instagram/webhook", inFlight(deps.InstagramWebhook))
+		mux.Handle("POST /integrations/instagram/webhook", inFlight(deps.InstagramWebhook))
+	}
 
 	// Middleware stacks.
 	authN := middleware.Authenticated(deps.AuthService, deps.Logger)
 	deviceID := middleware.DeviceID(deps.CraftskySessionStore, deps.Logger)
+	membership := deps.InstagramMembership
+	if membership == nil {
+		membership = instagram.NewMembershipStore(deps.DB)
+	}
+	currentMember := middleware.CurrentMember(membership, deps.Logger)
 	rateLimits := map[RateClass]func(http.Handler) http.Handler{}
 	if deps.RateLimiter != nil {
 		rateLimits[RateClassAuth] = middleware.RateLimit(deps.RateLimiter, middleware.RateClassAuth, deps.Logger)
@@ -86,7 +104,22 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	if bodyLimitCfg.DefaultJSONBytes == 0 {
 		bodyLimitCfg.DefaultJSONBytes = defaultJSONBodyLimitBytes
 	}
-	v1mw := v1Middleware{authN: authN, deviceID: deviceID, bodyLimit: bodyLimitCfg, rateLimit: rateLimits, observer: observer}
+	v1mw := v1Middleware{authN: authN, deviceID: deviceID, member: currentMember, bodyLimit: bodyLimitCfg, rateLimit: rateLimits, observer: observer}
+	instagramLimit := func(handler http.Handler, rules ...middleware.InstagramRateLimitRule) http.Handler {
+		// A missing data-plane key means Instagram's private write plane is not
+		// enabled. Individual handlers retain their documented unavailable/local
+		// behavior; enabled deployments always receive the shared limiter built by
+		// app.New*Deps.
+		if deps.InstagramRateLimiter == nil {
+			return handler
+		}
+		return middleware.InstagramPersistentRateLimit(
+			deps.InstagramRateLimiter,
+			rules,
+			deps.Config.InstagramDeployment.TrustedProxyCIDRs(),
+			deps.Logger,
+		)(handler)
+	}
 
 	// v1 — unauthenticated but device-id required.
 	mux.Handle("POST /v1/auth/login", v1mw.wrap(mustPolicy("POST", "/v1/auth/login"), oauthHandlers.LoginHandler()))
@@ -114,6 +147,37 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("POST /v1/search/recent", v1mw.wrap(mustPolicy("POST", "/v1/search/recent"), api.SaveRecentSearchHandler(searchStore, deps.Logger)))
 	mux.Handle("DELETE /v1/search/recent/{id}", v1mw.wrap(mustPolicy("DELETE", "/v1/search/recent/{id}"), api.DeleteRecentSearchHandler(searchStore, deps.Logger)))
 	mux.Handle("POST /v1/auth/logout", v1mw.wrap(mustPolicy("POST", "/v1/auth/logout"), oauthHandlers.LogoutHandler()))
+	mux.Handle("POST /v1/migrations/instagram/verifications", v1mw.wrap(mustPolicy("POST", "/v1/migrations/instagram/verifications"), instagramLimit(
+		api.CreateInstagramVerificationHandler(deps.InstagramVerification, deps.Logger),
+		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitChallengeDID, Identity: middleware.InstagramRateIdentityDID, Window: 15 * time.Minute, Limit: deps.Config.InstagramLimits.ChallengeDIDPer15Minutes},
+		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitChallengeDevice, Identity: middleware.InstagramRateIdentityDevice, Window: 15 * time.Minute, Limit: deps.Config.InstagramLimits.ChallengeDevicePer15Minutes},
+		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitChallengeIP, Identity: middleware.InstagramRateIdentityClientIP, Window: 15 * time.Minute, Limit: deps.Config.InstagramLimits.ChallengeIPPer15Minutes},
+	)))
+	mux.Handle("GET /v1/migrations/instagram/verifications/{verificationId}", v1mw.wrap(mustPolicy("GET", "/v1/migrations/instagram/verifications/{verificationId}"), api.GetInstagramVerificationHandler(deps.InstagramVerification, deps.Logger)))
+	mux.Handle("DELETE /v1/migrations/instagram/verifications/{verificationId}", v1mw.wrap(mustPolicy("DELETE", "/v1/migrations/instagram/verifications/{verificationId}"), api.DeleteInstagramVerificationHandler(deps.InstagramVerification, deps.Logger)))
+	mux.Handle("POST /v1/migrations/instagram/verifications/{verificationId}/confirm", v1mw.wrap(mustPolicy("POST", "/v1/migrations/instagram/verifications/{verificationId}/confirm"), instagramLimit(
+		api.ConfirmInstagramVerificationHandler(deps.InstagramVerification, deps.Logger),
+		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitConfirmationDID, Identity: middleware.InstagramRateIdentityDID, Window: time.Hour, Limit: deps.Config.InstagramLimits.ConfirmationDIDPerHour},
+		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitConfirmationDevice, Identity: middleware.InstagramRateIdentityDevice, Window: time.Hour, Limit: deps.Config.InstagramLimits.ConfirmationDevicePerHour},
+	)))
+	integrationAvailable := func() bool {
+		return deps.Config.InstagramMeta.Enabled() && deps.Config.InstagramMeta.Configured()
+	}
+	mux.Handle("GET /v1/migrations/instagram/account", v1mw.wrap(mustPolicy("GET", "/v1/migrations/instagram/account"), api.GetInstagramAccountHandler(deps.InstagramAccount, integrationAvailable, deps.Logger)))
+	mux.Handle("DELETE /v1/migrations/instagram/account", v1mw.wrap(mustPolicy("DELETE", "/v1/migrations/instagram/account"), api.DeleteInstagramAccountHandler(deps.InstagramAccount, deps.Logger)))
+	mux.Handle("PATCH /v1/migrations/instagram/settings", v1mw.wrap(mustPolicy("PATCH", "/v1/migrations/instagram/settings"), api.PatchInstagramSettingsHandler(deps.InstagramAccount, integrationAvailable, deps.Logger)))
+	mux.Handle("POST /v1/migrations/instagram/imports", v1mw.wrap(mustPolicy("POST", "/v1/migrations/instagram/imports"), instagramLimit(
+		api.CreateInstagramImportHandler(deps.InstagramImports, deps.Logger),
+		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitImportDID, Identity: middleware.InstagramRateIdentityDID, Window: time.Hour, Limit: deps.Config.InstagramLimits.ImportsDIDPerHour},
+		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitImportDevice, Identity: middleware.InstagramRateIdentityDevice, Window: time.Hour, Limit: deps.Config.InstagramLimits.ImportsDevicePerHour},
+	)))
+	mux.Handle("GET /v1/migrations/instagram/imports", v1mw.wrap(mustPolicy("GET", "/v1/migrations/instagram/imports"), api.ListInstagramImportsHandler(deps.InstagramImports, deps.Logger)))
+	mux.Handle("GET /v1/migrations/instagram/imports/{importId}", v1mw.wrap(mustPolicy("GET", "/v1/migrations/instagram/imports/{importId}"), api.GetInstagramImportHandler(deps.InstagramImports, deps.Logger)))
+	mux.Handle("PATCH /v1/migrations/instagram/imports/{importId}", v1mw.wrap(mustPolicy("PATCH", "/v1/migrations/instagram/imports/{importId}"), api.PatchInstagramImportHandler(deps.InstagramImports, deps.Logger)))
+	mux.Handle("DELETE /v1/migrations/instagram/imports/{importId}", v1mw.wrap(mustPolicy("DELETE", "/v1/migrations/instagram/imports/{importId}"), api.DeleteInstagramImportHandler(deps.InstagramImports, deps.Logger)))
+	mux.Handle("GET /v1/migrations/instagram/suggestions", v1mw.wrap(mustPolicy("GET", "/v1/migrations/instagram/suggestions"), api.ListInstagramSuggestionsHandler(deps.InstagramSuggestions, deps.ProfileStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("POST /v1/migrations/instagram/suggestions/{suggestionId}/accept", v1mw.wrap(mustPolicy("POST", "/v1/migrations/instagram/suggestions/{suggestionId}/accept"), api.AcceptInstagramSuggestionHandler(deps.InstagramSuggestions, deps.NewPDSClient, deps.Logger)))
+	mux.Handle("DELETE /v1/migrations/instagram/suggestions/{suggestionId}", v1mw.wrap(mustPolicy("DELETE", "/v1/migrations/instagram/suggestions/{suggestionId}"), api.DeleteInstagramSuggestionHandler(deps.InstagramSuggestions, deps.Logger)))
 	mux.Handle("GET /v1/profiles/{handleOrDid}", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}"), api.GetProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/profiles/me", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me"), api.GetMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/profiles/me/followers", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me/followers"), api.GetMeFollowersHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))

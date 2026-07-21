@@ -20,6 +20,16 @@ final class NotificationsDestination extends NotificationDestination {
   int get hashCode => 0;
 }
 
+final class InstagramMigrationDestination extends NotificationDestination {
+  const InstagramMigrationDestination();
+
+  @override
+  bool operator ==(Object other) => other is InstagramMigrationDestination;
+
+  @override
+  int get hashCode => 1;
+}
+
 final class ProfileDestination extends NotificationDestination {
   const ProfileDestination(this.did);
 

@@ -28,18 +28,20 @@ type NotificationPage struct {
 }
 
 type NotificationItem struct {
-	ID               string                 `json:"id"`
-	URI              string                 `json:"uri,omitempty"`
-	CID              string                 `json:"cid,omitempty"`
-	Rkey             string                 `json:"rkey,omitempty"`
-	Type             NotificationType       `json:"type"`
-	Actor            NotificationActor      `json:"actor"`
-	References       NotificationReferences `json:"references"`
-	CreatedAt        string                 `json:"createdAt"`
-	IndexedAt        string                 `json:"indexedAt"`
-	SubjectPost      *PostResponse          `json:"subjectPost,omitempty"`
-	Reply            *NotificationReplyRef  `json:"reply,omitempty"`
-	ContentAvailable *bool                  `json:"contentAvailable,omitempty"`
+	ID               string                  `json:"id"`
+	Kind             NotificationKind        `json:"kind"`
+	URI              string                  `json:"uri,omitempty"`
+	CID              string                  `json:"cid,omitempty"`
+	Rkey             string                  `json:"rkey,omitempty"`
+	Type             NotificationType        `json:"type"`
+	Actor            *NotificationActor      `json:"actor,omitempty"`
+	References       *NotificationReferences `json:"references,omitempty"`
+	System           *NotificationSystem     `json:"system,omitempty"`
+	CreatedAt        string                  `json:"createdAt"`
+	IndexedAt        string                  `json:"indexedAt"`
+	SubjectPost      *PostResponse           `json:"subjectPost,omitempty"`
+	Reply            *NotificationReplyRef   `json:"reply,omitempty"`
+	ContentAvailable *bool                   `json:"contentAvailable,omitempty"`
 }
 
 type NotificationActor struct {
@@ -80,25 +82,34 @@ func ListNotificationsHandler(store NotificationReader, _ HandleResolver, logger
 			dids := make([]string, 0, len(rows)*2)
 			postURIs := make([]string, 0, len(rows))
 			for _, row := range rows {
+				if notificationRowKind(row) == NotificationKindSystem {
+					continue
+				}
 				dids = append(dids, row.ActorDID)
 				if row.SubjectPost != nil {
 					dids = append(dids, row.SubjectPost.DID)
 					postURIs = append(postURIs, row.SubjectPost.URI)
 				}
 			}
-			handles, err := store.NotificationHandles(r.Context(), dids)
-			if err != nil {
-				logger.Error("notifications: indexed handle batch failed",
-					apiLogErrorAttrs(runID, "notifications.list", "store")...)
-				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "notification identity lookup failed", runID, nil)
-				return
+			handles := map[string]syntax.Handle{}
+			if len(dids) > 0 {
+				handles, err = store.NotificationHandles(r.Context(), dids)
+				if err != nil {
+					logger.Error("notifications: indexed handle batch failed",
+						apiLogErrorAttrs(runID, "notifications.list", "store")...)
+					envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "notification identity lookup failed", runID, nil)
+					return
+				}
 			}
-			summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
-			if err != nil {
-				logger.Error("notifications: EngagementSummaries failed",
-					apiLogErrorAttrs(runID, "notifications.list", "engagement")...)
-				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "post engagement lookup failed", runID, nil)
-				return
+			summaries := map[string]EngagementSummary{}
+			if len(postURIs) > 0 {
+				summaries, err = store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
+				if err != nil {
+					logger.Error("notifications: EngagementSummaries failed",
+						apiLogErrorAttrs(runID, "notifications.list", "engagement")...)
+					envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "post engagement lookup failed", runID, nil)
+					return
+				}
 			}
 			for _, row := range rows {
 				items = append(items, buildNotificationItem(row, handles, summaries))
@@ -127,23 +138,30 @@ func parseNotificationLimit(raw string) int {
 }
 
 func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary) *NotificationItem {
-	actorHandle, actorAvailable := handles[row.ActorDID]
+	kind := notificationRowKind(row)
 	item := &NotificationItem{
-		ID:   row.ID,
-		Type: row.Type,
-		Actor: NotificationActor{
-			Available:         actorAvailable,
-			DID:               row.ActorDID,
-			Handle:            actorHandle.String(),
-			DisplayName:       row.ActorDisplayName,
-			AvatarCID:         row.ActorAvatarCID,
-			ViewerIsFollowing: row.ActorViewerIsFollowing,
-		},
-		CreatedAt:  row.CreatedAt.UTC().Format(time.RFC3339),
-		IndexedAt:  row.IndexedAt.UTC().Format(time.RFC3339),
-		Reply:      row.Reply,
-		References: row.References,
+		ID:        row.ID,
+		Kind:      kind,
+		Type:      row.Type,
+		CreatedAt: row.CreatedAt.UTC().Format(time.RFC3339),
+		IndexedAt: row.IndexedAt.UTC().Format(time.RFC3339),
 	}
+	if kind == NotificationKindSystem {
+		item.System = row.System
+		return item
+	}
+
+	actorHandle, actorAvailable := handles[row.ActorDID]
+	item.Actor = &NotificationActor{
+		Available:         actorAvailable,
+		DID:               row.ActorDID,
+		Handle:            actorHandle.String(),
+		DisplayName:       row.ActorDisplayName,
+		AvatarCID:         row.ActorAvatarCID,
+		ViewerIsFollowing: row.ActorViewerIsFollowing,
+	}
+	item.Reply = row.Reply
+	item.References = &row.References
 	if avatar := synthBlobURL("avatar", row.ActorDID, row.ActorAvatarCID, row.ActorAvatarMime); avatar != "" {
 		item.Actor.Avatar = &avatar
 	}
@@ -171,4 +189,11 @@ func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handl
 		item.ContentAvailable = &available
 	}
 	return item
+}
+
+func notificationRowKind(row *NotificationRow) NotificationKind {
+	if row != nil && row.Kind == NotificationKindSystem {
+		return NotificationKindSystem
+	}
+	return NotificationKindSocial
 }

@@ -10,6 +10,7 @@ enum NotificationCategory {
   mention,
   quote,
   repost,
+  instagramMatch,
   everythingElse,
   unknown;
 
@@ -20,6 +21,7 @@ enum NotificationCategory {
     mention,
     quote,
     repost,
+    instagramMatch,
     everythingElse,
   ];
 

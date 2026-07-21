@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -18,6 +20,8 @@ import (
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/db"
 	"social.craftsky/appview/internal/index"
+	"social.craftsky/appview/internal/instagram"
+	"social.craftsky/appview/internal/integrations/instagrammeta"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/observability"
@@ -54,6 +58,21 @@ type Deps struct {
 	Consumer       tap.Consumer
 	Indexer        index.Indexer
 	PushDispatcher *push.Dispatcher
+
+	// Instagram migration is private AppView data. Verification can remain
+	// disabled while the membership/store dependencies continue to expose
+	// retained local state and privacy controls.
+	InstagramMembership     *instagram.MembershipStore
+	InstagramRateLimiter    *instagram.PostgresRateLimiter
+	InstagramVerification   *instagram.VerificationService
+	InstagramWebhook        http.Handler
+	InstagramWebhookWorker  *instagram.WebhookWorker
+	InstagramPrivateData    *instagram.PrivateDataService
+	InstagramReconciliation *instagram.ReconciliationWorker
+	InstagramRetention      *instagram.RetentionService
+	InstagramAccount        *instagram.AccountStore
+	InstagramImports        *instagram.ImportService
+	InstagramSuggestions    *instagram.SuggestionService
 
 	// ProfileStore serves the /v1/profiles endpoints.
 	ProfileStore *api.ProfileStore
@@ -140,7 +159,27 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		Env: string(cfg.Env), Release: cfg.SentryRelease, LogsEnabled: cfg.SentryLogsEnabled, TracingEnabled: cfg.SentryTracingEnabled, TracesSampleRate: cfg.SentryTracesSampleRate, MetricsEnabled: cfg.SentryMetricsEnabled, TapTracingEnabled: cfg.SentryTapTracingEnabled, TapTracesSampleRate: cfg.SentryTapTracesSampleRate, SentryDSN: cfg.SentryDSN, Logger: logger,
 	})
 	lifecycle := notifications.NewService(observer)
-	dispatcher := newIndexerDispatcher(pool, anonPDS, logger, lifecycle)
+	instagramMembership := instagram.NewMembershipStore(pool)
+	var instagramRateLimiter *instagram.PostgresRateLimiter
+	if cfg.InstagramData.Available() {
+		instagramRateLimiter, err = instagram.NewPostgresRateLimiter(pool, cfg.InstagramData.HMACKey(), time.Now)
+		if err != nil {
+			pool.Close()
+			return nil, nil, fmt.Errorf("Instagram persistent rate limiter: %w", err)
+		}
+	}
+	instagramPrivateData := instagram.NewPrivateDataService(pool, instagramRateLimiter, time.Now)
+	notificationActorDeletion := notifications.NewActorDeletionService(pool)
+	profileDeletion := &profileMembershipDeletion{
+		notifications: notificationActorDeletion,
+		instagram:     instagramPrivateData,
+		now:           time.Now,
+	}
+	dispatcher := newIndexerDispatcherWithActorDeletion(pool, anonPDS, logger, lifecycle, profileDeletion)
+	identityDeletion := &terminalIdentityDeletion{handlers: []tap.IdentityDeletionHandler{
+		notificationActorDeletion,
+		instagramPrivateData,
+	}}
 
 	deps := &Deps{
 		Config:               cfg,
@@ -154,6 +193,10 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		HandleResolver:       api.DirectoryHandleResolver{Directory: identityDir},
 		Indexer:              dispatcher,
 		Consumer:             tap.NotImplemented{}, // temp, replaced below
+		InstagramMembership:  instagramMembership,
+		InstagramRateLimiter: instagramRateLimiter,
+		InstagramPrivateData: instagramPrivateData,
+		InstagramRetention:   instagram.NewRetentionService(pool, time.Now),
 	}
 	if cfg.PushEnabled {
 		sender, err := push.NewFirebaseSender(ctx, cfg.FirebaseProjectID)
@@ -172,7 +215,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		MaxRetries:      cfg.TapMaxRetries,
 		Logger:          logger,
 		Observer:        deps.Observability,
-		IdentityHandler: notifications.NewActorDeletionService(pool),
+		IdentityHandler: identityDeletion,
 	})
 	if cfg.Env == EnvDev {
 		deps.HandleResolver = api.DevHandleResolver{
@@ -182,6 +225,151 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	}
 
 	deps.ProfileStore = api.NewProfileStore(pool, anonPDS)
+	verificationStore := instagram.NewVerificationStore(pool)
+	var challengeCodec *instagram.ChallengeCodec
+	if cfg.InstagramData.Available() {
+		challengeCodec, err = instagram.NewChallengeCodec(rand.Reader, cfg.InstagramData.HMACKey())
+		if err != nil {
+			pool.Close()
+			return nil, nil, fmt.Errorf("Instagram challenge codec: %w", err)
+		}
+	}
+	deps.InstagramVerification, err = instagram.NewVerificationService(instagram.VerificationServiceOptions{
+		Store:     verificationStore,
+		Codec:     challengeCodec,
+		TTL:       cfg.InstagramLimits.ChallengeTTL,
+		DMURL:     cfg.InstagramMeta.DMURL(),
+		HMACKey:   cfg.InstagramData.HMACKey(),
+		Available: cfg.InstagramMeta.Enabled() && cfg.InstagramMeta.Configured(),
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("Instagram verification service: %w", err)
+	}
+	if cfg.InstagramMeta.Enabled() && cfg.InstagramMeta.Configured() {
+		if deps.InstagramRateLimiter == nil {
+			pool.Close()
+			return nil, nil, errors.New("Instagram Meta integration requires the persistent rate limiter")
+		}
+		digests, digestErr := instagrammeta.NewDigestCodec(cfg.InstagramData.HMACKey(), instagram.CanonicalizeChallenge)
+		if digestErr != nil {
+			pool.Close()
+			return nil, nil, fmt.Errorf("Instagram webhook digest codec: %w", digestErr)
+		}
+		reducer, reducerErr := instagrammeta.NewPayloadReducer(cfg.InstagramMeta.InstagramAccountID(), digests)
+		if reducerErr != nil {
+			pool.Close()
+			return nil, nil, fmt.Errorf("Instagram webhook reducer: %w", reducerErr)
+		}
+		webhookRateLimiter, limiterErr := middleware.NewInstagramWebhookRateLimiter(
+			deps.InstagramRateLimiter,
+			cfg.InstagramDeployment.TrustedProxyCIDRs(),
+			cfg.InstagramLimits.WebhookIPPerMinute,
+			cfg.InstagramLimits.WebhookGlobalPerMinute,
+			cfg.InstagramLimits.InvalidIPPer15Minutes,
+		)
+		if limiterErr != nil {
+			pool.Close()
+			return nil, nil, fmt.Errorf("Instagram webhook limiter: %w", limiterErr)
+		}
+		webhookStore := instagram.NewWebhookStore(pool)
+		deps.InstagramWebhook, err = instagrammeta.NewWebhookHandler(instagrammeta.WebhookHandlerConfig{
+			AppSecret:      []byte(cfg.InstagramMeta.AppSecret()),
+			VerifyToken:    cfg.InstagramMeta.VerifyToken(),
+			Reducer:        reducer,
+			Sink:           webhookStore,
+			Limiter:        webhookRateLimiter,
+			BodyLimitBytes: cfg.InstagramLimits.WebhookBodyLimitBytes,
+			MaxEvents:      cfg.InstagramLimits.WebhookMaxEvents,
+			Now:            time.Now,
+		})
+		if err != nil {
+			pool.Close()
+			return nil, nil, fmt.Errorf("Instagram webhook handler: %w", err)
+		}
+		baseURL := cfg.InstagramMeta.APIBaseURL()
+		metaClient, clientErr := instagrammeta.NewHTTPClient(instagrammeta.HTTPClientConfig{
+			HTTPClient:        &http.Client{},
+			BaseURL:           baseURL.String(),
+			APIVersion:        cfg.InstagramMeta.APIVersion(),
+			AccessToken:       cfg.InstagramMeta.AccessToken(),
+			OfficialAccountID: cfg.InstagramMeta.InstagramAccountID(),
+			RequestTimeout:    cfg.InstagramLimits.MetaHTTPTimeout,
+			ResponseLimit:     cfg.InstagramLimits.MetaResponseLimitBytes,
+			MaxConcurrent:     cfg.InstagramLimits.MetaLookupConcurrency,
+		})
+		if clientErr != nil {
+			pool.Close()
+			return nil, nil, fmt.Errorf("Instagram Meta client: %w", clientErr)
+		}
+		redeemer, redeemerErr := instagram.NewVerificationWebhookRedeemer(verificationStore)
+		if redeemerErr != nil {
+			pool.Close()
+			return nil, nil, fmt.Errorf("Instagram webhook redeemer: %w", redeemerErr)
+		}
+		replyText := ""
+		if cfg.InstagramMeta.RepliesEnabled() {
+			replyText = "CraftSky received your verification message. Return to CraftSky to confirm your Instagram username."
+		}
+		deps.InstagramWebhookWorker, err = instagram.NewWebhookWorker(
+			webhookStore,
+			redeemer,
+			deps.InstagramMembership,
+			metaClient,
+			instagram.WebhookWorkerOptions{
+				BatchSize:                  1,
+				Now:                        time.Now,
+				ReplyText:                  replyText,
+				ReplyWindow:                cfg.InstagramLimits.DMReplyWindow,
+				RateLimiter:                deps.InstagramRateLimiter,
+				InvalidIGSIDPer15Minutes:   cfg.InstagramLimits.InvalidIGSIDPer15Minutes,
+				MetaLookupsPerIGSIDPerHour: cfg.InstagramLimits.MetaLookupsPerIGSIDPerHour,
+			},
+		)
+		if err != nil {
+			pool.Close()
+			return nil, nil, fmt.Errorf("Instagram webhook worker: %w", err)
+		}
+	}
+	suggestionStore := instagram.NewSuggestionStore(pool, lifecycle)
+	// Production matching intentionally fails closed until the repository has
+	// a real block/mute relationship-safety provider.
+	suggestionPolicy := instagram.NewPostgresInstagramSuggestionEligibilityPolicy(pool, nil, time.Now)
+	deps.InstagramImports, err = instagram.NewImportService(instagram.ImportServiceOptions{
+		Repository:      instagram.NewImportStore(pool),
+		Matcher:         instagram.NewSuggestionMatcher(pool, suggestionStore, suggestionPolicy, time.Now),
+		MaxEntries:      cfg.InstagramLimits.ImportMaxEntries,
+		DefaultPageSize: cfg.InstagramLimits.PageDefault,
+		MaxPageSize:     cfg.InstagramLimits.PageMax,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("Instagram import service: %w", err)
+	}
+	deps.InstagramAccount = instagram.NewAccountStore(pool, time.Now)
+	deps.InstagramReconciliation, err = instagram.NewReconciliationWorker(instagram.ReconciliationWorkerOptions{
+		Pool:          pool,
+		Store:         suggestionStore,
+		Policy:        suggestionPolicy,
+		Notifications: lifecycle,
+		Now:           time.Now,
+		LeaseDuration: cfg.InstagramLimits.WorkerLeaseDuration,
+		MaxAttempts:   cfg.InstagramLimits.WorkerMaxAttempts,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("Instagram reconciliation worker: %w", err)
+	}
+	deps.InstagramSuggestions, err = instagram.NewSuggestionService(instagram.SuggestionServiceOptions{
+		Repository:      suggestionStore,
+		Policy:          suggestionPolicy,
+		DefaultPageSize: cfg.InstagramLimits.PageDefault,
+		MaxPageSize:     cfg.InstagramLimits.PageMax,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("Instagram suggestion service: %w", err)
+	}
 	deps.IdentityCacheUpdater = api.NewIdentityCacheService(pool, deps.HandleResolver, time.Now)
 	deps.FollowStore = api.NewFollowStore(pool)
 	deps.ReportStore = api.NewReportStore(pool)
@@ -248,10 +436,31 @@ func newIndexerDispatcher(pool *pgxpool.Pool, anonPDS auth.PDSClient, logger *sl
 	if len(lifecycles) > 0 && lifecycles[0] != nil {
 		lifecycle = lifecycles[0]
 	}
+	return newIndexerDispatcherWithActorDeletion(
+		pool,
+		anonPDS,
+		logger,
+		lifecycle,
+		notifications.NewActorDeletionService(pool),
+	)
+}
+
+func newIndexerDispatcherWithActorDeletion(
+	pool *pgxpool.Pool,
+	anonPDS auth.PDSClient,
+	logger *slog.Logger,
+	lifecycle notifications.Lifecycle,
+	actorDeletion notifications.ActorDeletion,
+) *index.Dispatcher {
+	if lifecycle == nil {
+		lifecycle = notifications.NoopLifecycle{}
+	}
+	if actorDeletion == nil {
+		actorDeletion = notifications.NoopActorDeletion{}
+	}
 	dispatcher := index.NewDispatcher(index.NotImplemented{})
 	blueskyIdx := index.NewBlueskyProfile(pool)
 	backfiller := index.NewBlueskyBackfiller(anonPDS, blueskyIdx)
-	actorDeletion := notifications.NewActorDeletionService(pool)
 	dispatcher.Register("social.craftsky.actor.profile",
 		index.NewCraftskyProfile(pool, backfiller, logger, actorDeletion))
 	dispatcher.Register("social.craftsky.feed.post",

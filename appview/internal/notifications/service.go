@@ -68,36 +68,45 @@ func (s *Service) Activate(ctx context.Context, tx pgx.Tx, activation Activation
 	var insertedID uuid.UUID
 	var inserted bool
 	err = tx.QueryRow(ctx, `
-		INSERT INTO notification_events (
-			id, recipient_did, actor_did, category, subject_key,
-			source_uri, source_cid, source_rkey, subject_uri, subject_cid,
-			parent_uri,parent_cid,root_uri,root_cid,quoted_uri,quoted_cid,
-			eligibility_scope, recipient_followed_actor, push_enabled_snapshot,
-			state, first_activity_at, activity_at, indexed_at, initial_push_evaluated_at
-		) VALUES (
-			$1, $2, $3, $4, $5,
-			$6, $7, $8, NULLIF($14, ''), NULLIF($15, ''),
-			NULLIF($16,''),NULLIF($17,''),NULLIF($18,''),NULLIF($19,''),NULLIF($20,''),NULLIF($21,''),
-			$9, $10, $11,
-			'active', $12, $12, $13, $13
+		WITH inserted_event AS (
+			INSERT INTO notification_events (
+				id, recipient_did, actor_did, category, subject_key,
+				source_uri, source_cid, source_rkey, subject_uri, subject_cid,
+				parent_uri,parent_cid,root_uri,root_cid,quoted_uri,quoted_cid,
+				eligibility_scope, recipient_followed_actor, push_enabled_snapshot,
+				state, first_activity_at, activity_at, indexed_at, initial_push_evaluated_at
+			) VALUES (
+				$1, $2, $3, $4, $5,
+				$6, $7, $8, NULLIF($14, ''), NULLIF($15, ''),
+				NULLIF($16,''),NULLIF($17,''),NULLIF($18,''),NULLIF($19,''),NULLIF($20,''),NULLIF($21,''),
+				$9, $10, $11,
+				'active', $12, $12, $13, $13
+			)
+			ON CONFLICT DO NOTHING
+			RETURNING id, true AS inserted
+		), updated_event AS (
+			UPDATE notification_events
+			SET source_uri=$6, source_cid=$7, source_rkey=$8,
+				subject_uri=NULLIF($14,''), subject_cid=NULLIF($15,''),
+				parent_uri=NULLIF($16,''), parent_cid=NULLIF($17,''),
+				root_uri=NULLIF($18,''), root_cid=NULLIF($19,''),
+				quoted_uri=NULLIF($20,''), quoted_cid=NULLIF($21,''),
+				state='active', activity_at=$12, indexed_at=$13,
+				retracted_at=NULL, retraction_reason=NULL
+			WHERE NOT EXISTS (SELECT 1 FROM inserted_event)
+			  AND recipient_did=$2 AND actor_did=$3
+			  AND category=$4 AND subject_key=$5
+			  AND (
+				state='retracted'
+				OR source_uri IS DISTINCT FROM $6
+				OR source_cid IS DISTINCT FROM $7
+			  )
+			RETURNING id, false AS inserted
 		)
-		ON CONFLICT (recipient_did, actor_did, category, subject_key) DO UPDATE SET
-			source_uri = EXCLUDED.source_uri,
-			source_cid = EXCLUDED.source_cid,
-			source_rkey = EXCLUDED.source_rkey,
-			subject_uri=EXCLUDED.subject_uri,subject_cid=EXCLUDED.subject_cid,
-			parent_uri=EXCLUDED.parent_uri,parent_cid=EXCLUDED.parent_cid,
-			root_uri=EXCLUDED.root_uri,root_cid=EXCLUDED.root_cid,
-			quoted_uri=EXCLUDED.quoted_uri,quoted_cid=EXCLUDED.quoted_cid,
-			state = 'active',
-			activity_at = EXCLUDED.activity_at,
-			indexed_at = EXCLUDED.indexed_at,
-			retracted_at = NULL,
-			retraction_reason = NULL
-		WHERE notification_events.state = 'retracted'
-		   OR notification_events.source_uri IS DISTINCT FROM EXCLUDED.source_uri
-		   OR notification_events.source_cid IS DISTINCT FROM EXCLUDED.source_cid
-		RETURNING id, (xmax = 0) AS inserted
+		SELECT id, inserted FROM inserted_event
+		UNION ALL
+		SELECT id, inserted FROM updated_event
+		LIMIT 1
 	`, notificationID, activation.RecipientDID, activation.ActorDID, activation.Category, activation.SubjectKey,
 		activation.SourceURI, activation.SourceCID, activation.SourceRkey,
 		preference.Scope, followsActor, decision.PushEnabled, activation.ActivityAt, now,

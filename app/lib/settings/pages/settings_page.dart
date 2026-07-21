@@ -1,3 +1,5 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
 import 'package:craftsky_app/settings/widgets/clear_image_cache_tile.dart';
 import 'package:craftsky_app/settings/widgets/sign_out_tile.dart';
@@ -21,7 +23,8 @@ class _SettingsPageBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Column(
+    final l10n = AppLocalizations.of(context);
+    return ListView(
       children: [
         ListTile(
           leading: const Icon(Icons.group_outlined),
@@ -42,6 +45,12 @@ class _SettingsPageBody extends ConsumerWidget {
                   const FollowListPage(kind: FollowListKind.following),
             ),
           ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.photo_camera_outlined),
+          title: Text(l10n.instagramMigrationTitle),
+          subtitle: Text(l10n.instagramMigrationSettingsSubtitle),
+          onTap: () => const InstagramMigrationRoute().push<void>(context),
         ),
         const ClearImageCacheTile(),
         const SignOutTile(),

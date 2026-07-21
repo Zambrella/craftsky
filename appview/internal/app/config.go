@@ -61,6 +61,14 @@ type Config struct {
 	PushLeaseDuration time.Duration
 	PushSendTimeout   time.Duration
 
+	// Instagram migration has separate private-data and external Meta
+	// availability so a provider outage cannot lock members out of retained
+	// imports or privacy controls.
+	InstagramData       InstagramDataConfig
+	InstagramMeta       InstagramMetaConfig
+	InstagramLimits     InstagramLimits
+	InstagramDeployment InstagramDeploymentConfig
+
 	// OAuth-related.
 	OAuthHostname                   string        // empty in dev (localhost mode)
 	OAuthClientSecretKey            string        // multibase-encoded P-256 private key; empty in dev
@@ -202,6 +210,10 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		return Config{}, err
 	}
 	cfg.RateLimits = DefaultRateLimitConfig()
+	cfg.InstagramData, cfg.InstagramMeta, cfg.InstagramLimits, cfg.InstagramDeployment, err = loadInstagramConfig(env)
+	if err != nil {
+		return Config{}, err
+	}
 	cfg.SentryDSN = os.Getenv("SENTRY_DSN")
 	cfg.SentryRelease = os.Getenv("SENTRY_RELEASE")
 	if cfg.SentryLogsEnabled, err = boolEnv("SENTRY_LOGS_ENABLED", false); err != nil {

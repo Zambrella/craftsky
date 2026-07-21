@@ -73,7 +73,7 @@ void main() {
     expect(page.items[2], isA<RepostNotification>());
     expect(page.items[3], isA<ReplyNotification>());
     expect(page.items[4], isA<MentionNotification>());
-    expect(page.items[0].actor.displayLabel, 'Alice');
+    expect((page.items[0] as SocialNotification).actor.displayLabel, 'Alice');
     expect((page.items[1] as LikeNotification).subjectPost.text, 'viewer post');
     expect(
       (page.items[3] as ReplyNotification).reply!.rkey.toString(),
@@ -159,5 +159,56 @@ void main() {
         'at://did:plc:alice/social.craftsky.feed.post/reply1',
       ),
     );
+  });
+
+  test('UT-012 decodes an exact actorless Instagram system notification', () {
+    final notification = CraftskyNotification.fromMap({
+      'id': '00000000-0000-0000-0000-000000000321',
+      'kind': 'system',
+      'type': 'instagramMatch',
+      'createdAt': '2026-07-19T12:00:00Z',
+      'indexedAt': '2026-07-19T12:04:00Z',
+      'system': {
+        'count': 99,
+        'countCapped': true,
+        'destination': 'instagramMigration',
+      },
+    });
+
+    expect(notification, isA<InstagramMatchNotification>());
+    expect(notification, isNot(isA<SocialNotification>()));
+    final match = notification as InstagramMatchNotification;
+    expect(match.id, '00000000-0000-0000-0000-000000000321');
+    expect(match.count, 99);
+    expect(match.countCapped, isTrue);
+    expect(match.destination, InstagramSystemDestination.instagramMigration);
+    expect(match.type, NotificationCategory.instagramMatch);
+  });
+
+  test('UT-012 keeps unknown and malformed system variants actorless and inert', () {
+    Map<String, dynamic> system(String type, Object? payload) => {
+      'id': '00000000-0000-0000-0000-000000000322',
+      'kind': 'system',
+      'type': type,
+      'createdAt': '2026-07-19T12:00:00Z',
+      'indexedAt': '2026-07-19T12:04:00Z',
+      'system': payload,
+    };
+
+    final unknown = CraftskyNotification.fromMap(
+      system('futureSystemType', {'privateFutureFact': 'ignored'}),
+    );
+    final malformed = CraftskyNotification.fromMap(
+      system('instagramMatch', {'count': 0, 'destination': 'profile'}),
+    );
+    final unknownKind = CraftskyNotification.fromMap({
+      ...system('instagramMatch', const <String, Object?>{}),
+      'kind': 'futureKind',
+    });
+
+    for (final notification in [unknown, malformed, unknownKind]) {
+      expect(notification, isA<GenericSystemNotification>());
+      expect(notification, isNot(isA<SocialNotification>()));
+    }
   });
 }

@@ -101,6 +101,13 @@
   },
   "notificationGenericRow": "New activity",
   "notificationUnavailableRow": "Activity unavailable",
+  "notificationInstagramMatchRow": "{count, plural, =1{A new Instagram match is ready to review} other{{count} new Instagram matches are ready to review}}",
+  "@notificationInstagramMatchRow": {
+    "description": "Actorless notification copy for one or more bounded Instagram matches.",
+    "placeholders": { "count": { "type": "int", "example": "3" } }
+  },
+  "notificationInstagramMatchRowCapped": "99+ new Instagram matches are ready to review",
+  "@notificationInstagramMatchRowCapped": { "description": "Actorless notification copy when the private match count is capped." },
   "notificationSettingsAction": "Notification settings",
   "notificationSettingsIntro": "Category preferences apply to all devices signed in to this account.",
   "notificationDeviceDisabled": "Notifications are disabled on this device",
@@ -112,6 +119,8 @@
   "notificationCategoryMentions": "Mentions",
   "notificationCategoryQuotes": "Quotes",
   "notificationCategoryReposts": "Reposts",
+  "notificationCategoryInstagramMatches": "Instagram matches",
+  "notificationInstagramMatchPreferenceDescription": "Push alerts are based on your Instagram migration eligibility. They never name matched accounts.",
   "notificationCategoryEverythingElse": "Everything else",
   "notificationPreferenceFrom": "From",
   "notificationScopeEveryone": "Everyone",
@@ -1262,5 +1271,133 @@
   "@projectsEmpty": { "description": "Empty state on the Projects browse page." },
 
   "projectsLoadError": "Projects didn't load.",
-  "@projectsLoadError": { "description": "Error title shown when the Projects browse feed fails to load." }
+  "@projectsLoadError": { "description": "Error title shown when the Projects browse feed fails to load." },
+
+  "instagramMigrationTitle": "Find people from Instagram",
+  "instagramMigrationSettingsSubtitle": "Verify your account or privately import handles.",
+  "instagramMigrationLoadError": "Instagram migration data didn't load.",
+  "instagramMigrationNoActiveAccount": "Sign in to an account to use Instagram migration.",
+  "instagramVerificationTitle": "Verify your Instagram account",
+  "instagramVerificationDescription": "Send a one-time challenge to CraftSky's official Instagram account. You will confirm the username here before anything is linked.",
+  "instagramVerificationUnavailable": "Instagram verification is unavailable right now.",
+  "instagramVerificationUnavailableImports": "You can still import handles on this device.",
+  "instagramVerificationStart": "Create verification challenge",
+  "instagramVerificationSendChallenge": "Send this exact one-time challenge in an Instagram DM:",
+  "instagramVerificationChallengeLabel": "Instagram verification challenge",
+  "instagramVerificationProcessing": "Checking your message…",
+  "instagramCopyChallenge": "Copy challenge",
+  "instagramChallengeCopied": "Challenge copied",
+  "instagramOpenDm": "Open Instagram DM",
+  "instagramCancelVerification": "Cancel verification",
+  "instagramVerificationCandidate": "Instagram found @{username}",
+  "@instagramVerificationCandidate": {
+    "placeholders": { "username": { "type": "String", "example": "maker" } }
+  },
+  "instagramUnknownUsername": "unknown",
+  "instagramVerificationCandidateWarning": "Confirm only if this is your Instagram username.",
+  "instagramDiscoverableLabel": "Let imported contacts find me",
+  "instagramDiscoverableDescription": "When enabled, eligible CraftSky members who imported your exact current Instagram username may see a suggestion. This never follows anyone automatically.",
+  "instagramDiscoverableAllow": "Allow discovery",
+  "instagramDiscoverablePrivate": "Keep private",
+  "instagramVerificationConfirm": "Confirm this account",
+  "instagramVerificationConfirmed": "Instagram account confirmed.",
+  "instagramVerificationExpired": "This verification challenge expired.",
+  "instagramVerificationCancelled": "This verification challenge is no longer active.",
+  "instagramVerificationRejected": "Instagram could not verify this message. Create a new challenge to try again.",
+  "instagramVerificationProfileUnavailable": "Instagram profile lookup is temporarily unavailable. Create a new challenge to try again.",
+  "instagramVerificationProfileInvalid": "Instagram returned an invalid profile result. Create a new challenge to try again.",
+  "instagramVerificationMembershipInactive": "Your CraftSky membership is inactive. Restore membership before trying again.",
+  "instagramVerificationConflict": "This Instagram account cannot be linked automatically. Your existing account remains unchanged.",
+  "instagramActionError": "That Instagram action didn't complete. Try again.",
+  "instagramRetry": "Try again",
+  "instagramLoadMore": "Load more",
+  "instagramAccountTitle": "Instagram account",
+  "instagramLinkedAs": "Linked as @{username}",
+  "@instagramLinkedAs": {
+    "placeholders": { "username": { "type": "String", "example": "maker" } }
+  },
+  "instagramConflictPending": "There is a private account conflict to resolve. No ownership was transferred.",
+  "instagramReactivateAccount": "Reactivate Instagram account",
+  "instagramReactivateAccountDisclosure": "Reactivation keeps discovery off until you choose to turn it on again.",
+  "instagramRevokeAccount": "Revoke Instagram link",
+  "instagramImportTitle": "Import Instagram contacts",
+  "instagramImportLocalDisclosure": "CraftSky reads the selected JSON file only on this device. Only normalized usernames and their relationship direction are uploaded; ZIP archives are not supported.",
+  "instagramImportManual": "Enter handles",
+  "instagramImportJson": "Choose JSON",
+  "instagramImportDirection": "Relationship direction",
+  "instagramImportChooseDirection": "Choose whether these people are following or followers",
+  "instagramImportFollowing": "Accounts I follow",
+  "instagramImportFollowers": "Accounts that follow me",
+  "instagramImportHandles": "Instagram handles",
+  "instagramImportHandlesHint": "One handle per line",
+  "instagramImportPreview": "Preview normalized handles",
+  "instagramImportSelectJson": "Select Instagram JSON file",
+  "instagramImportFilePickerError": "The JSON file couldn't be opened on this device.",
+  "instagramImportInvalidJson": "This file is not valid JSON.",
+  "instagramImportUnsupportedShape": "This JSON is not a supported Instagram following or followers export for the selected direction.",
+  "instagramImportUnsupportedFormat": "ZIP archives are not supported. Select the following or followers JSON file inside the export.",
+  "instagramImportFileTooLarge": "This file is larger than 20 MiB.",
+  "instagramImportTooManyEntries": "This import contains more than 10,000 unique handles.",
+  "instagramImportPreviewCount": "{count, plural, =1{1 normalized handle ready} other{{count} normalized handles ready}}",
+  "@instagramImportPreviewCount": {
+    "placeholders": { "count": { "type": "int", "example": "12" } }
+  },
+  "instagramImportFollowingPreviewCount": "{count, plural, =1{1 account you follow ready} other{{count} accounts you follow ready}}",
+  "@instagramImportFollowingPreviewCount": {
+    "placeholders": { "count": { "type": "int", "example": "12" } }
+  },
+  "instagramImportFollowerPreviewCount": "{count, plural, =1{1 follower ready} other{{count} followers ready}}",
+  "@instagramImportFollowerPreviewCount": {
+    "placeholders": { "count": { "type": "int", "example": "12" } }
+  },
+  "instagramImportIgnoredCount": "{count, plural, =1{1 unsupported entry ignored} other{{count} unsupported entries ignored}}",
+  "@instagramImportIgnoredCount": {
+    "placeholders": { "count": { "type": "int", "example": "2" } }
+  },
+  "instagramImportDuplicateCount": "{count, plural, =1{1 duplicate removed} other{{count} duplicates removed}}",
+  "@instagramImportDuplicateCount": {
+    "placeholders": { "count": { "type": "int", "example": "2" } }
+  },
+  "instagramImportRetention": "Keep unmatched accounts for future matches",
+  "instagramImportRetentionDescription": "Optional. Unmatched following handles may be retained privately for up to 12 months. You can withdraw this consent or delete the import at any time.",
+  "instagramImportUpload": "Create private import",
+  "instagramImportUploadSuccess": "Instagram import created",
+  "instagramImportUploadError": "Instagram import wasn't created. Try again.",
+  "instagramImportsTitle": "Your imports",
+  "instagramImportsLoadError": "Your Instagram imports didn't load.",
+  "instagramImportsEmpty": "No Instagram imports yet.",
+  "instagramImportManualSource": "Manual handles",
+  "instagramImportJsonSource": "Instagram JSON",
+  "instagramImportUnknownSource": "Instagram import",
+  "instagramImportCounts": "{followingCount} following · {followerCount} followers",
+  "@instagramImportCounts": {
+    "placeholders": {
+      "followingCount": { "type": "int", "example": "12" },
+      "followerCount": { "type": "int", "example": "4" }
+    }
+  },
+  "instagramImportRetainedUntil": "Future matching retained until {date}",
+  "@instagramImportRetainedUntil": {
+    "placeholders": { "date": { "type": "String", "example": "1 Dec 2026" } }
+  },
+  "instagramImportReactivationDisclosure": "This import paused when your CraftSky membership changed. Reactivating it does not extend its retention date.",
+  "instagramImportReactivate": "Reactivate import",
+  "instagramImportRenewRetention": "Renew future-match retention",
+  "instagramImportWithdrawRetention": "Withdraw future-match retention",
+  "instagramImportRetentionDiscarded": "Unmatched handles are not retained. Create a new import if you want to enable future matching.",
+  "instagramImportDelete": "Delete import",
+  "instagramSuggestionsTitle": "People you may know",
+  "instagramSuggestionsLoadError": "Instagram suggestions didn't load.",
+  "instagramSuggestionsEmpty": "No eligible Instagram suggestions right now.",
+  "instagramSuggestionsSelectAll": "Select all reviewed",
+  "instagramSuggestionsClearSelection": "Clear selection",
+  "instagramSuggestionsAcceptSelected": "{count, plural, =1{Follow 1 selected person} other{Follow {count} selected people}}",
+  "@instagramSuggestionsAcceptSelected": {
+    "placeholders": { "count": { "type": "int", "example": "3" } }
+  },
+  "instagramSuggestionReason": "You follow this verified account on Instagram.",
+  "instagramSuggestionUnknownReason": "Suggested from your private Instagram import.",
+  "instagramSuggestionAccept": "Follow",
+  "instagramSuggestionDismiss": "Dismiss",
+  "instagramSuggestionsActionError": "One or more suggestions changed or couldn't be updated. Refresh before trying again."
 }

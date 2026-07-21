@@ -93,6 +93,15 @@ RouteBase get $appShellRoute => StatefulShellRouteData.$route(
               name: 'settings',
               parentNavigatorKey: SettingsRoute.$parentNavigatorKey,
               factory: $SettingsRoute._fromState,
+              routes: [
+                GoRouteData.$route(
+                  path: 'instagram',
+                  name: 'instagram-migration',
+                  parentNavigatorKey:
+                      InstagramMigrationRoute.$parentNavigatorKey,
+                  factory: $InstagramMigrationRoute._fromState,
+                ),
+              ],
             ),
             GoRouteData.$route(
               path: 'playground',
@@ -304,6 +313,27 @@ mixin $SettingsRoute on GoRouteData {
 
   @override
   String get location => GoRouteData.$location('/profile/settings');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $InstagramMigrationRoute on GoRouteData {
+  static InstagramMigrationRoute _fromState(GoRouterState state) =>
+      const InstagramMigrationRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/settings/instagram');
 
   @override
   void go(BuildContext context) => context.go(location);

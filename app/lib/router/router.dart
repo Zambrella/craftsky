@@ -9,6 +9,7 @@ import 'package:craftsky_app/design_playground/pages/design_playground_page.dart
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
+import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.dart';
 import 'package:craftsky_app/notifications/pages/notification_settings_page.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
@@ -184,6 +185,12 @@ GoRouter goRouter(Ref ref) {
             TypedGoRoute<SettingsRoute>(
               path: RouteLocations.settingsChild,
               name: 'settings',
+              routes: [
+                TypedGoRoute<InstagramMigrationRoute>(
+                  path: RouteLocations.instagramMigrationChild,
+                  name: 'instagram-migration',
+                ),
+              ],
             ),
             TypedGoRoute<PlaygroundRoute>(
               path: RouteLocations.playgroundChild,
@@ -317,6 +324,18 @@ class SettingsRoute extends GoRouteData with $SettingsRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const SettingsPage();
+}
+
+class InstagramMigrationRoute extends GoRouteData
+    with $InstagramMigrationRoute {
+  const InstagramMigrationRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const InstagramMigrationPage();
 }
 
 /// Dev-only design playground. Same shape as [SettingsRoute] — nested under

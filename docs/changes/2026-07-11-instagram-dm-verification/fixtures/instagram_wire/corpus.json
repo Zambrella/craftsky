@@ -1,0 +1,1516 @@
+{
+  "schemaVersion": 1,
+  "fixturePolicy": {
+    "classification": "whollySynthetic",
+    "containsUserDerivedData": false,
+    "description": "Contract-only values under reserved synthetic.invalid names and opaque synthetic identifiers."
+  },
+  "limits": {
+    "defaultPageSize": 20,
+    "maxPageSize": 50
+  },
+  "requests": [
+    {
+      "id": "verification.create",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/verifications",
+      "body": {}
+    },
+    {
+      "id": "verification.confirm",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/verifications/synthetic-verification-0001/confirm",
+      "body": {
+        "discoverable": true
+      }
+    },
+    {
+      "id": "settings.discovery",
+      "method": "PATCH",
+      "path": "/v1/migrations/instagram/settings",
+      "body": {
+        "discoverable": false
+      }
+    },
+    {
+      "id": "settings.reactivate",
+      "method": "PATCH",
+      "path": "/v1/migrations/instagram/settings",
+      "body": {
+        "discoverable": true,
+        "reactivate": true
+      }
+    },
+    {
+      "id": "import.create.manual",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/imports",
+      "body": {
+        "sourceType": "manual",
+        "retainUnmatched": false,
+        "entries": [
+          {
+            "username": "synthetic_manual_01",
+            "direction": "following"
+          }
+        ]
+      }
+    },
+    {
+      "id": "import.create.instagramJson",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/imports",
+      "body": {
+        "sourceType": "instagramJson",
+        "retainUnmatched": true,
+        "entries": [
+          {
+            "username": "synthetic_following_01",
+            "direction": "following"
+          },
+          {
+            "username": "synthetic_follower_01",
+            "direction": "follower"
+          }
+        ]
+      }
+    },
+    {
+      "id": "import.disableRetention",
+      "method": "PATCH",
+      "path": "/v1/migrations/instagram/imports/synthetic-import-0001",
+      "body": {
+        "retainUnmatched": false
+      }
+    },
+    {
+      "id": "import.reactivate",
+      "method": "PATCH",
+      "path": "/v1/migrations/instagram/imports/synthetic-import-0002",
+      "body": {
+        "reactivate": true
+      }
+    },
+    {
+      "id": "suggestion.accept",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/suggestions/synthetic-suggestion-0001/accept",
+      "bodyPresent": false
+    }
+  ],
+  "verificationResponses": [
+    {
+      "id": "verification.created",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/verifications",
+      "status": 201,
+      "shape": "creation",
+      "body": {
+        "verificationId": "synthetic-verification-0001",
+        "state": "pendingDm",
+        "challenge": "CSKY-2345-6789-ABCD-E",
+        "expiresAt": "2026-07-19T12:10:00Z",
+        "dmUrl": "https://www.instagram.com/direct/t/synthetic-thread"
+      }
+    },
+    {
+      "id": "verification.pendingDm",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/verifications/synthetic-verification-0001",
+      "status": 200,
+      "shape": "status",
+      "body": {
+        "verificationId": "synthetic-verification-0001",
+        "state": "pendingDm",
+        "expiresAt": "2026-07-19T12:10:00Z"
+      }
+    },
+    {
+      "id": "verification.processing",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/verifications/synthetic-verification-0002",
+      "status": 200,
+      "shape": "status",
+      "body": {
+        "verificationId": "synthetic-verification-0002",
+        "state": "processing",
+        "expiresAt": "2026-07-19T12:11:00Z"
+      }
+    },
+    {
+      "id": "verification.pendingConfirmation",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/verifications/synthetic-verification-0003",
+      "status": 200,
+      "shape": "status",
+      "body": {
+        "verificationId": "synthetic-verification-0003",
+        "state": "pendingConfirmation",
+        "expiresAt": "2026-07-19T12:12:00Z",
+        "candidateUsername": "synthetic_candidate_01"
+      }
+    },
+    {
+      "id": "verification.confirmed",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/verifications/synthetic-verification-0004",
+      "status": 200,
+      "shape": "status",
+      "body": {
+        "verificationId": "synthetic-verification-0004",
+        "state": "confirmed",
+        "expiresAt": "2026-07-19T12:13:00Z"
+      }
+    },
+    {
+      "id": "verification.expired",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/verifications/synthetic-verification-0005",
+      "status": 200,
+      "shape": "status",
+      "body": {
+        "verificationId": "synthetic-verification-0005",
+        "state": "expired",
+        "expiresAt": "2026-07-19T12:14:00Z"
+      }
+    },
+    {
+      "id": "verification.cancelled",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/verifications/synthetic-verification-0006",
+      "status": 200,
+      "shape": "status",
+      "body": {
+        "verificationId": "synthetic-verification-0006",
+        "state": "cancelled",
+        "expiresAt": "2026-07-19T12:15:00Z"
+      }
+    },
+    {
+      "id": "verification.superseded",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/verifications/synthetic-verification-0007",
+      "status": 200,
+      "shape": "status",
+      "body": {
+        "verificationId": "synthetic-verification-0007",
+        "state": "superseded",
+        "expiresAt": "2026-07-19T12:16:00Z"
+      }
+    },
+    {
+      "id": "verification.rejected.profileLookupUnavailable",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/verifications/synthetic-verification-0008",
+      "status": 200,
+      "shape": "status",
+      "body": {
+        "verificationId": "synthetic-verification-0008",
+        "state": "rejected",
+        "expiresAt": "2026-07-19T12:17:00Z",
+        "retryCode": "profileLookupUnavailable"
+      }
+    },
+    {
+      "id": "verification.rejected.invalidProfileResponse",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/verifications/synthetic-verification-0009",
+      "status": 200,
+      "shape": "status",
+      "body": {
+        "verificationId": "synthetic-verification-0009",
+        "state": "rejected",
+        "expiresAt": "2026-07-19T12:18:00Z",
+        "retryCode": "invalidProfileResponse"
+      }
+    },
+    {
+      "id": "verification.rejected.membershipInactive",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/verifications/synthetic-verification-0010",
+      "status": 200,
+      "shape": "status",
+      "body": {
+        "verificationId": "synthetic-verification-0010",
+        "state": "rejected",
+        "expiresAt": "2026-07-19T12:19:00Z",
+        "retryCode": "membershipInactive"
+      }
+    },
+    {
+      "id": "verification.conflicted",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/verifications/synthetic-verification-0011",
+      "status": 200,
+      "shape": "status",
+      "body": {
+        "verificationId": "synthetic-verification-0011",
+        "state": "conflicted",
+        "expiresAt": "2026-07-19T12:20:00Z"
+      }
+    }
+  ],
+  "confirmationResponses": [
+    {
+      "id": "verification.confirm.success",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/verifications/synthetic-verification-0003/confirm",
+      "status": 200,
+      "replayGroup": "confirmation-synthetic-0003",
+      "body": {
+        "state": "confirmed",
+        "account": {
+          "state": "active",
+          "username": "synthetic_candidate_01",
+          "discoverable": true,
+          "conflictPending": false,
+          "reactivationRequired": false,
+          "verifiedAt": "2026-07-19T12:04:00Z"
+        }
+      }
+    },
+    {
+      "id": "verification.confirm.identicalReplay",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/verifications/synthetic-verification-0003/confirm",
+      "status": 200,
+      "replayGroup": "confirmation-synthetic-0003",
+      "body": {
+        "state": "confirmed",
+        "account": {
+          "state": "active",
+          "username": "synthetic_candidate_01",
+          "discoverable": true,
+          "conflictPending": false,
+          "reactivationRequired": false,
+          "verifiedAt": "2026-07-19T12:04:00Z"
+        }
+      }
+    }
+  ],
+  "accountResponses": [
+    {
+      "id": "account.absent.integrationUnavailable",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/account",
+      "status": 200,
+      "body": {
+        "integrationAvailable": false,
+        "account": null
+      }
+    },
+    {
+      "id": "account.active",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/account",
+      "status": 200,
+      "body": {
+        "integrationAvailable": true,
+        "account": {
+          "state": "active",
+          "username": "synthetic_active_01",
+          "discoverable": true,
+          "conflictPending": false,
+          "reactivationRequired": false,
+          "verifiedAt": "2026-07-19T12:00:00Z"
+        }
+      }
+    },
+    {
+      "id": "account.membershipInactive",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/account",
+      "status": 200,
+      "body": {
+        "integrationAvailable": false,
+        "account": {
+          "state": "membershipInactive",
+          "username": "synthetic_inactive_01",
+          "discoverable": false,
+          "conflictPending": false,
+          "reactivationRequired": true,
+          "verifiedAt": "2026-07-19T12:01:00Z"
+        }
+      }
+    },
+    {
+      "id": "account.revoked",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/account",
+      "status": 200,
+      "body": {
+        "integrationAvailable": true,
+        "account": {
+          "state": "revoked",
+          "username": "synthetic_revoked_01",
+          "discoverable": false,
+          "conflictPending": false,
+          "reactivationRequired": false,
+          "verifiedAt": "2026-07-19T12:02:00Z"
+        }
+      }
+    },
+    {
+      "id": "account.superseded",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/account",
+      "status": 200,
+      "body": {
+        "integrationAvailable": true,
+        "account": {
+          "state": "superseded",
+          "username": "synthetic_superseded_01",
+          "discoverable": false,
+          "conflictPending": false,
+          "reactivationRequired": false,
+          "verifiedAt": "2026-07-19T12:03:00Z"
+        }
+      }
+    },
+    {
+      "id": "account.disputed",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/account",
+      "status": 200,
+      "body": {
+        "integrationAvailable": true,
+        "account": {
+          "state": "disputed",
+          "username": "synthetic_disputed_01",
+          "discoverable": false,
+          "conflictPending": true,
+          "reactivationRequired": false,
+          "verifiedAt": "2026-07-19T12:04:00Z"
+        }
+      }
+    }
+  ],
+  "importCreateResponses": [
+    {
+      "id": "import.create.success",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/imports",
+      "status": 201,
+      "body": {
+        "import": {
+          "importId": "synthetic-import-0001",
+          "state": "active",
+          "sourceType": "instagramJson",
+          "retainUnmatched": true,
+          "retentionExpiresAt": "2027-07-19T12:00:00Z",
+          "followingCount": 2,
+          "followerCount": 1,
+          "createdAt": "2026-07-19T12:00:00Z"
+        },
+        "counts": {
+          "followingCount": 2,
+          "followerCount": 1
+        },
+        "initialSuggestionCount": 1
+      }
+    }
+  ],
+  "importResponses": [
+    {
+      "id": "import.active.retained",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/imports/synthetic-import-0001",
+      "status": 200,
+      "body": {
+        "importId": "synthetic-import-0001",
+        "state": "active",
+        "sourceType": "instagramJson",
+        "retainUnmatched": true,
+        "retentionExpiresAt": "2027-07-19T12:00:00Z",
+        "followingCount": 2,
+        "followerCount": 1,
+        "createdAt": "2026-07-19T12:00:00Z"
+      }
+    },
+    {
+      "id": "import.membershipInactive.omittedRetention",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/imports/synthetic-import-0002",
+      "status": 200,
+      "body": {
+        "importId": "synthetic-import-0002",
+        "state": "membershipInactive",
+        "sourceType": "manual",
+        "retainUnmatched": false,
+        "followingCount": 1,
+        "followerCount": 0,
+        "createdAt": "2026-07-19T12:01:00Z"
+      }
+    },
+    {
+      "id": "import.expired.omittedRetention",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/imports/synthetic-import-0003",
+      "status": 200,
+      "body": {
+        "importId": "synthetic-import-0003",
+        "state": "expired",
+        "sourceType": "instagramJson",
+        "retainUnmatched": false,
+        "followingCount": 0,
+        "followerCount": 2,
+        "createdAt": "2026-07-19T12:02:00Z"
+      }
+    }
+  ],
+  "suggestionResponses": [
+    {
+      "id": "suggestion.pending.fullProfile",
+      "body": {
+        "suggestionId": "synthetic-suggestion-0001",
+        "profile": {
+          "did": "did:plc:synthetictarget01",
+          "handle": "target01.synthetic.invalid",
+          "displayName": "Synthetic Target 01",
+          "avatar": "https://cdn.synthetic.invalid/avatar/target01"
+        },
+        "reason": "verifiedInstagramFollow",
+        "state": "pending"
+      }
+    },
+    {
+      "id": "suggestion.accepting.omittedProfileOptionals",
+      "body": {
+        "suggestionId": "synthetic-suggestion-0002",
+        "profile": {
+          "did": "did:plc:synthetictarget02",
+          "handle": "target02.synthetic.invalid"
+        },
+        "reason": "verifiedInstagramFollow",
+        "state": "accepting"
+      }
+    },
+    {
+      "id": "suggestion.accepted",
+      "body": {
+        "suggestionId": "synthetic-suggestion-0003",
+        "profile": {
+          "did": "did:plc:synthetictarget03",
+          "handle": "target03.synthetic.invalid",
+          "displayName": "Synthetic Target 03"
+        },
+        "reason": "verifiedInstagramFollow",
+        "state": "accepted"
+      }
+    },
+    {
+      "id": "suggestion.alreadyFollowing",
+      "body": {
+        "suggestionId": "synthetic-suggestion-0004",
+        "profile": {
+          "did": "did:plc:synthetictarget04",
+          "handle": "target04.synthetic.invalid"
+        },
+        "reason": "verifiedInstagramFollow",
+        "state": "alreadyFollowing"
+      }
+    },
+    {
+      "id": "suggestion.dismissed",
+      "body": {
+        "suggestionId": "synthetic-suggestion-0005",
+        "profile": {
+          "did": "did:plc:synthetictarget05",
+          "handle": "target05.synthetic.invalid"
+        },
+        "reason": "verifiedInstagramFollow",
+        "state": "dismissed"
+      }
+    },
+    {
+      "id": "suggestion.invalidated",
+      "body": {
+        "suggestionId": "synthetic-suggestion-0006",
+        "profile": {
+          "did": "did:plc:synthetictarget06",
+          "handle": "target06.synthetic.invalid"
+        },
+        "reason": "verifiedInstagramFollow",
+        "state": "invalidated"
+      }
+    }
+  ],
+  "suggestionActionResponses": [
+    {
+      "id": "suggestion.accept.success",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/suggestions/synthetic-suggestion-0001/accept",
+      "status": 200,
+      "replayGroup": "suggestion-accept-synthetic-0001",
+      "body": {
+        "suggestionId": "synthetic-suggestion-0001",
+        "state": "accepted"
+      }
+    },
+    {
+      "id": "suggestion.accept.identicalReplay",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/suggestions/synthetic-suggestion-0001/accept",
+      "status": 200,
+      "replayGroup": "suggestion-accept-synthetic-0001",
+      "body": {
+        "suggestionId": "synthetic-suggestion-0001",
+        "state": "accepted"
+      }
+    },
+    {
+      "id": "suggestion.accept.alreadyFollowing",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/suggestions/synthetic-suggestion-0004/accept",
+      "status": 200,
+      "body": {
+        "suggestionId": "synthetic-suggestion-0004",
+        "state": "alreadyFollowing"
+      }
+    }
+  ],
+  "pageContracts": [
+    {
+      "id": "imports.default.omittedCursor",
+      "resource": "imports",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/imports",
+      "requestedLimit": null,
+      "effectiveLimit": 20,
+      "requestCursor": null,
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "importId": "synthetic-import-page-0001",
+            "state": "active",
+            "sourceType": "manual",
+            "retainUnmatched": false,
+            "followingCount": 1,
+            "followerCount": 0,
+            "createdAt": "2026-07-19T11:59:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "imports.max.presentCursor",
+      "resource": "imports",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/imports?limit=50&cursor=eyJjcmVhdGVkQXQiOiIyMDI2LTA3LTE5VDExOjU5OjAwWiIsImlkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwNTAxIn0",
+      "requestedLimit": 50,
+      "effectiveLimit": 50,
+      "requestCursor": "eyJjcmVhdGVkQXQiOiIyMDI2LTA3LTE5VDExOjU5OjAwWiIsImlkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwNTAxIn0",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "importId": "synthetic-import-page-0050",
+            "state": "membershipInactive",
+            "sourceType": "instagramJson",
+            "retainUnmatched": true,
+            "retentionExpiresAt": "2027-07-19T11:58:00Z",
+            "followingCount": 50,
+            "followerCount": 25,
+            "createdAt": "2026-07-19T11:58:00Z"
+          }
+        ],
+        "cursor": "eyJjcmVhdGVkQXQiOiIyMDI2LTA3LTE5VDExOjU4OjAwWiIsImlkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwNTUwIn0"
+      }
+    },
+    {
+      "id": "suggestions.default.omittedCursor",
+      "resource": "suggestions",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/suggestions",
+      "requestedLimit": null,
+      "effectiveLimit": 20,
+      "requestCursor": null,
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "suggestionId": "synthetic-suggestion-page-0001",
+            "profile": {
+              "did": "did:plc:syntheticpage01",
+              "handle": "page01.synthetic.invalid"
+            },
+            "reason": "verifiedInstagramFollow",
+            "state": "pending"
+          }
+        ]
+      }
+    },
+    {
+      "id": "suggestions.max.presentCursor",
+      "resource": "suggestions",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/suggestions?limit=50&cursor=eyJjcmVhdGVkQXQiOiIyMDI2LTA3LTE5VDExOjU3OjAwWiIsImlkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwNjAxIn0",
+      "requestedLimit": 50,
+      "effectiveLimit": 50,
+      "requestCursor": "eyJjcmVhdGVkQXQiOiIyMDI2LTA3LTE5VDExOjU3OjAwWiIsImlkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwNjAxIn0",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "suggestionId": "synthetic-suggestion-page-0050",
+            "profile": {
+              "did": "did:plc:syntheticpage50",
+              "handle": "page50.synthetic.invalid",
+              "displayName": "Synthetic Page Target 50"
+            },
+            "reason": "verifiedInstagramFollow",
+            "state": "pending"
+          }
+        ],
+        "cursor": "eyJjcmVhdGVkQXQiOiIyMDI2LTA3LTE5VDExOjU2OjAwWiIsImlkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwNjUwIn0"
+      }
+    }
+  ],
+  "errorContracts": [
+    {
+      "id": "verification.unavailable",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/verifications",
+      "status": 503,
+      "body": {
+        "error": "instagram_verification_unavailable",
+        "message": "Instagram verification unavailable",
+        "requestId": "synthetic-request-0001"
+      }
+    },
+    {
+      "id": "rateLimited",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/verifications",
+      "status": 429,
+      "body": {
+        "error": "rate_limited",
+        "message": "too many requests",
+        "requestId": "synthetic-request-0002"
+      }
+    },
+    {
+      "id": "verification.notFound",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/verifications/synthetic-missing",
+      "status": 404,
+      "body": {
+        "error": "instagram_verification_not_found",
+        "message": "Instagram verification not found",
+        "requestId": "synthetic-request-0003"
+      }
+    },
+    {
+      "id": "verification.stateConflict",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/verifications/synthetic-verification-0005/confirm",
+      "status": 409,
+      "body": {
+        "error": "instagram_verification_state_conflict",
+        "message": "Instagram verification state conflict",
+        "requestId": "synthetic-request-0004"
+      }
+    },
+    {
+      "id": "link.conflict",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/verifications/synthetic-verification-0011/confirm",
+      "status": 409,
+      "body": {
+        "error": "instagram_link_conflict",
+        "message": "Instagram account link conflict",
+        "requestId": "synthetic-request-0005"
+      }
+    },
+    {
+      "id": "member.notFound",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/account",
+      "status": 404,
+      "body": {
+        "error": "profile_not_found",
+        "message": "profile not found",
+        "requestId": "synthetic-request-0006"
+      }
+    },
+    {
+      "id": "request.invalid",
+      "method": "PATCH",
+      "path": "/v1/migrations/instagram/settings",
+      "status": 400,
+      "body": {
+        "error": "invalid_request",
+        "message": "invalid request",
+        "requestId": "synthetic-request-0007"
+      }
+    },
+    {
+      "id": "link.notFound",
+      "method": "PATCH",
+      "path": "/v1/migrations/instagram/settings",
+      "status": 404,
+      "body": {
+        "error": "instagram_link_not_found",
+        "message": "Instagram account link not found",
+        "requestId": "synthetic-request-0008"
+      }
+    },
+    {
+      "id": "link.reactivationRequired",
+      "method": "PATCH",
+      "path": "/v1/migrations/instagram/settings",
+      "status": 409,
+      "body": {
+        "error": "instagram_reactivation_required",
+        "message": "Instagram account reactivation required",
+        "requestId": "synthetic-request-0009"
+      }
+    },
+    {
+      "id": "import.requestTooLarge",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/imports",
+      "status": 413,
+      "body": {
+        "error": "request_too_large",
+        "message": "request body is too large",
+        "requestId": "synthetic-request-0010"
+      }
+    },
+    {
+      "id": "import.invalid",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/imports",
+      "status": 422,
+      "body": {
+        "error": "invalid_instagram_import",
+        "message": "Instagram import is invalid",
+        "requestId": "synthetic-request-0011"
+      }
+    },
+    {
+      "id": "cursor.invalid",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/imports?cursor=synthetic-invalid-cursor",
+      "status": 400,
+      "body": {
+        "error": "invalid_cursor",
+        "message": "cursor could not be decoded",
+        "requestId": "synthetic-request-0012"
+      }
+    },
+    {
+      "id": "import.notFound",
+      "method": "GET",
+      "path": "/v1/migrations/instagram/imports/synthetic-missing",
+      "status": 404,
+      "body": {
+        "error": "instagram_import_not_found",
+        "message": "Instagram import not found",
+        "requestId": "synthetic-request-0013"
+      }
+    },
+    {
+      "id": "import.inactive",
+      "method": "PATCH",
+      "path": "/v1/migrations/instagram/imports/synthetic-import-0002",
+      "status": 409,
+      "body": {
+        "error": "instagram_import_inactive",
+        "message": "Instagram import inactive",
+        "requestId": "synthetic-request-0014"
+      }
+    },
+    {
+      "id": "import.expired",
+      "method": "PATCH",
+      "path": "/v1/migrations/instagram/imports/synthetic-import-0003",
+      "status": 409,
+      "body": {
+        "error": "instagram_import_expired",
+        "message": "Instagram import expired",
+        "requestId": "synthetic-request-0015"
+      }
+    },
+    {
+      "id": "import.unmatchedUnavailable",
+      "method": "PATCH",
+      "path": "/v1/migrations/instagram/imports/synthetic-import-0002",
+      "status": 409,
+      "body": {
+        "error": "unmatched_data_unavailable",
+        "message": "Unmatched Instagram data unavailable",
+        "requestId": "synthetic-request-0016"
+      }
+    },
+    {
+      "id": "suggestion.notFound",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/suggestions/synthetic-missing/accept",
+      "status": 404,
+      "body": {
+        "error": "instagram_suggestion_not_found",
+        "message": "Instagram suggestion not found",
+        "requestId": "synthetic-request-0017"
+      }
+    },
+    {
+      "id": "suggestion.ineligible",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/suggestions/synthetic-suggestion-0006/accept",
+      "status": 409,
+      "body": {
+        "error": "instagram_suggestion_ineligible",
+        "message": "Instagram suggestion is no longer eligible",
+        "requestId": "synthetic-request-0018"
+      }
+    },
+    {
+      "id": "suggestion.followWriteUnavailable",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/suggestions/synthetic-suggestion-0001/accept",
+      "status": 503,
+      "body": {
+        "error": "follow_write_unavailable",
+        "message": "Follow write unavailable",
+        "requestId": "synthetic-request-0019"
+      }
+    }
+  ],
+  "deleteContracts": [
+    {
+      "id": "verification.delete.privacy",
+      "resource": "verification",
+      "method": "DELETE",
+      "pathTemplate": "/v1/migrations/instagram/verifications/{verificationId}",
+      "variants": [
+        "owned",
+        "foreign",
+        "absent",
+        "expiredTombstone",
+        "purged"
+      ],
+      "status": 204,
+      "bodyPresent": false,
+      "mutatesOwnedOnly": true
+    },
+    {
+      "id": "account.delete.privacy",
+      "resource": "account",
+      "method": "DELETE",
+      "pathTemplate": "/v1/migrations/instagram/account",
+      "variants": [
+        "owned",
+        "absent",
+        "purged",
+        "identicalReplay"
+      ],
+      "status": 204,
+      "bodyPresent": false,
+      "mutatesOwnedOnly": true
+    },
+    {
+      "id": "import.delete.privacy",
+      "resource": "import",
+      "method": "DELETE",
+      "pathTemplate": "/v1/migrations/instagram/imports/{importId}",
+      "variants": [
+        "owned",
+        "foreign",
+        "absent",
+        "purged",
+        "identicalReplay"
+      ],
+      "status": 204,
+      "bodyPresent": false,
+      "mutatesOwnedOnly": true
+    },
+    {
+      "id": "suggestion.delete.privacy",
+      "resource": "suggestion",
+      "method": "DELETE",
+      "pathTemplate": "/v1/migrations/instagram/suggestions/{suggestionId}",
+      "variants": [
+        "ownedPending",
+        "foreign",
+        "absent",
+        "purged",
+        "terminal",
+        "identicalReplay"
+      ],
+      "status": 204,
+      "bodyPresent": false,
+      "mutatesOwnedOnly": true
+    }
+  ],
+  "callbackContracts": [
+    {
+      "id": "callback.verify.success",
+      "method": "GET",
+      "path": "/integrations/instagram/webhook",
+      "integrationEnabled": true,
+      "query": {
+        "hub.mode": "subscribe",
+        "hub.verify_token": "synthetic-verify-token",
+        "hub.challenge": "synthetic-callback-challenge"
+      },
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "responseBody": "synthetic-callback-challenge",
+      "reflectsChallenge": true
+    },
+    {
+      "id": "callback.verify.forbidden",
+      "method": "GET",
+      "path": "/integrations/instagram/webhook",
+      "integrationEnabled": true,
+      "query": {
+        "hub.mode": "Subscribe",
+        "hub.verify_token": "synthetic-wrong-token",
+        "hub.challenge": "synthetic-private-invalid-challenge"
+      },
+      "status": 403,
+      "contentType": "text/plain; charset=utf-8",
+      "responseBody": "Forbidden\n",
+      "reflectsChallenge": false
+    },
+    {
+      "id": "callback.delivery.supported",
+      "method": "POST",
+      "path": "/integrations/instagram/webhook",
+      "integrationEnabled": true,
+      "signatureRequired": true,
+      "status": 200,
+      "bodyPresent": false,
+      "durableBeforeAck": true,
+      "duplicateIsNoop": false
+    },
+    {
+      "id": "callback.delivery.duplicate",
+      "method": "POST",
+      "path": "/integrations/instagram/webhook",
+      "integrationEnabled": true,
+      "signatureRequired": true,
+      "status": 200,
+      "bodyPresent": false,
+      "durableBeforeAck": true,
+      "duplicateIsNoop": true
+    },
+    {
+      "id": "callback.delivery.invalidRedemptionLimited",
+      "method": "POST",
+      "path": "/integrations/instagram/webhook",
+      "integrationEnabled": true,
+      "signatureRequired": true,
+      "status": 200,
+      "bodyPresent": false,
+      "terminalDeduplicatedIgnored": true,
+      "sensitiveFieldsCleared": true,
+      "lookupAllowed": false
+    },
+    {
+      "id": "callback.delivery.invalidSignature",
+      "method": "POST",
+      "path": "/integrations/instagram/webhook",
+      "integrationEnabled": true,
+      "signatureRequired": true,
+      "status": 401,
+      "contentType": "text/plain; charset=utf-8",
+      "responseBody": "Unauthorized\n",
+      "decodeAllowed": false,
+      "persistPartial": false
+    },
+    {
+      "id": "callback.delivery.sourceIpLimited",
+      "method": "POST",
+      "path": "/integrations/instagram/webhook",
+      "integrationEnabled": true,
+      "rateLimitStage": "preAuthSourceIp",
+      "status": 429,
+      "headers": {
+        "Retry-After": "60"
+      },
+      "contentType": "text/plain; charset=utf-8",
+      "responseBody": "Too Many Requests\n",
+      "bodyReadAllowed": false,
+      "persistPartial": false
+    },
+    {
+      "id": "callback.delivery.globalLimited",
+      "method": "POST",
+      "path": "/integrations/instagram/webhook",
+      "integrationEnabled": true,
+      "rateLimitStage": "postSignatureGlobal",
+      "status": 429,
+      "headers": {
+        "Retry-After": "60"
+      },
+      "contentType": "text/plain; charset=utf-8",
+      "responseBody": "Too Many Requests\n",
+      "decodeAllowed": false,
+      "persistPartial": false
+    },
+    {
+      "id": "callback.disabled",
+      "method": "GET",
+      "path": "/integrations/instagram/webhook",
+      "integrationEnabled": false,
+      "status": 404,
+      "contentType": "text/plain; charset=utf-8",
+      "responseBody": "Not Found\n",
+      "reflectsChallenge": false
+    }
+  ],
+  "notificationContract": {
+    "id": "notifications.socialSystemUnion",
+    "method": "GET",
+    "path": "/v1/notifications?limit=20",
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "id": "00000000-0000-0000-0000-000000000401",
+          "kind": "social",
+          "uri": "at://did:plc:syntheticactor/app.bsky.graph.follow/follow01",
+          "cid": "bafysyntheticfollow01",
+          "rkey": "follow01",
+          "type": "follow",
+          "actor": {
+            "available": true,
+            "did": "did:plc:syntheticactor",
+            "handle": "actor.synthetic.invalid",
+            "displayName": "Synthetic Actor",
+            "viewerIsFollowing": false
+          },
+          "references": {
+            "source": {
+              "available": true,
+              "uri": "at://did:plc:syntheticactor/app.bsky.graph.follow/follow01",
+              "cid": "bafysyntheticfollow01",
+              "rkey": "follow01"
+            }
+          },
+          "createdAt": "2026-07-19T12:00:00Z",
+          "indexedAt": "2026-07-19T12:00:01Z"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000402",
+          "kind": "social",
+          "uri": "at://did:plc:syntheticactor/app.bsky.feed.like/like01",
+          "cid": "bafysyntheticlike01",
+          "rkey": "like01",
+          "type": "like",
+          "actor": {
+            "available": true,
+            "did": "did:plc:syntheticactor",
+            "handle": "actor.synthetic.invalid",
+            "viewerIsFollowing": true
+          },
+          "references": {
+            "source": {
+              "available": true,
+              "uri": "at://did:plc:syntheticactor/app.bsky.feed.like/like01",
+              "cid": "bafysyntheticlike01",
+              "rkey": "like01"
+            }
+          },
+          "createdAt": "2026-07-19T12:00:02Z",
+          "indexedAt": "2026-07-19T12:00:03Z",
+          "subjectPost": {
+            "uri": "at://did:plc:syntheticviewer/social.craftsky.feed.post/post01",
+            "cid": "bafysyntheticpost01",
+            "rkey": "post01",
+            "text": "Synthetic post for contract testing.",
+            "facets": null,
+            "tags": [],
+            "likeCount": 1,
+            "repostCount": 2,
+            "quoteCount": 0,
+            "replyCount": 3,
+            "viewerHasLiked": false,
+            "viewerHasReposted": false,
+            "viewerHasReplied": false,
+            "reply": null,
+            "quote": null,
+            "createdAt": "2026-07-19T11:00:00Z",
+            "indexedAt": "2026-07-19T11:00:01Z",
+            "author": {
+              "did": "did:plc:syntheticviewer",
+              "handle": "viewer.synthetic.invalid",
+              "displayName": null,
+              "avatarCid": null
+            }
+          },
+          "contentAvailable": true
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000403",
+          "kind": "social",
+          "uri": "at://did:plc:syntheticactor/app.bsky.feed.repost/repost01",
+          "cid": "bafysyntheticrepost01",
+          "rkey": "repost01",
+          "type": "repost",
+          "actor": {
+            "available": true,
+            "did": "did:plc:syntheticactor",
+            "handle": "actor.synthetic.invalid",
+            "viewerIsFollowing": false
+          },
+          "references": {
+            "source": {
+              "available": true,
+              "uri": "at://did:plc:syntheticactor/app.bsky.feed.repost/repost01",
+              "cid": "bafysyntheticrepost01",
+              "rkey": "repost01"
+            }
+          },
+          "createdAt": "2026-07-19T12:00:04Z",
+          "indexedAt": "2026-07-19T12:00:05Z",
+          "subjectPost": {
+            "uri": "at://did:plc:syntheticviewer/social.craftsky.feed.post/post01",
+            "cid": "bafysyntheticpost01",
+            "rkey": "post01",
+            "text": "Synthetic post for contract testing.",
+            "facets": null,
+            "tags": [],
+            "likeCount": 1,
+            "repostCount": 2,
+            "quoteCount": 0,
+            "replyCount": 3,
+            "viewerHasLiked": false,
+            "viewerHasReposted": false,
+            "viewerHasReplied": false,
+            "reply": null,
+            "quote": null,
+            "createdAt": "2026-07-19T11:00:00Z",
+            "indexedAt": "2026-07-19T11:00:01Z",
+            "author": {
+              "did": "did:plc:syntheticviewer",
+              "handle": "viewer.synthetic.invalid",
+              "displayName": null,
+              "avatarCid": null
+            }
+          },
+          "contentAvailable": true
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000404",
+          "kind": "social",
+          "uri": "at://did:plc:syntheticactor/social.craftsky.feed.post/reply01",
+          "cid": "bafysyntheticreply01",
+          "rkey": "reply01",
+          "type": "reply",
+          "actor": {
+            "available": true,
+            "did": "did:plc:syntheticactor",
+            "handle": "actor.synthetic.invalid",
+            "viewerIsFollowing": false
+          },
+          "references": {
+            "source": {
+              "available": true,
+              "uri": "at://did:plc:syntheticactor/social.craftsky.feed.post/reply01",
+              "cid": "bafysyntheticreply01",
+              "rkey": "reply01"
+            }
+          },
+          "createdAt": "2026-07-19T12:00:06Z",
+          "indexedAt": "2026-07-19T12:00:07Z",
+          "subjectPost": {
+            "uri": "at://did:plc:syntheticviewer/social.craftsky.feed.post/post01",
+            "cid": "bafysyntheticpost01",
+            "rkey": "post01",
+            "text": "Synthetic post for contract testing.",
+            "facets": null,
+            "tags": [],
+            "likeCount": 1,
+            "repostCount": 2,
+            "quoteCount": 0,
+            "replyCount": 3,
+            "viewerHasLiked": false,
+            "viewerHasReposted": false,
+            "viewerHasReplied": false,
+            "reply": null,
+            "quote": null,
+            "createdAt": "2026-07-19T11:00:00Z",
+            "indexedAt": "2026-07-19T11:00:01Z",
+            "author": {
+              "did": "did:plc:syntheticviewer",
+              "handle": "viewer.synthetic.invalid",
+              "displayName": null,
+              "avatarCid": null
+            }
+          },
+          "reply": {
+            "available": true,
+            "uri": "at://did:plc:syntheticactor/social.craftsky.feed.post/reply01",
+            "cid": "bafysyntheticreply01",
+            "rkey": "reply01"
+          },
+          "contentAvailable": true
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000405",
+          "kind": "social",
+          "uri": "at://did:plc:syntheticactor/social.craftsky.feed.post/mention01",
+          "cid": "bafysyntheticmention01",
+          "rkey": "mention01",
+          "type": "mention",
+          "actor": {
+            "available": true,
+            "did": "did:plc:syntheticactor",
+            "handle": "actor.synthetic.invalid",
+            "viewerIsFollowing": false
+          },
+          "references": {
+            "source": {
+              "available": true,
+              "uri": "at://did:plc:syntheticactor/social.craftsky.feed.post/mention01",
+              "cid": "bafysyntheticmention01",
+              "rkey": "mention01"
+            }
+          },
+          "createdAt": "2026-07-19T12:00:08Z",
+          "indexedAt": "2026-07-19T12:00:09Z",
+          "subjectPost": {
+            "uri": "at://did:plc:syntheticviewer/social.craftsky.feed.post/post01",
+            "cid": "bafysyntheticpost01",
+            "rkey": "post01",
+            "text": "Synthetic post for contract testing.",
+            "facets": null,
+            "tags": [],
+            "likeCount": 1,
+            "repostCount": 2,
+            "quoteCount": 0,
+            "replyCount": 3,
+            "viewerHasLiked": false,
+            "viewerHasReposted": false,
+            "viewerHasReplied": false,
+            "reply": null,
+            "quote": null,
+            "createdAt": "2026-07-19T11:00:00Z",
+            "indexedAt": "2026-07-19T11:00:01Z",
+            "author": {
+              "did": "did:plc:syntheticviewer",
+              "handle": "viewer.synthetic.invalid",
+              "displayName": null,
+              "avatarCid": null
+            }
+          },
+          "contentAvailable": true
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000406",
+          "kind": "social",
+          "uri": "at://did:plc:syntheticactor/social.craftsky.feed.post/quote01",
+          "cid": "bafysyntheticquote01",
+          "rkey": "quote01",
+          "type": "quote",
+          "actor": {
+            "available": true,
+            "did": "did:plc:syntheticactor",
+            "handle": "actor.synthetic.invalid",
+            "viewerIsFollowing": false
+          },
+          "references": {
+            "source": {
+              "available": true,
+              "uri": "at://did:plc:syntheticactor/social.craftsky.feed.post/quote01",
+              "cid": "bafysyntheticquote01",
+              "rkey": "quote01"
+            }
+          },
+          "createdAt": "2026-07-19T12:00:10Z",
+          "indexedAt": "2026-07-19T12:00:11Z",
+          "subjectPost": {
+            "uri": "at://did:plc:syntheticviewer/social.craftsky.feed.post/post01",
+            "cid": "bafysyntheticpost01",
+            "rkey": "post01",
+            "text": "Synthetic post for contract testing.",
+            "facets": null,
+            "tags": [],
+            "likeCount": 1,
+            "repostCount": 2,
+            "quoteCount": 0,
+            "replyCount": 3,
+            "viewerHasLiked": false,
+            "viewerHasReposted": false,
+            "viewerHasReplied": false,
+            "reply": null,
+            "quote": null,
+            "createdAt": "2026-07-19T11:00:00Z",
+            "indexedAt": "2026-07-19T11:00:01Z",
+            "author": {
+              "did": "did:plc:syntheticviewer",
+              "handle": "viewer.synthetic.invalid",
+              "displayName": null,
+              "avatarCid": null
+            }
+          },
+          "contentAvailable": true
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000407",
+          "kind": "social",
+          "uri": "at://did:plc:syntheticactor/social.craftsky.notification/other01",
+          "cid": "bafysyntheticother01",
+          "rkey": "other01",
+          "type": "everythingElse",
+          "actor": {
+            "available": true,
+            "did": "did:plc:syntheticactor",
+            "handle": "actor.synthetic.invalid",
+            "viewerIsFollowing": false
+          },
+          "references": {
+            "source": {
+              "available": true,
+              "uri": "at://did:plc:syntheticactor/social.craftsky.notification/other01",
+              "cid": "bafysyntheticother01",
+              "rkey": "other01"
+            }
+          },
+          "createdAt": "2026-07-19T12:00:12Z",
+          "indexedAt": "2026-07-19T12:00:13Z"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000408",
+          "kind": "system",
+          "type": "instagramMatch",
+          "createdAt": "2026-07-19T12:00:00Z",
+          "indexedAt": "2026-07-19T12:04:00Z",
+          "system": {
+            "count": 99,
+            "countCapped": true,
+            "destination": "instagramMigration"
+          }
+        }
+      ],
+      "cursor": "synthetic-notification-output-cursor"
+    },
+    "unknownClientCases": [
+      {
+        "id": "notification.unknownKind",
+        "expectedClientVariant": "genericSystem",
+        "body": {
+          "id": "00000000-0000-0000-0000-000000000409",
+          "kind": "futureKind",
+          "type": "futureType",
+          "createdAt": "2026-07-19T12:05:00Z",
+          "indexedAt": "2026-07-19T12:05:01Z"
+        }
+      },
+      {
+        "id": "notification.unknownSystemType",
+        "expectedClientVariant": "genericSystem",
+        "body": {
+          "id": "00000000-0000-0000-0000-000000000410",
+          "kind": "system",
+          "type": "futureSystemType",
+          "createdAt": "2026-07-19T12:06:00Z",
+          "indexedAt": "2026-07-19T12:06:01Z",
+          "system": {
+            "futureCount": 7
+          }
+        }
+      },
+      {
+        "id": "notification.malformedInstagramSystem",
+        "expectedClientVariant": "genericSystem",
+        "body": {
+          "id": "00000000-0000-0000-0000-000000000411",
+          "kind": "system",
+          "type": "instagramMatch",
+          "createdAt": "2026-07-19T12:07:00Z",
+          "indexedAt": "2026-07-19T12:07:01Z",
+          "system": {
+            "count": 100,
+            "countCapped": false,
+            "destination": "futureDestination"
+          }
+        }
+      },
+      {
+        "id": "notification.unknownSocialType",
+        "expectedClientVariant": "genericSocial",
+        "body": {
+          "id": "00000000-0000-0000-0000-000000000412",
+          "kind": "social",
+          "uri": "at://did:plc:syntheticactor/social.craftsky.notification/future01",
+          "cid": "bafysyntheticfuture01",
+          "rkey": "future01",
+          "type": "futureSocialType",
+          "actor": {
+            "available": true,
+            "did": "did:plc:syntheticactor",
+            "handle": "actor.synthetic.invalid",
+            "viewerIsFollowing": false
+          },
+          "createdAt": "2026-07-19T12:08:00Z",
+          "indexedAt": "2026-07-19T12:08:01Z"
+        }
+      }
+    ]
+  },
+  "clientSafety": {
+    "unknownVerificationState": {
+      "verificationId": "synthetic-verification-future",
+      "state": "futureVerificationState",
+      "expiresAt": "2026-07-19T13:00:00Z"
+    },
+    "unknownRetryCode": {
+      "verificationId": "synthetic-verification-future-retry",
+      "state": "rejected",
+      "expiresAt": "2026-07-19T13:01:00Z",
+      "retryCode": "futureRetryCode"
+    },
+    "unknownAccountState": {
+      "integrationAvailable": true,
+      "account": {
+        "state": "futureAccountState",
+        "username": "synthetic_future_account",
+        "discoverable": false,
+        "conflictPending": false,
+        "reactivationRequired": false,
+        "verifiedAt": "2026-07-19T13:02:00Z"
+      }
+    },
+    "unknownImportState": {
+      "importId": "synthetic-import-future-state",
+      "state": "futureImportState",
+      "sourceType": "manual",
+      "retainUnmatched": false,
+      "followingCount": 0,
+      "followerCount": 0,
+      "createdAt": "2026-07-19T13:03:00Z"
+    },
+    "unknownImportSource": {
+      "importId": "synthetic-import-future-source",
+      "state": "active",
+      "sourceType": "futureImportSource",
+      "retainUnmatched": false,
+      "followingCount": 0,
+      "followerCount": 0,
+      "createdAt": "2026-07-19T13:04:00Z"
+    },
+    "unknownSuggestionState": {
+      "suggestionId": "synthetic-suggestion-future-state",
+      "profile": {
+        "did": "did:plc:syntheticfuture01",
+        "handle": "future01.synthetic.invalid"
+      },
+      "reason": "verifiedInstagramFollow",
+      "state": "futureSuggestionState"
+    },
+    "unknownSuggestionReason": {
+      "suggestionId": "synthetic-suggestion-future-reason",
+      "profile": {
+        "did": "did:plc:syntheticfuture02",
+        "handle": "future02.synthetic.invalid"
+      },
+      "reason": "futureSuggestionReason",
+      "state": "pending"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS instagram_audit_events;
+DROP TABLE IF EXISTS instagram_rate_limit_buckets;
+DROP TABLE IF EXISTS pds_follow_operations;
+DROP TABLE IF EXISTS instagram_reconciliation_jobs;
+DROP TABLE IF EXISTS instagram_suggestion_sources;
+DROP TABLE IF EXISTS instagram_follow_suggestions;
+DROP TABLE IF EXISTS instagram_graph_handles;
+DROP TABLE IF EXISTS instagram_graph_imports;
+DROP TABLE IF EXISTS instagram_webhook_work;
+DROP TABLE IF EXISTS instagram_link_conflicts;
+DROP TABLE IF EXISTS instagram_identity_claims;
+DROP TABLE IF EXISTS instagram_account_links;
+DROP TABLE IF EXISTS instagram_verification_attempts;

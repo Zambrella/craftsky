@@ -19,11 +19,32 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	"social.craftsky/appview/internal/app"
+	"social.craftsky/appview/internal/instagram"
 )
+
+const (
+	instagramWebhookPollInterval        = 500 * time.Millisecond
+	instagramReconciliationPollInterval = 500 * time.Millisecond
+	instagramReconciliationBatchSize    = 100
+	instagramRetentionInterval          = time.Hour
+)
+
+type instagramWebhookBatchProcessor interface {
+	ProcessBatch(context.Context) (int, error)
+}
+
+type instagramReconciliationBatchProcessor interface {
+	ProcessBatch(context.Context, int) (int, error)
+}
+
+type instagramRetentionRunner interface {
+	Run(context.Context, int) (instagram.RetentionStats, error)
+}
 
 func main() {
 	if err := run(context.Background(), os.Args); err != nil {
@@ -103,6 +124,61 @@ func run(ctx context.Context, args []string) error {
 	} else {
 		close(pushDone)
 	}
+	instagramWorkersDone := make(chan struct{})
+	if deps.InstagramWebhookWorker != nil {
+		workerCount := deps.Config.InstagramLimits.WorkerConcurrency
+		if workerCount < 1 {
+			workerCount = 1
+		}
+		go func() {
+			defer close(instagramWorkersDone)
+			var workers sync.WaitGroup
+			workers.Add(workerCount)
+			for workerID := 0; workerID < workerCount; workerID++ {
+				go func() {
+					defer workers.Done()
+					runInstagramWebhookWorker(consumerCtx, deps.InstagramWebhookWorker, deps.Logger, instagramWebhookPollInterval)
+				}()
+			}
+			workers.Wait()
+		}()
+	} else {
+		close(instagramWorkersDone)
+	}
+	instagramReconciliationDone := make(chan struct{})
+	if deps.InstagramReconciliation != nil {
+		go func() {
+			defer close(instagramReconciliationDone)
+			runInstagramReconciliationWorker(
+				consumerCtx,
+				deps.InstagramReconciliation,
+				deps.Logger,
+				instagramReconciliationBatchSize,
+				instagramReconciliationPollInterval,
+			)
+		}()
+	} else {
+		close(instagramReconciliationDone)
+	}
+	instagramRetentionDone := make(chan struct{})
+	if deps.InstagramRetention != nil {
+		batchSize := deps.Config.InstagramLimits.OperatorBatchMax
+		if batchSize < 1 || batchSize > instagram.MaxRetentionBatch {
+			batchSize = instagram.MaxRetentionBatch
+		}
+		go func() {
+			defer close(instagramRetentionDone)
+			runInstagramRetention(
+				consumerCtx,
+				deps.InstagramRetention,
+				deps.Logger,
+				batchSize,
+				instagramRetentionInterval,
+			)
+		}()
+	} else {
+		close(instagramRetentionDone)
+	}
 
 	// listenErr receives the result of ListenAndServe. A non-nil,
 	// non-ErrServerClosed error (e.g. port already in use) must unblock
@@ -148,8 +224,112 @@ func run(ctx context.Context, args []string) error {
 	consumerCancel()
 	<-consumerDone
 	<-pushDone
+	<-instagramWorkersDone
+	<-instagramReconciliationDone
+	<-instagramRetentionDone
 	deps.Logger.Info("shutdown: tap consumer stopped")
 	// Drain the listener goroutine's final send.
 	<-listenErr
 	return nil
+}
+
+func runInstagramWebhookWorker(ctx context.Context, worker instagramWebhookBatchProcessor, logger *slog.Logger, pollInterval time.Duration) {
+	if worker == nil || pollInterval <= 0 {
+		return
+	}
+	for {
+		processed, err := worker.ProcessBatch(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+		if err != nil && logger != nil {
+			logger.Error("Instagram webhook worker batch failed",
+				slog.String("component", "instagram_webhook"),
+				slog.String("operation", "instagram.webhook.process"),
+				slog.String("result", "error"),
+				slog.String("error_category", "worker"))
+		}
+		if err == nil && processed > 0 {
+			continue
+		}
+		timer := time.NewTimer(pollInterval)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return
+		case <-timer.C:
+		}
+	}
+}
+
+func runInstagramReconciliationWorker(
+	ctx context.Context,
+	worker instagramReconciliationBatchProcessor,
+	logger *slog.Logger,
+	batchSize int,
+	pollInterval time.Duration,
+) {
+	if worker == nil || batchSize < 1 || batchSize > 500 || pollInterval <= 0 {
+		return
+	}
+	for {
+		processed, err := worker.ProcessBatch(ctx, batchSize)
+		if ctx.Err() != nil {
+			return
+		}
+		if err != nil && logger != nil {
+			logger.Error("Instagram reconciliation worker batch failed",
+				slog.String("component", "instagram_reconciliation"),
+				slog.String("operation", "instagram.reconciliation.process"),
+				slog.String("result", "error"),
+				slog.String("error_category", "worker"))
+		}
+		if err == nil && processed > 0 {
+			continue
+		}
+		timer := time.NewTimer(pollInterval)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return
+		case <-timer.C:
+		}
+	}
+}
+
+func runInstagramRetention(
+	ctx context.Context,
+	runner instagramRetentionRunner,
+	logger *slog.Logger,
+	batchSize int,
+	interval time.Duration,
+) {
+	if runner == nil || batchSize < 1 || batchSize > instagram.MaxRetentionBatch || interval <= 0 {
+		return
+	}
+	for {
+		if _, err := runner.Run(ctx, batchSize); err != nil && ctx.Err() == nil && logger != nil {
+			logger.Error("Instagram retention batch failed",
+				slog.String("component", "instagram_retention"),
+				slog.String("operation", "instagram.retention.run"),
+				slog.String("result", "error"),
+				slog.String("error_category", "worker"))
+		}
+		if ctx.Err() != nil {
+			return
+		}
+		timer := time.NewTimer(interval)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return
+		case <-timer.C:
+		}
+	}
 }

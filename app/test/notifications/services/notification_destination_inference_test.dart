@@ -1,4 +1,5 @@
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
+import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/services/notification_destination_inference.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -123,6 +124,39 @@ void main() {
     expect(future.facts, isA<UnknownNotificationFacts>());
     expect(futureOutcome.destination, const NotificationsDestination());
     expect(futureOutcome.feedback, isNull);
+  });
+
+  test('UT-012 infers actorless Instagram migration push destinations', () {
+    final attempt = NotificationOpenAttempt.fromProviderData({
+      'payloadVersion': '1',
+      'type': 'instagramMatch',
+      'accountSubscriptionId': 'subscription_Abc123',
+      'notificationId': '00000000-0000-0000-0000-000000000321',
+      'count': '3',
+      'countCapped': 'false',
+      'destination': 'instagramMigration',
+    });
+
+    expect(attempt.facts, isA<ValidNotificationFacts>());
+    final facts = attempt.facts as ValidNotificationFacts;
+    expect(facts.category, NotificationCategory.instagramMatch);
+    expect(facts.actorDid, isNull);
+    expect(facts.subjectUri, isNull);
+    expect(
+      NotificationDestinationInference.forFacts(facts).destination,
+      const InstagramMigrationDestination(),
+    );
+
+    for (final invalid in [
+      {..._providerData(type: 'instagramMatch'), 'count': '0', 'countCapped': 'false', 'destination': 'instagramMigration'},
+      {..._providerData(type: 'instagramMatch'), 'count': '3', 'countCapped': 'not-bool', 'destination': 'instagramMigration'},
+      {..._providerData(type: 'instagramMatch'), 'count': '3', 'countCapped': 'false', 'destination': 'profile'},
+    ]) {
+      expect(
+        NotificationOpenAttempt.fromProviderData(invalid).facts,
+        isA<InvalidNotificationFacts>(),
+      );
+    }
   });
 }
 

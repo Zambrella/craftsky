@@ -21,5 +21,6 @@ class RouteLocations {
   static const profile = '/profile';
   static const savedChild = 'saved';
   static const settingsChild = 'settings';
+  static const instagramMigrationChild = 'instagram';
   static const playgroundChild = 'playground';
 }

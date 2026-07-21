@@ -1,6 +1,10 @@
 package push
 
-import "social.craftsky/appview/internal/notifications"
+import (
+	"strconv"
+
+	"social.craftsky/appview/internal/notifications"
+)
 
 const maxRoutingFactBytes = 1024
 
@@ -11,6 +15,9 @@ type Payload struct {
 }
 
 func BuildPayload(category notifications.Category, routingID, actorDisplayName string, facts RoutingFacts) Payload {
+	if category == notifications.InstagramMatch {
+		return buildInstagramMatchPayload(routingID, facts)
+	}
 	if actorDisplayName == "" {
 		actorDisplayName = "Someone"
 	}
@@ -37,6 +44,33 @@ func BuildPayload(category notifications.Category, routingID, actorDisplayName s
 		Body:  action,
 		Data:  data,
 	}
+}
+
+func buildInstagramMatchPayload(routingID string, facts RoutingFacts) Payload {
+	count := facts.SystemCount
+	if count < 1 {
+		count = 1
+	}
+	capped := facts.SystemCountCapped || count > 99
+	if count > 99 {
+		count = 99
+	}
+	data := map[string]string{
+		"payloadVersion":        "1",
+		"type":                  string(notifications.InstagramMatch),
+		"accountSubscriptionId": routingID,
+		"count":                 strconv.Itoa(count),
+		"countCapped":           strconv.FormatBool(capped),
+	}
+	addRoutingFact(data, "notificationId", facts.NotificationID)
+	if facts.SystemDestination == "instagramMigration" {
+		data["destination"] = facts.SystemDestination
+	}
+	body := "New Instagram matches are ready to review"
+	if count == 1 && !capped {
+		body = "A new Instagram match is ready to review"
+	}
+	return Payload{Title: "CraftSky", Body: body, Data: data}
 }
 
 func visibleBody(category notifications.Category, role ContentRole) string {

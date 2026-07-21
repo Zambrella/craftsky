@@ -68,6 +68,9 @@ type claimedDelivery struct {
 	routingID, token, platform                         string
 	leaseToken                                         string
 	actorName                                          sql.NullString
+	systemCount                                        int
+	systemCountCapped                                  bool
+	systemDestination                                  string
 	attempts                                           int
 	deadline                                           time.Time
 }
@@ -88,6 +91,31 @@ func (d *Dispatcher) claim(ctx context.Context, _ string) ([]claimedDelivery, er
 	}
 	defer tx.Rollback(ctx)
 
+	// System notifications remain private controls until provider delivery.
+	// Cancel outstanding work when the event retracts or the recipient disables
+	// this system category, including work another process has already leased.
+	// Lease fencing below prevents that stale process from finalizing afterward.
+	if _, err := tx.Exec(ctx, `
+		UPDATE push_deliveries delivery
+		SET status='cancelled', lease_owner=NULL, lease_expires_at=NULL, updated_at=$1
+		FROM notification_events event
+		WHERE delivery.notification_id=event.id
+		  AND delivery.status IN ('pending','retry','leased')
+		  AND COALESCE(to_jsonb(event)->>'kind','social')='system'
+		  AND (
+			event.state <> 'active'
+			OR COALESCE(NULLIF(to_jsonb(event)->>'system_count','')::integer,0) <= 0
+			OR EXISTS (
+				SELECT 1 FROM notification_preferences preference
+				WHERE preference.account_did=event.recipient_did
+				  AND preference.category=event.category
+				  AND NOT preference.push_enabled
+			)
+		  )
+	`, now); err != nil {
+		return nil, err
+	}
+
 	// A worker may crash or lose its database connection after claiming work.
 	// Once its lease expires, return those rows to retry immediately.
 	if _, err := tx.Exec(ctx, `UPDATE push_deliveries SET status='retry',lease_owner=NULL,lease_expires_at=NULL,next_attempt_at=$1,updated_at=$1 WHERE status='leased' AND lease_expires_at<=$1`, now); err != nil {
@@ -98,20 +126,42 @@ func (d *Dispatcher) claim(ctx context.Context, _ string) ([]claimedDelivery, er
 	// installation are eligible. SKIP LOCKED lets another dispatcher claim a
 	// different batch instead of blocking on these rows.
 	rows, err := tx.Query(ctx, `
-		SELECT d.id,d.notification_id,d.account_subscription_id,i.id,n.category,n.actor_did,n.source_uri,n.subject_uri,n.root_uri,
+		SELECT d.id,d.notification_id,d.account_subscription_id,i.id,n.category,
+			COALESCE(n.actor_did,''),COALESCE(n.source_uri,''),n.subject_uri,n.root_uri,
 			CASE
 				WHEN target.uri IS NULL OR target.reply_root_uri IS NULL THEN 'post'
 				WHEN target.reply_parent_uri = target.reply_root_uri THEN 'comment'
 				ELSE 'reply'
 			END,
-			s.routing_id,i.fcm_token,i.platform,b.display_name,d.attempts,d.deadline_at
+			s.routing_id,i.fcm_token,i.platform,b.display_name,
+			COALESCE(NULLIF(to_jsonb(n)->>'system_count','')::integer,0),
+			COALESCE(NULLIF(to_jsonb(n)->>'system_count_capped','')::boolean,false),
+			COALESCE(NULLIF(to_jsonb(n)->>'system_destination',''),''),
+			d.attempts,d.deadline_at
 		FROM push_deliveries d
 		JOIN notification_events n ON n.id=d.notification_id
 		JOIN push_account_subscriptions s ON s.id=d.account_subscription_id
 		JOIN push_installations i ON i.id=s.installation_id
 		LEFT JOIN bluesky_profiles b ON b.did=n.actor_did
 		LEFT JOIN craftsky_posts target ON target.uri = CASE WHEN n.category='quote' THEN n.quoted_uri ELSE n.subject_uri END
-		WHERE d.status IN ('pending','retry') AND d.next_attempt_at<=$1 AND s.active AND i.active ORDER BY d.next_attempt_at,d.id FOR UPDATE OF d SKIP LOCKED LIMIT $2`, now, d.options.BatchSize)
+		WHERE d.status IN ('pending','retry')
+		  AND d.next_attempt_at<=$1
+		  AND n.state='active'
+		  AND s.active AND i.active
+		  AND (
+			COALESCE(to_jsonb(n)->>'kind','social') <> 'system'
+			OR (
+				NULLIF(to_jsonb(n)->>'coalesce_until','')::timestamptz <= $1
+				AND COALESCE(NULLIF(to_jsonb(n)->>'system_count','')::integer,0) > 0
+				AND NOT EXISTS (
+					SELECT 1 FROM notification_preferences preference
+					WHERE preference.account_did=n.recipient_did
+					  AND preference.category=n.category
+					  AND NOT preference.push_enabled
+				)
+			)
+		  )
+		ORDER BY d.next_attempt_at,d.id FOR UPDATE OF d SKIP LOCKED LIMIT $2`, now, d.options.BatchSize)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +169,14 @@ func (d *Dispatcher) claim(ctx context.Context, _ string) ([]claimedDelivery, er
 	var out []claimedDelivery
 	for rows.Next() {
 		var item claimedDelivery
-		if err := rows.Scan(&item.id, &item.notificationID, &item.subscriptionID, &item.installationID, &item.category, &item.actorDID, &item.sourceURI, &item.subjectURI, &item.rootURI, &item.targetRole, &item.routingID, &item.token, &item.platform, &item.actorName, &item.attempts, &item.deadline); err != nil {
+		if err := rows.Scan(
+			&item.id, &item.notificationID, &item.subscriptionID, &item.installationID,
+			&item.category, &item.actorDID, &item.sourceURI, &item.subjectURI,
+			&item.rootURI, &item.targetRole, &item.routingID, &item.token,
+			&item.platform, &item.actorName, &item.systemCount,
+			&item.systemCountCapped, &item.systemDestination, &item.attempts,
+			&item.deadline,
+		); err != nil {
 			return nil, err
 		}
 		// Attempts counts claims, not confirmed sends. It is incremented before
@@ -176,6 +233,18 @@ func (d *Dispatcher) ProcessBatch(ctx context.Context, worker string) (int, erro
 		if !owned {
 			continue
 		}
+		if item.category == notifications.InstagramMatch {
+			eligible, err := d.instagramMatchDeliveryEligible(ctx, item, now)
+			if err != nil {
+				return 0, err
+			}
+			if !eligible {
+				if err := d.cancelClaimedDelivery(ctx, item, now); err != nil {
+					return 0, err
+				}
+				continue
+			}
+		}
 
 		// TTL is always the time remaining until the original absolute delivery
 		// deadline. A retry does not start a fresh delivery window.
@@ -199,11 +268,15 @@ func (d *Dispatcher) ProcessBatch(ctx context.Context, worker string) (int, erro
 			Category:              item.category,
 			AccountSubscriptionID: item.routingID,
 			RoutingFacts: RoutingFacts{
-				ActorDID:   item.actorDID,
-				SourceURI:  item.sourceURI,
-				SubjectURI: syntax.ATURI(item.subjectURI.String),
-				RootURI:    syntax.ATURI(item.rootURI.String),
-				TargetRole: item.targetRole,
+				ActorDID:          item.actorDID,
+				SourceURI:         item.sourceURI,
+				SubjectURI:        syntax.ATURI(item.subjectURI.String),
+				RootURI:           syntax.ATURI(item.rootURI.String),
+				TargetRole:        item.targetRole,
+				NotificationID:    item.notificationID.String(),
+				SystemCount:       item.systemCount,
+				SystemCountCapped: item.systemCountCapped,
+				SystemDestination: item.systemDestination,
 			},
 			ActorDisplayName: item.actorName.String,
 			Platform:         item.platform,
@@ -281,6 +354,46 @@ func (d *Dispatcher) ownsCurrentDelivery(ctx context.Context, item claimedDelive
 			  AND i.id=$4 AND i.active AND i.fcm_token=$5
 		)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now).Scan(&owned)
 	return owned, err
+}
+
+// instagramMatchDeliveryEligible rechecks the actorless event and current push
+// preference after the delivery has been leased and immediately before the
+// provider call. Suggestion/link lifecycle code retracts invalid support; an
+// empty support set therefore fails closed here as well.
+func (d *Dispatcher) instagramMatchDeliveryEligible(ctx context.Context, item claimedDelivery, now time.Time) (bool, error) {
+	var eligible bool
+	err := d.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM notification_events event
+			WHERE event.id=$1
+			  AND event.state='active'
+			  AND COALESCE(to_jsonb(event)->>'kind','social')='system'
+			  AND event.category='instagramMatch'
+			  AND COALESCE(NULLIF(to_jsonb(event)->>'system_count','')::integer,0)>0
+			  AND NULLIF(to_jsonb(event)->>'coalesce_until','')::timestamptz<=$2
+			  AND EXISTS (
+				SELECT 1 FROM instagram_notification_suggestions support
+				WHERE support.notification_id=event.id
+			  )
+			  AND NOT EXISTS (
+				SELECT 1 FROM notification_preferences preference
+				WHERE preference.account_did=event.recipient_did
+				  AND preference.category=event.category
+				  AND NOT preference.push_enabled
+			  )
+		)
+	`, item.notificationID, now).Scan(&eligible)
+	return eligible, err
+}
+
+func (d *Dispatcher) cancelClaimedDelivery(ctx context.Context, item claimedDelivery, now time.Time) error {
+	_, err := d.pool.Exec(ctx, `
+		UPDATE push_deliveries
+		SET status='cancelled', lease_owner=NULL, lease_expires_at=NULL, updated_at=$3
+		WHERE id=$1 AND status='leased' AND lease_owner=$2 AND lease_expires_at>$3
+	`, item.id, item.leaseToken, now)
+	return err
 }
 
 // invalidate deactivates an installation after the provider rejects its token.

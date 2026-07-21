@@ -42,12 +42,13 @@ func (k BodyKind) Valid() bool {
 }
 
 type RoutePolicy struct {
-	Method       string
-	PathPattern  string
-	RateClass    RateClass
-	BodyKind     BodyKind
-	AuthRequired bool
-	DevOnly      bool
+	Method                string
+	PathPattern           string
+	RateClass             RateClass
+	BodyKind              BodyKind
+	AuthRequired          bool
+	CurrentMemberRequired bool
+	DevOnly               bool
 }
 
 func V1RoutePolicies(env app.Env, cfg app.Config) []RoutePolicy {
@@ -90,6 +91,21 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "POST", PathPattern: "/v1/search/recent", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AuthRequired: true},
 		{Method: "DELETE", PathPattern: "/v1/search/recent/{id}", RateClass: RateClassWrite, BodyKind: BodyNoBody, AuthRequired: true},
 		{Method: "POST", PathPattern: "/v1/auth/logout", RateClass: RateClassWrite, BodyKind: BodyNoBody, AuthRequired: true},
+		{Method: "POST", PathPattern: "/v1/migrations/instagram/verifications", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AuthRequired: true, CurrentMemberRequired: true},
+		{Method: "GET", PathPattern: "/v1/migrations/instagram/verifications/{verificationId}", RateClass: RateClassRead, BodyKind: BodyNoBody, AuthRequired: true, CurrentMemberRequired: true},
+		{Method: "DELETE", PathPattern: "/v1/migrations/instagram/verifications/{verificationId}", RateClass: RateClassWrite, BodyKind: BodyNoBody, AuthRequired: true, CurrentMemberRequired: true},
+		{Method: "POST", PathPattern: "/v1/migrations/instagram/verifications/{verificationId}/confirm", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AuthRequired: true, CurrentMemberRequired: true},
+		{Method: "GET", PathPattern: "/v1/migrations/instagram/account", RateClass: RateClassRead, BodyKind: BodyNoBody, AuthRequired: true, CurrentMemberRequired: true},
+		{Method: "DELETE", PathPattern: "/v1/migrations/instagram/account", RateClass: RateClassWrite, BodyKind: BodyNoBody, AuthRequired: true, CurrentMemberRequired: true},
+		{Method: "PATCH", PathPattern: "/v1/migrations/instagram/settings", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AuthRequired: true, CurrentMemberRequired: true},
+		{Method: "POST", PathPattern: "/v1/migrations/instagram/imports", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AuthRequired: true, CurrentMemberRequired: true},
+		{Method: "GET", PathPattern: "/v1/migrations/instagram/imports", RateClass: RateClassRead, BodyKind: BodyNoBody, AuthRequired: true, CurrentMemberRequired: true},
+		{Method: "GET", PathPattern: "/v1/migrations/instagram/imports/{importId}", RateClass: RateClassRead, BodyKind: BodyNoBody, AuthRequired: true, CurrentMemberRequired: true},
+		{Method: "PATCH", PathPattern: "/v1/migrations/instagram/imports/{importId}", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AuthRequired: true, CurrentMemberRequired: true},
+		{Method: "DELETE", PathPattern: "/v1/migrations/instagram/imports/{importId}", RateClass: RateClassWrite, BodyKind: BodyNoBody, AuthRequired: true, CurrentMemberRequired: true},
+		{Method: "GET", PathPattern: "/v1/migrations/instagram/suggestions", RateClass: RateClassRead, BodyKind: BodyNoBody, AuthRequired: true, CurrentMemberRequired: true},
+		{Method: "POST", PathPattern: "/v1/migrations/instagram/suggestions/{suggestionId}/accept", RateClass: RateClassWrite, BodyKind: BodyNoBody, AuthRequired: true, CurrentMemberRequired: true},
+		{Method: "DELETE", PathPattern: "/v1/migrations/instagram/suggestions/{suggestionId}", RateClass: RateClassWrite, BodyKind: BodyNoBody, AuthRequired: true, CurrentMemberRequired: true},
 		{Method: "GET", PathPattern: "/v1/profiles/{handleOrDid}", RateClass: RateClassRead, BodyKind: BodyNoBody, AuthRequired: true},
 		{Method: "GET", PathPattern: "/v1/profiles/me", RateClass: RateClassRead, BodyKind: BodyNoBody, AuthRequired: true},
 		{Method: "GET", PathPattern: "/v1/profiles/me/followers", RateClass: RateClassRead, BodyKind: BodyNoBody, AuthRequired: true},

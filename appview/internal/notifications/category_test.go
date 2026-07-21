@@ -6,7 +6,7 @@ import (
 )
 
 func TestCategoriesExposeExactlyTheApprovedWireValues(t *testing.T) {
-	want := []Category{Like, Follow, Reply, Mention, Quote, Repost, EverythingElse}
+	want := []Category{Like, Follow, Reply, Mention, Quote, Repost, EverythingElse, InstagramMatch}
 
 	if got := Categories(); !slices.Equal(got, want) {
 		t.Fatalf("Categories() = %v, want %v", got, want)

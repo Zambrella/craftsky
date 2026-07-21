@@ -13,6 +13,11 @@ import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
+import 'package:craftsky_app/instagram_migration/providers/instagram_account_provider.dart';
+import 'package:craftsky_app/instagram_migration/providers/instagram_imports_provider.dart';
+import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
+import 'package:craftsky_app/instagram_migration/providers/instagram_suggestions_provider.dart';
+import 'package:craftsky_app/instagram_migration/providers/instagram_verification_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_preferences_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
@@ -108,6 +113,11 @@ final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
       ..invalidate(recentSearchPageProvider)
       ..invalidate(saveRecentSearchProvider)
       ..invalidate(deleteRecentSearchProvider)
+      ..invalidate(instagramMigrationRepositoryProvider)
+      ..invalidate(instagramAccountProvider)
+      ..invalidate(instagramVerificationProvider)
+      ..invalidate(instagramImportsProvider)
+      ..invalidate(instagramSuggestionsProvider)
       ..invalidate(notificationRepositoryProvider)
       ..invalidate(notificationsProvider)
       ..invalidate(notificationPreferencesProvider)

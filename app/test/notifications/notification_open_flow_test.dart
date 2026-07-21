@@ -7,6 +7,7 @@ import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart'
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
+import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/models/notification_permission.dart';
 import 'package:craftsky_app/notifications/services/notification_registration_coordinator.dart';
@@ -122,6 +123,38 @@ void main() {
       AccountKey('did:plc:bob'),
     ]);
   });
+
+  test(
+    'IT-017 activates the exact retained account before Instagram navigation',
+    () async {
+      var registry = _registry();
+      final operations = <String>[];
+      final effects = StreamController<NotificationEffect>.broadcast();
+      final runtime = _runtime(
+        routing: NotificationRoutingStorage(() => registry),
+        effects: effects,
+        activate: (lease) async {
+          operations.add('activate:${lease.account.did.value}');
+          registry = registry.activate(lease);
+          return AccountActivationResult.activated;
+        },
+      );
+      addTearDown(runtime.dispose);
+      addTearDown(effects.close);
+      await runtime.updateReadiness(
+        did: Did.parse('did:plc:alice'),
+        onboarded: true,
+      );
+
+      final effectFuture = effects.stream.first;
+      await runtime.receiveOpen(_instagramAttempt('bob_binding'));
+      final effect = await effectFuture as NotificationNavigationEffect;
+
+      expect(operations, ['activate:did:plc:bob']);
+      expect(registry.activeDid?.value, 'did:plc:bob');
+      expect(effect.outcome.destination, const InstagramMigrationDestination());
+    },
+  );
 }
 
 SessionRegistry _registry() {
@@ -156,6 +189,17 @@ NotificationOpenAttempt _attempt(String? binding) =>
       'payloadVersion': '1',
       'type': 'everythingElse',
       'accountSubscriptionId': ?binding,
+    });
+
+NotificationOpenAttempt _instagramAttempt(String? binding) =>
+    NotificationOpenAttempt.fromProviderData({
+      'payloadVersion': '1',
+      'type': 'instagramMatch',
+      'accountSubscriptionId': ?binding,
+      'notificationId': '00000000-0000-0000-0000-000000000321',
+      'count': '3',
+      'countCapped': 'false',
+      'destination': 'instagramMigration',
     });
 
 NotificationRuntime _runtime({

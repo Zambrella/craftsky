@@ -15,7 +15,14 @@ import (
 
 type NotificationType string
 
+type NotificationKind string
+
+type NotificationDestination string
+
 const (
+	NotificationKindSocial NotificationKind = "social"
+	NotificationKindSystem NotificationKind = "system"
+
 	NotificationTypeFollow         NotificationType = "follow"
 	NotificationTypeLike           NotificationType = "like"
 	NotificationTypeRepost         NotificationType = "repost"
@@ -23,7 +30,16 @@ const (
 	NotificationTypeMention        NotificationType = "mention"
 	NotificationTypeQuote          NotificationType = "quote"
 	NotificationTypeEverythingElse NotificationType = "everythingElse"
+	NotificationTypeInstagramMatch NotificationType = "instagramMatch"
+
+	NotificationDestinationInstagramMigration NotificationDestination = "instagramMigration"
 )
+
+type NotificationSystem struct {
+	Count       int                     `json:"count"`
+	CountCapped bool                    `json:"countCapped"`
+	Destination NotificationDestination `json:"destination"`
+}
 
 type NotificationReplyRef struct {
 	Available bool   `json:"available"`
@@ -48,11 +64,13 @@ type NotificationReferences struct {
 }
 
 type NotificationRow struct {
-	ID   string
-	Type NotificationType
-	URI  string
-	CID  string
-	Rkey string
+	ID     string
+	Kind   NotificationKind
+	Type   NotificationType
+	System *NotificationSystem
+	URI    string
+	CID    string
+	Rkey   string
 
 	ActorDID               string
 	ActorDisplayName       *string
@@ -93,7 +111,7 @@ func (s *PostStore) NotificationHandles(ctx context.Context, dids []string) (map
 }
 
 func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, limit int, cursor string) ([]*NotificationRow, string, error) {
-	curActivityAt, curID, err := decodeSeekCursor(cursor, "activityAt")
+	curIndexedAt, curID, err := decodeSeekCursor(cursor, "indexedAt")
 	if err != nil {
 		return nil, "", err
 	}
@@ -105,7 +123,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			WHERE e.recipient_did = $1
 			  AND e.state = 'active'
 			  AND ($2::timestamptz IS NULL
-			       OR (e.activity_at, e.id) < ($2::timestamptz, $3::uuid))
+			       OR (e.indexed_at, e.id) < ($2::timestamptz, $3::uuid))
 			  AND NOT EXISTS (
 				SELECT 1
 				FROM moderation_outputs mo
@@ -126,7 +144,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 					  AND neg.indexed_at > mo.indexed_at
 				  )
 			  )
-			ORDER BY e.activity_at DESC, e.id DESC
+			ORDER BY e.indexed_at DESC, e.id DESC
 			LIMIT $4
 		),
 		reference_uris AS (
@@ -162,7 +180,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			)
 		)
 		SELECT
-			e.id::text, e.category,
+			e.id::text, COALESCE(to_jsonb(e)->>'kind', 'social'), e.category,
 			e.source_uri, e.source_cid, e.source_rkey,
 			CASE WHEN e.category IN ('reply','mention','quote') THEN source_post.uri IS NOT NULL ELSE true END,
 			e.subject_uri,e.subject_cid,(e.subject_uri IS NOT NULL AND sp.uri IS NOT NULL),
@@ -180,7 +198,15 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 				WHERE actor_follow.did = $1
 				  AND actor_follow.subject_did = e.actor_did
 			) AS actor_viewer_is_following,
-			e.activity_at, e.indexed_at,
+			CASE
+				WHEN COALESCE(to_jsonb(e)->>'kind', 'social') = 'system'
+				THEN e.first_activity_at
+				ELSE e.activity_at
+			END,
+			e.indexed_at,
+			NULLIF(to_jsonb(e)->>'system_count', '')::integer,
+			NULLIF(to_jsonb(e)->>'system_count_capped', '')::boolean,
+			NULLIF(to_jsonb(e)->>'system_destination', ''),
 			sp.uri, sp.did, sp.rkey, sp.cid, sp.text, sp.facets, sp.images,
 			sp.reply_root_uri, sp.reply_root_cid, sp.reply_parent_uri, sp.reply_parent_cid,
 			sp.quote_uri, sp.quote_cid, sp.tags, sp.created_at, sp.indexed_at,
@@ -196,10 +222,10 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		LEFT JOIN visible_posts subject_quote ON subject_quote.uri=sp.quote_uri
 		LEFT JOIN craftsky_project_posts spp ON spp.uri = sp.uri
 		LEFT JOIN bluesky_profiles sbp ON sbp.did = sp.did
-		ORDER BY e.activity_at DESC, e.id DESC
+		ORDER BY e.indexed_at DESC, e.id DESC
 	`
 	queryLimit := limit + 1
-	rows, err := s.pool.Query(ctx, q, viewerDID, curActivityAt, curID, queryLimit)
+	rows, err := s.pool.Query(ctx, q, viewerDID, curIndexedAt, curID, queryLimit)
 	if err != nil {
 		return nil, "", fmt.Errorf("notification list %s: %w", viewerDID, err)
 	}
@@ -208,13 +234,17 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 	out := make([]*NotificationRow, 0, queryLimit)
 	for rows.Next() {
 		row := &NotificationRow{}
-		var eventType string
+		var eventKind, eventType string
 		var subject notificationSubjectScan
-		var sourceURI, sourceCID, sourceRkey string
+		var sourceURI, sourceCID, sourceRkey, actorDID sql.NullString
+		var systemCount sql.NullInt64
+		var systemCountCapped sql.NullBool
+		var systemDestination sql.NullString
 		var sourceAvailable, subjectAvailable, parentAvailable, rootAvailable, quotedAvailable, subjectQuoteAvailable bool
 		var subjectURI, subjectCID, parentURI, parentCID, rootURI, rootCID, quotedURI, quotedCID sql.NullString
 		if err := rows.Scan(
 			&row.ID,
+			&eventKind,
 			&eventType,
 			&sourceURI, &sourceCID, &sourceRkey, &sourceAvailable,
 			&subjectURI, &subjectCID, &subjectAvailable,
@@ -222,8 +252,9 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			&rootURI, &rootCID, &rootAvailable,
 			&quotedURI, &quotedCID, &quotedAvailable,
 			&subjectQuoteAvailable,
-			&row.ActorDID, &row.ActorDisplayName, &row.ActorAvatarCID, &row.ActorAvatarMime, &row.ActorViewerIsFollowing,
+			&actorDID, &row.ActorDisplayName, &row.ActorAvatarCID, &row.ActorAvatarMime, &row.ActorViewerIsFollowing,
 			&row.CreatedAt, &row.IndexedAt,
+			&systemCount, &systemCountCapped, &systemDestination,
 			&subject.URI, &subject.DID, &subject.Rkey, &subject.CID, &subject.Text, &subject.Facets, &subject.Images,
 			&subject.ReplyRootURI, &subject.ReplyRootCID, &subject.ReplyParentURI, &subject.ReplyParentCID,
 			&subject.QuoteURI, &subject.QuoteCID, &subject.Tags, &subject.CreatedAt, &subject.IndexedAt,
@@ -232,16 +263,28 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		); err != nil {
 			return nil, "", fmt.Errorf("notification list scan: %w", err)
 		}
+		row.Kind = NotificationKind(eventKind)
 		row.Type = NotificationType(eventType)
-		row.References = NotificationReferences{
-			Source:  *notificationReference(sql.NullString{String: sourceURI, Valid: true}, sql.NullString{String: sourceCID, Valid: true}, sourceRkey, sourceAvailable),
-			Subject: notificationReference(subjectURI, subjectCID, "", subjectAvailable),
-			Parent:  notificationReference(parentURI, parentCID, "", parentAvailable),
-			Root:    notificationReference(rootURI, rootCID, "", rootAvailable),
-			Quoted:  notificationReference(quotedURI, quotedCID, "", quotedAvailable),
-		}
-		if sourceAvailable {
-			row.URI, row.CID, row.Rkey = sourceURI, sourceCID, sourceRkey
+		row.ActorDID = actorDID.String
+		if row.Kind == NotificationKindSystem {
+			if systemCount.Valid && systemCountCapped.Valid && systemDestination.Valid {
+				row.System = &NotificationSystem{
+					Count:       int(systemCount.Int64),
+					CountCapped: systemCountCapped.Bool,
+					Destination: NotificationDestination(systemDestination.String),
+				}
+			}
+		} else {
+			row.References = NotificationReferences{
+				Source:  *notificationReference(sourceURI, sourceCID, sourceRkey.String, sourceAvailable),
+				Subject: notificationReference(subjectURI, subjectCID, "", subjectAvailable),
+				Parent:  notificationReference(parentURI, parentCID, "", parentAvailable),
+				Root:    notificationReference(rootURI, rootCID, "", rootAvailable),
+				Quoted:  notificationReference(quotedURI, quotedCID, "", quotedAvailable),
+			}
+			if sourceAvailable {
+				row.URI, row.CID, row.Rkey = sourceURI.String, sourceCID.String, sourceRkey.String
+			}
 		}
 		if subject.URI.Valid {
 			row.SubjectPost = subject.postRow()
@@ -264,8 +307,8 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 	out = out[:limit]
 	last := out[len(out)-1]
 	next, err := envelope.EncodeCursor(map[string]any{
-		"activityAt": last.CreatedAt.UTC().Format(time.RFC3339Nano),
-		"uri":        last.ID,
+		"indexedAt": last.IndexedAt.UTC().Format(time.RFC3339Nano),
+		"uri":       last.ID,
 	})
 	if err != nil {
 		return nil, "", fmt.Errorf("encode notification cursor: %w", err)

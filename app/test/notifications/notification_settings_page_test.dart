@@ -12,7 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets(
-    'AT-008 renders seven account-wide controls and no master switch',
+    'AT-008 renders social scopes and a push-only Instagram control',
     (
       tester,
     ) async {
@@ -35,7 +35,7 @@ void main() {
 
       expect(find.text('Notification settings'), findsOneWidget);
       expect(find.textContaining('all devices'), findsOneWidget);
-      expect(find.byType(Switch), findsNWidgets(7));
+      expect(find.byType(Switch), findsNWidgets(8));
       for (final category in NotificationCategory.preferenceValues) {
         expect(
           find.byKey(
@@ -50,6 +50,15 @@ void main() {
               widget is CraftskySingleSelectInput<NotificationPreferenceScope>,
         ),
         findsNWidgets(7),
+      );
+      expect(
+        find.byKey(const Key('notification-instagramMatch-scope')),
+        findsNothing,
+      );
+      expect(find.text('Instagram matches'), findsOneWidget);
+      expect(
+        find.textContaining('based on your Instagram migration eligibility'),
+        findsOneWidget,
       );
       expect(find.byType(DropdownButtonFormField), findsNothing);
       expect(find.byType(SwitchListTile), findsNothing);

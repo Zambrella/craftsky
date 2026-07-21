@@ -226,6 +226,18 @@ abstract class AppLocalizations {
   /// **'Activity unavailable'**
   String get notificationUnavailableRow;
 
+  /// Actorless notification copy for one or more bounded Instagram matches.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{A new Instagram match is ready to review} other{{count} new Instagram matches are ready to review}}'**
+  String notificationInstagramMatchRow(int count);
+
+  /// Actorless notification copy when the private match count is capped.
+  ///
+  /// In en, this message translates to:
+  /// **'99+ new Instagram matches are ready to review'**
+  String get notificationInstagramMatchRowCapped;
+
   /// No description provided for @notificationSettingsAction.
   ///
   /// In en, this message translates to:
@@ -291,6 +303,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reposts'**
   String get notificationCategoryReposts;
+
+  /// No description provided for @notificationCategoryInstagramMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram matches'**
+  String get notificationCategoryInstagramMatches;
+
+  /// No description provided for @notificationInstagramMatchPreferenceDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Push alerts are based on your Instagram migration eligibility. They never name matched accounts.'**
+  String get notificationInstagramMatchPreferenceDescription;
 
   /// No description provided for @notificationCategoryEverythingElse.
   ///
@@ -2463,6 +2487,570 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Projects didn\'t load.'**
   String get projectsLoadError;
+
+  /// No description provided for @instagramMigrationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Find people from Instagram'**
+  String get instagramMigrationTitle;
+
+  /// No description provided for @instagramMigrationSettingsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify your account or privately import handles.'**
+  String get instagramMigrationSettingsSubtitle;
+
+  /// No description provided for @instagramMigrationLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram migration data didn\'t load.'**
+  String get instagramMigrationLoadError;
+
+  /// No description provided for @instagramMigrationNoActiveAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to an account to use Instagram migration.'**
+  String get instagramMigrationNoActiveAccount;
+
+  /// No description provided for @instagramVerificationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify your Instagram account'**
+  String get instagramVerificationTitle;
+
+  /// No description provided for @instagramVerificationDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Send a one-time challenge to CraftSky\'s official Instagram account. You will confirm the username here before anything is linked.'**
+  String get instagramVerificationDescription;
+
+  /// No description provided for @instagramVerificationUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram verification is unavailable right now.'**
+  String get instagramVerificationUnavailable;
+
+  /// No description provided for @instagramVerificationUnavailableImports.
+  ///
+  /// In en, this message translates to:
+  /// **'You can still import handles on this device.'**
+  String get instagramVerificationUnavailableImports;
+
+  /// No description provided for @instagramVerificationStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Create verification challenge'**
+  String get instagramVerificationStart;
+
+  /// No description provided for @instagramVerificationSendChallenge.
+  ///
+  /// In en, this message translates to:
+  /// **'Send this exact one-time challenge in an Instagram DM:'**
+  String get instagramVerificationSendChallenge;
+
+  /// No description provided for @instagramVerificationChallengeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram verification challenge'**
+  String get instagramVerificationChallengeLabel;
+
+  /// No description provided for @instagramVerificationProcessing.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking your message…'**
+  String get instagramVerificationProcessing;
+
+  /// No description provided for @instagramCopyChallenge.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy challenge'**
+  String get instagramCopyChallenge;
+
+  /// No description provided for @instagramChallengeCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Challenge copied'**
+  String get instagramChallengeCopied;
+
+  /// No description provided for @instagramOpenDm.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Instagram DM'**
+  String get instagramOpenDm;
+
+  /// No description provided for @instagramCancelVerification.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel verification'**
+  String get instagramCancelVerification;
+
+  /// No description provided for @instagramVerificationCandidate.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram found @{username}'**
+  String instagramVerificationCandidate(String username);
+
+  /// No description provided for @instagramUnknownUsername.
+  ///
+  /// In en, this message translates to:
+  /// **'unknown'**
+  String get instagramUnknownUsername;
+
+  /// No description provided for @instagramVerificationCandidateWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm only if this is your Instagram username.'**
+  String get instagramVerificationCandidateWarning;
+
+  /// No description provided for @instagramDiscoverableLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Let imported contacts find me'**
+  String get instagramDiscoverableLabel;
+
+  /// No description provided for @instagramDiscoverableDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'When enabled, eligible CraftSky members who imported your exact current Instagram username may see a suggestion. This never follows anyone automatically.'**
+  String get instagramDiscoverableDescription;
+
+  /// No description provided for @instagramDiscoverableAllow.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow discovery'**
+  String get instagramDiscoverableAllow;
+
+  /// No description provided for @instagramDiscoverablePrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep private'**
+  String get instagramDiscoverablePrivate;
+
+  /// No description provided for @instagramVerificationConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm this account'**
+  String get instagramVerificationConfirm;
+
+  /// No description provided for @instagramVerificationConfirmed.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram account confirmed.'**
+  String get instagramVerificationConfirmed;
+
+  /// No description provided for @instagramVerificationExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'This verification challenge expired.'**
+  String get instagramVerificationExpired;
+
+  /// No description provided for @instagramVerificationCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'This verification challenge is no longer active.'**
+  String get instagramVerificationCancelled;
+
+  /// No description provided for @instagramVerificationRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram could not verify this message. Create a new challenge to try again.'**
+  String get instagramVerificationRejected;
+
+  /// No description provided for @instagramVerificationProfileUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram profile lookup is temporarily unavailable. Create a new challenge to try again.'**
+  String get instagramVerificationProfileUnavailable;
+
+  /// No description provided for @instagramVerificationProfileInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram returned an invalid profile result. Create a new challenge to try again.'**
+  String get instagramVerificationProfileInvalid;
+
+  /// No description provided for @instagramVerificationMembershipInactive.
+  ///
+  /// In en, this message translates to:
+  /// **'Your CraftSky membership is inactive. Restore membership before trying again.'**
+  String get instagramVerificationMembershipInactive;
+
+  /// No description provided for @instagramVerificationConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'This Instagram account cannot be linked automatically. Your existing account remains unchanged.'**
+  String get instagramVerificationConflict;
+
+  /// No description provided for @instagramActionError.
+  ///
+  /// In en, this message translates to:
+  /// **'That Instagram action didn\'t complete. Try again.'**
+  String get instagramActionError;
+
+  /// No description provided for @instagramRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get instagramRetry;
+
+  /// No description provided for @instagramLoadMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more'**
+  String get instagramLoadMore;
+
+  /// No description provided for @instagramAccountTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram account'**
+  String get instagramAccountTitle;
+
+  /// No description provided for @instagramLinkedAs.
+  ///
+  /// In en, this message translates to:
+  /// **'Linked as @{username}'**
+  String instagramLinkedAs(String username);
+
+  /// No description provided for @instagramConflictPending.
+  ///
+  /// In en, this message translates to:
+  /// **'There is a private account conflict to resolve. No ownership was transferred.'**
+  String get instagramConflictPending;
+
+  /// No description provided for @instagramReactivateAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Reactivate Instagram account'**
+  String get instagramReactivateAccount;
+
+  /// No description provided for @instagramReactivateAccountDisclosure.
+  ///
+  /// In en, this message translates to:
+  /// **'Reactivation keeps discovery off until you choose to turn it on again.'**
+  String get instagramReactivateAccountDisclosure;
+
+  /// No description provided for @instagramRevokeAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke Instagram link'**
+  String get instagramRevokeAccount;
+
+  /// No description provided for @instagramImportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Import Instagram contacts'**
+  String get instagramImportTitle;
+
+  /// No description provided for @instagramImportLocalDisclosure.
+  ///
+  /// In en, this message translates to:
+  /// **'CraftSky reads the selected JSON file only on this device. Only normalized usernames and their relationship direction are uploaded; ZIP archives are not supported.'**
+  String get instagramImportLocalDisclosure;
+
+  /// No description provided for @instagramImportManual.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter handles'**
+  String get instagramImportManual;
+
+  /// No description provided for @instagramImportJson.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose JSON'**
+  String get instagramImportJson;
+
+  /// No description provided for @instagramImportDirection.
+  ///
+  /// In en, this message translates to:
+  /// **'Relationship direction'**
+  String get instagramImportDirection;
+
+  /// No description provided for @instagramImportChooseDirection.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose whether these people are following or followers'**
+  String get instagramImportChooseDirection;
+
+  /// No description provided for @instagramImportFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'Accounts I follow'**
+  String get instagramImportFollowing;
+
+  /// No description provided for @instagramImportFollowers.
+  ///
+  /// In en, this message translates to:
+  /// **'Accounts that follow me'**
+  String get instagramImportFollowers;
+
+  /// No description provided for @instagramImportHandles.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram handles'**
+  String get instagramImportHandles;
+
+  /// No description provided for @instagramImportHandlesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'One handle per line'**
+  String get instagramImportHandlesHint;
+
+  /// No description provided for @instagramImportPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview normalized handles'**
+  String get instagramImportPreview;
+
+  /// No description provided for @instagramImportSelectJson.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Instagram JSON file'**
+  String get instagramImportSelectJson;
+
+  /// No description provided for @instagramImportFilePickerError.
+  ///
+  /// In en, this message translates to:
+  /// **'The JSON file couldn\'t be opened on this device.'**
+  String get instagramImportFilePickerError;
+
+  /// No description provided for @instagramImportInvalidJson.
+  ///
+  /// In en, this message translates to:
+  /// **'This file is not valid JSON.'**
+  String get instagramImportInvalidJson;
+
+  /// No description provided for @instagramImportUnsupportedShape.
+  ///
+  /// In en, this message translates to:
+  /// **'This JSON is not a supported Instagram following or followers export for the selected direction.'**
+  String get instagramImportUnsupportedShape;
+
+  /// No description provided for @instagramImportUnsupportedFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'ZIP archives are not supported. Select the following or followers JSON file inside the export.'**
+  String get instagramImportUnsupportedFormat;
+
+  /// No description provided for @instagramImportFileTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'This file is larger than 20 MiB.'**
+  String get instagramImportFileTooLarge;
+
+  /// No description provided for @instagramImportTooManyEntries.
+  ///
+  /// In en, this message translates to:
+  /// **'This import contains more than 10,000 unique handles.'**
+  String get instagramImportTooManyEntries;
+
+  /// No description provided for @instagramImportPreviewCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 normalized handle ready} other{{count} normalized handles ready}}'**
+  String instagramImportPreviewCount(int count);
+
+  /// No description provided for @instagramImportFollowingPreviewCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 account you follow ready} other{{count} accounts you follow ready}}'**
+  String instagramImportFollowingPreviewCount(int count);
+
+  /// No description provided for @instagramImportFollowerPreviewCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 follower ready} other{{count} followers ready}}'**
+  String instagramImportFollowerPreviewCount(int count);
+
+  /// No description provided for @instagramImportIgnoredCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 unsupported entry ignored} other{{count} unsupported entries ignored}}'**
+  String instagramImportIgnoredCount(int count);
+
+  /// No description provided for @instagramImportDuplicateCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 duplicate removed} other{{count} duplicates removed}}'**
+  String instagramImportDuplicateCount(int count);
+
+  /// No description provided for @instagramImportRetention.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep unmatched accounts for future matches'**
+  String get instagramImportRetention;
+
+  /// No description provided for @instagramImportRetentionDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional. Unmatched following handles may be retained privately for up to 12 months. You can withdraw this consent or delete the import at any time.'**
+  String get instagramImportRetentionDescription;
+
+  /// No description provided for @instagramImportUpload.
+  ///
+  /// In en, this message translates to:
+  /// **'Create private import'**
+  String get instagramImportUpload;
+
+  /// No description provided for @instagramImportUploadSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram import created'**
+  String get instagramImportUploadSuccess;
+
+  /// No description provided for @instagramImportUploadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram import wasn\'t created. Try again.'**
+  String get instagramImportUploadError;
+
+  /// No description provided for @instagramImportsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your imports'**
+  String get instagramImportsTitle;
+
+  /// No description provided for @instagramImportsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Instagram imports didn\'t load.'**
+  String get instagramImportsLoadError;
+
+  /// No description provided for @instagramImportsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No Instagram imports yet.'**
+  String get instagramImportsEmpty;
+
+  /// No description provided for @instagramImportManualSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual handles'**
+  String get instagramImportManualSource;
+
+  /// No description provided for @instagramImportJsonSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram JSON'**
+  String get instagramImportJsonSource;
+
+  /// No description provided for @instagramImportUnknownSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram import'**
+  String get instagramImportUnknownSource;
+
+  /// No description provided for @instagramImportCounts.
+  ///
+  /// In en, this message translates to:
+  /// **'{followingCount} following · {followerCount} followers'**
+  String instagramImportCounts(int followingCount, int followerCount);
+
+  /// No description provided for @instagramImportRetainedUntil.
+  ///
+  /// In en, this message translates to:
+  /// **'Future matching retained until {date}'**
+  String instagramImportRetainedUntil(String date);
+
+  /// No description provided for @instagramImportReactivationDisclosure.
+  ///
+  /// In en, this message translates to:
+  /// **'This import paused when your CraftSky membership changed. Reactivating it does not extend its retention date.'**
+  String get instagramImportReactivationDisclosure;
+
+  /// No description provided for @instagramImportReactivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Reactivate import'**
+  String get instagramImportReactivate;
+
+  /// No description provided for @instagramImportRenewRetention.
+  ///
+  /// In en, this message translates to:
+  /// **'Renew future-match retention'**
+  String get instagramImportRenewRetention;
+
+  /// No description provided for @instagramImportWithdrawRetention.
+  ///
+  /// In en, this message translates to:
+  /// **'Withdraw future-match retention'**
+  String get instagramImportWithdrawRetention;
+
+  /// No description provided for @instagramImportRetentionDiscarded.
+  ///
+  /// In en, this message translates to:
+  /// **'Unmatched handles are not retained. Create a new import if you want to enable future matching.'**
+  String get instagramImportRetentionDiscarded;
+
+  /// No description provided for @instagramImportDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete import'**
+  String get instagramImportDelete;
+
+  /// No description provided for @instagramSuggestionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'People you may know'**
+  String get instagramSuggestionsTitle;
+
+  /// No description provided for @instagramSuggestionsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram suggestions didn\'t load.'**
+  String get instagramSuggestionsLoadError;
+
+  /// No description provided for @instagramSuggestionsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No eligible Instagram suggestions right now.'**
+  String get instagramSuggestionsEmpty;
+
+  /// No description provided for @instagramSuggestionsSelectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all reviewed'**
+  String get instagramSuggestionsSelectAll;
+
+  /// No description provided for @instagramSuggestionsClearSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear selection'**
+  String get instagramSuggestionsClearSelection;
+
+  /// No description provided for @instagramSuggestionsAcceptSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Follow 1 selected person} other{Follow {count} selected people}}'**
+  String instagramSuggestionsAcceptSelected(int count);
+
+  /// No description provided for @instagramSuggestionReason.
+  ///
+  /// In en, this message translates to:
+  /// **'You follow this verified account on Instagram.'**
+  String get instagramSuggestionReason;
+
+  /// No description provided for @instagramSuggestionUnknownReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Suggested from your private Instagram import.'**
+  String get instagramSuggestionUnknownReason;
+
+  /// No description provided for @instagramSuggestionAccept.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow'**
+  String get instagramSuggestionAccept;
+
+  /// No description provided for @instagramSuggestionDismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get instagramSuggestionDismiss;
+
+  /// No description provided for @instagramSuggestionsActionError.
+  ///
+  /// In en, this message translates to:
+  /// **'One or more suggestions changed or couldn\'t be updated. Refresh before trying again.'**
+  String get instagramSuggestionsActionError;
 }
 
 class _AppLocalizationsDelegate

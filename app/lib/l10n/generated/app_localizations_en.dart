@@ -101,6 +101,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationUnavailableRow => 'Activity unavailable';
 
   @override
+  String notificationInstagramMatchRow(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count new Instagram matches are ready to review',
+      one: 'A new Instagram match is ready to review',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get notificationInstagramMatchRowCapped =>
+      '99+ new Instagram matches are ready to review';
+
+  @override
   String get notificationSettingsAction => 'Notification settings';
 
   @override
@@ -135,6 +150,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notificationCategoryReposts => 'Reposts';
+
+  @override
+  String get notificationCategoryInstagramMatches => 'Instagram matches';
+
+  @override
+  String get notificationInstagramMatchPreferenceDescription =>
+      'Push alerts are based on your Instagram migration eligibility. They never name matched accounts.';
 
   @override
   String get notificationCategoryEverythingElse => 'Everything else';
@@ -1322,4 +1344,380 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get projectsLoadError => 'Projects didn\'t load.';
+
+  @override
+  String get instagramMigrationTitle => 'Find people from Instagram';
+
+  @override
+  String get instagramMigrationSettingsSubtitle =>
+      'Verify your account or privately import handles.';
+
+  @override
+  String get instagramMigrationLoadError =>
+      'Instagram migration data didn\'t load.';
+
+  @override
+  String get instagramMigrationNoActiveAccount =>
+      'Sign in to an account to use Instagram migration.';
+
+  @override
+  String get instagramVerificationTitle => 'Verify your Instagram account';
+
+  @override
+  String get instagramVerificationDescription =>
+      'Send a one-time challenge to CraftSky\'s official Instagram account. You will confirm the username here before anything is linked.';
+
+  @override
+  String get instagramVerificationUnavailable =>
+      'Instagram verification is unavailable right now.';
+
+  @override
+  String get instagramVerificationUnavailableImports =>
+      'You can still import handles on this device.';
+
+  @override
+  String get instagramVerificationStart => 'Create verification challenge';
+
+  @override
+  String get instagramVerificationSendChallenge =>
+      'Send this exact one-time challenge in an Instagram DM:';
+
+  @override
+  String get instagramVerificationChallengeLabel =>
+      'Instagram verification challenge';
+
+  @override
+  String get instagramVerificationProcessing => 'Checking your message…';
+
+  @override
+  String get instagramCopyChallenge => 'Copy challenge';
+
+  @override
+  String get instagramChallengeCopied => 'Challenge copied';
+
+  @override
+  String get instagramOpenDm => 'Open Instagram DM';
+
+  @override
+  String get instagramCancelVerification => 'Cancel verification';
+
+  @override
+  String instagramVerificationCandidate(String username) {
+    return 'Instagram found @$username';
+  }
+
+  @override
+  String get instagramUnknownUsername => 'unknown';
+
+  @override
+  String get instagramVerificationCandidateWarning =>
+      'Confirm only if this is your Instagram username.';
+
+  @override
+  String get instagramDiscoverableLabel => 'Let imported contacts find me';
+
+  @override
+  String get instagramDiscoverableDescription =>
+      'When enabled, eligible CraftSky members who imported your exact current Instagram username may see a suggestion. This never follows anyone automatically.';
+
+  @override
+  String get instagramDiscoverableAllow => 'Allow discovery';
+
+  @override
+  String get instagramDiscoverablePrivate => 'Keep private';
+
+  @override
+  String get instagramVerificationConfirm => 'Confirm this account';
+
+  @override
+  String get instagramVerificationConfirmed => 'Instagram account confirmed.';
+
+  @override
+  String get instagramVerificationExpired =>
+      'This verification challenge expired.';
+
+  @override
+  String get instagramVerificationCancelled =>
+      'This verification challenge is no longer active.';
+
+  @override
+  String get instagramVerificationRejected =>
+      'Instagram could not verify this message. Create a new challenge to try again.';
+
+  @override
+  String get instagramVerificationProfileUnavailable =>
+      'Instagram profile lookup is temporarily unavailable. Create a new challenge to try again.';
+
+  @override
+  String get instagramVerificationProfileInvalid =>
+      'Instagram returned an invalid profile result. Create a new challenge to try again.';
+
+  @override
+  String get instagramVerificationMembershipInactive =>
+      'Your CraftSky membership is inactive. Restore membership before trying again.';
+
+  @override
+  String get instagramVerificationConflict =>
+      'This Instagram account cannot be linked automatically. Your existing account remains unchanged.';
+
+  @override
+  String get instagramActionError =>
+      'That Instagram action didn\'t complete. Try again.';
+
+  @override
+  String get instagramRetry => 'Try again';
+
+  @override
+  String get instagramLoadMore => 'Load more';
+
+  @override
+  String get instagramAccountTitle => 'Instagram account';
+
+  @override
+  String instagramLinkedAs(String username) {
+    return 'Linked as @$username';
+  }
+
+  @override
+  String get instagramConflictPending =>
+      'There is a private account conflict to resolve. No ownership was transferred.';
+
+  @override
+  String get instagramReactivateAccount => 'Reactivate Instagram account';
+
+  @override
+  String get instagramReactivateAccountDisclosure =>
+      'Reactivation keeps discovery off until you choose to turn it on again.';
+
+  @override
+  String get instagramRevokeAccount => 'Revoke Instagram link';
+
+  @override
+  String get instagramImportTitle => 'Import Instagram contacts';
+
+  @override
+  String get instagramImportLocalDisclosure =>
+      'CraftSky reads the selected JSON file only on this device. Only normalized usernames and their relationship direction are uploaded; ZIP archives are not supported.';
+
+  @override
+  String get instagramImportManual => 'Enter handles';
+
+  @override
+  String get instagramImportJson => 'Choose JSON';
+
+  @override
+  String get instagramImportDirection => 'Relationship direction';
+
+  @override
+  String get instagramImportChooseDirection =>
+      'Choose whether these people are following or followers';
+
+  @override
+  String get instagramImportFollowing => 'Accounts I follow';
+
+  @override
+  String get instagramImportFollowers => 'Accounts that follow me';
+
+  @override
+  String get instagramImportHandles => 'Instagram handles';
+
+  @override
+  String get instagramImportHandlesHint => 'One handle per line';
+
+  @override
+  String get instagramImportPreview => 'Preview normalized handles';
+
+  @override
+  String get instagramImportSelectJson => 'Select Instagram JSON file';
+
+  @override
+  String get instagramImportFilePickerError =>
+      'The JSON file couldn\'t be opened on this device.';
+
+  @override
+  String get instagramImportInvalidJson => 'This file is not valid JSON.';
+
+  @override
+  String get instagramImportUnsupportedShape =>
+      'This JSON is not a supported Instagram following or followers export for the selected direction.';
+
+  @override
+  String get instagramImportUnsupportedFormat =>
+      'ZIP archives are not supported. Select the following or followers JSON file inside the export.';
+
+  @override
+  String get instagramImportFileTooLarge => 'This file is larger than 20 MiB.';
+
+  @override
+  String get instagramImportTooManyEntries =>
+      'This import contains more than 10,000 unique handles.';
+
+  @override
+  String instagramImportPreviewCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count normalized handles ready',
+      one: '1 normalized handle ready',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String instagramImportFollowingPreviewCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count accounts you follow ready',
+      one: '1 account you follow ready',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String instagramImportFollowerPreviewCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count followers ready',
+      one: '1 follower ready',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String instagramImportIgnoredCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count unsupported entries ignored',
+      one: '1 unsupported entry ignored',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String instagramImportDuplicateCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count duplicates removed',
+      one: '1 duplicate removed',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get instagramImportRetention =>
+      'Keep unmatched accounts for future matches';
+
+  @override
+  String get instagramImportRetentionDescription =>
+      'Optional. Unmatched following handles may be retained privately for up to 12 months. You can withdraw this consent or delete the import at any time.';
+
+  @override
+  String get instagramImportUpload => 'Create private import';
+
+  @override
+  String get instagramImportUploadSuccess => 'Instagram import created';
+
+  @override
+  String get instagramImportUploadError =>
+      'Instagram import wasn\'t created. Try again.';
+
+  @override
+  String get instagramImportsTitle => 'Your imports';
+
+  @override
+  String get instagramImportsLoadError =>
+      'Your Instagram imports didn\'t load.';
+
+  @override
+  String get instagramImportsEmpty => 'No Instagram imports yet.';
+
+  @override
+  String get instagramImportManualSource => 'Manual handles';
+
+  @override
+  String get instagramImportJsonSource => 'Instagram JSON';
+
+  @override
+  String get instagramImportUnknownSource => 'Instagram import';
+
+  @override
+  String instagramImportCounts(int followingCount, int followerCount) {
+    return '$followingCount following · $followerCount followers';
+  }
+
+  @override
+  String instagramImportRetainedUntil(String date) {
+    return 'Future matching retained until $date';
+  }
+
+  @override
+  String get instagramImportReactivationDisclosure =>
+      'This import paused when your CraftSky membership changed. Reactivating it does not extend its retention date.';
+
+  @override
+  String get instagramImportReactivate => 'Reactivate import';
+
+  @override
+  String get instagramImportRenewRetention => 'Renew future-match retention';
+
+  @override
+  String get instagramImportWithdrawRetention =>
+      'Withdraw future-match retention';
+
+  @override
+  String get instagramImportRetentionDiscarded =>
+      'Unmatched handles are not retained. Create a new import if you want to enable future matching.';
+
+  @override
+  String get instagramImportDelete => 'Delete import';
+
+  @override
+  String get instagramSuggestionsTitle => 'People you may know';
+
+  @override
+  String get instagramSuggestionsLoadError =>
+      'Instagram suggestions didn\'t load.';
+
+  @override
+  String get instagramSuggestionsEmpty =>
+      'No eligible Instagram suggestions right now.';
+
+  @override
+  String get instagramSuggestionsSelectAll => 'Select all reviewed';
+
+  @override
+  String get instagramSuggestionsClearSelection => 'Clear selection';
+
+  @override
+  String instagramSuggestionsAcceptSelected(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Follow $count selected people',
+      one: 'Follow 1 selected person',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get instagramSuggestionReason =>
+      'You follow this verified account on Instagram.';
+
+  @override
+  String get instagramSuggestionUnknownReason =>
+      'Suggested from your private Instagram import.';
+
+  @override
+  String get instagramSuggestionAccept => 'Follow';
+
+  @override
+  String get instagramSuggestionDismiss => 'Dismiss';
+
+  @override
+  String get instagramSuggestionsActionError =>
+      'One or more suggestions changed or couldn\'t be updated. Refresh before trying again.';
 }

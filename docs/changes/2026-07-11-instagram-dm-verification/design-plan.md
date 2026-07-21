@@ -1,7 +1,7 @@
 # Instagram DM Ownership Verification and Follow Discovery — Design Plan
 
 **Date:** 2026-07-11  
-**Status:** Proposed  
+**Status:** Approved for implementation; production enablement blocked on external gates  
 **Risk:** High — external identity linking, private social-graph data, and account-discovery controls  
 **Scope:** Custom Instagram Messaging API integration, Instagram handle ownership verification, and verified-handle matching for follow suggestions
 
@@ -128,10 +128,18 @@ Challenges must be:
 - Stored as a hash, never as recoverable plaintext.
 - Invalidated when redeemed, cancelled, superseded, or expired.
 
+The canonical display form uses thirteen random symbols drawn uniformly from
+`23456789ABCDEFGHJKMNPQRSTVWXYZ` (a 30-symbol alphabet that omits `0`, `1`,
+`I`, `L`, `O`, and `U`). Thirteen symbols provide approximately 63.8 bits of
+entropy (`13 * log2(30)`). Hyphens and the `CSKY-` prefix are formatting and do
+not count toward entropy. Verification messages accept only this complete token
+after trimming outer whitespace and folding ASCII case; surrounding prose is
+not accepted.
+
 Example display form:
 
 ```text
-CSKY-7K4P-N9QX-M2
+CSKY-7K4P-N9QX-M2RT-H
 ```
 
 The challenge must not encode the DID, session token, Instagram handle, email address, or other personal data.
@@ -292,6 +300,13 @@ Accepted PDS follows remain follows of a DID and are not undone by later Instagr
 - The member must understand that enabling discovery lets another CraftSky member who supplies the verified Instagram handle find their CraftSky profile.
 - A member can disable discovery, revoke the Instagram link, or re-verify a changed account.
 - Revocation invalidates pending suggestions but does not undo follows that users already approved.
+- Loss of current `craftsky_profiles` membership and terminal account deletion
+  are different events. Membership loss immediately disables discovery and all
+  member-facing Instagram operations, invalidates dependent pending
+  suggestions/notifications, and retains private owner state only under its
+  normal retention policy. Rejoining does not silently re-enable discovery.
+  A terminal atproto identity-deletion event or a future explicit whole-account
+  deletion permanently purges the member's private Instagram state.
 - Importers must explicitly opt in before unmatched handles are retained for future matching.
 - Unmatched imported handles may be retained for at most 12 months and must have a delete-now control. The member must renew consent before retention extends beyond that period.
 - A verified member is not told which specific people imported or searched for their handle.
@@ -435,11 +450,18 @@ Logs and telemetry must not contain challenge plaintext, raw message text, Meta 
 
 ## 19. Implementation Readiness
 
-This feature should not proceed directly from this design into coding. It changes authentication-adjacent behaviour, stores private social-graph information, introduces an external webhook, and creates cross-network identity associations. The next workflow artifacts should be:
+This high-risk feature was not taken directly from this design into coding. The
+user explicitly approved formalization and feasible implementation, and the
+required workflow artifacts now provide the authoritative implementation
+contract:
 
-1. `01-requirements.md`, incorporating the settled product decisions above.
-2. `02-acceptance-tests.md`, with explicit privacy, replay, conflict, and follow-write coverage.
-3. Document review against the API, OAuth, notification, privacy, and account-deletion contracts.
-4. A coding plan covering migrations, integration secrets, background processing, routes, Flutter state/UI, and the Meta capability spike.
+1. `01-requirements.md`, approved requirements and exact subcontracts.
+2. `02-acceptance-tests.md`, privacy, replay, conflict, lifecycle, and follow-write coverage.
+3. `03-document-review.md`, approved independent re-review.
+4. `04-coding-plan.md`, created before implementation and covering migrations,
+   integration secrets, background processing, routes, Flutter state/UI, and
+   external release gates.
 
-Explicit approval of the high-risk requirements is required before implementation begins.
+The requirements and acceptance-test documents supersede earlier sketch-level
+details in this plan where they are more precise. Production enablement still
+requires the Meta capability spike and every manual release gate.

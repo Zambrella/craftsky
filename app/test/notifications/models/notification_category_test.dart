@@ -14,8 +14,12 @@ void main() {
     expect(NotificationCategory.quote.toValue(), 'quote');
   });
 
-  test('preference categories are the seven configurable values', () {
-    expect(NotificationCategory.preferenceValues, hasLength(7));
+  test('preference categories include the actorless Instagram category', () {
+    expect(NotificationCategory.preferenceValues, hasLength(8));
+    expect(
+      NotificationCategory.preferenceValues,
+      contains(NotificationCategory.instagramMatch),
+    );
     expect(
       NotificationCategory.preferenceValues,
       isNot(contains(NotificationCategory.unknown)),

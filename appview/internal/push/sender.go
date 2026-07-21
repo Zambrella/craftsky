@@ -29,11 +29,15 @@ const (
 )
 
 type RoutingFacts struct {
-	ActorDID   syntax.DID
-	SourceURI  syntax.ATURI
-	SubjectURI syntax.ATURI
-	RootURI    syntax.ATURI
-	TargetRole ContentRole
+	ActorDID          syntax.DID
+	SourceURI         syntax.ATURI
+	SubjectURI        syntax.ATURI
+	RootURI           syntax.ATURI
+	TargetRole        ContentRole
+	NotificationID    string
+	SystemCount       int
+	SystemCountCapped bool
+	SystemDestination string
 }
 type SendRequest struct {
 	Token                 string

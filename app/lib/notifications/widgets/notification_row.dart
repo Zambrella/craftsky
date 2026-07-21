@@ -33,11 +33,15 @@ class NotificationRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (notification case final SystemNotification system) {
+      return _buildSystem(context, ref, system);
+    }
+    final social = notification as SocialNotification;
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final actor = notification.actor.displayLabel;
-    final actionColor = _actionColor(notification, theme.colorScheme);
-    final (title, subtitle) = switch (notification) {
+    final actor = social.actor.displayLabel;
+    final actionColor = _actionColor(social, theme.colorScheme);
+    final (title, subtitle) = switch (social) {
       FollowNotification() => (l10n.notificationFollowRow(actor), null),
       LikeNotification(:final subjectPost) => (
         switch (_roleOf(subjectPost)) {
@@ -85,7 +89,7 @@ class NotificationRow extends ConsumerWidget {
       GenericNotification() => (l10n.notificationGenericRow, null),
       UnavailableNotification() => (l10n.notificationUnavailableRow, null),
     };
-    final onTap = notification is GenericNotification
+    final onTap = social is GenericNotification
         ? null
         : () => _open(context, ref);
     return Material(
@@ -114,7 +118,7 @@ class NotificationRow extends ConsumerWidget {
                   children: [
                     ProfileAvatar(
                       seed: actor,
-                      avatarUrl: notification.actor.displayAvatarUrl,
+                      avatarUrl: social.actor.displayAvatarUrl,
                       size: ProfileAvatarSize.small,
                     ),
                     const SizedBox(height: 8),
@@ -145,11 +149,69 @@ class NotificationRow extends ConsumerWidget {
                         ),
                       ),
                     ],
-                    if (notification is FollowNotification &&
-                        notification.actor.available) ...[
+                    if (social is FollowNotification &&
+                        social.actor.available) ...[
                       const SizedBox(height: 8),
-                      _NotificationFollowButton(actor: notification.actor),
+                      _NotificationFollowButton(actor: social.actor),
                     ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSystem(
+    BuildContext context,
+    WidgetRef ref,
+    SystemNotification system,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final title = switch (system) {
+      InstagramMatchNotification(:final count, :final countCapped) =>
+        countCapped
+            ? l10n.notificationInstagramMatchRowCapped
+            : l10n.notificationInstagramMatchRow(count),
+      GenericSystemNotification() => l10n.notificationGenericRow,
+    };
+    final onTap = system is InstagramMatchNotification
+        ? () => _open(context, ref)
+        : null;
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              ExcludeSemantics(
+                child: Icon(
+                  notificationCategoryIcon(system.type),
+                  color: _actionColor(system, theme.colorScheme),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 2,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(title, style: theme.textTheme.bodyLarge),
+                    Text(
+                      '·',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                    RelativeTimeText(timestamp: system.createdAt),
                   ],
                 ),
               ),
@@ -181,6 +243,10 @@ class NotificationRow extends ConsumerWidget {
         _openPost(context, subjectPost);
       case GenericNotification():
         break;
+      case GenericSystemNotification():
+        break;
+      case InstagramMatchNotification():
+        unawaited(const InstagramMigrationRoute().push<void>(context));
       case UnavailableNotification():
         context.showWarning(
           AppLocalizations.of(context).notificationUnavailableRow,
@@ -293,7 +359,9 @@ Color _actionColor(
   RepostNotification() => colors.tertiary,
   ReplyNotification() => colors.primary,
   MentionNotification() || QuoteNotification() => colors.secondary,
+  InstagramMatchNotification() => colors.primary,
   GenericNotification() => colors.outline,
+  GenericSystemNotification() => colors.outline,
   UnavailableNotification() => colors.error,
 };
 

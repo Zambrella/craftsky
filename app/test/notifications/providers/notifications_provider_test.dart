@@ -59,8 +59,8 @@ void main() {
       accountNotificationsProvider(bob).future,
     );
 
-    expect(aliceState.items.single.rkey.toString(), 'alice');
-    expect(bobState.items.single.rkey.toString(), 'bob');
+    expect(_socialRkey(aliceState.items.single), 'alice');
+    expect(_socialRkey(bobState.items.single), 'bob');
     expect(aliceState.owner?.account, alice);
     expect(bobState.owner?.account, bob);
   });
@@ -84,7 +84,7 @@ void main() {
     container.invalidate(notificationsProvider);
     final state = await container.read(notificationsProvider.future);
 
-    expect(state.items.map((item) => item.rkey.toString()), ['one']);
+    expect(state.items.map(_socialRkey), ['one']);
     expect(repo.calls, hasLength(2));
   });
 
@@ -102,7 +102,7 @@ void main() {
     await container.read(notificationsProvider.notifier).loadMore();
 
     final state = container.read(notificationsProvider).value!;
-    expect(state.items.map((item) => item.rkey.toString()), ['one', 'two']);
+    expect(state.items.map(_socialRkey), ['one', 'two']);
     expect(state.hasMore, isFalse);
     expect(repo.calls.last.cursor, 'next');
   });
@@ -132,12 +132,15 @@ void main() {
 
       final state = container.read(notificationsProvider);
       expect(repo.calls, hasLength(2));
-      expect(state.value!.items.map((item) => item.rkey.toString()), ['one']);
+      expect(state.value!.items.map(_socialRkey), ['one']);
       expect(state.value!.cursor, 'next');
       expect(state.hasError, isTrue);
     },
   );
 }
+
+String _socialRkey(CraftskyNotification notification) =>
+    (notification as SocialNotification).rkey.toString();
 
 FollowNotification _follow(String rkey) =>
     CraftskyNotification.fromMap({

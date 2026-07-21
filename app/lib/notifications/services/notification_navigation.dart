@@ -19,6 +19,10 @@ void navigateToNotificationOutcome(
     );
   }
   switch (outcome.destination) {
+    case InstagramMigrationDestination():
+      unawaited(
+        router.push<void>(const InstagramMigrationRoute().location),
+      );
     case NotificationsDestination():
       router.go(const NotificationsRoute().location);
     case ProfileDestination(:final did):
