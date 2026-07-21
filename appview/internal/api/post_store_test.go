@@ -139,6 +139,13 @@ CREATE TABLE craftsky_reposts (
     deleted_at  TIMESTAMPTZ,
     UNIQUE (did, rkey)
 );
+CREATE TABLE saved_posts (
+    owner_did TEXT NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    post_uri  TEXT NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
+    folder_id UUID,
+    saved_at  TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (owner_did, post_uri)
+);
 CREATE TABLE moderation_outputs (
     id                  TEXT        NOT NULL PRIMARY KEY,
     source_did          TEXT        NOT NULL,
@@ -230,6 +237,16 @@ func seedInteraction(t *testing.T, pool *pgxpool.Pool, table, did, rkey, subject
 		t.Fatalf("seed %s: %v", table, err)
 	}
 	return uri
+}
+
+func seedSavedPost(t *testing.T, pool *pgxpool.Pool, ownerDID, postURI string, folderID *string, savedAt time.Time) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO saved_posts (owner_did, post_uri, folder_id, saved_at)
+		VALUES ($1, $2, $3, $4)
+	`, ownerDID, postURI, folderID, savedAt); err != nil {
+		t.Fatalf("seed saved post: %v", err)
+	}
 }
 
 func seedPostMention(t *testing.T, pool *pgxpool.Pool, postURI, mentionedDID string, indexedAt time.Time) {
@@ -1029,17 +1046,31 @@ func TestPostStore_EngagementSummaries_ActiveOnlyAndViewerStates(t *testing.T) {
 	reply1 := seedReplyPost(t, pool, "did:plc:bob", "reply1", "reply", post1, post1, base.Add(2*time.Hour))
 	seedReplyPost(t, pool, "did:plc:carol", "reply2", "reply", post1, post1, base.Add(3*time.Hour))
 	seedReplyPost(t, pool, "did:plc:dave", "grandchild", "nested", post1, reply1, base.Add(4*time.Hour))
+	bobFolderID := "11111111-1111-1111-1111-111111111111"
+	seedSavedPost(t, pool, "did:plc:bob", post1, &bobFolderID, base.Add(5*time.Hour))
+	seedSavedPost(t, pool, "did:plc:alice", post2, nil, base.Add(6*time.Hour))
 
 	store := api.NewPostStore(pool)
 	summaries, err := store.EngagementSummaries(context.Background(), "did:plc:bob", []string{post1, post2})
 	if err != nil {
 		t.Fatalf("EngagementSummaries: %v", err)
 	}
-	if got := summaries[post1]; got.LikeCount != 2 || got.RepostCount != 1 || got.QuoteCount != 2 || got.ReplyCount != 3 || !got.ViewerHasLiked || !got.ViewerHasReposted || !got.ViewerHasReplied {
+	if got := summaries[post1]; got.LikeCount != 2 || got.RepostCount != 1 || got.QuoteCount != 2 || got.ReplyCount != 3 || !got.ViewerHasLiked || !got.ViewerHasReposted || !got.ViewerHasReplied || !got.ViewerHasSaved || got.ViewerSavedFolderID == nil || *got.ViewerSavedFolderID != bobFolderID {
 		t.Fatalf("post1 summary = %+v", got)
 	}
-	if got := summaries[post2]; got.LikeCount != 1 || got.RepostCount != 1 || got.QuoteCount != 0 || got.ReplyCount != 0 || !got.ViewerHasLiked || got.ViewerHasReposted || got.ViewerHasReplied {
+	if got := summaries[post2]; got.LikeCount != 1 || got.RepostCount != 1 || got.QuoteCount != 0 || got.ReplyCount != 0 || !got.ViewerHasLiked || got.ViewerHasReposted || got.ViewerHasReplied || got.ViewerHasSaved || got.ViewerSavedFolderID != nil {
 		t.Fatalf("post2 summary = %+v", got)
+	}
+
+	aliceSummaries, err := store.EngagementSummaries(context.Background(), "did:plc:alice", []string{post1, post2})
+	if err != nil {
+		t.Fatalf("Alice EngagementSummaries: %v", err)
+	}
+	if got := aliceSummaries[post1]; got.ViewerHasSaved || got.ViewerSavedFolderID != nil {
+		t.Fatalf("Alice post1 summary = %+v, want unsaved", got)
+	}
+	if got := aliceSummaries[post2]; !got.ViewerHasSaved || got.ViewerSavedFolderID != nil {
+		t.Fatalf("Alice post2 summary = %+v, want unfiled saved", got)
 	}
 }
 
@@ -1127,6 +1158,30 @@ func TestPostStore_QuoteViewRows_ReturnsVisibleHiddenAndUnavailableStates(t *tes
 	}
 	if got := views[missing]; got == nil || got.State != "unavailable" || got.Post != nil {
 		t.Fatalf("missing quote view = %+v", got)
+	}
+}
+
+func TestPostStoreResolveSavedPostTargetRequiresEligibleReplyContext(t *testing.T) {
+	pool := testdb.WithSchema(t, postStoreDDL)
+	ctx := context.Background()
+	for _, did := range []string{"did:plc:viewer", "did:plc:root", "did:plc:parent", "did:plc:target"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 7, 20, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:root", "root", "root", base)
+	parent := seedReplyPost(t, pool, "did:plc:parent", "parent", "parent", root, root, base.Add(time.Minute))
+	seedReplyPost(t, pool, "did:plc:target", "target", "target", root, parent, base.Add(2*time.Minute))
+
+	store := api.NewPostStore(pool)
+	uri, err := store.ResolveSavedPostTarget(ctx, "did:plc:viewer", "did:plc:target", "target")
+	if err != nil || uri.String() != "at://did:plc:target/social.craftsky.feed.post/target" {
+		t.Fatalf("eligible reply target = %s, err %v", uri, err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM craftsky_posts WHERE uri = $1`, parent); err != nil {
+		t.Fatalf("remove required parent: %v", err)
+	}
+	if _, err := store.ResolveSavedPostTarget(ctx, "did:plc:viewer", "did:plc:target", "target"); !errors.Is(err, api.ErrPostNotFound) {
+		t.Fatalf("missing-context target err = %v, want ErrPostNotFound", err)
 	}
 }
 

@@ -4,10 +4,12 @@ package index_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/index"
@@ -105,7 +107,15 @@ CREATE TABLE craftsky_post_mentions (
     indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (post_uri, mentioned_did)
 );
-` + relationshipNotificationPolicyDDL
+` + relationshipNotificationPolicyDDL + `
+CREATE TABLE saved_posts (
+    owner_did TEXT NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    post_uri  TEXT NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
+    folder_id UUID,
+    saved_at  TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (owner_did, post_uri)
+);
+`
 
 // seedCraftskyMember inserts a craftsky_profiles row so a post for did
 // can pass the membership check.
@@ -115,6 +125,34 @@ func seedCraftskyMember(t *testing.T, pool *pgxpool.Pool, did string) {
 		`INSERT INTO craftsky_profiles (did, record_cid) VALUES ($1, $2)`,
 		did, "seed"); err != nil {
 		t.Fatalf("seed craftsky_profiles: %v", err)
+	}
+}
+
+func stringPointer(value string) *string {
+	return &value
+}
+
+func assertStringQuery(t *testing.T, pool *pgxpool.Pool, query string, want []string) {
+	t.Helper()
+	rows, err := pool.Query(context.Background(), query)
+	if err != nil {
+		t.Fatalf("query strings: %v", err)
+	}
+	defer rows.Close()
+
+	got := make([]string, 0, len(want))
+	for rows.Next() {
+		var value string
+		if err := rows.Scan(&value); err != nil {
+			t.Fatalf("scan string: %v", err)
+		}
+		got = append(got, value)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate strings: %v", err)
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("query strings = %q, want %q", got, want)
 	}
 }
 
@@ -1405,6 +1443,127 @@ func TestCraftskyPost_Delete_Nonexistent_NoOp(t *testing.T) {
 	}
 	if err := idx.Handle(context.Background(), del); err != nil {
 		t.Errorf("delete-of-nonexistent should be no-op; got %v", err)
+	}
+}
+
+func TestCraftskyPost_DeleteCleanupErrorRedactsSavedURI(t *testing.T) {
+	const privateURISentinel = "at://did:plc:private-owner/social.craftsky.feed.post/private-saved-uri"
+	ddlWithoutSavedPosts := strings.Replace(craftskyPostsDDL, `
+CREATE TABLE saved_posts (
+    owner_did TEXT NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    post_uri  TEXT NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
+    folder_id UUID,
+    saved_at  TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (owner_did, post_uri)
+);
+`, "", 1)
+	pool := testdb.WithSchema(t, ddlWithoutSavedPosts)
+	idx := index.NewCraftskyPost(pool, testLogger())
+
+	err := idx.Handle(context.Background(), tap.Event{
+		URI:        syntax.ATURI(privateURISentinel),
+		DID:        "did:plc:private-owner",
+		Rkey:       "private-saved-uri",
+		Collection: "social.craftsky.feed.post",
+		Action:     "delete",
+	})
+	if err == nil {
+		t.Fatal("delete without saved_posts table succeeded, want cleanup error")
+	}
+	if strings.Contains(err.Error(), privateURISentinel) {
+		t.Fatalf("cleanup error leaked private saved URI: %v", err)
+	}
+}
+
+func TestCraftskyPost_Delete_CleansExactAndDescendantSavesOnly(t *testing.T) {
+	t.Parallel()
+
+	const (
+		rootURI       = "at://did:plc:author/social.craftsky.feed.post/root"
+		commentURI    = "at://did:plc:author/social.craftsky.feed.post/comment"
+		parentURI     = "at://did:plc:author/social.craftsky.feed.post/parent"
+		targetURI     = "at://did:plc:author/social.craftsky.feed.post/target"
+		safetyURI     = "at://did:plc:author/social.craftsky.feed.post/safety"
+		unrelatedURI  = "at://did:plc:author/social.craftsky.feed.post/unrelated"
+		missingParent = "at://did:plc:author/social.craftsky.feed.post/missing"
+	)
+
+	tests := []struct {
+		name              string
+		deleteURI         string
+		wantSaved         []string
+		wantRetainedPosts []string
+	}{
+		{
+			name:              "exact target",
+			deleteURI:         targetURI,
+			wantSaved:         []string{commentURI, parentURI, rootURI, safetyURI, unrelatedURI},
+			wantRetainedPosts: []string{commentURI, parentURI, rootURI, safetyURI, unrelatedURI},
+		},
+		{
+			name:              "intermediate ancestor",
+			deleteURI:         parentURI,
+			wantSaved:         []string{commentURI, rootURI, safetyURI, unrelatedURI},
+			wantRetainedPosts: []string{commentURI, rootURI, safetyURI, targetURI, unrelatedURI},
+		},
+		{
+			name:              "root including missing-parent safety-net descendant",
+			deleteURI:         rootURI,
+			wantSaved:         []string{unrelatedURI},
+			wantRetainedPosts: []string{commentURI, parentURI, safetyURI, targetURI, unrelatedURI},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			pool := testdb.WithSchema(t, craftskyPostsDDL)
+			ctx := context.Background()
+			seedCraftskyMember(t, pool, "did:plc:alice")
+			seedCraftskyMember(t, pool, "did:plc:author")
+
+			posts := []struct {
+				uri    string
+				root   *string
+				parent *string
+			}{
+				{uri: rootURI},
+				{uri: commentURI, root: stringPointer(rootURI), parent: stringPointer(rootURI)},
+				{uri: parentURI, root: stringPointer(rootURI), parent: stringPointer(commentURI)},
+				{uri: targetURI, root: stringPointer(rootURI), parent: stringPointer(parentURI)},
+				{uri: safetyURI, root: stringPointer(rootURI), parent: stringPointer(missingParent)},
+				{uri: unrelatedURI},
+			}
+			for i, post := range posts {
+				if _, err := pool.Exec(ctx, `
+					INSERT INTO craftsky_posts (
+						uri, did, rkey, cid, text, record, created_at,
+						reply_root_uri, reply_parent_uri
+					) VALUES ($1, 'did:plc:author', $2, $3, '', '{}', $4, $5, $6)
+				`, post.uri, fmt.Sprintf("r%d", i), fmt.Sprintf("cid%d", i), testTime(t), post.root, post.parent); err != nil {
+					t.Fatalf("seed post %s: %v", post.uri, err)
+				}
+				if _, err := pool.Exec(ctx, `
+					INSERT INTO saved_posts (owner_did, post_uri, saved_at)
+					VALUES ('did:plc:alice', $1, $2)
+				`, post.uri, testTime(t)); err != nil {
+					t.Fatalf("seed save %s: %v", post.uri, err)
+				}
+			}
+
+			idx := index.NewCraftskyPost(pool, testLogger())
+			if err := idx.Handle(ctx, tap.Event{
+				URI:        syntax.ATURI(test.deleteURI),
+				DID:        "did:plc:author",
+				Collection: "social.craftsky.feed.post",
+				Action:     "delete",
+			}); err != nil {
+				t.Fatalf("delete Handle: %v", err)
+			}
+
+			assertStringQuery(t, pool, `SELECT post_uri FROM saved_posts ORDER BY post_uri`, test.wantSaved)
+			assertStringQuery(t, pool, `SELECT uri FROM craftsky_posts ORDER BY uri`, test.wantRetainedPosts)
+		})
 	}
 }
 

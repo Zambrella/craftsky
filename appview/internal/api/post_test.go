@@ -1762,6 +1762,7 @@ func TestCreatePost_ResolveHandleFails_502(t *testing.T) {
 
 func TestGetPost_HappyPath(t *testing.T) {
 	t.Parallel()
+	savedFolderID := "00000000-0000-4000-8000-000000000001"
 	row := &api.PostRow{
 		URI: "at://did:plc:alice/social.craftsky.feed.post/rk1",
 		DID: "did:plc:alice", Rkey: "rk1", CID: "bafy", Text: "hi",
@@ -1769,7 +1770,7 @@ func TestGetPost_HappyPath(t *testing.T) {
 	store := &fakePostStore{
 		one: row,
 		engagement: map[string]api.EngagementSummary{
-			row.URI: {LikeCount: 3, RepostCount: 1, ReplyCount: 2, ViewerHasLiked: true, ViewerHasReposted: false, ViewerHasReplied: true},
+			row.URI: {LikeCount: 3, RepostCount: 1, ReplyCount: 2, ViewerHasLiked: true, ViewerHasReposted: false, ViewerHasReplied: true, ViewerHasSaved: true, ViewerSavedFolderID: &savedFolderID},
 		},
 	}
 	h := api.GetPostHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
@@ -1786,7 +1787,7 @@ func TestGetPost_HappyPath(t *testing.T) {
 	if resp.Text != "hi" || resp.Author.Handle != "alice.example" {
 		t.Errorf("resp = %+v", resp)
 	}
-	if resp.LikeCount != 3 || resp.RepostCount != 1 || resp.ReplyCount != 2 || !resp.ViewerHasLiked || resp.ViewerHasReposted || !resp.ViewerHasReplied {
+	if resp.LikeCount != 3 || resp.RepostCount != 1 || resp.ReplyCount != 2 || !resp.ViewerHasLiked || resp.ViewerHasReposted || !resp.ViewerHasReplied || !resp.ViewerHasSaved || resp.ViewerSavedFolderID == nil || *resp.ViewerSavedFolderID != savedFolderID {
 		t.Errorf("engagement = %+v", resp)
 	}
 	if store.engagementCalls != 1 || len(store.lastEngagementURIs) != 1 || store.lastEngagementURIs[0] != row.URI || store.lastEngagementViewer != "did:plc:alice" {
@@ -2936,6 +2937,7 @@ func TestDeletePost_BadDID_400(t *testing.T) {
 
 func TestListPosts_HappyPath_PaginatesCorrectly(t *testing.T) {
 	t.Parallel()
+	savedFolderID := "00000000-0000-4000-8000-000000000001"
 	rows := []*api.PostRow{
 		{URI: "at://did:plc:alice/social.craftsky.feed.post/rk2", DID: "did:plc:alice", Rkey: "rk2", Text: "second"},
 		{URI: "at://did:plc:alice/social.craftsky.feed.post/rk1", DID: "did:plc:alice", Rkey: "rk1", Text: "first"},
@@ -2944,7 +2946,7 @@ func TestListPosts_HappyPath_PaginatesCorrectly(t *testing.T) {
 		listRows:   rows,
 		listCursor: "next-cursor-opaque",
 		engagement: map[string]api.EngagementSummary{
-			rows[0].URI: {LikeCount: 5, RepostCount: 4, ReplyCount: 3, ViewerHasLiked: true, ViewerHasReposted: true},
+			rows[0].URI: {LikeCount: 5, RepostCount: 4, ReplyCount: 3, ViewerHasLiked: true, ViewerHasReposted: true, ViewerHasSaved: true, ViewerSavedFolderID: &savedFolderID},
 			rows[1].URI: {LikeCount: 1, RepostCount: 0, ReplyCount: 2, ViewerHasLiked: false, ViewerHasReposted: false},
 		},
 	}
@@ -2967,11 +2969,14 @@ func TestListPosts_HappyPath_PaginatesCorrectly(t *testing.T) {
 	if resp.Items[0].Rkey != "rk2" {
 		t.Errorf("ordering wrong: %q", resp.Items[0].Rkey)
 	}
-	if resp.Items[0].LikeCount != 5 || !resp.Items[0].ViewerHasLiked || !resp.Items[0].ViewerHasReposted {
+	if resp.Items[0].LikeCount != 5 || !resp.Items[0].ViewerHasLiked || !resp.Items[0].ViewerHasReposted || !resp.Items[0].ViewerHasSaved || resp.Items[0].ViewerSavedFolderID == nil || *resp.Items[0].ViewerSavedFolderID != savedFolderID {
 		t.Errorf("item0 engagement = %+v", resp.Items[0])
 	}
 	if resp.Items[1].LikeCount != 1 || resp.Items[1].RepostCount != 0 || resp.Items[1].ReplyCount != 2 {
 		t.Errorf("item1 engagement = %+v", resp.Items[1])
+	}
+	if resp.Items[1].ViewerHasSaved || resp.Items[1].ViewerSavedFolderID != nil {
+		t.Errorf("item1 saved state = %+v, want unsaved", resp.Items[1])
 	}
 	if store.engagementCalls != 1 || len(store.lastEngagementURIs) != 2 || store.lastEngagementViewer != "did:plc:alice" {
 		t.Errorf("engagement lookup = calls:%d viewer:%q uris:%v", store.engagementCalls, store.lastEngagementViewer, store.lastEngagementURIs)
@@ -3076,7 +3081,7 @@ func TestListProjectsByAuthor_HappyPath(t *testing.T) {
 	store := &fakePostStore{
 		projectListRows:   rows,
 		projectListCursor: "next-projects",
-		engagement:        map[string]api.EngagementSummary{rows[0].URI: {LikeCount: 2}},
+		engagement:        map[string]api.EngagementSummary{rows[0].URI: {LikeCount: 2, ViewerHasSaved: true}},
 	}
 	h := api.ListProjectsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
 	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/projects?limit=2", "", "did:plc:viewer")
@@ -3096,7 +3101,7 @@ func TestListProjectsByAuthor_HappyPath(t *testing.T) {
 	if len(resp.Items) != 1 || resp.Items[0].Project == nil || resp.Items[0].Project.Common.Title == nil || *resp.Items[0].Project.Common.Title != title {
 		t.Fatalf("items = %+v", resp.Items)
 	}
-	if resp.Items[0].LikeCount != 2 || resp.Cursor != "next-projects" {
+	if resp.Items[0].LikeCount != 2 || !resp.Items[0].ViewerHasSaved || resp.Items[0].ViewerSavedFolderID != nil || resp.Cursor != "next-projects" {
 		t.Fatalf("engagement/cursor = %+v cursor=%q", resp.Items[0], resp.Cursor)
 	}
 	if store.lastListProjectsDID != "did:plc:alice" || store.lastListProjectsLimit != 2 || store.lastListProjectsCursor != "" {
@@ -3114,7 +3119,7 @@ func TestListCommentsByAuthor_HappyPath(t *testing.T) {
 		commentListRows:   rows,
 		commentListCursor: "next-comments",
 		engagement: map[string]api.EngagementSummary{
-			rows[0].URI: {ReplyCount: 1},
+			rows[0].URI: {ReplyCount: 1, ViewerHasSaved: true},
 			rows[1].URI: {ReplyCount: 2},
 		},
 	}
@@ -3135,6 +3140,9 @@ func TestListCommentsByAuthor_HappyPath(t *testing.T) {
 	}
 	if len(resp.Items) != 2 || resp.Items[0].Rkey != "reply" || resp.Items[1].Rkey != "comment" {
 		t.Fatalf("items = %+v", resp.Items)
+	}
+	if !resp.Items[0].ViewerHasSaved || resp.Items[0].ViewerSavedFolderID != nil || resp.Items[1].ViewerHasSaved || resp.Items[1].ViewerSavedFolderID != nil {
+		t.Fatalf("comment/reply saved states = %+v", resp.Items)
 	}
 	if resp.Cursor != "next-comments" {
 		t.Fatalf("cursor = %q", resp.Cursor)
