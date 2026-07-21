@@ -71,6 +71,7 @@ type Config struct {
 
 	// OAuth-related.
 	OAuthHostname                   string        // empty in dev (localhost mode)
+	OAuthCallbackURL                string        // localhost callback in dev; ignored when OAuthHostname is set
 	OAuthClientSecretKey            string        // multibase-encoded P-256 private key; empty in dev
 	OAuthClientKeyID                string        // default "primary"
 	OAuthScopes                     []string      // default ["atproto", "transition:generic"]
@@ -157,6 +158,7 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	}
 
 	cfg.OAuthHostname = os.Getenv("OAUTH_HOSTNAME")
+	cfg.OAuthCallbackURL = getEnvWithDefault("OAUTH_CALLBACK_URL", "http://127.0.0.1:18080/oauth/callback")
 	cfg.OAuthClientSecretKey = os.Getenv("OAUTH_CLIENT_SECRET_KEY")
 	cfg.OAuthClientKeyID = getEnvWithDefault("OAUTH_CLIENT_SECRET_KEY_ID", "primary")
 

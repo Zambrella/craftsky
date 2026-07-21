@@ -4,7 +4,80 @@ set -euo pipefail
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
 cd "$repo_root"
 
-compose=(docker compose -f "$repo_root/docker-compose.yml")
+git_dir=$(git rev-parse --path-format=absolute --git-dir)
+git_common_dir=$(git rev-parse --path-format=absolute --git-common-dir)
+local_env="$repo_root/.env.local"
+
+dotenv_value() {
+  local key=$1
+  local value=""
+
+  if [[ -f "$local_env" ]]; then
+    value=$(sed -n "s/^${key}=//p" "$local_env" | tail -n 1)
+  fi
+
+  printf '%s' "$value"
+}
+
+sanitize_compose_name() {
+  printf '%s' "$1" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/[^a-z0-9_-]+/-/g; s/^[^a-z0-9]+//; s/[^a-z0-9]+$//'
+}
+
+validate_port() {
+  local name=$1
+  local value=$2
+
+  if [[ ! "$value" =~ ^[0-9]+$ ]] || (( 10#$value < 1 || 10#$value > 65535 )); then
+    printf 'Invalid %s: expected a port from 1 to 65535, got %q\n' "$name" "$value" >&2
+    exit 1
+  fi
+}
+
+repo_name=$(sanitize_compose_name "$(basename "$repo_root")")
+if [[ -z "$repo_name" ]]; then
+  repo_name=craftsky
+fi
+
+if [[ "$git_dir" == "$git_common_dir" ]]; then
+  default_project_name=$repo_name
+  default_postgres_port=5433
+  default_appview_port=18080
+else
+  worktree_name=$(sanitize_compose_name "$(basename "$git_dir")")
+  if [[ -z "$worktree_name" ]]; then
+    worktree_name=worktree
+  fi
+  default_project_name="${repo_name}-${worktree_name}"
+
+  # Stable per-checkout ports let linked worktrees run alongside the primary
+  # checkout. The small collision risk can be handled with the overrides in
+  # .env.local.
+  checkout_checksum=$(printf '%s' "$repo_root" | cksum | awk '{print $1}')
+  port_offset=$((checkout_checksum % 1000 + 1))
+  default_postgres_port=$((15432 + port_offset))
+  default_appview_port=$((18080 + port_offset))
+fi
+
+project_name=${CRAFTSKY_COMPOSE_PROJECT_NAME:-$(dotenv_value CRAFTSKY_COMPOSE_PROJECT_NAME)}
+project_name=${project_name:-$default_project_name}
+if [[ ! "$project_name" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+  printf 'Invalid CRAFTSKY_COMPOSE_PROJECT_NAME: got %q\n' "$project_name" >&2
+  exit 1
+fi
+
+postgres_port=${CRAFTSKY_POSTGRES_PORT:-$(dotenv_value CRAFTSKY_POSTGRES_PORT)}
+postgres_port=${postgres_port:-$default_postgres_port}
+appview_port=${CRAFTSKY_APPVIEW_PORT:-$(dotenv_value CRAFTSKY_APPVIEW_PORT)}
+appview_port=${appview_port:-$default_appview_port}
+validate_port CRAFTSKY_POSTGRES_PORT "$postgres_port"
+validate_port CRAFTSKY_APPVIEW_PORT "$appview_port"
+
+export CRAFTSKY_POSTGRES_PORT=$postgres_port
+export CRAFTSKY_APPVIEW_PORT=$appview_port
+
+compose=(docker compose --project-name "$project_name" -f "$repo_root/docker-compose.yml")
 adc_path=""
 gcloud_config_dir="${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}"
 
@@ -24,5 +97,8 @@ if [[ -n "$adc_path" ]]; then
 else
   printf '%s\n' 'Firebase ADC not found; push notifications disabled.' >&2
 fi
+
+printf 'CraftSky stack: project=%s appview=http://localhost:%s postgres=localhost:%s\n' \
+  "$project_name" "$appview_port" "$postgres_port" >&2
 
 exec "${compose[@]}" "$@"

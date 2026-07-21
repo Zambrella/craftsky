@@ -69,10 +69,20 @@ just dev
 This brings up the full compose stack — `postgres`, `migrate`, `tap`, `tap-bootstrap`, `appview`. On a cold start allow ~60s for the tap sidecar to finish replaying. Then verify:
 
 ```
-curl localhost:8080/healthz   # expect {"status":"ok",...} with tap.connected: true
+curl localhost:18080/healthz  # expect {"status":"ok",...} with tap.connected: true
 just tap-status               # prints tap connection state from the CLI
 just psql                     # psql shell; try: SELECT count(*) FROM bluesky_posts_sample;
 ```
+
+Linked Git worktrees automatically get an isolated Compose project, database
+volume, Tap volume, and stable alternate host ports. `just dev` and `just dev-d`
+print the selected AppView and Postgres addresses. This allows stacks from the
+primary checkout and multiple worktrees to run at the same time. To choose
+specific values, copy `.env.local.example` to the ignored `.env.local` and set
+`CRAFTSKY_COMPOSE_PROJECT_NAME`, `CRAFTSKY_POSTGRES_PORT`, and
+`CRAFTSKY_APPVIEW_PORT`. The `just app-run-*` recipes discover and inject the
+matching AppView address automatically. If you invoke `flutter run` directly,
+point `app/config/local.env` (or `local-android.env`) at the printed port.
 
 See [`appview/README.md`](appview/README.md) for the full list of `just` recipes and the host-side test workflow.
 

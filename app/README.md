@@ -53,15 +53,17 @@ just app-run-chrome
 ```
 
 Under the hood these recipes call Flutter with
-`--dart-define-from-file=app/config/<env>.env`. Release builds **require** a
-config file with `CRAFTSKY_API_BASE_URL`; the app throws on first API call if
-it's missing.
+`--dart-define-from-file=app/config/<env>.env`. They discover the current
+worktree stack's published AppView port and override `CRAFTSKY_API_BASE_URL`
+for that run; the remaining local settings still come from the config file.
+Release builds **require** a config file with `CRAFTSKY_API_BASE_URL`; the app
+throws on first API call if it's missing.
 
 `just app-run-android` also installs an ADB reverse mapping from the emulator's
-`127.0.0.1:18080` to the host's `127.0.0.1:18080`. The app still uses
-`10.0.2.2:18080` for normal API requests, but atproto's localhost OAuth client
-requires its browser callback to use a loopback address. The reverse mapping
-lets that callback reach the local AppView from Android.
+loopback address to the same worktree-specific host port. The app uses
+`10.0.2.2:<port>` for normal API requests, but atproto's localhost OAuth client
+requires its browser callback to use `127.0.0.1:<port>`. The reverse mapping
+lets that callback reach the matching local AppView from Android.
 
 Sentry runtime config uses the same files:
 

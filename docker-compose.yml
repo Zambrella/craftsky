@@ -7,10 +7,9 @@ services:
       POSTGRES_PASSWORD: dev
       POSTGRES_DB: craftsky_dev
     ports:
-      # Host 5433 → container 5432 to avoid clashing with a native
-      # Postgres some contributors run on 5432. Inside the compose
-      # network, services still connect via `postgres:5432`.
-      - "5433:5432"
+      # The primary checkout defaults to host 5433. scripts/compose-dev gives
+      # linked worktrees stable alternate ports so their stacks can coexist.
+      - "${CRAFTSKY_POSTGRES_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -121,11 +120,14 @@ services:
       TAP_MAX_RETRIES: "5"
       ALLOWED_ORIGINS: "*"
       CRAFTSKY_DEV_DID: did:plc:craftsky-dev-user
+      # Keep localhost OAuth and generated dev-media URLs on this checkout's
+      # published AppView port.
+      OAUTH_CALLBACK_URL: "http://127.0.0.1:${CRAFTSKY_APPVIEW_PORT:-18080}/oauth/callback"
+      CRAFTSKY_DEV_MEDIA_BASE_URL: "http://localhost:${CRAFTSKY_APPVIEW_PORT:-18080}/v1/dev/media"
     ports:
-      # Host 18080 → container 8080. Host port differs from the internal
-      # listen port to avoid colliding with other dev servers commonly on
-      # :8080. Update .zed/tasks.json's CRAFTSKY_API_BASE_URL to match.
-      - "18080:8080"
+      # The primary checkout defaults to host 18080. scripts/compose-dev gives
+      # linked worktrees stable alternate ports so their stacks can coexist.
+      - "${CRAFTSKY_APPVIEW_PORT:-18080}:8080"
     volumes:
       - ./appview/devmedia:/app/devmedia:ro
 

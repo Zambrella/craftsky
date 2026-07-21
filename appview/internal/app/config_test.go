@@ -44,7 +44,7 @@ func testConfigFile(t *testing.T, contents string) string {
 	t.Helper()
 	for _, k := range []string{"DATABASE_URL", "ALLOWED_ORIGINS", "CRAFTSKY_DEV_DID",
 		"TAP_WS_URL", "TAP_ACK_TIMEOUT", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES",
-		"OAUTH_HOSTNAME", "OAUTH_CLIENT_SECRET_KEY", "OAUTH_CLIENT_SECRET_KEY_ID",
+		"OAUTH_HOSTNAME", "OAUTH_CALLBACK_URL", "OAUTH_CLIENT_SECRET_KEY", "OAUTH_CLIENT_SECRET_KEY_ID",
 		"OAUTH_SCOPES", "OAUTH_SESSION_EXPIRY", "OAUTH_SESSION_INACTIVITY",
 		"OAUTH_AUTH_REQUEST_EXPIRY", "CRAFTSKY_SESSION_LAST_SEEN_THROTTLE",
 		"MAX_POST_IMAGES", "MAX_IMAGE_UPLOAD_BYTES", "APPVIEW_JSON_BODY_LIMIT_BYTES",
@@ -549,6 +549,9 @@ func TestLoadConfig_OAuthDevDefaults(t *testing.T) {
 	}
 	if cfg.OAuthHostname != "" {
 		t.Errorf("OAuthHostname = %q, want empty", cfg.OAuthHostname)
+	}
+	if cfg.OAuthCallbackURL != "http://127.0.0.1:18080/oauth/callback" {
+		t.Errorf("OAuthCallbackURL = %q, want localhost default", cfg.OAuthCallbackURL)
 	}
 	want := []string{"atproto", "transition:generic"}
 	if len(cfg.OAuthScopes) != len(want) {

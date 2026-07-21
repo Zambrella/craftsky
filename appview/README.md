@@ -86,7 +86,7 @@ just psql         # psql shell against the dev database
 just migrate up   # wraps golang-migrate/v4 via the CLI
 ```
 
-Tests run on the **host** (the appview image has no Go toolchain), so Go must be installed locally and `just dev-d` must already be running — the integration tests connect to the compose Postgres at `localhost:5433` via the `TEST_DATABASE_URL` the recipe sets. (Host port 5433 maps to the container's 5432; this avoids a collision with any native Postgres already bound to 5432.)
+Tests run on the **host** (the appview image has no Go toolchain), so Go must be installed locally and `just dev-d` must already be running. The `just test` recipe discovers the current checkout's published Postgres port and sets `TEST_DATABASE_URL` automatically. The primary checkout uses `localhost:5433`; linked worktrees use stable alternate ports and isolated database volumes.
 
 ## Observability
 

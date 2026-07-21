@@ -131,6 +131,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 
 	oauthCfg, err := auth.BuildClientConfig(
 		cfg.OAuthHostname,
+		cfg.OAuthCallbackURL,
 		cfg.OAuthClientSecretKey,
 		cfg.OAuthClientKeyID,
 		cfg.OAuthScopes,
