@@ -33,7 +33,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Reports — moderation endpoints → own spec (overlaps the v1 "report a post" moderation plan; reconcile when scoping)
 - [x] Push notification registration — `POST /v1/notifications/devices` etc. → own spec
 - [ ] How to handle different languages
-- [ ] Blocking, muting
+- [x] Blocking, muting
 - [ ] Save posts
 - [ ] Pro and Business subscriptions
 
