@@ -583,6 +583,48 @@ func TestSearchStore_SearchPostsAndProjectsUseRelevanceAndDisjointTabs(t *testin
 	}
 }
 
+func TestSearchPostsHandlerIncludesAuthenticatedViewerSavedState(t *testing.T) {
+	pool := testdb.WithSchema(t, searchStoreDDL)
+	ctx := context.Background()
+	seedMember(t, pool, "did:plc:viewer")
+	seedMember(t, pool, "did:plc:alice")
+	seedSearchIdentity(t, pool, "did:plc:viewer", "viewer.example", "Viewer", "")
+	seedSearchIdentity(t, pool, "did:plc:alice", "alice.example", "Alice", "")
+	createdAt := time.Date(2026, 7, 20, 12, 0, 0, 0, time.UTC)
+	postURI := seedPost(t, pool, "did:plc:alice", "saved-search-result", "unique alpaca search result", createdAt)
+	folderID := "11111111-1111-1111-1111-111111111111"
+	seedSavedPost(t, pool, "did:plc:viewer", postURI, &folderID, createdAt.Add(time.Minute))
+
+	handler := api.SearchPostsHandler(api.NewSearchStore(pool, nil), fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+	}}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/search/posts?q=alpaca&sort=chronological", "", "did:plc:viewer")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, req)
+	if response.Code != http.StatusOK {
+		t.Fatalf("search status = %d body=%s", response.Code, response.Body.String())
+	}
+	var page api.SearchPostPageResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+		t.Fatalf("decode search page: %v", err)
+	}
+	if len(page.Items) != 1 || page.Items[0].URI != postURI {
+		t.Fatalf("search items = %+v, want saved result", page.Items)
+	}
+	if !page.Items[0].ViewerHasSaved || page.Items[0].ViewerSavedFolderID == nil || *page.Items[0].ViewerSavedFolderID != folderID {
+		t.Fatalf("search saved state = %+v", page.Items[0])
+	}
+
+	var authorSummary map[string]api.EngagementSummary
+	authorSummary, err := api.NewPostStore(pool).EngagementSummaries(ctx, "did:plc:alice", []string{postURI})
+	if err != nil {
+		t.Fatalf("author summary: %v", err)
+	}
+	if authorSummary[postURI].ViewerHasSaved || authorSummary[postURI].ViewerSavedFolderID != nil {
+		t.Fatalf("search target author received viewer save state: %+v", authorSummary[postURI])
+	}
+}
+
 func TestSearchStore_SearchPostsEmitsDBOperationTelemetry(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, searchStoreDDL)

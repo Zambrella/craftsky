@@ -712,6 +712,39 @@ func (c *CraftskyPost) handleDelete(ctx context.Context, ev tap.Event) error {
 		return fmt.Errorf("begin delete %s: %w", ev.URI, err)
 	}
 	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `
+		WITH RECURSIVE descendants(uri, path) AS (
+			SELECT p.uri, ARRAY[$1::text, p.uri]
+			FROM craftsky_posts p
+			WHERE p.uri <> $1
+			  AND (
+				p.reply_parent_uri = $1
+				OR (
+					p.reply_root_uri = $1
+					AND NOT EXISTS (
+						SELECT 1
+						FROM craftsky_posts parent
+						WHERE parent.uri = p.reply_parent_uri
+					)
+				)
+			  )
+
+			UNION ALL
+
+			SELECT child.uri, descendants.path || child.uri
+			FROM craftsky_posts child
+			JOIN descendants ON child.reply_parent_uri = descendants.uri
+			WHERE NOT child.uri = ANY(descendants.path)
+		), affected(uri) AS (
+			SELECT $1::text
+			UNION
+			SELECT uri FROM descendants
+		)
+		DELETE FROM saved_posts
+		WHERE post_uri IN (SELECT uri FROM affected)
+	`, ev.URI); err != nil {
+		return fmt.Errorf("delete saved state for post and descendants: %w", err)
+	}
 	if _, err := tx.Exec(ctx,
 		`DELETE FROM craftsky_posts WHERE uri = $1`, ev.URI); err != nil {
 		return fmt.Errorf("delete %s: %w", ev.URI, err)

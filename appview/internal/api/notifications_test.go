@@ -198,9 +198,12 @@ func TestNotificationsHandler_IgnoresUnknownParamsUsesLimitsAndSessionViewer(t *
 }
 
 func TestNotificationsHandler_ReturnsCamelCaseNotificationPage(t *testing.T) {
+	savedFolderID := "00000000-0000-4000-8000-000000000001"
 	subject := testPostRow("did:plc:viewer", "root", "viewer post", time.Date(2026, 5, 28, 17, 0, 0, 0, time.UTC))
 	store := &fakeNotificationStore{handles: map[string]syntax.Handle{
 		"did:plc:alice": "alice.example", "did:plc:viewer": "viewer.example",
+	}, engagement: map[string]api.EngagementSummary{
+		subject.URI: {ViewerHasSaved: true, ViewerSavedFolderID: &savedFolderID},
 	}, rows: []*api.NotificationRow{
 		{
 			Type: api.NotificationTypeLike, URI: "at://did:plc:alice/social.craftsky.feed.like/like1", CID: "bafylike", Rkey: "like1",
@@ -240,6 +243,9 @@ func TestNotificationsHandler_ReturnsCamelCaseNotificationPage(t *testing.T) {
 	item := page.Items[0]
 	if item.Type != api.NotificationTypeLike || item.Actor.Handle != "alice.example" || item.SubjectPost == nil || item.SubjectPost.URI != subject.URI {
 		t.Fatalf("item = %+v, want like with actor handle and subject post", item)
+	}
+	if !item.SubjectPost.ViewerHasSaved || item.SubjectPost.ViewerSavedFolderID == nil || *item.SubjectPost.ViewerSavedFolderID != savedFolderID {
+		t.Fatalf("notification subject saved state = %+v", item.SubjectPost)
 	}
 	var body struct {
 		Items []map[string]json.RawMessage `json:"items"`

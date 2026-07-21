@@ -222,6 +222,7 @@ func TestTimelineHandler_DoesNotSynthesizeUnindexedPosts(t *testing.T) {
 }
 
 func TestTimelineHandler_ReturnsPostResponseItemsWithEngagementAndNoTotalCount(t *testing.T) {
+	savedFolderID := "00000000-0000-4000-8000-000000000001"
 	quoteURI := "at://did:plc:other/social.craftsky.feed.post/quoted"
 	quoteCID := "bafyquoted"
 	displayName := "Alice"
@@ -244,12 +245,14 @@ func TestTimelineHandler_ReturnsPostResponseItemsWithEngagementAndNoTotalCount(t
 		cursor: "next-cursor",
 		engagement: map[string]api.EngagementSummary{
 			row.URI: {
-				LikeCount:         2,
-				RepostCount:       1,
-				ReplyCount:        3,
-				ViewerHasLiked:    true,
-				ViewerHasReposted: true,
-				ViewerHasReplied:  true,
+				LikeCount:           2,
+				RepostCount:         1,
+				ReplyCount:          3,
+				ViewerHasLiked:      true,
+				ViewerHasReposted:   true,
+				ViewerHasReplied:    true,
+				ViewerHasSaved:      true,
+				ViewerSavedFolderID: &savedFolderID,
 			},
 		},
 	}
@@ -286,7 +289,7 @@ func TestTimelineHandler_ReturnsPostResponseItemsWithEngagementAndNoTotalCount(t
 	if item.Quote == nil || item.Quote.URI != quoteURI || item.Quote.CID != quoteCID {
 		t.Fatalf("quote = %+v, want strong ref only", item.Quote)
 	}
-	if item.LikeCount != 2 || item.RepostCount != 1 || item.ReplyCount != 3 || !item.ViewerHasLiked || !item.ViewerHasReposted || !item.ViewerHasReplied {
+	if item.LikeCount != 2 || item.RepostCount != 1 || item.ReplyCount != 3 || !item.ViewerHasLiked || !item.ViewerHasReposted || !item.ViewerHasReplied || !item.ViewerHasSaved || item.ViewerSavedFolderID == nil || *item.ViewerSavedFolderID != savedFolderID {
 		t.Fatalf("engagement fields not applied: %+v", item)
 	}
 	if len(item.Images) != 1 || item.Images[0].CID != "bafyimage" || item.Images[0].Thumb == "" || item.Images[0].Fullsize == "" {

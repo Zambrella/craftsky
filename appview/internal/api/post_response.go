@@ -49,30 +49,32 @@ type ResponseReply struct {
 // PostResponse is the canonical wire shape returned by every
 // post-shaped endpoint (POST, GET single, list items).
 type PostResponse struct {
-	URI               string               `json:"uri"`
-	CID               string               `json:"cid"`
-	Rkey              string               `json:"rkey"`
-	Text              string               `json:"text"`
-	Images            []PostImageView      `json:"images,omitempty"`
-	Facets            json.RawMessage      `json:"facets"`
-	Tags              []string             `json:"tags"`
-	LikeCount         int                  `json:"likeCount"`
-	RepostCount       int                  `json:"repostCount"`
-	QuoteCount        int                  `json:"quoteCount"`
-	ReplyCount        int                  `json:"replyCount"`
-	ViewerHasLiked    bool                 `json:"viewerHasLiked"`
-	ViewerHasReposted bool                 `json:"viewerHasReposted"`
-	ViewerHasReplied  bool                 `json:"viewerHasReplied"`
-	Reply             *ResponseReply       `json:"reply"`
-	Quote             *ResponseStrongRef   `json:"quote"`
-	QuoteView         *QuoteView           `json:"quoteView,omitempty"`
-	CreatedAt         time.Time            `json:"createdAt"`
-	IndexedAt         time.Time            `json:"indexedAt"`
-	Author            PostAuthor           `json:"author"`
-	Moderation        *ModerationMetadata  `json:"moderation,omitempty"`
-	Project           *Project             `json:"project,omitempty"`
-	Availability      string               `json:"-"`
-	Relationship      *ContentRelationship `json:"-"`
+	URI                 string               `json:"uri"`
+	CID                 string               `json:"cid"`
+	Rkey                string               `json:"rkey"`
+	Text                string               `json:"text"`
+	Images              []PostImageView      `json:"images,omitempty"`
+	Facets              json.RawMessage      `json:"facets"`
+	Tags                []string             `json:"tags"`
+	LikeCount           int                  `json:"likeCount"`
+	RepostCount         int                  `json:"repostCount"`
+	QuoteCount          int                  `json:"quoteCount"`
+	ReplyCount          int                  `json:"replyCount"`
+	ViewerHasLiked      bool                 `json:"viewerHasLiked"`
+	ViewerHasReposted   bool                 `json:"viewerHasReposted"`
+	ViewerHasReplied    bool                 `json:"viewerHasReplied"`
+	ViewerHasSaved      bool                 `json:"viewerHasSaved"`
+	ViewerSavedFolderID *string              `json:"viewerSavedFolderId"`
+	Reply               *ResponseReply       `json:"reply"`
+	Quote               *ResponseStrongRef   `json:"quote"`
+	QuoteView           *QuoteView           `json:"quoteView,omitempty"`
+	CreatedAt           time.Time            `json:"createdAt"`
+	IndexedAt           time.Time            `json:"indexedAt"`
+	Author              PostAuthor           `json:"author"`
+	Moderation          *ModerationMetadata  `json:"moderation,omitempty"`
+	Project             *Project             `json:"project,omitempty"`
+	Availability        string               `json:"-"`
+	Relationship        *ContentRelationship `json:"-"`
 }
 
 type ContentRelationship struct {
@@ -381,6 +383,8 @@ func applyEngagementSummary(resp *PostResponse, summary EngagementSummary) {
 	resp.ViewerHasLiked = summary.ViewerHasLiked
 	resp.ViewerHasReposted = summary.ViewerHasReposted
 	resp.ViewerHasReplied = summary.ViewerHasReplied
+	resp.ViewerHasSaved = summary.ViewerHasSaved
+	resp.ViewerSavedFolderID = summary.ViewerSavedFolderID
 }
 
 func derefOrEmpty(p *string) string {

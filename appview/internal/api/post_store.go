@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -114,15 +115,23 @@ type ViewerReplyState struct {
 	HasReplied bool
 }
 
+// ViewerSavedState is the authenticated viewer's private state for one post.
+type ViewerSavedState struct {
+	HasSaved bool
+	FolderID *string
+}
+
 // EngagementSummary is the batch-friendly read model used to augment posts.
 type EngagementSummary struct {
-	LikeCount         int
-	RepostCount       int
-	QuoteCount        int
-	ReplyCount        int
-	ViewerHasLiked    bool
-	ViewerHasReposted bool
-	ViewerHasReplied  bool
+	LikeCount           int
+	RepostCount         int
+	QuoteCount          int
+	ReplyCount          int
+	ViewerHasLiked      bool
+	ViewerHasReposted   bool
+	ViewerHasReplied    bool
+	ViewerHasSaved      bool
+	ViewerSavedFolderID *string
 }
 
 // PostReader is the read-side interface handlers depend on. Tests inject
@@ -170,6 +179,125 @@ func (s *PostStore) ReadPostByURI(ctx context.Context, uri string) (*PostRow, er
 		return nil, fmt.Errorf("post read uri %s: %w", uri, err)
 	}
 	return row, nil
+}
+
+// ReadEligiblePostsByURI batch-loads current canonical posts for the private
+// saved surface. Missing membership, moderation-hidden, and directly blocked
+// targets are omitted without deleting their private save rows.
+func (s *PostStore) ReadEligiblePostsByURI(ctx context.Context, viewer syntax.DID, uris []syntax.ATURI) (map[syntax.ATURI]*PostRow, error) {
+	out := make(map[syntax.ATURI]*PostRow, len(uris))
+	if len(uris) == 0 {
+		return out, nil
+	}
+	values := make([]string, 0, len(uris))
+	for _, uri := range uris {
+		values = append(values, uri.String())
+	}
+	q := `
+		SELECT ` + postSelectColumns + `
+		FROM craftsky_posts p
+		JOIN craftsky_profiles member ON member.did = p.did
+		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
+		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
+		WHERE p.uri = ANY($1::text[])
+		  AND NOT ` + postAuthorBlockedPredicate("p", "$2") + `
+		` + postVisibleModerationPredicate + `
+	`
+	rows, err := s.pool.Query(ctx, q, values, viewer)
+	if err != nil {
+		return nil, fmt.Errorf("saved post batch read: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		row, err := scanPostRow(rows)
+		if err != nil {
+			return nil, fmt.Errorf("saved post batch scan: %w", err)
+		}
+		out[syntax.ATURI(row.URI)] = row
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("saved post batch iter: %w", err)
+	}
+	return out, nil
+}
+
+// RequiredContextStates validates reply navigation context in one bounded
+// recursive query. It never deletes saves; callers omit invalid contexts and
+// allow them to reappear if the indexed chain becomes eligible again.
+func (s *PostStore) RequiredContextStates(ctx context.Context, viewer syntax.DID, uris []syntax.ATURI) (map[syntax.ATURI]bool, error) {
+	out := make(map[syntax.ATURI]bool, len(uris))
+	if len(uris) == 0 {
+		return out, nil
+	}
+	values := make([]string, 0, len(uris))
+	for _, uri := range uris {
+		values = append(values, uri.String())
+		out[uri] = false
+	}
+	parentModeration := strings.ReplaceAll(postVisibleModerationPredicate, "p.", "parent.")
+	rootModeration := strings.ReplaceAll(postVisibleModerationPredicate, "p.", "root.")
+	q := `
+		WITH RECURSIVE input(uri) AS (
+			SELECT unnest($1::text[])
+		), targets AS (
+			SELECT input.uri, p.reply_root_uri, p.reply_parent_uri
+			FROM input
+			LEFT JOIN craftsky_posts p ON p.uri = input.uri
+		), walk(target_uri, current_uri, root_uri, path, depth) AS (
+			SELECT uri, reply_parent_uri, reply_root_uri, ARRAY[uri]::text[], 0
+			FROM targets
+			WHERE reply_root_uri IS NOT NULL AND reply_parent_uri IS NOT NULL
+			UNION ALL
+			SELECT walk.target_uri, parent.reply_parent_uri, walk.root_uri,
+			       walk.path || parent.uri, walk.depth + 1
+			FROM walk
+			JOIN craftsky_posts parent ON parent.uri = walk.current_uri
+			JOIN craftsky_profiles parent_member ON parent_member.did = parent.did
+			WHERE walk.current_uri <> walk.root_uri
+			  AND walk.depth < 64
+			  AND NOT parent.uri = ANY(walk.path)
+			  AND NOT ` + postAuthorBlockedPredicate("parent", "$2") + `
+			  ` + parentModeration + `
+		), valid_replies AS (
+			SELECT DISTINCT walk.target_uri
+			FROM walk
+			JOIN craftsky_posts root
+			  ON root.uri = walk.current_uri
+			 AND root.uri = walk.root_uri
+			 AND root.reply_root_uri IS NULL
+			 AND root.reply_parent_uri IS NULL
+			JOIN craftsky_profiles root_member ON root_member.did = root.did
+			WHERE NOT ` + postAuthorBlockedPredicate("root", "$2") + `
+			` + rootModeration + `
+		)
+		SELECT targets.uri,
+		       CASE
+				WHEN p.uri IS NULL THEN false
+				WHEN targets.reply_root_uri IS NULL AND targets.reply_parent_uri IS NULL THEN true
+				WHEN targets.reply_root_uri IS NULL OR targets.reply_parent_uri IS NULL THEN false
+				ELSE valid_replies.target_uri IS NOT NULL
+		       END
+		FROM targets
+		LEFT JOIN craftsky_posts p ON p.uri = targets.uri
+		LEFT JOIN valid_replies ON valid_replies.target_uri = targets.uri
+	`
+	rows, err := s.pool.Query(ctx, q, values, viewer)
+	if err != nil {
+		return nil, fmt.Errorf("saved post context states: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var rawURI string
+		var valid bool
+		if err := rows.Scan(&rawURI, &valid); err != nil {
+			return nil, fmt.Errorf("saved post context states scan: %w", err)
+		}
+		out[syntax.ATURI(rawURI)] = valid
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("saved post context states iter: %w", err)
+	}
+	return out, nil
 }
 
 // ListRootComments returns direct replies to the root post in comment-section
@@ -827,6 +955,29 @@ func (s *PostStore) ResolvePostTarget(ctx context.Context, did, rkey string) (*P
 	return out, nil
 }
 
+// ResolveSavedPostTarget applies the saved surface's current direct-access
+// policy before private state is created. Muted targets remain eligible;
+// missing membership, moderation-hidden content, and either block direction
+// are indistinguishable from a missing post.
+func (s *PostStore) ResolveSavedPostTarget(ctx context.Context, viewer, did syntax.DID, rkey syntax.RecordKey) (syntax.ATURI, error) {
+	uri := syntax.ATURI("at://" + did.String() + "/social.craftsky.feed.post/" + rkey.String())
+	rows, err := s.ReadEligiblePostsByURI(ctx, viewer, []syntax.ATURI{uri})
+	if err != nil {
+		return "", err
+	}
+	if rows[uri] == nil {
+		return "", ErrPostNotFound
+	}
+	contexts, err := s.RequiredContextStates(ctx, viewer, []syntax.ATURI{uri})
+	if err != nil {
+		return "", err
+	}
+	if !contexts[uri] {
+		return "", ErrPostNotFound
+	}
+	return uri, nil
+}
+
 // ResolveShareTarget returns visible indexed target metadata for share actions.
 func (s *PostStore) ResolveShareTarget(ctx context.Context, did, rkey string) (*ShareTargetRef, error) {
 	q := `
@@ -1136,6 +1287,32 @@ func (s *PostStore) EngagementSummaries(ctx context.Context, viewerDID string, p
 	return summaries, err
 }
 
+func (s *PostStore) viewerSavedStates(ctx context.Context, viewerDID string, postURIs []string) (map[string]ViewerSavedState, error) {
+	out := make(map[string]ViewerSavedState, len(postURIs))
+	rows, err := s.pool.Query(ctx, `
+		SELECT post_uri, folder_id::text
+		FROM saved_posts
+		WHERE owner_did = $1
+		  AND post_uri = ANY($2::text[])
+	`, viewerDID, postURIs)
+	if err != nil {
+		return nil, fmt.Errorf("viewer saved states: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var uri string
+		var folderID *string
+		if err := rows.Scan(&uri, &folderID); err != nil {
+			return nil, fmt.Errorf("viewer saved states scan: %w", err)
+		}
+		out[uri] = ViewerSavedState{HasSaved: true, FolderID: folderID}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("viewer saved states iter: %w", err)
+	}
+	return out, nil
+}
+
 func (s *PostStore) engagementSummariesObserved(ctx context.Context, viewerDID string, postURIs []string) (map[string]EngagementSummary, error) {
 	out := make(map[string]EngagementSummary, len(postURIs))
 	for _, uri := range postURIs {
@@ -1168,17 +1345,24 @@ func (s *PostStore) engagementSummariesObserved(ctx context.Context, viewerDID s
 	if err != nil {
 		return nil, err
 	}
+	viewerSavedStates, err := s.viewerSavedStates(ctx, viewerDID, postURIs)
+	if err != nil {
+		return nil, err
+	}
 	for _, uri := range postURIs {
 		state := viewerStates[uri]
 		replyState := viewerReplyStates[uri]
+		savedState := viewerSavedStates[uri]
 		out[uri] = EngagementSummary{
-			LikeCount:         likeCounts[uri],
-			RepostCount:       repostCounts[uri],
-			QuoteCount:        quoteCounts[uri],
-			ReplyCount:        replyCounts[uri],
-			ViewerHasLiked:    state.HasLiked,
-			ViewerHasReposted: state.HasReposted,
-			ViewerHasReplied:  replyState.HasReplied,
+			LikeCount:           likeCounts[uri],
+			RepostCount:         repostCounts[uri],
+			QuoteCount:          quoteCounts[uri],
+			ReplyCount:          replyCounts[uri],
+			ViewerHasLiked:      state.HasLiked,
+			ViewerHasReposted:   state.HasReposted,
+			ViewerHasReplied:    replyState.HasReplied,
+			ViewerHasSaved:      savedState.HasSaved,
+			ViewerSavedFolderID: savedState.FolderID,
 		}
 	}
 	return out, nil
