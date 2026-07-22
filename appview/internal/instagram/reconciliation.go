@@ -237,7 +237,6 @@ func (w *ReconciliationWorker) processJob(ctx context.Context, job reconciliatio
 			ImporterDID:      candidate.ImporterDID,
 			TargetDID:        candidate.TargetDID,
 			ImportedUsername: candidate.Username,
-			Direction:        DirectionFollowing,
 		}
 		decision, err := w.policy.Evaluate(ctx, EligibilityAtMatch, request)
 		if err != nil {
@@ -313,7 +312,7 @@ func (w *ReconciliationWorker) loadCandidates(ctx context.Context, job reconcili
 		SELECT DISTINCT i.owner_did, i.id, h.username_normalized, link.owner_did
 		FROM instagram_graph_imports i
 		JOIN instagram_graph_handles h
-		  ON h.import_id=i.id AND h.direction='following'
+		  ON h.import_id=i.id
 		JOIN instagram_account_links link
 		  ON link.username_normalized=h.username_normalized
 		 AND link.state='active'

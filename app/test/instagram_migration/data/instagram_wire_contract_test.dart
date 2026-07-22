@@ -135,9 +135,6 @@ void main() {
         for (final entry in _listOfMaps(manualBody['entries']))
           InstagramImportEntry(
             username: entry['username'] as String,
-            direction: InstagramRelationshipDirection.fromWire(
-              entry['direction'] as String,
-            ),
           ),
       ],
     );
@@ -157,9 +154,6 @@ void main() {
         for (final entry in _listOfMaps(jsonBody['entries']))
           InstagramImportEntry(
             username: entry['username'] as String,
-            direction: InstagramRelationshipDirection.fromWire(
-              entry['direction'] as String,
-            ),
           ),
       ],
     );
@@ -356,14 +350,8 @@ void main() {
       sourceType: InstagramImportSourceType.instagramJson,
       retainUnmatched: true,
       entries: const [
-        InstagramImportEntry(
-          username: 'synthetic_following_01',
-          direction: InstagramRelationshipDirection.following,
-        ),
-        InstagramImportEntry(
-          username: 'synthetic_follower_01',
-          direction: InstagramRelationshipDirection.follower,
-        ),
+        InstagramImportEntry(username: 'synthetic_following_01'),
+        InstagramImportEntry(username: 'synthetic_following_02'),
       ],
     );
     final imported = await api.createImport(request);
@@ -752,13 +740,12 @@ Map<String, Object?> _encodeImport(InstagramImportSummary value) => {
   if (value.retentionExpiresAt != null)
     'retentionExpiresAt': _wireTime(value.retentionExpiresAt!),
   'followingCount': value.followingCount,
-  'followerCount': value.followerCount,
   'createdAt': _wireTime(value.createdAt),
 };
 
 Map<String, Object?> _encodeImportCreate(InstagramImportCreateResult value) => {
   'import': _encodeImport(value.import),
-  'counts': value.counts,
+  'counts': {'followingCount': value.followingCount},
   'initialSuggestionCount': value.initialSuggestionCount,
 };
 

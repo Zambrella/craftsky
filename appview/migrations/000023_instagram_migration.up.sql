@@ -197,7 +197,6 @@ CREATE TABLE instagram_graph_imports (
     retention_expires_at    TIMESTAMPTZ,
     membership_inactive_at  TIMESTAMPTZ,
     following_count         INTEGER     NOT NULL CHECK (following_count >= 0 AND following_count <= 10000),
-    follower_count          INTEGER     NOT NULL CHECK (follower_count >= 0 AND follower_count <= 10000),
     final_terminal_at       TIMESTAMPTZ,
     aggregate_purge_at      TIMESTAMPTZ,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -220,15 +219,14 @@ CREATE TABLE instagram_graph_handles (
     id                  BIGSERIAL   NOT NULL PRIMARY KEY,
     import_id           UUID        NOT NULL REFERENCES instagram_graph_imports(id) ON DELETE CASCADE,
     username_normalized TEXT        NOT NULL,
-    direction           TEXT        NOT NULL CHECK (direction IN ('following', 'follower')),
     matched             BOOLEAN     NOT NULL DEFAULT false,
     retain_until        TIMESTAMPTZ,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (import_id, username_normalized, direction)
+    UNIQUE (import_id, username_normalized)
 );
 
 CREATE INDEX instagram_graph_handles_match_idx
-    ON instagram_graph_handles (username_normalized, direction, import_id);
+    ON instagram_graph_handles (username_normalized, import_id);
 CREATE INDEX instagram_graph_handles_retention_idx
     ON instagram_graph_handles (retain_until, id)
     WHERE retain_until IS NOT NULL;

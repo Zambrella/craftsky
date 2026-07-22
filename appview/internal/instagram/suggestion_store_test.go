@@ -62,7 +62,7 @@ func TestSuggestionStoreDeduplicatesSupportsListsPrivatelyAndDismisses(t *testin
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if len(items) != 1 || cursor != nil || items[0].Suggestion.ID != suggestionID || items[0].ImportedUsername != "synthetic.bob" || items[0].Direction != DirectionFollowing {
+	if len(items) != 1 || cursor != nil || items[0].Suggestion.ID != suggestionID || items[0].ImportedUsername != "synthetic.bob" {
 		t.Fatalf("items=%+v cursor=%+v", items, cursor)
 	}
 	foreign, _, err := store.ListPendingSuggestions(ctx, carol, 20, nil)
@@ -201,16 +201,16 @@ func seedSuggestionImport(t *testing.T, pool *pgxpool.Pool, id uuid.UUID, owner 
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO instagram_graph_imports (
 			id, owner_did, state, source_type, retain_unmatched,
-			retention_expires_at, following_count, follower_count,
+			retention_expires_at, following_count,
 			created_at, updated_at
-		) VALUES ($1, $2, 'active', 'manual', true, $3, 1, 0, $4, $4)
+		) VALUES ($1, $2, 'active', 'manual', true, $3, 1, $4, $4)
 	`, id, owner, now.AddDate(1, 0, 0), now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO instagram_graph_handles (
-			import_id, username_normalized, direction, matched, retain_until, created_at
-		) VALUES ($1, $2, 'following', false, $3, $4)
+			import_id, username_normalized, matched, retain_until, created_at
+		) VALUES ($1, $2, false, $3, $4)
 	`, id, username, now.AddDate(1, 0, 0), now); err != nil {
 		t.Fatal(err)
 	}

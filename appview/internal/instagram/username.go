@@ -13,24 +13,11 @@ const (
 
 var (
 	ErrInvalidInstagramUsername = errors.New("invalid Instagram username")
-	ErrInvalidImportDirection   = errors.New("invalid Instagram import direction")
 	ErrTooManyImportEntries     = errors.New("too many Instagram import entries")
 )
 
-type ImportDirection string
-
-const (
-	DirectionFollowing ImportDirection = "following"
-	DirectionFollower  ImportDirection = "follower"
-)
-
-func (d ImportDirection) Valid() bool {
-	return d == DirectionFollowing || d == DirectionFollower
-}
-
 type ImportEntry struct {
-	Username  string          `json:"username"`
-	Direction ImportDirection `json:"direction"`
+	Username string `json:"username"`
 }
 
 func (ImportEntry) String() string {
@@ -67,19 +54,15 @@ func NormalizeImportEntries(entries []ImportEntry) ([]ImportEntry, error) {
 	result := make([]ImportEntry, 0, min(len(entries), MaxImportEntries))
 	seen := make(map[string]struct{}, min(len(entries), MaxImportEntries))
 	for index, entry := range entries {
-		if !entry.Direction.Valid() {
-			return nil, fmt.Errorf("%w at entry %d", ErrInvalidImportDirection, index)
-		}
 		username, err := NormalizeInstagramUsername(entry.Username)
 		if err != nil {
 			return nil, fmt.Errorf("%w at entry %d", err, index)
 		}
-		key := string(entry.Direction) + "\x00" + username
-		if _, exists := seen[key]; exists {
+		if _, exists := seen[username]; exists {
 			continue
 		}
-		seen[key] = struct{}{}
-		result = append(result, ImportEntry{Username: username, Direction: entry.Direction})
+		seen[username] = struct{}{}
+		result = append(result, ImportEntry{Username: username})
 		if len(result) > MaxImportEntries {
 			return nil, ErrTooManyImportEntries
 		}

@@ -43,32 +43,24 @@ func TestNormalizeInstagramUsername(t *testing.T) {
 	}
 }
 
-func TestNormalizeImportEntriesIsDirectionalDeterministicAndDeduplicated(t *testing.T) {
+func TestNormalizeImportEntriesIsDeterministicAndDeduplicated(t *testing.T) {
 	t.Parallel()
 
 	got, err := NormalizeImportEntries([]ImportEntry{
-		{Username: " Alice.Crafts ", Direction: DirectionFollowing},
-		{Username: "@alice.crafts", Direction: DirectionFollowing},
-		{Username: "ALICE.CRAFTS", Direction: DirectionFollower},
-		{Username: "bob_9", Direction: DirectionFollowing},
+		{Username: " Alice.Crafts "},
+		{Username: "@alice.crafts"},
+		{Username: "ALICE.CRAFTS"},
+		{Username: "bob_9"},
 	})
 	if err != nil {
 		t.Fatalf("NormalizeImportEntries: %v", err)
 	}
 	want := []ImportEntry{
-		{Username: "alice.crafts", Direction: DirectionFollowing},
-		{Username: "alice.crafts", Direction: DirectionFollower},
-		{Username: "bob_9", Direction: DirectionFollowing},
+		{Username: "alice.crafts"},
+		{Username: "bob_9"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("normalized entries = %#v, want %#v", got, want)
-	}
-
-	for _, direction := range []ImportDirection{"", "followers", "friend", "following ", "FOLLOWING"} {
-		_, err := NormalizeImportEntries([]ImportEntry{{Username: "alice", Direction: direction}})
-		if !errors.Is(err, ErrInvalidImportDirection) {
-			t.Errorf("direction %q error = %v, want invalid direction", direction, err)
-		}
 	}
 }
 
@@ -77,7 +69,7 @@ func TestNormalizeImportEntriesEnforcesDeduplicatedLimit(t *testing.T) {
 
 	duplicates := make([]ImportEntry, MaxImportEntries+20)
 	for i := range duplicates {
-		duplicates[i] = ImportEntry{Username: "same", Direction: DirectionFollowing}
+		duplicates[i] = ImportEntry{Username: "same"}
 	}
 	got, err := NormalizeImportEntries(duplicates)
 	if err != nil || len(got) != 1 {
@@ -86,10 +78,7 @@ func TestNormalizeImportEntriesEnforcesDeduplicatedLimit(t *testing.T) {
 
 	tooMany := make([]ImportEntry, 0, MaxImportEntries+1)
 	for i := 0; i <= MaxImportEntries; i++ {
-		tooMany = append(tooMany, ImportEntry{
-			Username:  syntheticUsername(i),
-			Direction: DirectionFollowing,
-		})
+		tooMany = append(tooMany, ImportEntry{Username: syntheticUsername(i)})
 	}
 	if _, err := NormalizeImportEntries(tooMany); !errors.Is(err, ErrTooManyImportEntries) {
 		t.Fatalf("too-many error = %v, want ErrTooManyImportEntries", err)

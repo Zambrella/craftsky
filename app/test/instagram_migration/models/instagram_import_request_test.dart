@@ -32,10 +32,7 @@ void main() {
         }),
       ),
     );
-    final parsed = const InstagramImportParser().parseJson(
-      parserInput,
-      direction: InstagramRelationshipDirection.following,
-    );
+    final parsed = const InstagramImportParser().parseJson(parserInput);
 
     final request = InstagramImportRequest(
       sourceType: InstagramImportSourceType.instagramJson,
@@ -48,7 +45,7 @@ void main() {
       'sourceType': 'instagramJson',
       'retainUnmatched': true,
       'entries': [
-        {'username': 'synthetic.normalized', 'direction': 'following'},
+        {'username': 'synthetic.normalized'},
       ],
     });
     for (final canary in rawCanaries) {

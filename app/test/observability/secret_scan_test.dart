@@ -200,18 +200,12 @@ void main() {
         state: InstagramVerificationState.confirmed,
         account: account,
       ),
-      const InstagramImportEntry(
-        username: importedHandle,
-        direction: InstagramRelationshipDirection.following,
-      ),
+      const InstagramImportEntry(username: importedHandle),
       InstagramImportRequest(
         sourceType: InstagramImportSourceType.manual,
         retainUnmatched: false,
         entries: const [
-          InstagramImportEntry(
-            username: importedHandle,
-            direction: InstagramRelationshipDirection.following,
-          ),
+          InstagramImportEntry(username: importedHandle),
         ],
       ),
       const InstagramSuggestionProfile(

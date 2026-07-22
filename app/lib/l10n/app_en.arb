@@ -1321,34 +1321,22 @@
   "instagramReactivateAccount": "Reactivate Instagram account",
   "instagramReactivateAccountDisclosure": "Reactivation keeps discovery off until you choose to turn it on again.",
   "instagramRevokeAccount": "Revoke Instagram link",
-  "instagramImportTitle": "Import Instagram contacts",
-  "instagramImportLocalDisclosure": "CraftSky reads the selected JSON file only on this device. Only normalized usernames and their relationship direction are uploaded; ZIP archives are not supported.",
+  "instagramImportTitle": "Import accounts you follow",
+  "instagramImportLocalDisclosure": "Import accounts you follow on Instagram. CraftSky reads the selected JSON file only on this device and uploads only normalized usernames; follower data is ignored and ZIP archives are not supported.",
   "instagramImportManual": "Enter handles",
   "instagramImportJson": "Choose JSON",
-  "instagramImportDirection": "Relationship direction",
-  "instagramImportChooseDirection": "Choose whether these people are following or followers",
-  "instagramImportFollowing": "Accounts I follow",
-  "instagramImportFollowers": "Accounts that follow me",
   "instagramImportHandles": "Instagram handles",
   "instagramImportHandlesHint": "One handle per line",
   "instagramImportPreview": "Preview normalized handles",
   "instagramImportSelectJson": "Select Instagram JSON file",
   "instagramImportFilePickerError": "The JSON file couldn't be opened on this device.",
   "instagramImportInvalidJson": "This file is not valid JSON.",
-  "instagramImportUnsupportedShape": "This JSON is not a supported Instagram following or followers export for the selected direction.",
-  "instagramImportUnsupportedFormat": "ZIP archives are not supported. Select the following or followers JSON file inside the export.",
+  "instagramImportUnsupportedShape": "This JSON is not a supported Instagram accounts-followed export. Select the file containing accounts you follow.",
+  "instagramImportUnsupportedFormat": "ZIP archives are not supported. Select the JSON file containing accounts you follow inside the export.",
   "instagramImportFileTooLarge": "This file is larger than 20 MiB.",
   "instagramImportTooManyEntries": "This import contains more than 10,000 unique handles.",
-  "instagramImportPreviewCount": "{count, plural, =1{1 normalized handle ready} other{{count} normalized handles ready}}",
-  "@instagramImportPreviewCount": {
-    "placeholders": { "count": { "type": "int", "example": "12" } }
-  },
   "instagramImportFollowingPreviewCount": "{count, plural, =1{1 account you follow ready} other{{count} accounts you follow ready}}",
   "@instagramImportFollowingPreviewCount": {
-    "placeholders": { "count": { "type": "int", "example": "12" } }
-  },
-  "instagramImportFollowerPreviewCount": "{count, plural, =1{1 follower ready} other{{count} followers ready}}",
-  "@instagramImportFollowerPreviewCount": {
     "placeholders": { "count": { "type": "int", "example": "12" } }
   },
   "instagramImportIgnoredCount": "{count, plural, =1{1 unsupported entry ignored} other{{count} unsupported entries ignored}}",
@@ -1370,11 +1358,10 @@
   "instagramImportManualSource": "Manual handles",
   "instagramImportJsonSource": "Instagram JSON",
   "instagramImportUnknownSource": "Instagram import",
-  "instagramImportCounts": "{followingCount} following · {followerCount} followers",
+  "instagramImportCounts": "{followingCount, plural, =1{1 account followed} other{{followingCount} accounts followed}}",
   "@instagramImportCounts": {
     "placeholders": {
-      "followingCount": { "type": "int", "example": "12" },
-      "followerCount": { "type": "int", "example": "4" }
+      "followingCount": { "type": "int", "example": "12" }
     }
   },
   "instagramImportRetainedUntil": "Future matching retained until {date}",

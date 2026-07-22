@@ -58,7 +58,6 @@ func TestInstagramMigrationCreatesPrivateSchemaWithoutMembershipCascades(t *test
 		"instagram_link_conflicts_state_check",
 		"instagram_webhook_work_status_check",
 		"instagram_graph_imports_state_check",
-		"instagram_graph_handles_direction_check",
 		"instagram_follow_suggestions_state_check",
 		"instagram_reconciliation_jobs_status_check",
 		"pds_follow_operations_status_check",
@@ -108,10 +107,10 @@ func TestInstagramMigrationCreatesPrivateSchemaWithoutMembershipCascades(t *test
 		INSERT INTO craftsky_profiles (did) VALUES ('did:plc:synthetic-owner');
 		INSERT INTO instagram_graph_imports
 			(id, owner_did, state, source_type, retain_unmatched,
-			 following_count, follower_count, created_at, updated_at)
+			 following_count, created_at, updated_at)
 		VALUES
 			('00000000-0000-0000-0000-000000000001', 'did:plc:synthetic-owner',
-			 'active', 'manual', false, 0, 0, now(), now());
+			 'active', 'manual', false, 0, now(), now());
 		DELETE FROM craftsky_profiles WHERE did = 'did:plc:synthetic-owner';
 	`); err != nil {
 		t.Fatalf("membership loss with private owner row: %v", err)
@@ -122,6 +121,81 @@ func TestInstagramMigrationCreatesPrivateSchemaWithoutMembershipCascades(t *test
 	}
 	if imports != 1 {
 		t.Fatalf("membership deletion cascaded to %d imports, want private row retained", imports)
+	}
+}
+
+func TestInstagramFollowingOnlyMigrationRemovesFollowerStorage(t *testing.T) {
+	t.Parallel()
+
+	core := readMigration(t, "../../migrations/000023_instagram_migration.up.sql")
+	legacyShape := readMigration(t, "../../migrations/000025_instagram_following_only.down.sql")
+	followingOnly := readMigration(t, "../../migrations/000025_instagram_following_only.up.sql")
+	pool := testdb.WithSchema(t, "")
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, core); err != nil {
+		t.Fatalf("apply core migration: %v", err)
+	}
+	if _, err := pool.Exec(ctx, legacyShape); err != nil {
+		t.Fatalf("restore legacy directional shape: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_graph_imports (
+			id, owner_did, state, source_type, retain_unmatched,
+			following_count, follower_count, created_at, updated_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000025',
+			'did:plc:synthetic-owner', 'active', 'instagramJson', true,
+			1, 1, now(), now()
+		);
+		INSERT INTO instagram_graph_handles (
+			import_id, username_normalized, direction, matched, created_at
+		) VALUES
+			('00000000-0000-0000-0000-000000000025', 'synthetic.same', 'following', false, now()),
+			('00000000-0000-0000-0000-000000000025', 'synthetic.same', 'follower', false, now());
+	`); err != nil {
+		t.Fatalf("seed legacy directional import: %v", err)
+	}
+	if _, err := pool.Exec(ctx, followingOnly); err != nil {
+		t.Fatalf("apply following-only migration: %v", err)
+	}
+
+	for table, column := range map[string]string{
+		"instagram_graph_imports": "follower_count",
+		"instagram_graph_handles": "direction",
+	} {
+		var exists bool
+		if err := pool.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM information_schema.columns
+				WHERE table_schema = current_schema()
+				  AND table_name = $1 AND column_name = $2
+			)
+		`, table, column).Scan(&exists); err != nil {
+			t.Fatalf("inspect %s.%s: %v", table, column, err)
+		}
+		if exists {
+			t.Errorf("legacy follower storage %s.%s still exists", table, column)
+		}
+	}
+
+	var retainedHandles int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*)
+		FROM instagram_graph_handles
+		WHERE import_id = '00000000-0000-0000-0000-000000000025'
+	`).Scan(&retainedHandles); err != nil {
+		t.Fatalf("count migrated handles: %v", err)
+	}
+	if retainedHandles != 1 {
+		t.Fatalf("migrated handles = %d, want only the following entry", retainedHandles)
+	}
+
+	freshPool := testdb.WithSchema(t, "")
+	if _, err := freshPool.Exec(ctx, core); err != nil {
+		t.Fatalf("apply fresh core migration: %v", err)
+	}
+	if _, err := freshPool.Exec(ctx, followingOnly); err != nil {
+		t.Fatalf("apply following-only migration to fresh schema: %v", err)
 	}
 }
 

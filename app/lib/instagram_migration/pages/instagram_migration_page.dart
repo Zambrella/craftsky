@@ -14,7 +14,6 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
-import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -464,7 +463,6 @@ class _ImportComposerCard extends ConsumerStatefulWidget {
 class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
   final _manualController = TextEditingController();
   _ImportInputKind _kind = _ImportInputKind.manual;
-  InstagramRelationshipDirection? _direction;
   bool _retainUnmatched = false;
   bool _busy = false;
   InstagramImportParseResult? _preview;
@@ -522,33 +520,6 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
             }),
           ),
           SizedBox(height: spacing.sp3),
-          CraftskySingleSelectInput<InstagramRelationshipDirection>(
-            key: const Key('instagram-import-direction'),
-            keyPrefix: 'instagram-import-direction',
-            label: l10n.instagramImportDirection,
-            helperText: l10n.instagramImportChooseDirection,
-            value: _direction,
-            options: [
-              CraftskySelectOption(
-                value: InstagramRelationshipDirection.following,
-                label: l10n.instagramImportFollowing,
-              ),
-              CraftskySelectOption(
-                value: InstagramRelationshipDirection.follower,
-                label: l10n.instagramImportFollowers,
-              ),
-            ],
-            enabled: !_busy,
-            onChanged: _busy
-                ? null
-                : (value) => setState(() {
-                    _direction = value;
-                    _preview = null;
-                    _parseError = null;
-                    _filePickerFailed = false;
-                  }),
-          ),
-          SizedBox(height: spacing.sp3),
           if (_kind == _ImportInputKind.manual) ...[
             CraftskyMultilineTextInput(
               key: const Key('instagram-manual-handles'),
@@ -559,12 +530,12 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
             ),
             SizedBox(height: spacing.sp2),
             OutlinedButton(
-              onPressed: _direction == null || _busy ? null : _parseManual,
+              onPressed: _busy ? null : _parseManual,
               child: Text(l10n.instagramImportPreview),
             ),
           ] else
             OutlinedButton.icon(
-              onPressed: _direction == null || _busy ? null : _pickJson,
+              onPressed: _busy ? null : _pickJson,
               icon: const Icon(Icons.file_open_outlined),
               label: Text(l10n.instagramImportSelectJson),
             ),
@@ -579,11 +550,7 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
           if (_preview case final preview?) ...[
             const SizedBox(height: 12),
             Text(
-              _importPreviewCount(
-                l10n,
-                _direction!,
-                preview.entries.length,
-              ),
+              l10n.instagramImportFollowingPreviewCount(preview.entries.length),
             ),
             if (preview.ignoredEntryCount > 0)
               Text(
@@ -622,7 +589,6 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
     try {
       final result = const InstagramImportParser().parseManual(
         _manualController.text,
-        direction: _direction!,
       );
       setState(() {
         _preview = result;
@@ -649,10 +615,7 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
         return;
       }
       if (bytes == null) return;
-      final result = const InstagramImportParser().parseJson(
-        bytes,
-        direction: _direction!,
-      );
+      final result = const InstagramImportParser().parseJson(bytes);
       setState(() {
         _preview = result;
         _parseError = null;
@@ -783,10 +746,7 @@ class _ImportRow extends ConsumerWidget {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           Text(
-            l10n.instagramImportCounts(
-              item.followingCount,
-              item.followerCount,
-            ),
+            l10n.instagramImportCounts(item.followingCount),
           ),
           if (item.retentionExpiresAt case final expiresAt?)
             Text(
@@ -1165,17 +1125,6 @@ String _verificationRetryMessage(
     l10n.instagramVerificationMembershipInactive,
   InstagramVerificationRetryCode.unknown ||
   null => l10n.instagramVerificationRejected,
-};
-
-String _importPreviewCount(
-  AppLocalizations l10n,
-  InstagramRelationshipDirection direction,
-  int count,
-) => switch (direction) {
-  InstagramRelationshipDirection.following =>
-    l10n.instagramImportFollowingPreviewCount(count),
-  InstagramRelationshipDirection.follower =>
-    l10n.instagramImportFollowerPreviewCount(count),
 };
 
 String _suggestionReason(

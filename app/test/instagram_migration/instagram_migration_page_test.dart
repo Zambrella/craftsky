@@ -13,7 +13,6 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
-import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,7 +39,6 @@ void main() {
               retainUnmatched: true,
               retentionExpiresAt: DateTime.utc(2026, 12),
               followingCount: 3,
-              followerCount: 0,
               createdAt: DateTime.utc(2026, 7),
             ),
           ],
@@ -123,10 +121,9 @@ void main() {
             retainUnmatched: request.retainUnmatched,
             retentionExpiresAt: null,
             followingCount: request.entries.length,
-            followerCount: 0,
             createdAt: DateTime.utc(2026, 7, 19),
           ),
-          counts: const {},
+          followingCount: request.entries.length,
           initialSuggestionCount: 0,
         );
       },
@@ -158,36 +155,28 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final directionField = find.byType(
-      CraftskySingleSelectInput<InstagramRelationshipDirection>,
-    );
-    await tester.ensureVisible(directionField);
-    await tester.tap(directionField);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Accounts I follow').last);
-    await tester.pumpAndSettle();
+    expect(find.text('Accounts that follow me'), findsNothing);
     await tester.enterText(
       find.byType(TextField),
       '@Alice\nALICE\nbad name',
     );
     final previewButton = find.text('Preview normalized handles');
-    await tester.ensureVisible(previewButton);
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pumpAndSettle();
     await tester.tap(previewButton);
     await tester.pump();
 
     expect(find.text('1 account you follow ready'), findsOneWidget);
     expect(find.text('1 unsupported entry ignored'), findsOneWidget);
     expect(find.text('1 duplicate removed'), findsOneWidget);
-    await tester.ensureVisible(find.text('Create private import'));
-    await tester.tap(find.text('Create private import'));
+    final uploadButton = find.text('Create private import');
+    await tester.drag(find.byType(ListView), const Offset(0, -200));
+    await tester.pumpAndSettle();
+    await tester.tap(uploadButton);
     await tester.pumpAndSettle();
 
     expect(sentRequest?.entries, hasLength(1));
     expect(sentRequest?.entries.single.username, 'alice');
-    expect(
-      sentRequest?.entries.single.direction,
-      InstagramRelationshipDirection.following,
-    );
     expect(sentRequest?.sourceType, InstagramImportSourceType.manual);
     expect(messenger.calls, [('info', 'Instagram import created', null)]);
   });

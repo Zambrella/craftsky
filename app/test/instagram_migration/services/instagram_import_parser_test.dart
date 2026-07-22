@@ -27,28 +27,29 @@ void main() {
                   ],
                 },
               ],
+              'relationships_followers': [
+                {
+                  'string_list_data': [
+                    {'value': 'synthetic.private.follower'},
+                  ],
+                },
+              ],
               'private_message': 'ignored_private_message',
             }),
           ),
         );
 
-        final result = parser.parseJson(
-          bytes,
-          direction: InstagramRelationshipDirection.following,
-        );
+        final result = parser.parseJson(bytes);
 
         expect(result.entries, [
-          const InstagramImportEntry(
-            username: 'synthetic.user_2',
-            direction: InstagramRelationshipDirection.following,
-          ),
+          const InstagramImportEntry(username: 'synthetic.user_2'),
         ]);
         expect(result.ignoredEntryCount, 0);
         expect(result.duplicateEntryCount, 0);
       },
     );
 
-    test('UT-009 parses the known top-level follower export', () {
+    test('UT-009 rejects a follower-only export locally', () {
       final bytes = Uint8List.fromList(
         utf8.encode(
           jsonEncode([
@@ -65,17 +66,16 @@ void main() {
         ),
       );
 
-      final result = parser.parseJson(
-        bytes,
-        direction: InstagramRelationshipDirection.follower,
-      );
-
-      expect(result.entries, [
-        const InstagramImportEntry(
-          username: 'syntheticfollower',
-          direction: InstagramRelationshipDirection.follower,
+      expect(
+        () => parser.parseJson(bytes),
+        throwsA(
+          isA<InstagramImportParseException>().having(
+            (error) => error.code,
+            'code',
+            InstagramImportParseErrorCode.unsupportedShape,
+          ),
         ),
-      ]);
+      );
     });
 
     test('UT-009 normalizes, deduplicates, and counts invalid values', () {
@@ -101,10 +101,7 @@ void main() {
         ),
       );
 
-      final result = parser.parseJson(
-        bytes,
-        direction: InstagramRelationshipDirection.following,
-      );
+      final result = parser.parseJson(bytes);
 
       expect(
         result.entries.map((entry) => entry.username),
@@ -121,10 +118,7 @@ void main() {
       );
 
       expect(
-        () => parser.parseJson(
-          bytes,
-          direction: InstagramRelationshipDirection.following,
-        ),
+        () => parser.parseJson(bytes),
         throwsA(
           isA<InstagramImportParseException>()
               .having(
@@ -153,10 +147,7 @@ void main() {
       );
 
       expect(
-        () => parser.parseJson(
-          bytes,
-          direction: InstagramRelationshipDirection.following,
-        ),
+        () => parser.parseJson(bytes),
         throwsA(
           isA<InstagramImportParseException>().having(
             (error) => error.code,
@@ -171,10 +162,7 @@ void main() {
       final bytes = Uint8List.fromList([0x50, 0x4b, 0x03, 0x04, 0x00]);
 
       expect(
-        () => parser.parseJson(
-          bytes,
-          direction: InstagramRelationshipDirection.following,
-        ),
+        () => parser.parseJson(bytes),
         throwsA(
           isA<InstagramImportParseException>().having(
             (error) => error.code,
@@ -193,17 +181,11 @@ void main() {
         ..fillRange(0, length, 0x20)
         ..setRange(0, minimal.length, minimal);
 
-      final result = parser.parseJson(
-        paddedTo(maximumBytes),
-        direction: InstagramRelationshipDirection.following,
-      );
+      final result = parser.parseJson(paddedTo(maximumBytes));
       expect(result.entries, isEmpty);
 
       expect(
-        () => parser.parseJson(
-          paddedTo(maximumBytes + 1),
-          direction: InstagramRelationshipDirection.following,
-        ),
+        () => parser.parseJson(paddedTo(maximumBytes + 1)),
         throwsA(
           isA<InstagramImportParseException>().having(
             (error) => error.code,
@@ -229,17 +211,11 @@ void main() {
         ),
       );
 
-      final result = parser.parseJson(
-        exportWith(10000),
-        direction: InstagramRelationshipDirection.following,
-      );
+      final result = parser.parseJson(exportWith(10000));
       expect(result.entries, hasLength(10000));
 
       expect(
-        () => parser.parseJson(
-          exportWith(10001),
-          direction: InstagramRelationshipDirection.following,
-        ),
+        () => parser.parseJson(exportWith(10001)),
         throwsA(
           isA<InstagramImportParseException>().having(
             (error) => error.code,
@@ -250,21 +226,14 @@ void main() {
       );
     });
 
-    test('UT-009 parses manual lines with the explicit direction', () {
+    test('UT-009 parses manual lines as accounts followed', () {
       final result = parser.parseManual(
         ' @Synthetic.One \nsynthetic.two\nsynthetic.one\ninvalid value',
-        direction: InstagramRelationshipDirection.following,
       );
 
       expect(result.entries, [
-        const InstagramImportEntry(
-          username: 'synthetic.one',
-          direction: InstagramRelationshipDirection.following,
-        ),
-        const InstagramImportEntry(
-          username: 'synthetic.two',
-          direction: InstagramRelationshipDirection.following,
-        ),
+        const InstagramImportEntry(username: 'synthetic.one'),
+        const InstagramImportEntry(username: 'synthetic.two'),
       ]);
       expect(result.duplicateEntryCount, 1);
       expect(result.ignoredEntryCount, 1);

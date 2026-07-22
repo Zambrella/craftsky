@@ -37,7 +37,7 @@ func (m *SuggestionMatcher) MatchImport(ctx context.Context, owner syntax.DID, i
 		SELECT DISTINCT h.username_normalized, link.owner_did
 		FROM instagram_graph_imports i
 		JOIN instagram_graph_handles h
-		  ON h.import_id = i.id AND h.direction = 'following'
+		  ON h.import_id = i.id
 		JOIN instagram_account_links link
 		  ON link.username_normalized = h.username_normalized
 		 AND link.state = 'active'
@@ -69,7 +69,7 @@ func (m *SuggestionMatcher) MatchImport(ctx context.Context, owner syntax.DID, i
 	for _, candidate := range candidates {
 		request := SuggestionEligibilityRequest{
 			ImporterDID: owner, TargetDID: candidate.target,
-			ImportedUsername: candidate.username, Direction: DirectionFollowing,
+			ImportedUsername: candidate.username,
 		}
 		decision, err := m.policy.Evaluate(ctx, EligibilityAtMatch, request)
 		if err != nil {

@@ -427,20 +427,20 @@ func seedPrivateDataLifecycle(t *testing.T, service *PrivateDataService, pool *p
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO instagram_graph_imports(
 			id,owner_did,state,source_type,retain_unmatched,
-			retention_expires_at,following_count,follower_count,created_at,updated_at
+			retention_expires_at,following_count,created_at,updated_at
 		) VALUES
-			($1,$2,'active','manual',true,$3,1,0,$4,$4),
-			($5,$6,'active','manual',true,$3,1,0,$4,$4)
+			($1,$2,'active','manual',true,$3,1,$4,$4),
+			($5,$6,'active','manual',true,$3,1,$4,$4)
 	`, lifecycleAliceImport, lifecycleAlice, now.AddDate(1, 0, 0), now,
 		lifecycleBobImport, lifecycleBob); err != nil {
 		t.Fatalf("seed lifecycle imports: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO instagram_graph_handles(
-			import_id,username_normalized,direction,matched,retain_until,created_at
+			import_id,username_normalized,matched,retain_until,created_at
 		) VALUES
-			($1,'synthetic.carol','following',true,$2,$3),
-			($4,'synthetic.bob.private.handle','following',true,$2,$3)
+			($1,'synthetic.carol',true,$2,$3),
+			($4,'synthetic.bob.private.handle',true,$2,$3)
 	`, lifecycleAliceImport, now.AddDate(1, 0, 0), now, lifecycleBobImport); err != nil {
 		t.Fatalf("seed lifecycle handles: %v", err)
 	}

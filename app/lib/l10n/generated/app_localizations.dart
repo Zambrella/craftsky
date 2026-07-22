@@ -2743,13 +2743,13 @@ abstract class AppLocalizations {
   /// No description provided for @instagramImportTitle.
   ///
   /// In en, this message translates to:
-  /// **'Import Instagram contacts'**
+  /// **'Import accounts you follow'**
   String get instagramImportTitle;
 
   /// No description provided for @instagramImportLocalDisclosure.
   ///
   /// In en, this message translates to:
-  /// **'CraftSky reads the selected JSON file only on this device. Only normalized usernames and their relationship direction are uploaded; ZIP archives are not supported.'**
+  /// **'Import accounts you follow on Instagram. CraftSky reads the selected JSON file only on this device and uploads only normalized usernames; follower data is ignored and ZIP archives are not supported.'**
   String get instagramImportLocalDisclosure;
 
   /// No description provided for @instagramImportManual.
@@ -2763,30 +2763,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose JSON'**
   String get instagramImportJson;
-
-  /// No description provided for @instagramImportDirection.
-  ///
-  /// In en, this message translates to:
-  /// **'Relationship direction'**
-  String get instagramImportDirection;
-
-  /// No description provided for @instagramImportChooseDirection.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose whether these people are following or followers'**
-  String get instagramImportChooseDirection;
-
-  /// No description provided for @instagramImportFollowing.
-  ///
-  /// In en, this message translates to:
-  /// **'Accounts I follow'**
-  String get instagramImportFollowing;
-
-  /// No description provided for @instagramImportFollowers.
-  ///
-  /// In en, this message translates to:
-  /// **'Accounts that follow me'**
-  String get instagramImportFollowers;
 
   /// No description provided for @instagramImportHandles.
   ///
@@ -2827,13 +2803,13 @@ abstract class AppLocalizations {
   /// No description provided for @instagramImportUnsupportedShape.
   ///
   /// In en, this message translates to:
-  /// **'This JSON is not a supported Instagram following or followers export for the selected direction.'**
+  /// **'This JSON is not a supported Instagram accounts-followed export. Select the file containing accounts you follow.'**
   String get instagramImportUnsupportedShape;
 
   /// No description provided for @instagramImportUnsupportedFormat.
   ///
   /// In en, this message translates to:
-  /// **'ZIP archives are not supported. Select the following or followers JSON file inside the export.'**
+  /// **'ZIP archives are not supported. Select the JSON file containing accounts you follow inside the export.'**
   String get instagramImportUnsupportedFormat;
 
   /// No description provided for @instagramImportFileTooLarge.
@@ -2848,23 +2824,11 @@ abstract class AppLocalizations {
   /// **'This import contains more than 10,000 unique handles.'**
   String get instagramImportTooManyEntries;
 
-  /// No description provided for @instagramImportPreviewCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 normalized handle ready} other{{count} normalized handles ready}}'**
-  String instagramImportPreviewCount(int count);
-
   /// No description provided for @instagramImportFollowingPreviewCount.
   ///
   /// In en, this message translates to:
   /// **'{count, plural, =1{1 account you follow ready} other{{count} accounts you follow ready}}'**
   String instagramImportFollowingPreviewCount(int count);
-
-  /// No description provided for @instagramImportFollowerPreviewCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 follower ready} other{{count} followers ready}}'**
-  String instagramImportFollowerPreviewCount(int count);
 
   /// No description provided for @instagramImportIgnoredCount.
   ///
@@ -2947,8 +2911,8 @@ abstract class AppLocalizations {
   /// No description provided for @instagramImportCounts.
   ///
   /// In en, this message translates to:
-  /// **'{followingCount} following · {followerCount} followers'**
-  String instagramImportCounts(int followingCount, int followerCount);
+  /// **'{followingCount, plural, =1{1 account followed} other{{followingCount} accounts followed}}'**
+  String instagramImportCounts(int followingCount);
 
   /// No description provided for @instagramImportRetainedUntil.
   ///

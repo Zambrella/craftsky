@@ -13,7 +13,6 @@ type SuggestionEligibilityRequest struct {
 	ImporterDID      syntax.DID
 	TargetDID        syntax.DID
 	ImportedUsername string
-	Direction        ImportDirection
 }
 
 func (SuggestionEligibilityRequest) String() string {
@@ -58,7 +57,7 @@ func (p *PostgresInstagramSuggestionEligibilityPolicy) Evaluate(ctx context.Cont
 	if p == nil || p.pool == nil {
 		return EligibilityDecision{Reason: EligibilitySafetyUnavailable}, nil
 	}
-	if request.ImporterDID == "" || request.TargetDID == "" || !request.Direction.Valid() {
+	if request.ImporterDID == "" || request.TargetDID == "" {
 		return EligibilityDecision{Reason: EligibilityInvalidInput}, nil
 	}
 	var (
@@ -103,7 +102,6 @@ func (p *PostgresInstagramSuggestionEligibilityPolicy) Evaluate(ctx context.Cont
 		DMVerified:            verifiedAt.Valid,
 		Discoverable:          discoverable,
 		ConflictFree:          linkStateRaw != string(LinkDisputed) && !conflict,
-		ImportDirection:       request.Direction,
 		ImportedUsername:      request.ImportedUsername,
 		CurrentUsername:       currentName.String,
 		Self:                  request.ImporterDID == request.TargetDID,

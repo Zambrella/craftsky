@@ -50,8 +50,7 @@
         "retainUnmatched": false,
         "entries": [
           {
-            "username": "synthetic_manual_01",
-            "direction": "following"
+            "username": "synthetic_manual_01"
           }
         ]
       }
@@ -65,12 +64,10 @@
         "retainUnmatched": true,
         "entries": [
           {
-            "username": "synthetic_following_01",
-            "direction": "following"
+            "username": "synthetic_following_01"
           },
           {
-            "username": "synthetic_follower_01",
-            "direction": "follower"
+            "username": "synthetic_following_02"
           }
         ]
       }
@@ -399,12 +396,10 @@
           "retainUnmatched": true,
           "retentionExpiresAt": "2027-07-19T12:00:00Z",
           "followingCount": 2,
-          "followerCount": 1,
           "createdAt": "2026-07-19T12:00:00Z"
         },
         "counts": {
-          "followingCount": 2,
-          "followerCount": 1
+          "followingCount": 2
         },
         "initialSuggestionCount": 1
       }
@@ -423,7 +418,6 @@
         "retainUnmatched": true,
         "retentionExpiresAt": "2027-07-19T12:00:00Z",
         "followingCount": 2,
-        "followerCount": 1,
         "createdAt": "2026-07-19T12:00:00Z"
       }
     },
@@ -438,7 +432,6 @@
         "sourceType": "manual",
         "retainUnmatched": false,
         "followingCount": 1,
-        "followerCount": 0,
         "createdAt": "2026-07-19T12:01:00Z"
       }
     },
@@ -453,7 +446,6 @@
         "sourceType": "instagramJson",
         "retainUnmatched": false,
         "followingCount": 0,
-        "followerCount": 2,
         "createdAt": "2026-07-19T12:02:00Z"
       }
     }
@@ -587,7 +579,6 @@
             "sourceType": "manual",
             "retainUnmatched": false,
             "followingCount": 1,
-            "followerCount": 0,
             "createdAt": "2026-07-19T11:59:00Z"
           }
         ]
@@ -611,7 +602,6 @@
             "retainUnmatched": true,
             "retentionExpiresAt": "2027-07-19T11:58:00Z",
             "followingCount": 50,
-            "followerCount": 25,
             "createdAt": "2026-07-19T11:58:00Z"
           }
         ],
@@ -1482,7 +1472,6 @@
       "sourceType": "manual",
       "retainUnmatched": false,
       "followingCount": 0,
-      "followerCount": 0,
       "createdAt": "2026-07-19T13:03:00Z"
     },
     "unknownImportSource": {
@@ -1491,7 +1480,6 @@
       "sourceType": "futureImportSource",
       "retainUnmatched": false,
       "followingCount": 0,
-      "followerCount": 0,
       "createdAt": "2026-07-19T13:04:00Z"
     },
     "unknownSuggestionState": {

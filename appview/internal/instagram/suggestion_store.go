@@ -49,7 +49,6 @@ func (s Suggestion) GoString() string { return s.String() }
 type SuggestionEvidence struct {
 	Suggestion       Suggestion
 	ImportedUsername string
-	Direction        ImportDirection
 }
 
 func (SuggestionEvidence) String() string     { return "Instagram suggestion evidence [REDACTED]" }
@@ -88,7 +87,6 @@ type AcceptanceClaim struct {
 	Suggestion       Suggestion
 	Operation        FollowOperation
 	ImportedUsername string
-	Direction        ImportDirection
 }
 
 func (AcceptanceClaim) String() string     { return "Instagram acceptance claim [REDACTED]" }
@@ -163,7 +161,7 @@ func (s *SuggestionStore) upsertPendingSuggestionTx(ctx context.Context, tx pgx.
 		 AND link.discoverable
 		 AND NOT link.conflict_pending
 		WHERE i.id = $1 AND i.owner_did = $2 AND i.state = 'active'
-		  AND h.username_normalized = $3 AND h.direction = 'following'
+		  AND h.username_normalized = $3
 		  AND (i.retention_expires_at IS NULL OR i.retention_expires_at > $5)
 		  AND (h.retain_until IS NULL OR h.retain_until > $5)
 		LIMIT 1
@@ -333,7 +331,7 @@ func (s *SuggestionStore) ClaimSuggestionAcceptance(ctx context.Context, owner s
 		}
 		return claim, nil
 	}
-	if claim.ImportedUsername == "" || claim.Direction != DirectionFollowing {
+	if claim.ImportedUsername == "" {
 		var transitionedID uuid.UUID
 		if err := tx.QueryRow(ctx, `
 			UPDATE instagram_follow_suggestions
@@ -497,10 +495,10 @@ func (s *SuggestionStore) retractInstagramMatch(ctx context.Context, tx pgx.Tx, 
 const suggestionEvidenceSelect = `
 	SELECT s.id, s.importer_did, s.target_did, s.state, s.reason,
 	       s.created_at, s.updated_at,
-	       COALESCE(e.username_normalized, ''), COALESCE(e.direction, '')
+	       COALESCE(e.username_normalized, '')
 	FROM instagram_follow_suggestions s
 	LEFT JOIN LATERAL (
-		SELECT h.username_normalized, h.direction
+		SELECT h.username_normalized
 		FROM instagram_suggestion_sources source
 		JOIN instagram_graph_imports i
 		  ON i.id = source.import_id
@@ -551,7 +549,7 @@ func scanSuggestionEvidence(row suggestionRow) (SuggestionEvidence, error) {
 	if err := row.Scan(
 		&evidence.Suggestion.ID, &importer, &target, &evidence.Suggestion.State,
 		&evidence.Suggestion.Reason, &evidence.Suggestion.CreatedAt,
-		&evidence.Suggestion.UpdatedAt, &evidence.ImportedUsername, &evidence.Direction,
+		&evidence.Suggestion.UpdatedAt, &evidence.ImportedUsername,
 	); err != nil {
 		return SuggestionEvidence{}, err
 	}
@@ -570,7 +568,6 @@ func scanAcceptanceClaim(row suggestionRow) (AcceptanceClaim, error) {
 	}
 	return AcceptanceClaim{
 		Suggestion: evidence.Suggestion, ImportedUsername: evidence.ImportedUsername,
-		Direction: evidence.Direction,
 	}, nil
 }
 

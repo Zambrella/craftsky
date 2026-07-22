@@ -46,7 +46,6 @@ const (
 	EligibilityLink               EligibilityReason = "link"
 	EligibilityDiscovery          EligibilityReason = "discovery"
 	EligibilityConflict           EligibilityReason = "conflict"
-	EligibilityDirection          EligibilityReason = "direction"
 	EligibilityUsername           EligibilityReason = "username"
 	EligibilitySelf               EligibilityReason = "self"
 	EligibilityAlreadyFollowing   EligibilityReason = "alreadyFollowing"
@@ -62,7 +61,6 @@ type EligibilitySnapshot struct {
 	DMVerified            bool
 	Discoverable          bool
 	ConflictFree          bool
-	ImportDirection       ImportDirection
 	ImportedUsername      string
 	CurrentUsername       string
 	Self                  bool
@@ -103,9 +101,6 @@ func EvaluateInstagramSuggestionEligibility(stage EligibilityStage, snapshot Eli
 	}
 	if !snapshot.Discoverable {
 		return deny(EligibilityDiscovery)
-	}
-	if snapshot.ImportDirection != DirectionFollowing {
-		return deny(EligibilityDirection)
 	}
 	imported, importedErr := NormalizeInstagramUsername(snapshot.ImportedUsername)
 	current, currentErr := NormalizeInstagramUsername(snapshot.CurrentUsername)

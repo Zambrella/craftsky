@@ -27,12 +27,12 @@ func TestInstagramImportHandlersExactWireContractAndOpaquePagination(t *testing.
 	item := instagram.GraphImport{
 		ID: id, OwnerDID: alice, State: instagram.ImportActive,
 		SourceType: instagram.ImportSourceInstagramJSON, RetainUnmatched: true,
-		RetentionExpiresAt: &expiresAt, FollowingCount: 1, FollowerCount: 1,
+		RetentionExpiresAt: &expiresAt, FollowingCount: 2,
 		CreatedAt: createdAt,
 	}
 	service := &stubInstagramImportService{
 		created: instagram.CreateImportResult{
-			Import: item, Counts: instagram.ImportCounts{Following: 1, Follower: 1},
+			Import: item, Counts: instagram.ImportCounts{Following: 2},
 			InitialSuggestionCount: 0,
 		},
 		items:      []instagram.GraphImport{item},
@@ -45,8 +45,8 @@ func TestInstagramImportHandlersExactWireContractAndOpaquePagination(t *testing.
 		"sourceType":"instagramJson",
 		"retainUnmatched":true,
 		"entries":[
-			{"username":" Synthetic.One ","direction":"following"},
-			{"username":"synthetic.two","direction":"follower"}
+			{"username":" Synthetic.One "},
+			{"username":"synthetic.two"}
 		]
 	}`, alice)
 	createResponse := httptest.NewRecorder()
@@ -62,7 +62,7 @@ func TestInstagramImportHandlersExactWireContractAndOpaquePagination(t *testing.
 		t.Fatalf("created = %#v", created)
 	}
 	counts, ok := created["counts"].(map[string]any)
-	if !ok || counts["followingCount"] != float64(1) || counts["followerCount"] != float64(1) || len(counts) != 2 {
+	if !ok || counts["followingCount"] != float64(2) || len(counts) != 1 {
 		t.Fatalf("counts = %#v", created["counts"])
 	}
 	if len(service.createEntries) != 2 || service.createEntries[0].Username != " Synthetic.One " {
@@ -102,7 +102,7 @@ func TestInstagramImportHandlersExactWireContractAndOpaquePagination(t *testing.
 	if err := json.Unmarshal(getResponse.Body.Bytes(), &detail); err != nil {
 		t.Fatalf("decode detail: %v", err)
 	}
-	if len(detail) != 8 || detail["importId"] != id.String() || detail["state"] != "active" || detail["retentionExpiresAt"] != expiresAt.Format(time.RFC3339) {
+	if len(detail) != 7 || detail["importId"] != id.String() || detail["state"] != "active" || detail["retentionExpiresAt"] != expiresAt.Format(time.RFC3339) {
 		t.Fatalf("detail = %#v", detail)
 	}
 
@@ -133,6 +133,8 @@ func TestInstagramImportHandlersRejectRawFieldsInvalidInputsAndMapSafeErrors(t *
 		code       string
 	}{
 		{name: "raw archive field", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"manual","retainUnmatched":false,"entries":[],"rawArchive":"synthetic-private-canary"}`, status: 400, code: "invalid_request"},
+		{name: "legacy relationship direction", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"manual","retainUnmatched":false,"entries":[{"username":"synthetic.one","direction":"following"}]}`, status: 400, code: "invalid_request"},
+		{name: "follower data field", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"instagramJson","retainUnmatched":false,"entries":[{"username":"synthetic.one","followerUsername":"synthetic.private"}]}`, status: 400, code: "invalid_request"},
 		{name: "invalid import", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"manual","retainUnmatched":false,"entries":[]}`, serviceErr: instagram.ErrInvalidInstagramImport, status: 422, code: "invalid_instagram_import"},
 		{name: "invalid cursor", handler: ListInstagramImportsHandler, method: http.MethodGet, target: "/v1/migrations/instagram/imports?cursor=not-valid!!!", status: 400, code: "invalid_cursor"},
 		{name: "foreign get", handler: GetInstagramImportHandler, method: http.MethodGet, target: "/v1/migrations/instagram/imports/" + id.String(), pathID: id.String(), serviceErr: instagram.ErrInstagramResourceNotFound, status: 404, code: "instagram_import_not_found"},

@@ -1497,30 +1497,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instagramRevokeAccount => 'Revoke Instagram link';
 
   @override
-  String get instagramImportTitle => 'Import Instagram contacts';
+  String get instagramImportTitle => 'Import accounts you follow';
 
   @override
   String get instagramImportLocalDisclosure =>
-      'CraftSky reads the selected JSON file only on this device. Only normalized usernames and their relationship direction are uploaded; ZIP archives are not supported.';
+      'Import accounts you follow on Instagram. CraftSky reads the selected JSON file only on this device and uploads only normalized usernames; follower data is ignored and ZIP archives are not supported.';
 
   @override
   String get instagramImportManual => 'Enter handles';
 
   @override
   String get instagramImportJson => 'Choose JSON';
-
-  @override
-  String get instagramImportDirection => 'Relationship direction';
-
-  @override
-  String get instagramImportChooseDirection =>
-      'Choose whether these people are following or followers';
-
-  @override
-  String get instagramImportFollowing => 'Accounts I follow';
-
-  @override
-  String get instagramImportFollowers => 'Accounts that follow me';
 
   @override
   String get instagramImportHandles => 'Instagram handles';
@@ -1543,11 +1530,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get instagramImportUnsupportedShape =>
-      'This JSON is not a supported Instagram following or followers export for the selected direction.';
+      'This JSON is not a supported Instagram accounts-followed export. Select the file containing accounts you follow.';
 
   @override
   String get instagramImportUnsupportedFormat =>
-      'ZIP archives are not supported. Select the following or followers JSON file inside the export.';
+      'ZIP archives are not supported. Select the JSON file containing accounts you follow inside the export.';
 
   @override
   String get instagramImportFileTooLarge => 'This file is larger than 20 MiB.';
@@ -1557,34 +1544,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'This import contains more than 10,000 unique handles.';
 
   @override
-  String instagramImportPreviewCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count normalized handles ready',
-      one: '1 normalized handle ready',
-    );
-    return '$_temp0';
-  }
-
-  @override
   String instagramImportFollowingPreviewCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
       other: '$count accounts you follow ready',
       one: '1 account you follow ready',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String instagramImportFollowerPreviewCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count followers ready',
-      one: '1 follower ready',
     );
     return '$_temp0';
   }
@@ -1649,8 +1614,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instagramImportUnknownSource => 'Instagram import';
 
   @override
-  String instagramImportCounts(int followingCount, int followerCount) {
-    return '$followingCount following · $followerCount followers';
+  String instagramImportCounts(int followingCount) {
+    String _temp0 = intl.Intl.pluralLogic(
+      followingCount,
+      locale: localeName,
+      other: '$followingCount accounts followed',
+      one: '1 account followed',
+    );
+    return '$_temp0';
   }
 
   @override

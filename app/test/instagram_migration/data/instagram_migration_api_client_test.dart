@@ -218,8 +218,7 @@ void main() {
         'sourceType': 'instagramJson',
         'retainUnmatched': true,
         'retentionExpiresAt': '2027-07-19T12:00:00Z',
-        'followingCount': 1,
-        'followerCount': 1,
+        'followingCount': 2,
         'createdAt': '2026-07-19T12:00:00Z',
       };
       DioAdapter(dio: dio)
@@ -227,15 +226,15 @@ void main() {
           '/v1/migrations/instagram/imports',
           (server) => server.reply(201, {
             'import': import,
-            'counts': {'followingCount': 1, 'followerCount': 1},
+            'counts': {'followingCount': 2},
             'initialSuggestionCount': 1,
           }),
           data: {
             'sourceType': 'instagramJson',
             'retainUnmatched': true,
             'entries': [
-              {'username': 'synthetic.one', 'direction': 'following'},
-              {'username': 'synthetic.two', 'direction': 'follower'},
+              {'username': 'synthetic.one'},
+              {'username': 'synthetic.two'},
             ],
           },
         )
@@ -270,14 +269,8 @@ void main() {
         sourceType: InstagramImportSourceType.instagramJson,
         retainUnmatched: true,
         entries: const [
-          InstagramImportEntry(
-            username: 'synthetic.one',
-            direction: InstagramRelationshipDirection.following,
-          ),
-          InstagramImportEntry(
-            username: 'synthetic.two',
-            direction: InstagramRelationshipDirection.follower,
-          ),
+          InstagramImportEntry(username: 'synthetic.one'),
+          InstagramImportEntry(username: 'synthetic.two'),
         ],
       );
       final created = await api.createImport(request);
@@ -293,10 +286,10 @@ void main() {
       await api.deleteImport('synthetic-import-id');
 
       expect(created.initialSuggestionCount, 1);
-      expect(created.counts['followingCount'], 1);
+      expect(created.followingCount, 2);
       expect(page.cursor, 'synthetic-opaque-cursor');
       expect(page.items.single.state, InstagramImportState.active);
-      expect(detail.followingCount, 1);
+      expect(detail.followingCount, 2);
       expect(updated.retainUnmatched, isFalse);
       expect(updated.retentionExpiresAt, isNull);
       for (final value in [created, page, detail, updated]) {

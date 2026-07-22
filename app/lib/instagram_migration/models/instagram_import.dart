@@ -1,19 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-enum InstagramRelationshipDirection {
-  following,
-  follower;
-
-  static InstagramRelationshipDirection fromWire(String value) =>
-      switch (value) {
-        'following' => following,
-        'follower' => follower,
-        _ => throw const FormatException('unsupported_direction'),
-      };
-
-  String get wireValue => name;
-}
-
 enum InstagramImportSourceType {
   manual,
   instagramJson,
@@ -48,27 +34,18 @@ enum InstagramImportState {
 
 @immutable
 final class InstagramImportEntry {
-  const InstagramImportEntry({
-    required this.username,
-    required this.direction,
-  });
+  const InstagramImportEntry({required this.username});
 
   final String username;
-  final InstagramRelationshipDirection direction;
 
-  Map<String, Object?> toMap() => {
-    'username': username,
-    'direction': direction.wireValue,
-  };
+  Map<String, Object?> toMap() => {'username': username};
 
   @override
   bool operator ==(Object other) =>
-      other is InstagramImportEntry &&
-      other.username == username &&
-      other.direction == direction;
+      other is InstagramImportEntry && other.username == username;
 
   @override
-  int get hashCode => Object.hash(username, direction);
+  int get hashCode => username.hashCode;
 
   @override
   String toString() => 'InstagramImportEntry([REDACTED])';
@@ -118,7 +95,6 @@ final class InstagramImportSummary {
     required this.retainUnmatched,
     required this.retentionExpiresAt,
     required this.followingCount,
-    required this.followerCount,
     required this.createdAt,
   });
 
@@ -129,7 +105,6 @@ final class InstagramImportSummary {
     final retainUnmatched = map['retainUnmatched'];
     final retentionExpiresAt = map['retentionExpiresAt'];
     final followingCount = map['followingCount'];
-    final followerCount = map['followerCount'];
     final createdAt = map['createdAt'];
     if (importId is! String ||
         state is! String ||
@@ -137,7 +112,6 @@ final class InstagramImportSummary {
         retainUnmatched is! bool ||
         retentionExpiresAt is! String? ||
         followingCount is! int ||
-        followerCount is! int ||
         createdAt is! String) {
       throw const FormatException('invalid_instagram_import');
     }
@@ -150,7 +124,6 @@ final class InstagramImportSummary {
           ? null
           : DateTime.parse(retentionExpiresAt).toUtc(),
       followingCount: followingCount,
-      followerCount: followerCount,
       createdAt: DateTime.parse(createdAt).toUtc(),
     );
   }
@@ -161,7 +134,6 @@ final class InstagramImportSummary {
   final bool retainUnmatched;
   final DateTime? retentionExpiresAt;
   final int followingCount;
-  final int followerCount;
   final DateTime createdAt;
 
   @override
@@ -169,11 +141,11 @@ final class InstagramImportSummary {
 }
 
 final class InstagramImportCreateResult {
-  InstagramImportCreateResult({
+  const InstagramImportCreateResult({
     required this.import,
-    required Map<String, int> counts,
+    required this.followingCount,
     required this.initialSuggestionCount,
-  }) : counts = Map.unmodifiable(counts);
+  });
 
   factory InstagramImportCreateResult.fromMap(Map<String, dynamic> map) {
     final import = map['import'];
@@ -182,18 +154,18 @@ final class InstagramImportCreateResult {
     if (import is! Map<String, dynamic> ||
         counts is! Map<String, dynamic> ||
         initialSuggestionCount is! int ||
-        counts.values.any((value) => value is! int)) {
+        counts['followingCount'] is! int) {
       throw const FormatException('invalid_instagram_import_result');
     }
     return InstagramImportCreateResult(
       import: InstagramImportSummary.fromMap(import),
-      counts: counts.map((key, value) => MapEntry(key, value as int)),
+      followingCount: counts['followingCount'] as int,
       initialSuggestionCount: initialSuggestionCount,
     );
   }
 
   final InstagramImportSummary import;
-  final Map<String, int> counts;
+  final int followingCount;
   final int initialSuggestionCount;
 
   @override

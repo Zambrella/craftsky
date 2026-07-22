@@ -30,7 +30,6 @@ void main() {
       'retainUnmatched': true,
       'retentionExpiresAt': '2037-08-09T10:11:12Z',
       'followingCount': 4242,
-      'followerCount': 4343,
       'createdAt': '2036-08-09T10:11:12Z',
     });
     final suggestion = InstagramSuggestion.fromMap({
@@ -49,7 +48,6 @@ void main() {
       '2037-08-09',
       'synthetic-private-import-id',
       '4242',
-      '4343',
       'synthetic-private-suggestion-id',
       'did:plc:synthetic-private-target',
       'private-target.synthetic.invalid',

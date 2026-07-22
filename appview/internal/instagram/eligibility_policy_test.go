@@ -21,7 +21,6 @@ func TestPostgresInstagramSuggestionEligibilityPolicyFailsClosedWithoutRelations
 		ImporterDID:      syntax.DID("did:plc:synthetic-alice"),
 		TargetDID:        syntax.DID("did:plc:synthetic-bob"),
 		ImportedUsername: "synthetic.bob",
-		Direction:        DirectionFollowing,
 	}
 
 	closed := NewPostgresInstagramSuggestionEligibilityPolicy(pool, nil, func() time.Time { return now })
@@ -54,7 +53,6 @@ func TestPostgresInstagramSuggestionEligibilityPolicyAppliesSafetyAndCurrentFact
 		ImporterDID:      syntax.DID("did:plc:synthetic-alice"),
 		TargetDID:        syntax.DID("did:plc:synthetic-bob"),
 		ImportedUsername: "synthetic.bob",
-		Direction:        DirectionFollowing,
 	}
 
 	blocked := NewPostgresInstagramSuggestionEligibilityPolicy(pool, staticRelationshipSafety{facts: RelationshipSafetyFacts{Available: true, TargetBlocksImporter: true}}, func() time.Time { return now })

@@ -39,7 +39,6 @@ type GraphImport struct {
 	RetainUnmatched    bool
 	RetentionExpiresAt *time.Time
 	FollowingCount     int
-	FollowerCount      int
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 }
@@ -51,7 +50,6 @@ func (i GraphImport) GoString() string { return i.String() }
 
 type ImportCounts struct {
 	Following int `json:"following"`
-	Follower  int `json:"follower"`
 }
 
 type CreateImportResult struct {
@@ -110,14 +108,7 @@ func (s *ImportStore) createImport(ctx context.Context, params CreateImportParam
 	if len(entries) == 0 {
 		return CreateImportResult{}, ErrInvalidInstagramUsername
 	}
-	counts := ImportCounts{}
-	for _, entry := range entries {
-		if entry.Direction == DirectionFollowing {
-			counts.Following++
-		} else {
-			counts.Follower++
-		}
-	}
+	counts := ImportCounts{Following: len(entries)}
 	var retentionExpiresAt *time.Time
 	if params.RetainUnmatched {
 		expires := params.Now.AddDate(1, 0, 0)
@@ -135,12 +126,12 @@ func (s *ImportStore) createImport(ctx context.Context, params CreateImportParam
 	graphImport, err := scanGraphImport(tx.QueryRow(ctx, `
 		INSERT INTO instagram_graph_imports (
 			id, owner_did, state, source_type, retain_unmatched,
-			retention_expires_at, following_count, follower_count,
+			retention_expires_at, following_count,
 			created_at, updated_at
-		) VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, $8, $8)
+		) VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, $7)
 		RETURNING `+graphImportColumns,
 		params.ID, params.OwnerDID, params.SourceType, params.RetainUnmatched,
-		retentionExpiresAt, counts.Following, counts.Follower, params.Now))
+		retentionExpiresAt, counts.Following, params.Now))
 	if err != nil {
 		return CreateImportResult{}, err
 	}
@@ -148,10 +139,10 @@ func (s *ImportStore) createImport(ctx context.Context, params CreateImportParam
 		for _, entry := range entries {
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO instagram_graph_handles (
-					import_id, username_normalized, direction, matched,
+					import_id, username_normalized, matched,
 					retain_until, created_at
-				) VALUES ($1, $2, $3, false, $4, $5)
-			`, params.ID, entry.Username, entry.Direction, retentionExpiresAt, params.Now); err != nil {
+				) VALUES ($1, $2, false, $3, $4)
+			`, params.ID, entry.Username, retentionExpiresAt, params.Now); err != nil {
 				return CreateImportResult{}, err
 			}
 		}
@@ -186,7 +177,7 @@ func (s *ImportStore) FinalizeImportMatching(ctx context.Context, owner syntax.D
 	if !retainUnmatched {
 		if _, err := tx.Exec(ctx, `
 			DELETE FROM instagram_graph_handles
-			WHERE import_id = $1 AND (direction = 'follower' OR NOT matched)
+			WHERE import_id = $1 AND NOT matched
 		`, id); err != nil {
 			return err
 		}
@@ -557,7 +548,7 @@ func invalidateUnsupportedSuggestions(ctx context.Context, tx pgx.Tx, owner synt
 
 const graphImportColumns = `
 	id, owner_did, state, source_type, retain_unmatched,
-	retention_expires_at, following_count, follower_count,
+	retention_expires_at, following_count,
 	created_at, updated_at`
 
 type graphImportRow interface {
@@ -578,7 +569,6 @@ func scanGraphImport(row graphImportRow) (GraphImport, error) {
 		&graphImport.RetainUnmatched,
 		&expires,
 		&graphImport.FollowingCount,
-		&graphImport.FollowerCount,
 		&graphImport.CreatedAt,
 		&graphImport.UpdatedAt,
 	); err != nil {

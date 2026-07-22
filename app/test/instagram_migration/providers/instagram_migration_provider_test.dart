@@ -209,7 +209,6 @@ void main() {
         retainUnmatched: true,
         retentionExpiresAt: expiry,
         followingCount: 3,
-        followerCount: 0,
         createdAt: DateTime.utc(2026, 7),
       );
       InstagramImportPatch? sentPatch;
@@ -233,7 +232,6 @@ void main() {
             retainUnmatched: inactive.retainUnmatched,
             retentionExpiresAt: expiry,
             followingCount: inactive.followingCount,
-            followerCount: inactive.followerCount,
             createdAt: inactive.createdAt,
           );
         },
@@ -399,10 +397,7 @@ void main() {
               sourceType: InstagramImportSourceType.manual,
               retainUnmatched: false,
               entries: const [
-                InstagramImportEntry(
-                  username: 'private_a',
-                  direction: InstagramRelationshipDirection.following,
-                ),
+                InstagramImportEntry(username: 'private_a'),
               ],
             ),
           );
@@ -428,10 +423,9 @@ void main() {
             retainUnmatched: false,
             retentionExpiresAt: null,
             followingCount: 1,
-            followerCount: 0,
             createdAt: DateTime.utc(2026, 7, 19),
           ),
-          counts: const {},
+          followingCount: 1,
           initialSuggestionCount: 0,
         ),
       );

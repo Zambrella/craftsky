@@ -31,13 +31,11 @@ type instagramImportResponse struct {
 	RetainUnmatched    bool                           `json:"retainUnmatched"`
 	RetentionExpiresAt string                         `json:"retentionExpiresAt,omitempty"`
 	FollowingCount     int                            `json:"followingCount"`
-	FollowerCount      int                            `json:"followerCount"`
 	CreatedAt          string                         `json:"createdAt"`
 }
 
 type instagramImportCountsResponse struct {
 	FollowingCount int `json:"followingCount"`
-	FollowerCount  int `json:"followerCount"`
 }
 
 type instagramImportCreateResponse struct {
@@ -77,7 +75,6 @@ func CreateInstagramImportHandler(service InstagramImportService, logger *slog.L
 			Import: importResponse(created.Import),
 			Counts: instagramImportCountsResponse{
 				FollowingCount: created.Counts.Following,
-				FollowerCount:  created.Counts.Follower,
 			},
 			InitialSuggestionCount: created.InitialSuggestionCount,
 		})
@@ -206,7 +203,7 @@ func importResponse(item instagram.GraphImport) instagramImportResponse {
 	response := instagramImportResponse{
 		ImportID: item.ID.String(), State: item.State, SourceType: item.SourceType,
 		RetainUnmatched: item.RetainUnmatched, FollowingCount: item.FollowingCount,
-		FollowerCount: item.FollowerCount, CreatedAt: instagramTime(item.CreatedAt),
+		CreatedAt: instagramTime(item.CreatedAt),
 	}
 	if item.RetentionExpiresAt != nil {
 		response.RetentionExpiresAt = instagramTime(*item.RetentionExpiresAt)
@@ -257,7 +254,6 @@ func writeInstagramImportError(w http.ResponseWriter, r *http.Request, logger *s
 		envelope.WriteError(w, http.StatusBadRequest, "invalid_cursor", "cursor could not be decoded", runID, nil)
 	case errors.Is(err, instagram.ErrInvalidInstagramImport),
 		errors.Is(err, instagram.ErrInvalidInstagramUsername),
-		errors.Is(err, instagram.ErrInvalidImportDirection),
 		errors.Is(err, instagram.ErrTooManyImportEntries):
 		envelope.WriteError(w, http.StatusUnprocessableEntity, "invalid_instagram_import", "Instagram import is invalid", runID, nil)
 	case errors.Is(err, instagram.ErrInvalidInstagramPageLimit):

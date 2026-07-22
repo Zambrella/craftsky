@@ -27,7 +27,7 @@ contract seams; those were also resolved and re-reviewed as approved.
 |---|---|---|---|
 | DR-001 | Critical | Tests / Privacy | `AC-039`, `UT-015`, and test data now permit controlled wholly synthetic or explicitly approved redacted inputs while prohibiting real/user-derived fixtures and leakage outside intended private fields. |
 | DR-002 | Critical | Permissions / Membership | `FR-030` and `AC-048` define one current-member guard for every authenticated route and worker transition, with `404 profile_not_found` and reversible inactivation. |
-| DR-003 | Critical | Safety / Matching | `InstagramSuggestionEligibilityPolicy` now explicitly covers membership, active/current verified link, discovery, exact direction/username, self/follow, hide/takedown, blocks both ways, importer mute, fail-closed unavailable safety data, and final pre-PDS revalidation. |
+| DR-003 | Critical | Safety / Matching | `InstagramSuggestionEligibilityPolicy` explicitly covers membership, active/current verified link, discovery, exact imported username, self/follow, hide/takedown, blocks both ways, importer mute, fail-closed unavailable safety data, and final pre-PDS revalidation. The later following-only simplification removes direction from the trusted data model. |
 | DR-004 | Critical | Data lifecycle | Reversible membership loss, explicit link/import deletion, terminal identity deletion, and future whole-account deletion are distinct. Instagram owner rows do not broadly cascade from `craftsky_profiles`. |
 | DR-005 | Critical | API / State | §12.1 fixes public states, transitions, request/response bodies, status/error codes, pagination, idempotent results, conflict/unavailable shapes, and shared Go/Flutter golden contracts. |
 | DR-006 | Important | Webhook / Privacy | §12.2 defines the exact minimal durable work item and explicitly excludes raw body, message text, plaintext challenge, signature, and unrelated payload data. |
@@ -46,7 +46,7 @@ contract seams; those were also resolved and re-reviewed as approved.
 | RR-001 | Critical | Membership restoration | Import-only members can explicitly reactivate each unexpired `membershipInactive` import after rejoin through PATCH, without extending consent. Link and import reactivation remain separate and never silently restore discovery. |
 | RR-002 | Critical | DELETE semantics | Attempt, account, import, and suggestion DELETE operations always return privacy-preserving `204` for owned, foreign, absent, or purged identifiers and mutate only caller-owned state, satisfying permanent idempotence without an existence oracle. |
 | RR-003 | Critical | Webhook backpressure | Trusted-IP and post-signature global ingress excess return generic `429` plus bounded `Retry-After` with no partial persistence; per-IGSID invalid excess is terminally deduplicated/cleared and acknowledged `200` without lookup; worker pressure defers durable work with `200`. |
-| RR-004 | Important | Non-consented import retention | Follower and unmatched rows are deleted in the initial transaction; matched support remains only while pending and no longer than 12 months; aggregate-only metadata has a 90-day post-terminal and 12-month absolute cap. |
+| RR-004 | Important | Non-consented import retention | Unmatched rows are deleted in the initial transaction; matched support remains only while pending and no longer than 12 months; aggregate-only metadata has a 90-day post-terminal and 12-month absolute cap. Follower data is no longer accepted or stored. |
 
 ## Traceability And Coverage
 

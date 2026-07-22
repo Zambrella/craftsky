@@ -255,11 +255,6 @@ func TestInstagramWireCorpusRequestsAreStrictAndCamelCase(t *testing.T) {
 				if !value.SourceType.Valid() || value.RetainUnmatched == nil || len(value.Entries) == 0 {
 					t.Fatal("fixture is not a valid import request")
 				}
-				for _, entry := range value.Entries {
-					if !entry.Direction.Valid() {
-						t.Fatalf("invalid direction %q", entry.Direction)
-					}
-				}
 			case "import.disableRetention", "import.reactivate":
 				var value struct {
 					RetainUnmatched *bool `json:"retainUnmatched,omitempty"`

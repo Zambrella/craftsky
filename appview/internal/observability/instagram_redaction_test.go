@@ -39,7 +39,7 @@ func TestInstagramCanariesStayOutOfDiagnosticsTelemetryPushPDSAndURLs(t *testing
 		instagram.CreatedVerification{Challenge: canaries[0], DMURL: "https://www.instagram.com/direct/t/synthetic"},
 		instagram.VerificationAttempt{CandidateIGSID: canaries[3], CandidateUsername: canaries[2]},
 		instagram.AccountView{Username: canaries[2]},
-		instagram.ImportEntry{Username: canaries[4], Direction: instagram.DirectionFollowing},
+		instagram.ImportEntry{Username: canaries[4]},
 		instagram.SuggestionEvidence{ImportedUsername: canaries[4]},
 		instagram.SuggestionEligibilityRequest{ImportedUsername: canaries[4]},
 		instagrammeta.WorkItem{SenderIGSID: canaries[3], OfficialAccountID: canaries[3]},

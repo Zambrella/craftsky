@@ -35,14 +35,13 @@ func TestSuggestionMatcherCreatesOnlyEligibleFollowingSupportBeforePrivacyFinali
 		t.Fatal(err)
 	}
 	created, err := service.CreateImport(ctx, alice, ImportSourceInstagramJSON, false, []ImportEntry{
-		{Username: "synthetic.bob", Direction: DirectionFollowing},
-		{Username: "unmatched.synthetic", Direction: DirectionFollowing},
-		{Username: "private.follower", Direction: DirectionFollower},
+		{Username: "synthetic.bob"},
+		{Username: "unmatched.synthetic"},
 	})
 	if err != nil {
 		t.Fatalf("create import: %v", err)
 	}
-	if created.InitialSuggestionCount != 1 || created.Counts.Following != 2 || created.Counts.Follower != 1 {
+	if created.InitialSuggestionCount != 1 || created.Counts.Following != 2 {
 		t.Fatalf("created=%+v", created)
 	}
 	var suggestions, supports, handles int
@@ -84,7 +83,7 @@ func TestSuggestionMatcherFailsClosedAndDiscardsUnconsentedGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	created, err := service.CreateImport(ctx, alice, ImportSourceManual, false, []ImportEntry{{Username: "synthetic.bob", Direction: DirectionFollowing}})
+	created, err := service.CreateImport(ctx, alice, ImportSourceManual, false, []ImportEntry{{Username: "synthetic.bob"}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -34,11 +34,11 @@ func (s *NotificationEligibilityService) RevalidateNotification(ctx context.Cont
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT suggestion.id, suggestion.importer_did, suggestion.target_did,
-		       COALESCE(evidence.username_normalized,''), COALESCE(evidence.direction,'')
+		       COALESCE(evidence.username_normalized,'')
 		FROM instagram_notification_suggestions support
 		JOIN instagram_follow_suggestions suggestion ON suggestion.id=support.suggestion_id
 		LEFT JOIN LATERAL (
-			SELECT handle.username_normalized, handle.direction
+			SELECT handle.username_normalized
 			FROM instagram_suggestion_sources source
 			JOIN instagram_graph_imports graph_import
 			  ON graph_import.id=source.import_id
@@ -66,14 +66,13 @@ func (s *NotificationEligibilityService) RevalidateNotification(ctx context.Cont
 	items := make([]supportedSuggestion, 0)
 	for rows.Next() {
 		var item supportedSuggestion
-		var importer, target, direction string
-		if err := rows.Scan(&item.id, &importer, &target, &item.request.ImportedUsername, &direction); err != nil {
+		var importer, target string
+		if err := rows.Scan(&item.id, &importer, &target, &item.request.ImportedUsername); err != nil {
 			rows.Close()
 			return false, err
 		}
 		item.request.ImporterDID = syntax.DID(importer)
 		item.request.TargetDID = syntax.DID(target)
-		item.request.Direction = ImportDirection(direction)
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {

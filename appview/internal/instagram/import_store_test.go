@@ -26,16 +26,16 @@ func TestImportStoreCreatesAdditiveDirectionalSourcesWithConsent(t *testing.T) {
 		OwnerDID: owner, SourceType: ImportSourceInstagramJSON,
 		RetainUnmatched: true,
 		Entries: []ImportEntry{
-			{Username: " Alice.Crafts ", Direction: DirectionFollowing},
-			{Username: "@alice.crafts", Direction: DirectionFollowing},
-			{Username: "Bob_9", Direction: DirectionFollower},
+			{Username: " Alice.Crafts "},
+			{Username: "@alice.crafts"},
+			{Username: "Bob_9"},
 		},
 		Now: now,
 	})
 	if err != nil {
 		t.Fatalf("create first: %v", err)
 	}
-	if first.Import.State != ImportActive || first.Counts.Following != 1 || first.Counts.Follower != 1 || first.InitialSuggestionCount != 0 {
+	if first.Import.State != ImportActive || first.Counts.Following != 2 || first.InitialSuggestionCount != 0 {
 		t.Fatalf("first result = %+v", first)
 	}
 	if first.Import.RetentionExpiresAt == nil || !first.Import.RetentionExpiresAt.Equal(now.AddDate(1, 0, 0)) {
@@ -46,7 +46,7 @@ func TestImportStoreCreatesAdditiveDirectionalSourcesWithConsent(t *testing.T) {
 		ID:       uuid.MustParse("00000000-0000-0000-0000-000000000202"),
 		OwnerDID: owner, SourceType: ImportSourceManual,
 		RetainUnmatched: true,
-		Entries:         []ImportEntry{{Username: "charlie", Direction: DirectionFollowing}},
+		Entries:         []ImportEntry{{Username: "charlie"}},
 		Now:             now.Add(time.Minute),
 	})
 	if err != nil {
@@ -79,8 +79,8 @@ func TestImportStoreImmediatelyDiscardsUnconsentedUnmatchedGraph(t *testing.T) {
 		OwnerDID: owner, SourceType: ImportSourceInstagramJSON,
 		RetainUnmatched: false,
 		Entries: []ImportEntry{
-			{Username: "unmatched.following", Direction: DirectionFollowing},
-			{Username: "private.follower", Direction: DirectionFollower},
+			{Username: "unmatched.following"},
+			{Username: "private.following"},
 		},
 		Now: now,
 	})
@@ -110,7 +110,7 @@ func TestImportStoreMembershipReactivationDoesNotExtendConsentAndDeleteIsPrivate
 	created, err := store.CreateImport(ctx, CreateImportParams{
 		ID: id, OwnerDID: alice, SourceType: ImportSourceManual,
 		RetainUnmatched: true,
-		Entries:         []ImportEntry{{Username: "synthetic", Direction: DirectionFollowing}},
+		Entries:         []ImportEntry{{Username: "synthetic"}},
 		Now:             now,
 	})
 	if err != nil {
@@ -172,7 +172,7 @@ func TestImportStoreDeleteRetractsEveryUnsupportedDependent(t *testing.T) {
 	if _, err := store.CreateImport(ctx, CreateImportParams{
 		ID: importID, OwnerDID: owner, SourceType: ImportSourceManual,
 		RetainUnmatched: true,
-		Entries:         []ImportEntry{{Username: "synthetic.target", Direction: DirectionFollowing}},
+		Entries:         []ImportEntry{{Username: "synthetic.target"}},
 		Now:             now,
 	}); err != nil {
 		t.Fatalf("create import: %v", err)
@@ -255,7 +255,7 @@ func TestImportStoreListsOwnedImportsWithStableSeekPagination(t *testing.T) {
 	for index, id := range ids {
 		if _, err := store.CreateImport(ctx, CreateImportParams{
 			ID: id, OwnerDID: alice, SourceType: ImportSourceManual,
-			Entries: []ImportEntry{{Username: "synthetic", Direction: DirectionFollowing}},
+			Entries: []ImportEntry{{Username: "synthetic"}},
 			Now:     base.Add(time.Duration(index) * time.Minute),
 		}); err != nil {
 			t.Fatalf("create import %d: %v", index, err)
@@ -264,7 +264,7 @@ func TestImportStoreListsOwnedImportsWithStableSeekPagination(t *testing.T) {
 	if _, err := store.CreateImport(ctx, CreateImportParams{
 		ID: uuid.MustParse("00000000-0000-0000-0000-000000000214"), OwnerDID: bob,
 		SourceType: ImportSourceManual,
-		Entries:    []ImportEntry{{Username: "foreign", Direction: DirectionFollowing}},
+		Entries:    []ImportEntry{{Username: "foreign"}},
 		Now:        base.Add(3 * time.Minute),
 	}); err != nil {
 		t.Fatalf("create foreign import: %v", err)

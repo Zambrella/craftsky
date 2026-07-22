@@ -138,7 +138,7 @@ switch-away/back fencing where relevant.
 | 14 | Complete | Flutter parser/API/repository layers were absent | Parser, JSON-only import, wire, repository, and error-envelope tests passed | ZIP remains intentionally unsupported |
 | 15 | Complete | Flutter controllers/routes/page were absent | Provider and widget tests cover fixed-account fencing, verification, import, and suggestions | Active-account lease checks remain after awaits |
 | 16 | Complete | Actorless notification model/open behavior was absent | Notification model, row, payload, routing, and Instagram destination tests passed | Existing social variants remain intact |
-| 17 | In progress | Cross-stack verification and privacy review were pending | Focused real-Postgres, Go, Dart, analyzer, format, canary, and diff checks pass | Final broad suites/re-review await the workflow exit choice; live Meta/export/device/edge checks remain external gates |
+| 17 | In progress | Cross-stack verification and privacy review were pending | Full Go, changed-package race, all 965 Flutter tests, analyzer, format, canary, and diff checks pass | Final implementation re-review awaits the workflow exit choice; live Meta/export/device/edge checks remain external gates |
 | D1 | Complete | A live signed Meta delivery returned `200` but produced no durable webhook work, and the attempt remained `pendingDm`; no reducer-boundary diagnostics existed | `go test ./internal/app ./internal/integrations/instagrammeta` passes; rebuilt AppView confirms the dev flag is enabled | User-authorized temporary capability-spike exception: `INSTAGRAM_UNSAFE_LOG_WEBHOOK_BODIES=true` logs raw signed webhook bodies only in dev and is forcibly disabled in prod; Meta tokens/secrets remain excluded |
 | D2 | Complete | Store/API/client symbols for current-attempt reads were absent; the resume test then showed the challenge was not cached; confirmed sign-out did not clear private session state | `go test ./...`, focused Go race, `go vet ./...`, and all 964 Flutter tests pass; focused Dart formatting and `git diff --check` pass; analyzer reports only 13 pre-existing diagnostics outside this slice | Owner-scoped current lookup, DID-scoped secure display snapshot, AppView reconciliation, polling/confirmation resumption, terminal cleanup, and session cleanup are complete; ordinary page disposal/account switching retains the bounded snapshot |
 | D3 | Complete | The candidate confirmation page placed static discovery copy before an unselected selector | Focused widget test failed on selector order before implementation, then passed with selector state/copy assertions | The selector now follows the account, defaults to discovery allowed, updates the explanation for both choices, and confirms or cancels through existing state operations |
@@ -183,7 +183,41 @@ green.
 | IR-008 | Complete | Ordinary and deterministic Instagram follows use `internal/followwrite.Service` |
 | IR-009 | Complete | Tightened lease/retry/processing-age and notification window/count settings alter runtime behavior within fixed maxima |
 | IR-010 | Complete | Synthetic Go/Dart canaries cover diagnostics, Sentry/logs/metrics, push, PDS records, URLs, errors, and stringification |
-| IR-011 | In progress | Go/Dart formatting, focused analyzer/widget checks, and `git diff --check` pass; final broad gates remain for the final-review stage |
+| IR-011 | Complete | Go/Dart formatting, `go test ./...`, changed-package race tests, all 965 Flutter tests, focused Instagram tests, and `git diff --check` pass; `flutter analyze` reports only 13 pre-existing info-level findings outside this change |
+
+## Following-Only Import Simplification (2026-07-22)
+
+The user approved removing follower imports rather than retaining unused
+private facts. The updated requirements and acceptance tests make imports
+following-only across Flutter, the wire contract, AppView, and Postgres.
+
+| Step | Test IDs | Requirements | Expected initial failure | Status |
+|---:|---|---|---|---|
+| F1 | UT-005, IT-014 | FR-012, FR-014, RULE-006 | Old `{username, direction}` requests are still accepted and models expose direction/follower counts | Complete |
+| F2 | IT-001, IT-007 | FR-012, FR-018, RULE-006 | Postgres still stores `direction` and `follower_count` | Complete |
+| F3 | UT-009, UT-010 | FR-013, RULE-006, RULE-007 | Flutter parser requires a selected direction and can emit follower entries | Complete |
+| F4 | IT-016 | FR-025, NFR-007 | Import UI still offers Accounts that follow me and renders follower counts | Complete |
+| F5 | IT-021, REG-011 | FR-012–FR-015, NFR-004 | Shared fixtures and cross-stack contract still contain direction/follower fields | Complete |
+
+Each step follows red-green-refactor with the smallest focused Go or Flutter
+test first. The schema change is append-only migration `000025` so existing
+development databases and fresh stacks converge on the same following-only
+shape.
+
+Red-green evidence:
+
+- F1 red: the legacy-direction API case returned `201`; after removing the
+  direction field from the domain and strict wire model, it returns
+  `400 invalid_request`. A follower-specific entry field is rejected too.
+- F2 red: the migration test failed because `000025` did not exist; it now
+  verifies that upgraded and fresh schemas have neither `direction` nor
+  `follower_count`, and that legacy follower rows are discarded.
+- F3 red: the following-only parser/request tests did not compile while
+  direction remained required; all ten focused parser/request tests pass
+  after reducing entries to `{username}` and ignoring sibling follower data.
+- F4/F5 green: the page test confirms that no follower option is rendered and
+  only normalized following usernames are uploaded; Go and Dart consume the
+  same following-only corpus successfully.
 
 ## Completion Checklist
 
@@ -197,7 +231,7 @@ green.
 - [x] Membership loss and terminal account deletion remain distinct
 - [x] Flutter operations remain fixed-account and redacted
 - [x] Existing social notification and follow behavior remains green
-- [ ] Full Go and Flutter verification is complete
+- [x] Full Go and Flutter verification is complete
 - [ ] Final implementation re-review is complete
 - [x] Live Meta/export/safety/device/accessibility gates are explicitly reported
 

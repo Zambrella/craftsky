@@ -77,13 +77,13 @@ covered by real-Postgres migration/store tests.
 | Meta webhook | No Instagram integration route | Add `/integrations/instagram/webhook` verification and signed POST ingestion outside `/v1`, exact size/event limits, generic ingress throttling, durable deduplication, and no raw payload persistence. | UT-003, UT-004, IT-003, IT-013 |
 | Durable worker | Push dispatcher provides the lease/retry lifecycle pattern | Add bounded Instagram work claiming, lease recovery, retry/backoff/deadline, terminal sensitive-field clearing, and injected Meta lookup/reply client. | UT-007, IT-004, IT-019, REG-007 |
 | Links and conflicts | No cross-network identity model | Add claims, current username identity, same-DID confirmation, conflict rows, discovery consent, revoke/reactivate semantics, and operator resolution. | UT-006, IT-005, IT-006, IT-018 |
-| Imports | No Instagram archive ingestion | Add directional normalized handles, additive import sources, explicit consent/retention, per-import reactivation/deletion, summary-only unmatched handling, and bounded pagination. | UT-005, IT-007, IT-010 |
-| Eligibility and matching | Existing follow visibility checks do not include this feature's complete safety policy | Add `InstagramSuggestionEligibilityPolicy`, complete data-source interface, fail-closed missing data, exact username/direction matching, reconciliation jobs, multi-source support, and revalidation at every required boundary. | UT-006, IT-006–IT-009, IT-020 |
+| Imports | No Instagram archive ingestion | Add normalized accounts-followed handles, additive import sources, explicit consent/retention, per-import reactivation/deletion, summary-only unmatched handling, and bounded pagination. Do not accept or store relationship direction or follower counts. | UT-005, IT-007, IT-010 |
+| Eligibility and matching | Existing follow visibility checks do not include this feature's complete safety policy | Add `InstagramSuggestionEligibilityPolicy`, complete data-source interface, fail-closed missing data, exact imported-username matching, reconciliation jobs, multi-source support, and revalidation at every required boundary. | UT-006, IT-006–IT-009, IT-020 |
 | Follow acceptance | Follow handler calls PDS `CreateRecord` | Extract a shared follow service with a stable stored rkey and `PutRecord`; make accepting/retry/crash recovery idempotent despite firehose delay. | IT-009, REG-003 |
 | Notifications | Durable rows require an actor and social source fields | Convert storage and Flutter models to a checked `kind: social | system` union; add Instagram-match grouping, five-minute close/push, capped count, newness, retraction, and actorless navigation. | UT-013, UT-014, IT-011, IT-012, IT-021, TD-011 |
 | Membership and deletion lifecycle | Profile-record and Tap terminal deletion currently share broad actor cleanup concepts | Treat membership loss as reversible inactivation; terminal Tap identity/future account deletion as permanent Instagram purge; never delete accepted PDS follows. | IT-020, REG-006 |
 | Retention/export/operations | No Instagram-specific jobs or CLI | Add deterministic purge batches, owner export with private Instagram data, safe audits/metrics, and CLI list/resolve/revoke/inspect/retry/purge commands. | IT-010, IT-018, IT-019, UT-015 |
-| Flutter data/parser | No Instagram feature | Add redacted models, explicit-direction JSON parser, 20 MiB/10,000-entry limits, API/repository layer, and cross-language golden contract. ZIP parsing is intentionally unsupported. | UT-009, UT-010, IT-014, TD-011 |
+| Flutter data/parser | No Instagram feature | Add redacted models, accounts-followed-only JSON parser, 20 MiB/10,000-entry limits, API/repository layer, and cross-language golden contract. Follower data is discarded locally; ZIP parsing is intentionally unsupported. | UT-009, UT-010, IT-014, TD-011 |
 | Flutter state/UI | Settings and account boundary have no migration surface | Add fixed-account controllers and one settings route/page for verification, import, link controls, and suggestions; place the discovery selector directly below the verified candidate, default it to discovery allowed, and update the explanation for the selected value; reconcile resumable attempts against AppView with a DID-scoped secure display snapshot; invalidate on account changes and fence every asynchronous effect. | UT-011, IT-015, IT-016, IT-022, REG-009, REG-012 |
 | Flutter notifications | Model assumes actor-bearing social notifications | Decode sealed social/system variants, render/open Instagram-match safely, preserve social behavior, and avoid push/diagnostic private content. | UT-012, IT-017, REG-005 |
 
@@ -103,9 +103,9 @@ covered by real-Postgres migration/store tests.
 | `appview/internal/instagram/webhook.go` | Create | Minimal durable webhook item and dedup/terminal-clear operations. |
 | `appview/internal/instagram/worker.go` | Create | Claim, lease, Meta lookup/reply, attempt transitions, reconciliation scheduling, retry, and cancellation-aware processing. |
 | `appview/internal/instagram/links.go` | Create | Identity claims, conflict handling, discovery settings, revoke/reactivate, and username transition logic. |
-| `appview/internal/instagram/imports.go` | Create | Additive directional imports, consent, expiry, membership inactivation/reactivation, deletion, and bounded summaries. |
+| `appview/internal/instagram/imports.go` | Create | Additive following-only imports, consent, expiry, membership inactivation/reactivation, deletion, and bounded summaries. |
 | `appview/internal/instagram/eligibility.go` | Create | One fail-closed policy applied at match, persist, list, notification, open, and final acceptance. |
-| `appview/internal/instagram/matcher.go` | Create | Exact following-direction matches, multi-source support, reconciliation, and invalidation. |
+| `appview/internal/instagram/matcher.go` | Create | Exact imported-username matches, multi-source support, reconciliation, and invalidation. |
 | `appview/internal/instagram/suggestions.go` | Create | List/dismiss/accept state machine and crash-safe transitions. |
 | `appview/internal/instagram/rate_limiter.go` | Create | Shared Postgres fixed-window limits for DID/device/IP/IGSID/provider boundaries. |
 | `appview/internal/instagram/account_data.go` | Create | Owner export and permanent purge primitives. |
@@ -126,7 +126,7 @@ The concrete schema groups related rows but preserves these invariants:
   identifier.
 - Import handles store normalized values only in the private tables and are
   reduced/deleted according to consent and terminal suggestion state.
-- Suggestions preserve a row per importer/target/direction and a separate row
+- Suggestions preserve a row per importer/target and a separate row
   per supporting import so deletion of one import does not destroy remaining
   support.
 - The stable follow operation stores the deterministic rkey before the first
@@ -182,7 +182,7 @@ The concrete schema groups related rows but preserves these invariants:
 | `app/lib/instagram_migration/models/*.dart` | Create | Redacted immutable attempt/link/import/suggestion/page/state models and closed wire states. |
 | `app/lib/instagram_migration/data/instagram_migration_api_client.dart` | Create | Exact authenticated `/v1/migrations/instagram/*` requests through an injected fixed-account Dio. |
 | `app/lib/instagram_migration/data/instagram_migration_repository.dart` | Create | Narrow repository boundary for verification, account, imports, suggestions, and acceptance. |
-| `app/lib/instagram_migration/services/instagram_archive_parser.dart` | Create | Parse supported JSON export shapes with an explicit caller-provided direction; extract only `string_list_data[].value`, normalize/dedupe, and enforce local bounds. |
+| `app/lib/instagram_migration/services/instagram_archive_parser.dart` | Create | Parse supported accounts-followed JSON shapes; extract only following `string_list_data[].value`, discard follower data, normalize/dedupe, and enforce local bounds. |
 | `app/lib/instagram_migration/services/instagram_file_picker.dart` | Create | `file_selector` adapter for JSON only, with cancellation and 20 MiB validation. |
 | `app/lib/instagram_migration/providers/*_provider.dart` | Create | Fixed-account repository and separate verification/import/suggestion controllers keyed by `ActiveAccountLease`. |
 | `app/lib/instagram_migration/pages/instagram_migration_page.dart` | Create | One accessible settings surface with independent verification/import/suggestion failure and retry states. |
@@ -337,8 +337,9 @@ the durable transaction commits.
 
 ### 5.4 Import and matching flow
 
-The Flutter parser sends normalized entries plus an explicit `following` or
-`followers` direction. The server repeats validation, applies request/entry
+The Flutter parser sends normalized accounts-followed usernames with no
+relationship direction. The server strictly rejects direction and
+follower-specific fields, repeats username validation, applies request/entry
 limits, deduplicates, and creates an immutable import source. Imports are
 additive; each source has its own consent expiry and reversible membership
 state.
@@ -349,8 +350,8 @@ In the initial transaction:
    discoverable DM-verified links.
 2. Run the complete eligibility policy.
 3. Upsert one pending suggestion and one source-support row per eligible match.
-4. If unmatched retention consent is absent, delete followers and unmatched
-   following handles immediately; keep only minimal matched support while a
+4. If unmatched retention consent is absent, delete unmatched handles
+   immediately; keep only minimal matched support while a
    suggestion is pending.
 5. Do not create an Instagram-match notification for this initial import.
 
@@ -505,8 +506,8 @@ The page contains:
 2. Verification card: creates a challenge, provides copy/open-DM actions,
    displays expiry/processing/pending confirmation/conflict/error states, and
    requires explicit confirmation from the same authenticated DID.
-3. Import card: asks the user to choose following or followers before selecting
-   a JSON file, explains supported Accounts Center export JSON, shows bounded
+3. Import card: explains that it imports accounts the member follows, accepts
+   manual handles or a matching Accounts Center JSON file, shows bounded
    parsing/progress/summary, asks optional unmatched-retention consent, lists
    sources, and supports source-specific reactivation/deletion.
 4. Suggestions card: lists eligible exact matches, supports explicit accept and
@@ -578,7 +579,7 @@ then refactor before advancing.
    same-DID confirmation, claims/conflicts/settings, exact complete fail-closed
    policy at every boundary.
 9. **Imports and matching** — `UT-005`, `IT-007`, `IT-008`; additive sources,
-   explicit direction, limits, consent/retention, multi-source exact matches,
+   following-only usernames, limits, consent/retention, multi-source exact matches,
    reactivation/deletion, and reconciliation triggers.
 10. **Follow acceptance** — `IT-009`; stable rkey, `PutRecord`, indexed follow,
     timeout/crash/retry races, final eligibility, and ordinary-follow regression.
@@ -589,8 +590,9 @@ then refactor before advancing.
     unchanged social notifications.
 13. **Operations** — `IT-018`, `IT-019`; conflict/link/job/retention CLI,
     replay/retry, redaction, bounded output, and worker cancellation.
-14. **Flutter parser/API** — `UT-009`, `UT-010`, `IT-014`; both supported JSON
-    shapes, explicit direction, malformed/private excerpt redaction, bounds,
+14. **Flutter parser/API** — `UT-009`, `UT-010`, `IT-014`; supported
+    accounts-followed JSON shapes, local follower-data discard,
+    malformed/private excerpt redaction, bounds,
     every route/error/state/golden fixture, and fixed-account Dio.
 15. **Flutter providers/UI** — `UT-011`, `IT-015`, `IT-016`; lease fencing after
     every await, invalidation, independent state, settings route, all panels,

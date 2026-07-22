@@ -90,7 +90,7 @@ func (s *SuggestionService) ListSuggestions(ctx context.Context, owner syntax.DI
 	for _, item := range evidence {
 		request := SuggestionEligibilityRequest{
 			ImporterDID: item.Suggestion.ImporterDID, TargetDID: item.Suggestion.TargetDID,
-			ImportedUsername: item.ImportedUsername, Direction: item.Direction,
+			ImportedUsername: item.ImportedUsername,
 		}
 		decision, err := s.policy.Evaluate(ctx, EligibilityAtList, request)
 		if err != nil {
@@ -150,7 +150,7 @@ func (s *SuggestionService) AcceptSuggestion(ctx context.Context, owner syntax.D
 	}
 	decision, err := s.policy.Evaluate(ctx, EligibilityAtAccept, SuggestionEligibilityRequest{
 		ImporterDID: claim.Suggestion.ImporterDID, TargetDID: claim.Suggestion.TargetDID,
-		ImportedUsername: claim.ImportedUsername, Direction: claim.Direction,
+		ImportedUsername: claim.ImportedUsername,
 	})
 	if err != nil {
 		_ = s.repository.ResetSuggestionAcceptance(context.WithoutCancel(ctx), owner, id, "eligibilityUnavailable", s.now().UTC())

@@ -150,8 +150,8 @@ func TestRetentionServicePurgesExpiredImportsInStableBatches(t *testing.T) {
 		if _, err := pool.Exec(ctx, `
 			INSERT INTO instagram_graph_imports(
 				id,owner_did,state,source_type,retain_unmatched,retention_expires_at,
-				following_count,follower_count,created_at,updated_at
-			) VALUES($1,$2,'active','manual',true,$3,1,0,$4,$4)
+				following_count,created_at,updated_at
+			) VALUES($1,$2,'active','manual',true,$3,1,$4,$4)
 		`, id, fmt.Sprintf("did:plc:retention-import-%03d", i), now, created); err != nil {
 			t.Fatalf("seed import %d: %v", i, err)
 		}

@@ -27,10 +27,7 @@ final class InstagramImportParser {
   static const int maxEntries = 10000;
   static final RegExp _usernamePattern = RegExp(r'^[A-Za-z0-9._]{1,30}$');
 
-  InstagramImportParseResult parseJson(
-    Uint8List bytes, {
-    required InstagramRelationshipDirection direction,
-  }) {
+  InstagramImportParseResult parseJson(Uint8List bytes) {
     if (bytes.length > maxFileBytes) {
       throw const InstagramImportParseException(
         InstagramImportParseErrorCode.fileTooLarge,
@@ -49,7 +46,7 @@ final class InstagramImportParser {
         InstagramImportParseErrorCode.invalidJson,
       );
     }
-    final records = _recordsFor(decoded, direction);
+    final records = _recordsFor(decoded);
     final values = <Object?>[];
     var malformedRecordCount = 0;
     for (final recordValue in records) {
@@ -68,29 +65,21 @@ final class InstagramImportParser {
     }
     return _normalizeValues(
       values,
-      direction: direction,
       initialIgnoredCount: malformedRecordCount,
     );
   }
 
-  InstagramImportParseResult parseManual(
-    String source, {
-    required InstagramRelationshipDirection direction,
-  }) {
+  InstagramImportParseResult parseManual(String source) {
     if (utf8.encode(source).length > maxFileBytes) {
       throw const InstagramImportParseException(
         InstagramImportParseErrorCode.fileTooLarge,
       );
     }
-    return _normalizeValues(
-      const LineSplitter().convert(source),
-      direction: direction,
-    );
+    return _normalizeValues(const LineSplitter().convert(source));
   }
 
   InstagramImportParseResult _normalizeValues(
     Iterable<Object?> values, {
-    required InstagramRelationshipDirection direction,
     int initialIgnoredCount = 0,
   }) {
     final entries = <InstagramImportEntry>[];
@@ -112,9 +101,7 @@ final class InstagramImportParser {
           InstagramImportParseErrorCode.tooManyEntries,
         );
       }
-      entries.add(
-        InstagramImportEntry(username: username, direction: direction),
-      );
+      entries.add(InstagramImportEntry(username: username));
     }
     return InstagramImportParseResult(
       entries: List.unmodifiable(entries),
@@ -131,19 +118,11 @@ final class InstagramImportParser {
     return normalized;
   }
 
-  List<dynamic> _recordsFor(
-    Object? decoded,
-    InstagramRelationshipDirection direction,
-  ) {
-    switch (direction) {
-      case InstagramRelationshipDirection.following:
-        if (decoded case {
-          'relationships_following': final List<dynamic> records,
-        }) {
-          return records;
-        }
-      case InstagramRelationshipDirection.follower:
-        if (decoded is List<dynamic>) return decoded;
+  List<dynamic> _recordsFor(Object? decoded) {
+    if (decoded case {
+      'relationships_following': final List<dynamic> records,
+    }) {
+      return records;
     }
     throw const InstagramImportParseException(
       InstagramImportParseErrorCode.unsupportedShape,
