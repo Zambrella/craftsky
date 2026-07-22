@@ -434,7 +434,7 @@ class _LinkedAccountControls extends ConsumerWidget {
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(l10n.instagramDiscoverableLabel),
-            subtitle: Text(l10n.instagramDiscoverableDescription),
+            // subtitle: Text(l10n.instagramDiscoverableDescription),
             value: account.discoverable,
             onChanged: (value) => notifier.setDiscoverable(value: value),
           ),

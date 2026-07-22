@@ -1414,7 +1414,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Confirm only if this is your Instagram username.';
 
   @override
-  String get instagramDiscoverableLabel => 'Let imported contacts find me';
+  String get instagramDiscoverableLabel =>
+      'Let others find me by my Instagram username';
 
   @override
   String get instagramDiscoverableDescription =>

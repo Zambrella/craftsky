@@ -1295,7 +1295,7 @@
   },
   "instagramUnknownUsername": "unknown",
   "instagramVerificationCandidateWarning": "Confirm only if this is your Instagram username.",
-  "instagramDiscoverableLabel": "Let imported contacts find me",
+  "instagramDiscoverableLabel": "Let others find me by my Instagram username",
   "instagramDiscoverableDescription": "When enabled, eligible CraftSky members who imported your Instagram username may see a suggestion. This never follows anyone automatically.",
   "instagramDiscoverableAllow": "Allow discovery",
   "instagramDiscoverablePrivate": "Keep private",

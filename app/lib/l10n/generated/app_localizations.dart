@@ -2605,7 +2605,7 @@ abstract class AppLocalizations {
   /// No description provided for @instagramDiscoverableLabel.
   ///
   /// In en, this message translates to:
-  /// **'Let imported contacts find me'**
+  /// **'Let others find me by my Instagram username'**
   String get instagramDiscoverableLabel;
 
   /// No description provided for @instagramDiscoverableDescription.
