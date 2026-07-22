@@ -8,16 +8,22 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/notifications"
 )
 
+type InstagramNotificationEligibility interface {
+	RevalidateNotification(context.Context, uuid.UUID, instagram.EligibilityStage) (bool, error)
+}
+
 type DispatcherOptions struct {
-	BatchSize     int
-	LeaseDuration time.Duration
-	Now           func() time.Time
-	Jitter        func() float64
-	SendTimeout   time.Duration
-	Observer      DispatcherObserver
+	BatchSize            int
+	LeaseDuration        time.Duration
+	Now                  func() time.Time
+	Jitter               func() float64
+	SendTimeout          time.Duration
+	Observer             DispatcherObserver
+	InstagramEligibility InstagramNotificationEligibility
 }
 
 // DispatcherObserver receives aggregate, privacy-safe queue and delivery
@@ -384,7 +390,13 @@ func (d *Dispatcher) instagramMatchDeliveryEligible(ctx context.Context, item cl
 			  )
 		)
 	`, item.notificationID, now).Scan(&eligible)
-	return eligible, err
+	if err != nil || !eligible {
+		return eligible, err
+	}
+	if d.options.InstagramEligibility == nil {
+		return false, nil
+	}
+	return d.options.InstagramEligibility.RevalidateNotification(ctx, item.notificationID, instagram.EligibilityAtNotificationDelivery)
 }
 
 func (d *Dispatcher) cancelClaimedDelivery(ctx context.Context, item claimedDelivery, now time.Time) error {

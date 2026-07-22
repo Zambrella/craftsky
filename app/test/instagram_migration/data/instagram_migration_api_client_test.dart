@@ -95,6 +95,40 @@ void main() {
       }
     });
 
+    test('IT-022 reads the nullable current verification contract', () async {
+      final withCurrentDio = buildDio();
+      DioAdapter(dio: withCurrentDio).onGet(
+        '/v1/migrations/instagram/verifications/current',
+        (server) => server.reply(200, {
+          'verification': {
+            'verificationId': 'synthetic-verification-id',
+            'state': 'pendingConfirmation',
+            'expiresAt': '2026-07-22T16:10:00Z',
+            'candidateUsername': 'synthetic.candidate',
+          },
+        }),
+      );
+      final current = await InstagramMigrationApiClient(
+        withCurrentDio,
+      ).getCurrentVerification();
+      expect(current?.verificationId, 'synthetic-verification-id');
+      expect(
+        current?.state,
+        InstagramVerificationState.pendingConfirmation,
+      );
+      expect(current?.challenge, isNull);
+
+      final emptyDio = buildDio();
+      DioAdapter(dio: emptyDio).onGet(
+        '/v1/migrations/instagram/verifications/current',
+        (server) => server.reply(200, {'verification': null}),
+      );
+      expect(
+        await InstagramMigrationApiClient(emptyDio).getCurrentVerification(),
+        isNull,
+      );
+    });
+
     test(
       'IT-014 cancels a verification with permanent 204 semantics',
       () async {

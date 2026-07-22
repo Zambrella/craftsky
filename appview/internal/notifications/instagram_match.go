@@ -11,7 +11,10 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const instagramMatchCoalescingWindow = 5 * time.Minute
+const (
+	instagramMatchCoalescingWindow = 5 * time.Minute
+	instagramMatchCountCap         = 99
+)
 
 type InstagramMatchActivation struct {
 	RecipientDID syntax.DID
@@ -83,7 +86,7 @@ func (s *Service) ActivateInstagramMatch(ctx context.Context, tx pgx.Tx, activat
 	if errors.Is(err, pgx.ErrNoRows) {
 		created = true
 		eventID = uuid.New()
-		coalesceUntil = at.Add(instagramMatchCoalescingWindow)
+		coalesceUntil = at.Add(s.instagramCoalescingWindow)
 		groupKey := at.Format(time.RFC3339Nano)
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO notification_events (
@@ -127,13 +130,13 @@ func (s *Service) ActivateInstagramMatch(ctx context.Context, tx pgx.Tx, activat
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE notification_events
-			SET system_count=LEAST($2, 99),
-			    system_count_capped=$2>99,
+			SET system_count=LEAST($2, $5::integer),
+			    system_count_capped=$2>$5::integer,
 			    push_enabled_snapshot=$3,
 			    activity_at=GREATEST(activity_at,$4),
 			    indexed_at=GREATEST(indexed_at,$4)
 			WHERE id=$1 AND kind='system' AND state='active'
-		`, eventID, supportCount, preference.PushEnabled, at); err != nil {
+		`, eventID, supportCount, preference.PushEnabled, at, s.instagramCountCap); err != nil {
 			return fmt.Errorf("coalesce Instagram match notification: %w", err)
 		}
 	}
@@ -209,9 +212,9 @@ func (s *Service) RetractInstagramMatch(ctx context.Context, tx pgx.Tx, retracti
 	if supportCount > 0 {
 		if _, err := tx.Exec(ctx, `
 			UPDATE notification_events
-			SET system_count=LEAST($2,99), system_count_capped=$2>99
+			SET system_count=LEAST($2,$3::integer), system_count_capped=$2>$3::integer
 			WHERE id=$1 AND kind='system' AND state='active'
-		`, eventID, supportCount); err != nil {
+		`, eventID, supportCount, s.instagramCountCap); err != nil {
 			return fmt.Errorf("update Instagram match count: %w", err)
 		}
 		return nil

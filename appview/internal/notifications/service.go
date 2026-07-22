@@ -12,18 +12,45 @@ import (
 const deliveryWindow = 6 * time.Hour
 
 type Service struct {
-	now      func() time.Time
-	observer DecisionObserver
+	now                       func() time.Time
+	observer                  DecisionObserver
+	instagramCoalescingWindow time.Duration
+	instagramCountCap         int
+}
+
+type ServiceOptions struct {
+	InstagramCoalescingWindow time.Duration
+	InstagramCountCap         int
 }
 
 type DecisionObserver interface{ ObserveNotificationDecision(string, string) }
 
 func NewService(observers ...DecisionObserver) *Service {
+	service, _ := NewServiceWithOptions(ServiceOptions{}, observers...)
+	return service
+}
+
+func NewServiceWithOptions(options ServiceOptions, observers ...DecisionObserver) (*Service, error) {
 	var observer DecisionObserver
 	if len(observers) > 0 {
 		observer = observers[0]
 	}
-	return &Service{now: time.Now, observer: observer}
+	if options.InstagramCoalescingWindow == 0 {
+		options.InstagramCoalescingWindow = instagramMatchCoalescingWindow
+	}
+	if options.InstagramCountCap == 0 {
+		options.InstagramCountCap = instagramMatchCountCap
+	}
+	if options.InstagramCoalescingWindow <= 0 || options.InstagramCoalescingWindow > instagramMatchCoalescingWindow ||
+		options.InstagramCountCap <= 0 || options.InstagramCountCap > instagramMatchCountCap {
+		return nil, fmt.Errorf("invalid Instagram notification limits")
+	}
+	return &Service{
+		now:                       time.Now,
+		observer:                  observer,
+		instagramCoalescingWindow: options.InstagramCoalescingWindow,
+		instagramCountCap:         options.InstagramCountCap,
+	}, nil
 }
 
 func (s *Service) Activate(ctx context.Context, tx pgx.Tx, activation Activation) error {

@@ -212,7 +212,7 @@ func TestWebhookWorkerInactivatesDepartedOwnerAndRetriesMembershipFailure(t *tes
 		{
 			name:       "departed",
 			membership: &fakeWebhookMembership{current: false},
-			wantEvents: []string{"claim", "redeem", "membership", "inactivate", "ignore"},
+			wantEvents: []string{"claim", "redeem", "membership", "full-inactivate", "inactivate", "ignore"},
 			wantIgnore: true,
 		},
 		{
@@ -634,6 +634,14 @@ func TestWebhookWorkerConfigurationKeepsFixedSafetyMaxima(t *testing.T) {
 		"identifier limit too large": func() (*WebhookWorker, error) {
 			return NewWebhookWorker(queue, redeemer, membership, meta, WebhookWorkerOptions{RateLimiter: &fakeWebhookIdentifierLimiter{}, MetaLookupsPerIGSIDPerHour: WebhookMetaLookupIGSIDLimit + 1})
 		},
+		"retry policy above maximum": func() (*WebhookWorker, error) {
+			return NewWebhookWorker(queue, redeemer, membership, meta, WebhookWorkerOptions{RetryPolicy: WebhookRetryPolicy{
+				MaxAttempts:      WebhookMaxAttempts + 1,
+				InitialBackoff:   WebhookInitialBackoff,
+				MaxBackoff:       WebhookMaxBackoff,
+				MaxProcessingAge: WebhookMaxProcessingAge,
+			}})
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -751,6 +759,11 @@ func (l *fakeWebhookIdentifierLimiter) AllowIdentifier(_ context.Context, scope 
 func (m *fakeWebhookMembership) IsCurrentMember(_ context.Context, _ syntax.DID) (bool, error) {
 	*m.events = append(*m.events, "membership")
 	return m.current, m.err
+}
+
+func (m *fakeWebhookMembership) InactivateMembership(_ context.Context, _ syntax.DID) error {
+	*m.events = append(*m.events, "full-inactivate")
+	return nil
 }
 
 type fakeMetaClient struct {

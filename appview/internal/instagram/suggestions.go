@@ -88,10 +88,11 @@ func (s *SuggestionService) ListSuggestions(ctx context.Context, owner syntax.DI
 	now := s.now().UTC()
 	items := make([]Suggestion, 0, len(evidence))
 	for _, item := range evidence {
-		decision, err := s.policy.Evaluate(ctx, EligibilityAtList, SuggestionEligibilityRequest{
+		request := SuggestionEligibilityRequest{
 			ImporterDID: item.Suggestion.ImporterDID, TargetDID: item.Suggestion.TargetDID,
 			ImportedUsername: item.ImportedUsername, Direction: item.Direction,
-		})
+		}
+		decision, err := s.policy.Evaluate(ctx, EligibilityAtList, request)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -101,6 +102,21 @@ func (s *SuggestionService) ListSuggestions(ctx context.Context, owner syntax.DI
 			}
 			if err := s.repository.InvalidateSuggestion(ctx, owner, item.Suggestion.ID, now); err != nil {
 				return nil, nil, err
+			}
+			continue
+		}
+		// A suggestion response is also the server-side resolution used when a
+		// system notification opens this destination. Recheck the explicit open
+		// boundary so notification navigation cannot surface stale evidence.
+		decision, err = s.policy.Evaluate(ctx, EligibilityAtOpen, request)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !decision.Eligible {
+			if decision.Reason != EligibilitySafetyUnavailable {
+				if err := s.repository.InvalidateSuggestion(ctx, owner, item.Suggestion.ID, now); err != nil {
+					return nil, nil, err
+				}
 			}
 			continue
 		}

@@ -21,6 +21,10 @@ final class ApiInstagramMigrationRepository
   ) => _api.getVerification(verificationId);
 
   @override
+  Future<InstagramVerificationAttempt?> getCurrentVerification() =>
+      _api.getCurrentVerification();
+
+  @override
   Future<void> cancelVerification(String verificationId) =>
       _api.cancelVerification(verificationId);
 

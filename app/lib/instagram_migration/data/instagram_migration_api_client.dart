@@ -36,6 +36,27 @@ final class InstagramMigrationApiClient {
     return _decodeMap(response.data, InstagramVerificationAttempt.fromMap);
   });
 
+  Future<InstagramVerificationAttempt?> getCurrentVerification() => unwrapApi(
+    () async {
+      final response = await _dio.get<Object?>(
+        '/v1/migrations/instagram/verifications/current',
+      );
+      _requireStatus(response, 200);
+      return _decode(() {
+        final data = response.data;
+        if (data is! Map<String, dynamic>) {
+          throw const FormatException('invalid_instagram_current_verification');
+        }
+        final verification = data['verification'];
+        if (verification == null) return null;
+        if (verification is! Map<String, dynamic>) {
+          throw const FormatException('invalid_instagram_current_verification');
+        }
+        return InstagramVerificationAttempt.fromMap(verification);
+      });
+    },
+  );
+
   Future<void> cancelVerification(String verificationId) => unwrapApi(
     () async {
       final response = await _dio.delete<void>(

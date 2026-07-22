@@ -73,7 +73,7 @@ covered by real-Postgres migration/store tests.
 | Configuration | One validated `app.Config`; push already supports disabled/enabled modes | Add separate Instagram data and Meta config. Data availability requires the private HMAC material; Meta verification additionally requires explicit enablement plus a complete credential/account/token/signature bundle. Partial production config fails startup. | UT-008, UT-016, IT-013, REG-007 |
 | Private persistence | Migrations end at `000022`; direct pgx stores | Add `000023` core Instagram tables and `000024` system-notification union. Avoid owner cascades from `craftsky_profiles`; lifecycle is explicit. | IT-001, IT-010, IT-020, IT-021 |
 | Membership boundary | Authentication proves a session DID, but no route-level current-member policy | Add `CurrentMemberRequired` route policy/middleware and a shared membership service used by every Instagram API and worker transition. Missing members receive `404 profile_not_found`. | IT-020, REG-006 |
-| Verification attempts | None | Add challenge generation/digesting, public states, expiry/supersession/cancel transitions, same-DID confirmation, and privacy-preserving deletion. | UT-001–UT-004, IT-002, IT-003 |
+| Verification attempts | None | Add challenge generation/digesting, public states, expiry/supersession/cancel transitions, owner-scoped current-attempt lookup, same-DID confirmation, and privacy-preserving deletion. | UT-001–UT-004, IT-002, IT-003, IT-022 |
 | Meta webhook | No Instagram integration route | Add `/integrations/instagram/webhook` verification and signed POST ingestion outside `/v1`, exact size/event limits, generic ingress throttling, durable deduplication, and no raw payload persistence. | UT-003, UT-004, IT-003, IT-013 |
 | Durable worker | Push dispatcher provides the lease/retry lifecycle pattern | Add bounded Instagram work claiming, lease recovery, retry/backoff/deadline, terminal sensitive-field clearing, and injected Meta lookup/reply client. | UT-007, IT-004, IT-019, REG-007 |
 | Links and conflicts | No cross-network identity model | Add claims, current username identity, same-DID confirmation, conflict rows, discovery consent, revoke/reactivate semantics, and operator resolution. | UT-006, IT-005, IT-006, IT-018 |
@@ -84,7 +84,7 @@ covered by real-Postgres migration/store tests.
 | Membership and deletion lifecycle | Profile-record and Tap terminal deletion currently share broad actor cleanup concepts | Treat membership loss as reversible inactivation; terminal Tap identity/future account deletion as permanent Instagram purge; never delete accepted PDS follows. | IT-020, REG-006 |
 | Retention/export/operations | No Instagram-specific jobs or CLI | Add deterministic purge batches, owner export with private Instagram data, safe audits/metrics, and CLI list/resolve/revoke/inspect/retry/purge commands. | IT-010, IT-018, IT-019, UT-015 |
 | Flutter data/parser | No Instagram feature | Add redacted models, explicit-direction JSON parser, 20 MiB/10,000-entry limits, API/repository layer, and cross-language golden contract. ZIP parsing is intentionally unsupported. | UT-009, UT-010, IT-014, TD-011 |
-| Flutter state/UI | Settings and account boundary have no migration surface | Add fixed-account controllers and one settings route/page for verification, import, link controls, and suggestions; invalidate on account changes and fence every asynchronous effect. | UT-011, IT-015, IT-016, REG-009 |
+| Flutter state/UI | Settings and account boundary have no migration surface | Add fixed-account controllers and one settings route/page for verification, import, link controls, and suggestions; place the discovery selector directly below the verified candidate, default it to discovery allowed, and update the explanation for the selected value; reconcile resumable attempts against AppView with a DID-scoped secure display snapshot; invalidate on account changes and fence every asynchronous effect. | UT-011, IT-015, IT-016, IT-022, REG-009, REG-012 |
 | Flutter notifications | Model assumes actor-bearing social notifications | Decode sealed social/system variants, render/open Instagram-match safely, preserve social behavior, and avoid push/diagnostic private content. | UT-012, IT-017, REG-005 |
 
 ## 4. Files And Modules
@@ -597,9 +597,13 @@ then refactor before advancing.
     accessibility, and failure/retry states.
 16. **Flutter notification union** — `UT-012`, `IT-017`; actorless decode,
     row/push/open, stale-account no-op, and social regression.
-17. **Privacy/regression sweep** — `UT-015`, `REG-001`–`REG-011`, `TD-001`–
+17. **Privacy/regression sweep** — `UT-015`, `REG-001`–`REG-012`, `TD-001`–
     `TD-012`; scan fixtures/diagnostics, run full Go/Flutter gates, race tests,
     migration round-trip, generated code/analyze, and architecture checks.
+18. **Resumable verification** — `IT-002`, `IT-022`, `REG-012`; add the
+    owner-scoped current-attempt read, DID-scoped secure display snapshot,
+    AppView reconciliation, polling/confirmation restoration, and narrow
+    terminal/session cleanup without keeping page providers alive.
 
 Focused commands evolve with the slice, then finish with:
 

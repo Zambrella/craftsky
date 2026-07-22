@@ -10,7 +10,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -48,6 +47,7 @@ type GraphImport struct {
 func (GraphImport) String() string {
 	return "Instagram graph import [REDACTED]"
 }
+func (i GraphImport) GoString() string { return i.String() }
 
 type ImportCounts struct {
 	Following int `json:"following"`
@@ -421,8 +421,23 @@ func (s *ImportStore) DeleteImport(ctx context.Context, owner syntax.DID, id uui
 	if result.RowsAffected() == 0 {
 		return tx.Commit(ctx)
 	}
-	if err := invalidateUnsupportedSuggestions(ctx, tx, owner, now); err != nil {
+	suggestionIDs, err := invalidateUnsupportedSuggestions(ctx, tx, owner, now)
+	if err != nil {
 		return err
+	}
+	if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "importDeleted", now); err != nil {
+		return err
+	}
+	if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "import_deleted", now); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE instagram_reconciliation_jobs
+		SET status='ignored', terminal_at=COALESCE(terminal_at,$2),
+		    lease_token=NULL, lease_expires_at=NULL, updated_at=$2
+		WHERE import_id=$1 AND status IN ('queued','processing','retryable')
+	`, id, now); err != nil {
+		return fmt.Errorf("cancel deleted Instagram import reconciliation: %w", err)
 	}
 	return tx.Commit(ctx)
 }
@@ -451,8 +466,23 @@ func (s *ImportStore) expireImport(ctx context.Context, owner syntax.DID, id uui
 	`, id, owner); err != nil {
 		return err
 	}
-	if err := invalidateUnsupportedSuggestions(ctx, tx, owner, now); err != nil {
+	suggestionIDs, err := invalidateUnsupportedSuggestions(ctx, tx, owner, now)
+	if err != nil {
 		return err
+	}
+	if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "importExpired", now); err != nil {
+		return err
+	}
+	if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "import_deleted", now); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE instagram_reconciliation_jobs
+		SET status='ignored', terminal_at=COALESCE(terminal_at,$2),
+		    lease_token=NULL, lease_expires_at=NULL, updated_at=$2
+		WHERE import_id=$1 AND status IN ('queued','processing','retryable')
+	`, id, now); err != nil {
+		return fmt.Errorf("cancel expired Instagram import reconciliation: %w", err)
 	}
 	return tx.Commit(ctx)
 }
@@ -480,20 +510,36 @@ func (s *ImportStore) expireOwnerImports(ctx context.Context, owner syntax.DID, 
 	`, owner); err != nil {
 		return err
 	}
-	if err := invalidateUnsupportedSuggestions(ctx, tx, owner, now); err != nil {
+	suggestionIDs, err := invalidateUnsupportedSuggestions(ctx, tx, owner, now)
+	if err != nil {
 		return err
+	}
+	if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "importExpired", now); err != nil {
+		return err
+	}
+	if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "import_deleted", now); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE instagram_reconciliation_jobs job
+		SET status='ignored', terminal_at=COALESCE(terminal_at,$2),
+		    lease_token=NULL, lease_expires_at=NULL, updated_at=$2
+		WHERE job.status IN ('queued','processing','retryable')
+		  AND EXISTS (
+			SELECT 1 FROM instagram_graph_imports source
+			WHERE source.id=job.import_id AND source.owner_did=$1 AND source.state='expired'
+		  )
+	`, owner, now); err != nil {
+		return fmt.Errorf("cancel expired Instagram import reconciliation: %w", err)
 	}
 	return tx.Commit(ctx)
 }
 
-type instagramImportExecer interface {
-	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
-}
-
-func invalidateUnsupportedSuggestions(ctx context.Context, tx instagramImportExecer, owner syntax.DID, now time.Time) error {
-	_, err := tx.Exec(ctx, `
+func invalidateUnsupportedSuggestions(ctx context.Context, tx pgx.Tx, owner syntax.DID, now time.Time) ([]uuid.UUID, error) {
+	return queryUUIDs(ctx, tx, `
 		UPDATE instagram_follow_suggestions suggestion
-		SET state = 'invalidated', terminal_at = $2, updated_at = $2
+		SET state = 'invalidated', accepting_since = NULL,
+		    terminal_at = COALESCE(terminal_at, $2), updated_at = $2
 		WHERE suggestion.importer_did = $1
 		  AND suggestion.state IN ('pending', 'accepting')
 		  AND NOT EXISTS (
@@ -505,8 +551,8 @@ func invalidateUnsupportedSuggestions(ctx context.Context, tx instagramImportExe
 			 AND source_import.state = 'active'
 			WHERE source.suggestion_id = suggestion.id
 		  )
+		RETURNING suggestion.id
 	`, owner, now)
-	return err
 }
 
 const graphImportColumns = `

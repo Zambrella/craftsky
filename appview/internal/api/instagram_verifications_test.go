@@ -85,6 +85,35 @@ func TestInstagramVerificationHandlersExactWireContract(t *testing.T) {
 		t.Fatal("status response exposed challenge")
 	}
 
+	currentReq := authenticatedInstagramRequest(http.MethodGet, "/v1/migrations/instagram/verifications/current", "", alice)
+	currentRR := httptest.NewRecorder()
+	GetCurrentInstagramVerificationHandler(service, logger).ServeHTTP(currentRR, currentReq)
+	if currentRR.Code != http.StatusOK {
+		t.Fatalf("current status = %d; body=%s", currentRR.Code, currentRR.Body.String())
+	}
+	var current map[string]any
+	if err := json.Unmarshal(currentRR.Body.Bytes(), &current); err != nil {
+		t.Fatalf("decode current: %v", err)
+	}
+	verification, ok := current["verification"].(map[string]any)
+	if !ok || verification["verificationId"] != id.String() || verification["candidateUsername"] != "synthetic.candidate" {
+		t.Fatalf("current response = %#v", current)
+	}
+	if _, exists := verification["challenge"]; exists {
+		t.Fatal("current response exposed challenge")
+	}
+
+	service.attempt = nil
+	emptyRR := httptest.NewRecorder()
+	GetCurrentInstagramVerificationHandler(service, logger).ServeHTTP(emptyRR, currentReq)
+	if emptyRR.Code != http.StatusOK {
+		t.Fatalf("empty current status = %d; body=%s", emptyRR.Code, emptyRR.Body.String())
+	}
+	var empty map[string]any
+	if err := json.Unmarshal(emptyRR.Body.Bytes(), &empty); err != nil || len(empty) != 1 || empty["verification"] != nil {
+		t.Fatalf("empty current response = %#v, %v", empty, err)
+	}
+
 	confirmReq := authenticatedInstagramRequest(http.MethodPost, "/v1/migrations/instagram/verifications/"+id.String()+"/confirm", `{"discoverable":true}`, alice)
 	confirmReq.SetPathValue("verificationId", id.String())
 	confirmRR := httptest.NewRecorder()
@@ -201,6 +230,10 @@ func (s *stubInstagramVerificationService) CreateVerification(context.Context, s
 }
 
 func (s *stubInstagramVerificationService) GetVerification(context.Context, syntax.DID, uuid.UUID) (*instagram.VerificationAttempt, error) {
+	return s.attempt, s.err
+}
+
+func (s *stubInstagramVerificationService) GetCurrentVerification(context.Context, syntax.DID) (*instagram.VerificationAttempt, error) {
 	return s.attempt, s.err
 }
 

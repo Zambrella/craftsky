@@ -8,12 +8,62 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestWebhookHandlerUnsafeDiagnosticsLogsRawBodyAndReduction(t *testing.T) {
+	t.Parallel()
+
+	const (
+		secret    = "synthetic-app-secret"
+		official  = "synthetic-official"
+		bodyValue = "synthetic-sensitive-webhook-body"
+	)
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	digests, err := NewDigestCodec(bytes.Repeat([]byte{0x73}, 32), func(input string) (string, error) {
+		return strings.ToUpper(strings.TrimSpace(input)), nil
+	})
+	if err != nil {
+		t.Fatalf("NewDigestCodec: %v", err)
+	}
+	reducer, err := NewPayloadReducer(official, digests)
+	if err != nil {
+		t.Fatalf("NewPayloadReducer: %v", err)
+	}
+	handler, err := NewWebhookHandler(WebhookHandlerConfig{
+		AppSecret:       []byte(secret),
+		VerifyToken:     "synthetic-verify-token",
+		Reducer:         reducer,
+		Sink:            &recordingWebhookSink{},
+		Logger:          logger,
+		UnsafeDebugLogs: true,
+	})
+	if err != nil {
+		t.Fatalf("NewWebhookHandler: %v", err)
+	}
+	body := []byte(`{"object":"instagram","diagnostic":"` + bodyValue + `","entry":[]}`)
+	request := httptest.NewRequest(http.MethodPost, "/integrations/instagram/webhook", bytes.NewReader(body))
+	request.Header.Set("X-Hub-Signature-256", signWebhookBody([]byte(secret), body))
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %q", response.Code, response.Body.String())
+	}
+	if !strings.Contains(logs.String(), bodyValue) {
+		t.Fatalf("debug logs omitted raw webhook body: %s", logs.String())
+	}
+	if !strings.Contains(logs.String(), `"supported_event_count":0`) {
+		t.Fatalf("debug logs omitted reduction count: %s", logs.String())
+	}
+}
 
 func TestWebhookHandlerAcknowledgesOnlyAfterSignedReducedWorkIsPersisted(t *testing.T) {
 	t.Parallel()

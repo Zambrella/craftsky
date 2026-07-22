@@ -34,7 +34,12 @@ class CraftskyCard extends StatelessWidget {
         boxShadow: shadows.dropSm,
       ),
       clipBehavior: clipBehavior,
-      child: child,
+      child: Material(
+        type: MaterialType.transparency,
+        clipBehavior: clipBehavior,
+        borderRadius: BorderRadius.circular(radii.r3),
+        child: child,
+      ),
     );
   }
 }

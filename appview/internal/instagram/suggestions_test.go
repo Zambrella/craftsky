@@ -44,6 +44,33 @@ func TestSuggestionServiceFiltersEveryListItemThroughPolicy(t *testing.T) {
 	}
 }
 
+func TestSuggestionServiceRevalidatesTheOpenBoundaryBeforeReturning(t *testing.T) {
+	store, pool := newSuggestionTestStore(t)
+	ctx := context.Background()
+	alice := syntax.DID("did:plc:synthetic-open-alice")
+	bob := syntax.DID("did:plc:synthetic-open-bob")
+	now := time.Date(2026, 7, 19, 18, 15, 0, 0, time.UTC)
+	importID := uuid.New()
+	suggestionID := uuid.New()
+	seedSuggestionImport(t, pool, importID, alice, "synthetic.open", now)
+	seedSuggestionLink(t, pool, bob, "synthetic.open", now)
+	if _, err := store.UpsertPendingSuggestion(ctx, UpsertSuggestionParams{ID: suggestionID, ImporterDID: alice, TargetDID: bob, ImportID: importID, Username: "synthetic.open", Now: now}); err != nil {
+		t.Fatal(err)
+	}
+	policy := &recordingSuggestionPolicy{decision: EligibilityDecision{Eligible: true, Reason: EligibilityAllowed}}
+	service, err := NewSuggestionService(SuggestionServiceOptions{Repository: store, Policy: policy, Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, _, err := service.ListSuggestions(ctx, alice, 20, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || len(policy.calls) != 2 || policy.calls[0].stage != EligibilityAtList || policy.calls[1].stage != EligibilityAtOpen {
+		t.Fatalf("items=%+v calls=%+v", items, policy.calls)
+	}
+}
+
 func TestSuggestionServiceAcceptanceUsesStableIdempotentPutRecord(t *testing.T) {
 	store, pool := newSuggestionTestStore(t)
 	ctx := context.Background()

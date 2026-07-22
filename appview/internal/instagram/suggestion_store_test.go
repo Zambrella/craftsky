@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -176,11 +177,21 @@ func TestImportDeletionPreservesMultiSourceSuggestionUntilLastSupport(t *testing
 
 func newSuggestionTestStore(t *testing.T) (*SuggestionStore, *pgxpool.Pool) {
 	t.Helper()
-	migration, err := os.ReadFile("../../migrations/000023_instagram_migration.up.sql")
-	if err != nil {
-		t.Fatal(err)
+	var migration strings.Builder
+	for _, path := range []string{
+		"../../migrations/000021_appview_notifications.up.sql",
+		"../../migrations/000022_notification_newness.up.sql",
+		"../../migrations/000023_instagram_migration.up.sql",
+		"../../migrations/000024_system_notifications.up.sql",
+	} {
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		migration.Write(contents)
+		migration.WriteByte('\n')
 	}
-	pool := testdb.WithSchema(t, string(migration))
+	pool := testdb.WithSchema(t, migration.String())
 	return NewSuggestionStore(pool), pool
 }
 

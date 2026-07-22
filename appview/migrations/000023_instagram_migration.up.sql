@@ -77,6 +77,9 @@ CREATE TABLE instagram_account_links (
 CREATE UNIQUE INDEX instagram_account_links_owner_current_unique
     ON instagram_account_links (owner_did)
     WHERE state IN ('active', 'membershipInactive', 'disputed');
+CREATE UNIQUE INDEX instagram_account_links_username_current_unique
+    ON instagram_account_links (username_normalized)
+    WHERE state IN ('active', 'membershipInactive', 'disputed');
 CREATE INDEX instagram_account_links_username_discovery_idx
     ON instagram_account_links (username_normalized, owner_did)
     WHERE state = 'active' AND discoverable AND NOT conflict_pending;

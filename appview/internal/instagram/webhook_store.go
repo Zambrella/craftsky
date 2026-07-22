@@ -68,7 +68,14 @@ func (WebhookWork) GoString() string {
 }
 
 type WebhookStore struct {
-	pool *pgxpool.Pool
+	pool          *pgxpool.Pool
+	leaseDuration time.Duration
+	retryPolicy   WebhookRetryPolicy
+}
+
+type WebhookStoreOptions struct {
+	LeaseDuration time.Duration
+	RetryPolicy   WebhookRetryPolicy
 }
 
 var _ instagrammeta.WebhookWorkSink = (*WebhookStore)(nil)
@@ -76,7 +83,24 @@ var _ instagrammeta.GuardedWebhookWorkSink = (*WebhookStore)(nil)
 var _ WebhookWorkQueue = (*WebhookStore)(nil)
 
 func NewWebhookStore(pool *pgxpool.Pool) *WebhookStore {
-	return &WebhookStore{pool: pool}
+	store, _ := NewWebhookStoreWithOptions(pool, WebhookStoreOptions{})
+	return store
+}
+
+func NewWebhookStoreWithOptions(pool *pgxpool.Pool, options WebhookStoreOptions) (*WebhookStore, error) {
+	if pool == nil {
+		return nil, errors.New("Instagram webhook store database is unavailable")
+	}
+	if options.LeaseDuration == 0 {
+		options.LeaseDuration = WebhookLeaseDuration
+	}
+	if options.RetryPolicy == (WebhookRetryPolicy{}) {
+		options.RetryPolicy = DefaultWebhookRetryPolicy()
+	}
+	if options.LeaseDuration <= 0 || options.LeaseDuration > WebhookLeaseDuration || !options.RetryPolicy.valid() {
+		return nil, errors.New("invalid Instagram webhook store limits")
+	}
+	return &WebhookStore{pool: pool, leaseDuration: options.LeaseDuration, retryPolicy: options.RetryPolicy}, nil
 }
 
 func (*WebhookStore) String() string {
@@ -216,7 +240,7 @@ func (s *WebhookStore) ClaimWebhookWork(ctx context.Context, limit int, now time
 		return nil, ErrInvalidWebhookWork
 	}
 	now = now.UTC()
-	maxAgeCutoff := now.Add(-WebhookMaxProcessingAge)
+	maxAgeCutoff := now.Add(-s.retryPolicy.MaxProcessingAge)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -238,7 +262,7 @@ func (s *WebhookStore) ClaimWebhookWork(ctx context.Context, limit int, now time
 		       OR status = 'retryable')
 		  AND (attempts >= $2
 		       OR (processing_started_at IS NOT NULL AND processing_started_at <= $3))
-	`, now, WebhookMaxAttempts, maxAgeCutoff); err != nil {
+	`, now, s.retryPolicy.MaxAttempts, maxAgeCutoff); err != nil {
 		return nil, err
 	}
 	if _, err := tx.Exec(ctx, `
@@ -276,7 +300,7 @@ func (s *WebhookStore) ClaimWebhookWork(ctx context.Context, limit int, now time
 		item.Attempts++
 		item.Status = WebhookWorkProcessing
 		item.LeaseToken = uuid.New()
-		item.LeaseExpiresAt = now.Add(WebhookLeaseDuration)
+		item.LeaseExpiresAt = now.Add(s.leaseDuration)
 		if item.ProcessingStartedAt.IsZero() {
 			item.ProcessingStartedAt = now
 		}
@@ -345,7 +369,7 @@ func (s *WebhookStore) RetryWebhookWork(ctx context.Context, id, leaseToken uuid
 		WHERE id = $1 AND status = 'processing' AND lease_token = $2
 		  AND lease_expires_at > $4 AND attempts < $5
 		  AND processing_started_at > $6
-	`, id, leaseToken, nextAttemptAt, now, WebhookMaxAttempts, nextAttemptAt.Add(-WebhookMaxProcessingAge))
+	`, id, leaseToken, nextAttemptAt, now, s.retryPolicy.MaxAttempts, nextAttemptAt.Add(-s.retryPolicy.MaxProcessingAge))
 	if err != nil {
 		return err
 	}

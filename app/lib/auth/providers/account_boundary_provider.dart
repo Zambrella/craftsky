@@ -13,6 +13,7 @@ import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
+import 'package:craftsky_app/instagram_migration/data/instagram_verification_storage.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_account_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_imports_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
@@ -52,12 +53,14 @@ typedef AccountSessionInvalidator =
 class AccountSessionInvalidationCoordinator {
   AccountSessionInvalidationCoordinator({
     required this.readRegistry,
+    required this.clearSessionState,
     required this.invalidateLease,
     required this.invalidateAccountState,
     required this.resetHome,
   });
 
   final Future<SessionRegistry> Function() readRegistry;
+  final AccountSessionInvalidator clearSessionState;
   final AccountSessionInvalidator invalidateLease;
   final AccountBoundaryAction invalidateAccountState;
   final AccountBoundaryAction resetHome;
@@ -70,6 +73,7 @@ class AccountSessionInvalidationCoordinator {
     if (captured != lease) return;
 
     if (removesActive) await invalidateAccountState();
+    await clearSessionState(lease);
     await invalidateLease(lease);
     if (!removesActive) return;
     final after = await readRegistry();
@@ -131,9 +135,23 @@ final accountHomeResetProvider = Provider<AccountBoundaryAction>(
       () async => ref.read(goRouterProvider).go(RouteLocations.home),
 );
 
+final accountSessionPrivateStateCleanerProvider =
+    Provider<AccountSessionInvalidator>(
+      (ref) => (lease) async {
+        try {
+          await ref
+              .read(instagramVerificationStorageProvider)
+              .delete(lease.account);
+        } on Object {
+          // A stale snapshot still fails closed against AppView later.
+        }
+      },
+    );
+
 final accountSessionInvalidatorProvider = Provider<AccountSessionInvalidator>(
   (ref) => AccountSessionInvalidationCoordinator(
     readRegistry: () => ref.read(sessionRegistryProvider.future),
+    clearSessionState: ref.read(accountSessionPrivateStateCleanerProvider),
     invalidateLease: ref.read(sessionRegistryProvider.notifier).invalidate,
     invalidateAccountState: ref.read(accountStateInvalidatorProvider),
     resetHome: ref.read(accountHomeResetProvider),

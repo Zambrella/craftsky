@@ -67,6 +67,49 @@ func TestVerificationStoreCreatesOneActiveAttemptAndSupersedesSensitiveState(t *
 	}
 }
 
+func TestVerificationStoreGetsOnlyOwnersCurrentUnexpiredAttempt(t *testing.T) {
+	store := newVerificationTestStore(t)
+	ctx := context.Background()
+	alice := syntax.DID("did:plc:synthetic-alice")
+	bob := syntax.DID("did:plc:synthetic-bob")
+	now := time.Date(2026, 7, 22, 15, 0, 0, 0, time.UTC)
+	attempt, err := store.CreateVerificationAttempt(ctx, CreateVerificationAttemptParams{
+		ID:        uuid.MustParse("00000000-0000-0000-0000-000000000022"),
+		OwnerDID:  alice,
+		Digest:    syntheticChallengeDigest(0x22),
+		ExpiresAt: now.Add(time.Minute),
+		Now:       now,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	current, err := store.GetCurrentVerificationAttempt(ctx, alice, now.Add(30*time.Second))
+	if err != nil {
+		t.Fatalf("get current: %v", err)
+	}
+	if current == nil || current.ID != attempt.ID || current.State != AttemptPendingDM {
+		t.Fatalf("current = %+v", current)
+	}
+
+	foreign, err := store.GetCurrentVerificationAttempt(ctx, bob, now.Add(30*time.Second))
+	if err != nil || foreign != nil {
+		t.Fatalf("foreign current = %+v, %v; want nil", foreign, err)
+	}
+
+	expired, err := store.GetCurrentVerificationAttempt(ctx, alice, now.Add(time.Minute))
+	if err != nil || expired != nil {
+		t.Fatalf("expired current = %+v, %v; want nil", expired, err)
+	}
+	tombstone, err := store.GetVerificationAttempt(ctx, alice, attempt.ID, now.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("get expired tombstone: %v", err)
+	}
+	if tombstone.State != AttemptExpired || tombstone.Digest != nil {
+		t.Fatalf("expired tombstone = %+v", tombstone)
+	}
+}
+
 func TestVerificationStoreExpiresCancelsAndPrivacyNoOps(t *testing.T) {
 	store := newVerificationTestStore(t)
 	ctx := context.Background()

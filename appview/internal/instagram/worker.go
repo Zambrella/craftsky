@@ -69,6 +69,10 @@ type WebhookMembership interface {
 	IsCurrentMember(ctx context.Context, did syntax.DID) (bool, error)
 }
 
+type WebhookMembershipInactivator interface {
+	InactivateMembership(ctx context.Context, did syntax.DID) error
+}
+
 type WebhookIdentifierLimiter interface {
 	AllowIdentifier(context.Context, RateLimitScope, []byte, time.Duration, int) (RateLimitDecision, error)
 }
@@ -76,13 +80,15 @@ type WebhookIdentifierLimiter interface {
 var _ WebhookMembership = (*MembershipStore)(nil)
 
 type WebhookWorkerOptions struct {
-	BatchSize                  int                      `json:"-"`
-	Now                        func() time.Time         `json:"-"`
-	ReplyText                  string                   `json:"-"`
-	ReplyWindow                time.Duration            `json:"-"`
-	RateLimiter                WebhookIdentifierLimiter `json:"-"`
-	InvalidIGSIDPer15Minutes   int                      `json:"-"`
-	MetaLookupsPerIGSIDPerHour int                      `json:"-"`
+	BatchSize                  int                          `json:"-"`
+	Now                        func() time.Time             `json:"-"`
+	ReplyText                  string                       `json:"-"`
+	ReplyWindow                time.Duration                `json:"-"`
+	RateLimiter                WebhookIdentifierLimiter     `json:"-"`
+	InvalidIGSIDPer15Minutes   int                          `json:"-"`
+	MetaLookupsPerIGSIDPerHour int                          `json:"-"`
+	MembershipInactivator      WebhookMembershipInactivator `json:"-"`
+	RetryPolicy                WebhookRetryPolicy           `json:"-"`
 }
 
 func (WebhookWorkerOptions) String() string {
@@ -94,16 +100,24 @@ func (WebhookWorkerOptions) GoString() string {
 }
 
 type WebhookWorker struct {
-	queue      WebhookWorkQueue
-	redeemer   WebhookRedeemer
-	membership WebhookMembership
-	meta       instagrammeta.Client
-	options    WebhookWorkerOptions
+	queue       WebhookWorkQueue
+	redeemer    WebhookRedeemer
+	membership  WebhookMembership
+	inactivator WebhookMembershipInactivator
+	meta        instagrammeta.Client
+	options     WebhookWorkerOptions
 }
 
 func NewWebhookWorker(queue WebhookWorkQueue, redeemer WebhookRedeemer, membership WebhookMembership, meta instagrammeta.Client, options WebhookWorkerOptions) (*WebhookWorker, error) {
 	if queue == nil || redeemer == nil || membership == nil || meta == nil {
 		return nil, errors.New("Instagram webhook worker dependencies are incomplete")
+	}
+	inactivator := options.MembershipInactivator
+	if inactivator == nil {
+		inactivator, _ = membership.(WebhookMembershipInactivator)
+	}
+	if inactivator == nil {
+		return nil, errors.New("Instagram webhook worker membership inactivator is incomplete")
 	}
 	if options.BatchSize == 0 {
 		options.BatchSize = 1
@@ -113,6 +127,12 @@ func NewWebhookWorker(queue WebhookWorkQueue, redeemer WebhookRedeemer, membersh
 	}
 	if options.Now == nil {
 		options.Now = time.Now
+	}
+	if options.RetryPolicy == (WebhookRetryPolicy{}) {
+		options.RetryPolicy = DefaultWebhookRetryPolicy()
+	}
+	if !options.RetryPolicy.valid() {
+		return nil, errors.New("Instagram webhook worker retry policy is invalid")
 	}
 	if options.RateLimiter != nil {
 		if options.InvalidIGSIDPer15Minutes == 0 {
@@ -135,11 +155,12 @@ func NewWebhookWorker(queue WebhookWorkQueue, redeemer WebhookRedeemer, membersh
 		}
 	}
 	return &WebhookWorker{
-		queue:      queue,
-		redeemer:   redeemer,
-		membership: membership,
-		meta:       meta,
-		options:    options,
+		queue:       queue,
+		redeemer:    redeemer,
+		membership:  membership,
+		inactivator: inactivator,
+		meta:        meta,
+		options:     options,
 	}, nil
 }
 
@@ -178,7 +199,7 @@ func (w *WebhookWorker) processOne(ctx context.Context, item WebhookWork) error 
 	if err != nil {
 		return err
 	}
-	if item.ProcessingStartedAt.IsZero() || !now.Before(item.ProcessingStartedAt.Add(WebhookMaxProcessingAge)) {
+	if item.ProcessingStartedAt.IsZero() || !now.Before(item.ProcessingStartedAt.Add(w.options.RetryPolicy.MaxProcessingAge)) {
 		return w.queue.FailWebhookWork(ctx, item.ID, item.LeaseToken, now, WebhookReasonMaxAge)
 	}
 	digest := ChallengeDigest{Version: item.ChallengeDigest.Version, Value: item.ChallengeDigest.Value}
@@ -217,7 +238,7 @@ func (w *WebhookWorker) processOne(ctx context.Context, item WebhookWork) error 
 		}
 		return w.retryWork(ctx, item, nil, now, 0)
 	}
-	if !now.Before(item.ProcessingStartedAt.Add(WebhookMaxProcessingAge)) {
+	if !now.Before(item.ProcessingStartedAt.Add(w.options.RetryPolicy.MaxProcessingAge)) {
 		return w.retryWork(ctx, item, &redemption, now, 0)
 	}
 	current, membershipErr := w.membership.IsCurrentMember(ctx, redemption.OwnerDID)
@@ -231,10 +252,16 @@ func (w *WebhookWorker) processOne(ctx context.Context, item WebhookWork) error 
 		}
 		return w.retryWork(ctx, item, &redemption, now, 0)
 	}
-	if !now.Before(item.ProcessingStartedAt.Add(WebhookMaxProcessingAge)) {
+	if !now.Before(item.ProcessingStartedAt.Add(w.options.RetryPolicy.MaxProcessingAge)) {
 		return w.retryWork(ctx, item, &redemption, now, 0)
 	}
 	if !current {
+		if inactivateErr := w.inactivator.InactivateMembership(ctx, redemption.OwnerDID); inactivateErr != nil {
+			if errors.Is(inactivateErr, context.Canceled) {
+				return context.Canceled
+			}
+			return w.retryWork(ctx, item, &redemption, now, 0)
+		}
 		inactivateErr := w.redeemer.InactivateWebhookOwner(ctx, redemption.AttemptID, redemption.OwnerDID, now)
 		now, err = w.liveWorkTime(ctx, item)
 		if err != nil {
@@ -282,7 +309,7 @@ func (w *WebhookWorker) processOne(ctx context.Context, item WebhookWork) error 
 		}
 		return w.rejectProviderFailure(ctx, item, redemption, kind, now)
 	}
-	if !now.Before(item.ProcessingStartedAt.Add(WebhookMaxProcessingAge)) {
+	if !now.Before(item.ProcessingStartedAt.Add(w.options.RetryPolicy.MaxProcessingAge)) {
 		return w.retryWork(ctx, item, &redemption, now, 0)
 	}
 	candidateErr := w.redeemer.SetWebhookCandidate(ctx, redemption.AttemptID, username, now)
@@ -340,7 +367,7 @@ func classifyMetaFailure(err error) (instagrammeta.ProviderErrorKind, time.Durat
 }
 
 func (w *WebhookWorker) retryWork(ctx context.Context, item WebhookWork, redemption *WebhookRedemption, now time.Time, providerDelay time.Duration) error {
-	next, retry := NextWebhookRetry(now, item.ProcessingStartedAt, item.Attempts, providerDelay)
+	next, retry := nextWebhookRetry(w.options.RetryPolicy, now, item.ProcessingStartedAt, item.Attempts, providerDelay)
 	if retry {
 		return w.queue.RetryWebhookWork(ctx, item.ID, item.LeaseToken, next, now)
 	}
@@ -350,8 +377,8 @@ func (w *WebhookWorker) retryWork(ctx context.Context, item WebhookWork, redempt
 		}
 	}
 	reason := WebhookReasonMaxAttempts
-	if !now.Before(item.ProcessingStartedAt.Add(WebhookMaxProcessingAge)) ||
-		item.Attempts < WebhookMaxAttempts {
+	if !now.Before(item.ProcessingStartedAt.Add(w.options.RetryPolicy.MaxProcessingAge)) ||
+		item.Attempts < w.options.RetryPolicy.MaxAttempts {
 		reason = WebhookReasonMaxAge
 	}
 	return w.queue.FailWebhookWork(ctx, item.ID, item.LeaseToken, now, reason)

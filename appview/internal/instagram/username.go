@@ -36,6 +36,7 @@ type ImportEntry struct {
 func (ImportEntry) String() string {
 	return "Instagram import entry [REDACTED]"
 }
+func (e ImportEntry) GoString() string { return e.String() }
 
 func NormalizeInstagramUsername(input string) (string, error) {
 	username := strings.TrimSpace(input)

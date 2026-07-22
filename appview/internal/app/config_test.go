@@ -52,6 +52,7 @@ func testConfigFile(t *testing.T, contents string) string {
 		"SENTRY_LOGS_ENABLED", "SENTRY_METRICS_ENABLED", "SENTRY_TAP_TRACING_ENABLED",
 		"SENTRY_TAP_TRACES_SAMPLE_RATE",
 		"APPVIEW_UNSAFE_LOG_RESPONSE_BODIES",
+		"INSTAGRAM_UNSAFE_LOG_WEBHOOK_BODIES",
 		"APPVIEW_ENABLE_DEV_MODERATION",
 		"APPVIEW_DEV_MODERATION_TOKEN", "CRAFTSKY_DEV_LABELER_DID",
 		"APPVIEW_TRUSTED_MODERATION_SOURCE_DIDS",
@@ -242,6 +243,28 @@ func TestLoadConfig_ObservabilityDefaultsAndValidation(t *testing.T) {
 		}
 		if cfg.UnsafeLogResponseBodies {
 			t.Fatal("UnsafeLogResponseBodies = true in prod, want forced false")
+		}
+	})
+
+	t.Run("unsafe Instagram webhook logging is opt-in in dev", func(t *testing.T) {
+		path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nINSTAGRAM_UNSAFE_LOG_WEBHOOK_BODIES=true\n")
+		cfg, err := LoadConfig(EnvDev, path)
+		if err != nil {
+			t.Fatalf("LoadConfig: %v", err)
+		}
+		if !cfg.UnsafeLogInstagramWebhookBodies {
+			t.Fatal("UnsafeLogInstagramWebhookBodies = false, want true")
+		}
+	})
+
+	t.Run("prod forces unsafe Instagram webhook logging off", func(t *testing.T) {
+		path := testConfigFile(t, "DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap:2480/channel\nINSTAGRAM_UNSAFE_LOG_WEBHOOK_BODIES=true\n")
+		cfg, err := LoadConfig(EnvProd, path)
+		if err != nil {
+			t.Fatalf("LoadConfig: %v", err)
+		}
+		if cfg.UnsafeLogInstagramWebhookBodies {
+			t.Fatal("UnsafeLogInstagramWebhookBodies = true in prod, want forced false")
 		}
 	})
 }

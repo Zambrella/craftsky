@@ -13,11 +13,12 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/followwrite"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
 )
 
-const instagramFollowCollection = "app.bsky.graph.follow"
+const instagramFollowCollection = followwrite.Collection
 
 var errInstagramPDSUnavailable = errors.New("Instagram follow PDS unavailable")
 
@@ -115,7 +116,7 @@ func AcceptInstagramSuggestionHandler(service InstagramSuggestionService, newPDS
 			return
 		}
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
-		writer := &instagramPDSFollowWriter{newPDS: newPDS, sessionID: sessionID}
+		writer := &instagramPDSFollowWriter{service: followwrite.NewService(newPDS), sessionID: sessionID}
 		result, err := service.AcceptSuggestion(r.Context(), owner, id, writer)
 		if err != nil {
 			writeInstagramSuggestionError(w, r, logger, err)
@@ -146,24 +147,15 @@ func DeleteInstagramSuggestionHandler(service InstagramSuggestionService, logger
 }
 
 type instagramPDSFollowWriter struct {
-	newPDS    auth.PDSClientFactory
+	service   *followwrite.Service
 	sessionID string
 }
 
 func (w *instagramPDSFollowWriter) PutFollow(ctx context.Context, owner, target syntax.DID, rkey syntax.RecordKey, createdAt time.Time) error {
-	if w == nil || w.newPDS == nil {
+	if w == nil || w.service == nil {
 		return errInstagramPDSUnavailable
 	}
-	client, err := w.newPDS(ctx, owner, w.sessionID)
-	if err != nil {
-		return err
-	}
-	record := map[string]any{
-		"$type":     instagramFollowCollection,
-		"subject":   target.String(),
-		"createdAt": createdAt.UTC().Format(time.RFC3339),
-	}
-	return client.PutRecord(ctx, owner, instagramFollowCollection, rkey.String(), record)
+	return w.service.Write(ctx, owner, target, w.sessionID, &rkey, createdAt)
 }
 
 func hydrateInstagramSuggestionProfile(ctx context.Context, owner, target syntax.DID, profiles ProfileReader, resolver HandleResolver) (instagramSuggestionProfileResponse, error) {

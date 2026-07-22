@@ -26,6 +26,7 @@ func TestInstagramVerificationRoutePoliciesRequireAuthDeviceAndCurrentMember(t *
 		body BodyKind
 	}{
 		"POST /v1/migrations/instagram/verifications":                          {rate: RateClassWrite, body: BodyDefaultJSON},
+		"GET /v1/migrations/instagram/verifications/current":                   {rate: RateClassRead, body: BodyNoBody},
 		"GET /v1/migrations/instagram/verifications/{verificationId}":          {rate: RateClassRead, body: BodyNoBody},
 		"DELETE /v1/migrations/instagram/verifications/{verificationId}":       {rate: RateClassWrite, body: BodyNoBody},
 		"POST /v1/migrations/instagram/verifications/{verificationId}/confirm": {rate: RateClassWrite, body: BodyDefaultJSON},
@@ -101,8 +102,40 @@ func TestInstagramVerificationRoutesEnforceMembershipBeforeDisabledService(t *te
 		t.Fatalf("current disabled status = %d; body=%s", current.Code, current.Body.String())
 	}
 	var currentError envelope.Error
-	if err := json.Unmarshal(current.Body.Bytes(), &currentError); err != nil || currentError.Error != "instagram_verification_unavailable" {
+	if err := json.Unmarshal(current.Body.Bytes(), &currentError); err != nil || currentError.Error != "instagram_unavailable" {
 		t.Fatalf("current error = %+v, %v", currentError, err)
+	}
+
+	currentReadRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/v1/migrations/instagram/verifications/current",
+		nil,
+	)
+	currentReadRequest.Header.Set("Authorization", "Bearer synthetic")
+	currentReadRequest.Header.Set("X-Dev-DID", "did:plc:synthetic-current")
+	currentReadRequest.Header.Set("X-Craftsky-Device-Id", "synthetic-device")
+	currentReadResponse := httptest.NewRecorder()
+	mux.ServeHTTP(currentReadResponse, currentReadRequest)
+	if currentReadResponse.Code != http.StatusServiceUnavailable {
+		t.Fatalf("current read status = %d; body=%s", currentReadResponse.Code, currentReadResponse.Body.String())
+	}
+	var currentReadError envelope.Error
+	if err := json.Unmarshal(currentReadResponse.Body.Bytes(), &currentReadError); err != nil || currentReadError.Error != "instagram_verification_unavailable" {
+		t.Fatalf("current read error = %+v, %v", currentReadError, err)
+	}
+
+	deleteRequest := httptest.NewRequest(
+		http.MethodDelete,
+		"/v1/migrations/instagram/verifications/00000000-0000-0000-0000-000000000001",
+		nil,
+	)
+	deleteRequest.Header.Set("Authorization", "Bearer synthetic")
+	deleteRequest.Header.Set("X-Dev-DID", "did:plc:synthetic-current")
+	deleteRequest.Header.Set("X-Craftsky-Device-Id", "synthetic-device")
+	deleteResponse := httptest.NewRecorder()
+	mux.ServeHTTP(deleteResponse, deleteRequest)
+	if deleteResponse.Code != http.StatusNoContent {
+		t.Fatalf("privacy delete status = %d; body=%s", deleteResponse.Code, deleteResponse.Body.String())
 	}
 }
 

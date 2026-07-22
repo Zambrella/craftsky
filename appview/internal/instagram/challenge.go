@@ -57,6 +57,7 @@ func (c IssuedChallenge) Stored() StoredChallenge {
 func (IssuedChallenge) String() string {
 	return "instagram challenge [REDACTED]"
 }
+func (c IssuedChallenge) GoString() string { return c.String() }
 
 // StoredChallenge is the complete persistence-safe challenge representation.
 type StoredChallenge struct {
@@ -66,6 +67,7 @@ type StoredChallenge struct {
 func (StoredChallenge) String() string {
 	return "stored instagram challenge [REDACTED]"
 }
+func (c StoredChallenge) GoString() string { return c.String() }
 
 type ChallengeDigest struct {
 	Version int
@@ -86,6 +88,7 @@ func (d ChallengeDigest) IsZero() bool {
 func (ChallengeDigest) String() string {
 	return "instagram challenge digest [REDACTED]"
 }
+func (d ChallengeDigest) GoString() string { return d.String() }
 
 func (c *ChallengeCodec) Generate() (IssuedChallenge, error) {
 	symbols := make([]byte, 0, challengeSymbolCount)

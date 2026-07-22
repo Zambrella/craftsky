@@ -14,10 +14,11 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/followwrite"
 	"social.craftsky/appview/internal/middleware"
 )
 
-const blueskyFollowCollection = "app.bsky.graph.follow"
+const blueskyFollowCollection = followwrite.Collection
 
 // FollowGraphStore is the follow-graph read/write subset handlers need.
 type FollowGraphStore interface {
@@ -32,6 +33,7 @@ func FollowProfileHandler(
 	newPDS auth.PDSClientFactory,
 	logger *slog.Logger,
 ) http.Handler {
+	followWriter := followwrite.NewService(newPDS)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
 		caller, ok := middleware.GetDID(r.Context())
@@ -68,19 +70,8 @@ func FollowProfileHandler(
 			return
 		}
 		if active == nil {
-			record := map[string]any{
-				"$type":     blueskyFollowCollection,
-				"subject":   target.String(),
-				"createdAt": time.Now().UTC().Format(time.RFC3339),
-			}
 			sid, _ := middleware.GetOAuthSessionID(r.Context())
-			pds, err := newPDS(r.Context(), caller, sid)
-			if err != nil {
-				writePDSError(w, http.StatusBadGateway,
-					"pds_unavailable", "could not contact PDS", runID, err)
-				return
-			}
-			_, _, err = pds.CreateRecord(r.Context(), caller, blueskyFollowCollection, record)
+			err = followWriter.Write(r.Context(), caller, target, sid, nil, time.Now().UTC())
 			if err != nil {
 				writePDSError(w, http.StatusBadGateway,
 					"pds_write_failed", "could not write follow", runID, err)

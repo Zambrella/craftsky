@@ -97,6 +97,52 @@ func TestInitialImportMatchingNeverCreatesInstagramMatchNotification(t *testing.
 	}
 }
 
+func TestNotificationEligibilityBoundaryRetractsStaleSupportAtFeed(t *testing.T) {
+	pool := newReconciliationTestPool(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 19, 22, 45, 0, 0, time.UTC)
+	importer := syntax.DID("did:plc:synthetic-boundary-importer")
+	target := syntax.DID("did:plc:synthetic-boundary-target")
+	importID := uuid.New()
+	seedSuggestionImport(t, pool, importID, importer, "synthetic.boundary", now)
+	seedSuggestionLink(t, pool, target, "synthetic.boundary", now)
+	queueLinkReconciliation(t, pool, target, now)
+
+	lifecycle := notifications.NewService()
+	policy := newReconciliationPolicy()
+	worker := newReconciliationWorkerForTest(t, pool, lifecycle, policy, func() time.Time { return now })
+	if claimed, err := worker.ProcessBatch(ctx, 1); err != nil || claimed != 1 {
+		t.Fatalf("create notification claimed=%d err=%v", claimed, err)
+	}
+	var notificationID uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT id FROM notification_events WHERE category='instagramMatch'`).Scan(&notificationID); err != nil {
+		t.Fatal(err)
+	}
+	boundary, err := NewNotificationEligibilityService(pool, policy, lifecycle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy.deniedStage = EligibilityAtFeed
+	eligible, err := boundary.RevalidateNotification(ctx, notificationID, EligibilityAtFeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if eligible {
+		t.Fatal("stale feed support remained eligible")
+	}
+	var state string
+	var supports int
+	if err := pool.QueryRow(ctx, `SELECT state FROM notification_events WHERE id=$1`, notificationID).Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_notification_suggestions WHERE notification_id=$1`, notificationID).Scan(&supports); err != nil {
+		t.Fatal(err)
+	}
+	if state != "retracted" || supports != 0 {
+		t.Fatalf("notification state=%s supports=%d", state, supports)
+	}
+}
+
 func TestReconciliationDuplicateJobsAndConcurrentWorkersAreIdempotent(t *testing.T) {
 	pool := newReconciliationTestPool(t)
 	ctx := context.Background()

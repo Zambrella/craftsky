@@ -92,6 +92,7 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "DELETE", PathPattern: "/v1/search/recent/{id}", RateClass: RateClassWrite, BodyKind: BodyNoBody, AuthRequired: true},
 		{Method: "POST", PathPattern: "/v1/auth/logout", RateClass: RateClassWrite, BodyKind: BodyNoBody, AuthRequired: true},
 		{Method: "POST", PathPattern: "/v1/migrations/instagram/verifications", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AuthRequired: true, CurrentMemberRequired: true},
+		{Method: "GET", PathPattern: "/v1/migrations/instagram/verifications/current", RateClass: RateClassRead, BodyKind: BodyNoBody, AuthRequired: true, CurrentMemberRequired: true},
 		{Method: "GET", PathPattern: "/v1/migrations/instagram/verifications/{verificationId}", RateClass: RateClassRead, BodyKind: BodyNoBody, AuthRequired: true, CurrentMemberRequired: true},
 		{Method: "DELETE", PathPattern: "/v1/migrations/instagram/verifications/{verificationId}", RateClass: RateClassWrite, BodyKind: BodyNoBody, AuthRequired: true, CurrentMemberRequired: true},
 		{Method: "POST", PathPattern: "/v1/migrations/instagram/verifications/{verificationId}/confirm", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AuthRequired: true, CurrentMemberRequired: true},

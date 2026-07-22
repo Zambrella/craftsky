@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -123,7 +124,8 @@ func TestInstagramMatchStoreReadsCheckedUnionAndOrdersByIndexedAt(t *testing.T) 
 		t.Fatalf("insert system notification: %v", err)
 	}
 
-	store := api.NewPostStore(pool)
+	eligibility := &recordingNotificationEligibility{eligible: true}
+	store := api.NewPostStore(pool).WithInstagramNotificationEligibility(eligibility)
 	first, cursor, err := store.ListNotifications(ctx, "did:plc:viewer", 1, "")
 	if err != nil {
 		t.Fatal(err)
@@ -137,6 +139,9 @@ func TestInstagramMatchStoreReadsCheckedUnionAndOrdersByIndexedAt(t *testing.T) 
 	if !first[0].CreatedAt.Equal(systemCreated) || !first[0].IndexedAt.Equal(systemIndexed) || cursor == "" {
 		t.Fatalf("system times created=%s indexed=%s cursor=%q", first[0].CreatedAt, first[0].IndexedAt, cursor)
 	}
+	if len(eligibility.stages) != 1 || eligibility.stages[0] != instagram.EligibilityAtFeed {
+		t.Fatalf("eligibility stages=%v", eligibility.stages)
+	}
 
 	second, finalCursor, err := store.ListNotifications(ctx, "did:plc:viewer", 1, cursor)
 	if err != nil {
@@ -145,6 +150,16 @@ func TestInstagramMatchStoreReadsCheckedUnionAndOrdersByIndexedAt(t *testing.T) 
 	if len(second) != 1 || second[0].Kind != api.NotificationKindSocial || second[0].Type != api.NotificationTypeFollow || second[0].ActorDID != "did:plc:actor" || second[0].System != nil || finalCursor != "" {
 		t.Fatalf("second page=%+v cursor=%q", second, finalCursor)
 	}
+}
+
+type recordingNotificationEligibility struct {
+	eligible bool
+	stages   []instagram.EligibilityStage
+}
+
+func (e *recordingNotificationEligibility) RevalidateNotification(_ context.Context, _ uuid.UUID, stage instagram.EligibilityStage) (bool, error) {
+	e.stages = append(e.stages, stage)
+	return e.eligible, nil
 }
 
 func TestInstagramMatchNewnessTracksAdditionsButNotRetractions(t *testing.T) {

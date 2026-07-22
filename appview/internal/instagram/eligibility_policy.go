@@ -19,6 +19,7 @@ type SuggestionEligibilityRequest struct {
 func (SuggestionEligibilityRequest) String() string {
 	return "Instagram suggestion eligibility request [REDACTED]"
 }
+func (r SuggestionEligibilityRequest) GoString() string { return r.String() }
 
 type InstagramSuggestionEligibilityPolicy interface {
 	Evaluate(context.Context, EligibilityStage, SuggestionEligibilityRequest) (EligibilityDecision, error)

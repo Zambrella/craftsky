@@ -136,6 +136,44 @@ func TestServiceCoalescesInstagramMatchesIntoFixedWindowAndOneOutboxDelivery(t *
 	}
 }
 
+func TestServiceHonoursTightenedInstagramNotificationLimits(t *testing.T) {
+	pool := instagramNotificationPool(t)
+	ctx := context.Background()
+	recipient := syntax.DID("did:plc:instagram-notification-tightened")
+	base := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+	service, err := NewServiceWithOptions(ServiceOptions{
+		InstagramCoalescingWindow: 2 * time.Minute,
+		InstagramCountCap:         2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.now = func() time.Time { return base }
+	for index := range 3 {
+		suggestionID := uuid.MustParse("00000000-0000-0000-0000-00000000082" + string(rune('1'+index)))
+		seedInstagramNotificationSuggestion(t, pool, suggestionID)
+		activateInstagramMatch(t, pool, service, InstagramMatchActivation{
+			RecipientDID: recipient,
+			SuggestionID: suggestionID,
+			ActivityAt:   base.Add(time.Duration(index) * 10 * time.Second),
+		})
+	}
+
+	var count int
+	var capped bool
+	var coalesceUntil time.Time
+	if err := pool.QueryRow(ctx, `
+		SELECT system_count, system_count_capped, coalesce_until
+		FROM notification_events
+		WHERE recipient_did=$1 AND kind='system' AND category='instagramMatch'
+	`, recipient).Scan(&count, &capped, &coalesceUntil); err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 || !capped || !coalesceUntil.Equal(base.Add(2*time.Minute)) {
+		t.Fatalf("tightened notification count=%d capped=%t closes=%s", count, capped, coalesceUntil)
+	}
+}
+
 func TestServiceRecountsAndRetractsInstagramMatchWithItsOutbox(t *testing.T) {
 	pool := instagramNotificationPool(t)
 	ctx := context.Background()

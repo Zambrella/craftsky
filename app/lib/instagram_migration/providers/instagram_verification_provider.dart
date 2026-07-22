@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/instagram_migration/data/instagram_migration_repository.dart';
+import 'package:craftsky_app/instagram_migration/data/instagram_verification_storage.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_account_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
@@ -52,20 +53,35 @@ class InstagramVerification extends _$InstagramVerification {
   Timer? _pollTimer;
   Timer? _expiryTimer;
   bool _pollInFlight = false;
+  int _operationGeneration = 0;
+  late InstagramVerificationStorage _storage;
 
   @override
   InstagramVerificationViewState build(ActiveAccountLease lease) {
-    ref.onDispose(_stopTimers);
-    return const InstagramVerificationViewState();
+    _storage = ref.read(instagramVerificationStorageProvider);
+    ref.onDispose(() {
+      _operationGeneration++;
+      _stopTimers();
+    });
+    unawaited(_restoreCurrent(_operationGeneration));
+    return const InstagramVerificationViewState(isBusy: true);
   }
 
   Future<bool> create() async {
+    _operationGeneration++;
     _stopTimers();
     state = state.copyWith(isBusy: true, hasError: false, clearAttempt: true);
     try {
       final repository = await _repository();
       final attempt = await repository.createVerification();
       ensureInstagramOperationCurrent(ref, lease);
+      await _persistSnapshot(attempt);
+      try {
+        ensureInstagramOperationCurrent(ref, lease);
+      } on InstagramOperationDiscarded {
+        await _deleteSnapshot(verificationId: attempt.verificationId);
+        rethrow;
+      }
       state = InstagramVerificationViewState(attempt: attempt);
       _schedule(attempt);
       return true;
@@ -92,6 +108,8 @@ class InstagramVerification extends _$InstagramVerification {
       state = state.copyWith(attempt: merged, hasError: false);
       if (_isTerminal(merged.state)) {
         _stopTimers();
+        await _deleteSnapshot(verificationId: merged.verificationId);
+        ensureInstagramOperationCurrent(ref, lease);
       } else if (!_shouldPoll(merged.state)) {
         _pollTimer?.cancel();
         _pollTimer = null;
@@ -116,6 +134,8 @@ class InstagramVerification extends _$InstagramVerification {
     try {
       final repository = await _repository();
       await repository.cancelVerification(current.verificationId);
+      ensureInstagramOperationCurrent(ref, lease);
+      await _deleteSnapshot(verificationId: current.verificationId);
       ensureInstagramOperationCurrent(ref, lease);
       _stopTimers();
       state = InstagramVerificationViewState(
@@ -145,6 +165,8 @@ class InstagramVerification extends _$InstagramVerification {
         discoverable: discoverable,
       );
       ensureInstagramOperationCurrent(ref, lease);
+      await _deleteSnapshot(verificationId: current.verificationId);
+      ensureInstagramOperationCurrent(ref, lease);
       _stopTimers();
       state = InstagramVerificationViewState(
         attempt: _withState(current, confirmation.state),
@@ -168,6 +190,93 @@ class InstagramVerification extends _$InstagramVerification {
     return repository;
   }
 
+  Future<void> _restoreCurrent(int generation) async {
+    try {
+      final repository = await _repository();
+      if (generation != _operationGeneration) return;
+      final current = await repository.getCurrentVerification();
+      ensureInstagramOperationCurrent(ref, lease);
+      if (generation != _operationGeneration) return;
+      final snapshot = await _storage.read(lease.session.account);
+      ensureInstagramOperationCurrent(ref, lease);
+      if (generation != _operationGeneration) return;
+
+      if (current == null ||
+          current.expiresAt.compareTo(
+                ref.read(instagramVerificationNowProvider)(),
+              ) <=
+              0) {
+        if (snapshot != null) await _deleteSnapshot();
+        ensureInstagramOperationCurrent(ref, lease);
+        if (generation != _operationGeneration) return;
+        state = const InstagramVerificationViewState();
+        return;
+      }
+
+      var restored = current;
+      final snapshotMatches =
+          snapshot != null &&
+          snapshot.verificationId == current.verificationId &&
+          snapshot.expiresAt == current.expiresAt &&
+          snapshot.expiresAt.isAfter(
+            ref.read(instagramVerificationNowProvider)(),
+          );
+      if (snapshotMatches) {
+        restored = _mergeStatus(
+          InstagramVerificationAttempt(
+            verificationId: snapshot.verificationId,
+            state: current.state,
+            expiresAt: snapshot.expiresAt,
+            challenge: snapshot.challenge,
+            dmUrl: snapshot.dmUrl,
+          ),
+          current,
+        );
+      } else if (snapshot != null) {
+        await _deleteSnapshot(verificationId: snapshot.verificationId);
+        ensureInstagramOperationCurrent(ref, lease);
+        if (generation != _operationGeneration) return;
+      }
+      state = InstagramVerificationViewState(attempt: restored);
+      _schedule(restored);
+    } on InstagramOperationDiscarded {
+      _stopTimers();
+    } on Object {
+      if (!_isCurrent || generation != _operationGeneration) return;
+      state = const InstagramVerificationViewState(hasError: true);
+    }
+  }
+
+  Future<void> _persistSnapshot(InstagramVerificationAttempt attempt) async {
+    final challenge = attempt.challenge;
+    final dmUrl = attempt.dmUrl;
+    if (challenge == null || dmUrl == null) return;
+    try {
+      await _storage.write(
+        lease.session.account,
+        InstagramVerificationSnapshot(
+          verificationId: attempt.verificationId,
+          challenge: challenge,
+          dmUrl: dmUrl,
+          expiresAt: attempt.expiresAt,
+        ),
+      );
+    } on Object {
+      // Secure caching is best-effort; the server attempt remains usable.
+    }
+  }
+
+  Future<void> _deleteSnapshot({String? verificationId}) async {
+    try {
+      await _storage.delete(
+        lease.session.account,
+        verificationId: verificationId,
+      );
+    } on Object {
+      // Reconciliation still prevents a stale snapshot from being displayed.
+    }
+  }
+
   void _schedule(InstagramVerificationAttempt attempt) {
     _stopTimers();
     if (_isTerminal(attempt.state)) return;
@@ -177,6 +286,7 @@ class InstagramVerification extends _$InstagramVerification {
       state = state.copyWith(
         attempt: _withState(attempt, InstagramVerificationState.expired),
       );
+      unawaited(_deleteSnapshot(verificationId: attempt.verificationId));
       return;
     }
     _expiryTimer = Timer(untilExpiry, () {
@@ -187,6 +297,7 @@ class InstagramVerification extends _$InstagramVerification {
       state = state.copyWith(
         attempt: _withState(current, InstagramVerificationState.expired),
       );
+      unawaited(_deleteSnapshot(verificationId: current.verificationId));
     });
     if (_shouldPoll(attempt.state)) {
       _pollTimer = Timer.periodic(

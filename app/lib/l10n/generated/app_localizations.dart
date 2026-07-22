@@ -2587,7 +2587,7 @@ abstract class AppLocalizations {
   /// No description provided for @instagramVerificationCandidate.
   ///
   /// In en, this message translates to:
-  /// **'Instagram found @{username}'**
+  /// **'Account: @{username}'**
   String instagramVerificationCandidate(String username);
 
   /// No description provided for @instagramUnknownUsername.
@@ -2611,7 +2611,7 @@ abstract class AppLocalizations {
   /// No description provided for @instagramDiscoverableDescription.
   ///
   /// In en, this message translates to:
-  /// **'When enabled, eligible CraftSky members who imported your exact current Instagram username may see a suggestion. This never follows anyone automatically.'**
+  /// **'When enabled, eligible CraftSky members who imported your Instagram username may see a suggestion. This never follows anyone automatically.'**
   String get instagramDiscoverableDescription;
 
   /// No description provided for @instagramDiscoverableAllow.
@@ -2625,6 +2625,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Keep private'**
   String get instagramDiscoverablePrivate;
+
+  /// No description provided for @instagramDiscoverablePrivateDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Instagram account will be linked, but it will not be suggested to people who imported your username.'**
+  String get instagramDiscoverablePrivateDescription;
 
   /// No description provided for @instagramVerificationConfirm.
   ///

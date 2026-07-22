@@ -20,6 +20,7 @@ import (
 type InstagramVerificationService interface {
 	CreateVerification(context.Context, syntax.DID) (instagram.CreatedVerification, error)
 	GetVerification(context.Context, syntax.DID, uuid.UUID) (*instagram.VerificationAttempt, error)
+	GetCurrentVerification(context.Context, syntax.DID) (*instagram.VerificationAttempt, error)
 	CancelVerification(context.Context, syntax.DID, uuid.UUID) error
 	ConfirmVerification(context.Context, syntax.DID, uuid.UUID, bool) (instagram.ConfirmationResult, error)
 }
@@ -38,6 +39,10 @@ type instagramVerificationResponse struct {
 	ExpiresAt         string                             `json:"expiresAt"`
 	CandidateUsername string                             `json:"candidateUsername,omitempty"`
 	RetryCode         instagram.AttemptRetryCode         `json:"retryCode,omitempty"`
+}
+
+type instagramCurrentVerificationResponse struct {
+	Verification *instagramVerificationResponse `json:"verification"`
 }
 
 type instagramAccountResponse struct {
@@ -100,19 +105,45 @@ func GetInstagramVerificationHandler(service InstagramVerificationService, logge
 			writeInstagramVerificationError(w, r, logger, err)
 			return
 		}
-		response := instagramVerificationResponse{
-			VerificationID: attempt.ID.String(),
-			State:          attempt.State,
-			ExpiresAt:      instagramTime(attempt.ExpiresAt),
+		writeJSONStatus(w, http.StatusOK, newInstagramVerificationResponse(attempt))
+	})
+}
+
+func GetCurrentInstagramVerificationHandler(service InstagramVerificationService, logger *slog.Logger) http.Handler {
+	logger = instagramLogger(logger)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner, ok := middleware.GetDID(r.Context())
+		if !ok {
+			envelope.WriteError(w, http.StatusInternalServerError, "missing_authenticated_did", "authenticated DID missing", middleware.GetRunID(r.Context()), nil)
+			return
 		}
-		if attempt.State == instagram.AttemptPendingConfirmation {
-			response.CandidateUsername = attempt.CandidateUsername
+		attempt, err := service.GetCurrentVerification(r.Context(), owner)
+		if err != nil {
+			writeInstagramVerificationError(w, r, logger, err)
+			return
 		}
-		if attempt.RetryCode.Valid() {
-			response.RetryCode = attempt.RetryCode
+		response := instagramCurrentVerificationResponse{}
+		if attempt != nil {
+			verification := newInstagramVerificationResponse(attempt)
+			response.Verification = &verification
 		}
 		writeJSONStatus(w, http.StatusOK, response)
 	})
+}
+
+func newInstagramVerificationResponse(attempt *instagram.VerificationAttempt) instagramVerificationResponse {
+	response := instagramVerificationResponse{
+		VerificationID: attempt.ID.String(),
+		State:          attempt.State,
+		ExpiresAt:      instagramTime(attempt.ExpiresAt),
+	}
+	if attempt.State == instagram.AttemptPendingConfirmation {
+		response.CandidateUsername = attempt.CandidateUsername
+	}
+	if attempt.RetryCode.Valid() {
+		response.RetryCode = attempt.RetryCode
+	}
+	return response
 }
 
 func DeleteInstagramVerificationHandler(service InstagramVerificationService, logger *slog.Logger) http.Handler {

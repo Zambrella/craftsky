@@ -43,7 +43,8 @@ type Suggestion struct {
 	UpdatedAt   time.Time
 }
 
-func (Suggestion) String() string { return "Instagram suggestion [REDACTED]" }
+func (Suggestion) String() string     { return "Instagram suggestion [REDACTED]" }
+func (s Suggestion) GoString() string { return s.String() }
 
 type SuggestionEvidence struct {
 	Suggestion       Suggestion
@@ -51,7 +52,8 @@ type SuggestionEvidence struct {
 	Direction        ImportDirection
 }
 
-func (SuggestionEvidence) String() string { return "Instagram suggestion evidence [REDACTED]" }
+func (SuggestionEvidence) String() string     { return "Instagram suggestion evidence [REDACTED]" }
+func (e SuggestionEvidence) GoString() string { return e.String() }
 
 type SuggestionCursor struct {
 	CreatedAt time.Time
@@ -79,7 +81,8 @@ type FollowOperation struct {
 	UpdatedAt    time.Time
 }
 
-func (FollowOperation) String() string { return "Instagram follow operation [REDACTED]" }
+func (FollowOperation) String() string     { return "Instagram follow operation [REDACTED]" }
+func (o FollowOperation) GoString() string { return o.String() }
 
 type AcceptanceClaim struct {
 	Suggestion       Suggestion
@@ -88,7 +91,8 @@ type AcceptanceClaim struct {
 	Direction        ImportDirection
 }
 
-func (AcceptanceClaim) String() string { return "Instagram acceptance claim [REDACTED]" }
+func (AcceptanceClaim) String() string     { return "Instagram acceptance claim [REDACTED]" }
+func (c AcceptanceClaim) GoString() string { return c.String() }
 
 type SuggestionStore struct {
 	pool          *pgxpool.Pool

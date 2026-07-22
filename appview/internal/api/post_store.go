@@ -250,8 +250,9 @@ func (s *PostStore) commentBranchHasRepliesAfter(ctx context.Context, commentURI
 
 // PostStore is the Postgres-backed implementation.
 type PostStore struct {
-	pool     *pgxpool.Pool
-	observer *observability.Observer
+	pool                             *pgxpool.Pool
+	observer                         *observability.Observer
+	instagramNotificationEligibility InstagramNotificationEligibility
 }
 
 func NewPostStore(pool *pgxpool.Pool, observer ...*observability.Observer) *PostStore {
@@ -260,6 +261,11 @@ func NewPostStore(pool *pgxpool.Pool, observer ...*observability.Observer) *Post
 		store.observer = observer[0]
 	}
 	return store
+}
+
+func (s *PostStore) WithInstagramNotificationEligibility(eligibility InstagramNotificationEligibility) *PostStore {
+	s.instagramNotificationEligibility = eligibility
+	return s
 }
 
 const postSelectColumns = `

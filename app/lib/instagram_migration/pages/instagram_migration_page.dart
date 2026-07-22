@@ -12,6 +12,12 @@ import 'package:craftsky_app/instagram_migration/services/instagram_import_parse
 import 'package:craftsky_app/instagram_migration/services/instagram_json_file_picker.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
+import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
+import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,7 +36,7 @@ class InstagramMigrationPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text(l10n.instagramMigrationTitle)),
       body: registry.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: StitchProgressIndicator()),
         error: (_, _) => _CenteredMessage(l10n.instagramMigrationLoadError),
         data: (value) {
           final lease = value.activeLease;
@@ -55,6 +61,7 @@ class _InstagramMigrationBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final account = ref.watch(instagramAccountProvider(lease));
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
     return RefreshIndicator(
       onRefresh: () async {
         await ref.read(instagramAccountProvider(lease).notifier).refresh();
@@ -64,26 +71,41 @@ class _InstagramMigrationBody extends ConsumerWidget {
         await ref.read(instagramSuggestionsProvider(lease).notifier).refresh();
       },
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(
+          spacing.sp4,
+          spacing.sp4,
+          spacing.sp4,
+          spacing.sp7,
+        ),
         children: [
-          account.when(
-            loading: () => const _LoadingCard(),
-            error: (_, _) => _ErrorCard(
-              onRetry: () =>
-                  ref.read(instagramAccountProvider(lease).notifier).refresh(),
-            ),
-            data: (value) => _AccountAndVerificationCard(
-              lease: lease,
-              status: value,
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  account.when(
+                    loading: () => const _LoadingCard(),
+                    error: (_, _) => _ErrorCard(
+                      onRetry: () => ref
+                          .read(instagramAccountProvider(lease).notifier)
+                          .refresh(),
+                    ),
+                    data: (value) => _AccountAndVerificationCard(
+                      lease: lease,
+                      status: value,
+                    ),
+                  ),
+                  SizedBox(height: spacing.sp4),
+                  _ImportComposerCard(lease: lease),
+                  SizedBox(height: spacing.sp4),
+                  _ImportsCard(lease: lease),
+                  SizedBox(height: spacing.sp4),
+                  _SuggestionsCard(lease: lease),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 12),
-          _ImportComposerCard(lease: lease),
-          const SizedBox(height: 12),
-          _ImportsCard(lease: lease),
-          const SizedBox(height: 12),
-          _SuggestionsCard(lease: lease),
-          const SizedBox(height: 32),
         ],
       ),
     );
@@ -111,31 +133,39 @@ class _AccountAndVerificationCardState
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
     final account = widget.status.account;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+    return CraftskyCard(
+      key: const Key('instagram-account-card'),
+      padding: EdgeInsets.all(spacing.sp4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _CardHeading(
+            icon: account == null
+                ? Icons.verified_outlined
+                : Icons.link_outlined,
+            title: account == null
+                ? l10n.instagramVerificationTitle
+                : l10n.instagramAccountTitle,
+          ),
+          SizedBox(height: spacing.sp2),
+          if (account != null)
+            _LinkedAccountControls(lease: widget.lease, account: account)
+          else if (!widget.status.integrationAvailable) ...[
+            Text(l10n.instagramVerificationUnavailable),
+            SizedBox(height: spacing.sp1),
             Text(
-              account == null
-                  ? l10n.instagramVerificationTitle
-                  : l10n.instagramAccountTitle,
-              style: Theme.of(context).textTheme.titleLarge,
+              l10n.instagramVerificationUnavailableImports,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
-            const SizedBox(height: 8),
-            if (account != null)
-              _LinkedAccountControls(lease: widget.lease, account: account)
-            else if (!widget.status.integrationAvailable) ...[
-              Text(l10n.instagramVerificationUnavailable),
-              const SizedBox(height: 4),
-              Text(l10n.instagramVerificationUnavailableImports),
-            ] else
-              _verificationFlow(l10n),
-          ],
-        ),
+          ] else
+            _verificationFlow(l10n),
+        ],
       ),
     );
   }
@@ -167,7 +197,7 @@ class _AccountAndVerificationCardState
     if (attempt.state == InstagramVerificationState.pendingConfirmation &&
         _choiceVerificationId != attempt.verificationId) {
       _choiceVerificationId = attempt.verificationId;
-      _confirmDiscoverable = null;
+      _confirmDiscoverable = true;
     }
     return switch (attempt.state) {
       InstagramVerificationState.pendingDm ||
@@ -180,14 +210,13 @@ class _AccountAndVerificationCardState
       InstagramVerificationState.pendingConfirmation => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            l10n.instagramVerificationCandidate(
+          _InstagramHandleText(
+            username:
+                attempt.candidateUsername ?? l10n.instagramUnknownUsername,
+            localizedText: l10n.instagramVerificationCandidate(
               attempt.candidateUsername ?? l10n.instagramUnknownUsername,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(l10n.instagramVerificationCandidateWarning),
-          Text(l10n.instagramDiscoverableDescription),
           const SizedBox(height: 8),
           SegmentedButton<bool>(
             segments: [
@@ -201,13 +230,21 @@ class _AccountAndVerificationCardState
               ),
             ],
             selected: {?_confirmDiscoverable},
-            emptySelectionAllowed: true,
             onSelectionChanged: flow.isBusy
                 ? null
                 : (value) => setState(
                     () => _confirmDiscoverable = value.single,
                   ),
           ),
+          const SizedBox(height: 8),
+          Text(
+            _confirmDiscoverable == false
+                ? l10n.instagramDiscoverablePrivateDescription
+                : l10n.instagramDiscoverableDescription,
+          ),
+          const SizedBox(height: 8),
+          Text(l10n.instagramVerificationCandidateWarning),
+          const SizedBox(height: 8),
           FilledButton(
             onPressed: flow.isBusy || _confirmDiscoverable == null
                 ? null
@@ -215,6 +252,10 @@ class _AccountAndVerificationCardState
                     discoverable: _confirmDiscoverable!,
                   ),
             child: Text(l10n.instagramVerificationConfirm),
+          ),
+          TextButton(
+            onPressed: flow.isBusy ? null : notifier.cancel,
+            child: Text(l10n.instagramCancelVerification),
           ),
           if (flow.hasError) ...[
             const SizedBox(height: 8),
@@ -247,6 +288,37 @@ class _AccountAndVerificationCardState
         onRetry: notifier.create,
       ),
     };
+  }
+}
+
+class _InstagramHandleText extends StatelessWidget {
+  const _InstagramHandleText({
+    required this.username,
+    required this.localizedText,
+  });
+
+  final String username;
+  final String localizedText;
+
+  @override
+  Widget build(BuildContext context) {
+    final handle = '@$username';
+    final handleStart = localizedText.indexOf(handle);
+    if (handleStart < 0) return Text(localizedText);
+    final handleEnd = handleStart + handle.length;
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: localizedText.substring(0, handleStart)),
+          TextSpan(
+            text: handle,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          if (handleEnd < localizedText.length)
+            TextSpan(text: localizedText.substring(handleEnd)),
+        ],
+      ),
+    );
   }
 }
 
@@ -292,9 +364,7 @@ class _ChallengeControls extends ConsumerWidget {
                   : () async {
                       await Clipboard.setData(ClipboardData(text: challenge));
                       if (!context.mounted || !_current(ref, lease)) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(l10n.instagramChallengeCopied)),
-                      );
+                      context.showInfo(l10n.instagramChallengeCopied);
                     },
               icon: const Icon(Icons.copy_outlined),
               label: Text(l10n.instagramCopyChallenge),
@@ -346,7 +416,10 @@ class _LinkedAccountControls extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(l10n.instagramLinkedAs(account.username)),
+        _InstagramHandleText(
+          username: account.username,
+          localizedText: l10n.instagramLinkedAs(account.username),
+        ),
         if (account.conflictPending) ...[
           const SizedBox(height: 8),
           Text(l10n.instagramConflictPending),
@@ -406,138 +479,141 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              l10n.instagramImportTitle,
-              style: Theme.of(context).textTheme.titleLarge,
+    return CraftskyCard(
+      key: const Key('instagram-import-composer-card'),
+      padding: EdgeInsets.all(spacing.sp4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _CardHeading(
+            icon: Icons.person_search_outlined,
+            title: l10n.instagramImportTitle,
+          ),
+          SizedBox(height: spacing.sp2),
+          Text(
+            l10n.instagramImportLocalDisclosure,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(height: 8),
-            Text(l10n.instagramImportLocalDisclosure),
-            const SizedBox(height: 12),
-            SegmentedButton<_ImportInputKind>(
-              segments: [
-                ButtonSegment(
-                  value: _ImportInputKind.manual,
-                  label: Text(l10n.instagramImportManual),
-                  icon: const Icon(Icons.edit_outlined),
-                ),
-                ButtonSegment(
-                  value: _ImportInputKind.json,
-                  label: Text(l10n.instagramImportJson),
-                  icon: const Icon(Icons.file_open_outlined),
-                ),
-              ],
-              selected: {_kind},
-              onSelectionChanged: (value) => setState(() {
-                _kind = value.single;
-                _preview = null;
-                _parseError = null;
-                _filePickerFailed = false;
-              }),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<InstagramRelationshipDirection>(
-              initialValue: _direction,
-              isExpanded: true,
-              decoration: InputDecoration(
-                labelText: l10n.instagramImportDirection,
+          ),
+          SizedBox(height: spacing.sp3),
+          SegmentedButton<_ImportInputKind>(
+            segments: [
+              ButtonSegment(
+                value: _ImportInputKind.manual,
+                label: Text(l10n.instagramImportManual),
+                icon: const Icon(Icons.edit_outlined),
               ),
-              hint: Text(l10n.instagramImportChooseDirection),
-              items: [
-                DropdownMenuItem(
-                  value: InstagramRelationshipDirection.following,
-                  child: Text(l10n.instagramImportFollowing),
+              ButtonSegment(
+                value: _ImportInputKind.json,
+                label: Text(l10n.instagramImportJson),
+                icon: const Icon(Icons.file_open_outlined),
+              ),
+            ],
+            selected: {_kind},
+            onSelectionChanged: (value) => setState(() {
+              _kind = value.single;
+              _preview = null;
+              _parseError = null;
+              _filePickerFailed = false;
+            }),
+          ),
+          SizedBox(height: spacing.sp3),
+          CraftskySingleSelectInput<InstagramRelationshipDirection>(
+            key: const Key('instagram-import-direction'),
+            keyPrefix: 'instagram-import-direction',
+            label: l10n.instagramImportDirection,
+            helperText: l10n.instagramImportChooseDirection,
+            value: _direction,
+            options: [
+              CraftskySelectOption(
+                value: InstagramRelationshipDirection.following,
+                label: l10n.instagramImportFollowing,
+              ),
+              CraftskySelectOption(
+                value: InstagramRelationshipDirection.follower,
+                label: l10n.instagramImportFollowers,
+              ),
+            ],
+            enabled: !_busy,
+            onChanged: _busy
+                ? null
+                : (value) => setState(() {
+                    _direction = value;
+                    _preview = null;
+                    _parseError = null;
+                    _filePickerFailed = false;
+                  }),
+          ),
+          SizedBox(height: spacing.sp3),
+          if (_kind == _ImportInputKind.manual) ...[
+            CraftskyMultilineTextInput(
+              key: const Key('instagram-manual-handles'),
+              controller: _manualController,
+              label: l10n.instagramImportHandles,
+              hintText: l10n.instagramImportHandlesHint,
+              enabled: !_busy,
+            ),
+            SizedBox(height: spacing.sp2),
+            OutlinedButton(
+              onPressed: _direction == null || _busy ? null : _parseManual,
+              child: Text(l10n.instagramImportPreview),
+            ),
+          ] else
+            OutlinedButton.icon(
+              onPressed: _direction == null || _busy ? null : _pickJson,
+              icon: const Icon(Icons.file_open_outlined),
+              label: Text(l10n.instagramImportSelectJson),
+            ),
+          if (_parseError != null) ...[
+            const SizedBox(height: 8),
+            Text(_parseErrorMessage(l10n, _parseError!)),
+          ],
+          if (_filePickerFailed) ...[
+            const SizedBox(height: 8),
+            Text(l10n.instagramImportFilePickerError),
+          ],
+          if (_preview case final preview?) ...[
+            const SizedBox(height: 12),
+            Text(
+              _importPreviewCount(
+                l10n,
+                _direction!,
+                preview.entries.length,
+              ),
+            ),
+            if (preview.ignoredEntryCount > 0)
+              Text(
+                l10n.instagramImportIgnoredCount(
+                  preview.ignoredEntryCount,
                 ),
-                DropdownMenuItem(
-                  value: InstagramRelationshipDirection.follower,
-                  child: Text(l10n.instagramImportFollowers),
+              ),
+            if (preview.duplicateEntryCount > 0)
+              Text(
+                l10n.instagramImportDuplicateCount(
+                  preview.duplicateEntryCount,
                 ),
-              ],
+              ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.instagramImportRetention),
+              subtitle: Text(l10n.instagramImportRetentionDescription),
+              value: _retainUnmatched,
               onChanged: _busy
                   ? null
-                  : (value) => setState(() {
-                      _direction = value;
-                      _preview = null;
-                      _parseError = null;
-                      _filePickerFailed = false;
-                    }),
+                  : (value) => setState(() => _retainUnmatched = value),
             ),
-            const SizedBox(height: 12),
-            if (_kind == _ImportInputKind.manual) ...[
-              TextField(
-                controller: _manualController,
-                minLines: 3,
-                maxLines: 6,
-                decoration: InputDecoration(
-                  labelText: l10n.instagramImportHandles,
-                  hintText: l10n.instagramImportHandlesHint,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton(
-                onPressed: _direction == null || _busy ? null : _parseManual,
-                child: Text(l10n.instagramImportPreview),
-              ),
-            ] else
-              OutlinedButton.icon(
-                onPressed: _direction == null || _busy ? null : _pickJson,
-                icon: const Icon(Icons.file_open_outlined),
-                label: Text(l10n.instagramImportSelectJson),
-              ),
-            if (_parseError != null) ...[
-              const SizedBox(height: 8),
-              Text(_parseErrorMessage(l10n, _parseError!)),
-            ],
-            if (_filePickerFailed) ...[
-              const SizedBox(height: 8),
-              Text(l10n.instagramImportFilePickerError),
-            ],
-            if (_preview case final preview?) ...[
-              const SizedBox(height: 12),
-              Text(
-                _importPreviewCount(
-                  l10n,
-                  _direction!,
-                  preview.entries.length,
-                ),
-              ),
-              if (preview.ignoredEntryCount > 0)
-                Text(
-                  l10n.instagramImportIgnoredCount(
-                    preview.ignoredEntryCount,
-                  ),
-                ),
-              if (preview.duplicateEntryCount > 0)
-                Text(
-                  l10n.instagramImportDuplicateCount(
-                    preview.duplicateEntryCount,
-                  ),
-                ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(l10n.instagramImportRetention),
-                subtitle: Text(l10n.instagramImportRetentionDescription),
-                value: _retainUnmatched,
-                onChanged: _busy
-                    ? null
-                    : (value) => setState(() => _retainUnmatched = value),
-              ),
-              FilledButton(
-                onPressed: preview.entries.isEmpty || _busy
-                    ? null
-                    : _uploadPreview,
-                child: Text(l10n.instagramImportUpload),
-              ),
-            ],
+            FilledButton(
+              onPressed: preview.entries.isEmpty || _busy
+                  ? null
+                  : _uploadPreview,
+              child: Text(l10n.instagramImportUpload),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -628,15 +704,11 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
       }
     });
     final l10n = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          result == null
-              ? l10n.instagramImportUploadError
-              : l10n.instagramImportUploadSuccess,
-        ),
-      ),
-    );
+    if (result == null) {
+      context.showError(l10n.instagramImportUploadError);
+    } else {
+      context.showInfo(l10n.instagramImportUploadSuccess);
+    }
   }
 }
 
@@ -647,45 +719,45 @@ class _ImportsCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
     final imports = ref.watch(instagramImportsProvider(lease));
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              l10n.instagramImportsTitle,
-              style: Theme.of(context).textTheme.titleLarge,
+    return CraftskyCard(
+      key: const Key('instagram-imports-card'),
+      padding: EdgeInsets.all(spacing.sp4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _CardHeading(
+            icon: Icons.inventory_2_outlined,
+            title: l10n.instagramImportsTitle,
+          ),
+          SizedBox(height: spacing.sp2),
+          imports.when(
+            loading: () => const Center(child: StitchProgressIndicator()),
+            error: (_, _) => _InlineRetry(
+              message: l10n.instagramImportsLoadError,
+              onRetry: () =>
+                  ref.read(instagramImportsProvider(lease).notifier).refresh(),
             ),
-            const SizedBox(height: 8),
-            imports.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, _) => _InlineRetry(
-                message: l10n.instagramImportsLoadError,
-                onRetry: () => ref
-                    .read(instagramImportsProvider(lease).notifier)
-                    .refresh(),
-              ),
-              data: (page) => page.items.isEmpty
-                  ? Text(l10n.instagramImportsEmpty)
-                  : Column(
-                      children: [
-                        for (final item in page.items)
-                          _ImportRow(lease: lease, item: item),
-                        if (page.cursor != null)
-                          TextButton(
-                            onPressed: () => ref
-                                .read(instagramImportsProvider(lease).notifier)
-                                .loadMore(),
-                            child: Text(l10n.instagramLoadMore),
-                          ),
-                      ],
-                    ),
-            ),
-          ],
-        ),
+            data: (page) => page.items.isEmpty
+                ? Text(l10n.instagramImportsEmpty)
+                : Column(
+                    children: [
+                      for (final item in page.items)
+                        _ImportRow(lease: lease, item: item),
+                      if (page.cursor != null)
+                        TextButton(
+                          onPressed: () => ref
+                              .read(instagramImportsProvider(lease).notifier)
+                              .loadMore(),
+                          child: Text(l10n.instagramLoadMore),
+                        ),
+                    ],
+                  ),
+          ),
+        ],
       ),
     );
   }
@@ -788,34 +860,35 @@ class _SuggestionsCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
     final suggestions = ref.watch(instagramSuggestionsProvider(lease));
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              l10n.instagramSuggestionsTitle,
-              style: Theme.of(context).textTheme.titleLarge,
+    return CraftskyCard(
+      key: const Key('instagram-suggestions-card'),
+      padding: EdgeInsets.all(spacing.sp4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _CardHeading(
+            icon: Icons.group_add_outlined,
+            title: l10n.instagramSuggestionsTitle,
+          ),
+          SizedBox(height: spacing.sp2),
+          suggestions.when(
+            loading: () => const Center(child: StitchProgressIndicator()),
+            error: (_, _) => _InlineRetry(
+              message: l10n.instagramSuggestionsLoadError,
+              onRetry: () => ref
+                  .read(instagramSuggestionsProvider(lease).notifier)
+                  .refresh(),
             ),
-            const SizedBox(height: 8),
-            suggestions.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, _) => _InlineRetry(
-                message: l10n.instagramSuggestionsLoadError,
-                onRetry: () => ref
-                    .read(instagramSuggestionsProvider(lease).notifier)
-                    .refresh(),
-              ),
-              data: (value) => _SuggestionReview(
-                lease: lease,
-                value: value,
-              ),
+            data: (value) => _SuggestionReview(
+              lease: lease,
+              value: value,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -959,6 +1032,26 @@ class _RetryVerification extends StatelessWidget {
   );
 }
 
+class _CardHeading extends StatelessWidget {
+  const _CardHeading({required this.icon, required this.title});
+
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    return Row(
+      children: [
+        Icon(icon, color: theme.colorScheme.primary),
+        SizedBox(width: spacing.sp2),
+        Expanded(child: Text(title, style: theme.textTheme.titleLarge)),
+      ],
+    );
+  }
+}
+
 class _InlineRetry extends StatelessWidget {
   const _InlineRetry({required this.message, required this.onRetry});
 
@@ -981,12 +1074,13 @@ class _LoadingCard extends StatelessWidget {
   const _LoadingCard();
 
   @override
-  Widget build(BuildContext context) => const Card(
-    child: Padding(
-      padding: EdgeInsets.all(24),
-      child: Center(child: CircularProgressIndicator()),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
+    return CraftskyCard(
+      padding: EdgeInsets.all(spacing.sp5),
+      child: const Center(child: StitchProgressIndicator()),
+    );
+  }
 }
 
 class _ErrorCard extends StatelessWidget {
@@ -995,15 +1089,16 @@ class _ErrorCard extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
+  Widget build(BuildContext context) {
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
+    return CraftskyCard(
+      padding: EdgeInsets.all(spacing.sp4),
       child: _InlineRetry(
         message: AppLocalizations.of(context).instagramMigrationLoadError,
         onRetry: onRetry,
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _CenteredMessage extends StatelessWidget {
@@ -1031,11 +1126,7 @@ Future<void> _runImportAction(
 ) async {
   final succeeded = await action();
   if (!context.mounted || !_current(ref, lease) || succeeded) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(AppLocalizations.of(context).instagramActionError),
-    ),
-  );
+  context.showError(AppLocalizations.of(context).instagramActionError);
 }
 
 String _parseErrorMessage(

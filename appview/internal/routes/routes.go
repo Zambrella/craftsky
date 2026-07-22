@@ -106,15 +106,16 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	}
 	v1mw := v1Middleware{authN: authN, deviceID: deviceID, member: currentMember, bodyLimit: bodyLimitCfg, rateLimit: rateLimits, observer: observer}
 	instagramLimit := func(handler http.Handler, rules ...middleware.InstagramRateLimitRule) http.Handler {
-		// A missing data-plane key means Instagram's private write plane is not
-		// enabled. Individual handlers retain their documented unavailable/local
-		// behavior; enabled deployments always receive the shared limiter built by
-		// app.New*Deps.
-		if deps.InstagramRateLimiter == nil {
-			return handler
+		// A missing data-plane key means Instagram's rate-limited private write
+		// plane is unavailable. The middleware deliberately accepts a nil limiter
+		// so these writes fail closed while unwrapped reads and privacy deletions
+		// remain available.
+		var limiter middleware.InstagramPersistentLimiter
+		if deps.InstagramRateLimiter != nil {
+			limiter = deps.InstagramRateLimiter
 		}
 		return middleware.InstagramPersistentRateLimit(
-			deps.InstagramRateLimiter,
+			limiter,
 			rules,
 			deps.Config.InstagramDeployment.TrustedProxyCIDRs(),
 			deps.Logger,
@@ -153,6 +154,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitChallengeDevice, Identity: middleware.InstagramRateIdentityDevice, Window: 15 * time.Minute, Limit: deps.Config.InstagramLimits.ChallengeDevicePer15Minutes},
 		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitChallengeIP, Identity: middleware.InstagramRateIdentityClientIP, Window: 15 * time.Minute, Limit: deps.Config.InstagramLimits.ChallengeIPPer15Minutes},
 	)))
+	mux.Handle("GET /v1/migrations/instagram/verifications/current", v1mw.wrap(mustPolicy("GET", "/v1/migrations/instagram/verifications/current"), api.GetCurrentInstagramVerificationHandler(deps.InstagramVerification, deps.Logger)))
 	mux.Handle("GET /v1/migrations/instagram/verifications/{verificationId}", v1mw.wrap(mustPolicy("GET", "/v1/migrations/instagram/verifications/{verificationId}"), api.GetInstagramVerificationHandler(deps.InstagramVerification, deps.Logger)))
 	mux.Handle("DELETE /v1/migrations/instagram/verifications/{verificationId}", v1mw.wrap(mustPolicy("DELETE", "/v1/migrations/instagram/verifications/{verificationId}"), api.DeleteInstagramVerificationHandler(deps.InstagramVerification, deps.Logger)))
 	mux.Handle("POST /v1/migrations/instagram/verifications/{verificationId}/confirm", v1mw.wrap(mustPolicy("POST", "/v1/migrations/instagram/verifications/{verificationId}/confirm"), instagramLimit(
@@ -189,7 +191,8 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("POST /v1/profiles/{handleOrDid}/reports", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/reports"), api.ReportProfileHandler(api.NewProfileReportTargetResolver(deps.ProfileStore, deps.HandleResolver), deps.ReportStore, deps.ReportForwarder, deps.Logger)))
 
 	// v1 — post handlers (authenticated + device-id required).
-	postStore := api.NewPostStore(deps.DB, observer)
+	postStore := api.NewPostStore(deps.DB, observer).
+		WithInstagramNotificationEligibility(deps.InstagramNotificationEligibility)
 	oauthHandlers.NotificationSubscriptions = postStore
 	mux.Handle("GET /v1/feed/timeline", v1mw.wrap(mustPolicy("GET", "/v1/feed/timeline"), api.ListTimelineHandler(postStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/notifications", v1mw.wrap(mustPolicy("GET", "/v1/notifications"), api.ListNotificationsHandler(postStore, deps.HandleResolver, deps.Logger)))

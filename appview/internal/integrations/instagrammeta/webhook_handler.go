@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -42,14 +43,16 @@ type WebhookRequestLimiter interface {
 }
 
 type WebhookHandlerConfig struct {
-	AppSecret      []byte                `json:"-"`
-	VerifyToken    string                `json:"-"`
-	Reducer        *PayloadReducer       `json:"-"`
-	Sink           WebhookWorkSink       `json:"-"`
-	Limiter        WebhookRequestLimiter `json:"-"`
-	BodyLimitBytes int64                 `json:"-"`
-	MaxEvents      int                   `json:"-"`
-	Now            func() time.Time      `json:"-"`
+	AppSecret       []byte                `json:"-"`
+	VerifyToken     string                `json:"-"`
+	Reducer         *PayloadReducer       `json:"-"`
+	Sink            WebhookWorkSink       `json:"-"`
+	Limiter         WebhookRequestLimiter `json:"-"`
+	BodyLimitBytes  int64                 `json:"-"`
+	MaxEvents       int                   `json:"-"`
+	Now             func() time.Time      `json:"-"`
+	Logger          *slog.Logger          `json:"-"`
+	UnsafeDebugLogs bool                  `json:"-"`
 }
 
 func (WebhookHandlerConfig) String() string {
@@ -61,14 +64,16 @@ func (WebhookHandlerConfig) GoString() string {
 }
 
 type WebhookHandler struct {
-	appSecret   []byte
-	verifyToken string
-	reducer     *PayloadReducer
-	sink        WebhookWorkSink
-	limiter     WebhookRequestLimiter
-	bodyLimit   int64
-	maxEvents   int
-	now         func() time.Time
+	appSecret       []byte
+	verifyToken     string
+	reducer         *PayloadReducer
+	sink            WebhookWorkSink
+	limiter         WebhookRequestLimiter
+	bodyLimit       int64
+	maxEvents       int
+	now             func() time.Time
+	logger          *slog.Logger
+	unsafeDebugLogs bool
 }
 
 func NewWebhookHandler(config WebhookHandlerConfig) (*WebhookHandler, error) {
@@ -96,14 +101,16 @@ func NewWebhookHandler(config WebhookHandlerConfig) (*WebhookHandler, error) {
 		return nil, errors.New("Instagram webhook event limit is invalid")
 	}
 	return &WebhookHandler{
-		appSecret:   append([]byte(nil), config.AppSecret...),
-		verifyToken: config.VerifyToken,
-		reducer:     config.Reducer,
-		sink:        config.Sink,
-		limiter:     config.Limiter,
-		bodyLimit:   config.BodyLimitBytes,
-		maxEvents:   config.MaxEvents,
-		now:         config.Now,
+		appSecret:       append([]byte(nil), config.AppSecret...),
+		verifyToken:     config.VerifyToken,
+		reducer:         config.Reducer,
+		sink:            config.Sink,
+		limiter:         config.Limiter,
+		bodyLimit:       config.BodyLimitBytes,
+		maxEvents:       config.MaxEvents,
+		now:             config.Now,
+		logger:          config.Logger,
+		unsafeDebugLogs: config.UnsafeDebugLogs,
 	}, nil
 }
 
@@ -163,6 +170,14 @@ func (h *WebhookHandler) serveDelivery(w http.ResponseWriter, r *http.Request) {
 		writeGenericWebhookError(w, http.StatusUnauthorized)
 		return
 	}
+	if h.logger != nil {
+		h.logger.Debug("Instagram webhook signature verified",
+			slog.Int("content_length", len(body)))
+		if h.unsafeDebugLogs {
+			h.logger.Debug("Instagram webhook raw payload",
+				slog.String("payload", string(body)))
+		}
+	}
 	if h.limiter != nil {
 		decision, err := h.limiter.AllowGlobal(r.Context())
 		if err != nil {
@@ -185,6 +200,10 @@ func (h *WebhookHandler) serveDelivery(w http.ResponseWriter, r *http.Request) {
 			writeGenericWebhookError(w, http.StatusInternalServerError)
 		}
 		return
+	}
+	if h.logger != nil {
+		h.logger.Debug("Instagram webhook payload reduced",
+			slog.Int("supported_event_count", len(items)))
 	}
 	if len(items) > h.maxEvents {
 		writeGenericWebhookError(w, http.StatusRequestEntityTooLarge)

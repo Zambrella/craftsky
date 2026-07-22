@@ -78,6 +78,7 @@ type EligibilitySnapshot struct {
 func (EligibilitySnapshot) String() string {
 	return "Instagram suggestion eligibility snapshot [REDACTED]"
 }
+func (s EligibilitySnapshot) GoString() string { return s.String() }
 
 type EligibilityDecision struct {
 	Eligible bool

@@ -135,12 +135,30 @@ func (s *AccountStore) UpdateSettings(ctx context.Context, owner syntax.DID, pat
 	}
 
 	if !nextDiscoverable {
-		if _, err := tx.Exec(ctx, `
+		suggestionIDs, err := updateSuggestionState(ctx, tx, `
 			UPDATE instagram_follow_suggestions
-			SET state = 'invalidated', terminal_at = $2, updated_at = $2
-			WHERE target_did = $1 AND state = 'pending'
-		`, owner, now); err != nil {
+			SET state = 'invalidated', accepting_since = NULL,
+			    terminal_at = COALESCE(terminal_at, $2), updated_at = $2
+			WHERE target_did = $1 AND state IN ('pending', 'accepting')
+			RETURNING id
+		`, owner, now)
+		if err != nil {
 			return nil, fmt.Errorf("invalidate Instagram account suggestions: %w", err)
+		}
+		if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "linkDiscoveryDisabled", now); err != nil {
+			return nil, err
+		}
+		if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "eligibility_changed", now); err != nil {
+			return nil, err
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE instagram_reconciliation_jobs
+			SET status='ignored', terminal_at=COALESCE(terminal_at,$3),
+			    lease_token=NULL, lease_expires_at=NULL, updated_at=$3
+			WHERE (target_did=$1 OR link_id=$2)
+			  AND status IN ('queued','processing','retryable')
+		`, owner, current.ID, now); err != nil {
+			return nil, fmt.Errorf("cancel Instagram account reconciliation: %w", err)
 		}
 	}
 	if nextState == LinkActive && nextDiscoverable &&
@@ -232,12 +250,21 @@ func (s *AccountStore) RevokeAccount(ctx context.Context, owner syntax.DID) erro
 	`, linkID, now); err != nil {
 		return fmt.Errorf("revoke Instagram identity claim: %w", err)
 	}
-	if _, err := tx.Exec(ctx, `
+	suggestionIDs, err := updateSuggestionState(ctx, tx, `
 		UPDATE instagram_follow_suggestions
-		SET state = 'invalidated', terminal_at = $2, updated_at = $2
-		WHERE target_did = $1 AND state = 'pending'
-	`, owner, now); err != nil {
+		SET state = 'invalidated', accepting_since = NULL,
+		    terminal_at = COALESCE(terminal_at, $2), updated_at = $2
+		WHERE target_did = $1 AND state IN ('pending', 'accepting')
+		RETURNING id
+	`, owner, now)
+	if err != nil {
 		return fmt.Errorf("invalidate revoked Instagram suggestions: %w", err)
+	}
+	if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "linkRevoked", now); err != nil {
+		return err
+	}
+	if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "link_revoked", now); err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE instagram_reconciliation_jobs

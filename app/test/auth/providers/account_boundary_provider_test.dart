@@ -76,6 +76,7 @@ void main() {
       final effects = <String>[];
       final coordinator = AccountSessionInvalidationCoordinator(
         readRegistry: () async => registry,
+        clearSessionState: (lease) async => effects.add('clear-private'),
         invalidateLease: (lease) async {
           if (registry.leaseFor(lease.account) == lease) {
             registry = registry.remove(lease.account.did.value);
@@ -88,7 +89,11 @@ void main() {
       await coordinator.invalidate(registry.activeLease!.session);
 
       expect(registry.activeDid?.value, aliceLease.account.did);
-      expect(effects, ['invalidate-account', 'home']);
+      expect(effects, [
+        'invalidate-account',
+        'clear-private',
+        'home',
+      ]);
     },
   );
 
@@ -110,6 +115,7 @@ void main() {
       final effects = <String>[];
       final coordinator = AccountSessionInvalidationCoordinator(
         readRegistry: () async => registry,
+        clearSessionState: (lease) async => effects.add('clear-private'),
         invalidateLease: (lease) async {
           if (registry.leaseFor(lease.account) == lease) {
             registry = registry.remove(lease.account.did.value);
@@ -128,7 +134,7 @@ void main() {
       );
 
       expect(registry.activeDid?.value, 'did:plc:bob');
-      expect(effects, isEmpty);
+      expect(effects, ['clear-private']);
     },
   );
 

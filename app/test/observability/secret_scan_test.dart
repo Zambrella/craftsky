@@ -4,6 +4,10 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_switcher_state.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/handoff_api_client_provider.dart';
+import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
+import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
+import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
+import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
@@ -163,4 +167,96 @@ void main() {
       expect(diagnostics, isNot(contains(sentinel)));
     }
   });
+
+  test('UT-015 Instagram diagnostics redact every private-data canary', () {
+    const challenge = 'CSKY-PRIV-ATE1-CODE-X';
+    const webhookBody = '{"private":"instagram-webhook-body-canary"}';
+    const username = 'private.instagram.username';
+    const igsid = '17841400000000000';
+    const importedHandle = 'private-imported-handle';
+    const metaToken = 'EAAG-private-meta-token';
+    const exportPayload = 'private-export-payload';
+    const upstreamResponse = 'private-upstream-response';
+    final now = DateTime.utc(2026, 7, 19, 20);
+    final account = InstagramAccountLink(
+      state: InstagramAccountLinkState.active,
+      username: username,
+      discoverable: true,
+      conflictPending: false,
+      reactivationRequired: false,
+      verifiedAt: now,
+    );
+    final models = <Object>[
+      InstagramVerificationAttempt(
+        verificationId: '00000000-0000-0000-0000-000000000001',
+        state: InstagramVerificationState.pendingDm,
+        expiresAt: now,
+        challenge: challenge,
+        dmUrl: Uri.parse('https://www.instagram.com/direct/t/synthetic'),
+      ),
+      account,
+      InstagramAccountStatus(integrationAvailable: true, account: account),
+      InstagramVerificationConfirmation(
+        state: InstagramVerificationState.confirmed,
+        account: account,
+      ),
+      const InstagramImportEntry(
+        username: importedHandle,
+        direction: InstagramRelationshipDirection.following,
+      ),
+      InstagramImportRequest(
+        sourceType: InstagramImportSourceType.manual,
+        retainUnmatched: false,
+        entries: const [
+          InstagramImportEntry(
+            username: importedHandle,
+            direction: InstagramRelationshipDirection.following,
+          ),
+        ],
+      ),
+      const InstagramSuggestionProfile(
+        did: 'did:plc:synthetic-instagram-target',
+        handle: importedHandle,
+        displayName: username,
+      ),
+    ];
+    final diagnostics = models.join(' ');
+    for (final canary in [
+      challenge,
+      webhookBody,
+      username,
+      igsid,
+      importedHandle,
+      metaToken,
+      exportPayload,
+      upstreamResponse,
+    ]) {
+      expect(diagnostics, isNot(contains(canary)));
+    }
+  });
+
+  test(
+    'REG-007 Instagram source has no diagnostic sinks or private URL data',
+    () {
+      final files = Directory(
+        'lib/instagram_migration',
+      ).listSync(recursive: true).whereType<File>();
+      final forbiddenSink = RegExp(
+        r'\b(print|debugPrint|log)\s*\(|Sentry\.|addBreadcrumb\s*\(|captureException\s*\(|analytics\.',
+      );
+      final privateUrlData = RegExp(
+        r'[?&](challenge|username|igsid|handle|access_token|message|body)=',
+        caseSensitive: false,
+      );
+      final sinkOffenders = <String>[];
+      final urlOffenders = <String>[];
+      for (final file in files) {
+        final source = file.readAsStringSync();
+        if (forbiddenSink.hasMatch(source)) sinkOffenders.add(file.path);
+        if (privateUrlData.hasMatch(source)) urlOffenders.add(file.path);
+      }
+      expect(sinkOffenders, isEmpty);
+      expect(urlOffenders, isEmpty);
+    },
+  );
 }

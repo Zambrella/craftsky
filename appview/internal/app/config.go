@@ -98,6 +98,9 @@ type Config struct {
 	SentryTapTracingEnabled   bool
 	SentryTapTracesSampleRate float64
 	UnsafeLogResponseBodies   bool
+	// UnsafeLogInstagramWebhookBodies is a temporary local capability-spike
+	// diagnostic. Production validation always forces it off.
+	UnsafeLogInstagramWebhookBodies bool
 
 	// Dev-only synthetic moderation controls. These fields are cleared in prod.
 	EnableDevModeration         bool
@@ -260,6 +263,9 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if cfg.UnsafeLogResponseBodies, err = boolEnv("APPVIEW_UNSAFE_LOG_RESPONSE_BODIES", false); err != nil {
 		return Config{}, err
 	}
+	if cfg.UnsafeLogInstagramWebhookBodies, err = boolEnv("INSTAGRAM_UNSAFE_LOG_WEBHOOK_BODIES", false); err != nil {
+		return Config{}, err
+	}
 	if cfg.EnableDevModeration, err = boolEnv("APPVIEW_ENABLE_DEV_MODERATION", false); err != nil {
 		return Config{}, err
 	}
@@ -299,6 +305,7 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		cfg.DevLabelerDID = ""
 		cfg.TrustedModerationSourceDIDs = nil
 		cfg.UnsafeLogResponseBodies = false
+		cfg.UnsafeLogInstagramWebhookBodies = false
 	}
 	if env == EnvDev && cfg.EnableDevModeration && strings.TrimSpace(cfg.DevModerationToken) == "" {
 		return Config{}, fmt.Errorf("APPVIEW_DEV_MODERATION_TOKEN is required when APPVIEW_ENABLE_DEV_MODERATION=true")

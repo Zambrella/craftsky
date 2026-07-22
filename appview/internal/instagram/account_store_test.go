@@ -78,7 +78,7 @@ func TestAccountStoreReadsOnlyTheOwnersCurrentPrivateLink(t *testing.T) {
 	}
 }
 
-func TestAccountStoreUpdatesDiscoveryAndInvalidatesOnlyPendingDependents(t *testing.T) {
+func TestAccountStoreUpdatesDiscoveryAndInvalidatesEveryUnfinishedDependent(t *testing.T) {
 	store, pool := newAccountStoreTest(t)
 	ctx := context.Background()
 	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
@@ -96,12 +96,45 @@ func TestAccountStoreUpdatesDiscoveryAndInvalidatesOnlyPendingDependents(t *test
 	})
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO instagram_follow_suggestions
-			(id, importer_did, target_did, state, reason, created_at, updated_at)
+			(id, importer_did, target_did, state, reason, accepting_since, created_at, updated_at)
 		VALUES
-			('00000000-0000-0000-0000-000000000212', 'did:plc:synthetic-importer-a', $1, 'pending', 'verifiedInstagramFollow', $2, $2),
-			('00000000-0000-0000-0000-000000000213', 'did:plc:synthetic-importer-b', $1, 'accepted', 'verifiedInstagramFollow', $2, $2)
+			('00000000-0000-0000-0000-000000000212', 'did:plc:synthetic-importer-a', $1, 'accepting', 'verifiedInstagramFollow', $2, $2, $2),
+			('00000000-0000-0000-0000-000000000213', 'did:plc:synthetic-importer-b', $1, 'accepted', 'verifiedInstagramFollow', NULL, $2, $2)
 	`, alice, now.Add(-time.Minute)); err != nil {
 		t.Fatalf("insert dependent suggestions: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO pds_follow_operations(
+			id,suggestion_id,owner_did,target_did,rkey,status,
+			attempt_count,created_at,updated_at
+		) VALUES(
+			'00000000-0000-0000-0000-000000000214',
+			'00000000-0000-0000-0000-000000000212',
+			'did:plc:synthetic-importer-a',$1,'3kydiscoverydisable','writing',1,$2,$2
+		)
+	`, alice, now.Add(-time.Minute)); err != nil {
+		t.Fatalf("insert dependent follow operation: %v", err)
+	}
+	seedLifecycleNotification(
+		t,
+		pool,
+		uuid.MustParse("00000000-0000-0000-0000-000000000215"),
+		syntax.DID("did:plc:synthetic-importer-a"),
+		uuid.MustParse("00000000-0000-0000-0000-000000000212"),
+		"00000000-0000-0000-0000-000000000216",
+		"leased",
+		now.Add(-time.Minute),
+	)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_reconciliation_jobs(
+			id,owner_did,target_did,link_id,reason,status,next_attempt_at,created_at,updated_at
+		) VALUES(
+			'00000000-0000-0000-0000-000000000217',
+			'did:plc:synthetic-importer-a',$1,'00000000-0000-0000-0000-000000000211',
+			'syntheticDiscoveryRace','processing',$2,$2,$2
+		)
+	`, alice, now.Add(-time.Minute)); err != nil {
+		t.Fatalf("insert dependent reconciliation: %v", err)
 	}
 
 	disabled, err := store.UpdateSettings(ctx, alice, AccountSettingsPatch{Discoverable: accountBool(false)})
@@ -117,6 +150,10 @@ func TestAccountStoreUpdatesDiscoveryAndInvalidatesOnlyPendingDependents(t *test
 		pendingTerminal  *time.Time
 		acceptedState    InstagramSuggestionState
 		acceptedTerminal *time.Time
+		followStatus     string
+		eventState       string
+		deliveryStatus   string
+		jobStatus        string
 	)
 	if err := pool.QueryRow(ctx, `
 		SELECT p.state, p.terminal_at, a.state, a.terminal_at
@@ -131,6 +168,18 @@ func TestAccountStoreUpdatesDiscoveryAndInvalidatesOnlyPendingDependents(t *test
 	}
 	if acceptedState != SuggestionAccepted || acceptedTerminal != nil {
 		t.Fatalf("accepted suggestion changed = state %q terminal %v", acceptedState, acceptedTerminal)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT
+			(SELECT status FROM pds_follow_operations WHERE suggestion_id='00000000-0000-0000-0000-000000000212'),
+			(SELECT state FROM notification_events WHERE id='00000000-0000-0000-0000-000000000215'),
+			(SELECT status FROM push_deliveries WHERE id='00000000-0000-0000-0000-000000000216'),
+			(SELECT status FROM instagram_reconciliation_jobs WHERE id='00000000-0000-0000-0000-000000000217')
+	`).Scan(&followStatus, &eventState, &deliveryStatus, &jobStatus); err != nil {
+		t.Fatalf("inspect invalidated dependents: %v", err)
+	}
+	if followStatus != "failed" || eventState != "retracted" || deliveryStatus != "cancelled" || jobStatus != "ignored" {
+		t.Fatalf("dependents follow=%s event=%s delivery=%s job=%s", followStatus, eventState, deliveryStatus, jobStatus)
 	}
 
 	enabled, err := store.UpdateSettings(ctx, alice, AccountSettingsPatch{Discoverable: accountBool(true)})
@@ -414,11 +463,21 @@ type accountLinkFixture struct {
 
 func newAccountStoreTest(t *testing.T) (*AccountStore, *pgxpool.Pool) {
 	t.Helper()
-	migration, err := os.ReadFile("../../migrations/000023_instagram_migration.up.sql")
-	if err != nil {
-		t.Fatalf("read migration: %v", err)
+	var migration strings.Builder
+	for _, name := range []string{
+		"000021_appview_notifications.up.sql",
+		"000022_notification_newness.up.sql",
+		"000023_instagram_migration.up.sql",
+		"000024_system_notifications.up.sql",
+	} {
+		contents, err := os.ReadFile("../../migrations/" + name)
+		if err != nil {
+			t.Fatalf("read migration %s: %v", name, err)
+		}
+		migration.Write(contents)
+		migration.WriteByte('\n')
 	}
-	pool := testdb.WithSchema(t, string(migration))
+	pool := testdb.WithSchema(t, migration.String())
 	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
 	return NewAccountStore(pool, func() time.Time { return now }), pool
 }

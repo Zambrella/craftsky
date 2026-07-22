@@ -10,6 +10,8 @@ abstract interface class InstagramMigrationRepository {
     String verificationId,
   );
 
+  Future<InstagramVerificationAttempt?> getCurrentVerification();
+
   Future<void> cancelVerification(String verificationId);
 
   Future<InstagramVerificationConfirmation> confirmVerification(

@@ -5,6 +5,7 @@ import 'package:craftsky_app/auth/models/session_registry.dart' as registry;
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/instagram_migration/data/instagram_migration_repository.dart';
+import 'package:craftsky_app/instagram_migration/data/instagram_verification_storage.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
@@ -115,6 +116,7 @@ void main() {
           );
       final aliceLease = initial.activeLease!;
       final aliceCreate = Completer<InstagramVerificationAttempt>();
+      final verificationStorage = _VerificationStorage();
       final repositories = <AccountKey, InstagramMigrationRepository>{
         aliceLease.session.account: _Repository(
           onGetAccount: Future.value(
@@ -142,6 +144,9 @@ void main() {
           ),
           instagramMigrationRepositoryProvider.overrideWith(
             (ref, lease) async => repositories[lease.session.account]!,
+          ),
+          instagramVerificationStorageProvider.overrideWithValue(
+            verificationStorage,
           ),
         ],
       );
@@ -183,6 +188,7 @@ void main() {
         container.read(instagramVerificationProvider(bobLease)).attempt,
         isNull,
       );
+      expect(verificationStorage.values, isEmpty);
     },
   );
 
@@ -510,6 +516,244 @@ void main() {
     },
   );
 
+  test(
+    'IT-022 verification resumes after page disposal without creating again',
+    () async {
+      final initial = registry.SessionRegistry.empty().upsertAndActivate(
+        token: 'token-a',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final lease = initial.activeLease!;
+      final storage = _VerificationStorage();
+      final now = DateTime.utc(2026, 7, 22, 15);
+      var createCalls = 0;
+      InstagramVerificationAttempt? current;
+      final repository = _Repository(
+        onGetAccount: Future.value(
+          const InstagramAccountStatus(
+            integrationAvailable: true,
+            account: null,
+          ),
+        ),
+        onGetCurrentVerification: () async => current,
+        onCreateVerification: () async {
+          createCalls++;
+          return current = InstagramVerificationAttempt(
+            verificationId: 'verification-a',
+            state: InstagramVerificationState.pendingDm,
+            expiresAt: now.add(const Duration(minutes: 10)),
+            challenge: 'CSKY-PRIVATE-A',
+            dmUrl: Uri.parse('https://instagram.example/dm'),
+          );
+        },
+        onGetVerification: (_) async => current!,
+      );
+      final container = ProviderContainer.test(
+        retry: (_, _) => null,
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(initial),
+          ),
+          instagramMigrationRepositoryProvider.overrideWith(
+            (ref, _) async => repository,
+          ),
+          instagramVerificationStorageProvider.overrideWithValue(storage),
+          instagramVerificationNowProvider.overrideWithValue(() => now),
+          instagramVerificationPollIntervalProvider.overrideWithValue(
+            const Duration(days: 1),
+          ),
+        ],
+      );
+      await container.read(sessionRegistryProvider.future);
+      var subscription = container.listen(
+        instagramVerificationProvider(lease),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      await _waitUntil(
+        () => !container.read(instagramVerificationProvider(lease)).isBusy,
+      );
+
+      expect(
+        await container
+            .read(instagramVerificationProvider(lease).notifier)
+            .create(),
+        isTrue,
+      );
+      expect(createCalls, 1);
+      expect(
+        storage.values[lease.session.account]?.challenge,
+        'CSKY-PRIVATE-A',
+      );
+
+      subscription.close();
+      await container.pump();
+      current = InstagramVerificationAttempt(
+        verificationId: 'verification-a',
+        state: InstagramVerificationState.pendingConfirmation,
+        expiresAt: now.add(const Duration(minutes: 10)),
+        candidateUsername: 'synthetic.candidate',
+      );
+
+      subscription = container.listen(
+        instagramVerificationProvider(lease),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+      await _waitUntil(() {
+        final resumed = container.read(instagramVerificationProvider(lease));
+        return !resumed.isBusy &&
+            resumed.attempt?.state ==
+                InstagramVerificationState.pendingConfirmation;
+      });
+
+      final resumed = container
+          .read(instagramVerificationProvider(lease))
+          .attempt!;
+      expect(createCalls, 1);
+      expect(resumed.verificationId, 'verification-a');
+      expect(resumed.challenge, 'CSKY-PRIVATE-A');
+      expect(resumed.dmUrl, Uri.parse('https://instagram.example/dm'));
+      expect(resumed.candidateUsername, 'synthetic.candidate');
+    },
+  );
+
+  test('IT-022 server attempt wins over a mismatched local snapshot', () async {
+    final initial = registry.SessionRegistry.empty().upsertAndActivate(
+      token: 'token-a',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final lease = initial.activeLease!;
+    final storage = _VerificationStorage();
+    final now = DateTime.utc(2026, 7, 22, 15);
+    storage.values[lease.session.account] = InstagramVerificationSnapshot(
+      verificationId: 'stale-verification',
+      challenge: 'CSKY-STALE-PRIVATE',
+      dmUrl: Uri.parse('https://instagram.example/stale'),
+      expiresAt: now.add(const Duration(minutes: 10)),
+    );
+    final repository = _Repository(
+      onGetAccount: Future.value(
+        const InstagramAccountStatus(
+          integrationAvailable: true,
+          account: null,
+        ),
+      ),
+      onGetCurrentVerification: () async => InstagramVerificationAttempt(
+        verificationId: 'server-verification',
+        state: InstagramVerificationState.processing,
+        expiresAt: now.add(const Duration(minutes: 10)),
+      ),
+      onGetVerification: (_) async => InstagramVerificationAttempt(
+        verificationId: 'server-verification',
+        state: InstagramVerificationState.processing,
+        expiresAt: now.add(const Duration(minutes: 10)),
+      ),
+    );
+    final container = ProviderContainer.test(
+      retry: (_, _) => null,
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _RegistryStorage(initial),
+        ),
+        instagramMigrationRepositoryProvider.overrideWith(
+          (ref, _) async => repository,
+        ),
+        instagramVerificationStorageProvider.overrideWithValue(storage),
+        instagramVerificationNowProvider.overrideWithValue(() => now),
+        instagramVerificationPollIntervalProvider.overrideWithValue(
+          const Duration(days: 1),
+        ),
+      ],
+    );
+    await container.read(sessionRegistryProvider.future);
+    final subscription = container.listen(
+      instagramVerificationProvider(lease),
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+    await _waitUntil(
+      () => !container.read(instagramVerificationProvider(lease)).isBusy,
+    );
+
+    final attempt = container
+        .read(instagramVerificationProvider(lease))
+        .attempt!;
+    expect(attempt.verificationId, 'server-verification');
+    expect(attempt.challenge, isNull);
+    expect(attempt.dmUrl, isNull);
+    expect(storage.values[lease.session.account], isNull);
+  });
+
+  test('IT-022 verification expiry clears its secure snapshot', () async {
+    final initial = registry.SessionRegistry.empty().upsertAndActivate(
+      token: 'token-a',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final lease = initial.activeLease!;
+    final storage = _VerificationStorage();
+    final now = DateTime.utc(2026, 7, 22, 15);
+    final repository = _Repository(
+      onGetAccount: Future.value(
+        const InstagramAccountStatus(
+          integrationAvailable: true,
+          account: null,
+        ),
+      ),
+      onCreateVerification: () async => InstagramVerificationAttempt(
+        verificationId: 'verification-expiring',
+        state: InstagramVerificationState.pendingDm,
+        expiresAt: now.add(const Duration(milliseconds: 20)),
+        challenge: 'CSKY-EXPIRING-PRIVATE',
+        dmUrl: Uri.parse('https://instagram.example/dm'),
+      ),
+    );
+    final container = ProviderContainer.test(
+      retry: (_, _) => null,
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _RegistryStorage(initial),
+        ),
+        instagramMigrationRepositoryProvider.overrideWith(
+          (ref, _) async => repository,
+        ),
+        instagramVerificationStorageProvider.overrideWithValue(storage),
+        instagramVerificationNowProvider.overrideWithValue(() => now),
+      ],
+    );
+    await container.read(sessionRegistryProvider.future);
+    final subscription = container.listen(
+      instagramVerificationProvider(lease),
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+    await _waitUntil(
+      () => !container.read(instagramVerificationProvider(lease)).isBusy,
+    );
+    expect(
+      await container
+          .read(instagramVerificationProvider(lease).notifier)
+          .create(),
+      isTrue,
+    );
+    expect(storage.values[lease.session.account], isNotNull);
+
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    await container.pump();
+
+    expect(
+      container.read(instagramVerificationProvider(lease)).attempt?.state,
+      InstagramVerificationState.expired,
+    );
+    expect(storage.values[lease.session.account], isNull);
+  });
+
   test('UT-011 late account A acceptance has no account B effect', () async {
     final initial = registry.SessionRegistry.empty()
         .upsertAndActivate(
@@ -631,6 +875,7 @@ final class _Repository implements InstagramMigrationRepository {
     this.onListSuggestions,
     this.onCreateImport,
     this.onGetVerification,
+    this.onGetCurrentVerification,
     this.onAcceptSuggestion,
   });
 
@@ -649,6 +894,8 @@ final class _Repository implements InstagramMigrationRepository {
   onCreateImport;
   final Future<InstagramVerificationAttempt> Function(String verificationId)?
   onGetVerification;
+  final Future<InstagramVerificationAttempt?> Function()?
+  onGetCurrentVerification;
   final Future<InstagramSuggestionActionResult> Function(String suggestionId)?
   onAcceptSuggestion;
 
@@ -660,6 +907,10 @@ final class _Repository implements InstagramMigrationRepository {
   Future<InstagramVerificationAttempt> getVerification(
     String verificationId,
   ) => onGetVerification!.call(verificationId);
+
+  @override
+  Future<InstagramVerificationAttempt?> getCurrentVerification() =>
+      onGetCurrentVerification?.call() ?? Future.value();
 
   @override
   Future<InstagramImportCreateResult> createImport(
@@ -692,4 +943,26 @@ final class _Repository implements InstagramMigrationRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+final class _VerificationStorage implements InstagramVerificationStorage {
+  final values = <AccountKey, InstagramVerificationSnapshot>{};
+
+  @override
+  Future<void> delete(AccountKey account, {String? verificationId}) async {
+    if (verificationId == null ||
+        values[account]?.verificationId == verificationId) {
+      values.remove(account);
+    }
+  }
+
+  @override
+  Future<InstagramVerificationSnapshot?> read(AccountKey account) async =>
+      values[account];
+
+  @override
+  Future<void> write(
+    AccountKey account,
+    InstagramVerificationSnapshot snapshot,
+  ) async => values[account] = snapshot;
 }

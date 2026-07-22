@@ -1403,7 +1403,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String instagramVerificationCandidate(String username) {
-    return 'Instagram found @$username';
+    return 'Account: @$username';
   }
 
   @override
@@ -1418,13 +1418,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get instagramDiscoverableDescription =>
-      'When enabled, eligible CraftSky members who imported your exact current Instagram username may see a suggestion. This never follows anyone automatically.';
+      'When enabled, eligible CraftSky members who imported your Instagram username may see a suggestion. This never follows anyone automatically.';
 
   @override
   String get instagramDiscoverableAllow => 'Allow discovery';
 
   @override
   String get instagramDiscoverablePrivate => 'Keep private';
+
+  @override
+  String get instagramDiscoverablePrivateDescription =>
+      'Your Instagram account will be linked, but it will not be suggested to people who imported your username.';
 
   @override
   String get instagramVerificationConfirm => 'Confirm this account';

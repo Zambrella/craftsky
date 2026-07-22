@@ -9,9 +9,15 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/instagram"
 )
+
+type InstagramNotificationEligibility interface {
+	RevalidateNotification(context.Context, uuid.UUID, instagram.EligibilityStage) (bool, error)
+}
 
 type NotificationType string
 
@@ -272,6 +278,19 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 					Count:       int(systemCount.Int64),
 					CountCapped: systemCountCapped.Bool,
 					Destination: NotificationDestination(systemDestination.String),
+				}
+			}
+			if row.Type == NotificationTypeInstagramMatch && s.instagramNotificationEligibility != nil {
+				notificationID, parseErr := uuid.Parse(row.ID)
+				if parseErr != nil {
+					return nil, "", fmt.Errorf("parse Instagram notification id: %w", parseErr)
+				}
+				eligible, eligibilityErr := s.instagramNotificationEligibility.RevalidateNotification(ctx, notificationID, instagram.EligibilityAtFeed)
+				if eligibilityErr != nil {
+					return nil, "", fmt.Errorf("revalidate Instagram notification feed: %w", eligibilityErr)
+				}
+				if !eligible {
+					continue
 				}
 			}
 		} else {

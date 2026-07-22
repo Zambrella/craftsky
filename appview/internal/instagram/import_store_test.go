@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -159,6 +160,87 @@ func TestImportStoreMembershipReactivationDoesNotExtendConsentAndDeleteIsPrivate
 	}
 }
 
+func TestImportStoreDeleteRetractsEveryUnsupportedDependent(t *testing.T) {
+	store, pool := newImportTestStore(t)
+	ctx := context.Background()
+	owner := syntax.DID("did:plc:synthetic-import-delete")
+	target := syntax.DID("did:plc:synthetic-import-target")
+	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+	importID := uuid.MustParse("00000000-0000-0000-0000-000000000205")
+	suggestionID := uuid.MustParse("00000000-0000-0000-0000-000000000206")
+
+	if _, err := store.CreateImport(ctx, CreateImportParams{
+		ID: importID, OwnerDID: owner, SourceType: ImportSourceManual,
+		RetainUnmatched: true,
+		Entries:         []ImportEntry{{Username: "synthetic.target", Direction: DirectionFollowing}},
+		Now:             now,
+	}); err != nil {
+		t.Fatalf("create import: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_follow_suggestions(
+			id,importer_did,target_did,state,reason,accepting_since,created_at,updated_at
+		) VALUES($1,$2,$3,'accepting','verifiedInstagramFollow',$4,$4,$4)
+	`, suggestionID, owner, target, now); err != nil {
+		t.Fatalf("seed import suggestion: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_suggestion_sources(suggestion_id,import_id,created_at)
+		VALUES($1,$2,$3)
+	`, suggestionID, importID, now); err != nil {
+		t.Fatalf("seed import suggestion source: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO pds_follow_operations(
+			id,suggestion_id,owner_did,target_did,rkey,status,attempt_count,created_at,updated_at
+		) VALUES(
+			'00000000-0000-0000-0000-000000000207',$1,$2,$3,
+			'3kyimportdelete','writing',1,$4,$4
+		)
+	`, suggestionID, owner, target, now); err != nil {
+		t.Fatalf("seed import follow operation: %v", err)
+	}
+	seedLifecycleNotification(
+		t,
+		pool,
+		uuid.MustParse("00000000-0000-0000-0000-000000000208"),
+		owner,
+		suggestionID,
+		"00000000-0000-0000-0000-000000000209",
+		"pending",
+		now,
+	)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_reconciliation_jobs(
+			id,owner_did,import_id,reason,status,next_attempt_at,created_at,updated_at
+		) VALUES(
+			'00000000-0000-0000-0000-00000000020a',$1,$2,
+			'syntheticImportDelete','processing',$3,$3,$3
+		)
+	`, owner, importID, now); err != nil {
+		t.Fatalf("seed import reconciliation: %v", err)
+	}
+
+	if err := store.DeleteImport(ctx, owner, importID, now.Add(time.Minute)); err != nil {
+		t.Fatalf("delete import: %v", err)
+	}
+	var suggestionState InstagramSuggestionState
+	var followStatus, eventState, deliveryStatus, jobStatus string
+	if err := pool.QueryRow(ctx, `
+		SELECT
+			(SELECT state FROM instagram_follow_suggestions WHERE id=$1),
+			(SELECT status FROM pds_follow_operations WHERE suggestion_id=$1),
+			(SELECT state FROM notification_events WHERE id='00000000-0000-0000-0000-000000000208'),
+			(SELECT status FROM push_deliveries WHERE id='00000000-0000-0000-0000-000000000209'),
+			(SELECT status FROM instagram_reconciliation_jobs WHERE id='00000000-0000-0000-0000-00000000020a')
+	`, suggestionID).Scan(&suggestionState, &followStatus, &eventState, &deliveryStatus, &jobStatus); err != nil {
+		t.Fatalf("inspect deleted-import dependents: %v", err)
+	}
+	if suggestionState != SuggestionInvalidated || followStatus != "failed" || eventState != "retracted" || deliveryStatus != "cancelled" || jobStatus != "ignored" {
+		t.Fatalf("dependents suggestion=%s follow=%s event=%s delivery=%s job=%s", suggestionState, followStatus, eventState, deliveryStatus, jobStatus)
+	}
+}
+
 func TestImportStoreListsOwnedImportsWithStableSeekPagination(t *testing.T) {
 	store, _ := newImportTestStore(t)
 	ctx := context.Background()
@@ -211,11 +293,21 @@ func TestImportStoreListsOwnedImportsWithStableSeekPagination(t *testing.T) {
 
 func newImportTestStore(t *testing.T) (*ImportStore, *pgxpool.Pool) {
 	t.Helper()
-	migration, err := os.ReadFile("../../migrations/000023_instagram_migration.up.sql")
-	if err != nil {
-		t.Fatalf("read migration: %v", err)
+	var migration strings.Builder
+	for _, name := range []string{
+		"000021_appview_notifications.up.sql",
+		"000022_notification_newness.up.sql",
+		"000023_instagram_migration.up.sql",
+		"000024_system_notifications.up.sql",
+	} {
+		contents, err := os.ReadFile("../../migrations/" + name)
+		if err != nil {
+			t.Fatalf("read migration %s: %v", name, err)
+		}
+		migration.Write(contents)
+		migration.WriteByte('\n')
 	}
-	pool := testdb.WithSchema(t, string(migration))
+	pool := testdb.WithSchema(t, migration.String())
 	return NewImportStore(pool), pool
 }
 

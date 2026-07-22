@@ -31,6 +31,7 @@ type VerificationAttempt struct {
 func (VerificationAttempt) String() string {
 	return "Instagram verification attempt [REDACTED]"
 }
+func (a VerificationAttempt) GoString() string { return a.String() }
 
 type CreateVerificationAttemptParams struct {
 	ID        uuid.UUID
@@ -147,6 +148,49 @@ func (s *VerificationStore) GetVerificationAttempt(ctx context.Context, owner sy
 	return attempt, nil
 }
 
+func (s *VerificationStore) GetCurrentVerificationAttempt(ctx context.Context, owner syntax.DID, now time.Time) (*VerificationAttempt, error) {
+	if s == nil || s.pool == nil {
+		return nil, errors.New("Instagram verification store is unavailable")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `
+		UPDATE instagram_verification_attempts
+		SET state = 'expired', challenge_digest_version = NULL,
+		    challenge_digest = NULL, candidate_igsid = NULL,
+		    candidate_username = NULL, terminal_at = $2, updated_at = $2
+		WHERE owner_did = $1
+		  AND state IN ('pendingDm', 'processing', 'pendingConfirmation')
+		  AND expires_at <= $2
+	`, owner, now); err != nil {
+		return nil, err
+	}
+	attempt, err := scanVerificationAttempt(tx.QueryRow(ctx, `
+		SELECT `+verificationAttemptColumns+`
+		FROM instagram_verification_attempts
+		WHERE owner_did = $1
+		  AND state IN ('pendingDm', 'processing', 'pendingConfirmation')
+		ORDER BY created_at DESC, id DESC
+		LIMIT 1
+	`, owner))
+	if errors.Is(err, pgx.ErrNoRows) {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return attempt, nil
+}
+
 func (s *VerificationStore) CancelVerificationAttempt(ctx context.Context, owner syntax.DID, id uuid.UUID, now time.Time) error {
 	if s == nil || s.pool == nil {
 		return errors.New("Instagram verification store is unavailable")
@@ -235,7 +279,12 @@ func (s *VerificationStore) ConfirmVerificationAttempt(ctx context.Context, para
 	if s == nil || s.pool == nil {
 		return ConfirmationResult{}, errors.New("Instagram verification store is unavailable")
 	}
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	// The owner, stable IGSID, and normalized username advisory locks below are
+	// the serialization boundary for confirmation. Read committed lets the
+	// transaction that acquires the username lock second observe the first
+	// transaction's committed claim and turn it into a private conflict instead
+	// of surfacing a serialization failure to the member.
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
 		return ConfirmationResult{}, err
 	}
@@ -281,36 +330,91 @@ func (s *VerificationStore) ConfirmVerificationAttempt(ctx context.Context, para
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended(encode($1::bytea, 'hex'), 1))`, params.IGSIDDigest.Value[:]); err != nil {
 		return ConfirmationResult{}, err
 	}
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 2))`, normalized); err != nil {
+		return ConfirmationResult{}, err
+	}
 
-	var existingLinkID uuid.UUID
-	var existingOwner string
+	var existingIGSIDLinkID uuid.UUID
+	var existingIGSIDOwner string
+	var existingIGSIDUsername string
 	err = tx.QueryRow(ctx, `
-		SELECT l.id, l.owner_did
+		SELECT l.id, l.owner_did, COALESCE(l.username_normalized,'')
 		FROM instagram_identity_claims c
 		JOIN instagram_account_links l ON l.id = c.link_id
 		WHERE c.igsid_digest_version = $1 AND c.igsid_digest = $2
 		  AND c.state = 'active'
 		FOR UPDATE OF c, l
-	`, params.IGSIDDigest.Version, params.IGSIDDigest.Value[:]).Scan(&existingLinkID, &existingOwner)
+	`, params.IGSIDDigest.Version, params.IGSIDDigest.Value[:]).Scan(&existingIGSIDLinkID, &existingIGSIDOwner, &existingIGSIDUsername)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return ConfirmationResult{}, err
 	}
-	if err == nil && existingOwner != params.OwnerDID.String() {
+	hasExistingIGSID := err == nil
+
+	var existingUsernameLinkID uuid.UUID
+	var existingUsernameOwner string
+	err = tx.QueryRow(ctx, `
+		SELECT id, owner_did
+		FROM instagram_account_links
+		WHERE username_normalized = $1
+		  AND state IN ('active', 'membershipInactive', 'disputed')
+		FOR UPDATE
+	`, normalized).Scan(&existingUsernameLinkID, &existingUsernameOwner)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return ConfirmationResult{}, err
+	}
+	hasExistingUsername := err == nil
+
+	var conflictingLinkID uuid.UUID
+	var conflictingOwner syntax.DID
+	switch {
+	case hasExistingIGSID && existingIGSIDOwner != params.OwnerDID.String():
+		conflictingLinkID = existingIGSIDLinkID
+		conflictingOwner = syntax.DID(existingIGSIDOwner)
+	case hasExistingUsername && existingUsernameOwner != params.OwnerDID.String():
+		conflictingLinkID = existingUsernameLinkID
+		conflictingOwner = syntax.DID(existingUsernameOwner)
+	}
+	if conflictingLinkID != uuid.Nil {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO instagram_link_conflicts (
 				id, state, existing_link_id, claimant_attempt_id,
 				igsid_digest_version, igsid_digest, opened_at, expires_at,
 				created_at, updated_at
 			) VALUES ($1, 'open', $2, $3, $4, $5, $6, $7, $6, $6)
-		`, params.ConflictID, existingLinkID, params.AttemptID, params.IGSIDDigest.Version, params.IGSIDDigest.Value[:], params.Now, params.ConflictExpiresAt); err != nil {
+		`, params.ConflictID, conflictingLinkID, params.AttemptID, params.IGSIDDigest.Version, params.IGSIDDigest.Value[:], params.Now, params.ConflictExpiresAt); err != nil {
 			return ConfirmationResult{}, err
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE instagram_account_links
 			SET conflict_pending = true, discoverable = false, updated_at = $2
 			WHERE id = $1
-		`, existingLinkID, params.Now); err != nil {
+		`, conflictingLinkID, params.Now); err != nil {
 			return ConfirmationResult{}, err
+		}
+		suggestionIDs, err := updateSuggestionState(ctx, tx, `
+			UPDATE instagram_follow_suggestions
+			SET state='invalidated', accepting_since=NULL,
+			    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
+			WHERE target_did=$1 AND state IN ('pending','accepting')
+			RETURNING id
+		`, conflictingOwner, params.Now)
+		if err != nil {
+			return ConfirmationResult{}, fmt.Errorf("invalidate conflicted Instagram suggestions: %w", err)
+		}
+		if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "linkConflict", params.Now); err != nil {
+			return ConfirmationResult{}, err
+		}
+		if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "eligibility_changed", params.Now); err != nil {
+			return ConfirmationResult{}, err
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE instagram_reconciliation_jobs
+			SET status='ignored', terminal_at=COALESCE(terminal_at,$3),
+			    lease_token=NULL, lease_expires_at=NULL, updated_at=$3
+			WHERE (target_did=$1 OR link_id=$2)
+			  AND status IN ('queued','processing','retryable')
+		`, conflictingOwner, conflictingLinkID, params.Now); err != nil {
+			return ConfirmationResult{}, fmt.Errorf("cancel conflicted Instagram reconciliation: %w", err)
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE instagram_verification_attempts
@@ -325,10 +429,51 @@ func (s *VerificationStore) ConfirmVerificationAttempt(ctx context.Context, para
 		}
 		return ConfirmationResult{}, ErrInstagramLinkConflict
 	}
-	if err == nil && existingOwner == params.OwnerDID.String() {
-		account, err := scanAccountView(tx.QueryRow(ctx, currentAccountViewQuery, params.OwnerDID))
-		if err != nil {
-			return ConfirmationResult{}, err
+	if hasExistingIGSID && existingIGSIDOwner == params.OwnerDID.String() {
+		if existingIGSIDUsername != normalized {
+			suggestionIDs, err := updateSuggestionState(ctx, tx, `
+				UPDATE instagram_follow_suggestions
+				SET state='invalidated', accepting_since=NULL,
+				    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
+				WHERE target_did=$1 AND state IN ('pending','accepting')
+				RETURNING id
+			`, params.OwnerDID, params.Now)
+			if err != nil {
+				return ConfirmationResult{}, fmt.Errorf("invalidate refreshed Instagram suggestions: %w", err)
+			}
+			if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "usernameRefreshed", params.Now); err != nil {
+				return ConfirmationResult{}, err
+			}
+			if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "eligibility_changed", params.Now); err != nil {
+				return ConfirmationResult{}, err
+			}
+			if _, err := tx.Exec(ctx, `
+				UPDATE instagram_reconciliation_jobs
+				SET status='ignored', terminal_at=COALESCE(terminal_at,$3),
+				    lease_token=NULL, lease_expires_at=NULL, updated_at=$3
+				WHERE (target_did=$1 OR link_id=$2)
+				  AND status IN ('queued','processing','retryable')
+			`, params.OwnerDID, existingIGSIDLinkID, params.Now); err != nil {
+				return ConfirmationResult{}, fmt.Errorf("cancel stale username reconciliation: %w", err)
+			}
+			var discoverable bool
+			if err := tx.QueryRow(ctx, `
+				UPDATE instagram_account_links
+				SET username=$2, username_normalized=$3, updated_at=$4
+				WHERE id=$1 AND owner_did=$5
+				RETURNING discoverable
+			`, existingIGSIDLinkID, params.Username, normalized, params.Now, params.OwnerDID).Scan(&discoverable); err != nil {
+				return ConfirmationResult{}, fmt.Errorf("refresh validated Instagram username: %w", err)
+			}
+			if discoverable {
+				if _, err := tx.Exec(ctx, `
+					INSERT INTO instagram_reconciliation_jobs (
+						id,owner_did,link_id,reason,status,next_attempt_at,created_at,updated_at
+					) VALUES ($1,$2,$3,'instagramUsernameRefreshed','queued',$4,$4,$4)
+				`, uuid.New(), params.OwnerDID, existingIGSIDLinkID, params.Now); err != nil {
+					return ConfirmationResult{}, fmt.Errorf("queue refreshed Instagram username reconciliation: %w", err)
+				}
+			}
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE instagram_verification_attempts
@@ -338,15 +483,52 @@ func (s *VerificationStore) ConfirmVerificationAttempt(ctx context.Context, para
 		`, params.AttemptID, params.Now); err != nil {
 			return ConfirmationResult{}, err
 		}
+		account, err := scanAccountView(tx.QueryRow(ctx, currentAccountViewQuery, params.OwnerDID))
+		if err != nil {
+			return ConfirmationResult{}, err
+		}
 		if err := tx.Commit(ctx); err != nil {
 			return ConfirmationResult{}, err
 		}
 		return ConfirmationResult{State: AttemptConfirmed, Account: account}, nil
 	}
 
+	suggestionIDs, err := updateSuggestionState(ctx, tx, `
+		UPDATE instagram_follow_suggestions
+		SET state='invalidated', accepting_since=NULL,
+		    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
+		WHERE target_did=$1 AND state IN ('pending','accepting')
+		RETURNING id
+	`, params.OwnerDID, params.Now)
+	if err != nil {
+		return ConfirmationResult{}, fmt.Errorf("invalidate superseded Instagram suggestions: %w", err)
+	}
+	if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "linkSuperseded", params.Now); err != nil {
+		return ConfirmationResult{}, err
+	}
+	if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "eligibility_changed", params.Now); err != nil {
+		return ConfirmationResult{}, err
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE instagram_reconciliation_jobs job
+		SET status='ignored', terminal_at=COALESCE(terminal_at,$2),
+		    lease_token=NULL, lease_expires_at=NULL, updated_at=$2
+		WHERE job.status IN ('queued','processing','retryable')
+		  AND (
+			job.target_did=$1
+			OR EXISTS (
+				SELECT 1 FROM instagram_account_links link
+				WHERE link.id=job.link_id AND link.owner_did=$1
+				  AND link.state IN ('active','membershipInactive','disputed')
+			)
+		  )
+	`, params.OwnerDID, params.Now); err != nil {
+		return ConfirmationResult{}, fmt.Errorf("cancel superseded Instagram reconciliation: %w", err)
+	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE instagram_account_links
-		SET state = 'superseded', discoverable = false, igsid = NULL,
+		SET state = 'superseded', discoverable = false, conflict_pending = false,
+		    igsid = NULL, username = NULL, username_normalized = NULL,
 		    superseded_at = $2, raw_identity_purge_at = $2, updated_at = $2
 		WHERE owner_did = $1
 		  AND state IN ('active', 'membershipInactive', 'disputed')

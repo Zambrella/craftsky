@@ -44,3 +44,22 @@ func TestNextWebhookRetryUsesFixedBackoffAttemptAndAgeBounds(t *testing.T) {
 		t.Fatalf("retry reaching maximum age = (%s, %t), want zero/false", got, ok)
 	}
 }
+
+func TestNextWebhookRetryHonoursTightenedRuntimePolicy(t *testing.T) {
+	t.Parallel()
+
+	started := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+	policy := WebhookRetryPolicy{
+		MaxAttempts:      2,
+		InitialBackoff:   500 * time.Millisecond,
+		MaxBackoff:       time.Second,
+		MaxProcessingAge: 30 * time.Second,
+	}
+	now := started.Add(5 * time.Second)
+	if got, ok := nextWebhookRetry(policy, now, started, 1, 0); !ok || !got.Equal(now.Add(500*time.Millisecond)) {
+		t.Fatalf("first retry = (%s, %t), want %s/true", got, ok, now.Add(500*time.Millisecond))
+	}
+	if got, ok := nextWebhookRetry(policy, now, started, 2, 0); ok || !got.IsZero() {
+		t.Fatalf("retry at configured maximum attempts = (%s, %t), want zero/false", got, ok)
+	}
+}

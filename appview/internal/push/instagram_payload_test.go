@@ -9,8 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -20,9 +22,10 @@ func TestDispatcherSendsDueInstagramMatchWithoutSocialFacts(t *testing.T) {
 	pool := instagramDispatcherPool(t)
 	seedInstagramDelivery(t, pool, now.Add(-time.Second), true)
 	sender := &scriptedSender{}
+	eligibility := &staticInstagramNotificationEligibility{eligible: true}
 	dispatcher := NewDispatcher(pool, sender, DispatcherOptions{
-		BatchSize: 1,
-		Now:       func() time.Time { return now },
+		BatchSize: 1, Now: func() time.Time { return now },
+		InstagramEligibility: eligibility,
 	})
 
 	processed, err := dispatcher.ProcessBatch(context.Background(), "instagram-worker")
@@ -31,6 +34,9 @@ func TestDispatcherSendsDueInstagramMatchWithoutSocialFacts(t *testing.T) {
 	}
 	if processed != 1 || len(sender.requests) != 1 {
 		t.Fatalf("processed=%d requests=%d", processed, len(sender.requests))
+	}
+	if len(eligibility.stages) != 1 || eligibility.stages[0] != instagram.EligibilityAtNotificationDelivery {
+		t.Fatalf("eligibility stages=%v", eligibility.stages)
 	}
 	request := sender.requests[0]
 	if request.Category != notifications.InstagramMatch || request.ActorDisplayName != "" || request.RoutingFacts.ActorDID != "" || request.RoutingFacts.SourceURI != "" || request.RoutingFacts.SubjectURI != "" || request.RoutingFacts.RootURI != "" {
@@ -56,6 +62,38 @@ func TestDispatcherSendsDueInstagramMatchWithoutSocialFacts(t *testing.T) {
 	if status != "succeeded" {
 		t.Fatalf("delivery status=%q", status)
 	}
+}
+
+func TestDispatcherFailsClosedWhenInstagramEligibilityIsUnavailable(t *testing.T) {
+	now := time.Date(2026, 7, 19, 12, 5, 1, 0, time.UTC)
+	pool := instagramDispatcherPool(t)
+	seedInstagramDelivery(t, pool, now.Add(-time.Second), true)
+	sender := &scriptedSender{}
+	dispatcher := NewDispatcher(pool, sender, DispatcherOptions{BatchSize: 1, Now: func() time.Time { return now }})
+
+	if _, err := dispatcher.ProcessBatch(context.Background(), "instagram-worker"); err != nil {
+		t.Fatal(err)
+	}
+	if len(sender.requests) != 0 {
+		t.Fatalf("provider received %d requests without eligibility policy", len(sender.requests))
+	}
+	var status string
+	if err := pool.QueryRow(context.Background(), `SELECT status FROM push_deliveries`).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "cancelled" {
+		t.Fatalf("delivery status=%q, want cancelled", status)
+	}
+}
+
+type staticInstagramNotificationEligibility struct {
+	eligible bool
+	stages   []instagram.EligibilityStage
+}
+
+func (e *staticInstagramNotificationEligibility) RevalidateNotification(_ context.Context, _ uuid.UUID, stage instagram.EligibilityStage) (bool, error) {
+	e.stages = append(e.stages, stage)
+	return e.eligible, nil
 }
 
 func TestDispatcherCancelsInstagramMatchWhenRetractedOrPushDisabled(t *testing.T) {

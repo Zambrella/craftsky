@@ -26,6 +26,7 @@ type CreatedVerification struct {
 func (CreatedVerification) String() string {
 	return "created Instagram verification [REDACTED]"
 }
+func (v CreatedVerification) GoString() string { return v.String() }
 
 type AccountView struct {
 	State                InstagramLinkState
@@ -39,15 +40,20 @@ type AccountView struct {
 func (AccountView) String() string {
 	return "Instagram account view [REDACTED]"
 }
+func (v AccountView) GoString() string { return v.String() }
 
 type ConfirmationResult struct {
 	State   VerificationAttemptState
 	Account AccountView
 }
 
+func (ConfirmationResult) String() string     { return "Instagram confirmation result [REDACTED]" }
+func (r ConfirmationResult) GoString() string { return r.String() }
+
 type VerificationRepository interface {
 	CreateVerificationAttempt(context.Context, CreateVerificationAttemptParams) (*VerificationAttempt, error)
 	GetVerificationAttempt(context.Context, syntax.DID, uuid.UUID, time.Time) (*VerificationAttempt, error)
+	GetCurrentVerificationAttempt(context.Context, syntax.DID, time.Time) (*VerificationAttempt, error)
 	CancelVerificationAttempt(context.Context, syntax.DID, uuid.UUID, time.Time) error
 	ConfirmVerificationAttempt(context.Context, ConfirmVerificationAttemptParams) (ConfirmationResult, error)
 }
@@ -129,6 +135,13 @@ func (s *VerificationService) GetVerification(ctx context.Context, owner syntax.
 		return nil, ErrVerificationUnavailable
 	}
 	return s.store.GetVerificationAttempt(ctx, owner, id, s.now().UTC())
+}
+
+func (s *VerificationService) GetCurrentVerification(ctx context.Context, owner syntax.DID) (*VerificationAttempt, error) {
+	if s == nil || s.store == nil {
+		return nil, ErrVerificationUnavailable
+	}
+	return s.store.GetCurrentVerificationAttempt(ctx, owner, s.now().UTC())
 }
 
 func (s *VerificationService) CancelVerification(ctx context.Context, owner syntax.DID, id uuid.UUID) error {
