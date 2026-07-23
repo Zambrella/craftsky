@@ -1367,5 +1367,86 @@
   "@projectsEmpty": { "description": "Empty state on the Projects browse page." },
 
   "projectsLoadError": "Projects didn't load.",
-  "@projectsLoadError": { "description": "Error title shown when the Projects browse feed fails to load." }
+  "@projectsLoadError": { "description": "Error title shown when the Projects browse feed fails to load." },
+
+  "savedPostSaveAction": "Save post",
+  "@savedPostSaveAction": { "description": "Tooltip and action label for saving a post." },
+
+  "savedPostUnsaveAction": "Remove from saved posts",
+  "@savedPostUnsaveAction": { "description": "Tooltip for removing a post from the viewer's private saved collection." },
+
+  "savedPostUnsaveError": "This post couldn't be removed. Try again.",
+  "@savedPostUnsaveError": { "description": "Safe retryable feedback after removing a saved post fails." },
+
+  "savedPostMoveTitle": "Move saved post",
+  "@savedPostMoveTitle": { "description": "Title for the chooser used to move an existing saved post." },
+
+  "savedPostMoveAction": "Move",
+  "@savedPostMoveAction": { "description": "Action opening the folder chooser for an existing saved post." },
+
+  "savedPostRowUnsaveAction": "Unsave",
+  "@savedPostRowUnsaveAction": { "description": "Row action removing a post from saved posts." },
+
+  "savedPostNoFolder": "No folder",
+  "@savedPostNoFolder": { "description": "Chooser option that leaves a saved post outside a folder." },
+
+  "savedPostConfirmError": "That change couldn't be saved. Try again.",
+  "@savedPostConfirmError": { "description": "Safe inline error after a save or move request fails." },
+
+  "savedPostFoldersLoadError": "Folders couldn't load.",
+  "@savedPostFoldersLoadError": { "description": "Safe inline error when saved-post folders cannot load." },
+
+  "savedPostLoadMoreFolders": "Load more folders",
+  "@savedPostLoadMoreFolders": { "description": "Action loading the next page of saved-post folders." },
+
+  "savedPostNewFolder": "New folder",
+  "@savedPostNewFolder": { "description": "Action opening inline saved-folder creation." },
+
+  "savedPostFolderNameHint": "Folder name",
+  "@savedPostFolderNameHint": { "description": "Input label for a saved-post folder name." },
+
+  "savedPostCreateFolderAction": "Create folder",
+  "@savedPostCreateFolderAction": { "description": "Action submitting a new saved-post folder." },
+
+  "savedPostCreateFolderError": "That folder couldn't be created. Try again.",
+  "@savedPostCreateFolderError": { "description": "Safe inline error after saved-folder creation fails." },
+
+  "savedPostsTitle": "Saved posts",
+  "@savedPostsTitle": { "description": "Title for the viewer's private saved-post collection." },
+
+  "savedPostsFoldersHeading": "Folders",
+  "@savedPostsFoldersHeading": { "description": "Heading above saved-post folders." },
+
+  "savedPostsUnfiledHeading": "Unfiled",
+  "@savedPostsUnfiledHeading": { "description": "Heading above saved posts that have no folder." },
+
+  "savedPostsEmpty": "Nothing saved yet",
+  "@savedPostsEmpty": { "description": "Empty state when the viewer has no saved posts or folders." },
+
+  "savedPostsSortOldest": "Oldest",
+  "@savedPostsSortOldest": { "description": "Sort label showing the oldest saves first." },
+
+  "savedPostsLoadError": "Saved posts couldn't load.",
+  "@savedPostsLoadError": { "description": "Safe initial error for the saved-post collection." },
+
+  "savedPostsLoadMore": "Load more",
+  "@savedPostsLoadMore": { "description": "Action loading the next page of saved posts." },
+
+  "savedPostFolderActions": "Folder actions",
+  "@savedPostFolderActions": { "description": "Tooltip opening saved-folder actions." },
+
+  "savedPostRenameFolder": "Rename folder",
+  "@savedPostRenameFolder": { "description": "Action and dialog title for renaming a saved folder." },
+
+  "savedPostDeleteFolder": "Delete folder",
+  "@savedPostDeleteFolder": { "description": "Destructive action and dialog title for deleting a saved folder." },
+
+  "savedPostDeleteFolderBody": "What should happen to the posts in this folder?",
+  "@savedPostDeleteFolderBody": { "description": "Prompt explaining the two scopes of saved-folder deletion." },
+
+  "savedPostKeepSaves": "Keep saved posts",
+  "@savedPostKeepSaves": { "description": "Deletes a folder while moving its saves to Unfiled." },
+
+  "savedPostDeleteSaves": "Delete saved posts",
+  "@savedPostDeleteSaves": { "description": "Deletes a folder and all private saves assigned to it." }
 }

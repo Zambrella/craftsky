@@ -1431,4 +1431,89 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get projectsLoadError => 'Projects didn\'t load.';
+
+  @override
+  String get savedPostSaveAction => 'Save post';
+
+  @override
+  String get savedPostUnsaveAction => 'Remove from saved posts';
+
+  @override
+  String get savedPostUnsaveError =>
+      'This post couldn\'t be removed. Try again.';
+
+  @override
+  String get savedPostMoveTitle => 'Move saved post';
+
+  @override
+  String get savedPostMoveAction => 'Move';
+
+  @override
+  String get savedPostRowUnsaveAction => 'Unsave';
+
+  @override
+  String get savedPostNoFolder => 'No folder';
+
+  @override
+  String get savedPostConfirmError =>
+      'That change couldn\'t be saved. Try again.';
+
+  @override
+  String get savedPostFoldersLoadError => 'Folders couldn\'t load.';
+
+  @override
+  String get savedPostLoadMoreFolders => 'Load more folders';
+
+  @override
+  String get savedPostNewFolder => 'New folder';
+
+  @override
+  String get savedPostFolderNameHint => 'Folder name';
+
+  @override
+  String get savedPostCreateFolderAction => 'Create folder';
+
+  @override
+  String get savedPostCreateFolderError =>
+      'That folder couldn\'t be created. Try again.';
+
+  @override
+  String get savedPostsTitle => 'Saved posts';
+
+  @override
+  String get savedPostsFoldersHeading => 'Folders';
+
+  @override
+  String get savedPostsUnfiledHeading => 'Unfiled';
+
+  @override
+  String get savedPostsEmpty => 'Nothing saved yet';
+
+  @override
+  String get savedPostsSortOldest => 'Oldest';
+
+  @override
+  String get savedPostsLoadError => 'Saved posts couldn\'t load.';
+
+  @override
+  String get savedPostsLoadMore => 'Load more';
+
+  @override
+  String get savedPostFolderActions => 'Folder actions';
+
+  @override
+  String get savedPostRenameFolder => 'Rename folder';
+
+  @override
+  String get savedPostDeleteFolder => 'Delete folder';
+
+  @override
+  String get savedPostDeleteFolderBody =>
+      'What should happen to the posts in this folder?';
+
+  @override
+  String get savedPostKeepSaves => 'Keep saved posts';
+
+  @override
+  String get savedPostDeleteSaves => 'Delete saved posts';
 }

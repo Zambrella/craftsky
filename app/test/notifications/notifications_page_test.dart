@@ -16,6 +16,7 @@ import 'package:craftsky_app/profile/providers/profile_relationship_provider.dar
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
@@ -231,6 +232,36 @@ void main() {
       );
     },
   );
+
+  testWidgets('AT-011 post-bearing rows render subjects with PostSummary', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      _TestApp(
+        home: Scaffold(
+          body: ListView(
+            children: [
+              NotificationRow(notification: _like('like-summary')),
+              NotificationRow(notification: _repost('repost-summary')),
+              NotificationRow(notification: _reply('reply-summary')),
+              NotificationRow(notification: _mention('mention-summary')),
+              NotificationRow(notification: _quote('quote-summary')),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PostSummary), findsNWidgets(5));
+    expect(find.text('viewer post'), findsNWidgets(5));
+    expect(find.byIcon(Icons.bookmark), findsNothing);
+    expect(find.byIcon(Icons.bookmark_border), findsNothing);
+  });
 
   testWidgets('UT-021 derives an actor avatar URL from an older CID response', (
     tester,
@@ -809,6 +840,7 @@ Map<String, dynamic> _post() => {
   'viewerHasLiked': false,
   'viewerHasReposted': false,
   'viewerHasReplied': false,
+  'viewerHasSaved': false,
   'createdAt': '2026-05-28T12:00:00Z',
   'indexedAt': '2026-05-28T12:00:01Z',
   'author': {'did': 'did:plc:viewer', 'handle': 'viewer.craftsky.social'},

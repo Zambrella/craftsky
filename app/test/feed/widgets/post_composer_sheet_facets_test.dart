@@ -181,6 +181,7 @@ Post _post(String text) {
     replyCount: 0,
     viewerHasLiked: false,
     viewerHasReposted: false,
+    viewerHasSaved: false,
     createdAt: DateTime(2026, 5, 22, 12),
     indexedAt: DateTime(2026, 5, 22, 12, 1),
     author: PostAuthor(did: 'did:plc:alice', handle: 'alice.example'),

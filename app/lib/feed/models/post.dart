@@ -43,8 +43,10 @@ class Post with PostMappable {
     required this.replyCount,
     required this.viewerHasLiked,
     required this.viewerHasReposted,
+    required this.viewerHasSaved,
     this.quoteCount = 0,
     this.viewerHasReplied = false,
+    this.viewerSavedFolderId,
     this.images,
     this.facets,
     this.reply,
@@ -77,6 +79,8 @@ class Post with PostMappable {
   final bool viewerHasLiked;
   final bool viewerHasReposted;
   final bool viewerHasReplied;
+  final bool viewerHasSaved;
+  final String? viewerSavedFolderId;
   final List<PostImage>? images;
   final ModerationMetadata? moderation;
   final Project? project;
@@ -92,6 +96,14 @@ class PostWireHook extends MappingHook {
   @override
   Object? beforeDecode(Object? value) {
     if (value is! Map<String, dynamic>) return value;
+    if (value.containsKey('viewerHasSaved') &&
+        value['viewerHasSaved'] is! bool) {
+      throw const FormatException('viewerHasSaved must be a boolean');
+    }
+    if (value['viewerSavedFolderId'] != null &&
+        value['viewerSavedFolderId'] is! String) {
+      throw const FormatException('viewerSavedFolderId must be a string');
+    }
     final availability = value['availability'];
     if (availability != 'muted' && availability != 'blocked') return value;
     return <String, dynamic>{
@@ -115,6 +127,8 @@ class PostWireHook extends MappingHook {
       'viewerHasLiked': false,
       'viewerHasReposted': false,
       'viewerHasReplied': false,
+      'viewerHasSaved': false,
+      'viewerSavedFolderId': null,
       ...value,
     };
   }

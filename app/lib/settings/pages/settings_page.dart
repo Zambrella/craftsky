@@ -1,10 +1,12 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/widgets/clear_image_cache_tile.dart';
 import 'package:craftsky_app/settings/widgets/sign_out_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -26,6 +28,11 @@ class _SettingsPageBody extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     return Column(
       children: [
+        ListTile(
+          leading: const Icon(Icons.bookmarks_outlined),
+          title: Text(l10n.savedPostsTitle),
+          onTap: () => context.push(RouteLocations.savedPosts),
+        ),
         ListTile(
           leading: const Icon(Icons.group_outlined),
           title: const Text('Followers'),

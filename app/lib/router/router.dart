@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/pages/sign_in_page.dart';
@@ -14,12 +15,14 @@ import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
-import 'package:craftsky_app/profile/pages/saved_page.dart';
 import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/router/error_screen.dart';
 import 'package:craftsky_app/router/onboarding_refresh_listener.dart';
 import 'package:craftsky_app/router/route_locations.dart';
+import 'package:craftsky_app/saved_posts/models/saved_post_folder.dart';
+import 'package:craftsky_app/saved_posts/pages/saved_post_folder_page.dart';
+import 'package:craftsky_app/saved_posts/pages/saved_posts_page.dart';
 import 'package:craftsky_app/search/models/search_results_tab.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/search/pages/tag_search_page.dart';
@@ -177,13 +180,21 @@ GoRouter goRouter(Ref ref) {
           path: RouteLocations.profile,
           name: 'profile',
           routes: [
-            TypedGoRoute<SavedRoute>(
-              path: RouteLocations.savedChild,
-              name: 'saved',
-            ),
             TypedGoRoute<SettingsRoute>(
               path: RouteLocations.settingsChild,
               name: 'settings',
+              routes: [
+                TypedGoRoute<SavedPostsRoute>(
+                  path: RouteLocations.savedPostsChild,
+                  name: 'saved-posts',
+                  routes: [
+                    TypedGoRoute<SavedPostFolderRoute>(
+                      path: RouteLocations.savedPostFolderChild,
+                      name: 'saved-post-folder',
+                    ),
+                  ],
+                ),
+              ],
             ),
             TypedGoRoute<PlaygroundRoute>(
               path: RouteLocations.playgroundChild,
@@ -298,12 +309,6 @@ class ProfileRoute extends GoRouteData with $ProfileRoute {
       const ProfilePage();
 }
 
-class SavedRoute extends GoRouteData with $SavedRoute {
-  const SavedRoute();
-  @override
-  Widget build(BuildContext context, GoRouterState state) => const SavedPage();
-}
-
 /// Declared as a child of [ProfileRoute] so its path becomes
 /// `/profile/settings` and the back arrow pops to `/profile`. The parent
 /// navigator key lifts it onto the root navigator so it covers the shell's
@@ -317,6 +322,45 @@ class SettingsRoute extends GoRouteData with $SettingsRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const SettingsPage();
+}
+
+class SavedPostsRoute extends GoRouteData with $SavedPostsRoute {
+  const SavedPostsRoute();
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const SavedPostsPage();
+}
+
+@immutable
+final class SavedPostFolderRouteData {
+  const SavedPostFolderRouteData({required this.folder});
+
+  final SavedPostFolder folder;
+
+  @override
+  String toString() => 'SavedPostFolderRouteData(<redacted>)';
+}
+
+class SavedPostFolderRoute extends GoRouteData with $SavedPostFolderRoute {
+  const SavedPostFolderRoute({this.$extra});
+
+  final SavedPostFolderRouteData? $extra;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) {
+    final auth = ProviderScope.containerOf(
+      context,
+    ).read(authSessionProvider).value;
+    final extra = $extra;
+    if (auth is! SignedIn || extra == null) {
+      return const Scaffold(body: SizedBox.shrink());
+    }
+    return SavedPostFolderScreen(
+      account: AccountKey(auth.did.toString()),
+      folder: extra.folder,
+    );
+  }
 }
 
 /// Dev-only design playground. Same shape as [SettingsRoute] — nested under

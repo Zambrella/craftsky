@@ -84,15 +84,24 @@ RouteBase get $appShellRoute => StatefulShellRouteData.$route(
           factory: $ProfileRoute._fromState,
           routes: [
             GoRouteData.$route(
-              path: 'saved',
-              name: 'saved',
-              factory: $SavedRoute._fromState,
-            ),
-            GoRouteData.$route(
               path: 'settings',
               name: 'settings',
               parentNavigatorKey: SettingsRoute.$parentNavigatorKey,
               factory: $SettingsRoute._fromState,
+              routes: [
+                GoRouteData.$route(
+                  path: 'saved',
+                  name: 'saved-posts',
+                  factory: $SavedPostsRoute._fromState,
+                  routes: [
+                    GoRouteData.$route(
+                      path: 'folder',
+                      name: 'saved-post-folder',
+                      factory: $SavedPostFolderRoute._fromState,
+                    ),
+                  ],
+                ),
+              ],
             ),
             GoRouteData.$route(
               path: 'playground',
@@ -279,26 +288,6 @@ mixin $ProfileRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
-mixin $SavedRoute on GoRouteData {
-  static SavedRoute _fromState(GoRouterState state) => const SavedRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/saved');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
 mixin $SettingsRoute on GoRouteData {
   static SettingsRoute _fromState(GoRouterState state) => const SettingsRoute();
 
@@ -317,6 +306,53 @@ mixin $SettingsRoute on GoRouteData {
 
   @override
   void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $SavedPostsRoute on GoRouteData {
+  static SavedPostsRoute _fromState(GoRouterState state) =>
+      const SavedPostsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/settings/saved');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $SavedPostFolderRoute on GoRouteData {
+  static SavedPostFolderRoute _fromState(GoRouterState state) =>
+      SavedPostFolderRoute($extra: state.extra as SavedPostFolderRouteData?);
+
+  SavedPostFolderRoute get _self => this as SavedPostFolderRoute;
+
+  @override
+  String get location =>
+      GoRouteData.$location('/profile/settings/saved/folder');
+
+  @override
+  void go(BuildContext context) => context.go(location, extra: _self.$extra);
+
+  @override
+  Future<T?> push<T>(BuildContext context) =>
+      context.push<T>(location, extra: _self.$extra);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location, extra: _self.$extra);
+
+  @override
+  void replace(BuildContext context) =>
+      context.replace(location, extra: _self.$extra);
 }
 
 mixin $PlaygroundRoute on GoRouteData {

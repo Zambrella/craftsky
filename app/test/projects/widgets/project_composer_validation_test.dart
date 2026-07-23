@@ -189,6 +189,7 @@ Post _post(String text) {
     replyCount: 0,
     viewerHasLiked: false,
     viewerHasReposted: false,
+    viewerHasSaved: false,
   );
 }
 

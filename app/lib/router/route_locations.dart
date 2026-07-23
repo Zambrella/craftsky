@@ -19,7 +19,9 @@ class RouteLocations {
   static const notificationSettingsChild = 'settings';
   static const postThread = '/posts/:did/:rkey';
   static const profile = '/profile';
-  static const savedChild = 'saved';
   static const settingsChild = 'settings';
+  static const savedPostsChild = 'saved';
+  static const savedPostFolderChild = 'folder';
+  static const savedPosts = '/profile/settings/saved';
   static const playgroundChild = 'playground';
 }
