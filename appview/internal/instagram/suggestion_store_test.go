@@ -200,18 +200,17 @@ func seedSuggestionImport(t *testing.T, pool *pgxpool.Pool, id uuid.UUID, owner 
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO instagram_graph_imports (
-			id, owner_did, state, source_type, retain_unmatched,
-			retention_expires_at, following_count,
+			id, owner_did, state, source_type, following_count,
 			created_at, updated_at
-		) VALUES ($1, $2, 'active', 'manual', true, $3, 1, $4, $4)
-	`, id, owner, now.AddDate(1, 0, 0), now); err != nil {
+		) VALUES ($1, $2, 'active', 'manual', 1, $3, $3)
+	`, id, owner, now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO instagram_graph_handles (
-			import_id, username_normalized, matched, retain_until, created_at
-		) VALUES ($1, $2, false, $3, $4)
-	`, id, username, now.AddDate(1, 0, 0), now); err != nil {
+			import_id, username_normalized, matched, created_at
+		) VALUES ($1, $2, false, $3)
+	`, id, username, now); err != nil {
 		t.Fatal(err)
 	}
 }

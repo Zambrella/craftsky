@@ -106,11 +106,11 @@ func TestInstagramMigrationCreatesPrivateSchemaWithoutMembershipCascades(t *test
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO craftsky_profiles (did) VALUES ('did:plc:synthetic-owner');
 		INSERT INTO instagram_graph_imports
-			(id, owner_did, state, source_type, retain_unmatched,
+			(id, owner_did, state, source_type,
 			 following_count, created_at, updated_at)
 		VALUES
 			('00000000-0000-0000-0000-000000000001', 'did:plc:synthetic-owner',
-			 'active', 'manual', false, 0, now(), now());
+			 'active', 'manual', 0, now(), now());
 		DELETE FROM craftsky_profiles WHERE did = 'did:plc:synthetic-owner';
 	`); err != nil {
 		t.Fatalf("membership loss with private owner row: %v", err)
@@ -140,11 +140,11 @@ func TestInstagramFollowingOnlyMigrationRemovesFollowerStorage(t *testing.T) {
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO instagram_graph_imports (
-			id, owner_did, state, source_type, retain_unmatched,
+			id, owner_did, state, source_type,
 			following_count, follower_count, created_at, updated_at
 		) VALUES (
 			'00000000-0000-0000-0000-000000000025',
-			'did:plc:synthetic-owner', 'active', 'instagramJson', true,
+			'did:plc:synthetic-owner', 'active', 'instagramJson',
 			1, 1, now(), now()
 		);
 		INSERT INTO instagram_graph_handles (
@@ -196,6 +196,204 @@ func TestInstagramFollowingOnlyMigrationRemovesFollowerStorage(t *testing.T) {
 	}
 	if _, err := freshPool.Exec(ctx, followingOnly); err != nil {
 		t.Fatalf("apply following-only migration to fresh schema: %v", err)
+	}
+}
+
+func TestInstagramImportLifetimeMigrationRemovesRetentionStorage(t *testing.T) {
+	t.Parallel()
+
+	core := readMigration(t, "../../migrations/000023_instagram_migration.up.sql")
+	lifetime := readMigration(t, "../../migrations/000026_instagram_import_lifetime.up.sql")
+	pool := testdb.WithSchema(t, "")
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, core); err != nil {
+		t.Fatalf("apply core migration: %v", err)
+	}
+	if _, err := pool.Exec(ctx, lifetime); err != nil {
+		t.Fatalf("apply import lifetime migration: %v", err)
+	}
+
+	for table, columns := range map[string][]string{
+		"instagram_graph_imports": {
+			"retain_unmatched",
+			"retention_expires_at",
+			"final_terminal_at",
+			"aggregate_purge_at",
+		},
+		"instagram_graph_handles": {"retain_until"},
+	} {
+		for _, column := range columns {
+			var exists bool
+			if err := pool.QueryRow(ctx, `
+				SELECT EXISTS (
+					SELECT 1 FROM information_schema.columns
+					WHERE table_schema = current_schema()
+					  AND table_name = $1 AND column_name = $2
+				)
+			`, table, column).Scan(&exists); err != nil {
+				t.Fatalf("inspect %s.%s: %v", table, column, err)
+			}
+			if exists {
+				t.Errorf("legacy retention storage %s.%s still exists", table, column)
+			}
+		}
+	}
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_graph_imports (
+			id, owner_did, state, source_type, following_count,
+			created_at, updated_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000026',
+			'did:plc:synthetic-owner', 'active', 'manual', 1, now(), now()
+		);
+		INSERT INTO instagram_graph_handles (
+			import_id, username_normalized, matched, created_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000026',
+			'synthetic.retained', false, now()
+		);
+	`); err != nil {
+		t.Fatalf("insert permanent import: %v", err)
+	}
+}
+
+func TestInstagramImportLifetimeMigrationKeepsOnlyVerifiedLinkImports(t *testing.T) {
+	t.Parallel()
+
+	core := readMigration(t, "../../migrations/000023_instagram_migration.up.sql")
+	legacyLifetime := readMigration(t, "../../migrations/000026_instagram_import_lifetime.down.sql")
+	lifetime := readMigration(t, "../../migrations/000026_instagram_import_lifetime.up.sql")
+	pool := testdb.WithSchema(t, "")
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, core); err != nil {
+		t.Fatalf("apply core migration: %v", err)
+	}
+	if _, err := pool.Exec(ctx, legacyLifetime); err != nil {
+		t.Fatalf("restore legacy lifetime shape: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_account_links (
+			id, owner_did, state, igsid, igsid_digest_version, igsid_digest,
+			username, username_normalized, discoverable, verified_at,
+			created_at, updated_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000261',
+			'did:plc:synthetic-verified-owner', 'active',
+			'synthetic-verified-igsid', 1, decode(repeat('26', 32), 'hex'),
+			'synthetic.verified', 'synthetic.verified', true, now(), now(), now()
+		);
+		INSERT INTO instagram_graph_imports (
+			id, owner_did, state, source_type, retain_unmatched,
+			retention_expires_at, following_count, created_at, updated_at
+		) VALUES
+			('00000000-0000-0000-0000-000000000262',
+			 'did:plc:synthetic-verified-owner', 'active', 'manual', true,
+			 now() + interval '1 year', 1, now(), now()),
+			('00000000-0000-0000-0000-000000000263',
+			 'did:plc:synthetic-unverified-owner', 'active', 'manual', true,
+			 now() + interval '1 year', 1, now(), now()),
+			('00000000-0000-0000-0000-000000000264',
+			 'did:plc:synthetic-verified-owner', 'expired', 'manual', true,
+			 now() - interval '1 day', 1, now() - interval '1 year', now());
+		INSERT INTO instagram_graph_handles (
+			import_id, username_normalized, matched, retain_until, created_at
+		) VALUES
+			('00000000-0000-0000-0000-000000000262',
+			 'synthetic.verified.following', false, now() + interval '1 year', now()),
+			('00000000-0000-0000-0000-000000000263',
+			 'synthetic.unverified.following', false, now() + interval '1 year', now()),
+			('00000000-0000-0000-0000-000000000264',
+			 'synthetic.expired.following', false, now() - interval '1 day', now());
+		INSERT INTO instagram_follow_suggestions (
+			id, importer_did, target_did, state, reason, created_at, updated_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000265',
+			'did:plc:synthetic-unverified-owner',
+			'did:plc:synthetic-target', 'pending',
+			'verifiedInstagramFollow', now(), now()
+		);
+		INSERT INTO instagram_suggestion_sources (
+			suggestion_id, import_id, created_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000265',
+			'00000000-0000-0000-0000-000000000263', now()
+		);
+		INSERT INTO pds_follow_operations (
+			id, suggestion_id, owner_did, target_did, rkey, status,
+			created_at, updated_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000266',
+			'00000000-0000-0000-0000-000000000265',
+			'did:plc:synthetic-unverified-owner',
+			'did:plc:synthetic-target',
+			'3kylegacyremoved', 'pending', now(), now()
+		);
+	`); err != nil {
+		t.Fatalf("seed legacy imports: %v", err)
+	}
+	if _, err := pool.Exec(ctx, lifetime); err != nil {
+		t.Fatalf("apply import lifetime migration: %v", err)
+	}
+
+	var importIDs, handles []string
+	rows, err := pool.Query(ctx, `
+		SELECT id::text
+		FROM instagram_graph_imports
+		ORDER BY id
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		importIDs = append(importIDs, id)
+	}
+	rows.Close()
+	handleRows, err := pool.Query(ctx, `
+		SELECT username_normalized
+		FROM instagram_graph_handles
+		ORDER BY username_normalized
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for handleRows.Next() {
+		var username string
+		if err := handleRows.Scan(&username); err != nil {
+			t.Fatal(err)
+		}
+		handles = append(handles, username)
+	}
+	handleRows.Close()
+	if len(importIDs) != 1 || importIDs[0] != "00000000-0000-0000-0000-000000000262" {
+		t.Fatalf("retained import IDs = %v", importIDs)
+	}
+	if len(handles) != 1 || handles[0] != "synthetic.verified.following" {
+		t.Fatalf("retained handles = %v", handles)
+	}
+	var suggestionState, operationStatus, operationError string
+	if err := pool.QueryRow(ctx, `
+		SELECT suggestion.state, operation.status, operation.last_error_code
+		FROM instagram_follow_suggestions suggestion
+		JOIN pds_follow_operations operation
+		  ON operation.suggestion_id = suggestion.id
+		WHERE suggestion.id = '00000000-0000-0000-0000-000000000265'
+	`).Scan(&suggestionState, &operationStatus, &operationError); err != nil {
+		t.Fatal(err)
+	}
+	if suggestionState != "invalidated" ||
+		operationStatus != "failed" ||
+		operationError != "legacyImportRemoved" {
+		t.Fatalf(
+			"legacy dependent state = suggestion %q operation %q error %q",
+			suggestionState,
+			operationStatus,
+			operationError,
+		)
 	}
 }
 

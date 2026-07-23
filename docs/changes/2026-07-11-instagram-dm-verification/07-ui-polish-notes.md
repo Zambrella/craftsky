@@ -9,6 +9,10 @@ the shared CraftSky in-app messenger so it uses the app-wide severity, replaceme
 duration, and accessibility behavior. Clarified the pending-confirmation account
 label, made the existing cancellation path available at that stage, and moved
 the discovery choice into a clearer account-first decision layout.
+The import card now follows the same selector-and-explanation pattern, uses a
+primary manual-import action, and presents Notification Settings as an inline
+link. Instagram settings cards retain their themed outline without clipping
+their contents to the rounded card shape.
 
 ## Polish Items
 
@@ -24,6 +28,10 @@ the discovery choice into a clearer account-first decision layout.
 | UIP-008 | User request: reject/cancel at confirmation | Added a `Cancel verification` action to the pending-confirmation state using the existing owned-attempt cancellation flow; covered cancellation and fresh retry in the widget test | `app/lib/instagram_migration/pages/instagram_migration_page.dart`, `app/test/instagram_migration/instagram_migration_page_test.dart` | Done |
 | UIP-009 | User request: account-first discovery choice | Moved the discovery selector directly below `Account: @…`, defaulted it to `Allow discovery`, required one option to remain selected, and made the paragraph beneath switch between discovery and private explanations | `app/lib/l10n/app_en.arb`, generated localization output, `app/lib/instagram_migration/pages/instagram_migration_page.dart`, `app/test/instagram_migration/instagram_migration_page_test.dart` | Done |
 | UIP-010 | User request: emphasize linked Instagram account | Reused the localized handle-span rendering so only `@handle` is bold in `Linked as @…` | `app/lib/instagram_migration/pages/instagram_migration_page.dart`, `app/test/instagram_migration/instagram_migration_page_test.dart` | Done |
+| UIP-011 | User request: remove the rounded clip inside settings cards | Disabled clipping on the Instagram page's `CraftskyCard` instances while retaining their themed rounded decoration and border | `app/lib/instagram_migration/pages/instagram_migration_page.dart`, `app/test/instagram_migration/instagram_migration_page_test.dart` | Done |
+| UIP-012 | User request: inline Notification Settings action | Replaced the separate text button with underlined, primary-colour `Notification settings` link text inside the notification explanation | `app/lib/instagram_migration/pages/instagram_migration_page.dart`, `app/lib/l10n/app_en.arb`, generated localization output, `app/test/instagram_migration/instagram_migration_page_test.dart` | Done |
+| UIP-013 | User request: primary Import handles action | Changed the manual `Import handles` action from an outlined button to the theme's primary filled button | `app/lib/instagram_migration/pages/instagram_migration_page.dart`, `app/test/instagram_migration/instagram_migration_page_test.dart` | Done |
+| UIP-014 | User request: selected import option explanation | Moved import guidance below the input selector and made it switch between manual-entry and JSON-file-specific copy | `app/lib/instagram_migration/pages/instagram_migration_page.dart`, `app/lib/l10n/app_en.arb`, generated localization output, `app/test/instagram_migration/instagram_migration_page_test.dart` | Done |
 
 ## Verification
 
@@ -32,6 +40,10 @@ the discovery choice into a clearer account-first decision layout.
   - `flutter test --reporter compact test/instagram_migration/instagram_migration_page_test.dart test/notifications/notification_settings_page_test.dart`
   - `flutter analyze lib/instagram_migration/pages/instagram_migration_page.dart test/instagram_migration/instagram_migration_page_test.dart`
   - `flutter test --reporter compact test/instagram_migration/instagram_migration_page_test.dart`
+  - `flutter gen-l10n`
+  - `flutter test --reporter compact test/instagram_migration/instagram_migration_page_test.dart`
+  - `flutter analyze lib/instagram_migration/pages/instagram_migration_page.dart test/instagram_migration/instagram_migration_page_test.dart`
+  - `git diff --check`
   - `flutter test test/instagram_migration/instagram_migration_page_test.dart --plain-name 'FR-024 candidate defaults to discovery and explains choices'`
   - `flutter analyze lib/instagram_migration/pages/instagram_migration_page.dart test/instagram_migration/instagram_migration_page_test.dart`
   - `flutter test --reporter compact test/instagram_migration/instagram_migration_page_test.dart`
@@ -52,6 +64,7 @@ the discovery choice into a clearer account-first decision layout.
   - The final focused analyzer passed with no issues and all five Instagram page widget tests passed.
   - The account-first discovery regression verifies default and non-empty selection, vertical ordering, both option-specific explanations, confirmation value, and cancel/retry behavior; the final diff check is clean.
   - The linked-account regression verifies the full localized sentence and bold handle span; the focused analyzer and all six page widget tests pass.
+  - The import-card regression verifies unclipped page cards, the selector-specific description and its vertical position, the primary manual import action, and the inline clickable Notification Settings text; all six page widget tests pass.
 - Skipped checks and reason:
   - Physical-device visual/accessibility review remains a documented external release gate.
 
@@ -60,7 +73,7 @@ the discovery choice into a clearer account-first decision layout.
 - Requirement behavior changed: Yes — the user explicitly changed the pending-confirmation selector from requiring a manual choice to defaulting to `Allow discovery`; `01-requirements.md`, `02-acceptance-tests.md`, and implementation evidence were updated.
 - Business logic changed: No
 - APIs, data models, migrations, permissions, or dependencies changed: No
-- Notes: The shared `CraftskyCard` adjustment only supplies the Material surface required by existing interactive descendants; its decoration and public API are unchanged. The pending-confirmation cancellation button calls the already implemented verification cancellation operation and does not alter its API or state semantics. The new default changes only the displayed client choice; AppView still requires explicit confirmation carrying a boolean value.
+- Notes: The shared `CraftskyCard` adjustment only supplies the Material surface required by existing interactive descendants; its decoration and public API are unchanged. The latest clipping change is page-local and does not change the shared card default. The pending-confirmation cancellation button calls the already implemented verification cancellation operation and does not alter its API or state semantics. The new default changes only the displayed client choice; AppView still requires explicit confirmation carrying a boolean value.
 
 ## Follow-ups
 

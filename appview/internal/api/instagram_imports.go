@@ -17,21 +17,19 @@ import (
 )
 
 type InstagramImportService interface {
-	CreateImport(context.Context, syntax.DID, instagram.ImportSourceType, bool, []instagram.ImportEntry) (instagram.CreateImportResult, error)
+	CreateImport(context.Context, syntax.DID, instagram.ImportSourceType, []instagram.ImportEntry) (instagram.CreateImportResult, error)
 	ListImports(context.Context, syntax.DID, int, *instagram.ImportCursor) ([]instagram.GraphImport, *instagram.ImportCursor, error)
 	GetImport(context.Context, syntax.DID, uuid.UUID) (instagram.GraphImport, error)
-	UpdateImport(context.Context, syntax.DID, uuid.UUID, *bool, *bool) (instagram.GraphImport, error)
+	UpdateImport(context.Context, syntax.DID, uuid.UUID, *bool) (instagram.GraphImport, error)
 	DeleteImport(context.Context, syntax.DID, uuid.UUID) error
 }
 
 type instagramImportResponse struct {
-	ImportID           string                         `json:"importId"`
-	State              instagram.InstagramImportState `json:"state"`
-	SourceType         instagram.ImportSourceType     `json:"sourceType"`
-	RetainUnmatched    bool                           `json:"retainUnmatched"`
-	RetentionExpiresAt string                         `json:"retentionExpiresAt,omitempty"`
-	FollowingCount     int                            `json:"followingCount"`
-	CreatedAt          string                         `json:"createdAt"`
+	ImportID       string                         `json:"importId"`
+	State          instagram.InstagramImportState `json:"state"`
+	SourceType     instagram.ImportSourceType     `json:"sourceType"`
+	FollowingCount int                            `json:"followingCount"`
+	CreatedAt      string                         `json:"createdAt"`
 }
 
 type instagramImportCountsResponse struct {
@@ -58,15 +56,14 @@ func CreateInstagramImportHandler(service InstagramImportService, logger *slog.L
 			return
 		}
 		var request struct {
-			SourceType      instagram.ImportSourceType `json:"sourceType"`
-			RetainUnmatched *bool                      `json:"retainUnmatched"`
-			Entries         []instagram.ImportEntry    `json:"entries"`
+			SourceType instagram.ImportSourceType `json:"sourceType"`
+			Entries    []instagram.ImportEntry    `json:"entries"`
 		}
-		if err := decodeStrictJSONObject(r, &request); err != nil || !request.SourceType.Valid() || request.RetainUnmatched == nil || request.Entries == nil {
+		if err := decodeStrictJSONObject(r, &request); err != nil || !request.SourceType.Valid() || request.Entries == nil {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_request", "invalid request", middleware.GetRunID(r.Context()), nil)
 			return
 		}
-		created, err := service.CreateImport(r.Context(), owner, request.SourceType, *request.RetainUnmatched, request.Entries)
+		created, err := service.CreateImport(r.Context(), owner, request.SourceType, request.Entries)
 		if err != nil {
 			writeInstagramImportError(w, r, logger, err)
 			return
@@ -163,14 +160,13 @@ func PatchInstagramImportHandler(service InstagramImportService, logger *slog.Lo
 			return
 		}
 		var request struct {
-			RetainUnmatched *bool `json:"retainUnmatched"`
-			Reactivate      *bool `json:"reactivate"`
+			Reactivate *bool `json:"reactivate"`
 		}
-		if err := decodeStrictJSONObject(r, &request); err != nil || (request.RetainUnmatched == nil && request.Reactivate == nil) {
+		if err := decodeStrictJSONObject(r, &request); err != nil || request.Reactivate == nil || !*request.Reactivate {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_request", "invalid request", middleware.GetRunID(r.Context()), nil)
 			return
 		}
-		item, err := service.UpdateImport(r.Context(), owner, id, request.RetainUnmatched, request.Reactivate)
+		item, err := service.UpdateImport(r.Context(), owner, id, request.Reactivate)
 		if err != nil {
 			writeInstagramImportError(w, r, logger, err)
 			return
@@ -202,11 +198,7 @@ func DeleteInstagramImportHandler(service InstagramImportService, logger *slog.L
 func importResponse(item instagram.GraphImport) instagramImportResponse {
 	response := instagramImportResponse{
 		ImportID: item.ID.String(), State: item.State, SourceType: item.SourceType,
-		RetainUnmatched: item.RetainUnmatched, FollowingCount: item.FollowingCount,
-		CreatedAt: instagramTime(item.CreatedAt),
-	}
-	if item.RetentionExpiresAt != nil {
-		response.RetentionExpiresAt = instagramTime(*item.RetentionExpiresAt)
+		FollowingCount: item.FollowingCount, CreatedAt: instagramTime(item.CreatedAt),
 	}
 	return response
 }
@@ -246,10 +238,8 @@ func writeInstagramImportError(w http.ResponseWriter, r *http.Request, logger *s
 		writeInstagramImportNotFound(w, r)
 	case errors.Is(err, instagram.ErrInstagramImportInactive):
 		envelope.WriteError(w, http.StatusConflict, "instagram_import_inactive", "Instagram import inactive", runID, nil)
-	case errors.Is(err, instagram.ErrInstagramImportExpired):
-		envelope.WriteError(w, http.StatusConflict, "instagram_import_expired", "Instagram import expired", runID, nil)
-	case errors.Is(err, instagram.ErrUnmatchedDataUnavailable):
-		envelope.WriteError(w, http.StatusConflict, "unmatched_data_unavailable", "Unmatched Instagram data unavailable", runID, nil)
+	case errors.Is(err, instagram.ErrInstagramVerificationRequired):
+		envelope.WriteError(w, http.StatusConflict, "instagram_verification_required", "Verify an Instagram account before importing", runID, nil)
 	case errors.Is(err, instagram.ErrInvalidInstagramImportCursor), errors.Is(err, envelope.ErrInvalidCursor):
 		envelope.WriteError(w, http.StatusBadRequest, "invalid_cursor", "cursor could not be decoded", runID, nil)
 	case errors.Is(err, instagram.ErrInvalidInstagramImport),

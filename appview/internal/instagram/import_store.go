@@ -2,7 +2,6 @@ package instagram
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -15,8 +14,6 @@ import (
 
 var (
 	ErrInstagramImportInactive      = errors.New("Instagram import inactive")
-	ErrInstagramImportExpired       = errors.New("Instagram import expired")
-	ErrUnmatchedDataUnavailable     = errors.New("unmatched Instagram data unavailable")
 	ErrInvalidInstagramImportCursor = errors.New("invalid Instagram import cursor")
 )
 
@@ -32,15 +29,13 @@ func (s ImportSourceType) Valid() bool {
 }
 
 type GraphImport struct {
-	ID                 uuid.UUID
-	OwnerDID           syntax.DID
-	State              InstagramImportState
-	SourceType         ImportSourceType
-	RetainUnmatched    bool
-	RetentionExpiresAt *time.Time
-	FollowingCount     int
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID             uuid.UUID
+	OwnerDID       syntax.DID
+	State          InstagramImportState
+	SourceType     ImportSourceType
+	FollowingCount int
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 func (GraphImport) String() string {
@@ -59,18 +54,16 @@ type CreateImportResult struct {
 }
 
 type CreateImportParams struct {
-	ID              uuid.UUID
-	OwnerDID        syntax.DID
-	SourceType      ImportSourceType
-	RetainUnmatched bool
-	Entries         []ImportEntry
-	Now             time.Time
+	ID         uuid.UUID
+	OwnerDID   syntax.DID
+	SourceType ImportSourceType
+	Entries    []ImportEntry
+	Now        time.Time
 }
 
 type UpdateImportParams struct {
-	RetainUnmatched *bool
-	Reactivate      *bool
-	Now             time.Time
+	Reactivate *bool
+	Now        time.Time
 }
 
 type ImportCursor struct {
@@ -87,14 +80,14 @@ func NewImportStore(pool *pgxpool.Pool) *ImportStore {
 }
 
 func (s *ImportStore) CreateImport(ctx context.Context, params CreateImportParams) (CreateImportResult, error) {
-	return s.createImport(ctx, params, params.RetainUnmatched)
+	return s.createImport(ctx, params)
 }
 
 func (s *ImportStore) CreateImportForMatching(ctx context.Context, params CreateImportParams) (CreateImportResult, error) {
-	return s.createImport(ctx, params, true)
+	return s.createImport(ctx, params)
 }
 
-func (s *ImportStore) createImport(ctx context.Context, params CreateImportParams, storeAllHandles bool) (CreateImportResult, error) {
+func (s *ImportStore) createImport(ctx context.Context, params CreateImportParams) (CreateImportResult, error) {
 	if s == nil || s.pool == nil {
 		return CreateImportResult{}, errors.New("Instagram import store is unavailable")
 	}
@@ -109,11 +102,6 @@ func (s *ImportStore) createImport(ctx context.Context, params CreateImportParam
 		return CreateImportResult{}, ErrInvalidInstagramUsername
 	}
 	counts := ImportCounts{Following: len(entries)}
-	var retentionExpiresAt *time.Time
-	if params.RetainUnmatched {
-		expires := params.Now.AddDate(1, 0, 0)
-		retentionExpiresAt = &expires
-	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -123,28 +111,35 @@ func (s *ImportStore) createImport(ctx context.Context, params CreateImportParam
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 2))`, params.OwnerDID); err != nil {
 		return CreateImportResult{}, err
 	}
+	var verified bool
+	if err := tx.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM instagram_account_links
+			WHERE owner_did = $1 AND state = 'active' AND verified_at IS NOT NULL
+		)
+	`, params.OwnerDID).Scan(&verified); err != nil {
+		return CreateImportResult{}, err
+	}
+	if !verified {
+		return CreateImportResult{}, ErrInstagramVerificationRequired
+	}
 	graphImport, err := scanGraphImport(tx.QueryRow(ctx, `
 		INSERT INTO instagram_graph_imports (
-			id, owner_did, state, source_type, retain_unmatched,
-			retention_expires_at, following_count,
+			id, owner_did, state, source_type, following_count,
 			created_at, updated_at
-		) VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, $7)
+		) VALUES ($1, $2, 'active', $3, $4, $5, $5)
 		RETURNING `+graphImportColumns,
-		params.ID, params.OwnerDID, params.SourceType, params.RetainUnmatched,
-		retentionExpiresAt, counts.Following, params.Now))
+		params.ID, params.OwnerDID, params.SourceType, counts.Following, params.Now))
 	if err != nil {
 		return CreateImportResult{}, err
 	}
-	if storeAllHandles {
-		for _, entry := range entries {
-			if _, err := tx.Exec(ctx, `
-				INSERT INTO instagram_graph_handles (
-					import_id, username_normalized, matched,
-					retain_until, created_at
-				) VALUES ($1, $2, false, $3, $4)
-			`, params.ID, entry.Username, retentionExpiresAt, params.Now); err != nil {
-				return CreateImportResult{}, err
-			}
+	for _, entry := range entries {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO instagram_graph_handles (
+				import_id, username_normalized, matched, created_at
+			) VALUES ($1, $2, false, $3)
+		`, params.ID, entry.Username, params.Now); err != nil {
+			return CreateImportResult{}, err
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -162,33 +157,15 @@ func (s *ImportStore) FinalizeImportMatching(ctx context.Context, owner syntax.D
 		return err
 	}
 	defer tx.Rollback(ctx)
-	var retainUnmatched bool
-	var createdAt time.Time
 	if err := tx.QueryRow(ctx, `
-		SELECT retain_unmatched, created_at
+		SELECT true
 		FROM instagram_graph_imports
 		WHERE id = $1 AND owner_did = $2
 		FOR UPDATE
-	`, id, owner).Scan(&retainUnmatched, &createdAt); errors.Is(err, pgx.ErrNoRows) {
+	`, id, owner).Scan(new(bool)); errors.Is(err, pgx.ErrNoRows) {
 		return ErrInstagramResourceNotFound
 	} else if err != nil {
 		return err
-	}
-	if !retainUnmatched {
-		if _, err := tx.Exec(ctx, `
-			DELETE FROM instagram_graph_handles
-			WHERE import_id = $1 AND NOT matched
-		`, id); err != nil {
-			return err
-		}
-		hardExpiry := createdAt.AddDate(1, 0, 0)
-		if _, err := tx.Exec(ctx, `
-			UPDATE instagram_graph_handles
-			SET retain_until = $2
-			WHERE import_id = $1 AND matched
-		`, id, hardExpiry); err != nil {
-			return err
-		}
 	}
 	if _, err := tx.Exec(ctx, `UPDATE instagram_graph_imports SET updated_at = $2 WHERE id = $1`, id, now); err != nil {
 		return err
@@ -199,9 +176,6 @@ func (s *ImportStore) FinalizeImportMatching(ctx context.Context, owner syntax.D
 func (s *ImportStore) GetImport(ctx context.Context, owner syntax.DID, id uuid.UUID, now time.Time) (GraphImport, error) {
 	if s == nil || s.pool == nil {
 		return GraphImport{}, errors.New("Instagram import store is unavailable")
-	}
-	if err := s.expireImport(ctx, owner, id, now); err != nil {
-		return GraphImport{}, err
 	}
 	graphImport, err := scanGraphImport(s.pool.QueryRow(ctx, `
 		SELECT `+graphImportColumns+`
@@ -220,9 +194,6 @@ func (s *ImportStore) ListImports(ctx context.Context, owner syntax.DID, limit i
 	}
 	if owner == "" || limit < 1 || now.IsZero() {
 		return nil, nil, errors.New("invalid Instagram import list parameters")
-	}
-	if err := s.expireOwnerImports(ctx, owner, now); err != nil {
-		return nil, nil, err
 	}
 	if after != nil {
 		if after.ID == uuid.Nil || after.CreatedAt.IsZero() {
@@ -287,7 +258,7 @@ func (s *ImportStore) UpdateImport(ctx context.Context, owner syntax.DID, id uui
 	if s == nil || s.pool == nil {
 		return GraphImport{}, errors.New("Instagram import store is unavailable")
 	}
-	if params.RetainUnmatched == nil && params.Reactivate == nil {
+	if params.Reactivate == nil || !*params.Reactivate {
 		return GraphImport{}, errors.New("Instagram import update is empty")
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -307,24 +278,6 @@ func (s *ImportStore) UpdateImport(ctx context.Context, owner syntax.DID, id uui
 	if err != nil {
 		return GraphImport{}, err
 	}
-	if graphImport.RetentionExpiresAt != nil && !graphImport.RetentionExpiresAt.After(params.Now) {
-		if _, err := tx.Exec(ctx, `
-			UPDATE instagram_graph_imports
-			SET state = 'expired', updated_at = $2 WHERE id = $1
-		`, id, params.Now); err != nil {
-			return GraphImport{}, err
-		}
-		if _, err := tx.Exec(ctx, `DELETE FROM instagram_graph_handles WHERE import_id = $1`, id); err != nil {
-			return GraphImport{}, err
-		}
-		if err := tx.Commit(ctx); err != nil {
-			return GraphImport{}, err
-		}
-		return GraphImport{}, ErrInstagramImportExpired
-	}
-	if graphImport.State == ImportExpired {
-		return GraphImport{}, ErrInstagramImportExpired
-	}
 	reactivated := false
 	if params.Reactivate != nil && *params.Reactivate {
 		if graphImport.State != ImportMembershipInactive {
@@ -339,40 +292,6 @@ func (s *ImportStore) UpdateImport(ctx context.Context, owner syntax.DID, id uui
 		}
 		graphImport.State = ImportActive
 		reactivated = true
-	}
-	if params.RetainUnmatched != nil {
-		if *params.RetainUnmatched {
-			if !graphImport.RetainUnmatched {
-				return GraphImport{}, ErrUnmatchedDataUnavailable
-			}
-			expires := params.Now.AddDate(1, 0, 0)
-			if _, err := tx.Exec(ctx, `
-				UPDATE instagram_graph_imports
-				SET retention_expires_at = $2, updated_at = $3 WHERE id = $1
-			`, id, expires, params.Now); err != nil {
-				return GraphImport{}, err
-			}
-			if _, err := tx.Exec(ctx, `
-				UPDATE instagram_graph_handles
-				SET retain_until = $2 WHERE import_id = $1 AND NOT matched
-			`, id, expires); err != nil {
-				return GraphImport{}, err
-			}
-		} else {
-			if _, err := tx.Exec(ctx, `
-				DELETE FROM instagram_graph_handles
-				WHERE import_id = $1 AND NOT matched
-			`, id); err != nil {
-				return GraphImport{}, err
-			}
-			if _, err := tx.Exec(ctx, `
-				UPDATE instagram_graph_imports
-				SET retain_unmatched = false, retention_expires_at = NULL,
-				    updated_at = $2 WHERE id = $1
-			`, id, params.Now); err != nil {
-				return GraphImport{}, err
-			}
-		}
 	}
 	if reactivated {
 		if _, err := tx.Exec(ctx, `
@@ -433,99 +352,6 @@ func (s *ImportStore) DeleteImport(ctx context.Context, owner syntax.DID, id uui
 	return tx.Commit(ctx)
 }
 
-func (s *ImportStore) expireImport(ctx context.Context, owner syntax.DID, id uuid.UUID, now time.Time) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, `
-		UPDATE instagram_graph_imports
-		SET state = 'expired', updated_at = $3
-		WHERE id = $1 AND owner_did = $2
-		  AND state IN ('active', 'membershipInactive')
-		  AND retention_expires_at IS NOT NULL
-		  AND retention_expires_at <= $3
-	`, id, owner, now); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, `
-		DELETE FROM instagram_graph_handles h
-		USING instagram_graph_imports i
-		WHERE h.import_id = i.id AND i.id = $1 AND i.owner_did = $2
-		  AND i.state = 'expired'
-	`, id, owner); err != nil {
-		return err
-	}
-	suggestionIDs, err := invalidateUnsupportedSuggestions(ctx, tx, owner, now)
-	if err != nil {
-		return err
-	}
-	if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "importExpired", now); err != nil {
-		return err
-	}
-	if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "import_deleted", now); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, `
-		UPDATE instagram_reconciliation_jobs
-		SET status='ignored', terminal_at=COALESCE(terminal_at,$2),
-		    lease_token=NULL, lease_expires_at=NULL, updated_at=$2
-		WHERE import_id=$1 AND status IN ('queued','processing','retryable')
-	`, id, now); err != nil {
-		return fmt.Errorf("cancel expired Instagram import reconciliation: %w", err)
-	}
-	return tx.Commit(ctx)
-}
-
-func (s *ImportStore) expireOwnerImports(ctx context.Context, owner syntax.DID, now time.Time) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, `
-		UPDATE instagram_graph_imports
-		SET state = 'expired', updated_at = $2
-		WHERE owner_did = $1
-		  AND state IN ('active', 'membershipInactive')
-		  AND retention_expires_at IS NOT NULL
-		  AND retention_expires_at <= $2
-	`, owner, now); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, `
-		DELETE FROM instagram_graph_handles h
-		USING instagram_graph_imports i
-		WHERE h.import_id = i.id AND i.owner_did = $1 AND i.state = 'expired'
-	`, owner); err != nil {
-		return err
-	}
-	suggestionIDs, err := invalidateUnsupportedSuggestions(ctx, tx, owner, now)
-	if err != nil {
-		return err
-	}
-	if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "importExpired", now); err != nil {
-		return err
-	}
-	if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "import_deleted", now); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, `
-		UPDATE instagram_reconciliation_jobs job
-		SET status='ignored', terminal_at=COALESCE(terminal_at,$2),
-		    lease_token=NULL, lease_expires_at=NULL, updated_at=$2
-		WHERE job.status IN ('queued','processing','retryable')
-		  AND EXISTS (
-			SELECT 1 FROM instagram_graph_imports source
-			WHERE source.id=job.import_id AND source.owner_did=$1 AND source.state='expired'
-		  )
-	`, owner, now); err != nil {
-		return fmt.Errorf("cancel expired Instagram import reconciliation: %w", err)
-	}
-	return tx.Commit(ctx)
-}
-
 func invalidateUnsupportedSuggestions(ctx context.Context, tx pgx.Tx, owner syntax.DID, now time.Time) ([]uuid.UUID, error) {
 	return queryUUIDs(ctx, tx, `
 		UPDATE instagram_follow_suggestions suggestion
@@ -547,8 +373,7 @@ func invalidateUnsupportedSuggestions(ctx context.Context, tx pgx.Tx, owner synt
 }
 
 const graphImportColumns = `
-	id, owner_did, state, source_type, retain_unmatched,
-	retention_expires_at, following_count,
+	id, owner_did, state, source_type, following_count,
 	created_at, updated_at`
 
 type graphImportRow interface {
@@ -556,18 +381,13 @@ type graphImportRow interface {
 }
 
 func scanGraphImport(row graphImportRow) (GraphImport, error) {
-	var (
-		graphImport GraphImport
-		owner       string
-		expires     sql.NullTime
-	)
+	var graphImport GraphImport
+	var owner string
 	if err := row.Scan(
 		&graphImport.ID,
 		&owner,
 		&graphImport.State,
 		&graphImport.SourceType,
-		&graphImport.RetainUnmatched,
-		&expires,
 		&graphImport.FollowingCount,
 		&graphImport.CreatedAt,
 		&graphImport.UpdatedAt,
@@ -578,8 +398,5 @@ func scanGraphImport(row graphImportRow) (GraphImport, error) {
 		return GraphImport{}, fmt.Errorf("%w: graph import", ErrInvalidInstagramState)
 	}
 	graphImport.OwnerDID = syntax.DID(owner)
-	if expires.Valid {
-		graphImport.RetentionExpiresAt = &expires.Time
-	}
 	return graphImport, nil
 }

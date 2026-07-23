@@ -216,8 +216,6 @@ void main() {
         'importId': 'synthetic-import-id',
         'state': 'active',
         'sourceType': 'instagramJson',
-        'retainUnmatched': true,
-        'retentionExpiresAt': '2027-07-19T12:00:00Z',
         'followingCount': 2,
         'createdAt': '2026-07-19T12:00:00Z',
       };
@@ -231,7 +229,6 @@ void main() {
           }),
           data: {
             'sourceType': 'instagramJson',
-            'retainUnmatched': true,
             'entries': [
               {'username': 'synthetic.one'},
               {'username': 'synthetic.two'},
@@ -252,12 +249,8 @@ void main() {
         )
         ..onPatch(
           '/v1/migrations/instagram/imports/synthetic-import-id',
-          (server) => server.reply(200, {
-            ...import,
-            'retainUnmatched': false,
-            'retentionExpiresAt': null,
-          }),
-          data: {'retainUnmatched': false},
+          (server) => server.reply(200, import),
+          data: {'reactivate': true},
         )
         ..onDelete(
           '/v1/migrations/instagram/imports/synthetic-import-id',
@@ -267,7 +260,6 @@ void main() {
       final api = InstagramMigrationApiClient(dio);
       final request = InstagramImportRequest(
         sourceType: InstagramImportSourceType.instagramJson,
-        retainUnmatched: true,
         entries: const [
           InstagramImportEntry(username: 'synthetic.one'),
           InstagramImportEntry(username: 'synthetic.two'),
@@ -281,7 +273,7 @@ void main() {
       final detail = await api.getImport('synthetic-import-id');
       final updated = await api.updateImport(
         'synthetic-import-id',
-        const InstagramImportPatch(retainUnmatched: false),
+        const InstagramImportPatch(reactivate: true),
       );
       await api.deleteImport('synthetic-import-id');
 
@@ -290,8 +282,7 @@ void main() {
       expect(page.cursor, 'synthetic-opaque-cursor');
       expect(page.items.single.state, InstagramImportState.active);
       expect(detail.followingCount, 2);
-      expect(updated.retainUnmatched, isFalse);
-      expect(updated.retentionExpiresAt, isNull);
+      expect(updated.state, InstagramImportState.active);
       for (final value in [created, page, detail, updated]) {
         expect(value.toString(), isNot(contains('synthetic-import-id')));
       }

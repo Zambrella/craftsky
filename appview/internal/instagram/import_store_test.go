@@ -15,16 +15,16 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
-func TestImportStoreCreatesAdditiveDirectionalSourcesWithConsent(t *testing.T) {
+func TestImportStoreCreatesVerifiedAdditiveSourcesRetainedUntilUnlink(t *testing.T) {
 	store, pool := newImportTestStore(t)
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:synthetic-alice")
 	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+	insertVerifiedImportOwner(t, pool, owner, "synthetic.alice", now)
 
 	first, err := store.CreateImport(ctx, CreateImportParams{
 		ID:       uuid.MustParse("00000000-0000-0000-0000-000000000201"),
 		OwnerDID: owner, SourceType: ImportSourceInstagramJSON,
-		RetainUnmatched: true,
 		Entries: []ImportEntry{
 			{Username: " Alice.Crafts "},
 			{Username: "@alice.crafts"},
@@ -38,16 +38,11 @@ func TestImportStoreCreatesAdditiveDirectionalSourcesWithConsent(t *testing.T) {
 	if first.Import.State != ImportActive || first.Counts.Following != 2 || first.InitialSuggestionCount != 0 {
 		t.Fatalf("first result = %+v", first)
 	}
-	if first.Import.RetentionExpiresAt == nil || !first.Import.RetentionExpiresAt.Equal(now.AddDate(1, 0, 0)) {
-		t.Fatalf("retention expiry = %v", first.Import.RetentionExpiresAt)
-	}
-
 	second, err := store.CreateImport(ctx, CreateImportParams{
 		ID:       uuid.MustParse("00000000-0000-0000-0000-000000000202"),
 		OwnerDID: owner, SourceType: ImportSourceManual,
-		RetainUnmatched: true,
-		Entries:         []ImportEntry{{Username: "charlie"}},
-		Now:             now.Add(time.Minute),
+		Entries: []ImportEntry{{Username: "charlie"}},
+		Now:     now.Add(time.Minute),
 	})
 	if err != nil {
 		t.Fatalf("create second: %v", err)
@@ -68,55 +63,55 @@ func TestImportStoreCreatesAdditiveDirectionalSourcesWithConsent(t *testing.T) {
 	}
 }
 
-func TestImportStoreImmediatelyDiscardsUnconsentedUnmatchedGraph(t *testing.T) {
+func TestImportStoreRequiresVerificationAndRetainsEveryHandle(t *testing.T) {
 	store, pool := newImportTestStore(t)
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:synthetic-alice")
 	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
 
-	created, err := store.CreateImport(ctx, CreateImportParams{
+	params := CreateImportParams{
 		ID:       uuid.MustParse("00000000-0000-0000-0000-000000000203"),
 		OwnerDID: owner, SourceType: ImportSourceInstagramJSON,
-		RetainUnmatched: false,
 		Entries: []ImportEntry{
 			{Username: "unmatched.following"},
 			{Username: "private.following"},
 		},
 		Now: now,
-	})
+	}
+	if _, err := store.CreateImport(ctx, params); !errors.Is(err, ErrInstagramVerificationRequired) {
+		t.Fatalf("unverified create error = %v", err)
+	}
+	insertVerifiedImportOwner(t, pool, owner, "synthetic.alice", now)
+	created, err := store.CreateImport(ctx, params)
 	if err != nil {
 		t.Fatalf("create: %v", err)
-	}
-	if created.Import.RetentionExpiresAt != nil || created.Import.RetainUnmatched {
-		t.Fatalf("unconsented import retained expiry: %+v", created.Import)
 	}
 	var handles int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_graph_handles WHERE import_id = $1`, created.Import.ID).Scan(&handles); err != nil {
 		t.Fatalf("count handles: %v", err)
 	}
-	if handles != 0 {
-		t.Fatalf("unconsented unmatched import retained %d handles", handles)
+	if handles != 2 {
+		t.Fatalf("verified import retained %d handles, want 2", handles)
 	}
 }
 
-func TestImportStoreMembershipReactivationDoesNotExtendConsentAndDeleteIsPrivate(t *testing.T) {
+func TestImportStoreMembershipReactivationAndDeleteArePrivate(t *testing.T) {
 	store, pool := newImportTestStore(t)
 	ctx := context.Background()
 	alice := syntax.DID("did:plc:synthetic-alice")
 	bob := syntax.DID("did:plc:synthetic-bob")
 	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
 	id := uuid.MustParse("00000000-0000-0000-0000-000000000204")
+	insertVerifiedImportOwner(t, pool, alice, "synthetic.alice", now)
 
-	created, err := store.CreateImport(ctx, CreateImportParams{
+	_, err := store.CreateImport(ctx, CreateImportParams{
 		ID: id, OwnerDID: alice, SourceType: ImportSourceManual,
-		RetainUnmatched: true,
-		Entries:         []ImportEntry{{Username: "synthetic"}},
-		Now:             now,
+		Entries: []ImportEntry{{Username: "synthetic"}},
+		Now:     now,
 	})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	originalExpiry := *created.Import.RetentionExpiresAt
 	if _, err := pool.Exec(ctx, `
 		UPDATE instagram_graph_imports
 		SET state = 'membershipInactive', membership_inactive_at = $2
@@ -128,8 +123,8 @@ func TestImportStoreMembershipReactivationDoesNotExtendConsentAndDeleteIsPrivate
 	if err != nil {
 		t.Fatalf("reactivate: %v", err)
 	}
-	if updated.State != ImportActive || updated.RetentionExpiresAt == nil || !updated.RetentionExpiresAt.Equal(originalExpiry) {
-		t.Fatalf("reactivated import = %+v, original expiry=%s", updated, originalExpiry)
+	if updated.State != ImportActive {
+		t.Fatalf("reactivated import = %+v", updated)
 	}
 	var reconciliationJobs int
 	if err := pool.QueryRow(ctx, `
@@ -168,12 +163,12 @@ func TestImportStoreDeleteRetractsEveryUnsupportedDependent(t *testing.T) {
 	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
 	importID := uuid.MustParse("00000000-0000-0000-0000-000000000205")
 	suggestionID := uuid.MustParse("00000000-0000-0000-0000-000000000206")
+	insertVerifiedImportOwner(t, pool, owner, "synthetic.import.delete", now)
 
 	if _, err := store.CreateImport(ctx, CreateImportParams{
 		ID: importID, OwnerDID: owner, SourceType: ImportSourceManual,
-		RetainUnmatched: true,
-		Entries:         []ImportEntry{{Username: "synthetic.target"}},
-		Now:             now,
+		Entries: []ImportEntry{{Username: "synthetic.target"}},
+		Now:     now,
 	}); err != nil {
 		t.Fatalf("create import: %v", err)
 	}
@@ -247,6 +242,8 @@ func TestImportStoreListsOwnedImportsWithStableSeekPagination(t *testing.T) {
 	alice := syntax.DID("did:plc:synthetic-alice")
 	bob := syntax.DID("did:plc:synthetic-bob")
 	base := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+	insertVerifiedImportOwner(t, store.pool, alice, "synthetic.alice", base)
+	insertVerifiedImportOwner(t, store.pool, bob, "synthetic.bob", base)
 	ids := []uuid.UUID{
 		uuid.MustParse("00000000-0000-0000-0000-000000000211"),
 		uuid.MustParse("00000000-0000-0000-0000-000000000212"),
@@ -312,3 +309,23 @@ func newImportTestStore(t *testing.T) (*ImportStore, *pgxpool.Pool) {
 }
 
 func boolPointer(value bool) *bool { return &value }
+
+func insertVerifiedImportOwner(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	owner syntax.DID,
+	username string,
+	now time.Time,
+) {
+	t.Helper()
+	insertAccountLink(t, pool, accountLinkFixture{
+		ID:           uuid.New(),
+		Owner:        owner,
+		State:        LinkActive,
+		IGSID:        "igsid-" + uuid.NewString(),
+		Username:     username,
+		Discoverable: true,
+		VerifiedAt:   now,
+		UpdatedAt:    now,
+	})
+}

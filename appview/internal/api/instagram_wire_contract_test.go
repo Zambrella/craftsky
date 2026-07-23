@@ -181,7 +181,7 @@ func TestInstagramWireCorpusUsesExactPublicResponseShapes(t *testing.T) {
 			importStates[decodeWireMap(t, fixture.Body)["state"].(string)] = struct{}{}
 		})
 	}
-	assertStringSet(t, "import states", importStates, []string{"active", "membershipInactive", "expired"})
+	assertStringSet(t, "import states", importStates, []string{"active", "membershipInactive"})
 
 	suggestionStates := map[string]struct{}{}
 	for _, fixture := range corpus.SuggestionResponses {
@@ -247,22 +247,20 @@ func TestInstagramWireCorpusRequestsAreStrictAndCamelCase(t *testing.T) {
 				}
 			case "import.create.manual", "import.create.instagramJson":
 				var value struct {
-					SourceType      instagram.ImportSourceType `json:"sourceType"`
-					RetainUnmatched *bool                      `json:"retainUnmatched"`
-					Entries         []instagram.ImportEntry    `json:"entries"`
+					SourceType instagram.ImportSourceType `json:"sourceType"`
+					Entries    []instagram.ImportEntry    `json:"entries"`
 				}
 				mustStrictDecodeAndRoundTrip(t, req, &value, fixture.Body)
-				if !value.SourceType.Valid() || value.RetainUnmatched == nil || len(value.Entries) == 0 {
+				if !value.SourceType.Valid() || len(value.Entries) == 0 {
 					t.Fatal("fixture is not a valid import request")
 				}
-			case "import.disableRetention", "import.reactivate":
+			case "import.reactivate":
 				var value struct {
-					RetainUnmatched *bool `json:"retainUnmatched,omitempty"`
-					Reactivate      *bool `json:"reactivate,omitempty"`
+					Reactivate *bool `json:"reactivate,omitempty"`
 				}
 				mustStrictDecodeAndRoundTrip(t, req, &value, fixture.Body)
-				if value.RetainUnmatched == nil && value.Reactivate == nil {
-					t.Fatal("empty import patch")
+				if value.Reactivate == nil || !*value.Reactivate {
+					t.Fatal("invalid import reactivation")
 				}
 			default:
 				t.Fatalf("unvalidated request fixture %q", fixture.ID)
@@ -283,9 +281,8 @@ func TestInstagramWireCorpusRequestsAreStrictAndCamelCase(t *testing.T) {
 	}
 	request := httptest.NewRequest(fixture.Method, fixture.Path, bytes.NewReader(raw))
 	var destination struct {
-		SourceType      instagram.ImportSourceType `json:"sourceType"`
-		RetainUnmatched *bool                      `json:"retainUnmatched"`
-		Entries         []instagram.ImportEntry    `json:"entries"`
+		SourceType instagram.ImportSourceType `json:"sourceType"`
+		Entries    []instagram.ImportEntry    `json:"entries"`
 	}
 	if err := decodeStrictJSONObject(request, &destination); err == nil {
 		t.Fatal("strict import boundary accepted a raw archive field")
@@ -414,8 +411,8 @@ func TestInstagramWireCorpusErrorsDeletesAndWebhookRetryMetadata(t *testing.T) {
 		"instagram_verification_state_conflict", "instagram_link_conflict", "profile_not_found",
 		"invalid_request", "instagram_link_not_found", "instagram_reactivation_required",
 		"request_too_large", "invalid_instagram_import", "invalid_cursor",
-		"instagram_import_not_found", "instagram_import_inactive", "instagram_import_expired",
-		"unmatched_data_unavailable", "instagram_suggestion_not_found",
+		"instagram_import_not_found", "instagram_import_inactive", "instagram_verification_required",
+		"instagram_suggestion_not_found",
 		"instagram_suggestion_ineligible", "follow_write_unavailable",
 	} {
 		if !errorCodes[code] {

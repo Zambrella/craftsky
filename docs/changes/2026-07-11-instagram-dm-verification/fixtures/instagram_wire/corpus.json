@@ -47,7 +47,6 @@
       "path": "/v1/migrations/instagram/imports",
       "body": {
         "sourceType": "manual",
-        "retainUnmatched": false,
         "entries": [
           {
             "username": "synthetic_manual_01"
@@ -61,7 +60,6 @@
       "path": "/v1/migrations/instagram/imports",
       "body": {
         "sourceType": "instagramJson",
-        "retainUnmatched": true,
         "entries": [
           {
             "username": "synthetic_following_01"
@@ -70,14 +68,6 @@
             "username": "synthetic_following_02"
           }
         ]
-      }
-    },
-    {
-      "id": "import.disableRetention",
-      "method": "PATCH",
-      "path": "/v1/migrations/instagram/imports/synthetic-import-0001",
-      "body": {
-        "retainUnmatched": false
       }
     },
     {
@@ -393,8 +383,6 @@
           "importId": "synthetic-import-0001",
           "state": "active",
           "sourceType": "instagramJson",
-          "retainUnmatched": true,
-          "retentionExpiresAt": "2027-07-19T12:00:00Z",
           "followingCount": 2,
           "createdAt": "2026-07-19T12:00:00Z"
         },
@@ -407,7 +395,7 @@
   ],
   "importResponses": [
     {
-      "id": "import.active.retained",
+      "id": "import.active",
       "method": "GET",
       "path": "/v1/migrations/instagram/imports/synthetic-import-0001",
       "status": 200,
@@ -415,14 +403,12 @@
         "importId": "synthetic-import-0001",
         "state": "active",
         "sourceType": "instagramJson",
-        "retainUnmatched": true,
-        "retentionExpiresAt": "2027-07-19T12:00:00Z",
         "followingCount": 2,
         "createdAt": "2026-07-19T12:00:00Z"
       }
     },
     {
-      "id": "import.membershipInactive.omittedRetention",
+      "id": "import.membershipInactive",
       "method": "GET",
       "path": "/v1/migrations/instagram/imports/synthetic-import-0002",
       "status": 200,
@@ -430,23 +416,8 @@
         "importId": "synthetic-import-0002",
         "state": "membershipInactive",
         "sourceType": "manual",
-        "retainUnmatched": false,
         "followingCount": 1,
         "createdAt": "2026-07-19T12:01:00Z"
-      }
-    },
-    {
-      "id": "import.expired.omittedRetention",
-      "method": "GET",
-      "path": "/v1/migrations/instagram/imports/synthetic-import-0003",
-      "status": 200,
-      "body": {
-        "importId": "synthetic-import-0003",
-        "state": "expired",
-        "sourceType": "instagramJson",
-        "retainUnmatched": false,
-        "followingCount": 0,
-        "createdAt": "2026-07-19T12:02:00Z"
       }
     }
   ],
@@ -577,7 +548,6 @@
             "importId": "synthetic-import-page-0001",
             "state": "active",
             "sourceType": "manual",
-            "retainUnmatched": false,
             "followingCount": 1,
             "createdAt": "2026-07-19T11:59:00Z"
           }
@@ -599,8 +569,6 @@
             "importId": "synthetic-import-page-0050",
             "state": "membershipInactive",
             "sourceType": "instagramJson",
-            "retainUnmatched": true,
-            "retentionExpiresAt": "2027-07-19T11:58:00Z",
             "followingCount": 50,
             "createdAt": "2026-07-19T11:58:00Z"
           }
@@ -813,25 +781,14 @@
       }
     },
     {
-      "id": "import.expired",
-      "method": "PATCH",
-      "path": "/v1/migrations/instagram/imports/synthetic-import-0003",
+      "id": "import.verificationRequired",
+      "method": "POST",
+      "path": "/v1/migrations/instagram/imports",
       "status": 409,
       "body": {
-        "error": "instagram_import_expired",
-        "message": "Instagram import expired",
+        "error": "instagram_verification_required",
+        "message": "Verify an Instagram account before importing",
         "requestId": "synthetic-request-0015"
-      }
-    },
-    {
-      "id": "import.unmatchedUnavailable",
-      "method": "PATCH",
-      "path": "/v1/migrations/instagram/imports/synthetic-import-0002",
-      "status": 409,
-      "body": {
-        "error": "unmatched_data_unavailable",
-        "message": "Unmatched Instagram data unavailable",
-        "requestId": "synthetic-request-0016"
       }
     },
     {
@@ -1470,7 +1427,6 @@
       "importId": "synthetic-import-future-state",
       "state": "futureImportState",
       "sourceType": "manual",
-      "retainUnmatched": false,
       "followingCount": 0,
       "createdAt": "2026-07-19T13:03:00Z"
     },
@@ -1478,7 +1434,6 @@
       "importId": "synthetic-import-future-source",
       "state": "active",
       "sourceType": "futureImportSource",
-      "retainUnmatched": false,
       "followingCount": 0,
       "createdAt": "2026-07-19T13:04:00Z"
     },

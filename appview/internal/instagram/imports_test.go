@@ -25,7 +25,7 @@ func TestImportServiceOwnsIdentityTimeAndFixedBounds(t *testing.T) {
 		t.Fatalf("new service: %v", err)
 	}
 	owner := syntax.DID("did:plc:synthetic-alice")
-	if _, err := service.CreateImport(context.Background(), owner, ImportSourceManual, true, []ImportEntry{{Username: "Synthetic.User"}}); err != nil {
+	if _, err := service.CreateImport(context.Background(), owner, ImportSourceManual, []ImportEntry{{Username: "Synthetic.User"}}); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 	if repository.created.ID != id || repository.created.OwnerDID != owner || !repository.created.Now.Equal(now) {

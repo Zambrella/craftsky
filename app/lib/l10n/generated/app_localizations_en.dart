@@ -1373,7 +1373,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get instagramVerificationUnavailableImports =>
-      'You can still import handles on this device.';
+      'Imports become available after Instagram verification is configured and your account is verified.';
+
+  @override
+  String get instagramVerificationRequiredForImport =>
+      'Complete verification to sync the accounts you follow.';
 
   @override
   String get instagramVerificationStart => 'Create verification challenge';
@@ -1501,14 +1505,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instagramImportTitle => 'Import accounts you follow';
 
   @override
-  String get instagramImportLocalDisclosure =>
-      'Import accounts you follow on Instagram. CraftSky reads the selected JSON file only on this device and uploads only normalized usernames; follower data is ignored and ZIP archives are not supported.';
-
-  @override
   String get instagramImportManual => 'Enter handles';
 
   @override
+  String get instagramImportManualDescription =>
+      'Enter the Instagram handles of accounts you follow, one per line. CraftSky keeps them until you unlink Instagram.';
+
+  @override
   String get instagramImportJson => 'Choose JSON';
+
+  @override
+  String get instagramImportJsonDescription =>
+      'Select the JSON file containing accounts you follow. CraftSky reads it only on this device and uploads usernames. Follower data is ignored, and ZIP archives are not supported.';
 
   @override
   String get instagramImportHandles => 'Instagram handles';
@@ -1517,7 +1525,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instagramImportHandlesHint => 'One handle per line';
 
   @override
-  String get instagramImportPreview => 'Preview normalized handles';
+  String get instagramImportManualAction => 'Import handles';
 
   @override
   String get instagramImportSelectJson => 'Select Instagram JSON file';
@@ -1578,17 +1586,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get instagramImportRetention =>
-      'Keep unmatched accounts for future matches';
-
-  @override
-  String get instagramImportRetentionDescription =>
-      'Optional. Unmatched following handles may be retained privately for up to 12 months. You can withdraw this consent or delete the import at any time.';
-
-  @override
-  String get instagramImportUpload => 'Create private import';
-
-  @override
   String get instagramImportUploadSuccess => 'Instagram import created';
 
   @override
@@ -1626,30 +1623,21 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String instagramImportRetainedUntil(String date) {
-    return 'Future matching retained until $date';
-  }
-
-  @override
   String get instagramImportReactivationDisclosure =>
-      'This import paused when your CraftSky membership changed. Reactivating it does not extend its retention date.';
+      'This import paused when your CraftSky membership changed. Reactivate it to resume matching.';
 
   @override
   String get instagramImportReactivate => 'Reactivate import';
 
   @override
-  String get instagramImportRenewRetention => 'Renew future-match retention';
-
-  @override
-  String get instagramImportWithdrawRetention =>
-      'Withdraw future-match retention';
-
-  @override
-  String get instagramImportRetentionDiscarded =>
-      'Unmatched handles are not retained. Create a new import if you want to enable future matching.';
-
-  @override
   String get instagramImportDelete => 'Delete import';
+
+  @override
+  String get instagramImportNotifications =>
+      'CraftSky will notify you when someone in this list joins. You can disable Instagram match push notifications in';
+
+  @override
+  String get instagramImportNotificationSettings => 'Notification settings';
 
   @override
   String get instagramSuggestionsTitle => 'People you may know';

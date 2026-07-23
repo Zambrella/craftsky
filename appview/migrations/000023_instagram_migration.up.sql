@@ -191,45 +191,28 @@ CREATE INDEX instagram_webhook_work_retention_idx
 CREATE TABLE instagram_graph_imports (
     id                      UUID        NOT NULL PRIMARY KEY,
     owner_did               TEXT        NOT NULL,
-    state                   TEXT        NOT NULL CHECK (state IN ('active', 'membershipInactive', 'expired')),
+    state                   TEXT        NOT NULL CHECK (state IN ('active', 'membershipInactive')),
     source_type             TEXT        NOT NULL CHECK (source_type IN ('manual', 'instagramJson')),
-    retain_unmatched        BOOLEAN     NOT NULL,
-    retention_expires_at    TIMESTAMPTZ,
     membership_inactive_at  TIMESTAMPTZ,
     following_count         INTEGER     NOT NULL CHECK (following_count >= 0 AND following_count <= 10000),
-    final_terminal_at       TIMESTAMPTZ,
-    aggregate_purge_at      TIMESTAMPTZ,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT instagram_graph_imports_retention_check CHECK (
-        retain_unmatched OR retention_expires_at IS NULL
-    )
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX instagram_graph_imports_owner_page_idx
     ON instagram_graph_imports (owner_did, created_at DESC, id DESC);
-CREATE INDEX instagram_graph_imports_retention_idx
-    ON instagram_graph_imports (retention_expires_at, id)
-    WHERE retention_expires_at IS NOT NULL;
-CREATE INDEX instagram_graph_imports_aggregate_purge_idx
-    ON instagram_graph_imports (aggregate_purge_at, id)
-    WHERE aggregate_purge_at IS NOT NULL;
 
 CREATE TABLE instagram_graph_handles (
     id                  BIGSERIAL   NOT NULL PRIMARY KEY,
     import_id           UUID        NOT NULL REFERENCES instagram_graph_imports(id) ON DELETE CASCADE,
     username_normalized TEXT        NOT NULL,
     matched             BOOLEAN     NOT NULL DEFAULT false,
-    retain_until        TIMESTAMPTZ,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (import_id, username_normalized)
 );
 
 CREATE INDEX instagram_graph_handles_match_idx
     ON instagram_graph_handles (username_normalized, import_id);
-CREATE INDEX instagram_graph_handles_retention_idx
-    ON instagram_graph_handles (retain_until, id)
-    WHERE retain_until IS NOT NULL;
 
 CREATE TABLE instagram_follow_suggestions (
     id                  UUID        NOT NULL PRIMARY KEY,

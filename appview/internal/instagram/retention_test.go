@@ -141,46 +141,47 @@ func TestRetentionServiceClearsWebhookAndLinkIdentityThenPurgesTombstones(t *tes
 	assertRetentionExists(t, pool, "instagram_account_links", "03000000-0000-0000-0000-000000000001", false)
 }
 
-func TestRetentionServicePurgesExpiredImportsInStableBatches(t *testing.T) {
+func TestRetentionServiceKeepsVerifiedAccountImportsUntilExplicitUnlink(t *testing.T) {
 	pool, now := newRetentionTest(t)
 	ctx := context.Background()
-	for i := 0; i < 501; i++ {
-		id := uuid.MustParse(fmt.Sprintf("10000000-0000-0000-0000-%012d", i+1))
-		created := now.AddDate(-1, 0, 0).Add(time.Duration(i) * time.Microsecond)
-		if _, err := pool.Exec(ctx, `
-			INSERT INTO instagram_graph_imports(
-				id,owner_did,state,source_type,retain_unmatched,retention_expires_at,
-				following_count,created_at,updated_at
-			) VALUES($1,$2,'active','manual',true,$3,1,$4,$4)
-		`, id, fmt.Sprintf("did:plc:retention-import-%03d", i), now, created); err != nil {
-			t.Fatalf("seed import %d: %v", i, err)
-		}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_graph_imports(
+			id,owner_did,state,source_type,following_count,created_at,updated_at
+		) VALUES(
+			'10000000-0000-0000-0000-000000000001',
+			'did:plc:retention-import-owner',
+			'active','manual',1,$1::timestamptz-interval '10 years',$1
+		)
+	`, now); err != nil {
+		t.Fatalf("seed retained import: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_graph_handles(
+			import_id,username_normalized,matched,created_at
+		) VALUES(
+			'10000000-0000-0000-0000-000000000001',
+			'synthetic.retained.handle',false,$1::timestamptz-interval '10 years'
+		)
+	`, now); err != nil {
+		t.Fatalf("seed retained handle: %v", err)
 	}
 
 	service := NewRetentionService(pool, func() time.Time { return now })
-	first, err := service.PurgeExpiredImports(ctx, 500)
-	if err != nil {
-		t.Fatalf("first import purge: %v", err)
+	if _, err := service.Run(ctx, 500); err != nil {
+		t.Fatalf("run retention: %v", err)
 	}
-	if first != 500 {
-		t.Fatalf("first import purge=%d want=500", first)
+	var imports, handles int
+	if err := pool.QueryRow(ctx, `
+		SELECT
+			(SELECT count(*) FROM instagram_graph_imports
+			  WHERE id='10000000-0000-0000-0000-000000000001'),
+			(SELECT count(*) FROM instagram_graph_handles
+			  WHERE import_id='10000000-0000-0000-0000-000000000001')
+	`).Scan(&imports, &handles); err != nil {
+		t.Fatalf("count retained import: %v", err)
 	}
-	var remaining int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_graph_imports`).Scan(&remaining); err != nil {
-		t.Fatalf("count remaining imports: %v", err)
-	}
-	if remaining != 1 {
-		t.Fatalf("remaining imports=%d want=1", remaining)
-	}
-	second, err := service.PurgeExpiredImports(ctx, 500)
-	if err != nil {
-		t.Fatalf("second import purge: %v", err)
-	}
-	if second != 1 {
-		t.Fatalf("second import purge=%d want=1", second)
-	}
-	if _, err := service.PurgeExpiredImports(ctx, 501); err == nil {
-		t.Fatal("PurgeExpiredImports limit 501 succeeded")
+	if imports != 1 || handles != 1 {
+		t.Fatalf("retained imports=%d handles=%d, want 1 each", imports, handles)
 	}
 }
 

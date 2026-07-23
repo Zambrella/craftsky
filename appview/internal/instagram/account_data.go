@@ -106,32 +106,6 @@ func (s *PrivateDataService) InactivateMembershipTx(ctx context.Context, tx pgx.
 		return fmt.Errorf("inactivate Instagram link: %w", err)
 	}
 
-	// Expiry remains absolute across membership loss. At the exact boundary an
-	// import expires; only still-unexpired imports become reversibly inactive.
-	if _, err := tx.Exec(ctx, `
-		UPDATE instagram_graph_imports
-		SET state='expired', final_terminal_at=COALESCE(final_terminal_at,$2),
-		    aggregate_purge_at=LEAST(
-			COALESCE(aggregate_purge_at,$2::timestamptz + interval '90 days'),
-			created_at + interval '1 year'
-		    ), updated_at=$2
-		WHERE owner_did=$1
-		  AND state IN ('active','membershipInactive')
-		  AND (
-			(retention_expires_at IS NOT NULL AND retention_expires_at <= $2)
-			OR created_at + interval '1 year' <= $2
-		  )
-	`, owner, now); err != nil {
-		return fmt.Errorf("expire Instagram imports during inactivation: %w", err)
-	}
-	if _, err := tx.Exec(ctx, `
-		DELETE FROM instagram_graph_handles handle
-		USING instagram_graph_imports source
-		WHERE handle.import_id=source.id
-		  AND source.owner_did=$1 AND source.state='expired'
-	`, owner); err != nil {
-		return fmt.Errorf("clear expired Instagram handles during inactivation: %w", err)
-	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE instagram_graph_imports
 		SET state='membershipInactive',

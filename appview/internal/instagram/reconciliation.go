@@ -227,7 +227,7 @@ func (w *ReconciliationWorker) claimJobs(ctx context.Context, limit int, now tim
 }
 
 func (w *ReconciliationWorker) processJob(ctx context.Context, job reconciliationJob, now time.Time) (bool, error) {
-	candidates, err := w.loadCandidates(ctx, job, now)
+	candidates, err := w.loadCandidates(ctx, job)
 	if err != nil {
 		return false, err
 	}
@@ -304,7 +304,7 @@ func (w *ReconciliationWorker) persistCandidate(ctx context.Context, candidate r
 	return upsert.Supported, nil
 }
 
-func (w *ReconciliationWorker) loadCandidates(ctx context.Context, job reconciliationJob, now time.Time) ([]reconciliationCandidate, error) {
+func (w *ReconciliationWorker) loadCandidates(ctx context.Context, job reconciliationJob) ([]reconciliationCandidate, error) {
 	if job.OwnerDID == "" {
 		return nil, nil
 	}
@@ -319,22 +319,21 @@ func (w *ReconciliationWorker) loadCandidates(ctx context.Context, job reconcili
 		 AND link.discoverable
 		 AND NOT link.conflict_pending
 		WHERE i.state='active'
-		  AND (i.retention_expires_at IS NULL OR i.retention_expires_at>$1)
-		  AND (h.retain_until IS NULL OR h.retain_until>$1)`
-	args := []any{now}
+		`
+	args := []any{}
 	switch {
 	case job.LinkID != nil:
-		query += ` AND link.id=$2 AND link.owner_did=$3`
+		query += ` AND link.id=$1 AND link.owner_did=$2`
 		args = append(args, *job.LinkID, job.OwnerDID)
 	case job.ImportID != nil:
-		query += ` AND i.id=$2 AND i.owner_did=$3`
+		query += ` AND i.id=$1 AND i.owner_did=$2`
 		args = append(args, *job.ImportID, job.OwnerDID)
 		if job.TargetDID != nil {
-			query += ` AND link.owner_did=$4`
+			query += ` AND link.owner_did=$3`
 			args = append(args, *job.TargetDID)
 		}
 	case job.TargetDID != nil:
-		query += ` AND i.owner_did=$2 AND link.owner_did=$3`
+		query += ` AND i.owner_did=$1 AND link.owner_did=$2`
 		args = append(args, job.OwnerDID, *job.TargetDID)
 	default:
 		return nil, nil

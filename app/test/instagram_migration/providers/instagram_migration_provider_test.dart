@@ -193,7 +193,7 @@ void main() {
   );
 
   test(
-    'IT-015 membership-inactive import reactivation does not renew consent',
+    'IT-015 membership-inactive import reactivation changes only its state',
     () async {
       final initial = registry.SessionRegistry.empty().upsertAndActivate(
         token: 'token-a',
@@ -201,13 +201,10 @@ void main() {
         handle: 'alice.test',
       );
       final lease = initial.activeLease!;
-      final expiry = DateTime.utc(2026, 12);
       final inactive = InstagramImportSummary(
         importId: 'import-a',
         state: InstagramImportState.membershipInactive,
         sourceType: InstagramImportSourceType.instagramJson,
-        retainUnmatched: true,
-        retentionExpiresAt: expiry,
         followingCount: 3,
         createdAt: DateTime.utc(2026, 7),
       );
@@ -229,8 +226,6 @@ void main() {
             importId: id,
             state: InstagramImportState.active,
             sourceType: inactive.sourceType,
-            retainUnmatched: inactive.retainUnmatched,
-            retentionExpiresAt: expiry,
             followingCount: inactive.followingCount,
             createdAt: inactive.createdAt,
           );
@@ -258,15 +253,14 @@ void main() {
       );
 
       expect(sentPatch?.reactivate, isTrue);
-      expect(sentPatch?.retainUnmatched, isNull);
       expect(
         container
             .read(instagramImportsProvider(lease))
             .requireValue
             .items
             .single
-            .retentionExpiresAt,
-        expiry,
+            .state,
+        InstagramImportState.active,
       );
     },
   );
@@ -395,7 +389,6 @@ void main() {
           .create(
             InstagramImportRequest(
               sourceType: InstagramImportSourceType.manual,
-              retainUnmatched: false,
               entries: const [
                 InstagramImportEntry(username: 'private_a'),
               ],
@@ -420,8 +413,6 @@ void main() {
             importId: 'import-a',
             state: InstagramImportState.active,
             sourceType: InstagramImportSourceType.manual,
-            retainUnmatched: false,
-            retentionExpiresAt: null,
             followingCount: 1,
             createdAt: DateTime.utc(2026, 7, 19),
           ),

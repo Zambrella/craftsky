@@ -53,7 +53,6 @@ void main() {
       [
         'active',
         'membershipInactive',
-        'expired',
       ].map(InstagramImportState.fromWire).toSet(),
       InstagramImportState.values
           .where((state) => state != InstagramImportState.unknown)

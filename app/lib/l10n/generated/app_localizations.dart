@@ -2533,8 +2533,14 @@ abstract class AppLocalizations {
   /// No description provided for @instagramVerificationUnavailableImports.
   ///
   /// In en, this message translates to:
-  /// **'You can still import handles on this device.'**
+  /// **'Imports become available after Instagram verification is configured and your account is verified.'**
   String get instagramVerificationUnavailableImports;
+
+  /// No description provided for @instagramVerificationRequiredForImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Complete verification to sync the accounts you follow.'**
+  String get instagramVerificationRequiredForImport;
 
   /// No description provided for @instagramVerificationStart.
   ///
@@ -2746,23 +2752,29 @@ abstract class AppLocalizations {
   /// **'Import accounts you follow'**
   String get instagramImportTitle;
 
-  /// No description provided for @instagramImportLocalDisclosure.
-  ///
-  /// In en, this message translates to:
-  /// **'Import accounts you follow on Instagram. CraftSky reads the selected JSON file only on this device and uploads only normalized usernames; follower data is ignored and ZIP archives are not supported.'**
-  String get instagramImportLocalDisclosure;
-
   /// No description provided for @instagramImportManual.
   ///
   /// In en, this message translates to:
   /// **'Enter handles'**
   String get instagramImportManual;
 
+  /// No description provided for @instagramImportManualDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the Instagram handles of accounts you follow, one per line. CraftSky keeps them until you unlink Instagram.'**
+  String get instagramImportManualDescription;
+
   /// No description provided for @instagramImportJson.
   ///
   /// In en, this message translates to:
   /// **'Choose JSON'**
   String get instagramImportJson;
+
+  /// No description provided for @instagramImportJsonDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Select the JSON file containing accounts you follow. CraftSky reads it only on this device and uploads usernames. Follower data is ignored, and ZIP archives are not supported.'**
+  String get instagramImportJsonDescription;
 
   /// No description provided for @instagramImportHandles.
   ///
@@ -2776,11 +2788,11 @@ abstract class AppLocalizations {
   /// **'One handle per line'**
   String get instagramImportHandlesHint;
 
-  /// No description provided for @instagramImportPreview.
+  /// No description provided for @instagramImportManualAction.
   ///
   /// In en, this message translates to:
-  /// **'Preview normalized handles'**
-  String get instagramImportPreview;
+  /// **'Import handles'**
+  String get instagramImportManualAction;
 
   /// No description provided for @instagramImportSelectJson.
   ///
@@ -2842,24 +2854,6 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{1 duplicate removed} other{{count} duplicates removed}}'**
   String instagramImportDuplicateCount(int count);
 
-  /// No description provided for @instagramImportRetention.
-  ///
-  /// In en, this message translates to:
-  /// **'Keep unmatched accounts for future matches'**
-  String get instagramImportRetention;
-
-  /// No description provided for @instagramImportRetentionDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Optional. Unmatched following handles may be retained privately for up to 12 months. You can withdraw this consent or delete the import at any time.'**
-  String get instagramImportRetentionDescription;
-
-  /// No description provided for @instagramImportUpload.
-  ///
-  /// In en, this message translates to:
-  /// **'Create private import'**
-  String get instagramImportUpload;
-
   /// No description provided for @instagramImportUploadSuccess.
   ///
   /// In en, this message translates to:
@@ -2914,16 +2908,10 @@ abstract class AppLocalizations {
   /// **'{followingCount, plural, =1{1 account followed} other{{followingCount} accounts followed}}'**
   String instagramImportCounts(int followingCount);
 
-  /// No description provided for @instagramImportRetainedUntil.
-  ///
-  /// In en, this message translates to:
-  /// **'Future matching retained until {date}'**
-  String instagramImportRetainedUntil(String date);
-
   /// No description provided for @instagramImportReactivationDisclosure.
   ///
   /// In en, this message translates to:
-  /// **'This import paused when your CraftSky membership changed. Reactivating it does not extend its retention date.'**
+  /// **'This import paused when your CraftSky membership changed. Reactivate it to resume matching.'**
   String get instagramImportReactivationDisclosure;
 
   /// No description provided for @instagramImportReactivate.
@@ -2932,29 +2920,23 @@ abstract class AppLocalizations {
   /// **'Reactivate import'**
   String get instagramImportReactivate;
 
-  /// No description provided for @instagramImportRenewRetention.
-  ///
-  /// In en, this message translates to:
-  /// **'Renew future-match retention'**
-  String get instagramImportRenewRetention;
-
-  /// No description provided for @instagramImportWithdrawRetention.
-  ///
-  /// In en, this message translates to:
-  /// **'Withdraw future-match retention'**
-  String get instagramImportWithdrawRetention;
-
-  /// No description provided for @instagramImportRetentionDiscarded.
-  ///
-  /// In en, this message translates to:
-  /// **'Unmatched handles are not retained. Create a new import if you want to enable future matching.'**
-  String get instagramImportRetentionDiscarded;
-
   /// No description provided for @instagramImportDelete.
   ///
   /// In en, this message translates to:
   /// **'Delete import'**
   String get instagramImportDelete;
+
+  /// No description provided for @instagramImportNotifications.
+  ///
+  /// In en, this message translates to:
+  /// **'CraftSky will notify you when someone in this list joins. You can disable Instagram match push notifications in'**
+  String get instagramImportNotifications;
+
+  /// No description provided for @instagramImportNotificationSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification settings'**
+  String get instagramImportNotificationSettings;
 
   /// No description provided for @instagramSuggestionsTitle.
   ///

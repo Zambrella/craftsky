@@ -10,8 +10,9 @@ import (
 )
 
 var (
-	ErrInvalidInstagramImport    = errors.New("invalid Instagram import")
-	ErrInvalidInstagramPageLimit = errors.New("invalid Instagram page limit")
+	ErrInvalidInstagramImport        = errors.New("invalid Instagram import")
+	ErrInvalidInstagramPageLimit     = errors.New("invalid Instagram page limit")
+	ErrInstagramVerificationRequired = errors.New("verified Instagram account required")
 )
 
 type ImportRepository interface {
@@ -86,7 +87,7 @@ func NewImportService(options ImportServiceOptions) (*ImportService, error) {
 	}, nil
 }
 
-func (s *ImportService) CreateImport(ctx context.Context, owner syntax.DID, sourceType ImportSourceType, retainUnmatched bool, entries []ImportEntry) (CreateImportResult, error) {
+func (s *ImportService) CreateImport(ctx context.Context, owner syntax.DID, sourceType ImportSourceType, entries []ImportEntry) (CreateImportResult, error) {
 	if s == nil || s.repository == nil || owner == "" || !sourceType.Valid() {
 		return CreateImportResult{}, ErrInvalidInstagramImport
 	}
@@ -101,12 +102,11 @@ func (s *ImportService) CreateImport(ctx context.Context, owner syntax.DID, sour
 		return CreateImportResult{}, ErrTooManyImportEntries
 	}
 	params := CreateImportParams{
-		ID:              s.newID(),
-		OwnerDID:        owner,
-		SourceType:      sourceType,
-		RetainUnmatched: retainUnmatched,
-		Entries:         normalized,
-		Now:             s.now().UTC(),
+		ID:         s.newID(),
+		OwnerDID:   owner,
+		SourceType: sourceType,
+		Entries:    normalized,
+		Now:        s.now().UTC(),
 	}
 	if s.matcher == nil {
 		return s.repository.CreateImport(ctx, params)
@@ -152,17 +152,16 @@ func (s *ImportService) GetImport(ctx context.Context, owner syntax.DID, id uuid
 	return s.repository.GetImport(ctx, owner, id, s.now().UTC())
 }
 
-func (s *ImportService) UpdateImport(ctx context.Context, owner syntax.DID, id uuid.UUID, retainUnmatched, reactivate *bool) (GraphImport, error) {
+func (s *ImportService) UpdateImport(ctx context.Context, owner syntax.DID, id uuid.UUID, reactivate *bool) (GraphImport, error) {
 	if s == nil || s.repository == nil || owner == "" || id == uuid.Nil {
 		return GraphImport{}, ErrInstagramResourceNotFound
 	}
-	if retainUnmatched == nil && reactivate == nil {
+	if reactivate == nil || !*reactivate {
 		return GraphImport{}, ErrInvalidInstagramImport
 	}
 	return s.repository.UpdateImport(ctx, owner, id, UpdateImportParams{
-		RetainUnmatched: retainUnmatched,
-		Reactivate:      reactivate,
-		Now:             s.now().UTC(),
+		Reactivate: reactivate,
+		Now:        s.now().UTC(),
 	})
 }
 

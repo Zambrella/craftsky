@@ -22,6 +22,7 @@ func TestSuggestionMatcherCreatesOnlyEligibleFollowingSupportBeforePrivacyFinali
 	now := time.Date(2026, 7, 19, 21, 0, 0, 0, time.UTC)
 	alice := syntax.DID("did:plc:synthetic-alice")
 	bob := syntax.DID("did:plc:synthetic-bob")
+	insertVerifiedImportOwner(t, pool, alice, "synthetic.alice", now)
 	seedSuggestionLink(t, pool, bob, "synthetic.bob", now)
 	store := NewSuggestionStore(pool)
 	policy := matcherPolicy{decision: EligibilityDecision{Eligible: true, Reason: EligibilityAllowed}}
@@ -34,7 +35,7 @@ func TestSuggestionMatcherCreatesOnlyEligibleFollowingSupportBeforePrivacyFinali
 	if err != nil {
 		t.Fatal(err)
 	}
-	created, err := service.CreateImport(ctx, alice, ImportSourceInstagramJSON, false, []ImportEntry{
+	created, err := service.CreateImport(ctx, alice, ImportSourceInstagramJSON, []ImportEntry{
 		{Username: "synthetic.bob"},
 		{Username: "unmatched.synthetic"},
 	})
@@ -54,12 +55,12 @@ func TestSuggestionMatcherCreatesOnlyEligibleFollowingSupportBeforePrivacyFinali
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_graph_handles`).Scan(&handles); err != nil {
 		t.Fatal(err)
 	}
-	if suggestions != 1 || supports != 1 || handles != 1 {
+	if suggestions != 1 || supports != 1 || handles != 2 {
 		t.Fatalf("suggestions=%d supports=%d handles=%d", suggestions, supports, handles)
 	}
 	var username string
 	var matched bool
-	if err := pool.QueryRow(ctx, `SELECT username_normalized, matched FROM instagram_graph_handles`).Scan(&username, &matched); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT username_normalized, matched FROM instagram_graph_handles WHERE matched`).Scan(&username, &matched); err != nil {
 		t.Fatal(err)
 	}
 	if username != "synthetic.bob" || !matched {
@@ -67,7 +68,7 @@ func TestSuggestionMatcherCreatesOnlyEligibleFollowingSupportBeforePrivacyFinali
 	}
 }
 
-func TestSuggestionMatcherFailsClosedAndDiscardsUnconsentedGraph(t *testing.T) {
+func TestSuggestionMatcherFailsClosedAndRetainsGraphForFutureReconciliation(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000023_instagram_migration.up.sql")
 	if err != nil {
 		t.Fatal(err)
@@ -77,13 +78,14 @@ func TestSuggestionMatcherFailsClosedAndDiscardsUnconsentedGraph(t *testing.T) {
 	now := time.Date(2026, 7, 19, 21, 30, 0, 0, time.UTC)
 	alice := syntax.DID("did:plc:synthetic-alice")
 	bob := syntax.DID("did:plc:synthetic-bob")
+	insertVerifiedImportOwner(t, pool, alice, "synthetic.alice", now)
 	seedSuggestionLink(t, pool, bob, "synthetic.bob", now)
 	matcher := NewSuggestionMatcher(pool, NewSuggestionStore(pool), matcherPolicy{decision: EligibilityDecision{Reason: EligibilitySafetyUnavailable}}, func() time.Time { return now })
 	service, err := NewImportService(ImportServiceOptions{Repository: NewImportStore(pool), Matcher: matcher, Now: func() time.Time { return now }})
 	if err != nil {
 		t.Fatal(err)
 	}
-	created, err := service.CreateImport(ctx, alice, ImportSourceManual, false, []ImportEntry{{Username: "synthetic.bob"}})
+	created, err := service.CreateImport(ctx, alice, ImportSourceManual, []ImportEntry{{Username: "synthetic.bob"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +99,7 @@ func TestSuggestionMatcherFailsClosedAndDiscardsUnconsentedGraph(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_follow_suggestions`).Scan(&suggestions); err != nil {
 		t.Fatal(err)
 	}
-	if handles != 0 || suggestions != 0 {
+	if handles != 1 || suggestions != 0 {
 		t.Fatalf("handles=%d suggestions=%d", handles, suggestions)
 	}
 }

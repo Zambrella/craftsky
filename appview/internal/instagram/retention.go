@@ -31,7 +31,6 @@ type RetentionStats struct {
 	ClaimsPurged           int
 	ConflictsExpired       int
 	ConflictsPurged        int
-	ImportsPurged          int
 	SuggestionsPurged      int
 	DeliveriesPurged       int
 	NotificationsPurged    int
@@ -88,14 +87,6 @@ func (s *RetentionService) Run(ctx context.Context, batch int) (RetentionStats, 
 		}
 		*step.destination = count
 	}
-	if err := s.prepareNonconsentedImports(ctx, batch, now); err != nil {
-		return stats, err
-	}
-	imports, err := s.purgeExpiredImportsAt(ctx, batch, now)
-	if err != nil {
-		return stats, err
-	}
-	stats.ImportsPurged = imports
 	remaining := []struct {
 		destination *int
 		run         func(context.Context, int, time.Time) (int, error)
@@ -114,23 +105,6 @@ func (s *RetentionService) Run(ctx context.Context, batch int) (RetentionStats, 
 		*step.destination = count
 	}
 	return stats, nil
-}
-
-// PurgeExpiredImports is the narrow operator primitive. It performs the same
-// dependency-safe import cleanup as Run and never processes more than 500
-// primary imports.
-func (s *RetentionService) PurgeExpiredImports(ctx context.Context, batch int) (int, error) {
-	if err := s.validate(batch); err != nil {
-		return 0, err
-	}
-	now := s.now().UTC()
-	if now.IsZero() {
-		return 0, errors.New("Instagram retention clock returned zero time")
-	}
-	if err := s.prepareNonconsentedImports(ctx, batch, now); err != nil {
-		return 0, err
-	}
-	return s.purgeExpiredImportsAt(ctx, batch, now)
 }
 
 func (s *RetentionService) validate(batch int) error {
@@ -447,175 +421,6 @@ func (s *RetentionService) purgeResolvedConflicts(ctx context.Context, batch int
 		ORDER BY COALESCE(resolved_at,updated_at),id
 		FOR UPDATE SKIP LOCKED LIMIT $2
 	`, "instagram_link_conflicts", now, "purge resolved Instagram conflicts")
-}
-
-func (s *RetentionService) prepareNonconsentedImports(ctx context.Context, batch int, now time.Time) error {
-	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		// Snapshot the true final terminal time before support rows are removed.
-		if _, err := tx.Exec(ctx, `
-			WITH candidates AS (
-				SELECT source.id,
-				       COALESCE(MAX(suggestion.terminal_at),source.updated_at) AS final_at
-				FROM instagram_graph_imports source
-				LEFT JOIN instagram_suggestion_sources support ON support.import_id=source.id
-				LEFT JOIN instagram_follow_suggestions suggestion ON suggestion.id=support.suggestion_id
-				WHERE NOT source.retain_unmatched
-				  AND source.final_terminal_at IS NULL
-				GROUP BY source.id
-				HAVING bool_and(suggestion.id IS NULL OR suggestion.state IN ('accepted','alreadyFollowing','dismissed','invalidated'))
-				ORDER BY source.created_at,source.id
-				LIMIT $1
-			)
-			UPDATE instagram_graph_imports source
-			SET final_terminal_at=candidate.final_at,
-			    aggregate_purge_at=LEAST(candidate.final_at+interval '90 days',source.created_at+interval '1 year'),
-			    updated_at=GREATEST(source.updated_at,candidate.final_at)
-			FROM candidates candidate WHERE source.id=candidate.id
-		`, batch); err != nil {
-			return fmt.Errorf("schedule non-consented Instagram aggregate purge: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			WITH candidates AS (
-				SELECT support.suggestion_id,support.import_id
-				FROM instagram_suggestion_sources support
-				JOIN instagram_graph_imports source ON source.id=support.import_id AND NOT source.retain_unmatched
-				JOIN instagram_follow_suggestions suggestion ON suggestion.id=support.suggestion_id AND suggestion.state IN ('accepted','alreadyFollowing','dismissed','invalidated')
-				ORDER BY support.created_at,support.import_id,support.suggestion_id
-				LIMIT $1
-			)
-			DELETE FROM instagram_suggestion_sources support
-			USING candidates candidate
-			WHERE support.suggestion_id=candidate.suggestion_id AND support.import_id=candidate.import_id
-		`, batch); err != nil {
-			return fmt.Errorf("remove terminal non-consented Instagram support: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			WITH candidates AS (
-				SELECT handle.id
-				FROM instagram_graph_handles handle
-				JOIN instagram_graph_imports source ON source.id=handle.import_id
-				WHERE handle.retain_until <= $2
-				   OR (
-					NOT source.retain_unmatched
-					AND NOT EXISTS (
-						SELECT 1
-						FROM instagram_suggestion_sources support
-						JOIN instagram_follow_suggestions suggestion
-						  ON suggestion.id=support.suggestion_id
-						 AND suggestion.state IN ('pending','accepting')
-						JOIN instagram_account_links link
-						  ON link.owner_did=suggestion.target_did
-						 AND link.username_normalized=handle.username_normalized
-						WHERE support.import_id=source.id
-					)
-				   )
-				ORDER BY COALESCE(handle.retain_until,handle.created_at),handle.id
-				LIMIT $1
-			)
-			DELETE FROM instagram_graph_handles handle
-			USING candidates candidate WHERE handle.id=candidate.id
-		`, batch, now); err != nil {
-			return fmt.Errorf("purge expired Instagram graph handles: %w", err)
-		}
-		return nil
-	})
-}
-
-func (s *RetentionService) purgeExpiredImportsAt(ctx context.Context, batch int, now time.Time) (int, error) {
-	count := 0
-	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `
-			SELECT id,owner_did
-			FROM instagram_graph_imports
-			WHERE (retain_unmatched AND retention_expires_at <= $1)
-			   OR aggregate_purge_at <= $1
-			   OR created_at <= $1::timestamptz - interval '1 year'
-			   OR (state='expired' AND COALESCE(aggregate_purge_at,retention_expires_at,created_at+interval '1 year') <= $1)
-			ORDER BY LEAST(
-				COALESCE(retention_expires_at,'infinity'::timestamptz),
-				COALESCE(aggregate_purge_at,'infinity'::timestamptz),
-				created_at+interval '1 year'
-			),id
-			FOR UPDATE SKIP LOCKED LIMIT $2
-		`, now, batch)
-		if err != nil {
-			return fmt.Errorf("select expired Instagram imports: %w", err)
-		}
-		var ids []uuid.UUID
-		var owners []string
-		for rows.Next() {
-			var id uuid.UUID
-			var owner string
-			if err := rows.Scan(&id, &owner); err != nil {
-				rows.Close()
-				return err
-			}
-			ids = append(ids, id)
-			owners = append(owners, owner)
-		}
-		if err := rows.Err(); err != nil {
-			rows.Close()
-			return err
-		}
-		rows.Close()
-		if len(ids) == 0 {
-			return nil
-		}
-		impacted, err := retentionUUIDs(ctx, tx, `
-			SELECT DISTINCT suggestion_id
-			FROM instagram_suggestion_sources
-			WHERE import_id=ANY($1::uuid[])
-			ORDER BY suggestion_id
-		`, ids)
-		if err != nil {
-			return fmt.Errorf("read expired-import suggestions: %w", err)
-		}
-		result, err := tx.Exec(ctx, `DELETE FROM instagram_graph_imports WHERE id=ANY($1::uuid[])`, ids)
-		if err != nil {
-			return fmt.Errorf("purge expired Instagram imports: %w", err)
-		}
-		count = int(result.RowsAffected())
-		invalidated := make([]uuid.UUID, 0)
-		if len(impacted) > 0 {
-			invalidated, err = retentionUUIDs(ctx, tx, `
-				UPDATE instagram_follow_suggestions suggestion
-				SET state='invalidated',accepting_since=NULL,
-				    terminal_at=COALESCE(terminal_at,$2),updated_at=$2
-				WHERE suggestion.id=ANY($1::uuid[])
-				  AND suggestion.state IN ('pending','accepting')
-				  AND NOT EXISTS (
-					SELECT 1 FROM instagram_suggestion_sources support
-					JOIN instagram_graph_imports source ON source.id=support.import_id AND source.state='active'
-					WHERE support.suggestion_id=suggestion.id
-				  )
-				RETURNING suggestion.id
-			`, impacted, now)
-			if err != nil {
-				return fmt.Errorf("invalidate expired-import suggestions: %w", err)
-			}
-		}
-		if err := failUnsentFollowOperations(ctx, tx, invalidated, "importExpired", now); err != nil {
-			return err
-		}
-		if err := retractSuggestionNotifications(ctx, tx, invalidated, "", "import_expired", now); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `
-			UPDATE instagram_reconciliation_jobs
-			SET status='ignored',lease_token=NULL,lease_expires_at=NULL,
-			    terminal_at=COALESCE(terminal_at,$2),updated_at=$2
-			WHERE import_id=ANY($1::uuid[]) AND status IN ('queued','processing','retryable')
-		`, ids, now); err != nil {
-			return fmt.Errorf("cancel expired-import jobs: %w", err)
-		}
-		for i, id := range ids {
-			if err := insertRetentionAudit(ctx, tx, owners[i], "graph_import_expired", "import", id.String(), now); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	return count, err
 }
 
 func (s *RetentionService) purgeTerminalSuggestions(ctx context.Context, batch int, now time.Time) (int, error) {

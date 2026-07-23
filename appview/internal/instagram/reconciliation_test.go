@@ -31,6 +31,13 @@ func TestReconciliationCreatesOneFixedFiveMinuteDigestForFutureMatches(t *testin
 	seedSuggestionImport(t, pool, secondImport, importer, "synthetic.second", base)
 	seedSuggestionLink(t, pool, firstTarget, "synthetic.first", base)
 	seedSuggestionLink(t, pool, secondTarget, "synthetic.second", base)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO notification_preferences (
+			account_did, category, scope, push_enabled, created_at, updated_at
+		) VALUES ($1, 'instagramMatch', 'everyone', false, $2, $2)
+	`, importer, base); err != nil {
+		t.Fatalf("disable Instagram match push: %v", err)
+	}
 	queueLinkReconciliation(t, pool, firstTarget, base)
 
 	service := notifications.NewService()
@@ -53,20 +60,64 @@ func TestReconciliationCreatesOneFixedFiveMinuteDigestForFutureMatches(t *testin
 		activity      time.Time
 		coalesceUntil time.Time
 		supports      int
+		pushEnabled   bool
 	)
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*), min(system_count), min(first_activity_at),
-		       min(activity_at), min(coalesce_until)
+		       min(activity_at), min(coalesce_until),
+		       bool_or(push_enabled_snapshot)
 		FROM notification_events
 		WHERE recipient_did=$1 AND kind='system' AND category='instagramMatch'
-	`, importer).Scan(&events, &count, &firstActivity, &activity, &coalesceUntil); err != nil {
+	`, importer).Scan(&events, &count, &firstActivity, &activity, &coalesceUntil, &pushEnabled); err != nil {
 		t.Fatal(err)
 	}
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_notification_suggestions`).Scan(&supports); err != nil {
 		t.Fatal(err)
 	}
-	if events != 1 || count != 2 || supports != 2 || !firstActivity.Equal(base) || !activity.Equal(now) || !coalesceUntil.Equal(base.Add(5*time.Minute)) {
-		t.Fatalf("digest events=%d count=%d supports=%d first=%s activity=%s close=%s", events, count, supports, firstActivity, activity, coalesceUntil)
+	if events != 1 || count != 2 || supports != 2 || pushEnabled || !firstActivity.Equal(base) || !activity.Equal(now) || !coalesceUntil.Equal(base.Add(5*time.Minute)) {
+		t.Fatalf("digest events=%d count=%d supports=%d push=%t first=%s activity=%s close=%s", events, count, supports, pushEnabled, firstActivity, activity, coalesceUntil)
+	}
+}
+
+func TestReconciliationLoadsImportAndTargetScopedCandidates(t *testing.T) {
+	pool := newReconciliationTestPool(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 19, 22, 20, 0, 0, time.UTC)
+	importer := syntax.DID("did:plc:synthetic-scoped-importer")
+	target := syntax.DID("did:plc:synthetic-scoped-target")
+	importID := uuid.MustParse("00000000-0000-0000-0000-000000000909")
+	seedSuggestionImport(t, pool, importID, importer, "synthetic.scoped", now)
+	seedSuggestionLink(t, pool, target, "synthetic.scoped", now)
+	worker := newReconciliationWorkerForTest(
+		t,
+		pool,
+		notifications.NewService(),
+		newReconciliationPolicy(),
+		func() time.Time { return now },
+	)
+
+	for name, job := range map[string]reconciliationJob{
+		"import and target": {
+			OwnerDID:  importer,
+			ImportID:  &importID,
+			TargetDID: &target,
+		},
+		"target": {
+			OwnerDID:  importer,
+			TargetDID: &target,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			candidates, err := worker.loadCandidates(ctx, job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(candidates) != 1 ||
+				candidates[0].ImportID != importID ||
+				candidates[0].TargetDID != target {
+				t.Fatalf("candidates = %+v", candidates)
+			}
+		})
 	}
 }
 

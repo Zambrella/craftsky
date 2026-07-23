@@ -85,17 +85,15 @@ func TestInstagramLinkImportSuggestionAndConflictTransitions(t *testing.T) {
 	}
 
 	assertTransitionMatrix(t,
-		[]InstagramImportState{ImportActive, ImportMembershipInactive, ImportExpired},
+		[]InstagramImportState{ImportActive, ImportMembershipInactive},
 		transitionSet[InstagramImportState]{
-			{ImportActive, ImportMembershipInactive}:  {},
-			{ImportActive, ImportExpired}:             {},
-			{ImportMembershipInactive, ImportActive}:  {},
-			{ImportMembershipInactive, ImportExpired}: {},
+			{ImportActive, ImportMembershipInactive}: {},
+			{ImportMembershipInactive, ImportActive}: {},
 		},
 		ValidateInstagramImportTransition,
 	)
-	if !ImportExpired.Terminal() || ImportActive.Terminal() || ImportMembershipInactive.Terminal() {
-		t.Fatal("only expired imports are terminal")
+	if ImportActive.Terminal() || ImportMembershipInactive.Terminal() {
+		t.Fatal("imports remain recoverable until deletion")
 	}
 
 	assertTransitionMatrix(t,

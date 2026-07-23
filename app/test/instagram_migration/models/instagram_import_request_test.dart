@@ -36,14 +36,12 @@ void main() {
 
     final request = InstagramImportRequest(
       sourceType: InstagramImportSourceType.instagramJson,
-      retainUnmatched: true,
       entries: parsed.entries,
     );
     final encoded = jsonEncode(request.toMap());
 
     expect(request.toMap(), {
       'sourceType': 'instagramJson',
-      'retainUnmatched': true,
       'entries': [
         {'username': 'synthetic.normalized'},
       ],

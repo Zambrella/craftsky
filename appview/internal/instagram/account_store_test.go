@@ -354,13 +354,43 @@ func TestAccountStoreRevokesIdempotentlyAndKeepsOnlyTheKeyedCooldownTombstone(t 
 		t.Fatalf("insert revoke claim: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_graph_imports (
+			id, owner_did, state, source_type, following_count, created_at, updated_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000236', $1, 'active', 'manual', 1, $2, $2
+		)
+	`, alice, now.Add(-time.Minute)); err != nil {
+		t.Fatalf("insert revoke import: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_graph_handles (
+			import_id, username_normalized, matched, created_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000236', 'synthetic.imported.handle', true, $1
+		)
+	`, now.Add(-time.Minute)); err != nil {
+		t.Fatalf("insert revoke handle: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
 		INSERT INTO instagram_follow_suggestions
 			(id, importer_did, target_did, state, reason, created_at, updated_at)
 		VALUES
 			('00000000-0000-0000-0000-000000000233', 'did:plc:synthetic-revoke-importer-a', $1, 'pending', 'verifiedInstagramFollow', $2, $2),
-			('00000000-0000-0000-0000-000000000234', 'did:plc:synthetic-revoke-importer-b', $1, 'accepted', 'verifiedInstagramFollow', $2, $2)
+			('00000000-0000-0000-0000-000000000234', 'did:plc:synthetic-revoke-importer-b', $1, 'accepted', 'verifiedInstagramFollow', $2, $2),
+			('00000000-0000-0000-0000-000000000237', $1, 'did:plc:synthetic-revoke-target', 'pending', 'verifiedInstagramFollow', $2, $2)
 	`, alice, now.Add(-time.Minute)); err != nil {
 		t.Fatalf("insert revoke suggestions: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_suggestion_sources (
+			suggestion_id, import_id, created_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000237',
+			'00000000-0000-0000-0000-000000000236',
+			$1
+		)
+	`, now.Add(-time.Minute)); err != nil {
+		t.Fatalf("insert revoke suggestion source: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO instagram_reconciliation_jobs (
@@ -405,25 +435,34 @@ func TestAccountStoreRevokesIdempotentlyAndKeepsOnlyTheKeyedCooldownTombstone(t 
 		claimAnonymizeAt     *time.Time
 		pendingState         InstagramSuggestionState
 		acceptedState        InstagramSuggestionState
+		importerPendingState InstagramSuggestionState
 		reconciliationStatus string
+		importCount          int
+		handleCount          int
 	)
 	if err := pool.QueryRow(ctx, `
 		SELECT l.state, l.igsid, l.username, l.username_normalized,
 		       l.discoverable, l.conflict_pending, l.igsid_digest,
 		       l.revoked_at, l.raw_identity_purge_at,
 		       c.state, c.released_at, c.anonymize_at,
-		       p.state, a.state, j.status
+		       p.state, a.state, importer_pending.state, j.status,
+		       (SELECT count(*) FROM instagram_graph_imports WHERE owner_did = $2),
+		       (SELECT count(*)
+		          FROM instagram_graph_handles
+		         WHERE import_id = '00000000-0000-0000-0000-000000000236')
 		FROM instagram_account_links l
 		JOIN instagram_identity_claims c ON c.link_id = l.id
 		JOIN instagram_follow_suggestions p ON p.id = '00000000-0000-0000-0000-000000000233'
 		JOIN instagram_follow_suggestions a ON a.id = '00000000-0000-0000-0000-000000000234'
+		JOIN instagram_follow_suggestions importer_pending ON importer_pending.id = '00000000-0000-0000-0000-000000000237'
 		JOIN instagram_reconciliation_jobs j ON j.id = '00000000-0000-0000-0000-000000000235'
 		WHERE l.id = $1
-	`, linkID).Scan(
+	`, linkID, alice).Scan(
 		&state, &storedIGSID, &storedUsername, &storedNormalized,
 		&discoverable, &conflictPending, &digest, &revokedAt, &purgeAt,
 		&claimState, &claimReleasedAt, &claimAnonymizeAt,
-		&pendingState, &acceptedState, &reconciliationStatus,
+		&pendingState, &acceptedState, &importerPendingState, &reconciliationStatus,
+		&importCount, &handleCount,
 	); err != nil {
 		t.Fatalf("inspect revoked link: %v", err)
 	}
@@ -438,6 +477,9 @@ func TestAccountStoreRevokesIdempotentlyAndKeepsOnlyTheKeyedCooldownTombstone(t 
 	}
 	if pendingState != SuggestionInvalidated || acceptedState != SuggestionAccepted || reconciliationStatus != "ignored" {
 		t.Fatalf("revoke dependents = pending %q accepted %q reconciliation %q", pendingState, acceptedState, reconciliationStatus)
+	}
+	if importerPendingState != SuggestionInvalidated || importCount != 0 || handleCount != 0 {
+		t.Fatalf("revoke importer data = pending %q imports %d handles %d", importerPendingState, importCount, handleCount)
 	}
 
 	diagnostic := fmt.Sprintf("error=%v store=%+v", ErrInstagramLinkNotFound, *store)

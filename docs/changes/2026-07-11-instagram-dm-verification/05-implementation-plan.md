@@ -138,7 +138,7 @@ switch-away/back fencing where relevant.
 | 14 | Complete | Flutter parser/API/repository layers were absent | Parser, JSON-only import, wire, repository, and error-envelope tests passed | ZIP remains intentionally unsupported |
 | 15 | Complete | Flutter controllers/routes/page were absent | Provider and widget tests cover fixed-account fencing, verification, import, and suggestions | Active-account lease checks remain after awaits |
 | 16 | Complete | Actorless notification model/open behavior was absent | Notification model, row, payload, routing, and Instagram destination tests passed | Existing social variants remain intact |
-| 17 | In progress | Cross-stack verification and privacy review were pending | Full Go, changed-package race, all 965 Flutter tests, analyzer, format, canary, and diff checks pass | Final implementation re-review awaits the workflow exit choice; live Meta/export/device/edge checks remain external gates |
+| 17 | Complete | Cross-stack verification was pending | Full race-enabled Go and all 965 Flutter tests pass; analyzer, format, canary, migration, and diff checks are clean for this change | Implementation verification is complete; formal re-review remains the workflow exit choice; live Meta/export/device/edge checks remain external gates |
 | D1 | Complete | A live signed Meta delivery returned `200` but produced no durable webhook work, and the attempt remained `pendingDm`; no reducer-boundary diagnostics existed | `go test ./internal/app ./internal/integrations/instagrammeta` passes; rebuilt AppView confirms the dev flag is enabled | User-authorized temporary capability-spike exception: `INSTAGRAM_UNSAFE_LOG_WEBHOOK_BODIES=true` logs raw signed webhook bodies only in dev and is forcibly disabled in prod; Meta tokens/secrets remain excluded |
 | D2 | Complete | Store/API/client symbols for current-attempt reads were absent; the resume test then showed the challenge was not cached; confirmed sign-out did not clear private session state | `go test ./...`, focused Go race, `go vet ./...`, and all 964 Flutter tests pass; focused Dart formatting and `git diff --check` pass; analyzer reports only 13 pre-existing diagnostics outside this slice | Owner-scoped current lookup, DID-scoped secure display snapshot, AppView reconciliation, polling/confirmation resumption, terminal cleanup, and session cleanup are complete; ordinary page disposal/account switching retains the bounded snapshot |
 | D3 | Complete | The candidate confirmation page placed static discovery copy before an unselected selector | Focused widget test failed on selector order before implementation, then passed with selector state/copy assertions | The selector now follows the account, defaults to discovery allowed, updates the explanation for both choices, and confirms or cancels through existing state operations |
@@ -218,6 +218,40 @@ Red-green evidence:
 - F4/F5 green: the page test confirms that no follower option is rendered and
   only normalized following usernames are uploaded; Go and Dart consume the
   same following-only corpus successfully.
+
+## Verified-Link Lifetime And Direct Import Simplification (2026-07-23)
+
+The user approved replacing optional 12-month retention with one simple
+lifetime: imports are available only after verification and persist until
+per-import deletion or Instagram unlink. Discoverability remains selectable
+but defaults to public. Future-match in-app notifications are always created;
+push delivery remains controlled from the linked Notification Settings page.
+
+| Step | Test IDs | Requirements | Expected initial failure | Status |
+|---:|---|---|---|---|
+| S1 | IT-001, IT-007, IT-010 | FR-012, FR-018, FR-028 | Wire/storage still contain consent and expiry fields; unverified imports are accepted; unlink retains owner imports | Complete |
+| S2 | IT-005, IT-016 | FR-008, FR-024, FR-025 | Import cards render without a verified account; discoverability default needs an explicit regression | Complete |
+| S3 | IT-014, IT-016, IT-021 | FR-012, FR-013, FR-025 | Flutter still previews normalized handles and sends retention fields | Complete |
+| S4 | IT-011, IT-012, IT-017 | FR-019–FR-022, FR-025 | The UI has no Notification Settings link and disabled push behavior needs explicit future-match coverage | Complete |
+| S5 | REG-001–REG-012 | NFR/security/privacy requirements | Broad verification is stale after the contract change | Complete |
+
+Red-green and verification evidence:
+
+- S1 red: the migration shape test failed before `000026`; the new migration
+  removes consent/expiry columns and the expired import state. Create now
+  requires an active verified link. Unlink deletes owner imports/handles and
+  invalidates only unfinished suggestions that lose all support.
+- S2/S3 red: the page test previously expected import controls without a link
+  and a normalized preview. It now verifies the basic verification prompt,
+  absence of all import/suggestion cards, public discovery default, and one-step
+  normalized manual import. Go and Dart share the reduced `{sourceType,
+  entries}` wire corpus.
+- S4: future reconciliation creates the private actorless in-app digest even
+  with Instagram-match push disabled. Flutter explains the behavior and links
+  directly to Notification Settings.
+- S5: `just test` passes the full race-enabled Go suite against real Postgres;
+  all 965 Flutter tests pass; focused Instagram tests pass; `git diff --check`
+  passes. `flutter analyze` reports only the existing 13 info-level findings.
 
 ## Completion Checklist
 

@@ -19,14 +19,12 @@ type instagramCLIBackend interface {
 	ListJobs(context.Context, instagram.OperatorJobKind, int, uuid.UUID) ([]instagram.OperatorJob, uuid.UUID, error)
 	InspectJob(context.Context, instagram.OperatorJobKind, uuid.UUID) (instagram.OperatorJob, error)
 	RetryJob(context.Context, instagram.OperatorJobKind, uuid.UUID) (instagram.OperatorJobResult, error)
-	PurgeExpiredImports(context.Context, int) (int, error)
 }
 
 type instagramCLIBackendLoader func(context.Context) (instagramCLIBackend, func(), error)
 
 type postgresInstagramCLIBackend struct {
-	operator  *instagram.OperatorService
-	retention *instagram.RetentionService
+	operator *instagram.OperatorService
 }
 
 func (b *postgresInstagramCLIBackend) ListOpenConflicts(ctx context.Context, limit int, after uuid.UUID) ([]instagram.OperatorConflict, uuid.UUID, error) {
@@ -53,10 +51,6 @@ func (b *postgresInstagramCLIBackend) RetryJob(ctx context.Context, kind instagr
 	return b.operator.RetryJob(ctx, kind, id)
 }
 
-func (b *postgresInstagramCLIBackend) PurgeExpiredImports(ctx context.Context, limit int) (int, error) {
-	return b.retention.PurgeExpiredImports(ctx, limit)
-}
-
 func newInstagramCmd(load instagramCLIBackendLoader) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "instagram",
@@ -66,7 +60,6 @@ func newInstagramCmd(load instagramCLIBackendLoader) *cobra.Command {
 	cmd.AddCommand(newInstagramConflictsCmd(load))
 	cmd.AddCommand(newInstagramLinksCmd(load))
 	cmd.AddCommand(newInstagramJobsCmd(load))
-	cmd.AddCommand(newInstagramRetentionCmd(load))
 	return cmd
 }
 
@@ -284,35 +277,6 @@ func newInstagramJobsCmd(load instagramCLIBackendLoader) *cobra.Command {
 	return cmd
 }
 
-func newInstagramRetentionCmd(load instagramCLIBackendLoader) *cobra.Command {
-	cmd := &cobra.Command{Use: "retention", Short: "Run bounded Instagram retention operations", Args: cobra.NoArgs}
-	limit := 100
-	purgeImports := &cobra.Command{
-		Use:   "purge-imports",
-		Short: "Purge expired import aggregates in a stable bounded batch",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			if err := validateInstagramCLILimit(limit); err != nil {
-				return err
-			}
-			backend, cleanup, err := load(cmd.Context())
-			if err != nil {
-				return err
-			}
-			defer cleanup()
-			purged, err := backend.PurgeExpiredImports(cmd.Context(), limit)
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "imports purged=%d limit=%d\n", purged, limit)
-			return nil
-		},
-	}
-	purgeImports.Flags().IntVar(&limit, "limit", 100, "maximum primary imports (1-500)")
-	cmd.AddCommand(purgeImports)
-	return cmd
-}
-
 func writeOperatorJob(cmd *cobra.Command, item instagram.OperatorJob) {
 	terminal := "-"
 	if item.TerminalAt != nil {
@@ -381,8 +345,7 @@ func loadInstagramCLIBackend(ctx context.Context) (instagramCLIBackend, func(), 
 		return nil, nil, err
 	}
 	return &postgresInstagramCLIBackend{
-		operator:  operator,
-		retention: instagram.NewRetentionService(deps.DB, time.Now),
+		operator: operator,
 	}, cleanup, nil
 }
 

@@ -95,7 +95,6 @@ void main() {
     expect(importStates, {
       InstagramImportState.active,
       InstagramImportState.membershipInactive,
-      InstagramImportState.expired,
     });
 
     final suggestionStates = <InstagramSuggestionState>{};
@@ -130,7 +129,6 @@ void main() {
       sourceType: InstagramImportSourceType.fromWire(
         manualBody['sourceType'] as String,
       ),
-      retainUnmatched: manualBody['retainUnmatched'] as bool,
       entries: [
         for (final entry in _listOfMaps(manualBody['entries']))
           InstagramImportEntry(
@@ -149,7 +147,6 @@ void main() {
       sourceType: InstagramImportSourceType.fromWire(
         jsonBody['sourceType'] as String,
       ),
-      retainUnmatched: jsonBody['retainUnmatched'] as bool,
       entries: [
         for (final entry in _listOfMaps(jsonBody['entries']))
           InstagramImportEntry(
@@ -171,15 +168,11 @@ void main() {
       _map(_fixture(corpus['requests'], 'settings.reactivate')['body']),
     );
     expect(
-      const InstagramImportPatch(retainUnmatched: false).toMap(),
-      _map(_fixture(corpus['requests'], 'import.disableRetention')['body']),
-    );
-    expect(
       const InstagramImportPatch(reactivate: true).toMap(),
       _map(_fixture(corpus['requests'], 'import.reactivate')['body']),
     );
 
-    final allowedImportKeys = {'sourceType', 'retainUnmatched', 'entries'};
+    final allowedImportKeys = {'sourceType', 'entries'};
     expect(jsonRequest.toMap().keys.toSet(), allowedImportKeys);
     for (final forbidden in [
       'rawArchive',
@@ -215,7 +208,7 @@ void main() {
     );
     final importDetail = _fixture(
       corpus['importResponses'],
-      'import.active.retained',
+      'import.active',
     );
     final importsPage = _fixture(
       corpus['pageContracts'],
@@ -301,7 +294,7 @@ void main() {
           importDetail['body'],
         ),
         data: _map(
-          _fixture(corpus['requests'], 'import.disableRetention')['body'],
+          _fixture(corpus['requests'], 'import.reactivate')['body'],
         ),
       )
       ..onDelete(
@@ -348,7 +341,6 @@ void main() {
 
     final request = InstagramImportRequest(
       sourceType: InstagramImportSourceType.instagramJson,
-      retainUnmatched: true,
       entries: const [
         InstagramImportEntry(username: 'synthetic_following_01'),
         InstagramImportEntry(username: 'synthetic_following_02'),
@@ -359,7 +351,7 @@ void main() {
     final importItem = await api.getImport('synthetic-import-0001');
     final updatedImport = await api.updateImport(
       'synthetic-import-0001',
-      const InstagramImportPatch(retainUnmatched: false),
+      const InstagramImportPatch(reactivate: true),
     );
     await api.deleteImport('synthetic-import-0001');
 
@@ -736,9 +728,6 @@ Map<String, Object?> _encodeImport(InstagramImportSummary value) => {
   'importId': value.importId,
   'state': value.state.name,
   'sourceType': value.sourceType.wireValue,
-  'retainUnmatched': value.retainUnmatched,
-  if (value.retentionExpiresAt != null)
-    'retentionExpiresAt': _wireTime(value.retentionExpiresAt!),
   'followingCount': value.followingCount,
   'createdAt': _wireTime(value.createdAt),
 };

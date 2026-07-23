@@ -22,7 +22,6 @@ func TestInstagramOperatorCLIRequiresExplicitOpaqueIdentifiersAndBounds(t *testi
 		{"jobs", "retry", "--kind", "reconciliation"},
 		{"conflicts", "list", "--limit", "501"},
 		{"jobs", "list", "--kind", "webhook", "--limit", "501"},
-		{"retention", "purge-imports", "--limit", "501"},
 	} {
 		cmd := newInstagramCmd(fakeInstagramLoader(backend))
 		cmd.SetArgs(args)
@@ -83,7 +82,7 @@ func TestInstagramOperatorCLIWiresExplicitAuditedMutationsAndIdempotentResults(t
 	conflictID := uuid.MustParse("62000000-0000-0000-0000-000000000001")
 	linkID := uuid.MustParse("62000000-0000-0000-0000-000000000002")
 	jobID := uuid.MustParse("62000000-0000-0000-0000-000000000003")
-	backend := &fakeInstagramCLIBackend{purged: 17}
+	backend := &fakeInstagramCLIBackend{}
 
 	for _, test := range []struct {
 		args []string
@@ -92,7 +91,6 @@ func TestInstagramOperatorCLIWiresExplicitAuditedMutationsAndIdempotentResults(t
 		{[]string{"conflicts", "resolve", "--conflict-id", conflictID.String(), "--resolution", "revoke-existing"}, "changed=true"},
 		{[]string{"links", "revoke", "--link-id", linkID.String()}, "changed=true"},
 		{[]string{"jobs", "retry", "--kind", "reconciliation", "--job-id", jobID.String()}, "changed=true"},
-		{[]string{"retention", "purge-imports", "--limit", "20"}, "purged=17"},
 	} {
 		var output bytes.Buffer
 		cmd := newInstagramCmd(fakeInstagramLoader(backend))
@@ -109,8 +107,8 @@ func TestInstagramOperatorCLIWiresExplicitAuditedMutationsAndIdempotentResults(t
 	if backend.resolution != instagram.ResolutionRevokeExisting || backend.conflictID != conflictID {
 		t.Fatalf("conflict resolution=%s id=%s", backend.resolution, backend.conflictID)
 	}
-	if backend.linkID != linkID || backend.jobID != jobID || backend.jobKind != instagram.OperatorJobReconciliation || backend.purgeLimit != 20 {
-		t.Fatalf("mutation wiring link=%s job=%s kind=%s purge=%d", backend.linkID, backend.jobID, backend.jobKind, backend.purgeLimit)
+	if backend.linkID != linkID || backend.jobID != jobID || backend.jobKind != instagram.OperatorJobReconciliation {
+		t.Fatalf("mutation wiring link=%s job=%s kind=%s", backend.linkID, backend.jobID, backend.jobKind)
 	}
 }
 
@@ -123,8 +121,6 @@ type fakeInstagramCLIBackend struct {
 	linkID     uuid.UUID
 	jobID      uuid.UUID
 	jobKind    instagram.OperatorJobKind
-	purged     int
-	purgeLimit int
 }
 
 func (f *fakeInstagramCLIBackend) ListOpenConflicts(context.Context, int, uuid.UUID) ([]instagram.OperatorConflict, uuid.UUID, error) {
@@ -165,12 +161,6 @@ func (f *fakeInstagramCLIBackend) RetryJob(_ context.Context, kind instagram.Ope
 	f.calls++
 	f.jobKind, f.jobID = kind, id
 	return instagram.OperatorJobResult{ID: id, Kind: kind, Status: "queued", Changed: true}, nil
-}
-
-func (f *fakeInstagramCLIBackend) PurgeExpiredImports(_ context.Context, limit int) (int, error) {
-	f.calls++
-	f.purgeLimit = limit
-	return f.purged, nil
 }
 
 func fakeInstagramLoader(backend instagramCLIBackend) instagramCLIBackendLoader {

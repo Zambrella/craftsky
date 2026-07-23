@@ -260,6 +260,17 @@ func (s *AccountStore) RevokeAccount(ctx context.Context, owner syntax.DID) erro
 	if err != nil {
 		return fmt.Errorf("invalidate revoked Instagram suggestions: %w", err)
 	}
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM instagram_graph_imports
+		WHERE owner_did = $1
+	`, owner); err != nil {
+		return fmt.Errorf("delete revoked Instagram imports: %w", err)
+	}
+	importerSuggestionIDs, err := invalidateUnsupportedSuggestions(ctx, tx, owner, now)
+	if err != nil {
+		return fmt.Errorf("invalidate suggestions from revoked Instagram imports: %w", err)
+	}
+	suggestionIDs = append(suggestionIDs, importerSuggestionIDs...)
 	if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "linkRevoked", now); err != nil {
 		return err
 	}
@@ -270,7 +281,7 @@ func (s *AccountStore) RevokeAccount(ctx context.Context, owner syntax.DID) erro
 		UPDATE instagram_reconciliation_jobs
 		SET status = 'ignored', terminal_at = $3,
 		    lease_token = NULL, lease_expires_at = NULL, updated_at = $3
-		WHERE owner_did = $1 AND link_id = $2
+		WHERE (owner_did = $1 OR link_id = $2)
 		  AND status IN ('queued', 'processing', 'retryable')
 	`, owner, linkID, now); err != nil {
 		return fmt.Errorf("cancel revoked Instagram reconciliation: %w", err)

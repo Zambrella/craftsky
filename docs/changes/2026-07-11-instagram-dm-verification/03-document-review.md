@@ -4,15 +4,16 @@
 
 Status: Approved with notes  
 Reviewer: Codex workflow review plus independent re-review  
-Date: 2026-07-19  
+Date: 2026-07-23
 Risk level: High
 
 ## Summary
 
-The requirements and acceptance tests are ready for coding planning. The direct
-Meta integration, local-only archive parsing, explicit same-DID confirmation,
-discoverability consent, exact safety-filtered suggestions, explicit PDS follow
-acceptance, bounded retention, and first-class actorless notification remain
+The requirements and acceptance tests remain approved after the verified-link
+lifetime simplification. The direct Meta integration, verified-only local
+archive parsing, explicit same-DID confirmation, public-by-default
+discoverability choice, exact safety-filtered suggestions, explicit PDS follow
+acceptance, unlink cleanup, and first-class actorless notification remain
 faithful to the approved design. Every Must requirement and all 48 acceptance
 criteria have automated coverage. Real Meta behavior and current export shapes
 remain correctly isolated as release gates rather than implementation blockers.
@@ -31,7 +32,7 @@ contract seams; those were also resolved and re-reviewed as approved.
 | DR-004 | Critical | Data lifecycle | Reversible membership loss, explicit link/import deletion, terminal identity deletion, and future whole-account deletion are distinct. Instagram owner rows do not broadly cascade from `craftsky_profiles`. |
 | DR-005 | Critical | API / State | §12.1 fixes public states, transitions, request/response bodies, status/error codes, pagination, idempotent results, conflict/unavailable shapes, and shared Go/Flutter golden contracts. |
 | DR-006 | Important | Webhook / Privacy | §12.2 defines the exact minimal durable work item and explicitly excludes raw body, message text, plaintext challenge, signature, and unrelated payload data. |
-| DR-007 | Important | Availability / Imports | Meta outage affects only new verification/profile/reply work. Imports are additive, listable, inspectable, renewable, withdrawable, independently deletable, and multi-source suggestions preserve remaining support. |
+| DR-007 | Important | Availability / Imports | Meta outage affects only new verification/profile/reply work. Verified-link imports are additive, listable, inspectable, independently deletable, retained without expiry, and multi-source suggestions preserve remaining support. |
 | DR-008 | Important | Limits / Retention | §12.4 and §15 define fixed production maxima, rate/worker/provider boundaries, shared enforcement, trusted proxy behavior, and retention for every private record class. |
 | DR-009 | Important | Notifications | §12.3 defines a checked `kind: social | system` union, exact actorless JSON, fixed five-minute coalescing, count cap, newness, triggers, retraction, and one-push behavior. |
 | DR-010 | Important | Challenge | The design and requirements use a 30-symbol alphabet, 13 random symbols, approximately 63.8 bits, canonical grouping, exact-message grammar, and ASCII-case/outer-whitespace normalization. |
@@ -43,10 +44,10 @@ contract seams; those were also resolved and re-reviewed as approved.
 
 | ID | Severity | Area | Resolution |
 |---|---|---|---|
-| RR-001 | Critical | Membership restoration | Import-only members can explicitly reactivate each unexpired `membershipInactive` import after rejoin through PATCH, without extending consent. Link and import reactivation remain separate and never silently restore discovery. |
+| RR-001 | Critical | Membership restoration | Import-only members can explicitly reactivate each paused `membershipInactive` import after rejoin through PATCH. Link and import reactivation remain separate and never silently restore discovery. |
 | RR-002 | Critical | DELETE semantics | Attempt, account, import, and suggestion DELETE operations always return privacy-preserving `204` for owned, foreign, absent, or purged identifiers and mutate only caller-owned state, satisfying permanent idempotence without an existence oracle. |
 | RR-003 | Critical | Webhook backpressure | Trusted-IP and post-signature global ingress excess return generic `429` plus bounded `Retry-After` with no partial persistence; per-IGSID invalid excess is terminally deduplicated/cleared and acknowledged `200` without lookup; worker pressure defers durable work with `200`. |
-| RR-004 | Important | Non-consented import retention | Unmatched rows are deleted in the initial transaction; matched support remains only while pending and no longer than 12 months; aggregate-only metadata has a 90-day post-terminal and 12-month absolute cap. Follower data is no longer accepted or stored. |
+| RR-004 | Important | Verified-link import lifetime | Import creation requires an active verified link; matched and unmatched following handles remain without renewal until per-import deletion or unlink; unlink deletes owner imports and unfinished dependent state. Retention/direction/follower fields are no longer accepted or stored. |
 
 ## Traceability And Coverage
 

@@ -77,14 +77,14 @@ covered by real-Postgres migration/store tests.
 | Meta webhook | No Instagram integration route | Add `/integrations/instagram/webhook` verification and signed POST ingestion outside `/v1`, exact size/event limits, generic ingress throttling, durable deduplication, and no raw payload persistence. | UT-003, UT-004, IT-003, IT-013 |
 | Durable worker | Push dispatcher provides the lease/retry lifecycle pattern | Add bounded Instagram work claiming, lease recovery, retry/backoff/deadline, terminal sensitive-field clearing, and injected Meta lookup/reply client. | UT-007, IT-004, IT-019, REG-007 |
 | Links and conflicts | No cross-network identity model | Add claims, current username identity, same-DID confirmation, conflict rows, discovery consent, revoke/reactivate semantics, and operator resolution. | UT-006, IT-005, IT-006, IT-018 |
-| Imports | No Instagram archive ingestion | Add normalized accounts-followed handles, additive import sources, explicit consent/retention, per-import reactivation/deletion, summary-only unmatched handling, and bounded pagination. Do not accept or store relationship direction or follower counts. | UT-005, IT-007, IT-010 |
+| Imports | No Instagram archive ingestion | Add verified-link-only normalized accounts-followed handles, additive import sources retained until unlink, per-import reactivation/deletion, and bounded pagination. Do not accept or store retention, relationship direction, or follower counts. | UT-005, IT-007, IT-010 |
 | Eligibility and matching | Existing follow visibility checks do not include this feature's complete safety policy | Add `InstagramSuggestionEligibilityPolicy`, complete data-source interface, fail-closed missing data, exact imported-username matching, reconciliation jobs, multi-source support, and revalidation at every required boundary. | UT-006, IT-006–IT-009, IT-020 |
 | Follow acceptance | Follow handler calls PDS `CreateRecord` | Extract a shared follow service with a stable stored rkey and `PutRecord`; make accepting/retry/crash recovery idempotent despite firehose delay. | IT-009, REG-003 |
 | Notifications | Durable rows require an actor and social source fields | Convert storage and Flutter models to a checked `kind: social | system` union; add Instagram-match grouping, five-minute close/push, capped count, newness, retraction, and actorless navigation. | UT-013, UT-014, IT-011, IT-012, IT-021, TD-011 |
 | Membership and deletion lifecycle | Profile-record and Tap terminal deletion currently share broad actor cleanup concepts | Treat membership loss as reversible inactivation; terminal Tap identity/future account deletion as permanent Instagram purge; never delete accepted PDS follows. | IT-020, REG-006 |
 | Retention/export/operations | No Instagram-specific jobs or CLI | Add deterministic purge batches, owner export with private Instagram data, safe audits/metrics, and CLI list/resolve/revoke/inspect/retry/purge commands. | IT-010, IT-018, IT-019, UT-015 |
 | Flutter data/parser | No Instagram feature | Add redacted models, accounts-followed-only JSON parser, 20 MiB/10,000-entry limits, API/repository layer, and cross-language golden contract. Follower data is discarded locally; ZIP parsing is intentionally unsupported. | UT-009, UT-010, IT-014, TD-011 |
-| Flutter state/UI | Settings and account boundary have no migration surface | Add fixed-account controllers and one settings route/page for verification, import, link controls, and suggestions; place the discovery selector directly below the verified candidate, default it to discovery allowed, and update the explanation for the selected value; reconcile resumable attempts against AppView with a DID-scoped secure display snapshot; invalidate on account changes and fence every asynchronous effect. | UT-011, IT-015, IT-016, IT-022, REG-009, REG-012 |
+| Flutter state/UI | Settings and account boundary have no migration surface | Add fixed-account controllers and one settings route/page for verification, verified-only direct import, link controls, and suggestions; place the discovery selector directly below the verified candidate, default it to discovery allowed, and update the explanation for the selected value; hide all import surfaces until verification, remove normalized-preview/retention controls, link to Notification Settings, reconcile resumable attempts against AppView with a DID-scoped secure display snapshot, invalidate on account changes, and fence every asynchronous effect. | UT-011, IT-015, IT-016, IT-022, REG-009, REG-012 |
 | Flutter notifications | Model assumes actor-bearing social notifications | Decode sealed social/system variants, render/open Instagram-match safely, preserve social behavior, and avoid push/diagnostic private content. | UT-012, IT-017, REG-005 |
 
 ## 4. Files And Modules
@@ -338,11 +338,12 @@ the durable transaction commits.
 ### 5.4 Import and matching flow
 
 The Flutter parser sends normalized accounts-followed usernames with no
-relationship direction. The server strictly rejects direction and
+relationship direction or retention field. The server requires an active
+verified Instagram link, strictly rejects retention, direction, and
 follower-specific fields, repeats username validation, applies request/entry
 limits, deduplicates, and creates an immutable import source. Imports are
-additive; each source has its own consent expiry and reversible membership
-state.
+additive and retained until per-import deletion or link revocation; each source
+keeps its own reversible membership state.
 
 In the initial transaction:
 
@@ -350,9 +351,8 @@ In the initial transaction:
    discoverable DM-verified links.
 2. Run the complete eligibility policy.
 3. Upsert one pending suggestion and one source-support row per eligible match.
-4. If unmatched retention consent is absent, delete unmatched handles
-   immediately; keep only minimal matched support while a
-   suggestion is pending.
+4. Retain matched and unmatched handles for exact future matching until the
+   import is deleted or the verified Instagram link is revoked.
 5. Do not create an Instagram-match notification for this initial import.
 
 Targeted reconciliation is queued when a link confirms/enables/reactivates,
@@ -425,14 +425,14 @@ The Flutter sealed system subtype navigates to the fixed-account Instagram
 migration page. If the operation lease is stale after an account switch, the
 open is discarded without state or navigation effects.
 
-### 5.7 Membership, retention, export, and purge
+### 5.7 Membership, verified-link lifetime, export, and purge
 
 - Profile membership loss sets links/imports `membershipInactive`, disables
   discovery, invalidates suggestions and unsent system notifications, and
   pauses jobs. It does not broadly delete private rows.
 - Rejoin does not silently restore discovery or imports. The member explicitly
-  reactivates the link and each unexpired import; consent deadlines are not
-  extended.
+  reactivates the link and each paused import; import lifetime remains tied to
+  the verified link.
 - Terminal Tap identity deletion invokes one idempotent permanent purge for
   attempts, links/claims/conflicts, webhook work, imports/handles, suggestions,
   jobs, rate/audit data as applicable, and Instagram system notifications.
@@ -506,10 +506,11 @@ The page contains:
 2. Verification card: creates a challenge, provides copy/open-DM actions,
    displays expiry/processing/pending confirmation/conflict/error states, and
    requires explicit confirmation from the same authenticated DID.
-3. Import card: explains that it imports accounts the member follows, accepts
-   manual handles or a matching Accounts Center JSON file, shows bounded
-   parsing/progress/summary, asks optional unmatched-retention consent, lists
-   sources, and supports source-specific reactivation/deletion.
+3. Import card: rendered only after verification; explains that it imports
+   accounts the member follows and retains them until unlink, directly accepts
+   manual handles or a matching Accounts Center JSON file without a normalized
+   preview step, links to Notification Settings, lists sources, and supports
+   source-specific reactivation/deletion.
 4. Suggestions card: lists eligible exact matches, supports explicit accept and
    dismiss, prevents double taps while accepting, and refreshes/invalidate rows
    whose eligibility changed.

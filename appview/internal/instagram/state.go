@@ -131,21 +131,18 @@ type InstagramImportState string
 const (
 	ImportActive             InstagramImportState = "active"
 	ImportMembershipInactive InstagramImportState = "membershipInactive"
-	ImportExpired            InstagramImportState = "expired"
 )
 
 func (s InstagramImportState) Valid() bool {
 	switch s {
-	case ImportActive, ImportMembershipInactive, ImportExpired:
+	case ImportActive, ImportMembershipInactive:
 		return true
 	default:
 		return false
 	}
 }
 
-func (s InstagramImportState) Terminal() bool {
-	return s == ImportExpired
-}
+func (s InstagramImportState) Terminal() bool { return false }
 
 func ValidateInstagramImportTransition(from, to InstagramImportState) error {
 	if !from.Valid() || !to.Valid() {
@@ -157,9 +154,9 @@ func ValidateInstagramImportTransition(from, to InstagramImportState) error {
 	allowed := false
 	switch from {
 	case ImportActive:
-		allowed = oneOf(to, ImportMembershipInactive, ImportExpired)
+		allowed = oneOf(to, ImportMembershipInactive)
 	case ImportMembershipInactive:
-		allowed = oneOf(to, ImportActive, ImportExpired)
+		allowed = oneOf(to, ImportActive)
 	}
 	return transitionResult(allowed, from, to)
 }

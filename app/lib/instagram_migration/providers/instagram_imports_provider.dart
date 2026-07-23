@@ -83,16 +83,6 @@ class InstagramImports extends _$InstagramImports {
     }
   }
 
-  Future<bool> renewRetention(String importId) => _update(
-    importId,
-    const InstagramImportPatch(retainUnmatched: true),
-  );
-
-  Future<bool> withdrawRetention(String importId) => _update(
-    importId,
-    const InstagramImportPatch(retainUnmatched: false),
-  );
-
   Future<bool> reactivate(String importId) => _update(
     importId,
     const InstagramImportPatch(reactivate: true),

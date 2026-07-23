@@ -23,11 +23,9 @@ func TestInstagramImportHandlersExactWireContractAndOpaquePagination(t *testing.
 	alice := syntax.DID("did:plc:synthetic-alice")
 	id := uuid.MustParse("00000000-0000-0000-0000-000000000231")
 	createdAt := time.Date(2026, 7, 19, 15, 0, 0, 0, time.UTC)
-	expiresAt := createdAt.AddDate(1, 0, 0)
 	item := instagram.GraphImport{
 		ID: id, OwnerDID: alice, State: instagram.ImportActive,
-		SourceType: instagram.ImportSourceInstagramJSON, RetainUnmatched: true,
-		RetentionExpiresAt: &expiresAt, FollowingCount: 2,
+		SourceType: instagram.ImportSourceInstagramJSON, FollowingCount: 2,
 		CreatedAt: createdAt,
 	}
 	service := &stubInstagramImportService{
@@ -43,7 +41,6 @@ func TestInstagramImportHandlersExactWireContractAndOpaquePagination(t *testing.
 
 	createRequest := authenticatedInstagramRequest(http.MethodPost, "/v1/migrations/instagram/imports", `{
 		"sourceType":"instagramJson",
-		"retainUnmatched":true,
 		"entries":[
 			{"username":" Synthetic.One "},
 			{"username":"synthetic.two"}
@@ -102,16 +99,16 @@ func TestInstagramImportHandlersExactWireContractAndOpaquePagination(t *testing.
 	if err := json.Unmarshal(getResponse.Body.Bytes(), &detail); err != nil {
 		t.Fatalf("decode detail: %v", err)
 	}
-	if len(detail) != 7 || detail["importId"] != id.String() || detail["state"] != "active" || detail["retentionExpiresAt"] != expiresAt.Format(time.RFC3339) {
+	if len(detail) != 5 || detail["importId"] != id.String() || detail["state"] != "active" {
 		t.Fatalf("detail = %#v", detail)
 	}
 
-	patchRequest := authenticatedInstagramRequest(http.MethodPatch, "/v1/migrations/instagram/imports/"+id.String(), `{"retainUnmatched":false,"reactivate":true}`, alice)
+	patchRequest := authenticatedInstagramRequest(http.MethodPatch, "/v1/migrations/instagram/imports/"+id.String(), `{"reactivate":true}`, alice)
 	patchRequest.SetPathValue("importId", id.String())
 	patchResponse := httptest.NewRecorder()
 	PatchInstagramImportHandler(service, logger).ServeHTTP(patchResponse, patchRequest)
-	if patchResponse.Code != http.StatusOK || service.retainUnmatched == nil || *service.retainUnmatched || service.reactivate == nil || !*service.reactivate {
-		t.Fatalf("patch status=%d retain=%v reactivate=%v body=%s", patchResponse.Code, service.retainUnmatched, service.reactivate, patchResponse.Body.String())
+	if patchResponse.Code != http.StatusOK || service.reactivate == nil || !*service.reactivate {
+		t.Fatalf("patch status=%d reactivate=%v body=%s", patchResponse.Code, service.reactivate, patchResponse.Body.String())
 	}
 }
 
@@ -132,15 +129,16 @@ func TestInstagramImportHandlersRejectRawFieldsInvalidInputsAndMapSafeErrors(t *
 		status     int
 		code       string
 	}{
-		{name: "raw archive field", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"manual","retainUnmatched":false,"entries":[],"rawArchive":"synthetic-private-canary"}`, status: 400, code: "invalid_request"},
-		{name: "legacy relationship direction", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"manual","retainUnmatched":false,"entries":[{"username":"synthetic.one","direction":"following"}]}`, status: 400, code: "invalid_request"},
-		{name: "follower data field", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"instagramJson","retainUnmatched":false,"entries":[{"username":"synthetic.one","followerUsername":"synthetic.private"}]}`, status: 400, code: "invalid_request"},
-		{name: "invalid import", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"manual","retainUnmatched":false,"entries":[]}`, serviceErr: instagram.ErrInvalidInstagramImport, status: 422, code: "invalid_instagram_import"},
+		{name: "raw archive field", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"manual","entries":[],"rawArchive":"synthetic-private-canary"}`, status: 400, code: "invalid_request"},
+		{name: "legacy retention field", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"manual","retainUnmatched":false,"entries":[{"username":"synthetic.one"}]}`, status: 400, code: "invalid_request"},
+		{name: "legacy relationship direction", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"manual","entries":[{"username":"synthetic.one","direction":"following"}]}`, status: 400, code: "invalid_request"},
+		{name: "follower data field", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"instagramJson","entries":[{"username":"synthetic.one","followerUsername":"synthetic.private"}]}`, status: 400, code: "invalid_request"},
+		{name: "invalid import", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"manual","entries":[]}`, serviceErr: instagram.ErrInvalidInstagramImport, status: 422, code: "invalid_instagram_import"},
+		{name: "verification required", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"manual","entries":[{"username":"synthetic.one"}]}`, serviceErr: instagram.ErrInstagramVerificationRequired, status: 409, code: "instagram_verification_required"},
 		{name: "invalid cursor", handler: ListInstagramImportsHandler, method: http.MethodGet, target: "/v1/migrations/instagram/imports?cursor=not-valid!!!", status: 400, code: "invalid_cursor"},
 		{name: "foreign get", handler: GetInstagramImportHandler, method: http.MethodGet, target: "/v1/migrations/instagram/imports/" + id.String(), pathID: id.String(), serviceErr: instagram.ErrInstagramResourceNotFound, status: 404, code: "instagram_import_not_found"},
 		{name: "empty patch", handler: PatchInstagramImportHandler, method: http.MethodPatch, target: "/v1/migrations/instagram/imports/" + id.String(), pathID: id.String(), body: `{}`, status: 400, code: "invalid_request"},
-		{name: "expired patch", handler: PatchInstagramImportHandler, method: http.MethodPatch, target: "/v1/migrations/instagram/imports/" + id.String(), pathID: id.String(), body: `{"reactivate":true}`, serviceErr: instagram.ErrInstagramImportExpired, status: 409, code: "instagram_import_expired"},
-		{name: "discarded patch", handler: PatchInstagramImportHandler, method: http.MethodPatch, target: "/v1/migrations/instagram/imports/" + id.String(), pathID: id.String(), body: `{"retainUnmatched":true}`, serviceErr: instagram.ErrUnmatchedDataUnavailable, status: 409, code: "unmatched_data_unavailable"},
+		{name: "retention patch", handler: PatchInstagramImportHandler, method: http.MethodPatch, target: "/v1/migrations/instagram/imports/" + id.String(), pathID: id.String(), body: `{"retainUnmatched":true}`, status: 400, code: "invalid_request"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -185,19 +183,18 @@ func TestInstagramImportDeleteIsOwnerScopedPermanentPrivacyNoOp(t *testing.T) {
 }
 
 type stubInstagramImportService struct {
-	created         instagram.CreateImportResult
-	items           []instagram.GraphImport
-	nextCursor      *instagram.ImportCursor
-	item            instagram.GraphImport
-	err             error
-	createEntries   []instagram.ImportEntry
-	receivedCursor  *instagram.ImportCursor
-	retainUnmatched *bool
-	reactivate      *bool
-	deleted         []uuid.UUID
+	created        instagram.CreateImportResult
+	items          []instagram.GraphImport
+	nextCursor     *instagram.ImportCursor
+	item           instagram.GraphImport
+	err            error
+	createEntries  []instagram.ImportEntry
+	receivedCursor *instagram.ImportCursor
+	reactivate     *bool
+	deleted        []uuid.UUID
 }
 
-func (s *stubInstagramImportService) CreateImport(_ context.Context, _ syntax.DID, _ instagram.ImportSourceType, _ bool, entries []instagram.ImportEntry) (instagram.CreateImportResult, error) {
+func (s *stubInstagramImportService) CreateImport(_ context.Context, _ syntax.DID, _ instagram.ImportSourceType, entries []instagram.ImportEntry) (instagram.CreateImportResult, error) {
 	s.createEntries = entries
 	return s.created, s.err
 }
@@ -211,8 +208,7 @@ func (s *stubInstagramImportService) GetImport(context.Context, syntax.DID, uuid
 	return s.item, s.err
 }
 
-func (s *stubInstagramImportService) UpdateImport(_ context.Context, _ syntax.DID, _ uuid.UUID, retainUnmatched, reactivate *bool) (instagram.GraphImport, error) {
-	s.retainUnmatched = retainUnmatched
+func (s *stubInstagramImportService) UpdateImport(_ context.Context, _ syntax.DID, _ uuid.UUID, reactivate *bool) (instagram.GraphImport, error) {
 	s.reactivate = reactivate
 	return s.item, s.err
 }

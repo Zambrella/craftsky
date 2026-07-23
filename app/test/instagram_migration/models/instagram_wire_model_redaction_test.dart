@@ -27,8 +27,6 @@ void main() {
       'importId': 'synthetic-private-import-id',
       'state': 'active',
       'sourceType': 'instagramJson',
-      'retainUnmatched': true,
-      'retentionExpiresAt': '2037-08-09T10:11:12Z',
       'followingCount': 4242,
       'createdAt': '2036-08-09T10:11:12Z',
     });

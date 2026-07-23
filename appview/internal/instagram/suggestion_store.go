@@ -162,11 +162,9 @@ func (s *SuggestionStore) upsertPendingSuggestionTx(ctx context.Context, tx pgx.
 		 AND NOT link.conflict_pending
 		WHERE i.id = $1 AND i.owner_did = $2 AND i.state = 'active'
 		  AND h.username_normalized = $3
-		  AND (i.retention_expires_at IS NULL OR i.retention_expires_at > $5)
-		  AND (h.retain_until IS NULL OR h.retain_until > $5)
 		LIMIT 1
 		FOR UPDATE OF i, h, link
-	`, params.ImportID, params.ImporterDID, username, params.TargetDID, params.Now).Scan(&handleID); errors.Is(err, pgx.ErrNoRows) {
+	`, params.ImportID, params.ImporterDID, username, params.TargetDID).Scan(&handleID); errors.Is(err, pgx.ErrNoRows) {
 		return suggestionUpsertResult{}, ErrInstagramResourceNotFound
 	} else if err != nil {
 		return suggestionUpsertResult{}, err

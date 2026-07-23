@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart' as registry;
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
@@ -9,6 +11,7 @@ import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dar
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
+import 'package:craftsky_app/instagram_migration/services/instagram_json_file_picker.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -22,7 +25,7 @@ import '../fakes/recording_messenger.dart';
 
 void main() {
   testWidgets(
-    'IT-016 disabled verification keeps local import and reactivation visible',
+    'IT-016 import and suggestion controls stay hidden until verification',
     (tester) async {
       final initial = registry.SessionRegistry.empty().upsertAndActivate(
         token: 'token-a',
@@ -30,20 +33,7 @@ void main() {
         handle: 'alice.test',
       );
       final repository = _Repository(
-        imports: InstagramImportPage(
-          items: [
-            InstagramImportSummary(
-              importId: 'import-a',
-              state: InstagramImportState.membershipInactive,
-              sourceType: InstagramImportSourceType.instagramJson,
-              retainUnmatched: true,
-              retentionExpiresAt: DateTime.utc(2026, 12),
-              followingCount: 3,
-              createdAt: DateTime.utc(2026, 7),
-            ),
-          ],
-          cursor: null,
-        ),
+        imports: InstagramImportPage(items: const [], cursor: null),
       );
       final semantics = tester.ensureSemantics();
 
@@ -78,24 +68,27 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text('You can still import handles on this device.'),
+        find.text(
+          'Imports become available after Instagram verification is '
+          'configured and your account is verified.',
+        ),
         findsOneWidget,
       );
-      await tester.scrollUntilVisible(
-        find.text('Reactivate import'),
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
-      expect(find.bySemanticsLabel('Reactivate import'), findsOneWidget);
       expect(
-        find.textContaining('does not extend its retention date'),
+        find.text('Complete verification to sync the accounts you follow.'),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const Key('instagram-import-composer-card')),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('instagram-imports-card')), findsNothing);
+      expect(find.byKey(const Key('instagram-suggestions-card')), findsNothing);
       semantics.dispose();
     },
   );
 
-  testWidgets('FR-025 manual preview uploads only normalized entries', (
+  testWidgets('FR-025 manual import directly uploads normalized entries', (
     tester,
   ) async {
     final initial = registry.SessionRegistry.empty().upsertAndActivate(
@@ -103,23 +96,28 @@ void main() {
       did: 'did:plc:alice',
       handle: 'alice.test',
     );
-    InstagramImportRequest? sentRequest;
+    final sentRequests = <InstagramImportRequest>[];
     final messenger = RecordingMessenger();
     final repository = _Repository(
-      status: const InstagramAccountStatus(
+      status: InstagramAccountStatus(
         integrationAvailable: true,
-        account: null,
+        account: InstagramAccountLink(
+          state: InstagramAccountLinkState.active,
+          username: 'alice_instagram',
+          discoverable: true,
+          conflictPending: false,
+          reactivationRequired: false,
+          verifiedAt: DateTime.utc(2026, 7, 19),
+        ),
       ),
       imports: InstagramImportPage(items: const [], cursor: null),
       onCreateImport: (request) async {
-        sentRequest = request;
+        sentRequests.add(request);
         return InstagramImportCreateResult(
           import: InstagramImportSummary(
             importId: 'import-new',
             state: InstagramImportState.active,
             sourceType: request.sourceType,
-            retainUnmatched: request.retainUnmatched,
-            retentionExpiresAt: null,
             followingCount: request.entries.length,
             createdAt: DateTime.utc(2026, 7, 19),
           ),
@@ -141,6 +139,21 @@ void main() {
           instagramMigrationRepositoryProvider.overrideWith(
             (ref, _) async => repository,
           ),
+          instagramJsonFilePickerProvider.overrideWithValue(
+            () async => Uint8List.fromList(
+              utf8.encode(
+                jsonEncode({
+                  'relationships_following': [
+                    {
+                      'string_list_data': [
+                        {'value': 'BobMaker'},
+                      ],
+                    },
+                  ],
+                }),
+              ),
+            ),
+          ),
         ],
         child: MessengerScope(
           messenger: messenger,
@@ -155,30 +168,105 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    final cards = tester.widgetList<CraftskyCard>(
+      find.byType(CraftskyCard),
+    );
+    expect(cards, isNotEmpty);
+    expect(cards.every((card) => card.clipBehavior == Clip.none), isTrue);
     expect(find.text('Accounts that follow me'), findsNothing);
+    final manualDescription = find.text(
+      'Enter the Instagram handles of accounts you follow, one per line. '
+      'CraftSky keeps them until you unlink Instagram.',
+    );
+    final jsonDescription = find.text(
+      'Select the JSON file containing accounts you follow. CraftSky reads it '
+      'only on this device and uploads usernames. Follower data is ignored, '
+      'and ZIP archives are not supported.',
+    );
+    expect(manualDescription, findsOneWidget);
+    expect(jsonDescription, findsNothing);
+    expect(
+      tester
+          .getBottomLeft(
+            find.byKey(const Key('instagram-import-kind-selector')),
+          )
+          .dy,
+      lessThan(tester.getTopLeft(manualDescription).dy),
+    );
+    expect(
+      tester.getBottomLeft(manualDescription).dy,
+      lessThan(
+        tester.getTopLeft(find.byKey(const Key('instagram-manual-handles'))).dy,
+      ),
+    );
+    expect(
+      find.widgetWithText(FilledButton, 'Import handles'),
+      findsOneWidget,
+    );
+    expect(
+      find.widgetWithText(OutlinedButton, 'Import handles'),
+      findsNothing,
+    );
     await tester.enterText(
       find.byType(TextField),
       '@Alice\nALICE\nbad name',
     );
-    final previewButton = find.text('Preview normalized handles');
+    expect(find.text('Preview normalized handles'), findsNothing);
+    final notificationSettings = find.text('Notification settings');
+    expect(notificationSettings, findsOneWidget);
+    expect(
+      find.widgetWithText(TextButton, 'Notification settings'),
+      findsNothing,
+    );
+    final notificationSettingsLink = find.ancestor(
+      of: notificationSettings,
+      matching: find.byType(InkWell),
+    );
+    expect(notificationSettingsLink, findsOneWidget);
+    expect(
+      tester.widget<InkWell>(notificationSettingsLink).onTap,
+      isNotNull,
+    );
+    final importButton = find.text('Import handles');
     await tester.drag(find.byType(ListView), const Offset(0, -300));
     await tester.pumpAndSettle();
-    await tester.tap(previewButton);
-    await tester.pump();
-
-    expect(find.text('1 account you follow ready'), findsOneWidget);
-    expect(find.text('1 unsupported entry ignored'), findsOneWidget);
-    expect(find.text('1 duplicate removed'), findsOneWidget);
-    final uploadButton = find.text('Create private import');
-    await tester.drag(find.byType(ListView), const Offset(0, -200));
-    await tester.pumpAndSettle();
-    await tester.tap(uploadButton);
+    await tester.tap(importButton);
     await tester.pumpAndSettle();
 
-    expect(sentRequest?.entries, hasLength(1));
-    expect(sentRequest?.entries.single.username, 'alice');
-    expect(sentRequest?.sourceType, InstagramImportSourceType.manual);
+    expect(sentRequests.single.entries, hasLength(1));
+    expect(sentRequests.single.entries.single.username, 'alice');
+    expect(sentRequests.single.sourceType, InstagramImportSourceType.manual);
     expect(messenger.calls, [('info', 'Instagram import created', null)]);
+
+    await tester.ensureVisible(find.text('Choose JSON'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Choose JSON'));
+    await tester.pumpAndSettle();
+    expect(manualDescription, findsNothing);
+    expect(jsonDescription, findsOneWidget);
+    expect(
+      tester
+          .getBottomLeft(
+            find.byKey(const Key('instagram-import-kind-selector')),
+          )
+          .dy,
+      lessThan(tester.getTopLeft(jsonDescription).dy),
+    );
+    expect(
+      tester.getBottomLeft(jsonDescription).dy,
+      lessThan(tester.getTopLeft(find.text('Select Instagram JSON file')).dy),
+    );
+    await tester.ensureVisible(find.text('Select Instagram JSON file'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Select Instagram JSON file'));
+    await tester.pumpAndSettle();
+
+    expect(sentRequests, hasLength(2));
+    expect(
+      sentRequests.last.sourceType,
+      InstagramImportSourceType.instagramJson,
+    );
+    expect(sentRequests.last.entries.single.username, 'bobmaker');
   });
 
   testWidgets('FR-024 challenge can be copied opened and cancelled', (

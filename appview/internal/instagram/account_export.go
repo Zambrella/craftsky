@@ -82,8 +82,6 @@ type PrivateImportExport struct {
 	ID                   uuid.UUID             `json:"importId"`
 	State                InstagramImportState  `json:"state"`
 	SourceType           ImportSourceType      `json:"sourceType"`
-	RetainUnmatched      bool                  `json:"retainUnmatched"`
-	RetentionExpiresAt   *time.Time            `json:"retentionExpiresAt,omitempty"`
 	MembershipInactiveAt *time.Time            `json:"membershipInactiveAt,omitempty"`
 	FollowingCount       int                   `json:"followingCount"`
 	CreatedAt            time.Time             `json:"createdAt"`
@@ -98,10 +96,9 @@ func (e PrivateImportExport) Format(state fmt.State, _ rune) {
 }
 
 type PrivateHandleExport struct {
-	Username    string     `json:"username"`
-	Matched     bool       `json:"matched"`
-	RetainUntil *time.Time `json:"retainUntil,omitempty"`
-	CreatedAt   time.Time  `json:"createdAt"`
+	Username  string    `json:"username"`
+	Matched   bool      `json:"matched"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 func (PrivateHandleExport) String() string     { return "Instagram private handle export [REDACTED]" }
@@ -261,8 +258,7 @@ func loadPrivateLinkExport(ctx context.Context, tx pgx.Tx, owner syntax.DID, exp
 
 func loadPrivateImportExport(ctx context.Context, tx pgx.Tx, owner syntax.DID, export *PrivateDataExport) error {
 	rows, err := tx.Query(ctx, `
-		SELECT id, state, source_type, retain_unmatched, retention_expires_at,
-		       membership_inactive_at, following_count,
+		SELECT id, state, source_type, membership_inactive_at, following_count,
 		       created_at, updated_at
 		FROM instagram_graph_imports
 		WHERE owner_did=$1
@@ -275,8 +271,7 @@ func loadPrivateImportExport(ctx context.Context, tx pgx.Tx, owner syntax.DID, e
 	for rows.Next() {
 		var item PrivateImportExport
 		if err := rows.Scan(
-			&item.ID, &item.State, &item.SourceType, &item.RetainUnmatched,
-			&item.RetentionExpiresAt, &item.MembershipInactiveAt,
+			&item.ID, &item.State, &item.SourceType, &item.MembershipInactiveAt,
 			&item.FollowingCount,
 			&item.CreatedAt, &item.UpdatedAt,
 		); err != nil {
@@ -297,7 +292,7 @@ func loadPrivateImportExport(ctx context.Context, tx pgx.Tx, owner syntax.DID, e
 
 	for index := range export.Imports {
 		handleRows, err := tx.Query(ctx, `
-			SELECT username_normalized, matched, retain_until, created_at
+			SELECT username_normalized, matched, created_at
 			FROM instagram_graph_handles
 			WHERE import_id=$1
 			ORDER BY id
@@ -308,8 +303,7 @@ func loadPrivateImportExport(ctx context.Context, tx pgx.Tx, owner syntax.DID, e
 		for handleRows.Next() {
 			var handle PrivateHandleExport
 			if err := handleRows.Scan(
-				&handle.Username, &handle.Matched,
-				&handle.RetainUntil, &handle.CreatedAt,
+				&handle.Username, &handle.Matched, &handle.CreatedAt,
 			); err != nil {
 				handleRows.Close()
 				return err
