@@ -32,9 +32,21 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Reposts — `POST /v1/posts/{did}/{rkey}/reposts` etc. Lexicon already defined. Folds into Posts spec unless it grows.
 - [x] Reports — moderation endpoints → own spec (overlaps the v1 "report a post" moderation plan; reconcile when scoping)
 - [x] Push notification registration — `POST /v1/notifications/devices` etc. → own spec
-- [ ] How to handle different languages
 - [x] Blocking, muting
-- [ ] Save posts
+- [x] Save posts
+- [ ] How to handle different languages
+- [ ] Instagram follow import
+- [ ] Instagram post import
+- [ ] Schedule posts
+- [ ] Drafts
+- [ ] Pinned posts
+- [ ] Video posts
+- [ ] Growth metrics
+- [ ] Business profile
+  - [ ] Featured products
+  - [ ] CTA (e.g. to shop)
+  - [ ] Business info
+  - [ ] Upcoming events
 - [ ] Pro and Business subscriptions
 
 ### Flutter app
@@ -55,8 +67,9 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Error-handling UX (how do we surface `error` codes from the envelope to users?)
 - [x] Rich text — facets, mentions, links, hashtags
 - [x] Quote posts
-- [ ] Profile settings screen — handle change, avatar upload, privacy controls
 - [x] Multi-account support
+- [ ] Profile settings screen — handle change, avatar upload, privacy controls
+- [ ] Profile customisation
 
 ### Lexicons
 
@@ -120,16 +133,12 @@ Scoped but not urgent. Ordered roughly by expected sequence, not strictly priori
 ### Flutter app
 
 - [ ] **Image composition** — cropping, multi-image layouts, camera roll picker.
-- [ ] **Drafts** — private, server-side (per AGENTS.md rule #3).
 - [ ] **Accessibility audit** — screen reader, dynamic type, contrast.
-- [ ] **Offline / retry behaviour** — optimistic writes that reconcile when the firehose catches up.
 
-### Product / community
+### Product
 
-- [ ] **Web viewer for SEO / discoverability** — reference doc calls out "how to sew a French seam" as a growth channel.
+- [ ] **Web version**
 - [ ] **Stash Hub integration**
-- [ ] **Business accounts** — transparent-business-account requirement from vision doc.
-- [ ] **Monetisation model** — premium features
 
 ### Ops / infra
 
