@@ -72,6 +72,48 @@ func TestBuildPostResponse_MinimalPost(t *testing.T) {
 	}
 }
 
+// AT-009, IT-010, IT-015: canonical and quote-preview responses carry exact
+// Instagram provenance while ordinary responses omit the optional field.
+func TestBuildPostResponse_PropagatesInstagramImportToFullAndQuoteShapes(t *testing.T) {
+	t.Parallel()
+
+	row := baseRow()
+	row.ExternalImportSource = ptrStr("instagram")
+
+	resp := api.BuildPostResponse(row, syntax.Handle("alice.example"))
+	if resp.ExternalImport == nil || resp.ExternalImport.Source != "instagram" {
+		t.Fatalf("full post externalImport = %+v", resp.ExternalImport)
+	}
+	fullJSON, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal full post: %v", err)
+	}
+	if !strings.Contains(string(fullJSON), `"externalImport":{"source":"instagram"}`) {
+		t.Fatalf("full post JSON missing provenance: %s", fullJSON)
+	}
+
+	quote := api.BuildQuoteView(&api.QuoteViewRow{State: "visible", Post: row}, syntax.Handle("alice.example"))
+	if quote.Post == nil || quote.Post.ExternalImport == nil || quote.Post.ExternalImport.Source != "instagram" {
+		t.Fatalf("quote preview externalImport = %+v", quote)
+	}
+	quoteJSON, err := json.Marshal(quote)
+	if err != nil {
+		t.Fatalf("marshal quote view: %v", err)
+	}
+	if !strings.Contains(string(quoteJSON), `"externalImport":{"source":"instagram"}`) {
+		t.Fatalf("quote preview JSON missing provenance: %s", quoteJSON)
+	}
+
+	row.ExternalImportSource = nil
+	ordinaryJSON, err := json.Marshal(api.BuildPostResponse(row, syntax.Handle("alice.example")))
+	if err != nil {
+		t.Fatalf("marshal ordinary post: %v", err)
+	}
+	if strings.Contains(string(ordinaryJSON), "externalImport") {
+		t.Fatalf("ordinary post unexpectedly contains provenance: %s", ordinaryJSON)
+	}
+}
+
 func TestPostResponseRelationshipPlaceholdersDiscardProtectedPayload(t *testing.T) {
 	tests := []struct {
 		name       string

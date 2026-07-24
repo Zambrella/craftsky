@@ -291,6 +291,10 @@ class PostCard extends ConsumerWidget {
                         ),
                       ],
                     ),
+                    if (post.externalImport?.isInstagram ?? false) ...[
+                      SizedBox(height: spacing.sp2),
+                      const _ImportedPostLabel(),
+                    ],
                     SizedBox(height: spacing.sp3),
                     if (post.images case final images?
                         when images.isNotEmpty) ...[
@@ -544,6 +548,29 @@ class _RepostAttribution extends StatelessWidget {
   }
 }
 
+class _ImportedPostLabel extends StatelessWidget {
+  const _ImportedPostLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = AppLocalizations.of(context).postImportedFromInstagram;
+
+    return Semantics(
+      container: true,
+      label: label,
+      child: ExcludeSemantics(
+        child: Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.outline,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _PostCardHeader extends StatelessWidget {
   const _PostCardHeader({
     required this.displayName,
@@ -716,6 +743,10 @@ class _QuotePreviewCard extends StatelessWidget {
                   author: quoted.author,
                   onTap: onAuthorTap,
                 ),
+                if (quoted.externalImport?.isInstagram ?? false) ...[
+                  SizedBox(height: spacing.sp1),
+                  const _ImportedPostLabel(),
+                ],
                 SizedBox(height: spacing.sp2),
                 if (quoted.images?.firstOrNull case final image?) ...[
                   _QuotePreviewImage(image: image),

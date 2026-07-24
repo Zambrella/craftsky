@@ -206,6 +206,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			sp.uri, sp.did, sp.rkey, sp.cid, sp.text, sp.facets, sp.images,
 			sp.reply_root_uri, sp.reply_root_cid, sp.reply_parent_uri, sp.reply_parent_cid,
 			sp.quote_uri, sp.quote_cid, sp.tags, sp.created_at, sp.indexed_at,
+			sp.external_import_source, sp.profile_sort_at,
 			sp.is_project, sp.project_craft_type, spp.raw_project,
 			sbp.display_name, sbp.avatar_cid
 		FROM page_events e
@@ -250,6 +251,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			&subject.URI, &subject.DID, &subject.Rkey, &subject.CID, &subject.Text, &subject.Facets, &subject.Images,
 			&subject.ReplyRootURI, &subject.ReplyRootCID, &subject.ReplyParentURI, &subject.ReplyParentCID,
 			&subject.QuoteURI, &subject.QuoteCID, &subject.Tags, &subject.CreatedAt, &subject.IndexedAt,
+			&subject.ExternalImportSource, &subject.ProfileSortAt,
 			&subject.IsProject, &subject.ProjectCraftType, &subject.RawProject,
 			&subject.AuthorDisplayName, &subject.AuthorAvatarCID,
 		); err != nil {
@@ -310,25 +312,27 @@ func notificationReference(uri, cid sql.NullString, rkey string, available bool)
 }
 
 type notificationSubjectScan struct {
-	URI              sql.NullString
-	DID              sql.NullString
-	Rkey             sql.NullString
-	CID              sql.NullString
-	Text             sql.NullString
-	Facets           json.RawMessage
-	Images           json.RawMessage
-	ReplyRootURI     *string
-	ReplyRootCID     *string
-	ReplyParentURI   *string
-	ReplyParentCID   *string
-	QuoteURI         *string
-	QuoteCID         *string
-	Tags             []string
-	CreatedAt        sql.NullTime
-	IndexedAt        sql.NullTime
-	IsProject        sql.NullBool
-	ProjectCraftType *string
-	RawProject       *json.RawMessage
+	URI                  sql.NullString
+	DID                  sql.NullString
+	Rkey                 sql.NullString
+	CID                  sql.NullString
+	Text                 sql.NullString
+	Facets               json.RawMessage
+	Images               json.RawMessage
+	ReplyRootURI         *string
+	ReplyRootCID         *string
+	ReplyParentURI       *string
+	ReplyParentCID       *string
+	QuoteURI             *string
+	QuoteCID             *string
+	Tags                 []string
+	CreatedAt            sql.NullTime
+	IndexedAt            sql.NullTime
+	ExternalImportSource *string
+	ProfileSortAt        sql.NullTime
+	IsProject            sql.NullBool
+	ProjectCraftType     *string
+	RawProject           *json.RawMessage
 
 	AuthorDisplayName *string
 	AuthorAvatarCID   *string
@@ -336,24 +340,26 @@ type notificationSubjectScan struct {
 
 func (s notificationSubjectScan) postRow() *PostRow {
 	row := &PostRow{
-		URI:               s.URI.String,
-		DID:               s.DID.String,
-		Rkey:              s.Rkey.String,
-		CID:               s.CID.String,
-		Text:              s.Text.String,
-		Facets:            s.Facets,
-		Images:            s.Images,
-		ReplyRootURI:      s.ReplyRootURI,
-		ReplyRootCID:      s.ReplyRootCID,
-		ReplyParentURI:    s.ReplyParentURI,
-		ReplyParentCID:    s.ReplyParentCID,
-		QuoteURI:          s.QuoteURI,
-		QuoteCID:          s.QuoteCID,
-		Tags:              s.Tags,
-		CreatedAt:         s.CreatedAt.Time,
-		IndexedAt:         s.IndexedAt.Time,
-		AuthorDisplayName: s.AuthorDisplayName,
-		AuthorAvatarCID:   s.AuthorAvatarCID,
+		URI:                  s.URI.String,
+		DID:                  s.DID.String,
+		Rkey:                 s.Rkey.String,
+		CID:                  s.CID.String,
+		Text:                 s.Text.String,
+		Facets:               s.Facets,
+		Images:               s.Images,
+		ReplyRootURI:         s.ReplyRootURI,
+		ReplyRootCID:         s.ReplyRootCID,
+		ReplyParentURI:       s.ReplyParentURI,
+		ReplyParentCID:       s.ReplyParentCID,
+		QuoteURI:             s.QuoteURI,
+		QuoteCID:             s.QuoteCID,
+		Tags:                 s.Tags,
+		CreatedAt:            s.CreatedAt.Time,
+		IndexedAt:            s.IndexedAt.Time,
+		ExternalImportSource: s.ExternalImportSource,
+		ProfileSortAt:        s.ProfileSortAt.Time,
+		AuthorDisplayName:    s.AuthorDisplayName,
+		AuthorAvatarCID:      s.AuthorAvatarCID,
 	}
 	row.IsProject = s.IsProject.Valid && s.IsProject.Bool
 	row.ProjectCraftType = s.ProjectCraftType

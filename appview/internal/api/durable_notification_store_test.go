@@ -71,6 +71,136 @@ func TestNotificationStoreListsOnlyActiveDurableEventsWithStablePagination(t *te
 	}
 }
 
+func TestNotificationListHydratesImportedSubjectProvenanceForLaterEngagement(t *testing.T) {
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		CREATE TABLE atproto_identity_cache (
+			did TEXT PRIMARY KEY,
+			handle TEXT NOT NULL,
+			handle_lower TEXT NOT NULL UNIQUE,
+			resolved_at TIMESTAMPTZ NOT NULL,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+		)
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	seedMember(t, pool, "did:plc:viewer")
+	seedMember(t, pool, "did:plc:actor")
+	subjectURI := seedPost(
+		t,
+		pool,
+		"did:plc:viewer",
+		"imported-subject",
+		"historical post",
+		time.Date(2021, 2, 3, 4, 5, 6, 0, time.UTC),
+	)
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE craftsky_posts
+		SET external_import_source = 'instagram',
+		    profile_sort_at = created_at
+		WHERE uri = $1
+	`, subjectURI); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO atproto_identity_cache (
+			did, handle, handle_lower, resolved_at
+		) VALUES
+			('did:plc:viewer', 'viewer.example', 'viewer.example', now()),
+			('did:plc:actor', 'actor.example', 'actor.example', now())
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	for index, category := range []api.NotificationType{
+		api.NotificationTypeLike,
+		api.NotificationTypeRepost,
+	} {
+		id := fmt.Sprintf(
+			"00000000-0000-0000-2000-%012d",
+			index+1,
+		)
+		sourceURI := fmt.Sprintf(
+			"at://did:plc:actor/social.craftsky.feed.%s/source-%d",
+			category,
+			index+1,
+		)
+		if _, err := pool.Exec(context.Background(), `
+			INSERT INTO notification_events (
+				id, recipient_did, actor_did, category, subject_key,
+				source_uri, source_cid, source_rkey,
+				subject_uri, subject_cid,
+				eligibility_scope, recipient_followed_actor,
+				push_enabled_snapshot, state,
+				first_activity_at, activity_at, indexed_at,
+				initial_push_evaluated_at
+			) VALUES (
+				$1::uuid, 'did:plc:viewer', 'did:plc:actor', $2, $1,
+				$3, 'source-cid', 'source-rkey',
+				$4, 'bafycid',
+				'everyone', false, true, 'active',
+				now(), now(), now(), now()
+			)
+		`, id, category, sourceURI, subjectURI); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	handler := api.ListNotificationsHandler(
+		api.NewPostStore(pool),
+		fakeResolver{},
+		nilLogger(),
+	)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(
+		recorder,
+		authedReq(
+			http.MethodGet,
+			"/v1/notifications",
+			"",
+			"did:plc:viewer",
+		),
+	)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf(
+			"status=%d body=%s",
+			recorder.Code,
+			recorder.Body.String(),
+		)
+	}
+
+	var page api.NotificationPage
+	if err := json.Unmarshal(recorder.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 2 {
+		t.Fatalf("items=%d, want like and repost", len(page.Items))
+	}
+	for _, item := range page.Items {
+		if item.Type != api.NotificationTypeLike &&
+			item.Type != api.NotificationTypeRepost {
+			t.Fatalf("notification type=%q", item.Type)
+		}
+		if item.SubjectPost == nil ||
+			item.SubjectPost.ExternalImport == nil ||
+			item.SubjectPost.ExternalImport.Source != "instagram" {
+			t.Fatalf(
+				"%s subject externalImport=%+v",
+				item.Type,
+				item.SubjectPost,
+			)
+		}
+	}
+}
+
 func TestNotificationListAndNewCountDynamicallySuppressAndRestoreRelationships(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
 	for _, migrationPath := range []string{

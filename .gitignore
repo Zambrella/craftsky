@@ -26,6 +26,17 @@ appview/devmedia/*
 
 # Flutter ignores are in app/.gitignore (created by `flutter create`)
 
+# Standalone Instagram importer
+instagram-importer/node_modules/
+instagram-importer/dist/
+instagram-importer/coverage/
+instagram-importer/playwright-report/
+instagram-importer/test-results/
+instagram-importer/.vite/
+instagram-importer/.env*
+!instagram-importer/.env.example
+!instagram-importer/.env.*.example
+
 # Superpowers brainstorming artefacts
 .superpowers/
 

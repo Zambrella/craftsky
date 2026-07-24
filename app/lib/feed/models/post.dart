@@ -50,6 +50,7 @@ class Post with PostMappable {
     this.reply,
     this.quote,
     this.quoteView,
+    this.externalImport,
     this.moderation,
     this.project,
     this.availability,
@@ -67,6 +68,7 @@ class Post with PostMappable {
   final PostReply? reply;
   final PostRef? quote;
   final QuoteView? quoteView;
+  final ExternalImport? externalImport;
   final DateTime createdAt;
   final DateTime indexedAt;
   final PostAuthor author;
@@ -84,6 +86,19 @@ class Post with PostMappable {
   final ContentRelationship? relationship;
 
   bool get isProtected => availability == 'muted' || availability == 'blocked';
+}
+
+/// Self-asserted provenance supplied by the public post record.
+///
+/// It is presentation metadata only and does not verify ownership of an
+/// account on the named service.
+@MappableClass()
+class ExternalImport with ExternalImportMappable {
+  const ExternalImport({required this.source});
+
+  final String source;
+
+  bool get isInstagram => source == 'instagram';
 }
 
 class PostWireHook extends MappingHook {
@@ -153,6 +168,7 @@ class QuotePreviewPost with QuotePreviewPostMappable {
     required this.createdAt,
     this.images,
     this.project,
+    this.externalImport,
   }) : uri = AtUri.parse(uri),
        cid = Cid.parse(cid);
 
@@ -163,6 +179,7 @@ class QuotePreviewPost with QuotePreviewPostMappable {
   final DateTime createdAt;
   final List<PostImage>? images;
   final Project? project;
+  final ExternalImport? externalImport;
 }
 
 @MappableClass(ignoreNull: true, includeCustomMappers: [CidMapper()])

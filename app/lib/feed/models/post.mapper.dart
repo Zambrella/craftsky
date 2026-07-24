@@ -27,6 +27,7 @@ class PostMapper extends ClassMapperBase<Post> {
       PostReplyMapper.ensureInitialized();
       PostRefMapper.ensureInitialized();
       QuoteViewMapper.ensureInitialized();
+      ExternalImportMapper.ensureInitialized();
       ModerationMetadataMapper.ensureInitialized();
       ProjectMapper.ensureInitialized();
       ContentRelationshipMapper.ensureInitialized();
@@ -132,6 +133,12 @@ class PostMapper extends ClassMapperBase<Post> {
     _$quoteView,
     opt: true,
   );
+  static ExternalImport? _$externalImport(Post v) => v.externalImport;
+  static const Field<Post, ExternalImport> _f$externalImport = Field(
+    'externalImport',
+    _$externalImport,
+    opt: true,
+  );
   static ModerationMetadata? _$moderation(Post v) => v.moderation;
   static const Field<Post, ModerationMetadata> _f$moderation = Field(
     'moderation',
@@ -179,6 +186,7 @@ class PostMapper extends ClassMapperBase<Post> {
     #reply: _f$reply,
     #quote: _f$quote,
     #quoteView: _f$quoteView,
+    #externalImport: _f$externalImport,
     #moderation: _f$moderation,
     #project: _f$project,
     #availability: _f$availability,
@@ -211,6 +219,7 @@ class PostMapper extends ClassMapperBase<Post> {
       reply: data.dec(_f$reply),
       quote: data.dec(_f$quote),
       quoteView: data.dec(_f$quoteView),
+      externalImport: data.dec(_f$externalImport),
       moderation: data.dec(_f$moderation),
       project: data.dec(_f$project),
       availability: data.dec(_f$availability),
@@ -277,6 +286,8 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
   PostReplyCopyWith<$R, PostReply, PostReply>? get reply;
   PostRefCopyWith<$R, PostRef, PostRef>? get quote;
   QuoteViewCopyWith<$R, QuoteView, QuoteView>? get quoteView;
+  ExternalImportCopyWith<$R, ExternalImport, ExternalImport>?
+  get externalImport;
   ModerationMetadataCopyWith<$R, ModerationMetadata, ModerationMetadata>?
   get moderation;
   ProjectCopyWith<$R, Project, Project>? get project;
@@ -303,6 +314,7 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
     PostReply? reply,
     PostRef? quote,
     QuoteView? quoteView,
+    ExternalImport? externalImport,
     ModerationMetadata? moderation,
     Project? project,
     String? availability,
@@ -359,6 +371,10 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
   QuoteViewCopyWith<$R, QuoteView, QuoteView>? get quoteView =>
       $value.quoteView?.copyWith.$chain((v) => call(quoteView: v));
   @override
+  ExternalImportCopyWith<$R, ExternalImport, ExternalImport>?
+  get externalImport =>
+      $value.externalImport?.copyWith.$chain((v) => call(externalImport: v));
+  @override
   ModerationMetadataCopyWith<$R, ModerationMetadata, ModerationMetadata>?
   get moderation =>
       $value.moderation?.copyWith.$chain((v) => call(moderation: v));
@@ -391,6 +407,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     Object? reply = $none,
     Object? quote = $none,
     Object? quoteView = $none,
+    Object? externalImport = $none,
     Object? moderation = $none,
     Object? project = $none,
     Object? availability = $none,
@@ -417,6 +434,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       if (reply != $none) #reply: reply,
       if (quote != $none) #quote: quote,
       if (quoteView != $none) #quoteView: quoteView,
+      if (externalImport != $none) #externalImport: externalImport,
       if (moderation != $none) #moderation: moderation,
       if (project != $none) #project: project,
       if (availability != $none) #availability: availability,
@@ -448,6 +466,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     reply: data.get(#reply, or: $value.reply),
     quote: data.get(#quote, or: $value.quote),
     quoteView: data.get(#quoteView, or: $value.quoteView),
+    externalImport: data.get(#externalImport, or: $value.externalImport),
     moderation: data.get(#moderation, or: $value.moderation),
     project: data.get(#project, or: $value.project),
     availability: data.get(#availability, or: $value.availability),
@@ -1419,6 +1438,7 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
       PostAuthorMapper.ensureInitialized();
       PostImageMapper.ensureInitialized();
       ProjectMapper.ensureInitialized();
+      ExternalImportMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -1464,6 +1484,10 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
     _$project,
     opt: true,
   );
+  static ExternalImport? _$externalImport(QuotePreviewPost v) =>
+      v.externalImport;
+  static const Field<QuotePreviewPost, ExternalImport> _f$externalImport =
+      Field('externalImport', _$externalImport, opt: true);
 
   @override
   final MappableFields<QuotePreviewPost> fields = const {
@@ -1474,6 +1498,7 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
     #createdAt: _f$createdAt,
     #images: _f$images,
     #project: _f$project,
+    #externalImport: _f$externalImport,
   };
   @override
   final bool ignoreNull = true;
@@ -1487,6 +1512,7 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
       createdAt: data.dec(_f$createdAt),
       images: data.dec(_f$images),
       project: data.dec(_f$project),
+      externalImport: data.dec(_f$externalImport),
     );
   }
 
@@ -1556,6 +1582,8 @@ abstract class QuotePreviewPostCopyWith<$R, $In extends QuotePreviewPost, $Out>
   ListCopyWith<$R, PostImage, PostImageCopyWith<$R, PostImage, PostImage>>?
   get images;
   ProjectCopyWith<$R, Project, Project>? get project;
+  ExternalImportCopyWith<$R, ExternalImport, ExternalImport>?
+  get externalImport;
   $R call({
     String? uri,
     String? cid,
@@ -1564,6 +1592,7 @@ abstract class QuotePreviewPostCopyWith<$R, $In extends QuotePreviewPost, $Out>
     DateTime? createdAt,
     List<PostImage>? images,
     Project? project,
+    ExternalImport? externalImport,
   });
   QuotePreviewPostCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -1594,6 +1623,10 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
   ProjectCopyWith<$R, Project, Project>? get project =>
       $value.project?.copyWith.$chain((v) => call(project: v));
   @override
+  ExternalImportCopyWith<$R, ExternalImport, ExternalImport>?
+  get externalImport =>
+      $value.externalImport?.copyWith.$chain((v) => call(externalImport: v));
+  @override
   $R call({
     String? uri,
     String? cid,
@@ -1602,6 +1635,7 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
     DateTime? createdAt,
     Object? images = $none,
     Object? project = $none,
+    Object? externalImport = $none,
   }) => $apply(
     FieldCopyWithData({
       if (uri != null) #uri: uri,
@@ -1611,6 +1645,7 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
       if (createdAt != null) #createdAt: createdAt,
       if (images != $none) #images: images,
       if (project != $none) #project: project,
+      if (externalImport != $none) #externalImport: externalImport,
     }),
   );
   @override
@@ -1622,12 +1657,129 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
     createdAt: data.get(#createdAt, or: $value.createdAt),
     images: data.get(#images, or: $value.images),
     project: data.get(#project, or: $value.project),
+    externalImport: data.get(#externalImport, or: $value.externalImport),
   );
 
   @override
   QuotePreviewPostCopyWith<$R2, QuotePreviewPost, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   ) => _QuotePreviewPostCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class ExternalImportMapper extends ClassMapperBase<ExternalImport> {
+  ExternalImportMapper._();
+
+  static ExternalImportMapper? _instance;
+  static ExternalImportMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = ExternalImportMapper._());
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'ExternalImport';
+
+  static String _$source(ExternalImport v) => v.source;
+  static const Field<ExternalImport, String> _f$source = Field(
+    'source',
+    _$source,
+  );
+
+  @override
+  final MappableFields<ExternalImport> fields = const {#source: _f$source};
+
+  static ExternalImport _instantiate(DecodingData data) {
+    return ExternalImport(source: data.dec(_f$source));
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static ExternalImport fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<ExternalImport>(map);
+  }
+
+  static ExternalImport fromJson(String json) {
+    return ensureInitialized().decodeJson<ExternalImport>(json);
+  }
+}
+
+mixin ExternalImportMappable {
+  String toJson() {
+    return ExternalImportMapper.ensureInitialized().encodeJson<ExternalImport>(
+      this as ExternalImport,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return ExternalImportMapper.ensureInitialized().encodeMap<ExternalImport>(
+      this as ExternalImport,
+    );
+  }
+
+  ExternalImportCopyWith<ExternalImport, ExternalImport, ExternalImport>
+  get copyWith => _ExternalImportCopyWithImpl<ExternalImport, ExternalImport>(
+    this as ExternalImport,
+    $identity,
+    $identity,
+  );
+  @override
+  String toString() {
+    return ExternalImportMapper.ensureInitialized().stringifyValue(
+      this as ExternalImport,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return ExternalImportMapper.ensureInitialized().equalsValue(
+      this as ExternalImport,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return ExternalImportMapper.ensureInitialized().hashValue(
+      this as ExternalImport,
+    );
+  }
+}
+
+extension ExternalImportValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, ExternalImport, $Out> {
+  ExternalImportCopyWith<$R, ExternalImport, $Out> get $asExternalImport =>
+      $base.as((v, t, t2) => _ExternalImportCopyWithImpl<$R, $Out>(v, t, t2));
+}
+
+abstract class ExternalImportCopyWith<$R, $In extends ExternalImport, $Out>
+    implements ClassCopyWith<$R, $In, $Out> {
+  $R call({String? source});
+  ExternalImportCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _ExternalImportCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, ExternalImport, $Out>
+    implements ExternalImportCopyWith<$R, ExternalImport, $Out> {
+  _ExternalImportCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<ExternalImport> $mapper =
+      ExternalImportMapper.ensureInitialized();
+  @override
+  $R call({String? source}) =>
+      $apply(FieldCopyWithData({if (source != null) #source: source}));
+  @override
+  ExternalImport $make(CopyWithData data) =>
+      ExternalImport(source: data.get(#source, or: $value.source));
+
+  @override
+  ExternalImportCopyWith<$R2, ExternalImport, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  ) => _ExternalImportCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 
 class ContentRelationshipMapper extends ClassMapperBase<ContentRelationship> {

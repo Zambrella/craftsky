@@ -46,35 +46,43 @@ type ResponseReply struct {
 	Parent ResponseStrongRef `json:"parent"`
 }
 
+// ExternalImportResponse is self-asserted display provenance from the
+// authoritative public post record. It does not verify source-account
+// ownership or grant trust.
+type ExternalImportResponse struct {
+	Source string `json:"source"`
+}
+
 // PostResponse is the canonical wire shape returned by every
 // post-shaped endpoint (POST, GET single, list items).
 type PostResponse struct {
-	URI                 string               `json:"uri"`
-	CID                 string               `json:"cid"`
-	Rkey                string               `json:"rkey"`
-	Text                string               `json:"text"`
-	Images              []PostImageView      `json:"images,omitempty"`
-	Facets              json.RawMessage      `json:"facets"`
-	Tags                []string             `json:"tags"`
-	LikeCount           int                  `json:"likeCount"`
-	RepostCount         int                  `json:"repostCount"`
-	QuoteCount          int                  `json:"quoteCount"`
-	ReplyCount          int                  `json:"replyCount"`
-	ViewerHasLiked      bool                 `json:"viewerHasLiked"`
-	ViewerHasReposted   bool                 `json:"viewerHasReposted"`
-	ViewerHasReplied    bool                 `json:"viewerHasReplied"`
-	ViewerHasSaved      bool                 `json:"viewerHasSaved"`
-	ViewerSavedFolderID *string              `json:"viewerSavedFolderId"`
-	Reply               *ResponseReply       `json:"reply"`
-	Quote               *ResponseStrongRef   `json:"quote"`
-	QuoteView           *QuoteView           `json:"quoteView,omitempty"`
-	CreatedAt           time.Time            `json:"createdAt"`
-	IndexedAt           time.Time            `json:"indexedAt"`
-	Author              PostAuthor           `json:"author"`
-	Moderation          *ModerationMetadata  `json:"moderation,omitempty"`
-	Project             *Project             `json:"project,omitempty"`
-	Availability        string               `json:"-"`
-	Relationship        *ContentRelationship `json:"-"`
+	URI                 string                  `json:"uri"`
+	CID                 string                  `json:"cid"`
+	Rkey                string                  `json:"rkey"`
+	Text                string                  `json:"text"`
+	Images              []PostImageView         `json:"images,omitempty"`
+	Facets              json.RawMessage         `json:"facets"`
+	Tags                []string                `json:"tags"`
+	LikeCount           int                     `json:"likeCount"`
+	RepostCount         int                     `json:"repostCount"`
+	QuoteCount          int                     `json:"quoteCount"`
+	ReplyCount          int                     `json:"replyCount"`
+	ViewerHasLiked      bool                    `json:"viewerHasLiked"`
+	ViewerHasReposted   bool                    `json:"viewerHasReposted"`
+	ViewerHasReplied    bool                    `json:"viewerHasReplied"`
+	ViewerHasSaved      bool                    `json:"viewerHasSaved"`
+	ViewerSavedFolderID *string                 `json:"viewerSavedFolderId"`
+	Reply               *ResponseReply          `json:"reply"`
+	Quote               *ResponseStrongRef      `json:"quote"`
+	QuoteView           *QuoteView              `json:"quoteView,omitempty"`
+	CreatedAt           time.Time               `json:"createdAt"`
+	IndexedAt           time.Time               `json:"indexedAt"`
+	ExternalImport      *ExternalImportResponse `json:"externalImport,omitempty"`
+	Author              PostAuthor              `json:"author"`
+	Moderation          *ModerationMetadata     `json:"moderation,omitempty"`
+	Project             *Project                `json:"project,omitempty"`
+	Availability        string                  `json:"-"`
+	Relationship        *ContentRelationship    `json:"-"`
 }
 
 type ContentRelationship struct {
@@ -158,13 +166,14 @@ func ApplyQuoteRelationshipPolicy(view *QuoteView, state relationships.State) {
 // QuotePreviewPost is intentionally smaller than PostResponse and never
 // includes nested quote previews.
 type QuotePreviewPost struct {
-	URI       string          `json:"uri"`
-	CID       string          `json:"cid"`
-	Text      string          `json:"text"`
-	Author    PostAuthor      `json:"author"`
-	Images    []PostImageView `json:"images,omitempty"`
-	Project   *Project        `json:"project,omitempty"`
-	CreatedAt time.Time       `json:"createdAt"`
+	URI            string                  `json:"uri"`
+	CID            string                  `json:"cid"`
+	Text           string                  `json:"text"`
+	Author         PostAuthor              `json:"author"`
+	Images         []PostImageView         `json:"images,omitempty"`
+	Project        *Project                `json:"project,omitempty"`
+	CreatedAt      time.Time               `json:"createdAt"`
+	ExternalImport *ExternalImportResponse `json:"externalImport,omitempty"`
 }
 
 // ModerationMetadata is the safe, generic moderation response shape shared by
@@ -253,15 +262,16 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle) *PostResponse {
 		tags = []string{}
 	}
 	resp := &PostResponse{
-		URI:       row.URI,
-		CID:       row.CID,
-		Rkey:      row.Rkey,
-		Text:      row.Text,
-		Images:    buildPostImageViews(row),
-		Facets:    row.Facets,
-		Tags:      tags,
-		CreatedAt: row.CreatedAt.UTC(),
-		IndexedAt: row.IndexedAt.UTC(),
+		URI:            row.URI,
+		CID:            row.CID,
+		Rkey:           row.Rkey,
+		Text:           row.Text,
+		Images:         buildPostImageViews(row),
+		Facets:         row.Facets,
+		Tags:           tags,
+		CreatedAt:      row.CreatedAt.UTC(),
+		IndexedAt:      row.IndexedAt.UTC(),
+		ExternalImport: buildExternalImportResponse(row.ExternalImportSource),
 		Author: PostAuthor{
 			DID:         row.DID,
 			Handle:      handle.String(),
@@ -315,15 +325,23 @@ func BuildQuoteView(row *QuoteViewRow, handle syntax.Handle) *QuoteView {
 		author.Avatar = &avatar
 	}
 	view.Post = &QuotePreviewPost{
-		URI:       row.Post.URI,
-		CID:       row.Post.CID,
-		Text:      row.Post.Text,
-		Author:    author,
-		Images:    buildPostImageViews(row.Post),
-		Project:   row.Post.Project,
-		CreatedAt: row.Post.CreatedAt.UTC(),
+		URI:            row.Post.URI,
+		CID:            row.Post.CID,
+		Text:           row.Post.Text,
+		Author:         author,
+		Images:         buildPostImageViews(row.Post),
+		Project:        row.Post.Project,
+		CreatedAt:      row.Post.CreatedAt.UTC(),
+		ExternalImport: buildExternalImportResponse(row.Post.ExternalImportSource),
 	}
 	return view
+}
+
+func buildExternalImportResponse(source *string) *ExternalImportResponse {
+	if source == nil || *source != "instagram" {
+		return nil
+	}
+	return &ExternalImportResponse{Source: "instagram"}
 }
 
 func buildPostImageViews(row *PostRow) []PostImageView {

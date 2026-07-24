@@ -962,6 +962,9 @@
   "postShareAction": "Share",
   "@postShareAction": { "description": "Tooltip for opening repost and quote actions for a post." },
 
+  "postImportedFromInstagram": "Imported from Instagram",
+  "@postImportedFromInstagram": { "description": "Subtle provenance label for a post created by the Instagram historical importer. It does not imply account ownership verification." },
+
   "postRepostedBy": "Reposted by {name}",
   "@postRepostedBy": {
     "description": "Timeline attribution shown above a post when a followed account reposted it.",

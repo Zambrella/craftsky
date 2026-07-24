@@ -774,6 +774,7 @@ func scanPostRowWithExtraScore(scanner pgx.Row) (SearchPostRow, error) {
 		&post.URI, &post.DID, &post.Rkey, &post.CID, &post.Text, &post.Facets, &post.Images,
 		&post.ReplyRootURI, &post.ReplyRootCID, &post.ReplyParentURI, &post.ReplyParentCID,
 		&post.QuoteURI, &post.QuoteCID, &post.Tags, &post.CreatedAt, &post.IndexedAt,
+		&post.ExternalImportSource, &post.ProfileSortAt,
 		&post.IsProject, &post.ProjectCraftType, &rawProject,
 		&post.AuthorDisplayName, &post.AuthorAvatarCID, &post.AuthorAvatarMime,
 		&post.ModerationWarningKind,

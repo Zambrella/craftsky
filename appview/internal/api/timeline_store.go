@@ -86,6 +86,7 @@ func (s *PostStore) listTimelineObserved(ctx context.Context, viewerDID string, 
 			JOIN eligible_authors a ON a.did = p.did
 			WHERE p.reply_root_uri IS NULL
 			  AND p.reply_parent_uri IS NULL
+			  AND p.external_import_source IS DISTINCT FROM 'instagram'
 			` + postVisibleModerationPredicate + `
 
 			UNION ALL
@@ -207,6 +208,7 @@ func scanTimelineFeedItemRow(scanner interface{ Scan(...any) error }) (*Timeline
 		&out.Post.URI, &out.Post.DID, &out.Post.Rkey, &out.Post.CID, &out.Post.Text, &out.Post.Facets, &out.Post.Images,
 		&out.Post.ReplyRootURI, &out.Post.ReplyRootCID, &out.Post.ReplyParentURI, &out.Post.ReplyParentCID,
 		&out.Post.QuoteURI, &out.Post.QuoteCID, &out.Post.Tags, &out.Post.CreatedAt, &out.Post.IndexedAt,
+		&out.Post.ExternalImportSource, &out.Post.ProfileSortAt,
 		&out.Post.IsProject, &out.Post.ProjectCraftType, &rawProject,
 		&out.Post.AuthorDisplayName, &out.Post.AuthorAvatarCID, &out.Post.AuthorAvatarMime,
 		&out.Post.ModerationWarningKind,

@@ -45,8 +45,8 @@ func seedQuotePost(t *testing.T, pool *pgxpool.Pool, did, rkey, text, quoteURI, 
 	t.Helper()
 	uri := "at://" + did + "/social.craftsky.feed.post/" + rkey
 	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO craftsky_posts (uri, did, rkey, cid, text, quote_uri, quote_cid, record, created_at, indexed_at)
-		VALUES ($1, $2, $3, 'bafycid-' || $3, $4, $5, $6, '{}'::jsonb, $7, $7)`,
+		INSERT INTO craftsky_posts (uri, did, rkey, cid, text, quote_uri, quote_cid, record, created_at, indexed_at, profile_sort_at)
+		VALUES ($1, $2, $3, 'bafycid-' || $3, $4, $5, $6, '{}'::jsonb, $7, $7, $7)`,
 		uri, did, rkey, text, quoteURI, quoteCID, indexedAt); err != nil {
 		t.Fatalf("seed quote post: %v", err)
 	}

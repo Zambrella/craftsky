@@ -26,6 +26,8 @@ type FeedPost struct {
 	CreatedAt string `json:"createdAt" cborgen:"createdAt"`
 	// embed: Optional embedded content. Open union; today only quote embeds are defined.
 	Embed *FeedPost_Embed `json:"embed,omitempty" cborgen:"embed,omitempty"`
+	// externalImport: Optional self-asserted provenance for content created by an external-history importer. This metadata does not verify ownership of an external account or grant trust.
+	ExternalImport *FeedPost_ExternalImport `json:"externalImport,omitempty" cborgen:"externalImport,omitempty"`
 	// facets: Byte-range annotations over 'text' for mentions, links, and inline hashtags. Reuses app.bsky.richtext.facet so existing renderers Just Work. Inline hashtag facets are composer-merged into project.common.tags on project posts; see the post lexicon fields spec.
 	Facets []*appbsky.RichtextFacet `json:"facets,omitempty" cborgen:"facets,omitempty"`
 	// images: Images attached to the post. Top-level (not inside 'embed') — a post may carry images alongside a quote embed without needing a wrapper variant.
@@ -101,6 +103,14 @@ func (t *FeedPost_Embed) UnmarshalCBOR(r io.Reader) error {
 	default:
 		return nil
 	}
+}
+
+// FeedPost_ExternalImport is a "externalImport" in the social.craftsky.feed.post schema.
+//
+// Minimal self-asserted external-import provenance. It is display and distribution metadata only and does not verify ownership of an external account.
+type FeedPost_ExternalImport struct {
+	// source: Self-asserted source service token. The value does not verify account ownership; clients should apply source-specific behavior only to values they recognize.
+	Source string `json:"source" cborgen:"source"`
 }
 
 // FeedPost_Image is a "image" in the social.craftsky.feed.post schema.
