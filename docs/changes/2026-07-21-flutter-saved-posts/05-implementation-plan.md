@@ -326,6 +326,17 @@ Second-pass evidence:
 - `cd app && flutter test`: Passed (1,004 tests).
 - `just fmt`: Passed (`gofmt -w .` and `go vet ./...`). The existing second-correction real-Postgres `just test` evidence remains current because this feedback pass changed only Flutter source/tests/generated output and this implementation artifact.
 
+### Production-router navigation regression (2026-07-23)
+
+- Red: A widget regression using the production `goRouterProvider` started at `/profile/settings`, tapped the localized Saved posts tile, and remained matched at `/profile/settings` instead of reaching `/profile/settings/saved`. The earlier IT-007 used a simplified router without the stateful shell and therefore could not expose the navigator mismatch.
+- Root cause: `SettingsRoute` was lifted onto the root navigator, while `SavedPostsRoute` and `SavedPostFolderRoute` had no matching `$parentNavigatorKey`. Their pages were placed on the Profile shell branch underneath the still-visible Settings route.
+- Green: The Settings tile now calls the typed `SavedPostsRoute().push<void>` API, and both saved descendants explicitly use the root navigator. The production-router regression proves Settings → Saved overview → folder → back to overview → back to Settings, exact matched locations, and full-screen visibility at each step.
+- Regenerated typed router output with `cd app && flutter packages pub run build_runner build --delete-conflicting-outputs`; the installed build runner reported that the removed option was ignored and completed successfully.
+- `cd app && flutter test test/router/saved_posts_route_test.dart`: Passed (3 tests).
+- `cd app && flutter test test/router test/settings/settings_page_test.dart test/saved_posts`: Passed (82 tests).
+- `cd app && flutter analyze`: Passed with no issues.
+- `cd app && flutter test`: Passed (1,005 tests).
+
 ## Completion Checklist
 
 - [x] All Must requirements covered by tests or documented gaps.

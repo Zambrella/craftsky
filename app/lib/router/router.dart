@@ -26,6 +26,8 @@ import 'package:craftsky_app/saved_posts/pages/saved_posts_page.dart';
 import 'package:craftsky_app/search/models/search_results_tab.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/search/pages/tag_search_page.dart';
+import 'package:craftsky_app/settings/pages/follow_list_page.dart';
+import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter/material.dart';
@@ -194,6 +196,22 @@ GoRouter goRouter(Ref ref) {
                     ),
                   ],
                 ),
+                TypedGoRoute<FollowersRoute>(
+                  path: RouteLocations.followersChild,
+                  name: 'settings-followers',
+                ),
+                TypedGoRoute<FollowingRoute>(
+                  path: RouteLocations.followingChild,
+                  name: 'settings-following',
+                ),
+                TypedGoRoute<MutedAccountsRoute>(
+                  path: RouteLocations.mutedAccountsChild,
+                  name: 'settings-muted-accounts',
+                ),
+                TypedGoRoute<BlockedAccountsRoute>(
+                  path: RouteLocations.blockedAccountsChild,
+                  name: 'settings-blocked-accounts',
+                ),
               ],
             ),
             TypedGoRoute<PlaygroundRoute>(
@@ -324,8 +342,55 @@ class SettingsRoute extends GoRouteData with $SettingsRoute {
       const SettingsPage();
 }
 
+class FollowersRoute extends GoRouteData with $FollowersRoute {
+  const FollowersRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const FollowListPage(kind: FollowListKind.followers);
+}
+
+class FollowingRoute extends GoRouteData with $FollowingRoute {
+  const FollowingRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const FollowListPage(kind: FollowListKind.following);
+}
+
+class MutedAccountsRoute extends GoRouteData with $MutedAccountsRoute {
+  const MutedAccountsRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const RelationshipListPage(kind: RelationshipListKind.muted);
+}
+
+class BlockedAccountsRoute extends GoRouteData with $BlockedAccountsRoute {
+  const BlockedAccountsRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const RelationshipListPage(kind: RelationshipListKind.blocked);
+}
+
 class SavedPostsRoute extends GoRouteData with $SavedPostsRoute {
   const SavedPostsRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -344,6 +409,9 @@ final class SavedPostFolderRouteData {
 
 class SavedPostFolderRoute extends GoRouteData with $SavedPostFolderRoute {
   const SavedPostFolderRoute({this.$extra});
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
 
   final SavedPostFolderRouteData? $extra;
 

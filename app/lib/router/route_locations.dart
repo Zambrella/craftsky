@@ -22,6 +22,10 @@ class RouteLocations {
   static const settingsChild = 'settings';
   static const savedPostsChild = 'saved';
   static const savedPostFolderChild = 'folder';
+  static const followersChild = 'followers';
+  static const followingChild = 'following';
+  static const mutedAccountsChild = 'muted';
+  static const blockedAccountsChild = 'blocked';
   static const savedPosts = '/profile/settings/saved';
   static const playgroundChild = 'playground';
 }
