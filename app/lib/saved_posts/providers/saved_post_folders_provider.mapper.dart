@@ -19,6 +19,7 @@ class SavedPostFolderListStateMapper
         _instance = SavedPostFolderListStateMapper._(),
       );
       SavedPostFolderMapper.ensureInitialized();
+      SavedPostFailureMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -139,6 +140,8 @@ abstract class SavedPostFolderListStateCopyWith<
     SavedPostFolderCopyWith<$R, SavedPostFolder, SavedPostFolder>
   >
   get items;
+  SavedPostFailureCopyWith<$R, SavedPostFailure, SavedPostFailure>?
+  get mutationFailure;
   MapCopyWith<
     $R,
     String,
@@ -180,6 +183,10 @@ class _SavedPostFolderListStateCopyWithImpl<$R, $Out>
     (v, t) => v.copyWith.$chain(t),
     (v) => call(items: v),
   );
+  @override
+  SavedPostFailureCopyWith<$R, SavedPostFailure, SavedPostFailure>?
+  get mutationFailure =>
+      $value.mutationFailure?.copyWith.$chain((v) => call(mutationFailure: v));
   @override
   MapCopyWith<
     $R,

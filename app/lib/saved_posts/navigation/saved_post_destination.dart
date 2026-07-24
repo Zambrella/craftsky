@@ -1,9 +1,13 @@
 import 'package:craftsky_app/saved_posts/models/saved_post.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flutter/foundation.dart';
 
+part 'saved_post_destination.mapper.dart';
+
 @immutable
-final class SavedPostDestination {
+@MappableClass(generateMethods: GenerateMethods.copy | GenerateMethods.equals)
+final class SavedPostDestination with SavedPostDestinationMappable {
   const SavedPostDestination({required this.threadUri, this.focusUri});
 
   factory SavedPostDestination.forItem(SavedPostItem item) {
@@ -17,16 +21,6 @@ final class SavedPostDestination {
 
   final AtUri threadUri;
   final AtUri? focusUri;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is SavedPostDestination &&
-          threadUri == other.threadUri &&
-          focusUri == other.focusUri;
-
-  @override
-  int get hashCode => Object.hash(threadUri, focusUri);
 
   @override
   String toString() => 'SavedPostDestination(<redacted>)';

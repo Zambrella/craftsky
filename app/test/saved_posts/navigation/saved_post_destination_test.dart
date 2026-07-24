@@ -34,6 +34,16 @@ void main() {
       ),
       SavedPostDestination(threadUri: rootUri, focusUri: nestedUri),
     );
+
+    final focused = SavedPostDestination(
+      threadUri: rootUri,
+      focusUri: nestedUri,
+    );
+    expect(
+      focused.copyWith(focusUri: null),
+      SavedPostDestination(threadUri: rootUri),
+    );
+    expect(focused.toString(), isNot(contains(nestedUri.toString())));
   });
 }
 

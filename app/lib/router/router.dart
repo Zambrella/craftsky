@@ -30,12 +30,14 @@ import 'package:craftsky_app/settings/pages/follow_list_page.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'router.g.dart';
+part 'router.mapper.dart';
 
 /// Singleton navigator keys. Globals that are recreated on hot reload cause
 /// go_router to crash; holding them behind a class means hot reload keeps
@@ -398,7 +400,8 @@ class SavedPostsRoute extends GoRouteData with $SavedPostsRoute {
 }
 
 @immutable
-final class SavedPostFolderRouteData {
+@MappableClass(generateMethods: GenerateMethods.copy | GenerateMethods.equals)
+final class SavedPostFolderRouteData with SavedPostFolderRouteDataMappable {
   const SavedPostFolderRouteData({required this.folder});
 
   final SavedPostFolder folder;

@@ -20,6 +20,9 @@ void main() {
     expect(data.projectTitle, 'Hitchhiker shawl');
     expect(data.image, same(post.images!.first));
     expect(data.image, isNot(same(post.images!.last)));
+    expect(data.copyWith(text: null).text, isNull);
+    expect(data.copyWith(), data);
+    expect(data.toString(), isNot(contains(post.text)));
 
     final quote = QuoteView(
       state: 'visible',

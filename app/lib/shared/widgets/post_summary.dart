@@ -5,13 +5,17 @@ import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+part 'post_summary.mapper.dart';
 
 enum PostSummaryState { visible, muted, hidden, blocked, unavailable }
 
 @immutable
-final class PostSummaryData {
+@MappableClass(generateMethods: GenerateMethods.copy | GenerateMethods.equals)
+final class PostSummaryData with PostSummaryDataMappable {
   const PostSummaryData({
     required this.state,
     this.author,

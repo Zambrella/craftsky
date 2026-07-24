@@ -45,6 +45,7 @@ void main() {
     expect(route.location, '/profile/settings/saved/folder');
     expect(route.location, isNot(contains(folder.id)));
     expect(route.location, isNot(contains(folder.name)));
+    expect(extra.copyWith(), extra);
     expect(extra.toString(), isNot(contains(folder.id)));
     expect(extra.toString(), isNot(contains(folder.name)));
     expect(route.toString(), isNot(contains(folder.id)));

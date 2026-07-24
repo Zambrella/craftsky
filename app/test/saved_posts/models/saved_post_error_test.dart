@@ -27,6 +27,13 @@ void main() {
     expect(failure.kind, SavedPostFailureKind.server);
     expect(failure.canRetry, isTrue);
     expect(
+      failure.copyWith(operation: SavedPostOperation.unsave),
+      const SavedPostFailure(
+        kind: SavedPostFailureKind.server,
+        operation: SavedPostOperation.unsave,
+      ),
+    );
+    expect(
       failure.localizedMessage(AppLocalizationsEn()),
       "Saved posts couldn't load.",
     );
