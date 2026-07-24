@@ -27,6 +27,7 @@ Map<String, dynamic> _postMap({
   'viewerHasLiked': false,
   'viewerHasReposted': false,
   'viewerHasReplied': false,
+  'viewerHasSaved': false,
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',
   'author': {'did': did, 'handle': handle},
@@ -64,10 +65,11 @@ void main() {
         final container = ProviderContainer.test(
           overrides: [postRepositoryProvider.overrideWithValue(fake)],
         );
+        final provider = userProjectsProvider('alice.craftsky.social');
+        final subscription = container.listen(provider, (_, _) {});
+        addTearDown(subscription.close);
 
-        final state = await container.read(
-          userProjectsProvider('alice.craftsky.social').future,
-        );
+        final state = await container.read(provider.future);
 
         expect(seenId, 'alice.craftsky.social');
         expect(seenLimit, userProjectsPageLimit);

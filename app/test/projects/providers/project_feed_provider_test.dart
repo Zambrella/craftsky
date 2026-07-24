@@ -24,6 +24,7 @@ Post _post(String rkey) => PostMapper.fromMap({
   'replyCount': 0,
   'viewerHasLiked': false,
   'viewerHasReposted': false,
+  'viewerHasSaved': false,
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',
   'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
@@ -68,6 +69,8 @@ void main() {
         sort: SearchSort.popular,
       );
       final provider = projectFeedProvider(query);
+      final subscription = container.listen(provider, (_, _) {});
+      addTearDown(subscription.close);
 
       await container.read(provider.future);
       await container.read(provider.notifier).loadMore();

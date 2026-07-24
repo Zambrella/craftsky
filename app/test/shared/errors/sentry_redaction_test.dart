@@ -78,5 +78,34 @@ void main() {
         expect(encoded, isNot(contains(sentinel)));
       }
     });
+
+    test('UT-010 drops every private saved-post sentinel field', () {
+      const sentinels = {
+        'folderName': 'Secret Folder',
+        'folderId': 'folder-private-42',
+        'postUri': 'at://did:plc:alice/social.craftsky.feed.post/private-post',
+        'ownerTarget': 'alice-owner-target-private',
+        'cursor': 'cursor-private-42',
+        'serverMessage': 'failed to save Secret Folder for did:plc:alice',
+      };
+      final sanitized = SentrySanitizer.sanitizeContext({
+        'feature': 'saved_posts',
+        'operation': 'folder_delete',
+        'classification': 'api.server_error',
+        'endpointCategory': 'appview.saved_post_folders.detail',
+        ...sentinels,
+      });
+
+      expect(sanitized, {
+        'feature': 'saved_posts',
+        'operation': 'folder_delete',
+        'classification': 'api.server_error',
+        'endpointCategory': 'appview.saved_post_folders.detail',
+      });
+      final exposed = sanitized.toString();
+      for (final sentinel in sentinels.values) {
+        expect(exposed, isNot(contains(sentinel)));
+      }
+    });
   });
 }

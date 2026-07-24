@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 /// same source of truth and can't drift. Display labels are looked up
 /// via [ProfileTabLabel.label] on the current [AppLocalizations] —
 /// keeping the enum locale-agnostic.
-enum ProfileTab { projects, posts, comments, saved, reposts, about }
+enum ProfileTab { projects, posts, comments, reposts, about }
 
 extension ProfileTabLabel on ProfileTab {
   /// Localised tab label for [AppLocalizations].
@@ -16,7 +16,6 @@ extension ProfileTabLabel on ProfileTab {
     ProfileTab.posts => l10n.profileTabPosts,
     ProfileTab.comments => l10n.profileTabComments,
     ProfileTab.projects => l10n.profileTabProjects,
-    ProfileTab.saved => l10n.profileTabSaved,
     ProfileTab.reposts => l10n.profileTabReposts,
     ProfileTab.about => l10n.profileTabAbout,
   };
@@ -26,12 +25,11 @@ extension ProfileTabLabel on ProfileTab {
 /// [SliverPersistentHeader] above the [TabBarView] body so tabs stay
 /// reachable while the post list scrolls under them.
 class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
-  const ProfileTabBarDelegate({this.projectsCountLabel, this.savedCountLabel});
+  const ProfileTabBarDelegate({this.projectsCountLabel});
 
   /// Optional inline counts ("Projects · 15"). Mockup hints at this; real
   /// counts plug in once feed data is wired.
   final String? projectsCountLabel;
-  final String? savedCountLabel;
 
   static const double height = 48;
 
@@ -77,15 +75,12 @@ class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
     return switch (tab) {
       ProfileTab.projects when projectsCountLabel != null =>
         '$base · $projectsCountLabel',
-      ProfileTab.saved when savedCountLabel != null =>
-        '$base · $savedCountLabel',
       _ => base,
     };
   }
 
   @override
   bool shouldRebuild(covariant ProfileTabBarDelegate oldDelegate) {
-    return projectsCountLabel != oldDelegate.projectsCountLabel ||
-        savedCountLabel != oldDelegate.savedCountLabel;
+    return projectsCountLabel != oldDelegate.projectsCountLabel;
   }
 }

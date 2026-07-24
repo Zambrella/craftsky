@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
@@ -16,9 +15,10 @@ import 'package:craftsky_app/profile/providers/profile_relationship_provider.dar
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/router/router.dart';
-import 'package:craftsky_app/shared/image/image_cache_providers.dart';
+import 'package:craftsky_app/saved_posts/widgets/saved_post_bookmark_button.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
+import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
@@ -375,6 +375,11 @@ class PostCard extends ConsumerWidget {
                           ],
                         ),
                         const Spacer(),
+                        if (account != null)
+                          SavedPostBookmarkButton(
+                            account: account,
+                            post: post,
+                          ),
                         _PostCardMenu(
                           onDelete: onDelete,
                           onReport: onReport,
@@ -691,11 +696,8 @@ class _QuotePreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final spacing = theme.extension<SpacingTheme>()!;
     final radii = theme.extension<RadiusTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
-    final l10n = AppLocalizations.of(context);
-    final post = quoteView.post;
 
     return Material(
       color: swatches.paper2,
@@ -704,72 +706,11 @@ class _QuotePreviewCard extends StatelessWidget {
         side: BorderSide(color: swatches.borderHair),
       ),
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: quoteView.state == 'visible' && post != null ? onPostTap : null,
-        child: Padding(
-          padding: EdgeInsets.all(spacing.sp3),
-          child: switch ((quoteView.state, post)) {
-            ('visible', final quoted?) => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _QuotePreviewAuthor(
-                  author: quoted.author,
-                  onTap: onAuthorTap,
-                ),
-                SizedBox(height: spacing.sp2),
-                if (quoted.images?.firstOrNull case final image?) ...[
-                  _QuotePreviewImage(image: image),
-                  SizedBox(height: spacing.sp2),
-                ],
-                if (quoted.project?.common.title?.trim() case final title?
-                    when title.isNotEmpty) ...[
-                  Text(title, style: theme.textTheme.titleMedium),
-                  SizedBox(height: spacing.sp2),
-                ],
-                Text(
-                  quoted.text,
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ],
-            ),
-            ('hidden', _) => Text(
-              l10n.postQuoteHidden,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.outline,
-              ),
-            ),
-            ('muted', _) => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.postMutedPlaceholder,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.outline,
-                  ),
-                ),
-                if (quoteView.revealable == true && onReveal != null)
-                  TextButton(
-                    onPressed: onReveal,
-                    child: Text(l10n.postRevealAction),
-                  ),
-              ],
-            ),
-            ('blocked', _) => Text(
-              l10n.postUnavailablePlaceholder,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.outline,
-              ),
-            ),
-            _ => Text(
-              l10n.postQuoteUnavailable,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.outline,
-              ),
-            ),
-          },
-        ),
+      child: PostSummary(
+        data: PostSummaryData.fromQuoteView(quoteView),
+        onTap: onPostTap,
+        onAuthorTap: onAuthorTap,
+        onReveal: onReveal,
       ),
     );
   }
@@ -810,89 +751,6 @@ class _ProtectedPostCard extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _QuotePreviewImage extends ConsumerWidget {
-  const _QuotePreviewImage({required this.image});
-
-  final PostImage image;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final radii = Theme.of(context).extension<RadiusTheme>()!;
-    final imageUrl = image.thumb ?? image.fullsize;
-
-    return ClipRRect(
-      key: const Key('quote-preview-image'),
-      borderRadius: BorderRadius.circular(radii.r1),
-      child: SizedBox(
-        width: double.infinity,
-        height: 160,
-        child: Semantics(
-          label: image.alt,
-          image: true,
-          child: imageUrl == null
-              ? const DecoratedBox(
-                  decoration: BoxDecoration(color: Color(0xFFEAEAEA)),
-                )
-              : CachedNetworkImage(
-                  imageUrl: imageUrl,
-                  cacheManager: ref.watch(feedImageCacheManagerProvider),
-                  fit: BoxFit.cover,
-                ),
-        ),
-      ),
-    );
-  }
-}
-
-class _QuotePreviewAuthor extends StatelessWidget {
-  const _QuotePreviewAuthor({required this.author, required this.onTap});
-
-  final PostAuthor author;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final displayName = author.displayName;
-    final avatarSeed = displayName ?? author.handle;
-    return _PostCardAuthorTapTarget(
-      onTap: onTap,
-      child: Row(
-        children: [
-          ProfileAvatar(
-            seed: avatarSeed,
-            avatarUrl: author.avatar,
-            size: ProfileAvatarSize.small,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (displayName != null && displayName.trim().isNotEmpty)
-                  Text(
-                    displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall,
-                  ),
-                Text(
-                  '@${author.handle}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.outline,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

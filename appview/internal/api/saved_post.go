@@ -70,7 +70,7 @@ type SavedPostMutationStore interface {
 type SavedPostFolderStore interface {
 	CreateFolder(context.Context, syntax.DID, string) (SavedPostFolder, error)
 	RenameFolder(context.Context, syntax.DID, string, string) (SavedPostFolder, error)
-	DeleteFolder(context.Context, syntax.DID, string) error
+	DeleteFolder(context.Context, syntax.DID, string, SavedPostFolderDeleteMode) error
 	ListFolders(context.Context, syntax.DID, int, string) ([]SavedPostFolder, string, error)
 }
 
@@ -356,7 +356,12 @@ func DeleteSavedPostFolderHandler(store SavedPostFolderStore) http.Handler {
 		if !ok {
 			return
 		}
-		err := store.DeleteFolder(r.Context(), owner, r.PathValue("folderId"))
+		mode, err := ParseSavedPostFolderDeleteQuery(r.URL.Query())
+		if err != nil {
+			writeSavedPostFieldError(w, r, err)
+			return
+		}
+		err = store.DeleteFolder(r.Context(), owner, r.PathValue("folderId"), mode)
 		if status, _, handled := mapSavedPostFolderError(savedPostFolderDelete, err); handled {
 			w.WriteHeader(status)
 			return

@@ -2673,6 +2673,192 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Projects didn\'t load.'**
   String get projectsLoadError;
+
+  /// Tooltip and action label for saving a post.
+  ///
+  /// In en, this message translates to:
+  /// **'Save post'**
+  String get savedPostSaveAction;
+
+  /// Tooltip for removing a post from the viewer's private saved collection.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from saved posts'**
+  String get savedPostUnsaveAction;
+
+  /// Safe retryable feedback after removing a saved post fails.
+  ///
+  /// In en, this message translates to:
+  /// **'This post couldn\'t be removed. Try again.'**
+  String get savedPostUnsaveError;
+
+  /// Title for the chooser used to move an existing saved post.
+  ///
+  /// In en, this message translates to:
+  /// **'Move saved post'**
+  String get savedPostMoveTitle;
+
+  /// Action opening the folder chooser for an existing saved post.
+  ///
+  /// In en, this message translates to:
+  /// **'Move'**
+  String get savedPostMoveAction;
+
+  /// Row action removing a post from saved posts.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsave'**
+  String get savedPostRowUnsaveAction;
+
+  /// Chooser option that leaves a saved post outside a folder.
+  ///
+  /// In en, this message translates to:
+  /// **'No folder'**
+  String get savedPostNoFolder;
+
+  /// Label for the saved-post folder selector.
+  ///
+  /// In en, this message translates to:
+  /// **'Folder'**
+  String get savedPostFolderSelectionLabel;
+
+  /// Safe inline error after a save or move request fails.
+  ///
+  /// In en, this message translates to:
+  /// **'That change couldn\'t be saved. Try again.'**
+  String get savedPostConfirmError;
+
+  /// Safe inline error when saved-post folders cannot load.
+  ///
+  /// In en, this message translates to:
+  /// **'Folders couldn\'t load.'**
+  String get savedPostFoldersLoadError;
+
+  /// Action loading the next page of saved-post folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more folders'**
+  String get savedPostLoadMoreFolders;
+
+  /// Action opening inline saved-folder creation.
+  ///
+  /// In en, this message translates to:
+  /// **'New folder'**
+  String get savedPostNewFolder;
+
+  /// Input label for a saved-post folder name.
+  ///
+  /// In en, this message translates to:
+  /// **'Folder name'**
+  String get savedPostFolderNameHint;
+
+  /// Action submitting a new saved-post folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Create folder'**
+  String get savedPostCreateFolderAction;
+
+  /// Safe inline error after saved-folder creation fails.
+  ///
+  /// In en, this message translates to:
+  /// **'That folder couldn\'t be created. Try again.'**
+  String get savedPostCreateFolderError;
+
+  /// Title for the viewer's private saved-post collection.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved posts'**
+  String get savedPostsTitle;
+
+  /// Heading above saved-post folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Folders'**
+  String get savedPostsFoldersHeading;
+
+  /// Heading above saved posts that have no folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Unfiled'**
+  String get savedPostsUnfiledHeading;
+
+  /// Empty state when the viewer has no saved posts or folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing saved yet'**
+  String get savedPostsEmpty;
+
+  /// Sort label showing the oldest saves first.
+  ///
+  /// In en, this message translates to:
+  /// **'Oldest'**
+  String get savedPostsSortOldest;
+
+  /// Helper text for newest-first saved-post ordering.
+  ///
+  /// In en, this message translates to:
+  /// **'Most recently saved first'**
+  String get savedPostsSortNewestDescription;
+
+  /// Helper text for oldest-first saved-post ordering.
+  ///
+  /// In en, this message translates to:
+  /// **'Earliest saved first'**
+  String get savedPostsSortOldestDescription;
+
+  /// Safe initial error for the saved-post collection.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved posts couldn\'t load.'**
+  String get savedPostsLoadError;
+
+  /// Action loading the next page of saved posts.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more'**
+  String get savedPostsLoadMore;
+
+  /// Tooltip opening saved-folder actions.
+  ///
+  /// In en, this message translates to:
+  /// **'Folder actions'**
+  String get savedPostFolderActions;
+
+  /// Tooltip opening move and unsave actions for one saved post.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved post actions'**
+  String get savedPostRowActions;
+
+  /// Action and dialog title for renaming a saved folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename folder'**
+  String get savedPostRenameFolder;
+
+  /// Destructive action and dialog title for deleting a saved folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete folder'**
+  String get savedPostDeleteFolder;
+
+  /// Prompt explaining the two scopes of saved-folder deletion.
+  ///
+  /// In en, this message translates to:
+  /// **'What should happen to the posts in this folder?'**
+  String get savedPostDeleteFolderBody;
+
+  /// Deletes a folder while moving its saves to Unfiled.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep saved posts'**
+  String get savedPostKeepSaves;
+
+  /// Deletes a folder and all private saves assigned to it.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete saved posts'**
+  String get savedPostDeleteSaves;
 }
 
 class _AppLocalizationsDelegate

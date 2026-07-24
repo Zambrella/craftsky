@@ -20,6 +20,7 @@ Post _post(String rkey) => PostMapper.fromMap({
   'replyCount': 0,
   'viewerHasLiked': false,
   'viewerHasReposted': false,
+  'viewerHasSaved': false,
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',
   'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
@@ -41,10 +42,13 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [searchRepositoryProvider.overrideWithValue(fake)],
       );
-
-      final state = await container.read(
-        projectSearchProvider(const ProjectSearchQuery(q: 'cardigan')).future,
+      final provider = projectSearchProvider(
+        const ProjectSearchQuery(q: 'cardigan'),
       );
+      final subscription = container.listen(provider, (_, _) {});
+      addTearDown(subscription.close);
+
+      final state = await container.read(provider.future);
 
       expect(seenQ, 'cardigan');
       expect(state.items.single.rkey.toString(), 'project');
@@ -78,6 +82,8 @@ void main() {
       final provider = projectSearchProvider(
         const ProjectSearchQuery(q: 'cardigan'),
       );
+      final subscription = container.listen(provider, (_, _) {});
+      addTearDown(subscription.close);
 
       await container.read(provider.future);
       await container.read(provider.notifier).loadMore();

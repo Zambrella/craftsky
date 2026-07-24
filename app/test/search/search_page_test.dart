@@ -269,6 +269,7 @@ Post _post(String rkey) => PostMapper.fromMap({
   'replyCount': 0,
   'viewerHasLiked': false,
   'viewerHasReposted': false,
+  'viewerHasSaved': false,
   'viewerHasReplied': false,
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',

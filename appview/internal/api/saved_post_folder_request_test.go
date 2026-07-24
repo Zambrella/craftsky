@@ -2,11 +2,49 @@ package api_test
 
 import (
 	"errors"
+	"net/url"
 	"strings"
 	"testing"
 
 	"social.craftsky/appview/internal/api"
 )
+
+func TestParseSavedPostFolderDeleteQuery(t *testing.T) {
+	tests := []struct {
+		name    string
+		values  url.Values
+		want    api.SavedPostFolderDeleteMode
+		wantErr bool
+	}{
+		{name: "absent preserves saves", values: url.Values{}, want: api.SavedPostFolderPreserveSaves},
+		{name: "false preserves saves", values: url.Values{"deleteSaves": {"false"}}, want: api.SavedPostFolderPreserveSaves},
+		{name: "true removes saves", values: url.Values{"deleteSaves": {"true"}}, want: api.SavedPostFolderRemoveSaves},
+		{name: "empty rejected", values: url.Values{"deleteSaves": {""}}, wantErr: true},
+		{name: "mixed case rejected", values: url.Values{"deleteSaves": {"True"}}, wantErr: true},
+		{name: "repeated rejected", values: url.Values{"deleteSaves": {"false", "true"}}, wantErr: true},
+		{name: "invalid rejected", values: url.Values{"deleteSaves": {"yes"}}, wantErr: true},
+		{name: "unknown rejected", values: url.Values{"other": {"true"}}, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := api.ParseSavedPostFolderDeleteQuery(tt.values)
+			if !tt.wantErr {
+				if err != nil {
+					t.Fatalf("ParseSavedPostFolderDeleteQuery: %v", err)
+				}
+				if got != tt.want {
+					t.Fatalf("mode = %v, want %v", got, tt.want)
+				}
+				return
+			}
+			var fieldErr *api.FieldError
+			if !errors.As(err, &fieldErr) || fieldErr.Code != "validation_failed" {
+				t.Fatalf("want validation FieldError, got %v", err)
+			}
+		})
+	}
+}
 
 func TestSavedPostFolderNameValidation(t *testing.T) {
 	hundred := strings.Repeat("界", 100)

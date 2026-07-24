@@ -17,6 +17,7 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
+import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -78,7 +79,7 @@ class NotificationRow extends ConsumerWidget {
     final theme = Theme.of(context);
     final actor = notification.actor.displayLabel;
     final actionColor = _actionColor(notification, theme.colorScheme);
-    final (title, subtitle) = switch (notification) {
+    final (title, subjectPost) = switch (notification) {
       FollowNotification() => (l10n.notificationFollowRow(actor), null),
       LikeNotification(:final subjectPost) => (
         switch (_roleOf(subjectPost)) {
@@ -90,7 +91,7 @@ class NotificationRow extends ConsumerWidget {
             actor,
           ),
         },
-        subjectPost.text,
+        subjectPost,
       ),
       RepostNotification(:final subjectPost) => (
         switch (_roleOf(subjectPost)) {
@@ -102,7 +103,7 @@ class NotificationRow extends ConsumerWidget {
             actor,
           ),
         },
-        subjectPost.text,
+        subjectPost,
       ),
       ReplyNotification(:final subjectPost) => (
         switch (_roleOf(subjectPost)) {
@@ -113,15 +114,15 @@ class NotificationRow extends ConsumerWidget {
             actor,
           ),
         },
-        subjectPost.text,
+        subjectPost,
       ),
       MentionNotification(:final subjectPost) => (
         l10n.notificationMentionRow(actor),
-        subjectPost.text,
+        subjectPost,
       ),
       QuoteNotification(:final subjectPost) => (
         l10n.notificationQuoteRow(actor),
-        subjectPost.text,
+        subjectPost,
       ),
       GenericNotification() => (l10n.notificationGenericRow, null),
       UnavailableNotification() => (l10n.notificationUnavailableRow, null),
@@ -177,13 +178,11 @@ class NotificationRow extends ConsumerWidget {
                         RelativeTimeText(timestamp: notification.createdAt),
                       ],
                     ),
-                    if (subtitle != null) ...[
+                    if (subjectPost != null) ...[
                       const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                      PostSummary(
+                        data: PostSummaryData.notificationSubject(subjectPost),
+                        padding: EdgeInsets.zero,
                       ),
                     ],
                     if (notification is FollowNotification &&

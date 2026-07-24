@@ -40,6 +40,7 @@ Map<String, dynamic> _postMap({
   'replyCount': replyCount,
   'viewerHasLiked': false,
   'viewerHasReposted': false,
+  'viewerHasSaved': false,
   'viewerHasReplied': viewerHasReplied,
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',

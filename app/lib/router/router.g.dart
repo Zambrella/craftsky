@@ -84,15 +84,51 @@ RouteBase get $appShellRoute => StatefulShellRouteData.$route(
           factory: $ProfileRoute._fromState,
           routes: [
             GoRouteData.$route(
-              path: 'saved',
-              name: 'saved',
-              factory: $SavedRoute._fromState,
-            ),
-            GoRouteData.$route(
               path: 'settings',
               name: 'settings',
               parentNavigatorKey: SettingsRoute.$parentNavigatorKey,
               factory: $SettingsRoute._fromState,
+              routes: [
+                GoRouteData.$route(
+                  path: 'saved',
+                  name: 'saved-posts',
+                  parentNavigatorKey: SavedPostsRoute.$parentNavigatorKey,
+                  factory: $SavedPostsRoute._fromState,
+                  routes: [
+                    GoRouteData.$route(
+                      path: 'folder',
+                      name: 'saved-post-folder',
+                      parentNavigatorKey:
+                          SavedPostFolderRoute.$parentNavigatorKey,
+                      factory: $SavedPostFolderRoute._fromState,
+                    ),
+                  ],
+                ),
+                GoRouteData.$route(
+                  path: 'followers',
+                  name: 'settings-followers',
+                  parentNavigatorKey: FollowersRoute.$parentNavigatorKey,
+                  factory: $FollowersRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'following',
+                  name: 'settings-following',
+                  parentNavigatorKey: FollowingRoute.$parentNavigatorKey,
+                  factory: $FollowingRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'muted',
+                  name: 'settings-muted-accounts',
+                  parentNavigatorKey: MutedAccountsRoute.$parentNavigatorKey,
+                  factory: $MutedAccountsRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'blocked',
+                  name: 'settings-blocked-accounts',
+                  parentNavigatorKey: BlockedAccountsRoute.$parentNavigatorKey,
+                  factory: $BlockedAccountsRoute._fromState,
+                ),
+              ],
             ),
             GoRouteData.$route(
               path: 'playground',
@@ -279,11 +315,11 @@ mixin $ProfileRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
-mixin $SavedRoute on GoRouteData {
-  static SavedRoute _fromState(GoRouterState state) => const SavedRoute();
+mixin $SettingsRoute on GoRouteData {
+  static SettingsRoute _fromState(GoRouterState state) => const SettingsRoute();
 
   @override
-  String get location => GoRouteData.$location('/profile/saved');
+  String get location => GoRouteData.$location('/profile/settings');
 
   @override
   void go(BuildContext context) => context.go(location);
@@ -299,11 +335,122 @@ mixin $SavedRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
-mixin $SettingsRoute on GoRouteData {
-  static SettingsRoute _fromState(GoRouterState state) => const SettingsRoute();
+mixin $SavedPostsRoute on GoRouteData {
+  static SavedPostsRoute _fromState(GoRouterState state) =>
+      const SavedPostsRoute();
 
   @override
-  String get location => GoRouteData.$location('/profile/settings');
+  String get location => GoRouteData.$location('/profile/settings/saved');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $SavedPostFolderRoute on GoRouteData {
+  static SavedPostFolderRoute _fromState(GoRouterState state) =>
+      SavedPostFolderRoute($extra: state.extra as SavedPostFolderRouteData?);
+
+  SavedPostFolderRoute get _self => this as SavedPostFolderRoute;
+
+  @override
+  String get location =>
+      GoRouteData.$location('/profile/settings/saved/folder');
+
+  @override
+  void go(BuildContext context) => context.go(location, extra: _self.$extra);
+
+  @override
+  Future<T?> push<T>(BuildContext context) =>
+      context.push<T>(location, extra: _self.$extra);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location, extra: _self.$extra);
+
+  @override
+  void replace(BuildContext context) =>
+      context.replace(location, extra: _self.$extra);
+}
+
+mixin $FollowersRoute on GoRouteData {
+  static FollowersRoute _fromState(GoRouterState state) =>
+      const FollowersRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/settings/followers');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $FollowingRoute on GoRouteData {
+  static FollowingRoute _fromState(GoRouterState state) =>
+      const FollowingRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/settings/following');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $MutedAccountsRoute on GoRouteData {
+  static MutedAccountsRoute _fromState(GoRouterState state) =>
+      const MutedAccountsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/settings/muted');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $BlockedAccountsRoute on GoRouteData {
+  static BlockedAccountsRoute _fromState(GoRouterState state) =>
+      const BlockedAccountsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/settings/blocked');
 
   @override
   void go(BuildContext context) => context.go(location);

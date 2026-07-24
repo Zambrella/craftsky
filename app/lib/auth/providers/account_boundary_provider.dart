@@ -29,6 +29,11 @@ import 'package:craftsky_app/projects/providers/project_repository_provider.dart
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/saved_posts/providers/account_saved_post_state_provider.dart';
+import 'package:craftsky_app/saved_posts/providers/save_post_dialog_controller.dart';
+import 'package:craftsky_app/saved_posts/providers/saved_post_folders_provider.dart';
+import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provider.dart';
+import 'package:craftsky_app/saved_posts/providers/saved_posts_provider.dart';
 import 'package:craftsky_app/search/providers/blank_search_provider.dart';
 import 'package:craftsky_app/search/providers/hashtag_result_search_provider.dart';
 import 'package:craftsky_app/search/providers/hashtag_search_provider.dart';
@@ -75,6 +80,7 @@ class AccountSessionInvalidationCoordinator {
 
 final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
   (ref) => () async {
+    ref.read(savedPostAccountBoundaryProvider.notifier).advance();
     ref
       ..invalidate(postRepositoryProvider)
       ..invalidate(timelineProvider)
@@ -115,7 +121,13 @@ final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
       ..invalidate(notificationsProvider)
       ..invalidate(notificationPreferencesProvider)
       ..invalidate(notificationSeenProvider)
-      ..invalidate(notificationNewCountProvider);
+      ..invalidate(notificationNewCountProvider)
+      ..invalidate(accountSavedPostRepositoryProvider)
+      ..invalidate(accountSavedPostStateProvider)
+      ..invalidate(savedPostPresentationProvider)
+      ..invalidate(savedPostFoldersProvider)
+      ..invalidate(savedPostsProvider)
+      ..invalidate(savePostDialogControllerProvider);
   },
 );
 

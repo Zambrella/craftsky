@@ -43,6 +43,7 @@ dependencies:
   riverpod_annotation: ^4.0.2
   sentry_flutter: ^9.23.0
   shared_preferences: ^2.5.4
+  sliver_tools: ^0.2.12
   smooth_page_indicator: ^2.0.1
   timeago: ^3.7.1
   url_launcher: ^6.3.1

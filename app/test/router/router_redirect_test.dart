@@ -75,6 +75,7 @@ Post _post(String did, String rkey) => Post(
   replyCount: 0,
   viewerHasLiked: false,
   viewerHasReposted: false,
+  viewerHasSaved: false,
   createdAt: DateTime(2026, 5, 4, 18, 23, 45),
   indexedAt: DateTime(2026, 5, 4, 18, 23, 47),
   author: PostAuthor(did: did, handle: 'alice.craftsky.social'),
