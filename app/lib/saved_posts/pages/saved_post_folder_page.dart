@@ -11,6 +11,7 @@ import 'package:craftsky_app/saved_posts/providers/saved_posts_provider.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_folder_dialogs.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row_actions.dart';
+import 'package:craftsky_app/saved_posts/widgets/saved_post_sort_button.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,22 +52,9 @@ class _SavedPostFolderScreenState extends ConsumerState<SavedPostFolderScreen> {
       appBar: AppBar(
         title: Text(folder.name),
         actions: [
-          DropdownButton<SavedPostSort>(
+          SavedPostSortButton(
             value: _sort,
-            underline: const SizedBox.shrink(),
-            onChanged: (value) {
-              if (value != null) setState(() => _sort = value);
-            },
-            items: [
-              DropdownMenuItem(
-                value: SavedPostSort.newest,
-                child: Text(l10n.searchSortNewest),
-              ),
-              DropdownMenuItem(
-                value: SavedPostSort.oldest,
-                child: Text(l10n.savedPostsSortOldest),
-              ),
-            ],
+            onChanged: (value) => setState(() => _sort = value),
           ),
           CraftskyContextMenuButton(
             tooltip: l10n.savedPostFolderActions,

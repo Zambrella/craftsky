@@ -8,11 +8,14 @@ import 'package:craftsky_app/saved_posts/models/saved_post.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_folder.dart';
 import 'package:craftsky_app/saved_posts/pages/saved_posts_page.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provider.dart';
+import 'package:craftsky_app/saved_posts/widgets/saved_post_sort_button.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sliver_tools/sliver_tools.dart';
 
 import '../../fakes/auth_session_fakes.dart';
 
@@ -37,6 +40,15 @@ void main() {
     expect(find.text('Later'), findsOneWidget);
     expect(find.text('Unfiled'), findsOneWidget);
     expect(find.text('saved-row'), findsOneWidget);
+    expect(find.byType(MultiSliver), findsNWidgets(2));
+    expect(find.byType(SliverPinnedHeader), findsNWidgets(2));
+    expect(
+      find.descendant(
+        of: find.byType(SliverPinnedHeader),
+        matching: find.byType(ColoredBox),
+      ),
+      findsNWidgets(2),
+    );
     expect(
       tester.getTopLeft(find.text('Later')).dy,
       lessThan(tester.getTopLeft(find.text('Unfiled')).dy),
@@ -101,7 +113,7 @@ void main() {
     await tester.tap(find.byTooltip('New folder'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '  Fresh ideas  ');
-    await tester.tap(find.widgetWithText(FilledButton, 'Create folder'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
     await tester.pumpAndSettle();
 
     expect(repository.createNames, ['Fresh ideas']);
@@ -133,7 +145,7 @@ void main() {
     await tester.tap(find.byTooltip('New folder'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Created while scrolled');
-    await tester.tap(find.widgetWithText(FilledButton, 'Create folder'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
     await tester.pumpAndSettle();
 
     final after = tester
@@ -154,7 +166,7 @@ void main() {
     await tester.tap(find.byTooltip('New folder'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Created');
-    await tester.tap(find.widgetWithText(FilledButton, 'Create folder'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
     await tester.pumpAndSettle();
 
     expect(repository.folderCalls, 2);
@@ -182,7 +194,7 @@ void main() {
     );
     final folderTop = tester.getTopLeft(find.text('Ideas')).dy;
 
-    await tester.tap(find.byType(DropdownButton<SavedPostSort>));
+    await tester.tap(find.byType(SavedPostSortButton));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Oldest').last);
     await tester.pumpAndSettle();

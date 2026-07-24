@@ -6,6 +6,7 @@ import 'package:craftsky_app/saved_posts/widgets/saved_post_row.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,20 +40,28 @@ void main() {
     );
 
     expect(find.text('A saved reply'), findsOneWidget);
-    expect(find.text('Move'), findsOneWidget);
-    expect(find.text('Unsave'), findsOneWidget);
+    expect(find.text('Move'), findsNothing);
+    expect(find.text('Unsave'), findsNothing);
+    expect(find.byTooltip('Saved post actions'), findsOneWidget);
     expect(find.byIcon(Icons.bookmark), findsNothing);
     expect(find.byIcon(Icons.favorite_border), findsNothing);
 
     await tester.tap(find.text('A saved reply'));
-    await tester.tap(find.widgetWithText(TextButton, 'Move'));
-    await tester.tap(find.widgetWithText(TextButton, 'Unsave'));
+    await tester.tap(find.byTooltip('Saved post actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Move'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Saved post actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Unsave'));
+    await tester.pumpAndSettle();
     expect((opens, moves, unsaves), (1, 1, 1));
   });
 
   testWidgets('AT-012 saved row uses PostSummary with parent-owned metadata', (
     tester,
   ) async {
+    final item = _item();
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
@@ -62,7 +71,7 @@ void main() {
           home: Scaffold(
             body: SavedPostRow(
               account: AccountKey('did:plc:alice'),
-              item: _item(),
+              item: item,
               onOpen: () {},
               onMove: () {},
               onUnsave: () {},
@@ -73,7 +82,17 @@ void main() {
     );
 
     expect(find.byType(PostSummary), findsOneWidget);
-    expect(find.byType(RelativeTimeText), findsOneWidget);
+    expect(find.byType(RelativeTimeText), findsNWidgets(2));
+    final postTime = find.descendant(
+      of: find.byType(PostSummary),
+      matching: find.byType(RelativeTimeText),
+    );
+    expect(postTime, findsOneWidget);
+    expect(
+      tester.widget<RelativeTimeText>(postTime).timestamp,
+      item.post.createdAt,
+    );
+    expect(find.byType(CraftskyContextMenuButton), findsOneWidget);
     expect(
       find.descendant(
         of: find.byType(PostSummary),
@@ -130,11 +149,14 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    for (final label in ['Move', 'Unsave']) {
-      final button = find.widgetWithText(TextButton, label);
-      expect(button, findsOneWidget);
-      expect(tester.getSize(button).height, greaterThanOrEqualTo(48));
-    }
+    final button = find.byTooltip('Saved post actions');
+    expect(button, findsOneWidget);
+    expect(tester.getSize(button).height, greaterThanOrEqualTo(48));
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.text('Move'), findsOneWidget);
+    expect(find.text('Unsave'), findsOneWidget);
+    expect(tester.takeException(), isNull);
     expect(find.byType(PostSummary), findsOneWidget);
     semantics.dispose();
   });

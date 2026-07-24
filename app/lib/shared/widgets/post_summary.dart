@@ -83,6 +83,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     return PostSummaryData._visible(
       author: post.author,
       text: post.text,
+      createdAt: post.createdAt,
       projectTitle: post.project?.common.title,
       images: post.images,
     );
@@ -146,10 +147,27 @@ class PostSummary extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (data.author case final author?)
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onAuthorTap,
-                  child: _PostSummaryAuthor(author: author),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: onAuthorTap,
+                        child: _PostSummaryAuthor(author: author),
+                      ),
+                    ),
+                    if (data.createdAt case final createdAt?)
+                      SizedBox(
+                        width: 48,
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: RelativeTimeText(
+                            timestamp: createdAt,
+                            textAlign: TextAlign.end,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               if (data.image case final image?) ...[
                 const SizedBox(height: 8),
@@ -166,7 +184,8 @@ class PostSummary extends StatelessWidget {
                   const SizedBox(height: 8),
                 Text(text, maxLines: 4, overflow: TextOverflow.ellipsis),
               ],
-              if (data.createdAt case final createdAt?) ...[
+              if (data.createdAt case final createdAt?
+                  when data.author == null) ...[
                 const SizedBox(height: 4),
                 RelativeTimeText(timestamp: createdAt),
               ],

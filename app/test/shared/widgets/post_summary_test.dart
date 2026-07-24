@@ -2,6 +2,7 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -68,6 +69,17 @@ void main() {
     );
     expect(find.text('Hitchhiker shawl'), findsOneWidget);
     expect(find.text(post.text), findsOneWidget);
+    final postTime = find.byType(RelativeTimeText);
+    expect(postTime, findsOneWidget);
+    expect(tester.widget<RelativeTimeText>(postTime).timestamp, post.createdAt);
+    expect(
+      tester.getTopRight(postTime).dx,
+      greaterThan(tester.getTopRight(find.text('@alice.craftsky.social')).dx),
+    );
+    expect(
+      tester.getTopLeft(postTime).dy,
+      lessThan(tester.getTopLeft(find.text(post.text)).dy),
+    );
     expect(find.byIcon(Icons.bookmark), findsNothing);
     expect(find.byIcon(Icons.favorite_border), findsNothing);
     await tester.tap(find.text(post.text));

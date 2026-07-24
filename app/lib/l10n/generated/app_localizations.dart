@@ -2716,6 +2716,12 @@ abstract class AppLocalizations {
   /// **'No folder'**
   String get savedPostNoFolder;
 
+  /// Label for the saved-post folder selector.
+  ///
+  /// In en, this message translates to:
+  /// **'Folder'**
+  String get savedPostFolderSelectionLabel;
+
   /// Safe inline error after a save or move request fails.
   ///
   /// In en, this message translates to:
@@ -2788,6 +2794,18 @@ abstract class AppLocalizations {
   /// **'Oldest'**
   String get savedPostsSortOldest;
 
+  /// Helper text for newest-first saved-post ordering.
+  ///
+  /// In en, this message translates to:
+  /// **'Most recently saved first'**
+  String get savedPostsSortNewestDescription;
+
+  /// Helper text for oldest-first saved-post ordering.
+  ///
+  /// In en, this message translates to:
+  /// **'Earliest saved first'**
+  String get savedPostsSortOldestDescription;
+
   /// Safe initial error for the saved-post collection.
   ///
   /// In en, this message translates to:
@@ -2805,6 +2823,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Folder actions'**
   String get savedPostFolderActions;
+
+  /// Tooltip opening move and unsave actions for one saved post.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved post actions'**
+  String get savedPostRowActions;
 
   /// Action and dialog title for renaming a saved folder.
   ///

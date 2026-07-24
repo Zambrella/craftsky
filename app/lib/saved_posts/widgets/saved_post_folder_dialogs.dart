@@ -2,24 +2,29 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_folder.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_folders_provider.dart';
+import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 Future<SavedPostFolder?> showCreateSavedPostFolderDialog(
   BuildContext context, {
   required AccountKey account,
-}) => showDialog<SavedPostFolder>(
-  context: context,
-  builder: (_) => _FolderNameDialog(account: account),
+}) => showCraftskyModal<SavedPostFolder>(
+  context,
+  builder: (dialogContext) => _FolderNameDialog(account: account),
 );
 
 Future<SavedPostFolder?> showRenameSavedPostFolderDialog(
   BuildContext context, {
   required AccountKey account,
   required SavedPostFolder folder,
-}) => showDialog<SavedPostFolder>(
-  context: context,
-  builder: (_) => _FolderNameDialog(account: account, folder: folder),
+}) => showCraftskyModal<SavedPostFolder>(
+  context,
+  builder: (dialogContext) =>
+      _FolderNameDialog(account: account, folder: folder),
 );
 
 Future<bool> showDeleteSavedPostFolderDialog(
@@ -27,21 +32,21 @@ Future<bool> showDeleteSavedPostFolderDialog(
   required AccountKey account,
   required SavedPostFolder folder,
 }) async {
-  final deleteSaves = await showDialog<bool>(
-    context: context,
-    builder: (context) {
+  final deleteSaves = await showCraftskyModal<bool>(
+    context,
+    builder: (dialogContext) {
       final l10n = AppLocalizations.of(context);
-      return AlertDialog(
-        title: Text(l10n.savedPostDeleteFolder),
-        content: Text(l10n.savedPostDeleteFolderBody),
+      return CraftskyDialog(
+        title: l10n.savedPostDeleteFolder,
+        body: Text(l10n.savedPostDeleteFolderBody),
         actions: [
           TextButton(
             autofocus: true,
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: Text(l10n.actionCancel),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
             child: Text(l10n.savedPostKeepSaves),
           ),
           Semantics(
@@ -49,8 +54,9 @@ Future<bool> showDeleteSavedPostFolderDialog(
             label: l10n.savedPostDeleteSaves,
             hint: l10n.destructiveActionHint,
             excludeSemantics: true,
-            child: FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
+            child: ChunkyButton(
+              backgroundColor: BrandColors.red,
+              onPressed: () => Navigator.of(dialogContext).pop(true),
               child: Text(l10n.savedPostDeleteSaves),
             ),
           ),
@@ -93,55 +99,64 @@ class _FolderNameDialog extends ConsumerStatefulWidget {
 
 class _FolderNameDialogState extends ConsumerState<_FolderNameDialog> {
   late final _controller = TextEditingController(text: widget.folder?.name);
+  final _focusNode = FocusNode();
   bool _pending = false;
   bool _hasError = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return AlertDialog(
-      title: Text(
-        widget.folder == null
+    return PopScope(
+      canPop: !_pending,
+      child: CraftskyDialog(
+        title: widget.folder == null
             ? l10n.savedPostNewFolder
             : l10n.savedPostRenameFolder,
-      ),
-      content: TextField(
-        controller: _controller,
-        enabled: !_pending,
-        autofocus: true,
-        decoration: InputDecoration(
-          labelText: l10n.savedPostFolderNameHint,
+        body: CraftskyTextInput(
+          label: l10n.savedPostFolderNameHint,
+          controller: _controller,
+          focusNode: _focusNode,
+          enabled: !_pending,
           errorText: _hasError ? l10n.savedPostCreateFolderError : null,
+          onChanged: (_) {
+            if (_hasError) setState(() => _hasError = false);
+          },
         ),
-        onChanged: (_) {
-          if (_hasError) setState(() => _hasError = false);
-        },
+        actions: [
+          TextButton(
+            onPressed: _pending ? null : () => Navigator.of(context).pop(),
+            child: Text(l10n.actionCancel),
+          ),
+          ChunkyButton(
+            onPressed: _pending ? null : _submit,
+            child: _pending
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(
+                    widget.folder == null
+                        ? l10n.savedPostCreateFolderAction
+                        : l10n.savedPostRenameFolder,
+                  ),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: _pending ? null : () => Navigator.of(context).pop(),
-          child: Text(l10n.actionCancel),
-        ),
-        FilledButton(
-          onPressed: _pending ? null : _submit,
-          child: _pending
-              ? const SizedBox.square(
-                  dimension: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(
-                  widget.folder == null
-                      ? l10n.savedPostCreateFolderAction
-                      : l10n.savedPostRenameFolder,
-                ),
-        ),
-      ],
     );
   }
 

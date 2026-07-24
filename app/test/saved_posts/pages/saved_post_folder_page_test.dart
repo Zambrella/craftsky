@@ -11,8 +11,12 @@ import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provide
 import 'package:craftsky_app/saved_posts/providers/saved_posts_provider.dart';
 import 'package:craftsky_app/saved_posts/widgets/save_post_dialog.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row_actions.dart';
+import 'package:craftsky_app/saved_posts/widgets/saved_post_sort_button.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
+import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -64,7 +68,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('new-2'), findsOneWidget);
 
-    await tester.tap(find.byType(DropdownButton<SavedPostSort>));
+    await tester.tap(find.byType(SavedPostSortButton));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Oldest').last);
     await tester.pumpAndSettle();
@@ -110,8 +114,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Rename folder'));
     await tester.pumpAndSettle();
+    expect(find.byType(CraftskyTextInput), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).focusNode?.hasFocus,
+      isTrue,
+    );
     await tester.enterText(find.byType(TextField), ' Renamed ideas ');
-    await tester.tap(find.widgetWithText(FilledButton, 'Rename folder'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Rename folder'));
     await tester.pumpAndSettle();
     expect(find.text('Renamed ideas'), findsOneWidget);
 
@@ -175,8 +184,8 @@ void main() {
 
     await tester.tap(find.text('Move item'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('No folder'));
-    await tester.tap(find.widgetWithText(FilledButton, 'Move'));
+    await _selectNoFolder(tester);
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Move'));
     await tester.pumpAndSettle();
 
     expect(repository.savedFolderIds, [null]);
@@ -222,8 +231,8 @@ void main() {
 
       await tester.tap(find.text('Move item'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('No folder'));
-      await tester.tap(find.widgetWithText(FilledButton, 'Move'));
+      await _selectNoFolder(tester);
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Move'));
       await tester.pumpAndSettle();
 
       expect(
@@ -277,7 +286,7 @@ void main() {
     await tester.tap(find.text('Rename folder'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Renamed ideas');
-    await tester.tap(find.widgetWithText(FilledButton, 'Rename folder'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Rename folder'));
     await tester.pumpAndSettle();
 
     expect(find.byType(TextField), findsOneWidget);
@@ -600,7 +609,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(TextButton, 'Unsave'));
+    await tester.tap(find.byTooltip('Saved post actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Unsave'));
     await tester.pumpAndSettle();
 
     expect(repository.unsaveCalls, 1);
@@ -638,7 +649,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(TextButton, 'Unsave'));
+    await tester.tap(find.byTooltip('Saved post actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Unsave'));
     await tester.pumpAndSettle();
 
     expect(repository.unsaveCalls, 1);
@@ -715,15 +728,17 @@ void main() {
 
     await tester.tap(find.text('Move item'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('No folder'));
-    await tester.tap(find.widgetWithText(FilledButton, 'Move'));
+    await _selectNoFolder(tester);
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Move'));
     await tester.pumpAndSettle();
 
     expect(find.byType(SavePostDialog), findsOneWidget);
     expect(
       tester
-          .widget<RadioGroup<String?>>(find.byType(RadioGroup<String?>))
-          .groupValue,
+          .widget<CraftskySingleSelectInput<String?>>(
+            find.byType(CraftskySingleSelectInput<String?>),
+          )
+          .value,
       isNull,
     );
     expect(
@@ -733,6 +748,13 @@ void main() {
     expect(find.byKey(const ValueKey('source-failed-move')), findsOneWidget);
     expect(find.byKey(const ValueKey('destination-failed-move')), findsNothing);
   });
+}
+
+Future<void> _selectNoFolder(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('saved-folder-select-button')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('saved-folder-option-null')));
+  await tester.pumpAndSettle();
 }
 
 class _MoveReconciliationHarness extends ConsumerWidget {

@@ -7,6 +7,7 @@ import 'package:craftsky_app/saved_posts/models/saved_post_keys.dart';
 import 'package:craftsky_app/saved_posts/providers/account_saved_post_state_provider.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -51,20 +52,34 @@ class SavedPostRow extends ConsumerWidget {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Wrap(
-            alignment: WrapAlignment.end,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 4,
-            runSpacing: 4,
+          child: Row(
             children: [
-              RelativeTimeText(timestamp: item.savedAt),
-              TextButton(
-                onPressed: onMove,
-                child: Text(l10n.savedPostMoveAction),
+              Expanded(
+                child: RelativeTimeText(timestamp: item.savedAt),
               ),
-              TextButton(
-                onPressed: onUnsave,
-                child: Text(l10n.savedPostRowUnsaveAction),
+              SizedBox.square(
+                dimension: 48,
+                child: CraftskyContextMenuButton(
+                  tooltip: l10n.savedPostRowActions,
+                  groups: [
+                    CraftskyContextMenuGroup(
+                      items: [
+                        CraftskyContextMenuItem(
+                          text: l10n.savedPostMoveAction,
+                          icon: Icons.drive_file_move_outline,
+                          onPressed: onMove,
+                        ),
+                        CraftskyContextMenuItem(
+                          text: l10n.savedPostRowUnsaveAction,
+                          icon: Icons.bookmark_remove_outlined,
+                          onPressed: onUnsave,
+                          style: CraftskyContextMenuItemStyle.destructive,
+                          semanticHint: l10n.destructiveActionHint,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

@@ -6,6 +6,11 @@ import 'package:craftsky_app/saved_posts/models/saved_post_error.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_keys.dart';
 import 'package:craftsky_app/saved_posts/providers/save_post_dialog_controller.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_folders_provider.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
+import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,9 +19,9 @@ Future<bool?> showSavePostDialog(
   required AccountKey account,
   required Post post,
   String? initialFolderId,
-}) => showDialog<bool>(
-  context: context,
-  builder: (_) => SavePostDialog(
+}) => showCraftskyModal<bool>(
+  context,
+  builder: (dialogContext) => SavePostDialog(
     account: account,
     post: post,
     initialFolderId: initialFolderId,
@@ -27,9 +32,9 @@ Future<bool?> showMoveSavedPostDialog(
   BuildContext context, {
   required AccountKey account,
   required SavedPostItem item,
-}) => showDialog<bool>(
-  context: context,
-  builder: (_) => SavePostDialog(
+}) => showCraftskyModal<bool>(
+  context,
+  builder: (dialogContext) => SavePostDialog(
     account: account,
     post: item.post,
     initialFolderId: item.folderId,
@@ -54,6 +59,7 @@ class SavePostDialog extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
     final provider = savePostDialogControllerProvider(
       SavePostDialogKey(
         account: account,
@@ -70,34 +76,47 @@ class SavePostDialog extends ConsumerWidget {
       }
     });
 
-    return AlertDialog(
-      title: Text(
-        savedItem == null ? l10n.savedPostSaveAction : l10n.savedPostMoveTitle,
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 360),
-            child: SingleChildScrollView(
-              child: RadioGroup<String?>(
-                groupValue: state.selectedFolderId,
-                onChanged: ref.read(provider.notifier).selectFolder,
+    return PopScope(
+      canPop: !state.isConfirming,
+      child: CraftskyDialog(
+        title: savedItem == null
+            ? l10n.savedPostSaveAction
+            : l10n.savedPostMoveTitle,
+        body: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 360),
+              child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    RadioListTile<String?>(
-                      value: null,
+                    CraftskySingleSelectInput<String?>(
+                      label: l10n.savedPostFolderSelectionLabel,
+                      value: state.selectedFolderId,
                       enabled: !state.isConfirming,
-                      title: Text(l10n.savedPostNoFolder),
+                      keyPrefix: 'saved-folder',
+                      searchThreshold: null,
+                      options: [
+                        CraftskySelectOption<String?>(
+                          value: null,
+                          label: l10n.savedPostNoFolder,
+                        ),
+                        if (folders case AsyncData(:final value))
+                          for (final folder in value.displayItems)
+                            CraftskySelectOption<String?>(
+                              value: folder.id,
+                              label: folder.name,
+                            ),
+                      ],
+                      onChanged: ref.read(provider.notifier).selectFolder,
                     ),
                     switch (folders) {
-                      AsyncData(:final value) => _FolderOptions(
+                      AsyncData(:final value) => _FolderPaginationControls(
                         account: account,
                         state: value,
-                        enabled: !state.isConfirming,
                       ),
                       AsyncLoading() => const Center(
                         child: CircularProgressIndicator(),
@@ -113,18 +132,20 @@ class SavePostDialog extends ConsumerWidget {
                       ),
                     },
                     if (state.isCreatingFolder) ...[
-                      TextField(
+                      SizedBox(
+                        key: const Key('saved-folder-create-spacing'),
+                        height: spacing.sp4,
+                      ),
+                      CraftskyTextInput(
+                        label: l10n.savedPostFolderNameHint,
                         enabled: !state.isCreatePending,
                         onChanged: ref.read(provider.notifier).updateCreateName,
-                        decoration: InputDecoration(
-                          labelText: l10n.savedPostFolderNameHint,
-                          errorText: state.createError == null
-                              ? null
-                              : l10n.savedPostCreateFolderError,
-                        ),
+                        errorText: state.createError == null
+                            ? null
+                            : l10n.savedPostCreateFolderError,
                       ),
                       const SizedBox(height: 8),
-                      FilledButton(
+                      ChunkyButton(
                         onPressed: state.isCreatePending
                             ? null
                             : ref.read(provider.notifier).createFolder,
@@ -148,56 +169,54 @@ class SavePostDialog extends ConsumerWidget {
                 ),
               ),
             ),
+            if (state.confirmError != null)
+              Text(
+                l10n.savedPostConfirmError,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: state.isConfirming
+                ? null
+                : () {
+                    ref.read(provider.notifier).cancel();
+                    Navigator.of(context).pop(false);
+                  },
+            child: Text(l10n.actionCancel),
           ),
-          if (state.confirmError != null)
-            Text(
-              l10n.savedPostConfirmError,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
+          ChunkyButton(
+            onPressed: state.canConfirm
+                ? () => savedItem == null
+                      ? ref.read(provider.notifier).confirmSave(post)
+                      : ref.read(provider.notifier).confirmMove(savedItem!)
+                : null,
+            child: state.isConfirming
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(
+                    savedItem == null
+                        ? l10n.savedPostSaveAction
+                        : l10n.savedPostMoveAction,
+                  ),
+          ),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: state.isConfirming
-              ? null
-              : () {
-                  ref.read(provider.notifier).cancel();
-                  Navigator.of(context).pop(false);
-                },
-          child: Text(l10n.actionCancel),
-        ),
-        FilledButton(
-          onPressed: state.canConfirm
-              ? () => savedItem == null
-                    ? ref.read(provider.notifier).confirmSave(post)
-                    : ref.read(provider.notifier).confirmMove(savedItem!)
-              : null,
-          child: state.isConfirming
-              ? const SizedBox.square(
-                  dimension: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(
-                  savedItem == null
-                      ? l10n.savedPostSaveAction
-                      : l10n.savedPostMoveAction,
-                ),
-        ),
-      ],
     );
   }
 }
 
-class _FolderOptions extends ConsumerWidget {
-  const _FolderOptions({
+class _FolderPaginationControls extends ConsumerWidget {
+  const _FolderPaginationControls({
     required this.account,
     required this.state,
-    required this.enabled,
   });
 
   final AccountKey account;
   final SavedPostFolderListState state;
-  final bool enabled;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -205,13 +224,6 @@ class _FolderOptions extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (final folder in state.displayItems)
-          RadioListTile<String?>(
-            key: ValueKey('saved-folder-${folder.id}'),
-            value: folder.id,
-            enabled: enabled,
-            title: Text(folder.name),
-          ),
         if (state.incrementalError case final error?)
           _FolderFailure(
             failure: SavedPostFailure.from(

@@ -11,6 +11,10 @@ import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provide
 import 'package:craftsky_app/saved_posts/widgets/save_post_dialog.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
+import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,25 +43,41 @@ void main() {
     await _pumpDialog(tester, account, repository);
     await tester.pumpAndSettle();
 
+    expect(find.byType(CraftskyDialog), findsOneWidget);
+    expect(find.byType(AlertDialog), findsNothing);
+    final selector = find.byType(CraftskySingleSelectInput<String?>);
+    expect(selector, findsOneWidget);
     expect(
-      tester
-          .widget<RadioGroup<String?>>(find.byType(RadioGroup<String?>))
-          .groupValue,
+      tester.widget<CraftskySingleSelectInput<String?>>(selector).value,
       isNull,
     );
-    expect(find.text('Ideas'), findsOneWidget);
-    expect(find.text('IDEAS'), findsOneWidget);
+    expect(
+      tester
+          .widget<CraftskySingleSelectInput<String?>>(selector)
+          .options
+          .map((option) => option.label),
+      ['No folder', 'Ideas', 'IDEAS'],
+    );
     expect(repository.saveCalls, 0);
 
     await tester.tap(find.widgetWithText(TextButton, 'Load more folders'));
     await tester.pumpAndSettle();
     expect(repository.folderCursors, [null, 'opaque/private cursor']);
-    expect(find.text('Ideas'), findsNWidgets(2));
+    expect(
+      tester
+          .widget<CraftskySingleSelectInput<String?>>(selector)
+          .options
+          .where((option) => option.label == 'Ideas'),
+      hasLength(2),
+    );
 
-    await tester.tap(find.byKey(const ValueKey('saved-folder-folder-3')));
-    await tester.tap(find.widgetWithText(FilledButton, 'Save post'));
+    await tester.tap(find.byKey(const Key('saved-folder-select-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('saved-folder-option-folder-3')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Save post'));
     await tester.pump();
-    await tester.tap(find.byType(FilledButton).last);
+    await tester.tap(find.byType(ChunkyButton).last);
     await tester.pump();
 
     expect(repository.saveCalls, 1);
@@ -92,7 +112,7 @@ void main() {
     expect(find.textContaining('private folder failure'), findsNothing);
     expect(find.byType(SearchBar), findsNothing);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Save post'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Save post'));
     await tester.pumpAndSettle();
     expect(repository.saveCalls, 1);
     expect(repository.lastSavedFolderId, isNull);
@@ -111,8 +131,17 @@ void main() {
 
     await tester.tap(find.widgetWithText(TextButton, 'New folder'));
     await tester.pump();
+    expect(find.byType(CraftskyTextInput), findsOneWidget);
+    expect(
+      tester
+          .getSize(
+            find.byKey(const Key('saved-folder-create-spacing')),
+          )
+          .height,
+      16,
+    );
     await tester.enterText(find.byType(TextField), '  Fresh ideas  ');
-    await tester.tap(find.widgetWithText(FilledButton, 'Create folder'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
     await tester.pumpAndSettle();
 
     expect(repository.createNames, ['Fresh ideas']);
@@ -120,8 +149,10 @@ void main() {
     expect(find.text('Fresh ideas'), findsOneWidget);
     expect(
       tester
-          .widget<RadioGroup<String?>>(find.byType(RadioGroup<String?>))
-          .groupValue,
+          .widget<CraftskySingleSelectInput<String?>>(
+            find.byType(CraftskySingleSelectInput<String?>),
+          )
+          .value,
       'created-id',
     );
 
@@ -145,7 +176,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'New folder'));
     await tester.pump();
     await tester.enterText(find.byType(TextField), 'Ideas');
-    await tester.tap(find.widgetWithText(FilledButton, 'Create folder'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
     await tester.pumpAndSettle();
 
     expect(find.byType(TextField), findsOneWidget);
@@ -168,7 +199,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'New folder'));
     await tester.pump();
     await tester.enterText(find.byType(TextField), 'Created');
-    await tester.tap(find.widgetWithText(FilledButton, 'Create folder'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
     await tester.pumpAndSettle();
 
     expect(repository.folderCalls, 2);
@@ -197,7 +228,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'New folder'));
     await tester.pump();
     await tester.enterText(find.byType(TextField), 'Ideas');
-    await tester.tap(find.widgetWithText(FilledButton, 'Create folder'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
     await tester.pumpAndSettle();
 
     expect(find.byType(TextField), findsOneWidget);
@@ -223,6 +254,65 @@ void main() {
     expect(find.widgetWithText(TextButton, 'Retry'), findsNothing);
     expect(find.text('No folder'), findsOneWidget);
   });
+
+  testWidgets('long folder lists use a scrollable selector without search', (
+    tester,
+  ) async {
+    final account = AccountKey('did:plc:alice');
+    final repository = _DialogSavedPostRepository(
+      folderPages: {
+        null: SavedPostFolderPage(
+          items: [
+            for (var index = 1; index <= 6; index++)
+              _folder('folder-$index', 'Folder $index'),
+          ],
+        ),
+      },
+    );
+    await _pumpDialog(tester, account, repository);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byType(CraftskySingleSelectInput<String?>),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('saved-folder-search-input')),
+      findsNothing,
+    );
+
+    await tester.tap(find.byKey(const Key('saved-folder-select-button')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('saved-folder-options-panel')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('saved-folder-option-folder-1')),
+      findsOneWidget,
+    );
+    await tester.drag(
+      find.byKey(const Key('saved-folder-options-panel')),
+      const Offset(0, -240),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('saved-folder-option-folder-6')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('saved-folder-option-folder-6')));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<CraftskySingleSelectInput<String?>>(
+            find.byType(CraftskySingleSelectInput<String?>),
+          )
+          .value,
+      'folder-6',
+    );
+  });
 }
 
 Future<void> _pumpDialog(
@@ -244,10 +334,10 @@ Future<void> _pumpDialog(
           home: Scaffold(
             body: Builder(
               builder: (context) => FilledButton(
-                onPressed: () => showDialog<void>(
-                  context: context,
-                  builder: (_) =>
-                      SavePostDialog(account: account, post: _post()),
+                onPressed: () => showSavePostDialog(
+                  context,
+                  account: account,
+                  post: _post(),
                 ),
                 child: const Text('Open'),
               ),

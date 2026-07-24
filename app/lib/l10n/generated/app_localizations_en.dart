@@ -1455,6 +1455,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get savedPostNoFolder => 'No folder';
 
   @override
+  String get savedPostFolderSelectionLabel => 'Folder';
+
+  @override
   String get savedPostConfirmError =>
       'That change couldn\'t be saved. Try again.';
 
@@ -1493,6 +1496,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get savedPostsSortOldest => 'Oldest';
 
   @override
+  String get savedPostsSortNewestDescription => 'Most recently saved first';
+
+  @override
+  String get savedPostsSortOldestDescription => 'Earliest saved first';
+
+  @override
   String get savedPostsLoadError => 'Saved posts couldn\'t load.';
 
   @override
@@ -1500,6 +1509,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get savedPostFolderActions => 'Folder actions';
+
+  @override
+  String get savedPostRowActions => 'Saved post actions';
 
   @override
   String get savedPostRenameFolder => 'Rename folder';

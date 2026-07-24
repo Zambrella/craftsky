@@ -1390,6 +1390,9 @@
   "savedPostNoFolder": "No folder",
   "@savedPostNoFolder": { "description": "Chooser option that leaves a saved post outside a folder." },
 
+  "savedPostFolderSelectionLabel": "Folder",
+  "@savedPostFolderSelectionLabel": { "description": "Label for the saved-post folder selector." },
+
   "savedPostConfirmError": "That change couldn't be saved. Try again.",
   "@savedPostConfirmError": { "description": "Safe inline error after a save or move request fails." },
 
@@ -1426,6 +1429,12 @@
   "savedPostsSortOldest": "Oldest",
   "@savedPostsSortOldest": { "description": "Sort label showing the oldest saves first." },
 
+  "savedPostsSortNewestDescription": "Most recently saved first",
+  "@savedPostsSortNewestDescription": { "description": "Helper text for newest-first saved-post ordering." },
+
+  "savedPostsSortOldestDescription": "Earliest saved first",
+  "@savedPostsSortOldestDescription": { "description": "Helper text for oldest-first saved-post ordering." },
+
   "savedPostsLoadError": "Saved posts couldn't load.",
   "@savedPostsLoadError": { "description": "Safe initial error for the saved-post collection." },
 
@@ -1434,6 +1443,9 @@
 
   "savedPostFolderActions": "Folder actions",
   "@savedPostFolderActions": { "description": "Tooltip opening saved-folder actions." },
+
+  "savedPostRowActions": "Saved post actions",
+  "@savedPostRowActions": { "description": "Tooltip opening move and unsave actions for one saved post." },
 
   "savedPostRenameFolder": "Rename folder",
   "@savedPostRenameFolder": { "description": "Action and dialog title for renaming a saved folder." },

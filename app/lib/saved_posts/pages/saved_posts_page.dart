@@ -14,8 +14,11 @@ import 'package:craftsky_app/saved_posts/providers/saved_posts_provider.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_folder_dialogs.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row_actions.dart';
+import 'package:craftsky_app/saved_posts/widgets/saved_post_sort_button.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sliver_tools/sliver_tools.dart';
 
 class SavedPostsPage extends ConsumerStatefulWidget {
   const SavedPostsPage({super.key});
@@ -152,159 +155,186 @@ class _OverviewBody extends ConsumerWidget {
               child: Center(child: Text(l10n.savedPostsEmpty)),
             )
           else ...[
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(
-                  l10n.savedPostsFoldersHeading,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-            ),
-            SliverList.builder(
-              itemCount: overview.folders.length,
-              itemBuilder: (context, index) {
-                final folder = overview.folders[index];
-                return ListTile(
-                  key: ValueKey('saved-overview-folder-${folder.id}'),
-                  leading: const Icon(Icons.folder_outlined),
-                  title: Text(folder.name),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => unawaited(
-                    SavedPostFolderRoute(
-                      $extra: SavedPostFolderRouteData(folder: folder),
-                    ).push<void>(context),
+            MultiSliver(
+              pushPinnedChildren: true,
+              children: [
+                SliverPinnedHeader(
+                  child: _SavedPostsSectionHeader(
+                    title: l10n.savedPostsFoldersHeading,
                   ),
-                );
-              },
-            ),
-            if (folderState.incrementalError case final error?)
-              SliverToBoxAdapter(
-                child: _SavedPostFailureControl(
-                  failure: SavedPostFailure.from(
-                    error,
-                    operation: SavedPostOperation.loadFolders,
-                  ),
-                  onPressed: ref
-                      .read(savedPostFoldersProvider(account).notifier)
-                      .retry,
                 ),
-              )
-            else if (folderState.cursor != null)
-              SliverToBoxAdapter(
-                child: TextButton(
-                  onPressed: folderState.isLoadingMore
-                      ? null
-                      : ref
-                            .read(savedPostFoldersProvider(account).notifier)
-                            .loadMore,
-                  child: Text(l10n.savedPostLoadMoreFolders),
-                ),
-              ),
-            if (overview.showUnfiled) ...[
-              SliverToBoxAdapter(
-                child: ListTile(
-                  title: Text(
-                    l10n.savedPostsUnfiledHeading,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  trailing: DropdownButton<SavedPostSort>(
-                    value: sort,
-                    onChanged: (value) {
-                      if (value != null) onSortChanged(value);
-                    },
-                    items: [
-                      DropdownMenuItem(
-                        value: SavedPostSort.newest,
-                        child: Text(l10n.searchSortNewest),
+                SliverList.builder(
+                  itemCount: overview.folders.length,
+                  itemBuilder: (context, index) {
+                    final folder = overview.folders[index];
+                    return ListTile(
+                      key: ValueKey('saved-overview-folder-${folder.id}'),
+                      leading: const Icon(Icons.folder_outlined),
+                      title: Text(folder.name),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => unawaited(
+                        SavedPostFolderRoute(
+                          $extra: SavedPostFolderRouteData(folder: folder),
+                        ).push<void>(context),
                       ),
-                      DropdownMenuItem(
-                        value: SavedPostSort.oldest,
-                        child: Text(l10n.savedPostsSortOldest),
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
-              ),
-              SliverList.builder(
-                itemCount: overview.unfiledItems.length,
-                itemBuilder: (context, index) {
-                  final item = overview.unfiledItems[index];
-                  return SavedPostRow(
-                    account: account,
-                    item: item,
-                    onOpen: () => openSavedPost(context, item),
-                    onMove: () => unawaited(
-                      moveSavedPost(
-                        context,
-                        ref,
+                if (folderState.incrementalError case final error?)
+                  SliverToBoxAdapter(
+                    child: _SavedPostFailureControl(
+                      failure: SavedPostFailure.from(
+                        error,
+                        operation: SavedPostOperation.loadFolders,
+                      ),
+                      onPressed: ref
+                          .read(savedPostFoldersProvider(account).notifier)
+                          .retry,
+                    ),
+                  )
+                else if (folderState.cursor != null)
+                  SliverToBoxAdapter(
+                    child: TextButton(
+                      onPressed: folderState.isLoadingMore
+                          ? null
+                          : ref
+                                .read(
+                                  savedPostFoldersProvider(account).notifier,
+                                )
+                                .loadMore,
+                      child: Text(l10n.savedPostLoadMoreFolders),
+                    ),
+                  ),
+              ],
+            ),
+            if (overview.showUnfiled)
+              MultiSliver(
+                pushPinnedChildren: true,
+                children: [
+                  SliverPinnedHeader(
+                    child: _SavedPostsSectionHeader(
+                      title: l10n.savedPostsUnfiledHeading,
+                      trailing: SavedPostSortButton(
+                        value: sort,
+                        onChanged: onSortChanged,
+                      ),
+                    ),
+                  ),
+                  SliverList.builder(
+                    itemCount: overview.unfiledItems.length,
+                    itemBuilder: (context, index) {
+                      final item = overview.unfiledItems[index];
+                      return SavedPostRow(
                         account: account,
                         item: item,
-                        sourceKey: SavedPostListKey(
-                          account: account,
-                          scope: const SavedPostScope.unfiled(),
-                          sort: sort,
-                        ),
-                      ),
-                    ),
-                    onUnsave: () => unawaited(
-                      unsaveSavedPost(
-                        context,
-                        ref,
-                        account: account,
-                        item: item,
-                        sourceKey: SavedPostListKey(
-                          account: account,
-                          scope: const SavedPostScope.unfiled(),
-                          sort: sort,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              if (postState.incrementalError case final error?)
-                SliverToBoxAdapter(
-                  child: _SavedPostFailureControl(
-                    failure: SavedPostFailure.from(
-                      error,
-                      operation: SavedPostOperation.loadPosts,
-                    ),
-                    onPressed: ref
-                        .read(
-                          savedPostsProvider(
-                            SavedPostListKey(
+                        onOpen: () => openSavedPost(context, item),
+                        onMove: () => unawaited(
+                          moveSavedPost(
+                            context,
+                            ref,
+                            account: account,
+                            item: item,
+                            sourceKey: SavedPostListKey(
                               account: account,
                               scope: const SavedPostScope.unfiled(),
                               sort: sort,
                             ),
-                          ).notifier,
-                        )
-                        .loadMore,
+                          ),
+                        ),
+                        onUnsave: () => unawaited(
+                          unsaveSavedPost(
+                            context,
+                            ref,
+                            account: account,
+                            item: item,
+                            sourceKey: SavedPostListKey(
+                              account: account,
+                              scope: const SavedPostScope.unfiled(),
+                              sort: sort,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                )
-              else if (postState.cursor != null)
-                SliverToBoxAdapter(
-                  child: TextButton(
-                    onPressed: postState.isLoadingMore
-                        ? null
-                        : ref
-                              .read(
-                                savedPostsProvider(
-                                  SavedPostListKey(
-                                    account: account,
-                                    scope: const SavedPostScope.unfiled(),
-                                    sort: sort,
-                                  ),
-                                ).notifier,
-                              )
-                              .loadMore,
-                    child: Text(l10n.savedPostsLoadMore),
-                  ),
-                ),
-            ],
+                  if (postState.incrementalError case final error?)
+                    SliverToBoxAdapter(
+                      child: _SavedPostFailureControl(
+                        failure: SavedPostFailure.from(
+                          error,
+                          operation: SavedPostOperation.loadPosts,
+                        ),
+                        onPressed: ref
+                            .read(
+                              savedPostsProvider(
+                                SavedPostListKey(
+                                  account: account,
+                                  scope: const SavedPostScope.unfiled(),
+                                  sort: sort,
+                                ),
+                              ).notifier,
+                            )
+                            .loadMore,
+                      ),
+                    )
+                  else if (postState.cursor != null)
+                    SliverToBoxAdapter(
+                      child: TextButton(
+                        onPressed: postState.isLoadingMore
+                            ? null
+                            : ref
+                                  .read(
+                                    savedPostsProvider(
+                                      SavedPostListKey(
+                                        account: account,
+                                        scope: const SavedPostScope.unfiled(),
+                                        sort: sort,
+                                      ),
+                                    ).notifier,
+                                  )
+                                  .loadMore,
+                        child: Text(l10n.savedPostsLoadMore),
+                      ),
+                    ),
+                ],
+              ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _SavedPostsSectionHeader extends StatelessWidget {
+  const _SavedPostsSectionHeader({required this.title, this.trailing});
+
+  final String title;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    return ColoredBox(
+      color: theme.scaffoldBackgroundColor,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          spacing.sp4,
+          spacing.sp3,
+          spacing.sp4,
+          spacing.sp2,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Semantics(
+                header: true,
+                child: Text(title, style: theme.textTheme.titleMedium),
+              ),
+            ),
+            ?trailing,
+          ],
+        ),
       ),
     );
   }

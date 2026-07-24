@@ -24,7 +24,7 @@ class CraftskySingleSelectInput<T> extends StatefulWidget {
   final String? helperText;
   final String? errorText;
   final bool enabled;
-  final int searchThreshold;
+  final int? searchThreshold;
   final String searchHintText;
   final String noResultsText;
   final String? keyPrefix;
@@ -53,7 +53,10 @@ class _CraftskySingleSelectInputState<T>
   String _query = '';
   int _highlightedIndex = 0;
 
-  bool get _searchable => widget.options.length > widget.searchThreshold;
+  bool get _searchable {
+    final threshold = widget.searchThreshold;
+    return threshold != null && widget.options.length > threshold;
+  }
 
   CraftskySelectOption<T>? get _selectedOption {
     for (final option in widget.options) {
