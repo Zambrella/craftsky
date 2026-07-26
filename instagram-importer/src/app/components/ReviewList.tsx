@@ -4,9 +4,10 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import type {
   ReviewPost,
   SafeSkipCode,
-  SafeWarningCode,
   SkippedPost,
+  UserFacingWarningCode,
 } from '../../domain/types'
+import { isUserFacingWarningCode } from '../../domain/types'
 import {
   confirmTextOnly,
   setPostSelectionByKey,
@@ -19,7 +20,7 @@ export type ReviewFilter = 'all' | 'warnings' | 'textOnly'
 
 const REVIEW_VIEWPORT_HEIGHT = 720
 const SKIPPED_VIEWPORT_HEIGHT = 480
-const REVIEW_ROW_ESTIMATE = 430
+const REVIEW_ROW_ESTIMATE = 190
 const SKIPPED_ROW_ESTIMATE = 122
 const VIRTUAL_OVERSCAN = 3
 
@@ -32,8 +33,14 @@ interface ReviewListProps {
   ) => Promise<Blob>
 }
 
-const warningCopy: Record<SafeWarningCode, string> = {
-  captionRepaired: 'Caption text was repaired',
+interface LightboxImage {
+  readonly itemKey: string
+  readonly token: string
+  readonly url: string
+  readonly label: string
+}
+
+const warningCopy: Record<UserFacingWarningCode, string> = {
   captionTruncated: 'Caption was shortened to CraftSky’s limit',
   imagesOmitted: 'Some images were omitted',
   videoOmitted: 'Video was omitted',
@@ -53,7 +60,9 @@ const skipCopy: Record<SafeSkipCode, string> = {
 }
 
 function matchesFilter(post: ReviewPost, filter: ReviewFilter): boolean {
-  if (filter === 'warnings') return post.warnings.length > 0
+  if (filter === 'warnings') {
+    return post.warnings.some(isUserFacingWarningCode)
+  }
   if (filter === 'textOnly') return post.needsTextOnlyConfirmation
   return true
 }
@@ -74,11 +83,17 @@ function graphemeCount(value: string): number {
   ].length
 }
 
+function fitCaptionEditor(textarea: HTMLTextAreaElement): void {
+  textarea.style.height = 'auto'
+  textarea.style.height = `${textarea.scrollHeight}px`
+}
+
 function MediaPreview({
   token,
   enabled,
   label,
   loadPreview,
+  onOpen,
 }: {
   readonly token: string
   readonly enabled: boolean
@@ -87,6 +102,12 @@ function MediaPreview({
     token: string,
     signal: AbortSignal,
   ) => Promise<Blob>
+  readonly onOpen: (preview: {
+    readonly token: string
+    readonly url: string
+    readonly label: string
+    readonly trigger: HTMLButtonElement
+  }) => void
 }): React.JSX.Element {
   const [url, setUrl] = useState<string>()
 
@@ -111,7 +132,21 @@ function MediaPreview({
   }, [enabled, loadPreview, token])
 
   return url ? (
-    <img className="media-preview" src={url} alt={`${label} preview`} />
+    <button
+      type="button"
+      className="media-thumbnail-button"
+      aria-label={`View ${label} full screen`}
+      onClick={(event) =>
+        onOpen({
+          token,
+          url,
+          label,
+          trigger: event.currentTarget,
+        })
+      }
+    >
+      <img className="media-preview" src={url} alt="" />
+    </button>
   ) : (
     <span aria-hidden="true" className="media-glyph">
       ◩
@@ -125,8 +160,14 @@ export function ReviewList({
   loadPreview,
 }: ReviewListProps): React.JSX.Element {
   const [filter, setFilter] = useState<ReviewFilter>('all')
-  const [activePreviewToken, setActivePreviewToken] =
-    useState<string>()
+  const [expandedImagePosts, setExpandedImagePosts] = useState<
+    ReadonlySet<string>
+  >(() => new Set())
+  const [lightboxImage, setLightboxImage] = useState<LightboxImage>()
+  const lightboxRef = useRef<HTMLDialogElement>(null)
+  const lightboxTriggerRef = useRef<HTMLButtonElement | undefined>(
+    undefined,
+  )
   const scrollElementRef = useRef<HTMLDivElement>(null)
   const visiblePosts = useMemo(
     () => posts.filter((post) => matchesFilter(post, filter)),
@@ -155,12 +196,45 @@ export function ReviewList({
     },
   })
 
+  useEffect(() => {
+    const dialog = lightboxRef.current
+    if (!dialog || !lightboxImage || dialog.open) return
+    if (typeof dialog.showModal === 'function') {
+      dialog.showModal()
+    } else {
+      dialog.setAttribute('open', '')
+    }
+  }, [lightboxImage])
+
+  useEffect(() => {
+    if (lightboxImage || !lightboxTriggerRef.current) return
+    lightboxTriggerRef.current.focus()
+    lightboxTriggerRef.current = undefined
+  }, [lightboxImage])
+
   function changeFilter(value: ReviewFilter): void {
+    setLightboxImage(undefined)
     rowVirtualizer.scrollToOffset(0)
     setFilter(value)
   }
 
+  function setImageSectionOpen(itemKey: string, open: boolean): void {
+    setExpandedImagePosts((current) => {
+      const next = new Set(current)
+      if (open) {
+        next.add(itemKey)
+      } else {
+        next.delete(itemKey)
+      }
+      return next
+    })
+    if (!open && lightboxImage?.itemKey === itemKey) {
+      setLightboxImage(undefined)
+    }
+  }
+
   function setVisibleSelection(selected: boolean): void {
+    if (!selected) setLightboxImage(undefined)
     onChange(setPostSelectionByKey(posts, visibleKeys, selected))
   }
 
@@ -170,7 +244,7 @@ export function ReviewList({
         <div>
           <h2 id="review-list-title">Choose what to import</h2>
           <p className="muted">
-            Everything importable is selected. You can make changes without
+           You can make changes without
             reviewing every post.
           </p>
         </div>
@@ -192,7 +266,11 @@ export function ReviewList({
         </div>
       </div>
 
-      <div className="segmented-control" aria-label="Filter posts">
+      <div
+        className="segmented-control"
+        role="group"
+        aria-label="Filter posts"
+      >
         {(
           [
             ['all', 'All posts'],
@@ -234,6 +312,11 @@ export function ReviewList({
           aria-label="Posts to review"
           role="list"
           tabIndex={0}
+          style={
+            {
+              '--review-content-height': `${rowVirtualizer.getTotalSize()}px`,
+            } as React.CSSProperties
+          }
         >
           <div
             className="virtual-review-window__inner"
@@ -242,6 +325,12 @@ export function ReviewList({
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const post = visiblePosts[virtualRow.index]
               if (!post) return null
+              const visibleWarnings = post.warnings.filter(
+                isUserFacingWarningCode,
+              )
+              const imageSectionOpen = expandedImagePosts.has(
+                post.itemKey,
+              )
               return (
                 <div
                   key={virtualRow.key}
@@ -265,7 +354,13 @@ export function ReviewList({
                         <input
                           type="checkbox"
                           checked={post.selected}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            if (
+                              !event.currentTarget.checked &&
+                              lightboxImage?.itemKey === post.itemKey
+                            ) {
+                              setLightboxImage(undefined)
+                            }
                             onChange(
                               updatePostSelection(
                                 posts,
@@ -273,7 +368,7 @@ export function ReviewList({
                                 event.currentTarget.checked,
                               ),
                             )
-                          }
+                          }}
                         />
                         <span>
                           <strong>{formatDate(post.createdAt)}</strong>
@@ -289,122 +384,132 @@ export function ReviewList({
                       </span>
                     </div>
 
-                    {post.warnings.length > 0 && (
+                    {visibleWarnings.length > 0 && (
                       <ul
                         className="warning-list"
                         aria-label="Post warnings"
                       >
-                        {post.warnings.map((warning) => (
+                        {visibleWarnings.map((warning) => (
                           <li key={warning}>{warningCopy[warning]}</li>
                         ))}
                       </ul>
                     )}
 
-                    <label className="field-label">
-                      <span>
-                        Caption
+                    <details
+                      className="post-section"
+                      onToggle={(event) => {
+                        if (!event.currentTarget.open) return
+                        const textarea =
+                          event.currentTarget.querySelector('textarea')
+                        if (textarea) fitCaptionEditor(textarea)
+                      }}
+                    >
+                      <summary className="post-section__summary">
+                        <strong>Caption</strong>
                         <small>
                           {graphemeCount(post.caption)} / 2,000
                         </small>
-                      </span>
-                      <textarea
-                        value={post.caption}
-                        rows={4}
-                        spellCheck={false}
-                        autoCapitalize="off"
-                        autoCorrect="off"
-                        onChange={(event) =>
-                          onChange(
-                            updateCaption(
-                              posts,
-                              post.itemKey,
-                              event.currentTarget.value,
-                            ),
-                          )
-                        }
-                      />
-                    </label>
+                      </summary>
+                      <div className="post-section__content field-label">
+                        <textarea
+                          aria-label="Caption"
+                          value={post.caption}
+                          rows={1}
+                          spellCheck={false}
+                          autoCapitalize="off"
+                          autoCorrect="off"
+                          onChange={(event) => {
+                            fitCaptionEditor(event.currentTarget)
+                            onChange(
+                              updateCaption(
+                                posts,
+                                post.itemKey,
+                                event.currentTarget.value,
+                              ),
+                            )
+                          }}
+                        />
+                      </div>
+                    </details>
 
                     {post.media.length > 0 && (
-                      <fieldset
-                        className="media-options"
-                        disabled={!post.selected}
-                      >
-                        <legend>Images</legend>
-                        {post.media.map((media, index) => {
-                          const inputId = `media-${post.itemKey}-${index}`
-                          const previewActive =
-                            post.selected &&
-                            media.selected &&
-                            activePreviewToken === media.token
-                          return (
-                            <div
-                              key={media.token}
-                              className="media-option"
-                            >
-                              <input
-                                id={inputId}
-                                type="checkbox"
-                                aria-label={`Include image ${index + 1}`}
-                                checked={media.selected}
-                                onChange={(event) => {
-                                  if (
-                                    !event.currentTarget.checked &&
-                                    activePreviewToken === media.token
-                                  ) {
-                                    setActivePreviewToken(undefined)
-                                  }
-                                  onChange(
-                                    updateMediaSelection(
-                                      posts,
-                                      post.itemKey,
-                                      media.token,
-                                      event.currentTarget.checked,
-                                    ),
-                                  )
-                                }}
-                              />
-                              <MediaPreview
-                                key={`${media.token}:${
-                                  previewActive
-                                    ? 'selected'
-                                    : 'deselected'
-                                }`}
-                                token={media.token}
-                                enabled={previewActive}
-                                label={`Image ${index + 1}`}
-                                loadPreview={loadPreview}
-                              />
-                              <label htmlFor={inputId}>
-                                Image {index + 1}
-                                <small>
-                                  {media.width} × {media.height}
-                                </small>
-                              </label>
-                              {loadPreview &&
-                                post.selected &&
-                                media.selected && (
-                                  <button
-                                    type="button"
-                                    className="text-button media-preview-button"
-                                    onClick={() =>
-                                      setActivePreviewToken(
-                                        (current) =>
-                                          current === media.token
-                                            ? undefined
-                                            : media.token,
-                                      )
-                                    }
-                                  >
-                                    {previewActive
-                                      ? `Hide image ${index + 1} preview`
-                                      : `Preview image ${index + 1}`}
-                                  </button>
-                                )}
-                            </div>
+                      <details
+                        className="post-section"
+                        open={imageSectionOpen}
+                        onToggle={(event) =>
+                          setImageSectionOpen(
+                            post.itemKey,
+                            event.currentTarget.open,
                           )
-                        })}
-                      </fieldset>
+                        }
+                      >
+                        <summary className="post-section__summary">
+                          <strong>Images ({post.media.length})</strong>
+                        </summary>
+                        <div className="post-section__content">
+                          <fieldset
+                            className="media-options"
+                            aria-label={`Images (${post.media.length})`}
+                            disabled={!post.selected}
+                          >
+                            {post.media.map((media, index) => {
+                              const inputId = `media-${post.itemKey}-${index}`
+                              const previewEnabled =
+                                imageSectionOpen &&
+                                post.selected &&
+                                media.selected
+                              return (
+                                <div
+                                  key={media.token}
+                                  className="media-option"
+                                >
+                                  <input
+                                    id={inputId}
+                                    type="checkbox"
+                                    aria-label={`Include image ${index + 1}`}
+                                    checked={media.selected}
+                                    onChange={(event) => {
+                                      if (
+                                        !event.currentTarget.checked &&
+                                        lightboxImage?.token === media.token
+                                      ) {
+                                        setLightboxImage(undefined)
+                                      }
+                                      onChange(
+                                        updateMediaSelection(
+                                          posts,
+                                          post.itemKey,
+                                          media.token,
+                                          event.currentTarget.checked,
+                                        ),
+                                      )
+                                    }}
+                                  />
+                                  <MediaPreview
+                                    token={media.token}
+                                    enabled={previewEnabled}
+                                    label={`Image ${index + 1}`}
+                                    loadPreview={loadPreview}
+                                    onOpen={({ trigger, ...preview }) => {
+                                      lightboxTriggerRef.current = trigger
+                                      setLightboxImage({
+                                        itemKey: post.itemKey,
+                                        ...preview,
+                                      })
+                                    }}
+                                  />
+                                  <label htmlFor={inputId}>
+                                    Image {index + 1}
+                                    <small>
+                                      {media.width} × {media.height}
+                                    </small>
+                                  </label>
+                                </div>
+                              )
+                            })}
+                          </fieldset>
+                        </div>
+                      </details>
                     )}
 
                     {post.selected &&
@@ -447,6 +552,34 @@ export function ReviewList({
             })}
           </div>
         </div>
+      )}
+
+      {lightboxImage && (
+        <dialog
+          ref={lightboxRef}
+          className="media-lightbox"
+          aria-label={`${lightboxImage.label} full-screen preview`}
+          onCancel={() => setLightboxImage(undefined)}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setLightboxImage(undefined)
+            }
+          }}
+        >
+          <button
+            type="button"
+            className="media-lightbox__close"
+            aria-label="Close preview"
+            autoFocus
+            onClick={() => setLightboxImage(undefined)}
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+          <div className="media-lightbox__content">
+            <img src={lightboxImage.url} alt="" />
+            <p>{lightboxImage.label}</p>
+          </div>
+        </dialog>
       )}
     </section>
   )
@@ -542,6 +675,11 @@ export function SkippedReviewList({
           aria-label="Skipped posts"
           role="list"
           tabIndex={0}
+          style={
+            {
+              '--review-content-height': `${rowVirtualizer.getTotalSize()}px`,
+            } as React.CSSProperties
+          }
         >
           <div
             className="virtual-review-window__inner"

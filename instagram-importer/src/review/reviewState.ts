@@ -3,6 +3,7 @@ import type {
   ReviewPost,
   SafeWarningCode,
 } from '../domain/types'
+import { isUserFacingWarningCode } from '../domain/types'
 import { prepareCaption } from '../text/caption'
 
 const MAX_TEXT_BYTES = 20_000
@@ -51,7 +52,9 @@ export function calculateReviewCounts(
           ].includes(warning),
         ),
     ).length,
-    warningPosts: posts.filter((post) => post.warnings.length > 0).length,
+    warningPosts: posts.filter((post) =>
+      post.warnings.some(isUserFacingWarningCode),
+    ).length,
     skippedPosts,
   }
 }

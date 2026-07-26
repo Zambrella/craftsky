@@ -2,9 +2,9 @@
   "client_id": "https://import.craftsky.social/oauth-client-metadata.json",
   "client_name": "CraftSky Instagram post importer",
   "client_uri": "https://import.craftsky.social",
-  "logo_uri": "https://import.craftsky.social/logo.svg",
-  "policy_uri": "https://craftsky.social/privacy.html",
-  "tos_uri": "https://craftsky.social/terms.html",
+  "logo_uri": "https://import.craftsky.social/app_icon.png",
+  "policy_uri": "https://craftsky.social/privacy",
+  "tos_uri": "https://craftsky.social/terms",
   "redirect_uris": [
     "https://import.craftsky.social/oauth/callback"
   ],

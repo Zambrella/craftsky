@@ -127,12 +127,20 @@ test('reviews a synthetic ZIP locally before any external request or persistence
     page.getByRole('heading', { name: /ready to review/i }),
   ).toBeVisible()
   await expect(page.getByText('1 post · 1 image')).toBeVisible()
-  await page
-    .getByRole('button', { name: 'Preview image 1' })
-    .click()
+  await page.getByText('Images (1)').click()
+  const thumbnail = page.getByRole('button', {
+    name: 'View Image 1 full screen',
+  })
+  await expect(thumbnail).toHaveCSS('width', '144px')
+  await thumbnail.click()
   await expect(
-    page.getByRole('img', { name: 'Image 1 preview' }),
-  ).toHaveAttribute('src', /^blob:/u)
+    page.getByRole('dialog', {
+      name: 'Image 1 full-screen preview',
+    }),
+  ).toBeVisible()
+  await page
+    .getByRole('button', { name: 'Close preview' })
+    .click()
   await expect(page.getByText('PRIVATE-MESSAGE-CANARY')).toHaveCount(0)
   await expect(page.getByText('private-source-name.zip')).toHaveCount(0)
   expect(

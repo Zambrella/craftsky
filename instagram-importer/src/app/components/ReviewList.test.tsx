@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReviewPost, SkippedPost } from '../../domain/types'
 import { ReviewList, SkippedReviewList } from './ReviewList'
 
-const REVIEW_ROW_HEIGHT = 430
+const REVIEW_ROW_HEIGHT = 190
 const SKIPPED_ROW_HEIGHT = 122
 const originalScrollTo = Object.getOwnPropertyDescriptor(
   HTMLElement.prototype,
@@ -37,7 +37,7 @@ function post(index: number): ReviewPost {
         selected: true,
       },
     ],
-    warnings: index % 10 === 0 ? ['captionRepaired'] : [],
+    warnings: index % 10 === 0 ? ['captionTruncated'] : [],
     selected: true,
     needsTextOnlyConfirmation: false,
     textOnlyConfirmed: false,
@@ -120,6 +120,104 @@ afterEach(() => {
 })
 
 describe('virtualized review lists (AT-004, AC-006)', () => {
+  it('does not present automatic caption repairs as warnings', async () => {
+    const ui = userEvent.setup()
+    render(<ReviewHarness initialPosts={[post(1), {
+      ...post(2),
+      warnings: ['captionRepaired'],
+    }]} />)
+
+    expect(
+      screen.queryByText('Caption text was repaired'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('list', { name: 'Post warnings' }),
+    ).not.toBeInTheDocument()
+
+    await ui.click(
+      screen.getByRole('button', { name: 'With warnings' }),
+    )
+
+    expect(screen.getByText('No posts match this filter.')).toBeVisible()
+  })
+
+  it('keeps a post caption collapsed until the member opens it', async () => {
+    const ui = userEvent.setup()
+    render(<ReviewHarness initialPosts={[post(0)]} />)
+
+    const captionSummary = screen.getByText('Caption').closest('summary')
+    expect(captionSummary).not.toBeNull()
+    const captionDetails = captionSummary!.closest('details')
+    expect(captionDetails).not.toBeNull()
+    expect(captionDetails).not.toHaveAttribute('open')
+    expect(
+      screen.getByRole('textbox', { name: /Caption/u }),
+    ).not.toBeVisible()
+
+    await ui.click(captionSummary!)
+
+    expect(captionDetails).toHaveAttribute('open')
+    expect(
+      screen.getByRole('textbox', { name: /Caption/u }),
+    ).toBeVisible()
+  })
+
+  it('expands the caption editor to its full content height', async () => {
+    const ui = userEvent.setup()
+    vi.spyOn(
+      HTMLTextAreaElement.prototype,
+      'scrollHeight',
+      'get',
+    ).mockReturnValue(176)
+    render(<ReviewHarness initialPosts={[post(0)]} />)
+
+    await ui.click(screen.getByText('Caption').closest('summary')!)
+
+    expect(
+      screen.getByRole('textbox', { name: 'Caption' }),
+    ).toHaveStyle({ height: '176px' })
+  })
+
+  it('shows the image count and expands images independently', async () => {
+    const ui = userEvent.setup()
+    const basePost = post(0)
+    const reviewPost: ReviewPost = {
+      ...basePost,
+      media: [
+        ...basePost.media,
+        {
+          token: 'media-0-second',
+          kind: 'image',
+          mime: 'image/jpeg',
+          width: 1080,
+          height: 1350,
+          selected: true,
+        },
+      ],
+    }
+    render(<ReviewHarness initialPosts={[reviewPost]} />)
+
+    const imageSummary = screen
+      .getByText('Images (2)')
+      .closest('summary')
+    expect(imageSummary).not.toBeNull()
+    const imageDetails = imageSummary!.closest('details')
+    expect(imageDetails).not.toHaveAttribute('open')
+    expect(
+      screen.getByRole('checkbox', { name: 'Include image 1' }),
+    ).not.toBeVisible()
+
+    await ui.click(imageSummary!)
+
+    expect(imageDetails).toHaveAttribute('open')
+    expect(
+      screen.getByRole('checkbox', { name: 'Include image 1' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('textbox', { name: 'Caption' }),
+    ).not.toBeVisible()
+  })
+
   it(
     'keeps thousands of importable posts bounded while preserving filtering and controls',
     async () => {
@@ -226,12 +324,15 @@ describe('virtualized review lists (AT-004, AC-006)', () => {
     ).toBeLessThan(14)
   })
 
-  it('loads only an explicitly requested visible media preview', async () => {
+  it('loads selected media thumbnails when the image section expands', async () => {
     const ui = userEvent.setup()
     const loadPreview = vi
       .fn()
       .mockResolvedValue(new Blob(['sanitized'], { type: 'image/jpeg' }))
-    const createObjectURL = vi.fn().mockReturnValue('blob:safe-preview')
+    const createObjectURL = vi
+      .fn()
+      .mockReturnValueOnce('blob:safe-preview-1')
+      .mockReturnValueOnce('blob:safe-preview-2')
     const revokeObjectURL = vi.fn()
     vi.stubGlobal(
       'URL',
@@ -240,31 +341,109 @@ describe('virtualized review lists (AT-004, AC-006)', () => {
         static revokeObjectURL = revokeObjectURL
       },
     )
+    const basePost = post(0)
     render(
-      <ReviewHarness initialPosts={[post(0)]} loadPreview={loadPreview} />,
+      <ReviewHarness
+        initialPosts={[
+          {
+            ...basePost,
+            media: [
+              ...basePost.media,
+              {
+                ...basePost.media[0],
+                token: 'media-0-second',
+              },
+            ],
+          },
+        ]}
+        loadPreview={loadPreview}
+      />,
     )
 
     expect(loadPreview).not.toHaveBeenCalled()
-    await ui.click(
-      screen.getByRole('button', { name: 'Preview image 1' }),
-    )
+    await ui.click(screen.getByText('Images (2)'))
+
     expect(
-      await screen.findByRole('img', { name: 'Image 1 preview' }),
-    ).toHaveAttribute('src', 'blob:safe-preview')
+      await screen.findByRole('button', {
+        name: 'View Image 1 full screen',
+      }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', {
+        name: 'View Image 2 full screen',
+      }),
+    ).toBeVisible()
     expect(loadPreview).toHaveBeenCalledWith(
       'media-0',
       expect.any(AbortSignal),
     )
-
-    await ui.click(
-      screen.getByRole('button', { name: 'Hide image 1 preview' }),
+    expect(loadPreview).toHaveBeenCalledWith(
+      'media-0-second',
+      expect.any(AbortSignal),
     )
+    expect(loadPreview).toHaveBeenCalledTimes(2)
+
+    await ui.click(screen.getByText('Images (2)'))
     await waitFor(() =>
-      expect(revokeObjectURL).toHaveBeenCalledWith('blob:safe-preview'),
+      expect(revokeObjectURL).toHaveBeenCalledTimes(2),
     )
   })
 
-  it('aborts an in-flight media preview when the preview is hidden', async () => {
+  it('opens a thumbnail in a full-screen modal and closes it', async () => {
+    const ui = userEvent.setup()
+    const loadPreview = vi
+      .fn()
+      .mockResolvedValue(new Blob(['sanitized'], { type: 'image/jpeg' }))
+    const createObjectURL = vi.fn().mockReturnValue('blob:safe-preview')
+    vi.stubGlobal(
+      'URL',
+      class TestURL extends URL {
+        static createObjectURL = createObjectURL
+        static revokeObjectURL = vi.fn()
+      },
+    )
+    render(
+      <ReviewHarness initialPosts={[post(0)]} loadPreview={loadPreview} />,
+    )
+
+    await ui.click(screen.getByText('Images (1)'))
+    const thumbnail = await screen.findByRole('button', {
+      name: 'View Image 1 full screen',
+    })
+    await ui.click(thumbnail)
+
+    const dialog = screen.getByRole('dialog', {
+      name: 'Image 1 full-screen preview',
+    })
+    expect(dialog).toBeVisible()
+    expect(dialog.querySelector('img')).toHaveAttribute(
+      'src',
+      'blob:safe-preview',
+    )
+
+    await ui.click(
+      within(dialog).getByRole('button', { name: 'Close preview' }),
+    )
+    expect(
+      screen.queryByRole('dialog', {
+        name: 'Image 1 full-screen preview',
+      }),
+    ).not.toBeInTheDocument()
+    expect(thumbnail).toHaveFocus()
+
+    await ui.click(thumbnail)
+    const reopenedDialog = screen.getByRole('dialog', {
+      name: 'Image 1 full-screen preview',
+    })
+    fireEvent.click(reopenedDialog)
+    expect(
+      screen.queryByRole('dialog', {
+        name: 'Image 1 full-screen preview',
+      }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('aborts in-flight thumbnails when the image section closes', async () => {
     const ui = userEvent.setup()
     const loadPreview = vi.fn(
       (_token: string, signal?: AbortSignal) =>
@@ -286,17 +465,13 @@ describe('virtualized review lists (AT-004, AC-006)', () => {
       <ReviewHarness initialPosts={[post(0)]} loadPreview={loadPreview} />,
     )
 
-    await ui.click(
-      screen.getByRole('button', { name: 'Preview image 1' }),
-    )
+    await ui.click(screen.getByText('Images (1)'))
     expect(loadPreview).toHaveBeenCalledOnce()
     const signal = loadPreview.mock.calls[0]?.[1]
     expect(signal).toBeInstanceOf(AbortSignal)
     expect(signal?.aborted).toBe(false)
 
-    await ui.click(
-      screen.getByRole('button', { name: 'Hide image 1 preview' }),
-    )
+    await ui.click(screen.getByText('Images (1)'))
     expect(signal?.aborted).toBe(true)
   })
 })

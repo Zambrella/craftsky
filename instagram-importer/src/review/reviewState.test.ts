@@ -49,7 +49,7 @@ describe('review state (UT-016, UT-019)', () => {
       selectedPosts: 2,
       selectedImages: 2,
       transformedPosts: 2,
-      warningPosts: 2,
+      warningPosts: 1,
       skippedPosts: 2,
     })
 

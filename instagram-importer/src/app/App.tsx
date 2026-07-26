@@ -200,7 +200,8 @@ function Header(): React.JSX.Element {
   return (
     <header className="site-header">
       <a href="/" className="brand" aria-label="CraftSky importer home">
-        <img src="/logo.svg" alt="" />
+        <img src="/app_icon.png" alt="" />
+        <span>CraftSky</span>
       </a>
       <span className="site-header__product">Instagram post importer</span>
     </header>
@@ -248,7 +249,7 @@ function Stat({
   readonly label: string
 }): React.JSX.Element {
   return (
-    <div className="stat" aria-label={`${value} ${label}`}>
+    <div className="stat" role="group" aria-label={`${value} ${label}`}>
       <strong>{value.toLocaleString('en-GB')}</strong>
       <span>{label}</span>
     </div>
@@ -773,19 +774,14 @@ export function App({
               <div>
                 <p className="eyebrow">Review locally</p>
                 <h1>Your historical posts are ready to review</h1>
-                <p>
-                  We found only supported post information. Your raw export
-                  remains on this device.
-                </p>
-              </div>
-              <div className="privacy-seal">
-                <span aria-hidden="true">⌂</span>
-                <strong>Local only</strong>
-                <small>No account connected yet</small>
               </div>
             </div>
 
-            <div className="stats-grid" aria-label="Review totals">
+            <div
+              className="stats-grid"
+              role="group"
+              aria-label="Review totals"
+            >
               <Stat value={counts.selectedPosts} label="posts selected" />
               <Stat value={counts.selectedImages} label="images selected" />
               <Stat value={counts.transformedPosts} label="transformed" />
@@ -1197,8 +1193,31 @@ export function App({
         )}
       </main>
       <footer className="site-footer">
-        <span>CraftSky</span>
-        <span>Archive processing stays on this device.</span>
+        <a href="/" className="site-footer__brand">
+          <img src="/app_icon.png" alt="" />
+          <span>CraftSky</span>
+        </a>
+        <span className="site-footer__note">
+          Archive processing stays on this device.
+        </span>
+        <nav className="site-footer__links" aria-label="Footer">
+          <a href="https://craftsky.social/privacy">Privacy</a>
+          <a href="https://craftsky.social/terms">
+            Terms &amp; Conditions
+          </a>
+          <a
+            href="https://github.com/Zambrella/craftsky"
+            className="site-footer__github"
+            aria-label="CraftSky on GitHub"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M12 .7a11.3 11.3 0 0 0-3.6 22c.6.1.8-.2.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.6-1.4-1.4-1.8-1.4-1.8-1.1-.8.1-.8.1-.8 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17 5.1 18 5.4 18 5.4c.6 1.6.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.2c0 .4.2.7.8.6A11.3 11.3 0 0 0 12 .7Z"
+              />
+            </svg>
+          </a>
+        </nav>
       </footer>
     </>
   )

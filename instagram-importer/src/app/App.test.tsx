@@ -202,6 +202,31 @@ async function startConfirmedImport(
 }
 
 describe('Instagram importer app', () => {
+  it('shows CraftSky branding and the public footer links', () => {
+    render(<App services={services()} />)
+
+    const homeLink = screen.getByRole('link', {
+      name: 'CraftSky importer home',
+    })
+    expect(homeLink).toHaveAttribute('href', '/')
+    expect(homeLink.querySelector('img')).toHaveAttribute(
+      'src',
+      '/app_icon.png',
+    )
+    expect(homeLink).toHaveTextContent('CraftSky')
+
+    expect(screen.getByRole('link', { name: 'Privacy' })).toHaveAttribute(
+      'href',
+      'https://craftsky.social/privacy',
+    )
+    expect(
+      screen.getByRole('link', { name: 'Terms & Conditions' }),
+    ).toHaveAttribute('href', 'https://craftsky.social/terms')
+    expect(
+      screen.getByRole('link', { name: 'CraftSky on GitHub' }),
+    ).toHaveAttribute('href', 'https://github.com/Zambrella/craftsky')
+  })
+
   it('returns to file selection without an error after inspection is cancelled', async () => {
     const ui = userEvent.setup()
     let rejectInspection:
@@ -258,12 +283,19 @@ describe('Instagram importer app', () => {
     const appServices = services()
     await loadReview(ui, appServices)
 
+    expect(screen.queryByText('Local only')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('No account connected yet'),
+    ).not.toBeInTheDocument()
     expect(appServices.inspect).toHaveBeenCalledTimes(1)
     expect(appServices.authorize).not.toHaveBeenCalled()
     expect(screen.queryByText('never-render-this-name.zip')).not.toBeInTheDocument()
     expect(screen.getByText('2 posts · 2 images')).toBeInTheDocument()
     expect(
-      screen.getByText('Caption text was repaired'),
+      screen.queryByText('Caption text was repaired'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('group', { name: '0 with warnings' }),
     ).toBeInTheDocument()
 
     await ui.click(screen.getByRole('button', { name: 'Connect your PDS' }))
@@ -353,6 +385,7 @@ describe('Instagram importer app', () => {
     const appServices = services()
     await loadReview(ui, appServices)
 
+    await ui.click(screen.getAllByText('Images (1)')[0])
     const imageOptions = screen.getAllByRole('checkbox', {
       name: /image 1/i,
     })
@@ -369,6 +402,7 @@ describe('Instagram importer app', () => {
     await ui.click(textOnly)
     expect(continueButton).toBeEnabled()
 
+    await ui.click(screen.getAllByText('Caption')[0])
     const captions = screen.getAllByRole('textbox', { name: /caption/i })
     expect(captions[0]).toHaveAttribute('spellcheck', 'false')
     expect(captions[0]).toHaveAttribute('autocorrect', 'off')
@@ -396,36 +430,35 @@ describe('Instagram importer app', () => {
     await loadReview(ui, appServices)
 
     expect(previewMedia).not.toHaveBeenCalled()
-    await ui.click(
-      screen.getAllByRole('button', { name: 'Preview image 1' })[0],
+    for (const imageSummary of screen.getAllByText('Images (1)')) {
+      await ui.click(imageSummary)
+    }
+    await waitFor(() =>
+      expect(previewMedia).toHaveBeenCalledWith(
+        'media-0',
+        expect.any(AbortSignal),
+      ),
     )
-    const preview = await screen.findByRole('img', {
-      name: 'Image 1 preview',
-    })
-    expect(preview).toHaveAttribute('src', 'blob:safe-preview')
     expect(previewMedia).toHaveBeenCalledWith(
-      'media-0',
+      'media-1',
       expect.any(AbortSignal),
     )
     const firstPreviewSignal = previewMedia.mock.calls[0]?.[1]
     expect(firstPreviewSignal?.aborted).toBe(false)
-
-    await ui.click(
-      screen.getByRole('button', { name: 'Preview image 1' }),
-    )
-    await waitFor(() =>
-      expect(previewMedia).toHaveBeenCalledWith(
-        'media-1',
-        expect.any(AbortSignal),
-      ),
-    )
-    expect(firstPreviewSignal?.aborted).toBe(true)
     const secondPreviewSignal = previewMedia.mock.calls[1]?.[1]
     expect(secondPreviewSignal?.aborted).toBe(false)
+    const thumbnails = await screen.findAllByRole('button', {
+      name: 'View Image 1 full screen',
+    })
+    expect(thumbnails).toHaveLength(2)
+    await ui.click(
+      thumbnails[0],
+    )
     expect(
-      screen.getAllByRole('img', { name: 'Image 1 preview' }),
-    ).toHaveLength(1)
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:safe-preview')
+      screen.getByRole('dialog', {
+        name: 'Image 1 full-screen preview',
+      }),
+    ).toBeVisible()
 
     await ui.click(
       screen.getAllByRole('checkbox', { name: 'Include image 1' })[1],
@@ -434,6 +467,7 @@ describe('Instagram importer app', () => {
       expect(revokeObjectURL).toHaveBeenCalledWith('blob:safe-preview'),
     )
     expect(secondPreviewSignal?.aborted).toBe(true)
+    expect(firstPreviewSignal?.aborted).toBe(false)
   })
 
   it('hard-disables real authorization in preview builds (AT-010, IT-016)', async () => {

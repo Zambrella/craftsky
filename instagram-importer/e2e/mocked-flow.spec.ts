@@ -36,12 +36,25 @@ test('completes the mocked importer UI flow (IT-008; browser UI slices for AT-00
     mimeType: 'application/zip',
     buffer: Buffer.from('synthetic'),
   })
-  await page
-    .getByRole('button', { name: 'Preview image 1' })
-    .click()
+  await page.getByText('Images (1)').click()
+  const thumbnail = page.getByRole('button', {
+    name: 'View Image 1 full screen',
+  })
+  await expect(thumbnail).toHaveCSS('width', '144px')
+  await expect(thumbnail).toHaveCSS('height', '144px')
+  await thumbnail.click()
   await expect(
-    page.getByRole('img', { name: 'Image 1 preview' }),
-  ).toHaveAttribute('src', /^blob:/u)
+    page.getByRole('dialog', {
+      name: 'Image 1 full-screen preview',
+    }),
+  ).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(
+    page.getByRole('dialog', {
+      name: 'Image 1 full-screen preview',
+    }),
+  ).toHaveCount(0)
+  await expect(thumbnail).toBeFocused()
 
   await page.getByRole('button', { name: 'Connect your PDS' }).click()
   await page

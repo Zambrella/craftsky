@@ -19,6 +19,9 @@ describe('static deployment contract (IT-016)', () => {
     expect(metadata).toMatchObject({
       client_id: `${PRODUCTION_ORIGIN}/oauth-client-metadata.json`,
       client_uri: PRODUCTION_ORIGIN,
+      logo_uri: `${PRODUCTION_ORIGIN}/app_icon.png`,
+      policy_uri: 'https://craftsky.social/privacy',
+      tos_uri: 'https://craftsky.social/terms',
       redirect_uris: [`${PRODUCTION_ORIGIN}/oauth/callback`],
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],

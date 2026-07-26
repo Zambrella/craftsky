@@ -63,6 +63,17 @@ export type SafeWarningCode =
   | 'mediaUnavailable'
   | 'textOnlyConfirmationRequired'
 
+export type UserFacingWarningCode = Exclude<
+  SafeWarningCode,
+  'captionRepaired'
+>
+
+export function isUserFacingWarningCode(
+  warning: SafeWarningCode,
+): warning is UserFacingWarningCode {
+  return warning !== 'captionRepaired'
+}
+
 export type SafeSkipCode =
   | 'ambiguousDuplicate'
   | 'invalidTimestamp'

@@ -55,7 +55,7 @@ blockers.
 | FR-007 | AC-005, AC-019 | AT-002, UT-002, UT-003, IT-002 | Acceptance / Unit / Integration | Yes |
 | FR-008 | AC-005, AC-019 | AT-002, UT-003, UT-008, IT-002 | Acceptance / Unit / Integration | Yes |
 | FR-009 | AC-002, AC-017 | AT-002, UT-012, IT-003, IT-017 | Acceptance / Unit / Integration | Yes |
-| FR-010 | AC-006 | AT-004, UT-016, UT-019, IT-008 | Acceptance / Unit / Integration | Yes |
+| FR-010 | AC-006 | AT-004, UT-016, UT-019, UT-020, IT-008 | Acceptance / Unit / Integration | Yes |
 | FR-011 | AC-007 | AT-004, UT-016, IT-002 | Acceptance / Unit / Integration | Yes |
 | FR-012 | AC-007 | AT-004, UT-003, UT-016, IT-002 | Acceptance / Unit / Integration | Yes |
 | FR-013 | AC-008 | AT-004, UT-005 | Acceptance / Unit | Yes |
@@ -187,13 +187,24 @@ Feature: Bulk review
     And the virtualized list remains filterable and keyboard usable
     And aggregate selected, image, transformed, warning, and skipped counts are exact
     And every row shows its original date, final media selection, and warnings
+    And its caption and image sections start collapsed and expand independently
+    And the image heading states the number of images
+    And the expanded caption editor grows to show its full content
+    And expanding the image section progressively loads every selected
+      thumbnail through the one-at-a-time worker queue
+    And every thumbnail is at least 132 CSS pixels square
+    When the member selects a thumbnail
+    Then it opens in an accessible full-screen lightbox
+    And the lightbox closes by its close button, Escape, or backdrop
     When the member deselects one post, deselects one image, and uses bulk
       deselect and select-all controls
     Then the per-post state and every aggregate count recompute exactly
     And the first four supported images remain in source order
     And videos and unsupported formats are never selected for upload
     And captions are repaired only when reversible, truncated at 2,000
-      graphemes, visibly warned, and editable
+      graphemes, and editable
+    And repaired captions do not appear in warning badges, warning counts, or
+      the warnings filter
     And final hashtags and URLs receive UTF-8-correct facets
     And Instagram handles remain plain text
 ```
@@ -373,6 +384,7 @@ Feature: Origin-isolated static deployment
 | UT-017 | FR-025 | AC-014, AC-017 | Derive versioned manifest fingerprints without persisting content. | Equivalent and changed synthetic manifests | Equivalent input matches; material change differs; persistence excludes source values | `instagram-importer/src/progress/fingerprint.test.ts` |
 | UT-018 | FR-006, NFR-003 | AC-005, AC-016 | Validate typed worker request/result/cancel protocol and stale-operation fencing. | Operation IDs and cancel races | Stale/cancelled results cannot mutate active review | `instagram-importer/src/worker/protocol.test.ts` |
 | UT-019 | FR-010, FR-017, RULE-010 | AC-006, AC-010, AC-023 | Decide review eligibility after media omissions and require explicit text-only confirmation. | Mixed valid/missing/unsupported media and captions | Remaining images stay selected; text-only confirmation; empty skip; no alt UI | `instagram-importer/src/review/mediaSelection.test.ts` |
+| UT-020 | FR-010 | AC-006 | Load expanded selected thumbnails, release them when collapsed or deselected, and open/close the selected image lightbox. | Selected/deselected multi-image posts and mocked sanitized blobs | No eager load while collapsed; expanded thumbnails appear; abort/revoke on close; accessible modal opens and closes | `instagram-importer/src/app/components/ReviewList.test.tsx` |
 
 ## 5. Integration Test Cases
 
