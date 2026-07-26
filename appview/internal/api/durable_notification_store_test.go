@@ -71,6 +71,69 @@ func TestNotificationStoreListsOnlyActiveDurableEventsWithStablePagination(t *te
 	}
 }
 
+func TestNotificationListAndNewCountDynamicallySuppressAndRestoreRelationships(t *testing.T) {
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	for _, migrationPath := range []string{
+		"../../migrations/000021_appview_notifications.up.sql",
+		"../../migrations/000022_notification_newness.up.sql",
+	} {
+		migration, err := os.ReadFile(migrationPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seedMember(t, pool, "did:plc:viewer")
+	seedMember(t, pool, "did:plc:actor")
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO notification_events(
+			id,recipient_did,actor_did,category,subject_key,source_uri,source_cid,source_rkey,
+			eligibility_scope,recipient_followed_actor,push_enabled_snapshot,state,
+			first_activity_at,activity_at,indexed_at,initial_push_evaluated_at
+		) VALUES(
+			'00000000-0000-0000-0000-000000000001','did:plc:viewer','did:plc:actor','follow','actor',
+			'at://did:plc:actor/app.bsky.graph.follow/r1','cid','r1','everyone',false,true,'active',
+			now(),now(),now(),now()
+		)
+	`); err != nil {
+		t.Fatal(err)
+	}
+	store := api.NewPostStore(pool)
+	assertState := func(wantRows int, wantCount int64) {
+		t.Helper()
+		rows, _, err := store.ListNotifications(context.Background(), "did:plc:viewer", 20, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		count, err := store.NotificationNewCount(context.Background(), "did:plc:viewer")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) != wantRows || count != wantCount {
+			t.Fatalf("rows=%d count=%d, want rows=%d count=%d", len(rows), count, wantRows, wantCount)
+		}
+	}
+
+	assertState(1, 1)
+	if _, err := pool.Exec(context.Background(), `INSERT INTO actor_mutes(owner_did,subject_did) VALUES('did:plc:viewer','did:plc:actor')`); err != nil {
+		t.Fatal(err)
+	}
+	assertState(0, 0)
+	if _, err := pool.Exec(context.Background(), `DELETE FROM actor_mutes`); err != nil {
+		t.Fatal(err)
+	}
+	assertState(1, 1)
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO atproto_blocks(uri,blocker_did,rkey,cid,subject_did,record,created_at)
+		VALUES('at://did:plc:actor/app.bsky.graph.block/r1','did:plc:actor','r1','cid','did:plc:viewer','{}',now())
+	`); err != nil {
+		t.Fatal(err)
+	}
+	assertState(0, 0)
+}
+
 func TestNotificationStoreKeepsDurableRowButWithholdsTakenDownContent(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
 	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
@@ -163,6 +226,66 @@ func TestNotificationListWithholdsModeratedReplySourceAndQuoteTarget(t *testing.
 	quote := byType[api.NotificationTypeQuote]
 	if quote == nil || quote.URI == "" || quote.SubjectPost == nil || quote.SubjectPost.Quote != nil || quote.References.Quoted == nil || quote.References.Quoted.Available {
 		t.Fatalf("quote=%+v", quote)
+	}
+}
+
+func TestNotificationListHidesThirdPartyBlockedReferenceGraph(t *testing.T) {
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol", "did:plc:dave"} {
+		seedMember(t, pool, did)
+	}
+	now := time.Date(2026, 7, 19, 14, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:dave", "root", "root", now)
+	parent := seedReplyPost(t, pool, "did:plc:bob", "parent", "parent", root, root, now.Add(time.Second))
+	source := seedReplyPost(t, pool, "did:plc:alice", "source", "@carol", root, parent, now.Add(2*time.Second))
+	seedPostMention(t, pool, source, "did:plc:carol", now.Add(2*time.Second))
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO atproto_blocks(uri,blocker_did,rkey,cid,subject_did,record,created_at)
+		VALUES('at://did:plc:alice/app.bsky.graph.block/bob','did:plc:alice','bob','bafyblock','did:plc:bob','{}',$1)
+	`, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO notification_events(
+			id,recipient_did,actor_did,category,subject_key,
+			source_uri,source_cid,source_rkey,subject_uri,subject_cid,
+			parent_uri,parent_cid,root_uri,root_cid,
+			eligibility_scope,recipient_followed_actor,push_enabled_snapshot,state,
+			first_activity_at,activity_at,indexed_at,initial_push_evaluated_at
+		) VALUES(
+			'00000000-0000-0000-0000-000000000099','did:plc:carol','did:plc:alice','mention','blocked-reference',
+			$1,'source-cid','source',$1,'source-cid',$2,'parent-cid',$3,'root-cid',
+			'everyone',false,true,'active',$4,$4,$4,$4
+		)
+	`, source, parent, root, now); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, _, err := api.NewPostStore(pool).ListNotifications(context.Background(), "did:plc:carol", 20, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows=%d, want generic retained event", len(rows))
+	}
+	row := rows[0]
+	if row.SubjectPost != nil || row.References.Source.Available ||
+		(row.References.Subject != nil && row.References.Subject.Available) ||
+		(row.References.Parent != nil && row.References.Parent.Available) ||
+		(row.References.Root != nil && row.References.Root.Available) {
+		t.Fatalf("blocked reference graph remained visible: %+v", row)
+	}
+	for _, ref := range []*api.NotificationReference{&row.References.Source, row.References.Subject, row.References.Parent, row.References.Root} {
+		if ref != nil && (ref.URI != "" || ref.CID != "" || ref.Rkey != "") {
+			t.Fatalf("unavailable reference leaked identity: %+v", ref)
+		}
 	}
 }
 

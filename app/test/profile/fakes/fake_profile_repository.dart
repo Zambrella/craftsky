@@ -3,6 +3,7 @@ import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
+import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
 /// Programmable [ProfileRepository] for unit tests. Each method
@@ -28,10 +29,16 @@ class FakeProfileRepository implements ProfileRepository {
     this.onUpdateMe,
     this.onFollow,
     this.onUnfollow,
+    this.onMute,
+    this.onUnmute,
+    this.onBlock,
+    this.onUnblock,
     this.onReport,
     this.onListMutualFollowers,
     this.onListFollowersMe,
     this.onListFollowingMe,
+    this.onListMutedProfiles,
+    this.onListBlockedProfiles,
   });
 
   final Future<Profile> Function(String handleOrDid)? onFetch;
@@ -48,6 +55,10 @@ class FakeProfileRepository implements ProfileRepository {
   onUpdateMe;
   final Future<Profile> Function(String handleOrDid)? onFollow;
   final Future<Profile> Function(String handleOrDid)? onUnfollow;
+  final Future<ProfileRelationship> Function(String handleOrDid)? onMute;
+  final Future<ProfileRelationship> Function(String handleOrDid)? onUnmute;
+  final Future<ProfileRelationship> Function(String handleOrDid)? onBlock;
+  final Future<ProfileRelationship> Function(String handleOrDid)? onUnblock;
   final Future<ReportResult> Function(
     String handleOrDid,
     ReportSubmission submission,
@@ -63,6 +74,10 @@ class FakeProfileRepository implements ProfileRepository {
   onListFollowersMe;
   final Future<ProfileAccountPage> Function({int? limit, String? cursor})?
   onListFollowingMe;
+  final Future<ProfileAccountPage> Function({int? limit, String? cursor})?
+  onListMutedProfiles;
+  final Future<ProfileAccountPage> Function({int? limit, String? cursor})?
+  onListBlockedProfiles;
 
   @override
   Future<Profile> fetch(String handleOrDid) =>
@@ -106,6 +121,32 @@ class FakeProfileRepository implements ProfileRepository {
       Future<Profile>.error(UnimplementedError('unfollow not stubbed'));
 
   @override
+  Future<ProfileRelationship> mute(String handleOrDid) =>
+      onMute?.call(handleOrDid) ??
+      Future<ProfileRelationship>.error(UnimplementedError('mute not stubbed'));
+
+  @override
+  Future<ProfileRelationship> unmute(String handleOrDid) =>
+      onUnmute?.call(handleOrDid) ??
+      Future<ProfileRelationship>.error(
+        UnimplementedError('unmute not stubbed'),
+      );
+
+  @override
+  Future<ProfileRelationship> block(String handleOrDid) =>
+      onBlock?.call(handleOrDid) ??
+      Future<ProfileRelationship>.error(
+        UnimplementedError('block not stubbed'),
+      );
+
+  @override
+  Future<ProfileRelationship> unblock(String handleOrDid) =>
+      onUnblock?.call(handleOrDid) ??
+      Future<ProfileRelationship>.error(
+        UnimplementedError('unblock not stubbed'),
+      );
+
+  @override
   Future<ReportResult> report(
     String handleOrDid,
     ReportSubmission submission,
@@ -140,5 +181,22 @@ class FakeProfileRepository implements ProfileRepository {
       onListFollowingMe?.call(limit: limit, cursor: cursor) ??
       Future<ProfileAccountPage>.error(
         UnimplementedError('listFollowingMe not stubbed'),
+      );
+
+  @override
+  Future<ProfileAccountPage> listMutedProfiles({int? limit, String? cursor}) =>
+      onListMutedProfiles?.call(limit: limit, cursor: cursor) ??
+      Future<ProfileAccountPage>.error(
+        UnimplementedError('listMutedProfiles not stubbed'),
+      );
+
+  @override
+  Future<ProfileAccountPage> listBlockedProfiles({
+    int? limit,
+    String? cursor,
+  }) =>
+      onListBlockedProfiles?.call(limit: limit, cursor: cursor) ??
+      Future<ProfileAccountPage>.error(
+        UnimplementedError('listBlockedProfiles not stubbed'),
       );
 }

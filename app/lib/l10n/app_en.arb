@@ -311,6 +311,111 @@
   "profileShareAction": "Share",
   "@profileShareAction": { "description": "Tooltip on the share icon button shown on a visitor profile, and on the collapsed-bar trailing action." },
 
+  "profileMoreActions": "More profile actions",
+  "@profileMoreActions": { "description": "Accessible tooltip for the visitor profile More menu." },
+
+  "profileMuteAction": "Mute account",
+  "@profileMuteAction": { "description": "Action that privately mutes a profile." },
+
+  "profileUnmuteAction": "Unmute account",
+  "@profileUnmuteAction": { "description": "Action that removes a private profile mute." },
+
+  "profileBlockAction": "Block account",
+  "@profileBlockAction": { "description": "Destructive action that publicly blocks a profile." },
+
+  "profileUnblockAction": "Unblock account",
+  "@profileUnblockAction": { "description": "Action that removes the viewer's public profile block." },
+
+  "profileMuteAnnotation": "Muted account",
+  "@profileMuteAnnotation": { "description": "Viewer-only annotation on a muted profile." },
+
+  "profileBlockingAnnotation": "Blocked by you",
+  "@profileBlockingAnnotation": { "description": "Annotation on a profile the viewer has blocked." },
+
+  "profileBlockedByAnnotation": "This account has blocked you",
+  "@profileBlockedByAnnotation": { "description": "Annotation on a profile whose owner blocked the viewer." },
+
+  "profileMutualBlockAnnotation": "You have blocked each other",
+  "@profileMutualBlockAnnotation": { "description": "Annotation when both accounts own a block." },
+
+  "profileRelationshipError": "Could not update account relationship.",
+  "@profileRelationshipError": { "description": "Feedback after a mute or block mutation rolls back." },
+
+  "profileMuteSuccess": "Account muted.",
+  "@profileMuteSuccess": { "description": "Feedback after muting a profile." },
+
+  "profileUnmuteSuccess": "Account unmuted.",
+  "@profileUnmuteSuccess": { "description": "Feedback after unmuting a profile." },
+
+  "profileBlockSuccess": "Account blocked.",
+  "@profileBlockSuccess": { "description": "Feedback after blocking a profile." },
+
+  "profileUnblockSuccess": "Account unblocked.",
+  "@profileUnblockSuccess": { "description": "Feedback after unblocking a profile." },
+
+  "profileBlockConfirmTitle": "Block this account?",
+  "@profileBlockConfirmTitle": { "description": "Title of the public block confirmation." },
+
+  "profileBlockConfirmBody": "Blocking is public on the AT Protocol. You will no longer see or interact with each other's content.",
+  "@profileBlockConfirmBody": { "description": "Consequences and public visibility warning in the block confirmation." },
+
+  "profileUnblockConfirmTitle": "Unblock this account?",
+  "@profileUnblockConfirmTitle": { "description": "Title of the unblock confirmation." },
+
+  "profileUnblockConfirmBody": "You may see and interact with each other's content again.",
+  "@profileUnblockConfirmBody": { "description": "Consequences shown in the unblock confirmation." },
+
+  "actionCancel": "Cancel",
+  "@actionCancel": { "description": "Generic cancel action." },
+
+  "actionConfirm": "Confirm",
+  "@actionConfirm": { "description": "Generic confirmation action." },
+
+  "destructiveActionHint": "Destructive action",
+  "@destructiveActionHint": { "description": "Accessibility hint for actions that can remove content or a public relationship." },
+
+  "settingsMutedAccounts": "Muted accounts",
+  "@settingsMutedAccounts": { "description": "Settings entry and page title for private mutes." },
+
+  "settingsBlockedAccounts": "Blocked accounts",
+  "@settingsBlockedAccounts": { "description": "Settings entry and page title for public blocks." },
+
+  "settingsMutedAccountsEmpty": "You have not muted any accounts.",
+  "@settingsMutedAccountsEmpty": { "description": "Empty state for the muted-account list." },
+
+  "settingsBlockedAccountsEmpty": "You have not blocked any accounts.",
+  "@settingsBlockedAccountsEmpty": { "description": "Empty state for the blocked-account list." },
+
+  "settingsMutedAccountsError": "Could not load muted accounts.",
+  "@settingsMutedAccountsError": { "description": "Safe load error for the muted-account list." },
+
+  "settingsBlockedAccountsError": "Could not load blocked accounts.",
+  "@settingsBlockedAccountsError": { "description": "Safe load error for the blocked-account list." },
+
+  "relationshipListRetry": "Try again",
+  "@relationshipListRetry": { "description": "Retry action for relationship-list load failures." },
+
+  "relationshipListLoadMore": "Load more",
+  "@relationshipListLoadMore": { "description": "Pagination action for relationship lists." },
+
+  "relationshipListUnmute": "Unmute",
+  "@relationshipListUnmute": { "description": "Row action in the muted-account list." },
+
+  "relationshipListUnblock": "Unblock",
+  "@relationshipListUnblock": { "description": "Row action in the blocked-account list." },
+
+  "relationshipListMutationError": "Could not update this account.",
+  "@relationshipListMutationError": { "description": "Safe row-level relationship mutation error." },
+
+  "postMutedPlaceholder": "Post from a muted account",
+  "@postMutedPlaceholder": { "description": "Content-free placeholder for a muted post or quote." },
+
+  "postUnavailablePlaceholder": "Post unavailable",
+  "@postUnavailablePlaceholder": { "description": "Generic content-free placeholder for blocked or unavailable content." },
+
+  "postRevealAction": "Show post",
+  "@postRevealAction": { "description": "Temporary reveal action for muted content." },
+
   "profileFollowAction": "Follow",
   "@profileFollowAction": { "description": "Label on the follow button on a visitor profile when the viewer is not yet following them." },
 
@@ -1381,5 +1486,98 @@
   "instagramSuggestionUnknownReason": "Suggested from your private Instagram import.",
   "instagramSuggestionAccept": "Follow",
   "instagramSuggestionDismiss": "Dismiss",
-  "instagramSuggestionsActionError": "One or more suggestions changed or couldn't be updated. Refresh before trying again."
+  "instagramSuggestionsActionError": "One or more suggestions changed or couldn't be updated. Refresh before trying again.",
+
+  "savedPostSaveAction": "Save post",
+  "@savedPostSaveAction": { "description": "Tooltip and action label for saving a post." },
+
+  "savedPostUnsaveAction": "Remove from saved posts",
+  "@savedPostUnsaveAction": { "description": "Tooltip for removing a post from the viewer's private saved collection." },
+
+  "savedPostUnsaveError": "This post couldn't be removed. Try again.",
+  "@savedPostUnsaveError": { "description": "Safe retryable feedback after removing a saved post fails." },
+
+  "savedPostMoveTitle": "Move saved post",
+  "@savedPostMoveTitle": { "description": "Title for the chooser used to move an existing saved post." },
+
+  "savedPostMoveAction": "Move",
+  "@savedPostMoveAction": { "description": "Action opening the folder chooser for an existing saved post." },
+
+  "savedPostRowUnsaveAction": "Unsave",
+  "@savedPostRowUnsaveAction": { "description": "Row action removing a post from saved posts." },
+
+  "savedPostNoFolder": "No folder",
+  "@savedPostNoFolder": { "description": "Chooser option that leaves a saved post outside a folder." },
+
+  "savedPostFolderSelectionLabel": "Folder",
+  "@savedPostFolderSelectionLabel": { "description": "Label for the saved-post folder selector." },
+
+  "savedPostConfirmError": "That change couldn't be saved. Try again.",
+  "@savedPostConfirmError": { "description": "Safe inline error after a save or move request fails." },
+
+  "savedPostFoldersLoadError": "Folders couldn't load.",
+  "@savedPostFoldersLoadError": { "description": "Safe inline error when saved-post folders cannot load." },
+
+  "savedPostLoadMoreFolders": "Load more folders",
+  "@savedPostLoadMoreFolders": { "description": "Action loading the next page of saved-post folders." },
+
+  "savedPostNewFolder": "New folder",
+  "@savedPostNewFolder": { "description": "Action opening inline saved-folder creation." },
+
+  "savedPostFolderNameHint": "Folder name",
+  "@savedPostFolderNameHint": { "description": "Input label for a saved-post folder name." },
+
+  "savedPostCreateFolderAction": "Create folder",
+  "@savedPostCreateFolderAction": { "description": "Action submitting a new saved-post folder." },
+
+  "savedPostCreateFolderError": "That folder couldn't be created. Try again.",
+  "@savedPostCreateFolderError": { "description": "Safe inline error after saved-folder creation fails." },
+
+  "savedPostsTitle": "Saved posts",
+  "@savedPostsTitle": { "description": "Title for the viewer's private saved-post collection." },
+
+  "savedPostsFoldersHeading": "Folders",
+  "@savedPostsFoldersHeading": { "description": "Heading above saved-post folders." },
+
+  "savedPostsUnfiledHeading": "Unfiled",
+  "@savedPostsUnfiledHeading": { "description": "Heading above saved posts that have no folder." },
+
+  "savedPostsEmpty": "Nothing saved yet",
+  "@savedPostsEmpty": { "description": "Empty state when the viewer has no saved posts or folders." },
+
+  "savedPostsSortOldest": "Oldest",
+  "@savedPostsSortOldest": { "description": "Sort label showing the oldest saves first." },
+
+  "savedPostsSortNewestDescription": "Most recently saved first",
+  "@savedPostsSortNewestDescription": { "description": "Helper text for newest-first saved-post ordering." },
+
+  "savedPostsSortOldestDescription": "Earliest saved first",
+  "@savedPostsSortOldestDescription": { "description": "Helper text for oldest-first saved-post ordering." },
+
+  "savedPostsLoadError": "Saved posts couldn't load.",
+  "@savedPostsLoadError": { "description": "Safe initial error for the saved-post collection." },
+
+  "savedPostsLoadMore": "Load more",
+  "@savedPostsLoadMore": { "description": "Action loading the next page of saved posts." },
+
+  "savedPostFolderActions": "Folder actions",
+  "@savedPostFolderActions": { "description": "Tooltip opening saved-folder actions." },
+
+  "savedPostRowActions": "Saved post actions",
+  "@savedPostRowActions": { "description": "Tooltip opening move and unsave actions for one saved post." },
+
+  "savedPostRenameFolder": "Rename folder",
+  "@savedPostRenameFolder": { "description": "Action and dialog title for renaming a saved folder." },
+
+  "savedPostDeleteFolder": "Delete folder",
+  "@savedPostDeleteFolder": { "description": "Destructive action and dialog title for deleting a saved folder." },
+
+  "savedPostDeleteFolderBody": "What should happen to the posts in this folder?",
+  "@savedPostDeleteFolderBody": { "description": "Prompt explaining the two scopes of saved-folder deletion." },
+
+  "savedPostKeepSaves": "Keep saved posts",
+  "@savedPostKeepSaves": { "description": "Deletes a folder while moving its saves to Unfiled." },
+
+  "savedPostDeleteSaves": "Delete saved posts",
+  "@savedPostDeleteSaves": { "description": "Deletes a folder and all private saves assigned to it." }
 }

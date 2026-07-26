@@ -7,6 +7,103 @@ void main() {
   setUpAll(initializeMappers);
 
   group('Post', () {
+    test('UT-001 saved viewer state', () {
+      final base = <String, dynamic>{
+        'uri': 'at://did:plc:alice/social.craftsky.feed.post/3lsaved',
+        'cid': 'bafysaved',
+        'rkey': '3lsaved',
+        'text': 'A post worth returning to.',
+        'tags': <String>[],
+        'likeCount': 0,
+        'repostCount': 0,
+        'quoteCount': 0,
+        'replyCount': 0,
+        'viewerHasLiked': false,
+        'viewerHasReposted': false,
+        'viewerHasReplied': false,
+        'createdAt': '2026-07-21T10:00:00.000Z',
+        'indexedAt': '2026-07-21T10:00:01.000Z',
+        'author': {
+          'did': 'did:plc:alice',
+          'handle': 'alice.craftsky.social',
+        },
+      };
+
+      final foldered = PostMapper.fromMap({
+        ...base,
+        'viewerHasSaved': true,
+        'viewerSavedFolderId': '018f-folder-opaque',
+      });
+      final unfiled = PostMapper.fromMap({
+        ...base,
+        'viewerHasSaved': true,
+        'viewerSavedFolderId': null,
+      });
+      final unsaved = PostMapper.fromMap({
+        ...base,
+        'viewerHasSaved': false,
+        'viewerSavedFolderId': null,
+      });
+      final protected = PostMapper.fromMap({
+        'uri': 'at://did:plc:bob/social.craftsky.feed.post/protected',
+        'availability': 'blocked',
+        'relationship': {'state': 'blocked', 'revealable': false},
+      });
+
+      expect(foldered.viewerHasSaved, isTrue);
+      expect(foldered.viewerSavedFolderId, '018f-folder-opaque');
+      expect(unfiled.viewerHasSaved, isTrue);
+      expect(unfiled.viewerSavedFolderId, isNull);
+      expect(unsaved.viewerHasSaved, isFalse);
+      expect(unsaved.viewerSavedFolderId, isNull);
+      expect(protected.viewerHasSaved, isFalse);
+      expect(protected.viewerSavedFolderId, isNull);
+
+      final preserved = foldered.copyWith();
+      expect(preserved.viewerHasSaved, isTrue);
+      expect(preserved.viewerSavedFolderId, '018f-folder-opaque');
+
+      final cleared = foldered.copyWith(
+        viewerHasSaved: false,
+        viewerSavedFolderId: null,
+      );
+      expect(cleared.viewerHasSaved, isFalse);
+      expect(cleared.viewerSavedFolderId, isNull);
+
+      expect(
+        () => PostMapper.fromMap({...base, 'viewerHasSaved': <String>[]}),
+        throwsA(anything),
+      );
+      expect(
+        () => PostMapper.fromMap({
+          ...base,
+          'viewerHasSaved': true,
+          'viewerSavedFolderId': <String, dynamic>{},
+        }),
+        throwsA(anything),
+      );
+    });
+
+    test('UT-005 decodes content-free muted and blocked placeholders', () {
+      final muted = PostMapper.fromMap({
+        'uri': 'at://did:plc:bob/social.craftsky.feed.post/muted',
+        'availability': 'muted',
+        'relationship': {'state': 'muted', 'revealable': true},
+      });
+      final blocked = PostMapper.fromMap({
+        'availability': 'blocked',
+        'relationship': {'state': 'blocked', 'revealable': false},
+      });
+
+      expect(muted.isProtected, isTrue);
+      expect(muted.relationship?.revealable, isTrue);
+      expect(muted.text, isEmpty);
+      expect(blocked.isProtected, isTrue);
+      expect(blocked.availability, 'blocked');
+      expect(blocked.relationship?.revealable, isFalse);
+      expect(blocked.text, isEmpty);
+    });
+
     test('round-trips a fully-populated wire payload', () {
       final json = {
         'uri': 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
@@ -29,6 +126,7 @@ void main() {
         'viewerHasLiked': true,
         'viewerHasReposted': false,
         'viewerHasReplied': true,
+        'viewerHasSaved': false,
         'reply': {
           'root': {'uri': 'at://x/y/1', 'cid': 'bafyR'},
           'parent': {'uri': 'at://x/y/2', 'cid': 'bafyP'},
@@ -106,6 +204,7 @@ void main() {
         'viewerHasLiked': false,
         'viewerHasReposted': false,
         'viewerHasReplied': false,
+        'viewerHasSaved': false,
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
         'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
@@ -123,6 +222,21 @@ void main() {
       expect(post.toMap(), json);
     });
 
+    test('AT-003 decodes post-author viewer relationship state', () {
+      final author = PostAuthorMapper.fromMap({
+        'did': 'did:plc:alice',
+        'handle': 'alice.craftsky.social',
+        'muted': true,
+        'blocking': false,
+        'blockedBy': false,
+      });
+
+      expect(author.muted, isTrue);
+      expect(author.blocking, isFalse);
+      expect(author.blockedBy, isFalse);
+      expect(author.hasViewerState, isTrue);
+    });
+
     test('UT-006 decodes quote count and compact quote preview', () {
       final json = {
         'uri': 'at://did:plc:bob/social.craftsky.feed.post/quote',
@@ -137,6 +251,7 @@ void main() {
         'viewerHasLiked': false,
         'viewerHasReposted': false,
         'viewerHasReplied': false,
+        'viewerHasSaved': false,
         'quote': {
           'uri': 'at://did:plc:carol/social.craftsky.feed.post/root',
           'cid': 'bafyroot',
@@ -195,6 +310,7 @@ void main() {
         'viewerHasLiked': false,
         'viewerHasReposted': false,
         'viewerHasReplied': false,
+        'viewerHasSaved': false,
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
         'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
@@ -220,6 +336,7 @@ void main() {
         'viewerHasLiked': false,
         'viewerHasReposted': false,
         'viewerHasReplied': false,
+        'viewerHasSaved': false,
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
         'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
@@ -257,6 +374,7 @@ void main() {
         'viewerHasLiked': false,
         'viewerHasReposted': false,
         'viewerHasReplied': false,
+        'viewerHasSaved': false,
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
         'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},

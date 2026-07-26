@@ -2,6 +2,7 @@ import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
+import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:dio/dio.dart';
@@ -89,6 +90,26 @@ class ProfileApiClient {
     return ProfileMapper.fromMap(res.data!);
   });
 
+  Future<ProfileRelationship> muteProfile(String handleOrDid) =>
+      _mutateRelationship(handleOrDid, 'mutes', delete: false);
+
+  Future<ProfileRelationship> unmuteProfile(String handleOrDid) =>
+      _mutateRelationship(handleOrDid, 'mutes', delete: true);
+
+  Future<ProfileRelationship> blockProfile(String handleOrDid) =>
+      _mutateRelationship(handleOrDid, 'blocks', delete: false);
+
+  Future<ProfileRelationship> unblockProfile(String handleOrDid) =>
+      _mutateRelationship(handleOrDid, 'blocks', delete: true);
+
+  Future<ProfileAccountPage> listMutedProfiles({int? limit, String? cursor}) =>
+      _listRelationships('mutes', limit: limit, cursor: cursor);
+
+  Future<ProfileAccountPage> listBlockedProfiles({
+    int? limit,
+    String? cursor,
+  }) => _listRelationships('blocks', limit: limit, cursor: cursor);
+
   /// POST /v1/profiles/@{handleOrDid}/reports — private AppView report intake.
   Future<ReportResult> reportProfile(
     String handleOrDid,
@@ -135,6 +156,31 @@ class ProfileApiClient {
     'limit': ?limit,
     'cursor': ?cursor,
   };
+
+  Future<ProfileRelationship> _mutateRelationship(
+    String handleOrDid,
+    String collection, {
+    required bool delete,
+  }) => unwrapApi(() async {
+    final path = '/v1/profiles/@$handleOrDid/$collection';
+    final res = delete
+        ? await _dio.delete<Map<String, dynamic>>(path)
+        : await _dio.post<Map<String, dynamic>>(path);
+    return ProfileRelationshipMapper.fromMap(res.data!);
+  });
+
+  Future<ProfileAccountPage> _listRelationships(
+    String collection, {
+    int? limit,
+    String? cursor,
+  }) => unwrapApi(() async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/profiles/me/$collection',
+      queryParameters: _pageQuery(limit: limit, cursor: cursor),
+    );
+    final data = res.data!..putIfAbsent('totalCount', () => 0);
+    return ProfileAccountPageMapper.fromMap(data);
+  });
 
   Map<String, dynamic> _blobToMap(UploadedBlob blob) => {
     r'$type': blob.type,

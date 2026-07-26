@@ -1,15 +1,30 @@
+import 'dart:async';
+import 'dart:ui' show Tristate;
+
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
+import 'package:craftsky_app/profile/models/profile_relationship.dart';
+import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
+import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/saved_posts/data/saved_post_repository.dart';
+import 'package:craftsky_app/saved_posts/models/saved_post.dart';
+import 'package:craftsky_app/saved_posts/models/saved_post_folder.dart';
+import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provider.dart';
+import 'package:craftsky_app/saved_posts/widgets/save_post_dialog.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
+import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
@@ -17,7 +32,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../fakes/auth_session_fakes.dart';
 import '../../fakes/image_cache_fakes.dart';
+import '../../profile/fakes/fake_profile_repository.dart';
 
 Post _post({
   String text = 'Cast on for the Hitchhiker shawl tonight.',
@@ -30,12 +47,17 @@ Post _post({
   bool viewerHasLiked = false,
   bool viewerHasReposted = false,
   bool viewerHasReplied = false,
+  bool viewerHasSaved = false,
+  String? viewerSavedFolderId,
   List<PostImage>? images,
   DateTime? createdAt,
   ModerationMetadata? moderation,
   Project? project,
   PostReply? reply,
   QuoteView? quoteView,
+  bool? authorMuted,
+  bool? authorBlocking,
+  bool? authorBlockedBy,
 }) {
   return Post(
     uri: 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
@@ -51,6 +73,8 @@ Post _post({
     viewerHasLiked: viewerHasLiked,
     viewerHasReposted: viewerHasReposted,
     viewerHasReplied: viewerHasReplied,
+    viewerHasSaved: viewerHasSaved,
+    viewerSavedFolderId: viewerSavedFolderId,
     reply: reply,
     images: images,
     createdAt: createdAt ?? DateTime.now().subtract(const Duration(minutes: 3)),
@@ -59,6 +83,9 @@ Post _post({
       did: 'did:plc:alice',
       handle: 'alice.craftsky.social',
       displayName: displayName,
+      muted: authorMuted,
+      blocking: authorBlocking,
+      blockedBy: authorBlockedBy,
     ),
     moderation: moderation,
     project: project,
@@ -94,6 +121,193 @@ Future<void> _pump(
 
 void main() {
   group('PostCard', () {
+    testWidgets('AT-001 renders bookmark immediately before overflow', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      await _pump(
+        tester,
+        PostCard(post: _post()),
+        overrides: [authSessionProvider.overrideWith(SignedInAuthSession.new)],
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+      expect(find.byIcon(Icons.bookmark), findsNothing);
+      final bookmarkCenter = tester.getCenter(
+        find.byIcon(Icons.bookmark_border),
+      );
+      final overflowCenter = tester.getCenter(find.byIcon(Icons.more_horiz));
+      expect(bookmarkCenter.dx, lessThan(overflowCenter.dx));
+      expect(
+        tester
+            .getSemantics(find.byTooltip('Save post'))
+            .flagsCollection
+            .isSelected,
+        Tristate.isFalse,
+      );
+      expect(find.textContaining('save'), findsNothing);
+      semantics.dispose();
+    });
+
+    testWidgets('AT-001 renders selected bookmark semantics', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await _pump(
+        tester,
+        PostCard(post: _post(viewerHasSaved: true)),
+        overrides: [authSessionProvider.overrideWith(SignedInAuthSession.new)],
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.bookmark), findsOneWidget);
+      expect(
+        tester
+            .getSemantics(find.byTooltip('Remove from saved posts'))
+            .flagsCollection
+            .isSelected,
+        Tristate.isTrue,
+      );
+      semantics.dispose();
+    });
+
+    testWidgets('AT-001 unsaved bookmark opens chooser without saving', (
+      tester,
+    ) async {
+      final account = AccountKey('did:plc:test');
+      final repository = _PostCardSavedRepository();
+      await _pump(
+        tester,
+        PostCard(post: _post()),
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          accountSavedPostRepositoryProvider(
+            account,
+          ).overrideWith((ref) async => repository),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Save post'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SavePostDialog), findsOneWidget);
+      expect(repository.saveCalls, 0);
+    });
+
+    testWidgets('AT-001 saved bookmark starts one optimistic unsave', (
+      tester,
+    ) async {
+      final account = AccountKey('did:plc:test');
+      final repository = _PostCardSavedRepository()
+        ..unsaveCompleter = Completer<void>();
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            viewerHasSaved: true,
+            viewerSavedFolderId: 'folder-a',
+          ),
+        ),
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          accountSavedPostRepositoryProvider(
+            account,
+          ).overrideWith((ref) async => repository),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Remove from saved posts'));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.bookmark_border));
+      await tester.pump();
+
+      expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+      expect(repository.unsaveCalls, 1);
+      expect(find.text('Undo'), findsNothing);
+    });
+
+    testWidgets('AT-003 failed unsave restores bookmark with safe feedback', (
+      tester,
+    ) async {
+      final account = AccountKey('did:plc:test');
+      final repository = _PostCardSavedRepository()
+        ..unsaveCompleter = Completer<void>();
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            viewerHasSaved: true,
+            viewerSavedFolderId: 'private-folder-sentinel',
+          ),
+        ),
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          accountSavedPostRepositoryProvider(
+            account,
+          ).overrideWith((ref) async => repository),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Remove from saved posts'));
+      await tester.pump();
+      expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+
+      repository.unsaveCompleter!.completeError(
+        StateError('private-folder-sentinel request failed'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.bookmark), findsOneWidget);
+      expect(
+        find.text("This post couldn't be removed. Try again."),
+        findsOneWidget,
+      );
+      expect(find.textContaining('private-folder-sentinel'), findsNothing);
+      expect(find.text('Undo'), findsNothing);
+      expect(repository.unsaveCalls, 1);
+    });
+
+    testWidgets('AT-003 canceled unsave restores bookmark silently', (
+      tester,
+    ) async {
+      final account = AccountKey('did:plc:test');
+      final repository = _PostCardSavedRepository()
+        ..unsaveCompleter = Completer<void>();
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            viewerHasSaved: true,
+            viewerSavedFolderId: 'folder-a',
+          ),
+        ),
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          accountSavedPostRepositoryProvider(
+            account,
+          ).overrideWith((ref) async => repository),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Remove from saved posts'));
+      await tester.pump();
+      expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+
+      repository.unsaveCompleter!.completeError(const ApiCanceled());
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.bookmark), findsOneWidget);
+      expect(find.byType(SnackBar), findsNothing);
+      expect(
+        find.text("This post couldn't be removed. Try again."),
+        findsNothing,
+      );
+      expect(repository.unsaveCalls, 1);
+    });
+
     testWidgets('renders author, handle, body, and relative time', (
       tester,
     ) async {
@@ -321,7 +535,9 @@ void main() {
       expect(reposterTaps, 1);
     });
 
-    testWidgets('renders visible quote preview', (tester) async {
+    testWidgets('AT-010 renders visible quote through PostSummary', (
+      tester,
+    ) async {
       var quotedPostTaps = 0;
       var quotedAuthorTaps = 0;
       await _pump(
@@ -351,6 +567,7 @@ void main() {
       );
 
       expect(find.text('My take on this pattern.'), findsOneWidget);
+      expect(find.byType(PostSummary), findsOneWidget);
       expect(find.text('Original quoted post'), findsOneWidget);
       expect(find.text('Bob'), findsOneWidget);
       expect(find.text('@bob.craftsky.social'), findsOneWidget);
@@ -414,7 +631,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.byKey(const Key('quote-preview-image')), findsOneWidget);
+      expect(find.byKey(const Key('post-summary-image')), findsOneWidget);
       final image = tester.widget<CachedNetworkImage>(
         find.byType(CachedNetworkImage),
       );
@@ -484,7 +701,7 @@ void main() {
         );
         await tester.pump();
 
-        expect(find.byKey(const Key('quote-preview-image')), findsOneWidget);
+        expect(find.byKey(const Key('post-summary-image')), findsOneWidget);
         expect(find.text('Hitchhiker Shawl'), findsOneWidget);
         expect(
           find.byWidgetPredicate(
@@ -514,6 +731,59 @@ void main() {
 
       expect(find.text('Quoted post hidden'), findsOneWidget);
       expect(find.text('Quoted post unavailable'), findsOneWidget);
+    });
+
+    testWidgets('muted quote is revealable and blocked quote is not', (
+      tester,
+    ) async {
+      var reveals = 0;
+      await _pump(
+        tester,
+        Column(
+          children: [
+            PostCard(
+              post: _post(
+                quoteView: const QuoteView(
+                  state: 'muted',
+                  revealable: true,
+                ),
+              ),
+              onRevealQuotedPost: () => reveals++,
+            ),
+            PostCard(
+              post: _post(
+                quoteView: const QuoteView(
+                  state: 'blocked',
+                  revealable: false,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      expect(find.text('Post from a muted account'), findsOneWidget);
+      expect(find.text('Show post'), findsOneWidget);
+      expect(find.text('Post unavailable'), findsOneWidget);
+      await tester.tap(find.text('Show post'));
+      expect(reveals, 1);
+    });
+
+    testWidgets('protected post card never renders sentinel content', (
+      tester,
+    ) async {
+      final post = PostMapper.fromMap({
+        'availability': 'blocked',
+        'relationship': {'state': 'blocked', 'revealable': false},
+      });
+      await _pump(tester, PostCard(post: post));
+
+      expect(find.text('Post unavailable'), findsOneWidget);
+      expect(find.byIcon(Icons.favorite_border), findsNothing);
+      expect(find.byIcon(Icons.bookmark_border), findsNothing);
+      expect(find.byIcon(Icons.bookmark), findsNothing);
+      expect(find.byIcon(Icons.more_horiz), findsNothing);
+      expect(find.textContaining('unavailable.invalid'), findsNothing);
     });
 
     testWidgets('colours reply label when viewer has replied', (tester) async {
@@ -1101,6 +1371,128 @@ void main() {
       expect(find.text('Report post'), findsNothing);
     });
 
+    testWidgets('top-level card disappears as soon as mute starts', (
+      tester,
+    ) async {
+      final completer = Completer<ProfileRelationship>();
+      final account = AccountKey('did:plc:test');
+      final repo = FakeProfileRepository(onMute: (_) => completer.future);
+      await _pump(
+        tester,
+        PostCard(post: _post(), hideWhenAuthorProtected: true),
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          accountRelationshipRepositoryProvider(
+            account,
+          ).overrideWith((ref) async => repo),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mute account'));
+      await tester.pump();
+
+      expect(
+        find.text('Cast on for the Hitchhiker shawl tonight.'),
+        findsNothing,
+      );
+      completer.complete(const ProfileRelationship(muted: true));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('IT-009 repost row disappears when reposter mute starts', (
+      tester,
+    ) async {
+      final completer = Completer<ProfileRelationship>();
+      final account = AccountKey('did:plc:test');
+      final repo = FakeProfileRepository(onMute: (_) => completer.future);
+      final reason = RepostReason(
+        type: RepostReasonType.repost,
+        by: PostAuthor(
+          did: 'did:plc:bob',
+          handle: 'bob.craftsky.social',
+          muted: false,
+          blocking: false,
+          blockedBy: false,
+        ),
+        uri: 'at://did:plc:bob/social.craftsky.feed.repost/r1',
+        createdAt: DateTime(2026, 7, 19),
+        indexedAt: DateTime(2026, 7, 19),
+      );
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(),
+          repostReason: reason,
+          hideWhenAuthorProtected: true,
+        ),
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          accountRelationshipRepositoryProvider(
+            account,
+          ).overrideWith((ref) async => repo),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PostCard)),
+      );
+      unawaited(
+        container
+            .read(
+              profileRelationshipProvider(account, 'did:plc:bob').notifier,
+            )
+            .mutate(ProfileRelationshipAction.mute),
+      );
+      await tester.pump();
+
+      expect(
+        find.text('Cast on for the Hitchhiker shawl tonight.'),
+        findsNothing,
+      );
+      completer.complete(const ProfileRelationship(muted: true));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets(
+      'AT-003 fresh muted post shows annotation and Unmute action',
+      (tester) async {
+        final account = AccountKey('did:plc:test');
+        await _pump(
+          tester,
+          PostCard(
+            post: _post(
+              authorMuted: true,
+              authorBlocking: false,
+              authorBlockedBy: false,
+            ),
+          ),
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            accountRelationshipRepositoryProvider(
+              account,
+            ).overrideWith((ref) async => FakeProfileRepository()),
+          ],
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Muted account'), findsOneWidget);
+        expect(
+          find.text('Cast on for the Hitchhiker shawl tonight.'),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.byIcon(Icons.more_horiz));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Unmute account'), findsOneWidget);
+        expect(find.text('Mute account'), findsNothing);
+      },
+    );
+
     testWidgets('renders generic warning copy without raw reason text', (
       tester,
     ) async {
@@ -1450,6 +1842,53 @@ void main() {
       expect(find.byType(PostImageGallery), findsNothing);
     });
   });
+}
+
+final class _PostCardSavedRepository implements SavedPostRepository {
+  int saveCalls = 0;
+  int unsaveCalls = 0;
+  Completer<void>? unsaveCompleter;
+
+  @override
+  Future<SavedPostState> save(Post post, {required String? folderId}) async {
+    saveCalls++;
+    return SavedPostState(
+      savedAt: DateTime.utc(2026, 7, 21),
+      folderId: folderId,
+    );
+  }
+
+  @override
+  Future<void> unsave(Post post) {
+    unsaveCalls++;
+    return unsaveCompleter?.future ?? Future<void>.value();
+  }
+
+  @override
+  Future<SavedPostPage> list({
+    required SavedPostScope scope,
+    required SavedPostSort sort,
+    String? cursor,
+    int? limit,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<SavedPostFolderPage> listFolders({String? cursor, int? limit}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<SavedPostFolder> createFolder(String name) =>
+      throw UnimplementedError();
+
+  @override
+  Future<SavedPostFolder> renameFolder(String folderId, String name) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> deleteFolder(
+    String folderId, {
+    required bool deleteSaves,
+  }) => throw UnimplementedError();
 }
 
 List<TextSpan> _leafTextSpans(TextSpan root) {

@@ -8,6 +8,8 @@ import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/notifications/widgets/notification_category_icon.dart';
+import 'package:craftsky_app/profile/models/profile_relationship.dart';
+import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
@@ -15,6 +17,7 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
+import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -37,11 +40,50 @@ class NotificationRow extends ConsumerWidget {
       return _buildSystem(context, ref, system);
     }
     final social = notification as SocialNotification;
+    final registry = ref.watch(sessionRegistryProvider).value;
+    final account = owner?.account ?? registry?.activeLease?.session.account;
+    final actorRelationshipProvider =
+        account == null ||
+            !social.actor.available ||
+            account.did == social.actor.did
+        ? null
+        : profileRelationshipProvider(
+            account,
+            social.actor.did.toString(),
+          );
+    final cachedRelationship = actorRelationshipProvider == null
+        ? null
+        : ref.watch(actorRelationshipProvider);
+    final serverRelationship = social.actor.hasViewerState
+        ? ProfileRelationship.fromProfileFlags(
+            muted: social.actor.muted ?? false,
+            blocking: social.actor.blocking ?? false,
+            blockedBy: social.actor.blockedBy ?? false,
+          )
+        : const ProfileRelationship(initialized: true);
+    if (actorRelationshipProvider != null &&
+        !(cachedRelationship?.initialized ?? false)) {
+      unawaited(
+        Future<void>.microtask(
+          () => ref
+              .read(actorRelationshipProvider.notifier)
+              .seed(serverRelationship),
+        ),
+      );
+    }
+    final relationship = cachedRelationship?.initialized ?? false
+        ? cachedRelationship
+        : social.actor.hasViewerState
+        ? serverRelationship
+        : null;
+    if ((relationship?.muted ?? false) || (relationship?.hasBlock ?? false)) {
+      return const SizedBox.shrink();
+    }
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final actor = social.actor.displayLabel;
     final actionColor = _actionColor(social, theme.colorScheme);
-    final (title, subtitle) = switch (social) {
+    final (title, subjectPost) = switch (social) {
       FollowNotification() => (l10n.notificationFollowRow(actor), null),
       LikeNotification(:final subjectPost) => (
         switch (_roleOf(subjectPost)) {
@@ -53,7 +95,7 @@ class NotificationRow extends ConsumerWidget {
             actor,
           ),
         },
-        subjectPost.text,
+        subjectPost,
       ),
       RepostNotification(:final subjectPost) => (
         switch (_roleOf(subjectPost)) {
@@ -65,7 +107,7 @@ class NotificationRow extends ConsumerWidget {
             actor,
           ),
         },
-        subjectPost.text,
+        subjectPost,
       ),
       ReplyNotification(:final subjectPost) => (
         switch (_roleOf(subjectPost)) {
@@ -76,15 +118,15 @@ class NotificationRow extends ConsumerWidget {
             actor,
           ),
         },
-        subjectPost.text,
+        subjectPost,
       ),
       MentionNotification(:final subjectPost) => (
         l10n.notificationMentionRow(actor),
-        subjectPost.text,
+        subjectPost,
       ),
       QuoteNotification(:final subjectPost) => (
         l10n.notificationQuoteRow(actor),
-        subjectPost.text,
+        subjectPost,
       ),
       GenericNotification() => (l10n.notificationGenericRow, null),
       UnavailableNotification() => (l10n.notificationUnavailableRow, null),
@@ -140,13 +182,11 @@ class NotificationRow extends ConsumerWidget {
                         RelativeTimeText(timestamp: notification.createdAt),
                       ],
                     ),
-                    if (subtitle != null) ...[
+                    if (subjectPost != null) ...[
                       const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                      PostSummary(
+                        data: PostSummaryData.notificationSubject(subjectPost),
+                        padding: EdgeInsets.zero,
                       ),
                     ],
                     if (social is FollowNotification &&

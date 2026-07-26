@@ -651,6 +651,11 @@ class _CommentCard extends ConsumerWidget {
       children: [
         PostCard(
           post: item.post,
+          onRevealPost: item.post.availability == 'muted'
+              ? () => unawaited(
+                  ref.read(repliesLoader.notifier).revealMutedBranch(),
+                )
+              : null,
           style: PostCardStyle.flat,
           isHighlighted: highlightedUri == item.post.uri,
           replyTooltip: l10n.postThreadReplyAction,

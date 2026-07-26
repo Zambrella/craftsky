@@ -80,6 +80,27 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     opt: true,
     def: false,
   );
+  static bool _$muted(Profile v) => v.muted;
+  static const Field<Profile, bool> _f$muted = Field(
+    'muted',
+    _$muted,
+    opt: true,
+    def: false,
+  );
+  static bool _$blocking(Profile v) => v.blocking;
+  static const Field<Profile, bool> _f$blocking = Field(
+    'blocking',
+    _$blocking,
+    opt: true,
+    def: false,
+  );
+  static bool _$blockedBy(Profile v) => v.blockedBy;
+  static const Field<Profile, bool> _f$blockedBy = Field(
+    'blockedBy',
+    _$blockedBy,
+    opt: true,
+    def: false,
+  );
   static bool _$isCraftskyProfile(Profile v) => v.isCraftskyProfile;
   static const Field<Profile, bool> _f$isCraftskyProfile = Field(
     'isCraftskyProfile',
@@ -141,6 +162,9 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     #banner: _f$banner,
     #createdAt: _f$createdAt,
     #viewerIsFollowing: _f$viewerIsFollowing,
+    #muted: _f$muted,
+    #blocking: _f$blocking,
+    #blockedBy: _f$blockedBy,
     #isCraftskyProfile: _f$isCraftskyProfile,
     #followerCount: _f$followerCount,
     #followingCount: _f$followingCount,
@@ -162,6 +186,9 @@ class ProfileMapper extends ClassMapperBase<Profile> {
       banner: data.dec(_f$banner),
       createdAt: data.dec(_f$createdAt),
       viewerIsFollowing: data.dec(_f$viewerIsFollowing),
+      muted: data.dec(_f$muted),
+      blocking: data.dec(_f$blocking),
+      blockedBy: data.dec(_f$blockedBy),
       isCraftskyProfile: data.dec(_f$isCraftskyProfile),
       followerCount: data.dec(_f$followerCount),
       followingCount: data.dec(_f$followingCount),
@@ -243,6 +270,9 @@ abstract class ProfileCopyWith<$R, $In extends Profile, $Out>
     String? banner,
     DateTime? createdAt,
     bool? viewerIsFollowing,
+    bool? muted,
+    bool? blocking,
+    bool? blockedBy,
     bool? isCraftskyProfile,
     int? followerCount,
     int? followingCount,
@@ -285,6 +315,9 @@ class _ProfileCopyWithImpl<$R, $Out>
     Object? banner = $none,
     Object? createdAt = $none,
     bool? viewerIsFollowing,
+    bool? muted,
+    bool? blocking,
+    bool? blockedBy,
     bool? isCraftskyProfile,
     Object? followerCount = $none,
     Object? followingCount = $none,
@@ -304,6 +337,9 @@ class _ProfileCopyWithImpl<$R, $Out>
       if (banner != $none) #banner: banner,
       if (createdAt != $none) #createdAt: createdAt,
       if (viewerIsFollowing != null) #viewerIsFollowing: viewerIsFollowing,
+      if (muted != null) #muted: muted,
+      if (blocking != null) #blocking: blocking,
+      if (blockedBy != null) #blockedBy: blockedBy,
       if (isCraftskyProfile != null) #isCraftskyProfile: isCraftskyProfile,
       if (followerCount != $none) #followerCount: followerCount,
       if (followingCount != $none) #followingCount: followingCount,
@@ -329,6 +365,9 @@ class _ProfileCopyWithImpl<$R, $Out>
       #viewerIsFollowing,
       or: $value.viewerIsFollowing,
     ),
+    muted: data.get(#muted, or: $value.muted),
+    blocking: data.get(#blocking, or: $value.blocking),
+    blockedBy: data.get(#blockedBy, or: $value.blockedBy),
     isCraftskyProfile: data.get(
       #isCraftskyProfile,
       or: $value.isCraftskyProfile,

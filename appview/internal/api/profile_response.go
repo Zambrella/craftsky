@@ -2,6 +2,7 @@
 package api
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -17,6 +18,9 @@ type ProfileResponse struct {
 	DID                 syntax.DID          `json:"did"`
 	Handle              syntax.Handle       `json:"handle"`
 	ViewerIsFollowing   bool                `json:"viewerIsFollowing"`
+	Muted               bool                `json:"muted"`
+	Blocking            bool                `json:"blocking"`
+	BlockedBy           bool                `json:"blockedBy"`
 	IsCraftskyProfile   bool                `json:"isCraftskyProfile"`
 	FollowingCount      *int                `json:"followingCount,omitempty"`
 	FollowerCount       *int                `json:"followerCount,omitempty"`
@@ -33,6 +37,30 @@ type ProfileResponse struct {
 	Moderation          *ModerationMetadata `json:"moderation,omitempty"`
 }
 
+// MarshalJSON keeps the ordinary profile contract unchanged while enforcing
+// the blocked-profile information boundary on the wire.
+func (p ProfileResponse) MarshalJSON() ([]byte, error) {
+	if !p.Blocking && !p.BlockedBy {
+		type ordinary ProfileResponse
+		return json.Marshal(ordinary(p))
+	}
+	type blockedShell struct {
+		DID               syntax.DID    `json:"did"`
+		Handle            syntax.Handle `json:"handle"`
+		DisplayName       *string       `json:"displayName,omitempty"`
+		Avatar            *string       `json:"avatar,omitempty"`
+		IsCraftskyProfile bool          `json:"isCraftskyProfile"`
+		Muted             bool          `json:"muted"`
+		Blocking          bool          `json:"blocking"`
+		BlockedBy         bool          `json:"blockedBy"`
+	}
+	return json.Marshal(blockedShell{
+		DID: p.DID, Handle: p.Handle, DisplayName: p.DisplayName, Avatar: p.Avatar,
+		IsCraftskyProfile: p.IsCraftskyProfile,
+		Muted:             p.Muted, Blocking: p.Blocking, BlockedBy: p.BlockedBy,
+	})
+}
+
 type ProfileAccountPage struct {
 	Items      []ProfileAccountSummary `json:"items"`
 	Cursor     *string                 `json:"cursor,omitempty"`
@@ -46,6 +74,9 @@ type ProfileAccountSummary struct {
 	Description       *string       `json:"description,omitempty"`
 	Avatar            *string       `json:"avatar,omitempty"`
 	IsCraftskyProfile bool          `json:"isCraftskyProfile"`
+	Muted             bool          `json:"muted"`
+	Blocking          bool          `json:"blocking"`
+	BlockedBy         bool          `json:"blockedBy"`
 }
 
 func BuildProfileAccountSummary(row *ProfileAccountRow, handle syntax.Handle) ProfileAccountSummary {
@@ -55,6 +86,9 @@ func BuildProfileAccountSummary(row *ProfileAccountRow, handle syntax.Handle) Pr
 		DisplayName:       row.DisplayName,
 		Description:       row.Description,
 		IsCraftskyProfile: row.IsCraftskyProfile,
+		Muted:             row.Muted,
+		Blocking:          row.Blocking,
+		BlockedBy:         row.BlockedBy,
 	}
 	if avatar := synthBlobURL("avatar", row.DID, row.AvatarCID, row.AvatarMime); avatar != "" {
 		out.Avatar = &avatar
@@ -89,6 +123,9 @@ func BuildProfileResponse(row *ProfileRow, handle syntax.Handle, includeCreatedA
 		DID:                 syntax.DID(row.DID),
 		Handle:              handle,
 		ViewerIsFollowing:   row.ViewerIsFollowing,
+		Muted:               row.Muted,
+		Blocking:            row.Blocking,
+		BlockedBy:           row.BlockedBy,
 		IsCraftskyProfile:   row.IsCraftskyProfile,
 		FollowingCount:      row.FollowingCount,
 		FollowerCount:       row.FollowerCount,

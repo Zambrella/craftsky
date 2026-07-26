@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
@@ -9,9 +11,12 @@ import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/notifications/widgets/notification_row.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_relationship.dart';
+import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
@@ -228,6 +233,36 @@ void main() {
     },
   );
 
+  testWidgets('AT-011 post-bearing rows render subjects with PostSummary', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      _TestApp(
+        home: Scaffold(
+          body: ListView(
+            children: [
+              NotificationRow(notification: _like('like-summary')),
+              NotificationRow(notification: _repost('repost-summary')),
+              NotificationRow(notification: _reply('reply-summary')),
+              NotificationRow(notification: _mention('mention-summary')),
+              NotificationRow(notification: _quote('quote-summary')),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PostSummary), findsNWidgets(5));
+    expect(find.text('viewer post'), findsNWidgets(5));
+    expect(find.byIcon(Icons.bookmark), findsNothing);
+    expect(find.byIcon(Icons.bookmark_border), findsNothing);
+  });
+
   testWidgets('UT-021 derives an actor avatar URL from an older CID response', (
     tester,
   ) async {
@@ -348,6 +383,64 @@ void main() {
     expect(messenger.calls, hasLength(1));
     expect(messenger.calls.single.$1, 'error');
     expect(messenger.calls.single.$2, 'Could not update follow state.');
+  });
+
+  testWidgets('AT-006 loaded notification disappears when actor mute starts', (
+    tester,
+  ) async {
+    final account = AccountKey('did:plc:viewer');
+    final completer = Completer<ProfileRelationship>();
+    final relationshipRepository = FakeProfileRepository(
+      onMute: (_) => completer.future,
+    );
+    final notification = CraftskyNotification.fromMap({
+      ..._baseNotification('follow', 'pending-mute'),
+      'actor': {
+        'did': 'did:plc:alice',
+        'handle': 'alice.craftsky.social',
+        'displayName': 'Alice',
+        'muted': false,
+        'blocking': false,
+        'blockedBy': false,
+      },
+    });
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          accountRelationshipRepositoryProvider(
+            account,
+          ).overrideWith((ref) async => relationshipRepository),
+        ],
+        child: _TestApp(
+          home: Scaffold(
+            body: NotificationRow(
+              notification: notification,
+              owner: AccountSessionLease(
+                account: account,
+                sessionGeneration: 1,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(NotificationRow)),
+    );
+    unawaited(
+      container
+          .read(
+            profileRelationshipProvider(account, 'did:plc:alice').notifier,
+          )
+          .mutate(ProfileRelationshipAction.mute),
+    );
+    await tester.pump();
+
+    expect(find.text('Alice followed you'), findsNothing);
+    completer.complete(const ProfileRelationship(muted: true));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('preserves rows during load-more progress and retry', (
@@ -747,6 +840,7 @@ Map<String, dynamic> _post() => {
   'viewerHasLiked': false,
   'viewerHasReposted': false,
   'viewerHasReplied': false,
+  'viewerHasSaved': false,
   'createdAt': '2026-05-28T12:00:00Z',
   'indexedAt': '2026-05-28T12:00:01Z',
   'author': {'did': 'did:plc:viewer', 'handle': 'viewer.craftsky.social'},

@@ -1,6 +1,5 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
-import 'package:craftsky_app/settings/pages/follow_list_page.dart';
 import 'package:craftsky_app/settings/widgets/clear_image_cache_tile.dart';
 import 'package:craftsky_app/settings/widgets/sign_out_tile.dart';
 import 'package:flutter/material.dart';
@@ -27,24 +26,29 @@ class _SettingsPageBody extends ConsumerWidget {
     return ListView(
       children: [
         ListTile(
+          leading: const Icon(Icons.bookmarks_outlined),
+          title: Text(l10n.savedPostsTitle),
+          onTap: () => const SavedPostsRoute().go(context),
+        ),
+        ListTile(
           leading: const Icon(Icons.group_outlined),
           title: const Text('Followers'),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) =>
-                  const FollowListPage(kind: FollowListKind.followers),
-            ),
-          ),
+          onTap: () => const FollowersRoute().go(context),
+        ),
+        ListTile(
+          leading: const Icon(Icons.volume_off_outlined),
+          title: Text(l10n.settingsMutedAccounts),
+          onTap: () => const MutedAccountsRoute().go(context),
+        ),
+        ListTile(
+          leading: const Icon(Icons.block_outlined),
+          title: Text(l10n.settingsBlockedAccounts),
+          onTap: () => const BlockedAccountsRoute().go(context),
         ),
         ListTile(
           leading: const Icon(Icons.person_add_alt_outlined),
           title: const Text('Following'),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) =>
-                  const FollowListPage(kind: FollowListKind.following),
-            ),
-          ),
+          onTap: () => const FollowingRoute().go(context),
         ),
         ListTile(
           leading: const Icon(Icons.photo_camera_outlined),

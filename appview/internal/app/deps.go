@@ -26,6 +26,7 @@ import (
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/push"
+	"social.craftsky/appview/internal/relationships"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -80,8 +81,14 @@ type Deps struct {
 	ProfileStore *api.ProfileStore
 	// IdentityCacheUpdater upserts authenticated users' current handles after profile initialization.
 	IdentityCacheUpdater auth.IdentityCacheUpdater
+	// RepositoryTracker requests ordinary Tap tracking/backfill on membership and OAuth initialization.
+	RepositoryTracker auth.RepositoryTracker
 	// FollowStore serves follow graph read/write operations for /v1/profiles/*/follows.
 	FollowStore *api.FollowStore
+	// RelationshipStore owns private mutes and reads the Tap-owned block projection.
+	RelationshipStore *relationships.Store
+	// RelationshipMutations is the narrow handler-facing mutation service.
+	RelationshipMutations api.RelationshipMutationService
 	// ReportStore persists AppView-private moderation report intake.
 	ReportStore *api.ReportStore
 	// ReportForwarder prepares future report forwarding metadata without live PDS/Ozone submission.
@@ -92,6 +99,27 @@ type Deps struct {
 	// by the OAuth callback's InitializeProfile step and the write-proxy
 	// handlers (today PUT /v1/profiles/me).
 	NewPDSClient auth.PDSClientFactory
+}
+
+type instagramRelationshipSafetyProvider struct {
+	store *relationships.Store
+}
+
+func (p instagramRelationshipSafetyProvider) RelationshipSafety(
+	ctx context.Context,
+	importerDID syntax.DID,
+	targetDID syntax.DID,
+) (instagram.RelationshipSafetyFacts, error) {
+	state, err := p.store.State(ctx, importerDID, targetDID)
+	if err != nil {
+		return instagram.RelationshipSafetyFacts{}, err
+	}
+	return instagram.RelationshipSafetyFacts{
+		Available:            true,
+		ImporterBlocksTarget: state.Blocking,
+		TargetBlocksImporter: state.BlockedBy,
+		ImporterMutesTarget:  state.Muted,
+	}, nil
 }
 
 // NewDevDeps wires the dev variant: debug-level logger, StackedAuthService
@@ -158,6 +186,11 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	identityDir := identity.DefaultDirectory()
 
 	anonPDS := auth.NewAnonymousPDSClient(identityDir, 5*time.Second)
+	repositoryTracker, err := tap.NewAdminClient(cfg.TapWSURL, &http.Client{Timeout: 5 * time.Second})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("build Tap admin client: %w", err)
+	}
 	observer := observability.New(observability.Config{
 		Env: string(cfg.Env), Release: cfg.SentryRelease, LogsEnabled: cfg.SentryLogsEnabled, TracingEnabled: cfg.SentryTracingEnabled, TracesSampleRate: cfg.SentryTracesSampleRate, MetricsEnabled: cfg.SentryMetricsEnabled, TapTracingEnabled: cfg.SentryTapTracingEnabled, TapTracesSampleRate: cfg.SentryTapTracesSampleRate, SentryDSN: cfg.SentryDSN, Logger: logger,
 	})
@@ -169,9 +202,12 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		pool.Close()
 		return nil, nil, fmt.Errorf("Instagram notification limits: %w", err)
 	}
-	// Production matching and every later visibility boundary intentionally
-	// fail closed until the repository has a real block/mute safety provider.
-	suggestionPolicy := instagram.NewPostgresInstagramSuggestionEligibilityPolicy(pool, nil, time.Now)
+	relationshipStore := relationships.NewStore(pool)
+	suggestionPolicy := instagram.NewPostgresInstagramSuggestionEligibilityPolicy(
+		pool,
+		instagramRelationshipSafetyProvider{store: relationshipStore},
+		time.Now,
+	)
 	instagramNotificationEligibility, err := instagram.NewNotificationEligibilityService(pool, suggestionPolicy, lifecycle)
 	if err != nil {
 		pool.Close()
@@ -193,7 +229,15 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		instagram:     instagramPrivateData,
 		now:           time.Now,
 	}
-	dispatcher := newIndexerDispatcherWithActorDeletion(pool, anonPDS, logger, lifecycle, profileDeletion)
+	dispatcher := newIndexerDispatcherWithActorDeletion(
+		pool,
+		anonPDS,
+		logger,
+		repositoryTracker,
+		observer,
+		lifecycle,
+		profileDeletion,
+	)
 	identityDeletion := &terminalIdentityDeletion{handlers: []tap.IdentityDeletionHandler{
 		notificationActorDeletion,
 		instagramPrivateData,
@@ -208,9 +252,11 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		OAuthApp:                         oauthApp,
 		OAuthStore:                       oauthStore,
 		CraftskySessionStore:             craftskyStore,
+		RepositoryTracker:                repositoryTracker,
 		HandleResolver:                   api.DirectoryHandleResolver{Directory: identityDir},
 		Indexer:                          dispatcher,
 		Consumer:                         tap.NotImplemented{}, // temp, replaced below
+		RelationshipStore:                relationshipStore,
 		InstagramMembership:              instagramMembership,
 		InstagramRateLimiter:             instagramRateLimiter,
 		InstagramPrivateData:             instagramPrivateData,
@@ -248,7 +294,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		}
 	}
 
-	deps.ProfileStore = api.NewProfileStore(pool, anonPDS)
+	deps.ProfileStore = api.NewProfileStore(pool)
 	verificationStore := instagram.NewVerificationStore(pool)
 	var challengeCodec *instagram.ChallengeCodec
 	if cfg.InstagramData.Available() {
@@ -429,6 +475,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 			},
 		}, nil
 	})
+	deps.RelationshipMutations = relationships.NewMutationService(deps.RelationshipStore, deps.NewPDSClient, time.Now, deps.Observability)
 
 	var once sync.Once
 	cleanup := func() {
@@ -470,6 +517,17 @@ func (d *Deps) expirePDSSession(ctx context.Context, did syntax.DID, sid string)
 }
 
 func newIndexerDispatcher(pool *pgxpool.Pool, anonPDS auth.PDSClient, logger *slog.Logger, lifecycles ...notifications.Lifecycle) *index.Dispatcher {
+	return newIndexerDispatcherWithTracker(pool, anonPDS, logger, nil, nil, lifecycles...)
+}
+
+func newIndexerDispatcherWithTracker(
+	pool *pgxpool.Pool,
+	anonPDS auth.PDSClient,
+	logger *slog.Logger,
+	repositoryTracker tap.RepositoryTracker,
+	observer index.RelationshipObserver,
+	lifecycles ...notifications.Lifecycle,
+) *index.Dispatcher {
 	lifecycle := notifications.Lifecycle(notifications.NoopLifecycle{})
 	if len(lifecycles) > 0 && lifecycles[0] != nil {
 		lifecycle = lifecycles[0]
@@ -478,6 +536,8 @@ func newIndexerDispatcher(pool *pgxpool.Pool, anonPDS auth.PDSClient, logger *sl
 		pool,
 		anonPDS,
 		logger,
+		repositoryTracker,
+		observer,
 		lifecycle,
 		notifications.NewActorDeletionService(pool),
 	)
@@ -487,6 +547,8 @@ func newIndexerDispatcherWithActorDeletion(
 	pool *pgxpool.Pool,
 	anonPDS auth.PDSClient,
 	logger *slog.Logger,
+	repositoryTracker tap.RepositoryTracker,
+	observer index.RelationshipObserver,
 	lifecycle notifications.Lifecycle,
 	actorDeletion notifications.ActorDeletion,
 ) *index.Dispatcher {
@@ -498,7 +560,7 @@ func newIndexerDispatcherWithActorDeletion(
 	}
 	dispatcher := index.NewDispatcher(index.NotImplemented{})
 	blueskyIdx := index.NewBlueskyProfile(pool)
-	backfiller := index.NewBlueskyBackfiller(anonPDS, blueskyIdx)
+	backfiller := index.NewObservedBlueskyBackfiller(anonPDS, blueskyIdx, repositoryTracker, observer)
 	dispatcher.Register("social.craftsky.actor.profile",
 		index.NewCraftskyProfile(pool, backfiller, logger, actorDeletion))
 	dispatcher.Register("social.craftsky.feed.post",
@@ -509,6 +571,8 @@ func newIndexerDispatcherWithActorDeletion(
 		index.NewCraftskyRepost(pool, logger, lifecycle))
 	dispatcher.Register("app.bsky.graph.follow",
 		index.NewBlueskyFollow(pool, lifecycle))
+	dispatcher.Register("app.bsky.graph.block",
+		index.NewBlueskyBlock(pool, observer))
 	dispatcher.Register("app.bsky.actor.profile", blueskyIdx)
 	return dispatcher
 }

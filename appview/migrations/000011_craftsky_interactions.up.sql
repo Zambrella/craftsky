@@ -2,7 +2,7 @@
 -- See .sisyphus/plans/backend-likes-reposts-replies.md.
 CREATE TABLE craftsky_likes (
     uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    did         TEXT        NOT NULL,
     rkey        TEXT        NOT NULL,
     cid         TEXT        NOT NULL,
 
@@ -28,7 +28,7 @@ CREATE INDEX craftsky_likes_indexed_at_desc
 
 CREATE TABLE craftsky_reposts (
     uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    did         TEXT        NOT NULL,
     rkey        TEXT        NOT NULL,
     cid         TEXT        NOT NULL,
 

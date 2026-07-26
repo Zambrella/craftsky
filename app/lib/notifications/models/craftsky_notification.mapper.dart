@@ -66,6 +66,24 @@ class NotificationActorMapper extends ClassMapperBase<NotificationActor> {
     opt: true,
     def: true,
   );
+  static bool? _$muted(NotificationActor v) => v.muted;
+  static const Field<NotificationActor, bool> _f$muted = Field(
+    'muted',
+    _$muted,
+    opt: true,
+  );
+  static bool? _$blocking(NotificationActor v) => v.blocking;
+  static const Field<NotificationActor, bool> _f$blocking = Field(
+    'blocking',
+    _$blocking,
+    opt: true,
+  );
+  static bool? _$blockedBy(NotificationActor v) => v.blockedBy;
+  static const Field<NotificationActor, bool> _f$blockedBy = Field(
+    'blockedBy',
+    _$blockedBy,
+    opt: true,
+  );
 
   @override
   final MappableFields<NotificationActor> fields = const {
@@ -76,6 +94,9 @@ class NotificationActorMapper extends ClassMapperBase<NotificationActor> {
     #avatarCid: _f$avatarCid,
     #viewerIsFollowing: _f$viewerIsFollowing,
     #available: _f$available,
+    #muted: _f$muted,
+    #blocking: _f$blocking,
+    #blockedBy: _f$blockedBy,
   };
 
   static NotificationActor _instantiate(DecodingData data) {
@@ -87,6 +108,9 @@ class NotificationActorMapper extends ClassMapperBase<NotificationActor> {
       avatarCid: data.dec(_f$avatarCid),
       viewerIsFollowing: data.dec(_f$viewerIsFollowing),
       available: data.dec(_f$available),
+      muted: data.dec(_f$muted),
+      blocking: data.dec(_f$blocking),
+      blockedBy: data.dec(_f$blockedBy),
     );
   }
 
@@ -162,6 +186,9 @@ abstract class NotificationActorCopyWith<
     Cid? avatarCid,
     bool? viewerIsFollowing,
     bool? available,
+    bool? muted,
+    bool? blocking,
+    bool? blockedBy,
   });
   NotificationActorCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -185,6 +212,9 @@ class _NotificationActorCopyWithImpl<$R, $Out>
     Object? avatarCid = $none,
     bool? viewerIsFollowing,
     bool? available,
+    Object? muted = $none,
+    Object? blocking = $none,
+    Object? blockedBy = $none,
   }) => $apply(
     FieldCopyWithData({
       if (did != null) #did: did,
@@ -194,6 +224,9 @@ class _NotificationActorCopyWithImpl<$R, $Out>
       if (avatarCid != $none) #avatarCid: avatarCid,
       if (viewerIsFollowing != null) #viewerIsFollowing: viewerIsFollowing,
       if (available != null) #available: available,
+      if (muted != $none) #muted: muted,
+      if (blocking != $none) #blocking: blocking,
+      if (blockedBy != $none) #blockedBy: blockedBy,
     }),
   );
   @override
@@ -208,6 +241,9 @@ class _NotificationActorCopyWithImpl<$R, $Out>
       or: $value.viewerIsFollowing,
     ),
     available: data.get(#available, or: $value.available),
+    muted: data.get(#muted, or: $value.muted),
+    blocking: data.get(#blocking, or: $value.blocking),
+    blockedBy: data.get(#blockedBy, or: $value.blockedBy),
   );
 
   @override

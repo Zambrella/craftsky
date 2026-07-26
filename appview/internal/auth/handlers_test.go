@@ -400,6 +400,124 @@ func TestLogout_AllDevices_RevokeAllCleansUpEvenIfOAuthLogoutFails(t *testing.T)
 	}
 }
 
+func TestSavedPostStateSurvivesSessionDeviceAndAccountLifecycle(t *testing.T) {
+	h := handlersFixture(t, "")
+	ctx := context.Background()
+	if _, err := h.Pool.Exec(ctx, `
+		CREATE TABLE craftsky_profiles (
+			did TEXT PRIMARY KEY,
+			record_cid TEXT NOT NULL
+		);
+		CREATE TABLE craftsky_posts (
+			uri TEXT PRIMARY KEY,
+			did TEXT NOT NULL,
+			rkey TEXT NOT NULL,
+			cid TEXT NOT NULL
+		);
+		CREATE TABLE saved_post_folders (
+			id UUID PRIMARY KEY,
+			owner_did TEXT NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+			name TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL,
+			updated_at TIMESTAMPTZ NOT NULL,
+			UNIQUE (owner_did, id)
+		);
+		CREATE TABLE saved_posts (
+			owner_did TEXT NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+			post_uri TEXT NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
+			folder_id UUID,
+			saved_at TIMESTAMPTZ NOT NULL,
+			PRIMARY KEY (owner_did, post_uri),
+			FOREIGN KEY (owner_did, folder_id)
+				REFERENCES saved_post_folders(owner_did, id)
+				ON DELETE SET NULL (folder_id)
+		);
+		INSERT INTO craftsky_profiles (did, record_cid)
+		VALUES ('did:plc:a', 'a-cid'), ('did:plc:b', 'b-cid');
+		INSERT INTO craftsky_posts (uri, did, rkey, cid)
+		VALUES ('at://did:plc:b/social.craftsky.feed.post/one', 'did:plc:b', 'one', 'post-cid');
+		INSERT INTO saved_post_folders (id, owner_did, name, created_at, updated_at)
+		VALUES
+			('00000000-0000-4000-8000-000000000001', 'did:plc:a', 'Alice', now(), now()),
+			('00000000-0000-4000-8000-000000000002', 'did:plc:b', 'Bob', now(), now());
+		INSERT INTO saved_posts (owner_did, post_uri, folder_id, saved_at)
+		VALUES
+			('did:plc:a', 'at://did:plc:b/social.craftsky.feed.post/one', '00000000-0000-4000-8000-000000000001', now()),
+			('did:plc:b', 'at://did:plc:b/social.craftsky.feed.post/one', '00000000-0000-4000-8000-000000000002', now());
+	`); err != nil {
+		t.Fatalf("seed saved lifecycle state: %v", err)
+	}
+
+	assertSavedState := func(owner string, want int) {
+		t.Helper()
+		var saves, folders int
+		if err := h.Pool.QueryRow(ctx, `SELECT count(*) FROM saved_posts WHERE owner_did = $1`, owner).Scan(&saves); err != nil {
+			t.Fatalf("count %s saves: %v", owner, err)
+		}
+		if err := h.Pool.QueryRow(ctx, `SELECT count(*) FROM saved_post_folders WHERE owner_did = $1`, owner).Scan(&folders); err != nil {
+			t.Fatalf("count %s folders: %v", owner, err)
+		}
+		if saves != want || folders != want {
+			t.Fatalf("%s saved state = %d saves/%d folders, want %d/%d", owner, saves, folders, want, want)
+		}
+	}
+
+	tokenA := seedSession(t, h, "did:plc:a", "a-session-1")
+	seedSession(t, h, "did:plc:b", "b-session-1")
+	request := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
+	request.Header.Set("Authorization", "Bearer "+tokenA)
+	requestCtx := middleware.WithDID(request.Context(), "did:plc:a")
+	requestCtx = middleware.WithOAuthSessionID(requestCtx, "a-session-1")
+	requestCtx = middleware.WithDeviceID(requestCtx, "device-a")
+	recorder := httptest.NewRecorder()
+	h.LogoutHandler().ServeHTTP(recorder, request.WithContext(requestCtx))
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("single-session logout = %d/%s", recorder.Code, recorder.Body.String())
+	}
+	assertSavedState("did:plc:a", 1)
+	assertSavedState("did:plc:b", 1)
+
+	// A fresh local installation/account switch creates a new session; it does
+	// not recreate or transfer membership-owned saved state.
+	seedSession(t, h, "did:plc:a", "a-session-2")
+	request = httptest.NewRequest(http.MethodPost, "/auth/logout?all=true", nil)
+	request.Header.Set("Authorization", "Bearer replacement-token")
+	requestCtx = middleware.WithDID(request.Context(), "did:plc:a")
+	requestCtx = middleware.WithOAuthSessionID(requestCtx, "a-session-2")
+	recorder = httptest.NewRecorder()
+	h.LogoutHandler().ServeHTTP(recorder, request.WithContext(requestCtx))
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("all-session logout = %d/%s", recorder.Code, recorder.Body.String())
+	}
+	assertSavedState("did:plc:a", 1)
+	assertSavedState("did:plc:b", 1)
+
+	// Token/session expiry deletes only auth rows. Trigger the real lazy OAuth
+	// cleanup after aging Bob's session, then verify private membership state.
+	if _, err := h.Pool.Exec(ctx, `
+		UPDATE oauth_sessions
+		SET created_at = now() - interval '2 hours', updated_at = now() - interval '2 hours'
+		WHERE account_did = 'did:plc:b'
+	`); err != nil {
+		t.Fatalf("age Bob OAuth session: %v", err)
+	}
+	expiringStore := auth.NewPostgresAuthStore(h.Pool, auth.StoreConfig{
+		SessionExpiry:     time.Hour,
+		SessionInactivity: time.Hour,
+		AuthRequestExpiry: time.Hour,
+		Logger:            slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+	})
+	_, _ = expiringStore.GetSession(ctx, syntax.DID("did:plc:b"), "b-session-1")
+	assertSavedState("did:plc:a", 1)
+	assertSavedState("did:plc:b", 1)
+
+	if _, err := h.Pool.Exec(ctx, `DELETE FROM craftsky_profiles WHERE did = 'did:plc:a'`); err != nil {
+		t.Fatalf("delete Alice membership: %v", err)
+	}
+	assertSavedState("did:plc:a", 0)
+	assertSavedState("did:plc:b", 1)
+}
+
 // TestCallbackTemplate_XSSRegression is a regression test against
 // accidentally swapping html/template for text/template in
 // handlers_render.go. With html/template's contextual escaping in

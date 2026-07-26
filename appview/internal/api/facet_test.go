@@ -12,6 +12,7 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/middleware"
 )
 
 type fakeFacetMentionResolver struct {
@@ -19,7 +20,7 @@ type fakeFacetMentionResolver struct {
 	err error
 }
 
-func (f fakeFacetMentionResolver) ResolveMention(context.Context, syntax.Handle, time.Time) (api.IdentityCacheRow, error) {
+func (f fakeFacetMentionResolver) ResolveMention(context.Context, syntax.DID, syntax.Handle, time.Time) (api.IdentityCacheRow, error) {
 	return f.row, f.err
 }
 
@@ -32,6 +33,7 @@ func TestResolveFacetMentionHandlerSuccessAndMentionNotFound(t *testing.T) {
 			Handle: syntax.Handle("alice.craftsky.social"),
 		}}, nilLogger())
 		req := httptest.NewRequest(http.MethodGet, "/v1/facets/mentions/resolve?handle=alice.craftsky.social", nil)
+		req = req.WithContext(middleware.WithDID(req.Context(), syntax.DID("did:plc:viewer")))
 		rr := httptest.NewRecorder()
 		h.ServeHTTP(rr, req)
 
@@ -51,6 +53,7 @@ func TestResolveFacetMentionHandlerSuccessAndMentionNotFound(t *testing.T) {
 		t.Parallel()
 		h := api.ResolveFacetMentionHandler(fakeFacetMentionResolver{err: api.ErrMentionNotFound}, nilLogger())
 		req := httptest.NewRequest(http.MethodGet, "/v1/facets/mentions/resolve?handle=mallory.example", nil)
+		req = req.WithContext(middleware.WithDID(req.Context(), syntax.DID("did:plc:viewer")))
 		rr := httptest.NewRecorder()
 		h.ServeHTTP(rr, req)
 
@@ -63,6 +66,24 @@ func TestResolveFacetMentionHandlerSuccessAndMentionNotFound(t *testing.T) {
 		}
 		if body.Error != "mention_not_found" {
 			t.Fatalf("error = %q, want mention_not_found", body.Error)
+		}
+	})
+
+	t.Run("blocked pair maps to interaction_blocked", func(t *testing.T) {
+		t.Parallel()
+		h := api.ResolveFacetMentionHandler(fakeFacetMentionResolver{err: api.ErrInteractionBlocked}, nilLogger())
+		req := httptest.NewRequest(http.MethodGet, "/v1/facets/mentions/resolve?handle=bob.example", nil)
+		req = req.WithContext(middleware.WithDID(req.Context(), syntax.DID("did:plc:viewer")))
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+		}
+		var body envelope.Error
+		_ = json.Unmarshal(rr.Body.Bytes(), &body)
+		if body.Error != "interaction_blocked" {
+			t.Fatalf("error = %q, want interaction_blocked", body.Error)
 		}
 	})
 }

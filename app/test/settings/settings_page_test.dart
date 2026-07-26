@@ -24,6 +24,7 @@ void main() {
       expect(find.text('Followers'), findsOneWidget);
       expect(find.text('Following'), findsOneWidget);
       expect(find.text('Find people from Instagram'), findsOneWidget);
+      expect(find.text('Saved posts'), findsOneWidget);
       expect(find.textContaining(RegExp(r'\d+ followers')), findsNothing);
       expect(find.textContaining(RegExp(r'\d+ following')), findsNothing);
       expect(find.byType(ClearImageCacheTile), findsOneWidget);

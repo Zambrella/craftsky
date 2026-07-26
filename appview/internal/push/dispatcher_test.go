@@ -162,6 +162,32 @@ func TestDispatcherIT001ProjectsCanonicalRoutingFacts(t *testing.T) {
 	}
 }
 
+func TestDispatcherSuppressesRelationshipProtectedDeliveryBeforeProviderSend(t *testing.T) {
+	for _, setup := range []struct {
+		name string
+		sql  string
+	}{
+		{name: "mute", sql: `INSERT INTO actor_mutes(owner_did,subject_did) VALUES('did:plc:viewer','did:plc:actor')`},
+		{name: "inbound block", sql: `INSERT INTO atproto_blocks(uri,blocker_did,subject_did) VALUES('at://did:plc:actor/app.bsky.graph.block/r1','did:plc:actor','did:plc:viewer')`},
+	} {
+		t.Run(setup.name, func(t *testing.T) {
+			pool := dispatcherPool(t)
+			seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
+			if _, err := pool.Exec(context.Background(), setup.sql); err != nil {
+				t.Fatal(err)
+			}
+			sender := &scriptedSender{}
+			dispatcher := NewDispatcher(pool, sender, DispatcherOptions{})
+			if n, err := dispatcher.ProcessBatch(context.Background(), "worker"); err != nil || n != 0 {
+				t.Fatalf("n=%d err=%v", n, err)
+			}
+			if sender.requestCount() != 0 {
+				t.Fatalf("provider sends = %d, want 0", sender.requestCount())
+			}
+		})
+	}
+}
+
 func TestDispatcherIT012ProjectsTargetContentRole(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -503,6 +529,8 @@ func TestDispatcherRunRecoversFromTransientStoreFailure(t *testing.T) {
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
 		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
+		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL, subject_did TEXT NOT NULL, PRIMARY KEY(owner_did, subject_did));
+		CREATE TABLE atproto_blocks(uri TEXT PRIMARY KEY, blocker_did TEXT NOT NULL, subject_did TEXT NOT NULL);
 	`)
 	sender := &scriptedSender{}
 	d := NewDispatcher(pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute})
@@ -587,6 +615,8 @@ func dispatcherPool(t *testing.T) *pgxpool.Pool {
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
 		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
+		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL, subject_did TEXT NOT NULL, PRIMARY KEY(owner_did, subject_did));
+		CREATE TABLE atproto_blocks(uri TEXT PRIMARY KEY, blocker_did TEXT NOT NULL, subject_did TEXT NOT NULL);
 	`)
 	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
 	if err != nil {

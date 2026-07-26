@@ -29,6 +29,7 @@ import 'package:craftsky_app/notifications/services/firebase_notification_bootst
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
+import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/models/project_browse_filters.dart';
 import 'package:craftsky_app/projects/models/user_projects_state.dart';
@@ -302,6 +303,7 @@ void initializeMappers() {
   ProfileMapper.ensureInitialized();
   ProfileAccountSummaryMapper.ensureInitialized();
   ProfileAccountPageMapper.ensureInitialized();
+  ProfileRelationshipMapper.ensureInitialized();
   ProjectSearchFiltersMapper.ensureInitialized();
   BlankSearchDataMapper.ensureInitialized();
   SearchSortMapper.ensureInitialized();

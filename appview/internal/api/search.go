@@ -13,6 +13,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/relationships"
 )
 
 // SearchStore is the Postgres-backed search implementation. Search handlers
@@ -26,6 +27,14 @@ type SearchStore struct {
 
 func NewSearchStore(pool *pgxpool.Pool, observer *observability.Observer) *SearchStore {
 	return &SearchStore{pool: pool, postStore: NewPostStore(pool, observer), observer: observer}
+}
+
+func (s *SearchStore) RelationshipStates(ctx context.Context, viewer syntax.DID, subjects []syntax.DID) (map[syntax.DID]relationships.State, error) {
+	return s.postStore.RelationshipStates(ctx, viewer, subjects)
+}
+
+func (s *SearchStore) BlockedPairs(ctx context.Context, pairs []RelationshipPair) (map[RelationshipPair]bool, error) {
+	return s.postStore.BlockedPairs(ctx, pairs)
 }
 
 func SearchHashtagPostsHandler(store *SearchStore, resolver HandleResolver, logger *slog.Logger) http.Handler {

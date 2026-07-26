@@ -137,19 +137,71 @@ void main() {
       expect(state.hasError, isTrue);
     },
   );
+
+  test(
+    'AT-006 suppressActor removes loaded rows and returns the count',
+    () async {
+      final repo = _FakeNotificationRepository()
+        ..responses.add(
+          Future.value(
+            NotificationPage(
+              items: [
+                _follow('alice-one'),
+                _follow('bob-one', actorDid: 'did:plc:bob'),
+                _follow('alice-two'),
+                _instagramMatch(),
+              ],
+            ),
+          ),
+        );
+      final container = ProviderContainer.test(
+        overrides: [notificationRepositoryProvider.overrideWithValue(repo)],
+      );
+
+      await container.read(notificationsProvider.future);
+      final removed = container
+          .read(notificationsProvider.notifier)
+          .suppressActor('did:plc:alice');
+      final retained = container.read(notificationsProvider).requireValue.items;
+      final retainedSocial = retained.whereType<SocialNotification>().single;
+
+      expect(removed, 2);
+      expect(retained, hasLength(2));
+      expect(retainedSocial.actor.did, 'did:plc:bob');
+      expect(retained.whereType<InstagramMatchNotification>(), hasLength(1));
+    },
+  );
 }
 
 String _socialRkey(CraftskyNotification notification) =>
     (notification as SocialNotification).rkey.toString();
 
-FollowNotification _follow(String rkey) =>
+InstagramMatchNotification _instagramMatch() =>
+    CraftskyNotification.fromMap({
+          'id': 'instagram-match',
+          'kind': 'system',
+          'type': 'instagramMatch',
+          'system': {
+            'count': 1,
+            'countCapped': false,
+            'destination': 'instagramMigration',
+          },
+          'createdAt': '2026-05-28T13:00:00Z',
+          'indexedAt': '2026-05-28T13:00:01Z',
+        })
+        as InstagramMatchNotification;
+
+FollowNotification _follow(
+  String rkey, {
+  String actorDid = 'did:plc:alice',
+}) =>
     CraftskyNotification.fromMap({
           'id': 'notification-$rkey',
           'uri': 'at://did:plc:alice/app.bsky.graph.follow/$rkey',
           'cid': 'bafy$rkey',
           'rkey': rkey,
           'type': 'follow',
-          'actor': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
+          'actor': {'did': actorDid, 'handle': 'actor.craftsky.social'},
           'createdAt': '2026-05-28T13:00:00Z',
           'indexedAt': '2026-05-28T13:00:01Z',
         })

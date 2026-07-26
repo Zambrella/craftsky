@@ -31,6 +31,7 @@ void main() {
     'replyCount': 3,
     'viewerHasLiked': false,
     'viewerHasReposted': true,
+    'viewerHasSaved': false,
     'viewerHasReplied': false,
     'createdAt': '2026-05-04T18:23:45.000Z',
     'indexedAt': '2026-05-04T18:23:47.000Z',

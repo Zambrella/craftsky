@@ -25,6 +25,7 @@ void main() {
     'replyCount': 3,
     'viewerHasLiked': false,
     'viewerHasReposted': false,
+    'viewerHasSaved': false,
     'viewerHasReplied': false,
     'createdAt': '2026-05-28T12:00:00Z',
     'indexedAt': '2026-05-28T12:00:01Z',
@@ -185,30 +186,47 @@ void main() {
     expect(match.type, NotificationCategory.instagramMatch);
   });
 
-  test('UT-012 keeps unknown and malformed system variants actorless and inert', () {
-    Map<String, dynamic> system(String type, Object? payload) => {
-      'id': '00000000-0000-0000-0000-000000000322',
-      'kind': 'system',
-      'type': type,
-      'createdAt': '2026-07-19T12:00:00Z',
-      'indexedAt': '2026-07-19T12:04:00Z',
-      'system': payload,
-    };
+  test(
+    'UT-012 keeps unknown and malformed system variants actorless and inert',
+    () {
+      Map<String, dynamic> system(String type, Object? payload) => {
+        'id': '00000000-0000-0000-0000-000000000322',
+        'kind': 'system',
+        'type': type,
+        'createdAt': '2026-07-19T12:00:00Z',
+        'indexedAt': '2026-07-19T12:04:00Z',
+        'system': payload,
+      };
 
-    final unknown = CraftskyNotification.fromMap(
-      system('futureSystemType', {'privateFutureFact': 'ignored'}),
-    );
-    final malformed = CraftskyNotification.fromMap(
-      system('instagramMatch', {'count': 0, 'destination': 'profile'}),
-    );
-    final unknownKind = CraftskyNotification.fromMap({
-      ...system('instagramMatch', const <String, Object?>{}),
-      'kind': 'futureKind',
+      final unknown = CraftskyNotification.fromMap(
+        system('futureSystemType', {'privateFutureFact': 'ignored'}),
+      );
+      final malformed = CraftskyNotification.fromMap(
+        system('instagramMatch', {'count': 0, 'destination': 'profile'}),
+      );
+      final unknownKind = CraftskyNotification.fromMap({
+        ...system('instagramMatch', const <String, Object?>{}),
+        'kind': 'futureKind',
+      });
+
+      for (final notification in [unknown, malformed, unknownKind]) {
+        expect(notification, isA<GenericSystemNotification>());
+        expect(notification, isNot(isA<SocialNotification>()));
+      }
+    },
+  );
+
+  test('AT-006 decodes notification-actor viewer relationship state', () {
+    final decoded = NotificationActor.fromMap({
+      ...actor(),
+      'muted': false,
+      'blocking': true,
+      'blockedBy': false,
     });
 
-    for (final notification in [unknown, malformed, unknownKind]) {
-      expect(notification, isA<GenericSystemNotification>());
-      expect(notification, isNot(isA<SocialNotification>()));
-    }
+    expect(decoded.muted, isFalse);
+    expect(decoded.blocking, isTrue);
+    expect(decoded.blockedBy, isFalse);
+    expect(decoded.hasViewerState, isTrue);
   });
 }

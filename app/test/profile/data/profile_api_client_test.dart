@@ -134,6 +134,86 @@ void main() {
     expect(profile.did.toString(), 'did:plc:alice');
   });
 
+  test('relationship mutations use the six profile endpoints', () async {
+    final dio = buildDio();
+    final adapter = DioAdapter(dio: dio);
+    final response = {
+      'muted': false,
+      'blocking': false,
+      'blockedBy': false,
+    };
+    adapter
+      ..onPost(
+        '/v1/profiles/@bob.craftsky.social/mutes',
+        (server) => server.reply(200, {...response, 'muted': true}),
+      )
+      ..onDelete(
+        '/v1/profiles/@bob.craftsky.social/mutes',
+        (server) => server.reply(200, response),
+      )
+      ..onPost(
+        '/v1/profiles/@bob.craftsky.social/blocks',
+        (server) => server.reply(200, {
+          ...response,
+          'blocking': true,
+          'uri': 'at://did:plc:alice/app.bsky.graph.block/3abc',
+          'cid': 'bafyblock',
+          'rkey': '3abc',
+        }),
+      )
+      ..onDelete(
+        '/v1/profiles/@bob.craftsky.social/blocks',
+        (server) => server.reply(200, response),
+      )
+      ..onGet(
+        '/v1/profiles/me/mutes',
+        (server) => server.reply(200, {
+          'items': [
+            {
+              'did': 'did:plc:bob',
+              'handle': 'bob.craftsky.social',
+              'isCraftskyProfile': true,
+              'muted': true,
+              'blocking': false,
+              'blockedBy': false,
+            },
+          ],
+          'cursor': 'next-mute',
+        }),
+        queryParameters: {'limit': 20},
+      )
+      ..onGet(
+        '/v1/profiles/me/blocks',
+        (server) => server.reply(200, {
+          'items': [
+            {
+              'did': 'did:plc:bob',
+              'handle': 'bob.craftsky.social',
+              'isCraftskyProfile': true,
+              'muted': false,
+              'blocking': true,
+              'blockedBy': false,
+            },
+          ],
+        }),
+        queryParameters: {'cursor': 'opaque'},
+      );
+
+    final api = ProfileApiClient(dio);
+    expect((await api.muteProfile('bob.craftsky.social')).muted, isTrue);
+    expect((await api.unmuteProfile('bob.craftsky.social')).muted, isFalse);
+    final block = await api.blockProfile('bob.craftsky.social');
+    expect(block.blocking, isTrue);
+    expect(block.rkey, '3abc');
+    expect(block.initialized, isTrue);
+    expect((await api.unblockProfile('bob.craftsky.social')).blocking, isFalse);
+    expect((await api.listMutedProfiles(limit: 20)).items.single.muted, isTrue);
+    expect(
+      (await api.listBlockedProfiles(cursor: 'opaque')).items.single.blocking,
+      isTrue,
+    );
+  });
+
   test('GET mutual followers sends pagination and decodes page', () async {
     final dio = buildDio();
     DioAdapter(dio: dio).onGet(

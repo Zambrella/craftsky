@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"social.craftsky/appview/internal/relationships"
 )
 
 const deliveryWindow = 6 * time.Hour
@@ -14,6 +16,7 @@ const deliveryWindow = 6 * time.Hour
 type Service struct {
 	now                       func() time.Time
 	observer                  DecisionObserver
+	relationshipObserver      relationshipOutcomeObserver
 	instagramCoalescingWindow time.Duration
 	instagramCountCap         int
 }
@@ -24,6 +27,9 @@ type ServiceOptions struct {
 }
 
 type DecisionObserver interface{ ObserveNotificationDecision(string, string) }
+type relationshipOutcomeObserver interface {
+	ObserveRelationshipOutcome(operation, stage, result, errorClass string, duration time.Duration)
+}
 
 func NewService(observers ...DecisionObserver) *Service {
 	service, _ := NewServiceWithOptions(ServiceOptions{}, observers...)
@@ -45,12 +51,16 @@ func NewServiceWithOptions(options ServiceOptions, observers ...DecisionObserver
 		options.InstagramCountCap <= 0 || options.InstagramCountCap > instagramMatchCountCap {
 		return nil, fmt.Errorf("invalid Instagram notification limits")
 	}
-	return &Service{
+	service := &Service{
 		now:                       time.Now,
 		observer:                  observer,
 		instagramCoalescingWindow: options.InstagramCoalescingWindow,
 		instagramCountCap:         options.InstagramCountCap,
-	}, nil
+	}
+	if detailed, ok := observer.(relationshipOutcomeObserver); ok {
+		service.relationshipObserver = detailed
+	}
+	return service, nil
 }
 
 func (s *Service) Activate(ctx context.Context, tx pgx.Tx, activation Activation) error {
@@ -75,13 +85,37 @@ func (s *Service) Activate(ctx context.Context, tx pgx.Tx, activation Activation
 			return fmt.Errorf("read event-time follow state: %w", err)
 		}
 	}
+	var relationship relationships.State
+	if err := tx.QueryRow(ctx, `
+		SELECT
+			EXISTS (SELECT 1 FROM actor_mutes WHERE owner_did = $1 AND subject_did = $2),
+			EXISTS (SELECT 1 FROM atproto_blocks WHERE blocker_did = $1 AND subject_did = $2),
+			EXISTS (SELECT 1 FROM atproto_blocks WHERE blocker_did = $2 AND subject_did = $1)
+	`, activation.RecipientDID, activation.ActorDID).Scan(
+		&relationship.Muted,
+		&relationship.Blocking,
+		&relationship.BlockedBy,
+	); err != nil {
+		return fmt.Errorf("read event-time relationship state: %w", err)
+	}
 	decision, err := EvaluateEligibility(EligibilityInput{
 		Preference:            preference,
 		IsSelf:                activation.RecipientDID == activation.ActorDID,
 		RecipientFollowsActor: followsActor,
+		Relationship:          relationship,
 	})
 	if err != nil {
 		return err
+	}
+	if relationship.Muted || relationship.HasBlock() {
+		if s.observer != nil {
+			s.observer.ObserveNotificationDecision(string(activation.Category), "suppressed")
+		}
+		if s.relationshipObserver != nil {
+			s.relationshipObserver.ObserveRelationshipOutcome(
+				"notification_suppression", "policy", "suppressed", "none", 0,
+			)
+		}
 	}
 	if !decision.Accepted {
 		if s.observer != nil {

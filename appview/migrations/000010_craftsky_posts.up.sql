@@ -2,7 +2,7 @@
 -- See docs/superpowers/specs/2026-05-04-feed-post-indexing-design.md.
 CREATE TABLE craftsky_posts (
     uri              TEXT        NOT NULL PRIMARY KEY,
-    did              TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    did              TEXT        NOT NULL,
     rkey             TEXT        NOT NULL,
     cid              TEXT        NOT NULL,
 

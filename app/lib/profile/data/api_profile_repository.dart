@@ -4,6 +4,7 @@ import 'package:craftsky_app/profile/data/profile_api_client.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
+import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
 /// Production [ProfileRepository] backed by the AppView HTTP API.
@@ -45,6 +46,22 @@ class ApiProfileRepository implements ProfileRepository {
       _api.unfollowProfile(handleOrDid);
 
   @override
+  Future<ProfileRelationship> mute(String handleOrDid) =>
+      _api.muteProfile(handleOrDid);
+
+  @override
+  Future<ProfileRelationship> unmute(String handleOrDid) =>
+      _api.unmuteProfile(handleOrDid);
+
+  @override
+  Future<ProfileRelationship> block(String handleOrDid) =>
+      _api.blockProfile(handleOrDid);
+
+  @override
+  Future<ProfileRelationship> unblock(String handleOrDid) =>
+      _api.unblockProfile(handleOrDid);
+
+  @override
   Future<ReportResult> report(
     String handleOrDid,
     ReportSubmission submission,
@@ -64,4 +81,14 @@ class ApiProfileRepository implements ProfileRepository {
   @override
   Future<ProfileAccountPage> listFollowingMe({int? limit, String? cursor}) =>
       _api.listFollowingMe(limit: limit, cursor: cursor);
+
+  @override
+  Future<ProfileAccountPage> listMutedProfiles({int? limit, String? cursor}) =>
+      _api.listMutedProfiles(limit: limit, cursor: cursor);
+
+  @override
+  Future<ProfileAccountPage> listBlockedProfiles({
+    int? limit,
+    String? cursor,
+  }) => _api.listBlockedProfiles(limit: limit, cursor: cursor);
 }

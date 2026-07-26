@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -31,27 +32,56 @@ type BlueskyBackfiller interface {
 
 // blueskyBackfiller implements BlueskyBackfiller.
 type blueskyBackfiller struct {
-	reader  auth.PDSClient
-	indexer *BlueskyProfile
+	reader   auth.PDSClient
+	indexer  *BlueskyProfile
+	tracker  tap.RepositoryTracker
+	observer RelationshipObserver
 }
 
 // NewBlueskyBackfiller wires an anonymous PDS reader to the Bluesky
 // indexer. Callers pass their existing *BlueskyProfile; the backfiller
 // dispatches synthesised events through it so parse, gate, and upsert
 // logic stay in one place.
-func NewBlueskyBackfiller(reader auth.PDSClient, indexer *BlueskyProfile) BlueskyBackfiller {
-	return &blueskyBackfiller{reader: reader, indexer: indexer}
+func NewBlueskyBackfiller(reader auth.PDSClient, indexer *BlueskyProfile, trackers ...tap.RepositoryTracker) BlueskyBackfiller {
+	var tracker tap.RepositoryTracker
+	if len(trackers) > 0 {
+		tracker = trackers[0]
+	}
+	return &blueskyBackfiller{reader: reader, indexer: indexer, tracker: tracker}
+}
+
+// NewObservedBlueskyBackfiller adds bounded relationship backfill telemetry to
+// the ordinary repository-tracking path without changing its behavior.
+func NewObservedBlueskyBackfiller(reader auth.PDSClient, indexer *BlueskyProfile, tracker tap.RepositoryTracker, observer RelationshipObserver) BlueskyBackfiller {
+	return &blueskyBackfiller{reader: reader, indexer: indexer, tracker: tracker, observer: observer}
 }
 
 // Backfill fetches the user's app.bsky.actor.profile/self record from
 // their PDS and feeds it to BlueskyProfile.Handle as a synthesised
 // tap.Event{Action:"create"}. A missing Bluesky record (ErrRecordNotFound)
 // is a no-op and returns nil — many users don't have one.
-func (b *blueskyBackfiller) Backfill(ctx context.Context, did syntax.DID) error {
+func (b *blueskyBackfiller) Backfill(ctx context.Context, did syntax.DID) (err error) {
+	started := time.Now()
+	defer func() {
+		if b.observer == nil {
+			return
+		}
+		result := "success"
+		if err != nil {
+			result = "error"
+		}
+		b.observer.ObserveRelationship("backfill", result, time.Since(started))
+	}()
+	var trackingErr error
+	if b.tracker != nil {
+		if err := b.tracker.AddRepo(ctx, did); err != nil {
+			trackingErr = fmt.Errorf("request Tap repository tracking: %w", err)
+		}
+	}
 	var rec map[string]any
 	cid, err := b.reader.GetRecord(ctx, did, "app.bsky.actor.profile", "self", &rec)
 	if errors.Is(err, auth.ErrRecordNotFound) {
-		return nil
+		return trackingErr
 	}
 	if err != nil {
 		return fmt.Errorf("backfill fetch %s: %w", did, err)
@@ -69,5 +99,8 @@ func (b *blueskyBackfiller) Backfill(ctx context.Context, did syntax.DID) error 
 		Action:     "create",
 		Record:     raw,
 	}
-	return b.indexer.Handle(ctx, ev)
+	if err := b.indexer.Handle(ctx, ev); err != nil {
+		return err
+	}
+	return trackingErr
 }

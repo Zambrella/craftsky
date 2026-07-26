@@ -70,6 +70,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		deps.NewPDSClient,
 		deps.IdentityCacheUpdater,
 	)
+	oauthHandlers.RepositoryTracker = deps.RepositoryTracker
 	mux.Handle("GET /oauth/client-metadata.json", inFlight(oauthHandlers.ClientMetadataHandler()))
 	mux.Handle("GET /oauth/jwks.json", inFlight(oauthHandlers.JWKSHandler()))
 	mux.Handle("GET /oauth/callback", inFlight(oauthHandlers.CallbackHandler()))
@@ -188,11 +189,19 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("GET /v1/profiles/{handleOrDid}/mutual-followers", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/mutual-followers"), api.GetMutualFollowersHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("POST /v1/profiles/{handleOrDid}/follows", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/follows"), api.FollowProfileHandler(deps.FollowStore, deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger)))
 	mux.Handle("DELETE /v1/profiles/{handleOrDid}/follows", v1mw.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/follows"), api.UnfollowProfileHandler(deps.FollowStore, deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger)))
+	mux.Handle("POST /v1/profiles/{handleOrDid}/mutes", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/mutes"), api.MuteProfileHandler(deps.RelationshipMutations, deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("DELETE /v1/profiles/{handleOrDid}/mutes", v1mw.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/mutes"), api.UnmuteProfileHandler(deps.RelationshipMutations, deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("POST /v1/profiles/{handleOrDid}/blocks", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/blocks"), api.BlockProfileHandler(deps.RelationshipMutations, deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("DELETE /v1/profiles/{handleOrDid}/blocks", v1mw.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/blocks"), api.UnblockProfileHandler(deps.RelationshipMutations, deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/profiles/me/mutes", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me/mutes"), api.ListMutedProfilesHandler(deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("GET /v1/profiles/me/blocks", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me/blocks"), api.ListBlockedProfilesHandler(deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("POST /v1/profiles/{handleOrDid}/reports", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/reports"), api.ReportProfileHandler(api.NewProfileReportTargetResolver(deps.ProfileStore, deps.HandleResolver), deps.ReportStore, deps.ReportForwarder, deps.Logger)))
 
 	// v1 — post handlers (authenticated + device-id required).
 	postStore := api.NewPostStore(deps.DB, observer).
 		WithInstagramNotificationEligibility(deps.InstagramNotificationEligibility)
+	savedPostStore := api.NewSavedPostStore(deps.DB)
+	savedPostService := api.NewSavedPostService(savedPostStore, postStore, deps.HandleResolver)
 	oauthHandlers.NotificationSubscriptions = postStore
 	mux.Handle("GET /v1/feed/timeline", v1mw.wrap(mustPolicy("GET", "/v1/feed/timeline"), api.ListTimelineHandler(postStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/notifications", v1mw.wrap(mustPolicy("GET", "/v1/notifications"), api.ListNotificationsHandler(postStore, deps.HandleResolver, deps.Logger)))
@@ -205,6 +214,13 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("POST /v1/blobs/images", v1mw.wrap(mustPolicy("POST", "/v1/blobs/images"), api.ImageBlobUploadHandler(deps.NewPDSClient, mediaLimits, deps.Logger)))
 	mux.Handle("POST /v1/posts", v1mw.wrap(mustPolicy("POST", "/v1/posts"), api.CreatePostHandler(postStore, deps.NewPDSClient, deps.HandleResolver, mediaLimits, deps.Logger)))
 	mux.Handle("GET /v1/posts/{did}/{rkey}", v1mw.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}"), api.GetPostHandler(postStore, deps.HandleResolver, deps.Logger)))
+	mux.Handle("POST /v1/posts/{did}/{rkey}/saves", v1mw.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/saves"), api.SavePostHandler(postStore, savedPostStore)))
+	mux.Handle("DELETE /v1/posts/{did}/{rkey}/saves", v1mw.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/saves"), api.UnsavePostHandler(savedPostStore)))
+	mux.Handle("GET /v1/saved-posts", v1mw.wrap(mustPolicy("GET", "/v1/saved-posts"), api.ListSavedPostsHandler(savedPostService)))
+	mux.Handle("GET /v1/saved-post-folders", v1mw.wrap(mustPolicy("GET", "/v1/saved-post-folders"), api.ListSavedPostFoldersHandler(savedPostStore)))
+	mux.Handle("POST /v1/saved-post-folders", v1mw.wrap(mustPolicy("POST", "/v1/saved-post-folders"), api.CreateSavedPostFolderHandler(savedPostStore)))
+	mux.Handle("PATCH /v1/saved-post-folders/{folderId}", v1mw.wrap(mustPolicy("PATCH", "/v1/saved-post-folders/{folderId}"), api.RenameSavedPostFolderHandler(savedPostStore)))
+	mux.Handle("DELETE /v1/saved-post-folders/{folderId}", v1mw.wrap(mustPolicy("DELETE", "/v1/saved-post-folders/{folderId}"), api.DeleteSavedPostFolderHandler(savedPostStore)))
 	mux.Handle("GET /v1/posts/{did}/{rkey}/replies", v1mw.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/replies"), api.ListCommentRepliesHandler(postStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/posts/{did}/{rkey}/comments", v1mw.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/comments"), api.GetPostCommentsHandler(postStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("POST /v1/posts/{did}/{rkey}/likes", v1mw.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/likes"), api.LikePostHandler(postStore, deps.NewPDSClient, deps.Logger)))

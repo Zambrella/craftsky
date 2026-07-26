@@ -13,7 +13,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api"
-	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -43,7 +42,7 @@ CREATE TABLE craftsky_profiles (
 );
 CREATE TABLE craftsky_posts (
     uri              TEXT        NOT NULL PRIMARY KEY,
-    did              TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    did              TEXT        NOT NULL,
     rkey             TEXT        NOT NULL,
     cid              TEXT        NOT NULL,
     text             TEXT        NOT NULL,
@@ -209,6 +208,30 @@ func TestPostStore_ResolvePostReportTarget_CanonicalizesIndexedPost(t *testing.T
 	}
 }
 
+func TestPostStore_ResolvePostReportTarget_RejectsFormerMemberPostWithoutDeletingIt(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:bob")
+	postURI := seedPost(t, pool, "did:plc:bob", "3lf2abc", "retained post", time.Now())
+	if _, err := pool.Exec(context.Background(), `DELETE FROM craftsky_profiles WHERE did = 'did:plc:bob'`); err != nil {
+		t.Fatalf("remove membership: %v", err)
+	}
+
+	store := api.NewPostStore(pool)
+	_, err := store.ResolvePostReportTarget(context.Background(), "did:plc:bob", "3lf2abc")
+	if !errors.Is(err, api.ErrPostNotFound) {
+		t.Fatalf("former-member report target error = %v, want ErrPostNotFound", err)
+	}
+
+	var retainedURI string
+	if err := pool.QueryRow(context.Background(), `SELECT uri FROM craftsky_posts WHERE uri = $1`, postURI).Scan(&retainedURI); err != nil {
+		t.Fatalf("retained post lookup: %v", err)
+	}
+	if retainedURI != postURI {
+		t.Fatalf("retained URI = %q, want %q", retainedURI, postURI)
+	}
+}
+
 func TestProfileStore_ResolveAccountReportTarget_CanonicalizesIndexedProfile(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, profileStoreDDL)
@@ -226,7 +249,7 @@ func TestProfileStore_ResolveAccountReportTarget_CanonicalizesIndexedProfile(t *
 	}
 }
 
-func TestProfileStore_ResolveAccountReportTarget_CanonicalizesCachedNonCraftskyProfile(t *testing.T) {
+func TestProfileStore_ResolveAccountReportTarget_RejectsCachedNonCraftskyProfile(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, profileStoreDDL)
 	if _, err := pool.Exec(context.Background(), `INSERT INTO bluesky_profiles (did, display_name, record_cid) VALUES ('did:plc:carol', 'Carol', 'seed')`); err != nil {
@@ -234,12 +257,9 @@ func TestProfileStore_ResolveAccountReportTarget_CanonicalizesCachedNonCraftskyP
 	}
 
 	store := api.NewProfileStore(pool)
-	target, err := store.ResolveAccountReportTarget(context.Background(), "did:plc:carol")
-	if err != nil {
-		t.Fatalf("ResolveAccountReportTarget non-Craftsky DID: %v", err)
-	}
-	if target.DID != "did:plc:carol" || target.SubmittedHandleSnapshot != "" {
-		t.Fatalf("target = %+v", target)
+	_, err := store.ResolveAccountReportTarget(context.Background(), "did:plc:carol")
+	if !errors.Is(err, api.ErrProfileNotFound) {
+		t.Fatalf("cached non-member error = %v, want ErrProfileNotFound", err)
 	}
 }
 
@@ -269,7 +289,7 @@ func TestProfileReportTargetResolver_ResolvesHandleToCanonicalIndexedProfile(t *
 	}
 }
 
-func TestProfileReportTargetResolver_ResolvesHandleToCanonicalCachedNonCraftskyProfile(t *testing.T) {
+func TestProfileReportTargetResolver_RejectsCachedNonCraftskyProfile(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, profileStoreDDL)
 	ctx := context.Background()
@@ -280,43 +300,24 @@ func TestProfileReportTargetResolver_ResolvesHandleToCanonicalCachedNonCraftskyP
 	resolver := api.NewProfileReportTargetResolver(api.NewProfileStore(pool), fakeAccountReportResolver{
 		dids: map[string]syntax.DID{"carol.example": "did:plc:carol"},
 	})
-	target, err := resolver.ResolveAccountReportTarget(ctx, "@carol.example")
-	if err != nil {
-		t.Fatalf("ResolveAccountReportTarget non-Craftsky handle: %v", err)
-	}
-	if target.DID != "did:plc:carol" || target.SubmittedHandleSnapshot != "carol.example" {
-		t.Fatalf("target = %+v, want canonical DID with submitted handle snapshot", target)
+	_, err := resolver.ResolveAccountReportTarget(ctx, "@carol.example")
+	if !errors.Is(err, api.ErrProfileNotFound) {
+		t.Fatalf("cached non-member error = %v, want ErrProfileNotFound", err)
 	}
 }
 
-func TestProfileReportTargetResolver_ResolvesHydratableNonCraftskyProfile(t *testing.T) {
+func TestProfileReportTargetResolver_DoesNotHydrateNonCraftskyProfile(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, profileStoreDDL)
 	ctx := context.Background()
 
-	store := api.NewProfileStore(pool, fakeProfileHydrator{
-		cid: "cid-dana",
-		record: map[string]any{
-			"displayName": "Dana",
-		},
-	})
+	store := api.NewProfileStore(pool)
 	resolver := api.NewProfileReportTargetResolver(store, fakeAccountReportResolver{
 		dids: map[string]syntax.DID{"dana.example": "did:plc:dana"},
 	})
-	target, err := resolver.ResolveAccountReportTarget(ctx, "dana.example")
-	if err != nil {
-		t.Fatalf("ResolveAccountReportTarget hydratable handle: %v", err)
-	}
-	if target.DID != "did:plc:dana" || target.SubmittedHandleSnapshot != "dana.example" {
-		t.Fatalf("target = %+v, want hydrated canonical DID with handle snapshot", target)
-	}
-
-	var displayName string
-	if err := pool.QueryRow(ctx, `SELECT display_name FROM bluesky_profiles WHERE did = 'did:plc:dana'`).Scan(&displayName); err != nil {
-		t.Fatalf("hydrated bluesky profile was not cached: %v", err)
-	}
-	if displayName != "Dana" {
-		t.Fatalf("display_name = %q, want Dana", displayName)
+	_, err := resolver.ResolveAccountReportTarget(ctx, "dana.example")
+	if !errors.Is(err, api.ErrProfileNotFound) {
+		t.Fatalf("hydratable non-member error = %v, want ErrProfileNotFound", err)
 	}
 }
 
@@ -325,7 +326,7 @@ func TestProfileReportTargetResolver_UnresolvableNonCraftskyProfileFails(t *test
 	pool := testdb.WithSchema(t, profileStoreDDL)
 	ctx := context.Background()
 
-	resolver := api.NewProfileReportTargetResolver(api.NewProfileStore(pool, fakeProfileHydrator{err: auth.ErrRecordNotFound}), fakeAccountReportResolver{
+	resolver := api.NewProfileReportTargetResolver(api.NewProfileStore(pool), fakeAccountReportResolver{
 		dids: map[string]syntax.DID{"missing.example": "did:plc:missing"},
 	})
 	_, err := resolver.ResolveAccountReportTarget(ctx, "missing.example")

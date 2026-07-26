@@ -53,7 +53,7 @@ final class AccountNotificationNewCountProvider
 }
 
 String _$accountNotificationNewCountHash() =>
-    r'4073eeda111c567c95b04ea47832670f148cf42c';
+    r'd6a71bdf36c58bea0957358b882b8511a04bd9a6';
 
 final class AccountNotificationNewCountFamily extends $Family
     with
@@ -126,7 +126,7 @@ final class NotificationNewCountProvider
 }
 
 String _$notificationNewCountHash() =>
-    r'5c93dd5b73133810a42cf8d47eb6bc7a85f38aa3';
+    r'351a23ce08d86b49ea97647d6b43d0fb442ef968';
 
 abstract class _$NotificationNewCount extends $AsyncNotifier<int> {
   FutureOr<int> build();

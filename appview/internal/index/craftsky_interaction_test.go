@@ -21,7 +21,7 @@ import (
 const craftskyInteractionsDDL = craftskyPostsDDL + `
 CREATE TABLE craftsky_likes (
     uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    did         TEXT        NOT NULL,
     rkey        TEXT        NOT NULL,
     cid         TEXT        NOT NULL,
     subject_uri TEXT        NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
@@ -43,7 +43,7 @@ CREATE INDEX craftsky_likes_indexed_at_desc
 
 CREATE TABLE craftsky_reposts (
     uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    did         TEXT        NOT NULL,
     rkey        TEXT        NOT NULL,
     cid         TEXT        NOT NULL,
     subject_uri TEXT        NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
@@ -264,6 +264,34 @@ func TestCraftskyInteraction_CreateAndDuplicateDelivery(t *testing.T) {
 			}
 			if deletedAt != nil {
 				t.Errorf("deleted_at = %v, want nil", deletedAt)
+			}
+		})
+	}
+}
+
+func TestCraftskyInteraction_PreservesPublicRecordOnMembershipDelete(t *testing.T) {
+	for _, tc := range interactionIndexerCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			pool := testdb.WithSchema(t, craftskyInteractionsDDL)
+			seedCraftskyMember(t, pool, "did:plc:actor")
+			seedCraftskySubjectPost(t, pool, "at://did:plc:author/social.craftsky.feed.post/post1")
+			ev := interactionEvent(tc, "retained", "bafyretained", "at://did:plc:author/social.craftsky.feed.post/post1", "subjectcid")
+			if err := tc.newIndexer(pool).Handle(context.Background(), ev); err != nil {
+				t.Fatal(err)
+			}
+
+			if _, err := pool.Exec(context.Background(),
+				`DELETE FROM craftsky_profiles WHERE did = 'did:plc:actor'`); err != nil {
+				t.Fatalf("delete membership: %v", err)
+			}
+			var count int
+			if err := pool.QueryRow(context.Background(), fmt.Sprintf(
+				`SELECT count(*) FROM %s WHERE did = 'did:plc:actor'`, tc.table,
+			)).Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if count != 1 {
+				t.Fatalf("retained rows = %d, want 1", count)
 			}
 		})
 	}

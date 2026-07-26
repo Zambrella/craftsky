@@ -1028,7 +1028,10 @@
             "did": "did:plc:syntheticactor",
             "handle": "actor.synthetic.invalid",
             "displayName": "Synthetic Actor",
-            "viewerIsFollowing": false
+            "viewerIsFollowing": false,
+            "muted": false,
+            "blocking": false,
+            "blockedBy": false
           },
           "references": {
             "source": {
@@ -1052,7 +1055,10 @@
             "available": true,
             "did": "did:plc:syntheticactor",
             "handle": "actor.synthetic.invalid",
-            "viewerIsFollowing": true
+            "viewerIsFollowing": true,
+            "muted": false,
+            "blocking": false,
+            "blockedBy": false
           },
           "references": {
             "source": {
@@ -1078,6 +1084,8 @@
             "viewerHasLiked": false,
             "viewerHasReposted": false,
             "viewerHasReplied": false,
+            "viewerHasSaved": false,
+            "viewerSavedFolderId": null,
             "reply": null,
             "quote": null,
             "createdAt": "2026-07-19T11:00:00Z",
@@ -1086,7 +1094,10 @@
               "did": "did:plc:syntheticviewer",
               "handle": "viewer.synthetic.invalid",
               "displayName": null,
-              "avatarCid": null
+              "avatarCid": null,
+              "muted": false,
+              "blocking": false,
+              "blockedBy": false
             }
           },
           "contentAvailable": true
@@ -1102,7 +1113,10 @@
             "available": true,
             "did": "did:plc:syntheticactor",
             "handle": "actor.synthetic.invalid",
-            "viewerIsFollowing": false
+            "viewerIsFollowing": false,
+            "muted": false,
+            "blocking": false,
+            "blockedBy": false
           },
           "references": {
             "source": {
@@ -1128,6 +1142,8 @@
             "viewerHasLiked": false,
             "viewerHasReposted": false,
             "viewerHasReplied": false,
+            "viewerHasSaved": false,
+            "viewerSavedFolderId": null,
             "reply": null,
             "quote": null,
             "createdAt": "2026-07-19T11:00:00Z",
@@ -1136,7 +1152,10 @@
               "did": "did:plc:syntheticviewer",
               "handle": "viewer.synthetic.invalid",
               "displayName": null,
-              "avatarCid": null
+              "avatarCid": null,
+              "muted": false,
+              "blocking": false,
+              "blockedBy": false
             }
           },
           "contentAvailable": true
@@ -1152,7 +1171,10 @@
             "available": true,
             "did": "did:plc:syntheticactor",
             "handle": "actor.synthetic.invalid",
-            "viewerIsFollowing": false
+            "viewerIsFollowing": false,
+            "muted": false,
+            "blocking": false,
+            "blockedBy": false
           },
           "references": {
             "source": {
@@ -1178,6 +1200,8 @@
             "viewerHasLiked": false,
             "viewerHasReposted": false,
             "viewerHasReplied": false,
+            "viewerHasSaved": false,
+            "viewerSavedFolderId": null,
             "reply": null,
             "quote": null,
             "createdAt": "2026-07-19T11:00:00Z",
@@ -1186,7 +1210,10 @@
               "did": "did:plc:syntheticviewer",
               "handle": "viewer.synthetic.invalid",
               "displayName": null,
-              "avatarCid": null
+              "avatarCid": null,
+              "muted": false,
+              "blocking": false,
+              "blockedBy": false
             }
           },
           "reply": {
@@ -1208,7 +1235,10 @@
             "available": true,
             "did": "did:plc:syntheticactor",
             "handle": "actor.synthetic.invalid",
-            "viewerIsFollowing": false
+            "viewerIsFollowing": false,
+            "muted": false,
+            "blocking": false,
+            "blockedBy": false
           },
           "references": {
             "source": {
@@ -1234,6 +1264,8 @@
             "viewerHasLiked": false,
             "viewerHasReposted": false,
             "viewerHasReplied": false,
+            "viewerHasSaved": false,
+            "viewerSavedFolderId": null,
             "reply": null,
             "quote": null,
             "createdAt": "2026-07-19T11:00:00Z",
@@ -1242,7 +1274,10 @@
               "did": "did:plc:syntheticviewer",
               "handle": "viewer.synthetic.invalid",
               "displayName": null,
-              "avatarCid": null
+              "avatarCid": null,
+              "muted": false,
+              "blocking": false,
+              "blockedBy": false
             }
           },
           "contentAvailable": true
@@ -1258,7 +1293,10 @@
             "available": true,
             "did": "did:plc:syntheticactor",
             "handle": "actor.synthetic.invalid",
-            "viewerIsFollowing": false
+            "viewerIsFollowing": false,
+            "muted": false,
+            "blocking": false,
+            "blockedBy": false
           },
           "references": {
             "source": {
@@ -1284,6 +1322,8 @@
             "viewerHasLiked": false,
             "viewerHasReposted": false,
             "viewerHasReplied": false,
+            "viewerHasSaved": false,
+            "viewerSavedFolderId": null,
             "reply": null,
             "quote": null,
             "createdAt": "2026-07-19T11:00:00Z",
@@ -1292,7 +1332,10 @@
               "did": "did:plc:syntheticviewer",
               "handle": "viewer.synthetic.invalid",
               "displayName": null,
-              "avatarCid": null
+              "avatarCid": null,
+              "muted": false,
+              "blocking": false,
+              "blockedBy": false
             }
           },
           "contentAvailable": true
@@ -1308,7 +1351,10 @@
             "available": true,
             "did": "did:plc:syntheticactor",
             "handle": "actor.synthetic.invalid",
-            "viewerIsFollowing": false
+            "viewerIsFollowing": false,
+            "muted": false,
+            "blocking": false,
+            "blockedBy": false
           },
           "references": {
             "source": {
@@ -1392,7 +1438,10 @@
             "available": true,
             "did": "did:plc:syntheticactor",
             "handle": "actor.synthetic.invalid",
-            "viewerIsFollowing": false
+            "viewerIsFollowing": false,
+            "muted": false,
+            "blocking": false,
+            "blockedBy": false
           },
           "createdAt": "2026-07-19T12:08:00Z",
           "indexedAt": "2026-07-19T12:08:01Z"

@@ -41,6 +41,7 @@ Post _post(
   replyCount: replyCount,
   viewerHasLiked: false,
   viewerHasReposted: false,
+  viewerHasSaved: false,
 );
 
 InteractionWriteResponse _likeResponse(Post post) => InteractionWriteResponse(
@@ -1104,6 +1105,7 @@ void main() {
       replyCount: 0,
       viewerHasLiked: false,
       viewerHasReposted: false,
+      viewerHasSaved: false,
       reply: PostReply(
         root: PostRef(uri: root.uri, cid: root.cid),
         parent: PostRef(uri: comment.uri, cid: comment.cid),

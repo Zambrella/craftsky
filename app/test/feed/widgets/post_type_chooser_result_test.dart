@@ -70,5 +70,6 @@ Post _post({required String rkey}) {
     replyCount: 0,
     viewerHasLiked: false,
     viewerHasReposted: false,
+    viewerHasSaved: false,
   );
 }

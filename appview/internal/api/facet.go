@@ -22,7 +22,7 @@ type FacetSuggestionReader interface {
 }
 
 type FacetMentionResolver interface {
-	ResolveMention(ctx context.Context, handle syntax.Handle, now time.Time) (IdentityCacheRow, error)
+	ResolveMention(ctx context.Context, viewerDID syntax.DID, handle syntax.Handle, now time.Time) (IdentityCacheRow, error)
 }
 
 func ListFacetMentionSuggestionsHandler(store FacetSuggestionReader, logger *slog.Logger) http.Handler {
@@ -63,9 +63,18 @@ func ResolveFacetMentionHandler(resolver FacetMentionResolver, logger *slog.Logg
 			envelope.WriteError(w, http.StatusNotFound, "mention_not_found", "mention not found", middleware.GetRunID(r.Context()), nil)
 			return
 		}
-		row, err := resolver.ResolveMention(r.Context(), handle, time.Now().UTC())
+		viewerDID, ok := middleware.GetDID(r.Context())
+		if !ok {
+			envelope.WriteError(w, http.StatusInternalServerError, "missing_authenticated_did", "authenticated DID missing", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		row, err := resolver.ResolveMention(r.Context(), viewerDID, handle, time.Now().UTC())
 		if errors.Is(err, ErrMentionNotFound) {
 			envelope.WriteError(w, http.StatusNotFound, "mention_not_found", "mention not found", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		if errors.Is(err, ErrInteractionBlocked) {
+			envelope.WriteError(w, http.StatusForbidden, "interaction_blocked", "interaction is not allowed across a block", middleware.GetRunID(r.Context()), nil)
 			return
 		}
 		if err != nil {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,9 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/relationships"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -38,7 +42,7 @@ CREATE TABLE bluesky_profiles (
 );
 CREATE TABLE craftsky_posts (
     uri              TEXT        NOT NULL PRIMARY KEY,
-    did              TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    did              TEXT        NOT NULL,
     rkey             TEXT        NOT NULL,
     cid              TEXT        NOT NULL,
     text             TEXT        NOT NULL,
@@ -111,7 +115,7 @@ CREATE TABLE craftsky_post_mentions (
 );
 CREATE TABLE craftsky_likes (
     uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    did         TEXT        NOT NULL,
     rkey        TEXT        NOT NULL,
     cid         TEXT        NOT NULL,
     subject_uri TEXT        NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
@@ -124,7 +128,7 @@ CREATE TABLE craftsky_likes (
 );
 CREATE TABLE craftsky_reposts (
     uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    did         TEXT        NOT NULL,
     rkey        TEXT        NOT NULL,
     cid         TEXT        NOT NULL,
     subject_uri TEXT        NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
@@ -134,6 +138,13 @@ CREATE TABLE craftsky_reposts (
     indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at  TIMESTAMPTZ,
     UNIQUE (did, rkey)
+);
+CREATE TABLE saved_posts (
+    owner_did TEXT NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    post_uri  TEXT NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
+    folder_id UUID,
+    saved_at  TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (owner_did, post_uri)
 );
 CREATE TABLE moderation_outputs (
     id                  TEXT        NOT NULL PRIMARY KEY,
@@ -150,7 +161,7 @@ CREATE TABLE moderation_outputs (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     indexed_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-`
+` + profileRelationshipDDL
 
 func seedMember(t *testing.T, pool *pgxpool.Pool, did string) {
 	t.Helper()
@@ -228,6 +239,16 @@ func seedInteraction(t *testing.T, pool *pgxpool.Pool, table, did, rkey, subject
 	return uri
 }
 
+func seedSavedPost(t *testing.T, pool *pgxpool.Pool, ownerDID, postURI string, folderID *string, savedAt time.Time) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO saved_posts (owner_did, post_uri, folder_id, saved_at)
+		VALUES ($1, $2, $3, $4)
+	`, ownerDID, postURI, folderID, savedAt); err != nil {
+		t.Fatalf("seed saved post: %v", err)
+	}
+}
+
 func seedPostMention(t *testing.T, pool *pgxpool.Pool, postURI, mentionedDID string, indexedAt time.Time) {
 	t.Helper()
 	if _, err := pool.Exec(context.Background(), `
@@ -268,6 +289,38 @@ func assertPostRowURIs(t *testing.T, rows []*api.PostRow, want []string) {
 	got := postRowURIs(rows)
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("rows = %v, want %v", got, want)
+	}
+}
+
+func TestPostStoreAuthorizationDenialEmitsBoundedRelationshipOutcome(t *testing.T) {
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	seedMember(t, pool, "did:plc:bob")
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
+		VALUES ('at://did:plc:alice/app.bsky.graph.block/deny', 'did:plc:alice', 'deny', 'cid', 'did:plc:bob', '{}', now())
+	`); err != nil {
+		t.Fatal(err)
+	}
+	recorder := observability.NewInMemoryMetricRecorder()
+	store := api.NewPostStore(pool, observability.New(observability.Config{MetricRecorder: recorder}))
+
+	err := store.AuthorizeDirectedInteraction(
+		context.Background(),
+		syntax.DID("did:plc:alice"),
+		syntax.DID("did:plc:bob"),
+		relationships.OperationLikeCreate,
+	)
+	if !errors.Is(err, api.ErrInteractionBlocked) {
+		t.Fatalf("authorization error = %v", err)
+	}
+	calls := recorder.Calls()
+	if len(calls) != 1 {
+		t.Fatalf("relationship metric calls = %d, want 1", len(calls))
+	}
+	attrs := calls[0].Attributes
+	if attrs["operation"] != "authorization_like" || attrs["stage"] != "policy" || attrs["result"] != "denied" || attrs["error_class"] != "policy" {
+		t.Fatalf("authorization metric = %#v", calls[0])
 	}
 }
 
@@ -993,17 +1046,31 @@ func TestPostStore_EngagementSummaries_ActiveOnlyAndViewerStates(t *testing.T) {
 	reply1 := seedReplyPost(t, pool, "did:plc:bob", "reply1", "reply", post1, post1, base.Add(2*time.Hour))
 	seedReplyPost(t, pool, "did:plc:carol", "reply2", "reply", post1, post1, base.Add(3*time.Hour))
 	seedReplyPost(t, pool, "did:plc:dave", "grandchild", "nested", post1, reply1, base.Add(4*time.Hour))
+	bobFolderID := "11111111-1111-1111-1111-111111111111"
+	seedSavedPost(t, pool, "did:plc:bob", post1, &bobFolderID, base.Add(5*time.Hour))
+	seedSavedPost(t, pool, "did:plc:alice", post2, nil, base.Add(6*time.Hour))
 
 	store := api.NewPostStore(pool)
 	summaries, err := store.EngagementSummaries(context.Background(), "did:plc:bob", []string{post1, post2})
 	if err != nil {
 		t.Fatalf("EngagementSummaries: %v", err)
 	}
-	if got := summaries[post1]; got.LikeCount != 2 || got.RepostCount != 1 || got.QuoteCount != 2 || got.ReplyCount != 3 || !got.ViewerHasLiked || !got.ViewerHasReposted || !got.ViewerHasReplied {
+	if got := summaries[post1]; got.LikeCount != 2 || got.RepostCount != 1 || got.QuoteCount != 2 || got.ReplyCount != 3 || !got.ViewerHasLiked || !got.ViewerHasReposted || !got.ViewerHasReplied || !got.ViewerHasSaved || got.ViewerSavedFolderID == nil || *got.ViewerSavedFolderID != bobFolderID {
 		t.Fatalf("post1 summary = %+v", got)
 	}
-	if got := summaries[post2]; got.LikeCount != 1 || got.RepostCount != 1 || got.QuoteCount != 0 || got.ReplyCount != 0 || !got.ViewerHasLiked || got.ViewerHasReposted || got.ViewerHasReplied {
+	if got := summaries[post2]; got.LikeCount != 1 || got.RepostCount != 1 || got.QuoteCount != 0 || got.ReplyCount != 0 || !got.ViewerHasLiked || got.ViewerHasReposted || got.ViewerHasReplied || got.ViewerHasSaved || got.ViewerSavedFolderID != nil {
 		t.Fatalf("post2 summary = %+v", got)
+	}
+
+	aliceSummaries, err := store.EngagementSummaries(context.Background(), "did:plc:alice", []string{post1, post2})
+	if err != nil {
+		t.Fatalf("Alice EngagementSummaries: %v", err)
+	}
+	if got := aliceSummaries[post1]; got.ViewerHasSaved || got.ViewerSavedFolderID != nil {
+		t.Fatalf("Alice post1 summary = %+v, want unsaved", got)
+	}
+	if got := aliceSummaries[post2]; !got.ViewerHasSaved || got.ViewerSavedFolderID != nil {
+		t.Fatalf("Alice post2 summary = %+v, want unfiled saved", got)
 	}
 }
 
@@ -1094,6 +1161,30 @@ func TestPostStore_QuoteViewRows_ReturnsVisibleHiddenAndUnavailableStates(t *tes
 	}
 }
 
+func TestPostStoreResolveSavedPostTargetRequiresEligibleReplyContext(t *testing.T) {
+	pool := testdb.WithSchema(t, postStoreDDL)
+	ctx := context.Background()
+	for _, did := range []string{"did:plc:viewer", "did:plc:root", "did:plc:parent", "did:plc:target"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 7, 20, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:root", "root", "root", base)
+	parent := seedReplyPost(t, pool, "did:plc:parent", "parent", "parent", root, root, base.Add(time.Minute))
+	seedReplyPost(t, pool, "did:plc:target", "target", "target", root, parent, base.Add(2*time.Minute))
+
+	store := api.NewPostStore(pool)
+	uri, err := store.ResolveSavedPostTarget(ctx, "did:plc:viewer", "did:plc:target", "target")
+	if err != nil || uri.String() != "at://did:plc:target/social.craftsky.feed.post/target" {
+		t.Fatalf("eligible reply target = %s, err %v", uri, err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM craftsky_posts WHERE uri = $1`, parent); err != nil {
+		t.Fatalf("remove required parent: %v", err)
+	}
+	if _, err := store.ResolveSavedPostTarget(ctx, "did:plc:viewer", "did:plc:target", "target"); !errors.Is(err, api.ErrPostNotFound) {
+		t.Fatalf("missing-context target err = %v, want ErrPostNotFound", err)
+	}
+}
+
 func TestPostStore_ListCommentBranchReplies_PaginatesBranchOldestFirst(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)
@@ -1133,6 +1224,112 @@ func TestPostStore_ListCommentBranchReplies_PaginatesBranchOldestFirst(t *testin
 	}
 	if cursor2 != "" {
 		t.Fatalf("want empty final cursor, got %q", cursor2)
+	}
+}
+
+func TestPostStore_ListCommentBranchReplies_MutedAncestorDoesNotLeakAcrossPages(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{
+		"did:plc:viewer",
+		"did:plc:alice",
+		"did:plc:bob",
+		"did:plc:carol",
+		"did:plc:dave",
+	} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 7, 20, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:alice", "root-muted-page", "root", base)
+	comment := seedReplyPost(t, pool, "did:plc:alice", "comment-muted-page", "comment", root, root, base.Add(time.Minute))
+	mutedParent := seedReplyPost(t, pool, "did:plc:bob", "muted-parent", "muted parent", root, comment, base.Add(2*time.Minute))
+	seedReplyPost(t, pool, "did:plc:carol", "hidden-descendant", "must stay collapsed", root, mutedParent, base.Add(3*time.Minute))
+	visibleSibling := seedReplyPost(t, pool, "did:plc:dave", "visible-sibling", "visible", root, comment, base.Add(4*time.Minute))
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO actor_mutes (owner_did, subject_did)
+		VALUES ('did:plc:viewer', 'did:plc:bob')
+	`); err != nil {
+		t.Fatalf("seed viewer mute: %v", err)
+	}
+
+	store := api.NewPostStore(pool)
+	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
+	page1, cursor, err := store.ListCommentBranchReplies(ctx, comment, root, 1, "")
+	if err != nil {
+		t.Fatalf("page 1: %v", err)
+	}
+	if got := replyRkeys(page1); len(got) != 1 || got[0] != "muted-parent" || cursor == "" {
+		t.Fatalf("page 1 = %v cursor=%q, want muted placeholder source and cursor", got, cursor)
+	}
+
+	page2, _, err := store.ListCommentBranchReplies(ctx, comment, root, 1, cursor)
+	if err != nil {
+		t.Fatalf("page 2: %v", err)
+	}
+	if got := replyRkeys(page2); len(got) != 1 || got[0] != "visible-sibling" {
+		t.Fatalf("page 2 = %v, want eligible sibling %s without muted descendant", got, visibleSibling)
+	}
+}
+
+func TestPostStore_ListCommentBranchReplies_HidesThirdPartyBlockedParentChildEdge(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol", "did:plc:dave"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:carol", "root", "root", base)
+	comment := seedReplyPost(t, pool, "did:plc:bob", "comment", "comment", root, root, base.Add(time.Minute))
+	blockedReply := seedReplyPost(t, pool, "did:plc:alice", "blocked-reply", "must stay hidden", root, comment, base.Add(2*time.Minute))
+	seedReplyPost(t, pool, "did:plc:dave", "descendant", "must stay hidden too", root, blockedReply, base.Add(3*time.Minute))
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
+		VALUES ('at://did:plc:alice/app.bsky.graph.block/bob', 'did:plc:alice', 'bob', 'bafyblock', 'did:plc:bob', '{}', $1)
+	`, base); err != nil {
+		t.Fatalf("seed block: %v", err)
+	}
+
+	store := api.NewPostStore(pool)
+	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:carol"))
+	rows, cursor, err := store.ListCommentBranchReplies(ctx, comment, root, 10, "")
+	if err != nil {
+		t.Fatalf("ListCommentBranchReplies: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("third-party blocked edge returned rows = %v", replyRkeys(rows))
+	}
+	if cursor != "" {
+		t.Fatalf("cursor = %q, want empty", cursor)
+	}
+}
+
+func TestPostStore_ListRootComments_HidesThirdPartyBlockedMentionEdge(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol", "did:plc:dave"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 7, 19, 13, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:dave", "root", "root", base)
+	mention := seedReplyPost(t, pool, "did:plc:alice", "mention", "@bob", root, root, base.Add(time.Minute))
+	seedPostMention(t, pool, mention, "did:plc:bob", base.Add(time.Minute))
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
+		VALUES ('at://did:plc:alice/app.bsky.graph.block/bob', 'did:plc:alice', 'bob', 'bafyblock', 'did:plc:bob', '{}', $1)
+	`, base); err != nil {
+		t.Fatalf("seed block: %v", err)
+	}
+
+	store := api.NewPostStore(pool)
+	rows, cursor, err := store.ListRootComments(context.Background(), root, "did:plc:carol", "oldest", 10, "")
+	if err != nil {
+		t.Fatalf("ListRootComments: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("third-party blocked mention returned rows = %v", replyRkeys(rows))
+	}
+	if cursor != "" {
+		t.Fatalf("cursor = %q, want empty", cursor)
 	}
 }
 
@@ -1176,6 +1373,55 @@ func TestPostStore_ListCommentBranchRepliesAround_IncludesFocusedReplyAfterFirst
 	}
 	if nextCursor != "" {
 		t.Fatalf("next cursor = %q, want empty", nextCursor)
+	}
+}
+
+func TestPostStore_ListCommentBranchRepliesAround_FocusCollapsesToMutedAncestor(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{
+		"did:plc:viewer",
+		"did:plc:alice",
+		"did:plc:bob",
+		"did:plc:carol",
+	} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 7, 20, 13, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:alice", "root-muted-focus", "root", base)
+	comment := seedReplyPost(t, pool, "did:plc:alice", "comment-muted-focus", "comment", root, root, base.Add(time.Minute))
+	mutedParent := seedReplyPost(t, pool, "did:plc:bob", "muted-focus-parent", "muted parent", root, comment, base.Add(2*time.Minute))
+	parent := mutedParent
+	for i := 0; i < 12; i++ {
+		parent = seedReplyPost(
+			t,
+			pool,
+			"did:plc:carol",
+			fmt.Sprintf("muted-focus-child-%02d", i),
+			"must stay collapsed",
+			root,
+			parent,
+			base.Add(time.Duration(i+3)*time.Minute),
+		)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO actor_mutes (owner_did, subject_did)
+		VALUES ('did:plc:viewer', 'did:plc:bob')
+	`); err != nil {
+		t.Fatalf("seed viewer mute: %v", err)
+	}
+
+	store := api.NewPostStore(pool)
+	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
+	page, cursor, err := store.ListCommentBranchRepliesAround(ctx, comment, root, parent, 10)
+	if err != nil {
+		t.Fatalf("ListCommentBranchRepliesAround: %v", err)
+	}
+	if got := replyRkeys(page); len(got) != 1 || got[0] != "muted-focus-parent" {
+		t.Fatalf("focused page = %v, want only muted ancestor placeholder source", got)
+	}
+	if cursor != "" {
+		t.Fatalf("cursor = %q, want no ordinary continuation into collapsed descendants", cursor)
 	}
 }
 

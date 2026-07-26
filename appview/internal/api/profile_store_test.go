@@ -82,7 +82,7 @@ CREATE TABLE atproto_follows (
 );
 CREATE TABLE craftsky_posts (
     uri              TEXT        NOT NULL PRIMARY KEY,
-    did              TEXT        NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    did              TEXT        NOT NULL,
     rkey             TEXT        NOT NULL,
     cid              TEXT        NOT NULL,
     text             TEXT        NOT NULL,
@@ -124,7 +124,7 @@ CREATE TABLE moderation_outputs (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     indexed_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-`
+` + profileRelationshipDDL
 
 func TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts(t *testing.T) {
 	t.Parallel()
@@ -231,7 +231,7 @@ func TestProfileStore_ReadByDID_HiddenNonCraftskyAccountReturnsNotFound(t *testi
 	}
 }
 
-func TestProfileStore_ReadByDID_WarnedNonCraftskyAccountAttachesWarningMetadata(t *testing.T) {
+func TestProfileStore_ReadByDID_WarnedNonCraftskyAccountRemainsNotFound(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, profileStoreDDL)
 	ctx := context.Background()
@@ -246,23 +246,9 @@ func TestProfileStore_ReadByDID_WarnedNonCraftskyAccountAttachesWarningMetadata(
 	}
 
 	store := api.NewProfileStore(pool)
-	row, err := store.Read(ctx, "did:plc:carol", "did:plc:viewer")
-	if err != nil {
-		t.Fatalf("Read warned non-Craftsky profile: %v", err)
-	}
-	if row.ModerationWarningKind == nil || *row.ModerationWarningKind != "profile" {
-		t.Fatalf("ModerationWarningKind = %v, want profile", row.ModerationWarningKind)
-	}
-	out := api.BuildProfileResponse(row, "carol.example", false)
-	data, err := json.Marshal(out)
-	if err != nil {
-		t.Fatalf("marshal response: %v", err)
-	}
-	if !strings.Contains(string(data), `"warningKind":"profile"`) {
-		t.Fatalf("response missing profile warning: %s", data)
-	}
-	if strings.Contains(string(data), "raw unsafe reason fixture") || strings.Contains(string(data), "internalReason") {
-		t.Fatalf("response leaked raw moderation reason: %s", data)
+	_, err := store.Read(ctx, "did:plc:carol", "did:plc:viewer")
+	if !errors.Is(err, api.ErrProfileNotFound) {
+		t.Fatalf("warned non-member error = %v, want ErrProfileNotFound", err)
 	}
 }
 
@@ -642,7 +628,7 @@ func TestProfileStore_ReadByDID_CraftskyOnlyCounts(t *testing.T) {
 	}
 }
 
-func TestProfileStore_ReadByDID_NonCraftskyFromBlueskyCache(t *testing.T) {
+func TestProfileStore_ReadByDID_NonCraftskyBlueskyCacheIsNotMembership(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, profileStoreDDL)
 	ctx := context.Background()
@@ -655,26 +641,13 @@ func TestProfileStore_ReadByDID_NonCraftskyFromBlueskyCache(t *testing.T) {
 	}
 
 	store := api.NewProfileStore(pool)
-	got, err := store.Read(ctx, "did:plc:carol", "did:plc:alice")
-	if err != nil {
-		t.Fatalf("Read non-craftsky: %v", err)
-	}
-
-	if got.IsCraftskyProfile {
-		t.Fatalf("isCraftskyProfile = true, want false")
-	}
-	if got.FollowerCount != nil || got.FollowingCount != nil {
-		t.Fatalf("counts = (%v,%v), want nil,nil", got.FollowerCount, got.FollowingCount)
-	}
-	if got.DisplayName == nil || *got.DisplayName != "Carol" {
-		t.Fatalf("displayName = %v, want Carol", got.DisplayName)
-	}
-	if got.Crafts == nil || len(got.Crafts) != 0 {
-		t.Fatalf("crafts = %v, want empty []", got.Crafts)
+	_, err := store.Read(ctx, "did:plc:carol", "did:plc:alice")
+	if !errors.Is(err, api.ErrProfileNotFound) {
+		t.Fatalf("non-member cache error = %v, want ErrProfileNotFound", err)
 	}
 }
 
-func TestProfileStore_ReadByDID_NonCraftskyViewerStateFromGraph(t *testing.T) {
+func TestProfileStore_ReadByDID_NonCraftskyFollowDoesNotMakeMember(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, profileStoreDDL)
 	ctx := context.Background()
@@ -693,43 +666,20 @@ func TestProfileStore_ReadByDID_NonCraftskyViewerStateFromGraph(t *testing.T) {
 	}
 
 	store := api.NewProfileStore(pool)
-	got, err := store.Read(ctx, "did:plc:carol", "did:plc:alice")
-	if err != nil {
-		t.Fatalf("Read non-craftsky: %v", err)
-	}
-	if !got.ViewerIsFollowing {
-		t.Fatalf("viewerIsFollowing = false, want true")
+	_, err := store.Read(ctx, "did:plc:carol", "did:plc:alice")
+	if !errors.Is(err, api.ErrProfileNotFound) {
+		t.Fatalf("non-member follow error = %v, want ErrProfileNotFound", err)
 	}
 }
 
-func TestProfileStore_ReadByDID_HydratesNonCraftskyWhenCacheMisses(t *testing.T) {
+func TestProfileStore_ReadByDID_DoesNotHydrateNonCraftskyWhenCacheMisses(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, profileStoreDDL)
 	ctx := context.Background()
 
-	store := api.NewProfileStore(pool, fakeProfileHydrator{
-		cid: "cid-carol",
-		record: map[string]any{
-			"displayName": "Carol",
-			"description": "external account",
-			"avatar": map[string]any{
-				"ref":      map[string]any{"$link": "baf-avatar"},
-				"mimeType": "image/jpeg",
-			},
-		},
-	})
-	got, err := store.Read(ctx, "did:plc:carol", "did:plc:alice")
-	if err != nil {
-		t.Fatalf("Read hydrated non-craftsky: %v", err)
-	}
-
-	if got.IsCraftskyProfile {
-		t.Fatalf("isCraftskyProfile = true, want false")
-	}
-	if got.DisplayName == nil || *got.DisplayName != "Carol" {
-		t.Fatalf("displayName = %v, want Carol", got.DisplayName)
-	}
-	if got.AvatarCID == nil || *got.AvatarCID != "baf-avatar" {
-		t.Fatalf("avatarCID = %v, want baf-avatar", got.AvatarCID)
+	store := api.NewProfileStore(pool)
+	_, err := store.Read(ctx, "did:plc:carol", "did:plc:alice")
+	if !errors.Is(err, api.ErrProfileNotFound) {
+		t.Fatalf("cache miss error = %v, want ErrProfileNotFound", err)
 	}
 }

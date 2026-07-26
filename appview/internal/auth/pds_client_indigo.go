@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 
+	apiatproto "github.com/bluesky-social/indigo/api/atproto"
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
@@ -21,6 +22,7 @@ type IndigoPDSClient struct {
 }
 
 var _ PDSClient = (*IndigoPDSClient)(nil)
+var _ PDSRecordLister = (*IndigoPDSClient)(nil)
 
 // GetRecord calls com.atproto.repo.getRecord on the user's PDS. A
 // "record missing" response is translated to ErrRecordNotFound so callers
@@ -150,6 +152,39 @@ func (i *IndigoPDSClient) DeleteRecord(
 		return i.translateError(ctx, translateGetRecordError(err))
 	}
 	return nil
+}
+
+func (i *IndigoPDSClient) ListRecords(
+	ctx context.Context,
+	repo syntax.DID,
+	collection string,
+	cursor string,
+	limit int,
+) ([]PDSRecord, string, error) {
+	out, err := apiatproto.RepoListRecords(ctx, i.Client, collection, cursor, int64(limit), repo.String(), false)
+	if err != nil {
+		return nil, "", i.translateError(ctx, err)
+	}
+	records := make([]PDSRecord, 0, len(out.Records))
+	for _, record := range out.Records {
+		if record == nil || record.Value == nil || record.Value.Val == nil || record.Cid == "" {
+			return nil, "", fmt.Errorf("listRecords: PDS returned incomplete record")
+		}
+		uri, err := syntax.ParseATURI(record.Uri)
+		if err != nil {
+			return nil, "", fmt.Errorf("listRecords: invalid uri: %w", err)
+		}
+		records = append(records, PDSRecord{
+			URI:   uri,
+			CID:   syntax.CID(record.Cid),
+			Value: record.Value.Val,
+		})
+	}
+	var next string
+	if out.Cursor != nil {
+		next = *out.Cursor
+	}
+	return records, next, nil
 }
 
 // UploadBlob calls com.atproto.repo.uploadBlob with raw image bytes.

@@ -124,6 +124,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
               final post = posts[index];
               return PostCard(
                 post: post,
+                hideWhenAuthorProtected: true,
                 onTap: () => PostThreadRoute(
                   did: post.author.did,
                   rkey: post.rkey,

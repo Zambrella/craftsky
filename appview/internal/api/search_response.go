@@ -47,6 +47,28 @@ type ProfileSearchSummary struct {
 	Crafts            []string `json:"crafts"`
 }
 
+func (p ProfileSearchSummary) MarshalJSON() ([]byte, error) {
+	if !p.Blocking && !p.BlockedBy {
+		type ordinary ProfileSearchSummary
+		return json.Marshal(ordinary(p))
+	}
+	type blockedSearchShell struct {
+		DID               any     `json:"did"`
+		Handle            any     `json:"handle"`
+		DisplayName       *string `json:"displayName,omitempty"`
+		Avatar            *string `json:"avatar,omitempty"`
+		IsCraftskyProfile bool    `json:"isCraftskyProfile"`
+		Muted             bool    `json:"muted"`
+		Blocking          bool    `json:"blocking"`
+		BlockedBy         bool    `json:"blockedBy"`
+	}
+	return json.Marshal(blockedSearchShell{
+		DID: p.DID, Handle: p.Handle, DisplayName: p.DisplayName, Avatar: p.Avatar,
+		IsCraftskyProfile: p.IsCraftskyProfile,
+		Muted:             p.Muted, Blocking: p.Blocking, BlockedBy: p.BlockedBy,
+	})
+}
+
 type TopHashtagsResponse struct {
 	Groups []TopHashtagGroup `json:"groups"`
 }

@@ -1,6 +1,10 @@
 package notifications
 
-import "testing"
+import (
+	"testing"
+
+	"social.craftsky/appview/internal/relationships"
+)
 
 func TestEvaluateEligibilityAtEventTime(t *testing.T) {
 	tests := []struct {
@@ -33,5 +37,30 @@ func TestEvaluateEligibilityRejectsInvalidScope(t *testing.T) {
 	_, err := EvaluateEligibility(EligibilityInput{Preference: Preference{Scope: Scope("invalid"), PushEnabled: true}})
 	if err == nil {
 		t.Fatal("expected invalid scope error")
+	}
+}
+
+func TestEvaluateEligibilityRetainsButSuppressesRelationshipProtectedActivity(t *testing.T) {
+	tests := []struct {
+		name  string
+		state relationships.State
+	}{
+		{name: "muted actor", state: relationships.State{Muted: true}},
+		{name: "recipient blocks actor", state: relationships.State{Blocking: true}},
+		{name: "actor blocks recipient", state: relationships.State{BlockedBy: true}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := EvaluateEligibility(EligibilityInput{
+				Preference:   Preference{Scope: Everyone, PushEnabled: true},
+				Relationship: test.state,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !got.Accepted || got.Eligible || got.PushEnabled {
+				t.Fatalf("decision = %+v, want retained but hidden and no push", got)
+			}
+		})
 	}
 }

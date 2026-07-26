@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"social.craftsky/appview/internal/app"
+	internalTap "social.craftsky/appview/internal/tap"
 )
 
 const craftskyPostCollection = "social.craftsky.feed.post"
@@ -182,23 +183,7 @@ func runTapRepoCheck(ctx context.Context, didRaw string, opts tapRepoCheckOption
 }
 
 func tapHTTPBaseURL(wsURL string) (string, error) {
-	u, err := url.Parse(wsURL)
-	if err != nil {
-		return "", fmt.Errorf("parse TAP_WS_URL: %w", err)
-	}
-	switch u.Scheme {
-	case "ws":
-		u.Scheme = "http"
-	case "wss":
-		u.Scheme = "https"
-	case "http", "https":
-	default:
-		return "", fmt.Errorf("unsupported TAP_WS_URL scheme %q", u.Scheme)
-	}
-	u.Path = strings.TrimSuffix(u.Path, "/channel")
-	u.RawQuery = ""
-	u.Fragment = ""
-	return strings.TrimRight(u.String(), "/"), nil
+	return internalTap.HTTPBaseURL(wsURL)
 }
 
 func tapGET(ctx context.Context, client *http.Client, url string) (json.RawMessage, error) {
@@ -222,25 +207,11 @@ func tapGET(ctx context.Context, client *http.Client, url string) (json.RawMessa
 }
 
 func tapAddRepo(ctx context.Context, client *http.Client, tapBase string, did syntax.DID) error {
-	body, err := json.Marshal(map[string][]string{"dids": {did.String()}})
+	admin, err := internalTap.NewAdminClient(tapBase, client)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tapBase+"/repos/add", bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("http %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
-	}
-	return nil
+	return admin.AddRepo(ctx, did)
 }
 
 func listPDSRecords(ctx context.Context, did syntax.DID, collection string) (map[string]repoRecord, error) {

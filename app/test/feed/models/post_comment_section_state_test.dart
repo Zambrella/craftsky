@@ -20,6 +20,7 @@ void main() {
     replyCount: 0,
     viewerHasLiked: false,
     viewerHasReposted: false,
+    viewerHasSaved: false,
   );
 
   Post postWithReplyCount(

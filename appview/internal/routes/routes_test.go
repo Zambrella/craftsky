@@ -117,6 +117,117 @@ func TestV1RoutePoliciesCoverRegisteredRoutes(t *testing.T) {
 	}
 }
 
+func TestRelationshipRoutesUseAuthenticatedNoBodyPolicies(t *testing.T) {
+	want := map[string]RateClass{
+		"POST /v1/profiles/{handleOrDid}/mutes":    RateClassWrite,
+		"DELETE /v1/profiles/{handleOrDid}/mutes":  RateClassWrite,
+		"POST /v1/profiles/{handleOrDid}/blocks":   RateClassWrite,
+		"DELETE /v1/profiles/{handleOrDid}/blocks": RateClassWrite,
+		"GET /v1/profiles/me/mutes":                RateClassRead,
+		"GET /v1/profiles/me/blocks":               RateClassRead,
+	}
+	for _, policy := range V1RoutePolicies(app.EnvDev, app.Config{Env: app.EnvDev}) {
+		key := policy.Method + " " + policy.PathPattern
+		rateClass, ok := want[key]
+		if !ok {
+			continue
+		}
+		if !policy.AuthRequired || policy.BodyKind != BodyNoBody || policy.RateClass != rateClass {
+			t.Fatalf("%s policy = %+v, want authenticated %s/no_body", key, policy, rateClass)
+		}
+		delete(want, key)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing relationship route policies: %v", want)
+	}
+
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+	for _, target := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/v1/profiles/did:plc:bob/mutes"},
+		{http.MethodDelete, "/v1/profiles/did:plc:bob/mutes"},
+		{http.MethodPost, "/v1/profiles/did:plc:bob/blocks"},
+		{http.MethodDelete, "/v1/profiles/did:plc:bob/blocks"},
+		{http.MethodGet, "/v1/profiles/me/mutes"},
+		{http.MethodGet, "/v1/profiles/me/blocks"},
+	} {
+		req := httptest.NewRequest(target.method, target.path, nil)
+		req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("%s %s unauthenticated status = %d, want 401; body=%s", target.method, target.path, rec.Code, rec.Body.String())
+		}
+		var body map[string]json.RawMessage
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatalf("%s %s error body is not JSON: %v", target.method, target.path, err)
+		}
+		for _, key := range []string{"error", "message", "requestId"} {
+			if _, ok := body[key]; !ok {
+				t.Fatalf("%s %s error body missing camelCase %s: %s", target.method, target.path, key, rec.Body.String())
+			}
+		}
+		if _, leaked := body["request_id"]; leaked {
+			t.Fatalf("%s %s error body used snake_case request_id: %s", target.method, target.path, rec.Body.String())
+		}
+	}
+}
+
+func TestSavedPostRoutesUseAuthenticatedPolicies(t *testing.T) {
+	want := map[string]struct {
+		rateClass RateClass
+		bodyKind  BodyKind
+	}{
+		"POST /v1/posts/{did}/{rkey}/saves":        {RateClassWrite, BodyDefaultJSON},
+		"DELETE /v1/posts/{did}/{rkey}/saves":      {RateClassWrite, BodyNoBody},
+		"GET /v1/saved-posts":                      {RateClassRead, BodyNoBody},
+		"GET /v1/saved-post-folders":               {RateClassRead, BodyNoBody},
+		"POST /v1/saved-post-folders":              {RateClassWrite, BodyDefaultJSON},
+		"PATCH /v1/saved-post-folders/{folderId}":  {RateClassWrite, BodyDefaultJSON},
+		"DELETE /v1/saved-post-folders/{folderId}": {RateClassWrite, BodyNoBody},
+	}
+	for _, policy := range V1RoutePolicies(app.EnvDev, app.Config{Env: app.EnvDev}) {
+		key := policy.Method + " " + policy.PathPattern
+		expected, ok := want[key]
+		if !ok {
+			continue
+		}
+		if !policy.AuthRequired || policy.RateClass != expected.rateClass || policy.BodyKind != expected.bodyKind {
+			t.Fatalf("%s policy = %+v, want authenticated %s/%s", key, policy, expected.rateClass, expected.bodyKind)
+		}
+		delete(want, key)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing saved-post route policies: %v", want)
+	}
+
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+	for _, target := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/v1/posts/did:plc:bob/post1/saves"},
+		{http.MethodDelete, "/v1/posts/did:plc:bob/post1/saves"},
+		{http.MethodGet, "/v1/saved-posts"},
+		{http.MethodGet, "/v1/saved-post-folders"},
+		{http.MethodPost, "/v1/saved-post-folders"},
+		{http.MethodPatch, "/v1/saved-post-folders/00000000-0000-4000-8000-000000000001"},
+		{http.MethodDelete, "/v1/saved-post-folders/00000000-0000-4000-8000-000000000001"},
+	} {
+		req := httptest.NewRequest(target.method, target.path, nil)
+		req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("%s %s unauthenticated status = %d, want 401; body=%s", target.method, target.path, rec.Code, rec.Body.String())
+		}
+	}
+}
+
 func TestAddRoutes_V1WhoAmIAuthenticatedReturnsDIDAndHandle(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, testDeps())

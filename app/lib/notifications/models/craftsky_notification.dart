@@ -296,6 +296,9 @@ final class NotificationActor with NotificationActorMappable {
     this.avatarCid,
     this.viewerIsFollowing = false,
     this.available = true,
+    this.muted,
+    this.blocking,
+    this.blockedBy,
   });
 
   factory NotificationActor.fromMap(Map<String, dynamic> map) =>
@@ -317,6 +320,12 @@ final class NotificationActor with NotificationActorMappable {
   final Cid? avatarCid;
   final bool viewerIsFollowing;
   final bool available;
+  final bool? muted;
+  final bool? blocking;
+  final bool? blockedBy;
+
+  bool get hasViewerState =>
+      muted != null || blocking != null || blockedBy != null;
 
   String get displayLabel =>
       available ? displayName ?? handle.toString() : 'Unavailable account';

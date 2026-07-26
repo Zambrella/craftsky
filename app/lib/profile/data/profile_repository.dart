@@ -2,6 +2,7 @@ import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
+import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
 /// Read/write surface the profile providers depend on. The production
@@ -36,6 +37,14 @@ abstract interface class ProfileRepository {
   /// Unfollows the target profile and returns the updated target profile.
   Future<Profile> unfollow(String handleOrDid);
 
+  Future<ProfileRelationship> mute(String handleOrDid);
+
+  Future<ProfileRelationship> unmute(String handleOrDid);
+
+  Future<ProfileRelationship> block(String handleOrDid);
+
+  Future<ProfileRelationship> unblock(String handleOrDid);
+
   /// POST /v1/profiles/{handleOrDid}/reports.
   Future<ReportResult> report(
     String handleOrDid,
@@ -51,4 +60,8 @@ abstract interface class ProfileRepository {
   Future<ProfileAccountPage> listFollowersMe({int? limit, String? cursor});
 
   Future<ProfileAccountPage> listFollowingMe({int? limit, String? cursor});
+
+  Future<ProfileAccountPage> listMutedProfiles({int? limit, String? cursor});
+
+  Future<ProfileAccountPage> listBlockedProfiles({int? limit, String? cursor});
 }

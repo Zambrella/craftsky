@@ -14,6 +14,7 @@ class CraftskyContextMenuItem {
     required this.icon,
     required this.onPressed,
     this.description,
+    this.semanticHint,
     this.isSelected = false,
     this.style = CraftskyContextMenuItemStyle.normal,
   });
@@ -22,6 +23,7 @@ class CraftskyContextMenuItem {
   final IconData icon;
   final FutureOr<void> Function()? onPressed;
   final String? description;
+  final String? semanticHint;
   final bool isSelected;
   final CraftskyContextMenuItemStyle style;
 }
@@ -60,12 +62,14 @@ class CraftskyContextMenuButton extends StatelessWidget {
     required this.groups,
     this.icon = Icons.more_horiz,
     this.tooltip,
+    this.enabled = true,
     super.key,
   });
 
   final List<CraftskyContextMenuGroup> groups;
   final IconData icon;
   final String? tooltip;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -73,15 +77,17 @@ class CraftskyContextMenuButton extends StatelessWidget {
       icon: Icon(icon, size: 22),
       tooltip: tooltip,
       padding: EdgeInsets.zero,
-      onPressed: () {
-        unawaited(
-          showCraftskyContextMenu(
-            context,
-            position: craftskyContextMenuAnchorPosition(context),
-            groups: groups,
-          ),
-        );
-      },
+      onPressed: enabled
+          ? () {
+              unawaited(
+                showCraftskyContextMenu(
+                  context,
+                  position: craftskyContextMenuAnchorPosition(context),
+                  groups: groups,
+                ),
+              );
+            }
+          : null,
     );
   }
 }
@@ -240,29 +246,36 @@ class _CraftskyContextMenuRow extends StatelessWidget {
       alpha: 0.4,
     );
 
-    return Material(
-      color: item.isSelected ? selectedBackground : Colors.transparent,
-      child: ListTile(
-        enabled: !isDisabled,
-        onTap: onTap,
-        contentPadding: EdgeInsets.symmetric(horizontal: spacing.sp4),
-        horizontalTitleGap: spacing.sp3,
-        leading: Icon(
-          item.isSelected ? Icons.check_box : item.icon,
-          color: color,
-        ),
-        title: Text(
-          item.text,
-          style: theme.textTheme.labelLarge?.copyWith(color: color),
-        ),
-        subtitle: item.description == null
-            ? null
-            : Text(
-                item.description!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.outline,
+    return Semantics(
+      label: item.text,
+      hint: item.semanticHint,
+      button: true,
+      enabled: !isDisabled,
+      excludeSemantics: true,
+      child: Material(
+        color: item.isSelected ? selectedBackground : Colors.transparent,
+        child: ListTile(
+          enabled: !isDisabled,
+          onTap: onTap,
+          contentPadding: EdgeInsets.symmetric(horizontal: spacing.sp4),
+          horizontalTitleGap: spacing.sp3,
+          leading: Icon(
+            item.isSelected ? Icons.check_box : item.icon,
+            color: color,
+          ),
+          title: Text(
+            item.text,
+            style: theme.textTheme.labelLarge?.copyWith(color: color),
+          ),
+          subtitle: item.description == null
+              ? null
+              : Text(
+                  item.description!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
                 ),
-              ),
+        ),
       ),
     );
   }

@@ -107,6 +107,7 @@ class _TagPostList extends StatelessWidget {
         final post = posts[index];
         return PostCard(
           post: post,
+          hideWhenAuthorProtected: true,
           onTap: () => PostThreadRoute(
             did: post.author.did,
             rkey: post.rkey,

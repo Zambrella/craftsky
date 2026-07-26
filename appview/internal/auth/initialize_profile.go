@@ -14,6 +14,10 @@ type IdentityCacheUpdater interface {
 	UpsertCurrentHandle(ctx context.Context, did syntax.DID) error
 }
 
+type RepositoryTracker interface {
+	AddRepo(context.Context, syntax.DID) error
+}
+
 // ErrProfileInitFailed wraps any non-404 PDS failure during onboarding-
 // on-login. Callers surface this as a profile_init_failed error page.
 var ErrProfileInitFailed = errors.New("profile: init failed")
@@ -74,9 +78,25 @@ func InitializeProfile(ctx context.Context, client PDSClient, did syntax.DID) er
 	}
 }
 
-func InitializeProfileAndIdentityCache(ctx context.Context, client PDSClient, did syntax.DID, updater IdentityCacheUpdater, logger *slog.Logger) error {
+func InitializeProfileAndIdentityCache(
+	ctx context.Context,
+	client PDSClient,
+	did syntax.DID,
+	updater IdentityCacheUpdater,
+	logger *slog.Logger,
+	repositoryTrackers ...RepositoryTracker,
+) error {
 	if err := InitializeProfile(ctx, client, did); err != nil {
 		return err
+	}
+	for _, tracker := range repositoryTrackers {
+		if tracker == nil {
+			continue
+		}
+		if err := tracker.AddRepo(ctx, did); err != nil && logger != nil {
+			logger.Warn("Tap repository tracking request after profile initialization failed",
+				authLogErrorAttrs("", "profile_init.repository_tracking", "tap")...)
+		}
 	}
 	if updater == nil {
 		return nil

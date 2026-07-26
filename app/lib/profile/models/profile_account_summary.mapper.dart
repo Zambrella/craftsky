@@ -62,6 +62,27 @@ class ProfileAccountSummaryMapper
     _$avatar,
     opt: true,
   );
+  static bool _$muted(ProfileAccountSummary v) => v.muted;
+  static const Field<ProfileAccountSummary, bool> _f$muted = Field(
+    'muted',
+    _$muted,
+    opt: true,
+    def: false,
+  );
+  static bool _$blocking(ProfileAccountSummary v) => v.blocking;
+  static const Field<ProfileAccountSummary, bool> _f$blocking = Field(
+    'blocking',
+    _$blocking,
+    opt: true,
+    def: false,
+  );
+  static bool _$blockedBy(ProfileAccountSummary v) => v.blockedBy;
+  static const Field<ProfileAccountSummary, bool> _f$blockedBy = Field(
+    'blockedBy',
+    _$blockedBy,
+    opt: true,
+    def: false,
+  );
 
   @override
   final MappableFields<ProfileAccountSummary> fields = const {
@@ -71,6 +92,9 @@ class ProfileAccountSummaryMapper
     #displayName: _f$displayName,
     #description: _f$description,
     #avatar: _f$avatar,
+    #muted: _f$muted,
+    #blocking: _f$blocking,
+    #blockedBy: _f$blockedBy,
   };
 
   static ProfileAccountSummary _instantiate(DecodingData data) {
@@ -81,6 +105,9 @@ class ProfileAccountSummaryMapper
       displayName: data.dec(_f$displayName),
       description: data.dec(_f$description),
       avatar: data.dec(_f$avatar),
+      muted: data.dec(_f$muted),
+      blocking: data.dec(_f$blocking),
+      blockedBy: data.dec(_f$blockedBy),
     );
   }
 
@@ -161,6 +188,9 @@ abstract class ProfileAccountSummaryCopyWith<
     String? displayName,
     String? description,
     String? avatar,
+    bool? muted,
+    bool? blocking,
+    bool? blockedBy,
   });
   ProfileAccountSummaryCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -183,6 +213,9 @@ class _ProfileAccountSummaryCopyWithImpl<$R, $Out>
     Object? displayName = $none,
     Object? description = $none,
     Object? avatar = $none,
+    bool? muted,
+    bool? blocking,
+    bool? blockedBy,
   }) => $apply(
     FieldCopyWithData({
       if (did != null) #did: did,
@@ -191,6 +224,9 @@ class _ProfileAccountSummaryCopyWithImpl<$R, $Out>
       if (displayName != $none) #displayName: displayName,
       if (description != $none) #description: description,
       if (avatar != $none) #avatar: avatar,
+      if (muted != null) #muted: muted,
+      if (blocking != null) #blocking: blocking,
+      if (blockedBy != null) #blockedBy: blockedBy,
     }),
   );
   @override
@@ -204,6 +240,9 @@ class _ProfileAccountSummaryCopyWithImpl<$R, $Out>
     displayName: data.get(#displayName, or: $value.displayName),
     description: data.get(#description, or: $value.description),
     avatar: data.get(#avatar, or: $value.avatar),
+    muted: data.get(#muted, or: $value.muted),
+    blocking: data.get(#blocking, or: $value.blocking),
+    blockedBy: data.get(#blockedBy, or: $value.blockedBy),
   );
 
   @override

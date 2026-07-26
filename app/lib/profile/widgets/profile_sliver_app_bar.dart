@@ -319,7 +319,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
 }
 
 /// Single icon button that surfaces the most useful action for the
-/// collapsed bar — settings on a self profile, share on a visitor
+/// collapsed bar — settings on a self profile, mute on a visitor
 /// profile. Pulls the callback out of the [ProfileActionSet] so the
 /// page only has to wire one action set, not two.
 class _CollapsedTrailingAction extends StatelessWidget {
@@ -336,11 +336,25 @@ class _CollapsedTrailingAction extends StatelessWidget {
         icon: const Icon(Icons.settings_outlined),
         onPressed: onSettings,
       ),
-      VisitorProfileActionSet(:final onShare) => IconButton(
-        tooltip: l10n.profileShareAction,
-        icon: const Icon(Icons.ios_share_outlined),
-        onPressed: onShare,
-      ),
+      VisitorProfileActionSet(
+        :final isMuted,
+        :final isBusy,
+        :final canToggleMute,
+        :final onMuteToggle,
+      ) =>
+        canToggleMute
+            ? IconButton(
+                tooltip: isMuted
+                    ? l10n.profileUnmuteAction
+                    : l10n.profileMuteAction,
+                icon: Icon(
+                  isMuted
+                      ? Icons.volume_up_outlined
+                      : Icons.volume_off_outlined,
+                ),
+                onPressed: isBusy ? null : onMuteToggle,
+              )
+            : const SizedBox.shrink(),
     };
   }
 }

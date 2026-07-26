@@ -40,6 +40,7 @@ void main() {
       'replyCount': 3,
       'viewerHasLiked': true,
       'viewerHasReposted': false,
+      'viewerHasSaved': false,
       'viewerHasReplied': true,
       'createdAt': '2026-05-04T18:23:45.000Z',
       'indexedAt': '2026-05-04T18:23:47.000Z',

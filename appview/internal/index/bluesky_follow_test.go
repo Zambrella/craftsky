@@ -34,6 +34,25 @@ CREATE TABLE atproto_follows (
 CREATE INDEX atproto_follows_did_idx ON atproto_follows (did);
 CREATE INDEX atproto_follows_subject_did_idx ON atproto_follows (subject_did);
 CREATE INDEX atproto_follows_did_subject_did_idx ON atproto_follows (did, subject_did);
+` + relationshipNotificationPolicyDDL
+
+const relationshipNotificationPolicyDDL = `
+CREATE TABLE actor_mutes (
+	owner_did TEXT NOT NULL,
+	subject_did TEXT NOT NULL,
+	PRIMARY KEY (owner_did, subject_did)
+);
+CREATE TABLE atproto_blocks (
+	uri TEXT PRIMARY KEY,
+	blocker_did TEXT NOT NULL,
+	rkey TEXT NOT NULL,
+	cid TEXT NOT NULL,
+	subject_did TEXT NOT NULL,
+	record JSONB NOT NULL,
+	created_at TIMESTAMPTZ NOT NULL,
+	indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	UNIQUE (blocker_did, rkey)
+);
 `
 
 func TestBlueskyFollow_CreateIdempotent(t *testing.T) {

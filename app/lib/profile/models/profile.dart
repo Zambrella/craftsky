@@ -22,6 +22,9 @@ class Profile with ProfileMappable {
     this.banner,
     this.createdAt,
     this.viewerIsFollowing = false,
+    this.muted = false,
+    this.blocking = false,
+    this.blockedBy = false,
     this.isCraftskyProfile = true,
     this.followerCount,
     this.followingCount,
@@ -42,6 +45,9 @@ class Profile with ProfileMappable {
   final List<String> crafts;
   final DateTime? createdAt;
   final bool viewerIsFollowing;
+  final bool muted;
+  final bool blocking;
+  final bool blockedBy;
   final bool isCraftskyProfile;
   final int? followerCount;
   final int? followingCount;
