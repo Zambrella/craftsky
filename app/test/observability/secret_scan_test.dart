@@ -238,7 +238,7 @@ void main() {
         r'\b(print|debugPrint|log)\s*\(|Sentry\.|addBreadcrumb\s*\(|captureException\s*\(|analytics\.',
       );
       final privateUrlData = RegExp(
-        r'[?&](challenge|username|igsid|handle|access_token|message|body)=',
+        '[?&](challenge|username|igsid|handle|access_token|message|body)=',
         caseSensitive: false,
       );
       final sinkOffenders = <String>[];

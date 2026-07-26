@@ -228,7 +228,6 @@ class NotificationRow extends ConsumerWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               ExcludeSemantics(
                 child: Icon(

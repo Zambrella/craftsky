@@ -141,8 +141,7 @@ sealed class SocialNotification extends CraftskyNotification {
 }
 
 final class FollowNotification extends SocialNotification {
-  FollowNotification(NotificationCommon common)
-    : super(common);
+  FollowNotification(super.common);
 
   @override
   NotificationCategory get type => NotificationCategory.follow;
@@ -150,9 +149,9 @@ final class FollowNotification extends SocialNotification {
 
 sealed class SubjectPostNotification extends SocialNotification {
   SubjectPostNotification(
-    NotificationCommon common, {
+    super.common, {
     required this.subjectPost,
-  }) : super(common);
+  });
 
   final Post subjectPost;
 }
@@ -196,9 +195,9 @@ final class QuoteNotification extends SubjectPostNotification {
 
 final class GenericNotification extends SocialNotification {
   GenericNotification(
-    NotificationCommon common, {
+    super.common, {
     required this.originalType,
-  }) : super(common);
+  });
 
   final NotificationCategory originalType;
 
@@ -208,9 +207,9 @@ final class GenericNotification extends SocialNotification {
 
 final class UnavailableNotification extends SocialNotification {
   UnavailableNotification(
-    NotificationCommon common, {
+    super.common, {
     required this.originalType,
-  }) : super(common);
+  });
 
   final NotificationCategory originalType;
 

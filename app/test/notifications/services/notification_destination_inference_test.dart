@@ -1,5 +1,5 @@
-import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
+import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/services/notification_destination_inference.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -148,9 +148,24 @@ void main() {
     );
 
     for (final invalid in [
-      {..._providerData(type: 'instagramMatch'), 'count': '0', 'countCapped': 'false', 'destination': 'instagramMigration'},
-      {..._providerData(type: 'instagramMatch'), 'count': '3', 'countCapped': 'not-bool', 'destination': 'instagramMigration'},
-      {..._providerData(type: 'instagramMatch'), 'count': '3', 'countCapped': 'false', 'destination': 'profile'},
+      {
+        ..._providerData(type: 'instagramMatch'),
+        'count': '0',
+        'countCapped': 'false',
+        'destination': 'instagramMigration',
+      },
+      {
+        ..._providerData(type: 'instagramMatch'),
+        'count': '3',
+        'countCapped': 'not-bool',
+        'destination': 'instagramMigration',
+      },
+      {
+        ..._providerData(type: 'instagramMatch'),
+        'count': '3',
+        'countCapped': 'false',
+        'destination': 'profile',
+      },
     ]) {
       expect(
         NotificationOpenAttempt.fromProviderData(invalid).facts,
