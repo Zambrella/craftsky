@@ -2977,13 +2977,13 @@ abstract class AppLocalizations {
   /// No description provided for @instagramImportJson.
   ///
   /// In en, this message translates to:
-  /// **'Choose JSON'**
+  /// **'Instagram export'**
   String get instagramImportJson;
 
   /// No description provided for @instagramImportJsonDescription.
   ///
   /// In en, this message translates to:
-  /// **'Select the JSON file containing accounts you follow. CraftSky reads it only on this device and uploads usernames. Follower data is ignored, and ZIP archives are not supported.'**
+  /// **'Choose an Instagram export containing Accounts you follow. CraftSky processes it on this device and uploads only those usernames. If you select an all-information ZIP, everything else stays on your device.'**
   String get instagramImportJsonDescription;
 
   /// No description provided for @instagramImportHandles.
@@ -3007,13 +3007,13 @@ abstract class AppLocalizations {
   /// No description provided for @instagramImportSelectJson.
   ///
   /// In en, this message translates to:
-  /// **'Select Instagram JSON file'**
+  /// **'Select Instagram export'**
   String get instagramImportSelectJson;
 
   /// No description provided for @instagramImportFilePickerError.
   ///
   /// In en, this message translates to:
-  /// **'The JSON file couldn\'t be opened on this device.'**
+  /// **'The Instagram export couldn\'t be opened on this device.'**
   String get instagramImportFilePickerError;
 
   /// No description provided for @instagramImportInvalidJson.
@@ -3025,19 +3025,31 @@ abstract class AppLocalizations {
   /// No description provided for @instagramImportUnsupportedShape.
   ///
   /// In en, this message translates to:
-  /// **'This JSON is not a supported Instagram accounts-followed export. Select the file containing accounts you follow.'**
+  /// **'This is not a supported Instagram accounts-followed export. Choose an export containing Accounts you follow.'**
   String get instagramImportUnsupportedShape;
 
   /// No description provided for @instagramImportUnsupportedFormat.
   ///
   /// In en, this message translates to:
-  /// **'ZIP archives are not supported. Select the JSON file containing accounts you follow inside the export.'**
+  /// **'This Instagram export uses a format CraftSky can\'t read.'**
   String get instagramImportUnsupportedFormat;
+
+  /// No description provided for @instagramImportInvalidArchive.
+  ///
+  /// In en, this message translates to:
+  /// **'This Instagram ZIP is incomplete or damaged. Download a new export and try again.'**
+  String get instagramImportInvalidArchive;
+
+  /// No description provided for @instagramImportArchiveTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'This Instagram ZIP contains too many files to process safely.'**
+  String get instagramImportArchiveTooLarge;
 
   /// No description provided for @instagramImportFileTooLarge.
   ///
   /// In en, this message translates to:
-  /// **'This file is larger than 20 MiB.'**
+  /// **'The accounts-followed data is larger than 20 MiB.'**
   String get instagramImportFileTooLarge;
 
   /// No description provided for @instagramImportTooManyEntries.
@@ -3103,7 +3115,7 @@ abstract class AppLocalizations {
   /// No description provided for @instagramImportJsonSource.
   ///
   /// In en, this message translates to:
-  /// **'Instagram JSON'**
+  /// **'Instagram export'**
   String get instagramImportJsonSource;
 
   /// No description provided for @instagramImportUnknownSource.

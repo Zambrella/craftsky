@@ -8,8 +8,8 @@ import 'package:craftsky_app/instagram_migration/providers/instagram_account_pro
 import 'package:craftsky_app/instagram_migration/providers/instagram_imports_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_suggestions_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_verification_provider.dart';
+import 'package:craftsky_app/instagram_migration/services/instagram_export_file_picker.dart';
 import 'package:craftsky_app/instagram_migration/services/instagram_import_parser.dart';
-import 'package:craftsky_app/instagram_migration/services/instagram_json_file_picker.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
@@ -556,7 +556,7 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
             ),
           ] else
             OutlinedButton.icon(
-              onPressed: _busy ? null : _pickJson,
+              onPressed: _busy ? null : _pickExport,
               icon: const Icon(Icons.file_open_outlined),
               label: Text(l10n.instagramImportSelectJson),
             ),
@@ -593,19 +593,18 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
     }
   }
 
-  Future<void> _pickJson() async {
+  Future<void> _pickExport() async {
     final capturedLease = widget.lease;
     var handedOff = false;
     setState(() => _busy = true);
     try {
-      final bytes = await ref.read(instagramJsonFilePickerProvider)();
+      final result = await ref.read(instagramExportFilePickerProvider)();
       if (!mounted ||
           capturedLease != widget.lease ||
           !_current(ref, capturedLease)) {
         return;
       }
-      if (bytes == null) return;
-      final result = const InstagramImportParser().parseJson(bytes);
+      if (result == null) return;
       setState(() {
         _parseError = null;
         _filePickerFailed = false;
@@ -1107,6 +1106,10 @@ String _parseErrorMessage(
     l10n.instagramImportUnsupportedShape,
   InstagramImportParseErrorCode.unsupportedFormat =>
     l10n.instagramImportUnsupportedFormat,
+  InstagramImportParseErrorCode.invalidArchive =>
+    l10n.instagramImportInvalidArchive,
+  InstagramImportParseErrorCode.archiveTooLarge =>
+    l10n.instagramImportArchiveTooLarge,
   InstagramImportParseErrorCode.fileTooLarge =>
     l10n.instagramImportFileTooLarge,
   InstagramImportParseErrorCode.tooManyEntries =>

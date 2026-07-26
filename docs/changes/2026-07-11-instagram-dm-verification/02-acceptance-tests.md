@@ -8,12 +8,19 @@ All behavior that does not require a real Meta app is automated. Wholly syntheti
 
 The first implementation loop is `UT-001`: generate and digest a challenge with at least 60 bits of formatted entropy, then prove that no plaintext or member data enters the stored form. The server data model and routes must not be built on an untested token grammar.
 
+For the 2026-07-23 ZIP extension, the first new failing loop is `UT-017`:
+parse the wholly synthetic equivalent of the observed `_u/<username>` URL plus
+agreeing-title shape. `UT-018` then proves file-backed ZIP target selection,
+integrity, and limit behavior before the picker/UI is changed. The approved
+user-derived archive is manual evidence only and is never copied into the
+repository.
+
 ## 2. Requirement Coverage Matrix
 
 | Requirement ID | Acceptance Criteria | Test IDs | Test Level | Automated? |
 |---|---|---|---|---|
 | BR-001 | AC-001–AC-008, AC-014, AC-015, AC-048 | AT-001, AT-002, UT-001–UT-004, IT-001–IT-005, IT-020 | Acceptance / Unit / Integration | Yes, except live Meta delivery in MAN-001 |
-| BR-002 | AC-016–AC-019, AC-039 | AT-003, UT-005, UT-009, UT-010, UT-015, IT-007, IT-014 | Acceptance / Unit / Integration | Yes |
+| BR-002 | AC-016–AC-019, AC-039, AC-054 | AT-003, AT-009, UT-005, UT-009, UT-010, UT-015, UT-017, UT-018, IT-007, IT-014, IT-023, REG-013 | Acceptance / Unit / Integration / Regression | Yes |
 | BR-003 | AC-020–AC-025 | AT-004, UT-006, IT-008, IT-009 | Acceptance / Unit / Integration | Yes |
 | BR-004 | AC-009, AC-024, AC-026–AC-031, AC-034 | AT-004–AT-006, IT-006, IT-009–IT-012, IT-017 | Acceptance / Integration | Yes |
 | FR-001 | AC-001, AC-040 | AT-001, UT-008, IT-013 | Acceptance / Unit / Integration | Yes |
@@ -28,8 +35,8 @@ The first implementation loop is `UT-001`: generate and digest a challenge with 
 | FR-010 | AC-009, AC-031, AC-032 | AT-006, IT-006 | Acceptance / Integration | Yes |
 | FR-011 | AC-033 | UT-006, IT-006 | Unit / Integration | Yes |
 | FR-012 | AC-016–AC-019 | AT-003, UT-005, IT-007 | Acceptance / Unit / Integration | Yes |
-| FR-013 | AC-016–AC-018 | AT-003, UT-009, IT-014 | Acceptance / Unit / Integration | Yes; real current fixture in MAN-002 |
-| FR-014 | AC-019, AC-020 | UT-005, UT-009 | Unit | Yes |
+| FR-013 | AC-016–AC-018, AC-050–AC-052 | AT-003, AT-009, UT-009, UT-017, UT-018, IT-014, IT-023 | Acceptance / Unit / Integration | Yes; real current archive in MAN-005 |
+| FR-014 | AC-019, AC-020, AC-051 | UT-005, UT-009, UT-017 | Unit | Yes |
 | FR-015 | AC-020–AC-022, AC-025, AC-048 | UT-006, IT-008, IT-009, IT-020 | Unit / Integration | Yes |
 | FR-016 | AC-021, AC-023 | AT-004, IT-008 | Acceptance / Integration | Yes |
 | FR-017 | AC-024, AC-025, AC-048 | AT-004, IT-009, IT-020 | Acceptance / Integration | Yes |
@@ -40,12 +47,13 @@ The first implementation loop is `UT-001`: generate and digest a challenge with 
 | FR-022 | AC-035–AC-037 | AT-007, UT-012, UT-014, IT-012, IT-017 | Acceptance / Unit / Integration | Yes; physical provider in MAN-004 |
 | FR-023 | AC-038, AC-042 | AT-007, IT-016, IT-017 | Acceptance / Integration | Yes |
 | FR-024 | AC-003–AC-005, AC-009, AC-014, AC-038, AC-049 | AT-002, IT-015, IT-016, IT-022 | Acceptance / Integration | Yes |
-| FR-025 | AC-016–AC-018, AC-023, AC-026, AC-027, AC-038, AC-048 | AT-003, AT-004, AT-008, IT-014–IT-016 | Acceptance / Integration | Yes |
+| FR-025 | AC-016–AC-018, AC-023, AC-026, AC-027, AC-038, AC-048, AC-050 | AT-003, AT-004, AT-008, AT-009, IT-014–IT-016, IT-023 | Acceptance / Integration | Yes |
 | FR-026 | AC-024, AC-025, AC-042 | AT-004, IT-009, IT-015, IT-016 | Acceptance / Integration | Yes |
 | FR-027 | AC-043 | UT-007, IT-004, MAN-001 | Unit / Integration / Manual | Yes except real messaging window |
 | FR-028 | AC-028, AC-031, AC-044, AC-048 | AT-006, IT-010, IT-011, IT-020 | Acceptance / Integration | Yes |
 | FR-029 | AC-032, AC-045 | IT-018 | Integration | Yes |
 | FR-030 | AC-048 | AT-008, IT-002, IT-005, IT-007–IT-012, IT-020, REG-005 | Acceptance / Integration / Regression | Yes |
+| FR-031 | AC-050, AC-052, AC-053 | AT-009, UT-018, IT-023, MAN-005 | Acceptance / Unit / Integration / Manual | Yes plus physical-device validation |
 | NFR-001 | AC-002, AC-012 | UT-001, UT-015 | Unit | Yes |
 | NFR-002 | AC-041, AC-046 | UT-016, IT-003, IT-013 | Unit / Integration | Yes; deployment check in MAN-001 |
 | NFR-003 | AC-039 | UT-015, REG-007 | Unit / Regression | Yes |
@@ -53,18 +61,20 @@ The first implementation loop is `UT-001`: generate and digest a challenge with 
 | NFR-005 | AC-008, AC-010–AC-015, AC-029 | UT-002, IT-003–IT-005, IT-009, IT-011 | Unit / Integration | Yes |
 | NFR-006 | AC-011, AC-040 | UT-007, UT-008, IT-004, IT-013 | Unit / Integration | Yes |
 | NFR-007 | AC-038 | IT-016, IT-017, MAN-003 | Integration / Manual | Yes plus final manual inspection |
-| NFR-008 | AC-042, AC-049 | UT-011, IT-015, IT-017, IT-022, REG-012 | Unit / Integration | Yes |
+| NFR-008 | AC-042, AC-049 | UT-011, IT-015, IT-017, IT-022, IT-023, REG-012 | Unit / Integration | Yes |
 | NFR-009 | AC-047 | IT-019, REG-008 | Integration / Regression | Yes |
+| NFR-010 | AC-052, AC-053 | UT-018, IT-023, MAN-005 | Unit / Integration / Manual | Yes plus physical-device validation |
 | RULE-001 | AC-002, AC-003, AC-010, AC-012 | UT-001, UT-002, IT-002, IT-004 | Unit / Integration | Yes |
 | RULE-002 | AC-014, AC-015 | AT-002, UT-002, IT-005 | Acceptance / Unit / Integration | Yes |
 | RULE-003 | AC-015, AC-032, AC-033 | AT-006, UT-006, IT-005, IT-006 | Acceptance / Unit / Integration | Yes |
 | RULE-004 | AC-009, AC-020, AC-031 | AT-006, UT-006, IT-006, IT-008 | Acceptance / Unit / Integration | Yes |
 | RULE-005 | AC-019–AC-022 | UT-005, UT-006, UT-009, IT-008 | Unit / Integration | Yes |
 | RULE-006 | AC-018, AC-022, AC-029 | AT-003, UT-006, UT-009, IT-008, IT-011 | Acceptance / Unit / Integration | Yes |
-| RULE-007 | AC-016, AC-017, AC-039 | AT-003, UT-010, UT-015, IT-007, IT-014 | Acceptance / Unit / Integration | Yes |
+| RULE-007 | AC-016, AC-017, AC-039 | AT-003, AT-009, UT-010, UT-015, UT-018, IT-007, IT-014, IT-023 | Acceptance / Unit / Integration | Yes |
 | RULE-008 | AC-024, AC-025 | AT-004, IT-009, REG-004 | Acceptance / Integration / Regression | Yes |
 | RULE-009 | AC-026, AC-027–AC-030 | AT-005, IT-010, IT-011 | Acceptance / Integration | Yes |
 | RULE-010 | AC-031, AC-044 | AT-006, IT-010, REG-004 | Acceptance / Integration / Regression | Yes |
+| RULE-011 | AC-050, AC-054 | AT-009, UT-010, IT-023, REG-013 | Acceptance / Unit / Integration / Regression | Yes |
 
 ## 3. Acceptance Scenarios
 
@@ -119,9 +129,9 @@ Automation Target: `app/test/instagram_migration/instagram_import_privacy_test.d
 
 ```gherkin
 Feature: Private Instagram graph import
-  Scenario: Select a supported JSON following export
+  Scenario: Select a supported standalone JSON following export
     Given a bounded JSON fixture contains accounts-followed, follower, media, profile, and message fields
-    When Alice selects the file and previews the import
+    When Alice selects and imports the file
     Then parsing occurs on-device
     And only accounts-followed usernames are normalized and uploaded
     And follower data is discarded locally
@@ -240,6 +250,35 @@ Feature: Current CraftSky membership boundary
     Then discovery and imports remain inactive until Alice explicitly reactivates the link and each paused import
 ```
 
+### AT-009: Import A Large Instagram ZIP Without Reading Unrelated Data
+
+Requirement IDs: `BR-002`, `FR-013`, `FR-014`, `FR-025`, `FR-031`,
+`NFR-008`, `NFR-010`, `RULE-006`, `RULE-007`, `RULE-011`
+Acceptance Criteria: `AC-016`–`AC-019`, `AC-042`, `AC-050`–`AC-054`
+Priority: Must
+Level: Acceptance
+Automation Target:
+`app/test/instagram_migration/instagram_import_privacy_test.dart`,
+`app/test/instagram_migration/instagram_migration_page_test.dart`
+
+```gherkin
+Feature: Private Instagram ZIP import
+  Scenario: Select an all-information ZIP containing one following export
+    Given a verified mobile member selects a large file-backed ZIP
+    And the ZIP contains media, messages, follower data, and exactly one
+      connections/followers_and_following/following.json
+    And that JSON uses exact Instagram _u username URLs with agreeing titles
+    When CraftSky processes the export
+    Then ZIP inspection and JSON parsing run in a background isolate
+    And only the canonical following entry is decompressed within fixed limits
+    And no unrelated entry is read or extracted to disk
+    And the UI remains responsive and labels the import Instagram export
+    And the request uses sourceType instagramJson plus normalized usernames only
+    And raw ZIP, filename, paths, URLs, follower data, messages, and media never
+      cross the repository boundary
+    And switching CraftSky accounts before completion discards the late result
+```
+
 ## 4. Unit Test Cases
 
 | ID | Requirement IDs | Acceptance Criteria | Description | Inputs | Expected Result | Automation Target |
@@ -260,6 +299,8 @@ Feature: Current CraftSky membership boundary
 | UT-014 | FR-020, FR-022 | AC-035, AC-036 | Build the private actorless feed union, push payload, and generic copy. | Count 1, 99, and 100+; countCapped; synthetic secret/identity canaries; account-subscription binding. | Feed system object has only required fields; provider data has only category, stable notification ID, opaque account binding, count/countCapped, and bounded navigation fact; copy names nobody and no social actor/AT or private canary leaks. | `appview/internal/push/payload_test.go`, `appview/internal/api/notification_store_test.go` |
 | UT-015 | NFR-001, NFR-003, RULE-007 | AC-002, AC-039 | Scan server/client diagnostic and unintended-output surfaces using controlled data. | Wholly synthetic canaries, plus separately approved redacted fixtures, for challenge/digest, body/message, username, IGSID, handle list, Meta token/secret/signature, raw export/upstream response; no real or user-derived values. | Canaries occur only in the explicitly intended private test input/DB/API/UI field under test; none appears in logs, errors, spans, Sentry, metrics, push, PDS records, URLs, raw-request reserialization, `String()`/`toString`, or committed snapshots. | `appview/internal/observability/instagram_redaction_test.go`, `app/test/observability/secret_scan_test.dart` |
 | UT-016 | NFR-002 | AC-041, AC-046 | Apply the exact shared abuse keys, windows, defaults, hard maxima, and response policy atomically. | Challenge DID 5/15m, device 10/15m, IP 30/15m; invalid-redemption IGSID 10/15m and IP 30/15m; confirmation DID 20/hour and device 30/hour; imports DID 10/hour and device 20/hour; webhook global 1,000/minute and IP 300/minute; lookup concurrency 20 and IGSID 5/hour; values immediately before/at/one after each boundary, concurrent requests, expiry, untrusted forwarded IP. | Client limits are generic 429; pre-auth webhook IP and post-signature global excess are generic 429 with `Retry-After: 60` and no partial persistence; per-IGSID invalid excess is terminally deduped/ignored with 200 and no lookup; lookup pressure defers durable work. Each key/window is atomic/shared, never trusts arbitrary forwarding headers, and can tighten but not exceed the maximum. | `appview/internal/instagram/limiter_test.go` |
+| UT-017 | FR-013, FR-014, RULE-005, RULE-006 | AC-016–AC-020, AC-051 | Parse the observed current following shape without accepting titles as standalone identity evidence. | Wholly synthetic records with exact HTTPS `www.instagram.com/_u/<username>` URLs and agreeing titles; case variants; legacy direct `value`; title-only; mismatch; HTTP; userinfo/port; lookalike host; other path; trailing slash; query/fragment; percent-encoded separator; invalid/overlong username; zero/two string-list candidates. | Valid legacy values and exact agreeing URL/title pairs normalize/deduplicate. Every ambiguous, mismatched, title-only, fuzzy, or noncanonical URL record is ignored/rejected with bounded counts and no retained URL/title. | `app/test/instagram_migration/services/instagram_import_parser_test.dart` |
+| UT-018 | FR-013, FR-031, NFR-010, RULE-007 | AC-016–AC-018, AC-052, AC-053 | Inspect and decode a ZIP from a file path without loading or extracting unrelated archive payloads. | Wholly synthetic temporary ZIPs: valid stored/deflated target plus large unrelated sentinel; missing/duplicate target; nested/lookalike path; encrypted flag; unsupported compression; malformed/truncated directory; CRC corruption; declared/actual target at 20 MiB and +1; directory entries/bytes immediately below/at/above 100,000/64 MiB; ZIP64 metadata; 10,000/10,001 usernames. | File-backed decode selects exactly one canonical target, verifies integrity, enforces every bound before/through output, returns normalized result only, never creates extracted files, and closes resources on success/failure. Complete ZIP bytes and unrelated sentinels never enter parser results or diagnostics. | `app/test/instagram_migration/services/instagram_export_file_parser_test.dart` |
 
 ## 5. Integration Test Cases
 
@@ -287,6 +328,7 @@ Feature: Current CraftSky membership boundary
 | IT-020 | BR-001, FR-003, FR-015, FR-017, FR-018, FR-025, FR-028, FR-030, NFR-004 | AC-048 | Prove one shared current-member guard across every authenticated route and worker transition. | Valid unexpired Alice session/device ID whose DID is absent from `craftsky_profiles`; one instance of every owned resource; queued verification/match/notification/accept work; control current member. | Enumerate every authenticated Instagram route and run every worker transition for departed Alice, then reinsert her profile and retry before and after explicit link/per-import reactivation. | Every route is `404 profile_not_found` rather than resource-specific/500; no link/suggestion/system event/PDS write is created; owner state is inactivated/paused and dependent pending work cancelled; rejoin alone restores nothing; link and each paused import require explicit reactivation; the current-member control still works. | `appview/internal/api/instagram_membership_test.go`, `appview/internal/instagram/membership_transition_test.go` |
 | IT-021 | FR-002–FR-018, FR-020–FR-022, NFR-004 | AC-003–AC-005, AC-009, AC-014–AC-017, AC-023–AC-027, AC-032, AC-034–AC-037, AC-040 | Lock the route-by-route and notification-union wire contract with shared synthetic golden JSON. | One fixture for each §12.1 request/success/error, every public enum, social/system notification variant, default/max cursor page, optional/omitted field, privacy-preserving DELETE, and identical replay. | Serialize AppView responses and decode/encode the same corpus in Flutter; compare POST verification/import 201, reads/PATCH/actions 200, all DELETE variants 204, callback 200/403/429 plus Retry-After, and documented errors. | Go/Dart agree byte-semantically on camelCase, enums, safe unknown client behavior, opaque IDs/cursors, standard errors, absence/foreign DELETE no-ops, webhook retry contract, and actor/source omission; no internal/private field is added. | `appview/internal/api/instagram_wire_contract_test.go`, `app/test/instagram_migration/data/instagram_wire_contract_test.dart`, `docs/changes/2026-07-11-instagram-dm-verification/fixtures/instagram_wire/` |
 | IT-022 | FR-003, FR-024, NFR-008 | AC-042, AC-049 | Resume one current verification attempt across Flutter page disposal without weakening account boundaries. | Alice/Bob current-attempt fakes; matching/missing/mismatched/expired secure snapshots; pending-DM, processing, and pending-confirmation server states; controllable late reads. | Create, dispose, reopen, switch accounts, expire, cancel, confirm, and simulate server supersession. | AppView current state is authoritative; matching local display data is restored only for its DID and verification ID; polling/confirmation resumes; missing display data is not reconstructed; terminal/mismatch/session-invalidated snapshots clear narrowly; no reopen creates a new attempt. | `appview/internal/instagram/verification_store_test.go`, `appview/internal/api/instagram_verifications_test.go`, `app/test/instagram_migration/data/instagram_verification_storage_test.dart`, `app/test/instagram_migration/providers/instagram_migration_provider_test.dart` |
+| IT-023 | BR-002, FR-013, FR-025, FR-031, NFR-008, NFR-010, RULE-007, RULE-011 | AC-016–AC-019, AC-042, AC-050–AC-054 | Run native export selection through isolate parsing and the existing repository request boundary. | Widget/provider harness with verified Alice; picker returning JSON/ZIP paths or cancellation; real synthetic temporary ZIP; controllable isolate/parser completion; Bob account switch; recording repository and messenger. | Select each container, cancel, dispose, switch A-to-B before completion, trigger every safe parse error, and inspect visible copy/request/diagnostics. | JSON and ZIP both submit only `instagramJson` plus normalized usernames; UI recommends accounts-followed export and explains all-information locality; parsing stays asynchronous; cancellation is silent; errors are localized; late Alice result never uploads under Bob; raw path/bytes/URL/unrelated canaries are absent outside parser input. | `app/test/instagram_migration/instagram_import_privacy_test.dart`, `app/test/instagram_migration/instagram_migration_page_test.dart` |
 
 ## 6. Regression Tests
 
@@ -304,6 +346,7 @@ Feature: Current CraftSky membership boundary
 | REG-010 | Database migration up/down and clean bootstrap still work from an empty schema without turning membership departure into broad private-data deletion. | FR-009, FR-020, FR-028, FR-030 | AC-015, AC-028, AC-034, AC-044, AC-048 | Run migration/full-schema setup, membership removal/rejoin, scoped purge, and terminal identity purge after the new migration. |
 | REG-011 | AppView and Flutter cannot silently diverge on Instagram states, fields, notification unions, success codes, or errors. | FR-002–FR-025, NFR-004 | AC-003–AC-005, AC-009, AC-014–AC-017, AC-023–AC-027, AC-032, AC-034–AC-040 | Run both consumers against TD-011 and fail on an unreviewed golden-fixture delta. |
 | REG-012 | Resumable verification storage cannot outlive or cross its owning account boundary. | FR-024, NFR-008 | AC-042, AC-049 | Run account-switch/session-invalidation tests with two independent snapshots and controlled late completions; verify only the invalidated account is cleared. |
+| REG-013 | Direct JSON import and the AppView `instagramJson` wire/storage contract remain unchanged when ZIP is added. | BR-002, FR-012–FR-014, RULE-007, RULE-011 | AC-016–AC-019, AC-050, AC-054 | Run existing parser, request-model, shared-wire, API, repository, database, and UI tests; assert no `instagramZip`, raw path/archive field, schema migration, or source-specific server branch appears. |
 
 ## 7. Test Data
 
@@ -313,32 +356,34 @@ Feature: Current CraftSky membership boundary
 | TD-002 | Challenge/state fixtures | Deterministic secure random stream; canonical 30-symbol alphabet and 13-symbol `CSKY-XXXX-XXXX-XXXX-X` token; keyed digest secret; fake clock around ten-minute boundaries; every exact attempt/link/import/suggestion/conflict state and allowed/forbidden transition. | AT-002, UT-001, UT-002, IT-001, IT-002, IT-004–IT-006, IT-021 |
 | TD-003 | Meta callback fixtures | Wholly synthetic exact raw valid/mutated JSON bytes/signatures; one, 100, and 101 incoming events with `mid`, sender/recipient IDs, and text; echo/self/deleted/non-text/unsupported/wrong-account/unknown variants; expected minimal hashed work rows. | UT-003, UT-004, IT-003, IT-004, MAN-001 |
 | TD-004 | Meta profile/reply fixtures | IGSID 100/200; valid/changed/missing/invalid usernames; 2xx/4xx/429/5xx/timeout bodies with secrets removed; messaging-window boundaries. | UT-006, UT-007, IT-004–IT-006 |
-| TD-005 | Import/parser fixtures | Manual lines and wholly synthetic versioned accounts-followed JSON with follower and unrelated media/message/profile canaries; changed/malformed/20 MiB boundary/Unicode/duplicate/follower-only variants; approved redacted current following shapes only in the separate manual-fixture lane. | AT-003, UT-005, UT-009, UT-010, IT-007, IT-014, MAN-002 |
+| TD-005 | Import/parser fixtures | Manual lines and wholly synthetic versioned accounts-followed JSON with legacy direct values and observed exact `_u/<username>` URL plus agreeing-title shapes; follower and unrelated media/message/profile canaries; mismatch/noncanonical URL/changed/malformed/20 MiB/Unicode/duplicate/follower-only variants. Approved real exports remain only in the separate manual lane. | AT-003, AT-009, UT-005, UT-009, UT-010, UT-017, IT-007, IT-014, IT-023, MAN-002, MAN-005 |
 | TD-006 | Eligibility/link matrix | Every exact link state; discovery/verification/conflict/current-username facts; same IGSID/username; old/new usernames; importer/target membership; self/follow; hide/takedown; block either direction; importer mute; safety-source outage. | AT-004–AT-006, AT-008, UT-006, IT-005, IT-006, IT-008–IT-012, IT-020 |
 | TD-007 | Import/lifecycle matrix | Two additive accounts-followed imports that jointly support one suggestion; verified/unverified owners; long elapsed time; per-import deletion; link unlink; membership-inactivation/reactivation; terminal-purge variants. | AT-005, AT-008, IT-001, IT-007, IT-010, IT-011, IT-020 |
 | TD-008 | Notification matrix | Existing seven `kind: social` categories; exact `kind: system` match union; unknown kind/social/system; counts 1/99/100; five-minute boundary; active/retracted events; pending/retry/leased/sent deliveries; A/B account bindings. | AT-005, AT-007, UT-012–UT-014, IT-011, IT-012, IT-017, IT-021 |
 | TD-009 | Controlled privacy canaries | Unique wholly synthetic challenge/digest, username, IGSID, handle list, webhook message/body, Meta token/app secret/verify token/signature, raw export filename/content, and upstream response; separate explicitly approved redacted fixture lane; no real/user-derived values. | UT-004, UT-010, UT-014, UT-015, IT-003, IT-007, IT-014, IT-018, REG-006, REG-007 |
 | TD-010 | Concurrency/work traces | Barriers/completers for duplicate webhook, four workers plus fifth claimant, concurrent confirmation/acceptance, PDS failure/firehose delay, safety change at final revalidation, membership removal, account switch, and late response. | UT-002, UT-011, IT-003–IT-005, IT-009, IT-011, IT-015, IT-017, IT-020 |
 | TD-011 | Shared wire golden corpus | Synthetic JSON for every §12.1 request/success/error; all attempt/link/import/suggestion/conflict enums; social/system unions; optional/omitted fields; 20/50 pages; owned/foreign/absent/purged DELETE 204; callback 200/403/429 and Retry-After; repeated idempotent results. | IT-002, IT-005–IT-009, IT-012, IT-014, IT-021 |
-| TD-012 | Limit boundaries | Exact §12.4 maxima and values one below/at/one above: 256 KiB/100 events, rate buckets and response policy, one MiB/10,000 imports, 20 MiB client file, 20/50 pagination, 5-second/64 KiB Meta calls, concurrency 20/four workers, 60-second lease/five attempts/15 minutes, five-minute digest/count 99, 500-row operator batch. | UT-004, UT-007–UT-009, UT-016, IT-003, IT-004, IT-007, IT-008, IT-011, IT-018 |
+| TD-012 | Limit boundaries | Exact §12.4 maxima and values one below/at/one above: 256 KiB/100 events, rate buckets and response policy, one MiB/10,000 imports, 20 MiB standalone/ZIP-target JSON, 100,000 ZIP entries, 64 MiB ZIP central directory, 20/50 pagination, 5-second/64 KiB Meta calls, concurrency 20/four workers, 60-second lease/five attempts/15 minutes, five-minute digest/count 99, 500-row operator batch. | UT-004, UT-007–UT-009, UT-016, UT-018, IT-003, IT-004, IT-007, IT-008, IT-011, IT-018, IT-023 |
+| TD-013 | Synthetic ZIP corpus | Temporary archives generated during tests with one canonical following JSON; stored/deflated content; unrelated media/message/follower canaries; missing/duplicate/lookalike/encrypted/unsupported/corrupt targets; ZIP64 and central-directory/target-size boundaries. No user-derived archive, filename, username, or payload is committed. | AT-009, UT-018, IT-023, REG-013 |
 
 ## 8. Manual Checks
 
 | ID | Requirement IDs | Acceptance Criteria | Check | Steps | Expected Result |
 |---|---|---|---|---|---|
 | MAN-001 | BR-001, FR-004–FR-007, FR-027, NFR-002, NFR-006 | AC-006–AC-013, AC-040, AC-041, AC-043, AC-046 | Meta capability and production-configuration spike. | Create/configure the owned professional account and Meta Business app; provision secrets; subscribe HTTPS webhook; send from an unrelated personal account; inspect signed payload/IGSID; fetch username; send allowed reply; validate Standard/Advanced access, Live mode, token renewal, privacy/deletion/review and deployment/shared-limit requirements. | Real redacted fixtures match or update adapters; personal sender verifies; profile/reply work; integration remains disabled until every checklist item passes. |
-| MAN-002 | FR-013 | AC-016–AC-019 | Current Instagram export compatibility. | Obtain consented redacted current accounts-followed JSON exports; import them on each supported platform without network inspection shortcuts. | Parser recognizes supported following shapes locally, sends only normalized usernames, ignores follower data, and provides clear local guidance for unsupported variants. |
+| MAN-002 | FR-013, FR-014 | AC-016–AC-019, AC-051 | Current standalone Instagram JSON compatibility. | Obtain consented redacted current accounts-followed JSON exports; import them on each supported mobile platform without network inspection shortcuts. | Parser recognizes supported direct-value or exact URL/title following shapes locally, sends only normalized usernames, ignores follower data, and provides clear local guidance for unsupported variants. |
 | MAN-003 | FR-023–FR-026, NFR-007 | AC-003, AC-009, AC-014, AC-016–AC-018, AC-023–AC-026, AC-038 | Final responsive, accessibility, clipboard, file-picker, and external-link behavior. | On phone/tablet/desktop targets, use keyboard/screen reader; inspect long lists, errors, disabled integration, consent copy, candidate confirmation, picker cancel, DM link, selection and conflict states. | Focus/semantics/copy make identity and consent unambiguous; no raw data or server error is exposed; native interactions work safely. |
 | MAN-004 | FR-020–FR-023 | AC-035–AC-037, AC-042 | Physical-device push lifecycle for an inactive account. | Retain two accounts; produce single/digest matches; disable/enable push; deliver foreground/background/terminated pushes; revoke before delivery; open after suggestions disappear. | Copy names nobody; correct account activates before route; disabled/retracted work does not deliver; stale opens show current safe state. |
+| MAN-005 | FR-013, FR-025, FR-031, NFR-010 | AC-050–AC-053 | Real Instagram ZIP compatibility and mobile responsiveness. | Without copying it into the repository, select the approved 2026-07-21 all-information ZIP on iOS and Android; repeat with an export containing larger media; cancel once; background/foreground once; monitor UI responsiveness and peak memory; inspect the mocked/dev request only after local parsing. | The original ZIP imports its 88 agreeing following records, unrelated data stays local/unextracted, UI remains responsive, memory does not scale with total archive payload, cancel/background behavior is safe, and the request is the existing `instagramJson` normalized-entry shape. |
 
 ## 9. Test Gaps And Risks
 
 | ID | Gap / Risk | Affected Requirement IDs | Reason | Follow-Up |
 |---|---|---|---|---|
 | GAP-001 | Real Meta payload, profile lookup, reply, access level, token lifecycle, and messaging window cannot be proven hermetically. | BR-001, FR-004–FR-007, FR-027, NFR-006 | No Meta app or owned professional account is configured. | Keep adapters synthetic-fixture-driven and integration disabled; MAN-001 is a hard production gate and may contribute redacted schema observations from which non-user synthetic fixtures are created. |
-| GAP-002 | Current Instagram export JSON has no stable public schema and no real project fixture exists yet. | FR-013 | Synthetic known-shape tests prove privacy/robustness but not current Meta output. | Manual text ships as fallback; require MAN-002 and convert approved redacted shape observations into wholly synthetic committed fixtures before enabling that parser version; never commit the user-derived archive. |
+| GAP-002 | Instagram export JSON/ZIP shape has no stable public schema and only one approved current archive has been inspected. | FR-013, FR-014, FR-031 | The sample validates one 2026-07-21 structure but cannot prove every locale/account/export variation. | Keep manual text fallback; encode only its structural observations in wholly synthetic fixtures; run MAN-002/MAN-005 with additional consented exports; never commit a user-derived archive. |
 | GAP-003 | Physical push and OS process lifecycle cannot be fully reproduced in unit/widget tests. | FR-020–FR-023 | Firebase/APNs and terminated launches depend on provider/OS state. | Keep provider-neutral simulations automated and require MAN-004 before release. |
-| GAP-004 | Platform secure storage/network proxy and clipboard/file-picker guarantees are outside Dart/Go tests. | NFR-003, NFR-007 | Mocks validate app behavior, not OS internals. | Run MAN-003, platform configuration review, and privacy proxy inspection before release. |
+| GAP-004 | Platform secure storage/network proxy, clipboard/file-picker path lifetime, isolate scheduling, and physical peak-memory guarantees are outside hermetic Dart/Go tests. | FR-031, NFR-003, NFR-007, NFR-010 | Mocks and temporary-file tests validate app behavior, not every iOS/Android document-provider or OS-memory condition. | Run MAN-003/MAN-005, platform configuration review, memory profiling, and privacy proxy inspection before release. |
 | GAP-005 | Repository-wide member data-export/account-deletion routes do not yet exist. | FR-028 | This slice can test scoped export/purge, reversible membership inactivation, and terminal identity purge, but cannot wire a nonexistent general endpoint/UI. | Treat `IT-010`/`IT-011` as the reusable contract and require composition when the general lifecycle feature lands. |
 | GAP-006 | The Postgres-backed shared limiter has not yet been exercised in the eventual live multi-replica deployment. | NFR-002 | Correct code and compose tests cannot prove the final edge/proxy/replica topology. | Keep unsafe multi-replica configuration fail-closed and validate the trusted-proxy plus shared-bucket behavior in MAN-001 before enablement. |
 | GAP-007 | Full dispute evidence policy remains manual and exceptional. | FR-029 | Email/support evidence cannot be truthfully automated. | Automated tests prove no transfer and explicit audited commands; human evidence review remains operator procedure. |
@@ -346,7 +391,8 @@ Feature: Current CraftSky membership boundary
 ## 10. Out Of Scope
 
 - Scraping, Instagram follower/following API reads, OAuth-only verification, ManyChat, export-possession proof, or server-side archive parsing.
-- ZIP archive parsing in the initial client implementation.
+- Flutter web ZIP parsing, whole-archive in-memory decode, and extraction of
+  unrelated ZIP entries.
 - Collection or persistence of accounts that follow the importing member, follower-derived suggestions, or automatic follows.
 - PDS storage of private Instagram data or a lexicon change.
 - Marketing/future-match Instagram DMs.
@@ -361,7 +407,10 @@ Feature: Current CraftSky membership boundary
 - Next review artifact: `03-document-review.md`
 - External Plannotator review, if the user initiates it outside this skill: `docs/changes/2026-07-11-instagram-dm-verification/`
 - Risk level: **High**; document review is required. The user has already explicitly approved proceeding through document review, coding plan, and feasible implementation.
-- Recommended first failing test for implementation: `UT-001` in `appview/internal/instagram/challenge_test.go` for entropy, display grammar, keyed digest storage, normalization, and secret-safe diagnostics.
+- Recommended first failing test for this extension: `UT-017` in
+  `app/test/instagram_migration/services/instagram_import_parser_test.dart` for
+  exact current URL/title parsing. The next failing test is `UT-018` for the
+  file-backed ZIP boundary.
 - Suggested test order for implementation:
   1. `UT-001`: canonical challenge grammar, entropy, digesting, and diagnostics.
   2. `UT-008`, `UT-016`, `IT-013`: fail-closed configuration, trusted-proxy/shared limiter, dependency wiring, and readiness before any route depends on them.
@@ -380,6 +429,12 @@ Feature: Current CraftSky membership boundary
   15. `UT-011`, `IT-015`, `IT-016`: account-scoped providers, typed route, verification/import/suggestion UI.
   16. `UT-012`, `IT-017`: Flutter actorless notification settings/rendering/open flow.
   17. `UT-015`, `REG-001`–`REG-011`: controlled privacy scans and broad regressions.
+  18. `UT-017`: exact current `_u/<username>` URL plus agreeing-title parser.
+  19. `UT-018`: file-backed ZIP metadata, target selection, integrity, and
+      archive-bomb bounds.
+  20. `IT-023`: native selection/isolate/repository/account-switch flow.
+  21. `REG-013`: unchanged standalone JSON and AppView `instagramJson`
+      contracts.
 - Commands discovered:
   - From `appview/`: focused `go test ./internal/instagram ./internal/integrations ./internal/api ./internal/routes ./internal/notifications ./internal/push ./internal/app`
   - From repository root: `just test`
@@ -389,4 +444,7 @@ Feature: Current CraftSky membership boundary
   - From `app/`: `flutter test test/instagram_migration test/notifications test/router test/settings`
   - From `app/`: `flutter analyze`
   - From `app/`: `flutter test`
-- Blocking gaps: None for implementation. `GAP-001`–`GAP-004` and `GAP-006` block relevant production enablement/release confidence; `GAP-005` blocks only future repository-wide lifecycle composition.
+- Blocking gaps: None for implementation. `GAP-001`–`GAP-004` and `GAP-006`
+  block relevant production enablement/release confidence; `GAP-005` blocks
+  only future repository-wide lifecycle composition. `MAN-005` remains the
+  physical-device release check for ZIP memory/path behavior.

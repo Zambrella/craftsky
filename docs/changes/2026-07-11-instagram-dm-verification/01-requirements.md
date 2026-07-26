@@ -4,6 +4,13 @@
 
 Implement the Instagram DM verification and follow-discovery work described in `design-plan.md` across AppView and Flutter. Complete everything that can be built and tested before a Meta app and official CraftSky Instagram professional account are configured. Live Meta dashboard setup, credential-backed calls, app review, and the real end-to-end capability spike remain release blockers rather than coding blockers.
 
+Follow-on request (2026-07-23): extend the mobile import flow to accept
+Instagram `.zip` exports as well as the standalone `following.json`. Large ZIPs
+must be accessed from disk with the `archive` package rather than loaded
+wholesale, and archive inspection/parsing must run in a background isolate.
+The UI should recommend exporting only accounts the member follows while still
+handling a full "all information" export safely.
+
 ## 2. Current Codebase Findings
 
 - Relevant AppView files:
@@ -13,7 +20,8 @@ Implement the Instagram DM verification and follow-discovery work described in `
   - `appview/internal/api/follow.go` and `appview/internal/api/follow_store.go` provide the existing PDS follow-write and indexed-follow read paths.
   - `appview/internal/notifications/`, `appview/internal/api/notification_store.go`, `appview/internal/push/payload.go`, and migrations `000021`/`000022` implement durable actor-driven notifications, preferences, push fan-out, and newness.
   - `appview/internal/index/craftsky_profile.go` owns current CraftSky membership removal; `appview/internal/notifications/actor_deletion.go` is a narrower deletion lifecycle precedent.
-  - Migrations currently end at `000022`; a new migration must use the next free number at implementation time.
+  - The implemented Instagram private schema uses migration
+    `000023_instagram_migration`; the ZIP extension requires no migration.
 - Relevant Flutter files:
   - `app/lib/settings/pages/settings_page.dart` is the natural entry point for **Find people from Instagram**.
   - `app/lib/router/router.dart` and `app/lib/router/route_locations.dart` own typed, deep-linkable routes.
@@ -21,16 +29,33 @@ Implement the Instagram DM verification and follow-discovery work described in `
   - Account-sensitive work must use a fixed-account Dio client or an active-account operation lease so polling, imports, and follow actions cannot cross account switches.
   - `app/lib/profile/data/profile_repository.dart` exposes the existing explicit follow operation.
   - Notification decoding, rendering, settings, push-open inference, and navigation are spread across `app/lib/notifications/`; all currently assume actor-driven social notifications.
-  - No general file-picker dependency or Instagram import parser exists. `file_selector` must be a direct dependency if local JSON selection is implemented.
+  - The original baseline had no general file picker or Instagram import
+    parser; the implemented flow now has a direct `file_selector` dependency.
+  - The implemented import path now uses
+    `app/lib/instagram_migration/services/instagram_import_parser.dart` and
+    `instagram_json_file_picker.dart`; it reads a selected JSON file into
+    memory on the UI isolate and deliberately rejects ZIP signatures.
+  - `archive` 4.0.9 is already present transitively, but ZIP support requires
+    it as a direct dependency. Its `InputFileStream` plus
+    `ZipDecoder.decodeStream` keeps archive payloads on disk and lazily reads
+    entry contents.
 - Existing patterns:
   - Private-by-intent data belongs in AppView Postgres; only a member-approved `app.bsky.graph.follow` belongs on the PDS.
   - `/v1/*` JSON uses camelCase and the standard `{error, message, requestId}` error envelope.
   - Meta callbacks are external integration routes and must not be placed under `/v1/*`.
   - The app never holds Meta credentials or PDS credentials.
 - Current behavior:
-  - There is no Instagram verification, account link, graph import, matching, or migration UI.
-  - Notifications have seven categories. Their schema requires an actor and AT Protocol source facts, so `instagramMatch` cannot be added safely as a simple enum value.
+  - The completed feature has Instagram verification, private links/imports,
+    matching, actorless `instagramMatch` notifications, and migration UI.
   - No general private-data export or member-initiated account-deletion endpoint exists yet.
+  - The completed Flutter flow accepts manual handles and one bounded
+    standalone JSON shape. It does not accept ZIPs or run JSON parsing in an
+    isolate.
+  - The approved real sample ZIP is 3.6 MiB with 74 entries. Its target
+    `connections/followers_and_following/following.json` is 17,295 bytes and
+    contains 88 records using `title` plus
+    `https://www.instagram.com/_u/<username>` `href` values; it contains no
+    `string_list_data[].value` fields.
 - Constraints discovered:
   - The Meta capability spike remains mandatory because dashboard access, Live-mode behavior, webhook delivery from unrelated personal accounts, token lifecycle, and profile lookup cannot be verified without an app and owned professional account.
   - Meta's current official API collection documents `instagram_business_basic` and `instagram_business_manage_messages`, an IGSID in `messaging.sender.id`, profile lookup by that IGSID, and messaging through `graph.instagram.com`; all upstream shapes remain isolated behind tested adapters.
@@ -71,7 +96,14 @@ Decision / implication: The current link remains authoritative; no automatic rea
 
 ### Q5: What import formats are in the first implementation?
 
-Answer: Support manual text and selected Accounts Center JSON files containing accounts the member follows, parsed on-device. ZIP selection and decompression are deferred until real export fixtures justify a stable, bounded implementation. Follower data is not needed for the approved discovery model, is ignored locally when present beside following data, and never crosses the repository/API boundary. Follower-only and unknown shapes fail locally with guidance.
+Answer: The initial implementation supported manual text and selected Accounts
+Center JSON files containing accounts the member follows, parsed on-device.
+ZIP selection and decompression were deferred until real export fixtures
+justified a stable, bounded implementation. Follower data is not needed for
+the approved discovery model, is ignored locally when present beside following
+data, and never crosses the repository/API boundary. Follower-only and unknown
+shapes fail locally with guidance. Q7 supersedes only the deferred ZIP portion
+after an approved real export became available.
 
 Decision / implication: The client adds a direct `file_selector` dependency but not an archive dependency. The raw selected bytes and decoded JSON never cross the repository/API boundary.
 
@@ -91,6 +123,24 @@ AppView rejects imports without a verified link, removes retention fields from
 the wire and storage model, and deletes all owner imports and their dependent
 pending discovery state when the Instagram link is revoked. Previously
 accepted PDS follows remain unchanged.
+
+### Q7: How should mobile ZIP exports and the observed current following shape be supported?
+
+Answer: Accept standalone JSON and Instagram ZIP exports on mobile. ZIP access
+shall use the `archive` package's file-backed streaming API in a background
+isolate, locate only the canonical following JSON entry, and never extract the
+archive to disk or read unrelated entries. For the observed shape, derive the
+username only from the exact
+`https://www.instagram.com/_u/<username>` URL grammar and require a present
+record `title` to normalize to the same username; never accept an arbitrary
+title as username evidence.
+
+Decision / implication: ZIP support remains local to Flutter. Both standalone
+JSON and ZIP imports use the existing `instagramJson` AppView source type and
+are labelled "Instagram export" in the UI. AppView API/storage do not change.
+ZIP support targets iOS and Android (and may work on file-backed desktop
+builds); Flutter web ZIP support is out of scope because it cannot provide the
+same native file-streaming/isolate contract.
 
 ## 4. Candidate Approaches
 
@@ -149,9 +199,72 @@ Risks:
 
 - Produces weaker ownership claims and possible false identity links.
 
+### ZIP Extension Option A: Stream Only The Target Entry In An Isolate
+
+Summary: Pass the selected native file path to a background isolate, inspect
+ZIP metadata through bounded file reads, use `archive` file-backed decoding,
+and decompress only the canonical following JSON entry.
+
+Pros:
+
+- Large media/message content stays on disk and is never inspected.
+- UI responsiveness and the existing local-only privacy boundary are
+  preserved.
+- Standalone JSON and ZIP can share one normalized parser result.
+
+Cons:
+
+- Requires native conditional wiring and explicit malformed/archive-bomb
+  limits.
+
+Risks:
+
+- ZIP metadata and export shapes can drift, so exact bounds and fixture tests
+  are required.
+
+### ZIP Extension Option B: Read The Whole ZIP Into Memory
+
+Summary: Keep the current byte-based picker and pass all ZIP bytes to
+`ZipDecoder.decodeBytes`.
+
+Pros:
+
+- Smallest code change.
+
+Cons:
+
+- Full Instagram exports can be dominated by media and exceed device memory.
+- Copies unrelated private content between the UI isolate and parser.
+
+Risks:
+
+- UI stalls or process termination on otherwise valid exports.
+
+### ZIP Extension Option C: Extract The Archive To A Temporary Directory
+
+Summary: Expand every entry to temporary storage and then open `following.json`.
+
+Pros:
+
+- Simple target-file lookup after extraction.
+
+Cons:
+
+- Writes unrelated messages/media to app-controlled storage and needs cleanup.
+- Increases I/O, disk usage, path-traversal surface, and privacy exposure.
+
+Risks:
+
+- Partial extraction or cleanup failure leaves sensitive data behind.
+
 ## 5. Recommended Direction
 
-Recommended approach: Option A, the approved direct Meta integration with a disabled-by-default production adapter, durable webhook work, explicit confirmation by the same authenticated DID, and private on-device/AppView boundaries.
+Recommended approach: Option A for the integration and ZIP Extension Option A
+for archive import: the approved direct Meta integration with a
+disabled-by-default production adapter, durable webhook work, explicit
+confirmation by the same authenticated DID, and private on-device/AppView
+boundaries; selected mobile ZIPs are file-streamed in an isolate and only the
+canonical following entry is decoded.
 
 Why: It is the only approach that combines live control evidence, stable IGSID anchoring, explicit discoverability consent, minimal imported data, and auditable conflict handling without adding another processor. Dependency injection and fixture-driven contracts allow implementation before the Meta app exists while keeping production enablement fail-closed.
 
@@ -164,7 +277,8 @@ People moving from Instagram cannot currently discover the CraftSky accounts of 
 - G-001: Let a signed-in CraftSky member prove current control of one Instagram account through a short-lived DM challenge and same-DID in-app confirmation.
 - G-002: Keep the IGSID as the stable identity anchor and the normalized username as a mutable verified attribute.
 - G-003: Let members choose handle-based CraftSky discoverability while confirming the displayed account, change that setting later, and revoke their link.
-- G-004: Parse manual lists and supported Instagram JSON exports on-device and send only minimal normalized relationship entries.
+- G-004: Parse manual lists and supported standalone JSON or ZIP Instagram
+  exports on-device and send only minimal normalized relationship entries.
 - G-005: Produce exact, privacy-filtered, reviewable follow suggestions for current discoverable CraftSky members.
 - G-006: Create no PDS follow until the importer explicitly accepts a suggestion.
 - G-007: Retain imported following handles until the verified Instagram link is revoked, and notify importers through a first-class private `instagramMatch` category when future matches appear.
@@ -182,7 +296,8 @@ People moving from Instagram cannot currently discover the CraftSky accounts of 
 - NG-008: Add a new AT Protocol lexicon.
 - NG-009: Undo previously accepted PDS follows when a link, username, import, or discoverability setting changes.
 - NG-010: Enable the production integration before the Meta capability spike, secret provisioning, dashboard configuration, privacy-policy/data-deletion requirements, and required access review are complete.
-- NG-011: Parse ZIP archives in the initial implementation.
+- NG-011: Support ZIP import on Flutter web, load an entire ZIP into memory, or
+  extract unrelated archive entries to device storage.
 - NG-012: Build the repository-wide member data-export/account-deletion API that does not currently exist; this change supplies scoped purge/export primitives and schema cascades for future composition.
 
 ## 9. Users / Actors
@@ -200,13 +315,18 @@ People moving from Instagram cannot currently discover the CraftSky accounts of 
 
 ## 10. Current Behavior
 
-CraftSky has no Instagram integration. Members can follow known CraftSky profiles through the existing profile follow route, but they cannot prove an Instagram handle, import a following list, or receive verified matches. Notification persistence and Flutter rendering support only actor-driven social categories. The AppView has no Meta secrets, integration callbacks, Instagram workers, or private Instagram tables.
+The original baseline had no Instagram integration. The implemented flow now
+supports DM verification, private matching, manual following handles, and one
+standalone JSON shape, but its file picker reads the complete JSON into memory
+on the UI isolate and rejects ZIPs. That prevents the normal Accounts Center
+ZIP download from being used directly, especially when the member selected an
+all-information export containing large media files.
 
 ## 11. Desired Behavior
 
 When configured, AppView creates a ten-minute, single-use, DID-bound challenge and returns only its display value, verification ID, expiry, and official Instagram DM URL. A valid signed Meta message event is acknowledged quickly and durably queued. Background processing deduplicates the message ID, recognizes only verification text, finds the attempt by a keyed challenge digest, fetches only the sender's current username when needed, and transitions the attempt to pending confirmation. The creating DID confirms the actual username in-app before an active link exists. Link discovery remains a separate explicit opt-in.
 
-Flutter offers **Find people from Instagram** in Settings. It supports verification status/confirmation, discoverability/revocation, manual handles, and selected JSON imports. Import controls remain hidden until ownership is verified. Parsing and size/shape validation occur entirely on-device. AppView receives normalized entries only, retains them for the verified-link lifetime, creates suggestions for exact eligible current links, and exposes review/dismiss/accept operations. Accepting is the sole action that writes a PDS follow. Newly eligible future matches create private actorless in-app notifications; push can be disabled in Notification Settings. Unconfigured environments expose a graceful unavailable state and never accept unsigned or partially configured live traffic.
+Flutter offers **Find people from Instagram** in Settings. It supports verification status/confirmation, discoverability/revocation, manual handles, and selected Instagram exports in standalone JSON or ZIP form. Import controls remain hidden until ownership is verified. The UI recommends requesting only accounts the member follows, while accepting an all-information ZIP without reading its unrelated entries. Native file inspection, extraction of the one canonical following JSON entry, JSON parsing, size/shape validation, and normalization occur entirely on-device in a background isolate. AppView receives normalized entries only under the existing `instagramJson` source type, retains them for the verified-link lifetime, creates suggestions for exact eligible current links, and exposes review/dismiss/accept operations. Accepting is the sole action that writes a PDS follow. Newly eligible future matches create private actorless in-app notifications; push can be disabled in Notification Settings. Unconfigured environments expose a graceful unavailable state and never accept unsigned or partially configured live traffic.
 
 ## 12. Requirements
 
@@ -228,8 +348,8 @@ Flutter offers **Find people from Instagram** in Settings. It supports verificat
 | FR-010 | Functional | Must | Authenticated account/link endpoints shall return the caller's own link state, allow discoverability changes, expose a generic pending-conflict warning, and revoke the link idempotently. | Makes consent and recovery visible and reversible. | Design / Route review | AC-009, AC-031, AC-032 |
 | FR-011 | Functional | Should | The Meta adapter and operator refresh path should support observing a changed username for an existing IGSID, updating it only after validation, invalidating old-handle pending suggestions, and routing collisions to conflict handling. | Usernames are mutable while IGSIDs are the anchor. | Design | AC-033 |
 | FR-012 | Functional | Must | `POST /v1/migrations/instagram/imports` shall require an active verified Instagram link and accept a bounded strict schema containing only source type and normalized usernames for accounts the member follows. It shall create a private import retained until unlink and return the following count/initial suggestions without accepting retention, relationship direction, follower data, or raw archive fields. | Defines the minimal server boundary and ties private graph lifetime to the verified link. | Design / User approval | AC-016–AC-019, AC-026 |
-| FR-013 | Functional | Must | Flutter shall parse manual text and supported Instagram following JSON export shapes locally from bounded input, normalize/deduplicate only accounts the member follows, ignore follower sections when present beside following data, and reject follower-only, unsupported, malformed, or oversized input before any network request. | Enforces data minimization for the chosen discovery model. | Design / Codebase / User approval | AC-016–AC-018 |
-| FR-014 | Functional | Must | Handle normalization shall trim outer whitespace and at most one leading `@`, ASCII-case-fold, accept only `^[a-z0-9._]{1,30}$`, deduplicate by normalized username, and never infer ownership from display names or URLs. | Matching must be deterministic and exact. | Design | AC-019, AC-020 |
+| FR-013 | Functional | Must | Flutter shall parse manual text and supported Instagram following export shapes locally from bounded standalone JSON or native ZIP input, normalize/deduplicate only accounts the member follows, ignore follower sections/unrelated archive entries, and reject follower-only, missing-target, duplicate-target, unsupported, malformed, encrypted, or oversized input before any network request. | Enforces data minimization for the chosen discovery model while supporting the normal download container. | Design / Codebase / User approval | AC-016–AC-018, AC-050–AC-052 |
+| FR-014 | Functional | Must | Handle normalization shall trim outer whitespace and at most one leading `@`, ASCII-case-fold, accept only `^[a-z0-9._]{1,30}$`, and deduplicate by normalized username. A legacy `string_list_data[].value` is direct username evidence. For the observed current shape, the username shall come only from the exact HTTPS URL grammar `https://www.instagram.com/_u/<username>` and a present record `title` must normalize to the same value. Arbitrary titles, display names, other hosts/paths/query strings/fragments, and mismatched title/URL pairs are invalid rather than fuzzy evidence. | Matching must be deterministic and exact while supporting the current export shape without treating display text as identity. | Design / User approval | AC-019, AC-020, AC-051 |
 | FR-015 | Functional | Must | Matching, persistence, listing, digest creation/delivery, and acceptance shall use one `InstagramSuggestionEligibilityPolicy`: both importer and target are current CraftSky members; the link is active, DM-verified, discoverable, exact-current-username, and conflict-free; target is not self or already followed; no effective account hide/takedown applies; no active block exists in either direction; and the importer has not muted the target. An unavailable required relationship-safety source fails closed outside explicit tests. | Prevents low-confidence or unsafe suggestions and policy drift between surfaces. | Design / Codebase review / Document review | AC-020–AC-022, AC-025, AC-048 |
 | FR-016 | Functional | Must | `GET /v1/migrations/instagram/suggestions` shall return an opaque-cursor page of caller-owned, currently eligible suggestions with hydrated safe CraftSky profile data and a bounded reason; it shall not expose IGSIDs, verification timestamps, link versions, importers, or hidden targets. | Provides review without leaking private metadata. | Design / API architecture | AC-021, AC-023 |
 | FR-017 | Functional | Must | Suggestion dismissal shall be idempotent. Acceptance shall be an authenticated, suggestion-ID-scoped, idempotent operation that claims a stable PDS follow rkey/operation before the external call, re-evaluates `InstagramSuggestionEligibilityPolicy` immediately before writing, uses a shared CraftSky follow service, and marks accepted/already-following only after the deterministic PDS `putRecord` succeeds or is already satisfied. | Closes the proposed route/state and firehose-delay gap safely. | Design / Codebase review / Document review | AC-024, AC-025, AC-048 |
@@ -240,7 +360,7 @@ Flutter offers **Find people from Instagram** in Settings. It supports verificat
 | FR-022 | Functional | Must | Push data for `instagramMatch` shall contain only the opaque account-subscription binding, category, stable notification ID, and bounded count/navigation facts; it shall contain no handle, IGSID, DID, challenge, or suggestion list and shall open the recipient account's Instagram migration page. | Protects private graph data at the provider boundary. | Design / Push architecture | AC-035–AC-037 |
 | FR-023 | Functional | Must | Flutter shall add a typed, authenticated **Find people from Instagram** route reachable from Settings and from `instagramMatch`, with account-switch-safe navigation and state. | Provides a discoverable and deep-linkable feature surface. | Design / Codebase | AC-038, AC-042 |
 | FR-024 | Functional | Must | Flutter verification UI shall explain discoverability, create/copy/open a challenge, poll through a fixed-account client, show expiry/cancellation/unavailable states, display the actual candidate username, and support confirmation, cancellation, link settings, and revocation. In `pendingConfirmation`, the discovery selector shall appear immediately after the account, default to `Allow discovery`, and show explanation text for the selected value; pressing confirmation applies that displayed value. Leaving and reopening the page shall restore AppView's current non-terminal attempt: a matching unexpired account-scoped secure snapshot may restore only its verification ID, display challenge, DM URL, and expiry; AppView remains authoritative for state and candidate data. A current attempt without a matching local snapshot remains visible and cancellable but does not reveal or recreate challenge plaintext. | Completes the member verification journey without forcing an accidental superseding challenge after navigation. | Design / User approval | AC-003–AC-005, AC-009, AC-014, AC-038, AC-049 |
-| FR-025 | Functional | Must | Flutter shall hide all import controls until a verified Instagram account exists. The import UI shall support direct manual-handle and local JSON import without a normalized-preview step, disclose local-only parsing and retention until unlink, upload only normalized entries, list/delete imports, explicitly reactivate each eligible import after rejoin, show reviewable pending suggestions, and link to Notification Settings for push control. | Completes a simple private migration and restoration journey. | Design / User approval | AC-016–AC-018, AC-023, AC-026, AC-027, AC-034, AC-038, AC-048 |
+| FR-025 | Functional | Must | Flutter shall hide all import controls until a verified Instagram account exists. The import UI shall support direct manual-handle and local Instagram-export import (`.json` or `.zip`) without a normalized-preview step, recommend exporting only accounts the member follows, explain that an all-information ZIP is handled locally, disclose retention until unlink, upload only normalized entries, list/delete imports, explicitly reactivate each eligible import after rejoin, show reviewable pending suggestions, and link to Notification Settings for push control. | Completes a simple private migration and restoration journey without forcing members to unpack a normal Accounts Center download. | Design / User approval | AC-016–AC-018, AC-023, AC-026, AC-027, AC-034, AC-038, AC-048, AC-050 |
 | FR-026 | Functional | Must | Flutter suggestion actions shall support individual selection, explicit select-all of the currently reviewed eligible set, dismissal, idempotent acceptance feedback, and refresh invalidated/already-following rows without optimistic cross-account leakage. | Preserves explicit follow intent and account isolation. | Design / Multi-account architecture | AC-024, AC-025, AC-042 |
 | FR-027 | Functional | Should | The worker should send bounded immediate accepted/expired/invalid/completed DM replies only when allowed and configured, with idempotent reply state and no later marketing or match messages. | Improves flow feedback without making replies correctness-critical. | Design | AC-043 |
 | FR-028 | Functional | Must | Instagram private data shall have reusable export, membership-inactivation, and terminal-purge services. Loss of `craftsky_profiles` membership shall set links `membershipInactive`, disable discovery, pause owner imports, invalidate dependent pending suggestions/system notifications, and block member-facing operations without deleting owner data. Rejoining requires explicit owner reactivation and never silently restores discoverability. A terminal atproto identity-deletion event, future explicit whole-account deletion, or scoped user delete shall permanently purge the applicable private data, cancel unsent deliveries, and leave accepted PDS follows untouched. | Separates a reversible membership boundary from permanent deletion. | Design / Codebase review / Document review | AC-028, AC-031, AC-044, AC-048 |
@@ -255,6 +375,8 @@ Flutter offers **Find people from Instagram** in Settings. It supports verificat
 | NFR-008 | Non-functional | Must | Fixed-account clients/operation leases shall fence every polling response, mutation, follow acceptance, navigation, and cache update so an account switch cannot expose or mutate another account's Instagram state. Any resumable verification snapshot shall be secure-storage-backed and keyed by CraftSky DID, reconciled with AppView before display, retained when only the page is disposed, and cleared for that account on mismatch, expiry, cancellation, confirmation, supersession, or sign-out/session invalidation. | Preserves multi-account isolation while allowing bounded page-level resumption. | Codebase / Approved multi-account contract / User approval | AC-042, AC-049 |
 | NFR-009 | Non-functional | Must | Client cancellation shall remain classified as internal 499/canceled and shall not be captured as a server failure or Sentry event. | Account switching and polling cancellation are expected client behavior. | Existing observability contract | AC-047 |
 | FR-030 | Functional | Must | A shared current-member guard shall protect every authenticated Instagram route and every worker transition that links, matches, notifies, or accepts. A still-valid CraftSky session whose DID is absent from `craftsky_profiles` receives `404 profile_not_found`; workers pause/reject the transition and invoke membership-inactivation behavior instead of surfacing FK/internal errors. | Current membership is a hard user-facing boundary independent of session validity. | Document review / Existing membership contract | AC-048 |
+| FR-031 | Functional | Must | On iOS and Android, Flutter shall pass the selected native file path—not complete ZIP bytes—to a background isolate. That isolate shall distinguish JSON from ZIP, use the direct `archive` dependency with `InputFileStream` and streaming ZIP decoding, locate exactly one canonical `connections/followers_and_following/following.json`, decode only that entry, close all file/archive resources, and return only normalized entries plus bounded ignored/duplicate counts. It shall never extract archive contents to disk. | Keeps large exports off the UI isolate and prevents unrelated private data from entering memory or app-controlled storage. | User request / Codebase / Archive 4.0.9 API | AC-050, AC-052, AC-053 |
+| NFR-010 | Non-functional | Must | ZIP processing shall remain bounded independently of total media payload size: inspect no more than 100,000 central-directory entries and 64 MiB of central-directory metadata, require the one target entry's declared and actual uncompressed content to be at most 20 MiB, preserve the 10,000 normalized-entry cap, and fail locally without partial upload when any limit or archive-integrity check fails. No total ZIP byte cap is imposed solely because unrelated media makes an otherwise valid export large. | Prevents archive bombs/OOM while allowing legitimate all-information exports whose size is dominated by ignored media. | User request / Security analysis | AC-052, AC-053 |
 | RULE-001 | Business rule | Must | A challenge is case-insensitive, single-use, valid for ten minutes, bound to one DID/attempt, and invalid after redemption, expiry, cancellation, or supersession. | Defines proof validity. | Design | AC-002, AC-003, AC-010, AC-012 |
 | RULE-002 | Business rule | Must | The Instagram sender proves control at DM time, but only explicit confirmation by the same authenticated CraftSky DID creates the link and applies the discoverability value displayed at confirmation. | Separates proof from exposure consent. | Design / User approval | AC-014, AC-015 |
 | RULE-003 | Business rule | Must | The IGSID is the identity anchor; a username is a mutable normalized attribute and shall never cause automatic ownership transfer between IGSIDs or DIDs. | Handles username changes safely. | Design | AC-015, AC-032, AC-033 |
@@ -265,6 +387,7 @@ Flutter offers **Find people from Instagram** in Settings. It supports verificat
 | RULE-008 | Business rule | Must | Importing, matching, retaining, notifying, selecting, or viewing never follows; only explicit acceptance writes `app.bsky.graph.follow`. | Protects user intent and public graph state. | Design | AC-024, AC-025 |
 | RULE-009 | Business rule | Must | Normalized accounts-followed handles are private, accepted only after Instagram ownership verification, retained without expiry while the verified link remains, deleted on unlink, and never reveal the importer to a matched member. | Implements the approved verified-link lifetime and privacy decision. | User approval | AC-026–AC-030 |
 | RULE-010 | Business rule | Must | Existing accepted follows remain DID-based PDS records and are not undone by later import deletion, revocation, conflict, username change, or membership cleanup. | Cross-network metadata must not silently rewrite the public social graph. | Design | AC-031, AC-044 |
+| RULE-011 | Business rule | Must | Standalone JSON and ZIP are local containers for the same Instagram following export and shall both cross the repository/AppView boundary only as existing `sourceType: instagramJson` plus normalized username entries. UI/history copy shall label both as an "Instagram export"; no ZIP-specific API value, database column, raw filename, or archive metadata is added. | Keeps the server contract based on normalized evidence rather than the member's download container. | User approval | AC-050, AC-054 |
 
 ### 12.1 State And Wire Contracts
 
@@ -398,7 +521,7 @@ or surrounding prose are invalid.
 | Challenge creation | 5/15 minutes per DID, 10/15 minutes per device, and 30/15 minutes per trusted source IP. |
 | Invalid redemption | 10/15 minutes per sender IGSID and 30/15 minutes per trusted source IP; excess valid signed deliveries acknowledge generically and defer/drop without lookup. |
 | Confirmation | 20/hour per DID and 30/hour per device. |
-| Import | Existing `/v1` one-MiB body cap, at most 10,000 deduplicated entries/import, 10 imports/hour per DID and 20/hour per device. Client-selected JSON is capped at 20 MiB before decode. |
+| Import | Existing `/v1` one-MiB body cap, at most 10,000 deduplicated entries/import, 10 imports/hour per DID and 20/hour per device. A standalone JSON file or the ZIP target entry is capped at 20 MiB before/through decode. ZIP metadata is capped at 100,000 central-directory entries and 64 MiB; total ZIP size is not capped when ignored media accounts for the size. |
 | Pagination | Default 20 and maximum 50 items/page. Invalid/foreign cursors are `400 invalid_cursor`. |
 | Meta HTTP | Five-second total timeout, 64-KiB response cap, at most 20 concurrent profile calls/process and 5 lookups/hour per IGSID. |
 | Webhook worker | Four concurrent jobs/process, 60-second lease, five provider attempts, exponential backoff from one second capped at five minutes, and 15-minute maximum `processing` age before safe terminal rejection. |
@@ -440,10 +563,10 @@ change the webhook acknowledgement.
 | AC-013 | FR-007 | Given a valid challenge message, then only the sender IGSID and current normalized/display username are retained as the pending candidate; profile pictures, names, counts, and message history are not stored. |
 | AC-014 | FR-008, FR-024, RULE-002, RULE-004 | Given a pending candidate, when Flutter shows the actual username followed by a selector defaulted to `Allow discovery`, then the selected option's explanation appears immediately below it. When the creating member explicitly confirms without changing the default, the link is discoverable; changing to private is also honored. The link is finalized exactly once, and a different DID or unconfirmed UI cannot finalize it. |
 | AC-015 | FR-008, FR-009, NFR-005, RULE-002, RULE-003 | Given concurrent confirmation or an existing DID/IGSID/username constraint, then one valid ownership result wins, conflicts remain unresolved without transfer, and retries return the same safe result. |
-| AC-016 | BR-002, FR-012, FR-013, RULE-006, RULE-007 | Given a supported local JSON file, then Flutter extracts only normalized usernames from accounts the member follows and the outgoing request contains no direction, follower data, raw bytes, filename, arbitrary JSON subtree, URL, message, or unrelated field. |
-| AC-017 | FR-012, FR-013, RULE-007 | Given malformed, unsupported, partially changed, or oversized JSON, then parsing fails locally with guidance and no network call; given a server request with unknown/raw/archive-like fields, then strict decoding rejects it. |
-| AC-018 | FR-012, FR-013, FR-025, RULE-006 | Given following data plus follower data, then Flutter previews only the accounts-followed count, discards follower data locally, and sends usernames without directions. A follower-only selection produces local guidance and no network request; an AppView request containing `direction` or follower-specific fields is rejected. |
-| AC-019 | FR-012, FR-014, RULE-005 | Given whitespace, a leading `@`, supported case variants, duplicates, invalid characters, overlong values, and display names, then normalization/deduplication is deterministic and invalid/non-username evidence is rejected without fuzzy matching. |
+| AC-016 | BR-002, FR-012, FR-013, RULE-006, RULE-007 | Given a supported local standalone JSON or ZIP export, then Flutter extracts only normalized usernames from accounts the member follows and the outgoing request contains no direction, follower data, raw bytes, filename, archive metadata, arbitrary JSON subtree, URL, message, or unrelated field. |
+| AC-017 | FR-012, FR-013, RULE-007 | Given malformed, unsupported, partially changed, encrypted, missing/duplicate-target, integrity-failing, or oversized JSON/ZIP input, then parsing fails locally with guidance and no network call; given a server request with unknown/raw/archive-like fields, then strict decoding rejects it. |
+| AC-018 | FR-012, FR-013, FR-025, RULE-006 | Given following data plus follower data or unrelated all-information archive entries, then Flutter processes only accounts-followed data, discards/ignores everything else locally, and sends usernames without directions. A follower-only selection produces local guidance and no network request; an AppView request containing `direction` or follower-specific fields is rejected. |
+| AC-019 | FR-012, FR-014, RULE-005 | Given whitespace, a leading `@`, supported case variants, duplicates, invalid characters, overlong values, display names, and supported/unsupported Instagram URLs, then normalization/deduplication is deterministic and invalid/non-username evidence is rejected without fuzzy matching. |
 | AC-020 | FR-014, FR-015, RULE-004, RULE-005 | Given active discoverable verified, disabled, revoked, disputed, superseded, old-username, unverified, self, and departed mappings, then only the exact current eligible mapping can match. |
 | AC-021 | FR-015, FR-016 | Given eligible and ineligible targets, then persisted/listed suggestions include only current CraftSky members allowed by the visibility/moderation policy and never include self or already-followed accounts. |
 | AC-022 | FR-015, RULE-005, RULE-006 | Given follower-only, fuzzy, stale, or case-normalized-but-otherwise-non-exact evidence, then no ordinary or future follow suggestion is created; follower-only evidence cannot enter AppView persistence. |
@@ -474,6 +597,11 @@ change the webhook acknowledgement.
 | AC-047 | NFR-009 | Given polling/import/confirmation is cancelled by account switching or client teardown, then AppView classifies it as canceled/499 and does not report it as a 5xx/Sentry failure. |
 | AC-048 | BR-001, FR-003, FR-015, FR-017, FR-018, FR-025, FR-028, FR-030, NFR-004 | Given a still-valid session whose DID is absent from `craftsky_profiles`, then every authenticated Instagram route returns `404 profile_not_found`; queued workers inactivate/pause owned Instagram state and create no link, suggestion, notification, or PDS follow. Rejoining requires explicit link reactivation and per-import reactivation, neither of which silently restores discovery or extends retention. |
 | AC-049 | FR-003, FR-024, NFR-008 | Given a member leaves and reopens the Instagram page before an attempt expires, when Flutter fetches the caller's current attempt, then it resumes polling or pending confirmation without creating or superseding an attempt. A matching account-scoped secure snapshot restores the display challenge and DM URL; an absent/mismatched snapshot exposes neither but still shows and permits cancellation of the server attempt. Expiry, cancellation, confirmation, supersession, and session invalidation clear only that account's snapshot, and late work cannot cross an account switch. |
+| AC-050 | FR-013, FR-025, FR-031, RULE-011 | Given a verified mobile member selects either `following.json` or the original Instagram ZIP, then one local parse creates the same normalized import request using `sourceType: instagramJson`; the picker/UI calls both an "Instagram export", recommends exporting only accounts followed, and explains that an all-information ZIP stays local. |
+| AC-051 | FR-013, FR-014 | Given the approved current shape with `title` and `https://www.instagram.com/_u/<username>` but no `value`, then every agreeing URL/title pair yields that normalized username. A mismatched title, arbitrary title-only record, non-HTTPS URL, different host/path, query, fragment, encoded separator, invalid username, or ambiguous multiple evidence value is ignored/rejected according to the bounded parser contract and never used for fuzzy inference. |
+| AC-052 | FR-013, FR-031, NFR-010 | Given a ZIP containing messages, media, follower files, and exactly one canonical following entry, then processing occurs off the UI isolate, archive payload stays file-backed, only the target entry is decompressed, no entry is written to disk, and the isolate returns only normalized entries/counts. Missing, duplicate, encrypted, malformed, unsupported-compression, CRC/integrity-failing, over-20-MiB target, over-100,000-entry, or over-64-MiB-directory archives fail locally with no request. |
+| AC-053 | FR-031, NFR-010, NFR-008 | Given a large valid archive, selection/cancellation/account switching/page disposal, then the UI remains responsive; late isolate results are fenced by the captured account lease; native file/archive handles close on success and every failure; and no complete archive byte buffer crosses into or out of the worker isolate. |
+| AC-054 | BR-002, RULE-007, RULE-011 | Given JSON and ZIP imports with controlled private canaries in filename, archive paths, unrelated entries, raw JSON, URLs, follower records, messages, and media, then the serialized repository request, AppView diagnostics/storage, Sentry, push, and PDS contain only the existing `instagramJson` source value and normalized following usernames where explicitly intended. |
 
 ## 14. Edge Cases
 
@@ -494,6 +622,14 @@ change the webhook acknowledgement.
 | EC-013 | Meta returns a valid response with missing/invalid username. | Keep the job bounded/retryable or reject the candidate; never link only by a missing username. | FR-007 |
 | EC-014 | Username is released and claimed by another IGSID. | The old link does not confer ownership; active collision is disputed and no automatic transfer occurs. | FR-009, FR-011 |
 | EC-015 | Integration is disabled after challenges exist. | New attempts stop; existing state remains private and cancellable; workers stop external calls without losing durable jobs. | FR-001, FR-006 |
+| EC-016 | A ZIP contains no canonical following entry or contains it more than once. | Reject as unsupported/ambiguous without inspecting fallback filenames or uploading anything. | FR-013, FR-031 |
+| EC-017 | A ZIP is very large because it contains media. | Do not reject solely on total ZIP bytes; keep media file-backed and decode only the bounded target entry. | FR-031, NFR-010 |
+| EC-018 | ZIP central-directory counts/size or target size exceed limits. | Reject before target decompression and without a network call. | FR-031, NFR-010 |
+| EC-019 | ZIP metadata lies about target size or decompression/integrity exceeds the declared bound. | Abort bounded output, close resources, and report a local invalid-export error. | FR-031, NFR-010 |
+| EC-020 | Current export URL and title disagree. | Treat the record as invalid; neither field independently becomes a username. | FR-014 |
+| EC-021 | Current export contains title only, a lookalike host/path, query/fragment, or encoded separator. | Reject that evidence without fuzzy/title inference. | FR-014 |
+| EC-022 | Account switch or page disposal occurs while the isolate is parsing. | Allow bounded worker cleanup to finish but discard its result through the captured account lease; never upload under the new account. | FR-031, NFR-008 |
+| EC-023 | A member selects ZIP on Flutter web. | ZIP is unavailable/unsupported; direct JSON behavior remains a separate platform capability. | FR-031 |
 
 ## 15. Data / Persistence Impact
 
@@ -547,14 +683,22 @@ dependent work. Membership loss alone follows the reversible rules above.
 - Backwards compatibility:
   - The app has no production users, but changes remain additive to `/v1/*` and preserve unknown-notification behavior.
   - No lexicon change is required.
+  - ZIP and standalone JSON both retain the existing `instagramJson` wire and
+    database value; no AppView migration or route change is required.
 
 ## 16. UI / API / CLI Impact
 
 - UI:
   - Add **Find people from Instagram** under Settings.
-  - Add typed verification, link/discovery, verified-only direct manual/JSON import, suggestion review, dismissal, accept, empty/error/unavailable, and conflict-warning states.
+  - Add typed verification, link/discovery, verified-only direct
+    manual/Instagram-export import, suggestion review, dismissal, accept,
+    empty/error/unavailable, and conflict-warning states.
+  - The file action accepts `.json` and `.zip`, is labelled as an Instagram
+    export rather than its container, and recommends requesting only accounts
+    followed while explaining that full ZIP exports remain local.
   - Extend notification settings/feed/icon/copy/open behavior for actorless `instagramMatch`.
 - API:
+  - No API change for ZIP support; both containers submit `instagramJson`.
   - `POST /v1/migrations/instagram/verifications`
   - `GET /v1/migrations/instagram/verifications/{verificationId}`
   - `POST /v1/migrations/instagram/verifications/{verificationId}/confirm`
@@ -591,8 +735,15 @@ dependent work. Membership loss alone follows the reversible rules above.
 - Sensitive data:
   - Meta app secret, verify token, account access token/ID, challenge digest key, IGSIDs, usernames, imported handles, conflicts, and graph state remain server-side/private as applicable.
   - Flutter receives usernames only where necessary for the member's own candidate or suggestion reason and receives no IGSID.
+  - The ZIP filename, archive directory, entry names, compressed bytes,
+    unrelated media/messages/follower data, and decoded raw JSON remain inside
+    the native parser boundary. Only normalized entries/counts leave the
+    isolate.
 - Abuse cases:
   - Challenge guessing/replay, IGSID rebinding, duplicate webhook delivery, forged signatures, oversized bodies, username collision/takeover, import enumeration, follow duplication, and notification leakage have explicit constraints and tests.
+  - ZIP bombs, misleading size metadata, duplicate canonical entries,
+    encrypted/unsupported entries, path lookalikes, CRC/integrity failures, and
+    title/URL disagreement fail locally within fixed bounds.
 - External enablement:
   - Production readiness requires the Phase 0 capability spike with an unrelated personal account, confirmed profile lookup, token lifecycle, webhook subscription, app review/access level, privacy policy, deletion callback, and business requirements.
 
@@ -603,7 +754,8 @@ dependent work. Membership loss alone follows the reversible rules above.
   - webhook accepted/signature-failed/duplicate/unsupported and processing latency/queue depth
   - profile/reply success/retry/terminal failure
   - link activate/revoke/discovery-change/username-change/conflict
-  - import size bucket/source type/match-rate bucket/deletion/expiry
+  - import size bucket/source type/match-rate bucket/deletion/expiry (the
+    source type remains `instagramJson`; do not add filename/archive metadata)
   - suggestion created/accepted/dismissed/invalidated/already-following
   - `instagramMatch` created/coalesced/retracted/push outcome
 - Logs:
@@ -628,6 +780,8 @@ dependent work. Membership loss alone follows the reversible rules above.
 | RISK-008 | Username reuse creates an apparent identity transfer. | Wrong-person suggestions. | Anchor on IGSID, invalidate old-handle suggestions, partial uniqueness, conflict/re-verification, and no automatic transfer. |
 | RISK-009 | Cross-account async work updates the wrong Flutter account. | Private-data disclosure or wrong follow. | Fixed-account clients, operation leases, account-keyed state, and switch-during-operation tests. |
 | RISK-010 | No repository-wide account export/deletion endpoint exists. | Lifecycle integration is incomplete. | Implement reusable scoped export/purge services and cascades now; document future composition as a release checklist item. |
+| RISK-011 | A large or adversarial ZIP exhausts memory, storage, or the UI isolate. | App termination, stalled UI, or partial private-data handling. | Native path handoff, background isolate, file-backed archive decoding, bounded central-directory/target/output limits, no full extraction, and failure-path resource tests. |
+| RISK-012 | The observed current URL/title export shape changes again. | Valid imports fail or ambiguous strings are mistaken for usernames. | Version exact supported shapes, require strict URL grammar/title agreement, keep manual entry fallback, and add only synthetic fixtures derived from approved structural observations. |
 
 ## 20. Assumptions
 
@@ -636,14 +790,18 @@ dependent work. Membership loss alone follows the reversible rules above.
 | ASM-001 | Meta continues to provide an Instagram-scoped sender ID and username lookup after a user messages the owned professional account. | The ownership anchor or automatic username candidate cannot be established; revisit the verification approach. |
 | ASM-002 | Standard Access is sufficient when CraftSky manages only its own professional account. | Advanced Access/app review may become a pre-launch requirement; adapter code remains unchanged. |
 | ASM-003 | An HTTPS `ig.me` or equivalent DM link can be configured server-side and opened through the existing external-link helper. | Flutter needs a separately reviewed safe custom-scheme fallback. |
-| ASM-004 | Selected real JSON exports include stable enough username URL/value arrays to support at least one versioned local parser. | Manual text remains usable while fixture-backed parser support is revised. |
+| ASM-004 | Selected real exports keep either the supported direct `value` shape or the observed exact `_u/<username>` URL plus agreeing title shape under the canonical following path. | Manual text remains usable while fixture-backed parser support is revised. |
 | ASM-005 | PostgreSQL is available for durable webhook inbox, shared abuse counters, and workers. | A different shared store would be needed before multi-instance enablement. |
 | ASM-006 | A member has at most one active Instagram account link in this product version. | Data model/UI must be generalized before supporting several accounts. |
+| ASM-007 | On supported iOS/Android file selection, `file_selector` supplies a native readable path for the lifetime of the isolate operation. | The picker adapter must first copy the selected stream into an app-owned temporary file with explicit cleanup, without changing the parser/privacy contract. |
 
 ## 21. Open Questions
 
 - [ ] Non-blocking for implementation, blocking for production enablement: complete the Meta capability spike with a real app, official professional account, and unrelated personal sender; record actual webhook/profile/reply fixtures and access requirements.
-- [ ] Non-blocking for implementation, blocking for JSON-parser release confidence: obtain one or more member-provided redacted current Instagram accounts-followed JSON exports and add them as privacy-safe test fixtures.
+- [ ] Non-blocking for implementation, blocking for broader export-shape
+  confidence: obtain additional consented/redacted current Instagram exports.
+  The approved 2026-07-21 sample establishes the observed URL/title structure,
+  but no user-derived archive or private values may be committed.
 - [ ] Non-blocking until the repository-wide lifecycle feature exists: compose the new Instagram private export/purge services into the eventual member data-export and account-deletion endpoints/UI.
 - [ ] Non-blocking until abuse/operations deployment design: confirm the production AppView replica count and selected shared rate-limit deployment.
 
@@ -653,8 +811,8 @@ Status: Approved
 Risk level: High
 Review recommended: Required
 Reviewer: User (explicit approval to formalize and implement the proposed design)
-Date: 2026-07-19
-Notes: Approval covers all feasible AppView and Flutter phases before Meta setup. Production enablement remains blocked on the capability spike and external configuration. No commit or push was authorized.
+Date: 2026-07-23
+Notes: Approval covers all feasible AppView and Flutter phases before Meta setup plus native mobile ZIP import using file-backed `archive` processing in an isolate. The user approved exact `_u/<username>` URL plus agreeing-title parsing and retaining the existing `instagramJson` AppView source type. Production enablement remains blocked on the capability spike and external configuration. No commit or push was authorized.
 
 ## 23. Handoff To Test Design
 
@@ -662,13 +820,19 @@ Notes: Approval covers all feasible AppView and Flutter phases before Meta setup
 - Next test specification: `02-acceptance-tests.md`
 - Must-cover requirement IDs:
   - `BR-001`–`BR-004`
-  - `FR-001`–`FR-010`, `FR-012`–`FR-026`, `FR-028`, `FR-030`
-  - `NFR-001`–`NFR-009`
-  - `RULE-001`–`RULE-010`
+  - `FR-001`–`FR-010`, `FR-012`–`FR-026`, `FR-028`, `FR-030`, `FR-031`
+  - `NFR-001`–`NFR-010`
+  - `RULE-001`–`RULE-011`
 - Suggested test levels:
-  - Pure unit tests for challenge grammar/digest, signatures, webhook decoding, username normalization, export parsing, matching/eligibility, state transitions, retry/backoff, notification inference, and fixed-account fencing.
+  - Pure unit tests for challenge grammar/digest, signatures, webhook decoding,
+    username normalization, strict current URL/title parsing, standalone
+    JSON/streamed ZIP parsing and bounds, matching/eligibility, state
+    transitions, retry/backoff, notification inference, and fixed-account
+    fencing.
   - Database integration tests for migrations, constraints, concurrency, ownership, durable inbox leasing/deduplication, link/import/suggestion lifecycle, future matching, notification persistence/retraction, and deletion/purge.
   - HTTP contract tests for every authenticated/integration route and standard errors/body/rate limits.
-  - Flutter API/provider/widget/router tests for privacy boundary, all page states, consent, parsing, actions, notification settings/rendering/open, and account switching.
+  - Flutter API/provider/widget/router tests for privacy boundary, all page
+    states, consent, JSON/ZIP selection and isolate parsing, actions,
+    notification settings/rendering/open, and account switching.
   - Manual Meta dashboard/capability tests after credentials exist.
 - Blocking open questions: None for implementation. The four open items in §21 block production enablement or later repository-wide lifecycle composition only.

@@ -253,6 +253,181 @@ Red-green and verification evidence:
   all 965 Flutter tests pass; focused Instagram tests pass; `git diff --check`
   passes. `flutter analyze` reports only the existing 13 info-level findings.
 
+## Instagram ZIP Export Extension (2026-07-23)
+
+The user approved mobile-only support for selecting either a standalone
+`following.json` file or the original Instagram ZIP. Both containers remain
+the same local evidence source and cross the existing repository/AppView
+boundary only as `sourceType: instagramJson` plus normalized usernames. The
+additional document-review stage was explicitly skipped; the updated
+requirements, acceptance tests, and coding plan are authoritative.
+
+Implementation rules specific to this extension:
+
+- Do not implement ZIP behavior without `FR-031`, `NFR-010`, and `RULE-011`.
+- Pass a native file path, never complete archive bytes, into one background
+  isolate on iOS and Android.
+- Keep the archive file-backed, inspect bounded central-directory metadata,
+  decode only the exact canonical following entry, never extract to disk, and
+  close resources on every success/failure path.
+- Never copy the approved real Instagram archive into the repository. Generate
+  only wholly synthetic temporary ZIPs in automated tests.
+- Preserve the existing AppView API, storage, and `instagramJson` source value.
+
+### Test Order
+
+| Step | Test ID | Requirement IDs | Acceptance criteria | Expected initial state |
+|---:|---|---|---|---|
+| Z1 | UT-017 | FR-013, FR-014, RULE-005, RULE-006 | AC-016–AC-020, AC-051 | The parser accepts only legacy direct values and cannot parse the observed exact `_u/<username>` URL plus agreeing-title record |
+| Z2 | UT-018 | FR-013, FR-031, NFR-010, RULE-007 | AC-016–AC-018, AC-052, AC-053 | No file-backed ZIP/isolate parser exists and `archive` is only transitive |
+| Z3 | IT-023 | BR-002, FR-013, FR-025, FR-031, NFR-008, NFR-010, RULE-007, RULE-011 | AC-016–AC-019, AC-042, AC-050–AC-054 | The picker/page reads selected JSON bytes on the UI isolate and rejects ZIP |
+| Z4 | REG-013 | BR-002, FR-012–FR-014, RULE-007, RULE-011 | AC-016–AC-019, AC-050, AC-054 | Broad JSON/AppView compatibility has not been rerun after adding ZIP |
+
+### Step Z1 — UT-017
+
+- Write failing test: extend
+  `app/test/instagram_migration/services/instagram_import_parser_test.dart`
+  with exact current-shape successes and title-only, mismatch, fuzzy-host/path,
+  ambiguous-list, encoded-separator, and invalid-username rejections.
+- Run command:
+  `cd app && flutter test test/instagram_migration/services/instagram_import_parser_test.dart`
+- Confirmed failure: the observed URL/title record produced no entries because
+  the existing parser read only `string_list_data[].value`. The expanded
+  canonicality cases then exposed that Dart normalizes an explicit default
+  `:443` port unless the original authority/URL is checked.
+- Implement: preserve legacy direct values; accept one exact HTTPS
+  `www.instagram.com/_u/<username>` URL only when its record title normalizes
+  to the same valid username.
+- Refactor: only after the focused parser test is green.
+
+### Step Z2 — UT-018
+
+- Write failing test: create
+  `app/test/instagram_migration/services/instagram_export_file_parser_test.dart`
+  using synthetic temporary JSON/ZIP files.
+- Run command:
+  `cd app && flutter test test/instagram_migration/services/instagram_export_file_parser_test.dart`
+- Confirmed failure: the new focused test failed to compile because the
+  file-path parser and isolate boundary did not exist.
+- Implement: add the direct `archive` dependency and native isolate parser with
+  bounded EOCD/ZIP64 preflight, exact target selection, target-only streaming
+  output, size/CRC verification, typed safe failures, and deterministic close.
+- Refactor: only after focused JSON/ZIP boundary tests are green.
+
+### Step Z3 — IT-023
+
+- Write failing test: add the native selection/privacy/account-switch cases in
+  `instagram_import_privacy_test.dart` and page-level copy/cancellation cases in
+  `instagram_migration_page_test.dart`.
+- Run command:
+  `cd app && flutter test test/instagram_migration/instagram_import_privacy_test.dart test/instagram_migration/instagram_migration_page_test.dart`
+- Confirmed failure: the page test failed to compile because the normalized
+  Instagram-export picker/provider did not exist; adding archive errors also
+  made the localized error switch intentionally non-exhaustive until the UI
+  mapping was implemented.
+- Implement: replace the JSON-byte picker boundary with an Instagram-export
+  picker returning only a normalized parse result; preserve account-lease
+  fencing and the existing repository request.
+- Refactor: only after focused integration/widget tests are green.
+
+### Step Z4 — REG-013
+
+- Run existing parser, request-model, golden-wire, repository, AppView
+  API/store, privacy, and page tests.
+- Assert no `instagramZip` source, raw path/archive field, AppView branch,
+  migration, or committed user-derived fixture exists.
+- Finish with Dart formatting, analyzer, full Flutter tests, relevant Go tests,
+  `git diff --check`, and manual `MAN-005` status.
+
+### ZIP Extension Execution Log
+
+| Step | Status | Red evidence | Green evidence | Notes |
+|---:|---|---|---|---|
+| Z1 | Complete | Exact URL/title input returned no entries; explicit `:443` was initially accepted after the first implementation | `flutter test test/instagram_migration/services/instagram_import_parser_test.dart` passes 11 tests | Legacy direct values remain supported; exact URL/title evidence is normalized and ambiguous/noncanonical variants are ignored |
+| Z2 | Complete | The focused test failed to compile because `InstagramExportFileParser` did not exist; a later regression showed a mismatched unsupported local-header method was accepted from central-directory metadata alone | Both focused parser suites pass; focused Dart analysis reports no errors | Direct JSON, stored/deflated ZIP, exact target, duplicate/missing, encrypted/unsupported, local/central disagreement, truncation/CRC, ZIP64, 20 MiB declared/actual, archive metadata, and 10,000-entry limits are covered |
+| Z3 | Complete | Page contract failed to compile without the normalized export picker/provider and new localized archive errors | `flutter test test/instagram_migration/instagram_import_privacy_test.dart test/instagram_migration/instagram_migration_page_test.dart` passes 8 tests; focused Dart analysis reports no errors | Picker accepts JSON/ZIP, native path goes to the isolate, web keeps bounded JSON, result contains only normalized entries, and a late Alice result is discarded after switching to Bob |
+| Z4 | Complete | Compatibility was stale after replacing the byte picker and adding ZIP parsing | The full Flutter and AppView test suites pass; the Instagram-focused Flutter suite, changed-file formatting, and `git diff --check` pass; analysis reports only 13 pre-existing info-level findings outside this slice | No AppView file changed and the only `instagramZip` text is a negative privacy assertion |
+
+### ZIP Extension Completion Checklist
+
+- [x] `UT-017`, `UT-018`, `IT-023`, and `REG-013` pass
+- [x] File/archive parsing stays off the UI isolate on iOS and Android
+- [x] ZIP processing is bounded independently of unrelated media size
+- [x] Only the canonical following entry is decoded; nothing is extracted
+- [x] JSON and ZIP submit the unchanged `instagramJson` request
+- [x] No raw file path/archive bytes/non-target canary crosses the parser boundary
+- [x] No real/user-derived archive or data is committed
+- [x] Focused and broad verification evidence is recorded
+- [x] `MAN-005` host compatibility is complete and its physical-device portion is
+  explicitly retained as a release gate
+
+Final verification on 2026-07-23:
+
+- The full Flutter suite passes.
+- `go test ./...` passes for the complete AppView module.
+- Changed Instagram Dart files pass `dart format
+  --output=none --set-exit-if-changed`.
+- `flutter analyze` reports only 13 pre-existing info-level findings in unrelated
+  auth, notifications, and observability files.
+- `git diff --check` passes.
+- The approved local Instagram ZIP parses successfully on the host to 88
+  following entries and was not copied into the repository.
+- Physical iOS/Android picker, responsiveness, and memory observation remains
+  the uncompleted portion of `MAN-005`.
+
+### Implementation Review Correction Pass (2026-07-23)
+
+`06-implementation-review.md` requires three corrections before handoff. They
+remain within the approved ZIP requirements and tests:
+
+| Step | Finding | Test IDs | Requirements | Expected initial state | Status |
+|---:|---|---|---|---|---|
+| C1 | IR-012 | UT-018 | FR-031, NFR-010 | `ZipDecoder.decodeStream` runs before independent actual-header and Unix-symlink preflight | Complete |
+| C2 | IR-013 | UT-018 | NFR-010 | Exact below/at/above metadata limits and dishonest declared/actual counts are not exercised | Complete |
+| C3 | IR-014 | IT-023 | FR-025, FR-031, NFR-008 | Cancellation, disposal, late-error, localized-error, and native selected-path composition tests are absent | Complete |
+| C4 | IR-012–IR-014 | REG-013 | FR-013, FR-031, NFR-010, RULE-011 | Broad evidence is stale after correction | Complete |
+
+Correction rules:
+
+- Preflight the bounded central directory from disk before invoking the package
+  decoder. Count actual headers, require exactly one canonical target, and
+  reject Unix-symlink metadata without reading entry contents.
+- Use production hard maxima unchanged. A test-only tightened limit seam may
+  exercise below/at/above behavior without creating a 64 MiB/100,000-entry
+  fixture.
+- Preserve file-backed isolate parsing, normalized-only results, and the
+  unchanged `instagramJson` repository/AppView contract.
+- Add missing lifecycle/error tests without widening feature behavior.
+
+Correction evidence:
+
+- C1 red: an archive with one valid target plus unrelated Unix-symlink metadata
+  parsed successfully because Archive 4.0.9 read the symlink content while
+  building its archive model.
+- C1 green: a file-backed central-directory scan now counts actual headers,
+  requires exactly one canonical target, and rejects Unix symlinks before
+  `ZipDecoder.decodeStream`; all 12 focused export-parser tests pass.
+- C2 red: the exact-boundary test failed to compile because no hard-max-capped
+  tightened-limit parser existed.
+- C2 green: the test-only parser constructor can only tighten production
+  maxima. A two-entry archive now proves actual entry/directory sizes below,
+  at, and above tightened limits, and a dishonest one-entry EOCD cannot hide
+  the second actual header. All 13 focused export-parser tests pass.
+- C3 characterization: after adding the missing test import, the existing UI
+  behavior passed the new cancellation, all safe localized errors, generic
+  picker failure, switch-away/back late success/error, and page-disposal cases
+  without a production-code change. The privacy integration now enters through
+  the native selected-`XFile` path adapter before asserting the normalized
+  `instagramJson` request. The two focused files pass 11 tests.
+- C4 verification: all 71 Instagram Flutter tests, the full Flutter suite, and
+  `go test ./...` for AppView pass. Focused analysis reports no issues; full
+  analysis reports only the same 13 unrelated pre-existing info-level findings.
+  Changed-file formatting and `git diff --check` pass, no AppView file changed,
+  and the approved external ZIP still parses to 88 normalized entries without
+  entering the repository.
+- `IR-015` was a non-blocking suggestion and was not included in the user's
+  required-correction choice; BZip2 behavior remains unchanged for re-review.
+
 ## Completion Checklist
 
 - [x] Every Must requirement is implemented or recorded as an external release gate

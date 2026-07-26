@@ -1621,11 +1621,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Enter the Instagram handles of accounts you follow, one per line. CraftSky keeps them until you unlink Instagram.';
 
   @override
-  String get instagramImportJson => 'Choose JSON';
+  String get instagramImportJson => 'Instagram export';
 
   @override
   String get instagramImportJsonDescription =>
-      'Select the JSON file containing accounts you follow. CraftSky reads it only on this device and uploads usernames. Follower data is ignored, and ZIP archives are not supported.';
+      'Choose an Instagram export containing Accounts you follow. CraftSky processes it on this device and uploads only those usernames. If you select an all-information ZIP, everything else stays on your device.';
 
   @override
   String get instagramImportHandles => 'Instagram handles';
@@ -1637,25 +1637,34 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instagramImportManualAction => 'Import handles';
 
   @override
-  String get instagramImportSelectJson => 'Select Instagram JSON file';
+  String get instagramImportSelectJson => 'Select Instagram export';
 
   @override
   String get instagramImportFilePickerError =>
-      'The JSON file couldn\'t be opened on this device.';
+      'The Instagram export couldn\'t be opened on this device.';
 
   @override
   String get instagramImportInvalidJson => 'This file is not valid JSON.';
 
   @override
   String get instagramImportUnsupportedShape =>
-      'This JSON is not a supported Instagram accounts-followed export. Select the file containing accounts you follow.';
+      'This is not a supported Instagram accounts-followed export. Choose an export containing Accounts you follow.';
 
   @override
   String get instagramImportUnsupportedFormat =>
-      'ZIP archives are not supported. Select the JSON file containing accounts you follow inside the export.';
+      'This Instagram export uses a format CraftSky can\'t read.';
 
   @override
-  String get instagramImportFileTooLarge => 'This file is larger than 20 MiB.';
+  String get instagramImportInvalidArchive =>
+      'This Instagram ZIP is incomplete or damaged. Download a new export and try again.';
+
+  @override
+  String get instagramImportArchiveTooLarge =>
+      'This Instagram ZIP contains too many files to process safely.';
+
+  @override
+  String get instagramImportFileTooLarge =>
+      'The accounts-followed data is larger than 20 MiB.';
 
   @override
   String get instagramImportTooManyEntries =>
@@ -1715,7 +1724,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instagramImportManualSource => 'Manual handles';
 
   @override
-  String get instagramImportJsonSource => 'Instagram JSON';
+  String get instagramImportJsonSource => 'Instagram export';
 
   @override
   String get instagramImportUnknownSource => 'Instagram import';

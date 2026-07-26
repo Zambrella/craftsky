@@ -7,6 +7,8 @@ enum InstagramImportParseErrorCode {
   invalidJson,
   unsupportedShape,
   unsupportedFormat,
+  invalidArchive,
+  archiveTooLarge,
   fileTooLarge,
   tooManyEntries,
 }
@@ -59,8 +61,15 @@ final class InstagramImportParser {
         malformedRecordCount++;
         continue;
       }
+      var hasLegacyValue = false;
       for (final value in stringListData) {
-        values.add(value is Map<String, dynamic> ? value['value'] : null);
+        if (value is Map<String, dynamic> && value.containsKey('value')) {
+          hasLegacyValue = true;
+          values.add(value['value']);
+        }
+      }
+      if (!hasLegacyValue) {
+        values.add(_usernameFromProfileRecord(recordValue, stringListData));
       }
     }
     return _normalizeValues(
@@ -116,6 +125,40 @@ final class InstagramImportParser {
     if (!_usernamePattern.hasMatch(withoutAt)) return null;
     final normalized = withoutAt.toLowerCase();
     return normalized;
+  }
+
+  String? _usernameFromProfileRecord(
+    Map<String, dynamic> record,
+    List<dynamic> stringListData,
+  ) {
+    if (stringListData.length != 1) return null;
+    final data = stringListData.single;
+    if (data is! Map<String, dynamic>) return null;
+    final href = data['href'];
+    final title = record['title'];
+    if (href is! String || title is! String) return null;
+
+    final uri = Uri.tryParse(href);
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.host != 'www.instagram.com' ||
+        uri.authority != 'www.instagram.com' ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        uri.pathSegments.length != 2 ||
+        uri.pathSegments.first != '_u') {
+      return null;
+    }
+    final urlUsername = uri.pathSegments.last;
+    if (href != 'https://www.instagram.com/_u/$urlUsername' ||
+        !_usernamePattern.hasMatch(urlUsername)) {
+      return null;
+    }
+    final normalizedUrlUsername = urlUsername.toLowerCase();
+    final normalizedTitle = _normalizeUsername(title);
+    if (normalizedTitle != normalizedUrlUsername) return null;
+    return normalizedUrlUsername;
   }
 
   List<dynamic> _recordsFor(Object? decoded) {

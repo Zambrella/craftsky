@@ -4,69 +4,106 @@
 
 Status: Changes required
 Reviewer: Codex
-Date: 2026-07-19
+Date: 2026-07-23
 Risk level: High
 
 ## Summary
 
-The implementation now covers a substantial AppView and Flutter vertical slice without requiring a live Instagram app: private schema and state machines, signed/durable webhook ingress, bounded workers, verification/account/import/suggestion APIs, local export parsing, fixed-account Flutter state, actorless notifications, reconciliation, retention, operator commands, membership and terminal-deletion composition, and a shared synthetic Go/Dart wire corpus are all present. Full Go and Flutter tests pass, including focused race, webhook, lifecycle, and wire-contract coverage.
+The previously reviewed Instagram implementation and its IR-001–IR-011
+remediation remain intact. This review covers the new mobile Instagram ZIP
+extension against `FR-031`, `NFR-010`, `RULE-011`, `UT-017`, `UT-018`,
+`IT-023`, and `REG-013`.
 
-The implementation is not ready for merge or production enablement. Two load-bearing identity/privacy invariants are not enforced: normalized usernames can be claimed by multiple current links, and link supersession retains plaintext usernames. Several other Must boundaries are only partially wired, notably transactional dependent-state invalidation, eligibility at notification delivery/feed/open, worker-triggered membership inactivation, fail-closed persistent rate limiting, and future-match triggers. The live Meta app, production relationship-safety adapter, real export/device checks, and edge validation remain external release gates rather than code-review defects.
+The extension has the right overall boundary: the native path enters an
+isolate, the archive stays file-backed, only normalized usernames return, and
+the AppView request/storage contract remains `instagramJson`. The current
+implementation is not ready to hand off, however. It invokes
+`ZipDecoder.decodeStream` before independently validating the actual central
+directory entries. Archive 4.0.9 builds every header object and eagerly
+decompresses Unix symlink entries during that call. A dishonest declared entry
+count or an unrelated symlink can therefore bypass the intended pre-decode
+memory boundary. Two Must-level test groups also record broader evidence than
+they currently exercise.
 
 ## Findings
 
 | ID | Severity | Area | Finding | References | Required Action |
 |---|---|---|---|---|---|
-| IR-001 | Critical | Identity Ownership | Current normalized-username ownership is not unique. The migration uniquely constrains current owner DID and active IGSID, but its username index is non-unique and only covers discoverable links. Confirmation locks/checks only the IGSID digest. Two different IGSIDs can therefore confirm the same normalized username, including against a hidden link, contrary to the no-transfer conflict contract. | `01-requirements.md` FR-009, AC-015, AC-032; `appview/migrations/000023_instagram_migration.up.sql:77-106`; `appview/internal/instagram/verification_store.go:281-326`; IT-001, IT-005 | Add a durable current normalized-username claim or equivalent unique constraint independent of discoverability. Detect both IGSID and username collisions atomically, create a private conflict without transfer, and add concurrent tests for different IGSIDs claiming the same visible/hidden username. |
-| IR-002 | Critical | Privacy / Retention | Superseding a prior link clears `igsid` but leaves `username` and `username_normalized` in the terminal row, even though `raw_identity_purge_at` is immediate. The retention contract requires both plaintext IGSID and username to be removed in the supersession transaction. | `01-requirements.md` §15 revoked/superseded link tombstone, FR-028, NFR-003; `appview/internal/instagram/verification_store.go:347-355`; AC-031, AC-039, AC-044; IT-010 | Clear both username fields and reset conflict/private identity facts transactionally when superseding. Add a real-Postgres regression that inspects the old tombstone immediately after confirmation, before any retention worker runs. |
-| IR-003 | Important | Lifecycle / Notifications | Discovery disable, account revoke, import delete/expiry, confirmation conflict, and link supersession bypass the transaction-aware suggestion/notification lifecycle. Direct SQL invalidates only some suggestion states and leaves support rows, active system events, pending/retry/leased pushes, and in some paths writing follow operations behind. This can emit a stale digest or allow an already-claimed follow after consent or eligibility is withdrawn. | `appview/internal/instagram/account_store.go:125-145,208-249`; `appview/internal/instagram/import_store.go:408-509`; `appview/internal/instagram/verification_store.go:298-326,347-363`; compare `appview/internal/instagram/account_data.go:491-644`; FR-010, FR-018, FR-020, FR-028; AC-009, AC-028, AC-031, AC-037 | Consolidate every dependent transition behind one transaction-aware invalidation seam that covers pending and accepting suggestions, fails unsent follow operations, detaches/recounts notification support, retracts zero-count events, cancels unsent delivery, and cancels targeted jobs. Add transition-specific race tests. |
-| IR-004 | Important | Eligibility / Notification Boundaries | The shared policy declares `notificationDelivery`, `feed`, and `open` stages, but no production caller evaluates those stages. Push checks only event/support/count/preference, and feed listing reads active system events without current Instagram eligibility. Lifecycle cleanup alone is insufficient for block, mute, moderation, membership, username, conflict, or discovery races. | `01-requirements.md` FR-015, FR-020, FR-022; §12.3; `appview/internal/instagram/eligibility.go:6-24`; `appview/internal/push/dispatcher.go:359-387`; `appview/internal/api/notification_store.go:113-135`; AC-020, AC-021, AC-037, AC-048; IT-011, IT-012 | Evaluate the same policy/current facts at delivery, feed listing, and open resolution; fail closed on unavailable safety data; and transactionally retract/cancel invalid support. Add tests proving each declared stage is exercised and stale work cannot surface. |
-| IR-005 | Important | Membership Boundary | The webhook worker detects a departed owner, but `InactivateWebhookOwner` rejects only that verification attempt. It does not invoke the existing full private-data inactivation that pauses links/imports and invalidates suggestions/events. Correct profile-index deletion wiring does not satisfy the independent worker/event-ordering contract. | `01-requirements.md` FR-028, FR-030, AC-048; `appview/internal/instagram/worker.go:223-249`; `appview/internal/instagram/webhook_redeemer.go:240-244`; `appview/internal/app/instagram_lifecycle.go`; IT-020 | Inject a narrow shared membership inactivator into worker transitions and invoke the full idempotent inactivation before terminally ignoring departed-owner work. Exercise webhook, reconciliation, notification, and acceptance paths with resources still active when membership is first observed missing. |
-| IR-006 | Important | Abuse Controls / Availability | When `INSTAGRAM_DATA_HMAC_KEY` is absent, the persistent limiter is nil and `instagramLimit` returns the write handler unwrapped. Import/account/suggestion services are still constructed, so private writes can proceed without the required DID/device shared enforcement even though the private data plane is not fully configured. | `01-requirements.md` NFR-002, NFR-004; `appview/internal/app/deps.go:162-171,334-368`; `appview/internal/routes/routes.go:108-121`; AC-040, AC-046; IT-013 | Fail closed with the stable unavailable response for rate-limited private writes when the data-plane key/limiter is unavailable, while preserving explicitly allowed local reads and privacy deletions. Add empty/partial/full config mux tests for every affected method. |
-| IR-007 | Important | Future Matching | Link confirmation/enable/reactivation and import reactivation enqueue targeted reconciliation, but there is no validated existing-IGSID username refresh path and no visibility/relationship-safety restoration enqueue seam. Those are required future-match triggers over retained following handles. | `01-requirements.md` FR-011, FR-019, RULE-003; `appview/internal/instagram/verification_store.go:389-398`; `appview/internal/instagram/account_store.go:146-159`; `appview/internal/instagram/import_store.go:386-394`; AC-029, AC-030, AC-033; IT-006, IT-011 | Add an injectable/operator-callable validated username refresh that handles collisions, invalidates old-handle dependents, and queues targeted reconciliation. Add a generic restoration enqueue hook for the future moderation/block/mute owner, with explicit fake-backed tests now. |
-| IR-008 | Important | Follow Service | Instagram acceptance uses a feature-local `instagramPDSFollowWriter`, while ordinary CraftSky follow creation independently performs lookup/validation and `CreateRecord`. This does not meet the approved shared-follow-service requirement and permits validation, observability, and error semantics to drift. | `01-requirements.md` FR-017; `appview/internal/api/instagram_suggestions.go:115-166`; `appview/internal/api/follow.go:27-91`; `02-acceptance-tests.md` IT-009 | Extract a shared follow service used by both ordinary and Instagram paths, preserving Instagram's stored deterministic rkey/`PutRecord` behavior. Add the planned shared-service regression coverage for already-following, failures, replay, and ordinary follows. |
-| IR-009 | Important | Runtime Configuration | Configuration accepts tightened webhook lease, attempts, backoff, and processing-age values, but the webhook queue/retry/worker still uses package constants. Notification window/count configuration is likewise not carried into the notification lifecycle. Operators can supply accepted settings that do not alter runtime behavior. | `01-requirements.md` §12.4, NFR-002; `appview/internal/app/instagram_config.go:176-184,440-465`; `appview/internal/app/deps.go:314-327`; `appview/internal/instagram/retry.go:5-33`; `appview/internal/instagram/webhook_store.go:219-279`; AC-041, AC-046; UT-007, UT-016 | Carry validated limits through explicit queue/worker/notification options and test tightened values at runtime, or remove unsupported knobs and keep those bounds fixed and accurately documented. |
-| IR-010 | Important | Privacy Verification | The shared wire corpus is now consumed by both Go and Dart, but the required controlled Instagram canary sweep is incomplete. Existing redaction tests cover selected structs; there is no `appview/internal/observability/instagram_redaction_test.go`, and the Dart secret scan does not exercise the full Instagram challenge/body/username/IGSID/handle/Meta/export/upstream matrix across diagnostics, push, URLs, errors, and PDS writes. | `01-requirements.md` NFR-003; `02-acceptance-tests.md` UT-015, TD-009, REG-007; `appview/internal/integrations/instagrammeta/redaction_test.go`; `app/test/observability/secret_scan_test.dart` | Add wholly synthetic cross-surface canaries for every prohibited class and assert absence from logs/errors/spans/Sentry/metrics/push/PDS/URLs/stringification/snapshots. Keep intended private input/storage assertions separate from leak assertions. |
-| IR-011 | Important | Verification / Hygiene | Behavioral suites pass, but the final static gates are not clean: `flutter analyze` reports the one recorded baseline info plus 11 new infos, the formatter reports four changed files, and `git diff --check` reports trailing whitespace in `design-plan.md`. The implementation runbook also still labels most completed slices pending/in progress. | `04-coding-plan.md` §9 final commands and analyzer baseline; `05-implementation-plan.md` Execution Log; review command output | Format the reported files, resolve every newly introduced analyzer diagnostic, remove the trailing whitespace, update the implementation log/evidence, regenerate only through project commands, and rerun all final gates. |
+| IR-012 | Critical | Risk / Behavior | The bounded preflight trusts the EOCD/ZIP64 declared entry count and then calls `ZipDecoder.decodeStream` before counting the actual central headers. The dependency iterates every actual central header, and for entries marked as Unix symlinks it calls `readBytes()` to determine the link target. A crafted ZIP can declare at most 100,000 entries while supplying more actual headers within the 64 MiB directory, causing excessive allocation before the later `headers.length` comparison. A target or unrelated symlink can also be decompressed before CraftSky checks target size, type, or canonicality. This contradicts the actual-entry cap and “only the target is decompressed” boundary. | `FR-031`, `NFR-010`, `AC-052`, `EC-017`–`EC-019`, `RISK-011`; `app/lib/instagram_migration/services/instagram_export_file_parser_native.dart:53-103`; Archive 4.0.9 `zip_decoder.dart:18-68` | Before invoking the package decoder, scan the bounded central directory from the file to validate every header structure, count actual headers independently, locate exactly one target, and reject unsafe Unix-symlink metadata without reading entry content. Keep the decoder call only after this preflight. Add regressions for a low declared count with too many actual headers and for target/unrelated symlink entries, proving rejection occurs before decompression. |
+| IR-013 | Important | Tests / Traceability | `UT-018` requires central-directory entry and byte limits immediately below, exactly at, and immediately above 100,000/64 MiB. The test currently covers only a normal far-below archive and synthetic declared values one above each limit. It does not exercise exact acceptance, below-boundary acceptance, actual-versus-declared header disagreement, or the failure-before-decode property. The execution log nevertheless marks the archive metadata limits covered. | `UT-018`, `TD-012`, `NFR-010`, `AC-052`; `app/test/instagram_migration/services/instagram_export_file_parser_test.dart:269-302`; `05-implementation-plan.md` Z2 | Add focused tests for below/at/above behavior through a small-limit test seam or another resource-safe boundary harness, including actual header counts rather than only EOCD claims. Update Z2 evidence to state exactly what ran. |
+| IR-014 | Important | Tests / Traceability | `IT-023` specifies native JSON/ZIP selection, silent picker cancellation, page disposal, every safe parser error, localized UI output, and account-switch fencing. The page tests cover normalized success and one A-to-B late success; the privacy test calls the parser directly. There is no cancellation, disposal, late-error, or localized `invalidArchive`/`archiveTooLarge` coverage, and no test that composes selected native path parsing with the picker boundary. Z3 evidence says the cancellation cases were added even though they are absent. | `IT-023`, `AC-050`–`AC-054`, `EC-022`; `app/test/instagram_migration/instagram_migration_page_test.dart:92-358`; `app/test/instagram_migration/instagram_import_privacy_test.dart`; `05-implementation-plan.md` Z3 | Add widget/provider regressions for null cancellation, disposal, switch-away/back late success and late error, each safe archive error mapping, and a synthetic native path flowing through the selected-file parser to the normalized repository request. Correct Z3 evidence afterward. |
+| IR-015 | Suggestion | Code Quality / Scope | The approved coding plan calls for stored and deflated ZIP targets, but the implementation additionally accepts BZip2 without a requirement or test. This expands the decompression surface without traceability. | `04-coding-plan.md` step 20; `app/lib/instagram_migration/services/instagram_export_file_parser_native.dart:91-96`; `UT-018` | Prefer restricting accepted methods to stored/deflate. If BZip2 support is intentional, add it to the approved contract and cover its bounded success/failure behavior. |
 
 ## Requirement And Test Traceability
 
-- Requirements substantially implemented: challenge generation/digesting and exact states; disabled/full Meta configuration; private schema; current-member route middleware; signed bounded webhook ingress and persistent work; provider adapter/fakes; verification/account/import/suggestion APIs; local-only Flutter JSON parsing and normalized upload; fixed-account providers and settings UI; actorless system notification schema/API/client/push payload; reconciliation, retention, export/purge, operator commands, and Tap/profile lifecycle composition.
-- Tests implemented: synthetic wire corpus consumed by Go and Dart; challenge/config/migration/state/store/handler/route tests; real-Postgres limiter, webhook, lifecycle, reconciliation, retention, and operator coverage; Flutter parser/model/repository/provider/widget/router/notification coverage; full Go and Flutter regressions.
-- Partially implemented Must requirements: FR-009, FR-015, FR-017, FR-019, FR-020, FR-022, FR-028, FR-030, NFR-002, and NFR-003 have the gaps listed in IR-001 through IR-010.
-- Unplanned behavior: no broad scope expansion, lexicon change, public Instagram record, automatic follow, device-held PDS token, or direct PDS read was identified. IR-001 and IR-003 are unintended invariant/lifecycle behavior within the approved scope.
-- External release gates, not implementation-review defects: live Meta credentials/subscription/permissions/token lifecycle/replies; production block/mute safety adapter; approved real export-shape inspection; deployed trusted-edge/multi-replica validation; physical-device file picker/push/open/accessibility; and final operator/security review.
+- Requirements implemented: strict current URL/title records; standalone JSON
+  compatibility; native path-to-isolate handoff; file-backed ZIP input; exact
+  canonical target; declared/actual target byte bounds; normalized-only result;
+  unchanged `instagramJson` request; account-switch success fencing; updated
+  export copy and safe error categories.
+- Tests implemented: `UT-017` exact/fuzzy record grammar; stored and deflated
+  ZIP success; missing/duplicate target; encrypted/unsupported compression;
+  local/central method disagreement; truncation/CRC; ZIP64 EOCD metadata;
+  target byte bounds; normalized-entry cap; repository privacy canaries;
+  normalized page success and A-to-B late-result discard.
+- Unplanned behavior: BZip2 target acceptance.
+- Remaining gaps: safe actual-directory preflight, symlink behavior,
+  exact archive metadata boundaries, native picker composition,
+  cancellation/disposal/late-error behavior, localized archive error widgets,
+  and physical-device `MAN-005`.
 
 ## Test Evidence
 
-- Passing during this review:
-  - `cd appview && go test ./...`
-  - `cd appview && go test -race ./internal/instagram ./internal/integrations/instagrammeta ./internal/notifications ./internal/push`
-  - `cd appview && go vet ./...`
-  - `cd appview && go test ./internal/api -run TestInstagramWireCorpus -count=1`
-  - `cd app && flutter test --reporter compact` — 947 tests passed before the final corpus consumer landed.
-  - `cd app && flutter test --reporter compact test/instagram_migration/data/instagram_wire_contract_test.dart` — 8 tests passed after the shared corpus landed.
-  - Focused implementation-phase real-Postgres, race, webhook-boundary, lifecycle, reconciliation, retention, and CLI suites passed.
-- Failing static gates:
-  - `cd app && flutter analyze` — exit 1 with 12 infos: one recorded pre-existing line-length baseline and 11 diagnostics in changed notification/test code.
-  - `cd app && dart format --output=none --set-exit-if-changed lib test` — exit 1; four files would change. This check did not write files.
-  - `git diff --check` — exit 2 for one trailing-whitespace line in `design-plan.md`.
-- Not run or intentionally pending: live Meta/provider calls, real Instagram export validation, deployed-edge enforcement, physical-device push/file picker/accessibility, and the missing production relationship-safety adapter. Automated tests use synthetic data and fakes only.
+- Commands reviewed:
+  - focused parser and Instagram Flutter suites
+  - full `flutter test`
+  - full AppView `go test ./...`
+  - changed-file `dart format --output=none --set-exit-if-changed`
+  - `flutter analyze`
+  - `git diff --check`
+- Passing evidence:
+  - Full Flutter and AppView test suites pass.
+  - Changed Instagram Dart files are formatted.
+  - `git diff --check` passes.
+  - Analyzer output contains only 13 pre-existing info-level findings outside
+    this slice.
+  - The approved external ZIP parsed to 88 normalized following entries on the
+    host and was not copied into the repository.
+- Failing or skipped tests:
+  - No currently implemented automated test fails.
+  - The Must cases described in IR-013 and IR-014 were not implemented.
+  - Full repo-wide Dart formatting still reports four unrelated pre-existing
+    drifts; changed-file formatting is clean.
+  - Physical iOS/Android picker, responsiveness, lifecycle, and peak-memory
+    checks remain pending under `MAN-005`.
 
 ## Risk Review
 
-- Risk level: High
-- Risk notes: This slice handles cross-network identity claims, private social-graph imports, provider-signed callbacks, abuse controls, public PDS follow writes, multi-account state, and notification delivery. Database constraints and last-boundary checks are load-bearing. Passing suites do not compensate for IR-001's missing uniqueness invariant or the lifecycle/policy gaps that those suites do not currently exercise.
-- Approval notes: Changes required. Keep Meta disabled and production suggestion matching fail closed. Do not enable the integration until all required findings and the external release gates are complete.
+- Risk level: High.
+- Risk notes: The input is a user-selected private archive that may be very
+  large. File-backed processing and bounded target output are good foundations,
+  but the pre-decode central-directory/symlink gap leaves an avoidable
+  allocation/decompression path outside those bounds.
+- Approval notes: Keep the feature mobile-only and do not enable it for release
+  until IR-012–IR-014 and the physical-device portion of `MAN-005` are complete.
 
 ## UI Polish Recommendation
 
-- Recommendation: Defer
-- Reason: The Flutter flow is implemented and covered by functional widget tests, but correctness and privacy findings must be addressed before visual polish. A focused polish pass is appropriate only after the required TDD correction and re-review.
-- Suggested polish notes: Later review the dense single-page hierarchy, conflict/unavailable copy, compact-screen behavior, semantics, and destructive-action confirmations on physical devices.
+- Recommendation: Optional.
+- Reason: The new selector labels and locality explanation are coherent.
+  Behavior/test corrections take priority.
+- Suggested polish notes: Consider making the archive-too-large copy generic
+  enough to cover excessive directory metadata as well as excessive file count,
+  and verify busy/error states on a physical phone after the required fixes.
 
 ## Handoff Back To TDD Builder
 
-- Required fixes: IR-001 through IR-011.
-- Suggested next failing test: start with a concurrent real-Postgres confirmation test in which two DIDs prove different IGSIDs that resolve to the same normalized username, with the existing link hidden. Assert one authoritative claim, one private conflict, no transfer, and no second matchable link. Then add the immediate superseded-tombstone privacy assertion from IR-002.
-- Verification to rerun: affected real-Postgres confirmation/lifecycle/policy suites; `go test ./...`; focused `-race`; `go vet ./...`; the Go/Dart wire corpus; `flutter analyze`; formatter check; full `flutter test`; generated-output drift checks; and `git diff --check`.
+- Required fixes: IR-012, IR-013, and IR-014.
+- Suggested next failing test: Add a small-limit central-directory preflight
+  test whose declared count is within the limit but whose actual header count
+  exceeds it; then add a Unix-symlink entry regression that proves the package
+  decoder is not reached before safe rejection.
+- Verification to rerun: focused ZIP/parser/page/privacy tests, all Instagram
+  Flutter tests, full Flutter tests, full AppView tests, changed-file formatting,
+  analyzer, `git diff --check`, the approved host ZIP, and finally `MAN-005` on
+  iOS and Android.

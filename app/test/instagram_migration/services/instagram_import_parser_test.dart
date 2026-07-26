@@ -49,6 +49,132 @@ void main() {
       },
     );
 
+    test(
+      'UT-017 parses an exact profile URL when its title agrees',
+      () {
+        final bytes = Uint8List.fromList(
+          utf8.encode(
+            jsonEncode({
+              'relationships_following': [
+                {
+                  'title': 'Synthetic.User_2',
+                  'string_list_data': [
+                    {
+                      'href': 'https://www.instagram.com/_u/synthetic.user_2',
+                      'timestamp': 1,
+                    },
+                  ],
+                },
+              ],
+            }),
+          ),
+        );
+
+        final result = parser.parseJson(bytes);
+
+        expect(result.entries, [
+          const InstagramImportEntry(username: 'synthetic.user_2'),
+        ]);
+        expect(result.ignoredEntryCount, 0);
+        expect(result.duplicateEntryCount, 0);
+      },
+    );
+
+    test(
+      'UT-017 ignores noncanonical or ambiguous profile evidence',
+      () {
+        Map<String, Object?> record(
+          String title,
+          List<Map<String, Object?>> data,
+        ) => {'title': title, 'string_list_data': data};
+
+        final bytes = Uint8List.fromList(
+          utf8.encode(
+            jsonEncode({
+              'relationships_following': [
+                record('Synthetic.User', [
+                  {
+                    'href': 'https://www.instagram.com/_u/Synthetic.User',
+                  },
+                ]),
+                record('title_only', const []),
+                record('different_user', [
+                  {
+                    'href': 'https://www.instagram.com/_u/synthetic_user',
+                  },
+                ]),
+                record('synthetic_user', [
+                  {'href': 'http://www.instagram.com/_u/synthetic_user'},
+                ]),
+                record('synthetic_user', [
+                  {
+                    'href':
+                        'https://someone@www.instagram.com/_u/synthetic_user',
+                  },
+                ]),
+                record('synthetic_user', [
+                  {
+                    'href': 'https://www.instagram.com:443/_u/synthetic_user',
+                  },
+                ]),
+                record('synthetic_user', [
+                  {
+                    'href':
+                        'https://www.instagram.com.invalid/_u/synthetic_user',
+                  },
+                ]),
+                record('synthetic_user', [
+                  {'href': 'https://www.instagram.com/p/synthetic_user'},
+                ]),
+                record('synthetic_user', [
+                  {
+                    'href': 'https://www.instagram.com/_u/synthetic_user/',
+                  },
+                ]),
+                record('synthetic_user', [
+                  {
+                    'href':
+                        'https://www.instagram.com/_u/synthetic_user?private=1',
+                  },
+                ]),
+                record('synthetic_user', [
+                  {
+                    'href':
+                        'https://www.instagram.com/_u/synthetic_user#private',
+                  },
+                ]),
+                record('synthetic/user', [
+                  {
+                    'href': 'https://www.instagram.com/_u/synthetic%2Fuser',
+                  },
+                ]),
+                record('a' * 31, [
+                  {'href': 'https://www.instagram.com/_u/${'a' * 31}'},
+                ]),
+                record('synthetic_user', [
+                  {
+                    'href': 'https://www.instagram.com/_u/synthetic_user',
+                  },
+                  {
+                    'href': 'https://www.instagram.com/_u/synthetic_user',
+                  },
+                ]),
+              ],
+            }),
+          ),
+        );
+
+        final result = parser.parseJson(bytes);
+
+        expect(
+          result.entries.map((entry) => entry.username),
+          ['synthetic.user'],
+        );
+        expect(result.ignoredEntryCount, 13);
+        expect(result.duplicateEntryCount, 0);
+      },
+    );
+
     test('UT-009 rejects a follower-only export locally', () {
       final bytes = Uint8List.fromList(
         utf8.encode(

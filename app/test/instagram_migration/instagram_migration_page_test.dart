@@ -1,8 +1,9 @@
-import 'dart:convert';
+import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart' as registry;
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/instagram_migration/data/instagram_migration_repository.dart';
 import 'package:craftsky_app/instagram_migration/data/instagram_verification_storage.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
@@ -11,7 +12,8 @@ import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dar
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
-import 'package:craftsky_app/instagram_migration/services/instagram_json_file_picker.dart';
+import 'package:craftsky_app/instagram_migration/services/instagram_export_file_picker.dart';
+import 'package:craftsky_app/instagram_migration/services/instagram_import_parser.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -88,7 +90,7 @@ void main() {
     },
   );
 
-  testWidgets('FR-025 manual import directly uploads normalized entries', (
+  testWidgets('IT-023 manual and Instagram export imports stay normalized', (
     tester,
   ) async {
     final initial = registry.SessionRegistry.empty().upsertAndActivate(
@@ -139,19 +141,9 @@ void main() {
           instagramMigrationRepositoryProvider.overrideWith(
             (ref, _) async => repository,
           ),
-          instagramJsonFilePickerProvider.overrideWithValue(
-            () async => Uint8List.fromList(
-              utf8.encode(
-                jsonEncode({
-                  'relationships_following': [
-                    {
-                      'string_list_data': [
-                        {'value': 'BobMaker'},
-                      ],
-                    },
-                  ],
-                }),
-              ),
+          instagramExportFilePickerProvider.overrideWithValue(
+            () async => const InstagramImportParseResult(
+              entries: [InstagramImportEntry(username: 'bobmaker')],
             ),
           ),
         ],
@@ -179,9 +171,9 @@ void main() {
       'CraftSky keeps them until you unlink Instagram.',
     );
     final jsonDescription = find.text(
-      'Select the JSON file containing accounts you follow. CraftSky reads it '
-      'only on this device and uploads usernames. Follower data is ignored, '
-      'and ZIP archives are not supported.',
+      'Choose an Instagram export containing Accounts you follow. CraftSky '
+      'processes it on this device and uploads only those usernames. If you '
+      'select an all-information ZIP, everything else stays on your device.',
     );
     expect(manualDescription, findsOneWidget);
     expect(jsonDescription, findsNothing);
@@ -238,9 +230,9 @@ void main() {
     expect(sentRequests.single.sourceType, InstagramImportSourceType.manual);
     expect(messenger.calls, [('info', 'Instagram import created', null)]);
 
-    await tester.ensureVisible(find.text('Choose JSON'));
+    await tester.ensureVisible(find.text('Instagram export'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Choose JSON'));
+    await tester.tap(find.text('Instagram export'));
     await tester.pumpAndSettle();
     expect(manualDescription, findsNothing);
     expect(jsonDescription, findsOneWidget);
@@ -254,11 +246,11 @@ void main() {
     );
     expect(
       tester.getBottomLeft(jsonDescription).dy,
-      lessThan(tester.getTopLeft(find.text('Select Instagram JSON file')).dy),
+      lessThan(tester.getTopLeft(find.text('Select Instagram export')).dy),
     );
-    await tester.ensureVisible(find.text('Select Instagram JSON file'));
+    await tester.ensureVisible(find.text('Select Instagram export'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Select Instagram JSON file'));
+    await tester.tap(find.text('Select Instagram export'));
     await tester.pumpAndSettle();
 
     expect(sentRequests, hasLength(2));
@@ -267,6 +259,284 @@ void main() {
       InstagramImportSourceType.instagramJson,
     );
     expect(sentRequests.last.entries.single.username, 'bobmaker');
+  });
+
+  testWidgets(
+    'IT-023 late export result is discarded after switching away and back',
+    (tester) async {
+      final initial = registry.SessionRegistry.empty()
+          .upsertAndActivate(
+            token: 'token-b',
+            did: 'did:plc:bob',
+            handle: 'bob.test',
+          )
+          .upsertAndActivate(
+            token: 'token-a',
+            did: 'did:plc:alice',
+            handle: 'alice.test',
+          );
+      final picker = Completer<InstagramImportParseResult?>();
+      final sentRequests = <InstagramImportRequest>[];
+      final repository = _Repository(
+        status: InstagramAccountStatus(
+          integrationAvailable: true,
+          account: InstagramAccountLink(
+            state: InstagramAccountLinkState.active,
+            username: 'synthetic_instagram',
+            discoverable: true,
+            conflictPending: false,
+            reactivationRequired: false,
+            verifiedAt: DateTime.utc(2026, 7, 23),
+          ),
+        ),
+        imports: InstagramImportPage(items: const [], cursor: null),
+        onCreateImport: (request) async {
+          sentRequests.add(request);
+          return InstagramImportCreateResult(
+            import: InstagramImportSummary(
+              importId: 'unexpected-import',
+              state: InstagramImportState.active,
+              sourceType: request.sourceType,
+              followingCount: request.entries.length,
+              createdAt: DateTime.utc(2026, 7, 23),
+            ),
+            followingCount: request.entries.length,
+            initialSuggestionCount: 0,
+          );
+        },
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(initial),
+            ),
+            instagramVerificationStorageProvider.overrideWithValue(
+              _EmptyVerificationStorage(),
+            ),
+            instagramMigrationRepositoryProvider.overrideWith(
+              (ref, _) async => repository,
+            ),
+            instagramExportFilePickerProvider.overrideWithValue(
+              () => picker.future,
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const InstagramMigrationPage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Instagram export'));
+      await tester.tap(find.text('Instagram export'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Select Instagram export'));
+      await tester.tap(find.text('Select Instagram export'));
+      await tester.pump();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(InstagramMigrationPage)),
+      );
+      final bobLease = container
+          .read(sessionRegistryProvider)
+          .requireValue
+          .leaseFor(AccountKey('did:plc:bob'))!;
+      await container.read(sessionRegistryProvider.notifier).activate(bobLease);
+      await tester.pump();
+      final aliceLease = container
+          .read(sessionRegistryProvider)
+          .requireValue
+          .leaseFor(AccountKey('did:plc:alice'))!;
+      await container
+          .read(sessionRegistryProvider.notifier)
+          .activate(aliceLease);
+      await tester.pump();
+      picker.complete(
+        const InstagramImportParseResult(
+          entries: [InstagramImportEntry(username: 'private_alice_only')],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(sentRequests, isEmpty);
+    },
+  );
+
+  testWidgets('IT-023 cancellation and safe export errors stay local', (
+    tester,
+  ) async {
+    final initial = registry.SessionRegistry.empty().upsertAndActivate(
+      token: 'token-a',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    var picker = () async => null as InstagramImportParseResult?;
+    final sentRequests = <InstagramImportRequest>[];
+    final repository = _verifiedImportRepository(sentRequests);
+
+    await _pumpVerifiedExportPage(
+      tester,
+      initial: initial,
+      repository: repository,
+      picker: () => picker(),
+    );
+
+    final selectExport = find.widgetWithText(
+      OutlinedButton,
+      'Select Instagram export',
+    );
+    await tester.tap(selectExport);
+    await tester.pumpAndSettle();
+
+    expect(sentRequests, isEmpty);
+    expect(tester.widget<OutlinedButton>(selectExport).onPressed, isNotNull);
+
+    const cases = <(InstagramImportParseErrorCode, String)>[
+      (
+        InstagramImportParseErrorCode.invalidJson,
+        'This file is not valid JSON.',
+      ),
+      (
+        InstagramImportParseErrorCode.unsupportedShape,
+        'This is not a supported Instagram accounts-followed export. Choose '
+            'an export containing Accounts you follow.',
+      ),
+      (
+        InstagramImportParseErrorCode.unsupportedFormat,
+        "This Instagram export uses a format CraftSky can't read.",
+      ),
+      (
+        InstagramImportParseErrorCode.invalidArchive,
+        'This Instagram ZIP is incomplete or damaged. Download a new export '
+            'and try again.',
+      ),
+      (
+        InstagramImportParseErrorCode.archiveTooLarge,
+        'This Instagram ZIP contains too many files to process safely.',
+      ),
+      (
+        InstagramImportParseErrorCode.fileTooLarge,
+        'The accounts-followed data is larger than 20 MiB.',
+      ),
+      (
+        InstagramImportParseErrorCode.tooManyEntries,
+        'This import contains more than 10,000 unique handles.',
+      ),
+    ];
+    for (final (code, message) in cases) {
+      picker = () async => throw InstagramImportParseException(code);
+      await tester.tap(selectExport);
+      await tester.pumpAndSettle();
+      expect(find.text(message), findsOneWidget);
+    }
+
+    picker = () async => throw StateError('synthetic picker failure');
+    await tester.tap(selectExport);
+    await tester.pumpAndSettle();
+    expect(
+      find.text("The Instagram export couldn't be opened on this device."),
+      findsOneWidget,
+    );
+    expect(sentRequests, isEmpty);
+  });
+
+  testWidgets('IT-023 late export error is discarded after switch away/back', (
+    tester,
+  ) async {
+    final initial = registry.SessionRegistry.empty()
+        .upsertAndActivate(
+          token: 'token-b',
+          did: 'did:plc:bob',
+          handle: 'bob.test',
+        )
+        .upsertAndActivate(
+          token: 'token-a',
+          did: 'did:plc:alice',
+          handle: 'alice.test',
+        );
+    final picker = Completer<InstagramImportParseResult?>();
+    final sentRequests = <InstagramImportRequest>[];
+
+    await _pumpVerifiedExportPage(
+      tester,
+      initial: initial,
+      repository: _verifiedImportRepository(sentRequests),
+      picker: () => picker.future,
+    );
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Select Instagram export'),
+    );
+    await tester.pump();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(InstagramMigrationPage)),
+    );
+    final registryNotifier = container.read(sessionRegistryProvider.notifier);
+    final bobLease = container
+        .read(sessionRegistryProvider)
+        .requireValue
+        .leaseFor(AccountKey('did:plc:bob'))!;
+    await registryNotifier.activate(bobLease);
+    await tester.pump();
+    final aliceLease = container
+        .read(sessionRegistryProvider)
+        .requireValue
+        .leaseFor(AccountKey('did:plc:alice'))!;
+    await registryNotifier.activate(aliceLease);
+    await tester.pump();
+
+    picker.completeError(
+      const InstagramImportParseException(
+        InstagramImportParseErrorCode.invalidArchive,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'This Instagram ZIP is incomplete or damaged. Download a new export '
+        'and try again.',
+      ),
+      findsNothing,
+    );
+    expect(sentRequests, isEmpty);
+  });
+
+  testWidgets('IT-023 page disposal discards a late export result', (
+    tester,
+  ) async {
+    final initial = registry.SessionRegistry.empty().upsertAndActivate(
+      token: 'token-a',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final picker = Completer<InstagramImportParseResult?>();
+    final sentRequests = <InstagramImportRequest>[];
+
+    await _pumpVerifiedExportPage(
+      tester,
+      initial: initial,
+      repository: _verifiedImportRepository(sentRequests),
+      picker: () => picker.future,
+    );
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Select Instagram export'),
+    );
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox.shrink());
+
+    picker.complete(
+      const InstagramImportParseResult(
+        entries: [InstagramImportEntry(username: 'private_disposed_result')],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(sentRequests, isEmpty);
   });
 
   testWidgets('FR-024 challenge can be copied opened and cancelled', (
@@ -647,6 +917,73 @@ void main() {
     expect(handleSpan.style?.fontWeight, FontWeight.bold);
   });
 }
+
+Future<void> _pumpVerifiedExportPage(
+  WidgetTester tester, {
+  required registry.SessionRegistry initial,
+  required _Repository repository,
+  required InstagramExportFilePicker picker,
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _RegistryStorage(initial),
+        ),
+        instagramVerificationStorageProvider.overrideWithValue(
+          _EmptyVerificationStorage(),
+        ),
+        instagramMigrationRepositoryProvider.overrideWith(
+          (ref, _) async => repository,
+        ),
+        instagramExportFilePickerProvider.overrideWithValue(picker),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.lightThemeData,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const InstagramMigrationPage(),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(find.text('Instagram export'));
+  await tester.tap(find.text('Instagram export'));
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(find.text('Select Instagram export'));
+  await tester.pumpAndSettle();
+}
+
+_Repository _verifiedImportRepository(
+  List<InstagramImportRequest> sentRequests,
+) => _Repository(
+  status: InstagramAccountStatus(
+    integrationAvailable: true,
+    account: InstagramAccountLink(
+      state: InstagramAccountLinkState.active,
+      username: 'synthetic_instagram',
+      discoverable: true,
+      conflictPending: false,
+      reactivationRequired: false,
+      verifiedAt: DateTime.utc(2026, 7, 23),
+    ),
+  ),
+  imports: InstagramImportPage(items: const [], cursor: null),
+  onCreateImport: (request) async {
+    sentRequests.add(request);
+    return InstagramImportCreateResult(
+      import: InstagramImportSummary(
+        importId: 'unexpected-import',
+        state: InstagramImportState.active,
+        sourceType: request.sourceType,
+        followingCount: request.entries.length,
+        createdAt: DateTime.utc(2026, 7, 23),
+      ),
+      followingCount: request.entries.length,
+      initialSuggestionCount: 0,
+    );
+  },
+);
 
 Iterable<TextSpan> _textSpans(TextSpan span) sync* {
   yield span;

@@ -4,7 +4,10 @@
 
 - Approved requirements: `01-requirements.md`
 - Approved acceptance tests: `02-acceptance-tests.md`
-- Approved document review: `03-document-review.md`
+- Approved original-feature document review: `03-document-review.md`
+- ZIP follow-on review decision: on 2026-07-23 the user selected option 3,
+  explicitly skipping a second document-review pass and proceeding from the
+  updated requirements and acceptance tests to coding planning.
 - Earlier design context: `design-plan.md`; when it differs, `01` and `02`
   are authoritative.
 - Repository guidance: `AGENTS.md`
@@ -51,6 +54,10 @@ Implementation proceeds in independently green vertical slices:
 8. Build the Flutter parser/API/repository/controllers/page using
    `accountDioProvider(account)` and `ActiveAccountLease` fencing after every
    await, then add the actorless notification open flow.
+9. Extend the completed mobile import boundary with a file-backed isolate
+   parser that treats standalone JSON and ZIP as the same Instagram export,
+   extracts only the canonical following entry, and preserves the existing
+   `instagramJson` AppView request.
 
 Every production path remains safe when Meta is unavailable. Local integration
 data, imports, link controls, and suggestions continue to work if their own
@@ -83,7 +90,7 @@ covered by real-Postgres migration/store tests.
 | Notifications | Durable rows require an actor and social source fields | Convert storage and Flutter models to a checked `kind: social | system` union; add Instagram-match grouping, five-minute close/push, capped count, newness, retraction, and actorless navigation. | UT-013, UT-014, IT-011, IT-012, IT-021, TD-011 |
 | Membership and deletion lifecycle | Profile-record and Tap terminal deletion currently share broad actor cleanup concepts | Treat membership loss as reversible inactivation; terminal Tap identity/future account deletion as permanent Instagram purge; never delete accepted PDS follows. | IT-020, REG-006 |
 | Retention/export/operations | No Instagram-specific jobs or CLI | Add deterministic purge batches, owner export with private Instagram data, safe audits/metrics, and CLI list/resolve/revoke/inspect/retry/purge commands. | IT-010, IT-018, IT-019, UT-015 |
-| Flutter data/parser | No Instagram feature | Add redacted models, accounts-followed-only JSON parser, 20 MiB/10,000-entry limits, API/repository layer, and cross-language golden contract. Follower data is discarded locally; ZIP parsing is intentionally unsupported. | UT-009, UT-010, IT-014, TD-011 |
+| Flutter data/parser | The completed feature accepts manual input and standalone JSON on the UI isolate | Add the observed exact Instagram `_u/<username>` URL-plus-agreeing-title shape, then move native file parsing to a background isolate. Standalone JSON and file-backed ZIP share the existing 20 MiB/10,000-handle parser boundary; ZIP additionally enforces 100,000-entry and 64 MiB central-directory bounds and extracts only the canonical following entry. | UT-009, UT-010, UT-017, UT-018, IT-014, IT-023, REG-013, TD-013 |
 | Flutter state/UI | Settings and account boundary have no migration surface | Add fixed-account controllers and one settings route/page for verification, verified-only direct import, link controls, and suggestions; place the discovery selector directly below the verified candidate, default it to discovery allowed, and update the explanation for the selected value; hide all import surfaces until verification, remove normalized-preview/retention controls, link to Notification Settings, reconcile resumable attempts against AppView with a DID-scoped secure display snapshot, invalidate on account changes, and fence every asynchronous effect. | UT-011, IT-015, IT-016, IT-022, REG-009, REG-012 |
 | Flutter notifications | Model assumes actor-bearing social notifications | Decode sealed social/system variants, render/open Instagram-match safely, preserve social behavior, and avoid push/diagnostic private content. | UT-012, IT-017, REG-005 |
 
@@ -182,8 +189,11 @@ The concrete schema groups related rows but preserves these invariants:
 | `app/lib/instagram_migration/models/*.dart` | Create | Redacted immutable attempt/link/import/suggestion/page/state models and closed wire states. |
 | `app/lib/instagram_migration/data/instagram_migration_api_client.dart` | Create | Exact authenticated `/v1/migrations/instagram/*` requests through an injected fixed-account Dio. |
 | `app/lib/instagram_migration/data/instagram_migration_repository.dart` | Create | Narrow repository boundary for verification, account, imports, suggestions, and acceptance. |
-| `app/lib/instagram_migration/services/instagram_archive_parser.dart` | Create | Parse supported accounts-followed JSON shapes; extract only following `string_list_data[].value`, discard follower data, normalize/dedupe, and enforce local bounds. |
-| `app/lib/instagram_migration/services/instagram_file_picker.dart` | Create | `file_selector` adapter for JSON only, with cancellation and 20 MiB validation. |
+| `app/lib/instagram_migration/services/instagram_import_parser.dart` | Change | Preserve legacy direct `string_list_data[].value`; add the observed current record shape only when one exact HTTPS `www.instagram.com/_u/<username>` URL and the record title normalize to the same valid username. Never infer identity from a title alone. |
+| `app/lib/instagram_migration/services/instagram_export_file_parser.dart` | Create | Native file-path facade that invokes one isolate worker, magic-sniffs JSON versus ZIP, keeps the archive file-backed, and returns only `InstagramImportParseResult`. |
+| `app/lib/instagram_migration/services/instagram_export_file_parser_native.dart` | Create | Use `dart:io`, `Isolate.run`, `InputFileStream`, bounded ZIP-directory preflight, target-only streaming decompression, CRC/size verification, and deterministic resource cleanup on iOS/Android. |
+| `app/lib/instagram_migration/services/instagram_export_file_parser_web.dart` | Create | Preserve standalone bounded JSON selection for web builds while returning a typed unsupported-format result for ZIP; ZIP remains mobile-only. |
+| `app/lib/instagram_migration/services/instagram_json_file_picker.dart` | Replace/rename | Become an Instagram-export picker whose public operation returns a normalized parse result rather than raw bytes/path. Native selection passes `XFile.path` to the isolate facade; cancellation remains silent. |
 | `app/lib/instagram_migration/providers/*_provider.dart` | Create | Fixed-account repository and separate verification/import/suggestion controllers keyed by `ActiveAccountLease`. |
 | `app/lib/instagram_migration/pages/instagram_migration_page.dart` | Create | One accessible settings surface with independent verification/import/suggestion failure and retry states. |
 | `app/lib/instagram_migration/widgets/*.dart` | Create | Verification instructions/status, account/discovery controls, import picker/summary, and suggestion list/action rows. |
@@ -193,8 +203,12 @@ The concrete schema groups related rows but preserves these invariants:
 | `app/lib/notifications/models/craftsky_notification.dart` | Change | Make the base hold common fields only and introduce sealed social/system variants; system has no actor/URI/CID/rkey. |
 | `app/lib/notifications/models/notification_category.dart` and repository/providers/widgets/navigation | Change | Add `instagramMatch`, render actorless rows, and open the fixed-account migration route while preserving existing social handling. |
 | `app/lib/l10n/app_en.arb` and generated localization files | Change/Generate | Add all visible labels, statuses, errors, privacy/consent copy, and accessibility semantics. Generated files are regenerated, never hand-edited. |
-| `app/pubspec.yaml`, platform generated plugin registrants if produced | Change/Generate | Add maintained `file_selector` dependency if not already transitive. |
-| `app/test/instagram_migration/**` | Create | Parser, wire, repository, provider, routing, fixed-account, redaction, and widget tests from UT-009–UT-012 and IT-014–IT-017. |
+| `app/pubspec.yaml`, `app/pubspec.lock`, platform generated plugin registrants if produced | Change/Generate | Promote `archive` 4.0.9 from transitive to a direct dependency; retain the existing `file_selector` dependency. |
+| `app/test/instagram_migration/services/instagram_import_parser_test.dart` | Change | Add `UT-017` for exact agreeing URL/title parsing and rejection of ambiguous, fuzzy, mismatched, or noncanonical evidence. |
+| `app/test/instagram_migration/services/instagram_export_file_parser_test.dart` | Create | Add `UT-018` with temporary wholly synthetic stored/deflated ZIPs and all metadata, integrity, limit, cleanup, and canary boundaries. |
+| `app/test/instagram_migration/instagram_import_privacy_test.dart` | Create | Add `IT-023` coverage for native selection, isolate completion, account switching, cancellation, safe errors, and repository payload privacy. |
+| `app/test/instagram_migration/instagram_migration_page_test.dart` | Change | Cover the “Instagram export” labels, accounts-followed recommendation, all-information locality copy, JSON/ZIP selection, and silent cancellation. |
+| `app/test/instagram_migration/**` | Change | Preserve parser, wire, repository, provider, routing, fixed-account, redaction, and widget coverage from UT-009–UT-012 and IT-014–IT-017; run it as `REG-013`. |
 | `app/test/notifications/**` and `app/test/settings/settings_page_test.dart` | Change | Prove social regression safety, actorless system decode/render/open, and settings entry. |
 
 All controllers capture `ActiveAccountLease` before work and call
@@ -508,18 +522,24 @@ The page contains:
    requires explicit confirmation from the same authenticated DID.
 3. Import card: rendered only after verification; explains that it imports
    accounts the member follows and retains them until unlink, directly accepts
-   manual handles or a matching Accounts Center JSON file without a normalized
-   preview step, links to Notification Settings, lists sources, and supports
-   source-specific reactivation/deletion.
+   manual handles, a matching Accounts Center JSON file, or the original ZIP
+   without a normalized preview step, links to Notification Settings, lists
+   sources, and supports source-specific reactivation/deletion. Copy recommends
+   exporting only “Accounts you follow” and explains that an all-information
+   ZIP remains local while only following usernames are sent.
 4. Suggestions card: lists eligible exact matches, supports explicit accept and
    dismiss, prevents double taps while accepting, and refreshes/invalidate rows
    whose eligibility changed.
 
 Meta verification unavailability disables only verification controls and shows
 actionable copy; imports/link privacy controls/suggestions remain independently
-usable. ZIP files get a clear unsupported-format error. Conflict, expiry,
-membership reactivation, provider timeout, invalid JSON/shape, limit, and stale
-account operation states each have localized, non-sensitive UI treatment.
+usable. On iOS and Android, JSON and ZIP are both labeled “Instagram export.”
+Missing/duplicate targets, encrypted or unsupported entries, malformed ZIP
+metadata, integrity failures, invalid JSON/shape, and all local limits receive
+localized, non-sensitive treatment. Flutter web retains direct JSON behavior
+and reports ZIP as unsupported. Conflict, expiry, membership reactivation,
+provider timeout, and stale-account operation states retain their existing
+treatment.
 
 Accessibility tests cover semantic labels, focus/tap targets, text scaling, and
 screen-reader descriptions for challenge copy, consent, discovery, follow, and
@@ -548,6 +568,16 @@ dismiss controls. Final platform/device inspection remains a manual gate.
 - Flutter error mapping discards raw decoder/HTTP body excerpts and exposes
   typed display-safe failures. All new models and states have redacted string
   representations because provider logging stringifies values.
+- ZIP detection uses content signatures rather than trusting the extension.
+  Central-directory entry count/bytes are bounded before the archive package
+  builds its in-memory metadata. The worker rejects encryption and unsupported
+  compression, requires exactly one canonical following entry, enforces both
+  declared and actual 20 MiB target limits while streaming, verifies target
+  size/CRC, never extracts to disk, and closes all native resources in
+  `finally`.
+- The selected native path, full archive bytes, non-target entry names/content,
+  raw following JSON, record titles, and Instagram URLs never cross the parser
+  result/repository boundary or appear in diagnostics.
 - Only wholly synthetic/redacted test inputs may enter committed fixtures.
 
 ## 9. Ordered Test-First Plan
@@ -607,6 +637,22 @@ then refactor before advancing.
     owner-scoped current-attempt read, DID-scoped secure display snapshot,
     AppView reconciliation, polling/confirmation restoration, and narrow
     terminal/session cleanup without keeping page providers alive.
+19. **Current export record shape** — `UT-017`; add the exact
+    `https://www.instagram.com/_u/<username>` plus agreeing-title parser path
+    while retaining legacy direct values and rejecting title-only, mismatched,
+    ambiguous, or noncanonical identity evidence.
+20. **File-backed ZIP worker** — `UT-018`; add direct `archive` dependency,
+    bounded EOCD/ZIP64 central-directory preflight, exact target selection,
+    stored/deflated target streaming, size/CRC checks, close-on-every-path
+    behavior, and normalized-result-only isolate messaging.
+21. **Native picker/UI boundary** — `IT-023`; route JSON and ZIP native paths
+    through the isolate service, keep cancellation silent, fence late results
+    with the captured `ActiveAccountLease`, localize safe errors/copy, and pass
+    only normalized usernames to the existing repository method.
+22. **Compatibility sweep** — `REG-013`; run existing direct JSON, request
+    model, golden wire, repository, AppView store/API, privacy, and page tests.
+    Assert there is no `instagramZip` wire value, server branch, migration,
+    filename/path/archive field, or committed user-derived fixture.
 
 Focused commands evolve with the slice, then finish with:
 
@@ -630,6 +676,14 @@ misrepresent that baseline as clean unless separately corrected.
 - Do not call Meta in automated tests. Use fakes and `httptest.Server` only.
 - Do not use real or user-derived Instagram exports, DMs, usernames, IDs, or
   tokens in source, tests, screenshots, logs, or demos.
+- Do not copy the approved real ZIP into the repository. It is used only for
+  `MAN-005` from its external path after the synthetic automated suite is green.
+- Do not read a complete ZIP into a Dart byte buffer or transfer it through an
+  isolate message. Pass only the native path into the worker and return only
+  normalized usernames with bounded ignored/duplicate counts.
+- Do not enumerate/decompress non-target archive entries or extract any archive
+  entry to disk. The central directory may be inspected only within its
+  documented count/byte limits.
 - Land `000023` before code that queries core tables and `000024` before system
   notification code. Down migrations delete dependent system/support rows first.
 - Keep migration numbering append-only; never rewrite applied `000021`/`000022`.
@@ -675,6 +729,9 @@ approved real environment, or missing repository safety data:
    platform file-picker checks.
 7. Run a security/privacy review of Meta secrets, key rotation, retention,
    deletion/export, and operator access before enabling production.
+8. Run `MAN-005` on iOS and Android with the approved 2026-07-21 ZIP from its
+   external location, expecting 88 following records, and profile peak memory
+   again with a larger media-dominated all-information export.
 
 Schema/API choices are implementable now and remain useful with fakes even if a
 live Meta test changes the provider adapter later. Any discovered Meta payload
@@ -683,16 +740,19 @@ the approved product contract, in which case requirements return to review.
 
 ## 12. Handoff
 
-Workflow status: approved for implementation.
+Workflow status: coding plan updated for the ZIP extension; its additional
+document-review stage was explicitly skipped by the user.
 
-Start with `UT-001` and record red/green evidence in
-`05-implementation-plan.md`. Continue through the ordered slices without a new
-approval pause because the user already authorized implementation. After the
-automated pass, perform the repository's implementation review workflow,
-resolve actionable findings, rerun affected/full gates, and report:
+The original slices are already substantially implemented. Start this extension
+with `UT-017`, then `UT-018`, `IT-023`, and `REG-013`, recording red/green
+evidence in `05-implementation-plan.md` without rewriting earlier evidence.
+After the automated pass, perform the repository's implementation review
+workflow, resolve actionable findings, rerun affected/full gates, and report:
 
 - AppView and Flutter behavior completed;
 - tests and baseline diagnostics;
 - privacy/security constraints preserved;
+- JSON and ZIP both preserve the existing `instagramJson` AppView contract;
 - production paths intentionally fail closed;
-- live Meta, export-shape, safety-adapter, and device gates still outstanding.
+- live Meta, additional export-shape, safety-adapter, and physical-device gates
+  still outstanding.
