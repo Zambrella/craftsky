@@ -21,7 +21,7 @@ handling a full "all information" export safely.
   - `appview/internal/notifications/`, `appview/internal/api/notification_store.go`, `appview/internal/push/payload.go`, and migrations `000021`/`000022` implement durable actor-driven notifications, preferences, push fan-out, and newness.
   - `appview/internal/index/craftsky_profile.go` owns current CraftSky membership removal; `appview/internal/notifications/actor_deletion.go` is a narrower deletion lifecycle precedent.
   - The implemented Instagram private schema uses migration
-    `000023_instagram_migration`; the ZIP extension requires no migration.
+    `000025_instagram_migration`; the ZIP extension requires no migration.
 - Relevant Flutter files:
   - `app/lib/settings/pages/settings_page.dart` is the natural entry point for **Find people from Instagram**.
   - `app/lib/router/router.dart` and `app/lib/router/route_locations.dart` own typed, deep-linkable routes.
@@ -141,6 +141,20 @@ are labelled "Instagram export" in the UI. AppView API/storage do not change.
 ZIP support targets iOS and Android (and may work on file-backed desktop
 builds); Flutter web ZIP support is out of scope because it cannot provide the
 same native file-streaming/isolate contract.
+
+### Q8: How should notification payload families be discriminated?
+
+Answer: Use the existing notification `type` as the sole wire and storage
+discriminator. `instagramMatch` is an actorless type with a required `system`
+payload; every existing social type retains its required actor and AT Protocol
+source fields. Do not add or retain a separate `kind` field that is derivable
+from `type`.
+
+Decision / implication: Flutter selects the concrete notification model from
+`type`, AppView omits `kind` from notification JSON, and Postgres constraints
+enforce the two payload shapes directly from `category`. Unknown types remain
+inert and must not gain an identity-bearing destination merely because optional
+fields are present.
 
 ## 4. Candidate Approaches
 
@@ -355,9 +369,9 @@ Flutter offers **Find people from Instagram** in Settings. It supports verificat
 | FR-017 | Functional | Must | Suggestion dismissal shall be idempotent. Acceptance shall be an authenticated, suggestion-ID-scoped, idempotent operation that claims a stable PDS follow rkey/operation before the external call, re-evaluates `InstagramSuggestionEligibilityPolicy` immediately before writing, uses a shared CraftSky follow service, and marks accepted/already-following only after the deterministic PDS `putRecord` succeeds or is already satisfied. | Closes the proposed route/state and firehose-delay gap safely. | Design / Codebase review / Document review | AC-024, AC-025, AC-048 |
 | FR-018 | Functional | Must | Imports are additive immutable source snapshots retained while the owner keeps the verified Instagram link. AppView shall list and inspect caller-owned imports, delete one import immediately, and PATCH only explicit `reactivate` after membership restoration. Suggestions are deduplicated per importer/target but retain support references to every active import, so deleting one source removes a suggestion only when no other eligible source supports it. Revoking the Instagram link deletes every owner import and invalidates dependent pending discovery state. | Makes the lifetime obvious and keeps source-specific deletion/restoration durable across restarts and multiple imports. | Design / User approval | AC-026–AC-028, AC-031, AC-048 |
 | FR-019 | Functional | Must | Initial import, link confirmation/enable/reactivation, verified username change, membership restoration, and visibility/safety-policy restoration shall re-evaluate eligible retained following handles. Newly created suggestions shall update the deterministic five-minute `instagramMatch` coalescing contract in §12.3. | Enables future discovery without automatic follows or notification spam. | Design / Document review | AC-029, AC-030 |
-| FR-020 | Functional | Must | `instagramMatch` shall be the explicit actorless `kind: system` notification variant in §12.3 across schema, registry, preference API, feed API, newness, push outbox/cancellation, Flutter decoding/rendering, localization, and navigation. It shall never be `everythingElse`, never use synthetic social facts, and shall preserve generic handling for unknown social and unknown system categories in the updated client. | The current notification model cannot represent it honestly. | Design / Document review | AC-029, AC-034–AC-037 |
+| FR-020 | Functional | Must | `instagramMatch` shall be an explicit actorless notification `type` in §12.3 across schema, registry, preference API, feed API, newness, push outbox/cancellation, Flutter decoding/rendering, localization, and navigation. `type` shall be the sole wire/storage discriminator and the Flutter app shall derive its navigation destination from that semantic type; no derivable `kind` or client-route destination field is exposed or stored. It shall never be `everythingElse`, never use synthetic social facts, and unknown types shall remain inert without an identity-bearing destination. | The current notification model cannot represent it honestly, while additional discriminators or server-owned routes would duplicate the category invariant and couple AppView to client navigation. | Design / User approval | AC-029, AC-034–AC-037 |
 | FR-021 | Functional | Must | The `instagramMatch` preference shall expose fixed `scope: everyone` for compatibility, reject scope mutation, allow `pushEnabled` changes, and hide the scope control in Flutter with an eligibility explanation. | Actor scope is semantically meaningless for system matches. | Design / Contract decision | AC-034 |
-| FR-022 | Functional | Must | Push data for `instagramMatch` shall contain only the opaque account-subscription binding, category, stable notification ID, and bounded count/navigation facts; it shall contain no handle, IGSID, DID, challenge, or suggestion list and shall open the recipient account's Instagram migration page. | Protects private graph data at the provider boundary. | Design / Push architecture | AC-035–AC-037 |
+| FR-022 | Functional | Must | Push data for `instagramMatch` shall contain only the opaque account-subscription binding, category, stable notification ID, and bounded count facts; it shall contain no client-route destination, handle, IGSID, DID, challenge, or suggestion list. Flutter shall infer from the category that the notification opens the recipient account's Instagram migration page. | Protects private graph data at the provider boundary and keeps navigation client-owned. | Design / Push architecture | AC-035–AC-037 |
 | FR-023 | Functional | Must | Flutter shall add a typed, authenticated **Find people from Instagram** route reachable from Settings and from `instagramMatch`, with account-switch-safe navigation and state. | Provides a discoverable and deep-linkable feature surface. | Design / Codebase | AC-038, AC-042 |
 | FR-024 | Functional | Must | Flutter verification UI shall explain discoverability, create/copy/open a challenge, poll through a fixed-account client, show expiry/cancellation/unavailable states, display the actual candidate username, and support confirmation, cancellation, link settings, and revocation. In `pendingConfirmation`, the discovery selector shall appear immediately after the account, default to `Allow discovery`, and show explanation text for the selected value; pressing confirmation applies that displayed value. Leaving and reopening the page shall restore AppView's current non-terminal attempt: a matching unexpired account-scoped secure snapshot may restore only its verification ID, display challenge, DM URL, and expiry; AppView remains authoritative for state and candidate data. A current attempt without a matching local snapshot remains visible and cancellable but does not reveal or recreate challenge plaintext. | Completes the member verification journey without forcing an accidental superseding challenge after navigation. | Design / User approval | AC-003–AC-005, AC-009, AC-014, AC-038, AC-049 |
 | FR-025 | Functional | Must | Flutter shall hide all import controls until a verified Instagram account exists. The import UI shall support direct manual-handle and local Instagram-export import (`.json` or `.zip`) without a normalized-preview step, recommend exporting only accounts the member follows, explain that an all-information ZIP is handled locally, disclose retention until unlink, upload only normalized entries, list/delete imports, explicitly reactivate each eligible import after rejoin, show reviewable pending suggestions, and link to Notification Settings for push control. | Completes a simple private migration and restoration journey without forcing members to unpack a normal Accounts Center download. | Design / User approval | AC-016–AC-018, AC-023, AC-026, AC-027, AC-034, AC-038, AC-048, AC-050 |
@@ -459,29 +473,27 @@ terminal processing clears sender IGSID and challenge digest immediately.
 
 ### 12.3 Actorless Notification And Coalescing Contract
 
-The notification feed is a tagged union. Existing items become `kind: social`
-and keep their existing actor and AT Protocol source fields. The new variant is:
+The notification feed uses `type` as its sole discriminator. Existing social
+types keep their actor and AT Protocol source fields. The actorless variant is:
 
 ```json
 {
   "id": "opaque-notification-id",
-  "kind": "system",
   "type": "instagramMatch",
   "createdAt": "2026-07-19T12:00:00Z",
   "indexedAt": "2026-07-19T12:04:00Z",
   "system": {
     "count": 3,
-    "countCapped": false,
-    "destination": "instagramMigration"
+    "countCapped": false
   }
 }
 ```
 
-System items omit `actor`, `uri`, `cid`, `rkey`, and social references; database
-checks require those facts for social rows and forbid them for system rows.
-Unknown `kind`/system type values decode to safe generic client copy and no
-identity-bearing destination. Feed ordering/newness uses `indexedAt`, which is
-the most recent eligible suggestion activity time for the digest.
+`instagramMatch` items omit `actor`, `uri`, `cid`, `rkey`, and social
+references; database checks require those facts for social types and forbid
+them for `instagramMatch`. Unknown types decode to safe generic client copy and
+no identity-bearing destination. Feed ordering/newness uses `indexedAt`, which
+is the most recent eligible suggestion activity time for the digest.
 
 The coalescing key is `(recipient DID, instagramMatch, fixed five-minute
 window-start)`. The first eligible future suggestion opens a digest with
@@ -583,7 +595,7 @@ change the webhook acknowledgement.
 | AC-033 | FR-011, RULE-003 | Given a validated username change for the same IGSID, then current username updates, old-handle pending suggestions invalidate, the old username is not transferred, and collisions enter conflict. |
 | AC-034 | FR-020, FR-021, FR-025 | Given notification preferences are read or patched, then `instagramMatch` appears with fixed `scope: everyone` and configurable `pushEnabled`; scope mutation is rejected, Flutter shows no actor-scope control, and the Instagram import UI links to Notification Settings. In-app future-match notifications are still created when push is disabled. |
 | AC-035 | FR-020, FR-022 | Given one or several new matches, then notification feed/push copy is localized and generic, represents the bounded count without naming handles/people, and routes to the Instagram migration page. |
-| AC-036 | FR-020, FR-022 | Given provider payload inspection, then it contains only category, stable notification ID, account-subscription binding, and bounded count/navigation facts—never handle, IGSID, DID, challenge, or suggestion data. |
+| AC-036 | FR-020, FR-022 | Given provider payload inspection, then it contains only category, stable notification ID, account-subscription binding, and bounded count facts—never a client route, handle, IGSID, DID, challenge, or suggestion data. |
 | AC-037 | FR-020, FR-022 | Given discovery/link/import invalidation before delivery, then the actorless event retracts and pending/retry/leased push deliveries cancel; an already-open notification resolves against current authorized suggestion state. |
 | AC-038 | FR-023, FR-024, FR-025, NFR-007 | Given each loading/empty/disabled/error/success state, then the typed Settings route renders localized accessible verification, import, consent, retention, suggestion, and retry controls without exposing raw server errors. |
 | AC-039 | BR-002, NFR-003, RULE-007 | Given wholly synthetic canaries or explicitly approved redacted fixtures as controlled inputs across success and failure paths, then each value appears only in its specifically intended private database/API/UI field and never in logs, errors, spans, Sentry, metric labels, push payloads, PDS writes, raw-request reserialization, or unrelated snapshots. No real or user-derived secret/private value is committed as a fixture. |
@@ -643,7 +655,7 @@ change the webhook acknowledgement.
   - `instagram_follow_suggestions`
 - Existing notification persistence changes:
   - Add `instagramMatch` to category constraints and registries.
-  - Add an actorless system-notification representation and stable digest/group/count/navigation facts without weakening existing social-notification constraints.
+  - Add an actorless `instagramMatch` representation and stable digest/group/count facts, discriminated only by category/type, without weakening existing social-notification constraints; Flutter owns the category-to-route mapping.
   - Support retraction/cancellation by import/link/suggestion group.
 - Identity and uniqueness:
   - Active one-to-one constraints for owner DID and IGSID.
@@ -668,7 +680,7 @@ configuration may shorten, never extend, them:
 | Link conflict and operator audit | Keep minimum encrypted/private evidence while open; resolution/expiry removes identity evidence and retains opaque action/result facts. | Open conflict 365 days, then `expired`; resolved audit 365 days. |
 | Import and graph handles | Storage contains accounts-followed usernames only and has no retention-consent, expiry, direction, or follower-count fields. All normalized handles remain available for exact future matching while the verified Instagram link remains linked. Membership inactivity pauses matching but does not delete the import. | Until the owner deletes the import, revokes the verified Instagram link, or terminally deletes the CraftSky identity. |
 | Suggestion/support | Pending support cannot outlive all supporting imports or the verified link. Dismissed/invalidated tombstones retain no username/IGSID; accepted/already-following retains opaque operation facts for replay. | Pending through support/link lifetime; dismissed/invalidated 90 days; accepted/already-following 12 months. |
-| `instagramMatch` event/delivery | Contains only opaque recipient binding, category, bounded count/group/destination/status facts. | 90 days after last activity; retracted unsent delivery is purged within seven days. |
+| `instagramMatch` event/delivery | Contains only opaque recipient binding, category, bounded count/group/status facts. | 90 days after last activity; retracted unsent delivery is purged within seven days. |
 | Abuse counters | Keyed identifiers only; never raw challenge/message/username. | Window end plus 24 hours. |
 | Generated private export | Stream from an owner-scoped snapshot; do not persist an export blob. | Request lifetime only. |
 
@@ -681,7 +693,7 @@ identity/account deletion purges all member-identifying Instagram rows
 immediately, anonymizes any required bounded operator audit, and cancels
 dependent work. Membership loss alone follows the reversible rules above.
 - Backwards compatibility:
-  - The app has no production users, but changes remain additive to `/v1/*` and preserve unknown-notification behavior.
+  - The app has no production users; the notification response intentionally removes the redundant `kind` field while preserving safe unknown-notification behavior.
   - No lexicon change is required.
   - ZIP and standalone JSON both retain the existing `instagramJson` wire and
     database value; no AppView migration or route change is required.

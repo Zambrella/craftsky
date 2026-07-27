@@ -13,7 +13,7 @@ import (
 )
 
 func TestSuggestionMatcherCreatesOnlyEligibleFollowingSupportBeforePrivacyFinalization(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000023_instagram_migration.up.sql")
+	migration, err := os.ReadFile("../../migrations/000025_instagram_migration.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestSuggestionMatcherCreatesOnlyEligibleFollowingSupportBeforePrivacyFinali
 }
 
 func TestSuggestionMatcherFailsClosedAndRetainsGraphForFutureReconciliation(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000023_instagram_migration.up.sql")
+	migration, err := os.ReadFile("../../migrations/000025_instagram_migration.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

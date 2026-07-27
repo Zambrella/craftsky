@@ -77,7 +77,7 @@ func TestInstagramCanariesStayOutOfDiagnosticsTelemetryPushPDSAndURLs(t *testing
 
 	payload, err := json.Marshal(push.BuildPayload(notifications.InstagramMatch, "safe-routing-id", "", push.RoutingFacts{
 		NotificationID: "00000000-0000-0000-0000-000000000701",
-		SystemCount:    1, SystemDestination: "instagramMigration",
+		SystemCount:    1,
 	}))
 	if err != nil {
 		t.Fatal(err)

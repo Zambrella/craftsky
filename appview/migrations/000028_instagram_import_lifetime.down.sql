@@ -1,3 +1,4 @@
+-- Renumbered after merging the main-branch 000023/000024 migrations.
 ALTER TABLE instagram_graph_imports
     DROP CONSTRAINT IF EXISTS instagram_graph_imports_state_check,
     ADD COLUMN retain_unmatched BOOLEAN NOT NULL DEFAULT true,

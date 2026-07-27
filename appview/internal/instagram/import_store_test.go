@@ -294,8 +294,9 @@ func newImportTestStore(t *testing.T) (*ImportStore, *pgxpool.Pool) {
 	for _, name := range []string{
 		"000021_appview_notifications.up.sql",
 		"000022_notification_newness.up.sql",
-		"000023_instagram_migration.up.sql",
-		"000024_system_notifications.up.sql",
+		"000025_instagram_migration.up.sql",
+		"000026_system_notifications.up.sql",
+		"000029_notification_client_owned_destination.up.sql",
 	} {
 		contents, err := os.ReadFile("../../migrations/" + name)
 		if err != nil {

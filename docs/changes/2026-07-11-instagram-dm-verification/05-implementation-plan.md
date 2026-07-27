@@ -88,7 +88,8 @@ authoritative if this condensed table omits a secondary linkage.
 
 - Add wholly synthetic fixtures and Go validation tests first.
 - Include all states, success/error envelopes, cursors, privacy-preserving
-  DELETE behavior, conflicts/unavailability, and social/system notifications.
+  DELETE behavior, conflicts/unavailability, and type-discriminated actorless
+  notifications.
 - Flutter tests later consume the exact same files.
 
 ### Steps 6–13 — AppView vertical behavior
@@ -101,7 +102,7 @@ revalidation. Update this runbook with each meaningful red/green result.
 ### Steps 14–16 — Flutter behavior
 
 Start with the pure parser and wire models, then fixed-account repository tests,
-then controllers, page/widgets, and finally notification union/open flow.
+then controllers, page/widgets, and finally notification variant/open flow.
 Regenerate Riverpod/go_router/localization output only after hand-written tests
 and source are green. Every asynchronous test covers account switch or
 switch-away/back fencing where relevant.
@@ -427,6 +428,64 @@ Correction evidence:
   entering the repository.
 - `IR-015` was a non-blocking suggestion and was not included in the user's
   required-correction choice; BZip2 behavior remains unchanged for re-review.
+
+## Notification Type-Only Discriminator Simplification (2026-07-26)
+
+The user approved removing the redundant notification `kind` field after
+confirming that the current database contract made it exactly derivable from
+`type`. `instagramMatch` remains a first-class actorless notification with its
+own sealed Flutter subtype and required system payload. Existing social types
+retain their actor and AT Protocol source requirements.
+
+Implementation rules specific to this simplification:
+
+- `type`/database `category` is the only explicit discriminator.
+- AppView notification JSON and shared fixtures contain no `kind`.
+- Postgres contains no notification `kind` column; partial indexes, checks,
+  newness, delivery, lifecycle, and retention predicates use `category`.
+- Known social types still require actor/source facts and forbid system facts.
+- `instagramMatch` still forbids actor/source/reference facts and requires the
+  bounded count, group, and coalescing fields; Flutter derives navigation from
+  the type without an AppView-owned route field.
+- Unknown Flutter types remain inert and receive no identity-bearing
+  destination.
+- Because the branch merged main migrations with colliding `000023`/`000024`
+  versions, renumber the unshipped Instagram migration series after main's
+  migrations. The earlier divergent local migration histories cannot be
+  upgraded unambiguously, so existing local development volumes must be
+  recreated; there are no production users.
+
+### Test Order
+
+| Step | Test IDs | Requirement IDs | Acceptance criteria | Expected initial state | Status |
+|---:|---|---|---|---|---|
+| T1 | UT-012, IT-021 | FR-020, FR-022 | AC-035–AC-037 | Flutter and the shared corpus still require/emit `kind` | Complete |
+| T2 | IT-012, REG-002 | FR-020–FR-022 | AC-034–AC-037 | AppView API/store still expose `NotificationKind` and JSON `kind` | Complete |
+| T3 | IT-001, IT-011, REG-010 | FR-019, FR-020, FR-028 | AC-029–AC-031, AC-037 | Postgres and notification lifecycle still store/query `kind`; migration versions collide after the main merge | Complete |
+| T4 | REG-001–REG-013 | FR-020–FR-023 | AC-034–AC-038 | Broad verification is stale after the contract and migration change | Complete |
+
+The red-green order is Flutter/shared wire first, AppView API second, then
+storage/lifecycle and migration convergence. Each focused test must fail on the
+presence or expectation of `kind`, not on an unrelated setup error.
+
+Execution evidence:
+
+- T1 red: the exact actorless Flutter model test failed by entering the social
+  decoder after `kind` was removed from its fixture. Green: notification model,
+  rendering/provider, and shared-wire tests pass with `type` alone.
+- T2 red: the shared Go corpus test rejected AppView's emitted `kind`. Green:
+  `NotificationItem`, `NotificationRow`, hydration, and wire fixtures contain
+  no kind model or field; focused API and wire tests pass.
+- T3 red: the migration regression test found `ADD COLUMN kind` and the old
+  kind-derived check. Green: `category` now drives all payload, grouping,
+  newness, push, export, purge, and lifecycle predicates; the Instagram
+  migrations are uniquely numbered `000025` through `000028`. The real
+  Postgres race gate also exposed two isolated fixtures missing the
+  main-branch mute/block tables; those fixtures were corrected and pass.
+- T4 green: `go test ./... -count=1`, `just test`, `go vet ./...`,
+  `flutter analyze --fatal-infos`, full `flutter test`, Dart formatting, Go
+  formatting, and `git diff --check` pass. The initially observed Tap reconnect
+  timing failure passed five focused repetitions and the subsequent full gates.
 
 ## Completion Checklist
 

@@ -1,3 +1,4 @@
+-- Renumbered after merging the main-branch 000023/000024 migrations.
 CREATE TABLE instagram_verification_attempts (
     id                          UUID        NOT NULL PRIMARY KEY,
     owner_did                   TEXT        NOT NULL,

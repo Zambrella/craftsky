@@ -1,3 +1,4 @@
+-- Renumbered after merging the main-branch 000023/000024 migrations.
 DROP INDEX IF EXISTS instagram_graph_handles_match_idx;
 
 ALTER TABLE instagram_graph_handles

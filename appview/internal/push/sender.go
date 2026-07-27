@@ -37,7 +37,6 @@ type RoutingFacts struct {
 	NotificationID    string
 	SystemCount       int
 	SystemCountCapped bool
-	SystemDestination string
 }
 type SendRequest struct {
 	Token                 string

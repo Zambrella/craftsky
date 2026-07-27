@@ -63,9 +63,6 @@ func buildInstagramMatchPayload(routingID string, facts RoutingFacts) Payload {
 		"countCapped":           strconv.FormatBool(capped),
 	}
 	addRoutingFact(data, "notificationId", facts.NotificationID)
-	if facts.SystemDestination == "instagramMigration" {
-		data["destination"] = facts.SystemDestination
-	}
 	body := "New Instagram matches are ready to review"
 	if count == 1 && !capped {
 		body = "A new Instagram match is ready to review"

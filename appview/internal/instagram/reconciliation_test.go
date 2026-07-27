@@ -67,7 +67,7 @@ func TestReconciliationCreatesOneFixedFiveMinuteDigestForFutureMatches(t *testin
 		       min(activity_at), min(coalesce_until),
 		       bool_or(push_enabled_snapshot)
 		FROM notification_events
-		WHERE recipient_did=$1 AND kind='system' AND category='instagramMatch'
+		WHERE recipient_did=$1 AND category='instagramMatch'
 	`, importer).Scan(&events, &count, &firstActivity, &activity, &coalesceUntil, &pushEnabled); err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +231,7 @@ func TestReconciliationDuplicateJobsAndConcurrentWorkersAreIdempotent(t *testing
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_follow_suggestions`).Scan(&suggestions); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM notification_events WHERE kind='system'`).Scan(&events); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM notification_events WHERE category='instagramMatch'`).Scan(&events); err != nil {
 		t.Fatal(err)
 	}
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_notification_suggestions`).Scan(&supports); err != nil {
@@ -517,7 +517,7 @@ func newReconciliationWorkerForTest(t *testing.T, pool *pgxpool.Pool, service *n
 
 func newReconciliationTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	coreMigration, err := os.ReadFile("../../migrations/000023_instagram_migration.up.sql")
+	coreMigration, err := os.ReadFile("../../migrations/000025_instagram_migration.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -525,7 +525,8 @@ func newReconciliationTestPool(t *testing.T) *pgxpool.Pool {
 	for _, path := range []string{
 		"../../migrations/000021_appview_notifications.up.sql",
 		"../../migrations/000022_notification_newness.up.sql",
-		"../../migrations/000024_system_notifications.up.sql",
+		"../../migrations/000026_system_notifications.up.sql",
+		"../../migrations/000029_notification_client_owned_destination.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {

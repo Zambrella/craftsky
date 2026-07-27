@@ -130,7 +130,6 @@ type PrivateMatchEventExport struct {
 	State       string     `json:"state"`
 	Count       int        `json:"count"`
 	CountCapped bool       `json:"countCapped"`
-	Destination string     `json:"destination"`
 	ActivityAt  time.Time  `json:"activityAt"`
 	IndexedAt   time.Time  `json:"indexedAt"`
 	RetractedAt *time.Time `json:"retractedAt,omitempty"`
@@ -354,9 +353,9 @@ func loadPrivateSuggestionExport(ctx context.Context, tx pgx.Tx, owner syntax.DI
 func loadPrivateNotificationExport(ctx context.Context, tx pgx.Tx, owner syntax.DID, export *PrivateDataExport) error {
 	rows, err := tx.Query(ctx, `
 		SELECT id, state, system_count, system_count_capped,
-		       system_destination, activity_at, indexed_at, retracted_at
+		       activity_at, indexed_at, retracted_at
 		FROM notification_events
-		WHERE recipient_did=$1 AND kind='system' AND category='instagramMatch'
+		WHERE recipient_did=$1 AND category='instagramMatch'
 		ORDER BY activity_at, id
 	`, owner)
 	if err != nil {
@@ -367,8 +366,7 @@ func loadPrivateNotificationExport(ctx context.Context, tx pgx.Tx, owner syntax.
 		var item PrivateMatchEventExport
 		if err := rows.Scan(
 			&item.ID, &item.State, &item.Count, &item.CountCapped,
-			&item.Destination, &item.ActivityAt, &item.IndexedAt,
-			&item.RetractedAt,
+			&item.ActivityAt, &item.IndexedAt, &item.RetractedAt,
 		); err != nil {
 			return err
 		}

@@ -25,15 +25,21 @@ sealed class CraftskyNotification {
   NotificationCategory get type;
 
   static CraftskyNotification fromMap(Map<String, dynamic> map) {
-    final kind = map['kind'];
-    if (kind == 'system') return _systemFromMap(map);
-    if (kind != null && kind != 'social') {
+    final type = map['type'];
+    if (type is! String) {
+      throw const FormatException('invalid_notification_type');
+    }
+    if (type == 'instagramMatch') return _systemFromMap(map);
+    if (!_socialTypes.contains(type) &&
+        (map['actor'] is! Map ||
+            map['uri'] is! String ||
+            map['cid'] is! String ||
+            map['rkey'] is! String)) {
       return GenericSystemNotification(
         SystemNotificationCommon.fromMap(map),
         originalType: NotificationCategory.unknown,
       );
     }
-    final type = map['type'] as String;
     final common = NotificationCommon.fromMap(map);
     final category = _category(type);
     if (!common.actor.available || map['contentAvailable'] == false) {
@@ -90,6 +96,16 @@ sealed class CraftskyNotification {
   static NotificationCategory _category(String value) =>
       NotificationCategory.fromWireValue(value);
 
+  static const _socialTypes = {
+    'follow',
+    'like',
+    'repost',
+    'reply',
+    'mention',
+    'quote',
+    'everythingElse',
+  };
+
   static CraftskyNotification _systemFromMap(Map<String, dynamic> map) {
     final common = SystemNotificationCommon.fromMap(map);
     final type = map['type'];
@@ -98,17 +114,11 @@ sealed class CraftskyNotification {
       if (system is Map) {
         final count = system['count'];
         final countCapped = system['countCapped'];
-        final destination = system['destination'];
-        if (count is int &&
-            count >= 1 &&
-            count <= 99 &&
-            countCapped is bool &&
-            destination == 'instagramMigration') {
+        if (count is int && count >= 1 && count <= 99 && countCapped is bool) {
           return InstagramMatchNotification(
             common,
             count: count,
             countCapped: countCapped,
-            destination: InstagramSystemDestination.instagramMigration,
           );
         }
       }
@@ -217,8 +227,6 @@ final class UnavailableNotification extends SocialNotification {
   NotificationCategory get type => originalType;
 }
 
-enum InstagramSystemDestination { instagramMigration }
-
 sealed class SystemNotification extends CraftskyNotification {
   SystemNotification(SystemNotificationCommon common)
     : super(
@@ -233,12 +241,10 @@ final class InstagramMatchNotification extends SystemNotification {
     super.common, {
     required this.count,
     required this.countCapped,
-    required this.destination,
   });
 
   final int count;
   final bool countCapped;
-  final InstagramSystemDestination destination;
 
   @override
   NotificationCategory get type => NotificationCategory.instagramMatch;

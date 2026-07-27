@@ -464,7 +464,7 @@ func (s *RetentionService) purgeRetractedDeliveries(ctx context.Context, batch i
 			SELECT delivery.id
 			FROM push_deliveries delivery
 			JOIN notification_events event ON event.id=delivery.notification_id
-			WHERE event.kind='system' AND event.category='instagramMatch' AND event.state='retracted'
+			WHERE event.category='instagramMatch' AND event.state='retracted'
 			  AND delivery.status='cancelled'
 			  AND delivery.updated_at <= $1::timestamptz - interval '7 days'
 			ORDER BY delivery.updated_at,delivery.id
@@ -486,7 +486,7 @@ func (s *RetentionService) purgeRetractedDeliveries(ctx context.Context, batch i
 func (s *RetentionService) purgeMatchNotifications(ctx context.Context, batch int, now time.Time) (int, error) {
 	return s.deleteUUIDBatch(ctx, batch, `
 		SELECT id FROM notification_events
-		WHERE kind='system' AND category='instagramMatch'
+		WHERE category='instagramMatch'
 		  AND activity_at <= $1::timestamptz - interval '90 days'
 		ORDER BY activity_at,id
 		FOR UPDATE SKIP LOCKED LIMIT $2

@@ -1,5 +1,6 @@
+-- Renumbered after merging the main-branch 000023/000024 migrations.
 DELETE FROM notification_preferences WHERE category = 'instagramMatch';
-DELETE FROM notification_events WHERE kind = 'system';
+DELETE FROM notification_events WHERE category = 'instagramMatch';
 
 DROP TABLE IF EXISTS instagram_notification_suggestions;
 DROP INDEX IF EXISTS notification_events_system_close_idx;
@@ -21,7 +22,7 @@ END;
 $$;
 
 ALTER TABLE notification_events
-    DROP CONSTRAINT IF EXISTS notification_events_kind_payload_check;
+    DROP CONSTRAINT IF EXISTS notification_events_type_payload_check;
 
 DROP INDEX IF EXISTS notification_events_system_group_unique;
 DROP INDEX IF EXISTS notification_events_social_semantic_unique;
@@ -51,5 +52,4 @@ ALTER TABLE notification_events
     DROP COLUMN system_group_key,
     DROP COLUMN system_destination,
     DROP COLUMN system_count_capped,
-    DROP COLUMN system_count,
-    DROP COLUMN kind;
+    DROP COLUMN system_count;

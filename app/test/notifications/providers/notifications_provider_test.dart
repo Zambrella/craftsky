@@ -179,12 +179,10 @@ String _socialRkey(CraftskyNotification notification) =>
 InstagramMatchNotification _instagramMatch() =>
     CraftskyNotification.fromMap({
           'id': 'instagram-match',
-          'kind': 'system',
           'type': 'instagramMatch',
           'system': {
             'count': 1,
             'countCapped': false,
-            'destination': 'instagramMigration',
           },
           'createdAt': '2026-05-28T13:00:00Z',
           'indexedAt': '2026-05-28T13:00:01Z',

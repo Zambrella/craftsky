@@ -1018,7 +1018,6 @@
       "items": [
         {
           "id": "00000000-0000-0000-0000-000000000401",
-          "kind": "social",
           "uri": "at://did:plc:syntheticactor/app.bsky.graph.follow/follow01",
           "cid": "bafysyntheticfollow01",
           "rkey": "follow01",
@@ -1046,7 +1045,6 @@
         },
         {
           "id": "00000000-0000-0000-0000-000000000402",
-          "kind": "social",
           "uri": "at://did:plc:syntheticactor/app.bsky.feed.like/like01",
           "cid": "bafysyntheticlike01",
           "rkey": "like01",
@@ -1104,7 +1102,6 @@
         },
         {
           "id": "00000000-0000-0000-0000-000000000403",
-          "kind": "social",
           "uri": "at://did:plc:syntheticactor/app.bsky.feed.repost/repost01",
           "cid": "bafysyntheticrepost01",
           "rkey": "repost01",
@@ -1162,7 +1159,6 @@
         },
         {
           "id": "00000000-0000-0000-0000-000000000404",
-          "kind": "social",
           "uri": "at://did:plc:syntheticactor/social.craftsky.feed.post/reply01",
           "cid": "bafysyntheticreply01",
           "rkey": "reply01",
@@ -1226,7 +1222,6 @@
         },
         {
           "id": "00000000-0000-0000-0000-000000000405",
-          "kind": "social",
           "uri": "at://did:plc:syntheticactor/social.craftsky.feed.post/mention01",
           "cid": "bafysyntheticmention01",
           "rkey": "mention01",
@@ -1284,7 +1279,6 @@
         },
         {
           "id": "00000000-0000-0000-0000-000000000406",
-          "kind": "social",
           "uri": "at://did:plc:syntheticactor/social.craftsky.feed.post/quote01",
           "cid": "bafysyntheticquote01",
           "rkey": "quote01",
@@ -1342,7 +1336,6 @@
         },
         {
           "id": "00000000-0000-0000-0000-000000000407",
-          "kind": "social",
           "uri": "at://did:plc:syntheticactor/social.craftsky.notification/other01",
           "cid": "bafysyntheticother01",
           "rkey": "other01",
@@ -1369,14 +1362,12 @@
         },
         {
           "id": "00000000-0000-0000-0000-000000000408",
-          "kind": "system",
           "type": "instagramMatch",
           "createdAt": "2026-07-19T12:00:00Z",
           "indexedAt": "2026-07-19T12:04:00Z",
           "system": {
             "count": 99,
-            "countCapped": true,
-            "destination": "instagramMigration"
+            "countCapped": true
           }
         }
       ],
@@ -1384,11 +1375,10 @@
     },
     "unknownClientCases": [
       {
-        "id": "notification.unknownKind",
+        "id": "notification.unknownActorlessType",
         "expectedClientVariant": "genericSystem",
         "body": {
           "id": "00000000-0000-0000-0000-000000000409",
-          "kind": "futureKind",
           "type": "futureType",
           "createdAt": "2026-07-19T12:05:00Z",
           "indexedAt": "2026-07-19T12:05:01Z"
@@ -1399,7 +1389,6 @@
         "expectedClientVariant": "genericSystem",
         "body": {
           "id": "00000000-0000-0000-0000-000000000410",
-          "kind": "system",
           "type": "futureSystemType",
           "createdAt": "2026-07-19T12:06:00Z",
           "indexedAt": "2026-07-19T12:06:01Z",
@@ -1413,14 +1402,12 @@
         "expectedClientVariant": "genericSystem",
         "body": {
           "id": "00000000-0000-0000-0000-000000000411",
-          "kind": "system",
           "type": "instagramMatch",
           "createdAt": "2026-07-19T12:07:00Z",
           "indexedAt": "2026-07-19T12:07:01Z",
           "system": {
             "count": 100,
-            "countCapped": false,
-            "destination": "futureDestination"
+            "countCapped": false
           }
         }
       },
@@ -1429,7 +1416,6 @@
         "expectedClientVariant": "genericSocial",
         "body": {
           "id": "00000000-0000-0000-0000-000000000412",
-          "kind": "social",
           "uri": "at://did:plc:syntheticactor/social.craftsky.notification/future01",
           "cid": "bafysyntheticfuture01",
           "rkey": "future01",

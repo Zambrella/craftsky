@@ -199,7 +199,7 @@ func TestVerificationStoreRedeemsChallengeExactlyOnce(t *testing.T) {
 
 func newVerificationTestStore(t *testing.T) *VerificationStore {
 	t.Helper()
-	migration, err := os.ReadFile("../../migrations/000023_instagram_migration.up.sql")
+	migration, err := os.ReadFile("../../migrations/000025_instagram_migration.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}

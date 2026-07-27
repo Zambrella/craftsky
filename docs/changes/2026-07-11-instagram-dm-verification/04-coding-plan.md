@@ -48,8 +48,9 @@ Implementation proceeds in independently green vertical slices:
    policy, reconciliation jobs, and deterministic suggestion lifecycle.
 5. Extract a stable-rkey follow service and use it for idempotent acceptance
    after a final eligibility check.
-6. Extend notification storage and Flutter decoding to a checked social/system
-   union, then add five-minute Instagram-match coalescing and retraction.
+6. Extend notification storage and Flutter decoding with type-discriminated
+   social and actorless payloads, then add five-minute Instagram-match
+   coalescing and retraction.
 7. Add lifecycle, retention, export, and operator CLI primitives.
 8. Build the Flutter parser/API/repository/controllers/page using
    `accountDioProvider(account)` and `ActiveAccountLease` fencing after every
@@ -78,7 +79,7 @@ covered by real-Postgres migration/store tests.
 | Area | Existing seam | Planned change | Primary tests |
 |---|---|---|---|
 | Configuration | One validated `app.Config`; push already supports disabled/enabled modes | Add separate Instagram data and Meta config. Data availability requires the private HMAC material; Meta verification additionally requires explicit enablement plus a complete credential/account/token/signature bundle. Partial production config fails startup. | UT-008, UT-016, IT-013, REG-007 |
-| Private persistence | Migrations end at `000022`; direct pgx stores | Add `000023` core Instagram tables and `000024` system-notification union. Avoid owner cascades from `craftsky_profiles`; lifecycle is explicit. | IT-001, IT-010, IT-020, IT-021 |
+| Private persistence | Main migrations now end at `000024`; direct pgx stores | Add `000025` core Instagram tables and `000026` type-discriminated actorless-notification support. Avoid owner cascades from `craftsky_profiles`; lifecycle is explicit. | IT-001, IT-010, IT-020, IT-021 |
 | Membership boundary | Authentication proves a session DID, but no route-level current-member policy | Add `CurrentMemberRequired` route policy/middleware and a shared membership service used by every Instagram API and worker transition. Missing members receive `404 profile_not_found`. | IT-020, REG-006 |
 | Verification attempts | None | Add challenge generation/digesting, public states, expiry/supersession/cancel transitions, owner-scoped current-attempt lookup, same-DID confirmation, and privacy-preserving deletion. | UT-001–UT-004, IT-002, IT-003, IT-022 |
 | Meta webhook | No Instagram integration route | Add `/integrations/instagram/webhook` verification and signed POST ingestion outside `/v1`, exact size/event limits, generic ingress throttling, durable deduplication, and no raw payload persistence. | UT-003, UT-004, IT-003, IT-013 |
@@ -87,7 +88,7 @@ covered by real-Postgres migration/store tests.
 | Imports | No Instagram archive ingestion | Add verified-link-only normalized accounts-followed handles, additive import sources retained until unlink, per-import reactivation/deletion, and bounded pagination. Do not accept or store retention, relationship direction, or follower counts. | UT-005, IT-007, IT-010 |
 | Eligibility and matching | Existing follow visibility checks do not include this feature's complete safety policy | Add `InstagramSuggestionEligibilityPolicy`, complete data-source interface, fail-closed missing data, exact imported-username matching, reconciliation jobs, multi-source support, and revalidation at every required boundary. | UT-006, IT-006–IT-009, IT-020 |
 | Follow acceptance | Follow handler calls PDS `CreateRecord` | Extract a shared follow service with a stable stored rkey and `PutRecord`; make accepting/retry/crash recovery idempotent despite firehose delay. | IT-009, REG-003 |
-| Notifications | Durable rows require an actor and social source fields | Convert storage and Flutter models to a checked `kind: social | system` union; add Instagram-match grouping, five-minute close/push, capped count, newness, retraction, and actorless navigation. | UT-013, UT-014, IT-011, IT-012, IT-021, TD-011 |
+| Notifications | Durable rows require an actor and social source fields | Use category/type as the sole discriminator for checked social versus actorless `instagramMatch` payloads; add Instagram-match grouping, five-minute close/push, capped count, newness, retraction, and actorless navigation. | UT-013, UT-014, IT-011, IT-012, IT-021, TD-011 |
 | Membership and deletion lifecycle | Profile-record and Tap terminal deletion currently share broad actor cleanup concepts | Treat membership loss as reversible inactivation; terminal Tap identity/future account deletion as permanent Instagram purge; never delete accepted PDS follows. | IT-020, REG-006 |
 | Retention/export/operations | No Instagram-specific jobs or CLI | Add deterministic purge batches, owner export with private Instagram data, safe audits/metrics, and CLI list/resolve/revoke/inspect/retry/purge commands. | IT-010, IT-018, IT-019, UT-015 |
 | Flutter data/parser | The completed feature accepts manual input and standalone JSON on the UI isolate | Add the observed exact Instagram `_u/<username>` URL-plus-agreeing-title shape, then move native file parsing to a background isolate. Standalone JSON and file-backed ZIP share the existing 20 MiB/10,000-handle parser boundary; ZIP additionally enforces 100,000-entry and 64 MiB central-directory bounds and extracts only the canonical following entry. | UT-009, UT-010, UT-017, UT-018, IT-014, IT-023, REG-013, TD-013 |
@@ -100,8 +101,8 @@ covered by real-Postgres migration/store tests.
 
 | Path | Change | Purpose |
 |---|---|---|
-| `appview/migrations/000023_instagram_migration.up.sql` / `.down.sql` | Create | Core attempts, links, identity claims/conflicts, webhook work, imports/handles, suggestions/sources, reconciliation jobs, stable follow operations, rate buckets, and audit events with checks/indexes/retention fields. |
-| `appview/migrations/000024_system_notifications.up.sql` / `.down.sql` | Create | Add checked notification `kind`, nullable social-only columns, system payload/grouping fields, Instagram suggestion support rows, partial uniqueness, and Instagram preference while preserving existing social rows. |
+| `appview/migrations/000025_instagram_migration.up.sql` / `.down.sql` | Create | Core attempts, links, identity claims/conflicts, webhook work, imports/handles, suggestions/sources, reconciliation jobs, stable follow operations, rate buckets, and audit events with checks/indexes/retention fields. |
+| `appview/migrations/000026_system_notifications.up.sql` / `.down.sql` | Create | Add nullable social-only columns, type-derived payload/grouping constraints, Instagram suggestion support rows, partial uniqueness, and Instagram preference while preserving existing social rows. |
 | `appview/internal/instagram/challenge.go` | Create | Canonical 13-symbol challenge generation, parsing, normalization, HMAC digest, and constant-time comparison. |
 | `appview/internal/instagram/types.go` | Create | Closed public state types, validated transitions, API/domain DTOs, pagination bounds, clocks, and safe identifiers. |
 | `appview/internal/instagram/username.go` | Create | Normalize exact Instagram usernames/handles without fuzzy matching. |
@@ -177,9 +178,9 @@ The concrete schema groups related rows but preserves these invariants:
 | `appview/internal/index/craftsky_profile.go` | Change | On profile-record deletion, mark Instagram links/imports inactive and invalidate pending discoveries; do not purge private ownership rows. |
 | `appview/internal/tap/consumer.go` and dependency composite | Change | Route only terminal identity deletion to permanent Instagram purge while preserving current actor-deletion behavior. |
 | `appview/internal/notifications/category.go`, `service.go`, `lifecycle.go` | Change | Add `instagramMatch`, social/system candidate variants, coalescing/retraction, and actorless eligibility. |
-| `appview/internal/api/notification_store.go`, `notifications.go` | Change | Read checked union rows and emit exact social or system JSON without nullable social placeholders. |
+| `appview/internal/api/notification_store.go`, `notifications.go` | Change | Read category-constrained rows and emit exact social or actorless JSON using `type` as the only discriminator and no nullable social placeholders. |
 | `appview/internal/push/payload.go`, dispatcher store/service | Change | Schedule one minimal actorless push when a coalescing window closes; cancel unsent work when the group retracts to zero. |
-| `appview/internal/db/notifications_migration_test.go` | Change | Assert safe migration of existing social rows and checked union constraints/indexes. |
+| `appview/internal/db/notifications_migration_test.go` | Change | Assert safe migration of existing social rows and type-derived payload constraints/indexes. |
 | `appview/internal/notifications/*_test.go`, `appview/internal/api/notifications_test.go`, `appview/internal/push/*_test.go` | Change/Create | Cover five-minute grouping, cap 99, newness, retraction, one-push behavior, and unchanged social contracts. |
 
 ### 4.4 Flutter feature and shared notification model
@@ -396,16 +397,16 @@ No automatic follow occurs. Dismiss/delete is always owner-scoped and returns
 
 ### 5.6 System notification flow
 
-`notification_events` becomes a checked union:
+`notification_events` becomes a checked type-discriminated payload:
 
 ```text
-kind=social
+type!=instagramMatch
   actor_did, category/type, source uri/cid/rkey and social references required
   system fields null
 
-kind=system, type=instagramMatch
+type=instagramMatch
   actor/source/reference fields null
-  system_count, system_count_capped, destination,
+  system_count, system_count_capped,
   system_group_key, coalesce_until required
 ```
 
@@ -423,21 +424,20 @@ Exact AppView JSON:
 ```json
 {
   "id": "synthetic-notification-id",
-  "kind": "system",
   "type": "instagramMatch",
   "createdAt": "2026-07-19T12:00:00Z",
   "indexedAt": "2026-07-19T12:01:00Z",
   "system": {
     "count": 3,
-    "countCapped": false,
-    "destination": "instagramMigration"
+    "countCapped": false
   }
 }
 ```
 
-The Flutter sealed system subtype navigates to the fixed-account Instagram
-migration page. If the operation lease is stale after an account switch, the
-open is discarded without state or navigation effects.
+The Flutter sealed system subtype derives the fixed-account Instagram
+migration destination from `type`; AppView does not store or transmit a client
+route. If the operation lease is stale after an account switch, the open is
+discarded without state or navigation effects.
 
 ### 5.7 Membership, verified-link lifetime, export, and purge
 
@@ -616,9 +616,9 @@ then refactor before advancing.
     timeout/crash/retry races, final eligibility, and ordinary-follow regression.
 11. **Retention and export** — `IT-010`; all documented clocks, immediate
     sensitive clearing, batch 500, repeatability, and export exclusions.
-12. **System notifications** — `UT-013`, `UT-014`, `IT-011`, `IT-012`;
-    migration union, fixed coalescing, cap, newness, retraction, one push, and
-    unchanged social notifications.
+12. **Actorless notifications** — `UT-013`, `UT-014`, `IT-011`, `IT-012`;
+    type-derived migration constraints, fixed coalescing, cap, newness,
+    retraction, one push, and unchanged social notifications.
 13. **Operations** — `IT-018`, `IT-019`; conflict/link/job/retention CLI,
     replay/retry, redaction, bounded output, and worker cancellation.
 14. **Flutter parser/API** — `UT-009`, `UT-010`, `IT-014`; supported
@@ -628,7 +628,7 @@ then refactor before advancing.
 15. **Flutter providers/UI** — `UT-011`, `IT-015`, `IT-016`; lease fencing after
     every await, invalidation, independent state, settings route, all panels,
     accessibility, and failure/retry states.
-16. **Flutter notification union** — `UT-012`, `IT-017`; actorless decode,
+16. **Flutter notification variants** — `UT-012`, `IT-017`; actorless decode,
     row/push/open, stale-account no-op, and social regression.
 17. **Privacy/regression sweep** — `UT-015`, `REG-001`–`REG-012`, `TD-001`–
     `TD-012`; scan fixtures/diagnostics, run full Go/Flutter gates, race tests,

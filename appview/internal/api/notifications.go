@@ -29,7 +29,6 @@ type NotificationPage struct {
 
 type NotificationItem struct {
 	ID               string                  `json:"id"`
-	Kind             NotificationKind        `json:"kind"`
 	URI              string                  `json:"uri,omitempty"`
 	CID              string                  `json:"cid,omitempty"`
 	Rkey             string                  `json:"rkey,omitempty"`
@@ -85,7 +84,7 @@ func ListNotificationsHandler(store NotificationReader, _ HandleResolver, logger
 			dids := make([]string, 0, len(rows)*2)
 			postURIs := make([]string, 0, len(rows))
 			for _, row := range rows {
-				if notificationRowKind(row) == NotificationKindSystem {
+				if row.Type == NotificationTypeInstagramMatch {
 					continue
 				}
 				dids = append(dids, row.ActorDID)
@@ -141,15 +140,13 @@ func parseNotificationLimit(raw string) int {
 }
 
 func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary) *NotificationItem {
-	kind := notificationRowKind(row)
 	item := &NotificationItem{
 		ID:        row.ID,
-		Kind:      kind,
 		Type:      row.Type,
 		CreatedAt: row.CreatedAt.UTC().Format(time.RFC3339),
 		IndexedAt: row.IndexedAt.UTC().Format(time.RFC3339),
 	}
-	if kind == NotificationKindSystem {
+	if row.Type == NotificationTypeInstagramMatch {
 		item.System = row.System
 		return item
 	}
@@ -192,11 +189,4 @@ func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handl
 		item.ContentAvailable = &available
 	}
 	return item
-}
-
-func notificationRowKind(row *NotificationRow) NotificationKind {
-	if row != nil && row.Kind == NotificationKindSystem {
-		return NotificationKindSystem
-	}
-	return NotificationKindSocial
 }

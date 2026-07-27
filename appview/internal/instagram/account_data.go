@@ -409,7 +409,7 @@ func (s *PrivateDataService) PurgeOwner(ctx context.Context, owner syntax.DID) e
 		}
 		if _, err := tx.Exec(ctx, `
 			DELETE FROM notification_events
-			WHERE recipient_did=$1 AND kind='system' AND category='instagramMatch'
+			WHERE recipient_did=$1 AND category='instagramMatch'
 		`, owner); err != nil {
 			return fmt.Errorf("delete terminal Instagram notifications: %w", err)
 		}
@@ -560,7 +560,7 @@ func retractSuggestionNotifications(ctx context.Context, tx pgx.Tx, suggestionID
 	if recipient != "" {
 		ids, err := queryUUIDs(ctx, tx, `
 			SELECT id FROM notification_events
-			WHERE recipient_did=$1 AND kind='system' AND category='instagramMatch'
+			WHERE recipient_did=$1 AND category='instagramMatch'
 			FOR UPDATE
 		`, recipient)
 		if err != nil {
@@ -592,7 +592,7 @@ func retractSuggestionNotifications(ctx context.Context, tx pgx.Tx, suggestionID
 				UPDATE notification_events
 				SET system_count=LEAST($2,99), system_count_capped=$2>99,
 				    indexed_at=$3
-				WHERE id=$1 AND kind='system' AND state='active'
+				WHERE id=$1 AND category='instagramMatch' AND state='active'
 			`, eventID, supportCount, now); err != nil {
 				return fmt.Errorf("update Instagram notification support: %w", err)
 			}
@@ -602,7 +602,7 @@ func retractSuggestionNotifications(ctx context.Context, tx pgx.Tx, suggestionID
 			UPDATE notification_events
 			SET state='retracted', retracted_at=COALESCE(retracted_at,$2),
 			    retraction_reason=COALESCE(retraction_reason,$3), indexed_at=$2
-			WHERE id=$1 AND kind='system' AND state='active'
+			WHERE id=$1 AND category='instagramMatch' AND state='active'
 		`, eventID, now, reason); err != nil {
 			return fmt.Errorf("retract Instagram notification: %w", err)
 		}

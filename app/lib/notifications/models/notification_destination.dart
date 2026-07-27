@@ -1,62 +1,52 @@
-// These final value types contain only final fields; equality is safe without
-// importing Flutter's `@immutable` annotation into this domain-only file.
-// ignore_for_file: avoid_equals_and_hash_code_on_mutable_classes
-
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:dart_mappable/dart_mappable.dart';
+
+part 'notification_destination.mapper.dart';
 
 enum NotificationOpenFeedback { unableToOpen }
 
-sealed class NotificationDestination {
+const int _notificationDestinationMethods =
+    GenerateMethods.decode |
+    GenerateMethods.encode |
+    GenerateMethods.equals |
+    GenerateMethods.copy;
+
+@MappableClass(
+  discriminatorKey: 'type',
+  includeCustomMappers: [DidMapper(), AtUriMapper()],
+  generateMethods: _notificationDestinationMethods,
+)
+sealed class NotificationDestination with NotificationDestinationMappable {
   const NotificationDestination();
 }
 
-final class NotificationsDestination extends NotificationDestination {
+@MappableClass(generateMethods: _notificationDestinationMethods)
+final class NotificationsDestination extends NotificationDestination
+    with NotificationsDestinationMappable {
   const NotificationsDestination();
-
-  @override
-  bool operator ==(Object other) => other is NotificationsDestination;
-
-  @override
-  int get hashCode => 0;
 }
 
-final class InstagramMigrationDestination extends NotificationDestination {
+@MappableClass(generateMethods: _notificationDestinationMethods)
+final class InstagramMigrationDestination extends NotificationDestination
+    with InstagramMigrationDestinationMappable {
   const InstagramMigrationDestination();
-
-  @override
-  bool operator ==(Object other) => other is InstagramMigrationDestination;
-
-  @override
-  int get hashCode => 1;
 }
 
-final class ProfileDestination extends NotificationDestination {
+@MappableClass(generateMethods: _notificationDestinationMethods)
+final class ProfileDestination extends NotificationDestination
+    with ProfileDestinationMappable {
   const ProfileDestination(this.did);
 
   final Did did;
-
-  @override
-  bool operator ==(Object other) =>
-      other is ProfileDestination && other.did == did;
-
-  @override
-  int get hashCode => Object.hash(ProfileDestination, did);
 }
 
-final class PostDestination extends NotificationDestination {
+@MappableClass(generateMethods: _notificationDestinationMethods)
+final class PostDestination extends NotificationDestination
+    with PostDestinationMappable {
   const PostDestination(this.subjectUri, {this.focusUri});
 
   final AtUri subjectUri;
   final AtUri? focusUri;
-
-  @override
-  bool operator ==(Object other) =>
-      other is PostDestination &&
-      other.subjectUri == subjectUri &&
-      other.focusUri == focusUri;
-
-  @override
-  int get hashCode => Object.hash(PostDestination, subjectUri, focusUri);
 }
 
 final class NotificationOpenOutcome {

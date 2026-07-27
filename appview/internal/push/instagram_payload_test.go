@@ -42,7 +42,7 @@ func TestDispatcherSendsDueInstagramMatchWithoutSocialFacts(t *testing.T) {
 	if request.Category != notifications.InstagramMatch || request.ActorDisplayName != "" || request.RoutingFacts.ActorDID != "" || request.RoutingFacts.SourceURI != "" || request.RoutingFacts.SubjectURI != "" || request.RoutingFacts.RootURI != "" {
 		t.Fatalf("system request contains social facts: %+v", request)
 	}
-	if request.RoutingFacts.NotificationID != "00000000-0000-0000-0000-000000000701" || request.RoutingFacts.SystemCount != 99 || !request.RoutingFacts.SystemCountCapped || request.RoutingFacts.SystemDestination != "instagramMigration" {
+	if request.RoutingFacts.NotificationID != "00000000-0000-0000-0000-000000000701" || request.RoutingFacts.SystemCount != 99 || !request.RoutingFacts.SystemCountCapped {
 		t.Fatalf("system routing facts=%+v", request.RoutingFacts)
 	}
 	payload := BuildPayload(request.Category, request.AccountSubscriptionID, request.ActorDisplayName, request.RoutingFacts)
@@ -193,11 +193,22 @@ func instagramDispatcherPool(t *testing.T) *pgxpool.Pool {
 		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
 		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
 		CREATE TABLE instagram_follow_suggestions(id UUID PRIMARY KEY);
+		CREATE TABLE actor_mutes(
+			owner_did TEXT NOT NULL,
+			subject_did TEXT NOT NULL,
+			PRIMARY KEY(owner_did, subject_did)
+		);
+		CREATE TABLE atproto_blocks(
+			uri TEXT PRIMARY KEY,
+			blocker_did TEXT NOT NULL,
+			subject_did TEXT NOT NULL
+		);
 	`)
 	for _, path := range []string{
 		"../../migrations/000021_appview_notifications.up.sql",
 		"../../migrations/000022_notification_newness.up.sql",
-		"../../migrations/000024_system_notifications.up.sql",
+		"../../migrations/000026_system_notifications.up.sql",
+		"../../migrations/000029_notification_client_owned_destination.up.sql",
 	} {
 		if _, err := pool.Exec(context.Background(), readPushMigration(t, path)); err != nil {
 			t.Fatalf("apply migration %s: %v", path, err)
@@ -211,16 +222,16 @@ func seedInstagramDelivery(t *testing.T, pool *pgxpool.Pool, coalesceUntil time.
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO notification_events (
-			id, recipient_did, kind, category, subject_key,
+			id, recipient_did, category, subject_key,
 			eligibility_scope, recipient_followed_actor, push_enabled_snapshot,
 			state, first_activity_at, activity_at, indexed_at,
 			initial_push_evaluated_at, system_count, system_count_capped,
-			system_destination, system_group_key, coalesce_until
+			system_group_key, coalesce_until
 		) VALUES (
 			'00000000-0000-0000-0000-000000000701', 'did:plc:viewer',
-			'system', 'instagramMatch', 'instagram-system', 'everyone', false, true,
+			'instagramMatch', 'instagram-system', 'everyone', false, true,
 			'active', $1::timestamptz - interval '5 minutes', $1, $1, $1,
-			99, true, 'instagramMigration', 'instagram-group', $1
+			99, true, 'instagram-group', $1
 		)
 	`, coalesceUntil); err != nil {
 		t.Fatalf("seed Instagram event: %v", err)

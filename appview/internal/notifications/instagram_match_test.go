@@ -45,7 +45,7 @@ func TestServiceCoalescesInstagramMatchesIntoFixedWindowAndOneOutboxDelivery(t *
 		SELECT id, system_count, system_count_capped, first_activity_at,
 		       indexed_at, coalesce_until, newness_revision
 		FROM notification_events
-		WHERE recipient_did=$1 AND kind='system' AND category='instagramMatch'
+		WHERE recipient_did=$1 AND category='instagramMatch'
 	`, recipient).Scan(&eventID, &count, &capped, &createdAt, &indexedAt, &coalesceUntil, &revision); err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestServiceCoalescesInstagramMatchesIntoFixedWindowAndOneOutboxDelivery(t *
 		SELECT id, system_count, system_count_capped, indexed_at,
 		       coalesce_until, newness_revision
 		FROM notification_events
-		WHERE recipient_did=$1 AND kind='system' AND category='instagramMatch'
+		WHERE recipient_did=$1 AND category='instagramMatch'
 	`, recipient).Scan(&updatedID, &count, &capped, &indexedAt, &coalesceUntil, &updatedRevision); err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestServiceCoalescesInstagramMatchesIntoFixedWindowAndOneOutboxDelivery(t *
 		ActivityAt:   base.Add(5 * time.Minute),
 	})
 	var events int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM notification_events WHERE recipient_did=$1 AND kind='system'`, recipient).Scan(&events); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM notification_events WHERE recipient_did=$1 AND category='instagramMatch'`, recipient).Scan(&events); err != nil {
 		t.Fatal(err)
 	}
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM push_deliveries`).Scan(&deliveries); err != nil {
@@ -165,7 +165,7 @@ func TestServiceHonoursTightenedInstagramNotificationLimits(t *testing.T) {
 	if err := pool.QueryRow(ctx, `
 		SELECT system_count, system_count_capped, coalesce_until
 		FROM notification_events
-		WHERE recipient_did=$1 AND kind='system' AND category='instagramMatch'
+		WHERE recipient_did=$1 AND category='instagramMatch'
 	`, recipient).Scan(&count, &capped, &coalesceUntil); err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +199,7 @@ func TestServiceRecountsAndRetractsInstagramMatchWithItsOutbox(t *testing.T) {
 	var beforeRevision int64
 	if err := pool.QueryRow(ctx, `
 		SELECT id, newness_revision FROM notification_events
-		WHERE recipient_did=$1 AND kind='system'
+		WHERE recipient_did=$1 AND category='instagramMatch'
 	`, recipient).Scan(&eventID, &beforeRevision); err != nil {
 		t.Fatal(err)
 	}
@@ -277,16 +277,16 @@ func TestSocialActivationRemainsIdempotentAfterSystemUnionMigration(t *testing.T
 		}
 	}
 	var rows int
-	var kind string
 	var actorDID, sourceURI string
 	if err := pool.QueryRow(context.Background(), `
-		SELECT count(*), min(kind), min(actor_did), min(source_uri)
+		SELECT count(*), min(actor_did), min(source_uri)
 		FROM notification_events
-	`).Scan(&rows, &kind, &actorDID, &sourceURI); err != nil {
+		WHERE category <> 'instagramMatch'
+	`).Scan(&rows, &actorDID, &sourceURI); err != nil {
 		t.Fatal(err)
 	}
-	if rows != 1 || kind != "social" || actorDID != activation.ActorDID.String() || sourceURI != activation.SourceURI.String() {
-		t.Fatalf("social rows=%d kind=%q actor=%q source=%q", rows, kind, actorDID, sourceURI)
+	if rows != 1 || actorDID != activation.ActorDID.String() || sourceURI != activation.SourceURI.String() {
+		t.Fatalf("social rows=%d actor=%q source=%q", rows, actorDID, sourceURI)
 	}
 }
 
@@ -322,11 +322,24 @@ func retractInstagramMatch(t *testing.T, pool *pgxpool.Pool, service *Service, r
 
 func instagramNotificationPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	pool := testdb.WithSchema(t, `CREATE TABLE instagram_follow_suggestions(id UUID PRIMARY KEY);`)
+	pool := testdb.WithSchema(t, `
+		CREATE TABLE instagram_follow_suggestions(id UUID PRIMARY KEY);
+		CREATE TABLE actor_mutes(
+			owner_did TEXT NOT NULL,
+			subject_did TEXT NOT NULL,
+			PRIMARY KEY(owner_did, subject_did)
+		);
+		CREATE TABLE atproto_blocks(
+			uri TEXT PRIMARY KEY,
+			blocker_did TEXT NOT NULL,
+			subject_did TEXT NOT NULL
+		);
+	`)
 	for _, path := range []string{
 		"../../migrations/000021_appview_notifications.up.sql",
 		"../../migrations/000022_notification_newness.up.sql",
-		"../../migrations/000024_system_notifications.up.sql",
+		"../../migrations/000026_system_notifications.up.sql",
+		"../../migrations/000029_notification_client_owned_destination.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {

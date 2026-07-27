@@ -17,17 +17,15 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
-func TestInstagramMatchFeedItemIsAnExactActorlessSystemVariant(t *testing.T) {
+func TestInstagramMatchFeedItemUsesTypeAsItsOnlyDiscriminator(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeNotificationStore{rows: []*api.NotificationRow{{
 		ID:   "00000000-0000-0000-0000-000000000321",
-		Kind: api.NotificationKindSystem,
 		Type: api.NotificationTypeInstagramMatch,
 		System: &api.NotificationSystem{
 			Count:       99,
 			CountCapped: true,
-			Destination: api.NotificationDestinationInstagramMigration,
 		},
 		CreatedAt: time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC),
 		IndexedAt: time.Date(2026, 7, 19, 12, 4, 0, 0, time.UTC),
@@ -51,12 +49,11 @@ func TestInstagramMatchFeedItemIsAnExactActorlessSystemVariant(t *testing.T) {
 		t.Fatalf("items=%d", len(response.Items))
 	}
 	item := response.Items[0]
-	if len(item) != 6 {
-		t.Fatalf("system item fields=%v, want exact six-field union variant", mapKeys(item))
+	if len(item) != 5 {
+		t.Fatalf("actorless item fields=%v, want exact five-field type variant", mapKeys(item))
 	}
 	for key, want := range map[string]string{
 		"id":        `"00000000-0000-0000-0000-000000000321"`,
-		"kind":      `"system"`,
 		"type":      `"instagramMatch"`,
 		"createdAt": `"2026-07-19T12:00:00Z"`,
 		"indexedAt": `"2026-07-19T12:04:00Z"`,
@@ -69,10 +66,10 @@ func TestInstagramMatchFeedItemIsAnExactActorlessSystemVariant(t *testing.T) {
 	if err := json.Unmarshal(item["system"], &system); err != nil {
 		t.Fatal(err)
 	}
-	if len(system) != 3 || system["count"] != float64(99) || system["countCapped"] != true || system["destination"] != "instagramMigration" {
+	if len(system) != 2 || system["count"] != float64(99) || system["countCapped"] != true {
 		t.Fatalf("system=%#v", system)
 	}
-	for _, forbidden := range []string{"actor", "uri", "cid", "rkey", "references", "subjectPost", "reply", "contentAvailable"} {
+	for _, forbidden := range []string{"kind", "actor", "uri", "cid", "rkey", "references", "subjectPost", "reply", "contentAvailable"} {
 		if _, ok := item[forbidden]; ok {
 			t.Fatalf("actorless system item contains %q: %s", forbidden, recorder.Body.String())
 		}
@@ -91,13 +88,13 @@ func TestInstagramMatchStoreReadsCheckedUnionAndOrdersByIndexedAt(t *testing.T) 
 	socialIndexed := time.Date(2026, 7, 19, 12, 1, 0, 0, time.UTC)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO notification_events (
-			id, recipient_did, kind, actor_did, category, subject_key,
+			id, recipient_did, actor_did, category, subject_key,
 			source_uri, source_cid, source_rkey, eligibility_scope,
 			recipient_followed_actor, push_enabled_snapshot, state,
 			first_activity_at, activity_at, indexed_at, initial_push_evaluated_at
 		) VALUES (
 			'00000000-0000-0000-0000-000000000401', 'did:plc:viewer',
-			'social', 'did:plc:actor', 'follow', 'social-follow',
+			'did:plc:actor', 'follow', 'social-follow',
 			'at://did:plc:actor/app.bsky.graph.follow/social', 'social-cid', 'social',
 			'everyone', false, true, 'active', $1, $1, $2, $2
 		)
@@ -109,16 +106,16 @@ func TestInstagramMatchStoreReadsCheckedUnionAndOrdersByIndexedAt(t *testing.T) 
 	systemIndexed := time.Date(2026, 7, 19, 12, 4, 0, 0, time.UTC)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO notification_events (
-			id, recipient_did, kind, category, subject_key,
+			id, recipient_did, category, subject_key,
 			eligibility_scope, recipient_followed_actor, push_enabled_snapshot,
 			state, first_activity_at, activity_at, indexed_at,
 			initial_push_evaluated_at, system_count, system_count_capped,
-			system_destination, system_group_key, coalesce_until
+			system_group_key, coalesce_until
 		) VALUES (
 			'00000000-0000-0000-0000-000000000402', 'did:plc:viewer',
-			'system', 'instagramMatch', 'instagram-system',
+			'instagramMatch', 'instagram-system',
 			'everyone', false, true, 'active', $1, $2, $2, $2,
-			3, false, 'instagramMigration', 'instagram-group', $1::timestamptz + interval '5 minutes'
+			3, false, 'instagram-group', $1::timestamptz + interval '5 minutes'
 		)
 	`, systemCreated, systemIndexed); err != nil {
 		t.Fatalf("insert system notification: %v", err)
@@ -130,10 +127,10 @@ func TestInstagramMatchStoreReadsCheckedUnionAndOrdersByIndexedAt(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(first) != 1 || first[0].Kind != api.NotificationKindSystem || first[0].Type != api.NotificationTypeInstagramMatch || first[0].ActorDID != "" || first[0].System == nil {
+	if len(first) != 1 || first[0].Type != api.NotificationTypeInstagramMatch || first[0].ActorDID != "" || first[0].System == nil {
 		t.Fatalf("first page=%+v", first)
 	}
-	if *first[0].System != (api.NotificationSystem{Count: 3, CountCapped: false, Destination: api.NotificationDestinationInstagramMigration}) {
+	if *first[0].System != (api.NotificationSystem{Count: 3, CountCapped: false}) {
 		t.Fatalf("system=%+v", first[0].System)
 	}
 	if !first[0].CreatedAt.Equal(systemCreated) || !first[0].IndexedAt.Equal(systemIndexed) || cursor == "" {
@@ -147,7 +144,7 @@ func TestInstagramMatchStoreReadsCheckedUnionAndOrdersByIndexedAt(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(second) != 1 || second[0].Kind != api.NotificationKindSocial || second[0].Type != api.NotificationTypeFollow || second[0].ActorDID != "did:plc:actor" || second[0].System != nil || finalCursor != "" {
+	if len(second) != 1 || second[0].Type != api.NotificationTypeFollow || second[0].ActorDID != "did:plc:actor" || second[0].System != nil || finalCursor != "" {
 		t.Fatalf("second page=%+v cursor=%q", second, finalCursor)
 	}
 }
@@ -170,16 +167,16 @@ func TestInstagramMatchNewnessTracksAdditionsButNotRetractions(t *testing.T) {
 	base := time.Date(2026, 7, 19, 14, 0, 0, 0, time.UTC)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO notification_events (
-			id, recipient_did, kind, category, subject_key,
+			id, recipient_did, category, subject_key,
 			eligibility_scope, recipient_followed_actor, push_enabled_snapshot,
 			state, first_activity_at, activity_at, indexed_at,
 			initial_push_evaluated_at, system_count, system_count_capped,
-			system_destination, system_group_key, coalesce_until
+			system_group_key, coalesce_until
 		) VALUES (
 			'00000000-0000-0000-0000-000000000421', 'did:plc:viewer',
-			'system', 'instagramMatch', 'instagram-newness',
+			'instagramMatch', 'instagram-newness',
 			'everyone', false, true, 'active', $1, $1, $1, $1,
-			1, false, 'instagramMigration', 'instagram-newness',
+			1, false, 'instagram-newness',
 			$1::timestamptz + interval '5 minutes'
 		)
 	`, base); err != nil {
@@ -235,8 +232,9 @@ func applyInstagramNotificationMigrations(t *testing.T, pool *pgxpool.Pool) {
 	for _, path := range []string{
 		"../../migrations/000021_appview_notifications.up.sql",
 		"../../migrations/000022_notification_newness.up.sql",
-		"../../migrations/000023_instagram_migration.up.sql",
-		"../../migrations/000024_system_notifications.up.sql",
+		"../../migrations/000025_instagram_migration.up.sql",
+		"../../migrations/000026_system_notifications.up.sql",
+		"../../migrations/000029_notification_client_owned_destination.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {

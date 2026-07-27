@@ -75,7 +75,6 @@ func (s *Service) ActivateInstagramMatch(ctx context.Context, tx pgx.Tx, activat
 		SELECT id, coalesce_until
 		FROM notification_events
 		WHERE recipient_did=$1
-		  AND kind='system'
 		  AND category='instagramMatch'
 		  AND state='active'
 		  AND coalesce_until>$2
@@ -90,16 +89,16 @@ func (s *Service) ActivateInstagramMatch(ctx context.Context, tx pgx.Tx, activat
 		groupKey := at.Format(time.RFC3339Nano)
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO notification_events (
-				id, recipient_did, kind, category, subject_key,
+				id, recipient_did, category, subject_key,
 				eligibility_scope, recipient_followed_actor,
 				push_enabled_snapshot, state, first_activity_at,
 				activity_at, indexed_at, initial_push_evaluated_at,
-				system_count, system_count_capped, system_destination,
-				system_group_key, coalesce_until
+				system_count, system_count_capped, system_group_key,
+				coalesce_until
 			) VALUES (
-				$1, $2, 'system', 'instagramMatch', $3,
+				$1, $2, 'instagramMatch', $3,
 				'everyone', false, $4, 'active', $5,
-				$5, $5, $5, 1, false, 'instagramMigration', $3, $6
+				$5, $5, $5, 1, false, $3, $6
 			)
 		`, eventID, activation.RecipientDID, groupKey, preference.PushEnabled, at, coalesceUntil); err != nil {
 			return fmt.Errorf("create Instagram match notification: %w", err)
@@ -135,7 +134,7 @@ func (s *Service) ActivateInstagramMatch(ctx context.Context, tx pgx.Tx, activat
 			    push_enabled_snapshot=$3,
 			    activity_at=GREATEST(activity_at,$4),
 			    indexed_at=GREATEST(indexed_at,$4)
-			WHERE id=$1 AND kind='system' AND state='active'
+			WHERE id=$1 AND category='instagramMatch' AND state='active'
 		`, eventID, supportCount, preference.PushEnabled, at, s.instagramCountCap); err != nil {
 			return fmt.Errorf("coalesce Instagram match notification: %w", err)
 		}
@@ -213,7 +212,7 @@ func (s *Service) RetractInstagramMatch(ctx context.Context, tx pgx.Tx, retracti
 		if _, err := tx.Exec(ctx, `
 			UPDATE notification_events
 			SET system_count=LEAST($2,$3::integer), system_count_capped=$2>$3::integer
-			WHERE id=$1 AND kind='system' AND state='active'
+			WHERE id=$1 AND category='instagramMatch' AND state='active'
 		`, eventID, supportCount, s.instagramCountCap); err != nil {
 			return fmt.Errorf("update Instagram match count: %w", err)
 		}
@@ -223,7 +222,7 @@ func (s *Service) RetractInstagramMatch(ctx context.Context, tx pgx.Tx, retracti
 	if _, err := tx.Exec(ctx, `
 		UPDATE notification_events
 		SET state='retracted', retracted_at=$2, retraction_reason=$3
-		WHERE id=$1 AND kind='system' AND state='active'
+		WHERE id=$1 AND category='instagramMatch' AND state='active'
 	`, eventID, now, reason); err != nil {
 		return fmt.Errorf("retract Instagram match notification: %w", err)
 	}

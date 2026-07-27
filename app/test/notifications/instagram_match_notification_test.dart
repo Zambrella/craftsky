@@ -16,14 +16,12 @@ void main() {
   InstagramMatchNotification match({int count = 3, bool capped = false}) =>
       CraftskyNotification.fromMap({
             'id': '00000000-0000-0000-0000-000000000321',
-            'kind': 'system',
             'type': 'instagramMatch',
             'createdAt': '2026-07-19T12:00:00Z',
             'indexedAt': '2026-07-19T12:04:00Z',
             'system': {
               'count': count,
               'countCapped': capped,
-              'destination': 'instagramMigration',
             },
           })
           as InstagramMatchNotification;

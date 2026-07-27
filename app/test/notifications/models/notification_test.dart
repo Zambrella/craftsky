@@ -165,14 +165,12 @@ void main() {
   test('UT-012 decodes an exact actorless Instagram system notification', () {
     final notification = CraftskyNotification.fromMap({
       'id': '00000000-0000-0000-0000-000000000321',
-      'kind': 'system',
       'type': 'instagramMatch',
       'createdAt': '2026-07-19T12:00:00Z',
       'indexedAt': '2026-07-19T12:04:00Z',
       'system': {
         'count': 99,
         'countCapped': true,
-        'destination': 'instagramMigration',
       },
     });
 
@@ -182,7 +180,6 @@ void main() {
     expect(match.id, '00000000-0000-0000-0000-000000000321');
     expect(match.count, 99);
     expect(match.countCapped, isTrue);
-    expect(match.destination, InstagramSystemDestination.instagramMigration);
     expect(match.type, NotificationCategory.instagramMatch);
   });
 
@@ -191,7 +188,6 @@ void main() {
     () {
       Map<String, dynamic> system(String type, Object? payload) => {
         'id': '00000000-0000-0000-0000-000000000322',
-        'kind': 'system',
         'type': type,
         'createdAt': '2026-07-19T12:00:00Z',
         'indexedAt': '2026-07-19T12:04:00Z',
@@ -202,14 +198,13 @@ void main() {
         system('futureSystemType', {'privateFutureFact': 'ignored'}),
       );
       final malformed = CraftskyNotification.fromMap(
-        system('instagramMatch', {'count': 0, 'destination': 'profile'}),
+        system('instagramMatch', {'count': 0, 'countCapped': false}),
       );
-      final unknownKind = CraftskyNotification.fromMap({
-        ...system('instagramMatch', const <String, Object?>{}),
-        'kind': 'futureKind',
-      });
+      final unknownActorless = CraftskyNotification.fromMap(
+        system('futureActorlessType', null),
+      );
 
-      for (final notification in [unknown, malformed, unknownKind]) {
+      for (final notification in [unknown, malformed, unknownActorless]) {
         expect(notification, isA<GenericSystemNotification>());
         expect(notification, isNot(isA<SocialNotification>()));
       }

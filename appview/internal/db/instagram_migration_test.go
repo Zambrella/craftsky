@@ -14,7 +14,7 @@ import (
 func TestInstagramMigrationCreatesPrivateSchemaWithoutMembershipCascades(t *testing.T) {
 	t.Parallel()
 
-	sql := readMigration(t, "../../migrations/000023_instagram_migration.up.sql")
+	sql := readMigration(t, "../../migrations/000025_instagram_migration.up.sql")
 	for _, forbidden := range []string{
 		"REFERENCES craftsky_profiles",
 		"raw_body",
@@ -127,9 +127,9 @@ func TestInstagramMigrationCreatesPrivateSchemaWithoutMembershipCascades(t *test
 func TestInstagramFollowingOnlyMigrationRemovesFollowerStorage(t *testing.T) {
 	t.Parallel()
 
-	core := readMigration(t, "../../migrations/000023_instagram_migration.up.sql")
-	legacyShape := readMigration(t, "../../migrations/000025_instagram_following_only.down.sql")
-	followingOnly := readMigration(t, "../../migrations/000025_instagram_following_only.up.sql")
+	core := readMigration(t, "../../migrations/000025_instagram_migration.up.sql")
+	legacyShape := readMigration(t, "../../migrations/000027_instagram_following_only.down.sql")
+	followingOnly := readMigration(t, "../../migrations/000027_instagram_following_only.up.sql")
 	pool := testdb.WithSchema(t, "")
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, core); err != nil {
@@ -202,8 +202,8 @@ func TestInstagramFollowingOnlyMigrationRemovesFollowerStorage(t *testing.T) {
 func TestInstagramImportLifetimeMigrationRemovesRetentionStorage(t *testing.T) {
 	t.Parallel()
 
-	core := readMigration(t, "../../migrations/000023_instagram_migration.up.sql")
-	lifetime := readMigration(t, "../../migrations/000026_instagram_import_lifetime.up.sql")
+	core := readMigration(t, "../../migrations/000025_instagram_migration.up.sql")
+	lifetime := readMigration(t, "../../migrations/000028_instagram_import_lifetime.up.sql")
 	pool := testdb.WithSchema(t, "")
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, core); err != nil {
@@ -261,9 +261,9 @@ func TestInstagramImportLifetimeMigrationRemovesRetentionStorage(t *testing.T) {
 func TestInstagramImportLifetimeMigrationKeepsOnlyVerifiedLinkImports(t *testing.T) {
 	t.Parallel()
 
-	core := readMigration(t, "../../migrations/000023_instagram_migration.up.sql")
-	legacyLifetime := readMigration(t, "../../migrations/000026_instagram_import_lifetime.down.sql")
-	lifetime := readMigration(t, "../../migrations/000026_instagram_import_lifetime.up.sql")
+	core := readMigration(t, "../../migrations/000025_instagram_migration.up.sql")
+	legacyLifetime := readMigration(t, "../../migrations/000028_instagram_import_lifetime.down.sql")
+	lifetime := readMigration(t, "../../migrations/000028_instagram_import_lifetime.up.sql")
 	pool := testdb.WithSchema(t, "")
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, core); err != nil {
@@ -397,13 +397,24 @@ func TestInstagramImportLifetimeMigrationKeepsOnlyVerifiedLinkImports(t *testing
 	}
 }
 
-func TestSystemNotificationMigrationCreatesCheckedActorlessUnion(t *testing.T) {
+func TestNotificationMigrationUsesCategoryAsTheOnlyPayloadDiscriminator(t *testing.T) {
 	t.Parallel()
 
 	base := readMigration(t, "../../migrations/000021_appview_notifications.up.sql")
 	newness := readMigration(t, "../../migrations/000022_notification_newness.up.sql")
-	instagram := readMigration(t, "../../migrations/000023_instagram_migration.up.sql")
-	system := readMigration(t, "../../migrations/000024_system_notifications.up.sql")
+	instagram := readMigration(t, "../../migrations/000025_instagram_migration.up.sql")
+	system := readMigration(t, "../../migrations/000026_system_notifications.up.sql")
+	clientDestination := readMigration(t, "../../migrations/000029_notification_client_owned_destination.up.sql")
+	if strings.Contains(system, "ADD COLUMN kind") ||
+		strings.Contains(system, "notification_events_kind_payload_check") {
+		t.Fatal("notification migration still defines redundant kind storage")
+	}
+	if !strings.Contains(system, "notification_events_type_payload_check") {
+		t.Fatal("notification migration omits type-derived payload constraint")
+	}
+	if !strings.Contains(clientDestination, "DROP COLUMN system_destination") {
+		t.Fatal("notification migration still retains a server-owned client destination")
+	}
 
 	pool := testdb.WithSchema(t, "")
 	ctx := context.Background()
@@ -413,16 +424,47 @@ func TestSystemNotificationMigrationCreatesCheckedActorlessUnion(t *testing.T) {
 	}{
 		{name: "000021", sql: base},
 		{name: "000022", sql: newness},
-		{name: "000023", sql: instagram},
-		{name: "000024", sql: system},
+		{name: "000025", sql: instagram},
+		{name: "000026", sql: system},
+		{name: "000029", sql: clientDestination},
 	} {
 		if _, err := pool.Exec(ctx, migration.sql); err != nil {
 			t.Fatalf("apply migration %s: %v", migration.name, err)
 		}
 	}
 
-	if !constraintExists(t, pool, "notification_events_kind_payload_check") {
-		t.Fatal("checked notification union constraint missing")
+	var kindColumnExists bool
+	if err := pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = current_schema()
+			  AND table_name = 'notification_events'
+			  AND column_name = 'kind'
+		)
+	`).Scan(&kindColumnExists); err != nil {
+		t.Fatalf("inspect notification discriminator columns: %v", err)
+	}
+	if kindColumnExists {
+		t.Fatal("notification_events still stores redundant kind")
+	}
+	var destinationColumnExists bool
+	if err := pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = current_schema()
+			  AND table_name = 'notification_events'
+			  AND column_name = 'system_destination'
+		)
+	`).Scan(&destinationColumnExists); err != nil {
+		t.Fatalf("inspect notification destination column: %v", err)
+	}
+	if destinationColumnExists {
+		t.Fatal("notification_events still stores a client navigation destination")
+	}
+	if !constraintExists(t, pool, "notification_events_type_payload_check") {
+		t.Fatal("type-derived notification payload constraint missing")
 	}
 	if !indexExists(t, pool, "notification_events_system_group_unique") {
 		t.Fatal("system notification grouping index missing")
@@ -431,17 +473,17 @@ func TestSystemNotificationMigrationCreatesCheckedActorlessUnion(t *testing.T) {
 
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO notification_events (
-			id, recipient_did, kind, category, subject_key,
+			id, recipient_did, category, subject_key,
 			eligibility_scope, recipient_followed_actor,
 			push_enabled_snapshot, state, first_activity_at, activity_at,
 			initial_push_evaluated_at, system_count, system_count_capped,
-			system_destination, system_group_key, coalesce_until
+			system_group_key, coalesce_until
 		) VALUES (
 			'00000000-0000-0000-0000-000000000010',
-			'did:plc:synthetic-recipient', 'system', 'instagramMatch',
+			'did:plc:synthetic-recipient', 'instagramMatch',
 			'instagram:2026-07-19T12:00:00Z', 'everyone', false, true,
 			'active', now(), now(), now(), 3, false,
-			'instagramMigration', 'synthetic-group', now() + interval '5 minutes'
+			'synthetic-group', now() + interval '5 minutes'
 		)
 	`); err != nil {
 		t.Fatalf("insert actorless system notification: %v", err)
@@ -449,25 +491,25 @@ func TestSystemNotificationMigrationCreatesCheckedActorlessUnion(t *testing.T) {
 
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO notification_events (
-			id, recipient_did, kind, category, subject_key,
+			id, recipient_did, category, subject_key,
 			eligibility_scope, recipient_followed_actor,
 			push_enabled_snapshot, state, first_activity_at, activity_at,
 			initial_push_evaluated_at, system_count, system_count_capped,
-			system_destination, system_group_key, coalesce_until,
+			system_group_key, coalesce_until,
 			actor_did
 		) VALUES (
 			'00000000-0000-0000-0000-000000000011',
-			'did:plc:synthetic-recipient', 'system', 'instagramMatch',
+			'did:plc:synthetic-recipient', 'instagramMatch',
 			'bad', 'everyone', false, true, 'active', now(), now(), now(),
-			1, false, 'instagramMigration', 'bad-group', now(),
+			1, false, 'bad-group', now(),
 			'did:plc:synthetic-actor'
 		)
 	`); err == nil {
-		t.Fatal("checked union accepted an actor on a system notification")
+		t.Fatal("type-derived payload constraint accepted an actor on instagramMatch")
 	}
 
 	var socialRows int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM notification_events WHERE kind = 'social'`).Scan(&socialRows); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM notification_events WHERE category <> 'instagramMatch'`).Scan(&socialRows); err != nil {
 		t.Fatalf("count social rows: %v", err)
 	}
 	if socialRows != 0 {

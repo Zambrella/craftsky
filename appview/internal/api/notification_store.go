@@ -21,14 +21,7 @@ type InstagramNotificationEligibility interface {
 
 type NotificationType string
 
-type NotificationKind string
-
-type NotificationDestination string
-
 const (
-	NotificationKindSocial NotificationKind = "social"
-	NotificationKindSystem NotificationKind = "system"
-
 	NotificationTypeFollow         NotificationType = "follow"
 	NotificationTypeLike           NotificationType = "like"
 	NotificationTypeRepost         NotificationType = "repost"
@@ -37,14 +30,11 @@ const (
 	NotificationTypeQuote          NotificationType = "quote"
 	NotificationTypeEverythingElse NotificationType = "everythingElse"
 	NotificationTypeInstagramMatch NotificationType = "instagramMatch"
-
-	NotificationDestinationInstagramMigration NotificationDestination = "instagramMigration"
 )
 
 type NotificationSystem struct {
-	Count       int                     `json:"count"`
-	CountCapped bool                    `json:"countCapped"`
-	Destination NotificationDestination `json:"destination"`
+	Count       int  `json:"count"`
+	CountCapped bool `json:"countCapped"`
 }
 
 type NotificationReplyRef struct {
@@ -71,7 +61,6 @@ type NotificationReferences struct {
 
 type NotificationRow struct {
 	ID     string
-	Kind   NotificationKind
 	Type   NotificationType
 	System *NotificationSystem
 	URI    string
@@ -208,7 +197,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			)
 		)
 		SELECT
-			e.id::text, COALESCE(to_jsonb(e)->>'kind', 'social'), e.category,
+			e.id::text, e.category,
 			e.source_uri, e.source_cid, e.source_rkey,
 			CASE WHEN e.category IN ('reply','mention','quote') THEN source_post.uri IS NOT NULL ELSE true END,
 			e.subject_uri,e.subject_cid,(e.subject_uri IS NOT NULL AND sp.uri IS NOT NULL AND blocked_reference.id IS NULL),
@@ -227,14 +216,13 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 				  AND actor_follow.subject_did = e.actor_did
 			) AS actor_viewer_is_following,
 			CASE
-				WHEN COALESCE(to_jsonb(e)->>'kind', 'social') = 'system'
+				WHEN e.category = 'instagramMatch'
 				THEN e.first_activity_at
 				ELSE e.activity_at
 			END,
 			e.indexed_at,
 			NULLIF(to_jsonb(e)->>'system_count', '')::integer,
 			NULLIF(to_jsonb(e)->>'system_count_capped', '')::boolean,
-			NULLIF(to_jsonb(e)->>'system_destination', ''),
 			sp.uri, sp.did, sp.rkey, sp.cid, sp.text, sp.facets, sp.images,
 			sp.reply_root_uri, sp.reply_root_cid, sp.reply_parent_uri, sp.reply_parent_cid,
 			sp.quote_uri, sp.quote_cid, sp.tags, sp.created_at, sp.indexed_at,
@@ -263,17 +251,15 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 	out := make([]*NotificationRow, 0, queryLimit)
 	for rows.Next() {
 		row := &NotificationRow{}
-		var eventKind, eventType string
+		var eventType string
 		var subject notificationSubjectScan
 		var sourceURI, sourceCID, sourceRkey, actorDID sql.NullString
 		var systemCount sql.NullInt64
 		var systemCountCapped sql.NullBool
-		var systemDestination sql.NullString
 		var sourceAvailable, subjectAvailable, parentAvailable, rootAvailable, quotedAvailable, subjectQuoteAvailable bool
 		var subjectURI, subjectCID, parentURI, parentCID, rootURI, rootCID, quotedURI, quotedCID sql.NullString
 		if err := rows.Scan(
 			&row.ID,
-			&eventKind,
 			&eventType,
 			&sourceURI, &sourceCID, &sourceRkey, &sourceAvailable,
 			&subjectURI, &subjectCID, &subjectAvailable,
@@ -283,7 +269,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			&subjectQuoteAvailable,
 			&actorDID, &row.ActorDisplayName, &row.ActorAvatarCID, &row.ActorAvatarMime, &row.ActorViewerIsFollowing,
 			&row.CreatedAt, &row.IndexedAt,
-			&systemCount, &systemCountCapped, &systemDestination,
+			&systemCount, &systemCountCapped,
 			&subject.URI, &subject.DID, &subject.Rkey, &subject.CID, &subject.Text, &subject.Facets, &subject.Images,
 			&subject.ReplyRootURI, &subject.ReplyRootCID, &subject.ReplyParentURI, &subject.ReplyParentCID,
 			&subject.QuoteURI, &subject.QuoteCID, &subject.Tags, &subject.CreatedAt, &subject.IndexedAt,
@@ -292,18 +278,16 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		); err != nil {
 			return nil, "", fmt.Errorf("notification list scan: %w", err)
 		}
-		row.Kind = NotificationKind(eventKind)
 		row.Type = NotificationType(eventType)
 		row.ActorDID = actorDID.String
-		if row.Kind == NotificationKindSystem {
-			if systemCount.Valid && systemCountCapped.Valid && systemDestination.Valid {
+		if row.Type == NotificationTypeInstagramMatch {
+			if systemCount.Valid && systemCountCapped.Valid {
 				row.System = &NotificationSystem{
 					Count:       int(systemCount.Int64),
 					CountCapped: systemCountCapped.Bool,
-					Destination: NotificationDestination(systemDestination.String),
 				}
 			}
-			if row.Type == NotificationTypeInstagramMatch && s.instagramNotificationEligibility != nil {
+			if s.instagramNotificationEligibility != nil {
 				notificationID, parseErr := uuid.Parse(row.ID)
 				if parseErr != nil {
 					return nil, "", fmt.Errorf("parse Instagram notification id: %w", parseErr)

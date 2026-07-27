@@ -181,8 +181,9 @@ func newSuggestionTestStore(t *testing.T) (*SuggestionStore, *pgxpool.Pool) {
 	for _, path := range []string{
 		"../../migrations/000021_appview_notifications.up.sql",
 		"../../migrations/000022_notification_newness.up.sql",
-		"../../migrations/000023_instagram_migration.up.sql",
-		"../../migrations/000024_system_notifications.up.sql",
+		"../../migrations/000025_instagram_migration.up.sql",
+		"../../migrations/000026_system_notifications.up.sql",
+		"../../migrations/000029_notification_client_owned_destination.up.sql",
 	} {
 		contents, err := os.ReadFile(path)
 		if err != nil {

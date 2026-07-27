@@ -411,7 +411,7 @@ void main() {
     expect(coverage['suggestions'], {'default', 'max'});
   });
 
-  test('IT-021 decodes exact social/system notification union', () {
+  test('IT-021 decodes notifications using type alone', () {
     final contract = _map(corpus['notificationContract']);
     final body = _map(contract['body']);
     final page = NotificationPage.fromMap(body);
@@ -430,16 +430,11 @@ void main() {
     final system = page.items[7] as InstagramMatchNotification;
     expect(system.count, 99);
     expect(system.countCapped, isTrue);
-    expect(
-      system.destination,
-      InstagramSystemDestination.instagramMigration,
-    );
     expect(system, isNot(isA<SocialNotification>()));
 
     final rawSystem = _listOfMaps(body['items']).last;
     expect(rawSystem.keys.toSet(), {
       'id',
-      'kind',
       'type',
       'createdAt',
       'indexedAt',

@@ -127,12 +127,10 @@ final class NotificationOpenAttempt {
         NotificationCategory.instagramMatch => switch ((
           _parseBoundedCount(data['count']),
           _parseBool(data['countCapped']),
-          data['destination'],
         )) {
-          (final int _, final bool _, 'instagramMigration') =>
-            const ValidNotificationFacts._(
-              category: NotificationCategory.instagramMatch,
-            ),
+          (final int _, final bool _) => const ValidNotificationFacts._(
+            category: NotificationCategory.instagramMatch,
+          ),
           _ => const InvalidNotificationFacts(
             NotificationFactFailureClass.missingOrMalformedRequiredFacts,
           ),

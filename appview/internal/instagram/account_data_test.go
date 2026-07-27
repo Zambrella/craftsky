@@ -371,8 +371,9 @@ func newPrivateDataTest(t *testing.T) (*PrivateDataService, *pgxpool.Pool, time.
 	for _, path := range []string{
 		"../../migrations/000021_appview_notifications.up.sql",
 		"../../migrations/000022_notification_newness.up.sql",
-		"../../migrations/000023_instagram_migration.up.sql",
-		"../../migrations/000024_system_notifications.up.sql",
+		"../../migrations/000025_instagram_migration.up.sql",
+		"../../migrations/000026_system_notifications.up.sql",
+		"../../migrations/000029_notification_client_owned_destination.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {
@@ -537,15 +538,15 @@ func seedLifecycleNotification(t *testing.T, pool *pgxpool.Pool, eventID uuid.UU
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO notification_events(
-			id,recipient_did,kind,category,subject_key,
+			id,recipient_did,category,subject_key,
 			eligibility_scope,recipient_followed_actor,push_enabled_snapshot,
 			state,first_activity_at,activity_at,indexed_at,
 			initial_push_evaluated_at,system_count,system_count_capped,
-			system_destination,system_group_key,coalesce_until
+			system_group_key,coalesce_until
 		) VALUES(
-			$1,$2,'system','instagramMatch',$3,
+			$1,$2,'instagramMatch',$3,
 			'everyone',false,true,'active',$4,$4,$4,$4,
-			1,false,'instagramMigration',$3,$4::timestamptz + interval '5 minutes'
+			1,false,$3,$4::timestamptz + interval '5 minutes'
 		)
 	`, eventID, recipient, eventID.String(), now); err != nil {
 		t.Fatalf("seed lifecycle notification event: %v", err)

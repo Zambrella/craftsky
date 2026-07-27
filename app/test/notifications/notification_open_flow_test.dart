@@ -199,7 +199,6 @@ NotificationOpenAttempt _instagramAttempt(String? binding) =>
       'notificationId': '00000000-0000-0000-0000-000000000321',
       'count': '3',
       'countCapped': 'false',
-      'destination': 'instagramMigration',
     });
 
 NotificationRuntime _runtime({

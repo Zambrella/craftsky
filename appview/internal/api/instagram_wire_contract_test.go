@@ -481,7 +481,7 @@ func TestInstagramWireCorpusErrorsDeletesAndWebhookRetryMetadata(t *testing.T) {
 	}
 }
 
-func TestInstagramWireCorpusNotificationUnionAndPrivateFieldAbsence(t *testing.T) {
+func TestInstagramWireCorpusNotificationTypesAndPrivateFieldAbsence(t *testing.T) {
 	corpus := loadInstagramWireCorpus(t)
 	assertWireRoundTrip[NotificationPage](t, corpus.NotificationContract.Body)
 	page := decodeWireMap(t, corpus.NotificationContract.Body)
@@ -493,8 +493,13 @@ func TestInstagramWireCorpusNotificationUnionAndPrivateFieldAbsence(t *testing.T
 	var system map[string]any
 	for _, raw := range items {
 		item := raw.(map[string]any)
-		switch item["kind"] {
-		case "social":
+		if _, ok := item["kind"]; ok {
+			t.Fatalf("notification %s exposes redundant kind", item["type"])
+		}
+		switch item["type"] {
+		case "instagramMatch":
+			system = item
+		default:
 			socialTypes[item["type"].(string)] = true
 			for _, required := range []string{"uri", "cid", "rkey", "actor", "references"} {
 				if _, ok := item[required]; !ok {
@@ -504,10 +509,6 @@ func TestInstagramWireCorpusNotificationUnionAndPrivateFieldAbsence(t *testing.T
 			if _, ok := item["system"]; ok {
 				t.Errorf("social %s contains system payload", item["type"])
 			}
-		case "system":
-			system = item
-		default:
-			t.Fatalf("server fixture contains unknown kind %v", item["kind"])
 		}
 	}
 	for _, value := range []string{"follow", "like", "repost", "reply", "mention", "quote", "everythingElse"} {
@@ -524,7 +525,7 @@ func TestInstagramWireCorpusNotificationUnionAndPrivateFieldAbsence(t *testing.T
 		}
 	}
 	systemPayload := system["system"].(map[string]any)
-	if !reflect.DeepEqual(sortedKeys(systemPayload), []string{"count", "countCapped", "destination"}) {
+	if !reflect.DeepEqual(sortedKeys(systemPayload), []string{"count", "countCapped"}) {
 		t.Errorf("system payload keys = %v", sortedKeys(systemPayload))
 	}
 

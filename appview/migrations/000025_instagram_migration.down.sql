@@ -1,3 +1,4 @@
+-- Renumbered after merging the main-branch 000023/000024 migrations.
 DROP TABLE IF EXISTS instagram_audit_events;
 DROP TABLE IF EXISTS instagram_rate_limit_buckets;
 DROP TABLE IF EXISTS pds_follow_operations;

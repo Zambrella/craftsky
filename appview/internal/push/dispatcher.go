@@ -76,7 +76,6 @@ type claimedDelivery struct {
 	actorName                                          sql.NullString
 	systemCount                                        int
 	systemCountCapped                                  bool
-	systemDestination                                  string
 	attempts                                           int
 	deadline                                           time.Time
 }
@@ -107,7 +106,7 @@ func (d *Dispatcher) claim(ctx context.Context, _ string) ([]claimedDelivery, er
 		FROM notification_events event
 		WHERE delivery.notification_id=event.id
 		  AND delivery.status IN ('pending','retry','leased')
-		  AND COALESCE(to_jsonb(event)->>'kind','social')='system'
+		  AND event.category='instagramMatch'
 		  AND (
 			event.state <> 'active'
 			OR COALESCE(NULLIF(to_jsonb(event)->>'system_count','')::integer,0) <= 0
@@ -142,7 +141,6 @@ func (d *Dispatcher) claim(ctx context.Context, _ string) ([]claimedDelivery, er
 			s.routing_id,i.fcm_token,i.platform,b.display_name,
 			COALESCE(NULLIF(to_jsonb(n)->>'system_count','')::integer,0),
 			COALESCE(NULLIF(to_jsonb(n)->>'system_count_capped','')::boolean,false),
-			COALESCE(NULLIF(to_jsonb(n)->>'system_destination',''),''),
 			d.attempts,d.deadline_at
 		FROM push_deliveries d
 		JOIN notification_events n ON n.id=d.notification_id
@@ -155,7 +153,7 @@ func (d *Dispatcher) claim(ctx context.Context, _ string) ([]claimedDelivery, er
 		  AND n.state='active'
 		  AND s.active AND i.active
 		  AND (
-			COALESCE(to_jsonb(n)->>'kind','social') <> 'system'
+			n.category <> 'instagramMatch'
 			OR (
 				NULLIF(to_jsonb(n)->>'coalesce_until','')::timestamptz <= $1
 				AND COALESCE(NULLIF(to_jsonb(n)->>'system_count','')::integer,0) > 0
@@ -189,7 +187,7 @@ func (d *Dispatcher) claim(ctx context.Context, _ string) ([]claimedDelivery, er
 			&item.category, &item.actorDID, &item.sourceURI, &item.subjectURI,
 			&item.rootURI, &item.targetRole, &item.routingID, &item.token,
 			&item.platform, &item.actorName, &item.systemCount,
-			&item.systemCountCapped, &item.systemDestination, &item.attempts,
+			&item.systemCountCapped, &item.attempts,
 			&item.deadline,
 		); err != nil {
 			return nil, err
@@ -291,7 +289,6 @@ func (d *Dispatcher) ProcessBatch(ctx context.Context, worker string) (int, erro
 				NotificationID:    item.notificationID.String(),
 				SystemCount:       item.systemCount,
 				SystemCountCapped: item.systemCountCapped,
-				SystemDestination: item.systemDestination,
 			},
 			ActorDisplayName: item.actorName.String,
 			Platform:         item.platform,
@@ -393,7 +390,6 @@ func (d *Dispatcher) instagramMatchDeliveryEligible(ctx context.Context, item cl
 			FROM notification_events event
 			WHERE event.id=$1
 			  AND event.state='active'
-			  AND COALESCE(to_jsonb(event)->>'kind','social')='system'
 			  AND event.category='instagramMatch'
 			  AND COALESCE(NULLIF(to_jsonb(event)->>'system_count','')::integer,0)>0
 			  AND NULLIF(to_jsonb(event)->>'coalesce_until','')::timestamptz<=$2

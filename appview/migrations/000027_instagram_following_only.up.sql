@@ -1,3 +1,4 @@
+-- Renumbered after merging the main-branch 000023/000024 migrations.
 -- Existing development databases may contain the earlier directional import
 -- schema. Follower rows are intentionally discarded because CraftSky uses
 -- only accounts the member chose to follow for discovery. Fresh databases

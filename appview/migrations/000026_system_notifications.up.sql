@@ -1,5 +1,5 @@
+-- Renumbered after merging the main-branch 000023/000024 migrations.
 ALTER TABLE notification_events
-    ADD COLUMN kind TEXT NOT NULL DEFAULT 'social' CHECK (kind IN ('social', 'system')),
     ADD COLUMN system_count INTEGER,
     ADD COLUMN system_count_capped BOOLEAN,
     ADD COLUMN system_destination TEXT,
@@ -35,17 +35,16 @@ ALTER TABLE notification_events
 
 CREATE UNIQUE INDEX notification_events_social_semantic_unique
     ON notification_events (recipient_did, actor_did, category, subject_key)
-    WHERE kind = 'social';
+    WHERE category <> 'instagramMatch';
 
 CREATE UNIQUE INDEX notification_events_system_group_unique
     ON notification_events (recipient_did, category, system_group_key)
-    WHERE kind = 'system';
+    WHERE category = 'instagramMatch';
 
 ALTER TABLE notification_events
-    ADD CONSTRAINT notification_events_kind_payload_check CHECK (
+    ADD CONSTRAINT notification_events_type_payload_check CHECK (
         (
-            kind = 'social'
-            AND category <> 'instagramMatch'
+            category <> 'instagramMatch'
             AND actor_did IS NOT NULL
             AND source_uri IS NOT NULL
             AND source_cid IS NOT NULL
@@ -57,8 +56,7 @@ ALTER TABLE notification_events
             AND coalesce_until IS NULL
             AND system_push_released_at IS NULL
         ) OR (
-            kind = 'system'
-            AND category = 'instagramMatch'
+            category = 'instagramMatch'
             AND actor_did IS NULL
             AND source_uri IS NULL
             AND source_cid IS NULL
@@ -83,7 +81,7 @@ ALTER TABLE notification_events
 
 CREATE INDEX notification_events_system_close_idx
     ON notification_events (coalesce_until, id)
-    WHERE kind = 'system'
+    WHERE category = 'instagramMatch'
       AND state = 'active'
       AND system_push_released_at IS NULL;
 
@@ -107,7 +105,7 @@ BEGIN
         OR OLD.source_uri IS DISTINCT FROM NEW.source_uri
         OR OLD.source_cid IS DISTINCT FROM NEW.source_cid
         OR (
-            NEW.kind = 'system'
+            NEW.category = 'instagramMatch'
             AND (
                 COALESCE(NEW.system_count, 0) > COALESCE(OLD.system_count, 0)
                 OR (

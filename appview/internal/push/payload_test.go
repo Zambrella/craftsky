@@ -145,7 +145,6 @@ func TestBuildInstagramMatchPayloadIsActorlessAndBounded(t *testing.T) {
 			NotificationID:    "00000000-0000-0000-0000-000000000654",
 			SystemCount:       99,
 			SystemCountCapped: true,
-			SystemDestination: "instagramMigration",
 		},
 	)
 
@@ -156,7 +155,6 @@ func TestBuildInstagramMatchPayloadIsActorlessAndBounded(t *testing.T) {
 		"notificationId":        "00000000-0000-0000-0000-000000000654",
 		"count":                 "99",
 		"countCapped":           "true",
-		"destination":           "instagramMigration",
 	}
 	if !reflect.DeepEqual(payload.Data, want) {
 		t.Fatalf("data=%#v, want %#v", payload.Data, want)
