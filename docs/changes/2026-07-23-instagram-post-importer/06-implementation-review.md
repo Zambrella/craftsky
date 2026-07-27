@@ -79,7 +79,7 @@ this branch and was not changed.
 | Build modes | Preview and production builds passed. Preview emitted `{preview: true, oauthEnabled: false}`; production emitted the canonical origin and exact narrow scope. |
 | Production artifact | No source maps, test harness, archive, consented-export identifiers, analytics, remote fonts, or private canaries were found. Main JS is 1,669.30 kB minified/381.46 kB gzip; the worker is 215.42 kB. |
 | Lexicon | A fresh `just lexgen` left the generated binary diff hash unchanged at `1b1ef55814bf071ac9f47dc6f8821e61385af79b711d4cfa307bc56c460eae0d`. |
-| AppView | `go vet ./...` and canonical `just test` passed; the latter ran the race-enabled full suite against Compose Postgres. The 000025 up/down/up migration also passed uncached. |
+| AppView | `go vet ./...` and canonical `just test` passed; the latter ran the race-enabled full suite against Compose Postgres. The 000032 up/down/up migration also passed uncached. |
 | Flutter | `flutter analyze` and the 65-test focused provenance suite passed. The earlier complete 946-test Flutter suite also passed; a later second complete run was stopped after 333 passing tests due local resource contention and is not counted. |
 | Repository hygiene | Go/Dart formatting, `git diff --check`, ignored generated-output checks, dependency-isolation scans, and privacy scans passed. |
 

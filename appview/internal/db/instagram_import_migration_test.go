@@ -14,16 +14,16 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
-// IT-009, REG-002: migration 000025 is reversible and preserves existing
+// IT-009, REG-002: migration 000032 is reversible and preserves existing
 // ordinary rows while installing the profile chronology indexes.
 func TestInstagramImportMigrationUpDownUp(t *testing.T) {
 	t.Parallel()
 
-	up, err := os.ReadFile("../../migrations/000025_instagram_post_imports.up.sql")
+	up, err := os.ReadFile("../../migrations/000032_instagram_post_imports.up.sql")
 	if err != nil {
 		t.Fatalf("read up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000025_instagram_post_imports.down.sql")
+	down, err := os.ReadFile("../../migrations/000032_instagram_post_imports.down.sql")
 	if err != nil {
 		t.Fatalf("read down migration: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestInstagramImportMigrationUpDownUp(t *testing.T) {
 		t.Fatalf("list predecessor migrations: %v", err)
 	}
 	for _, path := range migrationPaths {
-		if strings.HasPrefix(filepath.Base(path), "000025_") {
+		if strings.HasPrefix(filepath.Base(path), "000032_") {
 			break
 		}
 		migration, err := os.ReadFile(path)

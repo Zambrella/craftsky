@@ -151,9 +151,9 @@ generated from source and are not hand-edited.
 | `lexicon/social/craftsky/feed/post.json` | Change | Add optional `externalImport` ref and `#externalImport` object with required bounded `source`. |
 | `appview/internal/lexicon/craftsky/feedpost.go` | Generate | Add generated Go post field/object. |
 | `appview/internal/lexicon/craftsky/feedpost_import_test.go` | Create | Validate optional/valid/invalid source shapes and generation contract. |
-| `appview/migrations/000025_instagram_post_imports.up.sql` | Create | Add nullable source, `profile_sort_at`, backfill, checks, and profile ordering index. |
-| `appview/migrations/000025_instagram_post_imports.down.sql` | Create | Remove the new indexes/columns reversibly. |
-| `appview/internal/db/instagram_import_migration_test.go` | Create | Exercise 000024 to 000025 up/down/up against real Postgres. |
+| `appview/migrations/000032_instagram_post_imports.up.sql` | Create | Add nullable source, `profile_sort_at`, backfill, checks, and profile ordering index after the merged main migration sequence. |
+| `appview/migrations/000032_instagram_post_imports.down.sql` | Create | Remove the new indexes/columns reversibly. |
+| `appview/internal/db/instagram_import_migration_test.go` | Create | Exercise migrations through 000031, then 000032 up/down/up against real Postgres. |
 | `appview/internal/index/craftsky_post.go` | Change | Unmarshal the generated `craftskylex.FeedPost`, extract exact source, choose profile sort timestamp, persist both fields, and suppress only original-import notification activation; retain raw JSON separately only for existing exact-record preservation. |
 | `appview/internal/index/craftsky_post_import_test.go` | Create | Cover create, retaining replacement, omitting replacement, unknown source, delete, and safe notification behavior. |
 | `appview/internal/api/post_store.go` | Change | Select/scan source and profile cursor fields; order author profile reads by `profile_sort_at`. |
@@ -421,7 +421,7 @@ source-map publication is added.
 
 Production writes remain disabled until the deployment order is complete:
 
-1. deploy migration 000025;
+1. deploy migration 000032;
 2. deploy the generated-schema-aware indexer, profile ordering, timeline
    exclusion, notification suppression, and provenance responses;
 3. deploy the Flutter provenance label where practical;
