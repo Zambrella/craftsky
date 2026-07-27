@@ -1039,6 +1039,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postShareAction => 'Share';
 
   @override
+  String get postImportedFromInstagram => 'Imported from Instagram';
+
+  @override
   String postRepostedBy(String name) {
     return 'Reposted by $name';
   }

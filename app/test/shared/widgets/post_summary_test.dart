@@ -20,6 +20,7 @@ void main() {
     expect(data.text, post.text);
     expect(data.projectTitle, 'Hitchhiker shawl');
     expect(data.image, same(post.images!.first));
+    expect(data.externalImport, same(post.externalImport));
     expect(data.image, isNot(same(post.images!.last)));
     expect(data.copyWith(text: null).text, isNull);
     expect(data.copyWith(), data);
@@ -35,9 +36,14 @@ void main() {
         createdAt: post.createdAt,
         images: post.images,
         project: post.project,
+        externalImport: post.externalImport,
       ),
     );
     expect(PostSummaryData.fromQuoteView(quote).text, post.text);
+    expect(
+      PostSummaryData.fromQuoteView(quote).externalImport,
+      same(post.externalImport),
+    );
     expect(
       PostSummaryData.fromQuoteView(
         const QuoteView(state: 'muted', revealable: true),
@@ -68,6 +74,7 @@ void main() {
       ),
     );
     expect(find.text('Hitchhiker shawl'), findsOneWidget);
+    expect(find.text('Imported from Instagram'), findsOneWidget);
     expect(find.text(post.text), findsOneWidget);
     final postTime = find.byType(RelativeTimeText);
     expect(postTime, findsOneWidget);
@@ -106,6 +113,7 @@ Post _post() => Post(
   viewerHasLiked: false,
   viewerHasReposted: false,
   viewerHasSaved: true,
+  externalImport: const ExternalImport(source: 'instagram'),
   images: [
     PostImage(cid: 'bafyimage1', mime: 'image/jpeg', size: 1, alt: 'First'),
     PostImage(cid: 'bafyimage2', mime: 'image/jpeg', size: 1, alt: 'Second'),

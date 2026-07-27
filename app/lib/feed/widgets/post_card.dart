@@ -291,6 +291,10 @@ class PostCard extends ConsumerWidget {
                         ),
                       ],
                     ),
+                    if (post.externalImport?.isInstagram ?? false) ...[
+                      SizedBox(height: spacing.sp2),
+                      const ImportedPostLabel(),
+                    ],
                     SizedBox(height: spacing.sp3),
                     if (post.images case final images?
                         when images.isNotEmpty) ...[

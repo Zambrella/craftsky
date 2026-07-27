@@ -29,25 +29,27 @@ var ErrInteractionNotFound = errors.New("interaction: not found")
 // from bluesky_profiles. Reply/quote pointers are kept as separate
 // pointers so handlers can decide nesting at the JSON layer.
 type PostRow struct {
-	URI              string
-	DID              string
-	Rkey             string
-	CID              string
-	Text             string
-	Facets           json.RawMessage
-	Images           json.RawMessage
-	ReplyRootURI     *string
-	ReplyRootCID     *string
-	ReplyParentURI   *string
-	ReplyParentCID   *string
-	QuoteURI         *string
-	QuoteCID         *string
-	Tags             []string
-	CreatedAt        time.Time
-	IndexedAt        time.Time
-	IsProject        bool
-	ProjectCraftType *string
-	RawProject       json.RawMessage
+	URI                  string
+	DID                  string
+	Rkey                 string
+	CID                  string
+	Text                 string
+	Facets               json.RawMessage
+	Images               json.RawMessage
+	ReplyRootURI         *string
+	ReplyRootCID         *string
+	ReplyParentURI       *string
+	ReplyParentCID       *string
+	QuoteURI             *string
+	QuoteCID             *string
+	Tags                 []string
+	CreatedAt            time.Time
+	IndexedAt            time.Time
+	ExternalImportSource *string
+	ProfileSortAt        time.Time
+	IsProject            bool
+	ProjectCraftType     *string
+	RawProject           json.RawMessage
 
 	AuthorDisplayName *string
 	AuthorAvatarCID   *string
@@ -554,6 +556,7 @@ const postSelectColumns = `
 	p.uri, p.did, p.rkey, p.cid, p.text, p.facets, p.images,
 	p.reply_root_uri, p.reply_root_cid, p.reply_parent_uri, p.reply_parent_cid,
 	p.quote_uri, p.quote_cid, p.tags, p.created_at, p.indexed_at,
+	p.external_import_source, p.profile_sort_at,
 	p.is_project, p.project_craft_type, pp.raw_project,
 	bp.display_name, bp.avatar_cid, bp.avatar_mime,
 	CASE
@@ -684,6 +687,7 @@ func scanPostRow(scanner pgx.Row) (*PostRow, error) {
 		&out.URI, &out.DID, &out.Rkey, &out.CID, &out.Text, &out.Facets, &out.Images,
 		&out.ReplyRootURI, &out.ReplyRootCID, &out.ReplyParentURI, &out.ReplyParentCID,
 		&out.QuoteURI, &out.QuoteCID, &out.Tags, &out.CreatedAt, &out.IndexedAt,
+		&out.ExternalImportSource, &out.ProfileSortAt,
 		&out.IsProject, &out.ProjectCraftType, &rawProject,
 		&out.AuthorDisplayName, &out.AuthorAvatarCID, &out.AuthorAvatarMime,
 		&out.ModerationWarningKind,
@@ -750,11 +754,11 @@ func (s *PostStore) ReadOne(ctx context.Context, did, rkey string) (*PostRow, er
 }
 
 // ListByAuthor returns up to limit posts authored by did, ordered by
-// (indexed_at DESC, uri DESC), starting after the cursor if non-empty.
+// (profile_sort_at DESC, uri DESC), starting after the cursor if non-empty.
 // Returns the encoded next-page cursor when the result is full; empty
 // string when this is the final page.
 func (s *PostStore) ListByAuthor(ctx context.Context, did string, limit int, cursor string) ([]*PostRow, string, error) {
-	curIndexedAt, curURI, err := decodeSeekCursor(cursor, "indexedAt")
+	curProfileSortAt, curURI, err := decodeSeekCursor(cursor, "indexedAt")
 	if err != nil {
 		return nil, "", err
 	}
@@ -770,11 +774,11 @@ func (s *PostStore) ListByAuthor(ctx context.Context, did string, limit int, cur
 		  AND p.reply_parent_uri IS NULL
 		` + postVisibleModerationPredicate + `
 		  AND ($2::timestamptz IS NULL
-		       OR (p.indexed_at, p.uri) < ($2::timestamptz, $3::text))
-		ORDER BY p.indexed_at DESC, p.uri DESC
+		       OR (p.profile_sort_at, p.uri) < ($2::timestamptz, $3::text))
+		ORDER BY p.profile_sort_at DESC, p.uri DESC
 		LIMIT $4
 	`
-	rows, err := s.pool.Query(ctx, q, did, curIndexedAt, curURI, limit)
+	rows, err := s.pool.Query(ctx, q, did, curProfileSortAt, curURI, limit)
 	if err != nil {
 		return nil, "", fmt.Errorf("post list %s: %w", did, err)
 	}
@@ -797,7 +801,7 @@ func (s *PostStore) ListByAuthor(ctx context.Context, did string, limit int, cur
 	}
 	last := out[len(out)-1]
 	next, err := envelope.EncodeCursor(map[string]any{
-		"indexedAt": last.IndexedAt.UTC().Format(time.RFC3339Nano),
+		"indexedAt": last.ProfileSortAt.UTC().Format(time.RFC3339Nano),
 		"uri":       last.URI,
 	})
 	if err != nil {
@@ -807,9 +811,9 @@ func (s *PostStore) ListByAuthor(ctx context.Context, did string, limit int, cur
 }
 
 // ListProjectsByAuthor returns root project posts authored by did, ordered by
-// (indexed_at DESC, uri DESC), starting after the cursor if non-empty.
+// (profile_sort_at DESC, uri DESC), starting after the cursor if non-empty.
 func (s *PostStore) ListProjectsByAuthor(ctx context.Context, did string, limit int, cursor string) ([]*PostRow, string, error) {
-	curIndexedAt, curURI, err := decodeSeekCursor(cursor, "indexedAt")
+	curProfileSortAt, curURI, err := decodeSeekCursor(cursor, "indexedAt")
 	if err != nil {
 		return nil, "", err
 	}
@@ -826,11 +830,11 @@ func (s *PostStore) ListProjectsByAuthor(ctx context.Context, did string, limit 
 		  AND p.quote_uri IS NULL
 		` + postVisibleModerationPredicate + `
 		  AND ($2::timestamptz IS NULL
-		       OR (p.indexed_at, p.uri) < ($2::timestamptz, $3::text))
-		ORDER BY p.indexed_at DESC, p.uri DESC
+		       OR (p.profile_sort_at, p.uri) < ($2::timestamptz, $3::text))
+		ORDER BY p.profile_sort_at DESC, p.uri DESC
 		LIMIT $4
 	`
-	rows, err := s.pool.Query(ctx, q, did, curIndexedAt, curURI, limit)
+	rows, err := s.pool.Query(ctx, q, did, curProfileSortAt, curURI, limit)
 	if err != nil {
 		return nil, "", fmt.Errorf("project list %s: %w", did, err)
 	}
@@ -852,7 +856,7 @@ func (s *PostStore) ListProjectsByAuthor(ctx context.Context, did string, limit 
 	}
 	last := out[len(out)-1]
 	next, err := envelope.EncodeCursor(map[string]any{
-		"indexedAt": last.IndexedAt.UTC().Format(time.RFC3339Nano),
+		"indexedAt": last.ProfileSortAt.UTC().Format(time.RFC3339Nano),
 		"uri":       last.URI,
 	})
 	if err != nil {
@@ -862,9 +866,9 @@ func (s *PostStore) ListProjectsByAuthor(ctx context.Context, did string, limit 
 }
 
 // ListCommentsByAuthor returns authored comments and nested replies, ordered by
-// (indexed_at DESC, uri DESC), starting after the cursor if non-empty.
+// (profile_sort_at DESC, uri DESC), starting after the cursor if non-empty.
 func (s *PostStore) ListCommentsByAuthor(ctx context.Context, did string, limit int, cursor string) ([]*PostRow, string, error) {
-	curIndexedAt, curURI, err := decodeSeekCursor(cursor, "indexedAt")
+	curProfileSortAt, curURI, err := decodeSeekCursor(cursor, "indexedAt")
 	if err != nil {
 		return nil, "", err
 	}
@@ -879,11 +883,11 @@ func (s *PostStore) ListCommentsByAuthor(ctx context.Context, did string, limit 
 		  AND p.reply_parent_uri IS NOT NULL
 		` + postVisibleModerationPredicate + `
 		  AND ($2::timestamptz IS NULL
-		       OR (p.indexed_at, p.uri) < ($2::timestamptz, $3::text))
-		ORDER BY p.indexed_at DESC, p.uri DESC
+		       OR (p.profile_sort_at, p.uri) < ($2::timestamptz, $3::text))
+		ORDER BY p.profile_sort_at DESC, p.uri DESC
 		LIMIT $4
 	`
-	rows, err := s.pool.Query(ctx, q, did, curIndexedAt, curURI, limit)
+	rows, err := s.pool.Query(ctx, q, did, curProfileSortAt, curURI, limit)
 	if err != nil {
 		return nil, "", fmt.Errorf("comment list author %s: %w", did, err)
 	}
@@ -906,7 +910,7 @@ func (s *PostStore) ListCommentsByAuthor(ctx context.Context, did string, limit 
 	}
 	last := out[len(out)-1]
 	next, err := envelope.EncodeCursor(map[string]any{
-		"indexedAt": last.IndexedAt.UTC().Format(time.RFC3339Nano),
+		"indexedAt": last.ProfileSortAt.UTC().Format(time.RFC3339Nano),
 		"uri":       last.URI,
 	})
 	if err != nil {

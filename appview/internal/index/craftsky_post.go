@@ -47,6 +47,13 @@ func NewCraftskyPost(pool *pgxpool.Pool, logger *slog.Logger, lifecycles ...noti
 
 const craftskyPostNSID syntax.NSID = "social.craftsky.feed.post"
 
+func recognizedExternalImportSource(rec *craftskylex.FeedPost) string {
+	if rec != nil && rec.ExternalImport != nil && rec.ExternalImport.Source == "instagram" {
+		return "instagram"
+	}
+	return ""
+}
+
 func (c *CraftskyPost) Handle(ctx context.Context, ev tap.Event) error {
 	if ev.Collection != craftskyPostNSID {
 		return nil
@@ -70,9 +77,15 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		return nil
 	}
 
-	var rec indexedPostRecord
+	var rec craftskylex.FeedPost
 	if err := json.Unmarshal(ev.Record, &rec); err != nil {
 		return fmt.Errorf("unmarshal %s: %w", ev.URI, err)
+	}
+	var rawRecord struct {
+		Facets json.RawMessage `json:"facets"`
+	}
+	if err := json.Unmarshal(ev.Record, &rawRecord); err != nil {
+		return fmt.Errorf("unmarshal raw fields %s: %w", ev.URI, err)
 	}
 	createdAt, err := time.Parse(time.RFC3339, rec.CreatedAt)
 	if err != nil {
@@ -80,8 +93,8 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	}
 
 	var facetsJSON json.RawMessage
-	if len(rec.Facets) > 0 && string(rec.Facets) != "null" {
-		facetsJSON = append(json.RawMessage(nil), rec.Facets...)
+	if len(rawRecord.Facets) > 0 && string(rawRecord.Facets) != "null" {
+		facetsJSON = append(json.RawMessage(nil), rawRecord.Facets...)
 	}
 
 	var imagesJSON []byte
@@ -124,9 +137,16 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	if project != nil && (rec.Reply != nil || quoteURI != nil) {
 		project = nil
 	}
-	topLevelFacets := postutil.DecodeFacets(rec.Facets)
+	topLevelFacets := postutil.DecodeFacets(rawRecord.Facets)
 	tags := postutil.MergeTags(postutil.ExtractTagsForText(rec.Text, topLevelFacets), projectSearchTags(project))
 	mentions := postutil.MergeMentionDIDs(postutil.ExtractMentionDIDsForText(rec.Text, topLevelFacets), projectMentionDIDs(project))
+	externalImportSource := recognizedExternalImportSource(&rec)
+	var storedExternalImportSource any
+	var profileSortAt any
+	if externalImportSource != "" {
+		storedExternalImportSource = externalImportSource
+		profileSortAt = createdAt
+	}
 
 	var isProject bool
 	var projectCraftType any
@@ -145,8 +165,10 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		INSERT INTO craftsky_posts
 			(uri, did, rkey, cid, text, facets, images,
 			 reply_root_uri, reply_root_cid, reply_parent_uri, reply_parent_cid,
-			 quote_uri, quote_cid, tags, is_project, project_craft_type, record, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+			 quote_uri, quote_cid, tags, is_project, project_craft_type, record, created_at,
+			 external_import_source, profile_sort_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
+		        $19, COALESCE($20::timestamptz, now()))
 		ON CONFLICT (uri) DO UPDATE SET
 			cid              = EXCLUDED.cid,
 			text             = EXCLUDED.text,
@@ -163,6 +185,8 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 			project_craft_type = EXCLUDED.project_craft_type,
 			record           = EXCLUDED.record,
 			created_at       = EXCLUDED.created_at,
+			external_import_source = EXCLUDED.external_import_source,
+			profile_sort_at  = EXCLUDED.profile_sort_at,
 			indexed_at       = now()
 		WHERE craftsky_posts.cid IS DISTINCT FROM EXCLUDED.cid
 	`
@@ -178,6 +202,8 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		projectCraftType,
 		ev.Record,
 		createdAt,
+		storedExternalImportSource,
+		profileSortAt,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert %s: %w", ev.URI, err)
@@ -192,8 +218,10 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	if err := syncPostMentions(ctx, tx, ev.URI, mentions, createdAt); err != nil {
 		return err
 	}
-	if err := c.activatePostNotifications(ctx, tx, ev, rec, mentions, createdAt); err != nil {
-		return err
+	if externalImportSource == "" {
+		if err := c.activatePostNotifications(ctx, tx, ev, rec, mentions, createdAt); err != nil {
+			return err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit upsert %s: %w", ev.URI, err)
@@ -201,7 +229,7 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	return nil
 }
 
-func (c *CraftskyPost) activatePostNotifications(ctx context.Context, tx pgx.Tx, ev tap.Event, rec indexedPostRecord, mentions []string, createdAt time.Time) error {
+func (c *CraftskyPost) activatePostNotifications(ctx context.Context, tx pgx.Tx, ev tap.Event, rec craftskylex.FeedPost, mentions []string, createdAt time.Time) error {
 	reasons := make(map[syntax.DID]notifications.PostReasons)
 	addPostAuthor := func(uri any, apply func(notifications.PostReasons) notifications.PostReasons) error {
 		value, ok := uri.(string)
@@ -273,51 +301,51 @@ func (c *CraftskyPost) activatePostNotifications(ctx context.Context, tx pgx.Tx,
 	return nil
 }
 
-func postReplyParentURI(rec indexedPostRecord) syntax.ATURI {
+func postReplyParentURI(rec craftskylex.FeedPost) syntax.ATURI {
 	if rec.Reply != nil && rec.Reply.Parent != nil {
 		return syntax.ATURI(rec.Reply.Parent.Uri)
 	}
 	return ""
 }
-func postReplyParentCID(rec indexedPostRecord) syntax.CID {
+func postReplyParentCID(rec craftskylex.FeedPost) syntax.CID {
 	if rec.Reply != nil && rec.Reply.Parent != nil {
 		return syntax.CID(rec.Reply.Parent.Cid)
 	}
 	return ""
 }
-func postReplyRootURI(rec indexedPostRecord) syntax.ATURI {
+func postReplyRootURI(rec craftskylex.FeedPost) syntax.ATURI {
 	if rec.Reply != nil && rec.Reply.Root != nil {
 		return syntax.ATURI(rec.Reply.Root.Uri)
 	}
 	return ""
 }
-func postReplyRootCID(rec indexedPostRecord) syntax.CID {
+func postReplyRootCID(rec craftskylex.FeedPost) syntax.CID {
 	if rec.Reply != nil && rec.Reply.Root != nil {
 		return syntax.CID(rec.Reply.Root.Cid)
 	}
 	return ""
 }
-func postQuotedURI(rec indexedPostRecord) syntax.ATURI {
+func postQuotedURI(rec craftskylex.FeedPost) syntax.ATURI {
 	if rec.Embed != nil && rec.Embed.FeedPost_QuoteEmbed != nil && rec.Embed.FeedPost_QuoteEmbed.Record != nil {
 		return syntax.ATURI(rec.Embed.FeedPost_QuoteEmbed.Record.Uri)
 	}
 	return ""
 }
-func postQuotedCID(rec indexedPostRecord) syntax.CID {
+func postQuotedCID(rec craftskylex.FeedPost) syntax.CID {
 	if rec.Embed != nil && rec.Embed.FeedPost_QuoteEmbed != nil && rec.Embed.FeedPost_QuoteEmbed.Record != nil {
 		return syntax.CID(rec.Embed.FeedPost_QuoteEmbed.Record.Cid)
 	}
 	return ""
 }
 
-func postNotificationSubjectURI(category notifications.Category, ev tap.Event, rec indexedPostRecord) syntax.ATURI {
+func postNotificationSubjectURI(category notifications.Category, ev tap.Event, rec craftskylex.FeedPost) syntax.ATURI {
 	if category == notifications.Reply && rec.Reply != nil && rec.Reply.Parent != nil {
 		return syntax.ATURI(rec.Reply.Parent.Uri)
 	}
 	return ev.URI
 }
 
-func postNotificationSubjectCID(category notifications.Category, ev tap.Event, rec indexedPostRecord) syntax.CID {
+func postNotificationSubjectCID(category notifications.Category, ev tap.Event, rec craftskylex.FeedPost) syntax.CID {
 	if category == notifications.Reply && rec.Reply != nil && rec.Reply.Parent != nil {
 		return syntax.CID(rec.Reply.Parent.Cid)
 	}
@@ -329,15 +357,6 @@ type indexedProject struct {
 	RawDetails json.RawMessage
 	Common     indexedProjectCommon
 	Details    indexedProjectDetails
-}
-
-type indexedPostRecord struct {
-	CreatedAt string                         `json:"createdAt"`
-	Embed     *craftskylex.FeedPost_Embed    `json:"embed,omitempty"`
-	Facets    json.RawMessage                `json:"facets,omitempty"`
-	Images    []*craftskylex.FeedPost_Image  `json:"images,omitempty"`
-	Reply     *craftskylex.FeedPost_ReplyRef `json:"reply,omitempty"`
-	Text      string                         `json:"text"`
 }
 
 type indexedProjectCommon struct {

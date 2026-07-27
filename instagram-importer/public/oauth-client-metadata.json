@@ -1,0 +1,22 @@
+{
+  "client_id": "https://import.craftsky.social/oauth-client-metadata.json",
+  "client_name": "CraftSky Instagram post importer",
+  "client_uri": "https://import.craftsky.social",
+  "logo_uri": "https://import.craftsky.social/app_icon.png",
+  "policy_uri": "https://craftsky.social/privacy",
+  "tos_uri": "https://craftsky.social/terms",
+  "redirect_uris": [
+    "https://import.craftsky.social/oauth/callback"
+  ],
+  "grant_types": [
+    "authorization_code",
+    "refresh_token"
+  ],
+  "response_types": [
+    "code"
+  ],
+  "scope": "atproto repo:social.craftsky.feed.post?action=create&action=delete blob?accept=image/jpeg&accept=image/png&accept=image/webp",
+  "token_endpoint_auth_method": "none",
+  "application_type": "web",
+  "dpop_bound_access_tokens": true
+}

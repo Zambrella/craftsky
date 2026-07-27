@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "lib": ["ES2024"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "strict": true,
+    "types": ["node"]
+  },
+  "include": [
+    "vite.config.ts",
+    "vite.config.test.ts",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "eslint.config.js",
+    "scripts"
+  ]
+}

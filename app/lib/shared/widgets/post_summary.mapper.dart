@@ -17,6 +17,7 @@ class PostSummaryDataMapper extends ClassMapperBase<PostSummaryData> {
       MapperContainer.globals.use(_instance = PostSummaryDataMapper._());
       PostAuthorMapper.ensureInitialized();
       PostImageMapper.ensureInitialized();
+      ExternalImportMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -59,6 +60,13 @@ class PostSummaryDataMapper extends ClassMapperBase<PostSummaryData> {
     _$image,
     opt: true,
   );
+  static ExternalImport? _$externalImport(PostSummaryData v) =>
+      v.externalImport;
+  static const Field<PostSummaryData, ExternalImport> _f$externalImport = Field(
+    'externalImport',
+    _$externalImport,
+    opt: true,
+  );
   static bool _$revealable(PostSummaryData v) => v.revealable;
   static const Field<PostSummaryData, bool> _f$revealable = Field(
     'revealable',
@@ -75,6 +83,7 @@ class PostSummaryDataMapper extends ClassMapperBase<PostSummaryData> {
     #createdAt: _f$createdAt,
     #projectTitle: _f$projectTitle,
     #image: _f$image,
+    #externalImport: _f$externalImport,
     #revealable: _f$revealable,
   };
 
@@ -86,6 +95,7 @@ class PostSummaryDataMapper extends ClassMapperBase<PostSummaryData> {
       createdAt: data.dec(_f$createdAt),
       projectTitle: data.dec(_f$projectTitle),
       image: data.dec(_f$image),
+      externalImport: data.dec(_f$externalImport),
       revealable: data.dec(_f$revealable),
     );
   }
@@ -128,6 +138,8 @@ abstract class PostSummaryDataCopyWith<$R, $In extends PostSummaryData, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
   PostAuthorCopyWith<$R, PostAuthor, PostAuthor>? get author;
   PostImageCopyWith<$R, PostImage, PostImage>? get image;
+  ExternalImportCopyWith<$R, ExternalImport, ExternalImport>?
+  get externalImport;
   $R call({
     PostSummaryState? state,
     PostAuthor? author,
@@ -135,6 +147,7 @@ abstract class PostSummaryDataCopyWith<$R, $In extends PostSummaryData, $Out>
     DateTime? createdAt,
     String? projectTitle,
     PostImage? image,
+    ExternalImport? externalImport,
     bool? revealable,
   });
   PostSummaryDataCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
@@ -157,6 +170,10 @@ class _PostSummaryDataCopyWithImpl<$R, $Out>
   PostImageCopyWith<$R, PostImage, PostImage>? get image =>
       $value.image?.copyWith.$chain((v) => call(image: v));
   @override
+  ExternalImportCopyWith<$R, ExternalImport, ExternalImport>?
+  get externalImport =>
+      $value.externalImport?.copyWith.$chain((v) => call(externalImport: v));
+  @override
   $R call({
     PostSummaryState? state,
     Object? author = $none,
@@ -164,6 +181,7 @@ class _PostSummaryDataCopyWithImpl<$R, $Out>
     Object? createdAt = $none,
     Object? projectTitle = $none,
     Object? image = $none,
+    Object? externalImport = $none,
     bool? revealable,
   }) => $apply(
     FieldCopyWithData({
@@ -173,6 +191,7 @@ class _PostSummaryDataCopyWithImpl<$R, $Out>
       if (createdAt != $none) #createdAt: createdAt,
       if (projectTitle != $none) #projectTitle: projectTitle,
       if (image != $none) #image: image,
+      if (externalImport != $none) #externalImport: externalImport,
       if (revealable != null) #revealable: revealable,
     }),
   );
@@ -184,6 +203,7 @@ class _PostSummaryDataCopyWithImpl<$R, $Out>
     createdAt: data.get(#createdAt, or: $value.createdAt),
     projectTitle: data.get(#projectTitle, or: $value.projectTitle),
     image: data.get(#image, or: $value.image),
+    externalImport: data.get(#externalImport, or: $value.externalImport),
     revealable: data.get(#revealable, or: $value.revealable),
   );
 
@@ -192,4 +212,3 @@ class _PostSummaryDataCopyWithImpl<$R, $Out>
     Then<$Out2, $R2> t,
   ) => _PostSummaryDataCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

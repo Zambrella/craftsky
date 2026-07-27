@@ -66,7 +66,29 @@
             },
             "maxLength": 3,
             "description": "Indicates human language of post primary text content."
+          },
+          "externalImport": {
+            "type": "ref",
+            "ref": "#externalImport",
+            "description": "Optional self-asserted provenance for content created by an external-history importer. This metadata does not verify ownership of an external account or grant trust."
           }
+        }
+      }
+    },
+    "externalImport": {
+      "type": "object",
+      "description": "Minimal self-asserted external-import provenance. It is display and distribution metadata only and does not verify ownership of an external account.",
+      "required": [
+        "source"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "maxLength": 64,
+          "knownValues": [
+            "instagram"
+          ],
+          "description": "Self-asserted source service token. The value does not verify account ownership; clients should apply source-specific behavior only to values they recognize."
         }
       }
     },

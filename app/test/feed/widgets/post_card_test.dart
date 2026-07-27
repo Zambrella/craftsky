@@ -55,6 +55,7 @@ Post _post({
   Project? project,
   PostReply? reply,
   QuoteView? quoteView,
+  ExternalImport? externalImport,
   bool? authorMuted,
   bool? authorBlocking,
   bool? authorBlockedBy,
@@ -90,6 +91,7 @@ Post _post({
     moderation: moderation,
     project: project,
     quoteView: quoteView,
+    externalImport: externalImport,
   );
 }
 
@@ -337,6 +339,52 @@ void main() {
       expect(repostIcon.color, BrandColors.ink2);
     });
 
+    testWidgets(
+      'AT-009 IT-015 renders accessible Instagram provenance on a full post',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+
+        await _pump(
+          tester,
+          PostCard(
+            post: _post(
+              externalImport: const ExternalImport(source: 'instagram'),
+            ),
+          ),
+        );
+
+        expect(find.text('Imported from Instagram'), findsOneWidget);
+        expect(
+          find.bySemanticsLabel('Imported from Instagram'),
+          findsOneWidget,
+        );
+        final label = tester.widget<Text>(
+          find.text('Imported from Instagram'),
+        );
+        final theme = Theme.of(tester.element(find.byType(PostCard)));
+        expect(label.style?.color, theme.colorScheme.outline);
+        expect(label.style?.fontSize, theme.textTheme.labelSmall?.fontSize);
+        semantics.dispose();
+      },
+    );
+
+    testWidgets(
+      'REG-007 ordinary and unknown full posts show no provenance label',
+      (tester) async {
+        for (final provenance in <ExternalImport?>[
+          null,
+          const ExternalImport(source: 'future-service'),
+        ]) {
+          await _pump(
+            tester,
+            PostCard(post: _post(externalImport: provenance)),
+          );
+
+          expect(find.text('Imported from Instagram'), findsNothing);
+        }
+      },
+    );
+
     testWidgets('AT-005 styles valid post facets with theme primary color', (
       tester,
     ) async {
@@ -534,6 +582,77 @@ void main() {
       await tester.tap(attribution);
       expect(reposterTaps, 1);
     });
+
+    testWidgets(
+      'AT-009 IT-015 renders accessible Instagram provenance '
+      'in a quote preview',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+
+        await _pump(
+          tester,
+          PostCard(
+            post: _post(
+              quoteView: QuoteView(
+                state: 'visible',
+                post: QuotePreviewPost(
+                  uri: 'at://did:plc:bob/social.craftsky.feed.post/target',
+                  cid: 'bafyquote',
+                  text: 'Original imported post',
+                  author: PostAuthor(
+                    did: 'did:plc:bob',
+                    handle: 'bob.craftsky.social',
+                  ),
+                  createdAt: DateTime(2020, 5, 22, 12),
+                  externalImport: const ExternalImport(source: 'instagram'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        expect(find.text('Imported from Instagram'), findsOneWidget);
+        expect(
+          find.bySemanticsLabel('Imported from Instagram'),
+          findsOneWidget,
+        );
+        semantics.dispose();
+      },
+    );
+
+    testWidgets(
+      'REG-007 ordinary and unknown quote previews show no provenance label',
+      (tester) async {
+        for (final provenance in <ExternalImport?>[
+          null,
+          const ExternalImport(source: 'future-service'),
+        ]) {
+          await _pump(
+            tester,
+            PostCard(
+              post: _post(
+                quoteView: QuoteView(
+                  state: 'visible',
+                  post: QuotePreviewPost(
+                    uri: 'at://did:plc:bob/social.craftsky.feed.post/target',
+                    cid: 'bafyquote',
+                    text: 'Original post',
+                    author: PostAuthor(
+                      did: 'did:plc:bob',
+                      handle: 'bob.craftsky.social',
+                    ),
+                    createdAt: DateTime(2020, 5, 22, 12),
+                    externalImport: provenance,
+                  ),
+                ),
+              ),
+            ),
+          );
+
+          expect(find.text('Imported from Instagram'), findsNothing);
+        }
+      },
+    );
 
     testWidgets('AT-010 renders visible quote through PostSummary', (
       tester,

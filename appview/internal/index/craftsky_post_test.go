@@ -53,6 +53,9 @@ CREATE TABLE craftsky_posts (
     record           JSONB       NOT NULL,
     created_at       TIMESTAMPTZ NOT NULL,
     indexed_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    external_import_source TEXT
+        CHECK (external_import_source IS NULL OR external_import_source = 'instagram'),
+    profile_sort_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     UNIQUE (did, rkey)
 );

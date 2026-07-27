@@ -23,6 +23,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     this.createdAt,
     this.projectTitle,
     this.image,
+    this.externalImport,
     this.revealable = false,
   });
 
@@ -42,6 +43,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       createdAt: post.createdAt,
       projectTitle: post.project?.common.title,
       images: post.images,
+      externalImport: post.externalImport,
     );
   }
 
@@ -55,6 +57,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       createdAt: post.createdAt,
       projectTitle: post.project?.common.title,
       images: post.images,
+      externalImport: post.externalImport,
     ),
     ('muted', _) => PostSummaryData(
       state: PostSummaryState.muted,
@@ -86,6 +89,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       createdAt: post.createdAt,
       projectTitle: post.project?.common.title,
       images: post.images,
+      externalImport: post.externalImport,
     );
   }
 
@@ -95,6 +99,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     required String? projectTitle,
     required List<PostImage>? images,
     DateTime? createdAt,
+    ExternalImport? externalImport,
   }) => PostSummaryData(
     state: PostSummaryState.visible,
     author: author,
@@ -105,6 +110,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       _ => null,
     },
     image: images?.firstOrNull,
+    externalImport: externalImport,
   );
 
   final PostSummaryState state;
@@ -113,6 +119,7 @@ final class PostSummaryData with PostSummaryDataMappable {
   final DateTime? createdAt;
   final String? projectTitle;
   final PostImage? image;
+  final ExternalImport? externalImport;
   final bool revealable;
 
   @override
@@ -169,6 +176,10 @@ class PostSummary extends StatelessWidget {
                       ),
                   ],
                 ),
+              if (data.externalImport?.isInstagram ?? false) ...[
+                if (data.author != null) const SizedBox(height: 8),
+                const ImportedPostLabel(),
+              ],
               if (data.image case final image?) ...[
                 const SizedBox(height: 8),
                 _PostSummaryImage(image: image),
@@ -220,6 +231,29 @@ class PostSummary extends StatelessWidget {
         padding: padding,
       ),
     };
+  }
+}
+
+class ImportedPostLabel extends StatelessWidget {
+  const ImportedPostLabel({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = AppLocalizations.of(context).postImportedFromInstagram;
+
+    return Semantics(
+      container: true,
+      label: label,
+      child: ExcludeSemantics(
+        child: Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.outline,
+          ),
+        ),
+      ),
+    );
   }
 }
 

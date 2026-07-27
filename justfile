@@ -175,6 +175,42 @@ app-analyze:
 app-test *ARGS:
     cd app && flutter test {{ARGS}}
 
+# Install the standalone Instagram importer's checked dependency graph.
+importer-install:
+    npm ci --prefix instagram-importer
+
+# Start the standalone importer with loopback OAuth metadata.
+importer-dev:
+    npm run --prefix instagram-importer dev
+
+# Run the standalone importer's unit and integration test suite.
+importer-test:
+    npm run --prefix instagram-importer test
+
+# Run generated-contract, type, lint, test, and production-build gates.
+importer-check:
+    npm run --prefix instagram-importer generate:check
+    npm run --prefix instagram-importer typecheck
+    npm run --prefix instagram-importer lint
+    npm run --prefix instagram-importer test
+    npm run --prefix instagram-importer build
+
+# Build the production static artifact in instagram-importer/dist/.
+importer-build:
+    npm run --prefix instagram-importer build
+
+# Build a separately configured stable-staging artifact.
+importer-build-staging:
+    npm run --prefix instagram-importer build:staging
+
+# Build a mock-only artifact with a disabled OAuth metadata marker.
+importer-build-preview:
+    npm run --prefix instagram-importer build:preview
+
+# Run Playwright browser integration and acceptance tests.
+importer-test-e2e *ARGS:
+    npm run --prefix instagram-importer test:e2e -- {{ARGS}}
+
 app-build-web ENV="production":
     #!/usr/bin/env bash
     set -euo pipefail

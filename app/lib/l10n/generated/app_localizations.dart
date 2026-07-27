@@ -1930,6 +1930,12 @@ abstract class AppLocalizations {
   /// **'Share'**
   String get postShareAction;
 
+  /// Subtle provenance label for a post created by the Instagram historical importer. It does not imply account ownership verification.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported from Instagram'**
+  String get postImportedFromInstagram;
+
   /// Timeline attribution shown above a post when a followed account reposted it.
   ///
   /// In en, this message translates to:

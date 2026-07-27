@@ -60,6 +60,9 @@ CREATE TABLE craftsky_posts (
     record           JSONB       NOT NULL,
     created_at       TIMESTAMPTZ NOT NULL,
     indexed_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    external_import_source TEXT
+        CHECK (external_import_source IS NULL OR external_import_source = 'instagram'),
+    profile_sort_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (did, rkey)
 );
 CREATE TABLE craftsky_project_posts (
@@ -184,8 +187,8 @@ func seedPost(t *testing.T, pool *pgxpool.Pool, did, rkey, text string, indexedA
 	t.Helper()
 	uri := "at://" + did + "/social.craftsky.feed.post/" + rkey
 	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO craftsky_posts (uri, did, rkey, cid, text, record, created_at, indexed_at)
-		VALUES ($1, $2, $3, 'bafycid', $4, '{}'::jsonb, $5, $5)`,
+		INSERT INTO craftsky_posts (uri, did, rkey, cid, text, record, created_at, indexed_at, profile_sort_at)
+		VALUES ($1, $2, $3, 'bafycid', $4, '{}'::jsonb, $5, $5, $5)`,
 		uri, did, rkey, text, indexedAt); err != nil {
 		t.Fatalf("seed post: %v", err)
 	}
@@ -213,10 +216,10 @@ func seedReplyPost(t *testing.T, pool *pgxpool.Pool, did, rkey, text, rootURI, p
 	uri := "at://" + did + "/social.craftsky.feed.post/" + rkey
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO craftsky_posts (
-			uri, did, rkey, cid, text, record, created_at, indexed_at,
+			uri, did, rkey, cid, text, record, created_at, indexed_at, profile_sort_at,
 			reply_root_uri, reply_root_cid, reply_parent_uri, reply_parent_cid
 		)
-		VALUES ($1, $2, $3, 'bafycid-' || $3, $4, '{}'::jsonb, $5, $5, $6, 'rootcid', $7, 'parentcid')`,
+		VALUES ($1, $2, $3, 'bafycid-' || $3, $4, '{}'::jsonb, $5, $5, $5, $6, 'rootcid', $7, 'parentcid')`,
 		uri, did, rkey, text, createdAt, rootURI, parentURI); err != nil {
 		t.Fatalf("seed reply post: %v", err)
 	}

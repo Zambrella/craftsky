@@ -218,8 +218,79 @@ void main() {
       expect(post.author.displayName, isNull);
       expect(post.author.avatarCid, isNull);
       expect(post.images, isNull);
+      expect(post.externalImport, isNull);
       expect(post.tags, isEmpty);
       expect(post.toMap(), json);
+    });
+
+    test('UT-015 decodes Instagram provenance for a full post', () {
+      final post = PostMapper.fromMap({
+        'uri': 'at://did:plc:alice/social.craftsky.feed.post/3lf2import',
+        'cid': 'bafyimport',
+        'rkey': '3lf2import',
+        'text': 'An older make.',
+        'tags': <String>[],
+        'likeCount': 0,
+        'repostCount': 0,
+        'quoteCount': 0,
+        'replyCount': 0,
+        'viewerHasLiked': false,
+        'viewerHasReposted': false,
+        'viewerHasReplied': false,
+        'viewerHasSaved': false,
+        'createdAt': '2020-05-04T18:23:45.000Z',
+        'indexedAt': '2026-07-23T10:00:00.000Z',
+        'author': {
+          'did': 'did:plc:alice',
+          'handle': 'alice.craftsky.social',
+        },
+        'externalImport': {'source': 'instagram'},
+      });
+
+      expect(post.externalImport?.source, 'instagram');
+      expect(post.externalImport?.isInstagram, isTrue);
+      expect(post.toMap()['externalImport'], {'source': 'instagram'});
+    });
+
+    test('UT-015 decodes unknown full and quote provenance safely', () {
+      final post = PostMapper.fromMap({
+        'uri': 'at://did:plc:alice/social.craftsky.feed.post/3lf2future',
+        'cid': 'bafyfuture',
+        'rkey': '3lf2future',
+        'text': 'An imported post from a future source.',
+        'tags': <String>[],
+        'likeCount': 0,
+        'repostCount': 0,
+        'quoteCount': 0,
+        'replyCount': 0,
+        'viewerHasLiked': false,
+        'viewerHasReposted': false,
+        'viewerHasReplied': false,
+        'viewerHasSaved': false,
+        'createdAt': '2020-05-04T18:23:45.000Z',
+        'indexedAt': '2026-07-23T10:00:00.000Z',
+        'author': {
+          'did': 'did:plc:alice',
+          'handle': 'alice.craftsky.social',
+        },
+        'externalImport': {'source': 'future-service'},
+      });
+      final quote = QuotePreviewPostMapper.fromMap({
+        'uri': 'at://did:plc:carol/social.craftsky.feed.post/future',
+        'cid': 'bafyfuturequote',
+        'text': 'Quoted from a future source.',
+        'createdAt': '2020-05-04T18:20:00.000Z',
+        'author': {
+          'did': 'did:plc:carol',
+          'handle': 'carol.craftsky.social',
+        },
+        'externalImport': {'source': 'future-service'},
+      });
+
+      expect(post.externalImport?.source, 'future-service');
+      expect(post.externalImport?.isInstagram, isFalse);
+      expect(quote.externalImport?.source, 'future-service');
+      expect(quote.externalImport?.isInstagram, isFalse);
     });
 
     test('AT-003 decodes post-author viewer relationship state', () {
@@ -293,6 +364,7 @@ void main() {
       );
       expect(post.quoteView?.post?.author.handle, 'carol.craftsky.social');
       expect(post.quoteView?.post?.images, hasLength(1));
+      expect(post.quoteView?.post?.externalImport, isNull);
       expect(post.toMap(), json);
     });
 
@@ -320,6 +392,24 @@ void main() {
 
       expect(post.quoteCount, 0);
       expect(post.quoteView, isNull);
+    });
+
+    test('UT-015 decodes Instagram provenance for a quote preview', () {
+      final quote = QuotePreviewPostMapper.fromMap({
+        'uri': 'at://did:plc:carol/social.craftsky.feed.post/root',
+        'cid': 'bafyroot',
+        'text': 'Original imported post',
+        'createdAt': '2020-05-04T18:20:00.000Z',
+        'author': {
+          'did': 'did:plc:carol',
+          'handle': 'carol.craftsky.social',
+        },
+        'externalImport': {'source': 'instagram'},
+      });
+
+      expect(quote.externalImport?.source, 'instagram');
+      expect(quote.externalImport?.isInstagram, isTrue);
+      expect(quote.toMap()['externalImport'], {'source': 'instagram'});
     });
 
     test('UT-008 exposes optional project metadata for project posts', () {
