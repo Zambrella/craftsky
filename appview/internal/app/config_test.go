@@ -44,7 +44,7 @@ func testConfigFile(t *testing.T, contents string) string {
 	t.Helper()
 	for _, k := range []string{"DATABASE_URL", "ALLOWED_ORIGINS", "CRAFTSKY_DEV_DID",
 		"TAP_WS_URL", "TAP_ACK_TIMEOUT", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES",
-		"OAUTH_HOSTNAME", "OAUTH_CLIENT_SECRET_KEY", "OAUTH_CLIENT_SECRET_KEY_ID",
+		"OAUTH_HOSTNAME", "OAUTH_CALLBACK_URL", "OAUTH_CLIENT_SECRET_KEY", "OAUTH_CLIENT_SECRET_KEY_ID",
 		"OAUTH_SCOPES", "OAUTH_SESSION_EXPIRY", "OAUTH_SESSION_INACTIVITY",
 		"OAUTH_AUTH_REQUEST_EXPIRY", "CRAFTSKY_SESSION_LAST_SEEN_THROTTLE",
 		"MAX_POST_IMAGES", "MAX_IMAGE_UPLOAD_BYTES", "APPVIEW_JSON_BODY_LIMIT_BYTES",
@@ -52,10 +52,32 @@ func testConfigFile(t *testing.T, contents string) string {
 		"SENTRY_LOGS_ENABLED", "SENTRY_METRICS_ENABLED", "SENTRY_TAP_TRACING_ENABLED",
 		"SENTRY_TAP_TRACES_SAMPLE_RATE",
 		"APPVIEW_UNSAFE_LOG_RESPONSE_BODIES",
+		"INSTAGRAM_UNSAFE_LOG_WEBHOOK_BODIES",
 		"APPVIEW_ENABLE_DEV_MODERATION",
 		"APPVIEW_DEV_MODERATION_TOKEN", "CRAFTSKY_DEV_LABELER_DID",
 		"APPVIEW_TRUSTED_MODERATION_SOURCE_DIDS",
-		"PUSH_ENABLED", "FIREBASE_PROJECT_ID", "PUSH_BATCH_SIZE", "PUSH_POLL_INTERVAL", "PUSH_LEASE_DURATION", "PUSH_SEND_TIMEOUT"} {
+		"PUSH_ENABLED", "FIREBASE_PROJECT_ID", "PUSH_BATCH_SIZE", "PUSH_POLL_INTERVAL", "PUSH_LEASE_DURATION", "PUSH_SEND_TIMEOUT",
+		"INSTAGRAM_DATA_HMAC_KEY", "INSTAGRAM_META_ENABLED",
+		"INSTAGRAM_META_APP_SECRET", "INSTAGRAM_META_VERIFY_TOKEN",
+		"INSTAGRAM_META_ACCESS_TOKEN", "INSTAGRAM_META_ACCOUNT_ID",
+		"INSTAGRAM_META_API_VERSION", "INSTAGRAM_META_API_BASE_URL",
+		"INSTAGRAM_META_DM_URL", "INSTAGRAM_META_REPLIES_ENABLED",
+		"APPVIEW_REPLICA_COUNT", "INSTAGRAM_SHARED_RATE_LIMITS",
+		"INSTAGRAM_TRUSTED_PROXY_CIDRS", "INSTAGRAM_CHALLENGE_TTL",
+		"INSTAGRAM_WEBHOOK_BODY_LIMIT_BYTES", "INSTAGRAM_WEBHOOK_MAX_EVENTS",
+		"INSTAGRAM_WEBHOOK_GLOBAL_PER_MINUTE", "INSTAGRAM_WEBHOOK_IP_PER_MINUTE",
+		"INSTAGRAM_CHALLENGE_DID_PER_15_MINUTES", "INSTAGRAM_CHALLENGE_DEVICE_PER_15_MINUTES",
+		"INSTAGRAM_CHALLENGE_IP_PER_15_MINUTES", "INSTAGRAM_INVALID_IGSID_PER_15_MINUTES",
+		"INSTAGRAM_INVALID_IP_PER_15_MINUTES", "INSTAGRAM_CONFIRMATION_DID_PER_HOUR",
+		"INSTAGRAM_CONFIRMATION_DEVICE_PER_HOUR", "INSTAGRAM_IMPORTS_DID_PER_HOUR",
+		"INSTAGRAM_IMPORTS_DEVICE_PER_HOUR", "INSTAGRAM_IMPORT_MAX_ENTRIES",
+		"INSTAGRAM_PAGE_DEFAULT", "INSTAGRAM_PAGE_MAX", "INSTAGRAM_META_HTTP_TIMEOUT",
+		"INSTAGRAM_META_RESPONSE_LIMIT_BYTES", "INSTAGRAM_META_LOOKUP_CONCURRENCY",
+		"INSTAGRAM_META_LOOKUPS_PER_IGSID_HOUR", "INSTAGRAM_WORKER_CONCURRENCY",
+		"INSTAGRAM_WORKER_LEASE_DURATION", "INSTAGRAM_WORKER_MAX_ATTEMPTS",
+		"INSTAGRAM_WORKER_BACKOFF_INITIAL", "INSTAGRAM_WORKER_BACKOFF_MAX",
+		"INSTAGRAM_WORKER_MAX_PROCESSING_AGE", "INSTAGRAM_DM_REPLY_WINDOW",
+		"INSTAGRAM_OPERATOR_BATCH_MAX"} {
 		// Snapshot for restoration, then unset.
 		prior, had := os.LookupEnv(k)
 		_ = os.Unsetenv(k)
@@ -220,6 +242,28 @@ func TestLoadConfig_ObservabilityDefaultsAndValidation(t *testing.T) {
 		}
 		if cfg.UnsafeLogResponseBodies {
 			t.Fatal("UnsafeLogResponseBodies = true in prod, want forced false")
+		}
+	})
+
+	t.Run("unsafe Instagram webhook logging is opt-in in dev", func(t *testing.T) {
+		path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nINSTAGRAM_UNSAFE_LOG_WEBHOOK_BODIES=true\n")
+		cfg, err := LoadConfig(EnvDev, path)
+		if err != nil {
+			t.Fatalf("LoadConfig: %v", err)
+		}
+		if !cfg.UnsafeLogInstagramWebhookBodies {
+			t.Fatal("UnsafeLogInstagramWebhookBodies = false, want true")
+		}
+	})
+
+	t.Run("prod forces unsafe Instagram webhook logging off", func(t *testing.T) {
+		path := testConfigFile(t, "DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap:2480/channel\nINSTAGRAM_UNSAFE_LOG_WEBHOOK_BODIES=true\n")
+		cfg, err := LoadConfig(EnvProd, path)
+		if err != nil {
+			t.Fatalf("LoadConfig: %v", err)
+		}
+		if cfg.UnsafeLogInstagramWebhookBodies {
+			t.Fatal("UnsafeLogInstagramWebhookBodies = true in prod, want forced false")
 		}
 	})
 }
@@ -527,6 +571,9 @@ func TestLoadConfig_OAuthDevDefaults(t *testing.T) {
 	}
 	if cfg.OAuthHostname != "" {
 		t.Errorf("OAuthHostname = %q, want empty", cfg.OAuthHostname)
+	}
+	if cfg.OAuthCallbackURL != "http://127.0.0.1:18080/oauth/callback" {
+		t.Errorf("OAuthCallbackURL = %q, want localhost default", cfg.OAuthCallbackURL)
 	}
 	want := []string{"atproto", "transition:generic"}
 	if len(cfg.OAuthScopes) != len(want) {

@@ -61,8 +61,17 @@ type Config struct {
 	PushLeaseDuration time.Duration
 	PushSendTimeout   time.Duration
 
+	// Instagram migration has separate private-data and external Meta
+	// availability so a provider outage cannot lock members out of retained
+	// imports or privacy controls.
+	InstagramData       InstagramDataConfig
+	InstagramMeta       InstagramMetaConfig
+	InstagramLimits     InstagramLimits
+	InstagramDeployment InstagramDeploymentConfig
+
 	// OAuth-related.
 	OAuthHostname                   string        // empty in dev (localhost mode)
+	OAuthCallbackURL                string        // localhost callback in dev; ignored when OAuthHostname is set
 	OAuthClientSecretKey            string        // multibase-encoded P-256 private key; empty in dev
 	OAuthClientKeyID                string        // default "primary"
 	OAuthScopes                     []string      // default ["atproto", "transition:generic"]
@@ -89,6 +98,9 @@ type Config struct {
 	SentryTapTracingEnabled   bool
 	SentryTapTracesSampleRate float64
 	UnsafeLogResponseBodies   bool
+	// UnsafeLogInstagramWebhookBodies is a temporary local capability-spike
+	// diagnostic. Production validation always forces it off.
+	UnsafeLogInstagramWebhookBodies bool
 
 	// Dev-only synthetic moderation controls. These fields are cleared in prod.
 	EnableDevModeration         bool
@@ -149,6 +161,7 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	}
 
 	cfg.OAuthHostname = os.Getenv("OAUTH_HOSTNAME")
+	cfg.OAuthCallbackURL = getEnvWithDefault("OAUTH_CALLBACK_URL", "http://127.0.0.1:18080/oauth/callback")
 	cfg.OAuthClientSecretKey = os.Getenv("OAUTH_CLIENT_SECRET_KEY")
 	cfg.OAuthClientKeyID = getEnvWithDefault("OAUTH_CLIENT_SECRET_KEY_ID", "primary")
 
@@ -202,6 +215,10 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		return Config{}, err
 	}
 	cfg.RateLimits = DefaultRateLimitConfig()
+	cfg.InstagramData, cfg.InstagramMeta, cfg.InstagramLimits, cfg.InstagramDeployment, err = loadInstagramConfig(env)
+	if err != nil {
+		return Config{}, err
+	}
 	cfg.SentryDSN = os.Getenv("SENTRY_DSN")
 	cfg.SentryRelease = os.Getenv("SENTRY_RELEASE")
 	if cfg.SentryLogsEnabled, err = boolEnv("SENTRY_LOGS_ENABLED", false); err != nil {
@@ -246,6 +263,9 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if cfg.UnsafeLogResponseBodies, err = boolEnv("APPVIEW_UNSAFE_LOG_RESPONSE_BODIES", false); err != nil {
 		return Config{}, err
 	}
+	if cfg.UnsafeLogInstagramWebhookBodies, err = boolEnv("INSTAGRAM_UNSAFE_LOG_WEBHOOK_BODIES", false); err != nil {
+		return Config{}, err
+	}
 	if cfg.EnableDevModeration, err = boolEnv("APPVIEW_ENABLE_DEV_MODERATION", false); err != nil {
 		return Config{}, err
 	}
@@ -285,6 +305,7 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		cfg.DevLabelerDID = ""
 		cfg.TrustedModerationSourceDIDs = nil
 		cfg.UnsafeLogResponseBodies = false
+		cfg.UnsafeLogInstagramWebhookBodies = false
 	}
 	if env == EnvDev && cfg.EnableDevModeration && strings.TrimSpace(cfg.DevModerationToken) == "" {
 		return Config{}, fmt.Errorf("APPVIEW_DEV_MODERATION_TOKEN is required when APPVIEW_ENABLE_DEV_MODERATION=true")

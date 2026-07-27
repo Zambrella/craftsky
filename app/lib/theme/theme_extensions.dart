@@ -223,7 +223,10 @@ class BrandShadowTheme extends ThemeExtension<BrandShadowTheme> {
 }
 
 /// Supporting paper swatches — used as coloured cutout backgrounds behind
-/// imagery, chips, and large surface variety. Never text colour.
+/// imagery, chips, and large surface variety.
+///
+/// Background swatches are never text colours. Explicit `on*` slots provide
+/// the corresponding foreground contract when a swatch contains content.
 class BrandSwatchTheme extends ThemeExtension<BrandSwatchTheme> {
   const BrandSwatchTheme({
     this.paper = BrandColors.paper,
@@ -232,6 +235,7 @@ class BrandSwatchTheme extends ThemeExtension<BrandSwatchTheme> {
     this.butter = BrandColors.butter,
     this.clay = BrandColors.clay,
     this.moss = BrandColors.moss,
+    this.onMoss = BrandColors.paper3,
     this.sky = BrandColors.sky,
     this.lilac = BrandColors.lilac,
     this.wip = BrandColors.butter,
@@ -247,6 +251,7 @@ class BrandSwatchTheme extends ThemeExtension<BrandSwatchTheme> {
   final Color butter;
   final Color clay;
   final Color moss;
+  final Color onMoss;
   final Color sky;
   final Color lilac;
 
@@ -264,6 +269,7 @@ class BrandSwatchTheme extends ThemeExtension<BrandSwatchTheme> {
     Color? butter,
     Color? clay,
     Color? moss,
+    Color? onMoss,
     Color? sky,
     Color? lilac,
     Color? wip,
@@ -278,6 +284,7 @@ class BrandSwatchTheme extends ThemeExtension<BrandSwatchTheme> {
       butter: butter ?? this.butter,
       clay: clay ?? this.clay,
       moss: moss ?? this.moss,
+      onMoss: onMoss ?? this.onMoss,
       sky: sky ?? this.sky,
       lilac: lilac ?? this.lilac,
       wip: wip ?? this.wip,
@@ -297,6 +304,7 @@ class BrandSwatchTheme extends ThemeExtension<BrandSwatchTheme> {
       butter: Color.lerp(butter, other.butter, t)!,
       clay: Color.lerp(clay, other.clay, t)!,
       moss: Color.lerp(moss, other.moss, t)!,
+      onMoss: Color.lerp(onMoss, other.onMoss, t)!,
       sky: Color.lerp(sky, other.sky, t)!,
       lilac: Color.lerp(lilac, other.lilac, t)!,
       wip: Color.lerp(wip, other.wip, t)!,

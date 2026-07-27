@@ -13,6 +13,11 @@ import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
+import 'package:craftsky_app/instagram_migration/data/instagram_verification_storage.dart';
+import 'package:craftsky_app/instagram_migration/providers/instagram_account_provider.dart';
+import 'package:craftsky_app/instagram_migration/providers/instagram_imports_provider.dart';
+import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
+import 'package:craftsky_app/instagram_migration/providers/instagram_verification_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_preferences_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
@@ -29,6 +34,11 @@ import 'package:craftsky_app/projects/providers/project_repository_provider.dart
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/saved_posts/providers/account_saved_post_state_provider.dart';
+import 'package:craftsky_app/saved_posts/providers/save_post_dialog_controller.dart';
+import 'package:craftsky_app/saved_posts/providers/saved_post_folders_provider.dart';
+import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provider.dart';
+import 'package:craftsky_app/saved_posts/providers/saved_posts_provider.dart';
 import 'package:craftsky_app/search/providers/blank_search_provider.dart';
 import 'package:craftsky_app/search/providers/hashtag_result_search_provider.dart';
 import 'package:craftsky_app/search/providers/hashtag_search_provider.dart';
@@ -48,12 +58,14 @@ typedef AccountSessionInvalidator =
 class AccountSessionInvalidationCoordinator {
   AccountSessionInvalidationCoordinator({
     required this.readRegistry,
+    required this.clearSessionState,
     required this.invalidateLease,
     required this.invalidateAccountState,
     required this.resetHome,
   });
 
   final Future<SessionRegistry> Function() readRegistry;
+  final AccountSessionInvalidator clearSessionState;
   final AccountSessionInvalidator invalidateLease;
   final AccountBoundaryAction invalidateAccountState;
   final AccountBoundaryAction resetHome;
@@ -66,6 +78,7 @@ class AccountSessionInvalidationCoordinator {
     if (captured != lease) return;
 
     if (removesActive) await invalidateAccountState();
+    await clearSessionState(lease);
     await invalidateLease(lease);
     if (!removesActive) return;
     final after = await readRegistry();
@@ -75,6 +88,7 @@ class AccountSessionInvalidationCoordinator {
 
 final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
   (ref) => () async {
+    ref.read(savedPostAccountBoundaryProvider.notifier).advance();
     ref
       ..invalidate(postRepositoryProvider)
       ..invalidate(timelineProvider)
@@ -111,11 +125,21 @@ final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
       ..invalidate(recentSearchPageProvider)
       ..invalidate(saveRecentSearchProvider)
       ..invalidate(deleteRecentSearchProvider)
+      ..invalidate(instagramMigrationRepositoryProvider)
+      ..invalidate(instagramAccountProvider)
+      ..invalidate(instagramVerificationProvider)
+      ..invalidate(instagramImportsProvider)
       ..invalidate(notificationRepositoryProvider)
       ..invalidate(notificationsProvider)
       ..invalidate(notificationPreferencesProvider)
       ..invalidate(notificationSeenProvider)
-      ..invalidate(notificationNewCountProvider);
+      ..invalidate(notificationNewCountProvider)
+      ..invalidate(accountSavedPostRepositoryProvider)
+      ..invalidate(accountSavedPostStateProvider)
+      ..invalidate(savedPostPresentationProvider)
+      ..invalidate(savedPostFoldersProvider)
+      ..invalidate(savedPostsProvider)
+      ..invalidate(savePostDialogControllerProvider);
   },
 );
 
@@ -124,9 +148,23 @@ final accountHomeResetProvider = Provider<AccountBoundaryAction>(
       () async => ref.read(goRouterProvider).go(RouteLocations.home),
 );
 
+final accountSessionPrivateStateCleanerProvider =
+    Provider<AccountSessionInvalidator>(
+      (ref) => (lease) async {
+        try {
+          await ref
+              .read(instagramVerificationStorageProvider)
+              .delete(lease.account);
+        } on Object {
+          // A stale snapshot still fails closed against AppView later.
+        }
+      },
+    );
+
 final accountSessionInvalidatorProvider = Provider<AccountSessionInvalidator>(
   (ref) => AccountSessionInvalidationCoordinator(
     readRegistry: () => ref.read(sessionRegistryProvider.future),
+    clearSessionState: ref.read(accountSessionPrivateStateCleanerProvider),
     invalidateLease: ref.read(sessionRegistryProvider.notifier).invalidate,
     invalidateAccountState: ref.read(accountStateInvalidatorProvider),
     resetHome: ref.read(accountHomeResetProvider),

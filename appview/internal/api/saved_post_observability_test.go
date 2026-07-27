@@ -147,6 +147,18 @@ func TestSavedPostDiagnosticsRedactPrivateStateAndClassifyIdentityFailure(t *tes
 
 func TestSavedPostMutationIsPrivateAndAuthorSeesNoSignal(t *testing.T) {
 	pool := testdb.WithSchema(t, postStoreDDL)
+	if _, err := pool.Exec(context.Background(), `
+		CREATE TABLE saved_post_folders (
+			id UUID NOT NULL PRIMARY KEY,
+			owner_did TEXT NOT NULL,
+			name TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL,
+			updated_at TIMESTAMPTZ NOT NULL,
+			UNIQUE (owner_did, id)
+		)
+	`); err != nil {
+		t.Fatalf("create saved folder table: %v", err)
+	}
 	for _, did := range []string{"did:plc:alice", "did:plc:bob"} {
 		seedMember(t, pool, did)
 	}
@@ -176,5 +188,36 @@ func TestSavedPostMutationIsPrivateAndAuthorSeesNoSignal(t *testing.T) {
 	}
 	if !aliceAfter[postURI].ViewerHasSaved || aliceAfter[postURI].ViewerSavedFolderID != nil {
 		t.Fatalf("Alice private viewer state = %+v, want unfiled saved", aliceAfter[postURI])
+	}
+
+	folder, err := savedStore.CreateFolder(context.Background(), syntax.DID("did:plc:alice"), "Private folder")
+	if err != nil {
+		t.Fatalf("create private folder: %v", err)
+	}
+	if _, err := savedStore.Save(
+		context.Background(),
+		syntax.DID("did:plc:alice"),
+		syntax.ATURI(postURI),
+		api.FolderAssignment{Present: true, ID: &folder.ID},
+	); err != nil {
+		t.Fatalf("move private save: %v", err)
+	}
+	if err := savedStore.DeleteFolder(
+		context.Background(),
+		syntax.DID("did:plc:alice"),
+		folder.ID,
+		api.SavedPostFolderRemoveSaves,
+	); err != nil {
+		t.Fatalf("delete private folder and saves: %v", err)
+	}
+	authorAfterDelete, err := postStore.EngagementSummaries(context.Background(), "did:plc:bob", []string{postURI})
+	if err != nil {
+		t.Fatalf("author summary after private delete: %v", err)
+	}
+	if authorAfterDelete[postURI] != before[postURI] {
+		t.Fatalf("private delete changed author/public summary: before=%+v after=%+v", before[postURI], authorAfterDelete[postURI])
+	}
+	if _, err := savedStore.ReadState(context.Background(), syntax.DID("did:plc:alice"), syntax.ATURI(postURI)); !errors.Is(err, api.ErrSavedPostNotFound) {
+		t.Fatalf("Alice state after private delete = %v, want not found", err)
 	}
 }

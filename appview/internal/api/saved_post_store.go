@@ -175,16 +175,33 @@ func (s *SavedPostStore) RenameFolder(ctx context.Context, owner syntax.DID, fol
 	return folder, nil
 }
 
-func (s *SavedPostStore) DeleteFolder(ctx context.Context, owner syntax.DID, folderID string) error {
+func (s *SavedPostStore) DeleteFolder(ctx context.Context, owner syntax.DID, folderID string, mode SavedPostFolderDeleteMode) error {
 	parsed, err := uuid.Parse(folderID)
 	if err != nil {
 		return nil
 	}
-	if _, err := s.pool.Exec(ctx, `
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("saved post folder delete begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if mode == SavedPostFolderRemoveSaves {
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM saved_posts
+			WHERE owner_did = $1 AND folder_id = $2
+		`, owner, parsed); err != nil {
+			return fmt.Errorf("saved post folder saves delete: %w", err)
+		}
+	}
+	if _, err := tx.Exec(ctx, `
 		DELETE FROM saved_post_folders
 		WHERE owner_did = $1 AND id = $2
 	`, owner, parsed); err != nil {
 		return fmt.Errorf("saved post folder delete: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("saved post folder delete commit: %w", err)
 	}
 	return nil
 }

@@ -101,6 +101,11 @@
   },
   "notificationGenericRow": "New activity",
   "notificationUnavailableRow": "Activity unavailable",
+  "notificationInstagramMatchActorRow": "You automatically followed {actor} from your Instagram import",
+  "@notificationInstagramMatchActorRow": {
+    "description": "Notification shown after an Instagram import automatically follows a matched CraftSky account.",
+    "placeholders": { "actor": { "type": "String", "example": "maker.craftsky.social" } }
+  },
   "notificationSettingsAction": "Notification settings",
   "notificationSettingsIntro": "Category preferences apply to all devices signed in to this account.",
   "notificationDeviceDisabled": "Notifications are disabled on this device",
@@ -112,6 +117,8 @@
   "notificationCategoryMentions": "Mentions",
   "notificationCategoryQuotes": "Quotes",
   "notificationCategoryReposts": "Reposts",
+  "notificationCategoryInstagramMatches": "Instagram matches",
+  "notificationInstagramMatchPreferenceDescription": "Push alerts are based on your Instagram migration eligibility. They never name matched accounts.",
   "notificationCategoryEverythingElse": "Everything else",
   "notificationPreferenceFrom": "From",
   "notificationScopeEveryone": "Everyone",
@@ -1370,5 +1377,197 @@
   "@projectsEmpty": { "description": "Empty state on the Projects browse page." },
 
   "projectsLoadError": "Projects didn't load.",
-  "@projectsLoadError": { "description": "Error title shown when the Projects browse feed fails to load." }
+  "@projectsLoadError": { "description": "Error title shown when the Projects browse feed fails to load." },
+
+  "instagramMigrationTitle": "Find people from Instagram",
+  "instagramMigrationSettingsSubtitle": "Verify your account or privately import handles.",
+  "instagramMigrationLoadError": "Instagram migration data didn't load.",
+  "instagramMigrationNoActiveAccount": "Sign in to an account to use Instagram migration.",
+  "instagramVerificationTitle": "Verify your Instagram account",
+  "instagramVerificationDescription": "Send a one-time challenge to CraftSky's official Instagram account. You will confirm the username here before it is verified.",
+  "instagramVerificationUnavailable": "Instagram verification is unavailable right now.",
+  "instagramVerificationUnavailableImports": "Imports become available after Instagram verification is configured and your account is verified.",
+  "instagramVerificationRequiredForImport": "Complete verification to sync the accounts you follow.",
+  "instagramVerificationStart": "Create verification challenge",
+  "instagramVerificationSendChallenge": "Send this exact one-time challenge in an Instagram DM:",
+  "instagramVerificationChallengeLabel": "Instagram verification challenge",
+  "instagramVerificationProcessing": "Checking your message…",
+  "instagramCopyChallenge": "Copy challenge",
+  "instagramChallengeCopied": "Challenge copied",
+  "instagramOpenDm": "Open Instagram DM",
+  "instagramCancelVerification": "Cancel verification",
+  "instagramVerificationCandidate": "Account: @{username}",
+  "@instagramVerificationCandidate": {
+    "placeholders": { "username": { "type": "String", "example": "maker" } }
+  },
+  "instagramUnknownUsername": "unknown",
+  "instagramVerificationCandidateWarning": "Confirm only if this is your Instagram username.",
+  "instagramDiscoverableLabel": "Let others find me by my Instagram username",
+  "instagramDiscoverableDescription": "When enabled, eligible CraftSky members who imported your Instagram username will automatically follow you when CraftSky finds a match.",
+  "instagramDiscoverableAllow": "Allow discovery",
+  "instagramDiscoverablePrivate": "Keep private",
+  "instagramDiscoverablePrivateDescription": "Your Instagram account remains verified, but CraftSky will not match it with people who imported your username.",
+  "instagramVerificationConfirm": "Confirm this account",
+  "instagramVerificationConfirmed": "Instagram account confirmed.",
+  "instagramVerificationExpired": "This verification challenge expired.",
+  "instagramVerificationCancelled": "This verification challenge is no longer active.",
+  "instagramVerificationRejected": "Instagram could not verify this message. Create a new challenge to try again.",
+  "instagramVerificationProfileUnavailable": "Instagram profile lookup is temporarily unavailable. Create a new challenge to try again.",
+  "instagramVerificationProfileInvalid": "Instagram returned an invalid profile result. Create a new challenge to try again.",
+  "instagramVerificationMembershipInactive": "Your CraftSky membership is inactive. Restore membership before trying again.",
+  "instagramVerificationConflict": "This Instagram account cannot be verified automatically. Your existing verified account remains unchanged.",
+  "instagramActionError": "That Instagram action didn't complete. Try again.",
+  "instagramRetry": "Try again",
+  "instagramLoadMore": "Load more",
+  "instagramAccountTitle": "Instagram account",
+  "instagramLinkedAs": "Verified as @{username}",
+  "@instagramLinkedAs": {
+    "placeholders": { "username": { "type": "String", "example": "maker" } }
+  },
+  "instagramConflictPending": "There is a private account conflict to resolve. No ownership was transferred.",
+  "instagramReactivateAccount": "Reactivate Instagram account",
+  "instagramReactivateAccountDisclosure": "Reactivation keeps discovery off until you choose to turn it on again.",
+  "instagramRevokeAccount": "Revoke Instagram verification",
+  "instagramRevokeAccountConfirmTitle": "Revoke Instagram verification?",
+  "instagramRevokeAccountConfirmMessage": "This removes your Instagram verification and deletes your imported handles. Existing CraftSky follows will not be affected.",
+  "instagramImportTitle": "Import accounts you follow",
+  "instagramImportManual": "Enter handles",
+  "instagramImportManualDescription": "Enter the Instagram handles of accounts you follow, one per line.",
+  "instagramImportJson": "Instagram export",
+  "instagramImportJsonDescription": "Choose an Instagram export containing Accounts you follow. CraftSky processes it on this device and uploads only those usernames. If you select an all-information ZIP, everything else stays on your device.",
+  "instagramImportHandles": "Instagram handles",
+  "instagramImportHandlesHint": "One handle per line",
+  "instagramImportManualAction": "Import handles",
+  "instagramImportSelectJson": "Select Instagram export",
+  "instagramImportFilePickerError": "The Instagram export couldn't be opened on this device.",
+  "instagramImportInvalidJson": "This file is not valid JSON.",
+  "instagramImportUnsupportedShape": "This is not a supported Instagram accounts-followed export. Choose an export containing Accounts you follow.",
+  "instagramImportUnsupportedFormat": "This Instagram export uses a format CraftSky can't read.",
+  "instagramImportInvalidArchive": "This Instagram ZIP is incomplete or damaged. Download a new export and try again.",
+  "instagramImportArchiveTooLarge": "This Instagram ZIP contains too many files to process safely.",
+  "instagramImportFileTooLarge": "The accounts-followed data is larger than 20 MiB.",
+  "instagramImportTooManyEntries": "This import contains more than 10,000 unique handles.",
+  "instagramImportFollowingPreviewCount": "{count, plural, =1{1 account you follow ready} other{{count} accounts you follow ready}}",
+  "@instagramImportFollowingPreviewCount": {
+    "placeholders": { "count": { "type": "int", "example": "12" } }
+  },
+  "instagramImportIgnoredCount": "{count, plural, =1{1 unsupported entry ignored} other{{count} unsupported entries ignored}}",
+  "@instagramImportIgnoredCount": {
+    "placeholders": { "count": { "type": "int", "example": "2" } }
+  },
+  "instagramImportDuplicateCount": "{count, plural, =1{1 duplicate removed} other{{count} duplicates removed}}",
+  "@instagramImportDuplicateCount": {
+    "placeholders": { "count": { "type": "int", "example": "2" } }
+  },
+  "instagramImportUploadSuccess": "Instagram import created",
+  "instagramImportUploadError": "Instagram import wasn't created. Try again.",
+  "instagramImportsTitle": "Your imports",
+  "instagramImportsLoadError": "Your Instagram imports didn't load.",
+  "instagramImportsEmpty": "No Instagram imports yet.",
+  "instagramImportManualSource": "Manual handles",
+  "instagramImportJsonSource": "Instagram export",
+  "instagramImportUnknownSource": "Instagram import",
+  "instagramImportCounts": "{followingCount, plural, =1{1 account imported} other{{followingCount} accounts imported}}",
+  "@instagramImportCounts": {
+    "placeholders": {
+      "followingCount": { "type": "int", "example": "12" }
+    }
+  },
+  "instagramImportReactivationDisclosure": "This import paused when your CraftSky membership changed. Reactivate it to resume matching.",
+  "instagramImportReactivate": "Reactivate import",
+  "instagramImportDelete": "Delete import",
+  "instagramImportNotifications": "CraftSky will notify you when someone in this list joins. You can disable Instagram match push notifications in",
+  "instagramImportNotificationSettings": "Notification settings",
+  "savedPostSaveAction": "Save post",
+  "@savedPostSaveAction": { "description": "Tooltip and action label for saving a post." },
+
+  "savedPostUnsaveAction": "Remove from saved posts",
+  "@savedPostUnsaveAction": { "description": "Tooltip for removing a post from the viewer's private saved collection." },
+
+  "savedPostUnsaveError": "This post couldn't be removed. Try again.",
+  "@savedPostUnsaveError": { "description": "Safe retryable feedback after removing a saved post fails." },
+
+  "savedPostMoveTitle": "Move saved post",
+  "@savedPostMoveTitle": { "description": "Title for the chooser used to move an existing saved post." },
+
+  "savedPostMoveAction": "Move",
+  "@savedPostMoveAction": { "description": "Action opening the folder chooser for an existing saved post." },
+
+  "savedPostRowUnsaveAction": "Unsave",
+  "@savedPostRowUnsaveAction": { "description": "Row action removing a post from saved posts." },
+
+  "savedPostNoFolder": "No folder",
+  "@savedPostNoFolder": { "description": "Chooser option that leaves a saved post outside a folder." },
+
+  "savedPostFolderSelectionLabel": "Folder",
+  "@savedPostFolderSelectionLabel": { "description": "Label for the saved-post folder selector." },
+
+  "savedPostConfirmError": "That change couldn't be saved. Try again.",
+  "@savedPostConfirmError": { "description": "Safe inline error after a save or move request fails." },
+
+  "savedPostFoldersLoadError": "Folders couldn't load.",
+  "@savedPostFoldersLoadError": { "description": "Safe inline error when saved-post folders cannot load." },
+
+  "savedPostLoadMoreFolders": "Load more folders",
+  "@savedPostLoadMoreFolders": { "description": "Action loading the next page of saved-post folders." },
+
+  "savedPostNewFolder": "New folder",
+  "@savedPostNewFolder": { "description": "Action opening inline saved-folder creation." },
+
+  "savedPostFolderNameHint": "Folder name",
+  "@savedPostFolderNameHint": { "description": "Input label for a saved-post folder name." },
+
+  "savedPostCreateFolderAction": "Create folder",
+  "@savedPostCreateFolderAction": { "description": "Action submitting a new saved-post folder." },
+
+  "savedPostCreateFolderError": "That folder couldn't be created. Try again.",
+  "@savedPostCreateFolderError": { "description": "Safe inline error after saved-folder creation fails." },
+
+  "savedPostsTitle": "Saved posts",
+  "@savedPostsTitle": { "description": "Title for the viewer's private saved-post collection." },
+
+  "savedPostsFoldersHeading": "Folders",
+  "@savedPostsFoldersHeading": { "description": "Heading above saved-post folders." },
+
+  "savedPostsUnfiledHeading": "Unfiled",
+  "@savedPostsUnfiledHeading": { "description": "Heading above saved posts that have no folder." },
+
+  "savedPostsEmpty": "Nothing saved yet",
+  "@savedPostsEmpty": { "description": "Empty state when the viewer has no saved posts or folders." },
+
+  "savedPostsSortOldest": "Oldest",
+  "@savedPostsSortOldest": { "description": "Sort label showing the oldest saves first." },
+
+  "savedPostsSortNewestDescription": "Most recently saved first",
+  "@savedPostsSortNewestDescription": { "description": "Helper text for newest-first saved-post ordering." },
+
+  "savedPostsSortOldestDescription": "Earliest saved first",
+  "@savedPostsSortOldestDescription": { "description": "Helper text for oldest-first saved-post ordering." },
+
+  "savedPostsLoadError": "Saved posts couldn't load.",
+  "@savedPostsLoadError": { "description": "Safe initial error for the saved-post collection." },
+
+  "savedPostsLoadMore": "Load more",
+  "@savedPostsLoadMore": { "description": "Action loading the next page of saved posts." },
+
+  "savedPostFolderActions": "Folder actions",
+  "@savedPostFolderActions": { "description": "Tooltip opening saved-folder actions." },
+
+  "savedPostRowActions": "Saved post actions",
+  "@savedPostRowActions": { "description": "Tooltip opening move and unsave actions for one saved post." },
+
+  "savedPostRenameFolder": "Rename folder",
+  "@savedPostRenameFolder": { "description": "Action and dialog title for renaming a saved folder." },
+
+  "savedPostDeleteFolder": "Delete folder",
+  "@savedPostDeleteFolder": { "description": "Destructive action and dialog title for deleting a saved folder." },
+
+  "savedPostDeleteFolderBody": "What should happen to the posts in this folder?",
+  "@savedPostDeleteFolderBody": { "description": "Prompt explaining the two scopes of saved-folder deletion." },
+
+  "savedPostKeepSaves": "Keep saved posts",
+  "@savedPostKeepSaves": { "description": "Deletes a folder while moving its saves to Unfiled." },
+
+  "savedPostDeleteSaves": "Delete saved posts",
+  "@savedPostDeleteSaves": { "description": "Deletes a folder and all private saves assigned to it." }
 }

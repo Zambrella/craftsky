@@ -1,3 +1,4 @@
+import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/services/notification_destination_inference.dart';
@@ -5,6 +6,33 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('notification destinations use generated polymorphic mapping', () {
+    final destinations = <NotificationDestination>[
+      const NotificationsDestination(),
+      const InstagramMigrationDestination(),
+      ProfileDestination(Did.parse('did:plc:alice')),
+      PostDestination(
+        AtUri.parse(
+          'at://did:plc:author/social.craftsky.feed.post/root',
+        ),
+        focusUri: AtUri.parse(
+          'at://did:plc:commenter/social.craftsky.feed.post/comment',
+        ),
+      ),
+    ];
+
+    for (final destination in destinations) {
+      final decoded = NotificationDestinationMapper.fromMap(
+        destination.toMap(),
+      );
+
+      expect(decoded, destination);
+      expect(decoded.runtimeType, destination.runtimeType);
+      expect(destination.toString(), isNot(contains('did:plc:')));
+      expect(destination.toString(), isNot(contains('at://')));
+    }
+  });
+
   test('BUG-002 like facts route a comment through its root thread', () {
     const subjectUri =
         'at://did:plc:commenter/social.craftsky.feed.post/comment';
@@ -123,6 +151,25 @@ void main() {
     expect(future.facts, isA<UnknownNotificationFacts>());
     expect(futureOutcome.destination, const NotificationsDestination());
     expect(futureOutcome.feedback, isNull);
+  });
+
+  test('IT-017 infers identity-free Instagram pushes to notifications', () {
+    final attempt = NotificationOpenAttempt.fromProviderData({
+      'payloadVersion': '1',
+      'type': 'instagramMatch',
+      'accountSubscriptionId': 'subscription_Abc123',
+      'notificationId': '00000000-0000-0000-0000-000000000321',
+    });
+
+    expect(attempt.facts, isA<ValidNotificationFacts>());
+    final facts = attempt.facts as ValidNotificationFacts;
+    expect(facts.category, NotificationCategory.instagramMatch);
+    expect(facts.actorDid, isNull);
+    expect(facts.subjectUri, isNull);
+    expect(
+      NotificationDestinationInference.forFacts(facts).destination,
+      const NotificationsDestination(),
+    );
   });
 }
 

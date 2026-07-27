@@ -131,6 +131,37 @@ class CraftskyDialogAction {
   final bool isDestructive;
 }
 
+/// Presents arbitrary dialog content with CraftSky's standard modal barrier
+/// and transition.
+Future<T?> showCraftskyModal<T>(
+  BuildContext context, {
+  required WidgetBuilder builder,
+  bool barrierDismissible = true,
+}) {
+  final durations = Theme.of(context).extension<DurationTheme>()!;
+  return showGeneralDialog<T>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    barrierColor: Colors.black54,
+    transitionDuration: durations.modal,
+    pageBuilder: (dialogContext, _, _) => builder(dialogContext),
+    transitionBuilder: (_, animation, _, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: durations.easePop,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
 /// Shows a neutral two-button confirm dialog. Resolves to `true` if the user
 /// taps the confirm action, `false` if they cancel, dismiss the barrier, or
 /// hit the system back button.

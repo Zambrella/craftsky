@@ -25,6 +25,7 @@ void main() {
     'replyCount': 3,
     'viewerHasLiked': false,
     'viewerHasReposted': false,
+    'viewerHasSaved': false,
     'viewerHasReplied': false,
     'createdAt': '2026-05-28T12:00:00Z',
     'indexedAt': '2026-05-28T12:00:01Z',
@@ -73,7 +74,7 @@ void main() {
     expect(page.items[2], isA<RepostNotification>());
     expect(page.items[3], isA<ReplyNotification>());
     expect(page.items[4], isA<MentionNotification>());
-    expect(page.items[0].actor.displayLabel, 'Alice');
+    expect((page.items[0] as SocialNotification).actor.displayLabel, 'Alice');
     expect((page.items[1] as LikeNotification).subjectPost.text, 'viewer post');
     expect(
       (page.items[3] as ReplyNotification).reply!.rkey.toString(),
@@ -160,6 +161,52 @@ void main() {
       ),
     );
   });
+
+  test('IT-017 decodes an actorful source-less Instagram match', () {
+    final notification = CraftskyNotification.fromMap({
+      'id': '00000000-0000-0000-0000-000000000321',
+      'type': 'instagramMatch',
+      'actor': {...actor(), 'viewerIsFollowing': true},
+      'createdAt': '2026-07-19T12:00:00Z',
+      'indexedAt': '2026-07-19T12:04:00Z',
+    });
+
+    expect(notification, isA<InstagramMatchNotification>());
+    expect(notification, isNot(isA<SocialNotification>()));
+    final match = notification as InstagramMatchNotification;
+    expect(match.id, '00000000-0000-0000-0000-000000000321');
+    expect(match.actor.did.toString(), 'did:plc:alice');
+    expect(match.actor.viewerIsFollowing, isTrue);
+    expect(match.type, NotificationCategory.instagramMatch);
+  });
+
+  test(
+    'UT-012 keeps unknown and malformed system variants actorless and inert',
+    () {
+      Map<String, dynamic> system(String type, Object? payload) => {
+        'id': '00000000-0000-0000-0000-000000000322',
+        'type': type,
+        'createdAt': '2026-07-19T12:00:00Z',
+        'indexedAt': '2026-07-19T12:04:00Z',
+        'system': payload,
+      };
+
+      final unknown = CraftskyNotification.fromMap(
+        system('futureSystemType', {'privateFutureFact': 'ignored'}),
+      );
+      final malformed = CraftskyNotification.fromMap(
+        system('instagramMatch', {'count': 0, 'countCapped': false}),
+      );
+      final unknownActorless = CraftskyNotification.fromMap(
+        system('futureActorlessType', null),
+      );
+
+      for (final notification in [unknown, malformed, unknownActorless]) {
+        expect(notification, isA<GenericSystemNotification>());
+        expect(notification, isNot(isA<SocialNotification>()));
+      }
+    },
+  );
 
   test('AT-006 decodes notification-actor viewer relationship state', () {
     final decoded = NotificationActor.fromMap({

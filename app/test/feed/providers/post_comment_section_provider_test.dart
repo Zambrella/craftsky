@@ -29,6 +29,7 @@ Post _post(String did, String rkey, int minute) => Post(
   replyCount: 0,
   viewerHasLiked: false,
   viewerHasReposted: false,
+  viewerHasSaved: false,
 );
 
 CommentItem _comment(String rkey, int minute) => CommentItem(

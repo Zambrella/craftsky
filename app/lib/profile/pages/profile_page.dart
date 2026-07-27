@@ -554,7 +554,6 @@ class _ProfileTabScrollView extends StatelessWidget {
         handle: profile.handle,
         isOwnProfile: isOwnProfile,
       ),
-      ProfileTab.saved => ProfileEmptyTab(message: l10n.profileEmptySaved),
       ProfileTab.reposts => ProfileEmptyTab(message: l10n.profileEmptyReposts),
       ProfileTab.about => ProfileAboutTab(profile: profile),
     };

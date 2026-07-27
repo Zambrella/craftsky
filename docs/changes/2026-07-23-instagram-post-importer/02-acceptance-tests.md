@@ -420,7 +420,7 @@ Feature: Origin-isolated static deployment
 | REG-005 | Ordinary keyword/hashtag search ranking and pagination are unchanged. | FR-020, NFR-008 | AC-012, AC-021 | Existing search store/ranking/recent suites remain green. |
 | REG-006 | Post deletion, moderation, relationship filtering, saved posts, and interaction counts are unchanged. | NFR-008 | AC-021 | Existing index/API lifecycle and moderation suites remain green. |
 | REG-007 | Ordinary Flutter post cards and quote previews show no extra label and retain layout/actions. | FR-023, NFR-008 | AC-011, AC-021 | Existing `post_card_test.dart` cases remain green with provenance absent. |
-| REG-008 | Flutter contains no archive parser/import route and the existing static marketing site remains independent. | FR-001 | AC-001, AC-020 | Source/dependency scan and existing Flutter/web tests prove the importer stays in its own package. |
+| REG-008 | Flutter contains no historical-post archive parser/import route and the existing static marketing site remains independent. The separate following-list ZIP import may continue using Flutter archive tooling. | FR-001 | AC-001, AC-020 | Source/path scan and existing Flutter/web tests prove the historical-post importer stays in its own package without banning the unrelated following importer. |
 
 ## 7. Test Data
 

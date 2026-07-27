@@ -14,26 +14,32 @@ const int _notificationValueMethods =
 sealed class CraftskyNotification {
   const CraftskyNotification({
     required this.id,
-    required this.uri,
-    required this.cid,
-    required this.rkey,
-    required this.actor,
     required this.createdAt,
     required this.indexedAt,
   });
 
   final String id;
-  final AtUri uri;
-  final Cid cid;
-  final RecordKey rkey;
-  final NotificationActor actor;
   final DateTime createdAt;
   final DateTime indexedAt;
 
   NotificationCategory get type;
 
   static CraftskyNotification fromMap(Map<String, dynamic> map) {
-    final type = map['type'] as String;
+    final type = map['type'];
+    if (type is! String) {
+      throw const FormatException('invalid_notification_type');
+    }
+    if (type == 'instagramMatch') return _instagramMatchFromMap(map);
+    if (!_socialTypes.contains(type) &&
+        (map['actor'] is! Map ||
+            map['uri'] is! String ||
+            map['cid'] is! String ||
+            map['rkey'] is! String)) {
+      return GenericSystemNotification(
+        SystemNotificationCommon.fromMap(map),
+        originalType: NotificationCategory.unknown,
+      );
+    }
     final common = NotificationCommon.fromMap(map);
     final category = _category(type);
     if (!common.actor.available || map['contentAvailable'] == false) {
@@ -89,37 +95,76 @@ sealed class CraftskyNotification {
 
   static NotificationCategory _category(String value) =>
       NotificationCategory.fromWireValue(value);
+
+  static const _socialTypes = {
+    'follow',
+    'like',
+    'repost',
+    'reply',
+    'mention',
+    'quote',
+    'everythingElse',
+  };
+
+  static CraftskyNotification _instagramMatchFromMap(
+    Map<String, dynamic> map,
+  ) {
+    if (map['actor'] case final Map<String, dynamic> actorMap) {
+      final common = ActorNotificationCommon.fromMap({
+        ...map,
+        'actor': actorMap,
+      });
+      if (common.actor.available) {
+        return InstagramMatchNotification(common);
+      }
+    }
+    return GenericSystemNotification(
+      SystemNotificationCommon.fromMap(map),
+      originalType: NotificationCategory.instagramMatch,
+    );
+  }
 }
 
-final class FollowNotification extends CraftskyNotification {
-  FollowNotification(NotificationCommon common)
-    : super(
+sealed class ActorNotification extends CraftskyNotification {
+  ActorNotification({
+    required super.id,
+    required this.actor,
+    required super.createdAt,
+    required super.indexedAt,
+  });
+
+  final NotificationActor actor;
+}
+
+sealed class SocialNotification extends ActorNotification {
+  SocialNotification(NotificationCommon common)
+    : uri = common.uri,
+      cid = common.cid,
+      rkey = common.rkey,
+      super(
         id: common.id,
-        uri: common.uri,
-        cid: common.cid,
-        rkey: common.rkey,
         actor: common.actor,
         createdAt: common.createdAt,
         indexedAt: common.indexedAt,
       );
 
+  final AtUri uri;
+  final Cid cid;
+  final RecordKey rkey;
+}
+
+final class FollowNotification extends SocialNotification {
+  FollowNotification(super.common);
+
   @override
   NotificationCategory get type => NotificationCategory.follow;
 }
 
-sealed class SubjectPostNotification extends CraftskyNotification {
+sealed class SubjectPostNotification extends SocialNotification {
   SubjectPostNotification(
-    NotificationCommon common, {
+    super.common, {
     required this.subjectPost,
-  }) : super(
-         uri: common.uri,
-         id: common.id,
-         cid: common.cid,
-         rkey: common.rkey,
-         actor: common.actor,
-         createdAt: common.createdAt,
-         indexedAt: common.indexedAt,
-       );
+  });
 
   final Post subjectPost;
 }
@@ -161,19 +206,11 @@ final class QuoteNotification extends SubjectPostNotification {
   NotificationCategory get type => NotificationCategory.quote;
 }
 
-final class GenericNotification extends CraftskyNotification {
+final class GenericNotification extends SocialNotification {
   GenericNotification(
-    NotificationCommon common, {
+    super.common, {
     required this.originalType,
-  }) : super(
-         id: common.id,
-         uri: common.uri,
-         cid: common.cid,
-         rkey: common.rkey,
-         actor: common.actor,
-         createdAt: common.createdAt,
-         indexedAt: common.indexedAt,
-       );
+  });
 
   final NotificationCategory originalType;
 
@@ -181,24 +218,90 @@ final class GenericNotification extends CraftskyNotification {
   NotificationCategory get type => originalType;
 }
 
-final class UnavailableNotification extends CraftskyNotification {
+final class UnavailableNotification extends SocialNotification {
   UnavailableNotification(
-    NotificationCommon common, {
+    super.common, {
     required this.originalType,
-  }) : super(
-         id: common.id,
-         uri: common.uri,
-         cid: common.cid,
-         rkey: common.rkey,
-         actor: common.actor,
-         createdAt: common.createdAt,
-         indexedAt: common.indexedAt,
-       );
+  });
 
   final NotificationCategory originalType;
 
   @override
   NotificationCategory get type => originalType;
+}
+
+sealed class SystemNotification extends CraftskyNotification {
+  SystemNotification(SystemNotificationCommon common)
+    : super(
+        id: common.id,
+        createdAt: common.createdAt,
+        indexedAt: common.indexedAt,
+      );
+}
+
+final class InstagramMatchNotification extends ActorNotification {
+  InstagramMatchNotification(ActorNotificationCommon common)
+    : super(
+        id: common.id,
+        actor: common.actor,
+        createdAt: common.createdAt,
+        indexedAt: common.indexedAt,
+      );
+
+  @override
+  NotificationCategory get type => NotificationCategory.instagramMatch;
+}
+
+@MappableClass(
+  generateMethods:
+      GenerateMethods.decode | GenerateMethods.copy | GenerateMethods.equals,
+)
+final class ActorNotificationCommon with ActorNotificationCommonMappable {
+  const ActorNotificationCommon({
+    required this.id,
+    required this.actor,
+    required this.createdAt,
+    required this.indexedAt,
+  });
+
+  factory ActorNotificationCommon.fromMap(Map<String, dynamic> map) =>
+      ActorNotificationCommonMapper.fromMap(map);
+
+  final String id;
+  final NotificationActor actor;
+  final DateTime createdAt;
+  final DateTime indexedAt;
+}
+
+final class GenericSystemNotification extends SystemNotification {
+  GenericSystemNotification(
+    super.common, {
+    required this.originalType,
+  });
+
+  final NotificationCategory originalType;
+
+  @override
+  NotificationCategory get type => originalType;
+}
+
+@MappableClass(
+  generateMethods:
+      GenerateMethods.decode | GenerateMethods.copy | GenerateMethods.equals,
+)
+final class SystemNotificationCommon with SystemNotificationCommonMappable {
+  const SystemNotificationCommon({
+    required this.id,
+    required this.createdAt,
+    required this.indexedAt,
+  });
+
+  factory SystemNotificationCommon.fromMap(Map<String, dynamic> map) =>
+      SystemNotificationCommonMapper.fromMap(map);
+
+  final String id;
+  final DateTime createdAt;
+  final DateTime indexedAt;
 }
 
 @MappableClass(

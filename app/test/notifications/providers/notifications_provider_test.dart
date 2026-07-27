@@ -59,8 +59,8 @@ void main() {
       accountNotificationsProvider(bob).future,
     );
 
-    expect(aliceState.items.single.rkey.toString(), 'alice');
-    expect(bobState.items.single.rkey.toString(), 'bob');
+    expect(_socialRkey(aliceState.items.single), 'alice');
+    expect(_socialRkey(bobState.items.single), 'bob');
     expect(aliceState.owner?.account, alice);
     expect(bobState.owner?.account, bob);
   });
@@ -84,7 +84,7 @@ void main() {
     container.invalidate(notificationsProvider);
     final state = await container.read(notificationsProvider.future);
 
-    expect(state.items.map((item) => item.rkey.toString()), ['one']);
+    expect(state.items.map(_socialRkey), ['one']);
     expect(repo.calls, hasLength(2));
   });
 
@@ -102,7 +102,7 @@ void main() {
     await container.read(notificationsProvider.notifier).loadMore();
 
     final state = container.read(notificationsProvider).value!;
-    expect(state.items.map((item) => item.rkey.toString()), ['one', 'two']);
+    expect(state.items.map(_socialRkey), ['one', 'two']);
     expect(state.hasMore, isFalse);
     expect(repo.calls.last.cursor, 'next');
   });
@@ -132,7 +132,7 @@ void main() {
 
       final state = container.read(notificationsProvider);
       expect(repo.calls, hasLength(2));
-      expect(state.value!.items.map((item) => item.rkey.toString()), ['one']);
+      expect(state.value!.items.map(_socialRkey), ['one']);
       expect(state.value!.cursor, 'next');
       expect(state.hasError, isTrue);
     },
@@ -149,6 +149,7 @@ void main() {
                 _follow('alice-one'),
                 _follow('bob-one', actorDid: 'did:plc:bob'),
                 _follow('alice-two'),
+                _instagramMatch(),
               ],
             ),
           ),
@@ -161,21 +162,34 @@ void main() {
       final removed = container
           .read(notificationsProvider.notifier)
           .suppressActor('did:plc:alice');
+      final retained = container.read(notificationsProvider).requireValue.items;
+      final retainedSocial = retained.whereType<SocialNotification>().single;
 
       expect(removed, 2);
-      expect(
-        container
-            .read(notificationsProvider)
-            .requireValue
-            .items
-            .single
-            .actor
-            .did,
-        'did:plc:bob',
-      );
+      expect(retained, hasLength(2));
+      expect(retainedSocial.actor.did, 'did:plc:bob');
+      expect(retained.whereType<InstagramMatchNotification>(), hasLength(1));
     },
   );
 }
+
+String _socialRkey(CraftskyNotification notification) =>
+    (notification as SocialNotification).rkey.toString();
+
+InstagramMatchNotification _instagramMatch() =>
+    CraftskyNotification.fromMap({
+          'id': 'instagram-match',
+          'type': 'instagramMatch',
+          'actor': {
+            'available': true,
+            'did': 'did:plc:instagram-match',
+            'handle': 'instagram-match.test',
+            'viewerIsFollowing': true,
+          },
+          'createdAt': '2026-05-28T13:00:00Z',
+          'indexedAt': '2026-05-28T13:00:01Z',
+        })
+        as InstagramMatchNotification;
 
 FollowNotification _follow(
   String rkey, {

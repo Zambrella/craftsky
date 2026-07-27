@@ -297,6 +297,7 @@ Post _post({required String text, Project? project}) {
     replyCount: 0,
     viewerHasLiked: false,
     viewerHasReposted: false,
+    viewerHasSaved: false,
     project: project,
   );
 }

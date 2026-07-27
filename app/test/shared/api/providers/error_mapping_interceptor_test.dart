@@ -109,6 +109,22 @@ void main() {
           path: '/v1/search/recent/recent-secret-id',
           category: 'appview.search.recent.detail',
         ),
+        (
+          path: '/v1/posts/did:plc:alice/rkey-secret/saves',
+          category: 'appview.posts.saves',
+        ),
+        (
+          path: '/v1/saved-posts?folderId=folder-secret&cursor=cursor-secret',
+          category: 'appview.saved_posts',
+        ),
+        (
+          path: '/v1/saved-post-folders',
+          category: 'appview.saved_post_folders',
+        ),
+        (
+          path: '/v1/saved-post-folders/folder-secret',
+          category: 'appview.saved_post_folders.detail',
+        ),
       ];
 
       for (final testCase in cases) {

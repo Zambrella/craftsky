@@ -19,12 +19,21 @@ var ErrBlockMutationUnavailable = errors.New("block mutation unavailable")
 // orchestration. Block orchestration is filled by the dedicated PDS/Tap TDD
 // phase; keeping it behind this interface lets route policy land first.
 type MutationService struct {
-	store    *Store
-	newPDS   auth.PDSClientFactory
-	now      func() time.Time
-	observer interface {
+	store       *Store
+	newPDS      auth.PDSClientFactory
+	now         func() time.Time
+	restoration RelationshipSafetyRestorationEnqueuer
+	observer    interface {
 		ObserveRelationship(operation, result string, duration time.Duration)
 	}
+}
+
+type RelationshipSafetyRestorationEnqueuer interface {
+	EnqueueRelationshipSafetyRestoration(
+		context.Context,
+		syntax.DID,
+		syntax.DID,
+	) error
 }
 
 type relationshipOutcomeObserver interface {
@@ -34,6 +43,24 @@ type relationshipOutcomeObserver interface {
 func NewMutationService(store *Store, newPDS auth.PDSClientFactory, now func() time.Time, observers ...interface {
 	ObserveRelationship(operation, result string, duration time.Duration)
 }) *MutationService {
+	return NewMutationServiceWithRestoration(
+		store,
+		newPDS,
+		now,
+		nil,
+		observers...,
+	)
+}
+
+func NewMutationServiceWithRestoration(
+	store *Store,
+	newPDS auth.PDSClientFactory,
+	now func() time.Time,
+	restoration RelationshipSafetyRestorationEnqueuer,
+	observers ...interface {
+		ObserveRelationship(operation, result string, duration time.Duration)
+	},
+) *MutationService {
 	if now == nil {
 		now = time.Now
 	}
@@ -43,7 +70,10 @@ func NewMutationService(store *Store, newPDS auth.PDSClientFactory, now func() t
 	if len(observers) > 0 {
 		observer = observers[0]
 	}
-	return &MutationService{store: store, newPDS: newPDS, now: now, observer: observer}
+	return &MutationService{
+		store: store, newPDS: newPDS, now: now,
+		restoration: restoration, observer: observer,
+	}
 }
 
 func (s *MutationService) Mute(ctx context.Context, owner, subject syntax.DID) (state State, err error) {
@@ -72,7 +102,20 @@ func (s *MutationService) Unmute(ctx context.Context, owner, subject syntax.DID)
 	if err := s.store.Unmute(ctx, owner, subject); err != nil {
 		return State{}, err
 	}
-	return s.store.State(ctx, owner, subject)
+	state, err = s.store.State(ctx, owner, subject)
+	if err != nil {
+		return State{}, err
+	}
+	if s.restoration != nil {
+		if err := s.restoration.EnqueueRelationshipSafetyRestoration(
+			ctx,
+			owner,
+			subject,
+		); err != nil {
+			return State{}, err
+		}
+	}
+	return state, nil
 }
 
 func (s *MutationService) Block(ctx context.Context, owner, subject syntax.DID, sid string) (result BlockMutationResult, err error) {
@@ -210,6 +253,15 @@ func (s *MutationService) Unblock(ctx context.Context, owner, subject syntax.DID
 	// Tap owns projection. Hide a still-indexed outbound row in the mutation
 	// response while preserving a separately-owned inbound block direction.
 	state.Blocking = false
+	if s.restoration != nil {
+		if err := s.restoration.EnqueueRelationshipSafetyRestoration(
+			ctx,
+			owner,
+			subject,
+		); err != nil {
+			return BlockMutationResult{}, err
+		}
+	}
 	return BlockMutationResult{State: state}, nil
 }
 

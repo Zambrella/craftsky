@@ -19,6 +19,35 @@ type FolderAssignment struct {
 	ID      *string
 }
 
+type SavedPostFolderDeleteMode int
+
+const (
+	SavedPostFolderPreserveSaves SavedPostFolderDeleteMode = iota
+	SavedPostFolderRemoveSaves
+)
+
+func ParseSavedPostFolderDeleteQuery(values url.Values) (SavedPostFolderDeleteMode, error) {
+	for key, entries := range values {
+		if key != "deleteSaves" || len(entries) != 1 {
+			return SavedPostFolderPreserveSaves, &FieldError{
+				Code:   "validation_failed",
+				Fields: map[string]string{key: "is invalid"},
+			}
+		}
+	}
+	value, present := singleQueryValue(values, "deleteSaves")
+	if !present || value == "false" {
+		return SavedPostFolderPreserveSaves, nil
+	}
+	if value == "true" {
+		return SavedPostFolderRemoveSaves, nil
+	}
+	return SavedPostFolderPreserveSaves, &FieldError{
+		Code:   "validation_failed",
+		Fields: map[string]string{"deleteSaves": "must be true or false"},
+	}
+}
+
 // DecodeSavePostRequest accepts an absent body for the low-friction unfiled
 // save action and otherwise enforces the strict v1 JSON contract.
 func DecodeSavePostRequest(body io.Reader) (FolderAssignment, error) {

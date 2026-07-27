@@ -45,6 +45,7 @@ Post _post(String rkey) => PostMapper.fromMap({
   'replyCount': 0,
   'viewerHasLiked': false,
   'viewerHasReposted': false,
+  'viewerHasSaved': false,
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',
   'author': {'did': 'did:plc:author', 'handle': 'author.test'},
@@ -76,6 +77,7 @@ void main() {
       final effects = <String>[];
       final coordinator = AccountSessionInvalidationCoordinator(
         readRegistry: () async => registry,
+        clearSessionState: (lease) async => effects.add('clear-private'),
         invalidateLease: (lease) async {
           if (registry.leaseFor(lease.account) == lease) {
             registry = registry.remove(lease.account.did.value);
@@ -88,7 +90,11 @@ void main() {
       await coordinator.invalidate(registry.activeLease!.session);
 
       expect(registry.activeDid?.value, aliceLease.account.did);
-      expect(effects, ['invalidate-account', 'home']);
+      expect(effects, [
+        'invalidate-account',
+        'clear-private',
+        'home',
+      ]);
     },
   );
 
@@ -110,6 +116,7 @@ void main() {
       final effects = <String>[];
       final coordinator = AccountSessionInvalidationCoordinator(
         readRegistry: () async => registry,
+        clearSessionState: (lease) async => effects.add('clear-private'),
         invalidateLease: (lease) async {
           if (registry.leaseFor(lease.account) == lease) {
             registry = registry.remove(lease.account.did.value);
@@ -128,7 +135,7 @@ void main() {
       );
 
       expect(registry.activeDid?.value, 'did:plc:bob');
-      expect(effects, isEmpty);
+      expect(effects, ['clear-private']);
     },
   );
 

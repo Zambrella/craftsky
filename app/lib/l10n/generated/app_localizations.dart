@@ -226,6 +226,12 @@ abstract class AppLocalizations {
   /// **'Activity unavailable'**
   String get notificationUnavailableRow;
 
+  /// Notification shown after an Instagram import automatically follows a matched CraftSky account.
+  ///
+  /// In en, this message translates to:
+  /// **'You automatically followed {actor} from your Instagram import'**
+  String notificationInstagramMatchActorRow(String actor);
+
   /// No description provided for @notificationSettingsAction.
   ///
   /// In en, this message translates to:
@@ -291,6 +297,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reposts'**
   String get notificationCategoryReposts;
+
+  /// No description provided for @notificationCategoryInstagramMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram matches'**
+  String get notificationCategoryInstagramMatches;
+
+  /// No description provided for @notificationInstagramMatchPreferenceDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Push alerts are based on your Instagram migration eligibility. They never name matched accounts.'**
+  String get notificationInstagramMatchPreferenceDescription;
 
   /// No description provided for @notificationCategoryEverythingElse.
   ///
@@ -2679,6 +2697,666 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Projects didn\'t load.'**
   String get projectsLoadError;
+
+  /// No description provided for @instagramMigrationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Find people from Instagram'**
+  String get instagramMigrationTitle;
+
+  /// No description provided for @instagramMigrationSettingsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify your account or privately import handles.'**
+  String get instagramMigrationSettingsSubtitle;
+
+  /// No description provided for @instagramMigrationLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram migration data didn\'t load.'**
+  String get instagramMigrationLoadError;
+
+  /// No description provided for @instagramMigrationNoActiveAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to an account to use Instagram migration.'**
+  String get instagramMigrationNoActiveAccount;
+
+  /// No description provided for @instagramVerificationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify your Instagram account'**
+  String get instagramVerificationTitle;
+
+  /// No description provided for @instagramVerificationDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Send a one-time challenge to CraftSky\'s official Instagram account. You will confirm the username here before it is verified.'**
+  String get instagramVerificationDescription;
+
+  /// No description provided for @instagramVerificationUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram verification is unavailable right now.'**
+  String get instagramVerificationUnavailable;
+
+  /// No description provided for @instagramVerificationUnavailableImports.
+  ///
+  /// In en, this message translates to:
+  /// **'Imports become available after Instagram verification is configured and your account is verified.'**
+  String get instagramVerificationUnavailableImports;
+
+  /// No description provided for @instagramVerificationRequiredForImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Complete verification to sync the accounts you follow.'**
+  String get instagramVerificationRequiredForImport;
+
+  /// No description provided for @instagramVerificationStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Create verification challenge'**
+  String get instagramVerificationStart;
+
+  /// No description provided for @instagramVerificationSendChallenge.
+  ///
+  /// In en, this message translates to:
+  /// **'Send this exact one-time challenge in an Instagram DM:'**
+  String get instagramVerificationSendChallenge;
+
+  /// No description provided for @instagramVerificationChallengeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram verification challenge'**
+  String get instagramVerificationChallengeLabel;
+
+  /// No description provided for @instagramVerificationProcessing.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking your message…'**
+  String get instagramVerificationProcessing;
+
+  /// No description provided for @instagramCopyChallenge.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy challenge'**
+  String get instagramCopyChallenge;
+
+  /// No description provided for @instagramChallengeCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Challenge copied'**
+  String get instagramChallengeCopied;
+
+  /// No description provided for @instagramOpenDm.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Instagram DM'**
+  String get instagramOpenDm;
+
+  /// No description provided for @instagramCancelVerification.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel verification'**
+  String get instagramCancelVerification;
+
+  /// No description provided for @instagramVerificationCandidate.
+  ///
+  /// In en, this message translates to:
+  /// **'Account: @{username}'**
+  String instagramVerificationCandidate(String username);
+
+  /// No description provided for @instagramUnknownUsername.
+  ///
+  /// In en, this message translates to:
+  /// **'unknown'**
+  String get instagramUnknownUsername;
+
+  /// No description provided for @instagramVerificationCandidateWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm only if this is your Instagram username.'**
+  String get instagramVerificationCandidateWarning;
+
+  /// No description provided for @instagramDiscoverableLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Let others find me by my Instagram username'**
+  String get instagramDiscoverableLabel;
+
+  /// No description provided for @instagramDiscoverableDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'When enabled, eligible CraftSky members who imported your Instagram username will automatically follow you when CraftSky finds a match.'**
+  String get instagramDiscoverableDescription;
+
+  /// No description provided for @instagramDiscoverableAllow.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow discovery'**
+  String get instagramDiscoverableAllow;
+
+  /// No description provided for @instagramDiscoverablePrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep private'**
+  String get instagramDiscoverablePrivate;
+
+  /// No description provided for @instagramDiscoverablePrivateDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Instagram account remains verified, but CraftSky will not match it with people who imported your username.'**
+  String get instagramDiscoverablePrivateDescription;
+
+  /// No description provided for @instagramVerificationConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm this account'**
+  String get instagramVerificationConfirm;
+
+  /// No description provided for @instagramVerificationConfirmed.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram account confirmed.'**
+  String get instagramVerificationConfirmed;
+
+  /// No description provided for @instagramVerificationExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'This verification challenge expired.'**
+  String get instagramVerificationExpired;
+
+  /// No description provided for @instagramVerificationCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'This verification challenge is no longer active.'**
+  String get instagramVerificationCancelled;
+
+  /// No description provided for @instagramVerificationRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram could not verify this message. Create a new challenge to try again.'**
+  String get instagramVerificationRejected;
+
+  /// No description provided for @instagramVerificationProfileUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram profile lookup is temporarily unavailable. Create a new challenge to try again.'**
+  String get instagramVerificationProfileUnavailable;
+
+  /// No description provided for @instagramVerificationProfileInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram returned an invalid profile result. Create a new challenge to try again.'**
+  String get instagramVerificationProfileInvalid;
+
+  /// No description provided for @instagramVerificationMembershipInactive.
+  ///
+  /// In en, this message translates to:
+  /// **'Your CraftSky membership is inactive. Restore membership before trying again.'**
+  String get instagramVerificationMembershipInactive;
+
+  /// No description provided for @instagramVerificationConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'This Instagram account cannot be verified automatically. Your existing verified account remains unchanged.'**
+  String get instagramVerificationConflict;
+
+  /// No description provided for @instagramActionError.
+  ///
+  /// In en, this message translates to:
+  /// **'That Instagram action didn\'t complete. Try again.'**
+  String get instagramActionError;
+
+  /// No description provided for @instagramRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get instagramRetry;
+
+  /// No description provided for @instagramLoadMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more'**
+  String get instagramLoadMore;
+
+  /// No description provided for @instagramAccountTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram account'**
+  String get instagramAccountTitle;
+
+  /// No description provided for @instagramLinkedAs.
+  ///
+  /// In en, this message translates to:
+  /// **'Verified as @{username}'**
+  String instagramLinkedAs(String username);
+
+  /// No description provided for @instagramConflictPending.
+  ///
+  /// In en, this message translates to:
+  /// **'There is a private account conflict to resolve. No ownership was transferred.'**
+  String get instagramConflictPending;
+
+  /// No description provided for @instagramReactivateAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Reactivate Instagram account'**
+  String get instagramReactivateAccount;
+
+  /// No description provided for @instagramReactivateAccountDisclosure.
+  ///
+  /// In en, this message translates to:
+  /// **'Reactivation keeps discovery off until you choose to turn it on again.'**
+  String get instagramReactivateAccountDisclosure;
+
+  /// No description provided for @instagramRevokeAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke Instagram verification'**
+  String get instagramRevokeAccount;
+
+  /// No description provided for @instagramRevokeAccountConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke Instagram verification?'**
+  String get instagramRevokeAccountConfirmTitle;
+
+  /// No description provided for @instagramRevokeAccountConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes your Instagram verification and deletes your imported handles. Existing CraftSky follows will not be affected.'**
+  String get instagramRevokeAccountConfirmMessage;
+
+  /// No description provided for @instagramImportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Import accounts you follow'**
+  String get instagramImportTitle;
+
+  /// No description provided for @instagramImportManual.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter handles'**
+  String get instagramImportManual;
+
+  /// No description provided for @instagramImportManualDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the Instagram handles of accounts you follow, one per line.'**
+  String get instagramImportManualDescription;
+
+  /// No description provided for @instagramImportJson.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram export'**
+  String get instagramImportJson;
+
+  /// No description provided for @instagramImportJsonDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose an Instagram export containing Accounts you follow. CraftSky processes it on this device and uploads only those usernames. If you select an all-information ZIP, everything else stays on your device.'**
+  String get instagramImportJsonDescription;
+
+  /// No description provided for @instagramImportHandles.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram handles'**
+  String get instagramImportHandles;
+
+  /// No description provided for @instagramImportHandlesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'One handle per line'**
+  String get instagramImportHandlesHint;
+
+  /// No description provided for @instagramImportManualAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Import handles'**
+  String get instagramImportManualAction;
+
+  /// No description provided for @instagramImportSelectJson.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Instagram export'**
+  String get instagramImportSelectJson;
+
+  /// No description provided for @instagramImportFilePickerError.
+  ///
+  /// In en, this message translates to:
+  /// **'The Instagram export couldn\'t be opened on this device.'**
+  String get instagramImportFilePickerError;
+
+  /// No description provided for @instagramImportInvalidJson.
+  ///
+  /// In en, this message translates to:
+  /// **'This file is not valid JSON.'**
+  String get instagramImportInvalidJson;
+
+  /// No description provided for @instagramImportUnsupportedShape.
+  ///
+  /// In en, this message translates to:
+  /// **'This is not a supported Instagram accounts-followed export. Choose an export containing Accounts you follow.'**
+  String get instagramImportUnsupportedShape;
+
+  /// No description provided for @instagramImportUnsupportedFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'This Instagram export uses a format CraftSky can\'t read.'**
+  String get instagramImportUnsupportedFormat;
+
+  /// No description provided for @instagramImportInvalidArchive.
+  ///
+  /// In en, this message translates to:
+  /// **'This Instagram ZIP is incomplete or damaged. Download a new export and try again.'**
+  String get instagramImportInvalidArchive;
+
+  /// No description provided for @instagramImportArchiveTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'This Instagram ZIP contains too many files to process safely.'**
+  String get instagramImportArchiveTooLarge;
+
+  /// No description provided for @instagramImportFileTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'The accounts-followed data is larger than 20 MiB.'**
+  String get instagramImportFileTooLarge;
+
+  /// No description provided for @instagramImportTooManyEntries.
+  ///
+  /// In en, this message translates to:
+  /// **'This import contains more than 10,000 unique handles.'**
+  String get instagramImportTooManyEntries;
+
+  /// No description provided for @instagramImportFollowingPreviewCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 account you follow ready} other{{count} accounts you follow ready}}'**
+  String instagramImportFollowingPreviewCount(int count);
+
+  /// No description provided for @instagramImportIgnoredCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 unsupported entry ignored} other{{count} unsupported entries ignored}}'**
+  String instagramImportIgnoredCount(int count);
+
+  /// No description provided for @instagramImportDuplicateCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 duplicate removed} other{{count} duplicates removed}}'**
+  String instagramImportDuplicateCount(int count);
+
+  /// No description provided for @instagramImportUploadSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram import created'**
+  String get instagramImportUploadSuccess;
+
+  /// No description provided for @instagramImportUploadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram import wasn\'t created. Try again.'**
+  String get instagramImportUploadError;
+
+  /// No description provided for @instagramImportsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your imports'**
+  String get instagramImportsTitle;
+
+  /// No description provided for @instagramImportsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Instagram imports didn\'t load.'**
+  String get instagramImportsLoadError;
+
+  /// No description provided for @instagramImportsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No Instagram imports yet.'**
+  String get instagramImportsEmpty;
+
+  /// No description provided for @instagramImportManualSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual handles'**
+  String get instagramImportManualSource;
+
+  /// No description provided for @instagramImportJsonSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram export'**
+  String get instagramImportJsonSource;
+
+  /// No description provided for @instagramImportUnknownSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram import'**
+  String get instagramImportUnknownSource;
+
+  /// No description provided for @instagramImportCounts.
+  ///
+  /// In en, this message translates to:
+  /// **'{followingCount, plural, =1{1 account imported} other{{followingCount} accounts imported}}'**
+  String instagramImportCounts(int followingCount);
+
+  /// No description provided for @instagramImportReactivationDisclosure.
+  ///
+  /// In en, this message translates to:
+  /// **'This import paused when your CraftSky membership changed. Reactivate it to resume matching.'**
+  String get instagramImportReactivationDisclosure;
+
+  /// No description provided for @instagramImportReactivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Reactivate import'**
+  String get instagramImportReactivate;
+
+  /// No description provided for @instagramImportDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete import'**
+  String get instagramImportDelete;
+
+  /// No description provided for @instagramImportNotifications.
+  ///
+  /// In en, this message translates to:
+  /// **'CraftSky will notify you when someone in this list joins. You can disable Instagram match push notifications in'**
+  String get instagramImportNotifications;
+
+  /// No description provided for @instagramImportNotificationSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification settings'**
+  String get instagramImportNotificationSettings;
+
+  /// Tooltip and action label for saving a post.
+  ///
+  /// In en, this message translates to:
+  /// **'Save post'**
+  String get savedPostSaveAction;
+
+  /// Tooltip for removing a post from the viewer's private saved collection.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from saved posts'**
+  String get savedPostUnsaveAction;
+
+  /// Safe retryable feedback after removing a saved post fails.
+  ///
+  /// In en, this message translates to:
+  /// **'This post couldn\'t be removed. Try again.'**
+  String get savedPostUnsaveError;
+
+  /// Title for the chooser used to move an existing saved post.
+  ///
+  /// In en, this message translates to:
+  /// **'Move saved post'**
+  String get savedPostMoveTitle;
+
+  /// Action opening the folder chooser for an existing saved post.
+  ///
+  /// In en, this message translates to:
+  /// **'Move'**
+  String get savedPostMoveAction;
+
+  /// Row action removing a post from saved posts.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsave'**
+  String get savedPostRowUnsaveAction;
+
+  /// Chooser option that leaves a saved post outside a folder.
+  ///
+  /// In en, this message translates to:
+  /// **'No folder'**
+  String get savedPostNoFolder;
+
+  /// Label for the saved-post folder selector.
+  ///
+  /// In en, this message translates to:
+  /// **'Folder'**
+  String get savedPostFolderSelectionLabel;
+
+  /// Safe inline error after a save or move request fails.
+  ///
+  /// In en, this message translates to:
+  /// **'That change couldn\'t be saved. Try again.'**
+  String get savedPostConfirmError;
+
+  /// Safe inline error when saved-post folders cannot load.
+  ///
+  /// In en, this message translates to:
+  /// **'Folders couldn\'t load.'**
+  String get savedPostFoldersLoadError;
+
+  /// Action loading the next page of saved-post folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more folders'**
+  String get savedPostLoadMoreFolders;
+
+  /// Action opening inline saved-folder creation.
+  ///
+  /// In en, this message translates to:
+  /// **'New folder'**
+  String get savedPostNewFolder;
+
+  /// Input label for a saved-post folder name.
+  ///
+  /// In en, this message translates to:
+  /// **'Folder name'**
+  String get savedPostFolderNameHint;
+
+  /// Action submitting a new saved-post folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Create folder'**
+  String get savedPostCreateFolderAction;
+
+  /// Safe inline error after saved-folder creation fails.
+  ///
+  /// In en, this message translates to:
+  /// **'That folder couldn\'t be created. Try again.'**
+  String get savedPostCreateFolderError;
+
+  /// Title for the viewer's private saved-post collection.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved posts'**
+  String get savedPostsTitle;
+
+  /// Heading above saved-post folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Folders'**
+  String get savedPostsFoldersHeading;
+
+  /// Heading above saved posts that have no folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Unfiled'**
+  String get savedPostsUnfiledHeading;
+
+  /// Empty state when the viewer has no saved posts or folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing saved yet'**
+  String get savedPostsEmpty;
+
+  /// Sort label showing the oldest saves first.
+  ///
+  /// In en, this message translates to:
+  /// **'Oldest'**
+  String get savedPostsSortOldest;
+
+  /// Helper text for newest-first saved-post ordering.
+  ///
+  /// In en, this message translates to:
+  /// **'Most recently saved first'**
+  String get savedPostsSortNewestDescription;
+
+  /// Helper text for oldest-first saved-post ordering.
+  ///
+  /// In en, this message translates to:
+  /// **'Earliest saved first'**
+  String get savedPostsSortOldestDescription;
+
+  /// Safe initial error for the saved-post collection.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved posts couldn\'t load.'**
+  String get savedPostsLoadError;
+
+  /// Action loading the next page of saved posts.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more'**
+  String get savedPostsLoadMore;
+
+  /// Tooltip opening saved-folder actions.
+  ///
+  /// In en, this message translates to:
+  /// **'Folder actions'**
+  String get savedPostFolderActions;
+
+  /// Tooltip opening move and unsave actions for one saved post.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved post actions'**
+  String get savedPostRowActions;
+
+  /// Action and dialog title for renaming a saved folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename folder'**
+  String get savedPostRenameFolder;
+
+  /// Destructive action and dialog title for deleting a saved folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete folder'**
+  String get savedPostDeleteFolder;
+
+  /// Prompt explaining the two scopes of saved-folder deletion.
+  ///
+  /// In en, this message translates to:
+  /// **'What should happen to the posts in this folder?'**
+  String get savedPostDeleteFolderBody;
+
+  /// Deletes a folder while moving its saves to Unfiled.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep saved posts'**
+  String get savedPostKeepSaves;
+
+  /// Deletes a folder and all private saves assigned to it.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete saved posts'**
+  String get savedPostDeleteSaves;
 }
 
 class _AppLocalizationsDelegate

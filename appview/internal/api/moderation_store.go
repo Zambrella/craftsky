@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -64,11 +65,23 @@ type ModerationSubjectRef struct {
 }
 
 type ModerationStore struct {
-	pool *pgxpool.Pool
+	pool        *pgxpool.Pool
+	restoration ModerationRestorationEnqueuer
 }
 
-func NewModerationStore(pool *pgxpool.Pool) *ModerationStore {
-	return &ModerationStore{pool: pool}
+type ModerationRestorationEnqueuer interface {
+	EnqueueModerationRestoration(context.Context, syntax.DID) error
+}
+
+func NewModerationStore(
+	pool *pgxpool.Pool,
+	restorations ...ModerationRestorationEnqueuer,
+) *ModerationStore {
+	var restoration ModerationRestorationEnqueuer
+	if len(restorations) > 0 {
+		restoration = restorations[0]
+	}
+	return &ModerationStore{pool: pool, restoration: restoration}
 }
 
 func (s *ModerationStore) InsertOutput(ctx context.Context, input ModerationOutputInput) (*ModerationOutputRow, error) {
@@ -104,6 +117,22 @@ func (s *ModerationStore) InsertOutput(ctx context.Context, input ModerationOutp
 	))
 	if err != nil {
 		return nil, fmt.Errorf("moderation output insert: %w", err)
+	}
+	if s.restoration != nil &&
+		input.SubjectType == ModerationSubjectAccount &&
+		input.Action == ModerationActionNegate &&
+		(input.Value == ModerationValueHide ||
+			input.Value == ModerationValueTakedown) {
+		target, err := syntax.ParseDID(input.SubjectDID)
+		if err != nil {
+			return nil, fmt.Errorf("moderation restoration target: %w", err)
+		}
+		if err := s.restoration.EnqueueModerationRestoration(
+			ctx,
+			target,
+		); err != nil {
+			return nil, fmt.Errorf("moderation restoration enqueue: %w", err)
+		}
 	}
 	return row, nil
 }

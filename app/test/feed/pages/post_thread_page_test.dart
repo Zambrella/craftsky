@@ -36,6 +36,7 @@ PostCommentSection _section(String text) => PostCommentSection(
     replyCount: 0,
     viewerHasLiked: false,
     viewerHasReposted: false,
+    viewerHasSaved: false,
   ),
   sort: CommentSort.oldest,
   comments: const CommentPage(items: []),

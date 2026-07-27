@@ -89,6 +89,11 @@ class PostMapper extends ClassMapperBase<Post> {
     'viewerHasReposted',
     _$viewerHasReposted,
   );
+  static bool _$viewerHasSaved(Post v) => v.viewerHasSaved;
+  static const Field<Post, bool> _f$viewerHasSaved = Field(
+    'viewerHasSaved',
+    _$viewerHasSaved,
+  );
   static int _$quoteCount(Post v) => v.quoteCount;
   static const Field<Post, int> _f$quoteCount = Field(
     'quoteCount',
@@ -102,6 +107,12 @@ class PostMapper extends ClassMapperBase<Post> {
     _$viewerHasReplied,
     opt: true,
     def: false,
+  );
+  static String? _$viewerSavedFolderId(Post v) => v.viewerSavedFolderId;
+  static const Field<Post, String> _f$viewerSavedFolderId = Field(
+    'viewerSavedFolderId',
+    _$viewerSavedFolderId,
+    opt: true,
   );
   static List<PostImage>? _$images(Post v) => v.images;
   static const Field<Post, List<PostImage>> _f$images = Field(
@@ -179,8 +190,10 @@ class PostMapper extends ClassMapperBase<Post> {
     #replyCount: _f$replyCount,
     #viewerHasLiked: _f$viewerHasLiked,
     #viewerHasReposted: _f$viewerHasReposted,
+    #viewerHasSaved: _f$viewerHasSaved,
     #quoteCount: _f$quoteCount,
     #viewerHasReplied: _f$viewerHasReplied,
+    #viewerSavedFolderId: _f$viewerSavedFolderId,
     #images: _f$images,
     #facets: _f$facets,
     #reply: _f$reply,
@@ -212,8 +225,10 @@ class PostMapper extends ClassMapperBase<Post> {
       replyCount: data.dec(_f$replyCount),
       viewerHasLiked: data.dec(_f$viewerHasLiked),
       viewerHasReposted: data.dec(_f$viewerHasReposted),
+      viewerHasSaved: data.dec(_f$viewerHasSaved),
       quoteCount: data.dec(_f$quoteCount),
       viewerHasReplied: data.dec(_f$viewerHasReplied),
+      viewerSavedFolderId: data.dec(_f$viewerSavedFolderId),
       images: data.dec(_f$images),
       facets: data.dec(_f$facets),
       reply: data.dec(_f$reply),
@@ -307,8 +322,10 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
     int? replyCount,
     bool? viewerHasLiked,
     bool? viewerHasReposted,
+    bool? viewerHasSaved,
     int? quoteCount,
     bool? viewerHasReplied,
+    String? viewerSavedFolderId,
     List<PostImage>? images,
     List<Map<String, dynamic>>? facets,
     PostReply? reply,
@@ -400,8 +417,10 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     int? replyCount,
     bool? viewerHasLiked,
     bool? viewerHasReposted,
+    bool? viewerHasSaved,
     int? quoteCount,
     bool? viewerHasReplied,
+    Object? viewerSavedFolderId = $none,
     Object? images = $none,
     Object? facets = $none,
     Object? reply = $none,
@@ -427,8 +446,11 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       if (replyCount != null) #replyCount: replyCount,
       if (viewerHasLiked != null) #viewerHasLiked: viewerHasLiked,
       if (viewerHasReposted != null) #viewerHasReposted: viewerHasReposted,
+      if (viewerHasSaved != null) #viewerHasSaved: viewerHasSaved,
       if (quoteCount != null) #quoteCount: quoteCount,
       if (viewerHasReplied != null) #viewerHasReplied: viewerHasReplied,
+      if (viewerSavedFolderId != $none)
+        #viewerSavedFolderId: viewerSavedFolderId,
       if (images != $none) #images: images,
       if (facets != $none) #facets: facets,
       if (reply != $none) #reply: reply,
@@ -459,8 +481,13 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       #viewerHasReposted,
       or: $value.viewerHasReposted,
     ),
+    viewerHasSaved: data.get(#viewerHasSaved, or: $value.viewerHasSaved),
     quoteCount: data.get(#quoteCount, or: $value.quoteCount),
     viewerHasReplied: data.get(#viewerHasReplied, or: $value.viewerHasReplied),
+    viewerSavedFolderId: data.get(
+      #viewerSavedFolderId,
+      or: $value.viewerSavedFolderId,
+    ),
     images: data.get(#images, or: $value.images),
     facets: data.get(#facets, or: $value.facets),
     reply: data.get(#reply, or: $value.reply),

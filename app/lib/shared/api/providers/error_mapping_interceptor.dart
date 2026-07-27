@@ -84,6 +84,7 @@ class ErrorMappingInterceptor extends Interceptor {
       ['feed', 'timeline'] => 'appview.feed.timeline',
       ['posts'] => 'appview.posts',
       ['posts', _, _] => 'appview.posts.detail',
+      ['posts', _, _, 'saves'] => 'appview.posts.saves',
       ['posts', _, _, 'reports'] => 'appview.posts.reports',
       ['posts', _, _, 'replies'] => 'appview.posts.replies',
       ['posts', _, _, 'comments'] => 'appview.posts.comments',
@@ -110,6 +111,9 @@ class ErrorMappingInterceptor extends Interceptor {
       ['search', 'projects'] => 'appview.search.projects',
       ['search', 'recent'] => 'appview.search.recent',
       ['search', 'recent', _] => 'appview.search.recent.detail',
+      ['saved-posts'] => 'appview.saved_posts',
+      ['saved-post-folders'] => 'appview.saved_post_folders',
+      ['saved-post-folders', _] => 'appview.saved_post_folders.detail',
       _ => 'appview.unknown',
     };
   }

@@ -38,6 +38,19 @@ type recordingBlockPDSPage struct {
 	cursor  string
 }
 
+type recordingSafetyRestoration struct {
+	pairs [][2]syntax.DID
+	err   error
+}
+
+func (r *recordingSafetyRestoration) EnqueueRelationshipSafetyRestoration(
+	_ context.Context,
+	owner, subject syntax.DID,
+) error {
+	r.pairs = append(r.pairs, [2]syntax.DID{owner, subject})
+	return r.err
+}
+
 func (*recordingBlockPDS) GetRecord(context.Context, syntax.DID, string, string, any) (string, error) {
 	return "", errors.New("not implemented")
 }
@@ -228,6 +241,52 @@ func TestMutationServiceBlockRetryAndRapidUnblockReconcilePDSRecords(t *testing.
 	}
 	if projected != 0 {
 		t.Fatalf("rapid block/unblock synchronously projected %d rows, want 0", projected)
+	}
+}
+
+func TestMutationServiceUnmuteAndUnblockEnqueueSafetyRestoration(t *testing.T) {
+	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := testdb.WithSchema(t, relationshipStorePreStateDDL)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	alice := syntax.DID("did:plc:alice")
+	bob := syntax.DID("did:plc:bob")
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_profiles (did, record_cid)
+		VALUES ($1, 'alice-cid'), ($2, 'bob-cid')
+	`, alice, bob); err != nil {
+		t.Fatal(err)
+	}
+	store := NewStore(pool)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO actor_mutes (owner_did, subject_did) VALUES ($1, $2)
+	`, alice, bob); err != nil {
+		t.Fatal(err)
+	}
+	restoration := &recordingSafetyRestoration{}
+	service := NewMutationServiceWithRestoration(
+		store,
+		func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
+			return &recordingBlockPDS{}, nil
+		},
+		nil,
+		restoration,
+	)
+
+	if _, err := service.Unmute(ctx, alice, bob); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Unblock(ctx, alice, bob, "session-alice"); err != nil {
+		t.Fatal(err)
+	}
+	want := [][2]syntax.DID{{alice, bob}, {alice, bob}}
+	if !slices.Equal(restoration.pairs, want) {
+		t.Fatalf("restoration pairs=%v, want %v", restoration.pairs, want)
 	}
 }
 

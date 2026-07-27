@@ -32,9 +32,21 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Reposts — `POST /v1/posts/{did}/{rkey}/reposts` etc. Lexicon already defined. Folds into Posts spec unless it grows.
 - [x] Reports — moderation endpoints → own spec (overlaps the v1 "report a post" moderation plan; reconcile when scoping)
 - [x] Push notification registration — `POST /v1/notifications/devices` etc. → own spec
-- [ ] How to handle different languages
 - [x] Blocking, muting
-- [ ] Save posts
+- [x] Save posts
+- [ ] How to handle different languages
+- [ ] Instagram follow import
+- [ ] Instagram post import
+- [ ] Schedule posts
+- [ ] Drafts
+- [ ] Pinned posts
+- [ ] Video posts
+- [ ] Growth metrics
+- [ ] Business profile
+  - [ ] Featured products
+  - [ ] CTA (e.g. to shop)
+  - [ ] Business info
+  - [ ] Upcoming events
 - [ ] Pro and Business subscriptions
 
 ### Flutter app
@@ -55,8 +67,11 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Error-handling UX (how do we surface `error` codes from the envelope to users?)
 - [x] Rich text — facets, mentions, links, hashtags
 - [x] Quote posts
-- [ ] Profile settings screen — handle change, avatar upload, privacy controls
 - [x] Multi-account support
+- [ ] Profile settings screen — handle change, avatar upload, privacy controls
+- [ ] Profile customisation
+- [ ] Drawer
+- [ ] Onboarding
 
 ### Lexicons
 
@@ -71,12 +86,11 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 
 ### Ops / infra
 
-- [ ] Production deploy (Hetzner VPS + Docker Compose + Caddy) → own spec
+- [ ] Production deploy (Hetzner VPS + Docker Compose + Caddy + Postgres hosting) → own spec
 - [ ] Client private key management for OAuth in prod (env var vs file vs KMS) — OAuth BFF §5.1 open question
 - [ ] Backup strategy for Postgres → own spec
 - [ ] Monitoring / alerting for Tap connection health, firehose lag, indexer errors
 - [ ] App store distribution — Apple Developer + Google Play accounts, bundle/app IDs, signing keys, TestFlight + Play internal track, store listings, review submission → own spec
-- [ ] Crash reporting — Sentry (or equivalent) wired into both the Flutter app and the Go AppView → own spec
 - [ ] Domain & DNS setup — craftsky.social apex, `api.craftsky.social`, email/MX, TLS strategy (likely folded into the production-deploy spec, but called out so it isn't forgotten)
 - [ ] Email infrastructure — transactional provider for the moderation reports inbox and any future account emails
 - [ ] First-PDS decision — where do first users' accounts live? Self-hosted Craftsky PDS, bsky.social, or third-party? Ties into the handle-suffix decision but is a separate question
@@ -90,8 +104,6 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [ ] Ozone moderation backend — self-hosted Ozone instance for triaging reports, labelling, and takedowns (see https://atproto.com/guides/using-ozone) → own spec
 - [ ] Legal read (UK Online Safety Act implications per reference doc)
 - [ ] Terms of service & privacy policy — drafted copy, linked from app + landing page (legal read informs this but is separate)
-- [ ] Flutter app analytics — PostHog (or equivalent) wired into the app, mirroring the landing page's anonymous setup → own spec (privacy model + event taxonomy)
-- [ ] Onboarding flow — what a brand-new user sees post-OAuth (first-follow suggestions, empty states, intro to craft-specific fields)
 
 ### Governance
 
@@ -120,16 +132,12 @@ Scoped but not urgent. Ordered roughly by expected sequence, not strictly priori
 ### Flutter app
 
 - [ ] **Image composition** — cropping, multi-image layouts, camera roll picker.
-- [ ] **Drafts** — private, server-side (per AGENTS.md rule #3).
 - [ ] **Accessibility audit** — screen reader, dynamic type, contrast.
-- [ ] **Offline / retry behaviour** — optimistic writes that reconcile when the firehose catches up.
 
-### Product / community
+### Product
 
-- [ ] **Web viewer for SEO / discoverability** — reference doc calls out "how to sew a French seam" as a growth channel.
+- [ ] **Web version**
 - [ ] **Stash Hub integration**
-- [ ] **Business accounts** — transparent-business-account requirement from vision doc.
-- [ ] **Monetisation model** — premium features
 
 ### Ops / infra
 

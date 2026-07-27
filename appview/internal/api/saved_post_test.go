@@ -43,6 +43,7 @@ type fakeSavedPostStore struct {
 	folderErr   error
 	renamedID   string
 	deletedID   string
+	deletedMode api.SavedPostFolderDeleteMode
 
 	listedOwner  syntax.DID
 	listedLimit  int
@@ -71,8 +72,8 @@ func (f *fakeSavedPostStore) RenameFolder(_ context.Context, _ syntax.DID, id, n
 	return f.folder, f.folderErr
 }
 
-func (f *fakeSavedPostStore) DeleteFolder(_ context.Context, _ syntax.DID, id string) error {
-	f.deletedID = id
+func (f *fakeSavedPostStore) DeleteFolder(_ context.Context, _ syntax.DID, id string, mode api.SavedPostFolderDeleteMode) error {
+	f.deletedID, f.deletedMode = id, mode
 	return f.folderErr
 }
 
@@ -216,14 +217,35 @@ func TestSavedPostHandlersExposeMutationAndListContracts(t *testing.T) {
 		assertSavedPostError(t, resp, http.StatusNotFound, "saved_post_folder_not_found")
 	})
 
-	t.Run("folder delete idempotent", func(t *testing.T) {
-		store := &fakeSavedPostStore{}
-		req := savedPostRequest(http.MethodDelete, "/v1/saved-post-folders/missing", "")
-		req.SetPathValue("folderId", "missing")
-		resp := httptest.NewRecorder()
-		api.DeleteSavedPostFolderHandler(store).ServeHTTP(resp, req)
-		if resp.Code != http.StatusNoContent || store.deletedID != "missing" {
-			t.Fatalf("delete = %d/%q", resp.Code, store.deletedID)
+	t.Run("folder delete selects strict modes", func(t *testing.T) {
+		for _, tt := range []struct {
+			name       string
+			query      string
+			wantStatus int
+			wantMode   api.SavedPostFolderDeleteMode
+		}{
+			{name: "absent", wantStatus: http.StatusNoContent, wantMode: api.SavedPostFolderPreserveSaves},
+			{name: "false", query: "?deleteSaves=false", wantStatus: http.StatusNoContent, wantMode: api.SavedPostFolderPreserveSaves},
+			{name: "true", query: "?deleteSaves=true", wantStatus: http.StatusNoContent, wantMode: api.SavedPostFolderRemoveSaves},
+			{name: "invalid", query: "?deleteSaves=yes", wantStatus: http.StatusUnprocessableEntity},
+			{name: "unknown", query: "?other=true", wantStatus: http.StatusUnprocessableEntity},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				store := &fakeSavedPostStore{}
+				req := savedPostRequest(http.MethodDelete, "/v1/saved-post-folders/missing"+tt.query, "")
+				req.SetPathValue("folderId", "missing")
+				resp := httptest.NewRecorder()
+				api.DeleteSavedPostFolderHandler(store).ServeHTTP(resp, req)
+				if resp.Code != tt.wantStatus {
+					t.Fatalf("status = %d, want %d body=%s", resp.Code, tt.wantStatus, resp.Body.String())
+				}
+				if tt.wantStatus == http.StatusNoContent && (store.deletedID != "missing" || store.deletedMode != tt.wantMode) {
+					t.Fatalf("delete = %q/%v, want missing/%v", store.deletedID, store.deletedMode, tt.wantMode)
+				}
+				if tt.wantStatus == http.StatusUnprocessableEntity && store.deletedID != "" {
+					t.Fatalf("invalid query reached store: %q", store.deletedID)
+				}
+			})
 		}
 	})
 

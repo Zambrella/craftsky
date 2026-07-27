@@ -66,22 +66,24 @@ describe('static deployment contract (IT-016)', () => {
     )
   })
 
-  it('keeps archive import code out of Flutter (REG-008)', async () => {
+  it('keeps historical-post import code out of Flutter (REG-008)', async () => {
     const appRoot = new URL('../../../app/', import.meta.url)
-    const pubspec = await readFile(new URL('pubspec.yaml', appRoot), 'utf8')
     const appFiles = await readdir(new URL('lib/', appRoot), {
       recursive: true,
     })
+    const dartPaths = appFiles.filter((path) => path.endsWith('.dart'))
     const dartSources = await Promise.all(
-      appFiles
-        .filter((path) => path.endsWith('.dart'))
-        .map((path) => readFile(new URL(`lib/${path}`, appRoot), 'utf8')),
+      dartPaths.map((path) =>
+        readFile(new URL(`lib/${path}`, appRoot), 'utf8'),
+      ),
     )
-    const flutterSurface = [pubspec, ...dartSources].join('\n')
+    const flutterSurface = dartSources.join('\n')
 
     expect(flutterSurface).not.toMatch(
-      /package:archive\/|ZipDecoder|InstagramPostImporter|instagram-importer/u,
+      /InstagramPostImporter|HistoricalInstagramPostImport|instagram-importer/u,
     )
-    expect(pubspec).not.toMatch(/^\s+archive:\s/um)
+    expect(dartPaths).not.toContainEqual(
+      expect.stringMatching(/instagram.*post.*import/iu),
+    )
   })
 })

@@ -109,7 +109,10 @@ int _suppressActor(
   final value = current.value;
   if (value == null) return 0;
   final retained = value.items
-      .where((item) => item.actor.did.toString() != did)
+      .where(
+        (item) =>
+            item is! SocialNotification || item.actor.did.toString() != did,
+      )
       .toList();
   final removed = value.items.length - retained.length;
   if (removed > 0) {

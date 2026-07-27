@@ -210,17 +210,11 @@ void main() {
       final pending = container
           .read(provider.notifier)
           .mutate(ProfileRelationshipAction.mute);
+      final retainedNotification =
+          container.read(notificationsProvider).requireValue.items.single
+              as SocialNotification;
 
-      expect(
-        container
-            .read(notificationsProvider)
-            .requireValue
-            .items
-            .single
-            .actor
-            .did,
-        'did:plc:carol',
-      );
+      expect(retainedNotification.actor.did, 'did:plc:carol');
       expect(container.read(notificationNewCountProvider).requireValue, 1);
 
       mutation.complete(const ProfileRelationship(muted: true));

@@ -437,7 +437,7 @@ func TestSavedPostStoreDeleteFolderUnfilesSavesIdempotently(t *testing.T) {
 		t.Fatalf("save Bob post: %v", err)
 	}
 
-	if err := store.DeleteFolder(ctx, alice, aliceFolder.ID); err != nil {
+	if err := store.DeleteFolder(ctx, alice, aliceFolder.ID, api.SavedPostFolderPreserveSaves); err != nil {
 		t.Fatalf("delete non-empty Alice folder: %v", err)
 	}
 	for postURI, wantSavedAt := range map[syntax.ATURI]time.Time{postOne: first.State.SavedAt, postTwo: second.State.SavedAt} {
@@ -464,7 +464,7 @@ func TestSavedPostStoreDeleteFolderUnfilesSavesIdempotently(t *testing.T) {
 		"malformed": "not-storage-shaped",
 	} {
 		t.Run(name+" delete", func(t *testing.T) {
-			if err := store.DeleteFolder(ctx, alice, id); err != nil {
+			if err := store.DeleteFolder(ctx, alice, id, api.SavedPostFolderPreserveSaves); err != nil {
 				t.Fatalf("DeleteFolder: %v", err)
 			}
 		})
@@ -482,6 +482,54 @@ func TestSavedPostStoreDeleteFolderUnfilesSavesIdempotently(t *testing.T) {
 	}
 	if len(bobFolders) != 1 || bobFolders[0].ID != bobFolder.ID {
 		t.Fatalf("Alice delete changed Bob folder: %+v", bobFolders)
+	}
+
+	removeFolder, err := store.CreateFolder(ctx, alice, "Remove saves")
+	if err != nil {
+		t.Fatalf("create remove folder: %v", err)
+	}
+	if _, err := store.Save(ctx, alice, postOne, api.FolderAssignment{Present: true, ID: &removeFolder.ID}); err != nil {
+		t.Fatalf("move save into remove folder: %v", err)
+	}
+	if err := store.DeleteFolder(ctx, alice, removeFolder.ID, api.SavedPostFolderRemoveSaves); err != nil {
+		t.Fatalf("delete folder with saves: %v", err)
+	}
+	if _, err := store.ReadState(ctx, alice, postOne); !errors.Is(err, api.ErrSavedPostNotFound) {
+		t.Fatalf("removed save ReadState error = %v, want ErrSavedPostNotFound", err)
+	}
+
+	rollbackFolder, err := store.CreateFolder(ctx, alice, "Rollback")
+	if err != nil {
+		t.Fatalf("create rollback folder: %v", err)
+	}
+	if _, err := store.Save(ctx, alice, postTwo, api.FolderAssignment{Present: true, ID: &rollbackFolder.ID}); err != nil {
+		t.Fatalf("seed rollback save: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		CREATE FUNCTION fail_saved_post_folder_delete() RETURNS trigger AS $$
+		BEGIN
+			RAISE EXCEPTION 'controlled folder delete failure';
+		END;
+		$$ LANGUAGE plpgsql;
+		CREATE TRIGGER fail_saved_post_folder_delete
+		BEFORE DELETE ON saved_post_folders
+		FOR EACH ROW EXECUTE FUNCTION fail_saved_post_folder_delete();
+	`); err != nil {
+		t.Fatalf("install folder delete failure trigger: %v", err)
+	}
+	if err := store.DeleteFolder(ctx, alice, rollbackFolder.ID, api.SavedPostFolderRemoveSaves); err == nil {
+		t.Fatal("delete with controlled folder failure succeeded")
+	}
+	rolledBack, err := store.ReadState(ctx, alice, postTwo)
+	if err != nil || rolledBack.FolderID == nil || *rolledBack.FolderID != rollbackFolder.ID {
+		t.Fatalf("save after rollback = %+v, err %v", rolledBack, err)
+	}
+	var rollbackFolderCount int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM saved_post_folders WHERE owner_did = $1 AND id = $2`, alice, rollbackFolder.ID).Scan(&rollbackFolderCount); err != nil {
+		t.Fatalf("count rollback folder: %v", err)
+	}
+	if rollbackFolderCount != 1 {
+		t.Fatalf("rollback folder count = %d, want 1", rollbackFolderCount)
 	}
 }
 
@@ -875,7 +923,9 @@ func TestSavedPostStoreConcurrentMutationsRemainSerialValid(t *testing.T) {
 	}
 	folderDeleteDone := make(chan error, 1)
 	unfileDone := make(chan error, 1)
-	go func() { folderDeleteDone <- store.DeleteFolder(ctx, owner, folderC.ID) }()
+	go func() {
+		folderDeleteDone <- store.DeleteFolder(ctx, owner, folderC.ID, api.SavedPostFolderPreserveSaves)
+	}()
 	go func() {
 		_, err := store.Save(ctx, owner, postTwo, api.FolderAssignment{Present: true})
 		unfileDone <- err
@@ -896,7 +946,7 @@ func TestSavedPostStoreConcurrentMutationsRemainSerialValid(t *testing.T) {
 		t.Fatalf("create folder D: %v", err)
 	}
 	moveDeleteDone := make(chan error, 2)
-	go func() { moveDeleteDone <- store.DeleteFolder(ctx, owner, folderD.ID) }()
+	go func() { moveDeleteDone <- store.DeleteFolder(ctx, owner, folderD.ID, api.SavedPostFolderPreserveSaves) }()
 	go func() {
 		_, err := store.Save(ctx, owner, postOne, api.FolderAssignment{Present: true, ID: &folderD.ID})
 		moveDeleteDone <- err

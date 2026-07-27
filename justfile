@@ -21,51 +21,56 @@ dev-d:
 
 # Stop and remove containers. Volumes are preserved.
 down:
-    docker compose down
+    ./scripts/compose-dev down
 
 # Stop and remove containers, networks, and volumes. This resets dev storage.
 reset:
-    docker compose down --volumes --remove-orphans
+    ./scripts/compose-dev down --volumes --remove-orphans
 
 # Follow logs across all services.
 logs:
-    docker compose logs -f
+    ./scripts/compose-dev logs -f
 
 # Run the CLI inside the appview container.
 migrate *ARGS:
-    docker compose exec appview /app/cli migrate {{ARGS}}
+    ./scripts/compose-dev exec appview /app/cli migrate {{ARGS}}
 
 ping:
-    docker compose exec appview /app/cli ping
+    ./scripts/compose-dev exec appview /app/cli ping
 
 tap-status:
-    docker compose exec appview /app/cli tap status
+    ./scripts/compose-dev exec appview /app/cli tap status
 
 # Compare one DID's Tap/PDS/AppView post state; pass --repair-stale --yes for dev-only cleanup.
 tap-repo-check DID *ARGS:
-    docker compose exec appview /app/cli tap repo-check '{{DID}}' {{ARGS}}
+    ./scripts/compose-dev exec appview /app/cli tap repo-check '{{DID}}' {{ARGS}}
 
 # Populate the dev database with deterministic fake posts/comments/replies.
 seed-fake *ARGS:
-    docker compose exec appview /app/cli seed fake-posts {{ARGS}}
+    ./scripts/compose-dev exec appview /app/cli seed fake-posts {{ARGS}}
 
 # Populate the dev database with screenshot-friendly profiles, projects, images, and engagement.
 seed-demo *ARGS:
-    docker compose exec appview /app/cli seed demo {{ARGS}}
+    ./scripts/compose-dev exec appview /app/cli seed demo {{ARGS}}
 
 # Open a psql session against the dev database, or run one-off commands.
 #   just psql                 # interactive shell
 #   just psql -c '\d'         # pass -c / other args through to psql
 psql *ARGS:
-    docker compose exec postgres psql -U craftsky craftsky_dev {{ARGS}}
+    ./scripts/compose-dev exec postgres psql -U craftsky craftsky_dev {{ARGS}}
 
 # Run the Go test suite with the race detector enabled. Tests run on the
 # host (the appview image uses a distroless-ish alpine final stage without
-# Go) and connect to the compose Postgres via the host-exposed :5432.
+# Go) and connect to the current stack's published Postgres port.
 # Requires: Go installed locally, and `just dev-d` already running (for
 # the real-Postgres integration tests).
 test:
-    cd appview && TEST_DATABASE_URL=postgres://craftsky:dev@localhost:5433/craftsky_dev?sslmode=disable go test -race ./...
+    #!/usr/bin/env bash
+    set -euo pipefail
+    POSTGRES_ADDRESS=$(./scripts/compose-dev port postgres 5432)
+    POSTGRES_PORT=${POSTGRES_ADDRESS##*:}
+    cd appview
+    TEST_DATABASE_URL="postgres://craftsky:dev@localhost:${POSTGRES_PORT}/craftsky_dev?sslmode=disable" go test -race ./...
 
 # Format and vet Go code on the host.
 fmt:
@@ -117,22 +122,52 @@ app-env-init:
 
 # Run the Flutter app with local config and Flutter's interactive device picker.
 app-run *ARGS: app-env-init
-    cd app && flutter run --dart-define-from-file=config/local.env {{ARGS}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    APPVIEW_ADDRESS=$(./scripts/compose-dev port appview 8080)
+    APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
+    cd app
+    flutter run --dart-define-from-file=config/local.env \
+      --dart-define="CRAFTSKY_API_BASE_URL=http://localhost:${APPVIEW_PORT}" {{ARGS}}
 
 app-run-chrome: app-env-init
-    cd app && flutter run -d chrome --dart-define-from-file=config/local.env
+    #!/usr/bin/env bash
+    set -euo pipefail
+    APPVIEW_ADDRESS=$(./scripts/compose-dev port appview 8080)
+    APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
+    cd app
+    flutter run -d chrome --dart-define-from-file=config/local.env \
+      --dart-define="CRAFTSKY_API_BASE_URL=http://localhost:${APPVIEW_PORT}"
 
 app-run-macos: app-env-init
-    cd app && flutter run -d macos --dart-define-from-file=config/local.env
+    #!/usr/bin/env bash
+    set -euo pipefail
+    APPVIEW_ADDRESS=$(./scripts/compose-dev port appview 8080)
+    APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
+    cd app
+    flutter run -d macos --dart-define-from-file=config/local.env \
+      --dart-define="CRAFTSKY_API_BASE_URL=http://localhost:${APPVIEW_PORT}"
 
 app-run-ios: app-env-init
-    cd app && flutter run -d ios --dart-define-from-file=config/local.env
+    #!/usr/bin/env bash
+    set -euo pipefail
+    APPVIEW_ADDRESS=$(./scripts/compose-dev port appview 8080)
+    APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
+    cd app
+    flutter run -d ios --dart-define-from-file=config/local.env \
+      --dart-define="CRAFTSKY_API_BASE_URL=http://localhost:${APPVIEW_PORT}"
 
 app-run-android: app-env-init
+    #!/usr/bin/env bash
+    set -euo pipefail
     # atproto's localhost OAuth client only permits loopback redirect URIs.
-    # Make the emulator's 127.0.0.1:18080 reach the host AppView callback.
-    adb reverse tcp:18080 tcp:18080
-    cd app && flutter run --dart-define-from-file=config/local-android.env
+    # Reverse this checkout's published AppView port into the emulator.
+    APPVIEW_ADDRESS=$(./scripts/compose-dev port appview 8080)
+    APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
+    adb reverse "tcp:${APPVIEW_PORT}" "tcp:${APPVIEW_PORT}"
+    cd app
+    flutter run --dart-define-from-file=config/local-android.env \
+      --dart-define="CRAFTSKY_API_BASE_URL=http://10.0.2.2:${APPVIEW_PORT}"
 
 app-analyze:
     cd app && flutter analyze
