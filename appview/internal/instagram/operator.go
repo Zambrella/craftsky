@@ -286,7 +286,7 @@ func (s *OperatorService) revokeLinkTx(ctx context.Context, tx pgx.Tx, id uuid.U
 		return "", false, fmt.Errorf("operator release Instagram claim: %w", err)
 	}
 	suggestionIDs, err := retentionUUIDs(ctx, tx, `
-		UPDATE instagram_follow_suggestions
+		UPDATE instagram_automatic_follow_ledger
 		SET state='invalidated',accepting_since=NULL,
 		    terminal_at=COALESCE(terminal_at,$2),updated_at=$2
 		WHERE target_did=$1 AND state IN ('pending','writing')

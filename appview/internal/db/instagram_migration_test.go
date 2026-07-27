@@ -15,6 +15,10 @@ func TestInstagramMigrationCreatesPrivateSchemaWithoutMembershipCascades(t *test
 	t.Parallel()
 
 	sql := readMigration(t, "../../migrations/000025_instagram_migration.up.sql")
+	storageNames := readMigration(
+		t,
+		"../../migrations/000031_instagram_automatic_follow_storage_names.up.sql",
+	)
 	for _, forbidden := range []string{
 		"REFERENCES craftsky_profiles",
 		"raw_body",
@@ -33,6 +37,9 @@ func TestInstagramMigrationCreatesPrivateSchemaWithoutMembershipCascades(t *test
 	if _, err := pool.Exec(ctx, sql); err != nil {
 		t.Fatalf("apply core migration: %v", err)
 	}
+	if _, err := pool.Exec(ctx, storageNames); err != nil {
+		t.Fatalf("apply automatic-follow storage-name migration: %v", err)
+	}
 
 	for _, table := range []string{
 		"instagram_verification_attempts",
@@ -42,8 +49,8 @@ func TestInstagramMigrationCreatesPrivateSchemaWithoutMembershipCascades(t *test
 		"instagram_webhook_work",
 		"instagram_graph_imports",
 		"instagram_graph_handles",
-		"instagram_follow_suggestions",
-		"instagram_suggestion_sources",
+		"instagram_automatic_follow_ledger",
+		"instagram_automatic_follow_sources",
 		"instagram_reconciliation_jobs",
 		"pds_follow_operations",
 		"instagram_rate_limit_buckets",
@@ -58,7 +65,7 @@ func TestInstagramMigrationCreatesPrivateSchemaWithoutMembershipCascades(t *test
 		"instagram_link_conflicts_state_check",
 		"instagram_webhook_work_status_check",
 		"instagram_graph_imports_state_check",
-		"instagram_follow_suggestions_state_check",
+		"instagram_automatic_follow_ledger_state_check",
 		"instagram_reconciliation_jobs_status_check",
 		"pds_follow_operations_status_check",
 		"instagram_rate_limit_buckets_count_check",
@@ -77,7 +84,7 @@ func TestInstagramMigrationCreatesPrivateSchemaWithoutMembershipCascades(t *test
 		"instagram_webhook_work_attempt_unique",
 		"instagram_graph_imports_owner_page_idx",
 		"instagram_graph_handles_match_idx",
-		"instagram_follow_suggestions_owner_page_idx",
+		"instagram_automatic_follow_ledger_owner_page_idx",
 		"instagram_reconciliation_jobs_claim_idx",
 		"pds_follow_operations_owner_rkey_unique",
 		"instagram_rate_limit_buckets_expiry_idx",
@@ -121,6 +128,59 @@ func TestInstagramMigrationCreatesPrivateSchemaWithoutMembershipCascades(t *test
 	}
 	if imports != 1 {
 		t.Fatalf("membership deletion cascaded to %d imports, want private row retained", imports)
+	}
+}
+
+func TestInstagramAutomaticFollowStorageNamesMigrationIsReversible(t *testing.T) {
+	t.Parallel()
+
+	pool := testdb.WithSchema(t, "")
+	ctx := context.Background()
+	for _, path := range []string{
+		"../../migrations/000025_instagram_migration.up.sql",
+		"../../migrations/000031_instagram_automatic_follow_storage_names.up.sql",
+	} {
+		if _, err := pool.Exec(ctx, readMigration(t, path)); err != nil {
+			t.Fatalf("apply %s: %v", path, err)
+		}
+	}
+
+	for _, table := range []string{
+		"instagram_automatic_follow_ledger",
+		"instagram_automatic_follow_sources",
+	} {
+		assertTableExists(t, pool, table)
+	}
+	if !columnExists(
+		t,
+		pool,
+		"instagram_automatic_follow_sources",
+		"automatic_follow_id",
+	) {
+		t.Error("renamed source reference column missing")
+	}
+	if !columnExists(t, pool, "pds_follow_operations", "automatic_follow_id") {
+		t.Error("renamed PDS operation reference column missing")
+	}
+
+	down := readMigration(
+		t,
+		"../../migrations/000031_instagram_automatic_follow_storage_names.down.sql",
+	)
+	if _, err := pool.Exec(ctx, down); err != nil {
+		t.Fatalf("roll back automatic-follow storage-name migration: %v", err)
+	}
+	for _, table := range []string{
+		"instagram_follow_suggestions",
+		"instagram_suggestion_sources",
+	} {
+		assertTableExists(t, pool, table)
+	}
+	if !columnExists(t, pool, "instagram_suggestion_sources", "suggestion_id") {
+		t.Error("rolled-back source reference column missing")
+	}
+	if !columnExists(t, pool, "pds_follow_operations", "suggestion_id") {
+		t.Error("rolled-back PDS operation reference column missing")
 	}
 }
 
@@ -563,6 +623,7 @@ func TestInstagramAutomaticFollowMigrationEnforcesWorkerAndActorfulNotificationS
 		"../../migrations/000026_system_notifications.up.sql",
 		"../../migrations/000029_notification_client_owned_destination.up.sql",
 		"../../migrations/000030_instagram_automatic_follows.up.sql",
+		"../../migrations/000031_instagram_automatic_follow_storage_names.up.sql",
 	} {
 		if _, err := pool.Exec(ctx, readMigration(t, path)); err != nil {
 			t.Fatalf("apply %s: %v", path, err)
@@ -592,6 +653,26 @@ func TestInstagramAutomaticFollowMigrationEnforcesWorkerAndActorfulNotificationS
 		if !indexExists(t, pool, index) {
 			t.Errorf("automatic-follow index %q missing", index)
 		}
+	}
+
+	for _, legacyTable := range []string{
+		"instagram_follow_suggestions",
+		"instagram_suggestion_sources",
+	} {
+		if instagramTableExists(t, pool, legacyTable) {
+			t.Errorf("legacy table %s remains after rename migration", legacyTable)
+		}
+	}
+	if !columnExists(
+		t,
+		pool,
+		"instagram_automatic_follow_sources",
+		"automatic_follow_id",
+	) {
+		t.Error("automatic-follow source reference column missing")
+	}
+	if !columnExists(t, pool, "pds_follow_operations", "automatic_follow_id") {
+		t.Error("PDS follow operation reference column missing")
 	}
 	for _, constraint := range []string{
 		"pds_follow_operations_status_check",

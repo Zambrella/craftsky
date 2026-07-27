@@ -223,7 +223,7 @@ func TestRetentionServicePurgesTerminalPrivateClassesAtExactBoundaries(t *testin
 	pool, now := newRetentionTest(t)
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_follow_suggestions(
+		INSERT INTO instagram_automatic_follow_ledger(
 			id,importer_did,target_did,state,reason,terminal_at,created_at,updated_at
 		) VALUES
 			('41000000-0000-0000-0000-000000000001','did:plc:retention-s1','did:plc:target-s1','invalidated','verifiedInstagramFollow',$1::timestamptz-interval '90 days',$1::timestamptz-interval '100 days',$1::timestamptz-interval '90 days'),
@@ -268,10 +268,10 @@ func TestRetentionServicePurgesTerminalPrivateClassesAtExactBoundaries(t *testin
 	if stats.SuggestionsPurged != 1 || stats.ConflictsExpired != 1 || stats.ConflictsPurged != 1 || stats.RateBucketsPurged != 1 || stats.AuditsPurged != 1 {
 		t.Fatalf("terminal stats = %+v", stats)
 	}
-	assertRetentionExists(t, pool, "instagram_follow_suggestions", "41000000-0000-0000-0000-000000000001", false)
-	assertRetentionExists(t, pool, "instagram_follow_suggestions", "41000000-0000-0000-0000-000000000002", true)
-	assertRetentionExists(t, pool, "instagram_follow_suggestions", "41000000-0000-0000-0000-000000000003", true)
-	assertRetentionExists(t, pool, "instagram_follow_suggestions", "41000000-0000-0000-0000-000000000004", true)
+	assertRetentionExists(t, pool, "instagram_automatic_follow_ledger", "41000000-0000-0000-0000-000000000001", false)
+	assertRetentionExists(t, pool, "instagram_automatic_follow_ledger", "41000000-0000-0000-0000-000000000002", true)
+	assertRetentionExists(t, pool, "instagram_automatic_follow_ledger", "41000000-0000-0000-0000-000000000003", true)
+	assertRetentionExists(t, pool, "instagram_automatic_follow_ledger", "41000000-0000-0000-0000-000000000004", true)
 	assertRetentionExists(t, pool, "instagram_link_conflicts", "42000000-0000-0000-0000-000000000003", false)
 	var conflictState InstagramConflictState
 	var identityFields int
@@ -301,7 +301,7 @@ func TestRetentionServicePurgesMatchEventsAndRetractedDeliveriesAtExactBoundarie
 	}
 	for i, id := range suggestions {
 		if _, err := pool.Exec(ctx, `
-			INSERT INTO instagram_follow_suggestions(
+			INSERT INTO instagram_automatic_follow_ledger(
 				id,importer_did,target_did,state,reason,created_at,updated_at
 			) VALUES($1,$2,$3,'pending','verifiedInstagramFollow',$4,$4)
 		`, id, fmt.Sprintf("did:plc:retention-notification-%d", i), fmt.Sprintf("did:plc:retention-notification-target-%d", i), now); err != nil {
@@ -344,6 +344,7 @@ func newRetentionTest(t *testing.T) (*pgxpool.Pool, time.Time) {
 		"../../migrations/000026_system_notifications.up.sql",
 		"../../migrations/000029_notification_client_owned_destination.up.sql",
 		"../../migrations/000030_instagram_automatic_follows.up.sql",
+		"../../migrations/000031_instagram_automatic_follow_storage_names.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {

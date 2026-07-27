@@ -177,7 +177,7 @@ func (s *AutomaticFollowStore) ClaimBatch(
 			operation.target_did,
 			COALESCE((
 				SELECT handle.username_normalized
-				FROM instagram_suggestion_sources source
+				FROM instagram_automatic_follow_sources source
 				JOIN instagram_graph_imports import
 				  ON import.id=source.import_id
 				 AND import.owner_did=operation.owner_did
@@ -187,7 +187,7 @@ func (s *AutomaticFollowStore) ClaimBatch(
 				JOIN instagram_account_links link
 				  ON link.owner_did=operation.target_did
 				 AND link.username_normalized=handle.username_normalized
-				WHERE source.suggestion_id=operation.suggestion_id
+				WHERE source.automatic_follow_id=operation.automatic_follow_id
 				ORDER BY import.created_at, import.id, handle.id
 				LIMIT 1
 			), ''),
@@ -243,10 +243,10 @@ func (s *AutomaticFollowStore) ClaimBatch(
 			return nil, fmt.Errorf("lease automatic follow: %w", err)
 		}
 		if _, err := tx.Exec(ctx, `
-			UPDATE instagram_follow_suggestions
+			UPDATE instagram_automatic_follow_ledger
 			SET state='writing', updated_at=$2
 			WHERE id=(
-				SELECT suggestion_id
+				SELECT automatic_follow_id
 				FROM pds_follow_operations
 				WHERE id=$1
 			)
@@ -331,12 +331,12 @@ func (s *AutomaticFollowStore) complete(
 		}
 	}
 	if _, err := tx.Exec(ctx, `
-		UPDATE instagram_follow_suggestions
+		UPDATE instagram_automatic_follow_ledger
 		SET state=$2,
 		    terminal_at=COALESCE(terminal_at,$3),
 		    updated_at=$3
 		WHERE id=(
-			SELECT suggestion_id FROM pds_follow_operations WHERE id=$1
+			SELECT automatic_follow_id FROM pds_follow_operations WHERE id=$1
 		)
 		  AND state='writing'
 	`, operation.ID, state, now.UTC()); err != nil {
@@ -406,12 +406,12 @@ func (s *AutomaticFollowStore) release(
 		return ErrAutomaticFollowLeaseLost
 	}
 	if _, err := tx.Exec(ctx, `
-		UPDATE instagram_follow_suggestions
+		UPDATE instagram_automatic_follow_ledger
 		SET state=$2,
 		    terminal_at=CASE WHEN $2='invalidated' THEN COALESCE(terminal_at,$3) ELSE NULL END,
 		    updated_at=$3
 		WHERE id=(
-			SELECT suggestion_id FROM pds_follow_operations WHERE id=$1
+			SELECT automatic_follow_id FROM pds_follow_operations WHERE id=$1
 		)
 		  AND state='writing'
 	`, operation.ID, state, at.UTC()); err != nil {
@@ -484,7 +484,7 @@ func (s *AutomaticFollowStore) ReconcileCandidate(
 		state    AutomaticFollowState
 	)
 	err = tx.QueryRow(ctx, `
-		INSERT INTO instagram_follow_suggestions (
+		INSERT INTO instagram_automatic_follow_ledger (
 			id, importer_did, target_did, state, reason, created_at, updated_at
 		) VALUES ($1,$2,$3,'pending','verifiedInstagramFollow',$4,$4)
 		ON CONFLICT (importer_did, target_did, reason) DO NOTHING
@@ -494,7 +494,7 @@ func (s *AutomaticFollowStore) ReconcileCandidate(
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = tx.QueryRow(ctx, `
 			SELECT id, state
-			FROM instagram_follow_suggestions
+			FROM instagram_automatic_follow_ledger
 			WHERE importer_did=$1
 			  AND target_did=$2
 			  AND reason='verifiedInstagramFollow'
@@ -511,9 +511,9 @@ func (s *AutomaticFollowStore) ReconcileCandidate(
 		return ReconcileAutomaticFollowResult{}, err
 	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO instagram_suggestion_sources (suggestion_id, import_id, created_at)
+		INSERT INTO instagram_automatic_follow_sources (automatic_follow_id, import_id, created_at)
 		VALUES ($1,$2,$3)
-		ON CONFLICT (suggestion_id, import_id) DO NOTHING
+		ON CONFLICT (automatic_follow_id, import_id) DO NOTHING
 	`, ledgerID, params.ImportID, params.Now); err != nil {
 		return ReconcileAutomaticFollowResult{}, err
 	}
@@ -532,7 +532,7 @@ func (s *AutomaticFollowStore) ReconcileCandidate(
 	}
 	if state == AutomaticFollowInvalidated {
 		if _, err := tx.Exec(ctx, `
-			UPDATE instagram_follow_suggestions
+			UPDATE instagram_automatic_follow_ledger
 			SET state='pending', terminal_at=NULL, updated_at=$2
 			WHERE id=$1
 		`, ledgerID, params.Now); err != nil {
@@ -543,10 +543,10 @@ func (s *AutomaticFollowStore) ReconcileCandidate(
 
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO pds_follow_operations (
-			id, suggestion_id, owner_did, target_did, rkey, status,
+			id, automatic_follow_id, owner_did, target_did, rkey, status,
 			attempt_count, next_attempt_at, created_at, updated_at
 		) VALUES ($1,$1,$2,$3,$4,'pending',0,$5,$5,$5)
-		ON CONFLICT (suggestion_id) DO UPDATE SET
+		ON CONFLICT (automatic_follow_id) DO UPDATE SET
 			status=CASE
 				WHEN pds_follow_operations.status='invalidated' THEN 'pending'
 				ELSE pds_follow_operations.status
@@ -595,7 +595,7 @@ func (s *AutomaticFollowStore) DeleteVerificationLedger(ctx context.Context, own
 		return err
 	}
 	if _, err := tx.Exec(ctx, `
-		DELETE FROM instagram_follow_suggestions WHERE importer_did=$1
+		DELETE FROM instagram_automatic_follow_ledger WHERE importer_did=$1
 	`, owner); err != nil {
 		return err
 	}
@@ -611,7 +611,7 @@ func loadAutomaticFollowOperation(
 	err := tx.QueryRow(ctx, `
 		SELECT id, owner_did, target_did, rkey, created_at
 		FROM pds_follow_operations
-		WHERE suggestion_id=$1
+		WHERE automatic_follow_id=$1
 	`, ledgerID).Scan(
 		&operation.ID,
 		&operation.OwnerDID,

@@ -183,6 +183,7 @@ func instagramNotificationPool(t *testing.T) *pgxpool.Pool {
 		"../../migrations/000026_system_notifications.up.sql",
 		"../../migrations/000029_notification_client_owned_destination.up.sql",
 		"../../migrations/000030_instagram_automatic_follows.up.sql",
+		"../../migrations/000031_instagram_automatic_follow_storage_names.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {

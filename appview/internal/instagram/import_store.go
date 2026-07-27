@@ -351,19 +351,19 @@ func (s *ImportStore) DeleteImport(ctx context.Context, owner syntax.DID, id uui
 
 func invalidateUnsupportedSuggestions(ctx context.Context, tx pgx.Tx, owner syntax.DID, now time.Time) ([]uuid.UUID, error) {
 	return queryUUIDs(ctx, tx, `
-		UPDATE instagram_follow_suggestions suggestion
+		UPDATE instagram_automatic_follow_ledger suggestion
 		SET state = 'invalidated', accepting_since = NULL,
 		    terminal_at = COALESCE(terminal_at, $2), updated_at = $2
 		WHERE suggestion.importer_did = $1
 		  AND suggestion.state IN ('pending', 'writing')
 		  AND NOT EXISTS (
 			SELECT 1
-			FROM instagram_suggestion_sources source
+			FROM instagram_automatic_follow_sources source
 			JOIN instagram_graph_imports source_import
 			  ON source_import.id = source.import_id
 			 AND source_import.owner_did = suggestion.importer_did
 			 AND source_import.state = 'active'
-			WHERE source.suggestion_id = suggestion.id
+			WHERE source.automatic_follow_id = suggestion.id
 		  )
 		RETURNING suggestion.id
 	`, owner, now)

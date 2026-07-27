@@ -138,7 +138,7 @@ func TestPrivateDataMembershipInactivationIsReversibleIdempotentAndConcurrent(t 
 		t.Fatalf("automatic-follow states after inactivation = %+v", states)
 	}
 	var acceptedOperation AutomaticFollowState
-	if err := pool.QueryRow(ctx, `SELECT status FROM pds_follow_operations WHERE suggestion_id=$1`, lifecycleAccepted).Scan(&acceptedOperation); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT status FROM pds_follow_operations WHERE automatic_follow_id=$1`, lifecycleAccepted).Scan(&acceptedOperation); err != nil {
 		t.Fatalf("read accepted PDS operation: %v", err)
 	}
 	if acceptedOperation != AutomaticFollowFollowed {
@@ -308,7 +308,7 @@ func TestPrivateDataTerminalPurgeIsIdempotentConcurrentAndLeavesOtherOwners(t *t
 		{"instagram_identity_claims", "owner_did=$1"},
 		{"instagram_graph_imports", "owner_did=$1"},
 		{"instagram_reconciliation_jobs", "owner_did=$1 OR target_did=$1"},
-		{"instagram_follow_suggestions", "importer_did=$1 OR target_did=$1"},
+		{"instagram_automatic_follow_ledger", "importer_did=$1 OR target_did=$1"},
 		{"pds_follow_operations", "owner_did=$1 OR target_did=$1"},
 	}
 	for _, check := range ownerChecks {
@@ -375,6 +375,7 @@ func newPrivateDataTest(t *testing.T) (*PrivateDataService, *pgxpool.Pool, time.
 		"../../migrations/000026_system_notifications.up.sql",
 		"../../migrations/000029_notification_client_owned_destination.up.sql",
 		"../../migrations/000030_instagram_automatic_follows.up.sql",
+		"../../migrations/000031_instagram_automatic_follow_storage_names.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {
@@ -446,7 +447,7 @@ func seedPrivateDataLifecycle(t *testing.T, service *PrivateDataService, pool *p
 		t.Fatalf("seed lifecycle handles: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_follow_suggestions(
+		INSERT INTO instagram_automatic_follow_ledger(
 			id,importer_did,target_did,state,reason,terminal_at,created_at,updated_at
 		) VALUES
 			($1,$2,$3,'pending','verifiedInstagramFollow',NULL,$4,$4),
@@ -457,7 +458,7 @@ func seedPrivateDataLifecycle(t *testing.T, service *PrivateDataService, pool *p
 		t.Fatalf("seed lifecycle suggestions: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_suggestion_sources(suggestion_id,import_id,created_at) VALUES
+		INSERT INTO instagram_automatic_follow_sources(automatic_follow_id,import_id,created_at) VALUES
 			($1,$2,$3),($4,$5,$3),($6,$2,$3)
 	`, lifecycleOwnerPending, lifecycleAliceImport, now,
 		lifecycleTargetPending, lifecycleBobImport, lifecycleAccepted); err != nil {
@@ -465,7 +466,7 @@ func seedPrivateDataLifecycle(t *testing.T, service *PrivateDataService, pool *p
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO pds_follow_operations(
-			id,suggestion_id,owner_did,target_did,rkey,status,
+			id,automatic_follow_id,owner_did,target_did,rkey,status,
 			attempt_count,next_attempt_at,created_at,updated_at,completed_at
 		) VALUES
 			('41000000-0000-0000-0000-000000000001',$1,$2,$3,'3kysyntheticpending','pending',0,$4,$4,$4,NULL),
@@ -543,7 +544,7 @@ func seedLifecycleNotification(t *testing.T, pool *pgxpool.Pool, eventID uuid.UU
 			eligibility_scope,recipient_followed_actor,push_enabled_snapshot,
 			state,first_activity_at,activity_at,indexed_at,initial_push_evaluated_at
 		) VALUES(
-			$1,$2,(SELECT target_did FROM instagram_follow_suggestions WHERE id=$3),
+			$1,$2,(SELECT target_did FROM instagram_automatic_follow_ledger WHERE id=$3),
 			'instagramMatch',$3,
 			'everyone',true,true,'active',$4,$4,$4,$4
 		)
@@ -628,7 +629,7 @@ func assertOwnerRateBuckets(t *testing.T, service *PrivateDataService, pool *pgx
 
 func readSuggestionStates(t *testing.T, pool *pgxpool.Pool) map[uuid.UUID]AutomaticFollowState {
 	t.Helper()
-	rows, err := pool.Query(context.Background(), `SELECT id,state FROM instagram_follow_suggestions`)
+	rows, err := pool.Query(context.Background(), `SELECT id,state FROM instagram_automatic_follow_ledger`)
 	if err != nil {
 		t.Fatalf("read suggestion states: %v", err)
 	}
@@ -651,7 +652,7 @@ func readSuggestionStates(t *testing.T, pool *pgxpool.Pool) map[uuid.UUID]Automa
 func assertFollowLedgerStatus(t *testing.T, pool *pgxpool.Pool, suggestionID uuid.UUID, want AutomaticFollowState) {
 	t.Helper()
 	var got AutomaticFollowState
-	if err := pool.QueryRow(context.Background(), `SELECT status FROM pds_follow_operations WHERE suggestion_id=$1`, suggestionID).Scan(&got); err != nil {
+	if err := pool.QueryRow(context.Background(), `SELECT status FROM pds_follow_operations WHERE automatic_follow_id=$1`, suggestionID).Scan(&got); err != nil {
 		t.Fatalf("read follow ledger %s: %v", suggestionID, err)
 	}
 	if got != want {

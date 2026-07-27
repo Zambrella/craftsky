@@ -136,7 +136,7 @@ func (s *AccountStore) UpdateSettings(ctx context.Context, owner syntax.DID, pat
 
 	if !nextDiscoverable {
 		suggestionIDs, err := updateSuggestionState(ctx, tx, `
-			UPDATE instagram_follow_suggestions
+			UPDATE instagram_automatic_follow_ledger
 			SET state = 'invalidated', accepting_since = NULL,
 			    terminal_at = COALESCE(terminal_at, $2), updated_at = $2
 			WHERE target_did = $1 AND state IN ('pending', 'writing')
@@ -248,7 +248,7 @@ func (s *AccountStore) RevokeAccount(ctx context.Context, owner syntax.DID) erro
 		return fmt.Errorf("revoke Instagram identity claim: %w", err)
 	}
 	suggestionIDs, err := updateSuggestionState(ctx, tx, `
-		UPDATE instagram_follow_suggestions
+		UPDATE instagram_automatic_follow_ledger
 		SET state = 'invalidated', accepting_since = NULL,
 		    terminal_at = COALESCE(terminal_at, $2), updated_at = $2
 		WHERE target_did = $1 AND state IN ('pending', 'writing')
@@ -270,7 +270,7 @@ func (s *AccountStore) RevokeAccount(ctx context.Context, owner syntax.DID) erro
 		return fmt.Errorf("delete revoked Instagram follow operations: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
-		DELETE FROM instagram_follow_suggestions
+		DELETE FROM instagram_automatic_follow_ledger
 		WHERE importer_did=$1
 	`, owner); err != nil {
 		return fmt.Errorf("delete revoked Instagram follow ledger: %w", err)

@@ -181,7 +181,7 @@ func TestVerificationServiceCollisionDoesNotTransferExistingIdentity(t *testing.
 	}
 	dependentSuggestionID := uuid.MustParse("00000000-0000-0000-0000-00000000004e")
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_follow_suggestions(
+		INSERT INTO instagram_automatic_follow_ledger(
 			id,importer_did,target_did,state,reason,created_at,updated_at
 		) VALUES($1,'did:plc:synthetic-importer',$2,'pending','verifiedInstagramFollow',$3,$3)
 	`, dependentSuggestionID, alice, now); err != nil {
@@ -189,7 +189,7 @@ func TestVerificationServiceCollisionDoesNotTransferExistingIdentity(t *testing.
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO pds_follow_operations(
-			id,suggestion_id,owner_did,target_did,rkey,status,
+			id,automatic_follow_id,owner_did,target_did,rkey,status,
 			attempt_count,next_attempt_at,created_at,updated_at
 		) VALUES(
 			'00000000-0000-0000-0000-00000000004f',$1,
@@ -231,8 +231,8 @@ func TestVerificationServiceCollisionDoesNotTransferExistingIdentity(t *testing.
 	var followStatus, jobStatus string
 	if err := pool.QueryRow(ctx, `
 		SELECT
-			(SELECT state FROM instagram_follow_suggestions WHERE id=$1),
-			(SELECT status FROM pds_follow_operations WHERE suggestion_id=$1),
+			(SELECT state FROM instagram_automatic_follow_ledger WHERE id=$1),
+			(SELECT status FROM pds_follow_operations WHERE automatic_follow_id=$1),
 			(SELECT status FROM instagram_reconciliation_jobs WHERE link_id=$2 ORDER BY created_at DESC LIMIT 1)
 	`, dependentSuggestionID, aliceLinkID).Scan(&suggestionState, &followStatus, &jobStatus); err != nil {
 		t.Fatalf("inspect collision dependents: %v", err)
@@ -474,7 +474,7 @@ func TestVerificationServiceSupersessionImmediatelyPurgesPlaintextIdentity(t *te
 	oldLinkID := confirm("100000000000401", "old.identity")
 	dependentSuggestionID := uuid.MustParse("00000000-0000-0000-0000-0000000000ce")
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_follow_suggestions(
+		INSERT INTO instagram_automatic_follow_ledger(
 			id,importer_did,target_did,state,reason,created_at,updated_at
 		) VALUES($1,'did:plc:synthetic-supersession-importer',$2,'pending','verifiedInstagramFollow',$3,$3)
 	`, dependentSuggestionID, owner, now); err != nil {
@@ -482,7 +482,7 @@ func TestVerificationServiceSupersessionImmediatelyPurgesPlaintextIdentity(t *te
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO pds_follow_operations(
-			id,suggestion_id,owner_did,target_did,rkey,status,
+			id,automatic_follow_id,owner_did,target_did,rkey,status,
 			attempt_count,next_attempt_at,created_at,updated_at
 		) VALUES(
 			'00000000-0000-0000-0000-0000000000cf',$1,
@@ -511,8 +511,8 @@ func TestVerificationServiceSupersessionImmediatelyPurgesPlaintextIdentity(t *te
 	var followStatus, jobStatus string
 	if err := pool.QueryRow(ctx, `
 		SELECT
-			(SELECT state FROM instagram_follow_suggestions WHERE id=$1),
-			(SELECT status FROM pds_follow_operations WHERE suggestion_id=$1),
+			(SELECT state FROM instagram_automatic_follow_ledger WHERE id=$1),
+			(SELECT status FROM pds_follow_operations WHERE automatic_follow_id=$1),
 			(SELECT status FROM instagram_reconciliation_jobs WHERE link_id=$2 ORDER BY created_at DESC LIMIT 1)
 	`, dependentSuggestionID, oldLinkID).Scan(&suggestionState, &followStatus, &jobStatus); err != nil {
 		t.Fatalf("inspect supersession dependents: %v", err)
@@ -547,6 +547,7 @@ func verificationServicePool(t *testing.T) *pgxpool.Pool {
 		"000026_system_notifications.up.sql",
 		"000029_notification_client_owned_destination.up.sql",
 		"000030_instagram_automatic_follows.up.sql",
+		"000031_instagram_automatic_follow_storage_names.up.sql",
 	} {
 		contents, err := os.ReadFile("../../migrations/" + name)
 		if err != nil {

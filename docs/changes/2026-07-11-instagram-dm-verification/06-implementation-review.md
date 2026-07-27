@@ -34,7 +34,7 @@ test-symmetry, and internal-terminology improvements.
 |---|---|---|---|---|---|
 | IR-023 | Suggestion | Limits / Defense In Depth | The production loop and real store enforce the automatic-follow batch maximum of 100, but `AutomaticFollowWorker.ProcessBatch` itself rejects only values below one. Current production wiring remains bounded; a future direct caller or test store could bypass the component-level maximum. | Requirements §12.4; `FR-017`, `NFR-005`, `TD-012`; `appview/internal/instagram/automatic_follow_worker.go`; `appview/internal/instagram/automatic_follow_store.go`; `appview/cmd/appview/main.go` | Opportunistically add the same `AutomaticFollowBatchMax` check at the worker entry point and a focused exact-100/101 test. No change is required before this implementation is accepted. |
 | IR-024 | Suggestion | Tests / Multi-account | Owner-scoped notification regression tests prove inactive-owner rejection and switch-during-await fencing for the Unfollow branch. Follow and Unfollow share the same owner-lease guard, and shared notification tests exercise both actions, so no behavioral defect is present; a symmetric owner-scoped Follow case would make `IT-017` traceability more explicit. | `FR-026`, `NFR-008`, `IT-017`; `app/test/notifications/instagram_match_notification_test.dart`; `app/test/notifications/notifications_page_test.dart` | Add one retained-owner or switch-during-await Follow case as an optional regression improvement. |
-| IR-021 | Suggestion | Code Quality / Terminology | Some internal policy/request symbols retain the superseded suggestion terminology, including `InstagramSuggestionEligibilityPolicy` and `SuggestionEligibilityRequest`. The coding plan permits truthful legacy internal/storage naming, and no member-facing suggestion surface remains. | `FR-016`; `04-coding-plan.md` §4.2; `appview/internal/instagram/eligibility_policy.go`; `appview/internal/instagram/automatic_follow_worker.go`; `appview/internal/instagram/reconciliation.go` | Rename non-storage internal symbols opportunistically without rewriting historical TDD evidence. |
+| IR-021 | Suggestion | Code Quality / Terminology | The current database schema and storage SQL now use automatic-follow terminology, but some internal policy/request symbols retain superseded suggestion terminology, including `InstagramSuggestionEligibilityPolicy` and `SuggestionEligibilityRequest`. No member-facing suggestion surface remains. | `FR-016`; `04-coding-plan.md` §4.2; `appview/internal/instagram/eligibility_policy.go`; `appview/internal/instagram/automatic_follow_worker.go`; `appview/internal/instagram/reconciliation.go` | Rename the remaining non-storage internal symbols opportunistically without rewriting historical TDD evidence. |
 
 ## Requirement And Test Traceability
 
@@ -75,6 +75,14 @@ test-symmetry, and internal-terminology improvements.
   issues.
 - Failing or skipped tests: none remain. Automated tests remain synthetic and
   make no Meta calls.
+
+### Post-review storage-name follow-up
+
+Migration `000031` subsequently renamed the legacy private suggestion tables,
+reference columns, constraints, and indexes to automatic-follow terminology.
+Forward/rollback migration tests and the affected Instagram, notification,
+push, and API package suites pass against real PostgreSQL. This terminology
+change does not alter the approved behavior or external release gates.
 
 ## Risk Review
 

@@ -95,7 +95,7 @@ func TestAccountStoreUpdatesDiscoveryAndInvalidatesEveryUnfinishedDependent(t *t
 		UpdatedAt:    now.Add(-time.Minute),
 	})
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_follow_suggestions
+		INSERT INTO instagram_automatic_follow_ledger
 			(id, importer_did, target_did, state, reason, accepting_since, created_at, updated_at)
 		VALUES
 			('00000000-0000-0000-0000-000000000212', 'did:plc:synthetic-importer-a', $1, 'pending', 'verifiedInstagramFollow', NULL, $2, $2),
@@ -105,7 +105,7 @@ func TestAccountStoreUpdatesDiscoveryAndInvalidatesEveryUnfinishedDependent(t *t
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO pds_follow_operations(
-			id,suggestion_id,owner_did,target_did,rkey,status,
+			id,automatic_follow_id,owner_did,target_did,rkey,status,
 			attempt_count,next_attempt_at,created_at,updated_at
 		) VALUES(
 			'00000000-0000-0000-0000-000000000214',
@@ -157,8 +157,8 @@ func TestAccountStoreUpdatesDiscoveryAndInvalidatesEveryUnfinishedDependent(t *t
 	)
 	if err := pool.QueryRow(ctx, `
 		SELECT p.state, p.terminal_at, a.state, a.terminal_at
-		FROM instagram_follow_suggestions p
-		JOIN instagram_follow_suggestions a ON a.id = '00000000-0000-0000-0000-000000000213'
+		FROM instagram_automatic_follow_ledger p
+		JOIN instagram_automatic_follow_ledger a ON a.id = '00000000-0000-0000-0000-000000000213'
 		WHERE p.id = '00000000-0000-0000-0000-000000000212'
 	`).Scan(&pendingState, &pendingTerminal, &acceptedState, &acceptedTerminal); err != nil {
 		t.Fatalf("inspect suggestions: %v", err)
@@ -171,7 +171,7 @@ func TestAccountStoreUpdatesDiscoveryAndInvalidatesEveryUnfinishedDependent(t *t
 	}
 	if err := pool.QueryRow(ctx, `
 		SELECT
-			(SELECT status FROM pds_follow_operations WHERE suggestion_id='00000000-0000-0000-0000-000000000212'),
+			(SELECT status FROM pds_follow_operations WHERE automatic_follow_id='00000000-0000-0000-0000-000000000212'),
 			(SELECT state FROM notification_events WHERE id='00000000-0000-0000-0000-000000000215'),
 			(SELECT status FROM push_deliveries WHERE id='00000000-0000-0000-0000-000000000216'),
 			(SELECT status FROM instagram_reconciliation_jobs WHERE id='00000000-0000-0000-0000-000000000217')
@@ -372,7 +372,7 @@ func TestAccountStoreRevokesIdempotentlyAndKeepsOnlyTheKeyedCooldownTombstone(t 
 		t.Fatalf("insert revoke handle: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_follow_suggestions
+		INSERT INTO instagram_automatic_follow_ledger
 			(id, importer_did, target_did, state, reason, created_at, updated_at)
 		VALUES
 			('00000000-0000-0000-0000-000000000233', 'did:plc:synthetic-revoke-importer-a', $1, 'pending', 'verifiedInstagramFollow', $2, $2),
@@ -382,8 +382,8 @@ func TestAccountStoreRevokesIdempotentlyAndKeepsOnlyTheKeyedCooldownTombstone(t 
 		t.Fatalf("insert revoke suggestions: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_suggestion_sources (
-			suggestion_id, import_id, created_at
+		INSERT INTO instagram_automatic_follow_sources (
+			automatic_follow_id, import_id, created_at
 		) VALUES (
 			'00000000-0000-0000-0000-000000000237',
 			'00000000-0000-0000-0000-000000000236',
@@ -446,7 +446,7 @@ func TestAccountStoreRevokesIdempotentlyAndKeepsOnlyTheKeyedCooldownTombstone(t 
 		       l.revoked_at, l.raw_identity_purge_at,
 		       c.state, c.released_at, c.anonymize_at,
 		       p.state, a.state,
-		       (SELECT count(*) FROM instagram_follow_suggestions WHERE importer_did=$2),
+		       (SELECT count(*) FROM instagram_automatic_follow_ledger WHERE importer_did=$2),
 		       j.status,
 		       (SELECT count(*) FROM instagram_graph_imports WHERE owner_did = $2),
 		       (SELECT count(*)
@@ -454,8 +454,8 @@ func TestAccountStoreRevokesIdempotentlyAndKeepsOnlyTheKeyedCooldownTombstone(t 
 		         WHERE import_id = '00000000-0000-0000-0000-000000000236')
 		FROM instagram_account_links l
 		JOIN instagram_identity_claims c ON c.link_id = l.id
-		JOIN instagram_follow_suggestions p ON p.id = '00000000-0000-0000-0000-000000000233'
-		JOIN instagram_follow_suggestions a ON a.id = '00000000-0000-0000-0000-000000000234'
+		JOIN instagram_automatic_follow_ledger p ON p.id = '00000000-0000-0000-0000-000000000233'
+		JOIN instagram_automatic_follow_ledger a ON a.id = '00000000-0000-0000-0000-000000000234'
 		JOIN instagram_reconciliation_jobs j ON j.id = '00000000-0000-0000-0000-000000000235'
 		WHERE l.id = $1
 	`, linkID, alice).Scan(
@@ -521,7 +521,7 @@ func TestAccountStoreRevocationDeletesAutomaticFollowLedgerButPreservesHistory(t
 			'00000000-0000-0000-0000-000000000281',
 			'synthetic.revoke.target',true,now()
 		);
-		INSERT INTO instagram_follow_suggestions (
+		INSERT INTO instagram_automatic_follow_ledger (
 			id, importer_did, target_did, state, reason,
 			terminal_at, created_at, updated_at
 		) VALUES (
@@ -530,14 +530,14 @@ func TestAccountStoreRevocationDeletesAutomaticFollowLedgerButPreservesHistory(t
 			'did:plc:synthetic-revoke-ledger-bob',
 			'followed','verifiedInstagramFollow',now(),now(),now()
 		);
-		INSERT INTO instagram_suggestion_sources (
-			suggestion_id, import_id, created_at
+		INSERT INTO instagram_automatic_follow_sources (
+			automatic_follow_id, import_id, created_at
 		) VALUES (
 			'00000000-0000-0000-0000-000000000282',
 			'00000000-0000-0000-0000-000000000281',now()
 		);
 		INSERT INTO pds_follow_operations (
-			id, suggestion_id, owner_did, target_did, rkey, status,
+			id, automatic_follow_id, owner_did, target_did, rkey, status,
 			record_uri, attempt_count, next_attempt_at,
 			created_at, updated_at, completed_at
 		) VALUES (
@@ -573,7 +573,7 @@ func TestAccountStoreRevocationDeletesAutomaticFollowLedgerButPreservesHistory(t
 	if err := pool.QueryRow(ctx, `
 		SELECT
 			(SELECT count(*) FROM instagram_graph_imports WHERE owner_did=$1),
-			(SELECT count(*) FROM instagram_follow_suggestions WHERE importer_did=$1),
+			(SELECT count(*) FROM instagram_automatic_follow_ledger WHERE importer_did=$1),
 			(SELECT count(*) FROM pds_follow_operations WHERE owner_did=$1),
 			(SELECT count(*) FROM notification_events
 			  WHERE recipient_did=$1 AND category='instagramMatch' AND state='active')
@@ -614,6 +614,7 @@ func newAccountStoreTest(t *testing.T) (*AccountStore, *pgxpool.Pool) {
 		"000026_system_notifications.up.sql",
 		"000029_notification_client_owned_destination.up.sql",
 		"000030_instagram_automatic_follows.up.sql",
+		"000031_instagram_automatic_follow_storage_names.up.sql",
 	} {
 		contents, err := os.ReadFile("../../migrations/" + name)
 		if err != nil {

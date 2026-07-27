@@ -43,7 +43,7 @@ func TestAutomaticFollowLedgerSuppressesReconciliationUntilVerificationRevocatio
 		t.Fatalf("first reconciliation = %+v, want queued", first)
 	}
 	if _, err := pool.Exec(ctx, `
-		UPDATE instagram_follow_suggestions
+		UPDATE instagram_automatic_follow_ledger
 		SET state='followed', terminal_at=$2, updated_at=$2
 		WHERE id=$1
 	`, first.Operation.ID, now.Add(time.Minute)); err != nil {
@@ -52,7 +52,7 @@ func TestAutomaticFollowLedgerSuppressesReconciliationUntilVerificationRevocatio
 	if _, err := pool.Exec(ctx, `
 		UPDATE pds_follow_operations
 		SET status='followed', completed_at=$2, updated_at=$2
-		WHERE suggestion_id=$1
+		WHERE automatic_follow_id=$1
 	`, first.Operation.ID, now.Add(time.Minute)); err != nil {
 		t.Fatalf("complete PDS operation: %v", err)
 	}
@@ -161,7 +161,7 @@ func TestInitialImportMatchingNeverCreatesInstagramMatchNotification(t *testing.
 		t.Fatalf("initial match created=%d err=%v", created, err)
 	}
 	var suggestions, events int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_follow_suggestions`).Scan(&suggestions); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_automatic_follow_ledger`).Scan(&suggestions); err != nil {
 		t.Fatal(err)
 	}
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM notification_events`).Scan(&events); err != nil {
@@ -503,12 +503,17 @@ func newReconciliationTestPool(t *testing.T) *pgxpool.Pool {
 
 func applyAutomaticFollowMigration(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	migration, err := os.ReadFile("../../migrations/000030_instagram_automatic_follows.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
-		t.Fatalf("apply automatic-follow migration: %v", err)
+	for _, path := range []string{
+		"../../migrations/000030_instagram_automatic_follows.up.sql",
+		"../../migrations/000031_instagram_automatic_follow_storage_names.up.sql",
+	} {
+		migration, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
+			t.Fatalf("apply %s: %v", path, err)
+		}
 	}
 }
 

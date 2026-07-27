@@ -118,9 +118,9 @@ next candidate belonging to the same owner.
 | `appview/internal/instagram/automatic_follow_state.go` | Create | Define internal pending/writing/followed/already-following/invalidated transitions and verification-lifetime suppression | FR-017, FR-019, RULE-012 | UT-020 |
 | `appview/internal/instagram/automatic_follow_worker.go` | Create | Claim with `FOR UPDATE SKIP LOCKED`, final-policy check, owner-session rotation, deterministic follow write, retry/backoff, and transactional notification completion | FR-015, FR-017, FR-032, NFR-005 | IT-009, IT-024, IT-025 |
 | `appview/internal/instagram/automatic_follow_worker_test.go` | Create | Cover concurrency, last-moment policy changes, session isolation, PDS failure, crash recovery, already-following, and manual suppression | FR-017, FR-032, RULE-012 | IT-009, IT-024, IT-025 |
-| `appview/internal/instagram/suggestion_store.go` | Change/refactor | Retain SQL-backed pair/support storage but expose internal operation-oriented methods; remove list/dismiss/accept methods and acceptance DTOs | FR-016–FR-018 | UT-020, IT-008–IT-010 |
+| `appview/internal/instagram/automatic_follow_store.go` | Create | Expose SQL-backed pair/support storage through operation-oriented methods without list/dismiss/accept suggestion APIs | FR-016–FR-018 | UT-020, IT-008–IT-010 |
 | `appview/internal/instagram/suggestions.go` | Delete | Remove member-facing list/accept/dismiss service | FR-016 | IT-008, REG-014 |
-| `appview/internal/instagram/matcher.go` | Change | Upsert source support and queue the stable operation during initial import; terminal same-lifetime rows remain suppression facts | FR-015, FR-017, RULE-008, RULE-012 | UT-006, IT-008, IT-009, IT-025 |
+| `appview/internal/instagram/automatic_follow_matcher.go` | Create | Upsert source support and queue the stable operation during initial import; terminal same-lifetime rows remain suppression facts | FR-015, FR-017, RULE-008, RULE-012 | UT-006, IT-008, IT-009, IT-025 |
 | `appview/internal/instagram/reconciliation.go` | Change | Produce/dedupe private operations only; remove notification activation; preserve targeted future triggers and bounded job leasing | FR-016, FR-019 | IT-008, IT-011, IT-025 |
 | `appview/internal/instagram/import_store.go` | Change | Preserve multi-source support; delete cancels only unsupported unwritten work and never terminal public history | FR-018 | IT-007, IT-010 |
 | `appview/internal/instagram/account_store.go` | Change | Revocation invalidates unwritten work, deletes imports/support and the full private suppression ledger, and preserves successful PDS follows/notification rows | FR-010, FR-018, RULE-010, RULE-012 | IT-006, IT-010, IT-025 |
@@ -129,12 +129,12 @@ next candidate belonging to the same owner.
 | `appview/internal/instagram/eligibility_policy.go` | Change only if needed | Reuse the exact policy at operation creation and immediately before the external write; preserve fail-closed safety | FR-015, FR-017 | UT-006, IT-008, IT-009 |
 | `appview/internal/followwrite/service.go` | Change only if needed | Keep deterministic `PutRecord`; expose typed retry/session-expiry classification without embedding Instagram behavior | FR-017, FR-032 | IT-009, IT-024, REG-004 |
 
-The database table names `instagram_follow_suggestions` and
-`instagram_suggestion_sources` may remain as legacy internal storage names in
-this change. They must not leak into public types, handlers, logs, metrics, or
-Flutter. Avoid a data-only table rename unless it materially simplifies the
-worker migration; product semantics are expressed by the Go operation API and
-constraints.
+The final private storage names are `instagram_automatic_follow_ledger` and
+`instagram_automatic_follow_sources`. References from the source table and
+`pds_follow_operations` use `automatic_follow_id`. Migration `000031` renames
+the originally shipped development schema, including related constraints and
+indexes, so suggestion terminology does not remain in the current database
+contract.
 
 Partial interface sketch:
 

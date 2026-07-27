@@ -173,21 +173,21 @@ func TestImportStoreDeleteInvalidatesEveryUnsupportedUnwrittenOperation(t *testi
 		t.Fatalf("create import: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_follow_suggestions(
+		INSERT INTO instagram_automatic_follow_ledger(
 			id,importer_did,target_did,state,reason,created_at,updated_at
 		) VALUES($1,$2,$3,'pending','verifiedInstagramFollow',$4,$4)
 	`, suggestionID, owner, target, now); err != nil {
 		t.Fatalf("seed import suggestion: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_suggestion_sources(suggestion_id,import_id,created_at)
+		INSERT INTO instagram_automatic_follow_sources(automatic_follow_id,import_id,created_at)
 		VALUES($1,$2,$3)
 	`, suggestionID, importID, now); err != nil {
 		t.Fatalf("seed import suggestion source: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO pds_follow_operations(
-			id,suggestion_id,owner_did,target_did,rkey,status,
+			id,automatic_follow_id,owner_did,target_did,rkey,status,
 			attempt_count,next_attempt_at,created_at,updated_at
 		) VALUES(
 			'00000000-0000-0000-0000-000000000207',$1,$2,$3,
@@ -214,8 +214,8 @@ func TestImportStoreDeleteInvalidatesEveryUnsupportedUnwrittenOperation(t *testi
 	var followStatus, jobStatus string
 	if err := pool.QueryRow(ctx, `
 		SELECT
-			(SELECT state FROM instagram_follow_suggestions WHERE id=$1),
-			(SELECT status FROM pds_follow_operations WHERE suggestion_id=$1),
+			(SELECT state FROM instagram_automatic_follow_ledger WHERE id=$1),
+			(SELECT status FROM pds_follow_operations WHERE automatic_follow_id=$1),
 			(SELECT status FROM instagram_reconciliation_jobs WHERE id='00000000-0000-0000-0000-00000000020a')
 	`, suggestionID).Scan(&suggestionState, &followStatus, &jobStatus); err != nil {
 		t.Fatalf("inspect deleted-import dependents: %v", err)
@@ -287,6 +287,7 @@ func newImportTestStore(t *testing.T) (*ImportStore, *pgxpool.Pool) {
 		"000026_system_notifications.up.sql",
 		"000029_notification_client_owned_destination.up.sql",
 		"000030_instagram_automatic_follows.up.sql",
+		"000031_instagram_automatic_follow_storage_names.up.sql",
 	} {
 		contents, err := os.ReadFile("../../migrations/" + name)
 		if err != nil {

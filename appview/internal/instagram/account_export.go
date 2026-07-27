@@ -319,7 +319,7 @@ func loadPrivateImportExport(ctx context.Context, tx pgx.Tx, owner syntax.DID, e
 func loadPrivateAutomaticFollowExport(ctx context.Context, tx pgx.Tx, owner syntax.DID, export *PrivateDataExport) error {
 	rows, err := tx.Query(ctx, `
 		SELECT id, target_did, state, created_at, updated_at, terminal_at
-		FROM instagram_follow_suggestions
+		FROM instagram_automatic_follow_ledger
 		WHERE importer_did=$1
 		ORDER BY created_at, id
 	`, owner)

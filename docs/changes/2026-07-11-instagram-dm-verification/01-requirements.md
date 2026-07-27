@@ -30,11 +30,10 @@ while the current verification/import evidence remains.
   - `appview/internal/api/follow.go`, `appview/internal/followwrite/service.go`,
     and `appview/internal/api/follow_store.go` provide the existing PDS
     follow-write, deterministic `putRecord`, and indexed-follow read paths.
-  - `appview/internal/instagram/suggestions.go`,
-    `suggestion_store.go`, `matcher.go`, and `reconciliation.go` currently
-    create/list/accept suggestions and already contain a durable deterministic
-    follow-operation ledger that can become an internal automatic-follow
-    queue.
+  - `appview/internal/instagram/automatic_follow_store.go`,
+    `automatic_follow_matcher.go`, `automatic_follow_worker.go`, and
+    `reconciliation.go` implement the private deterministic automatic-follow
+    ledger, matching, worker, retry, and reconciliation paths.
   - `appview/internal/notifications/`, `appview/internal/api/notification_store.go`, `appview/internal/push/payload.go`, and migrations `000021`/`000022` implement durable actor-driven notifications, preferences, push fan-out, and newness.
   - Background PDS writes need an owner-scoped OAuth session. The current
     request path receives an exact OAuth session ID from authentication
@@ -831,7 +830,8 @@ change the webhook acknowledgement.
   - `instagram_webhook_events` / Meta work queue
   - `instagram_graph_imports`
   - `instagram_graph_handles`
-  - `instagram_follow_suggestions`
+  - `instagram_automatic_follow_ledger`
+  - `instagram_automatic_follow_sources`
 - Existing notification persistence changes:
   - Add `instagramMatch` to category constraints and registries.
   - Replace the actorless digest/count payload with one actorful

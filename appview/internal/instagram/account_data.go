@@ -116,7 +116,7 @@ func (s *PrivateDataService) InactivateMembershipTx(ctx context.Context, tx pgx.
 	}
 
 	suggestionIDs, err := updateSuggestionState(ctx, tx, `
-		UPDATE instagram_follow_suggestions
+		UPDATE instagram_automatic_follow_ledger
 		SET state='invalidated', accepting_since=NULL,
 		    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
 		WHERE (importer_did=$1 OR target_did=$1)
@@ -175,7 +175,7 @@ func (s *PrivateDataService) PurgeLink(ctx context.Context, owner syntax.DID, li
 
 		if !state.Terminal() {
 			suggestionIDs, err := updateSuggestionState(ctx, tx, `
-				UPDATE instagram_follow_suggestions
+				UPDATE instagram_automatic_follow_ledger
 				SET state='invalidated', accepting_since=NULL,
 				    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
 				WHERE target_did=$1 AND state IN ('pending','writing')
@@ -247,18 +247,18 @@ func (s *PrivateDataService) PurgeImport(ctx context.Context, owner syntax.DID, 
 		}
 		suggestionIDs, err := queryUUIDs(ctx, tx, `
 			SELECT suggestion.id
-			FROM instagram_suggestion_sources selected
-			JOIN instagram_follow_suggestions suggestion
-			  ON suggestion.id=selected.suggestion_id
+			FROM instagram_automatic_follow_sources selected
+			JOIN instagram_automatic_follow_ledger suggestion
+			  ON suggestion.id=selected.automatic_follow_id
 			WHERE selected.import_id=$1
 			  AND suggestion.importer_did=$2
 			  AND suggestion.state IN ('pending','writing')
 			  AND NOT EXISTS (
 				SELECT 1
-				FROM instagram_suggestion_sources other
+				FROM instagram_automatic_follow_sources other
 				JOIN instagram_graph_imports source
 				  ON source.id=other.import_id AND source.state='active'
-				WHERE other.suggestion_id=suggestion.id
+				WHERE other.automatic_follow_id=suggestion.id
 				  AND other.import_id<>$1
 			  )
 			FOR UPDATE OF suggestion
@@ -319,14 +319,14 @@ func (s *PrivateDataService) PurgeOwner(ctx context.Context, owner syntax.DID) e
 		if _, err := tx.Exec(ctx, `
 			DELETE FROM pds_follow_operations
 			WHERE owner_did=$1 OR target_did=$1
-			   OR suggestion_id IN (
-				SELECT id FROM instagram_follow_suggestions
+			   OR automatic_follow_id IN (
+				SELECT id FROM instagram_automatic_follow_ledger
 				WHERE importer_did=$1 OR target_did=$1
 			   )
 		`, owner); err != nil {
 			return fmt.Errorf("delete terminal Instagram follow ledger: %w", err)
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM instagram_follow_suggestions WHERE importer_did=$1 OR target_did=$1`, owner); err != nil {
+		if _, err := tx.Exec(ctx, `DELETE FROM instagram_automatic_follow_ledger WHERE importer_did=$1 OR target_did=$1`, owner); err != nil {
 			return fmt.Errorf("delete terminal Instagram suggestions: %w", err)
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM instagram_reconciliation_jobs WHERE owner_did=$1 OR target_did=$1`, owner); err != nil {
@@ -449,7 +449,7 @@ func invalidateSuggestionIDs(ctx context.Context, tx pgx.Tx, ids []uuid.UUID, no
 		return nil
 	}
 	if _, err := tx.Exec(ctx, `
-		UPDATE instagram_follow_suggestions
+		UPDATE instagram_automatic_follow_ledger
 		SET state='invalidated', accepting_since=NULL,
 		    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
 		WHERE id=ANY($1::uuid[]) AND state IN ('pending','writing')
@@ -471,7 +471,7 @@ func invalidateUnwrittenFollowOperations(ctx context.Context, tx pgx.Tx, ids []u
 		    last_error_code=$2,
 		    completed_at=COALESCE(completed_at,$3),
 		    updated_at=$3
-		WHERE suggestion_id=ANY($1::uuid[])
+		WHERE automatic_follow_id=ANY($1::uuid[])
 		  AND status IN ('pending','writing')
 	`, ids, code, now); err != nil {
 		return fmt.Errorf("invalidate unwritten Instagram follow operations: %w", err)

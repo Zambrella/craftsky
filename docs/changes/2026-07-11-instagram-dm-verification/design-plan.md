@@ -254,13 +254,17 @@ The relationship is strictly one-to-one: one CraftSky DID may have only one acti
 - Match state and matched DID when applicable.
 - Retention expiry.
 
-### `instagram_follow_suggestions`
+### `instagram_automatic_follow_ledger`
 
-- Importing DID and suggested DID.
-- Source normalized username and relationship direction.
-- Source link verification ID/version.
-- State: `pending`, `accepted`, `dismissed`, `invalidated`, or `alreadyFollowing`.
-- Created, updated, and acted-on timestamps.
+- Importing DID and target DID.
+- One stable row per importer/target/reason pair.
+- State: `pending`, `writing`, `followed`, `alreadyFollowing`, or `invalidated`.
+- Created, updated, and terminal timestamps.
+
+### `instagram_automatic_follow_sources`
+
+- Automatic-follow ledger ID and supporting import ID.
+- One row per import that provides evidence for the importer/target pair.
 
 Do not store raw Instagram export ZIPs, photos, biographies, profile pictures, follower counts, or full webhook message histories.
 

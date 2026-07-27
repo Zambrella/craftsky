@@ -1002,6 +1002,21 @@ review. This pass addresses only required finding `IR-022`; the non-blocking
   notification tests and all 1,096 Flutter tests still pass, and
   `flutter analyze` reports no issues.
 
+## Post-Review Automatic-Follow Storage Rename (2026-07-27)
+
+- Added reversible migration `000031` to rename the private pair ledger to
+  `instagram_automatic_follow_ledger` and its import-support join table to
+  `instagram_automatic_follow_sources`.
+- Renamed both source and PDS-operation references from `suggestion_id` to
+  `automatic_follow_id`, together with related constraints and indexes.
+- Updated all current AppView SQL, real-Postgres fixtures, schema assertions,
+  private export, retention, revocation, reconciliation, retry, and
+  notification paths. Historical migrations retain their original names so
+  ordered upgrades and rollback remain truthful.
+- Green evidence: focused migration forward/rollback tests and the affected
+  Instagram, notification, push, and API package suites pass against the
+  worktree Postgres.
+
 ## Completion Checklist
 
 - [x] Every Must requirement is implemented or recorded as an external release gate

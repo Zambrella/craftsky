@@ -336,7 +336,7 @@ func (s *RetentionService) expireInactiveLinks(ctx context.Context, batch int, n
 			return fmt.Errorf("release membership-expired Instagram claims: %w", err)
 		}
 		suggestionIDs, err := retentionUUIDs(ctx, tx, `
-			UPDATE instagram_follow_suggestions
+			UPDATE instagram_automatic_follow_ledger
 			SET state='invalidated',accepting_since=NULL,
 			    terminal_at=COALESCE(terminal_at,$2),updated_at=$2
 			WHERE target_did=ANY($1::text[]) AND state IN ('pending','writing')
@@ -450,7 +450,7 @@ func (s *RetentionService) purgeTerminalSuggestions(ctx context.Context, batch i
 	count := 0
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		ids, err := retentionUUIDs(ctx, tx, `
-			SELECT id FROM instagram_follow_suggestions
+			SELECT id FROM instagram_automatic_follow_ledger
 			WHERE state='invalidated'
 			  AND COALESCE(terminal_at,updated_at) <= $1::timestamptz - interval '90 days'
 			ORDER BY COALESCE(terminal_at,updated_at),id
@@ -459,10 +459,10 @@ func (s *RetentionService) purgeTerminalSuggestions(ctx context.Context, batch i
 		if err != nil || len(ids) == 0 {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM pds_follow_operations WHERE suggestion_id=ANY($1::uuid[])`, ids); err != nil {
+		if _, err := tx.Exec(ctx, `DELETE FROM pds_follow_operations WHERE automatic_follow_id=ANY($1::uuid[])`, ids); err != nil {
 			return fmt.Errorf("purge retained Instagram follow ledgers: %w", err)
 		}
-		result, err := tx.Exec(ctx, `DELETE FROM instagram_follow_suggestions WHERE id=ANY($1::uuid[])`, ids)
+		result, err := tx.Exec(ctx, `DELETE FROM instagram_automatic_follow_ledger WHERE id=ANY($1::uuid[])`, ids)
 		if err != nil {
 			return fmt.Errorf("purge terminal Instagram suggestions: %w", err)
 		}

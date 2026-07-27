@@ -426,8 +426,8 @@ func TestAutomaticFollowStore_LeasesAndCompletesOneDeterministicOperation(t *tes
 	if err := pool.QueryRow(ctx, `
 		SELECT operation.status, ledger.state
 		FROM pds_follow_operations operation
-		JOIN instagram_follow_suggestions ledger
-		  ON ledger.id=operation.suggestion_id
+		JOIN instagram_automatic_follow_ledger ledger
+		  ON ledger.id=operation.automatic_follow_id
 		WHERE operation.id=$1
 	`, operationID).Scan(&operationState, &ledgerState); err != nil {
 		t.Fatal(err)
@@ -787,6 +787,7 @@ func newAutomaticFollowTestPool(t *testing.T) *pgxpool.Pool {
 		"../../migrations/000026_system_notifications.up.sql",
 		"../../migrations/000029_notification_client_owned_destination.up.sql",
 		"../../migrations/000030_instagram_automatic_follows.up.sql",
+		"../../migrations/000031_instagram_automatic_follow_storage_names.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {

@@ -41,7 +41,7 @@ func TestFutureMatchReconciliationQueuesOnePrivateAutomaticFollow(t *testing.T) 
 	var ledgers, operations, notifications int
 	if err := pool.QueryRow(ctx, `
 		SELECT
-			(SELECT count(*) FROM instagram_follow_suggestions
+			(SELECT count(*) FROM instagram_automatic_follow_ledger
 			  WHERE importer_did=$1 AND target_did=$2),
 			(SELECT count(*) FROM pds_follow_operations
 			  WHERE owner_did=$1 AND target_did=$2 AND status='pending'),
