@@ -138,13 +138,11 @@ func TestBuildInstagramMatchPayloadIsActorlessAndBounded(t *testing.T) {
 		"opaque-account-subscription",
 		privateCanary,
 		RoutingFacts{
-			ActorDID:          syntax.DID("did:plc:" + privateCanary),
-			SourceURI:         syntax.ATURI("at://" + privateCanary + "/source"),
-			SubjectURI:        syntax.ATURI("at://" + privateCanary + "/subject"),
-			RootURI:           syntax.ATURI("at://" + privateCanary + "/root"),
-			NotificationID:    "00000000-0000-0000-0000-000000000654",
-			SystemCount:       99,
-			SystemCountCapped: true,
+			ActorDID:       syntax.DID("did:plc:" + privateCanary),
+			SourceURI:      syntax.ATURI("at://" + privateCanary + "/source"),
+			SubjectURI:     syntax.ATURI("at://" + privateCanary + "/subject"),
+			RootURI:        syntax.ATURI("at://" + privateCanary + "/root"),
+			NotificationID: "00000000-0000-0000-0000-000000000654",
 		},
 	)
 
@@ -153,8 +151,6 @@ func TestBuildInstagramMatchPayloadIsActorlessAndBounded(t *testing.T) {
 		"type":                  "instagramMatch",
 		"accountSubscriptionId": "opaque-account-subscription",
 		"notificationId":        "00000000-0000-0000-0000-000000000654",
-		"count":                 "99",
-		"countCapped":           "true",
 	}
 	if !reflect.DeepEqual(payload.Data, want) {
 		t.Fatalf("data=%#v, want %#v", payload.Data, want)

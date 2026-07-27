@@ -21,8 +21,8 @@ var (
 
 // InstagramDataConfig controls the AppView-private Instagram data plane.
 // Keeping this separate from InstagramMetaConfig lets imports, privacy
-// controls, and existing suggestions remain available during a Meta outage or
-// before the external integration is enabled.
+// controls, verified account state, and existing imports remain available
+// during a Meta outage or before the external integration is enabled.
 type InstagramDataConfig struct {
 	hmacKey []byte
 }
@@ -180,8 +180,6 @@ type InstagramLimits struct {
 	WorkerBackoffMax            time.Duration
 	WorkerMaxProcessingAge      time.Duration
 	DMReplyWindow               time.Duration
-	NotificationWindow          time.Duration
-	NotificationCountCap        int
 	OperatorBatchMax            int
 }
 
@@ -236,8 +234,6 @@ func defaultInstagramLimits() InstagramLimits {
 		WorkerBackoffMax:            5 * time.Minute,
 		WorkerMaxProcessingAge:      15 * time.Minute,
 		DMReplyWindow:               24 * time.Hour,
-		NotificationWindow:          5 * time.Minute,
-		NotificationCountCap:        99,
 		OperatorBatchMax:            500,
 	}
 }
@@ -459,12 +455,6 @@ func loadInstagramLimits() (InstagramLimits, error) {
 		return InstagramLimits{}, err
 	}
 	if limits.DMReplyWindow, err = boundedDurationEnv("INSTAGRAM_DM_REPLY_WINDOW", limits.DMReplyWindow, limits.DMReplyWindow); err != nil {
-		return InstagramLimits{}, err
-	}
-	if limits.NotificationWindow, err = boundedDurationEnv("INSTAGRAM_NOTIFICATION_WINDOW", limits.NotificationWindow, limits.NotificationWindow); err != nil {
-		return InstagramLimits{}, err
-	}
-	if limits.NotificationCountCap, err = boundedIntEnv("INSTAGRAM_NOTIFICATION_COUNT_CAP", limits.NotificationCountCap, 1, limits.NotificationCountCap); err != nil {
 		return InstagramLimits{}, err
 	}
 	if limits.OperatorBatchMax, err = boundedIntEnv("INSTAGRAM_OPERATOR_BATCH_MAX", limits.OperatorBatchMax, 1, limits.OperatorBatchMax); err != nil {

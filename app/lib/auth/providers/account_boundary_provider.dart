@@ -17,7 +17,6 @@ import 'package:craftsky_app/instagram_migration/data/instagram_verification_sto
 import 'package:craftsky_app/instagram_migration/providers/instagram_account_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_imports_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
-import 'package:craftsky_app/instagram_migration/providers/instagram_suggestions_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_verification_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_preferences_provider.dart';
@@ -130,7 +129,6 @@ final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
       ..invalidate(instagramAccountProvider)
       ..invalidate(instagramVerificationProvider)
       ..invalidate(instagramImportsProvider)
-      ..invalidate(instagramSuggestionsProvider)
       ..invalidate(notificationRepositoryProvider)
       ..invalidate(notificationsProvider)
       ..invalidate(notificationPreferencesProvider)

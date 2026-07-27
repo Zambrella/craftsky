@@ -5,29 +5,24 @@ import (
 	"encoding/json"
 	"os"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/testdb"
 )
 
-func TestDispatcherSendsDueInstagramMatchWithoutSocialFacts(t *testing.T) {
-	now := time.Date(2026, 7, 19, 12, 5, 1, 0, time.UTC)
+func TestDispatcherSendsActorfulInstagramMatchWithIdentityFreePayload(t *testing.T) {
+	now := time.Date(2026, 7, 27, 15, 0, 0, 0, time.UTC)
 	pool := instagramDispatcherPool(t)
-	seedInstagramDelivery(t, pool, now.Add(-time.Second), true)
+	seedInstagramDelivery(t, pool, now, true)
 	sender := &scriptedSender{}
-	eligibility := &staticInstagramNotificationEligibility{eligible: true}
 	dispatcher := NewDispatcher(pool, sender, DispatcherOptions{
-		BatchSize: 1, Now: func() time.Time { return now },
-		InstagramEligibility: eligibility,
+		BatchSize: 1,
+		Now:       func() time.Time { return now },
 	})
-
 	processed, err := dispatcher.ProcessBatch(context.Background(), "instagram-worker")
 	if err != nil {
 		t.Fatal(err)
@@ -35,164 +30,74 @@ func TestDispatcherSendsDueInstagramMatchWithoutSocialFacts(t *testing.T) {
 	if processed != 1 || len(sender.requests) != 1 {
 		t.Fatalf("processed=%d requests=%d", processed, len(sender.requests))
 	}
-	if len(eligibility.stages) != 1 || eligibility.stages[0] != instagram.EligibilityAtNotificationDelivery {
-		t.Fatalf("eligibility stages=%v", eligibility.stages)
-	}
 	request := sender.requests[0]
-	if request.Category != notifications.InstagramMatch || request.ActorDisplayName != "" || request.RoutingFacts.ActorDID != "" || request.RoutingFacts.SourceURI != "" || request.RoutingFacts.SubjectURI != "" || request.RoutingFacts.RootURI != "" {
-		t.Fatalf("system request contains social facts: %+v", request)
-	}
-	if request.RoutingFacts.NotificationID != "00000000-0000-0000-0000-000000000701" || request.RoutingFacts.SystemCount != 99 || !request.RoutingFacts.SystemCountCapped {
-		t.Fatalf("system routing facts=%+v", request.RoutingFacts)
-	}
-	payload := BuildPayload(request.Category, request.AccountSubscriptionID, request.ActorDisplayName, request.RoutingFacts)
+	payload := BuildPayload(
+		request.Category,
+		request.AccountSubscriptionID,
+		request.ActorDisplayName,
+		request.RoutingFacts,
+	)
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, forbidden := range []string{"did:plc:", "at://", "private-instagram-handle", "igsid"} {
+	for _, forbidden := range []string{
+		"did:plc:",
+		"at://",
+		"synthetic.private.actor",
+		"handle",
+		"igsid",
+	} {
 		if strings.Contains(string(raw), forbidden) {
 			t.Fatalf("provider payload leaked %q: %s", forbidden, raw)
 		}
 	}
-	var status string
-	if err := pool.QueryRow(context.Background(), `SELECT status FROM push_deliveries`).Scan(&status); err != nil {
-		t.Fatal(err)
-	}
-	if status != "succeeded" {
-		t.Fatalf("delivery status=%q", status)
+	if payload.Data["notificationId"] != "00000000-0000-0000-0000-000000000701" ||
+		payload.Data["type"] != string(notifications.InstagramMatch) {
+		t.Fatalf("payload=%+v", payload)
 	}
 }
 
-func TestDispatcherFailsClosedWhenInstagramEligibilityIsUnavailable(t *testing.T) {
-	now := time.Date(2026, 7, 19, 12, 5, 1, 0, time.UTC)
+func TestDispatcherCancelsInstagramMatchWhenPushDisabled(t *testing.T) {
+	now := time.Date(2026, 7, 27, 15, 0, 0, 0, time.UTC)
 	pool := instagramDispatcherPool(t)
-	seedInstagramDelivery(t, pool, now.Add(-time.Second), true)
+	seedInstagramDelivery(t, pool, now, false)
 	sender := &scriptedSender{}
-	dispatcher := NewDispatcher(pool, sender, DispatcherOptions{BatchSize: 1, Now: func() time.Time { return now }})
-
-	if _, err := dispatcher.ProcessBatch(context.Background(), "instagram-worker"); err != nil {
-		t.Fatal(err)
-	}
-	if len(sender.requests) != 0 {
-		t.Fatalf("provider received %d requests without eligibility policy", len(sender.requests))
-	}
-	var status string
-	if err := pool.QueryRow(context.Background(), `SELECT status FROM push_deliveries`).Scan(&status); err != nil {
-		t.Fatal(err)
-	}
-	if status != "cancelled" {
-		t.Fatalf("delivery status=%q, want cancelled", status)
-	}
-}
-
-type staticInstagramNotificationEligibility struct {
-	eligible bool
-	stages   []instagram.EligibilityStage
-}
-
-func (e *staticInstagramNotificationEligibility) RevalidateNotification(_ context.Context, _ uuid.UUID, stage instagram.EligibilityStage) (bool, error) {
-	e.stages = append(e.stages, stage)
-	return e.eligible, nil
-}
-
-func TestDispatcherCancelsInstagramMatchWhenRetractedOrPushDisabled(t *testing.T) {
-	tests := []struct {
-		name        string
-		pushEnabled bool
-		retract     bool
-	}{
-		{name: "push disabled", pushEnabled: false},
-		{name: "event retracted", pushEnabled: true, retract: true},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			now := time.Date(2026, 7, 19, 12, 5, 1, 0, time.UTC)
-			pool := instagramDispatcherPool(t)
-			seedInstagramDelivery(t, pool, now.Add(-time.Second), test.pushEnabled)
-			if test.retract {
-				if _, err := pool.Exec(context.Background(), `
-					UPDATE notification_events
-					SET state='retracted', retracted_at=$1, retraction_reason='suggestions_invalidated'
-				`, now); err != nil {
-					t.Fatal(err)
-				}
-			}
-			sender := &scriptedSender{}
-			dispatcher := NewDispatcher(pool, sender, DispatcherOptions{
-				BatchSize: 1,
-				Now:       func() time.Time { return now },
-			})
-			processed, err := dispatcher.ProcessBatch(context.Background(), "instagram-worker")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if processed != 0 || len(sender.requests) != 0 {
-				t.Fatalf("processed=%d requests=%d", processed, len(sender.requests))
-			}
-			var status string
-			if err := pool.QueryRow(context.Background(), `SELECT status FROM push_deliveries`).Scan(&status); err != nil {
-				t.Fatal(err)
-			}
-			if status != "cancelled" {
-				t.Fatalf("delivery status=%q, want cancelled", status)
-			}
-		})
-	}
-}
-
-func TestDispatcherRechecksInstagramPreferenceAfterLease(t *testing.T) {
-	now := time.Date(2026, 7, 19, 12, 5, 1, 0, time.UTC)
-	pool := instagramDispatcherPool(t)
-	seedInstagramDelivery(t, pool, now.Add(-time.Second), true)
-	sender := &scriptedSender{}
-	claimed := make(chan struct{})
-	release := make(chan struct{})
-	var clockCalls atomic.Int32
 	dispatcher := NewDispatcher(pool, sender, DispatcherOptions{
 		BatchSize: 1,
-		Now: func() time.Time {
-			if clockCalls.Add(1) == 2 {
-				close(claimed)
-				<-release
-			}
-			return now
-		},
+		Now:       func() time.Time { return now },
 	})
-	result := make(chan error, 1)
-	go func() {
-		_, err := dispatcher.ProcessBatch(context.Background(), "instagram-worker")
-		result <- err
-	}()
-	<-claimed
-	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO notification_preferences (account_did, category, scope, push_enabled)
-		VALUES ('did:plc:viewer', 'instagramMatch', 'everyone', false)
-	`); err != nil {
+	processed, err := dispatcher.ProcessBatch(context.Background(), "instagram-worker")
+	if err != nil {
 		t.Fatal(err)
 	}
-	close(release)
-	if err := <-result; err != nil {
-		t.Fatal(err)
-	}
-	if len(sender.requests) != 0 {
-		t.Fatalf("preference changed after lease but provider received %d requests", len(sender.requests))
+	if processed != 0 || len(sender.requests) != 0 {
+		t.Fatalf("processed=%d requests=%d", processed, len(sender.requests))
 	}
 	var status string
-	if err := pool.QueryRow(context.Background(), `SELECT status FROM push_deliveries`).Scan(&status); err != nil {
+	if err := pool.QueryRow(context.Background(), `
+		SELECT status FROM push_deliveries
+	`).Scan(&status); err != nil {
 		t.Fatal(err)
 	}
 	if status != "cancelled" {
-		t.Fatalf("delivery status=%q, want cancelled", status)
+		t.Fatalf("status=%q", status)
 	}
 }
 
 func instagramDispatcherPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	pool := testdb.WithSchema(t, `
-		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
-		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
-		CREATE TABLE instagram_follow_suggestions(id UUID PRIMARY KEY);
+		CREATE TABLE bluesky_profiles(
+			did TEXT PRIMARY KEY,
+			display_name TEXT,
+			avatar_cid TEXT
+		);
+		CREATE TABLE craftsky_posts(
+			uri TEXT PRIMARY KEY,
+			reply_root_uri TEXT,
+			reply_parent_uri TEXT
+		);
 		CREATE TABLE actor_mutes(
 			owner_did TEXT NOT NULL,
 			subject_did TEXT NOT NULL,
@@ -207,61 +112,62 @@ func instagramDispatcherPool(t *testing.T) *pgxpool.Pool {
 	for _, path := range []string{
 		"../../migrations/000021_appview_notifications.up.sql",
 		"../../migrations/000022_notification_newness.up.sql",
+		"../../migrations/000025_instagram_migration.up.sql",
 		"../../migrations/000026_system_notifications.up.sql",
 		"../../migrations/000029_notification_client_owned_destination.up.sql",
+		"../../migrations/000030_instagram_automatic_follows.up.sql",
 	} {
-		if _, err := pool.Exec(context.Background(), readPushMigration(t, path)); err != nil {
-			t.Fatalf("apply migration %s: %v", path, err)
+		migration, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
+			t.Fatalf("apply %s: %v", path, err)
 		}
 	}
 	return pool
 }
 
-func seedInstagramDelivery(t *testing.T, pool *pgxpool.Pool, coalesceUntil time.Time, pushEnabled bool) {
+func seedInstagramDelivery(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	now time.Time,
+	pushEnabled bool,
+) {
 	t.Helper()
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO notification_events (
-			id, recipient_did, category, subject_key,
-			eligibility_scope, recipient_followed_actor, push_enabled_snapshot,
-			state, first_activity_at, activity_at, indexed_at,
-			initial_push_evaluated_at, system_count, system_count_capped,
-			system_group_key, coalesce_until
+			id, recipient_did, actor_did, category, subject_key,
+			eligibility_scope, recipient_followed_actor,
+			push_enabled_snapshot, state, first_activity_at, activity_at,
+			indexed_at, initial_push_evaluated_at
 		) VALUES (
-			'00000000-0000-0000-0000-000000000701', 'did:plc:viewer',
-			'instagramMatch', 'instagram-system', 'everyone', false, true,
-			'active', $1::timestamptz - interval '5 minutes', $1, $1, $1,
-			99, true, 'instagram-group', $1
-		)
-	`, coalesceUntil); err != nil {
-		t.Fatalf("seed Instagram event: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_follow_suggestions (id)
-		VALUES ('50000000-0000-0000-0000-000000000701');
-		INSERT INTO instagram_notification_suggestions (notification_id, suggestion_id)
-		VALUES (
 			'00000000-0000-0000-0000-000000000701',
-			'50000000-0000-0000-0000-000000000701'
+			'did:plc:viewer',
+			'did:plc:synthetic-private-actor',
+			'instagramMatch',
+			'00000000-0000-0000-0000-000000000702',
+			'everyone',true,true,'active',$1,$1,$1,$1
 		)
-	`); err != nil {
-		t.Fatalf("seed Instagram notification support: %v", err)
+	`, now); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO push_installations (id, device_id, platform, fcm_token)
-		VALUES ('10000000-0000-0000-0000-000000000701', 'instagram-device', 'ios', 'synthetic-token')
-	`); err != nil {
-		t.Fatalf("seed Instagram installation: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO push_account_subscriptions (id, installation_id, account_did, routing_id)
-		VALUES (
+	for _, statement := range []string{
+		`INSERT INTO push_installations (id, device_id, platform, fcm_token)
+		 VALUES ('10000000-0000-0000-0000-000000000701','instagram-device','ios','synthetic-token')`,
+		`INSERT INTO push_account_subscriptions (
+			id, installation_id, account_did, routing_id
+		 ) VALUES (
 			'20000000-0000-0000-0000-000000000701',
 			'10000000-0000-0000-0000-000000000701',
-			'did:plc:viewer', '30000000-0000-0000-0000-000000000701'
-		)
-	`); err != nil {
-		t.Fatalf("seed Instagram subscription: %v", err)
+			'did:plc:viewer',
+			'30000000-0000-0000-0000-000000000701'
+		 )`,
+	} {
+		if _, err := pool.Exec(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO push_deliveries (
@@ -271,26 +177,20 @@ func seedInstagramDelivery(t *testing.T, pool *pgxpool.Pool, coalesceUntil time.
 			'40000000-0000-0000-0000-000000000701',
 			'00000000-0000-0000-0000-000000000701',
 			'20000000-0000-0000-0000-000000000701',
-			'pending', $1, $1::timestamptz + interval '6 hours'
+			'pending',$1,$1::timestamptz + interval '6 hours'
 		)
-	`, coalesceUntil); err != nil {
-		t.Fatalf("seed Instagram delivery: %v", err)
+	`, now); err != nil {
+		t.Fatal(err)
 	}
 	if !pushEnabled {
 		if _, err := pool.Exec(ctx, `
-			INSERT INTO notification_preferences (account_did, category, scope, push_enabled)
-			VALUES ('did:plc:viewer', 'instagramMatch', 'everyone', false)
+			INSERT INTO notification_preferences (
+				account_did, category, scope, push_enabled
+			) VALUES (
+				'did:plc:viewer','instagramMatch','everyone',false
+			)
 		`); err != nil {
-			t.Fatalf("disable Instagram push: %v", err)
+			t.Fatal(err)
 		}
 	}
-}
-
-func readPushMigration(t *testing.T, path string) string {
-	t.Helper()
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read migration %s: %v", path, err)
-	}
-	return string(contents)
 }

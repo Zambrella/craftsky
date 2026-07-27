@@ -289,16 +289,13 @@ func (s *OperatorService) revokeLinkTx(ctx context.Context, tx pgx.Tx, id uuid.U
 		UPDATE instagram_follow_suggestions
 		SET state='invalidated',accepting_since=NULL,
 		    terminal_at=COALESCE(terminal_at,$2),updated_at=$2
-		WHERE target_did=$1 AND state IN ('pending','accepting')
+		WHERE target_did=$1 AND state IN ('pending','writing')
 		RETURNING id
 	`, owner, now)
 	if err != nil {
 		return "", false, fmt.Errorf("operator invalidate Instagram suggestions: %w", err)
 	}
-	if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "operatorLinkRevoked", now); err != nil {
-		return "", false, err
-	}
-	if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "link_revoked", now); err != nil {
+	if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "operatorLinkRevoked", now); err != nil {
 		return "", false, err
 	}
 	if _, err := tx.Exec(ctx, `

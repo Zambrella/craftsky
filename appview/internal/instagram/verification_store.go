@@ -395,16 +395,13 @@ func (s *VerificationStore) ConfirmVerificationAttempt(ctx context.Context, para
 			UPDATE instagram_follow_suggestions
 			SET state='invalidated', accepting_since=NULL,
 			    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
-			WHERE target_did=$1 AND state IN ('pending','accepting')
+			WHERE target_did=$1 AND state IN ('pending','writing')
 			RETURNING id
 		`, conflictingOwner, params.Now)
 		if err != nil {
 			return ConfirmationResult{}, fmt.Errorf("invalidate conflicted Instagram suggestions: %w", err)
 		}
-		if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "linkConflict", params.Now); err != nil {
-			return ConfirmationResult{}, err
-		}
-		if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "eligibility_changed", params.Now); err != nil {
+		if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "linkConflict", params.Now); err != nil {
 			return ConfirmationResult{}, err
 		}
 		if _, err := tx.Exec(ctx, `
@@ -435,16 +432,13 @@ func (s *VerificationStore) ConfirmVerificationAttempt(ctx context.Context, para
 				UPDATE instagram_follow_suggestions
 				SET state='invalidated', accepting_since=NULL,
 				    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
-				WHERE target_did=$1 AND state IN ('pending','accepting')
+				WHERE target_did=$1 AND state IN ('pending','writing')
 				RETURNING id
 			`, params.OwnerDID, params.Now)
 			if err != nil {
 				return ConfirmationResult{}, fmt.Errorf("invalidate refreshed Instagram suggestions: %w", err)
 			}
-			if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "usernameRefreshed", params.Now); err != nil {
-				return ConfirmationResult{}, err
-			}
-			if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "eligibility_changed", params.Now); err != nil {
+			if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "usernameRefreshed", params.Now); err != nil {
 				return ConfirmationResult{}, err
 			}
 			if _, err := tx.Exec(ctx, `
@@ -497,16 +491,13 @@ func (s *VerificationStore) ConfirmVerificationAttempt(ctx context.Context, para
 		UPDATE instagram_follow_suggestions
 		SET state='invalidated', accepting_since=NULL,
 		    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
-		WHERE target_did=$1 AND state IN ('pending','accepting')
+		WHERE target_did=$1 AND state IN ('pending','writing')
 		RETURNING id
 	`, params.OwnerDID, params.Now)
 	if err != nil {
 		return ConfirmationResult{}, fmt.Errorf("invalidate superseded Instagram suggestions: %w", err)
 	}
-	if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "linkSuperseded", params.Now); err != nil {
-		return ConfirmationResult{}, err
-	}
-	if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "eligibility_changed", params.Now); err != nil {
+	if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "linkSuperseded", params.Now); err != nil {
 		return ConfirmationResult{}, err
 	}
 	if _, err := tx.Exec(ctx, `

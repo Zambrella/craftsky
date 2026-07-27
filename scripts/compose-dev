@@ -98,6 +98,44 @@ else
   printf '%s\n' 'Firebase ADC not found; push notifications disabled.' >&2
 fi
 
+instagram_meta_enabled=$(dotenv_value INSTAGRAM_META_ENABLED)
+instagram_meta_enabled=$(printf '%s' "$instagram_meta_enabled" | tr '[:upper:]' '[:lower:]')
+case "$instagram_meta_enabled" in
+  1 | t | true)
+    instagram_required_keys=(
+      INSTAGRAM_DATA_HMAC_KEY
+      INSTAGRAM_META_REPLIES_ENABLED
+      INSTAGRAM_META_APP_SECRET
+      INSTAGRAM_META_VERIFY_TOKEN
+      INSTAGRAM_META_ACCESS_TOKEN
+      INSTAGRAM_META_ACCOUNT_ID
+      INSTAGRAM_META_API_VERSION
+      INSTAGRAM_META_API_BASE_URL
+      INSTAGRAM_META_DM_URL
+    )
+    instagram_missing_keys=()
+    for key in "${instagram_required_keys[@]}"; do
+      if [[ -z "$(dotenv_value "$key")" ]]; then
+        instagram_missing_keys+=("$key")
+      fi
+    done
+
+    if (( ${#instagram_missing_keys[@]} == 0 )); then
+      printf '%s\n' 'Instagram Meta configuration found; Instagram verification enabled.' >&2
+    else
+      printf 'Instagram Meta integration enabled but configuration incomplete (missing: %s); AppView startup will fail.\n' \
+        "$(IFS=,; printf '%s' "${instagram_missing_keys[*]}")" >&2
+    fi
+    ;;
+  "" | 0 | f | false)
+    printf '%s\n' 'Instagram Meta integration disabled; Instagram verification disabled.' >&2
+    ;;
+  *)
+    printf 'Invalid INSTAGRAM_META_ENABLED value %q; AppView startup will fail.\n' \
+      "$instagram_meta_enabled" >&2
+    ;;
+esac
+
 printf 'CraftSky stack: project=%s appview=http://localhost:%s postgres=localhost:%s\n' \
   "$project_name" "$appview_port" "$postgres_port" >&2
 

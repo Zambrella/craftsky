@@ -124,17 +124,9 @@ final class NotificationOpenAttempt {
             NotificationFactFailureClass.missingOrMalformedRequiredFacts,
           ),
         },
-        NotificationCategory.instagramMatch => switch ((
-          _parseBoundedCount(data['count']),
-          _parseBool(data['countCapped']),
-        )) {
-          (final int _, final bool _) => const ValidNotificationFacts._(
-            category: NotificationCategory.instagramMatch,
-          ),
-          _ => const InvalidNotificationFacts(
-            NotificationFactFailureClass.missingOrMalformedRequiredFacts,
-          ),
-        },
+        NotificationCategory.instagramMatch => const ValidNotificationFacts._(
+          category: NotificationCategory.instagramMatch,
+        ),
         NotificationCategory.everythingElse => const ValidNotificationFacts._(
           category: NotificationCategory.everythingElse,
         ),
@@ -194,18 +186,6 @@ final class NotificationOpenAttempt {
       return null;
     }
   }
-
-  static int? _parseBoundedCount(Object? value) {
-    if (value is! String || value.length > 2) return null;
-    final count = int.tryParse(value);
-    return count != null && count >= 1 && count <= 99 ? count : null;
-  }
-
-  static bool? _parseBool(Object? value) => switch (value) {
-    'true' => true,
-    'false' => false,
-    _ => null,
-  };
 
   static bool _isBoundedAscii(String value, int maxBytes) =>
       value.isNotEmpty &&

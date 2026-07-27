@@ -1,7 +1,6 @@
 import 'package:craftsky_app/instagram_migration/data/instagram_migration_api_client.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
-import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
@@ -225,7 +224,6 @@ void main() {
           (server) => server.reply(201, {
             'import': import,
             'counts': {'followingCount': 2},
-            'initialSuggestionCount': 1,
           }),
           data: {
             'sourceType': 'instagramJson',
@@ -277,7 +275,6 @@ void main() {
       );
       await api.deleteImport('synthetic-import-id');
 
-      expect(created.initialSuggestionCount, 1);
       expect(created.followingCount, 2);
       expect(page.cursor, 'synthetic-opaque-cursor');
       expect(page.items.single.state, InstagramImportState.active);
@@ -285,64 +282,6 @@ void main() {
       expect(updated.state, InstagramImportState.active);
       for (final value in [created, page, detail, updated]) {
         expect(value.toString(), isNot(contains('synthetic-import-id')));
-      }
-    });
-
-    test('IT-014 uses the exact suggestion review and action wires', () async {
-      final dio = buildDio();
-      final suggestion = {
-        'suggestionId': 'synthetic-suggestion-id',
-        'profile': {
-          'did': 'did:plc:synthetic-target',
-          'handle': 'target.synthetic.invalid',
-          'displayName': 'Synthetic Target',
-          'avatar': 'https://cdn.synthetic.invalid/private-avatar',
-        },
-        'reason': 'verifiedInstagramFollow',
-        'state': 'pending',
-      };
-      DioAdapter(dio: dio)
-        ..onGet(
-          '/v1/migrations/instagram/suggestions',
-          (server) => server.reply(200, {
-            'items': [suggestion],
-            'cursor': 'synthetic-suggestion-cursor',
-          }),
-          queryParameters: {'limit': 50},
-        )
-        ..onPost(
-          '/v1/migrations/instagram/suggestions/synthetic-suggestion-id/accept',
-          (server) => server.reply(200, {
-            'suggestionId': 'synthetic-suggestion-id',
-            'state': 'accepted',
-          }),
-        )
-        ..onDelete(
-          '/v1/migrations/instagram/suggestions/synthetic-suggestion-id',
-          (server) => server.reply(204, null),
-        );
-
-      final api = InstagramMigrationApiClient(dio);
-      final page = await api.listSuggestions(limit: 50);
-      final accepted = await api.acceptSuggestion('synthetic-suggestion-id');
-      await api.dismissSuggestion('synthetic-suggestion-id');
-
-      expect(page.cursor, 'synthetic-suggestion-cursor');
-      expect(page.items.single.state, InstagramSuggestionState.pending);
-      expect(
-        page.items.single.reason,
-        InstagramSuggestionReason.verifiedInstagramFollow,
-      );
-      expect(accepted.state, InstagramSuggestionState.accepted);
-      for (final privateValue in [
-        'synthetic-suggestion-id',
-        'did:plc:synthetic-target',
-        'target.synthetic.invalid',
-        'Synthetic Target',
-        'https://cdn.synthetic.invalid/private-avatar',
-      ]) {
-        expect(page.toString(), isNot(contains(privateValue)));
-        expect(accepted.toString(), isNot(contains(privateValue)));
       }
     });
 

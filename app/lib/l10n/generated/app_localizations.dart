@@ -226,17 +226,11 @@ abstract class AppLocalizations {
   /// **'Activity unavailable'**
   String get notificationUnavailableRow;
 
-  /// Actorless notification copy for one or more bounded Instagram matches.
+  /// Notification shown after an Instagram import automatically follows a matched CraftSky account.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{A new Instagram match is ready to review} other{{count} new Instagram matches are ready to review}}'**
-  String notificationInstagramMatchRow(int count);
-
-  /// Actorless notification copy when the private match count is capped.
-  ///
-  /// In en, this message translates to:
-  /// **'99+ new Instagram matches are ready to review'**
-  String get notificationInstagramMatchRowCapped;
+  /// **'You automatically followed {actor} from your Instagram import'**
+  String notificationInstagramMatchActorRow(String actor);
 
   /// No description provided for @notificationSettingsAction.
   ///
@@ -2731,7 +2725,7 @@ abstract class AppLocalizations {
   /// No description provided for @instagramVerificationDescription.
   ///
   /// In en, this message translates to:
-  /// **'Send a one-time challenge to CraftSky\'s official Instagram account. You will confirm the username here before anything is linked.'**
+  /// **'Send a one-time challenge to CraftSky\'s official Instagram account. You will confirm the username here before it is verified.'**
   String get instagramVerificationDescription;
 
   /// No description provided for @instagramVerificationUnavailable.
@@ -2827,7 +2821,7 @@ abstract class AppLocalizations {
   /// No description provided for @instagramDiscoverableDescription.
   ///
   /// In en, this message translates to:
-  /// **'When enabled, eligible CraftSky members who imported your Instagram username may see a suggestion. This never follows anyone automatically.'**
+  /// **'When enabled, eligible CraftSky members who imported your Instagram username will automatically follow you when CraftSky finds a match.'**
   String get instagramDiscoverableDescription;
 
   /// No description provided for @instagramDiscoverableAllow.
@@ -2845,7 +2839,7 @@ abstract class AppLocalizations {
   /// No description provided for @instagramDiscoverablePrivateDescription.
   ///
   /// In en, this message translates to:
-  /// **'Your Instagram account will be linked, but it will not be suggested to people who imported your username.'**
+  /// **'Your Instagram account remains verified, but CraftSky will not match it with people who imported your username.'**
   String get instagramDiscoverablePrivateDescription;
 
   /// No description provided for @instagramVerificationConfirm.
@@ -2899,7 +2893,7 @@ abstract class AppLocalizations {
   /// No description provided for @instagramVerificationConflict.
   ///
   /// In en, this message translates to:
-  /// **'This Instagram account cannot be linked automatically. Your existing account remains unchanged.'**
+  /// **'This Instagram account cannot be verified automatically. Your existing verified account remains unchanged.'**
   String get instagramVerificationConflict;
 
   /// No description provided for @instagramActionError.
@@ -2929,7 +2923,7 @@ abstract class AppLocalizations {
   /// No description provided for @instagramLinkedAs.
   ///
   /// In en, this message translates to:
-  /// **'Linked as @{username}'**
+  /// **'Verified as @{username}'**
   String instagramLinkedAs(String username);
 
   /// No description provided for @instagramConflictPending.
@@ -2953,8 +2947,20 @@ abstract class AppLocalizations {
   /// No description provided for @instagramRevokeAccount.
   ///
   /// In en, this message translates to:
-  /// **'Revoke Instagram link'**
+  /// **'Revoke Instagram verification'**
   String get instagramRevokeAccount;
+
+  /// No description provided for @instagramRevokeAccountConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke Instagram verification?'**
+  String get instagramRevokeAccountConfirmTitle;
+
+  /// No description provided for @instagramRevokeAccountConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes your Instagram verification and deletes your imported handles. Existing CraftSky follows will not be affected.'**
+  String get instagramRevokeAccountConfirmMessage;
 
   /// No description provided for @instagramImportTitle.
   ///
@@ -2971,7 +2977,7 @@ abstract class AppLocalizations {
   /// No description provided for @instagramImportManualDescription.
   ///
   /// In en, this message translates to:
-  /// **'Enter the Instagram handles of accounts you follow, one per line. CraftSky keeps them until you unlink Instagram.'**
+  /// **'Enter the Instagram handles of accounts you follow, one per line.'**
   String get instagramImportManualDescription;
 
   /// No description provided for @instagramImportJson.
@@ -3127,7 +3133,7 @@ abstract class AppLocalizations {
   /// No description provided for @instagramImportCounts.
   ///
   /// In en, this message translates to:
-  /// **'{followingCount, plural, =1{1 account followed} other{{followingCount} accounts followed}}'**
+  /// **'{followingCount, plural, =1{1 account imported} other{{followingCount} accounts imported}}'**
   String instagramImportCounts(int followingCount);
 
   /// No description provided for @instagramImportReactivationDisclosure.
@@ -3159,72 +3165,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Notification settings'**
   String get instagramImportNotificationSettings;
-
-  /// No description provided for @instagramSuggestionsTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'People you may know'**
-  String get instagramSuggestionsTitle;
-
-  /// No description provided for @instagramSuggestionsLoadError.
-  ///
-  /// In en, this message translates to:
-  /// **'Instagram suggestions didn\'t load.'**
-  String get instagramSuggestionsLoadError;
-
-  /// No description provided for @instagramSuggestionsEmpty.
-  ///
-  /// In en, this message translates to:
-  /// **'No eligible Instagram suggestions right now.'**
-  String get instagramSuggestionsEmpty;
-
-  /// No description provided for @instagramSuggestionsSelectAll.
-  ///
-  /// In en, this message translates to:
-  /// **'Select all reviewed'**
-  String get instagramSuggestionsSelectAll;
-
-  /// No description provided for @instagramSuggestionsClearSelection.
-  ///
-  /// In en, this message translates to:
-  /// **'Clear selection'**
-  String get instagramSuggestionsClearSelection;
-
-  /// No description provided for @instagramSuggestionsAcceptSelected.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{Follow 1 selected person} other{Follow {count} selected people}}'**
-  String instagramSuggestionsAcceptSelected(int count);
-
-  /// No description provided for @instagramSuggestionReason.
-  ///
-  /// In en, this message translates to:
-  /// **'You follow this verified account on Instagram.'**
-  String get instagramSuggestionReason;
-
-  /// No description provided for @instagramSuggestionUnknownReason.
-  ///
-  /// In en, this message translates to:
-  /// **'Suggested from your private Instagram import.'**
-  String get instagramSuggestionUnknownReason;
-
-  /// No description provided for @instagramSuggestionAccept.
-  ///
-  /// In en, this message translates to:
-  /// **'Follow'**
-  String get instagramSuggestionAccept;
-
-  /// No description provided for @instagramSuggestionDismiss.
-  ///
-  /// In en, this message translates to:
-  /// **'Dismiss'**
-  String get instagramSuggestionDismiss;
-
-  /// No description provided for @instagramSuggestionsActionError.
-  ///
-  /// In en, this message translates to:
-  /// **'One or more suggestions changed or couldn\'t be updated. Refresh before trying again.'**
-  String get instagramSuggestionsActionError;
 
   /// Tooltip and action label for saving a post.
   ///

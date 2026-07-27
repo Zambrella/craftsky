@@ -17,14 +17,14 @@ import (
 // omits HMAC/digest material, webhook work, rate buckets, operator evidence,
 // PDS operation internals, delivery routing, and other importers' facts.
 type PrivateDataExport struct {
-	Version              int                         `json:"version"`
-	OwnerDID             syntax.DID                  `json:"ownerDid"`
-	VerificationAttempts []PrivateVerificationExport `json:"verificationAttempts"`
-	AccountLinks         []PrivateAccountLinkExport  `json:"accountLinks"`
-	Imports              []PrivateImportExport       `json:"imports"`
-	Suggestions          []PrivateSuggestionExport   `json:"suggestions"`
-	MatchNotifications   []PrivateMatchEventExport   `json:"matchNotifications"`
-	MatchPushEnabled     *bool                       `json:"matchPushEnabled,omitempty"`
+	Version              int                            `json:"version"`
+	OwnerDID             syntax.DID                     `json:"ownerDid"`
+	VerificationAttempts []PrivateVerificationExport    `json:"verificationAttempts"`
+	AccountLinks         []PrivateAccountLinkExport     `json:"accountLinks"`
+	Imports              []PrivateImportExport          `json:"imports"`
+	AutomaticFollows     []PrivateAutomaticFollowExport `json:"automaticFollows"`
+	MatchNotifications   []PrivateMatchEventExport      `json:"matchNotifications"`
+	MatchPushEnabled     *bool                          `json:"matchPushEnabled,omitempty"`
 }
 
 func (PrivateDataExport) String() string     { return "Instagram private-data export [REDACTED]" }
@@ -107,29 +107,27 @@ func (e PrivateHandleExport) Format(state fmt.State, _ rune) {
 	_, _ = io.WriteString(state, e.String())
 }
 
-type PrivateSuggestionExport struct {
-	ID         uuid.UUID                 `json:"suggestionId"`
-	TargetDID  syntax.DID                `json:"targetDid"`
-	State      InstagramSuggestionState  `json:"state"`
-	Reason     InstagramSuggestionReason `json:"reason"`
-	CreatedAt  time.Time                 `json:"createdAt"`
-	UpdatedAt  time.Time                 `json:"updatedAt"`
-	TerminalAt *time.Time                `json:"terminalAt,omitempty"`
+type PrivateAutomaticFollowExport struct {
+	ID         uuid.UUID            `json:"automaticFollowId"`
+	TargetDID  syntax.DID           `json:"targetDid"`
+	State      AutomaticFollowState `json:"state"`
+	CreatedAt  time.Time            `json:"createdAt"`
+	UpdatedAt  time.Time            `json:"updatedAt"`
+	TerminalAt *time.Time           `json:"terminalAt,omitempty"`
 }
 
-func (PrivateSuggestionExport) String() string {
-	return "Instagram private suggestion export [REDACTED]"
+func (PrivateAutomaticFollowExport) String() string {
+	return "Instagram private automatic-follow export [REDACTED]"
 }
-func (e PrivateSuggestionExport) GoString() string { return e.String() }
-func (e PrivateSuggestionExport) Format(state fmt.State, _ rune) {
+func (e PrivateAutomaticFollowExport) GoString() string { return e.String() }
+func (e PrivateAutomaticFollowExport) Format(state fmt.State, _ rune) {
 	_, _ = io.WriteString(state, e.String())
 }
 
 type PrivateMatchEventExport struct {
 	ID          uuid.UUID  `json:"notificationId"`
+	ActorDID    syntax.DID `json:"actorDid"`
 	State       string     `json:"state"`
-	Count       int        `json:"count"`
-	CountCapped bool       `json:"countCapped"`
 	ActivityAt  time.Time  `json:"activityAt"`
 	IndexedAt   time.Time  `json:"indexedAt"`
 	RetractedAt *time.Time `json:"retractedAt,omitempty"`
@@ -153,7 +151,7 @@ func (s *PrivateDataService) ExportOwnerData(ctx context.Context, owner syntax.D
 		VerificationAttempts: make([]PrivateVerificationExport, 0),
 		AccountLinks:         make([]PrivateAccountLinkExport, 0),
 		Imports:              make([]PrivateImportExport, 0),
-		Suggestions:          make([]PrivateSuggestionExport, 0),
+		AutomaticFollows:     make([]PrivateAutomaticFollowExport, 0),
 		MatchNotifications:   make([]PrivateMatchEventExport, 0),
 	}
 	if err := loadPrivateVerificationExport(ctx, tx, owner, &export); err != nil {
@@ -165,7 +163,7 @@ func (s *PrivateDataService) ExportOwnerData(ctx context.Context, owner syntax.D
 	if err := loadPrivateImportExport(ctx, tx, owner, &export); err != nil {
 		return PrivateDataExport{}, err
 	}
-	if err := loadPrivateSuggestionExport(ctx, tx, owner, &export); err != nil {
+	if err := loadPrivateAutomaticFollowExport(ctx, tx, owner, &export); err != nil {
 		return PrivateDataExport{}, err
 	}
 	if err := loadPrivateNotificationExport(ctx, tx, owner, &export); err != nil {
@@ -318,42 +316,41 @@ func loadPrivateImportExport(ctx context.Context, tx pgx.Tx, owner syntax.DID, e
 	return nil
 }
 
-func loadPrivateSuggestionExport(ctx context.Context, tx pgx.Tx, owner syntax.DID, export *PrivateDataExport) error {
+func loadPrivateAutomaticFollowExport(ctx context.Context, tx pgx.Tx, owner syntax.DID, export *PrivateDataExport) error {
 	rows, err := tx.Query(ctx, `
-		SELECT id, target_did, state, reason, created_at, updated_at, terminal_at
+		SELECT id, target_did, state, created_at, updated_at, terminal_at
 		FROM instagram_follow_suggestions
 		WHERE importer_did=$1
 		ORDER BY created_at, id
 	`, owner)
 	if err != nil {
-		return fmt.Errorf("read Instagram private suggestions: %w", err)
+		return fmt.Errorf("read Instagram private automatic follows: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var item PrivateSuggestionExport
+		var item PrivateAutomaticFollowExport
 		var target string
 		if err := rows.Scan(
-			&item.ID, &target, &item.State, &item.Reason,
+			&item.ID, &target, &item.State,
 			&item.CreatedAt, &item.UpdatedAt, &item.TerminalAt,
 		); err != nil {
 			return err
 		}
-		if !item.State.Valid() || item.Reason != SuggestionReasonVerifiedInstagramFollow {
+		if !item.State.Valid() {
 			return ErrInvalidInstagramState
 		}
 		item.TargetDID = syntax.DID(target)
-		export.Suggestions = append(export.Suggestions, item)
+		export.AutomaticFollows = append(export.AutomaticFollows, item)
 	}
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("iterate Instagram private suggestions: %w", err)
+		return fmt.Errorf("iterate Instagram private automatic follows: %w", err)
 	}
 	return nil
 }
 
 func loadPrivateNotificationExport(ctx context.Context, tx pgx.Tx, owner syntax.DID, export *PrivateDataExport) error {
 	rows, err := tx.Query(ctx, `
-		SELECT id, state, system_count, system_count_capped,
-		       activity_at, indexed_at, retracted_at
+		SELECT id, actor_did, state, activity_at, indexed_at, retracted_at
 		FROM notification_events
 		WHERE recipient_did=$1 AND category='instagramMatch'
 		ORDER BY activity_at, id
@@ -365,7 +362,7 @@ func loadPrivateNotificationExport(ctx context.Context, tx pgx.Tx, owner syntax.
 	for rows.Next() {
 		var item PrivateMatchEventExport
 		if err := rows.Scan(
-			&item.ID, &item.State, &item.Count, &item.CountCapped,
+			&item.ID, &item.ActorDID, &item.State,
 			&item.ActivityAt, &item.IndexedAt, &item.RetractedAt,
 		); err != nil {
 			return err

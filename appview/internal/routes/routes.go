@@ -178,9 +178,6 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("GET /v1/migrations/instagram/imports/{importId}", v1mw.wrap(mustPolicy("GET", "/v1/migrations/instagram/imports/{importId}"), api.GetInstagramImportHandler(deps.InstagramImports, deps.Logger)))
 	mux.Handle("PATCH /v1/migrations/instagram/imports/{importId}", v1mw.wrap(mustPolicy("PATCH", "/v1/migrations/instagram/imports/{importId}"), api.PatchInstagramImportHandler(deps.InstagramImports, deps.Logger)))
 	mux.Handle("DELETE /v1/migrations/instagram/imports/{importId}", v1mw.wrap(mustPolicy("DELETE", "/v1/migrations/instagram/imports/{importId}"), api.DeleteInstagramImportHandler(deps.InstagramImports, deps.Logger)))
-	mux.Handle("GET /v1/migrations/instagram/suggestions", v1mw.wrap(mustPolicy("GET", "/v1/migrations/instagram/suggestions"), api.ListInstagramSuggestionsHandler(deps.InstagramSuggestions, deps.ProfileStore, deps.HandleResolver, deps.Logger)))
-	mux.Handle("POST /v1/migrations/instagram/suggestions/{suggestionId}/accept", v1mw.wrap(mustPolicy("POST", "/v1/migrations/instagram/suggestions/{suggestionId}/accept"), api.AcceptInstagramSuggestionHandler(deps.InstagramSuggestions, deps.NewPDSClient, deps.Logger)))
-	mux.Handle("DELETE /v1/migrations/instagram/suggestions/{suggestionId}", v1mw.wrap(mustPolicy("DELETE", "/v1/migrations/instagram/suggestions/{suggestionId}"), api.DeleteInstagramSuggestionHandler(deps.InstagramSuggestions, deps.Logger)))
 	mux.Handle("GET /v1/profiles/{handleOrDid}", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}"), api.GetProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/profiles/me", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me"), api.GetMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/profiles/me/followers", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me/followers"), api.GetMeFollowersHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
@@ -198,8 +195,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("POST /v1/profiles/{handleOrDid}/reports", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/reports"), api.ReportProfileHandler(api.NewProfileReportTargetResolver(deps.ProfileStore, deps.HandleResolver), deps.ReportStore, deps.ReportForwarder, deps.Logger)))
 
 	// v1 — post handlers (authenticated + device-id required).
-	postStore := api.NewPostStore(deps.DB, observer).
-		WithInstagramNotificationEligibility(deps.InstagramNotificationEligibility)
+	postStore := api.NewPostStore(deps.DB, observer)
 	savedPostStore := api.NewSavedPostStore(deps.DB)
 	savedPostService := api.NewSavedPostService(savedPostStore, postStore, deps.HandleResolver)
 	oauthHandlers.NotificationSubscriptions = postStore

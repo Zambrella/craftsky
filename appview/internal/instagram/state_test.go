@@ -97,41 +97,6 @@ func TestInstagramLinkImportSuggestionAndConflictTransitions(t *testing.T) {
 	}
 
 	assertTransitionMatrix(t,
-		[]InstagramSuggestionState{
-			SuggestionPending,
-			SuggestionAccepting,
-			SuggestionAccepted,
-			SuggestionAlreadyFollowing,
-			SuggestionDismissed,
-			SuggestionInvalidated,
-		},
-		transitionSet[InstagramSuggestionState]{
-			{SuggestionPending, SuggestionAccepting}:          {},
-			{SuggestionPending, SuggestionAlreadyFollowing}:   {},
-			{SuggestionPending, SuggestionDismissed}:          {},
-			{SuggestionPending, SuggestionInvalidated}:        {},
-			{SuggestionAccepting, SuggestionPending}:          {},
-			{SuggestionAccepting, SuggestionAccepted}:         {},
-			{SuggestionAccepting, SuggestionAlreadyFollowing}: {},
-			{SuggestionAccepting, SuggestionInvalidated}:      {},
-		},
-		ValidateInstagramSuggestionTransition,
-	)
-	for _, state := range []InstagramSuggestionState{
-		SuggestionAccepted,
-		SuggestionAlreadyFollowing,
-		SuggestionDismissed,
-		SuggestionInvalidated,
-	} {
-		if !state.Terminal() {
-			t.Errorf("suggestion state %q must be terminal", state)
-		}
-	}
-	if SuggestionPending.Terminal() || SuggestionAccepting.Terminal() {
-		t.Fatal("pending and accepting suggestions cannot be terminal")
-	}
-
-	assertTransitionMatrix(t,
 		[]InstagramConflictState{
 			ConflictOpen,
 			ConflictResolvedKeepExisting,
@@ -153,7 +118,7 @@ func TestInstagramStateValidationAndOwnerBoundary(t *testing.T) {
 	if VerificationAttemptState("futureState").Valid() ||
 		InstagramLinkState("futureState").Valid() ||
 		InstagramImportState("futureState").Valid() ||
-		InstagramSuggestionState("futureState").Valid() ||
+		AutomaticFollowState("futureState").Valid() ||
 		InstagramConflictState("futureState").Valid() {
 		t.Fatal("server state validation accepted an unknown public value")
 	}

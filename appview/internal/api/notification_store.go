@@ -9,15 +9,9 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/api/envelope"
-	"social.craftsky/appview/internal/instagram"
 )
-
-type InstagramNotificationEligibility interface {
-	RevalidateNotification(context.Context, uuid.UUID, instagram.EligibilityStage) (bool, error)
-}
 
 type NotificationType string
 
@@ -31,11 +25,6 @@ const (
 	NotificationTypeEverythingElse NotificationType = "everythingElse"
 	NotificationTypeInstagramMatch NotificationType = "instagramMatch"
 )
-
-type NotificationSystem struct {
-	Count       int  `json:"count"`
-	CountCapped bool `json:"countCapped"`
-}
 
 type NotificationReplyRef struct {
 	Available bool   `json:"available"`
@@ -60,12 +49,11 @@ type NotificationReferences struct {
 }
 
 type NotificationRow struct {
-	ID     string
-	Type   NotificationType
-	System *NotificationSystem
-	URI    string
-	CID    string
-	Rkey   string
+	ID   string
+	Type NotificationType
+	URI  string
+	CID  string
+	Rkey string
 
 	ActorDID               string
 	ActorDisplayName       *string
@@ -215,14 +203,8 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 				WHERE actor_follow.did = $1
 				  AND actor_follow.subject_did = e.actor_did
 			) AS actor_viewer_is_following,
-			CASE
-				WHEN e.category = 'instagramMatch'
-				THEN e.first_activity_at
-				ELSE e.activity_at
-			END,
+			e.activity_at,
 			e.indexed_at,
-			NULLIF(to_jsonb(e)->>'system_count', '')::integer,
-			NULLIF(to_jsonb(e)->>'system_count_capped', '')::boolean,
 			sp.uri, sp.did, sp.rkey, sp.cid, sp.text, sp.facets, sp.images,
 			sp.reply_root_uri, sp.reply_root_cid, sp.reply_parent_uri, sp.reply_parent_cid,
 			sp.quote_uri, sp.quote_cid, sp.tags, sp.created_at, sp.indexed_at,
@@ -254,8 +236,6 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		var eventType string
 		var subject notificationSubjectScan
 		var sourceURI, sourceCID, sourceRkey, actorDID sql.NullString
-		var systemCount sql.NullInt64
-		var systemCountCapped sql.NullBool
 		var sourceAvailable, subjectAvailable, parentAvailable, rootAvailable, quotedAvailable, subjectQuoteAvailable bool
 		var subjectURI, subjectCID, parentURI, parentCID, rootURI, rootCID, quotedURI, quotedCID sql.NullString
 		if err := rows.Scan(
@@ -269,7 +249,6 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			&subjectQuoteAvailable,
 			&actorDID, &row.ActorDisplayName, &row.ActorAvatarCID, &row.ActorAvatarMime, &row.ActorViewerIsFollowing,
 			&row.CreatedAt, &row.IndexedAt,
-			&systemCount, &systemCountCapped,
 			&subject.URI, &subject.DID, &subject.Rkey, &subject.CID, &subject.Text, &subject.Facets, &subject.Images,
 			&subject.ReplyRootURI, &subject.ReplyRootCID, &subject.ReplyParentURI, &subject.ReplyParentCID,
 			&subject.QuoteURI, &subject.QuoteCID, &subject.Tags, &subject.CreatedAt, &subject.IndexedAt,
@@ -280,27 +259,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		}
 		row.Type = NotificationType(eventType)
 		row.ActorDID = actorDID.String
-		if row.Type == NotificationTypeInstagramMatch {
-			if systemCount.Valid && systemCountCapped.Valid {
-				row.System = &NotificationSystem{
-					Count:       int(systemCount.Int64),
-					CountCapped: systemCountCapped.Bool,
-				}
-			}
-			if s.instagramNotificationEligibility != nil {
-				notificationID, parseErr := uuid.Parse(row.ID)
-				if parseErr != nil {
-					return nil, "", fmt.Errorf("parse Instagram notification id: %w", parseErr)
-				}
-				eligible, eligibilityErr := s.instagramNotificationEligibility.RevalidateNotification(ctx, notificationID, instagram.EligibilityAtFeed)
-				if eligibilityErr != nil {
-					return nil, "", fmt.Errorf("revalidate Instagram notification feed: %w", eligibilityErr)
-				}
-				if !eligible {
-					continue
-				}
-			}
-		} else {
+		if row.Type != NotificationTypeInstagramMatch {
 			row.References = NotificationReferences{
 				Source:  *notificationReference(sourceURI, sourceCID, sourceRkey.String, sourceAvailable),
 				Subject: notificationReference(subjectURI, subjectCID, "", subjectAvailable),

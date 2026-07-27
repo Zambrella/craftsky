@@ -35,7 +35,6 @@ type NotificationItem struct {
 	Type             NotificationType        `json:"type"`
 	Actor            *NotificationActor      `json:"actor,omitempty"`
 	References       *NotificationReferences `json:"references,omitempty"`
-	System           *NotificationSystem     `json:"system,omitempty"`
 	CreatedAt        string                  `json:"createdAt"`
 	IndexedAt        string                  `json:"indexedAt"`
 	SubjectPost      *PostResponse           `json:"subjectPost,omitempty"`
@@ -84,9 +83,6 @@ func ListNotificationsHandler(store NotificationReader, _ HandleResolver, logger
 			dids := make([]string, 0, len(rows)*2)
 			postURIs := make([]string, 0, len(rows))
 			for _, row := range rows {
-				if row.Type == NotificationTypeInstagramMatch {
-					continue
-				}
 				dids = append(dids, row.ActorDID)
 				if row.SubjectPost != nil {
 					dids = append(dids, row.SubjectPost.DID)
@@ -146,11 +142,6 @@ func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handl
 		CreatedAt: row.CreatedAt.UTC().Format(time.RFC3339),
 		IndexedAt: row.IndexedAt.UTC().Format(time.RFC3339),
 	}
-	if row.Type == NotificationTypeInstagramMatch {
-		item.System = row.System
-		return item
-	}
-
 	actorHandle, actorAvailable := handles[row.ActorDID]
 	item.Actor = &NotificationActor{
 		Available:         actorAvailable,
@@ -160,8 +151,6 @@ func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handl
 		AvatarCID:         row.ActorAvatarCID,
 		ViewerIsFollowing: row.ActorViewerIsFollowing,
 	}
-	item.Reply = row.Reply
-	item.References = &row.References
 	if avatar := synthBlobURL("avatar", row.ActorDID, row.ActorAvatarCID, row.ActorAvatarMime); avatar != "" {
 		item.Actor.Avatar = &avatar
 	}
@@ -175,6 +164,11 @@ func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handl
 		item.Actor.Avatar = nil
 		item.Actor.AvatarCID = nil
 	}
+	if row.Type == NotificationTypeInstagramMatch {
+		return item
+	}
+	item.Reply = row.Reply
+	item.References = &row.References
 	if row.SubjectPost != nil {
 		post := BuildPostResponse(row.SubjectPost, handles[row.SubjectPost.DID])
 		applyEngagementSummary(post, summaries[row.SubjectPost.URI])

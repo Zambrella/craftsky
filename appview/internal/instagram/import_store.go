@@ -335,10 +335,7 @@ func (s *ImportStore) DeleteImport(ctx context.Context, owner syntax.DID, id uui
 	if err != nil {
 		return err
 	}
-	if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "importDeleted", now); err != nil {
-		return err
-	}
-	if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "import_deleted", now); err != nil {
+	if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "importDeleted", now); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `
@@ -358,7 +355,7 @@ func invalidateUnsupportedSuggestions(ctx context.Context, tx pgx.Tx, owner synt
 		SET state = 'invalidated', accepting_since = NULL,
 		    terminal_at = COALESCE(terminal_at, $2), updated_at = $2
 		WHERE suggestion.importer_did = $1
-		  AND suggestion.state IN ('pending', 'accepting')
+		  AND suggestion.state IN ('pending', 'writing')
 		  AND NOT EXISTS (
 			SELECT 1
 			FROM instagram_suggestion_sources source

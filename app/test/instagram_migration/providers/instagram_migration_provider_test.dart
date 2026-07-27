@@ -8,12 +8,10 @@ import 'package:craftsky_app/instagram_migration/data/instagram_migration_reposi
 import 'package:craftsky_app/instagram_migration/data/instagram_verification_storage.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
-import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_account_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_imports_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
-import 'package:craftsky_app/instagram_migration/providers/instagram_suggestions_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_verification_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -266,71 +264,6 @@ void main() {
   );
 
   test(
-    'FR-026 select all includes only reviewed pending suggestions',
-    () async {
-      final initial = registry.SessionRegistry.empty().upsertAndActivate(
-        token: 'token-a',
-        did: 'did:plc:alice',
-        handle: 'alice.test',
-      );
-      final lease = initial.activeLease!;
-      InstagramSuggestion suggestion(
-        String id,
-        InstagramSuggestionState state,
-      ) => InstagramSuggestion(
-        suggestionId: id,
-        profile: InstagramSuggestionProfile(
-          did: 'did:plc:$id',
-          handle: '$id.test',
-        ),
-        reason: InstagramSuggestionReason.verifiedInstagramFollow,
-        state: state,
-      );
-      final repository = _Repository(
-        onGetAccount: Future.value(
-          const InstagramAccountStatus(
-            integrationAvailable: true,
-            account: null,
-          ),
-        ),
-        onListSuggestions: () async => InstagramSuggestionPage(
-          items: [
-            suggestion('pending', InstagramSuggestionState.pending),
-            suggestion('accepted', InstagramSuggestionState.alreadyFollowing),
-            suggestion('invalid', InstagramSuggestionState.invalidated),
-          ],
-          cursor: null,
-        ),
-      );
-      final container = ProviderContainer.test(
-        retry: (_, _) => null,
-        overrides: [
-          secureSessionRegistryStorageProvider.overrideWithValue(
-            _RegistryStorage(initial),
-          ),
-          instagramMigrationRepositoryProvider.overrideWith(
-            (ref, _) async => repository,
-          ),
-        ],
-      );
-      await container.read(sessionRegistryProvider.future);
-      await container.read(instagramSuggestionsProvider(lease).future);
-
-      container
-          .read(instagramSuggestionsProvider(lease).notifier)
-          .selectAllReviewed();
-
-      expect(
-        container
-            .read(instagramSuggestionsProvider(lease))
-            .requireValue
-            .selectedIds,
-        {'pending'},
-      );
-    },
-  );
-
-  test(
     'UT-011 late account A import cannot update account B imports',
     () async {
       final initial = registry.SessionRegistry.empty()
@@ -417,7 +350,6 @@ void main() {
             createdAt: DateTime.utc(2026, 7, 19),
           ),
           followingCount: 1,
-          initialSuggestionCount: 0,
         ),
       );
 
@@ -738,97 +670,6 @@ void main() {
     );
     expect(storage.values[lease.session.account], isNull);
   });
-
-  test('UT-011 late account A acceptance has no account B effect', () async {
-    final initial = registry.SessionRegistry.empty()
-        .upsertAndActivate(
-          token: 'token-b',
-          did: 'did:plc:bob',
-          handle: 'bob.test',
-        )
-        .upsertAndActivate(
-          token: 'token-a',
-          did: 'did:plc:alice',
-          handle: 'alice.test',
-        );
-    final aliceLease = initial.activeLease!;
-    final lateAcceptance = Completer<InstagramSuggestionActionResult>();
-    const suggestion = InstagramSuggestion(
-      suggestionId: 'suggestion-a',
-      profile: InstagramSuggestionProfile(
-        did: 'did:plc:target',
-        handle: 'target.test',
-      ),
-      reason: InstagramSuggestionReason.verifiedInstagramFollow,
-      state: InstagramSuggestionState.pending,
-    );
-    final repositories = <AccountKey, InstagramMigrationRepository>{
-      aliceLease.session.account: _Repository(
-        onGetAccount: Future.value(
-          const InstagramAccountStatus(
-            integrationAvailable: true,
-            account: null,
-          ),
-        ),
-        onListSuggestions: () async => InstagramSuggestionPage(
-          items: [suggestion],
-          cursor: null,
-        ),
-        onAcceptSuggestion: (_) => lateAcceptance.future,
-      ),
-      AccountKey('did:plc:bob'): _Repository(
-        onGetAccount: Future.value(
-          const InstagramAccountStatus(
-            integrationAvailable: true,
-            account: null,
-          ),
-        ),
-        onListSuggestions: () async => InstagramSuggestionPage(
-          items: const [],
-          cursor: null,
-        ),
-      ),
-    };
-    final container = ProviderContainer.test(
-      retry: (_, _) => null,
-      overrides: [
-        secureSessionRegistryStorageProvider.overrideWithValue(
-          _RegistryStorage(initial),
-        ),
-        instagramMigrationRepositoryProvider.overrideWith(
-          (ref, lease) async => repositories[lease.session.account]!,
-        ),
-      ],
-    );
-    await container.read(sessionRegistryProvider.future);
-    await container.read(instagramSuggestionsProvider(aliceLease).future);
-    final accept = container
-        .read(instagramSuggestionsProvider(aliceLease).notifier)
-        .accept('suggestion-a');
-    await Future<void>.delayed(Duration.zero);
-    final bobSession = container
-        .read(sessionRegistryProvider)
-        .requireValue
-        .leaseFor(AccountKey('did:plc:bob'))!;
-    await container.read(sessionRegistryProvider.notifier).activate(bobSession);
-    final bobLease = container
-        .read(sessionRegistryProvider)
-        .requireValue
-        .activeLease!;
-    await container.read(instagramSuggestionsProvider(bobLease).future);
-    lateAcceptance.complete(
-      const InstagramSuggestionActionResult(
-        suggestionId: 'suggestion-a',
-        state: InstagramSuggestionState.accepted,
-      ),
-    );
-
-    expect(await accept, isFalse);
-    expect(
-      container.read(instagramSuggestionsProvider(bobLease)).requireValue.items,
-      isEmpty,
-    );
-  });
 }
 
 Future<void> _waitUntil(bool Function() condition) async {
@@ -857,11 +698,9 @@ final class _Repository implements InstagramMigrationRepository {
     this.onCreateVerification,
     this.onListImports,
     this.onUpdateImport,
-    this.onListSuggestions,
     this.onCreateImport,
     this.onGetVerification,
     this.onGetCurrentVerification,
-    this.onAcceptSuggestion,
   });
 
   final Future<InstagramAccountStatus> onGetAccount;
@@ -872,7 +711,6 @@ final class _Repository implements InstagramMigrationRepository {
     InstagramImportPatch patch,
   )?
   onUpdateImport;
-  final Future<InstagramSuggestionPage> Function()? onListSuggestions;
   final Future<InstagramImportCreateResult> Function(
     InstagramImportRequest request,
   )?
@@ -881,8 +719,6 @@ final class _Repository implements InstagramMigrationRepository {
   onGetVerification;
   final Future<InstagramVerificationAttempt?> Function()?
   onGetCurrentVerification;
-  final Future<InstagramSuggestionActionResult> Function(String suggestionId)?
-  onAcceptSuggestion;
 
   @override
   Future<InstagramVerificationAttempt> createVerification() =>
@@ -903,11 +739,6 @@ final class _Repository implements InstagramMigrationRepository {
   ) => onCreateImport!.call(request);
 
   @override
-  Future<InstagramSuggestionActionResult> acceptSuggestion(
-    String suggestionId,
-  ) => onAcceptSuggestion!.call(suggestionId);
-
-  @override
   Future<InstagramImportPage> listImports({int? limit, String? cursor}) =>
       onListImports!.call();
 
@@ -916,12 +747,6 @@ final class _Repository implements InstagramMigrationRepository {
     String importId,
     InstagramImportPatch patch,
   ) => onUpdateImport!.call(importId, patch);
-
-  @override
-  Future<InstagramSuggestionPage> listSuggestions({
-    int? limit,
-    String? cursor,
-  }) => onListSuggestions!.call();
 
   @override
   Future<InstagramAccountStatus> getAccount() => onGetAccount;

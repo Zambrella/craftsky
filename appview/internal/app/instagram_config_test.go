@@ -248,8 +248,6 @@ func TestLoadConfig_InstagramLimitsDefaultToHardMaximaAndMayOnlyTighten(t *testi
 		WorkerBackoffMax:            5 * time.Minute,
 		WorkerMaxProcessingAge:      15 * time.Minute,
 		DMReplyWindow:               24 * time.Hour,
-		NotificationWindow:          5 * time.Minute,
-		NotificationCountCap:        99,
 		OperatorBatchMax:            500,
 	}
 	if cfg.InstagramLimits != want {

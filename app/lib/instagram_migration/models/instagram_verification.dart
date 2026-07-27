@@ -1,3 +1,11 @@
+import 'package:dart_mappable/dart_mappable.dart';
+
+part 'instagram_verification.mapper.dart';
+
+const int _instagramVerificationValueMethods =
+    GenerateMethods.copy | GenerateMethods.equals;
+
+@MappableEnum(defaultValue: InstagramVerificationState.unknown)
 enum InstagramVerificationState {
   pendingDm,
   processing,
@@ -10,20 +18,11 @@ enum InstagramVerificationState {
   conflicted,
   unknown;
 
-  static InstagramVerificationState fromWire(String value) => switch (value) {
-    'pendingDm' => pendingDm,
-    'processing' => processing,
-    'pendingConfirmation' => pendingConfirmation,
-    'confirmed' => confirmed,
-    'expired' => expired,
-    'cancelled' => cancelled,
-    'superseded' => superseded,
-    'rejected' => rejected,
-    'conflicted' => conflicted,
-    _ => unknown,
-  };
+  static InstagramVerificationState fromWire(String value) =>
+      InstagramVerificationStateMapper.fromValue(value);
 }
 
+@MappableEnum(defaultValue: InstagramVerificationRetryCode.unknown)
 enum InstagramVerificationRetryCode {
   profileLookupUnavailable,
   invalidProfileResponse,
@@ -31,15 +30,12 @@ enum InstagramVerificationRetryCode {
   unknown;
 
   static InstagramVerificationRetryCode fromWire(String value) =>
-      switch (value) {
-        'profileLookupUnavailable' => profileLookupUnavailable,
-        'invalidProfileResponse' => invalidProfileResponse,
-        'membershipInactive' => membershipInactive,
-        _ => unknown,
-      };
+      InstagramVerificationRetryCodeMapper.fromValue(value);
 }
 
-final class InstagramVerificationAttempt {
+@MappableClass(generateMethods: _instagramVerificationValueMethods)
+final class InstagramVerificationAttempt
+    with InstagramVerificationAttemptMappable {
   const InstagramVerificationAttempt({
     required this.verificationId,
     required this.state,

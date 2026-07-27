@@ -98,19 +98,19 @@ func TestAccountStoreUpdatesDiscoveryAndInvalidatesEveryUnfinishedDependent(t *t
 		INSERT INTO instagram_follow_suggestions
 			(id, importer_did, target_did, state, reason, accepting_since, created_at, updated_at)
 		VALUES
-			('00000000-0000-0000-0000-000000000212', 'did:plc:synthetic-importer-a', $1, 'accepting', 'verifiedInstagramFollow', $2, $2, $2),
-			('00000000-0000-0000-0000-000000000213', 'did:plc:synthetic-importer-b', $1, 'accepted', 'verifiedInstagramFollow', NULL, $2, $2)
+			('00000000-0000-0000-0000-000000000212', 'did:plc:synthetic-importer-a', $1, 'pending', 'verifiedInstagramFollow', NULL, $2, $2),
+			('00000000-0000-0000-0000-000000000213', 'did:plc:synthetic-importer-b', $1, 'followed', 'verifiedInstagramFollow', NULL, $2, $2)
 	`, alice, now.Add(-time.Minute)); err != nil {
 		t.Fatalf("insert dependent suggestions: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO pds_follow_operations(
 			id,suggestion_id,owner_did,target_did,rkey,status,
-			attempt_count,created_at,updated_at
+			attempt_count,next_attempt_at,created_at,updated_at
 		) VALUES(
 			'00000000-0000-0000-0000-000000000214',
 			'00000000-0000-0000-0000-000000000212',
-			'did:plc:synthetic-importer-a',$1,'3kydiscoverydisable','writing',1,$2,$2
+			'did:plc:synthetic-importer-a',$1,'3kydiscoverydisable','pending',0,$2,$2,$2
 		)
 	`, alice, now.Add(-time.Minute)); err != nil {
 		t.Fatalf("insert dependent follow operation: %v", err)
@@ -120,7 +120,7 @@ func TestAccountStoreUpdatesDiscoveryAndInvalidatesEveryUnfinishedDependent(t *t
 		pool,
 		uuid.MustParse("00000000-0000-0000-0000-000000000215"),
 		syntax.DID("did:plc:synthetic-importer-a"),
-		uuid.MustParse("00000000-0000-0000-0000-000000000212"),
+		uuid.MustParse("00000000-0000-0000-0000-000000000213"),
 		"00000000-0000-0000-0000-000000000216",
 		"leased",
 		now.Add(-time.Minute),
@@ -146,9 +146,9 @@ func TestAccountStoreUpdatesDiscoveryAndInvalidatesEveryUnfinishedDependent(t *t
 	}
 
 	var (
-		pendingState     InstagramSuggestionState
+		pendingState     AutomaticFollowState
 		pendingTerminal  *time.Time
-		acceptedState    InstagramSuggestionState
+		acceptedState    AutomaticFollowState
 		acceptedTerminal *time.Time
 		followStatus     string
 		eventState       string
@@ -163,10 +163,10 @@ func TestAccountStoreUpdatesDiscoveryAndInvalidatesEveryUnfinishedDependent(t *t
 	`).Scan(&pendingState, &pendingTerminal, &acceptedState, &acceptedTerminal); err != nil {
 		t.Fatalf("inspect suggestions: %v", err)
 	}
-	if pendingState != SuggestionInvalidated || pendingTerminal == nil || !pendingTerminal.Equal(now) {
+	if pendingState != AutomaticFollowInvalidated || pendingTerminal == nil || !pendingTerminal.Equal(now) {
 		t.Fatalf("pending suggestion = state %q terminal %v", pendingState, pendingTerminal)
 	}
-	if acceptedState != SuggestionAccepted || acceptedTerminal != nil {
+	if acceptedState != AutomaticFollowFollowed || acceptedTerminal != nil {
 		t.Fatalf("accepted suggestion changed = state %q terminal %v", acceptedState, acceptedTerminal)
 	}
 	if err := pool.QueryRow(ctx, `
@@ -178,7 +178,7 @@ func TestAccountStoreUpdatesDiscoveryAndInvalidatesEveryUnfinishedDependent(t *t
 	`).Scan(&followStatus, &eventState, &deliveryStatus, &jobStatus); err != nil {
 		t.Fatalf("inspect invalidated dependents: %v", err)
 	}
-	if followStatus != "failed" || eventState != "retracted" || deliveryStatus != "cancelled" || jobStatus != "ignored" {
+	if followStatus != "invalidated" || eventState != "active" || deliveryStatus != "leased" || jobStatus != "ignored" {
 		t.Fatalf("dependents follow=%s event=%s delivery=%s job=%s", followStatus, eventState, deliveryStatus, jobStatus)
 	}
 
@@ -376,7 +376,7 @@ func TestAccountStoreRevokesIdempotentlyAndKeepsOnlyTheKeyedCooldownTombstone(t 
 			(id, importer_did, target_did, state, reason, created_at, updated_at)
 		VALUES
 			('00000000-0000-0000-0000-000000000233', 'did:plc:synthetic-revoke-importer-a', $1, 'pending', 'verifiedInstagramFollow', $2, $2),
-			('00000000-0000-0000-0000-000000000234', 'did:plc:synthetic-revoke-importer-b', $1, 'accepted', 'verifiedInstagramFollow', $2, $2),
+			('00000000-0000-0000-0000-000000000234', 'did:plc:synthetic-revoke-importer-b', $1, 'followed', 'verifiedInstagramFollow', $2, $2),
 			('00000000-0000-0000-0000-000000000237', $1, 'did:plc:synthetic-revoke-target', 'pending', 'verifiedInstagramFollow', $2, $2)
 	`, alice, now.Add(-time.Minute)); err != nil {
 		t.Fatalf("insert revoke suggestions: %v", err)
@@ -433,9 +433,9 @@ func TestAccountStoreRevokesIdempotentlyAndKeepsOnlyTheKeyedCooldownTombstone(t 
 		claimState           string
 		claimReleasedAt      *time.Time
 		claimAnonymizeAt     *time.Time
-		pendingState         InstagramSuggestionState
-		acceptedState        InstagramSuggestionState
-		importerPendingState InstagramSuggestionState
+		pendingState         AutomaticFollowState
+		acceptedState        AutomaticFollowState
+		importerLedgerCount  int
 		reconciliationStatus string
 		importCount          int
 		handleCount          int
@@ -445,7 +445,9 @@ func TestAccountStoreRevokesIdempotentlyAndKeepsOnlyTheKeyedCooldownTombstone(t 
 		       l.discoverable, l.conflict_pending, l.igsid_digest,
 		       l.revoked_at, l.raw_identity_purge_at,
 		       c.state, c.released_at, c.anonymize_at,
-		       p.state, a.state, importer_pending.state, j.status,
+		       p.state, a.state,
+		       (SELECT count(*) FROM instagram_follow_suggestions WHERE importer_did=$2),
+		       j.status,
 		       (SELECT count(*) FROM instagram_graph_imports WHERE owner_did = $2),
 		       (SELECT count(*)
 		          FROM instagram_graph_handles
@@ -454,14 +456,13 @@ func TestAccountStoreRevokesIdempotentlyAndKeepsOnlyTheKeyedCooldownTombstone(t 
 		JOIN instagram_identity_claims c ON c.link_id = l.id
 		JOIN instagram_follow_suggestions p ON p.id = '00000000-0000-0000-0000-000000000233'
 		JOIN instagram_follow_suggestions a ON a.id = '00000000-0000-0000-0000-000000000234'
-		JOIN instagram_follow_suggestions importer_pending ON importer_pending.id = '00000000-0000-0000-0000-000000000237'
 		JOIN instagram_reconciliation_jobs j ON j.id = '00000000-0000-0000-0000-000000000235'
 		WHERE l.id = $1
 	`, linkID, alice).Scan(
 		&state, &storedIGSID, &storedUsername, &storedNormalized,
 		&discoverable, &conflictPending, &digest, &revokedAt, &purgeAt,
 		&claimState, &claimReleasedAt, &claimAnonymizeAt,
-		&pendingState, &acceptedState, &importerPendingState, &reconciliationStatus,
+		&pendingState, &acceptedState, &importerLedgerCount, &reconciliationStatus,
 		&importCount, &handleCount,
 	); err != nil {
 		t.Fatalf("inspect revoked link: %v", err)
@@ -475,11 +476,11 @@ func TestAccountStoreRevokesIdempotentlyAndKeepsOnlyTheKeyedCooldownTombstone(t 
 	if claimState != "revoked" || claimReleasedAt == nil || !claimReleasedAt.Equal(now) || claimAnonymizeAt == nil || !claimAnonymizeAt.Equal(now.Add(90*24*time.Hour)) {
 		t.Fatalf("revoked claim = state %q released %v anonymize %v", claimState, claimReleasedAt, claimAnonymizeAt)
 	}
-	if pendingState != SuggestionInvalidated || acceptedState != SuggestionAccepted || reconciliationStatus != "ignored" {
+	if pendingState != AutomaticFollowInvalidated || acceptedState != AutomaticFollowFollowed || reconciliationStatus != "ignored" {
 		t.Fatalf("revoke dependents = pending %q accepted %q reconciliation %q", pendingState, acceptedState, reconciliationStatus)
 	}
-	if importerPendingState != SuggestionInvalidated || importCount != 0 || handleCount != 0 {
-		t.Fatalf("revoke importer data = pending %q imports %d handles %d", importerPendingState, importCount, handleCount)
+	if importerLedgerCount != 0 || importCount != 0 || handleCount != 0 {
+		t.Fatalf("revoke importer data = ledgers %d imports %d handles %d", importerLedgerCount, importCount, handleCount)
 	}
 
 	diagnostic := fmt.Sprintf("error=%v store=%+v", ErrInstagramLinkNotFound, *store)
@@ -487,6 +488,106 @@ func TestAccountStoreRevokesIdempotentlyAndKeepsOnlyTheKeyedCooldownTombstone(t 
 		if strings.Contains(diagnostic, private) {
 			t.Fatalf("revoke diagnostic leaked %q: %s", private, diagnostic)
 		}
+	}
+}
+
+func TestAccountStoreRevocationDeletesAutomaticFollowLedgerButPreservesHistory(t *testing.T) {
+	store, pool := newAccountStoreTest(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+	alice := syntax.DID("did:plc:synthetic-revoke-ledger-alice")
+	insertAccountLink(t, pool, accountLinkFixture{
+		ID:           uuid.MustParse("00000000-0000-0000-0000-000000000280"),
+		Owner:        alice,
+		State:        LinkActive,
+		IGSID:        "synthetic-revoke-ledger-igsid",
+		Username:     "synthetic.revoke.ledger",
+		Discoverable: true,
+		VerifiedAt:   now.Add(-time.Hour),
+		UpdatedAt:    now,
+	})
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_graph_imports (
+			id, owner_did, state, source_type, following_count,
+			created_at, updated_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000281',
+			'did:plc:synthetic-revoke-ledger-alice',
+			'active','manual',1,now(),now()
+		);
+		INSERT INTO instagram_graph_handles (
+			import_id, username_normalized, matched, created_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000281',
+			'synthetic.revoke.target',true,now()
+		);
+		INSERT INTO instagram_follow_suggestions (
+			id, importer_did, target_did, state, reason,
+			terminal_at, created_at, updated_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000282',
+			'did:plc:synthetic-revoke-ledger-alice',
+			'did:plc:synthetic-revoke-ledger-bob',
+			'followed','verifiedInstagramFollow',now(),now(),now()
+		);
+		INSERT INTO instagram_suggestion_sources (
+			suggestion_id, import_id, created_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000282',
+			'00000000-0000-0000-0000-000000000281',now()
+		);
+		INSERT INTO pds_follow_operations (
+			id, suggestion_id, owner_did, target_did, rkey, status,
+			record_uri, attempt_count, next_attempt_at,
+			created_at, updated_at, completed_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000282',
+			'00000000-0000-0000-0000-000000000282',
+			'did:plc:synthetic-revoke-ledger-alice',
+			'did:plc:synthetic-revoke-ledger-bob',
+			'3krevokedledger','followed',
+			'at://did:plc:synthetic-revoke-ledger-alice/app.bsky.graph.follow/3krevokedledger',
+			1,now(),now(),now(),now()
+		);
+		INSERT INTO notification_events (
+			id, recipient_did, actor_did, category, subject_key,
+			eligibility_scope, recipient_followed_actor,
+			push_enabled_snapshot, state, first_activity_at, activity_at,
+			initial_push_evaluated_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000283',
+			'did:plc:synthetic-revoke-ledger-alice',
+			'did:plc:synthetic-revoke-ledger-bob',
+			'instagramMatch',
+			'00000000-0000-0000-0000-000000000282',
+			'everyone',true,false,'active',now(),now(),now()
+		)
+	`); err != nil {
+		t.Fatalf("seed automatic-follow revocation state: %v", err)
+	}
+
+	if err := store.RevokeAccount(ctx, alice); err != nil {
+		t.Fatalf("RevokeAccount: %v", err)
+	}
+	var imports, ledgers, operations, history int
+	if err := pool.QueryRow(ctx, `
+		SELECT
+			(SELECT count(*) FROM instagram_graph_imports WHERE owner_did=$1),
+			(SELECT count(*) FROM instagram_follow_suggestions WHERE importer_did=$1),
+			(SELECT count(*) FROM pds_follow_operations WHERE owner_did=$1),
+			(SELECT count(*) FROM notification_events
+			  WHERE recipient_did=$1 AND category='instagramMatch' AND state='active')
+	`, alice).Scan(&imports, &ledgers, &operations, &history); err != nil {
+		t.Fatal(err)
+	}
+	if imports != 0 || ledgers != 0 || operations != 0 || history != 1 {
+		t.Fatalf(
+			"after revoke imports=%d ledgers=%d operations=%d history=%d",
+			imports,
+			ledgers,
+			operations,
+			history,
+		)
 	}
 }
 
@@ -512,6 +613,7 @@ func newAccountStoreTest(t *testing.T) (*AccountStore, *pgxpool.Pool) {
 		"000025_instagram_migration.up.sql",
 		"000026_system_notifications.up.sql",
 		"000029_notification_client_owned_destination.up.sql",
+		"000030_instagram_automatic_follows.up.sql",
 	} {
 		contents, err := os.ReadFile("../../migrations/" + name)
 		if err != nil {

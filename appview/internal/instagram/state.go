@@ -161,36 +161,34 @@ func ValidateInstagramImportTransition(from, to InstagramImportState) error {
 	return transitionResult(allowed, from, to)
 }
 
-type InstagramSuggestionState string
+type AutomaticFollowState string
 
 const (
-	SuggestionPending          InstagramSuggestionState = "pending"
-	SuggestionAccepting        InstagramSuggestionState = "accepting"
-	SuggestionAccepted         InstagramSuggestionState = "accepted"
-	SuggestionAlreadyFollowing InstagramSuggestionState = "alreadyFollowing"
-	SuggestionDismissed        InstagramSuggestionState = "dismissed"
-	SuggestionInvalidated      InstagramSuggestionState = "invalidated"
+	AutomaticFollowPending          AutomaticFollowState = "pending"
+	AutomaticFollowWriting          AutomaticFollowState = "writing"
+	AutomaticFollowFollowed         AutomaticFollowState = "followed"
+	AutomaticFollowAlreadyFollowing AutomaticFollowState = "alreadyFollowing"
+	AutomaticFollowInvalidated      AutomaticFollowState = "invalidated"
 )
 
-func (s InstagramSuggestionState) Valid() bool {
+func (s AutomaticFollowState) Valid() bool {
 	switch s {
-	case SuggestionPending,
-		SuggestionAccepting,
-		SuggestionAccepted,
-		SuggestionAlreadyFollowing,
-		SuggestionDismissed,
-		SuggestionInvalidated:
+	case AutomaticFollowPending,
+		AutomaticFollowWriting,
+		AutomaticFollowFollowed,
+		AutomaticFollowAlreadyFollowing,
+		AutomaticFollowInvalidated:
 		return true
 	default:
 		return false
 	}
 }
 
-func (s InstagramSuggestionState) Terminal() bool {
-	return s == SuggestionAccepted || s == SuggestionAlreadyFollowing || s == SuggestionDismissed || s == SuggestionInvalidated
+func (s AutomaticFollowState) SuppressesReconciliation() bool {
+	return s == AutomaticFollowFollowed || s == AutomaticFollowAlreadyFollowing
 }
 
-func ValidateInstagramSuggestionTransition(from, to InstagramSuggestionState) error {
+func ValidateAutomaticFollowTransition(from, to AutomaticFollowState) error {
 	if !from.Valid() || !to.Valid() {
 		return ErrInvalidInstagramState
 	}
@@ -199,10 +197,18 @@ func ValidateInstagramSuggestionTransition(from, to InstagramSuggestionState) er
 	}
 	allowed := false
 	switch from {
-	case SuggestionPending:
-		allowed = oneOf(to, SuggestionAccepting, SuggestionAlreadyFollowing, SuggestionDismissed, SuggestionInvalidated)
-	case SuggestionAccepting:
-		allowed = oneOf(to, SuggestionPending, SuggestionAccepted, SuggestionAlreadyFollowing, SuggestionInvalidated)
+	case AutomaticFollowPending:
+		allowed = oneOf(to, AutomaticFollowWriting, AutomaticFollowInvalidated)
+	case AutomaticFollowWriting:
+		allowed = oneOf(
+			to,
+			AutomaticFollowPending,
+			AutomaticFollowFollowed,
+			AutomaticFollowAlreadyFollowing,
+			AutomaticFollowInvalidated,
+		)
+	case AutomaticFollowInvalidated:
+		allowed = to == AutomaticFollowPending
 	}
 	return transitionResult(allowed, from, to)
 }

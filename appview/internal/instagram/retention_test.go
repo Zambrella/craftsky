@@ -16,6 +16,40 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
+type recordingExpiredModerationRestoration struct {
+	calls int
+	limit int
+}
+
+func (r *recordingExpiredModerationRestoration) EnqueueExpiredModerationRestorations(
+	_ context.Context,
+	limit int,
+) (int, error) {
+	r.calls++
+	r.limit = limit
+	return 0, nil
+}
+
+func TestRetentionServiceEnqueuesExpiredModerationRestoration(t *testing.T) {
+	pool, now := newRetentionTest(t)
+	restoration := &recordingExpiredModerationRestoration{}
+	service := NewRetentionService(
+		pool,
+		func() time.Time { return now },
+		restoration,
+	)
+	if _, err := service.Run(context.Background(), 499); err != nil {
+		t.Fatal(err)
+	}
+	if restoration.calls != 1 || restoration.limit != 499 {
+		t.Fatalf(
+			"restoration calls=%d limit=%d, want 1/499",
+			restoration.calls,
+			restoration.limit,
+		)
+	}
+}
+
 func TestRetentionServiceExpiresAndPurgesAtExactBoundaries(t *testing.T) {
 	pool, now := newRetentionTest(t)
 	ctx := context.Background()
@@ -192,9 +226,9 @@ func TestRetentionServicePurgesTerminalPrivateClassesAtExactBoundaries(t *testin
 		INSERT INTO instagram_follow_suggestions(
 			id,importer_did,target_did,state,reason,terminal_at,created_at,updated_at
 		) VALUES
-			('41000000-0000-0000-0000-000000000001','did:plc:retention-s1','did:plc:target-s1','dismissed','verifiedInstagramFollow',$1::timestamptz-interval '90 days',$1::timestamptz-interval '100 days',$1::timestamptz-interval '90 days'),
-			('41000000-0000-0000-0000-000000000002','did:plc:retention-s2','did:plc:target-s2','dismissed','verifiedInstagramFollow',$1::timestamptz-interval '90 days'+interval '1 microsecond',$1::timestamptz-interval '100 days',$1::timestamptz-interval '90 days'),
-			('41000000-0000-0000-0000-000000000003','did:plc:retention-s3','did:plc:target-s3','accepted','verifiedInstagramFollow',$1::timestamptz-interval '1 year',$1::timestamptz-interval '13 months',$1::timestamptz-interval '1 year'),
+			('41000000-0000-0000-0000-000000000001','did:plc:retention-s1','did:plc:target-s1','invalidated','verifiedInstagramFollow',$1::timestamptz-interval '90 days',$1::timestamptz-interval '100 days',$1::timestamptz-interval '90 days'),
+			('41000000-0000-0000-0000-000000000002','did:plc:retention-s2','did:plc:target-s2','invalidated','verifiedInstagramFollow',$1::timestamptz-interval '90 days'+interval '1 microsecond',$1::timestamptz-interval '100 days',$1::timestamptz-interval '90 days'),
+			('41000000-0000-0000-0000-000000000003','did:plc:retention-s3','did:plc:target-s3','followed','verifiedInstagramFollow',$1::timestamptz-interval '1 year',$1::timestamptz-interval '13 months',$1::timestamptz-interval '1 year'),
 			('41000000-0000-0000-0000-000000000004','did:plc:retention-s4','did:plc:target-s4','alreadyFollowing','verifiedInstagramFollow',$1::timestamptz-interval '1 year'+interval '1 microsecond',$1::timestamptz-interval '13 months',$1::timestamptz-interval '1 year')
 	`, now); err != nil {
 		t.Fatalf("seed suggestion retention: %v", err)
@@ -231,12 +265,12 @@ func TestRetentionServicePurgesTerminalPrivateClassesAtExactBoundaries(t *testin
 	if err != nil {
 		t.Fatalf("run terminal retention: %v", err)
 	}
-	if stats.SuggestionsPurged != 2 || stats.ConflictsExpired != 1 || stats.ConflictsPurged != 1 || stats.RateBucketsPurged != 1 || stats.AuditsPurged != 1 {
+	if stats.SuggestionsPurged != 1 || stats.ConflictsExpired != 1 || stats.ConflictsPurged != 1 || stats.RateBucketsPurged != 1 || stats.AuditsPurged != 1 {
 		t.Fatalf("terminal stats = %+v", stats)
 	}
 	assertRetentionExists(t, pool, "instagram_follow_suggestions", "41000000-0000-0000-0000-000000000001", false)
 	assertRetentionExists(t, pool, "instagram_follow_suggestions", "41000000-0000-0000-0000-000000000002", true)
-	assertRetentionExists(t, pool, "instagram_follow_suggestions", "41000000-0000-0000-0000-000000000003", false)
+	assertRetentionExists(t, pool, "instagram_follow_suggestions", "41000000-0000-0000-0000-000000000003", true)
 	assertRetentionExists(t, pool, "instagram_follow_suggestions", "41000000-0000-0000-0000-000000000004", true)
 	assertRetentionExists(t, pool, "instagram_link_conflicts", "42000000-0000-0000-0000-000000000003", false)
 	var conflictState InstagramConflictState
@@ -309,6 +343,7 @@ func newRetentionTest(t *testing.T) (*pgxpool.Pool, time.Time) {
 		"../../migrations/000025_instagram_migration.up.sql",
 		"../../migrations/000026_system_notifications.up.sql",
 		"../../migrations/000029_notification_client_owned_destination.up.sql",
+		"../../migrations/000030_instagram_automatic_follows.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {

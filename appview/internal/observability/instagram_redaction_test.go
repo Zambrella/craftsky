@@ -12,6 +12,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/getsentry/sentry-go"
+	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/followwrite"
@@ -40,7 +41,10 @@ func TestInstagramCanariesStayOutOfDiagnosticsTelemetryPushPDSAndURLs(t *testing
 		instagram.VerificationAttempt{CandidateIGSID: canaries[3], CandidateUsername: canaries[2]},
 		instagram.AccountView{Username: canaries[2]},
 		instagram.ImportEntry{Username: canaries[4]},
-		instagram.SuggestionEvidence{ImportedUsername: canaries[4]},
+		instagram.AutomaticFollowOperation{
+			ID:               uuid.MustParse("00000000-0000-0000-0000-000000000702"),
+			ImportedUsername: canaries[4],
+		},
 		instagram.SuggestionEligibilityRequest{ImportedUsername: canaries[4]},
 		instagrammeta.WorkItem{SenderIGSID: canaries[3], OfficialAccountID: canaries[3]},
 	}
@@ -77,7 +81,6 @@ func TestInstagramCanariesStayOutOfDiagnosticsTelemetryPushPDSAndURLs(t *testing
 
 	payload, err := json.Marshal(push.BuildPayload(notifications.InstagramMatch, "safe-routing-id", "", push.RoutingFacts{
 		NotificationID: "00000000-0000-0000-0000-000000000701",
-		SystemCount:    1,
 	}))
 	if err != nil {
 		t.Fatal(err)

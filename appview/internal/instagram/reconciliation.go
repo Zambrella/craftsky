@@ -5,14 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"social.craftsky/appview/internal/notifications"
 )
 
 const (
@@ -21,44 +19,39 @@ const (
 	maxReconciliationBatchSize         = 500
 )
 
-// InstagramMatchNotificationService is the narrow transactional seam shared
-// by suggestion storage and reconciliation. notifications.Service implements
-// it directly.
-type InstagramMatchNotificationService interface {
-	ActivateInstagramMatch(context.Context, pgx.Tx, notifications.InstagramMatchActivation) error
-	RetractInstagramMatch(context.Context, pgx.Tx, notifications.InstagramMatchRetraction) error
-}
-
-var _ InstagramMatchNotificationService = (*notifications.Service)(nil)
-
 type ReconciliationWorkerOptions struct {
-	Pool          *pgxpool.Pool
-	Store         *SuggestionStore
-	Policy        InstagramSuggestionEligibilityPolicy
-	Notifications InstagramMatchNotificationService
-	Now           func() time.Time
-	NewID         func() uuid.UUID
-	LeaseDuration time.Duration
-	MaxAttempts   int
+	Pool                  *pgxpool.Pool
+	AutomaticFollows      *AutomaticFollowStore
+	Policy                InstagramSuggestionEligibilityPolicy
+	Membership            WebhookMembership
+	MembershipInactivator WebhookMembershipInactivator
+	Now                   func() time.Time
+	NewID                 func() uuid.UUID
+	LeaseDuration         time.Duration
+	MaxAttempts           int
 }
 
 // ReconciliationWorker claims durable targeted jobs and replays them safely.
 // Initial import matching deliberately does not use this worker and therefore
 // never creates a system notification.
 type ReconciliationWorker struct {
-	pool          *pgxpool.Pool
-	store         *SuggestionStore
-	policy        InstagramSuggestionEligibilityPolicy
-	notifications InstagramMatchNotificationService
-	now           func() time.Time
-	newID         func() uuid.UUID
-	leaseDuration time.Duration
-	maxAttempts   int
+	pool             *pgxpool.Pool
+	automaticFollows *AutomaticFollowStore
+	policy           InstagramSuggestionEligibilityPolicy
+	membership       WebhookMembership
+	inactivator      WebhookMembershipInactivator
+	now              func() time.Time
+	newID            func() uuid.UUID
+	leaseDuration    time.Duration
+	maxAttempts      int
 }
 
 func NewReconciliationWorker(options ReconciliationWorkerOptions) (*ReconciliationWorker, error) {
-	if options.Pool == nil || options.Store == nil || options.Policy == nil || options.Notifications == nil {
+	if options.Pool == nil || options.Policy == nil || options.AutomaticFollows == nil {
 		return nil, errors.New("Instagram reconciliation dependencies are required")
+	}
+	if (options.Membership == nil) != (options.MembershipInactivator == nil) {
+		return nil, errors.New("Instagram reconciliation membership dependencies are incomplete")
 	}
 	if options.Now == nil {
 		options.Now = time.Now
@@ -75,16 +68,10 @@ func NewReconciliationWorker(options ReconciliationWorkerOptions) (*Reconciliati
 	if options.LeaseDuration <= 0 || options.MaxAttempts < 1 || options.MaxAttempts > defaultReconciliationMaxAttempts {
 		return nil, errors.New("invalid Instagram reconciliation limits")
 	}
-	// The same store is also used by member-facing suggestion actions. Binding
-	// the service here guarantees those terminal transitions participate in the
-	// notification transaction even when callers used the compatible one-arg
-	// store constructor before assembling the worker.
-	if options.Store.notifications == nil {
-		options.Store.notifications = options.Notifications
-	}
 	return &ReconciliationWorker{
-		pool: options.Pool, store: options.Store, policy: options.Policy,
-		notifications: options.Notifications, now: options.Now, newID: options.NewID,
+		pool: options.Pool, automaticFollows: options.AutomaticFollows, policy: options.Policy,
+		membership: options.Membership, inactivator: options.MembershipInactivator,
+		now: options.Now, newID: options.NewID,
 		leaseDuration: options.LeaseDuration, maxAttempts: options.MaxAttempts,
 	}, nil
 }
@@ -110,9 +97,10 @@ type reconciliationCandidate struct {
 // ProcessBatch claims at most limit queued/retryable jobs with SKIP LOCKED,
 // processes each independently, and returns the number claimed. A job-level
 // error is persisted as retryable/failed and also returned for observability;
-// already committed suggestions remain safe for the idempotent replay.
+// already-created automatic-follow operations remain safe for idempotent replay.
 func (w *ReconciliationWorker) ProcessBatch(ctx context.Context, limit int) (int, error) {
-	if w == nil || w.pool == nil || w.store == nil || w.policy == nil || w.notifications == nil {
+	if w == nil || w.pool == nil || w.policy == nil ||
+		w.automaticFollows == nil {
 		return 0, errors.New("Instagram reconciliation worker is unavailable")
 	}
 	if limit < 1 || limit > maxReconciliationBatchSize {
@@ -227,12 +215,26 @@ func (w *ReconciliationWorker) claimJobs(ctx context.Context, limit int, now tim
 }
 
 func (w *ReconciliationWorker) processJob(ctx context.Context, job reconciliationJob, now time.Time) (bool, error) {
+	departed, err := w.inactivateDepartedMember(ctx, job.OwnerDID)
+	if err != nil {
+		return false, err
+	}
+	if departed {
+		return false, nil
+	}
 	candidates, err := w.loadCandidates(ctx, job)
 	if err != nil {
 		return false, err
 	}
 	matched := false
 	for _, candidate := range candidates {
+		departed, err := w.inactivateDepartedCandidate(ctx, candidate)
+		if err != nil {
+			return matched, err
+		}
+		if departed {
+			return matched, nil
+		}
 		request := SuggestionEligibilityRequest{
 			ImporterDID:      candidate.ImporterDID,
 			TargetDID:        candidate.TargetDID,
@@ -242,11 +244,21 @@ func (w *ReconciliationWorker) processJob(ctx context.Context, job reconciliatio
 		if err != nil {
 			return matched, err
 		}
+		if decision.Reason == EligibilityMembership {
+			departed, err := w.inactivateDepartedCandidate(ctx, candidate)
+			if err != nil {
+				return matched, err
+			}
+			if departed {
+				return matched, nil
+			}
+			return matched, errors.New("Instagram reconciliation membership unavailable")
+		}
 		if !decision.Eligible {
 			continue
 		}
 
-		committed, err := w.persistCandidate(ctx, candidate, request, now)
+		committed, err := w.persistAutomaticCandidate(ctx, candidate, request, now)
 		if err != nil {
 			return matched, err
 		}
@@ -255,12 +267,48 @@ func (w *ReconciliationWorker) processJob(ctx context.Context, job reconciliatio
 	return matched, nil
 }
 
-func (w *ReconciliationWorker) persistCandidate(ctx context.Context, candidate reconciliationCandidate, request SuggestionEligibilityRequest, now time.Time) (bool, error) {
-	tx, err := w.pool.Begin(ctx)
+func (w *ReconciliationWorker) inactivateDepartedCandidate(
+	ctx context.Context,
+	candidate reconciliationCandidate,
+) (bool, error) {
+	if w.membership == nil {
+		return false, nil
+	}
+	for _, did := range []syntax.DID{candidate.ImporterDID, candidate.TargetDID} {
+		departed, err := w.inactivateDepartedMember(ctx, did)
+		if err != nil {
+			return false, err
+		}
+		if departed {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (w *ReconciliationWorker) inactivateDepartedMember(ctx context.Context, did syntax.DID) (bool, error) {
+	if w.membership == nil || did == "" {
+		return false, nil
+	}
+	current, err := w.membership.IsCurrentMember(ctx, did)
 	if err != nil {
 		return false, err
 	}
-	defer tx.Rollback(ctx)
+	if current {
+		return false, nil
+	}
+	if err := w.inactivator.InactivateMembership(ctx, did); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (w *ReconciliationWorker) persistAutomaticCandidate(
+	ctx context.Context,
+	candidate reconciliationCandidate,
+	request SuggestionEligibilityRequest,
+	now time.Time,
+) (bool, error) {
 	decision, err := w.policy.Evaluate(ctx, EligibilityAtPersist, request)
 	if err != nil {
 		return false, err
@@ -268,40 +316,27 @@ func (w *ReconciliationWorker) persistCandidate(ctx context.Context, candidate r
 	if !decision.Eligible {
 		return false, nil
 	}
-	upsert, err := w.store.upsertPendingSuggestionTx(ctx, tx, UpsertSuggestionParams{
-		ID: w.newID(), ImporterDID: candidate.ImporterDID,
-		TargetDID: candidate.TargetDID, ImportID: candidate.ImportID,
-		Username: candidate.Username, Now: now,
+	id := w.newID()
+	if id == uuid.Nil {
+		return false, errors.New("invalid automatic follow operation ID")
+	}
+	rkey := syntax.RecordKey("3l" + strings.ReplaceAll(id.String(), "-", ""))
+	result, err := w.automaticFollows.ReconcileCandidate(ctx, ReconcileAutomaticFollowParams{
+		ID:          id,
+		ImporterDID: candidate.ImporterDID,
+		TargetDID:   candidate.TargetDID,
+		ImportID:    candidate.ImportID,
+		Username:    candidate.Username,
+		Rkey:        rkey,
+		Now:         now,
 	})
 	if errors.Is(err, ErrInstagramResourceNotFound) {
-		// The retained handle or link changed after candidate discovery. The
-		// exact locked persistence check wins and a later targeted job can
-		// reconsider the new state.
 		return false, nil
 	}
 	if err != nil {
 		return false, err
 	}
-	if upsert.Created {
-		decision, err = w.policy.Evaluate(ctx, EligibilityAtNotificationCreate, request)
-		if err != nil {
-			return false, err
-		}
-		if !decision.Eligible {
-			return false, nil
-		}
-		if err := w.notifications.ActivateInstagramMatch(ctx, tx, notifications.InstagramMatchActivation{
-			RecipientDID: candidate.ImporterDID,
-			SuggestionID: upsert.ID,
-			ActivityAt:   now,
-		}); err != nil {
-			return false, err
-		}
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return false, err
-	}
-	return upsert.Supported, nil
+	return result.Queued || result.Suppressed, nil
 }
 
 func (w *ReconciliationWorker) loadCandidates(ctx context.Context, job reconciliationJob) ([]reconciliationCandidate, error) {

@@ -14,16 +14,9 @@ import (
 const deliveryWindow = 6 * time.Hour
 
 type Service struct {
-	now                       func() time.Time
-	observer                  DecisionObserver
-	relationshipObserver      relationshipOutcomeObserver
-	instagramCoalescingWindow time.Duration
-	instagramCountCap         int
-}
-
-type ServiceOptions struct {
-	InstagramCoalescingWindow time.Duration
-	InstagramCountCap         int
+	now                  func() time.Time
+	observer             DecisionObserver
+	relationshipObserver relationshipOutcomeObserver
 }
 
 type DecisionObserver interface{ ObserveNotificationDecision(string, string) }
@@ -32,35 +25,18 @@ type relationshipOutcomeObserver interface {
 }
 
 func NewService(observers ...DecisionObserver) *Service {
-	service, _ := NewServiceWithOptions(ServiceOptions{}, observers...)
-	return service
-}
-
-func NewServiceWithOptions(options ServiceOptions, observers ...DecisionObserver) (*Service, error) {
 	var observer DecisionObserver
 	if len(observers) > 0 {
 		observer = observers[0]
 	}
-	if options.InstagramCoalescingWindow == 0 {
-		options.InstagramCoalescingWindow = instagramMatchCoalescingWindow
-	}
-	if options.InstagramCountCap == 0 {
-		options.InstagramCountCap = instagramMatchCountCap
-	}
-	if options.InstagramCoalescingWindow <= 0 || options.InstagramCoalescingWindow > instagramMatchCoalescingWindow ||
-		options.InstagramCountCap <= 0 || options.InstagramCountCap > instagramMatchCountCap {
-		return nil, fmt.Errorf("invalid Instagram notification limits")
-	}
 	service := &Service{
-		now:                       time.Now,
-		observer:                  observer,
-		instagramCoalescingWindow: options.InstagramCoalescingWindow,
-		instagramCountCap:         options.InstagramCountCap,
+		now:      time.Now,
+		observer: observer,
 	}
 	if detailed, ok := observer.(relationshipOutcomeObserver); ok {
 		service.relationshipObserver = detailed
 	}
-	return service, nil
+	return service
 }
 
 func (s *Service) Activate(ctx context.Context, tx pgx.Tx, activation Activation) error {

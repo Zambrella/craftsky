@@ -43,15 +43,30 @@ type RetentionStats struct {
 // in a transaction bounded by the caller's batch size. Cascading dependants do
 // not count against the primary-record batch.
 type RetentionService struct {
-	pool *pgxpool.Pool
-	now  func() time.Time
+	pool        *pgxpool.Pool
+	now         func() time.Time
+	restoration ExpiredModerationRestorationEnqueuer
 }
 
-func NewRetentionService(pool *pgxpool.Pool, now func() time.Time) *RetentionService {
+type ExpiredModerationRestorationEnqueuer interface {
+	EnqueueExpiredModerationRestorations(context.Context, int) (int, error)
+}
+
+func NewRetentionService(
+	pool *pgxpool.Pool,
+	now func() time.Time,
+	restorations ...ExpiredModerationRestorationEnqueuer,
+) *RetentionService {
 	if now == nil {
 		now = time.Now
 	}
-	return &RetentionService{pool: pool, now: now}
+	var restoration ExpiredModerationRestorationEnqueuer
+	if len(restorations) > 0 {
+		restoration = restorations[0]
+	}
+	return &RetentionService{
+		pool: pool, now: now, restoration: restoration,
+	}
 }
 
 func (s *RetentionService) Run(ctx context.Context, batch int) (RetentionStats, error) {
@@ -61,6 +76,17 @@ func (s *RetentionService) Run(ctx context.Context, batch int) (RetentionStats, 
 	now := s.now().UTC()
 	if now.IsZero() {
 		return RetentionStats{}, errors.New("Instagram retention clock returned zero time")
+	}
+	if s.restoration != nil {
+		if _, err := s.restoration.EnqueueExpiredModerationRestorations(
+			ctx,
+			batch,
+		); err != nil {
+			return RetentionStats{}, fmt.Errorf(
+				"enqueue expired moderation restoration: %w",
+				err,
+			)
+		}
 	}
 	stats := RetentionStats{}
 	steps := []struct {
@@ -313,16 +339,13 @@ func (s *RetentionService) expireInactiveLinks(ctx context.Context, batch int, n
 			UPDATE instagram_follow_suggestions
 			SET state='invalidated',accepting_since=NULL,
 			    terminal_at=COALESCE(terminal_at,$2),updated_at=$2
-			WHERE target_did=ANY($1::text[]) AND state IN ('pending','accepting')
+			WHERE target_did=ANY($1::text[]) AND state IN ('pending','writing')
 			RETURNING id
 		`, owners, now)
 		if err != nil {
 			return fmt.Errorf("invalidate membership-expired link suggestions: %w", err)
 		}
-		if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "linkExpired", now); err != nil {
-			return err
-		}
-		if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "link_expired", now); err != nil {
+		if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "linkExpired", now); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `
@@ -428,20 +451,12 @@ func (s *RetentionService) purgeTerminalSuggestions(ctx context.Context, batch i
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		ids, err := retentionUUIDs(ctx, tx, `
 			SELECT id FROM instagram_follow_suggestions
-			WHERE (
-				state IN ('dismissed','invalidated')
-				AND COALESCE(terminal_at,updated_at) <= $1::timestamptz - interval '90 days'
-			) OR (
-				state IN ('accepted','alreadyFollowing')
-				AND COALESCE(terminal_at,updated_at) <= $1::timestamptz - interval '1 year'
-			)
+			WHERE state='invalidated'
+			  AND COALESCE(terminal_at,updated_at) <= $1::timestamptz - interval '90 days'
 			ORDER BY COALESCE(terminal_at,updated_at),id
 			FOR UPDATE SKIP LOCKED LIMIT $2
 		`, now, batch)
 		if err != nil || len(ids) == 0 {
-			return err
-		}
-		if err := retractSuggestionNotifications(ctx, tx, ids, "", "suggestion_expired", now); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM pds_follow_operations WHERE suggestion_id=ANY($1::uuid[])`, ids); err != nil {

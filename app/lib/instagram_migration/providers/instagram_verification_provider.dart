@@ -6,11 +6,13 @@ import 'package:craftsky_app/instagram_migration/data/instagram_verification_sto
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_account_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
+import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'instagram_verification_provider.g.dart';
+part 'instagram_verification_provider.mapper.dart';
 
 final instagramVerificationPollIntervalProvider = Provider<Duration>(
   (_) => const Duration(seconds: 2),
@@ -22,7 +24,11 @@ final instagramVerificationNowProvider = Provider<DateTime Function()>(
 );
 
 @immutable
-final class InstagramVerificationViewState {
+@MappableClass(
+  generateMethods: GenerateMethods.copy | GenerateMethods.equals,
+)
+final class InstagramVerificationViewState
+    with InstagramVerificationViewStateMappable {
   const InstagramVerificationViewState({
     this.attempt,
     this.isBusy = false,
@@ -32,17 +38,6 @@ final class InstagramVerificationViewState {
   final InstagramVerificationAttempt? attempt;
   final bool isBusy;
   final bool hasError;
-
-  InstagramVerificationViewState copyWith({
-    InstagramVerificationAttempt? attempt,
-    bool clearAttempt = false,
-    bool? isBusy,
-    bool? hasError,
-  }) => InstagramVerificationViewState(
-    attempt: clearAttempt ? null : attempt ?? this.attempt,
-    isBusy: isBusy ?? this.isBusy,
-    hasError: hasError ?? this.hasError,
-  );
 
   @override
   String toString() => 'InstagramVerificationViewState([REDACTED])';
@@ -70,7 +65,7 @@ class InstagramVerification extends _$InstagramVerification {
   Future<bool> create() async {
     _operationGeneration++;
     _stopTimers();
-    state = state.copyWith(isBusy: true, hasError: false, clearAttempt: true);
+    state = state.copyWith(isBusy: true, hasError: false, attempt: null);
     try {
       final repository = await _repository();
       final attempt = await repository.createVerification();

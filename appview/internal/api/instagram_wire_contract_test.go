@@ -34,8 +34,6 @@ type instagramWireCorpus struct {
 	AccountResponses      []instagramWireResponse       `json:"accountResponses"`
 	ImportCreateResponses []instagramWireResponse       `json:"importCreateResponses"`
 	ImportResponses       []instagramWireResponse       `json:"importResponses"`
-	SuggestionResponses   []instagramWireResponse       `json:"suggestionResponses"`
-	SuggestionActions     []instagramWireResponse       `json:"suggestionActionResponses"`
 	PageContracts         []instagramPageContract       `json:"pageContracts"`
 	ErrorContracts        []instagramWireResponse       `json:"errorContracts"`
 	DeleteContracts       []instagramDeleteContract     `json:"deleteContracts"`
@@ -111,6 +109,58 @@ type instagramUnknownFixture struct {
 	Body                  json.RawMessage `json:"body"`
 }
 
+func TestInstagramWireCorpusOmitsSuggestionsAndUsesActorfulMatch(t *testing.T) {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve fixture path")
+	}
+	path := filepath.Join(
+		filepath.Dir(filename),
+		"../../../docs/changes/2026-07-11-instagram-dm-verification/fixtures/instagram_wire/corpus.json",
+	)
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(contents, &raw); err != nil {
+		t.Fatal(err)
+	}
+	for _, removed := range []string{
+		"suggestionResponses",
+		"suggestionActionResponses",
+	} {
+		if _, present := raw[removed]; present {
+			t.Errorf("removed corpus section %q remains", removed)
+		}
+	}
+	if strings.Contains(string(contents), "/v1/migrations/instagram/suggestions") {
+		t.Fatal("removed suggestion route remains in corpus")
+	}
+	corpus := loadInstagramWireCorpus(t)
+	var match map[string]any
+	for _, item := range decodeWireMap(t, corpus.NotificationContract.Body)["items"].([]any) {
+		candidate := item.(map[string]any)
+		if candidate["type"] == "instagramMatch" {
+			match = candidate
+			break
+		}
+	}
+	if match == nil {
+		t.Fatal("actorful instagramMatch fixture missing")
+	}
+	if _, present := match["actor"]; !present {
+		t.Fatal("instagramMatch fixture has no actor")
+	}
+	for _, forbidden := range []string{
+		"system", "uri", "cid", "rkey", "references",
+	} {
+		if _, present := match[forbidden]; present {
+			t.Errorf("instagramMatch fixture contains %q", forbidden)
+		}
+	}
+}
+
 func TestInstagramWireCorpusUsesExactPublicResponseShapes(t *testing.T) {
 	corpus := loadInstagramWireCorpus(t)
 	if corpus.SchemaVersion != 1 {
@@ -183,30 +233,7 @@ func TestInstagramWireCorpusUsesExactPublicResponseShapes(t *testing.T) {
 	}
 	assertStringSet(t, "import states", importStates, []string{"active", "membershipInactive"})
 
-	suggestionStates := map[string]struct{}{}
-	for _, fixture := range corpus.SuggestionResponses {
-		fixture := fixture
-		t.Run(fixture.ID, func(t *testing.T) {
-			assertWireRoundTrip[instagramSuggestionResponse](t, fixture.Body)
-			suggestionStates[decodeWireMap(t, fixture.Body)["state"].(string)] = struct{}{}
-		})
-	}
-	assertStringSet(t, "suggestion states", suggestionStates, []string{
-		"pending", "accepting", "accepted", "alreadyFollowing", "dismissed", "invalidated",
-	})
-
-	for _, fixture := range corpus.SuggestionActions {
-		fixture := fixture
-		t.Run(fixture.ID, func(t *testing.T) {
-			assertSuccessMetadata(t, fixture, map[int]bool{200: true})
-			assertWireRoundTrip[instagramSuggestionActionResponse](t, fixture.Body)
-		})
-	}
-
-	assertReplayGroupsAreIdentical(t, append(
-		append([]instagramWireResponse(nil), corpus.ConfirmationResponses...),
-		corpus.SuggestionActions...,
-	))
+	assertReplayGroupsAreIdentical(t, corpus.ConfirmationResponses)
 }
 
 func TestInstagramWireCorpusRequestsAreStrictAndCamelCase(t *testing.T) {
@@ -215,12 +242,6 @@ func TestInstagramWireCorpusRequestsAreStrictAndCamelCase(t *testing.T) {
 	for _, fixture := range corpus.Requests {
 		fixture := fixture
 		t.Run(fixture.ID, func(t *testing.T) {
-			if fixture.ID == "suggestion.accept" {
-				if fixture.BodyPresent == nil || *fixture.BodyPresent {
-					t.Fatal("bodyless accept request is not declared bodyless")
-				}
-				return
-			}
 			body := decodeWireMap(t, fixture.Body)
 			assertCamelCaseObject(t, body, fixture.ID)
 			req := httptest.NewRequest(fixture.Method, fixture.Path, bytes.NewReader(fixture.Body))
@@ -268,7 +289,7 @@ func TestInstagramWireCorpusRequestsAreStrictAndCamelCase(t *testing.T) {
 			seen[fixture.ID] = true
 		})
 	}
-	if len(seen) != len(corpus.Requests)-1 {
+	if len(seen) != len(corpus.Requests) {
 		t.Fatalf("validated %d body requests, corpus has %d", len(seen), len(corpus.Requests))
 	}
 
@@ -339,22 +360,12 @@ func TestInstagramWireCorpusPagesLockDefaultsMaximumAndCursors(t *testing.T) {
 						t.Fatalf("output cursor is not an opaque AppView cursor: %v", err)
 					}
 				}
-			case "suggestions":
-				assertWireRoundTrip[instagramSuggestionPageResponse](t, fixture.Body)
-				if fixture.RequestCursor != nil {
-					if _, err := decodeInstagramSuggestionCursor(*fixture.RequestCursor); err != nil {
-						t.Fatalf("input cursor is not an opaque AppView cursor: %v", err)
-					}
-					if _, err := decodeInstagramSuggestionCursor(body["cursor"].(string)); err != nil {
-						t.Fatalf("output cursor is not an opaque AppView cursor: %v", err)
-					}
-				}
 			default:
 				t.Fatalf("unknown page resource %q", fixture.Resource)
 			}
 		})
 	}
-	for _, resource := range []string{"imports", "suggestions"} {
+	for _, resource := range []string{"imports"} {
 		if !resources[resource]["default"] || !resources[resource]["max"] {
 			t.Fatalf("%s does not cover default and max pages: %v", resource, resources[resource])
 		}
@@ -373,20 +384,6 @@ func TestInstagramWireCorpusPagesLockDefaultsMaximumAndCursors(t *testing.T) {
 		t.Fatalf("import max limit = %d, err %v", imports.limit, err)
 	}
 
-	suggestions := &wireSuggestionRepository{}
-	suggestionService, err := instagram.NewSuggestionService(instagram.SuggestionServiceOptions{
-		Repository: suggestions,
-		Policy:     wireEligibilityPolicy{},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := suggestionService.ListSuggestions(context.Background(), owner, 0, nil); err != nil || suggestions.limit != 20 {
-		t.Fatalf("suggestion default limit = %d, err %v", suggestions.limit, err)
-	}
-	if _, _, err := suggestionService.ListSuggestions(context.Background(), owner, 500, nil); err != nil || suggestions.limit != 50 {
-		t.Fatalf("suggestion max limit = %d, err %v", suggestions.limit, err)
-	}
 }
 
 func TestInstagramWireCorpusErrorsDeletesAndWebhookRetryMetadata(t *testing.T) {
@@ -412,8 +409,6 @@ func TestInstagramWireCorpusErrorsDeletesAndWebhookRetryMetadata(t *testing.T) {
 		"invalid_request", "instagram_link_not_found", "instagram_reactivation_required",
 		"request_too_large", "invalid_instagram_import", "invalid_cursor",
 		"instagram_import_not_found", "instagram_import_inactive", "instagram_verification_required",
-		"instagram_suggestion_not_found",
-		"instagram_suggestion_ineligible", "follow_write_unavailable",
 	} {
 		if !errorCodes[code] {
 			t.Errorf("error contract %q is absent", code)
@@ -424,7 +419,6 @@ func TestInstagramWireCorpusErrorsDeletesAndWebhookRetryMetadata(t *testing.T) {
 		"verification": {"absent", "expiredTombstone", "foreign", "owned", "purged"},
 		"account":      {"absent", "identicalReplay", "owned", "purged"},
 		"import":       {"absent", "foreign", "identicalReplay", "owned", "purged"},
-		"suggestion":   {"absent", "foreign", "identicalReplay", "ownedPending", "purged", "terminal"},
 	}
 	for _, contract := range corpus.DeleteContracts {
 		if contract.Method != "DELETE" || contract.Status != 204 || contract.BodyPresent || !contract.MutatesOwnedOnly {
@@ -490,7 +484,7 @@ func TestInstagramWireCorpusNotificationTypesAndPrivateFieldAbsence(t *testing.T
 		t.Fatalf("notification item count = %d", len(items))
 	}
 	socialTypes := map[string]bool{}
-	var system map[string]any
+	var instagramMatch map[string]any
 	for _, raw := range items {
 		item := raw.(map[string]any)
 		if _, ok := item["kind"]; ok {
@@ -498,7 +492,7 @@ func TestInstagramWireCorpusNotificationTypesAndPrivateFieldAbsence(t *testing.T
 		}
 		switch item["type"] {
 		case "instagramMatch":
-			system = item
+			instagramMatch = item
 		default:
 			socialTypes[item["type"].(string)] = true
 			for _, required := range []string{"uri", "cid", "rkey", "actor", "references"} {
@@ -516,17 +510,16 @@ func TestInstagramWireCorpusNotificationTypesAndPrivateFieldAbsence(t *testing.T
 			t.Errorf("social notification type %q is absent", value)
 		}
 	}
-	if system == nil || system["type"] != "instagramMatch" {
-		t.Fatal("Instagram system notification is absent")
+	if instagramMatch == nil {
+		t.Fatal("Instagram match notification is absent")
 	}
-	for _, forbidden := range []string{"uri", "cid", "rkey", "actor", "references", "subjectPost", "reply", "contentAvailable"} {
-		if _, ok := system[forbidden]; ok {
-			t.Errorf("system notification exposes social field %q", forbidden)
+	if _, ok := instagramMatch["actor"].(map[string]any); !ok {
+		t.Error("Instagram match notification omits its actor")
+	}
+	for _, forbidden := range []string{"uri", "cid", "rkey", "references", "subjectPost", "reply", "contentAvailable", "system"} {
+		if _, ok := instagramMatch[forbidden]; ok {
+			t.Errorf("Instagram match notification exposes %q", forbidden)
 		}
-	}
-	systemPayload := system["system"].(map[string]any)
-	if !reflect.DeepEqual(sortedKeys(systemPayload), []string{"count", "countCapped"}) {
-		t.Errorf("system payload keys = %v", sortedKeys(systemPayload))
 	}
 
 	privateKeys := map[string]bool{
@@ -717,8 +710,6 @@ func allServerResponseBodies(corpus instagramWireCorpus) map[string]json.RawMess
 	appendFixtures(corpus.AccountResponses)
 	appendFixtures(corpus.ImportCreateResponses)
 	appendFixtures(corpus.ImportResponses)
-	appendFixtures(corpus.SuggestionResponses)
-	appendFixtures(corpus.SuggestionActions)
 	appendFixtures(corpus.ErrorContracts)
 	for _, fixture := range corpus.PageContracts {
 		result[fixture.ID] = fixture.Body
@@ -770,39 +761,4 @@ func (*wireImportRepository) UpdateImport(context.Context, syntax.DID, uuid.UUID
 
 func (*wireImportRepository) DeleteImport(context.Context, syntax.DID, uuid.UUID, time.Time) error {
 	return nil
-}
-
-type wireSuggestionRepository struct {
-	limit int
-}
-
-func (r *wireSuggestionRepository) ListPendingSuggestions(_ context.Context, _ syntax.DID, limit int, _ *instagram.SuggestionCursor) ([]instagram.SuggestionEvidence, *instagram.SuggestionCursor, error) {
-	r.limit = limit
-	return nil, nil, nil
-}
-
-func (*wireSuggestionRepository) DismissSuggestion(context.Context, syntax.DID, uuid.UUID, time.Time) error {
-	return nil
-}
-
-func (*wireSuggestionRepository) ClaimSuggestionAcceptance(context.Context, syntax.DID, uuid.UUID, string, time.Time) (instagram.AcceptanceClaim, error) {
-	return instagram.AcceptanceClaim{}, nil
-}
-
-func (*wireSuggestionRepository) CompleteSuggestionAcceptance(context.Context, syntax.DID, uuid.UUID, instagram.InstagramSuggestionState, time.Time) (instagram.Suggestion, error) {
-	return instagram.Suggestion{}, nil
-}
-
-func (*wireSuggestionRepository) ResetSuggestionAcceptance(context.Context, syntax.DID, uuid.UUID, string, time.Time) error {
-	return nil
-}
-
-func (*wireSuggestionRepository) InvalidateSuggestion(context.Context, syntax.DID, uuid.UUID, time.Time) error {
-	return nil
-}
-
-type wireEligibilityPolicy struct{}
-
-func (wireEligibilityPolicy) Evaluate(context.Context, instagram.EligibilityStage, instagram.SuggestionEligibilityRequest) (instagram.EligibilityDecision, error) {
-	return instagram.EligibilityDecision{Eligible: true}, nil
 }

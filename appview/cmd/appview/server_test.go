@@ -127,6 +127,63 @@ func TestInstagramReconciliationWorkerLoopUsesBoundedBatchAndDrainsBacklog(t *te
 	}
 }
 
+func TestInstagramAutomaticFollowWorkerLoopUsesBoundedBatchAndDrainsBacklog(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	processor := &scriptedInstagramReconciliationProcessor{
+		results: []instagramBatchResult{
+			{err: context.DeadlineExceeded},
+			{processed: 1},
+			{cancel: cancel},
+		},
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		runInstagramAutomaticFollowWorker(
+			ctx,
+			processor,
+			slog.New(slog.NewTextHandler(io.Discard, nil)),
+			instagramAutomaticFollowBatchSize,
+			time.Millisecond,
+		)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Instagram automatic-follow worker loop did not stop after cancellation")
+	}
+	if processor.calls != 3 {
+		t.Fatalf("ProcessBatch calls = %d, want 3", processor.calls)
+	}
+	for _, limit := range processor.limits {
+		if limit != 20 {
+			t.Fatalf("ProcessBatch limit = %d, want 20", limit)
+		}
+	}
+}
+
+func TestInstagramAutomaticFollowWorkerLoopRejectsBatchAboveMaximum(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	processor := &scriptedInstagramReconciliationProcessor{
+		results: []instagramBatchResult{{}},
+	}
+	runInstagramAutomaticFollowWorker(
+		ctx,
+		processor,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		101,
+		time.Millisecond,
+	)
+	if processor.calls != 0 {
+		t.Fatalf("ProcessBatch calls = %d, want 0 above maximum", processor.calls)
+	}
+}
+
 func TestInstagramRetentionRunsImmediatelyAndStopsOnCancellation(t *testing.T) {
 	t.Parallel()
 

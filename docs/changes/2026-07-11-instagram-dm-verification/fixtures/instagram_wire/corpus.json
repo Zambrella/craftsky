@@ -77,12 +77,6 @@
       "body": {
         "reactivate": true
       }
-    },
-    {
-      "id": "suggestion.accept",
-      "method": "POST",
-      "path": "/v1/migrations/instagram/suggestions/synthetic-suggestion-0001/accept",
-      "bodyPresent": false
     }
   ],
   "verificationResponses": [
@@ -388,8 +382,7 @@
         },
         "counts": {
           "followingCount": 2
-        },
-        "initialSuggestionCount": 1
+        }
       }
     }
   ],
@@ -418,117 +411,6 @@
         "sourceType": "manual",
         "followingCount": 1,
         "createdAt": "2026-07-19T12:01:00Z"
-      }
-    }
-  ],
-  "suggestionResponses": [
-    {
-      "id": "suggestion.pending.fullProfile",
-      "body": {
-        "suggestionId": "synthetic-suggestion-0001",
-        "profile": {
-          "did": "did:plc:synthetictarget01",
-          "handle": "target01.synthetic.invalid",
-          "displayName": "Synthetic Target 01",
-          "avatar": "https://cdn.synthetic.invalid/avatar/target01"
-        },
-        "reason": "verifiedInstagramFollow",
-        "state": "pending"
-      }
-    },
-    {
-      "id": "suggestion.accepting.omittedProfileOptionals",
-      "body": {
-        "suggestionId": "synthetic-suggestion-0002",
-        "profile": {
-          "did": "did:plc:synthetictarget02",
-          "handle": "target02.synthetic.invalid"
-        },
-        "reason": "verifiedInstagramFollow",
-        "state": "accepting"
-      }
-    },
-    {
-      "id": "suggestion.accepted",
-      "body": {
-        "suggestionId": "synthetic-suggestion-0003",
-        "profile": {
-          "did": "did:plc:synthetictarget03",
-          "handle": "target03.synthetic.invalid",
-          "displayName": "Synthetic Target 03"
-        },
-        "reason": "verifiedInstagramFollow",
-        "state": "accepted"
-      }
-    },
-    {
-      "id": "suggestion.alreadyFollowing",
-      "body": {
-        "suggestionId": "synthetic-suggestion-0004",
-        "profile": {
-          "did": "did:plc:synthetictarget04",
-          "handle": "target04.synthetic.invalid"
-        },
-        "reason": "verifiedInstagramFollow",
-        "state": "alreadyFollowing"
-      }
-    },
-    {
-      "id": "suggestion.dismissed",
-      "body": {
-        "suggestionId": "synthetic-suggestion-0005",
-        "profile": {
-          "did": "did:plc:synthetictarget05",
-          "handle": "target05.synthetic.invalid"
-        },
-        "reason": "verifiedInstagramFollow",
-        "state": "dismissed"
-      }
-    },
-    {
-      "id": "suggestion.invalidated",
-      "body": {
-        "suggestionId": "synthetic-suggestion-0006",
-        "profile": {
-          "did": "did:plc:synthetictarget06",
-          "handle": "target06.synthetic.invalid"
-        },
-        "reason": "verifiedInstagramFollow",
-        "state": "invalidated"
-      }
-    }
-  ],
-  "suggestionActionResponses": [
-    {
-      "id": "suggestion.accept.success",
-      "method": "POST",
-      "path": "/v1/migrations/instagram/suggestions/synthetic-suggestion-0001/accept",
-      "status": 200,
-      "replayGroup": "suggestion-accept-synthetic-0001",
-      "body": {
-        "suggestionId": "synthetic-suggestion-0001",
-        "state": "accepted"
-      }
-    },
-    {
-      "id": "suggestion.accept.identicalReplay",
-      "method": "POST",
-      "path": "/v1/migrations/instagram/suggestions/synthetic-suggestion-0001/accept",
-      "status": 200,
-      "replayGroup": "suggestion-accept-synthetic-0001",
-      "body": {
-        "suggestionId": "synthetic-suggestion-0001",
-        "state": "accepted"
-      }
-    },
-    {
-      "id": "suggestion.accept.alreadyFollowing",
-      "method": "POST",
-      "path": "/v1/migrations/instagram/suggestions/synthetic-suggestion-0004/accept",
-      "status": 200,
-      "body": {
-        "suggestionId": "synthetic-suggestion-0004",
-        "state": "alreadyFollowing"
       }
     }
   ],
@@ -574,54 +456,6 @@
           }
         ],
         "cursor": "eyJjcmVhdGVkQXQiOiIyMDI2LTA3LTE5VDExOjU4OjAwWiIsImlkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwNTUwIn0"
-      }
-    },
-    {
-      "id": "suggestions.default.omittedCursor",
-      "resource": "suggestions",
-      "method": "GET",
-      "path": "/v1/migrations/instagram/suggestions",
-      "requestedLimit": null,
-      "effectiveLimit": 20,
-      "requestCursor": null,
-      "status": 200,
-      "body": {
-        "items": [
-          {
-            "suggestionId": "synthetic-suggestion-page-0001",
-            "profile": {
-              "did": "did:plc:syntheticpage01",
-              "handle": "page01.synthetic.invalid"
-            },
-            "reason": "verifiedInstagramFollow",
-            "state": "pending"
-          }
-        ]
-      }
-    },
-    {
-      "id": "suggestions.max.presentCursor",
-      "resource": "suggestions",
-      "method": "GET",
-      "path": "/v1/migrations/instagram/suggestions?limit=50&cursor=eyJjcmVhdGVkQXQiOiIyMDI2LTA3LTE5VDExOjU3OjAwWiIsImlkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwNjAxIn0",
-      "requestedLimit": 50,
-      "effectiveLimit": 50,
-      "requestCursor": "eyJjcmVhdGVkQXQiOiIyMDI2LTA3LTE5VDExOjU3OjAwWiIsImlkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwNjAxIn0",
-      "status": 200,
-      "body": {
-        "items": [
-          {
-            "suggestionId": "synthetic-suggestion-page-0050",
-            "profile": {
-              "did": "did:plc:syntheticpage50",
-              "handle": "page50.synthetic.invalid",
-              "displayName": "Synthetic Page Target 50"
-            },
-            "reason": "verifiedInstagramFollow",
-            "state": "pending"
-          }
-        ],
-        "cursor": "eyJjcmVhdGVkQXQiOiIyMDI2LTA3LTE5VDExOjU2OjAwWiIsImlkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwNjUwIn0"
       }
     }
   ],
@@ -790,39 +624,6 @@
         "message": "Verify an Instagram account before importing",
         "requestId": "synthetic-request-0015"
       }
-    },
-    {
-      "id": "suggestion.notFound",
-      "method": "POST",
-      "path": "/v1/migrations/instagram/suggestions/synthetic-missing/accept",
-      "status": 404,
-      "body": {
-        "error": "instagram_suggestion_not_found",
-        "message": "Instagram suggestion not found",
-        "requestId": "synthetic-request-0017"
-      }
-    },
-    {
-      "id": "suggestion.ineligible",
-      "method": "POST",
-      "path": "/v1/migrations/instagram/suggestions/synthetic-suggestion-0006/accept",
-      "status": 409,
-      "body": {
-        "error": "instagram_suggestion_ineligible",
-        "message": "Instagram suggestion is no longer eligible",
-        "requestId": "synthetic-request-0018"
-      }
-    },
-    {
-      "id": "suggestion.followWriteUnavailable",
-      "method": "POST",
-      "path": "/v1/migrations/instagram/suggestions/synthetic-suggestion-0001/accept",
-      "status": 503,
-      "body": {
-        "error": "follow_write_unavailable",
-        "message": "Follow write unavailable",
-        "requestId": "synthetic-request-0019"
-      }
     }
   ],
   "deleteContracts": [
@@ -867,23 +668,6 @@
         "foreign",
         "absent",
         "purged",
-        "identicalReplay"
-      ],
-      "status": 204,
-      "bodyPresent": false,
-      "mutatesOwnedOnly": true
-    },
-    {
-      "id": "suggestion.delete.privacy",
-      "resource": "suggestion",
-      "method": "DELETE",
-      "pathTemplate": "/v1/migrations/instagram/suggestions/{suggestionId}",
-      "variants": [
-        "ownedPending",
-        "foreign",
-        "absent",
-        "purged",
-        "terminal",
         "identicalReplay"
       ],
       "status": 204,
@@ -1010,7 +794,7 @@
     }
   ],
   "notificationContract": {
-    "id": "notifications.socialSystemUnion",
+    "id": "notifications.actorfulInstagramMatch",
     "method": "GET",
     "path": "/v1/notifications?limit=20",
     "status": 200,
@@ -1363,12 +1147,18 @@
         {
           "id": "00000000-0000-0000-0000-000000000408",
           "type": "instagramMatch",
+          "actor": {
+            "available": true,
+            "did": "did:plc:syntheticinstagrammatchactor",
+            "handle": "instagram-match.synthetic.invalid",
+            "displayName": "Synthetic Instagram Match",
+            "viewerIsFollowing": true,
+            "muted": false,
+            "blocking": false,
+            "blockedBy": false
+          },
           "createdAt": "2026-07-19T12:00:00Z",
-          "indexedAt": "2026-07-19T12:04:00Z",
-          "system": {
-            "count": 99,
-            "countCapped": true
-          }
+          "indexedAt": "2026-07-19T12:04:00Z"
         }
       ],
       "cursor": "synthetic-notification-output-cursor"
@@ -1398,17 +1188,13 @@
         }
       },
       {
-        "id": "notification.malformedInstagramSystem",
+        "id": "notification.malformedInstagramMatch",
         "expectedClientVariant": "genericSystem",
         "body": {
           "id": "00000000-0000-0000-0000-000000000411",
           "type": "instagramMatch",
           "createdAt": "2026-07-19T12:07:00Z",
-          "indexedAt": "2026-07-19T12:07:01Z",
-          "system": {
-            "count": 100,
-            "countCapped": false
-          }
+          "indexedAt": "2026-07-19T12:07:01Z"
         }
       },
       {
@@ -1471,24 +1257,6 @@
       "sourceType": "futureImportSource",
       "followingCount": 0,
       "createdAt": "2026-07-19T13:04:00Z"
-    },
-    "unknownSuggestionState": {
-      "suggestionId": "synthetic-suggestion-future-state",
-      "profile": {
-        "did": "did:plc:syntheticfuture01",
-        "handle": "future01.synthetic.invalid"
-      },
-      "reason": "verifiedInstagramFollow",
-      "state": "futureSuggestionState"
-    },
-    "unknownSuggestionReason": {
-      "suggestionId": "synthetic-suggestion-future-reason",
-      "profile": {
-        "did": "did:plc:syntheticfuture02",
-        "handle": "future02.synthetic.invalid"
-      },
-      "reason": "futureSuggestionReason",
-      "state": "pending"
     }
   }
 }

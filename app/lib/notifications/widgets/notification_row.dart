@@ -39,26 +39,26 @@ class NotificationRow extends ConsumerWidget {
     if (notification case final SystemNotification system) {
       return _buildSystem(context, ref, system);
     }
-    final social = notification as SocialNotification;
+    final actorNotification = notification as ActorNotification;
     final registry = ref.watch(sessionRegistryProvider).value;
     final account = owner?.account ?? registry?.activeLease?.session.account;
     final actorRelationshipProvider =
         account == null ||
-            !social.actor.available ||
-            account.did == social.actor.did
+            !actorNotification.actor.available ||
+            account.did == actorNotification.actor.did
         ? null
         : profileRelationshipProvider(
             account,
-            social.actor.did.toString(),
+            actorNotification.actor.did.toString(),
           );
     final cachedRelationship = actorRelationshipProvider == null
         ? null
         : ref.watch(actorRelationshipProvider);
-    final serverRelationship = social.actor.hasViewerState
+    final serverRelationship = actorNotification.actor.hasViewerState
         ? ProfileRelationship.fromProfileFlags(
-            muted: social.actor.muted ?? false,
-            blocking: social.actor.blocking ?? false,
-            blockedBy: social.actor.blockedBy ?? false,
+            muted: actorNotification.actor.muted ?? false,
+            blocking: actorNotification.actor.blocking ?? false,
+            blockedBy: actorNotification.actor.blockedBy ?? false,
           )
         : const ProfileRelationship(initialized: true);
     if (actorRelationshipProvider != null &&
@@ -73,7 +73,7 @@ class NotificationRow extends ConsumerWidget {
     }
     final relationship = cachedRelationship?.initialized ?? false
         ? cachedRelationship
-        : social.actor.hasViewerState
+        : actorNotification.actor.hasViewerState
         ? serverRelationship
         : null;
     if ((relationship?.muted ?? false) || (relationship?.hasBlock ?? false)) {
@@ -81,10 +81,14 @@ class NotificationRow extends ConsumerWidget {
     }
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final actor = social.actor.displayLabel;
-    final actionColor = _actionColor(social, theme.colorScheme);
-    final (title, subjectPost) = switch (social) {
+    final actor = actorNotification.actor.displayLabel;
+    final actionColor = _actionColor(actorNotification, theme.colorScheme);
+    final (title, subjectPost) = switch (actorNotification) {
       FollowNotification() => (l10n.notificationFollowRow(actor), null),
+      InstagramMatchNotification() => (
+        l10n.notificationInstagramMatchActorRow(actor),
+        null,
+      ),
       LikeNotification(:final subjectPost) => (
         switch (_roleOf(subjectPost)) {
           _NotificationContentRole.post => l10n.notificationLikeRow(actor),
@@ -131,7 +135,7 @@ class NotificationRow extends ConsumerWidget {
       GenericNotification() => (l10n.notificationGenericRow, null),
       UnavailableNotification() => (l10n.notificationUnavailableRow, null),
     };
-    final onTap = social is GenericNotification
+    final onTap = actorNotification is GenericNotification
         ? null
         : () => _open(context, ref);
     return Material(
@@ -160,7 +164,7 @@ class NotificationRow extends ConsumerWidget {
                   children: [
                     ProfileAvatar(
                       seed: actor,
-                      avatarUrl: social.actor.displayAvatarUrl,
+                      avatarUrl: actorNotification.actor.displayAvatarUrl,
                       size: ProfileAvatarSize.small,
                     ),
                     const SizedBox(height: 8),
@@ -189,10 +193,14 @@ class NotificationRow extends ConsumerWidget {
                         padding: EdgeInsets.zero,
                       ),
                     ],
-                    if (social is FollowNotification &&
-                        social.actor.available) ...[
+                    if ((actorNotification is FollowNotification ||
+                            actorNotification is InstagramMatchNotification) &&
+                        actorNotification.actor.available) ...[
                       const SizedBox(height: 8),
-                      _NotificationFollowButton(actor: social.actor),
+                      _NotificationFollowButton(
+                        actor: actorNotification.actor,
+                        owner: owner,
+                      ),
                     ],
                   ],
                 ),
@@ -211,20 +219,10 @@ class NotificationRow extends ConsumerWidget {
   ) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final title = switch (system) {
-      InstagramMatchNotification(:final count, :final countCapped) =>
-        countCapped
-            ? l10n.notificationInstagramMatchRowCapped
-            : l10n.notificationInstagramMatchRow(count),
-      GenericSystemNotification() => l10n.notificationGenericRow,
-    };
-    final onTap = system is InstagramMatchNotification
-        ? () => _open(context, ref)
-        : null;
+    final title = l10n.notificationGenericRow;
     return Material(
       type: MaterialType.transparency,
       child: InkWell(
-        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
@@ -284,8 +282,10 @@ class NotificationRow extends ConsumerWidget {
         break;
       case GenericSystemNotification():
         break;
-      case InstagramMatchNotification():
-        unawaited(const InstagramMigrationRoute().push<void>(context));
+      case InstagramMatchNotification(:final actor):
+        unawaited(
+          UserProfileRoute(handle: actor.handle.toString()).push<void>(context),
+        );
       case UnavailableNotification():
         context.showWarning(
           AppLocalizations.of(context).notificationUnavailableRow,
@@ -310,9 +310,10 @@ class NotificationRow extends ConsumerWidget {
 }
 
 class _NotificationFollowButton extends ConsumerStatefulWidget {
-  const _NotificationFollowButton({required this.actor});
+  const _NotificationFollowButton({required this.actor, required this.owner});
 
   final NotificationActor actor;
+  final AccountSessionLease? owner;
 
   @override
   ConsumerState<_NotificationFollowButton> createState() =>
@@ -361,31 +362,46 @@ class _NotificationFollowButtonState
   }
 
   Future<void> _toggle() async {
-    if (_isBusy) return;
+    if (_isBusy || !_isOwnerCurrent()) return;
     final previous = _isFollowing;
     setState(() {
       _isFollowing = !previous;
       _isBusy = true;
     });
     try {
-      final repository = ref.read(profileRepositoryProvider);
+      final owner = widget.owner;
+      final repository = owner == null
+          ? ref.read(profileRepositoryProvider)
+          : await ref.read(
+              accountRelationshipRepositoryProvider(owner.account).future,
+            );
+      if (!_isOwnerCurrent()) return;
       final updated = previous
           ? await repository.unfollow(widget.actor.did.toString())
           : await repository.follow(widget.actor.did.toString());
-      if (!mounted) return;
+      if (!mounted || !_isOwnerCurrent()) return;
       setState(() => _isFollowing = updated.viewerIsFollowing);
       ref
         ..invalidate(userProfileProvider(widget.actor.did.toString()))
         ..invalidate(userProfileProvider(widget.actor.handle.toString()));
     } on Object {
-      if (!mounted) return;
+      if (!mounted || !_isOwnerCurrent()) return;
       setState(() => _isFollowing = previous);
       context.showError(
         AppLocalizations.of(context).profileFollowToggleError,
       );
     } finally {
-      if (mounted) setState(() => _isBusy = false);
+      if (mounted && _isOwnerCurrent()) {
+        setState(() => _isBusy = false);
+      }
     }
+  }
+
+  bool _isOwnerCurrent() {
+    final owner = widget.owner;
+    if (owner == null) return true;
+    return ref.read(sessionRegistryProvider).value?.activeLease?.session ==
+        owner;
   }
 }
 

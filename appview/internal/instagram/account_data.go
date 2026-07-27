@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sort"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -121,16 +120,13 @@ func (s *PrivateDataService) InactivateMembershipTx(ctx context.Context, tx pgx.
 		SET state='invalidated', accepting_since=NULL,
 		    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
 		WHERE (importer_did=$1 OR target_did=$1)
-		  AND state IN ('pending','accepting')
+		  AND state IN ('pending','writing')
 		RETURNING id
 	`, owner, now)
 	if err != nil {
 		return fmt.Errorf("invalidate Instagram suggestions for inactive member: %w", err)
 	}
-	if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "membershipInactive", now); err != nil {
-		return err
-	}
-	if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, owner, "membership_inactive", now); err != nil {
+	if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "membershipInactive", now); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `
@@ -182,16 +178,13 @@ func (s *PrivateDataService) PurgeLink(ctx context.Context, owner syntax.DID, li
 				UPDATE instagram_follow_suggestions
 				SET state='invalidated', accepting_since=NULL,
 				    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
-				WHERE target_did=$1 AND state IN ('pending','accepting')
+				WHERE target_did=$1 AND state IN ('pending','writing')
 				RETURNING id
 			`, owner, now)
 			if err != nil {
 				return fmt.Errorf("invalidate scoped-link suggestions: %w", err)
 			}
-			if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "linkDeleted", now); err != nil {
-				return err
-			}
-			if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "link_revoked", now); err != nil {
+			if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "linkDeleted", now); err != nil {
 				return err
 			}
 		}
@@ -227,7 +220,7 @@ func (s *PrivateDataService) PurgeLink(ctx context.Context, owner syntax.DID, li
 }
 
 // PurgeImport permanently removes one owner-scoped source and invalidates only
-// pending suggestions that no other active source supports.
+// unwritten automatic follows that no other active source supports.
 func (s *PrivateDataService) PurgeImport(ctx context.Context, owner syntax.DID, importID uuid.UUID) error {
 	if err := s.validateOwner(owner); err != nil {
 		return err
@@ -259,7 +252,7 @@ func (s *PrivateDataService) PurgeImport(ctx context.Context, owner syntax.DID, 
 			  ON suggestion.id=selected.suggestion_id
 			WHERE selected.import_id=$1
 			  AND suggestion.importer_did=$2
-			  AND suggestion.state IN ('pending','accepting')
+			  AND suggestion.state IN ('pending','writing')
 			  AND NOT EXISTS (
 				SELECT 1
 				FROM instagram_suggestion_sources other
@@ -279,10 +272,7 @@ func (s *PrivateDataService) PurgeImport(ctx context.Context, owner syntax.DID, 
 		if err := invalidateSuggestionIDs(ctx, tx, suggestionIDs, now); err != nil {
 			return err
 		}
-		if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "importDeleted", now); err != nil {
-			return err
-		}
-		if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "import_deleted", now); err != nil {
+		if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "importDeleted", now); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM instagram_reconciliation_jobs WHERE import_id=$1`, importID); err != nil {
@@ -324,18 +314,6 @@ func (s *PrivateDataService) PurgeOwner(ctx context.Context, owner syntax.DID) e
 		if err != nil {
 			return fmt.Errorf("read terminal Instagram rate identities: %w", err)
 		}
-		suggestionIDs, err := queryUUIDs(ctx, tx, `
-			SELECT id FROM instagram_follow_suggestions
-			WHERE importer_did=$1 OR target_did=$1
-			FOR UPDATE
-		`, owner)
-		if err != nil {
-			return fmt.Errorf("read terminal Instagram suggestions: %w", err)
-		}
-		if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, owner, "membership_inactive", now); err != nil {
-			return err
-		}
-
 		// Delete the private operation ledger, not the public PDS records it
 		// described. The absence of a PDS dependency makes that boundary hard.
 		if _, err := tx.Exec(ctx, `
@@ -474,146 +452,29 @@ func invalidateSuggestionIDs(ctx context.Context, tx pgx.Tx, ids []uuid.UUID, no
 		UPDATE instagram_follow_suggestions
 		SET state='invalidated', accepting_since=NULL,
 		    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
-		WHERE id=ANY($1::uuid[]) AND state IN ('pending','accepting')
+		WHERE id=ANY($1::uuid[]) AND state IN ('pending','writing')
 	`, ids, now); err != nil {
-		return fmt.Errorf("invalidate Instagram suggestion IDs: %w", err)
+		return fmt.Errorf("invalidate Instagram automatic-follow ledger IDs: %w", err)
 	}
 	return nil
 }
 
-func failUnsentFollowOperations(ctx context.Context, tx pgx.Tx, ids []uuid.UUID, code string, now time.Time) error {
+func invalidateUnwrittenFollowOperations(ctx context.Context, tx pgx.Tx, ids []uuid.UUID, code string, now time.Time) error {
 	if len(ids) == 0 {
 		return nil
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE pds_follow_operations
-		SET status='failed', last_error_code=$2, updated_at=$3
+		SET status='invalidated',
+		    lease_token=NULL,
+		    lease_expires_at=NULL,
+		    last_error_code=$2,
+		    completed_at=COALESCE(completed_at,$3),
+		    updated_at=$3
 		WHERE suggestion_id=ANY($1::uuid[])
-		  AND status IN ('pending','writing','failed')
+		  AND status IN ('pending','writing')
 	`, ids, code, now); err != nil {
-		return fmt.Errorf("cancel unsent Instagram follow operations: %w", err)
-	}
-	return nil
-}
-
-func retractSuggestionNotifications(ctx context.Context, tx pgx.Tx, suggestionIDs []uuid.UUID, recipient syntax.DID, reason string, now time.Time) error {
-	recipients := make(map[string]struct{})
-	if recipient != "" {
-		recipients[recipient.String()] = struct{}{}
-	}
-	if len(suggestionIDs) > 0 {
-		rows, err := tx.Query(ctx, `
-			SELECT DISTINCT event.recipient_did
-			FROM instagram_notification_suggestions support
-			JOIN notification_events event ON event.id=support.notification_id
-			WHERE support.suggestion_id=ANY($1::uuid[])
-		`, suggestionIDs)
-		if err != nil {
-			return fmt.Errorf("read Instagram notification recipients: %w", err)
-		}
-		for rows.Next() {
-			var did string
-			if err := rows.Scan(&did); err != nil {
-				rows.Close()
-				return fmt.Errorf("scan Instagram notification recipient: %w", err)
-			}
-			recipients[did] = struct{}{}
-		}
-		if err := rows.Err(); err != nil {
-			rows.Close()
-			return fmt.Errorf("iterate Instagram notification recipients: %w", err)
-		}
-		rows.Close()
-	}
-	orderedRecipients := make([]string, 0, len(recipients))
-	for did := range recipients {
-		orderedRecipients = append(orderedRecipients, did)
-	}
-	sort.Strings(orderedRecipients)
-	for _, did := range orderedRecipients {
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 7))`, did); err != nil {
-			return fmt.Errorf("lock Instagram notification lifecycle: %w", err)
-		}
-	}
-
-	eventSet := make(map[uuid.UUID]struct{})
-	if len(suggestionIDs) > 0 {
-		ids, err := queryUUIDs(ctx, tx, `
-			SELECT notification_id
-			FROM instagram_notification_suggestions
-			WHERE suggestion_id=ANY($1::uuid[])
-			FOR UPDATE
-		`, suggestionIDs)
-		if err != nil {
-			return fmt.Errorf("read Instagram suggestion notifications: %w", err)
-		}
-		for _, id := range ids {
-			eventSet[id] = struct{}{}
-		}
-		if _, err := tx.Exec(ctx, `
-			DELETE FROM instagram_notification_suggestions
-			WHERE suggestion_id=ANY($1::uuid[])
-		`, suggestionIDs); err != nil {
-			return fmt.Errorf("detach Instagram suggestion notifications: %w", err)
-		}
-	}
-	if recipient != "" {
-		ids, err := queryUUIDs(ctx, tx, `
-			SELECT id FROM notification_events
-			WHERE recipient_did=$1 AND category='instagramMatch'
-			FOR UPDATE
-		`, recipient)
-		if err != nil {
-			return fmt.Errorf("read member Instagram notifications: %w", err)
-		}
-		for _, id := range ids {
-			eventSet[id] = struct{}{}
-		}
-		if len(ids) > 0 {
-			if _, err := tx.Exec(ctx, `
-				DELETE FROM instagram_notification_suggestions
-				WHERE notification_id=ANY($1::uuid[])
-			`, ids); err != nil {
-				return fmt.Errorf("detach inactive member notifications: %w", err)
-			}
-		}
-	}
-
-	for eventID := range eventSet {
-		var supportCount int
-		if err := tx.QueryRow(ctx, `
-			SELECT count(*) FROM instagram_notification_suggestions
-			WHERE notification_id=$1
-		`, eventID).Scan(&supportCount); err != nil {
-			return fmt.Errorf("recount Instagram notification support: %w", err)
-		}
-		if supportCount > 0 {
-			if _, err := tx.Exec(ctx, `
-				UPDATE notification_events
-				SET system_count=LEAST($2,99), system_count_capped=$2>99,
-				    indexed_at=$3
-				WHERE id=$1 AND category='instagramMatch' AND state='active'
-			`, eventID, supportCount, now); err != nil {
-				return fmt.Errorf("update Instagram notification support: %w", err)
-			}
-			continue
-		}
-		if _, err := tx.Exec(ctx, `
-			UPDATE notification_events
-			SET state='retracted', retracted_at=COALESCE(retracted_at,$2),
-			    retraction_reason=COALESCE(retraction_reason,$3), indexed_at=$2
-			WHERE id=$1 AND category='instagramMatch' AND state='active'
-		`, eventID, now, reason); err != nil {
-			return fmt.Errorf("retract Instagram notification: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			UPDATE push_deliveries
-			SET status='cancelled', lease_owner=NULL, lease_expires_at=NULL,
-			    updated_at=$2
-			WHERE notification_id=$1 AND status IN ('pending','retry','leased')
-		`, eventID, now); err != nil {
-			return fmt.Errorf("cancel Instagram notification delivery: %w", err)
-		}
+		return fmt.Errorf("invalidate unwritten Instagram follow operations: %w", err)
 	}
 	return nil
 }

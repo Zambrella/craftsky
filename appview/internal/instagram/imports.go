@@ -29,13 +29,13 @@ type StagedImportRepository interface {
 	FinalizeImportMatching(context.Context, syntax.DID, uuid.UUID, time.Time) error
 }
 
-type ImportSuggestionMatcher interface {
+type ImportMatcher interface {
 	MatchImport(context.Context, syntax.DID, uuid.UUID) (int, error)
 }
 
 type ImportServiceOptions struct {
 	Repository      ImportRepository
-	Matcher         ImportSuggestionMatcher
+	Matcher         ImportMatcher
 	Now             func() time.Time
 	NewID           func() uuid.UUID
 	MaxEntries      int
@@ -45,7 +45,7 @@ type ImportServiceOptions struct {
 
 type ImportService struct {
 	repository      ImportRepository
-	matcher         ImportSuggestionMatcher
+	matcher         ImportMatcher
 	now             func() time.Time
 	newID           func() uuid.UUID
 	maxEntries      int

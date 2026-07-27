@@ -65,7 +65,7 @@ final class InstagramVerificationProvider
 }
 
 String _$instagramVerificationHash() =>
-    r'd7f447ee705595df010c23b53ccd34fb8e1656ed';
+    r'990ddf1041be8d88ba8404dfe2d587932a39f040';
 
 final class InstagramVerificationFamily extends $Family
     with

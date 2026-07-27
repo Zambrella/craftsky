@@ -24,6 +24,11 @@ type Service struct {
 	newPDS auth.PDSClientFactory
 }
 
+type followRecord struct {
+	Type    string     `json:"$type"`
+	Subject syntax.DID `json:"subject"`
+}
+
 func NewService(newPDS auth.PDSClientFactory) *Service {
 	return &Service{newPDS: newPDS}
 }
@@ -49,4 +54,33 @@ func (s *Service) Write(ctx context.Context, owner, target syntax.DID, sessionID
 	}
 	_, _, err = client.CreateRecord(ctx, owner, Collection, record)
 	return err
+}
+
+// HasDeterministicFollow distinguishes a replay of CraftSky's stable operation
+// key from an unrelated follow that appeared before the worker completed.
+func (s *Service) HasDeterministicFollow(
+	ctx context.Context,
+	owner syntax.DID,
+	target syntax.DID,
+	sessionID string,
+	rkey syntax.RecordKey,
+) (bool, error) {
+	if s == nil || s.newPDS == nil || owner == "" || target == "" || rkey == "" {
+		return false, ErrUnavailable
+	}
+	client, err := s.newPDS(ctx, owner, sessionID)
+	if err != nil {
+		return false, err
+	}
+	var record followRecord
+	if _, err := client.GetRecord(ctx, owner, Collection, rkey.String(), &record); err != nil {
+		if errors.Is(err, auth.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	if record.Type != Collection || record.Subject != target {
+		return false, ErrUnavailable
+	}
+	return true, nil
 }

@@ -1,8 +1,11 @@
 ALTER TABLE notification_events
-    DROP CONSTRAINT notification_events_type_payload_check;
+    DROP CONSTRAINT IF EXISTS notification_events_kind_payload_check,
+    DROP CONSTRAINT IF EXISTS notification_events_type_payload_check,
+    DROP CONSTRAINT IF EXISTS notification_events_kind_check;
 
 ALTER TABLE notification_events
-    DROP COLUMN system_destination;
+    DROP COLUMN IF EXISTS kind,
+    DROP COLUMN IF EXISTS system_destination;
 
 ALTER TABLE notification_events
     ADD CONSTRAINT notification_events_type_payload_check CHECK (

@@ -132,16 +132,16 @@ func TestPrivateDataMembershipInactivationIsReversibleIdempotentAndConcurrent(t 
 	}
 
 	states := readSuggestionStates(t, pool)
-	if states[lifecycleOwnerPending] != SuggestionInvalidated ||
-		states[lifecycleTargetPending] != SuggestionInvalidated ||
-		states[lifecycleAccepted] != SuggestionAccepted {
-		t.Fatalf("suggestion states after inactivation = %+v", states)
+	if states[lifecycleOwnerPending] != AutomaticFollowInvalidated ||
+		states[lifecycleTargetPending] != AutomaticFollowInvalidated ||
+		states[lifecycleAccepted] != AutomaticFollowFollowed {
+		t.Fatalf("automatic-follow states after inactivation = %+v", states)
 	}
-	var acceptedOperation FollowOperationStatus
+	var acceptedOperation AutomaticFollowState
 	if err := pool.QueryRow(ctx, `SELECT status FROM pds_follow_operations WHERE suggestion_id=$1`, lifecycleAccepted).Scan(&acceptedOperation); err != nil {
 		t.Fatalf("read accepted PDS operation: %v", err)
 	}
-	if acceptedOperation != FollowOperationSucceeded {
+	if acceptedOperation != AutomaticFollowFollowed {
 		t.Fatalf("accepted PDS operation changed to %s", acceptedOperation)
 	}
 
@@ -155,7 +155,7 @@ func TestPrivateDataMembershipInactivationIsReversibleIdempotentAndConcurrent(t 
 		`, eventID).Scan(&eventState, &deliveryState); err != nil {
 			t.Fatalf("read retracted notification %s: %v", eventID, err)
 		}
-		if eventState != "retracted" || deliveryState != "cancelled" {
+		if eventState != "active" || (deliveryState != "pending" && deliveryState != "leased") {
 			t.Fatalf("event %s state=%s delivery=%s", eventID, eventState, deliveryState)
 		}
 	}
@@ -192,7 +192,7 @@ func TestPrivateDataExportIsOwnerScopedAndOmitsInfrastructureSecrets(t *testing.
 	}
 	if export.OwnerDID != lifecycleAlice || len(export.VerificationAttempts) != 1 ||
 		len(export.AccountLinks) != 1 || len(export.Imports) != 1 ||
-		len(export.Suggestions) != 2 || len(export.MatchNotifications) != 1 {
+		len(export.AutomaticFollows) != 2 || len(export.MatchNotifications) != 1 {
 		t.Fatalf("unexpected private export shape: %+v", export)
 	}
 	if export.AccountLinks[0].InstagramUserID != "synthetic-alice-igsid" ||
@@ -203,9 +203,9 @@ func TestPrivateDataExportIsOwnerScopedAndOmitsInfrastructureSecrets(t *testing.
 		export.Imports[0].RetainedEntries[0].Username != "synthetic.carol" {
 		t.Fatalf("owner retained entries = %+v", export.Imports[0].RetainedEntries)
 	}
-	for _, suggestion := range export.Suggestions {
-		if suggestion.TargetDID == lifecycleAlice {
-			t.Fatalf("other importer's target fact leaked into export: %+v", suggestion)
+	for _, automaticFollow := range export.AutomaticFollows {
+		if automaticFollow.TargetDID == lifecycleAlice {
+			t.Fatalf("other importer's target fact leaked into export: %+v", automaticFollow)
 		}
 	}
 	encoded, err := json.Marshal(export)
@@ -229,7 +229,7 @@ func TestPrivateDataExportIsOwnerScopedAndOmitsInfrastructureSecrets(t *testing.
 	if err != nil {
 		t.Fatalf("export absent owner: %v", err)
 	}
-	if len(missing.AccountLinks) != 0 || len(missing.Imports) != 0 || len(missing.Suggestions) != 0 {
+	if len(missing.AccountLinks) != 0 || len(missing.Imports) != 0 || len(missing.AutomaticFollows) != 0 {
 		t.Fatalf("absent export contains data: %+v", missing)
 	}
 }
@@ -251,10 +251,10 @@ func TestPrivateDataScopedPurgeIsOwnerBoundAndPreservesAcceptedFollowLedger(t *t
 	}
 	assertRowExists(t, pool, "instagram_graph_imports", lifecycleAliceImport, false)
 	states := readSuggestionStates(t, pool)
-	if states[lifecycleOwnerPending] != SuggestionInvalidated || states[lifecycleAccepted] != SuggestionAccepted {
-		t.Fatalf("scoped import suggestion states = %+v", states)
+	if states[lifecycleOwnerPending] != AutomaticFollowInvalidated || states[lifecycleAccepted] != AutomaticFollowFollowed {
+		t.Fatalf("scoped import automatic-follow states = %+v", states)
 	}
-	assertFollowLedgerStatus(t, pool, lifecycleAccepted, FollowOperationSucceeded)
+	assertFollowLedgerStatus(t, pool, lifecycleAccepted, AutomaticFollowFollowed)
 
 	if err := service.PurgeLink(ctx, lifecycleAlice, lifecycleBobLink); err != nil {
 		t.Fatalf("foreign link purge: %v", err)
@@ -268,10 +268,10 @@ func TestPrivateDataScopedPurgeIsOwnerBoundAndPreservesAcceptedFollowLedger(t *t
 	}
 	assertRowExists(t, pool, "instagram_account_links", lifecycleAliceLink, false)
 	states = readSuggestionStates(t, pool)
-	if states[lifecycleTargetPending] != SuggestionInvalidated {
-		t.Fatalf("target-dependent suggestion state=%s", states[lifecycleTargetPending])
+	if states[lifecycleTargetPending] != AutomaticFollowInvalidated {
+		t.Fatalf("target-dependent automatic-follow state=%s", states[lifecycleTargetPending])
 	}
-	assertFollowLedgerStatus(t, pool, lifecycleAccepted, FollowOperationSucceeded)
+	assertFollowLedgerStatus(t, pool, lifecycleAccepted, AutomaticFollowFollowed)
 	assertRowExists(t, pool, "instagram_account_links", lifecycleBobLink, true)
 }
 
@@ -340,7 +340,7 @@ func TestPrivateDataTerminalPurgeIsIdempotentConcurrentAndLeavesOtherOwners(t *t
 	`, lifecycleBobEvent).Scan(&bobEventState, &bobDeliveryState); err != nil {
 		t.Fatalf("read cross-user notification after purge: %v", err)
 	}
-	if bobEventState != "retracted" || bobDeliveryState != "cancelled" {
+	if bobEventState != "active" || bobDeliveryState != "leased" {
 		t.Fatalf("cross-user event=%s delivery=%s", bobEventState, bobDeliveryState)
 	}
 	assertRowExists(t, pool, "notification_events", lifecycleAliceEvent, false)
@@ -359,7 +359,7 @@ func TestPrivateDataTerminalPurgeIsIdempotentConcurrentAndLeavesOtherOwners(t *t
 	if err != nil {
 		t.Fatalf("export after terminal purge: %v", err)
 	}
-	if len(export.VerificationAttempts)+len(export.AccountLinks)+len(export.Imports)+len(export.Suggestions)+len(export.MatchNotifications) != 0 {
+	if len(export.VerificationAttempts)+len(export.AccountLinks)+len(export.Imports)+len(export.AutomaticFollows)+len(export.MatchNotifications) != 0 {
 		t.Fatalf("terminally purged export not empty: %+v", export)
 	}
 }
@@ -374,6 +374,7 @@ func newPrivateDataTest(t *testing.T) (*PrivateDataService, *pgxpool.Pool, time.
 		"../../migrations/000025_instagram_migration.up.sql",
 		"../../migrations/000026_system_notifications.up.sql",
 		"../../migrations/000029_notification_client_owned_destination.up.sql",
+		"../../migrations/000030_instagram_automatic_follows.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {
@@ -450,7 +451,7 @@ func seedPrivateDataLifecycle(t *testing.T, service *PrivateDataService, pool *p
 		) VALUES
 			($1,$2,$3,'pending','verifiedInstagramFollow',NULL,$4,$4),
 			($5,$6,$2,'pending','verifiedInstagramFollow',NULL,$4,$4),
-			($7,$2,$8,'accepted','verifiedInstagramFollow',$4,$4,$4)
+			($7,$2,$8,'followed','verifiedInstagramFollow',$4,$4,$4)
 	`, lifecycleOwnerPending, lifecycleAlice, lifecycleCarol, now,
 		lifecycleTargetPending, lifecycleBob, lifecycleAccepted, lifecycleDave); err != nil {
 		t.Fatalf("seed lifecycle suggestions: %v", err)
@@ -465,10 +466,10 @@ func seedPrivateDataLifecycle(t *testing.T, service *PrivateDataService, pool *p
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO pds_follow_operations(
 			id,suggestion_id,owner_did,target_did,rkey,status,
-			attempt_count,created_at,updated_at,completed_at
+			attempt_count,next_attempt_at,created_at,updated_at,completed_at
 		) VALUES
-			('41000000-0000-0000-0000-000000000001',$1,$2,$3,'3kysyntheticpending','writing',1,$4,$4,NULL),
-			('41000000-0000-0000-0000-000000000003',$5,$2,$6,'3kysyntheticaccepted','succeeded',1,$4,$4,$4)
+			('41000000-0000-0000-0000-000000000001',$1,$2,$3,'3kysyntheticpending','pending',0,$4,$4,$4,NULL),
+			('41000000-0000-0000-0000-000000000003',$5,$2,$6,'3kysyntheticaccepted','followed',1,$4,$4,$4,$4)
 	`, lifecycleOwnerPending, lifecycleAlice, lifecycleCarol, now,
 		lifecycleAccepted, lifecycleDave); err != nil {
 		t.Fatalf("seed lifecycle follow operations: %v", err)
@@ -538,24 +539,16 @@ func seedLifecycleNotification(t *testing.T, pool *pgxpool.Pool, eventID uuid.UU
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO notification_events(
-			id,recipient_did,category,subject_key,
+			id,recipient_did,actor_did,category,subject_key,
 			eligibility_scope,recipient_followed_actor,push_enabled_snapshot,
-			state,first_activity_at,activity_at,indexed_at,
-			initial_push_evaluated_at,system_count,system_count_capped,
-			system_group_key,coalesce_until
+			state,first_activity_at,activity_at,indexed_at,initial_push_evaluated_at
 		) VALUES(
-			$1,$2,'instagramMatch',$3,
-			'everyone',false,true,'active',$4,$4,$4,$4,
-			1,false,$3,$4::timestamptz + interval '5 minutes'
+			$1,$2,(SELECT target_did FROM instagram_follow_suggestions WHERE id=$3),
+			'instagramMatch',$3,
+			'everyone',true,true,'active',$4,$4,$4,$4
 		)
-	`, eventID, recipient, eventID.String(), now); err != nil {
+	`, eventID, recipient, suggestionID, now); err != nil {
 		t.Fatalf("seed lifecycle notification event: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_notification_suggestions(notification_id,suggestion_id,created_at)
-		VALUES($1,$2,$3)
-	`, eventID, suggestionID, now); err != nil {
-		t.Fatalf("seed lifecycle notification support: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO push_installations(id,device_id,platform,fcm_token,created_at,updated_at)
@@ -633,17 +626,17 @@ func assertOwnerRateBuckets(t *testing.T, service *PrivateDataService, pool *pgx
 	}
 }
 
-func readSuggestionStates(t *testing.T, pool *pgxpool.Pool) map[uuid.UUID]InstagramSuggestionState {
+func readSuggestionStates(t *testing.T, pool *pgxpool.Pool) map[uuid.UUID]AutomaticFollowState {
 	t.Helper()
 	rows, err := pool.Query(context.Background(), `SELECT id,state FROM instagram_follow_suggestions`)
 	if err != nil {
 		t.Fatalf("read suggestion states: %v", err)
 	}
 	defer rows.Close()
-	states := make(map[uuid.UUID]InstagramSuggestionState)
+	states := make(map[uuid.UUID]AutomaticFollowState)
 	for rows.Next() {
 		var id uuid.UUID
-		var state InstagramSuggestionState
+		var state AutomaticFollowState
 		if err := rows.Scan(&id, &state); err != nil {
 			t.Fatalf("scan suggestion state: %v", err)
 		}
@@ -655,9 +648,9 @@ func readSuggestionStates(t *testing.T, pool *pgxpool.Pool) map[uuid.UUID]Instag
 	return states
 }
 
-func assertFollowLedgerStatus(t *testing.T, pool *pgxpool.Pool, suggestionID uuid.UUID, want FollowOperationStatus) {
+func assertFollowLedgerStatus(t *testing.T, pool *pgxpool.Pool, suggestionID uuid.UUID, want AutomaticFollowState) {
 	t.Helper()
-	var got FollowOperationStatus
+	var got AutomaticFollowState
 	if err := pool.QueryRow(context.Background(), `SELECT status FROM pds_follow_operations WHERE suggestion_id=$1`, suggestionID).Scan(&got); err != nil {
 		t.Fatalf("read follow ledger %s: %v", suggestionID, err)
 	}

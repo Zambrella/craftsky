@@ -412,8 +412,9 @@ func TestNotificationMigrationUsesCategoryAsTheOnlyPayloadDiscriminator(t *testi
 	if !strings.Contains(system, "notification_events_type_payload_check") {
 		t.Fatal("notification migration omits type-derived payload constraint")
 	}
-	if !strings.Contains(clientDestination, "DROP COLUMN system_destination") {
-		t.Fatal("notification migration still retains a server-owned client destination")
+	if !strings.Contains(clientDestination, "DROP COLUMN IF EXISTS kind") ||
+		!strings.Contains(clientDestination, "DROP COLUMN IF EXISTS system_destination") {
+		t.Fatal("notification migration does not remove legacy discriminators and client destinations")
 	}
 
 	pool := testdb.WithSchema(t, "")
@@ -426,11 +427,27 @@ func TestNotificationMigrationUsesCategoryAsTheOnlyPayloadDiscriminator(t *testi
 		{name: "000022", sql: newness},
 		{name: "000025", sql: instagram},
 		{name: "000026", sql: system},
-		{name: "000029", sql: clientDestination},
 	} {
 		if _, err := pool.Exec(ctx, migration.sql); err != nil {
 			t.Fatalf("apply migration %s: %v", migration.name, err)
 		}
+	}
+	if _, err := pool.Exec(ctx, `
+		ALTER TABLE notification_events
+			DROP CONSTRAINT notification_events_type_payload_check;
+		ALTER TABLE notification_events
+			ADD COLUMN kind TEXT NOT NULL DEFAULT 'social';
+		ALTER TABLE notification_events
+			ALTER COLUMN kind DROP DEFAULT;
+		ALTER TABLE notification_events
+			ADD CONSTRAINT notification_events_kind_check
+				CHECK (kind IN ('social','system')),
+			ADD CONSTRAINT notification_events_kind_payload_check CHECK (true);
+	`); err != nil {
+		t.Fatalf("simulate legacy notification schema: %v", err)
+	}
+	if _, err := pool.Exec(ctx, clientDestination); err != nil {
+		t.Fatalf("apply migration 000029 over legacy notification schema: %v", err)
 	}
 
 	var kindColumnExists bool
@@ -517,6 +534,128 @@ func TestNotificationMigrationUsesCategoryAsTheOnlyPayloadDiscriminator(t *testi
 	}
 }
 
+func TestInstagramAutomaticFollowMigrationEnforcesWorkerAndActorfulNotificationShape(t *testing.T) {
+	t.Parallel()
+
+	automaticFollow := readMigration(t, "../../migrations/000030_instagram_automatic_follows.up.sql")
+	for _, required := range []string{
+		"pds_follow_operations_lease_shape_check",
+		"pds_follow_operations_owner_target_unique",
+		"notification_events_instagram_operation_unique",
+		"DROP TABLE instagram_notification_suggestions",
+		"DROP COLUMN system_count",
+		"DROP COLUMN system_group_key",
+		"category = 'instagramMatch'",
+		"actor_did IS NOT NULL",
+		"source_uri IS NULL",
+	} {
+		if !strings.Contains(automaticFollow, required) {
+			t.Errorf("automatic-follow migration missing %q", required)
+		}
+	}
+
+	pool := testdb.WithSchema(t, "")
+	ctx := context.Background()
+	for _, path := range []string{
+		"../../migrations/000021_appview_notifications.up.sql",
+		"../../migrations/000022_notification_newness.up.sql",
+		"../../migrations/000025_instagram_migration.up.sql",
+		"../../migrations/000026_system_notifications.up.sql",
+		"../../migrations/000029_notification_client_owned_destination.up.sql",
+		"../../migrations/000030_instagram_automatic_follows.up.sql",
+	} {
+		if _, err := pool.Exec(ctx, readMigration(t, path)); err != nil {
+			t.Fatalf("apply %s: %v", path, err)
+		}
+	}
+
+	for _, column := range []string{
+		"system_count",
+		"system_count_capped",
+		"system_group_key",
+		"coalesce_until",
+		"system_push_released_at",
+	} {
+		if columnExists(t, pool, "notification_events", column) {
+			t.Errorf("obsolete actorless notification column %q still exists", column)
+		}
+	}
+	if instagramTableExists(t, pool, "instagram_notification_suggestions") {
+		t.Fatal("obsolete notification/suggestion grouping table still exists")
+	}
+	for _, index := range []string{
+		"pds_follow_operations_claim_idx",
+		"pds_follow_operations_expired_lease_idx",
+		"pds_follow_operations_owner_target_unique",
+		"notification_events_instagram_operation_unique",
+	} {
+		if !indexExists(t, pool, index) {
+			t.Errorf("automatic-follow index %q missing", index)
+		}
+	}
+	for _, constraint := range []string{
+		"pds_follow_operations_status_check",
+		"pds_follow_operations_lease_shape_check",
+		"notification_events_type_payload_check",
+	} {
+		if !constraintExists(t, pool, constraint) {
+			t.Errorf("automatic-follow constraint %q missing", constraint)
+		}
+	}
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO notification_events (
+			id, recipient_did, actor_did, category, subject_key,
+			eligibility_scope, recipient_followed_actor,
+			push_enabled_snapshot, state, first_activity_at, activity_at,
+			initial_push_evaluated_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000030',
+			'did:plc:synthetic-recipient',
+			'did:plc:synthetic-actor',
+			'instagramMatch',
+			'00000000-0000-0000-0000-000000000031',
+			'everyone', true, true, 'active', now(), now(), now()
+		)
+	`); err != nil {
+		t.Fatalf("insert actorful Instagram match: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO notification_events (
+			id, recipient_did, category, subject_key,
+			eligibility_scope, recipient_followed_actor,
+			push_enabled_snapshot, state, first_activity_at, activity_at,
+			initial_push_evaluated_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000032',
+			'did:plc:synthetic-recipient',
+			'instagramMatch',
+			'00000000-0000-0000-0000-000000000033',
+			'everyone', false, true, 'active', now(), now(), now()
+		)
+	`); err == nil {
+		t.Fatal("actorless Instagram match passed the actorful payload constraint")
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO notification_events (
+			id, recipient_did, actor_did, category, subject_key, source_uri,
+			eligibility_scope, recipient_followed_actor,
+			push_enabled_snapshot, state, first_activity_at, activity_at,
+			initial_push_evaluated_at
+		) VALUES (
+			'00000000-0000-0000-0000-000000000034',
+			'did:plc:synthetic-recipient',
+			'did:plc:synthetic-actor',
+			'instagramMatch',
+			'00000000-0000-0000-0000-000000000035',
+			'at://did:plc:synthetic-actor/app.bsky.graph.follow/3kbadsource',
+			'everyone', false, true, 'active', now(), now(), now()
+		)
+	`); err == nil {
+		t.Fatal("Instagram match with a source record passed the payload constraint")
+	}
+}
+
 func readMigration(t *testing.T, path string) string {
 	t.Helper()
 	contents, err := os.ReadFile(path)
@@ -526,13 +665,37 @@ func readMigration(t *testing.T, path string) string {
 	return string(contents)
 }
 
-func assertTableExists(t *testing.T, pool *pgxpool.Pool, table string) {
+func instagramTableExists(t *testing.T, pool *pgxpool.Pool, table string) bool {
 	t.Helper()
 	var exists bool
-	if err := pool.QueryRow(context.Background(), `SELECT to_regclass(current_schema() || '.' || $1) IS NOT NULL`, table).Scan(&exists); err != nil {
+	if err := pool.QueryRow(context.Background(), `
+		SELECT to_regclass(current_schema() || '.' || $1) IS NOT NULL
+	`, table).Scan(&exists); err != nil {
 		t.Fatalf("lookup table %s: %v", table, err)
 	}
-	if !exists {
+	return exists
+}
+
+func columnExists(t *testing.T, pool *pgxpool.Pool, table, column string) bool {
+	t.Helper()
+	var exists bool
+	if err := pool.QueryRow(context.Background(), `
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema=current_schema()
+			  AND table_name=$1
+			  AND column_name=$2
+		)
+	`, table, column).Scan(&exists); err != nil {
+		t.Fatalf("lookup column %s.%s: %v", table, column, err)
+	}
+	return exists
+}
+
+func assertTableExists(t *testing.T, pool *pgxpool.Pool, table string) {
+	t.Helper()
+	if !instagramTableExists(t, pool, table) {
 		t.Errorf("table %s missing", table)
 	}
 }

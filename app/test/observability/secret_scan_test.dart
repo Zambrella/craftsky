@@ -6,7 +6,6 @@ import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/handoff_api_client_provider.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
-import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
@@ -206,11 +205,6 @@ void main() {
         entries: const [
           InstagramImportEntry(username: importedHandle),
         ],
-      ),
-      const InstagramSuggestionProfile(
-        did: 'did:plc:synthetic-instagram-target',
-        handle: importedHandle,
-        displayName: username,
       ),
     ];
     final diagnostics = models.join(' ');

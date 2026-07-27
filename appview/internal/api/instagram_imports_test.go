@@ -55,7 +55,7 @@ func TestInstagramImportHandlersExactWireContractAndOpaquePagination(t *testing.
 	if err := json.Unmarshal(createResponse.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode create: %v", err)
 	}
-	if len(created) != 3 || created["initialSuggestionCount"] != float64(0) {
+	if len(created) != 2 {
 		t.Fatalf("created = %#v", created)
 	}
 	counts, ok := created["counts"].(map[string]any)

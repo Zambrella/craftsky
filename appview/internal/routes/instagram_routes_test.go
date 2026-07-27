@@ -38,12 +38,12 @@ func TestInstagramVerificationRoutePoliciesRequireAuthDeviceAndCurrentMember(t *
 		"GET /v1/migrations/instagram/imports/{importId}":                      {rate: RateClassRead, body: BodyNoBody},
 		"PATCH /v1/migrations/instagram/imports/{importId}":                    {rate: RateClassWrite, body: BodyDefaultJSON},
 		"DELETE /v1/migrations/instagram/imports/{importId}":                   {rate: RateClassWrite, body: BodyNoBody},
-		"GET /v1/migrations/instagram/suggestions":                             {rate: RateClassRead, body: BodyNoBody},
-		"POST /v1/migrations/instagram/suggestions/{suggestionId}/accept":      {rate: RateClassWrite, body: BodyNoBody},
-		"DELETE /v1/migrations/instagram/suggestions/{suggestionId}":           {rate: RateClassWrite, body: BodyNoBody},
 	}
 	for _, policy := range V1RoutePolicies(app.EnvProd, app.Config{Env: app.EnvProd}) {
 		key := policy.Method + " " + policy.PathPattern
+		if strings.Contains(policy.PathPattern, "/migrations/instagram/suggestions") {
+			t.Errorf("removed Instagram suggestion policy remains public: %s", key)
+		}
 		expected, ok := want[key]
 		if !ok {
 			continue

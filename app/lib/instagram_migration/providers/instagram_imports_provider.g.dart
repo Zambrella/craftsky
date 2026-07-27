@@ -50,7 +50,7 @@ final class InstagramImportsProvider
   }
 }
 
-String _$instagramImportsHash() => r'abc5dcd46dd3f6acf629fef0dd145bbffd982b91';
+String _$instagramImportsHash() => r'a44d98cc4b1c413e21891f06824290011ed79173';
 
 final class InstagramImportsFamily extends $Family
     with

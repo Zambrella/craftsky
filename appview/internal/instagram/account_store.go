@@ -139,16 +139,13 @@ func (s *AccountStore) UpdateSettings(ctx context.Context, owner syntax.DID, pat
 			UPDATE instagram_follow_suggestions
 			SET state = 'invalidated', accepting_since = NULL,
 			    terminal_at = COALESCE(terminal_at, $2), updated_at = $2
-			WHERE target_did = $1 AND state IN ('pending', 'accepting')
+			WHERE target_did = $1 AND state IN ('pending', 'writing')
 			RETURNING id
 		`, owner, now)
 		if err != nil {
 			return nil, fmt.Errorf("invalidate Instagram account suggestions: %w", err)
 		}
-		if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "linkDiscoveryDisabled", now); err != nil {
-			return nil, err
-		}
-		if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "eligibility_changed", now); err != nil {
+		if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "linkDiscoveryDisabled", now); err != nil {
 			return nil, err
 		}
 		if _, err := tx.Exec(ctx, `
@@ -254,7 +251,7 @@ func (s *AccountStore) RevokeAccount(ctx context.Context, owner syntax.DID) erro
 		UPDATE instagram_follow_suggestions
 		SET state = 'invalidated', accepting_since = NULL,
 		    terminal_at = COALESCE(terminal_at, $2), updated_at = $2
-		WHERE target_did = $1 AND state IN ('pending', 'accepting')
+		WHERE target_did = $1 AND state IN ('pending', 'writing')
 		RETURNING id
 	`, owner, now)
 	if err != nil {
@@ -266,15 +263,19 @@ func (s *AccountStore) RevokeAccount(ctx context.Context, owner syntax.DID) erro
 	`, owner); err != nil {
 		return fmt.Errorf("delete revoked Instagram imports: %w", err)
 	}
-	importerSuggestionIDs, err := invalidateUnsupportedSuggestions(ctx, tx, owner, now)
-	if err != nil {
-		return fmt.Errorf("invalidate suggestions from revoked Instagram imports: %w", err)
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM pds_follow_operations
+		WHERE owner_did=$1
+	`, owner); err != nil {
+		return fmt.Errorf("delete revoked Instagram follow operations: %w", err)
 	}
-	suggestionIDs = append(suggestionIDs, importerSuggestionIDs...)
-	if err := failUnsentFollowOperations(ctx, tx, suggestionIDs, "linkRevoked", now); err != nil {
-		return err
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM instagram_follow_suggestions
+		WHERE importer_did=$1
+	`, owner); err != nil {
+		return fmt.Errorf("delete revoked Instagram follow ledger: %w", err)
 	}
-	if err := retractSuggestionNotifications(ctx, tx, suggestionIDs, "", "link_revoked", now); err != nil {
+	if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "linkRevoked", now); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `

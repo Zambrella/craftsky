@@ -1,77 +1,113 @@
-# Document Review: Instagram DM Ownership Verification And Follow Discovery
+# Document Review: Instagram DM Ownership Verification And Automatic Following
 
 ## Verdict
 
-Status: Approved with notes  
-Reviewer: Codex workflow review plus independent re-review  
-Date: 2026-07-23
+Status: Approved with notes
+Reviewer: Codex workflow review
+Date: 2026-07-27
 Risk level: High
 
 ## Summary
 
-The requirements and acceptance tests remain approved after the verified-link
-lifetime simplification. The direct Meta integration, verified-only local
-archive parsing, explicit same-DID confirmation, public-by-default
-discoverability choice, exact safety-filtered suggestions, explicit PDS follow
-acceptance, unlink cleanup, and first-class actorless notification remain
-faithful to the approved design. Every Must requirement and all 48 acceptance
-criteria have automated coverage. Real Meta behavior and current export shapes
-remain correctly isolated as release gates rather than implementation blockers.
+The revised requirements and acceptance-test specification are ready for
+coding-plan work. They consistently replace the member-facing suggestion flow
+with a durable AppView automatic-follow pipeline, actorful per-target
+notifications, and verification-lifetime manual-unfollow suppression. The UI,
+API, privacy, lifecycle, multi-account, and failure contracts are explicit and
+testable.
 
-The initial review found thirteen issues. Requirements and tests were revised,
-then independently re-reviewed. A narrow second pass found four additional
-contract seams; those were also resolved and re-reviewed as approved.
+All 55 Must requirements link to acceptance criteria and automated or justified
+manual coverage. All 56 acceptance criteria have concrete test coverage. The
+requirement matrix, test-ID sets, and cross-document references passed
+automated completeness and continuity audits.
 
-## Initial Findings And Resolutions
+No substantive requirement or test-design change is required. The notes below
+record workflow metadata and stale downstream-artifact risks that the coding
+plan must handle.
 
-| ID | Severity | Area | Resolution |
-|---|---|---|---|
-| DR-001 | Critical | Tests / Privacy | `AC-039`, `UT-015`, and test data now permit controlled wholly synthetic or explicitly approved redacted inputs while prohibiting real/user-derived fixtures and leakage outside intended private fields. |
-| DR-002 | Critical | Permissions / Membership | `FR-030` and `AC-048` define one current-member guard for every authenticated route and worker transition, with `404 profile_not_found` and reversible inactivation. |
-| DR-003 | Critical | Safety / Matching | `InstagramSuggestionEligibilityPolicy` explicitly covers membership, active/current verified link, discovery, exact imported username, self/follow, hide/takedown, blocks both ways, importer mute, fail-closed unavailable safety data, and final pre-PDS revalidation. The later following-only simplification removes direction from the trusted data model. |
-| DR-004 | Critical | Data lifecycle | Reversible membership loss, explicit link/import deletion, terminal identity deletion, and future whole-account deletion are distinct. Instagram owner rows do not broadly cascade from `craftsky_profiles`. |
-| DR-005 | Critical | API / State | §12.1 fixes public states, transitions, request/response bodies, status/error codes, pagination, idempotent results, conflict/unavailable shapes, and shared Go/Flutter golden contracts. |
-| DR-006 | Important | Webhook / Privacy | §12.2 defines the exact minimal durable work item and explicitly excludes raw body, message text, plaintext challenge, signature, and unrelated payload data. |
-| DR-007 | Important | Availability / Imports | Meta outage affects only new verification/profile/reply work. Verified-link imports are additive, listable, inspectable, independently deletable, retained without expiry, and multi-source suggestions preserve remaining support. |
-| DR-008 | Important | Limits / Retention | §12.4 and §15 define fixed production maxima, rate/worker/provider boundaries, shared enforcement, trusted proxy behavior, and retention for every private record class. |
-| DR-009 | Important | Notifications | §12.3 defines type as the sole discriminator, exact actorless `instagramMatch` JSON without a redundant `kind`, category-derived database payload constraints, fixed five-minute coalescing, count cap, newness, triggers, retraction, and one-push behavior. |
-| DR-010 | Important | Challenge | The design and requirements use a 30-symbol alphabet, 13 random symbols, approximately 63.8 bits, canonical grouping, exact-message grammar, and ASCII-case/outer-whitespace normalization. |
-| DR-011 | Important | Traceability | Business requirements link all relevant criteria; automated audit confirms every Must row and `AC-001` through `AC-048` are covered. |
-| DR-012 | Suggestion | Consistency | All confirmation language consistently uses the same authenticated DID, not the same session token/device. |
-| DR-013 | Suggestion | Test order | Fail-closed config/shared limits and migration seams precede dependent routes; Go and Flutter share a synthetic golden wire corpus. |
+## Findings
 
-## Re-review Findings And Resolutions
+| ID | Severity | Area | Finding | References | Required Action |
+|---|---|---|---|---|---|
+| DR-014 | Suggestion | Requirements / Approval | The requirements review metadata still says `Draft` and `Awaiting user approval`, although the user explicitly approved the revised requirements before acceptance-test design. This is an administrative mismatch rather than missing approval. | `01-requirements.md` §22; user approval on 2026-07-27 | Treat the recorded user approval as authoritative. If earlier documents are revised later, update §22 without changing requirement or acceptance-criterion IDs. |
+| DR-015 | Important | Coding-plan readiness | The existing `04-coding-plan.md` predates the 2026-07-27 revision and still directs implementation of suggestion list/accept/dismiss routes, explicit acceptance, actorless digest/count notifications, five-minute coalescing, and People You May Know UI. It is unsafe to use as an implementation plan. | `04-coding-plan.md` §§2–12; `FR-016`–`FR-026`, `FR-032`, `RULE-012`; `IT-008`–`IT-025` | The next `write-coding-plan` stage must revise the existing plan comprehensively from current `01-requirements.md` and `02-acceptance-tests.md` before implementation begins. Preserve useful completed baseline context but remove every superseded suggestion/digest instruction. |
+| DR-016 | Suggestion | Planning provenance | No `00-initial-prompt.md` exists, and the older `design-plan.md` describes the superseded reviewable-suggestion direction. The revised request and decision history are embedded in requirements Q9 and the 2026-07-27 follow-on section. | `01-requirements.md` §§1, 3 Q9, 5, 10–12; `design-plan.md` | Treat the current requirements and tests as authoritative over older planning sketches. Do not infer product behavior from the old design plan where it conflicts. |
 
-| ID | Severity | Area | Resolution |
-|---|---|---|---|
-| RR-001 | Critical | Membership restoration | Import-only members can explicitly reactivate each paused `membershipInactive` import after rejoin through PATCH. Link and import reactivation remain separate and never silently restore discovery. |
-| RR-002 | Critical | DELETE semantics | Attempt, account, import, and suggestion DELETE operations always return privacy-preserving `204` for owned, foreign, absent, or purged identifiers and mutate only caller-owned state, satisfying permanent idempotence without an existence oracle. |
-| RR-003 | Critical | Webhook backpressure | Trusted-IP and post-signature global ingress excess return generic `429` plus bounded `Retry-After` with no partial persistence; per-IGSID invalid excess is terminally deduplicated/cleared and acknowledged `200` without lookup; worker pressure defers durable work with `200`. |
-| RR-004 | Important | Verified-link import lifetime | Import creation requires an active verified link; matched and unmatched following handles remain without renewal until per-import deletion or unlink; unlink deletes owner imports and unfinished dependent state. Retention/direction/follower fields are no longer accepted or stored. |
+## Traceability Review
 
-## Traceability And Coverage
+- Planning to requirements: The confirmed durable automatic-follow
+  recommendation, actorful notification behavior, manual-unfollow suppression,
+  UI terminology/placement/theme changes, removed suggestion surface, and
+  default export option are all represented in goals, requirements, non-goals,
+  risks, and lifecycle rules.
+- Requirements to acceptance criteria: All 58 requirement IDs are unique. All
+  55 Must requirements link to at least one criterion. Requirement-to-criterion
+  references are reciprocal and complete.
+- Acceptance criteria to tests: `AC-001` through `AC-056` are continuous and
+  covered. The specification defines 9 acceptance scenarios, 20 unit tests, 25
+  integration tests, 14 regression tests, and 5 justified manual checks.
+- Test IDs and targets: AT/UT/IT/REG/TD/MAN/GAP sets are monotonic with no gaps
+  or duplicates. Every coverage-matrix test reference resolves to a defined
+  test, and every referenced requirement ID exists.
 
-- Planning to requirements: Approved direction and privacy/product boundaries are preserved; no lexicon change is introduced.
-- Requirements to criteria: 50 Must rows each link to at least one criterion.
-- Criteria to tests: All 48 criterion IDs appear in the acceptance test specification.
-- Cross-language contract: `IT-021` and `TD-011` define shared synthetic Go/Flutter request, response, error, state, DELETE, pagination, and notification fixtures.
-- Regression posture: Existing social notifications, follows, membership/moderation boundaries, auth/device/body/error policies, observability, cancellation, and multi-account isolation are covered.
+## Coverage Review
+
+- Must requirements covered: 55 of 55.
+- Missing or weak coverage: None identified.
+- High-risk automated seams:
+  - exact-DID OAuth-session selection and narrow invalidation (`UT-019`,
+    `IT-024`);
+  - deterministic PDS write, crash recovery, and one notification (`IT-009`);
+  - manual-unfollow suppression and fresh-verification reset (`UT-020`,
+    `IT-025`, `REG-014`);
+  - removed suggestion API/client/UI surface (`IT-008`, `IT-014`, `IT-016`);
+  - actorful feed row and identity-free push (`UT-012`, `UT-014`, `IT-012`,
+    `IT-017`);
+  - verified terminology, green discovery, default export, and bottom
+    revocation (`IT-016`, `IT-023`).
+- Manual-only coverage: Live Meta capability/access/token/reply behavior,
+  additional real export compatibility, physical push/OS lifecycle, native
+  file-path/memory behavior, and final mobile accessibility. Each is
+  impractical to prove hermetically and is correctly retained as a
+  production/release gate rather than an implementation blocker.
 
 ## Risk And Approval Review
 
-- Risk remains high because the change links identities across networks and stores private social-graph data.
-- The user explicitly approved formalization and feasible implementation of the design.
-- Approval does not authorize commit, push, production enablement, Meta dashboard mutation, or real/user-derived fixture use.
-- Production/release gates remain: live unrelated-sender DM capability, Meta access/token/reply behavior, trusted edge/replica validation, approved current export-shape observation, device push lifecycle, and final accessibility/platform inspection.
+- Risk level: High. The feature performs background public PDS writes from
+  private cross-network evidence and must preserve account/session isolation.
+- Review requirement: Satisfied for requirements and test design by explicit
+  user approval plus this document review.
+- Approval notes: Approval covers coding-plan work. It does not authorize
+  commit, push, production enablement, Meta dashboard mutation, or use of real
+  or user-derived fixture data.
+- Production gates remain: Live unrelated-sender Meta verification,
+  access/token/reply validation, trusted edge/multi-replica enforcement,
+  additional consented export compatibility, physical push lifecycle, and
+  final mobile accessibility/memory inspection.
 
 ## Coding Plan Readiness
 
 - Ready for coding planning: Yes.
-- Blocking document issues: None.
-- Required implementation posture: strict TDD from `UT-001`, fail-closed Meta configuration, shared current-member and eligibility policies, private pgx persistence without profile cascades, stable deterministic PDS follow writes, fixed-account Flutter operations, and no production enablement before manual gates.
+- Recommended first step: Revise `04-coding-plan.md` around `UT-019`/`IT-024`
+  so exact owner-session selection exists before any background PDS write,
+  followed by `UT-020`/`IT-025` for manual-unfollow suppression.
+- Blocking issues: None for coding-plan work. Implementation must not start
+  from the stale existing coding plan; DR-015 must be resolved by the coding
+  planning stage itself.
 
 ## Notes For Next Stage
 
-- Keep `01-requirements.md` and `02-acceptance-tests.md` authoritative when a code-level choice differs from the older design-plan sketch.
-- The coding plan may choose concrete storage types and package/file grouping but must preserve the exact wire, state, lifecycle, privacy, limit, and retention contracts.
-- Current repository practice uses direct pgx stores and has no active sqlc configuration; following that local pattern is acceptable for this feature and should be recorded rather than bootstrapping unrelated repository-wide tooling.
+- Use `01-requirements.md` and `02-acceptance-tests.md` as the authoritative
+  inputs. Preserve stable requirement, acceptance-criterion, and test IDs.
+- Revise the existing coding plan rather than appending a contradictory
+  follow-on section.
+- Reuse the implemented private operation ledger where practical, but remove
+  every public suggestion route/model/provider/widget contract.
+- Design background OAuth-session selection as an exact owner-DID query with a
+  deterministic most-recent usable choice and narrow invalidation.
+- Separate these outcomes explicitly: pre-existing follow means
+  `alreadyFollowing` with no automatic-follow notification; deterministic
+  worker success means `followed` plus exactly one actorful notification;
+  temporary session/PDS failure remains retryable.
+- Preserve completed ZIP/parser/privacy work and the existing `instagramJson`
+  server contract.

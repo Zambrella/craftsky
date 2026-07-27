@@ -153,14 +153,12 @@ void main() {
     expect(futureOutcome.feedback, isNull);
   });
 
-  test('UT-012 infers actorless Instagram migration push destinations', () {
+  test('IT-017 infers identity-free Instagram pushes to notifications', () {
     final attempt = NotificationOpenAttempt.fromProviderData({
       'payloadVersion': '1',
       'type': 'instagramMatch',
       'accountSubscriptionId': 'subscription_Abc123',
       'notificationId': '00000000-0000-0000-0000-000000000321',
-      'count': '3',
-      'countCapped': 'false',
     });
 
     expect(attempt.facts, isA<ValidNotificationFacts>());
@@ -170,30 +168,8 @@ void main() {
     expect(facts.subjectUri, isNull);
     expect(
       NotificationDestinationInference.forFacts(facts).destination,
-      const InstagramMigrationDestination(),
+      const NotificationsDestination(),
     );
-
-    for (final invalid in [
-      {
-        ..._providerData(type: 'instagramMatch'),
-        'count': '0',
-        'countCapped': 'false',
-      },
-      {
-        ..._providerData(type: 'instagramMatch'),
-        'count': '3',
-        'countCapped': 'not-bool',
-      },
-      {
-        ..._providerData(type: 'instagramMatch'),
-        'count': '3',
-      },
-    ]) {
-      expect(
-        NotificationOpenAttempt.fromProviderData(invalid).facts,
-        isA<InvalidNotificationFacts>(),
-      );
-    }
   });
 }
 

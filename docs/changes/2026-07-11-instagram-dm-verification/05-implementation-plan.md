@@ -1,4 +1,4 @@
-# TDD Implementation Plan: Instagram DM Ownership Verification And Follow Discovery
+# TDD Implementation Plan: Instagram DM Ownership Verification And Automatic Following
 
 ## Inputs
 
@@ -7,7 +7,9 @@
 - Document review: `03-document-review.md` — Approved with notes
 - Coding plan: `04-coding-plan.md`
 - Original design: `design-plan.md`; superseded where `01`/`02` are more exact
-- Implementation approval: explicitly confirmed by the user on 2026-07-19
+- Automatic-follow revision approval: explicitly confirmed by the user on
+  2026-07-27 after approving requirements, acceptance tests, document review,
+  and the rewritten coding plan
 
 ## Implementation Rules
 
@@ -17,8 +19,9 @@
 - Keep parallel work in disjoint files and independently green packages.
 - Use only wholly synthetic/redacted Instagram inputs in source and tests.
 - Never contact Meta from automated tests; use fakes or `httptest.Server`.
-- Keep private graph data in AppView Postgres and write only explicitly accepted
-  ordinary follows to the PDS.
+- Keep private graph data in AppView Postgres. A verified member's import is the
+  approved informed authorization for exact eligible automatic ordinary
+  follows; no per-match acceptance surface remains.
 - Require current membership and the complete fail-closed eligibility policy at
   every boundary enumerated by the requirements.
 - Keep fixed-account Flutter operations fenced by `ActiveAccountLease` after
@@ -486,6 +489,518 @@ Execution evidence:
   `flutter analyze --fatal-infos`, full `flutter test`, Dart formatting, Go
   formatting, and `git diff --check` pass. The initially observed Tap reconnect
   timing failure passed five focused repetitions and the subsequent full gates.
+
+## Automatic Following Revision (2026-07-27)
+
+The approved revision removes the member-facing suggestion review flow.
+Creating an import authorizes durable AppView automatic follows for current and
+future exact eligible matches. One actorful `instagramMatch` notification is
+created only after each deterministic PDS follow succeeds. A manual unfollow
+suppresses re-follow for the current verification lifetime.
+
+Implementation rules specific to this revision:
+
+- The operation owner DID is the only authority for background OAuth selection.
+- Write a failing exact-owner selector test before wiring any background PDS
+  call.
+- Re-evaluate the shared eligibility policy immediately before every PDS write.
+- Keep deterministic operation rkeys and leased idempotent completion.
+- `alreadyFollowing` is terminal and creates no automatic-follow notification.
+- Retain followed/already-following suppression until verification revocation.
+- Remove suggestion API/model/provider/UI surfaces rather than replacing them
+  with client-visible worker progress.
+- Replace actorless grouped/count notifications with one actorful source-less
+  event per successful operation.
+- Keep provider push data identity-free and infer Notifications navigation in
+  Flutter.
+- Preserve verification, webhook, following-only JSON/ZIP parsing, import
+  privacy, current-membership, and account-lease behavior.
+
+### Test Order
+
+| Step | Test ID | Requirement IDs | Acceptance criteria | Expected initial state | Status |
+|---:|---|---|---|---|---|
+| A1 | UT-019 | FR-032 | AC-055 | No exact-owner background OAuth selector exists | Complete |
+| A2 | IT-024 | FR-017, FR-032, NFR-005 | AC-055 | No worker rotates only among the operation owner's sessions | Complete |
+| A3 | UT-020 | FR-017, FR-019, RULE-012 | AC-025, AC-056 | Existing suggestion/operation transitions do not express verification-lifetime suppression | Complete |
+| A4 | IT-025 | FR-017, FR-019, RULE-012 | AC-025, AC-056 | Reconciliation after manual unfollow has no explicit terminal-ledger regression | Complete |
+| A5 | IT-001 | FR-017, FR-020, NFR-005 | AC-015, AC-025, AC-029 | Schema still requires actorless grouped match notifications and request-time acceptance states | Complete |
+| A6 | IT-008 | FR-015, FR-016 | AC-020–AC-023 | Suggestion routes/services remain public | Complete |
+| A7 | IT-009 | FR-015, FR-017, NFR-005 | AC-024, AC-025, AC-029 | No leased worker performs deterministic owner-scoped follows and idempotent completion | Complete |
+| A8 | IT-010 | FR-018, FR-028, RULE-012 | AC-026–AC-028, AC-031, AC-044 | Revocation does not delete the completed suppression ledger | Complete |
+| A9 | IT-011 | FR-017, FR-019, FR-020 | AC-029–AC-031 | Reconciliation creates review/digest state rather than per-target automatic follow work | Complete |
+| A10 | IT-012 | FR-020–FR-022 | AC-034–AC-037 | AppView still persists/serves actorless system payloads | Complete |
+| A11 | IT-021 | FR-016, FR-020, FR-022 | AC-023, AC-034–AC-037 | Shared corpus still accepts suggestions and actorless match payloads | Complete |
+| A12 | IT-014 | FR-016, FR-025 | AC-023, AC-026 | Flutter repository/API still expose suggestion methods/models | Complete |
+| A13 | IT-015 | FR-024–FR-026, NFR-008 | AC-023–AC-026, AC-035, AC-042 | Account-scoped controllers still load suggestion review state | Complete |
+| A14 | IT-017 | FR-020–FR-023, FR-026 | AC-034–AC-038, AC-042 | Match is a system row that opens Instagram Settings | Complete |
+| A15 | IT-016 | FR-016, FR-023–FR-025 | AC-009, AC-023, AC-034, AC-038 | Old terminology/default/color/suggestion/revoke layout remains | Complete |
+| A16 | IT-023 | FR-025, FR-031 | AC-038, AC-050–AC-054 | Export privacy is implemented but default/input copy needs regression coverage | Complete |
+| A17 | AT-001–AT-009, REG-001–REG-014 | All linked Must requirements | AC-001–AC-056 | Broad verification is stale after the revision | Complete |
+
+### Step A1 — UT-019
+
+- Write failing test:
+  `appview/internal/auth/background_session_selector_test.go`.
+- Run command:
+  `cd appview && go test ./internal/auth -run TestBackgroundSessionSelector -count=1`.
+- Confirmed failure: the focused package failed to compile because
+  `NewBackgroundSessionSelector` and `ErrNoUsableBackgroundSession` did not
+  exist.
+- Implement: exact-DID active-session selection, deterministic activity order,
+  retryable absence, and narrow `(DID, sessionID)` invalidation.
+- Green evidence:
+  `go test ./internal/auth -run TestBackgroundSessionSelector -count=1` and
+  `go test ./internal/auth -count=1` pass.
+
+### Step A2 — IT-024
+
+- Write failing worker integration using Alice's multiple sessions plus a newer
+  Bob session before adding the background worker.
+- Run command:
+  `cd appview && go test ./internal/instagram ./internal/auth -run 'TestAutomaticFollowWorker.*Session|TestBackgroundSessionSelector' -count=1`.
+- Confirmed failure: the worker integration did not compile because automatic
+  operation, worker, and options types did not exist.
+- Implement only the selector/worker seam required to prove owner isolation and
+  retry behavior.
+- Green evidence:
+  `go test ./internal/instagram ./internal/auth -run
+  'TestAutomaticFollowWorker.*Session|TestBackgroundSessionSelector' -count=1`
+  passes. The real selector rotates from Alice's rejected newest session to
+  Alice's older valid session, deletes only the rejected composite key, never
+  observes Bob's newer session, and retries without a PDS call when Alice has
+  no usable session. Neighboring Instagram/auth/followwrite packages pass.
+
+### Step A3 — UT-020
+
+- Write failing test:
+  `appview/internal/instagram/automatic_follow_state_test.go`.
+- Run command:
+  `cd appview && go test ./internal/instagram -run TestAutomaticFollowState
+  -count=1`.
+- Confirmed failure: the package failed to compile because the automatic-follow
+  state type, state constants, transition validator, and suppression predicate
+  did not exist.
+- Implement: explicit `pending`, `writing`, `followed`, `alreadyFollowing`, and
+  `invalidated` states. Retry returns `writing` to `pending`; successful and
+  already-following results are terminal; invalidated work can be reconsidered
+  through a new pending transition.
+- Green evidence:
+  `go test ./internal/instagram -run TestAutomaticFollowState -count=1` and
+  `go test ./internal/instagram ./internal/auth ./internal/followwrite -count=1`
+  pass.
+
+### Step A4 — IT-025
+
+- Write failing Postgres integration:
+  `TestAutomaticFollowLedgerSuppressesReconciliationUntilVerificationRevocation`.
+- Run command:
+  `cd appview && go test ./internal/instagram -run
+  TestAutomaticFollowLedgerSuppressesReconciliationUntilVerificationRevocation
+  -count=1`.
+- Confirmed failure: the test did not compile because no private
+  automatic-follow store, reconciliation parameters/result, or
+  verification-ledger deletion operation existed.
+- Implement: a transactionally locked private pair ledger, additive import
+  support, stable operation creation, terminal followed/already-following
+  suppression, invalidated-work revival, and account-scoped ledger deletion.
+- Green evidence: the focused Postgres test passes after simulating a successful
+  follow, manual unfollow, repeated/same/different-import triggers, revocation,
+  and fresh authorization. Neighboring Instagram/auth/followwrite packages
+  pass.
+
+### Step A5 — IT-001
+
+- Extend the migration integration test with worker-state/lease indexes and the
+  actorful, source-less notification constraint.
+- Confirmed failure: migration 000030 lacked the lease-shape constraint,
+  owner/target and notification/operation uniqueness, grouping-table removal,
+  system-column removal, and actorful payload rules.
+- Implement: migrate the private ledger/operation states, add claim and expired
+  lease indexes plus lease-shape enforcement, remove actorless grouping storage,
+  and require one actorful source-less `instagramMatch` event per operation.
+- Green evidence:
+  `TEST_DATABASE_URL=... go test ./internal/db -run
+  TestInstagramAutomaticFollowMigrationEnforcesWorkerAndActorfulNotificationShape
+  -count=1` passes against the running local Postgres container.
+
+### Step A6 — IT-008
+
+- Change the route-policy test to reject every
+  `/v1/migrations/instagram/suggestions` policy.
+- Confirmed failure: all three list/accept/dismiss policies were still
+  registered.
+- Implement: unregister the routes and policies, remove the dependency/service
+  construction, and delete the HTTP handlers and member-facing suggestion
+  service/tests. Preserve verification/account/import routes.
+- Green evidence: the focused route-policy test passes; route, app, API, and
+  Instagram packages compile; a repository scan finds no removed suggestion
+  route, dependency, or service symbol.
+
+### Step A7 — IT-009
+
+- Add a real-Postgres leased-store test before implementing claim/completion.
+- Confirmed failure: `AutomaticFollowStore` had no claim/completion API and
+  there was no stale-lease error.
+- Implement: bounded `FOR UPDATE SKIP LOCKED` claims, expired-lease recovery,
+  opaque lease tokens, lease-fenced retry/invalidate/completion, stable rkeys,
+  and terminal ledger synchronization.
+- Green evidence: the focused real-Postgres tests prove one claimant, stale
+  completion rejection, deterministic replay suppression, and the worker's
+  complete path through the real leased store. Neighboring
+  Instagram/auth/followwrite packages pass.
+- Crash-recovery red: after a deterministic PDS write succeeded but before
+  database completion, retry classified the target as `alreadyFollowing` and
+  therefore omitted the required notification.
+- Crash-recovery green: `followwrite.Service` now verifies only the operation's
+  deterministic follow record on replay. A matching record completes the
+  operation as `followed` and creates exactly one notification; an unrelated
+  pre-existing follow remains `alreadyFollowing` and creates none.
+
+### Step A8 — IT-010
+
+- Add a migrated-schema revocation test with a completed operation and an
+  actorful historical notification.
+- Confirmed failure: imports were deleted but the completed private ledger and
+  operation remained.
+- Implement: revocation transactionally deletes the owner's imports, private
+  pair ledger, and operation rows. It leaves the successful PDS follow alone
+  and does not retract the historical actorful notification.
+- Green evidence: revised and legacy idempotent revocation tests pass against
+  local Postgres, including keyed cooldown tombstone/privacy assertions.
+
+### Step A9 — IT-011
+
+- Add migrated-schema tests for both initial-import and future targeted
+  reconciliation.
+- Confirmed failures: the reconciliation options had no private
+  automatic-follow store, and no automatic-follow matcher existed.
+- Implement: initial and future matching share the same policy checks and
+  transactionally deduplicate private owner/target operations with stable
+  rkeys. Reconciliation no longer creates notifications or review items before
+  a successful PDS write. Production dependency wiring uses these producers.
+- Green evidence: duplicate initial and future triggers create one pending
+  operation and zero `instagramMatch` events in real Postgres.
+
+### Step A10 — IT-012
+
+- Replace the grouped-notification tests with actorful per-operation tests
+  before changing production code.
+- Confirmed failures: activation had no actor/operation fields and the service,
+  API, dispatcher, and payload still depended on system counts/coalescing.
+- Implement: successful worker completion creates one actorful source-less event
+  in the same transaction; API hydration returns the actor/current follow
+  state; push fan-out is immediate and its provider payload contains only type,
+  opaque account binding, and notification ID. Preference disable still
+  cancels unsent delivery; history is not retracted.
+- Green evidence: notification service, worker completion, API/store, social
+  notification regression, dispatcher, and bounded identity-free payload tests
+  pass against local Postgres.
+
+### Steps A11–A16
+
+For each row, add or revise one focused test, record the meaningful failure,
+make the minimum production change, rerun the focused test and neighboring
+package tests, then update this section before advancing. The detailed targets,
+data flow, migration policy, provider graph, and guardrails in
+`04-coding-plan.md` are authoritative.
+
+### Step A11 — IT-021
+
+- Change the shared corpus first to remove suggestion routes/responses and
+  replace the grouped actorless match with an actorful, source-less item.
+- Confirmed failures: the Go public response test found
+  `initialSuggestionCount` and actorless-system assumptions; the Dart corpus
+  consumer rejected the smaller import response, looked up removed suggestion
+  fixtures, and decoded the match as `GenericSystemNotification`.
+- Implement: remove the public initial-suggestion count, update the Go
+  notification contract, remove suggestion fixtures/page/delete contracts,
+  and decode the actorful match in Dart without source-record identifiers.
+- Green evidence:
+  `go test ./internal/api -run 'TestInstagramWireCorpus|TestInstagramImportHandlers' -count=1`
+  and
+  `flutter test test/instagram_migration/data/instagram_wire_contract_test.dart`
+  pass against the same synthetic corpus.
+
+### Step A12 — IT-014
+
+- Change the Flutter API-client/repository contract tests before removing the
+  public suggestion methods and models.
+- Confirmed failure: the tests still expected list, accept, and dismiss
+  requests and imported the member-facing `InstagramSuggestion` model.
+- Implement: remove those methods, the suggestion model, and every associated
+  wire state while preserving verification and import contracts.
+- Green evidence: API-client, model-redaction, model-state, and shared-wire
+  tests pass; a repository scan finds no Flutter suggestion API/model surface.
+
+### Step A13 — IT-015
+
+- Remove suggestion-provider expectations from the fixed-account provider tests
+  before deleting the provider and account-boundary invalidation hook.
+- Confirmed failure: the provider graph still loaded and mutated suggestion
+  review state for each account.
+- Implement: delete the suggestion provider/generated output and retain only
+  fixed-account verification/import controllers with their existing
+  post-await `ActiveAccountLease` checks.
+- Green evidence: the Instagram provider suite and account-boundary suite pass,
+  including switch-away/back, late-result, disposal, and verification-resume
+  coverage.
+
+### Step A14 — IT-017
+
+- Replace the actorless settings-destination expectations with an actorful
+  notification-row test before changing the Dart notification subtype.
+- Confirmed failure: `instagramMatch` decoded as a generic system notification,
+  rendered no actor/profile, and opened Instagram Settings.
+- Implement: decode an actorful source-less match, render the normal profile
+  affordance and shared follow/unfollow control, open the actor profile from the
+  in-app row, and infer Notifications for the identity-free push payload.
+- Green evidence: actorful row/profile tests, destination inference, open-flow,
+  notification model, and notifications-provider tests pass.
+
+### Step A15 — IT-016
+
+- Update the page test first for verified terminology, success semantics,
+  removed suggestion card, and the destructive action's final position.
+- Confirmed failure: the page still described the account as linked, used the
+  old discovery color, rendered People You May Know, and placed revocation
+  above the import history.
+- Implement: use verified terminology, the themed semantic success color for
+  discoverability, remove People You May Know, and place the red
+  icon-and-label revoke action at the bottom behind its confirmation dialog.
+- Green evidence: the focused widget tests prove the bold verified handle,
+  semantic discovery switch, absence of suggestion UI, bottom revoke placement,
+  error styling, and cancel/confirm dialog behavior.
+
+### Step A16 — IT-023
+
+- Make the page test expect Instagram Export before changing the selector
+  default and explanatory copy.
+- Confirmed failure: manual entry was selected initially.
+- Implement: select Instagram Export by default while preserving native
+  path-to-isolate parsing, normalized-only repository input, and the manual
+  entry alternative.
+- Green evidence: the export/page/privacy tests pass and prove that JSON and ZIP
+  still submit only normalized usernames using `sourceType: instagramJson`.
+
+### Step A17 — AT-001–AT-009, REG-001–REG-014
+
+- Full verification on 2026-07-27:
+  - real-Postgres `go test ./... -count=1` passes;
+  - focused `go test -race` passes for Instagram, auth, follow writing,
+    notifications, API, and relationship packages;
+  - `go vet ./...` passes;
+  - all 1,096 Flutter tests pass;
+  - Dart MCP analysis and `flutter analyze` report no issues;
+  - `dart format`, `gofmt`, generated-code regeneration, and
+    `git diff --check` are clean.
+- Automated tests remain synthetic and make no Meta calls. The live Meta,
+  physical-device, production safety-adapter, trusted-edge, accessibility, and
+  final production privacy checks remain external release gates.
+
+### Automatic Following Completion Checklist
+
+- [x] UT-019 and IT-024 prove exact-owner background session selection
+- [x] UT-020 and IT-025 prove verification-lifetime manual-unfollow suppression
+- [x] Automatic worker writes one deterministic follow or `alreadyFollowing`
+- [x] Exactly one actorful notification is created after each successful write
+- [x] Push remains identity-free and account-correct
+- [x] Suggestion routes/models/providers/widgets are removed
+- [x] Instagram Export is default and People You May Know is absent
+- [x] Verified terminology, semantic moss discovery, and bottom revoke dialog pass
+- [x] Shared Go/Dart corpus matches the actorful contract
+- [x] Focused and broad Go/Flutter verification passes
+- [x] External MAN-001–MAN-005 release gates remain explicitly reported
+
+## Implementation Review Correction Pass (2026-07-27)
+
+The user selected **Address required changes** after the fresh implementation
+review. This pass addresses `IR-016`–`IR-020` without changing the approved
+product behavior or adding migrations.
+
+### Correction Test Order
+
+| Step | Test ID | Requirement IDs | Acceptance criteria | Expected initial state |
+|---:|---|---|---|---|
+| R1 | IT-017 | FR-026, NFR-008 | AC-025, AC-042 | A notification Follow/Following action can use the globally active account instead of the captured notification owner |
+| R2 | TD-012 | FR-017, FR-032, NFR-005 | AC-025, AC-055 | Automatic-follow batch/retry boundaries do not enforce 20/100, five attempts, or capped exponential backoff |
+| R3 | IT-020 | FR-028, FR-030 | AC-048 | Reconciliation and automatic-follow workers do not inactivate a departed owner |
+| R4 | IT-011 | FR-019 | AC-029, AC-056 | The restoration enqueuer is not called by successful safety-restoring production mutations |
+| R5 | IT-009 | FR-015, FR-017, FR-030, NFR-005 | AC-024, AC-025, AC-048 | Final-policy, failure, crash, and concurrent-worker coverage is incomplete |
+
+### Correction Execution Log
+
+#### R1 — IT-017
+
+- Write failing test: render an `instagramMatch` row owned by retained Bob
+  while Alice is active, tap Unfollow, and assert Alice's repository is not
+  called. Add a late Bob failure after switching to Alice and assert it cannot
+  roll back UI or emit an error under Alice.
+- Run command:
+  `flutter test test/notifications/instagram_match_notification_test.dart
+  test/notifications/notifications_page_test.dart`
+- Confirmed failure: the retained-owner test observed one call through Alice's
+  global repository.
+- Implement: pass the captured notification-owner lease into the shared
+  Follow/Following control; use the account-specific repository and recheck the
+  active lease before repository use, before mutation, after the await, and
+  before any error/final UI work.
+- Green evidence: 17 focused Instagram-match and shared notification-row widget
+  tests pass, including inactive-owner rejection and late-result fencing.
+
+#### R2 — TD-012
+
+- Write failing test: assert the production loop uses batch default 20 and
+  rejects 101; assert the store schedules claim attempt three at four seconds;
+  exercise exact/above lease/backoff/provider-attempt hard maxima and the
+  default/capped exponential retry function.
+- Run command: focused `go test` for the AppView command loop and Instagram
+  automatic-follow tests, with `TEST_DATABASE_URL` pointed at this worktree's
+  compose Postgres for store behavior.
+- Confirmed failure: the loop passed 100 instead of 20 and accepted 101; a real
+  leased attempt-three operation was scheduled at one second instead of four;
+  configurable store/worker limit types were absent.
+- Implement: centralize automatic-follow batch 20/100, 60-second lease,
+  five-provider-attempt, one-second initial backoff, and five-minute capped
+  backoff limits. The store now applies claim-attempt exponential retry timing,
+  rejects runtime values above hard maxima, and receives the validated AppView
+  configuration; the worker receives the configured provider-attempt limit.
+- Green evidence: focused command-loop, pure-boundary, real-Postgres store,
+  exact-owner session, and AppView dependency tests pass.
+
+#### R3 — IT-020
+
+- Write failing test: make the automatic worker claim a departed owner's
+  operation and assert full inactivation occurs before any PDS call; process a
+  real reconciliation job whose target has left `craftsky_profiles` and assert
+  its link becomes `membershipInactive`, the job is ignored, and no operation
+  is created.
+- Run command: focused automatic-worker unit tests plus real-Postgres
+  reconciliation integration tests.
+- Confirmed failure: neither worker options type accepted membership lookup or
+  inactivation dependencies.
+- Implement: both workers now check importer and target membership before
+  policy/external transitions, recheck a membership-denied policy decision,
+  invoke the shared private-data inactivator for the departed DID, and fail
+  closed into retry behavior when lookup/inactivation is unavailable.
+  Production dependency wiring supplies the shared membership store and
+  private-data service to both workers.
+- Green evidence: automatic departed-owner tests and the real-Postgres
+  departed-target reconciliation test pass; focused Instagram and dependency
+  packages remain green.
+
+#### R4 — IT-011
+
+- Write failing test: invoke successful relationship unmute/unblock mutations,
+  an account-level moderation safety negate, and expiry of an account-level
+  moderation safety output through their production services. Assert each path
+  enqueues the corresponding bounded reconciliation work rather than requiring
+  a direct trigger call.
+- Run command: focused real-Postgres tests across `internal/relationships`,
+  `internal/api`, `internal/instagram`, and production dependency construction.
+- Confirmed failure: the production relationship and moderation services had no
+  restoration dependency, while retention did not scan newly expired
+  account-level safety outputs; only direct `ReconciliationTrigger` calls were
+  covered.
+- Implement: inject one production `ReconciliationTrigger` into relationship
+  mutations, moderation output persistence, and retention. Successful
+  unmute/unblock enqueues both relationship directions; an eligible
+  hide/takedown negate enqueues target-wide work; retention transactionally
+  deduplicates newly expired hide/takedown outputs and enqueues target-wide
+  work. All paths retain bounded batches and safe retry/error propagation.
+- Green evidence: focused relationship restoration, moderation-negate,
+  moderation-expiry, retention invocation, trigger, and dependency tests pass
+  against the worktree Postgres.
+
+#### R5 — IT-009
+
+- Write failing test: exercise final block-both-directions, importer-mute,
+  hide/takedown, departed-member, transient PDS failure, five simultaneous
+  store claimants, externally pre-followed completion, and restart after an
+  expired post-PDS lease. Inspect durable operation and notification rows.
+- Run command: focused worker tests plus real-Postgres concurrent claim,
+  already-following, and crash-recovery integration tests.
+- Confirmed failure: the final-policy test initially failed to compile because
+  the worker fixture could not record invalidation or its safe reason. The
+  broader missing scenarios had no durable-row assertions, so the prior green
+  suite could not establish `IT-009` as written.
+- Implement: extend the test fixture to observe invalidation and add the full
+  final-policy/failure/race/restart matrix. No new worker behavior was required:
+  permanent final-policy exclusions invalidate before session/PDS work,
+  transient PDS failures release for retry, `SKIP LOCKED` yields one claim,
+  externally pre-followed work emits no match notification, and expired-lease
+  recovery completes the deterministic write with one actorful notification.
+- Green evidence: the focused `IT-009` matrix passes against the worktree
+  Postgres, including five concurrent claimants and exactly-one durable
+  crash-recovery notification.
+
+### Correction Broad Verification
+
+- Real-Postgres `go test ./... -count=1` passes across every AppView package.
+- Focused real-Postgres `go test -race` passes for Instagram, auth,
+  follow-writing, notifications, API, and relationship packages.
+- `go vet ./...`, `gofmt -l .`, and `git diff --check` are clean.
+- All 1,096 Flutter tests pass.
+- Dart MCP analysis and `flutter analyze` report no issues after removing the
+  two new unnecessary-null-check infos; `dart fix --dry-run` reports nothing to
+  fix.
+- `dart format lib test` changes no files, and build-runner regeneration
+  completes without a generated delta.
+- Automated verification remains synthetic. The existing live Meta,
+  physical-device, production safety-adapter, trusted-edge, accessibility, and
+  final production privacy gates remain external.
+
+## Second Implementation Review Correction Pass (2026-07-27)
+
+The user selected **Address required changes** after the second implementation
+review. This pass addresses only required finding `IR-022`; the non-blocking
+`IR-021`, `IR-023`, and `IR-024` suggestions remain deferred.
+
+### Correction Test Order
+
+| Step | Test ID | Requirement IDs | Acceptance criteria | Expected initial state |
+|---:|---|---|---|---|
+| S1 | IT-020 | FR-028, FR-030 | AC-048 | A departed import-job owner with zero matching candidates is never checked and its import remains active |
+
+### Correction Execution Log
+
+#### S1 — IT-020
+
+- Write failing real-Postgres test: queue an import-scoped reconciliation job
+  for a departed owner whose active retained handle has no matching verified
+  link. Assert the shared inactivator changes the import to
+  `membershipInactive`, the job terminates as ignored, and no PDS follow
+  operation is created.
+- Run command:
+  `go test -v ./internal/instagram -run
+  '^TestReconciliationWorkerInactivatesDepartedOwnerWithoutCandidates$'
+  -count=1` with `TEST_DATABASE_URL` pointed at this worktree's Compose
+  Postgres.
+- Confirmed failure: the job became `ignored` and created no operation, but the
+  departed owner's import remained `active` because candidate loading returned
+  zero rows before any membership check.
+- Implement: check the reconciliation job owner through the shared membership
+  boundary before candidate loading. Confirmed departure invokes the shared
+  private-data inactivator and stops processing; lookup or inactivation errors
+  return through the existing bounded retry path. Candidate importer/target
+  checks now reuse the same helper.
+- Green evidence: the zero-candidate departed-owner test passes. The retained
+  existing-candidate departed-target control also passes, and explicit
+  membership-lookup and membership-inactivation failures each persist the job
+  as `retryable` with attempt one, no lease, and the expected one-second next
+  attempt.
+
+### Second Correction Verification
+
+- Focused real-Postgres departed-owner, departed-target, lookup-failure, and
+  inactivation-failure reconciliation tests pass.
+- Real-Postgres `go test ./internal/instagram -count=1` and
+  `go test ./... -count=1` pass.
+- Real-Postgres `go test -race ./internal/instagram -count=1` passes.
+- `go vet ./...`, focused `gofmt -l`, and `git diff --check` are clean.
+- No Flutter or API contract code changed in this correction. The 17 focused
+  notification tests and all 1,096 Flutter tests still pass, and
+  `flutter analyze` reports no issues.
 
 ## Completion Checklist
 

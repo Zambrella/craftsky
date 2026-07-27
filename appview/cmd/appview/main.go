@@ -28,10 +28,12 @@ import (
 )
 
 const (
-	instagramWebhookPollInterval        = 500 * time.Millisecond
-	instagramReconciliationPollInterval = 500 * time.Millisecond
-	instagramReconciliationBatchSize    = 100
-	instagramRetentionInterval          = time.Hour
+	instagramWebhookPollInterval         = 500 * time.Millisecond
+	instagramReconciliationPollInterval  = 500 * time.Millisecond
+	instagramReconciliationBatchSize     = 100
+	instagramAutomaticFollowPollInterval = 500 * time.Millisecond
+	instagramAutomaticFollowBatchSize    = instagram.AutomaticFollowBatchDefault
+	instagramRetentionInterval           = time.Hour
 )
 
 type instagramWebhookBatchProcessor interface {
@@ -160,6 +162,21 @@ func run(ctx context.Context, args []string) error {
 	} else {
 		close(instagramReconciliationDone)
 	}
+	instagramAutomaticFollowDone := make(chan struct{})
+	if deps.InstagramAutomaticFollow != nil {
+		go func() {
+			defer close(instagramAutomaticFollowDone)
+			runInstagramAutomaticFollowWorker(
+				consumerCtx,
+				deps.InstagramAutomaticFollow,
+				deps.Logger,
+				instagramAutomaticFollowBatchSize,
+				instagramAutomaticFollowPollInterval,
+			)
+		}()
+	} else {
+		close(instagramAutomaticFollowDone)
+	}
 	instagramRetentionDone := make(chan struct{})
 	if deps.InstagramRetention != nil {
 		batchSize := deps.Config.InstagramLimits.OperatorBatchMax
@@ -226,6 +243,7 @@ func run(ctx context.Context, args []string) error {
 	<-pushDone
 	<-instagramWorkersDone
 	<-instagramReconciliationDone
+	<-instagramAutomaticFollowDone
 	<-instagramRetentionDone
 	deps.Logger.Info("shutdown: tap consumer stopped")
 	// Drain the listener goroutine's final send.
@@ -283,6 +301,43 @@ func runInstagramReconciliationWorker(
 			logger.Error("Instagram reconciliation worker batch failed",
 				slog.String("component", "instagram_reconciliation"),
 				slog.String("operation", "instagram.reconciliation.process"),
+				slog.String("result", "error"),
+				slog.String("error_category", "worker"))
+		}
+		if err == nil && processed > 0 {
+			continue
+		}
+		timer := time.NewTimer(pollInterval)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return
+		case <-timer.C:
+		}
+	}
+}
+
+func runInstagramAutomaticFollowWorker(
+	ctx context.Context,
+	worker instagramReconciliationBatchProcessor,
+	logger *slog.Logger,
+	batchSize int,
+	pollInterval time.Duration,
+) {
+	if worker == nil || batchSize < 1 || batchSize > instagram.AutomaticFollowBatchMax || pollInterval <= 0 {
+		return
+	}
+	for {
+		processed, err := worker.ProcessBatch(ctx, batchSize)
+		if ctx.Err() != nil {
+			return
+		}
+		if err != nil && logger != nil {
+			logger.Error("Instagram automatic-follow worker batch failed",
+				slog.String("component", "instagram_automatic_follow"),
+				slog.String("operation", "instagram.automatic_follow.process"),
 				slog.String("result", "error"),
 				slog.String("error_category", "worker"))
 		}

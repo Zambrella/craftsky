@@ -19,6 +19,7 @@ import (
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/db"
+	"social.craftsky/appview/internal/followwrite"
 	"social.craftsky/appview/internal/index"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/integrations/instagrammeta"
@@ -63,19 +64,18 @@ type Deps struct {
 	// Instagram migration is private AppView data. Verification can remain
 	// disabled while the membership/store dependencies continue to expose
 	// retained local state and privacy controls.
-	InstagramMembership              *instagram.MembershipStore
-	InstagramRateLimiter             *instagram.PostgresRateLimiter
-	InstagramVerification            *instagram.VerificationService
-	InstagramWebhook                 http.Handler
-	InstagramWebhookWorker           *instagram.WebhookWorker
-	InstagramPrivateData             *instagram.PrivateDataService
-	InstagramReconciliation          *instagram.ReconciliationWorker
-	InstagramRetention               *instagram.RetentionService
-	InstagramAccount                 *instagram.AccountStore
-	InstagramImports                 *instagram.ImportService
-	InstagramSuggestions             *instagram.SuggestionService
-	InstagramNotificationEligibility *instagram.NotificationEligibilityService
-	InstagramRestoration             instagram.EligibilityRestorationEnqueuer
+	InstagramMembership      *instagram.MembershipStore
+	InstagramRateLimiter     *instagram.PostgresRateLimiter
+	InstagramVerification    *instagram.VerificationService
+	InstagramWebhook         http.Handler
+	InstagramWebhookWorker   *instagram.WebhookWorker
+	InstagramPrivateData     *instagram.PrivateDataService
+	InstagramReconciliation  *instagram.ReconciliationWorker
+	InstagramAutomaticFollow *instagram.AutomaticFollowWorker
+	InstagramRetention       *instagram.RetentionService
+	InstagramAccount         *instagram.AccountStore
+	InstagramImports         *instagram.ImportService
+	InstagramRestoration     *instagram.ReconciliationTrigger
 
 	// ProfileStore serves the /v1/profiles endpoints.
 	ProfileStore *api.ProfileStore
@@ -194,25 +194,13 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	observer := observability.New(observability.Config{
 		Env: string(cfg.Env), Release: cfg.SentryRelease, LogsEnabled: cfg.SentryLogsEnabled, TracingEnabled: cfg.SentryTracingEnabled, TracesSampleRate: cfg.SentryTracesSampleRate, MetricsEnabled: cfg.SentryMetricsEnabled, TapTracingEnabled: cfg.SentryTapTracingEnabled, TapTracesSampleRate: cfg.SentryTapTracesSampleRate, SentryDSN: cfg.SentryDSN, Logger: logger,
 	})
-	lifecycle, err := notifications.NewServiceWithOptions(notifications.ServiceOptions{
-		InstagramCoalescingWindow: cfg.InstagramLimits.NotificationWindow,
-		InstagramCountCap:         cfg.InstagramLimits.NotificationCountCap,
-	}, observer)
-	if err != nil {
-		pool.Close()
-		return nil, nil, fmt.Errorf("Instagram notification limits: %w", err)
-	}
+	lifecycle := notifications.NewService(observer)
 	relationshipStore := relationships.NewStore(pool)
 	suggestionPolicy := instagram.NewPostgresInstagramSuggestionEligibilityPolicy(
 		pool,
 		instagramRelationshipSafetyProvider{store: relationshipStore},
 		time.Now,
 	)
-	instagramNotificationEligibility, err := instagram.NewNotificationEligibilityService(pool, suggestionPolicy, lifecycle)
-	if err != nil {
-		pool.Close()
-		return nil, nil, fmt.Errorf("Instagram notification eligibility: %w", err)
-	}
 	instagramMembership := instagram.NewMembershipStore(pool)
 	var instagramRateLimiter *instagram.PostgresRateLimiter
 	if cfg.InstagramData.Available() {
@@ -242,27 +230,31 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		notificationActorDeletion,
 		instagramPrivateData,
 	}}
+	instagramRestoration := instagram.NewReconciliationTrigger(pool, time.Now)
 
 	deps := &Deps{
-		Config:                           cfg,
-		Logger:                           logger,
-		DB:                               pool,
-		RateLimiter:                      rateLimiter,
-		Observability:                    observer,
-		OAuthApp:                         oauthApp,
-		OAuthStore:                       oauthStore,
-		CraftskySessionStore:             craftskyStore,
-		RepositoryTracker:                repositoryTracker,
-		HandleResolver:                   api.DirectoryHandleResolver{Directory: identityDir},
-		Indexer:                          dispatcher,
-		Consumer:                         tap.NotImplemented{}, // temp, replaced below
-		RelationshipStore:                relationshipStore,
-		InstagramMembership:              instagramMembership,
-		InstagramRateLimiter:             instagramRateLimiter,
-		InstagramPrivateData:             instagramPrivateData,
-		InstagramRetention:               instagram.NewRetentionService(pool, time.Now),
-		InstagramNotificationEligibility: instagramNotificationEligibility,
-		InstagramRestoration:             instagram.NewReconciliationTrigger(pool, time.Now),
+		Config:               cfg,
+		Logger:               logger,
+		DB:                   pool,
+		RateLimiter:          rateLimiter,
+		Observability:        observer,
+		OAuthApp:             oauthApp,
+		OAuthStore:           oauthStore,
+		CraftskySessionStore: craftskyStore,
+		RepositoryTracker:    repositoryTracker,
+		HandleResolver:       api.DirectoryHandleResolver{Directory: identityDir},
+		Indexer:              dispatcher,
+		Consumer:             tap.NotImplemented{}, // temp, replaced below
+		RelationshipStore:    relationshipStore,
+		InstagramMembership:  instagramMembership,
+		InstagramRateLimiter: instagramRateLimiter,
+		InstagramPrivateData: instagramPrivateData,
+		InstagramRetention: instagram.NewRetentionService(
+			pool,
+			time.Now,
+			instagramRestoration,
+		),
+		InstagramRestoration: instagramRestoration,
 	}
 	if cfg.PushEnabled {
 		sender, err := push.NewFirebaseSender(ctx, cfg.FirebaseProjectID)
@@ -273,7 +265,6 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		deps.PushDispatcher = push.NewDispatcher(pool, sender, push.DispatcherOptions{
 			BatchSize: cfg.PushBatchSize, LeaseDuration: cfg.PushLeaseDuration,
 			SendTimeout: cfg.PushSendTimeout, Observer: observer,
-			InstagramEligibility: instagramNotificationEligibility,
 		})
 	}
 
@@ -418,10 +409,22 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 			return nil, nil, fmt.Errorf("Instagram webhook worker: %w", err)
 		}
 	}
-	suggestionStore := instagram.NewSuggestionStore(pool, lifecycle)
+	automaticFollowStore, err := instagram.NewAutomaticFollowStoreWithOptions(
+		pool,
+		instagram.AutomaticFollowStoreOptions{
+			LeaseDuration:  cfg.InstagramLimits.WorkerLeaseDuration,
+			InitialBackoff: cfg.InstagramLimits.WorkerBackoffInitial,
+			MaxBackoff:     cfg.InstagramLimits.WorkerBackoffMax,
+		},
+		lifecycle,
+	)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("Instagram automatic-follow store: %w", err)
+	}
 	deps.InstagramImports, err = instagram.NewImportService(instagram.ImportServiceOptions{
 		Repository:      instagram.NewImportStore(pool),
-		Matcher:         instagram.NewSuggestionMatcher(pool, suggestionStore, suggestionPolicy, time.Now),
+		Matcher:         instagram.NewAutomaticFollowMatcher(pool, automaticFollowStore, suggestionPolicy, time.Now),
 		MaxEntries:      cfg.InstagramLimits.ImportMaxEntries,
 		DefaultPageSize: cfg.InstagramLimits.PageDefault,
 		MaxPageSize:     cfg.InstagramLimits.PageMax,
@@ -432,33 +435,27 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	}
 	deps.InstagramAccount = instagram.NewAccountStore(pool, time.Now)
 	deps.InstagramReconciliation, err = instagram.NewReconciliationWorker(instagram.ReconciliationWorkerOptions{
-		Pool:          pool,
-		Store:         suggestionStore,
-		Policy:        suggestionPolicy,
-		Notifications: lifecycle,
-		Now:           time.Now,
-		LeaseDuration: cfg.InstagramLimits.WorkerLeaseDuration,
-		MaxAttempts:   cfg.InstagramLimits.WorkerMaxAttempts,
+		Pool:                  pool,
+		AutomaticFollows:      automaticFollowStore,
+		Policy:                suggestionPolicy,
+		Membership:            instagramMembership,
+		MembershipInactivator: instagramPrivateData,
+		Now:                   time.Now,
+		LeaseDuration:         cfg.InstagramLimits.WorkerLeaseDuration,
+		MaxAttempts:           cfg.InstagramLimits.WorkerMaxAttempts,
 	})
 	if err != nil {
 		pool.Close()
 		return nil, nil, fmt.Errorf("Instagram reconciliation worker: %w", err)
 	}
-	deps.InstagramSuggestions, err = instagram.NewSuggestionService(instagram.SuggestionServiceOptions{
-		Repository:      suggestionStore,
-		Policy:          suggestionPolicy,
-		DefaultPageSize: cfg.InstagramLimits.PageDefault,
-		MaxPageSize:     cfg.InstagramLimits.PageMax,
-	})
-	if err != nil {
-		pool.Close()
-		return nil, nil, fmt.Errorf("Instagram suggestion service: %w", err)
-	}
 	deps.IdentityCacheUpdater = api.NewIdentityCacheService(pool, deps.HandleResolver, time.Now)
 	deps.FollowStore = api.NewFollowStore(pool)
 	deps.ReportStore = api.NewReportStore(pool)
 	deps.ReportForwarder = api.NewPlaceholderReportForwarder(time.Now)
-	deps.ModerationStore = api.NewModerationStore(pool)
+	deps.ModerationStore = api.NewModerationStore(
+		pool,
+		deps.InstagramRestoration,
+	)
 	deps.NewPDSClient = deps.Observability.WrapPDSFactory(func(ctx context.Context, did syntax.DID, sid string) (auth.PDSClient, error) {
 		sess, err := oauthApp.ResumeSession(ctx, did, sid)
 		if err != nil {
@@ -475,7 +472,30 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 			},
 		}, nil
 	})
-	deps.RelationshipMutations = relationships.NewMutationService(deps.RelationshipStore, deps.NewPDSClient, time.Now, deps.Observability)
+	deps.InstagramAutomaticFollow, err = instagram.NewAutomaticFollowWorker(
+		instagram.AutomaticFollowWorkerOptions{
+			Store:                 automaticFollowStore,
+			Policy:                suggestionPolicy,
+			Sessions:              auth.NewBackgroundSessionSelector(pool),
+			Writer:                followwrite.NewService(deps.NewPDSClient),
+			Membership:            instagramMembership,
+			MembershipInactivator: instagramPrivateData,
+			Now:                   time.Now,
+
+			MaxProviderAttempts: cfg.InstagramLimits.WorkerMaxAttempts,
+		},
+	)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("Instagram automatic-follow worker: %w", err)
+	}
+	deps.RelationshipMutations = relationships.NewMutationServiceWithRestoration(
+		deps.RelationshipStore,
+		deps.NewPDSClient,
+		time.Now,
+		deps.InstagramRestoration,
+		deps.Observability,
+	)
 
 	var once sync.Once
 	cleanup := func() {

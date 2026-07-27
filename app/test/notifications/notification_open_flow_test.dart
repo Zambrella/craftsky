@@ -152,7 +152,7 @@ void main() {
 
       expect(operations, ['activate:did:plc:bob']);
       expect(registry.activeDid?.value, 'did:plc:bob');
-      expect(effect.outcome.destination, const InstagramMigrationDestination());
+      expect(effect.outcome.destination, const NotificationsDestination());
     },
   );
 }
@@ -197,8 +197,6 @@ NotificationOpenAttempt _instagramAttempt(String? binding) =>
       'type': 'instagramMatch',
       'accountSubscriptionId': ?binding,
       'notificationId': '00000000-0000-0000-0000-000000000321',
-      'count': '3',
-      'countCapped': 'false',
     });
 
 NotificationRuntime _runtime({

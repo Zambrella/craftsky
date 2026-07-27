@@ -1,6 +1,5 @@
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
-import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -61,28 +60,6 @@ void main() {
     expect(
       InstagramImportState.fromWire('future'),
       InstagramImportState.unknown,
-    );
-
-    expect(
-      [
-        'pending',
-        'accepting',
-        'accepted',
-        'alreadyFollowing',
-        'dismissed',
-        'invalidated',
-      ].map(InstagramSuggestionState.fromWire).toSet(),
-      InstagramSuggestionState.values
-          .where((state) => state != InstagramSuggestionState.unknown)
-          .toSet(),
-    );
-    expect(
-      InstagramSuggestionState.fromWire('future'),
-      InstagramSuggestionState.unknown,
-    );
-    expect(
-      InstagramSuggestionReason.fromWire('future'),
-      InstagramSuggestionReason.unknown,
     );
   });
 }

@@ -37,9 +37,8 @@ type instagramImportCountsResponse struct {
 }
 
 type instagramImportCreateResponse struct {
-	Import                 instagramImportResponse       `json:"import"`
-	Counts                 instagramImportCountsResponse `json:"counts"`
-	InitialSuggestionCount int                           `json:"initialSuggestionCount"`
+	Import instagramImportResponse       `json:"import"`
+	Counts instagramImportCountsResponse `json:"counts"`
 }
 
 type instagramImportPageResponse struct {
@@ -73,7 +72,6 @@ func CreateInstagramImportHandler(service InstagramImportService, logger *slog.L
 			Counts: instagramImportCountsResponse{
 				FollowingCount: created.Counts.Following,
 			},
-			InitialSuggestionCount: created.InitialSuggestionCount,
 		})
 	})
 }

@@ -180,9 +180,11 @@ InstagramMatchNotification _instagramMatch() =>
     CraftskyNotification.fromMap({
           'id': 'instagram-match',
           'type': 'instagramMatch',
-          'system': {
-            'count': 1,
-            'countCapped': false,
+          'actor': {
+            'available': true,
+            'did': 'did:plc:instagram-match',
+            'handle': 'instagram-match.test',
+            'viewerIsFollowing': true,
           },
           'createdAt': '2026-05-28T13:00:00Z',
           'indexedAt': '2026-05-28T13:00:01Z',

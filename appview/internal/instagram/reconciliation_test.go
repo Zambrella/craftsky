@@ -10,72 +10,97 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/testdb"
 )
 
-func TestReconciliationCreatesOneFixedFiveMinuteDigestForFutureMatches(t *testing.T) {
+func TestAutomaticFollowLedgerSuppressesReconciliationUntilVerificationRevocation(t *testing.T) {
 	pool := newReconciliationTestPool(t)
 	ctx := context.Background()
-	base := time.Date(2026, 7, 19, 22, 0, 0, 0, time.UTC)
-	now := base
-	importer := syntax.DID("did:plc:synthetic-reconciliation-importer")
-	firstTarget := syntax.DID("did:plc:synthetic-reconciliation-first")
-	secondTarget := syntax.DID("did:plc:synthetic-reconciliation-second")
-	firstImport := uuid.MustParse("00000000-0000-0000-0000-000000000901")
-	secondImport := uuid.MustParse("00000000-0000-0000-0000-000000000902")
-	seedSuggestionImport(t, pool, firstImport, importer, "synthetic.first", base)
-	seedSuggestionImport(t, pool, secondImport, importer, "synthetic.second", base)
-	seedSuggestionLink(t, pool, firstTarget, "synthetic.first", base)
-	seedSuggestionLink(t, pool, secondTarget, "synthetic.second", base)
+	now := time.Date(2026, 7, 27, 11, 0, 0, 0, time.UTC)
+	importer := syntax.DID("did:plc:synthetic-suppression-importer")
+	target := syntax.DID("did:plc:synthetic-suppression-target")
+	firstImport := uuid.MustParse("00000000-0000-0000-0000-000000001001")
+	secondImport := uuid.MustParse("00000000-0000-0000-0000-000000001002")
+	firstOperation := uuid.MustParse("00000000-0000-0000-0000-000000001003")
+	newGenerationOperation := uuid.MustParse("00000000-0000-0000-0000-000000001004")
+	seedSuggestionImport(t, pool, firstImport, importer, "synthetic.suppression", now)
+	seedSuggestionImport(t, pool, secondImport, importer, "synthetic.suppression", now)
+	seedSuggestionLink(t, pool, target, "synthetic.suppression", now)
+	applyAutomaticFollowMigration(t, pool)
+
+	store := NewAutomaticFollowStore(pool)
+	first, err := store.ReconcileCandidate(ctx, ReconcileAutomaticFollowParams{
+		ID: firstOperation, ImporterDID: importer, TargetDID: target,
+		ImportID: firstImport, Username: "synthetic.suppression",
+		Rkey: "3lautomaticsuppress", Now: now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !first.Queued || first.Suppressed {
+		t.Fatalf("first reconciliation = %+v, want queued", first)
+	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO notification_preferences (
-			account_did, category, scope, push_enabled, created_at, updated_at
-		) VALUES ($1, 'instagramMatch', 'everyone', false, $2, $2)
-	`, importer, base); err != nil {
-		t.Fatalf("disable Instagram match push: %v", err)
+		UPDATE instagram_follow_suggestions
+		SET state='followed', terminal_at=$2, updated_at=$2
+		WHERE id=$1
+	`, first.Operation.ID, now.Add(time.Minute)); err != nil {
+		t.Fatalf("complete automatic follow: %v", err)
 	}
-	queueLinkReconciliation(t, pool, firstTarget, base)
-
-	service := notifications.NewService()
-	policy := newReconciliationPolicy()
-	worker := newReconciliationWorkerForTest(t, pool, service, policy, func() time.Time { return now })
-	if claimed, err := worker.ProcessBatch(ctx, 1); err != nil || claimed != 1 {
-		t.Fatalf("first batch claimed=%d err=%v", claimed, err)
-	}
-
-	now = base.Add(4 * time.Minute)
-	queueLinkReconciliation(t, pool, secondTarget, now)
-	if claimed, err := worker.ProcessBatch(ctx, 1); err != nil || claimed != 1 {
-		t.Fatalf("second batch claimed=%d err=%v", claimed, err)
+	if _, err := pool.Exec(ctx, `
+		UPDATE pds_follow_operations
+		SET status='followed', completed_at=$2, updated_at=$2
+		WHERE suggestion_id=$1
+	`, first.Operation.ID, now.Add(time.Minute)); err != nil {
+		t.Fatalf("complete PDS operation: %v", err)
 	}
 
-	var (
-		events        int
-		count         int
-		firstActivity time.Time
-		activity      time.Time
-		coalesceUntil time.Time
-		supports      int
-		pushEnabled   bool
-	)
+	for name, importID := range map[string]uuid.UUID{
+		"same import after manual unfollow":       firstImport,
+		"different supporting import":             secondImport,
+		"relationship restoration reconciliation": secondImport,
+	} {
+		t.Run(name, func(t *testing.T) {
+			reconciled, err := store.ReconcileCandidate(ctx, ReconcileAutomaticFollowParams{
+				ID: uuid.New(), ImporterDID: importer, TargetDID: target,
+				ImportID: importID, Username: "synthetic.suppression",
+				Rkey: "3lshouldnotreplace", Now: now.Add(2 * time.Minute),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if reconciled.Queued || !reconciled.Suppressed || reconciled.Operation.ID != first.Operation.ID {
+				t.Fatalf("reconciliation = %+v, want original terminal suppression", reconciled)
+			}
+		})
+	}
+
+	var operations int
 	if err := pool.QueryRow(ctx, `
-		SELECT count(*), min(system_count), min(first_activity_at),
-		       min(activity_at), min(coalesce_until),
-		       bool_or(push_enabled_snapshot)
-		FROM notification_events
-		WHERE recipient_did=$1 AND category='instagramMatch'
-	`, importer).Scan(&events, &count, &firstActivity, &activity, &coalesceUntil, &pushEnabled); err != nil {
+		SELECT count(*) FROM pds_follow_operations
+		WHERE owner_did=$1 AND target_did=$2
+	`, importer, target).Scan(&operations); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_notification_suggestions`).Scan(&supports); err != nil {
+	if operations != 1 {
+		t.Fatalf("operations=%d, want one terminal operation after repeated triggers", operations)
+	}
+
+	if err := store.DeleteVerificationLedger(ctx, importer); err != nil {
+		t.Fatalf("delete verification ledger: %v", err)
+	}
+	fresh, err := store.ReconcileCandidate(ctx, ReconcileAutomaticFollowParams{
+		ID: newGenerationOperation, ImporterDID: importer, TargetDID: target,
+		ImportID: secondImport, Username: "synthetic.suppression",
+		Rkey: "3lautomaticfresh", Now: now.Add(3 * time.Minute),
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if events != 1 || count != 2 || supports != 2 || pushEnabled || !firstActivity.Equal(base) || !activity.Equal(now) || !coalesceUntil.Equal(base.Add(5*time.Minute)) {
-		t.Fatalf("digest events=%d count=%d supports=%d push=%t first=%s activity=%s close=%s", events, count, supports, pushEnabled, firstActivity, activity, coalesceUntil)
+	if !fresh.Queued || fresh.Suppressed || fresh.Operation.ID != newGenerationOperation {
+		t.Fatalf("fresh reconciliation = %+v, want new authorization", fresh)
 	}
 }
 
@@ -91,7 +116,6 @@ func TestReconciliationLoadsImportAndTargetScopedCandidates(t *testing.T) {
 	worker := newReconciliationWorkerForTest(
 		t,
 		pool,
-		notifications.NewService(),
 		newReconciliationPolicy(),
 		func() time.Time { return now },
 	)
@@ -130,9 +154,9 @@ func TestInitialImportMatchingNeverCreatesInstagramMatchNotification(t *testing.
 	importID := uuid.MustParse("00000000-0000-0000-0000-000000000911")
 	seedSuggestionImport(t, pool, importID, importer, "synthetic.initial", now)
 	seedSuggestionLink(t, pool, target, "synthetic.initial", now)
-	service := notifications.NewService()
-	store := NewSuggestionStore(pool, service)
-	matcher := NewSuggestionMatcher(pool, store, newReconciliationPolicy(), func() time.Time { return now })
+	applyAutomaticFollowMigration(t, pool)
+	store := NewAutomaticFollowStore(pool)
+	matcher := NewAutomaticFollowMatcher(pool, store, newReconciliationPolicy(), func() time.Time { return now })
 	if created, err := matcher.MatchImport(ctx, importer, importID); err != nil || created != 1 {
 		t.Fatalf("initial match created=%d err=%v", created, err)
 	}
@@ -145,138 +169,6 @@ func TestInitialImportMatchingNeverCreatesInstagramMatchNotification(t *testing.
 	}
 	if suggestions != 1 || events != 0 {
 		t.Fatalf("initial suggestions=%d notification events=%d", suggestions, events)
-	}
-}
-
-func TestNotificationEligibilityBoundaryRetractsStaleSupportAtFeed(t *testing.T) {
-	pool := newReconciliationTestPool(t)
-	ctx := context.Background()
-	now := time.Date(2026, 7, 19, 22, 45, 0, 0, time.UTC)
-	importer := syntax.DID("did:plc:synthetic-boundary-importer")
-	target := syntax.DID("did:plc:synthetic-boundary-target")
-	importID := uuid.New()
-	seedSuggestionImport(t, pool, importID, importer, "synthetic.boundary", now)
-	seedSuggestionLink(t, pool, target, "synthetic.boundary", now)
-	queueLinkReconciliation(t, pool, target, now)
-
-	lifecycle := notifications.NewService()
-	policy := newReconciliationPolicy()
-	worker := newReconciliationWorkerForTest(t, pool, lifecycle, policy, func() time.Time { return now })
-	if claimed, err := worker.ProcessBatch(ctx, 1); err != nil || claimed != 1 {
-		t.Fatalf("create notification claimed=%d err=%v", claimed, err)
-	}
-	var notificationID uuid.UUID
-	if err := pool.QueryRow(ctx, `SELECT id FROM notification_events WHERE category='instagramMatch'`).Scan(&notificationID); err != nil {
-		t.Fatal(err)
-	}
-	boundary, err := NewNotificationEligibilityService(pool, policy, lifecycle)
-	if err != nil {
-		t.Fatal(err)
-	}
-	policy.deniedStage = EligibilityAtFeed
-	eligible, err := boundary.RevalidateNotification(ctx, notificationID, EligibilityAtFeed)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if eligible {
-		t.Fatal("stale feed support remained eligible")
-	}
-	var state string
-	var supports int
-	if err := pool.QueryRow(ctx, `SELECT state FROM notification_events WHERE id=$1`, notificationID).Scan(&state); err != nil {
-		t.Fatal(err)
-	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_notification_suggestions WHERE notification_id=$1`, notificationID).Scan(&supports); err != nil {
-		t.Fatal(err)
-	}
-	if state != "retracted" || supports != 0 {
-		t.Fatalf("notification state=%s supports=%d", state, supports)
-	}
-}
-
-func TestReconciliationDuplicateJobsAndConcurrentWorkersAreIdempotent(t *testing.T) {
-	pool := newReconciliationTestPool(t)
-	ctx := context.Background()
-	now := time.Date(2026, 7, 19, 23, 0, 0, 0, time.UTC)
-	importer := syntax.DID("did:plc:synthetic-concurrent-importer")
-	target := syntax.DID("did:plc:synthetic-concurrent-target")
-	importID := uuid.MustParse("00000000-0000-0000-0000-000000000921")
-	seedSuggestionImport(t, pool, importID, importer, "synthetic.concurrent", now)
-	seedSuggestionLink(t, pool, target, "synthetic.concurrent", now)
-	queueLinkReconciliation(t, pool, target, now)
-	queueLinkReconciliation(t, pool, target, now)
-
-	service := notifications.NewService()
-	worker := newReconciliationWorkerForTest(t, pool, service, newReconciliationPolicy(), func() time.Time { return now })
-	start := make(chan struct{})
-	results := make(chan error, 2)
-	for range 2 {
-		go func() {
-			<-start
-			claimed, err := worker.ProcessBatch(ctx, 1)
-			if err == nil && claimed != 1 {
-				err = errors.New("worker did not claim exactly one job")
-			}
-			results <- err
-		}()
-	}
-	close(start)
-	for range 2 {
-		if err := <-results; err != nil {
-			t.Fatalf("concurrent reconciliation: %v", err)
-		}
-	}
-
-	var suggestions, events, supports, completed int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_follow_suggestions`).Scan(&suggestions); err != nil {
-		t.Fatal(err)
-	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM notification_events WHERE category='instagramMatch'`).Scan(&events); err != nil {
-		t.Fatal(err)
-	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_notification_suggestions`).Scan(&supports); err != nil {
-		t.Fatal(err)
-	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_reconciliation_jobs WHERE status='completed'`).Scan(&completed); err != nil {
-		t.Fatal(err)
-	}
-	if suggestions != 1 || events != 1 || supports != 1 || completed != 2 {
-		t.Fatalf("suggestions=%d events=%d supports=%d completed=%d", suggestions, events, supports, completed)
-	}
-}
-
-func TestReconciliationFailsClosedAtNotificationPolicyBoundary(t *testing.T) {
-	pool := newReconciliationTestPool(t)
-	ctx := context.Background()
-	now := time.Date(2026, 7, 19, 23, 30, 0, 0, time.UTC)
-	importer := syntax.DID("did:plc:synthetic-policy-importer")
-	target := syntax.DID("did:plc:synthetic-policy-target")
-	importID := uuid.MustParse("00000000-0000-0000-0000-000000000931")
-	seedSuggestionImport(t, pool, importID, importer, "synthetic.policy", now)
-	seedSuggestionLink(t, pool, target, "synthetic.policy", now)
-	queueLinkReconciliation(t, pool, target, now)
-
-	policy := newReconciliationPolicy()
-	policy.deniedStage = EligibilityAtNotificationCreate
-	worker := newReconciliationWorkerForTest(t, pool, notifications.NewService(), policy, func() time.Time { return now })
-	if claimed, err := worker.ProcessBatch(ctx, 1); err != nil || claimed != 1 {
-		t.Fatalf("batch claimed=%d err=%v", claimed, err)
-	}
-	var suggestions, events, ignored int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_follow_suggestions`).Scan(&suggestions); err != nil {
-		t.Fatal(err)
-	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM notification_events`).Scan(&events); err != nil {
-		t.Fatal(err)
-	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_reconciliation_jobs WHERE status='ignored'`).Scan(&ignored); err != nil {
-		t.Fatal(err)
-	}
-	if suggestions != 0 || events != 0 || ignored != 1 {
-		t.Fatalf("suggestions=%d events=%d ignored=%d", suggestions, events, ignored)
-	}
-	if got := policy.stages(); len(got) != 3 || got[0] != EligibilityAtMatch || got[1] != EligibilityAtPersist || got[2] != EligibilityAtNotificationCreate {
-		t.Fatalf("policy stages=%v", got)
 	}
 }
 
@@ -293,7 +185,8 @@ func TestReconciliationPolicyErrorReleasesLeaseForBoundedRetry(t *testing.T) {
 
 	policy := newReconciliationPolicy()
 	policy.errorStage = EligibilityAtPersist
-	worker := newReconciliationWorkerForTest(t, pool, notifications.NewService(), policy, func() time.Time { return now })
+	applyAutomaticFollowMigration(t, pool)
+	worker := newReconciliationWorkerForTest(t, pool, policy, func() time.Time { return now })
 	if claimed, err := worker.ProcessBatch(ctx, 1); err == nil || claimed != 1 {
 		t.Fatalf("batch claimed=%d err=%v, want persisted retry error", claimed, err)
 	}
@@ -312,144 +205,236 @@ func TestReconciliationPolicyErrorReleasesLeaseForBoundedRetry(t *testing.T) {
 	}
 }
 
-func TestSuggestionDismissalRetractsReconciliationDigestAndCancelsPush(t *testing.T) {
+func TestReconciliationWorkerInactivatesDepartedTargetWithoutOperation(t *testing.T) {
 	pool := newReconciliationTestPool(t)
 	ctx := context.Background()
-	now := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
-	importer := syntax.DID("did:plc:synthetic-retraction-importer")
-	target := syntax.DID("did:plc:synthetic-retraction-target")
+	now := time.Date(2026, 7, 27, 16, 0, 0, 0, time.UTC)
+	importer := syntax.DID("did:plc:current-reconciliation-importer")
+	target := syntax.DID("did:plc:departed-reconciliation-target")
 	importID := uuid.MustParse("00000000-0000-0000-0000-000000000951")
-	seedSuggestionImport(t, pool, importID, importer, "synthetic.retraction", now)
-	seedSuggestionLink(t, pool, target, "synthetic.retraction", now)
-	seedReconciliationSubscription(t, pool, importer)
+	if _, err := pool.Exec(ctx, `
+		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY)
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_profiles (did) VALUES ($1)
+	`, importer); err != nil {
+		t.Fatal(err)
+	}
+	seedSuggestionImport(t, pool, importID, importer, "synthetic.departed", now)
+	seedSuggestionLink(t, pool, target, "synthetic.departed", now)
 	queueLinkReconciliation(t, pool, target, now)
+	applyAutomaticFollowMigration(t, pool)
 
-	service := notifications.NewService()
-	store := NewSuggestionStore(pool, service)
 	worker, err := NewReconciliationWorker(ReconciliationWorkerOptions{
-		Pool: pool, Store: store, Policy: newReconciliationPolicy(),
-		Notifications: service, Now: func() time.Time { return now },
+		Pool:             pool,
+		AutomaticFollows: NewAutomaticFollowStore(pool),
+		Policy:           newReconciliationPolicy(),
+		Membership:       NewMembershipStore(pool),
+		MembershipInactivator: NewPrivateDataService(
+			pool,
+			nil,
+			func() time.Time { return now },
+		),
+		Now: func() time.Time { return now },
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := worker.ProcessBatch(ctx, 1); err != nil {
+	if claimed, err := worker.ProcessBatch(ctx, 1); err != nil || claimed != 1 {
+		t.Fatalf("ProcessBatch claimed=%d err=%v", claimed, err)
+	}
+
+	var linkState, jobState string
+	if err := pool.QueryRow(ctx, `
+		SELECT state FROM instagram_account_links WHERE owner_did=$1
+	`, target).Scan(&linkState); err != nil {
 		t.Fatal(err)
 	}
-	var suggestionID uuid.UUID
-	if err := pool.QueryRow(ctx, `SELECT id FROM instagram_follow_suggestions`).Scan(&suggestionID); err != nil {
+	if err := pool.QueryRow(ctx, `
+		SELECT status FROM instagram_reconciliation_jobs
+	`).Scan(&jobState); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.DismissSuggestion(ctx, importer, suggestionID, now.Add(time.Minute)); err != nil {
+	var operations int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pds_follow_operations`).Scan(&operations); err != nil {
 		t.Fatal(err)
 	}
-	var suggestionState InstagramSuggestionState
-	var eventState, deliveryState string
-	var supports int
-	if err := pool.QueryRow(ctx, `SELECT state FROM instagram_follow_suggestions WHERE id=$1`, suggestionID).Scan(&suggestionState); err != nil {
-		t.Fatal(err)
-	}
-	if err := pool.QueryRow(ctx, `SELECT state FROM notification_events WHERE recipient_did=$1`, importer).Scan(&eventState); err != nil {
-		t.Fatal(err)
-	}
-	if err := pool.QueryRow(ctx, `SELECT status FROM push_deliveries`).Scan(&deliveryState); err != nil {
-		t.Fatal(err)
-	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM instagram_notification_suggestions`).Scan(&supports); err != nil {
-		t.Fatal(err)
-	}
-	if suggestionState != SuggestionDismissed || eventState != "retracted" || deliveryState != "cancelled" || supports != 0 {
-		t.Fatalf("suggestion=%s event=%s delivery=%s supports=%d", suggestionState, eventState, deliveryState, supports)
+	if linkState != string(LinkMembershipInactive) || jobState != "ignored" || operations != 0 {
+		t.Fatalf(
+			"link=%s job=%s operations=%d, want membershipInactive/ignored/0",
+			linkState,
+			jobState,
+			operations,
+		)
 	}
 }
 
-func TestSuggestionStoreRetractsEveryIndividualTerminalTransition(t *testing.T) {
-	for _, terminalState := range []InstagramSuggestionState{
-		SuggestionDismissed,
-		SuggestionInvalidated,
-		SuggestionAccepted,
-		SuggestionAlreadyFollowing,
+func TestReconciliationWorkerInactivatesDepartedOwnerWithoutCandidates(t *testing.T) {
+	pool := newReconciliationTestPool(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 27, 16, 30, 0, 0, time.UTC)
+	owner := syntax.DID("did:plc:departed-reconciliation-owner")
+	importID := uuid.MustParse("00000000-0000-0000-0000-000000000952")
+	if _, err := pool.Exec(ctx, `
+		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY)
+	`); err != nil {
+		t.Fatal(err)
+	}
+	seedSuggestionImport(t, pool, importID, owner, "synthetic.no.candidate", now)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_reconciliation_jobs (
+			id, owner_did, import_id, reason, status, next_attempt_at,
+			created_at, updated_at
+		) VALUES ($1,$2,$3,'syntheticDepartedOwnerNoCandidates','queued',$4,$4,$4)
+	`, uuid.New(), owner, importID, now); err != nil {
+		t.Fatal(err)
+	}
+	applyAutomaticFollowMigration(t, pool)
+
+	worker, err := NewReconciliationWorker(ReconciliationWorkerOptions{
+		Pool:             pool,
+		AutomaticFollows: NewAutomaticFollowStore(pool),
+		Policy:           newReconciliationPolicy(),
+		Membership:       NewMembershipStore(pool),
+		MembershipInactivator: NewPrivateDataService(
+			pool,
+			nil,
+			func() time.Time { return now },
+		),
+		Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimed, err := worker.ProcessBatch(ctx, 1); err != nil || claimed != 1 {
+		t.Fatalf("ProcessBatch claimed=%d err=%v", claimed, err)
+	}
+
+	var importState, jobState string
+	if err := pool.QueryRow(ctx, `
+		SELECT state FROM instagram_graph_imports WHERE id=$1
+	`, importID).Scan(&importState); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT status FROM instagram_reconciliation_jobs
+	`).Scan(&jobState); err != nil {
+		t.Fatal(err)
+	}
+	var operations int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pds_follow_operations`).Scan(&operations); err != nil {
+		t.Fatal(err)
+	}
+	if importState != string(ImportMembershipInactive) || jobState != "ignored" || operations != 0 {
+		t.Fatalf(
+			"import=%s job=%s operations=%d, want membershipInactive/ignored/0",
+			importState,
+			jobState,
+			operations,
+		)
+	}
+}
+
+func TestReconciliationWorkerRetriesJobOwnerMembershipFailures(t *testing.T) {
+	for _, test := range []struct {
+		name            string
+		membershipErr   error
+		inactivationErr error
+	}{
+		{
+			name:          "membership lookup",
+			membershipErr: errors.New("synthetic membership lookup failure"),
+		},
+		{
+			name:            "membership inactivation",
+			inactivationErr: errors.New("synthetic membership inactivation failure"),
+		},
 	} {
-		t.Run(string(terminalState), func(t *testing.T) {
-			_, pool := newSuggestionTestStore(t)
+		t.Run(test.name, func(t *testing.T) {
+			pool := newReconciliationTestPool(t)
 			ctx := context.Background()
-			now := time.Date(2026, 7, 20, 0, 30, 0, 0, time.UTC)
-			importer := syntax.DID("did:plc:synthetic-terminal-importer")
-			target := syntax.DID("did:plc:synthetic-terminal-target")
-			importID := uuid.MustParse("00000000-0000-0000-0000-000000000961")
-			suggestionID := uuid.MustParse("00000000-0000-0000-0000-000000000962")
-			seedSuggestionImport(t, pool, importID, importer, "synthetic.terminal", now)
-			seedSuggestionLink(t, pool, target, "synthetic.terminal", now)
-			notifier := &recordingInstagramMatchNotifications{}
-			store := NewSuggestionStore(pool, notifier)
-			if _, err := store.UpsertPendingSuggestion(ctx, UpsertSuggestionParams{
-				ID: suggestionID, ImporterDID: importer, TargetDID: target,
-				ImportID: importID, Username: "synthetic.terminal", Now: now,
-			}); err != nil {
+			now := time.Date(2026, 7, 27, 16, 45, 0, 0, time.UTC)
+			owner := syntax.DID("did:plc:reconciliation-membership-failure")
+			importID := uuid.New()
+			seedSuggestionImport(t, pool, importID, owner, "synthetic.membership.failure", now)
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO instagram_reconciliation_jobs (
+					id, owner_did, import_id, reason, status, next_attempt_at,
+					created_at, updated_at
+				) VALUES ($1,$2,$3,'syntheticMembershipFailure','queued',$4,$4,$4)
+			`, uuid.New(), owner, importID, now); err != nil {
 				t.Fatal(err)
+			}
+			applyAutomaticFollowMigration(t, pool)
+			membershipEvents := []string{}
+			inactivator := &reconciliationInactivatorStub{err: test.inactivationErr}
+			worker, err := NewReconciliationWorker(ReconciliationWorkerOptions{
+				Pool:             pool,
+				AutomaticFollows: NewAutomaticFollowStore(pool),
+				Policy:           newReconciliationPolicy(),
+				Membership: &fakeWebhookMembership{
+					current: false,
+					err:     test.membershipErr,
+					events:  &membershipEvents,
+				},
+				MembershipInactivator: inactivator,
+				Now:                   func() time.Time { return now },
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if claimed, err := worker.ProcessBatch(ctx, 1); err == nil || claimed != 1 {
+				t.Fatalf("ProcessBatch claimed=%d err=%v, want retryable membership error", claimed, err)
 			}
 
-			switch terminalState {
-			case SuggestionDismissed:
-				if err := store.DismissSuggestion(ctx, importer, suggestionID, now.Add(time.Minute)); err != nil {
-					t.Fatal(err)
-				}
-			case SuggestionInvalidated:
-				if err := store.InvalidateSuggestion(ctx, importer, suggestionID, now.Add(time.Minute)); err != nil {
-					t.Fatal(err)
-				}
-			case SuggestionAccepted, SuggestionAlreadyFollowing:
-				if _, err := store.ClaimSuggestionAcceptance(ctx, importer, suggestionID, "3kterminal22z", now.Add(time.Minute)); err != nil {
-					t.Fatal(err)
-				}
-				if _, err := store.CompleteSuggestionAcceptance(ctx, importer, suggestionID, terminalState, now.Add(2*time.Minute)); err != nil {
-					t.Fatal(err)
-				}
-			default:
-				t.Fatalf("unsupported test state %s", terminalState)
-			}
-			if got := notifier.retractedIDs(); len(got) != 1 || got[0] != suggestionID {
-				t.Fatalf("retracted IDs=%v", got)
-			}
-			var persisted InstagramSuggestionState
-			if err := pool.QueryRow(ctx, `SELECT state FROM instagram_follow_suggestions WHERE id=$1`, suggestionID).Scan(&persisted); err != nil {
+			var status string
+			var attempts int
+			var leaseToken uuid.NullUUID
+			var nextAttempt time.Time
+			if err := pool.QueryRow(ctx, `
+				SELECT status, attempts, lease_token, next_attempt_at
+				FROM instagram_reconciliation_jobs
+			`).Scan(&status, &attempts, &leaseToken, &nextAttempt); err != nil {
 				t.Fatal(err)
 			}
-			if persisted != terminalState {
-				t.Fatalf("persisted state=%s want=%s", persisted, terminalState)
+			if status != "retryable" || attempts != 1 || leaseToken.Valid ||
+				!nextAttempt.Equal(now.Add(time.Second)) {
+				t.Fatalf(
+					"status=%s attempts=%d lease=%v next=%s, want retryable/1/no lease/%s",
+					status,
+					attempts,
+					leaseToken,
+					nextAttempt,
+					now.Add(time.Second),
+				)
+			}
+			if len(membershipEvents) != 1 || membershipEvents[0] != "membership" {
+				t.Fatalf("membership events=%v, want one owner lookup", membershipEvents)
+			}
+			wantInactivations := 1
+			if test.membershipErr != nil {
+				wantInactivations = 0
+			}
+			if len(inactivator.owners) != wantInactivations {
+				t.Fatalf("inactivated owners=%v, want %d call(s)", inactivator.owners, wantInactivations)
 			}
 		})
 	}
 }
 
-func TestSuggestionTerminalTransitionRollsBackWhenNotificationRetractionFails(t *testing.T) {
-	_, pool := newSuggestionTestStore(t)
-	ctx := context.Background()
-	now := time.Date(2026, 7, 20, 1, 0, 0, 0, time.UTC)
-	importer := syntax.DID("did:plc:synthetic-rollback-importer")
-	target := syntax.DID("did:plc:synthetic-rollback-target")
-	importID := uuid.MustParse("00000000-0000-0000-0000-000000000971")
-	suggestionID := uuid.MustParse("00000000-0000-0000-0000-000000000972")
-	seedSuggestionImport(t, pool, importID, importer, "synthetic.rollback", now)
-	seedSuggestionLink(t, pool, target, "synthetic.rollback", now)
-	notifier := &recordingInstagramMatchNotifications{retractErr: errors.New("synthetic notification failure")}
-	store := NewSuggestionStore(pool, notifier)
-	if _, err := store.UpsertPendingSuggestion(ctx, UpsertSuggestionParams{
-		ID: suggestionID, ImporterDID: importer, TargetDID: target,
-		ImportID: importID, Username: "synthetic.rollback", Now: now,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.DismissSuggestion(ctx, importer, suggestionID, now.Add(time.Minute)); err == nil {
-		t.Fatal("dismiss succeeded despite notification failure")
-	}
-	var state InstagramSuggestionState
-	if err := pool.QueryRow(ctx, `SELECT state FROM instagram_follow_suggestions WHERE id=$1`, suggestionID).Scan(&state); err != nil {
-		t.Fatal(err)
-	}
-	if state != SuggestionPending {
-		t.Fatalf("state=%s, want transaction rollback to pending", state)
-	}
+type reconciliationInactivatorStub struct {
+	owners []syntax.DID
+	err    error
+}
+
+func (s *reconciliationInactivatorStub) InactivateMembership(
+	_ context.Context,
+	did syntax.DID,
+) error {
+	s.owners = append(s.owners, did)
+	return s.err
 }
 
 type reconciliationPolicy struct {
@@ -457,29 +442,6 @@ type reconciliationPolicy struct {
 	deniedStage EligibilityStage
 	errorStage  EligibilityStage
 	calls       []EligibilityStage
-}
-
-type recordingInstagramMatchNotifications struct {
-	mu         sync.Mutex
-	retracted  []uuid.UUID
-	retractErr error
-}
-
-func (*recordingInstagramMatchNotifications) ActivateInstagramMatch(context.Context, pgx.Tx, notifications.InstagramMatchActivation) error {
-	return nil
-}
-
-func (n *recordingInstagramMatchNotifications) RetractInstagramMatch(_ context.Context, _ pgx.Tx, retraction notifications.InstagramMatchRetraction) error {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.retracted = append(n.retracted, retraction.SuggestionID)
-	return n.retractErr
-}
-
-func (n *recordingInstagramMatchNotifications) retractedIDs() []uuid.UUID {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	return append([]uuid.UUID(nil), n.retracted...)
 }
 
 func newReconciliationPolicy() *reconciliationPolicy { return &reconciliationPolicy{} }
@@ -503,11 +465,11 @@ func (p *reconciliationPolicy) stages() []EligibilityStage {
 	return append([]EligibilityStage(nil), p.calls...)
 }
 
-func newReconciliationWorkerForTest(t *testing.T, pool *pgxpool.Pool, service *notifications.Service, policy InstagramSuggestionEligibilityPolicy, now func() time.Time) *ReconciliationWorker {
+func newReconciliationWorkerForTest(t *testing.T, pool *pgxpool.Pool, policy InstagramSuggestionEligibilityPolicy, now func() time.Time) *ReconciliationWorker {
 	t.Helper()
 	worker, err := NewReconciliationWorker(ReconciliationWorkerOptions{
-		Pool: pool, Store: NewSuggestionStore(pool, service), Policy: policy,
-		Notifications: service, Now: now,
+		Pool: pool, AutomaticFollows: NewAutomaticFollowStore(pool),
+		Policy: policy, Now: now,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -537,6 +499,17 @@ func newReconciliationTestPool(t *testing.T) *pgxpool.Pool {
 		}
 	}
 	return pool
+}
+
+func applyAutomaticFollowMigration(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	migration, err := os.ReadFile("../../migrations/000030_instagram_automatic_follows.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
+		t.Fatalf("apply automatic-follow migration: %v", err)
+	}
 }
 
 func queueLinkReconciliation(t *testing.T, pool *pgxpool.Pool, target syntax.DID, now time.Time) {

@@ -51,16 +51,70 @@ func TestServicePreservesPDSFailuresAndRejectsSelfFollow(t *testing.T) {
 	}
 }
 
+func TestServiceIdentifiesOnlyTheDeterministicFollowRecord(t *testing.T) {
+	t.Parallel()
+	owner := syntax.DID("did:plc:synthetic-follow-owner")
+	target := syntax.DID("did:plc:synthetic-follow-target")
+	rkey := syntax.RecordKey("3ksyntheticfollow")
+	client := &recordingPDS{
+		getRecord: &followRecord{Type: Collection, Subject: target},
+	}
+	service := NewService(func(
+		context.Context,
+		syntax.DID,
+		string,
+	) (auth.PDSClient, error) {
+		return client, nil
+	})
+
+	exists, err := service.HasDeterministicFollow(
+		context.Background(),
+		owner,
+		target,
+		"session",
+		rkey,
+	)
+	if err != nil || !exists {
+		t.Fatalf("HasDeterministicFollow exists=%t err=%v", exists, err)
+	}
+	client.getRecord = nil
+	client.getErr = auth.ErrRecordNotFound
+	exists, err = service.HasDeterministicFollow(
+		context.Background(),
+		owner,
+		target,
+		"session",
+		rkey,
+	)
+	if err != nil || exists {
+		t.Fatalf("missing deterministic follow exists=%t err=%v", exists, err)
+	}
+}
+
 type recordingPDS struct {
 	creates      int
 	puts         int
 	putRkey      string
 	createRecord map[string]any
 	putRecord    map[string]any
+	getRecord    *followRecord
+	getErr       error
 }
 
-func (*recordingPDS) GetRecord(context.Context, syntax.DID, string, string, any) (string, error) {
-	return "", errors.New("not implemented")
+func (p *recordingPDS) GetRecord(
+	_ context.Context,
+	_ syntax.DID,
+	_, _ string,
+	out any,
+) (string, error) {
+	if p.getErr != nil {
+		return "", p.getErr
+	}
+	if p.getRecord == nil {
+		return "", errors.New("not implemented")
+	}
+	*out.(*followRecord) = *p.getRecord
+	return "synthetic-cid", nil
 }
 func (p *recordingPDS) PutRecord(_ context.Context, _ syntax.DID, _ string, rkey string, record any) error {
 	p.puts++

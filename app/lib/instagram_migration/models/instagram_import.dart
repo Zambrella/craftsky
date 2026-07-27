@@ -1,55 +1,54 @@
+import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flutter/foundation.dart';
 
+part 'instagram_import.mapper.dart';
+
+const int _instagramImportValueMethods =
+    GenerateMethods.copy | GenerateMethods.equals;
+const int _instagramImportDecodeMethods =
+    GenerateMethods.decode | _instagramImportValueMethods;
+
+@MappableEnum(defaultValue: InstagramImportSourceType.unknown)
 enum InstagramImportSourceType {
   manual,
   instagramJson,
   unknown;
 
-  static InstagramImportSourceType fromWire(String value) => switch (value) {
-    'manual' => manual,
-    'instagramJson' => instagramJson,
-    _ => unknown,
-  };
+  static InstagramImportSourceType fromWire(String value) =>
+      InstagramImportSourceTypeMapper.fromValue(value);
 
-  String get wireValue => switch (this) {
-    manual => 'manual',
-    instagramJson => 'instagramJson',
-    unknown => throw StateError('unknown_import_source_type'),
-  };
+  String get wireValue {
+    if (this == unknown) throw StateError('unknown_import_source_type');
+    return toValue();
+  }
 }
 
+@MappableEnum(defaultValue: InstagramImportState.unknown)
 enum InstagramImportState {
   active,
   membershipInactive,
   unknown;
 
-  static InstagramImportState fromWire(String value) => switch (value) {
-    'active' => active,
-    'membershipInactive' => membershipInactive,
-    _ => unknown,
-  };
+  static InstagramImportState fromWire(String value) =>
+      InstagramImportStateMapper.fromValue(value);
 }
 
 @immutable
-final class InstagramImportEntry {
+@MappableClass(
+  generateMethods:
+      GenerateMethods.encode | GenerateMethods.copy | GenerateMethods.equals,
+)
+final class InstagramImportEntry with InstagramImportEntryMappable {
   const InstagramImportEntry({required this.username});
 
   final String username;
-
-  Map<String, Object?> toMap() => {'username': username};
-
-  @override
-  bool operator ==(Object other) =>
-      other is InstagramImportEntry && other.username == username;
-
-  @override
-  int get hashCode => username.hashCode;
 
   @override
   String toString() => 'InstagramImportEntry([REDACTED])';
 }
 
-final class InstagramImportParseResult {
+@MappableClass(generateMethods: _instagramImportValueMethods)
+final class InstagramImportParseResult with InstagramImportParseResultMappable {
   const InstagramImportParseResult({
     required this.entries,
     this.ignoredEntryCount = 0,
@@ -64,7 +63,8 @@ final class InstagramImportParseResult {
   String toString() => 'InstagramImportParseResult([REDACTED])';
 }
 
-final class InstagramImportRequest {
+@MappableClass(generateMethods: _instagramImportValueMethods)
+final class InstagramImportRequest with InstagramImportRequestMappable {
   InstagramImportRequest({
     required this.sourceType,
     required List<InstagramImportEntry> entries,
@@ -82,7 +82,8 @@ final class InstagramImportRequest {
   String toString() => 'InstagramImportRequest([REDACTED])';
 }
 
-final class InstagramImportSummary {
+@MappableClass(generateMethods: _instagramImportDecodeMethods)
+final class InstagramImportSummary with InstagramImportSummaryMappable {
   const InstagramImportSummary({
     required this.importId,
     required this.state,
@@ -91,27 +92,8 @@ final class InstagramImportSummary {
     required this.createdAt,
   });
 
-  factory InstagramImportSummary.fromMap(Map<String, dynamic> map) {
-    final importId = map['importId'];
-    final state = map['state'];
-    final sourceType = map['sourceType'];
-    final followingCount = map['followingCount'];
-    final createdAt = map['createdAt'];
-    if (importId is! String ||
-        state is! String ||
-        sourceType is! String ||
-        followingCount is! int ||
-        createdAt is! String) {
-      throw const FormatException('invalid_instagram_import');
-    }
-    return InstagramImportSummary(
-      importId: importId,
-      state: InstagramImportState.fromWire(state),
-      sourceType: InstagramImportSourceType.fromWire(sourceType),
-      followingCount: followingCount,
-      createdAt: DateTime.parse(createdAt).toUtc(),
-    );
-  }
+  factory InstagramImportSummary.fromMap(Map<String, dynamic> map) =>
+      InstagramImportSummaryMapper.fromMap(map);
 
   final String importId;
   final InstagramImportState state;
@@ -123,62 +105,44 @@ final class InstagramImportSummary {
   String toString() => 'InstagramImportSummary([REDACTED])';
 }
 
-final class InstagramImportCreateResult {
+@MappableClass(generateMethods: _instagramImportValueMethods)
+final class InstagramImportCreateResult
+    with InstagramImportCreateResultMappable {
   const InstagramImportCreateResult({
     required this.import,
     required this.followingCount,
-    required this.initialSuggestionCount,
   });
 
   factory InstagramImportCreateResult.fromMap(Map<String, dynamic> map) {
     final import = map['import'];
     final counts = map['counts'];
-    final initialSuggestionCount = map['initialSuggestionCount'];
     if (import is! Map<String, dynamic> ||
         counts is! Map<String, dynamic> ||
-        initialSuggestionCount is! int ||
         counts['followingCount'] is! int) {
       throw const FormatException('invalid_instagram_import_result');
     }
     return InstagramImportCreateResult(
       import: InstagramImportSummary.fromMap(import),
       followingCount: counts['followingCount'] as int,
-      initialSuggestionCount: initialSuggestionCount,
     );
   }
 
   final InstagramImportSummary import;
   final int followingCount;
-  final int initialSuggestionCount;
 
   @override
   String toString() => 'InstagramImportCreateResult([REDACTED])';
 }
 
-final class InstagramImportPage {
+@MappableClass(generateMethods: _instagramImportDecodeMethods)
+final class InstagramImportPage with InstagramImportPageMappable {
   InstagramImportPage({
     required List<InstagramImportSummary> items,
     required this.cursor,
   }) : items = List.unmodifiable(items);
 
-  factory InstagramImportPage.fromMap(Map<String, dynamic> map) {
-    final items = map['items'];
-    final cursor = map['cursor'];
-    if (items is! List<dynamic> || cursor is! String?) {
-      throw const FormatException('invalid_instagram_import_page');
-    }
-    return InstagramImportPage(
-      items: items
-          .map((item) {
-            if (item is! Map<String, dynamic>) {
-              throw const FormatException('invalid_instagram_import_page_item');
-            }
-            return InstagramImportSummary.fromMap(item);
-          })
-          .toList(growable: false),
-      cursor: cursor,
-    );
-  }
+  factory InstagramImportPage.fromMap(Map<String, dynamic> map) =>
+      InstagramImportPageMapper.fromMap(map);
 
   final List<InstagramImportSummary> items;
   final String? cursor;
@@ -187,13 +151,15 @@ final class InstagramImportPage {
   String toString() => 'InstagramImportPage([REDACTED])';
 }
 
-final class InstagramImportPatch {
+@MappableClass(
+  generateMethods:
+      GenerateMethods.encode | GenerateMethods.copy | GenerateMethods.equals,
+)
+final class InstagramImportPatch with InstagramImportPatchMappable {
   const InstagramImportPatch({required this.reactivate})
     : assert(reactivate, 'Only import reactivation is supported.');
 
   final bool reactivate;
-
-  Map<String, Object?> toMap() => {'reactivate': reactivate};
 
   @override
   String toString() => 'InstagramImportPatch([REDACTED])';

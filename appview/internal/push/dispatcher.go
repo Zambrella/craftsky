@@ -8,22 +8,16 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/notifications"
 )
 
-type InstagramNotificationEligibility interface {
-	RevalidateNotification(context.Context, uuid.UUID, instagram.EligibilityStage) (bool, error)
-}
-
 type DispatcherOptions struct {
-	BatchSize            int
-	LeaseDuration        time.Duration
-	Now                  func() time.Time
-	Jitter               func() float64
-	SendTimeout          time.Duration
-	Observer             DispatcherObserver
-	InstagramEligibility InstagramNotificationEligibility
+	BatchSize     int
+	LeaseDuration time.Duration
+	Now           func() time.Time
+	Jitter        func() float64
+	SendTimeout   time.Duration
+	Observer      DispatcherObserver
 }
 
 // DispatcherObserver receives aggregate, privacy-safe queue and delivery
@@ -74,8 +68,6 @@ type claimedDelivery struct {
 	routingID, token, platform                         string
 	leaseToken                                         string
 	actorName                                          sql.NullString
-	systemCount                                        int
-	systemCountCapped                                  bool
 	attempts                                           int
 	deadline                                           time.Time
 }
@@ -96,10 +88,9 @@ func (d *Dispatcher) claim(ctx context.Context, _ string) ([]claimedDelivery, er
 	}
 	defer tx.Rollback(ctx)
 
-	// System notifications remain private controls until provider delivery.
-	// Cancel outstanding work when the event retracts or the recipient disables
-	// this system category, including work another process has already leased.
-	// Lease fencing below prevents that stale process from finalizing afterward.
+	// A member can disable this category after fan-out but before delivery.
+	// Cancel that account's outstanding work, including an already leased row;
+	// lease fencing prevents the stale process from finalizing afterward.
 	if _, err := tx.Exec(ctx, `
 		UPDATE push_deliveries delivery
 		SET status='cancelled', lease_owner=NULL, lease_expires_at=NULL, updated_at=$1
@@ -109,7 +100,6 @@ func (d *Dispatcher) claim(ctx context.Context, _ string) ([]claimedDelivery, er
 		  AND event.category='instagramMatch'
 		  AND (
 			event.state <> 'active'
-			OR COALESCE(NULLIF(to_jsonb(event)->>'system_count','')::integer,0) <= 0
 			OR EXISTS (
 				SELECT 1 FROM notification_preferences preference
 				WHERE preference.account_did=event.recipient_did
@@ -139,8 +129,6 @@ func (d *Dispatcher) claim(ctx context.Context, _ string) ([]claimedDelivery, er
 				ELSE 'reply'
 			END,
 			s.routing_id,i.fcm_token,i.platform,b.display_name,
-			COALESCE(NULLIF(to_jsonb(n)->>'system_count','')::integer,0),
-			COALESCE(NULLIF(to_jsonb(n)->>'system_count_capped','')::boolean,false),
 			d.attempts,d.deadline_at
 		FROM push_deliveries d
 		JOIN notification_events n ON n.id=d.notification_id
@@ -152,17 +140,13 @@ func (d *Dispatcher) claim(ctx context.Context, _ string) ([]claimedDelivery, er
 		  AND d.next_attempt_at<=$1
 		  AND n.state='active'
 		  AND s.active AND i.active
-		  AND (
-			n.category <> 'instagramMatch'
-			OR (
-				NULLIF(to_jsonb(n)->>'coalesce_until','')::timestamptz <= $1
-				AND COALESCE(NULLIF(to_jsonb(n)->>'system_count','')::integer,0) > 0
-				AND NOT EXISTS (
-					SELECT 1 FROM notification_preferences preference
-					WHERE preference.account_did=n.recipient_did
-					  AND preference.category=n.category
-					  AND NOT preference.push_enabled
-				)
+		  AND NOT (
+			n.category='instagramMatch'
+			AND EXISTS (
+				SELECT 1 FROM notification_preferences preference
+				WHERE preference.account_did=n.recipient_did
+				  AND preference.category=n.category
+				  AND NOT preference.push_enabled
 			)
 		  )
 		  AND NOT EXISTS (
@@ -186,8 +170,7 @@ func (d *Dispatcher) claim(ctx context.Context, _ string) ([]claimedDelivery, er
 			&item.id, &item.notificationID, &item.subscriptionID, &item.installationID,
 			&item.category, &item.actorDID, &item.sourceURI, &item.subjectURI,
 			&item.rootURI, &item.targetRole, &item.routingID, &item.token,
-			&item.platform, &item.actorName, &item.systemCount,
-			&item.systemCountCapped, &item.attempts,
+			&item.platform, &item.actorName, &item.attempts,
 			&item.deadline,
 		); err != nil {
 			return nil, err
@@ -281,14 +264,12 @@ func (d *Dispatcher) ProcessBatch(ctx context.Context, worker string) (int, erro
 			Category:              item.category,
 			AccountSubscriptionID: item.routingID,
 			RoutingFacts: RoutingFacts{
-				ActorDID:          item.actorDID,
-				SourceURI:         item.sourceURI,
-				SubjectURI:        syntax.ATURI(item.subjectURI.String),
-				RootURI:           syntax.ATURI(item.rootURI.String),
-				TargetRole:        item.targetRole,
-				NotificationID:    item.notificationID.String(),
-				SystemCount:       item.systemCount,
-				SystemCountCapped: item.systemCountCapped,
+				ActorDID:       item.actorDID,
+				SourceURI:      item.sourceURI,
+				SubjectURI:     syntax.ATURI(item.subjectURI.String),
+				RootURI:        syntax.ATURI(item.rootURI.String),
+				TargetRole:     item.targetRole,
+				NotificationID: item.notificationID.String(),
 			},
 			ActorDisplayName: item.actorName.String,
 			Platform:         item.platform,
@@ -378,11 +359,10 @@ func (d *Dispatcher) ownsCurrentDelivery(ctx context.Context, item claimedDelive
 	return owned, err
 }
 
-// instagramMatchDeliveryEligible rechecks the actorless event and current push
-// preference after the delivery has been leased and immediately before the
-// provider call. Suggestion/link lifecycle code retracts invalid support; an
-// empty support set therefore fails closed here as well.
+// instagramMatchDeliveryEligible rechecks event and preference state after the
+// delivery has been leased and immediately before the provider call.
 func (d *Dispatcher) instagramMatchDeliveryEligible(ctx context.Context, item claimedDelivery, now time.Time) (bool, error) {
+	_ = now
 	var eligible bool
 	err := d.pool.QueryRow(ctx, `
 		SELECT EXISTS (
@@ -391,12 +371,6 @@ func (d *Dispatcher) instagramMatchDeliveryEligible(ctx context.Context, item cl
 			WHERE event.id=$1
 			  AND event.state='active'
 			  AND event.category='instagramMatch'
-			  AND COALESCE(NULLIF(to_jsonb(event)->>'system_count','')::integer,0)>0
-			  AND NULLIF(to_jsonb(event)->>'coalesce_until','')::timestamptz<=$2
-			  AND EXISTS (
-				SELECT 1 FROM instagram_notification_suggestions support
-				WHERE support.notification_id=event.id
-			  )
 			  AND NOT EXISTS (
 				SELECT 1 FROM notification_preferences preference
 				WHERE preference.account_did=event.recipient_did
@@ -404,14 +378,8 @@ func (d *Dispatcher) instagramMatchDeliveryEligible(ctx context.Context, item cl
 				  AND NOT preference.push_enabled
 			  )
 		)
-	`, item.notificationID, now).Scan(&eligible)
-	if err != nil || !eligible {
-		return eligible, err
-	}
-	if d.options.InstagramEligibility == nil {
-		return false, nil
-	}
-	return d.options.InstagramEligibility.RevalidateNotification(ctx, item.notificationID, instagram.EligibilityAtNotificationDelivery)
+	`, item.notificationID).Scan(&eligible)
+	return eligible, err
 }
 
 func (d *Dispatcher) cancelClaimedDelivery(ctx context.Context, item claimedDelivery, now time.Time) error {

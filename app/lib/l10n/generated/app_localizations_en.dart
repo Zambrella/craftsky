@@ -101,19 +101,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationUnavailableRow => 'Activity unavailable';
 
   @override
-  String notificationInstagramMatchRow(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count new Instagram matches are ready to review',
-      one: 'A new Instagram match is ready to review',
-    );
-    return '$_temp0';
+  String notificationInstagramMatchActorRow(String actor) {
+    return 'You automatically followed $actor from your Instagram import';
   }
-
-  @override
-  String get notificationInstagramMatchRowCapped =>
-      '99+ new Instagram matches are ready to review';
 
   @override
   String get notificationSettingsAction => 'Notification settings';
@@ -1474,7 +1464,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get instagramVerificationDescription =>
-      'Send a one-time challenge to CraftSky\'s official Instagram account. You will confirm the username here before anything is linked.';
+      'Send a one-time challenge to CraftSky\'s official Instagram account. You will confirm the username here before it is verified.';
 
   @override
   String get instagramVerificationUnavailable =>
@@ -1532,7 +1522,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get instagramDiscoverableDescription =>
-      'When enabled, eligible CraftSky members who imported your Instagram username may see a suggestion. This never follows anyone automatically.';
+      'When enabled, eligible CraftSky members who imported your Instagram username will automatically follow you when CraftSky finds a match.';
 
   @override
   String get instagramDiscoverableAllow => 'Allow discovery';
@@ -1542,7 +1532,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get instagramDiscoverablePrivateDescription =>
-      'Your Instagram account will be linked, but it will not be suggested to people who imported your username.';
+      'Your Instagram account remains verified, but CraftSky will not match it with people who imported your username.';
 
   @override
   String get instagramVerificationConfirm => 'Confirm this account';
@@ -1576,7 +1566,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get instagramVerificationConflict =>
-      'This Instagram account cannot be linked automatically. Your existing account remains unchanged.';
+      'This Instagram account cannot be verified automatically. Your existing verified account remains unchanged.';
 
   @override
   String get instagramActionError =>
@@ -1593,7 +1583,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String instagramLinkedAs(String username) {
-    return 'Linked as @$username';
+    return 'Verified as @$username';
   }
 
   @override
@@ -1608,7 +1598,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'Reactivation keeps discovery off until you choose to turn it on again.';
 
   @override
-  String get instagramRevokeAccount => 'Revoke Instagram link';
+  String get instagramRevokeAccount => 'Revoke Instagram verification';
+
+  @override
+  String get instagramRevokeAccountConfirmTitle =>
+      'Revoke Instagram verification?';
+
+  @override
+  String get instagramRevokeAccountConfirmMessage =>
+      'This removes your Instagram verification and deletes your imported handles. Existing CraftSky follows will not be affected.';
 
   @override
   String get instagramImportTitle => 'Import accounts you follow';
@@ -1618,7 +1616,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get instagramImportManualDescription =>
-      'Enter the Instagram handles of accounts you follow, one per line. CraftSky keeps them until you unlink Instagram.';
+      'Enter the Instagram handles of accounts you follow, one per line.';
 
   @override
   String get instagramImportJson => 'Instagram export';
@@ -1734,8 +1732,8 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       followingCount,
       locale: localeName,
-      other: '$followingCount accounts followed',
-      one: '1 account followed',
+      other: '$followingCount accounts imported',
+      one: '1 account imported',
     );
     return '$_temp0';
   }
@@ -1756,52 +1754,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get instagramImportNotificationSettings => 'Notification settings';
-
-  @override
-  String get instagramSuggestionsTitle => 'People you may know';
-
-  @override
-  String get instagramSuggestionsLoadError =>
-      'Instagram suggestions didn\'t load.';
-
-  @override
-  String get instagramSuggestionsEmpty =>
-      'No eligible Instagram suggestions right now.';
-
-  @override
-  String get instagramSuggestionsSelectAll => 'Select all reviewed';
-
-  @override
-  String get instagramSuggestionsClearSelection => 'Clear selection';
-
-  @override
-  String instagramSuggestionsAcceptSelected(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: 'Follow $count selected people',
-      one: 'Follow 1 selected person',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String get instagramSuggestionReason =>
-      'You follow this verified account on Instagram.';
-
-  @override
-  String get instagramSuggestionUnknownReason =>
-      'Suggested from your private Instagram import.';
-
-  @override
-  String get instagramSuggestionAccept => 'Follow';
-
-  @override
-  String get instagramSuggestionDismiss => 'Dismiss';
-
-  @override
-  String get instagramSuggestionsActionError =>
-      'One or more suggestions changed or couldn\'t be updated. Refresh before trying again.';
 
   @override
   String get savedPostSaveAction => 'Save post';

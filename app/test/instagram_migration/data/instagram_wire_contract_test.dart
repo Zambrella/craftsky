@@ -5,7 +5,6 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/instagram_migration/data/instagram_migration_api_client.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
-import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
@@ -96,30 +95,6 @@ void main() {
       InstagramImportState.active,
       InstagramImportState.membershipInactive,
     });
-
-    final suggestionStates = <InstagramSuggestionState>{};
-    for (final fixture in _listOfMaps(corpus['suggestionResponses'])) {
-      final body = _map(fixture['body']);
-      final model = InstagramSuggestion.fromMap(body);
-      suggestionStates.add(model.state);
-      expect(_encodeSuggestion(model), body);
-    }
-    expect(suggestionStates, {
-      InstagramSuggestionState.pending,
-      InstagramSuggestionState.accepting,
-      InstagramSuggestionState.accepted,
-      InstagramSuggestionState.alreadyFollowing,
-      InstagramSuggestionState.dismissed,
-      InstagramSuggestionState.invalidated,
-    });
-
-    for (final fixture in _listOfMaps(
-      corpus['suggestionActionResponses'],
-    )) {
-      final body = _map(fixture['body']);
-      final model = InstagramSuggestionActionResult.fromMap(body);
-      expect(_encodeSuggestionAction(model), body);
-    }
   });
 
   test('IT-021 request models emit only exact bounded fields', () {
@@ -214,14 +189,6 @@ void main() {
       corpus['pageContracts'],
       'imports.default.omittedCursor',
     );
-    final suggestionsPage = _fixture(
-      corpus['pageContracts'],
-      'suggestions.default.omittedCursor',
-    );
-    final suggestionAction = _fixture(
-      corpus['suggestionActionResponses'],
-      'suggestion.accept.success',
-    );
     final importRequest = _map(
       _fixture(corpus['requests'], 'import.create.instagramJson')['body'],
     );
@@ -301,25 +268,6 @@ void main() {
         importDetail['path'] as String,
         (server) => server.reply(204, null),
       )
-      ..onGet(
-        '/v1/migrations/instagram/suggestions',
-        (server) => server.reply(
-          suggestionsPage['status'] as int,
-          suggestionsPage['body'],
-        ),
-      )
-      ..onPost(
-        suggestionAction['path'] as String,
-        (server) => server.reply(
-          suggestionAction['status'] as int,
-          suggestionAction['body'],
-        ),
-      )
-      ..onDelete(
-        '/v1/migrations/instagram/suggestions/'
-        'synthetic-suggestion-0001',
-        (server) => server.reply(204, null),
-      )
       ..onDelete(
         '/v1/migrations/instagram/verifications/'
         'synthetic-verification-0003',
@@ -355,9 +303,6 @@ void main() {
     );
     await api.deleteImport('synthetic-import-0001');
 
-    final suggestionPage = await api.listSuggestions();
-    final accepted = await api.acceptSuggestion('synthetic-suggestion-0001');
-    await api.dismissSuggestion('synthetic-suggestion-0001');
     await api.cancelVerification('synthetic-verification-0003');
 
     expect(created.state, InstagramVerificationState.pendingDm);
@@ -369,9 +314,6 @@ void main() {
     expect(importPage.cursor, isNull);
     expect(importItem.sourceType, InstagramImportSourceType.instagramJson);
     expect(updatedImport.state, InstagramImportState.active);
-    expect(suggestionPage.cursor, isNull);
-    expect(suggestionPage.items.single.state, InstagramSuggestionState.pending);
-    expect(accepted.state, InstagramSuggestionState.accepted);
   });
 
   test('IT-021 locks default/max pages and optional cursor wire shape', () {
@@ -399,16 +341,12 @@ void main() {
         case 'imports':
           final model = InstagramImportPage.fromMap(body);
           expect(_encodeImportPage(model), body);
-        case 'suggestions':
-          final model = InstagramSuggestionPage.fromMap(body);
-          expect(_encodeSuggestionPage(model), body);
         default:
           fail('unknown page resource ${fixture['resource']}');
       }
     }
 
     expect(coverage['imports'], {'default', 'max'});
-    expect(coverage['suggestions'], {'default', 'max'});
   });
 
   test('IT-021 decodes notifications using type alone', () {
@@ -427,29 +365,33 @@ void main() {
     expect(page.items[6], isA<GenericNotification>());
     expect(page.items[7], isA<InstagramMatchNotification>());
 
-    final system = page.items[7] as InstagramMatchNotification;
-    expect(system.count, 99);
-    expect(system.countCapped, isTrue);
-    expect(system, isNot(isA<SocialNotification>()));
+    final match = page.items[7] as InstagramMatchNotification;
+    expect(
+      match.actor.did.toString(),
+      'did:plc:syntheticinstagrammatchactor',
+    );
+    expect(match.actor.viewerIsFollowing, isTrue);
+    expect(match, isA<ActorNotification>());
+    expect(match, isNot(isA<SocialNotification>()));
 
-    final rawSystem = _listOfMaps(body['items']).last;
-    expect(rawSystem.keys.toSet(), {
+    final rawMatch = _listOfMaps(body['items']).last;
+    expect(rawMatch.keys.toSet(), {
       'id',
       'type',
+      'actor',
       'createdAt',
       'indexedAt',
-      'system',
     });
-    for (final socialField in [
-      'actor',
+    for (final sourceField in [
       'uri',
       'cid',
       'rkey',
       'references',
       'subjectPost',
       'reply',
+      'system',
     ]) {
-      expect(rawSystem, isNot(contains(socialField)));
+      expect(rawMatch, isNot(contains(sourceField)));
     }
   });
 
@@ -485,19 +427,6 @@ void main() {
       ).sourceType,
       InstagramImportSourceType.unknown,
     );
-    expect(
-      InstagramSuggestion.fromMap(
-        _map(clientSafety['unknownSuggestionState']),
-      ).state,
-      InstagramSuggestionState.unknown,
-    );
-    expect(
-      InstagramSuggestion.fromMap(
-        _map(clientSafety['unknownSuggestionReason']),
-      ).reason,
-      InstagramSuggestionReason.unknown,
-    );
-
     final notification = _map(corpus['notificationContract']);
     for (final fixture in _listOfMaps(notification['unknownClientCases'])) {
       final decoded = CraftskyNotification.fromMap(_map(fixture['body']));
@@ -594,7 +523,7 @@ void main() {
       expect(_list(contract['variants']), contains('absent'));
       expect(_list(contract['variants']), contains('purged'));
     }
-    expect(resources, {'verification', 'account', 'import', 'suggestion'});
+    expect(resources, {'verification', 'account', 'import'});
 
     final callbacks = {
       for (final contract in _listOfMaps(corpus['callbackContracts']))
@@ -730,32 +659,9 @@ Map<String, Object?> _encodeImport(InstagramImportSummary value) => {
 Map<String, Object?> _encodeImportCreate(InstagramImportCreateResult value) => {
   'import': _encodeImport(value.import),
   'counts': {'followingCount': value.followingCount},
-  'initialSuggestionCount': value.initialSuggestionCount,
 };
-
-Map<String, Object?> _encodeSuggestion(InstagramSuggestion value) => {
-  'suggestionId': value.suggestionId,
-  'profile': {
-    'did': value.profile.did,
-    'handle': value.profile.handle,
-    if (value.profile.displayName != null)
-      'displayName': value.profile.displayName,
-    if (value.profile.avatar != null) 'avatar': value.profile.avatar,
-  },
-  'reason': value.reason.name,
-  'state': value.state.name,
-};
-
-Map<String, Object?> _encodeSuggestionAction(
-  InstagramSuggestionActionResult value,
-) => {'suggestionId': value.suggestionId, 'state': value.state.name};
 
 Map<String, Object?> _encodeImportPage(InstagramImportPage value) => {
   'items': value.items.map(_encodeImport).toList(growable: false),
-  if (value.cursor != null) 'cursor': value.cursor,
-};
-
-Map<String, Object?> _encodeSuggestionPage(InstagramSuggestionPage value) => {
-  'items': value.items.map(_encodeSuggestion).toList(growable: false),
   if (value.cursor != null) 'cursor': value.cursor,
 };

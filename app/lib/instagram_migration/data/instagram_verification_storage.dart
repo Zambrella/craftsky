@@ -1,12 +1,19 @@
 import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+part 'instagram_verification_storage.mapper.dart';
+
 @immutable
-final class InstagramVerificationSnapshot {
+@MappableClass(
+  generateMethods: GenerateMethods.copy | GenerateMethods.equals,
+)
+final class InstagramVerificationSnapshot
+    with InstagramVerificationSnapshotMappable {
   const InstagramVerificationSnapshot({
     required this.verificationId,
     required this.challenge,

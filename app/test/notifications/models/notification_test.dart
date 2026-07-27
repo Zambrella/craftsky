@@ -162,24 +162,21 @@ void main() {
     );
   });
 
-  test('UT-012 decodes an exact actorless Instagram system notification', () {
+  test('IT-017 decodes an actorful source-less Instagram match', () {
     final notification = CraftskyNotification.fromMap({
       'id': '00000000-0000-0000-0000-000000000321',
       'type': 'instagramMatch',
+      'actor': {...actor(), 'viewerIsFollowing': true},
       'createdAt': '2026-07-19T12:00:00Z',
       'indexedAt': '2026-07-19T12:04:00Z',
-      'system': {
-        'count': 99,
-        'countCapped': true,
-      },
     });
 
     expect(notification, isA<InstagramMatchNotification>());
     expect(notification, isNot(isA<SocialNotification>()));
     final match = notification as InstagramMatchNotification;
     expect(match.id, '00000000-0000-0000-0000-000000000321');
-    expect(match.count, 99);
-    expect(match.countCapped, isTrue);
+    expect(match.actor.did.toString(), 'did:plc:alice');
+    expect(match.actor.viewerIsFollowing, isTrue);
     expect(match.type, NotificationCategory.instagramMatch);
   });
 

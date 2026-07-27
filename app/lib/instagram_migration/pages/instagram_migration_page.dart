@@ -2,11 +2,9 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
-import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_account_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_imports_provider.dart';
-import 'package:craftsky_app/instagram_migration/providers/instagram_suggestions_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_verification_provider.dart';
 import 'package:craftsky_app/instagram_migration/services/instagram_export_file_picker.dart';
 import 'package:craftsky_app/instagram_migration/services/instagram_import_parser.dart';
@@ -15,9 +13,11 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -70,8 +70,6 @@ class _InstagramMigrationBody extends ConsumerWidget {
           return;
         }
         await ref.read(instagramImportsProvider(lease).notifier).refresh();
-        if (!_current(ref, lease)) return;
-        await ref.read(instagramSuggestionsProvider(lease).notifier).refresh();
       },
       child: ListView(
         padding: EdgeInsets.fromLTRB(
@@ -115,8 +113,10 @@ class _InstagramMigrationBody extends ConsumerWidget {
                               _ImportComposerCard(lease: lease),
                               SizedBox(height: spacing.sp4),
                               _ImportsCard(lease: lease),
-                              SizedBox(height: spacing.sp4),
-                              _SuggestionsCard(lease: lease),
+                              SizedBox(height: spacing.sp6),
+                              _RevokeInstagramVerificationButton(
+                                lease: lease,
+                              ),
                             ],
                           ),
                   ),
@@ -373,9 +373,8 @@ class _ChallengeControls extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             OutlinedButton.icon(
               onPressed: challenge == null
@@ -388,6 +387,7 @@ class _ChallengeControls extends ConsumerWidget {
               icon: const Icon(Icons.copy_outlined),
               label: Text(l10n.instagramCopyChallenge),
             ),
+            const SizedBox(height: 8),
             FilledButton.icon(
               onPressed: dmUrl == null
                   ? null
@@ -398,6 +398,7 @@ class _ChallengeControls extends ConsumerWidget {
               icon: const Icon(Icons.open_in_new),
               label: Text(l10n.instagramOpenDm),
             ),
+            const SizedBox(height: 8),
             TextButton(
               onPressed: isBusy
                   ? null
@@ -430,6 +431,8 @@ class _LinkedAccountControls extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
     final notifier = ref.read(instagramAccountProvider(lease).notifier);
     return Column(
@@ -450,20 +453,62 @@ class _LinkedAccountControls extends ConsumerWidget {
             onPressed: notifier.reactivate,
             child: Text(l10n.instagramReactivateAccount),
           ),
-        ] else
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(l10n.instagramDiscoverableLabel),
-            // subtitle: Text(l10n.instagramDiscoverableDescription),
-            value: account.discoverable,
-            onChanged: (value) => notifier.setDiscoverable(value: value),
+        ] else ...[
+          SizedBox(height: spacing.sp2),
+          MergeSemantics(
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.instagramDiscoverableLabel,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+                SizedBox(width: spacing.sp3),
+                Switch(
+                  key: const Key('instagram-discoverable-switch'),
+                  value: account.discoverable,
+                  onChanged: (value) => notifier.setDiscoverable(value: value),
+                ),
+              ],
+            ),
           ),
-        TextButton.icon(
-          onPressed: notifier.revoke,
-          icon: const Icon(Icons.link_off),
-          label: Text(l10n.instagramRevokeAccount),
-        ),
+        ],
       ],
+    );
+  }
+}
+
+class _RevokeInstagramVerificationButton extends ConsumerWidget {
+  const _RevokeInstagramVerificationButton({required this.lease});
+
+  final ActiveAccountLease lease;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final notifier = ref.read(instagramAccountProvider(lease).notifier);
+    return TextButton.icon(
+      key: const Key('instagram-revoke-verification'),
+      onPressed: () => showCraftskyDestructiveConfirmDialog(
+        context,
+        title: l10n.instagramRevokeAccountConfirmTitle,
+        message: l10n.instagramRevokeAccountConfirmMessage,
+        confirmLabel: l10n.instagramRevokeAccount,
+        onConfirm: () async {
+          final revoked = await notifier.revoke();
+          if (!revoked) {
+            throw StateError('Instagram verification revocation failed');
+          }
+        },
+      ),
+      style: TextButton.styleFrom(
+        foregroundColor: theme.colorScheme.error,
+        iconColor: theme.colorScheme.error,
+      ),
+      icon: const Icon(Icons.link_off),
+      label: Text(l10n.instagramRevokeAccount),
     );
   }
 }
@@ -482,7 +527,7 @@ class _ImportComposerCard extends ConsumerStatefulWidget {
 
 class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
   final _manualController = TextEditingController();
-  _ImportInputKind _kind = _ImportInputKind.manual;
+  _ImportInputKind _kind = _ImportInputKind.json;
   bool _busy = false;
   InstagramImportParseErrorCode? _parseError;
   bool _filePickerFailed = false;
@@ -514,14 +559,14 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
             key: const Key('instagram-import-kind-selector'),
             segments: [
               ButtonSegment(
-                value: _ImportInputKind.manual,
-                label: Text(l10n.instagramImportManual),
-                icon: const Icon(Icons.edit_outlined),
-              ),
-              ButtonSegment(
                 value: _ImportInputKind.json,
                 label: Text(l10n.instagramImportJson),
                 icon: const Icon(Icons.file_open_outlined),
+              ),
+              ButtonSegment(
+                value: _ImportInputKind.manual,
+                label: Text(l10n.instagramImportManual),
+                icon: const Icon(Icons.edit_outlined),
               ),
             ],
             selected: {_kind},
@@ -555,7 +600,7 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
               child: Text(l10n.instagramImportManualAction),
             ),
           ] else
-            OutlinedButton.icon(
+            FilledButton.icon(
               onPressed: _busy ? null : _pickExport,
               icon: const Icon(Icons.file_open_outlined),
               label: Text(l10n.instagramImportSelectJson),
@@ -725,6 +770,7 @@ class _ImportRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     final notifier = ref.read(instagramImportsProvider(lease).notifier);
     return Padding(
@@ -732,206 +778,55 @@ class _ImportRow extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            _importSourceLabel(l10n, item.sourceType),
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          Text(
-            l10n.instagramImportCounts(item.followingCount),
-          ),
-          if (item.state == InstagramImportState.membershipInactive) ...[
-            const SizedBox(height: 4),
-            Text(l10n.instagramImportReactivationDisclosure),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: FilledButton.tonal(
-                onPressed: () => _runImportAction(
-                  context,
-                  ref,
-                  lease,
-                  () => notifier.reactivate(item.importId),
-                ),
-                child: Text(l10n.instagramImportReactivate),
-              ),
-            ),
-          ],
-          Wrap(
-            spacing: 4,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextButton(
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _importSourceLabel(l10n, item.sourceType),
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    Text(
+                      l10n.instagramImportCounts(item.followingCount),
+                    ),
+                    if (item.state ==
+                        InstagramImportState.membershipInactive) ...[
+                      const SizedBox(height: 4),
+                      Text(l10n.instagramImportReactivationDisclosure),
+                      FilledButton.tonal(
+                        onPressed: () => _runImportAction(
+                          context,
+                          ref,
+                          lease,
+                          () => notifier.reactivate(item.importId),
+                        ),
+                        child: Text(l10n.instagramImportReactivate),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              IconButton(
                 onPressed: () => _runImportAction(
                   context,
                   ref,
                   lease,
                   () => notifier.delete(item.importId),
                 ),
-                child: Text(l10n.instagramImportDelete),
+                style: IconButton.styleFrom(
+                  foregroundColor: theme.colorScheme.error,
+                ),
+                icon: const Icon(Icons.delete_outline),
+                tooltip: l10n.instagramImportDelete,
               ),
             ],
           ),
           const Divider(),
         ],
       ),
-    );
-  }
-}
-
-class _SuggestionsCard extends ConsumerWidget {
-  const _SuggestionsCard({required this.lease});
-
-  final ActiveAccountLease lease;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final spacing = theme.extension<SpacingTheme>()!;
-    final l10n = AppLocalizations.of(context);
-    final suggestions = ref.watch(instagramSuggestionsProvider(lease));
-    return CraftskyCard(
-      key: const Key('instagram-suggestions-card'),
-      padding: EdgeInsets.all(spacing.sp4),
-      clipBehavior: Clip.none,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _CardHeading(
-            icon: Icons.group_add_outlined,
-            title: l10n.instagramSuggestionsTitle,
-          ),
-          SizedBox(height: spacing.sp2),
-          suggestions.when(
-            loading: () => const Center(child: StitchProgressIndicator()),
-            error: (_, _) => _InlineRetry(
-              message: l10n.instagramSuggestionsLoadError,
-              onRetry: () => ref
-                  .read(instagramSuggestionsProvider(lease).notifier)
-                  .refresh(),
-            ),
-            data: (value) => _SuggestionReview(
-              lease: lease,
-              value: value,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SuggestionReview extends ConsumerWidget {
-  const _SuggestionReview({required this.lease, required this.value});
-
-  final ActiveAccountLease lease;
-  final InstagramSuggestionReviewState value;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final notifier = ref.read(instagramSuggestionsProvider(lease).notifier);
-    if (value.items.isEmpty) return Text(l10n.instagramSuggestionsEmpty);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Wrap(
-          spacing: 8,
-          children: [
-            OutlinedButton(
-              onPressed: notifier.selectAllReviewed,
-              child: Text(l10n.instagramSuggestionsSelectAll),
-            ),
-            TextButton(
-              onPressed: value.selectedIds.isEmpty
-                  ? null
-                  : notifier.clearSelection,
-              child: Text(l10n.instagramSuggestionsClearSelection),
-            ),
-          ],
-        ),
-        for (final suggestion in value.items)
-          _SuggestionRow(
-            lease: lease,
-            suggestion: suggestion,
-            selected: value.selectedIds.contains(suggestion.suggestionId),
-            busy: value.busyIds.contains(suggestion.suggestionId),
-          ),
-        if (value.cursor != null)
-          TextButton(
-            onPressed: notifier.loadMore,
-            child: Text(l10n.instagramLoadMore),
-          ),
-        FilledButton(
-          onPressed: value.selectedIds.isEmpty ? null : notifier.acceptSelected,
-          child: Text(
-            l10n.instagramSuggestionsAcceptSelected(value.selectedIds.length),
-          ),
-        ),
-        if (value.hasActionError) ...[
-          const SizedBox(height: 8),
-          Text(l10n.instagramSuggestionsActionError),
-          TextButton(
-            onPressed: notifier.refresh,
-            child: Text(l10n.instagramRetry),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _SuggestionRow extends ConsumerWidget {
-  const _SuggestionRow({
-    required this.lease,
-    required this.suggestion,
-    required this.selected,
-    required this.busy,
-  });
-
-  final ActiveAccountLease lease;
-  final InstagramSuggestion suggestion;
-  final bool selected;
-  final bool busy;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final notifier = ref.read(instagramSuggestionsProvider(lease).notifier);
-    final pending = suggestion.state == InstagramSuggestionState.pending;
-    final reason = _suggestionReason(l10n, suggestion.reason);
-    return Column(
-      children: [
-        CheckboxListTile(
-          contentPadding: EdgeInsets.zero,
-          value: selected,
-          onChanged: !pending || busy
-              ? null
-              : (value) => notifier.select(
-                  suggestion.suggestionId,
-                  selected: value ?? false,
-                ),
-          title: Text(
-            suggestion.profile.displayName ?? suggestion.profile.handle,
-          ),
-          subtitle: Text('@${suggestion.profile.handle}\n$reason'),
-          isThreeLine: true,
-        ),
-        Wrap(
-          spacing: 8,
-          children: [
-            TextButton(
-              onPressed: !pending || busy
-                  ? null
-                  : () => notifier.accept(suggestion.suggestionId),
-              child: Text(l10n.instagramSuggestionAccept),
-            ),
-            TextButton(
-              onPressed: !pending || busy
-                  ? null
-                  : () => notifier.dismiss(suggestion.suggestionId),
-              child: Text(l10n.instagramSuggestionDismiss),
-            ),
-          ],
-        ),
-      ],
     );
   }
 }
@@ -1005,29 +900,22 @@ class _NotificationSettingsNotice extends StatelessWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
     return Text.rich(
+      textScaler: MediaQuery.of(context).textScaler,
       TextSpan(
         style: textStyle,
         children: [
           TextSpan(text: l10n.instagramImportNotifications),
           const TextSpan(text: ' '),
-          WidgetSpan(
-            alignment: PlaceholderAlignment.baseline,
-            baseline: TextBaseline.alphabetic,
-            child: Semantics(
-              link: true,
-              child: InkWell(
-                onTap: () =>
-                    const NotificationSettingsRoute().push<void>(context),
-                child: Text(
-                  l10n.instagramImportNotificationSettings,
-                  style: textStyle?.copyWith(
-                    color: theme.colorScheme.primary,
-                    decoration: TextDecoration.underline,
-                    decorationColor: theme.colorScheme.primary,
-                  ),
-                ),
-              ),
+          TextSpan(
+            text: l10n.instagramImportNotificationSettings,
+            style: textStyle?.copyWith(
+              color: theme.colorScheme.primary,
+              decoration: TextDecoration.underline,
+              decorationColor: theme.colorScheme.primary,
             ),
+            recognizer: TapGestureRecognizer()
+              ..onTap = () =>
+                  const NotificationSettingsRoute().push<void>(context),
           ),
           const TextSpan(text: '.'),
         ],
@@ -1137,13 +1025,4 @@ String _verificationRetryMessage(
     l10n.instagramVerificationMembershipInactive,
   InstagramVerificationRetryCode.unknown ||
   null => l10n.instagramVerificationRejected,
-};
-
-String _suggestionReason(
-  AppLocalizations l10n,
-  InstagramSuggestionReason reason,
-) => switch (reason) {
-  InstagramSuggestionReason.verifiedInstagramFollow =>
-    l10n.instagramSuggestionReason,
-  InstagramSuggestionReason.unknown => l10n.instagramSuggestionUnknownReason,
 };
