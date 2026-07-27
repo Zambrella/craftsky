@@ -36,6 +36,9 @@ func ResolvePreferences(persisted map[Category]Preference, patch map[Category]Pr
 		if !preference.Scope.Valid() {
 			return nil, fmt.Errorf("invalid notification scope %q", preference.Scope)
 		}
+		if category == InstagramMatch && preference.Scope != Everyone {
+			return nil, fmt.Errorf("instagramMatch notification scope must be %q", Everyone)
+		}
 	}
 	for category, update := range patch {
 		if !category.Valid() {
@@ -43,6 +46,9 @@ func ResolvePreferences(persisted map[Category]Preference, patch map[Category]Pr
 		}
 		if update.Scope != nil && !update.Scope.Valid() {
 			return nil, fmt.Errorf("invalid notification scope %q", *update.Scope)
+		}
+		if category == InstagramMatch && update.Scope != nil {
+			return nil, fmt.Errorf("instagramMatch notification scope cannot be changed")
 		}
 	}
 

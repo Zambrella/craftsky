@@ -71,7 +71,7 @@ func (erroringGetPDSClient) UploadBlob(_ context.Context, _ string, _ []byte) (*
 func handlersFixture(t *testing.T, hostname string) *auth.HTTPHandlers {
 	t.Helper()
 	pool := withAuthSchema(t)
-	cfg, err := auth.BuildClientConfig(hostname, "", "", []string{"atproto", "transition:generic"})
+	cfg, err := auth.BuildClientConfig(hostname, "", "", "", []string{"atproto", "transition:generic"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,0 +1,625 @@
+package instagram
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+const MaxRetentionBatch = 500
+
+var ErrInvalidRetentionBatch = errors.New("Instagram retention batch must be between 1 and 500")
+
+// RetentionStats contains counts only. It is safe for operator output and
+// observability because it never contains an owner, username, IGSID, digest,
+// or private graph fact.
+type RetentionStats struct {
+	AttemptsTerminalized   int
+	AttemptsSensitiveClear int
+	AttemptsPurged         int
+	WebhookTerminalized    int
+	WebhookSensitiveClear  int
+	WebhookPurged          int
+	LinksMembershipExpired int
+	LinkIdentityCleared    int
+	LinkTombstonesPurged   int
+	ClaimsPurged           int
+	ConflictsExpired       int
+	ConflictsPurged        int
+	SuggestionsPurged      int
+	DeliveriesPurged       int
+	NotificationsPurged    int
+	RateBucketsPurged      int
+	AuditsPurged           int
+}
+
+// RetentionService applies the fixed privacy maxima from the Instagram
+// migration requirements. Each record class is selected in a stable order and
+// in a transaction bounded by the caller's batch size. Cascading dependants do
+// not count against the primary-record batch.
+type RetentionService struct {
+	pool        *pgxpool.Pool
+	now         func() time.Time
+	restoration ExpiredModerationRestorationEnqueuer
+}
+
+type ExpiredModerationRestorationEnqueuer interface {
+	EnqueueExpiredModerationRestorations(context.Context, int) (int, error)
+}
+
+func NewRetentionService(
+	pool *pgxpool.Pool,
+	now func() time.Time,
+	restorations ...ExpiredModerationRestorationEnqueuer,
+) *RetentionService {
+	if now == nil {
+		now = time.Now
+	}
+	var restoration ExpiredModerationRestorationEnqueuer
+	if len(restorations) > 0 {
+		restoration = restorations[0]
+	}
+	return &RetentionService{
+		pool: pool, now: now, restoration: restoration,
+	}
+}
+
+func (s *RetentionService) Run(ctx context.Context, batch int) (RetentionStats, error) {
+	if err := s.validate(batch); err != nil {
+		return RetentionStats{}, err
+	}
+	now := s.now().UTC()
+	if now.IsZero() {
+		return RetentionStats{}, errors.New("Instagram retention clock returned zero time")
+	}
+	if s.restoration != nil {
+		if _, err := s.restoration.EnqueueExpiredModerationRestorations(
+			ctx,
+			batch,
+		); err != nil {
+			return RetentionStats{}, fmt.Errorf(
+				"enqueue expired moderation restoration: %w",
+				err,
+			)
+		}
+	}
+	stats := RetentionStats{}
+	steps := []struct {
+		destination *int
+		run         func(context.Context, int, time.Time) (int, error)
+	}{
+		{&stats.AttemptsTerminalized, s.terminalizeAttempts},
+		{&stats.AttemptsSensitiveClear, s.clearTerminalAttemptIdentity},
+		{&stats.AttemptsPurged, s.purgeTerminalAttempts},
+		{&stats.WebhookTerminalized, s.terminalizeStaleWebhookWork},
+		{&stats.WebhookSensitiveClear, s.clearTerminalWebhookIdentity},
+		{&stats.WebhookPurged, s.purgeTerminalWebhookWork},
+		{&stats.ConflictsExpired, s.expireConflicts},
+		{&stats.LinksMembershipExpired, s.expireInactiveLinks},
+		{&stats.LinkIdentityCleared, s.clearTerminalLinkIdentity},
+		{&stats.ClaimsPurged, s.purgeReleasedClaims},
+		{&stats.LinkTombstonesPurged, s.purgeLinkTombstones},
+		{&stats.ConflictsPurged, s.purgeResolvedConflicts},
+	}
+	for _, step := range steps {
+		count, err := step.run(ctx, batch, now)
+		if err != nil {
+			return stats, err
+		}
+		*step.destination = count
+	}
+	remaining := []struct {
+		destination *int
+		run         func(context.Context, int, time.Time) (int, error)
+	}{
+		{&stats.SuggestionsPurged, s.purgeTerminalSuggestions},
+		{&stats.DeliveriesPurged, s.purgeRetractedDeliveries},
+		{&stats.NotificationsPurged, s.purgeMatchNotifications},
+		{&stats.RateBucketsPurged, s.purgeRateBuckets},
+		{&stats.AuditsPurged, s.purgeAuditEvents},
+	}
+	for _, step := range remaining {
+		count, err := step.run(ctx, batch, now)
+		if err != nil {
+			return stats, err
+		}
+		*step.destination = count
+	}
+	return stats, nil
+}
+
+func (s *RetentionService) validate(batch int) error {
+	if s == nil || s.pool == nil {
+		return errors.New("Instagram retention service is unavailable")
+	}
+	if batch < 1 || batch > MaxRetentionBatch {
+		return ErrInvalidRetentionBatch
+	}
+	return nil
+}
+
+func (s *RetentionService) terminalizeAttempts(ctx context.Context, batch int, now time.Time) (int, error) {
+	count := 0
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		ids, err := retentionUUIDs(ctx, tx, `
+			SELECT id
+			FROM instagram_verification_attempts
+			WHERE state IN ('pendingDm','processing','pendingConfirmation')
+			  AND (
+				(state='pendingDm' AND expires_at <= $1)
+				OR (state='processing' AND COALESCE(processing_started_at,updated_at,created_at) <= $1::timestamptz - interval '15 minutes')
+				OR created_at <= $1::timestamptz - interval '24 hours'
+			  )
+			ORDER BY LEAST(
+				expires_at,
+				created_at + interval '24 hours',
+				COALESCE(processing_started_at,updated_at,created_at) + interval '15 minutes'
+			), id
+			FOR UPDATE SKIP LOCKED
+			LIMIT $2
+		`, now, batch)
+		if err != nil {
+			return fmt.Errorf("select expired Instagram attempts: %w", err)
+		}
+		if len(ids) == 0 {
+			return nil
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE instagram_webhook_work
+			SET status='ignored',sender_igsid=NULL,official_account_id=NULL,
+			    challenge_digest_version=NULL,challenge_digest=NULL,
+			    lease_token=NULL,lease_expires_at=NULL,
+			    terminal_at=COALESCE(terminal_at,$2),
+			    terminal_reason=COALESCE(terminal_reason,'challengeUnavailable'),updated_at=$2
+			WHERE verification_attempt_id=ANY($1::uuid[])
+			  AND status IN ('queued','processing','retryable')
+		`, ids, now); err != nil {
+			return fmt.Errorf("terminalize expired-attempt webhook work: %w", err)
+		}
+		result, err := tx.Exec(ctx, `
+			UPDATE instagram_verification_attempts
+			SET state=CASE WHEN state='processing' THEN 'rejected' ELSE 'expired' END,
+			    challenge_digest_version=NULL,challenge_digest=NULL,
+			    candidate_igsid=NULL,candidate_username=NULL,retry_code=NULL,
+			    terminal_at=COALESCE(terminal_at,$2),updated_at=$2
+			WHERE id=ANY($1::uuid[])
+		`, ids, now)
+		if err != nil {
+			return fmt.Errorf("terminalize expired Instagram attempts: %w", err)
+		}
+		count = int(result.RowsAffected())
+		return nil
+	})
+	return count, err
+}
+
+func (s *RetentionService) clearTerminalAttemptIdentity(ctx context.Context, batch int, now time.Time) (int, error) {
+	return s.updateUUIDBatch(ctx, batch, `
+		SELECT id FROM instagram_verification_attempts
+		WHERE state IN ('confirmed','expired','cancelled','superseded','rejected','conflicted')
+		  AND $1::timestamptz IS NOT NULL
+		  AND num_nonnulls(challenge_digest,candidate_igsid,candidate_username) > 0
+		ORDER BY COALESCE(terminal_at,updated_at),id
+		FOR UPDATE SKIP LOCKED LIMIT $2
+	`, `
+		UPDATE instagram_verification_attempts
+		SET challenge_digest_version=NULL,challenge_digest=NULL,
+		    candidate_igsid=NULL,candidate_username=NULL,updated_at=$2
+		WHERE id=ANY($1::uuid[])
+	`, now, "clear terminal Instagram attempt identity")
+}
+
+func (s *RetentionService) purgeTerminalAttempts(ctx context.Context, batch int, now time.Time) (int, error) {
+	count := 0
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		ids, err := retentionUUIDs(ctx, tx, `
+			SELECT id FROM instagram_verification_attempts
+			WHERE state IN ('confirmed','expired','cancelled','superseded','rejected','conflicted')
+			  AND COALESCE(terminal_at,updated_at) <= $1::timestamptz - interval '30 days'
+			ORDER BY COALESCE(terminal_at,updated_at),id
+			FOR UPDATE SKIP LOCKED LIMIT $2
+		`, now, batch)
+		if err != nil || len(ids) == 0 {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE instagram_webhook_work SET verification_attempt_id=NULL WHERE verification_attempt_id=ANY($1::uuid[])`, ids); err != nil {
+			return fmt.Errorf("detach retained Instagram webhook replay rows: %w", err)
+		}
+		result, err := tx.Exec(ctx, `DELETE FROM instagram_verification_attempts WHERE id=ANY($1::uuid[])`, ids)
+		if err != nil {
+			return fmt.Errorf("purge terminal Instagram attempts: %w", err)
+		}
+		count = int(result.RowsAffected())
+		return nil
+	})
+	return count, err
+}
+
+func (s *RetentionService) terminalizeStaleWebhookWork(ctx context.Context, batch int, now time.Time) (int, error) {
+	return s.updateUUIDBatch(ctx, batch, `
+		SELECT id FROM instagram_webhook_work
+		WHERE status IN ('queued','processing','retryable')
+		  AND COALESCE(processing_started_at,created_at) <= $1::timestamptz - interval '15 minutes'
+		ORDER BY COALESCE(processing_started_at,created_at),id
+		FOR UPDATE SKIP LOCKED LIMIT $2
+	`, `
+		UPDATE instagram_webhook_work
+		SET status='failed',sender_igsid=NULL,official_account_id=NULL,
+		    challenge_digest_version=NULL,challenge_digest=NULL,
+		    lease_token=NULL,lease_expires_at=NULL,
+		    terminal_at=COALESCE(terminal_at,$2),terminal_reason='maxAge',updated_at=$2
+		WHERE id=ANY($1::uuid[])
+	`, now, "terminalize stale Instagram webhook work")
+}
+
+func (s *RetentionService) clearTerminalWebhookIdentity(ctx context.Context, batch int, now time.Time) (int, error) {
+	return s.updateUUIDBatch(ctx, batch, `
+		SELECT id FROM instagram_webhook_work
+		WHERE status IN ('completed','ignored','failed')
+		  AND $1::timestamptz IS NOT NULL
+		  AND num_nonnulls(sender_igsid,official_account_id,challenge_digest) > 0
+		ORDER BY COALESCE(terminal_at,updated_at),id
+		FOR UPDATE SKIP LOCKED LIMIT $2
+	`, `
+		UPDATE instagram_webhook_work
+		SET sender_igsid=NULL,official_account_id=NULL,
+		    challenge_digest_version=NULL,challenge_digest=NULL,updated_at=$2
+		WHERE id=ANY($1::uuid[])
+	`, now, "clear terminal Instagram webhook identity")
+}
+
+func (s *RetentionService) purgeTerminalWebhookWork(ctx context.Context, batch int, now time.Time) (int, error) {
+	return s.deleteUUIDBatch(ctx, batch, `
+		SELECT id FROM instagram_webhook_work
+		WHERE status IN ('completed','ignored','failed')
+		  AND COALESCE(terminal_at,updated_at) <= $1::timestamptz - interval '7 days'
+		ORDER BY COALESCE(terminal_at,updated_at),id
+		FOR UPDATE SKIP LOCKED LIMIT $2
+	`, "instagram_webhook_work", now, "purge terminal Instagram webhook work")
+}
+
+func (s *RetentionService) expireInactiveLinks(ctx context.Context, batch int, now time.Time) (int, error) {
+	count := 0
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT id,owner_did FROM instagram_account_links
+			WHERE state='membershipInactive'
+			  AND membership_inactive_at <= $1::timestamptz - interval '1 year'
+			ORDER BY membership_inactive_at,id
+			FOR UPDATE SKIP LOCKED LIMIT $2
+		`, now, batch)
+		if err != nil {
+			return fmt.Errorf("select membership-expired Instagram links: %w", err)
+		}
+		var ids []uuid.UUID
+		var owners []string
+		for rows.Next() {
+			var id uuid.UUID
+			var owner string
+			if err := rows.Scan(&id, &owner); err != nil {
+				rows.Close()
+				return err
+			}
+			ids = append(ids, id)
+			owners = append(owners, owner)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return err
+		}
+		rows.Close()
+		if len(ids) == 0 {
+			return nil
+		}
+		result, err := tx.Exec(ctx, `
+			UPDATE instagram_account_links
+			SET state='revoked',igsid=NULL,username=NULL,username_normalized=NULL,
+			    discoverable=false,conflict_pending=false,membership_inactive_at=NULL,
+			    revoked_at=$2,raw_identity_purge_at=$2,updated_at=$2
+			WHERE id=ANY($1::uuid[]) AND state='membershipInactive'
+		`, ids, now)
+		if err != nil {
+			return fmt.Errorf("expire inactive Instagram links: %w", err)
+		}
+		count = int(result.RowsAffected())
+		if _, err := tx.Exec(ctx, `
+			UPDATE instagram_identity_claims
+			SET state='revoked',released_at=COALESCE(released_at,$2),
+			    anonymize_at=LEAST(COALESCE(anonymize_at,$2::timestamptz+interval '90 days'),$2::timestamptz+interval '90 days'),updated_at=$2
+			WHERE link_id=ANY($1::uuid[]) AND state IN ('active','disputed')
+		`, ids, now); err != nil {
+			return fmt.Errorf("release membership-expired Instagram claims: %w", err)
+		}
+		suggestionIDs, err := retentionUUIDs(ctx, tx, `
+			UPDATE instagram_automatic_follow_ledger
+			SET state='invalidated',accepting_since=NULL,
+			    terminal_at=COALESCE(terminal_at,$2),updated_at=$2
+			WHERE target_did=ANY($1::text[]) AND state IN ('pending','writing')
+			RETURNING id
+		`, owners, now)
+		if err != nil {
+			return fmt.Errorf("invalidate membership-expired link suggestions: %w", err)
+		}
+		if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "linkExpired", now); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE instagram_reconciliation_jobs
+			SET status='ignored',lease_token=NULL,lease_expires_at=NULL,
+			    terminal_at=COALESCE(terminal_at,$2),updated_at=$2
+			WHERE link_id=ANY($1::uuid[]) AND status IN ('queued','processing','retryable')
+		`, ids, now); err != nil {
+			return fmt.Errorf("cancel membership-expired link jobs: %w", err)
+		}
+		for i, id := range ids {
+			if err := insertRetentionAudit(ctx, tx, owners[i], "membership_inactive_link_expired", "link", id.String(), now); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return count, err
+}
+
+func (s *RetentionService) clearTerminalLinkIdentity(ctx context.Context, batch int, now time.Time) (int, error) {
+	return s.updateUUIDBatch(ctx, batch, `
+		SELECT id FROM instagram_account_links
+		WHERE state IN ('revoked','superseded')
+		  AND num_nonnulls(igsid,username,username_normalized) > 0
+		  AND COALESCE(raw_identity_purge_at,revoked_at,superseded_at,updated_at) <= $1
+		ORDER BY COALESCE(raw_identity_purge_at,revoked_at,superseded_at,updated_at),id
+		FOR UPDATE SKIP LOCKED LIMIT $2
+	`, `
+		UPDATE instagram_account_links
+		SET igsid=NULL,username=NULL,username_normalized=NULL,discoverable=false,updated_at=$2
+		WHERE id=ANY($1::uuid[])
+	`, now, "clear terminal Instagram link identity")
+}
+
+func (s *RetentionService) purgeReleasedClaims(ctx context.Context, batch int, now time.Time) (int, error) {
+	return s.deleteUUIDBatch(ctx, batch, `
+		SELECT id FROM instagram_identity_claims
+		WHERE state='revoked' AND anonymize_at <= $1
+		ORDER BY anonymize_at,id
+		FOR UPDATE SKIP LOCKED LIMIT $2
+	`, "instagram_identity_claims", now, "purge released Instagram claims")
+}
+
+func (s *RetentionService) purgeLinkTombstones(ctx context.Context, batch int, now time.Time) (int, error) {
+	return s.deleteUUIDBatch(ctx, batch, `
+		SELECT id FROM instagram_account_links
+		WHERE state IN ('revoked','superseded')
+		  AND COALESCE(revoked_at,superseded_at,updated_at) <= $1::timestamptz - interval '90 days'
+		ORDER BY COALESCE(revoked_at,superseded_at,updated_at),id
+		FOR UPDATE SKIP LOCKED LIMIT $2
+	`, "instagram_account_links", now, "purge Instagram link tombstones")
+}
+
+func (s *RetentionService) expireConflicts(ctx context.Context, batch int, now time.Time) (int, error) {
+	count := 0
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		ids, err := retentionUUIDs(ctx, tx, `
+			SELECT id FROM instagram_link_conflicts
+			WHERE state='open' AND expires_at <= $1
+			ORDER BY expires_at,id
+			FOR UPDATE SKIP LOCKED LIMIT $2
+		`, now, batch)
+		if err != nil || len(ids) == 0 {
+			return err
+		}
+		result, err := tx.Exec(ctx, `
+			UPDATE instagram_link_conflicts
+			SET state='expired',existing_link_id=NULL,claimant_attempt_id=NULL,
+			    claimant_link_id=NULL,igsid_digest_version=NULL,igsid_digest=NULL,
+			    resolution_note_digest=NULL,resolved_at=$2,updated_at=$2
+			WHERE id=ANY($1::uuid[]) AND state='open'
+		`, ids, now)
+		if err != nil {
+			return fmt.Errorf("expire Instagram link conflicts: %w", err)
+		}
+		count = int(result.RowsAffected())
+		if err := refreshConflictFlags(ctx, tx, now); err != nil {
+			return err
+		}
+		for _, id := range ids {
+			if err := insertRetentionAudit(ctx, tx, "", "link_conflict_expired", "conflict", id.String(), now); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return count, err
+}
+
+func (s *RetentionService) purgeResolvedConflicts(ctx context.Context, batch int, now time.Time) (int, error) {
+	return s.deleteUUIDBatch(ctx, batch, `
+		SELECT id FROM instagram_link_conflicts
+		WHERE state IN ('resolvedKeepExisting','resolvedRevokeExisting','expired')
+		  AND COALESCE(resolved_at,updated_at) <= $1::timestamptz - interval '365 days'
+		ORDER BY COALESCE(resolved_at,updated_at),id
+		FOR UPDATE SKIP LOCKED LIMIT $2
+	`, "instagram_link_conflicts", now, "purge resolved Instagram conflicts")
+}
+
+func (s *RetentionService) purgeTerminalSuggestions(ctx context.Context, batch int, now time.Time) (int, error) {
+	count := 0
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		ids, err := retentionUUIDs(ctx, tx, `
+			SELECT id FROM instagram_automatic_follow_ledger
+			WHERE state='invalidated'
+			  AND COALESCE(terminal_at,updated_at) <= $1::timestamptz - interval '90 days'
+			ORDER BY COALESCE(terminal_at,updated_at),id
+			FOR UPDATE SKIP LOCKED LIMIT $2
+		`, now, batch)
+		if err != nil || len(ids) == 0 {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM pds_follow_operations WHERE automatic_follow_id=ANY($1::uuid[])`, ids); err != nil {
+			return fmt.Errorf("purge retained Instagram follow ledgers: %w", err)
+		}
+		result, err := tx.Exec(ctx, `DELETE FROM instagram_automatic_follow_ledger WHERE id=ANY($1::uuid[])`, ids)
+		if err != nil {
+			return fmt.Errorf("purge terminal Instagram suggestions: %w", err)
+		}
+		count = int(result.RowsAffected())
+		return nil
+	})
+	return count, err
+}
+
+func (s *RetentionService) purgeRetractedDeliveries(ctx context.Context, batch int, now time.Time) (int, error) {
+	count := 0
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		ids, err := retentionUUIDs(ctx, tx, `
+			SELECT delivery.id
+			FROM push_deliveries delivery
+			JOIN notification_events event ON event.id=delivery.notification_id
+			WHERE event.category='instagramMatch' AND event.state='retracted'
+			  AND delivery.status='cancelled'
+			  AND delivery.updated_at <= $1::timestamptz - interval '7 days'
+			ORDER BY delivery.updated_at,delivery.id
+			FOR UPDATE OF delivery SKIP LOCKED LIMIT $2
+		`, now, batch)
+		if err != nil || len(ids) == 0 {
+			return err
+		}
+		result, err := tx.Exec(ctx, `DELETE FROM push_deliveries WHERE id=ANY($1::uuid[])`, ids)
+		if err != nil {
+			return fmt.Errorf("purge retracted Instagram deliveries: %w", err)
+		}
+		count = int(result.RowsAffected())
+		return nil
+	})
+	return count, err
+}
+
+func (s *RetentionService) purgeMatchNotifications(ctx context.Context, batch int, now time.Time) (int, error) {
+	return s.deleteUUIDBatch(ctx, batch, `
+		SELECT id FROM notification_events
+		WHERE category='instagramMatch'
+		  AND activity_at <= $1::timestamptz - interval '90 days'
+		ORDER BY activity_at,id
+		FOR UPDATE SKIP LOCKED LIMIT $2
+	`, "notification_events", now, "purge Instagram match notifications")
+}
+
+func (s *RetentionService) purgeRateBuckets(ctx context.Context, batch int, now time.Time) (int, error) {
+	count := 0
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, `
+			WITH candidates AS (
+				SELECT bucket_scope,key_version,key_digest,window_start
+				FROM instagram_rate_limit_buckets
+				WHERE window_end <= $1::timestamptz - interval '24 hours'
+				ORDER BY window_end,bucket_scope,key_version,key_digest,window_start
+				FOR UPDATE SKIP LOCKED LIMIT $2
+			)
+			DELETE FROM instagram_rate_limit_buckets bucket
+			USING candidates candidate
+			WHERE bucket.bucket_scope=candidate.bucket_scope
+			  AND bucket.key_version=candidate.key_version
+			  AND bucket.key_digest=candidate.key_digest
+			  AND bucket.window_start=candidate.window_start
+		`, now, batch)
+		if err != nil {
+			return fmt.Errorf("purge Instagram rate buckets: %w", err)
+		}
+		count = int(result.RowsAffected())
+		return nil
+	})
+	return count, err
+}
+
+func (s *RetentionService) purgeAuditEvents(ctx context.Context, batch int, now time.Time) (int, error) {
+	count := 0
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, `
+			WITH candidates AS (
+				SELECT id FROM instagram_audit_events
+				WHERE created_at <= $1::timestamptz - interval '365 days'
+				ORDER BY created_at,id
+				FOR UPDATE SKIP LOCKED LIMIT $2
+			)
+			DELETE FROM instagram_audit_events audit
+			USING candidates candidate WHERE audit.id=candidate.id
+		`, now, batch)
+		if err != nil {
+			return fmt.Errorf("purge Instagram audit events: %w", err)
+		}
+		count = int(result.RowsAffected())
+		return nil
+	})
+	return count, err
+}
+
+func (s *RetentionService) updateUUIDBatch(ctx context.Context, batch int, selectSQL, updateSQL string, now time.Time, operation string) (int, error) {
+	count := 0
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		ids, err := retentionUUIDs(ctx, tx, selectSQL, now, batch)
+		if err != nil || len(ids) == 0 {
+			return err
+		}
+		result, err := tx.Exec(ctx, updateSQL, ids, now)
+		if err != nil {
+			return fmt.Errorf("%s: %w", operation, err)
+		}
+		count = int(result.RowsAffected())
+		return nil
+	})
+	return count, err
+}
+
+func (s *RetentionService) deleteUUIDBatch(ctx context.Context, batch int, selectSQL, table string, now time.Time, operation string) (int, error) {
+	count := 0
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		ids, err := retentionUUIDs(ctx, tx, selectSQL, now, batch)
+		if err != nil || len(ids) == 0 {
+			return err
+		}
+		// Table names are constants owned by the caller methods above, never
+		// operator or request input.
+		result, err := tx.Exec(ctx, "DELETE FROM "+table+" WHERE id=ANY($1::uuid[])", ids)
+		if err != nil {
+			return fmt.Errorf("%s: %w", operation, err)
+		}
+		count = int(result.RowsAffected())
+		return nil
+	})
+	return count, err
+}
+
+func retentionUUIDs(ctx context.Context, tx pgx.Tx, query string, args ...any) ([]uuid.UUID, error) {
+	rows, err := tx.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := make([]uuid.UUID, 0)
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+func insertRetentionAudit(ctx context.Context, tx pgx.Tx, owner, action, subjectKind, subjectID string, now time.Time) error {
+	var ownerValue any
+	if owner != "" {
+		ownerValue = owner
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO instagram_audit_events(owner_did,action,subject_kind,subject_id,outcome,created_at)
+		VALUES($1,$2,$3,$4,'completed',$5)
+	`, ownerValue, action, subjectKind, subjectID, now); err != nil {
+		return fmt.Errorf("write Instagram retention audit: %w", err)
+	}
+	return nil
+}

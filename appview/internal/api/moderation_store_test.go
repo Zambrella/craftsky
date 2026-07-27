@@ -6,9 +6,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/testdb"
 )
+
+type recordingModerationRestoration struct {
+	targets []syntax.DID
+}
+
+func (r *recordingModerationRestoration) EnqueueModerationRestoration(
+	_ context.Context,
+	target syntax.DID,
+) error {
+	r.targets = append(r.targets, target)
+	return nil
+}
 
 func TestModerationStore_InsertOutput_PersistsPostAndAccountOutputs(t *testing.T) {
 	t.Parallel()
@@ -104,6 +118,40 @@ func TestModerationStore_ActivePolicyForSubject_HandlesNegateAndExpiry(t *testin
 	}
 	if policy.Hidden || !policy.Warning || policy.Value != api.ModerationValueWarn {
 		t.Fatalf("policy = %+v, want visible warning", policy)
+	}
+}
+
+func TestModerationStore_AccountSafetyNegateEnqueuesRestoration(t *testing.T) {
+	pool := testdb.WithSchema(t, moderationFlowMigrationDDL(t))
+	restoration := &recordingModerationRestoration{}
+	store := api.NewModerationStore(pool, restoration)
+	ctx := context.Background()
+
+	for _, input := range []api.ModerationOutputInput{
+		{
+			SourceDID: "did:plc:labeler", SubjectType: api.ModerationSubjectAccount,
+			SubjectDID: "did:plc:target", Value: api.ModerationValueHide,
+			Action: api.ModerationActionApply,
+		},
+		{
+			SourceDID: "did:plc:labeler", SubjectType: api.ModerationSubjectAccount,
+			SubjectDID: "did:plc:target", Value: api.ModerationValueHide,
+			Action: api.ModerationActionNegate,
+		},
+		{
+			SourceDID: "did:plc:labeler", SubjectType: api.ModerationSubjectAccount,
+			SubjectDID: "did:plc:target", Value: api.ModerationValueWarn,
+			Action: api.ModerationActionNegate,
+		},
+	} {
+		if _, err := store.InsertOutput(ctx, input); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if len(restoration.targets) != 1 ||
+		restoration.targets[0] != syntax.DID("did:plc:target") {
+		t.Fatalf("restoration targets=%v, want one account target", restoration.targets)
 	}
 }
 

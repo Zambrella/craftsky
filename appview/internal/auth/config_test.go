@@ -10,7 +10,8 @@ import (
 )
 
 func TestBuildClientConfig_Localhost(t *testing.T) {
-	cfg, err := auth.BuildClientConfig("", "", "", []string{"atproto"})
+	callback := "http://127.0.0.1:18350/oauth/callback"
+	cfg, err := auth.BuildClientConfig("", callback, "", "", []string{"atproto"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,6 +21,9 @@ func TestBuildClientConfig_Localhost(t *testing.T) {
 	if !strings.HasPrefix(cfg.ClientID, "http://localhost?") {
 		t.Fatalf("unexpected client_id: %q", cfg.ClientID)
 	}
+	if cfg.CallbackURL != callback {
+		t.Fatalf("callback URL = %q, want %q", cfg.CallbackURL, callback)
+	}
 }
 
 func TestBuildClientConfig_Confidential(t *testing.T) {
@@ -28,7 +32,7 @@ func TestBuildClientConfig_Confidential(t *testing.T) {
 		t.Fatal(err)
 	}
 	keyMB := priv.Multibase()
-	cfg, err := auth.BuildClientConfig("appview.example", keyMB, "primary", []string{"atproto"})
+	cfg, err := auth.BuildClientConfig("appview.example", "", keyMB, "primary", []string{"atproto"})
 	if err != nil {
 		t.Fatal(err)
 	}

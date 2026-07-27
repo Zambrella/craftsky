@@ -23,7 +23,7 @@ class _SettingsPageBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    return Column(
+    return ListView(
       children: [
         ListTile(
           leading: const Icon(Icons.bookmarks_outlined),
@@ -49,6 +49,12 @@ class _SettingsPageBody extends ConsumerWidget {
           leading: const Icon(Icons.person_add_alt_outlined),
           title: const Text('Following'),
           onTap: () => const FollowingRoute().go(context),
+        ),
+        ListTile(
+          leading: const Icon(Icons.photo_camera_outlined),
+          title: Text(l10n.instagramMigrationTitle),
+          subtitle: Text(l10n.instagramMigrationSettingsSubtitle),
+          onTap: () => const InstagramMigrationRoute().push<void>(context),
         ),
         const ClearImageCacheTile(),
         const SignOutTile(),

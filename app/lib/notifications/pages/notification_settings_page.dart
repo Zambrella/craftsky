@@ -217,40 +217,48 @@ class _PreferenceSection extends ConsumerWidget {
             ],
           ),
           SizedBox(height: spacing.sp4),
-          CraftskySingleSelectInput<NotificationPreferenceScope>(
-            label: l10n.notificationPreferenceFrom,
-            keyPrefix: 'notification-${category.wireValue}-scope',
-            value: preference.scope,
-            options: [
-              CraftskySelectOption(
-                value: NotificationPreferenceScope.everyone,
-                label: l10n.notificationScopeEveryone,
+          if (category == NotificationCategory.instagramMatch)
+            Text(
+              l10n.notificationInstagramMatchPreferenceDescription,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
-              CraftskySelectOption(
-                value: NotificationPreferenceScope.peopleIFollow,
-                label: l10n.notificationScopePeopleIFollow,
-              ),
-            ],
-            onChanged: (value) async {
-              if (value == null) return;
-              final saved = account == null
-                  ? await ref
-                        .read(notificationPreferencesProvider.notifier)
-                        .setScope(category, value: value)
-                  : await ref
-                        .read(
-                          accountNotificationPreferencesProvider(
-                            account!,
-                          ).notifier,
-                        )
-                        .setScope(category, value: value);
-              if (!saved && context.mounted) {
-                context.showError(
-                  l10n.notificationPreferenceSaveError,
-                );
-              }
-            },
-          ),
+            )
+          else
+            CraftskySingleSelectInput<NotificationPreferenceScope>(
+              label: l10n.notificationPreferenceFrom,
+              keyPrefix: 'notification-${category.wireValue}-scope',
+              value: preference.scope,
+              options: [
+                CraftskySelectOption(
+                  value: NotificationPreferenceScope.everyone,
+                  label: l10n.notificationScopeEveryone,
+                ),
+                CraftskySelectOption(
+                  value: NotificationPreferenceScope.peopleIFollow,
+                  label: l10n.notificationScopePeopleIFollow,
+                ),
+              ],
+              onChanged: (value) async {
+                if (value == null) return;
+                final saved = account == null
+                    ? await ref
+                          .read(notificationPreferencesProvider.notifier)
+                          .setScope(category, value: value)
+                    : await ref
+                          .read(
+                            accountNotificationPreferencesProvider(
+                              account!,
+                            ).notifier,
+                          )
+                          .setScope(category, value: value);
+                if (!saved && context.mounted) {
+                  context.showError(
+                    l10n.notificationPreferenceSaveError,
+                  );
+                }
+              },
+            ),
           SizedBox(height: spacing.sp3),
           Divider(color: theme.colorScheme.outlineVariant),
           MergeSemantics(
@@ -304,6 +312,8 @@ String _categoryLabel(
   NotificationCategory.mention => l10n.notificationCategoryMentions,
   NotificationCategory.quote => l10n.notificationCategoryQuotes,
   NotificationCategory.repost => l10n.notificationCategoryReposts,
+  NotificationCategory.instagramMatch =>
+    l10n.notificationCategoryInstagramMatches,
   NotificationCategory.everythingElse =>
     l10n.notificationCategoryEverythingElse,
   NotificationCategory.unknown => l10n.notificationCategoryEverythingElse,

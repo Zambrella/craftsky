@@ -36,25 +36,29 @@ class NotificationRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (notification case final SystemNotification system) {
+      return _buildSystem(context, ref, system);
+    }
+    final actorNotification = notification as ActorNotification;
     final registry = ref.watch(sessionRegistryProvider).value;
     final account = owner?.account ?? registry?.activeLease?.session.account;
     final actorRelationshipProvider =
         account == null ||
-            !notification.actor.available ||
-            account.did == notification.actor.did
+            !actorNotification.actor.available ||
+            account.did == actorNotification.actor.did
         ? null
         : profileRelationshipProvider(
             account,
-            notification.actor.did.toString(),
+            actorNotification.actor.did.toString(),
           );
     final cachedRelationship = actorRelationshipProvider == null
         ? null
         : ref.watch(actorRelationshipProvider);
-    final serverRelationship = notification.actor.hasViewerState
+    final serverRelationship = actorNotification.actor.hasViewerState
         ? ProfileRelationship.fromProfileFlags(
-            muted: notification.actor.muted ?? false,
-            blocking: notification.actor.blocking ?? false,
-            blockedBy: notification.actor.blockedBy ?? false,
+            muted: actorNotification.actor.muted ?? false,
+            blocking: actorNotification.actor.blocking ?? false,
+            blockedBy: actorNotification.actor.blockedBy ?? false,
           )
         : const ProfileRelationship(initialized: true);
     if (actorRelationshipProvider != null &&
@@ -69,7 +73,7 @@ class NotificationRow extends ConsumerWidget {
     }
     final relationship = cachedRelationship?.initialized ?? false
         ? cachedRelationship
-        : notification.actor.hasViewerState
+        : actorNotification.actor.hasViewerState
         ? serverRelationship
         : null;
     if ((relationship?.muted ?? false) || (relationship?.hasBlock ?? false)) {
@@ -77,10 +81,14 @@ class NotificationRow extends ConsumerWidget {
     }
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final actor = notification.actor.displayLabel;
-    final actionColor = _actionColor(notification, theme.colorScheme);
-    final (title, subjectPost) = switch (notification) {
+    final actor = actorNotification.actor.displayLabel;
+    final actionColor = _actionColor(actorNotification, theme.colorScheme);
+    final (title, subjectPost) = switch (actorNotification) {
       FollowNotification() => (l10n.notificationFollowRow(actor), null),
+      InstagramMatchNotification() => (
+        l10n.notificationInstagramMatchActorRow(actor),
+        null,
+      ),
       LikeNotification(:final subjectPost) => (
         switch (_roleOf(subjectPost)) {
           _NotificationContentRole.post => l10n.notificationLikeRow(actor),
@@ -127,7 +135,7 @@ class NotificationRow extends ConsumerWidget {
       GenericNotification() => (l10n.notificationGenericRow, null),
       UnavailableNotification() => (l10n.notificationUnavailableRow, null),
     };
-    final onTap = notification is GenericNotification
+    final onTap = actorNotification is GenericNotification
         ? null
         : () => _open(context, ref);
     return Material(
@@ -156,7 +164,7 @@ class NotificationRow extends ConsumerWidget {
                   children: [
                     ProfileAvatar(
                       seed: actor,
-                      avatarUrl: notification.actor.displayAvatarUrl,
+                      avatarUrl: actorNotification.actor.displayAvatarUrl,
                       size: ProfileAvatarSize.small,
                     ),
                     const SizedBox(height: 8),
@@ -185,11 +193,62 @@ class NotificationRow extends ConsumerWidget {
                         padding: EdgeInsets.zero,
                       ),
                     ],
-                    if (notification is FollowNotification &&
-                        notification.actor.available) ...[
+                    if ((actorNotification is FollowNotification ||
+                            actorNotification is InstagramMatchNotification) &&
+                        actorNotification.actor.available) ...[
                       const SizedBox(height: 8),
-                      _NotificationFollowButton(actor: notification.actor),
+                      _NotificationFollowButton(
+                        actor: actorNotification.actor,
+                        owner: owner,
+                      ),
                     ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSystem(
+    BuildContext context,
+    WidgetRef ref,
+    SystemNotification system,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final title = l10n.notificationGenericRow;
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              ExcludeSemantics(
+                child: Icon(
+                  notificationCategoryIcon(system.type),
+                  color: _actionColor(system, theme.colorScheme),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 2,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(title, style: theme.textTheme.bodyLarge),
+                    Text(
+                      '·',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                    RelativeTimeText(timestamp: system.createdAt),
                   ],
                 ),
               ),
@@ -221,6 +280,12 @@ class NotificationRow extends ConsumerWidget {
         _openPost(context, subjectPost);
       case GenericNotification():
         break;
+      case GenericSystemNotification():
+        break;
+      case InstagramMatchNotification(:final actor):
+        unawaited(
+          UserProfileRoute(handle: actor.handle.toString()).push<void>(context),
+        );
       case UnavailableNotification():
         context.showWarning(
           AppLocalizations.of(context).notificationUnavailableRow,
@@ -245,9 +310,10 @@ class NotificationRow extends ConsumerWidget {
 }
 
 class _NotificationFollowButton extends ConsumerStatefulWidget {
-  const _NotificationFollowButton({required this.actor});
+  const _NotificationFollowButton({required this.actor, required this.owner});
 
   final NotificationActor actor;
+  final AccountSessionLease? owner;
 
   @override
   ConsumerState<_NotificationFollowButton> createState() =>
@@ -296,31 +362,46 @@ class _NotificationFollowButtonState
   }
 
   Future<void> _toggle() async {
-    if (_isBusy) return;
+    if (_isBusy || !_isOwnerCurrent()) return;
     final previous = _isFollowing;
     setState(() {
       _isFollowing = !previous;
       _isBusy = true;
     });
     try {
-      final repository = ref.read(profileRepositoryProvider);
+      final owner = widget.owner;
+      final repository = owner == null
+          ? ref.read(profileRepositoryProvider)
+          : await ref.read(
+              accountRelationshipRepositoryProvider(owner.account).future,
+            );
+      if (!_isOwnerCurrent()) return;
       final updated = previous
           ? await repository.unfollow(widget.actor.did.toString())
           : await repository.follow(widget.actor.did.toString());
-      if (!mounted) return;
+      if (!mounted || !_isOwnerCurrent()) return;
       setState(() => _isFollowing = updated.viewerIsFollowing);
       ref
         ..invalidate(userProfileProvider(widget.actor.did.toString()))
         ..invalidate(userProfileProvider(widget.actor.handle.toString()));
     } on Object {
-      if (!mounted) return;
+      if (!mounted || !_isOwnerCurrent()) return;
       setState(() => _isFollowing = previous);
       context.showError(
         AppLocalizations.of(context).profileFollowToggleError,
       );
     } finally {
-      if (mounted) setState(() => _isBusy = false);
+      if (mounted && _isOwnerCurrent()) {
+        setState(() => _isBusy = false);
+      }
     }
+  }
+
+  bool _isOwnerCurrent() {
+    final owner = widget.owner;
+    if (owner == null) return true;
+    return ref.read(sessionRegistryProvider).value?.activeLease?.session ==
+        owner;
   }
 }
 
@@ -333,7 +414,9 @@ Color _actionColor(
   RepostNotification() => colors.tertiary,
   ReplyNotification() => colors.primary,
   MentionNotification() || QuoteNotification() => colors.secondary,
+  InstagramMatchNotification() => colors.primary,
   GenericNotification() => colors.outline,
+  GenericSystemNotification() => colors.outline,
   UnavailableNotification() => colors.error,
 };
 

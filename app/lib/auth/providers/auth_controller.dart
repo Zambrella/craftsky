@@ -169,6 +169,7 @@ class AuthController extends _$AuthController {
         rethrow;
       }
       await ref.read(accountStateInvalidatorProvider)();
+      await ref.read(accountSessionPrivateStateCleanerProvider)(lease);
       await ref.read(sessionRegistryProvider.notifier).removeConfirmed(lease);
       final next = ref.read(sessionRegistryProvider).requireValue;
       final activeDid = next.activeDid;

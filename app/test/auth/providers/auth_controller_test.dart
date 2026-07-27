@@ -92,6 +92,7 @@ ProviderContainer _container({
   _LaunchRecorder? launch,
   _FakeRegistryStorage? registryStorage,
   Future<void> Function()? invalidateAccountState,
+  Future<void> Function()? clearSessionPrivateState,
   Future<void> Function()? resetToHome,
 }) {
   final resolvedApi = api ?? _FakeAuthApi();
@@ -121,6 +122,10 @@ ProviderContainer _container({
       if (invalidateAccountState != null)
         accountStateInvalidatorProvider.overrideWithValue(
           invalidateAccountState,
+        ),
+      if (clearSessionPrivateState != null)
+        accountSessionPrivateStateCleanerProvider.overrideWithValue(
+          (_) => clearSessionPrivateState(),
         ),
       if (resetToHome != null)
         accountHomeResetProvider.overrideWithValue(resetToHome),
@@ -382,6 +387,7 @@ void main() {
         api: _FakeAuthApi(onLogout: () async => events.add('server-logout')),
         registryStorage: registryStorage,
         invalidateAccountState: () async => events.add('invalidate-account'),
+        clearSessionPrivateState: () async => events.add('clear-private'),
         resetToHome: () async => events.add('home'),
       );
 
@@ -390,7 +396,12 @@ void main() {
           .read(authControllerProvider.notifier)
           .signOut();
 
-      expect(events, ['server-logout', 'invalidate-account', 'home']);
+      expect(events, [
+        'server-logout',
+        'invalidate-account',
+        'clear-private',
+        'home',
+      ]);
       expect(result?.activeHandle, 'bob.test');
       final registry = container.read(sessionRegistryProvider).requireValue;
       expect(registry.sessions.keys, {'did:plc:bob'});

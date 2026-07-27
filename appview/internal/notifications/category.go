@@ -12,6 +12,7 @@ const (
 	Quote          Category = "quote"
 	Repost         Category = "repost"
 	EverythingElse Category = "everythingElse"
+	InstagramMatch Category = "instagramMatch"
 )
 
 var categories = [...]Category{
@@ -22,6 +23,7 @@ var categories = [...]Category{
 	Quote,
 	Repost,
 	EverythingElse,
+	InstagramMatch,
 }
 
 // Categories returns the complete public registry in settings presentation

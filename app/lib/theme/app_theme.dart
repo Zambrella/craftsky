@@ -82,6 +82,7 @@ class AppTheme {
       appBarTheme: _appBarTheme(base),
       navigationBarTheme: _navigationBarTheme(base),
       tabBarTheme: _tabBarTheme(base),
+      segmentedButtonTheme: _segmentedButtonTheme(base.colorScheme),
     );
   }
 
@@ -100,7 +101,46 @@ class AppTheme {
       ),
       visualDensity: FlexColorScheme.comfortablePlatformDensity,
     );
-    return base.copyWith(extensions: _extensions(base.colorScheme));
+    return base.copyWith(
+      extensions: _extensions(base.colorScheme),
+      segmentedButtonTheme: _segmentedButtonTheme(base.colorScheme),
+    );
+  }
+
+  static SegmentedButtonThemeData _segmentedButtonTheme(ColorScheme colors) {
+    const swatches = BrandSwatchTheme();
+    return SegmentedButtonThemeData(
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) return null;
+          return states.contains(WidgetState.selected) ? swatches.moss : null;
+        }),
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) return null;
+          return states.contains(WidgetState.selected)
+              ? swatches.onMoss
+              : colors.onSurface;
+        }),
+        overlayColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return Colors.transparent;
+          }
+          final interactionColor = states.contains(WidgetState.selected)
+              ? swatches.onMoss
+              : swatches.moss;
+          if (states.contains(WidgetState.pressed)) {
+            return interactionColor.withValues(alpha: 0.12);
+          }
+          if (states.contains(WidgetState.focused)) {
+            return interactionColor.withValues(alpha: 0.10);
+          }
+          if (states.contains(WidgetState.hovered)) {
+            return interactionColor.withValues(alpha: 0.08);
+          }
+          return Colors.transparent;
+        }),
+      ),
+    );
   }
 
   /// Outfit for UI, DM Serif Display for editorial display, JetBrains Mono

@@ -28,18 +28,18 @@ type NotificationPage struct {
 }
 
 type NotificationItem struct {
-	ID               string                 `json:"id"`
-	URI              string                 `json:"uri,omitempty"`
-	CID              string                 `json:"cid,omitempty"`
-	Rkey             string                 `json:"rkey,omitempty"`
-	Type             NotificationType       `json:"type"`
-	Actor            NotificationActor      `json:"actor"`
-	References       NotificationReferences `json:"references"`
-	CreatedAt        string                 `json:"createdAt"`
-	IndexedAt        string                 `json:"indexedAt"`
-	SubjectPost      *PostResponse          `json:"subjectPost,omitempty"`
-	Reply            *NotificationReplyRef  `json:"reply,omitempty"`
-	ContentAvailable *bool                  `json:"contentAvailable,omitempty"`
+	ID               string                  `json:"id"`
+	URI              string                  `json:"uri,omitempty"`
+	CID              string                  `json:"cid,omitempty"`
+	Rkey             string                  `json:"rkey,omitempty"`
+	Type             NotificationType        `json:"type"`
+	Actor            *NotificationActor      `json:"actor,omitempty"`
+	References       *NotificationReferences `json:"references,omitempty"`
+	CreatedAt        string                  `json:"createdAt"`
+	IndexedAt        string                  `json:"indexedAt"`
+	SubjectPost      *PostResponse           `json:"subjectPost,omitempty"`
+	Reply            *NotificationReplyRef   `json:"reply,omitempty"`
+	ContentAvailable *bool                   `json:"contentAvailable,omitempty"`
 }
 
 type NotificationActor struct {
@@ -89,19 +89,25 @@ func ListNotificationsHandler(store NotificationReader, _ HandleResolver, logger
 					postURIs = append(postURIs, row.SubjectPost.URI)
 				}
 			}
-			handles, err := store.NotificationHandles(r.Context(), dids)
-			if err != nil {
-				logger.Error("notifications: indexed handle batch failed",
-					apiLogErrorAttrs(runID, "notifications.list", "store")...)
-				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "notification identity lookup failed", runID, nil)
-				return
+			handles := map[string]syntax.Handle{}
+			if len(dids) > 0 {
+				handles, err = store.NotificationHandles(r.Context(), dids)
+				if err != nil {
+					logger.Error("notifications: indexed handle batch failed",
+						apiLogErrorAttrs(runID, "notifications.list", "store")...)
+					envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "notification identity lookup failed", runID, nil)
+					return
+				}
 			}
-			summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
-			if err != nil {
-				logger.Error("notifications: EngagementSummaries failed",
-					apiLogErrorAttrs(runID, "notifications.list", "engagement")...)
-				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "post engagement lookup failed", runID, nil)
-				return
+			summaries := map[string]EngagementSummary{}
+			if len(postURIs) > 0 {
+				summaries, err = store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
+				if err != nil {
+					logger.Error("notifications: EngagementSummaries failed",
+						apiLogErrorAttrs(runID, "notifications.list", "engagement")...)
+					envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "post engagement lookup failed", runID, nil)
+					return
+				}
 			}
 			for _, row := range rows {
 				items = append(items, buildNotificationItem(row, handles, summaries))
@@ -130,22 +136,20 @@ func parseNotificationLimit(raw string) int {
 }
 
 func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary) *NotificationItem {
-	actorHandle, actorAvailable := handles[row.ActorDID]
 	item := &NotificationItem{
-		ID:   row.ID,
-		Type: row.Type,
-		Actor: NotificationActor{
-			Available:         actorAvailable,
-			DID:               row.ActorDID,
-			Handle:            actorHandle.String(),
-			DisplayName:       row.ActorDisplayName,
-			AvatarCID:         row.ActorAvatarCID,
-			ViewerIsFollowing: row.ActorViewerIsFollowing,
-		},
-		CreatedAt:  row.CreatedAt.UTC().Format(time.RFC3339),
-		IndexedAt:  row.IndexedAt.UTC().Format(time.RFC3339),
-		Reply:      row.Reply,
-		References: row.References,
+		ID:        row.ID,
+		Type:      row.Type,
+		CreatedAt: row.CreatedAt.UTC().Format(time.RFC3339),
+		IndexedAt: row.IndexedAt.UTC().Format(time.RFC3339),
+	}
+	actorHandle, actorAvailable := handles[row.ActorDID]
+	item.Actor = &NotificationActor{
+		Available:         actorAvailable,
+		DID:               row.ActorDID,
+		Handle:            actorHandle.String(),
+		DisplayName:       row.ActorDisplayName,
+		AvatarCID:         row.ActorAvatarCID,
+		ViewerIsFollowing: row.ActorViewerIsFollowing,
 	}
 	if avatar := synthBlobURL("avatar", row.ActorDID, row.ActorAvatarCID, row.ActorAvatarMime); avatar != "" {
 		item.Actor.Avatar = &avatar
@@ -160,6 +164,11 @@ func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handl
 		item.Actor.Avatar = nil
 		item.Actor.AvatarCID = nil
 	}
+	if row.Type == NotificationTypeInstagramMatch {
+		return item
+	}
+	item.Reply = row.Reply
+	item.References = &row.References
 	if row.SubjectPost != nil {
 		post := BuildPostResponse(row.SubjectPost, handles[row.SubjectPost.DID])
 		applyEngagementSummary(post, summaries[row.SubjectPost.URI])
