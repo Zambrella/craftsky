@@ -238,24 +238,53 @@ p {
   font-size: clamp(1rem, 1.5vw, 1.12rem);
 }
 
-.privacy-points {
+.how-it-works__title {
+  margin: 24px 0 12px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.how-it-works {
   display: grid;
-  gap: 6px;
-  margin: 20px 0 0;
+  gap: 12px;
+  margin: 0;
   padding: 0;
+  counter-reset: importer-step;
   list-style: none;
 }
 
-.privacy-points li {
+.how-it-works li {
   display: flex;
-  gap: 10px;
-  align-items: baseline;
+  align-items: flex-start;
+  gap: 12px;
+  counter-increment: importer-step;
 }
 
-.privacy-points li::before {
-  color: var(--moss);
-  content: '✓';
-  font-weight: 900;
+.how-it-works li::before {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--cobalt-soft);
+  color: var(--cobalt-deep);
+  content: counter(importer-step);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.how-it-works li > span {
+  display: grid;
+  gap: 2px;
+}
+
+.how-it-works small {
+  color: var(--ink-3);
+  font-size: 0.88rem;
 }
 
 .paper-card {
@@ -655,34 +684,23 @@ progress::-moz-progress-bar {
   white-space: nowrap;
 }
 
-.segmented-control {
+.filter-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 0;
+  gap: 6px;
   margin: 12px 0 6px;
 }
 
-.segmented-control button {
+.filter-controls button {
   padding: 7px 12px;
   border: 1px solid var(--border-hair);
+  border-radius: 999px;
   background: var(--white-paper);
   cursor: pointer;
   font-weight: 700;
 }
 
-.segmented-control button:first-child {
-  border-radius: 999px 0 0 999px;
-}
-
-.segmented-control button:last-child {
-  border-radius: 0 999px 999px 0;
-}
-
-.segmented-control button + button {
-  margin-left: -1px;
-}
-
-.segmented-control button[aria-pressed='true'] {
+.filter-controls button[aria-pressed='true'] {
   position: relative;
   z-index: 1;
   border-color: var(--cobalt);
@@ -799,6 +817,10 @@ progress::-moz-progress-bar {
 }
 
 .warning-list li {
+  display: flex;
+  position: relative;
+  align-items: center;
+  gap: 6px;
   padding: 4px 7px;
   border: 0;
   border-radius: var(--radius-sm);
@@ -806,6 +828,52 @@ progress::-moz-progress-bar {
   color: #645216;
   font-size: 0.73rem;
   font-weight: 650;
+}
+
+.warning-tooltip__trigger {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--cobalt-deep);
+  cursor: help;
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.warning-tooltip__trigger:hover {
+  color: var(--cobalt);
+}
+
+.warning-tooltip__bubble {
+  display: none;
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(300px, calc(100vw - 48px));
+  padding: 9px 10px;
+  border: 1px solid #d2b94e;
+  border-radius: var(--radius-sm);
+  background: #fffdf3;
+  box-shadow: var(--shadow-lg);
+  color: var(--ink-2);
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.warning-tooltip:hover .warning-tooltip__bubble,
+.warning-tooltip:focus-within .warning-tooltip__bubble {
+  display: block;
+}
+
+.review-post__lead-media {
+  margin: 0 0 12px;
 }
 
 .post-section {
@@ -947,6 +1015,12 @@ progress::-moz-progress-bar {
   display: grid;
   gap: 4px;
   cursor: pointer;
+}
+
+.media-option__lead-note {
+  grid-column: 1 / -1;
+  color: var(--ink-3);
+  font-size: 0.75rem;
 }
 
 .media-thumbnail-button {
@@ -1124,6 +1198,14 @@ progress::-moz-progress-bar {
   white-space: nowrap;
 }
 
+.destination-card__handle {
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 0.84rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .account-avatar {
   display: grid;
   width: 40px;
@@ -1131,10 +1213,11 @@ progress::-moz-progress-bar {
   flex: 0 0 auto;
   place-items: center;
   border: 1px solid var(--border-hair);
-  border-radius: var(--radius-sm);
+  border-radius: 50%;
   background: var(--butter);
   font-size: 1.3rem;
   font-weight: 900;
+  object-fit: cover;
 }
 
 .destination-card__counts {
@@ -1416,11 +1499,6 @@ progress::-moz-progress-bar {
 
   .review-toolbar__actions {
     white-space: normal;
-  }
-
-  .segmented-control {
-    flex-wrap: nowrap;
-    overflow-x: auto;
   }
 
   .virtual-review-window {

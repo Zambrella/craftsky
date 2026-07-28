@@ -16,7 +16,7 @@ import {
   updatePostSelection,
 } from '../../review/reviewState'
 
-export type ReviewFilter = 'all' | 'warnings' | 'textOnly'
+export type ReviewFilter = 'all' | UserFacingWarningCode
 
 const REVIEW_VIEWPORT_HEIGHT = 720
 const SKIPPED_VIEWPORT_HEIGHT = 480
@@ -42,29 +42,52 @@ interface LightboxImage {
 
 const warningCopy: Record<UserFacingWarningCode, string> = {
   captionTruncated: 'Caption was shortened to CraftSky’s limit',
-  imagesOmitted: 'Some images were omitted',
-  videoOmitted: 'Video was omitted',
-  unsupportedMediaOmitted: 'Unsupported media was omitted',
-  mediaUnavailable: 'Some media could not be read',
-  textOnlyConfirmationRequired: 'Confirm this text-only post',
+  imagesOmitted: 'Some images were left out',
+  videoOmitted: 'Video was left out',
+  unsupportedMediaOmitted: 'An unsupported file was left out',
+  mediaUnavailable: 'Some media could not be opened',
+  textOnlyConfirmationRequired: 'This post has no usable image',
+}
+
+const warningFilterCopy: Record<UserFacingWarningCode, string> = {
+  captionTruncated: 'Shortened captions',
+  imagesOmitted: 'Images left out',
+  videoOmitted: 'Videos left out',
+  unsupportedMediaOmitted: 'Unsupported files',
+  mediaUnavailable: 'Media not opened',
+  textOnlyConfirmationRequired: 'No usable image',
+}
+
+const warningWhyCopy: Record<UserFacingWarningCode, string> = {
+  captionTruncated:
+    'CraftSky captions can contain up to 2,000 characters, so the rest was removed.',
+  imagesOmitted:
+    'CraftSky posts can include up to four images, so any extra images were left out.',
+  videoOmitted:
+    'This importer currently supports photos but not videos.',
+  unsupportedMediaOmitted:
+    'This importer can prepare JPEG, PNG, and WebP images. Other file types cannot be added yet.',
+  mediaUnavailable:
+    'The file was missing from the export or could not be prepared safely in this browser.',
+  textOnlyConfirmationRequired:
+    'The caption can still be imported, but none of this post’s images can be added. Please confirm that you want the post without an image.',
 }
 
 const skipCopy: Record<SafeSkipCode, string> = {
-  ambiguousDuplicate: 'Conflicting duplicate export entries',
-  invalidTimestamp: 'Creation date is outside the supported range',
+  ambiguousDuplicate: 'Duplicate entries could not be matched safely',
+  invalidTimestamp: 'Post date could not be read',
   unpublished: 'Draft or unpublished post',
-  videoOnly: 'Video-only post',
-  emptyPost: 'No publishable caption or image',
-  unsupportedPost: 'Unsupported post shape',
-  rkeyCollision: 'Deterministic record-key collision',
+  videoOnly: 'Video posts are not supported yet',
+  emptyPost: 'No caption or supported image to import',
+  unsupportedPost: 'This type of post is not supported yet',
+  rkeyCollision: 'A safe place could not be found for this post',
 }
 
 function matchesFilter(post: ReviewPost, filter: ReviewFilter): boolean {
-  if (filter === 'warnings') {
-    return post.warnings.some(isUserFacingWarningCode)
+  if (filter === 'textOnlyConfirmationRequired') {
+    return post.needsTextOnlyConfirmation
   }
-  if (filter === 'textOnly') return post.needsTextOnlyConfirmation
-  return true
+  return filter === 'all' || post.warnings.includes(filter)
 }
 
 function formatDate(value: string): string {
@@ -169,6 +192,19 @@ export function ReviewList({
     undefined,
   )
   const scrollElementRef = useRef<HTMLDivElement>(null)
+  const availableWarningFilters = useMemo(
+    () =>
+      (
+        Object.keys(warningFilterCopy) as UserFacingWarningCode[]
+      ).filter((warning) =>
+        posts.some((post) =>
+          warning === 'textOnlyConfirmationRequired'
+            ? post.needsTextOnlyConfirmation
+            : post.warnings.includes(warning),
+        ),
+      ),
+    [posts],
+  )
   const visiblePosts = useMemo(
     () => posts.filter((post) => matchesFilter(post, filter)),
     [filter, posts],
@@ -267,24 +303,25 @@ export function ReviewList({
       </div>
 
       <div
-        className="segmented-control"
+        className="filter-controls"
         role="group"
         aria-label="Filter posts"
       >
-        {(
-          [
-            ['all', 'All posts'],
-            ['warnings', 'With warnings'],
-            ['textOnly', 'Text only'],
-          ] as const
-        ).map(([value, label]) => (
+        <button
+          type="button"
+          aria-pressed={filter === 'all'}
+          onClick={() => changeFilter('all')}
+        >
+          All posts
+        </button>
+        {availableWarningFilters.map((warning) => (
           <button
-            key={value}
+            key={warning}
             type="button"
-            aria-pressed={filter === value}
-            onClick={() => changeFilter(value)}
+            aria-pressed={filter === warning}
+            onClick={() => changeFilter(warning)}
           >
-            {label}
+            {warningFilterCopy[warning]}
           </button>
         ))}
       </div>
@@ -328,6 +365,7 @@ export function ReviewList({
               const visibleWarnings = post.warnings.filter(
                 isUserFacingWarningCode,
               )
+              const firstMedia = post.media[0]
               const imageSectionOpen = expandedImagePosts.has(
                 post.itemKey,
               )
@@ -389,10 +427,49 @@ export function ReviewList({
                         className="warning-list"
                         aria-label="Post warnings"
                       >
-                        {visibleWarnings.map((warning) => (
-                          <li key={warning}>{warningCopy[warning]}</li>
-                        ))}
+                        {visibleWarnings.map((warning) => {
+                          const tooltipId = `warning-${virtualRow.index}-${warning}`
+                          return (
+                            <li key={warning}>
+                              <span>{warningCopy[warning]}</span>
+                              <span className="warning-tooltip">
+                                <button
+                                  type="button"
+                                  className="warning-tooltip__trigger"
+                                  aria-describedby={tooltipId}
+                                >
+                                  Why?
+                                </button>
+                                <span
+                                  id={tooltipId}
+                                  className="warning-tooltip__bubble"
+                                  role="tooltip"
+                                >
+                                  {warningWhyCopy[warning]}
+                                </span>
+                              </span>
+                            </li>
+                          )
+                        })}
                       </ul>
+                    )}
+
+                    {firstMedia && (
+                      <div className="review-post__lead-media">
+                        <MediaPreview
+                          token={firstMedia.token}
+                          enabled
+                          label="Image 1"
+                          loadPreview={loadPreview}
+                          onOpen={({ trigger, ...preview }) => {
+                            lightboxTriggerRef.current = trigger
+                            setLightboxImage({
+                              itemKey: post.itemKey,
+                              ...preview,
+                            })
+                          }}
+                        />
+                      </div>
                     )}
 
                     <details
@@ -485,19 +562,29 @@ export function ReviewList({
                                       )
                                     }}
                                   />
-                                  <MediaPreview
-                                    token={media.token}
-                                    enabled={previewEnabled}
-                                    label={`Image ${index + 1}`}
-                                    loadPreview={loadPreview}
-                                    onOpen={({ trigger, ...preview }) => {
-                                      lightboxTriggerRef.current = trigger
-                                      setLightboxImage({
-                                        itemKey: post.itemKey,
-                                        ...preview,
-                                      })
-                                    }}
-                                  />
+                                  {index === 0 ? (
+                                    <small className="media-option__lead-note">
+                                      Preview shown above
+                                    </small>
+                                  ) : (
+                                    <MediaPreview
+                                      token={media.token}
+                                      enabled={previewEnabled}
+                                      label={`Image ${index + 1}`}
+                                      loadPreview={loadPreview}
+                                      onOpen={({
+                                        trigger,
+                                        ...preview
+                                      }) => {
+                                        lightboxTriggerRef.current =
+                                          trigger
+                                        setLightboxImage({
+                                          itemKey: post.itemKey,
+                                          ...preview,
+                                        })
+                                      }}
+                                    />
+                                  )}
                                   <label htmlFor={inputId}>
                                     Image {index + 1}
                                     <small>
@@ -538,10 +625,11 @@ export function ReviewList({
                             }}
                           />
                           <span>
-                            Import this as a text-only post
+                            Import this post without an image
                             <small>
-                              No selected image will be attached to this
-                              post.
+                              Instagram posts normally include media. This
+                              post’s caption is usable, but no selected image
+                              can be added.
                             </small>
                           </span>
                         </label>

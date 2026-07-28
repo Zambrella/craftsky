@@ -8,6 +8,7 @@ import { OAUTH_SCOPE, type RuntimePolicy } from '../config/runtime'
 import {
   assertExactAuthority,
   ImporterAuthService,
+  readCraftskyAccountProfile,
   verifyCraftskyMembership,
 } from './authService'
 
@@ -57,6 +58,40 @@ describe('OAuth authority and CraftSky membership preflight (IT-006)', () => {
     expect(getRecord).toHaveBeenCalledWith({
       repo: 'did:plc:test',
       collection: 'social.craftsky.actor.profile',
+      rkey: 'self',
+    })
+  })
+
+  it('reads the connected account name and profile picture for confirmation', async () => {
+    const getRecord = vi.fn().mockResolvedValue({
+      data: {
+        value: {
+          $type: 'app.bsky.actor.profile',
+          displayName: '  Test Maker  ',
+          avatar: {
+            ref: {
+              toString: () => 'bafk-avatar',
+            },
+            mimeType: 'image/jpeg',
+            size: 12,
+          },
+        },
+      },
+    })
+
+    await expect(
+      readCraftskyAccountProfile(
+        { getRecord },
+        'did:plc:test',
+      ),
+    ).resolves.toEqual({
+      displayName: 'Test Maker',
+      avatarUrl:
+        'https://cdn.bsky.app/img/avatar/plain/did:plc:test/bafk-avatar@jpeg',
+    })
+    expect(getRecord).toHaveBeenCalledWith({
+      repo: 'did:plc:test',
+      collection: 'app.bsky.actor.profile',
       rkey: 'self',
     })
   })

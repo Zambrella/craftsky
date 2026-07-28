@@ -36,12 +36,12 @@ test('completes the mocked importer UI flow (IT-008; browser UI slices for AT-00
     mimeType: 'application/zip',
     buffer: Buffer.from('synthetic'),
   })
-  await page.getByText('Images (1)').click()
   const thumbnail = page.getByRole('button', {
     name: 'View Image 1 full screen',
   })
   await expect(thumbnail).toHaveCSS('width', '144px')
   await expect(thumbnail).toHaveCSS('height', '144px')
+  await page.getByText('Images (1)').click()
   await thumbnail.click()
   await expect(
     page.getByRole('dialog', {
@@ -56,20 +56,29 @@ test('completes the mocked importer UI flow (IT-008; browser UI slices for AT-00
   ).toHaveCount(0)
   await expect(thumbnail).toBeFocused()
 
-  await page.getByRole('button', { name: 'Connect your PDS' }).click()
   await page
-    .getByRole('textbox', { name: 'Handle or DID' })
+    .getByRole('button', { name: 'Connect your CraftSky account' })
+    .click()
+  await page
+    .getByRole('textbox', { name: 'CraftSky handle' })
     .fill('maker.example')
   await page
-    .getByRole('button', { name: 'Authorize with your PDS' })
+    .getByRole('button', { name: 'Continue to secure sign-in' })
     .click()
-  await expect(page.getByText('did:plc:browser-harness')).toBeVisible()
+  await expect(page.getByText('Browser Maker')).toBeVisible()
+  await expect(page.getByText('@browser.example')).toBeVisible()
+  await expect(
+    page.getByRole('img', { name: 'Browser Maker profile picture' }),
+  ).toBeVisible()
+  await expect(
+    page.getByText('did:plc:browser-harness'),
+  ).toHaveCount(0)
   await expect(page.getByLabel('1 public posts')).toBeVisible()
   await expect(page.getByLabel('1 public images')).toBeVisible()
 
   await page
     .getByRole('checkbox', {
-      name: /publish these selected posts to this account/i,
+      name: /add these selected posts to this CraftSky account/i,
     })
     .check()
   await page.getByRole('button', { name: 'Import 1 post' }).click()
@@ -79,7 +88,7 @@ test('completes the mocked importer UI flow (IT-008; browser UI slices for AT-00
     }),
   ).toBeVisible()
   await page.getByRole('button', { name: 'Retry failed posts' }).click()
-  await expect(page.getByLabel('1 created')).toBeVisible()
+  await expect(page.getByLabel('1 added')).toBeVisible()
 
   expect(
     await page.evaluate(() => ({
@@ -89,7 +98,7 @@ test('completes the mocked importer UI flow (IT-008; browser UI slices for AT-00
   ).toEqual({ beginImport: 1, publish: 2 })
 
   await page
-    .getByRole('button', { name: 'Roll back this import' })
+    .getByRole('button', { name: 'Remove imported posts' })
     .click()
   await expect(
     page.getByText(
@@ -99,10 +108,12 @@ test('completes the mocked importer UI flow (IT-008; browser UI slices for AT-00
   await expect(
     page.getByText('Already absent', { exact: true }),
   ).toBeVisible()
-  await page.getByRole('button', { name: 'Sign out of PDS' }).click()
+  await page
+    .getByRole('button', { name: 'Disconnect CraftSky account' })
+    .click()
   await expect(
     page.getByText(
-      'Signed out. Local progress and rollback history remain on this device.',
+      'CraftSky account disconnected. Import history remains on this device.',
     ),
   ).toBeVisible()
   expect(await page.evaluate(() => window.__importerHarness)).toMatchObject(

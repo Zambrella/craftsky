@@ -120,8 +120,7 @@ afterEach(() => {
 })
 
 describe('virtualized review lists (AT-004, AC-006)', () => {
-  it('does not present automatic caption repairs as warnings', async () => {
-    const ui = userEvent.setup()
+  it('does not present automatic caption repairs as warnings', () => {
     render(<ReviewHarness initialPosts={[post(1), {
       ...post(2),
       warnings: ['captionRepaired'],
@@ -134,11 +133,9 @@ describe('virtualized review lists (AT-004, AC-006)', () => {
       screen.queryByRole('list', { name: 'Post warnings' }),
     ).not.toBeInTheDocument()
 
-    await ui.click(
-      screen.getByRole('button', { name: 'With warnings' }),
-    )
-
-    expect(screen.getByText('No posts match this filter.')).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Shortened captions' }),
+    ).not.toBeInTheDocument()
   })
 
   it('keeps a post caption collapsed until the member opens it', async () => {
@@ -250,7 +247,7 @@ describe('virtualized review lists (AT-004, AC-006)', () => {
       ).toBeLessThan(12)
 
       await ui.click(
-        screen.getByRole('button', { name: 'With warnings' }),
+        screen.getByRole('button', { name: 'Shortened captions' }),
       )
       await waitFor(() => expect(reviewList.scrollTop).toBe(0))
       expect(screen.getByText('Showing 200 posts')).toBeVisible()
@@ -278,6 +275,49 @@ describe('virtualized review lists (AT-004, AC-006)', () => {
     },
     30_000,
   )
+
+  it('offers a separate filter and plain-language explanation for each warning type', async () => {
+    const ui = userEvent.setup()
+    const warningPosts: ReviewPost[] = [
+      {
+        ...post(1),
+        warnings: ['captionTruncated'],
+      },
+      {
+        ...post(2),
+        warnings: ['imagesOmitted'],
+      },
+      {
+        ...post(3),
+        media: [],
+        warnings: ['textOnlyConfirmationRequired'],
+        needsTextOnlyConfirmation: true,
+      },
+    ]
+    render(<ReviewHarness initialPosts={warningPosts} />)
+
+    expect(
+      screen.getByRole('button', { name: 'Shortened captions' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Images left out' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'No usable image' }),
+    ).toBeVisible()
+
+    await ui.click(
+      screen.getByRole('button', { name: 'Images left out' }),
+    )
+    expect(screen.getByText('Showing 1 post')).toBeVisible()
+    expect(screen.getByText('Some images were left out')).toBeVisible()
+    expect(
+      screen.getByRole('button', {
+        name: 'Why?',
+        description: /up to four images/u,
+      }),
+    ).toBeVisible()
+  })
 
   it('virtualizes and filters skipped posts without rendering every item', async () => {
     const ui = userEvent.setup()
@@ -324,7 +364,7 @@ describe('virtualized review lists (AT-004, AC-006)', () => {
     ).toBeLessThan(14)
   })
 
-  it('loads selected media thumbnails when the image section expands', async () => {
+  it('loads the first image automatically and later images when the section expands', async () => {
     const ui = userEvent.setup()
     const loadPreview = vi
       .fn()
@@ -360,23 +400,29 @@ describe('virtualized review lists (AT-004, AC-006)', () => {
       />,
     )
 
-    expect(loadPreview).not.toHaveBeenCalled()
-    await ui.click(screen.getByText('Images (2)'))
-
     expect(
       await screen.findByRole('button', {
         name: 'View Image 1 full screen',
       }),
     ).toBeVisible()
     expect(
-      screen.getByRole('button', {
+      screen.queryByRole('button', {
         name: 'View Image 2 full screen',
       }),
-    ).toBeVisible()
+    ).not.toBeInTheDocument()
     expect(loadPreview).toHaveBeenCalledWith(
       'media-0',
       expect.any(AbortSignal),
     )
+    expect(loadPreview).toHaveBeenCalledTimes(1)
+
+    await ui.click(screen.getByText('Images (2)'))
+
+    expect(
+      await screen.findByRole('button', {
+        name: 'View Image 2 full screen',
+      }),
+    ).toBeVisible()
     expect(loadPreview).toHaveBeenCalledWith(
       'media-0-second',
       expect.any(AbortSignal),
@@ -385,7 +431,12 @@ describe('virtualized review lists (AT-004, AC-006)', () => {
 
     await ui.click(screen.getByText('Images (2)'))
     await waitFor(() =>
-      expect(revokeObjectURL).toHaveBeenCalledTimes(2),
+      expect(revokeObjectURL).toHaveBeenCalledWith(
+        'blob:safe-preview-2',
+      ),
+    )
+    expect(revokeObjectURL).not.toHaveBeenCalledWith(
+      'blob:safe-preview-1',
     )
   })
 
@@ -406,7 +457,6 @@ describe('virtualized review lists (AT-004, AC-006)', () => {
       <ReviewHarness initialPosts={[post(0)]} loadPreview={loadPreview} />,
     )
 
-    await ui.click(screen.getByText('Images (1)'))
     const thumbnail = await screen.findByRole('button', {
       name: 'View Image 1 full screen',
     })
@@ -443,7 +493,7 @@ describe('virtualized review lists (AT-004, AC-006)', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('aborts in-flight thumbnails when the image section closes', async () => {
+  it('keeps the first image loading while aborting later images when the section closes', async () => {
     const ui = userEvent.setup()
     const loadPreview = vi.fn(
       (_token: string, signal?: AbortSignal) =>
@@ -461,17 +511,38 @@ describe('virtualized review lists (AT-004, AC-006)', () => {
           )
         }),
     )
+    const basePost = post(0)
     render(
-      <ReviewHarness initialPosts={[post(0)]} loadPreview={loadPreview} />,
+      <ReviewHarness
+        initialPosts={[
+          {
+            ...basePost,
+            media: [
+              ...basePost.media,
+              {
+                ...basePost.media[0],
+                token: 'media-0-second',
+              },
+            ],
+          },
+        ]}
+        loadPreview={loadPreview}
+      />,
     )
 
-    await ui.click(screen.getByText('Images (1)'))
     expect(loadPreview).toHaveBeenCalledOnce()
-    const signal = loadPreview.mock.calls[0]?.[1]
-    expect(signal).toBeInstanceOf(AbortSignal)
-    expect(signal?.aborted).toBe(false)
+    const firstSignal = loadPreview.mock.calls[0]?.[1]
+    expect(firstSignal).toBeInstanceOf(AbortSignal)
+    expect(firstSignal?.aborted).toBe(false)
 
-    await ui.click(screen.getByText('Images (1)'))
-    expect(signal?.aborted).toBe(true)
+    await ui.click(screen.getByText('Images (2)'))
+    expect(loadPreview).toHaveBeenCalledTimes(2)
+    const secondSignal = loadPreview.mock.calls[1]?.[1]
+    expect(secondSignal).toBeInstanceOf(AbortSignal)
+    expect(secondSignal?.aborted).toBe(false)
+
+    await ui.click(screen.getByText('Images (2)'))
+    expect(secondSignal?.aborted).toBe(true)
+    expect(firstSignal?.aborted).toBe(false)
   })
 })
