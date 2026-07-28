@@ -16,6 +16,9 @@ type InspectProgress = Extract<WorkerResponse, { type: 'progress' }>
 
 export interface AuthorizedDestination {
   readonly did: string
+  readonly displayName?: string
+  readonly accountLabel?: string
+  readonly avatarUrl?: string
   readonly ownedCreated?: number
 }
 
@@ -103,10 +106,10 @@ const PROGRESS_WINDOW_SIZE = 24
 
 const progressCopy: Record<VisibleProgressStatus, string> = {
   pending: 'Waiting',
-  publishing: 'Publishing',
-  created: 'Created',
+  publishing: 'Importing',
+  created: 'Added',
   alreadyExisting: 'Already there',
-  collision: 'Left unchanged',
+  collision: 'Existing post kept',
   failed: 'Failed',
   rolledBack: 'Removed',
   rollbackAbsent: 'Already absent',
@@ -133,17 +136,17 @@ const errorCopy: Record<string, string> = {
   browserUnsupported:
     'This browser cannot safely process the export images. Try the latest Chrome, Edge, or Firefox on a desktop computer.',
   oauthDenied:
-    'Authorization was cancelled or denied. Your local review is still here.',
+    'Sign-in was cancelled or denied. Your local review is still here.',
   oauthAuthorityMismatch:
-    'This PDS did not grant the exact narrow permissions the importer needs.',
+    'CraftSky could not confirm the limited permissions needed for this import.',
   notCraftskyMember:
-    'This account does not contain a CraftSky profile. Join CraftSky before importing.',
+    'This is not a CraftSky account yet. Join CraftSky before importing.',
   previewWritesDisabled:
-    'This preview cannot connect to a real PDS or publish posts.',
+    'This preview cannot connect to a real CraftSky account or add posts.',
   publicationFailed:
-    'A post could not be published. You can retry the failed posts.',
+    'A post could not be added. You can retry the failed posts.',
   authorizationRequired:
-    'Your PDS authorization needs to be renewed. Return to review and connect again; completed posts will not be repeated.',
+    'Your CraftSky connection has expired. Return to review and connect again; completed posts will not be repeated.',
 }
 
 type SafeErrorContext =
@@ -157,13 +160,13 @@ const fallbackErrorCopy: Record<SafeErrorContext, string> = {
   localOnly:
     'Something went wrong locally. No archive content was sent anywhere.',
   publication:
-    'Something went wrong while saving import progress. Review the status below before retrying or clearing local history.',
+    'Something went wrong while saving your progress. Check the status below before retrying or clearing your import history.',
   rollback:
-    'Rollback could not be completed. Review the status below before retrying or clearing local history.',
+    'The imported posts could not all be removed. Check the status below before retrying or clearing your import history.',
   history:
-    'Local history could not be cleared. Resume and rollback information remains on this device.',
+    'Your import history could not be cleared. Resume and removal information remains on this device.',
   signOut:
-    'Your PDS session could not be cleared and may still be active. Local import progress remains on this device.',
+    'Your CraftSky account could not be disconnected and may still be connected. Import progress remains on this device.',
 }
 
 function safeErrorMessage(
@@ -179,11 +182,6 @@ function isInspectionCancellation(error: unknown): boolean {
     error instanceof Error &&
     error.message === 'operationCanceled'
   )
-}
-
-function shortDid(did: string): string {
-  if (did.length <= 34) return did
-  return `${did.slice(0, 21)}…${did.slice(-10)}`
 }
 
 function counted(
@@ -219,7 +217,7 @@ function StepStrip({ stage }: { readonly stage: AppStage }): React.JSX.Element {
           : 4
   return (
     <ol className="step-strip" aria-label="Import progress">
-      {['Choose export', 'Review', 'Connect', 'Import'].map(
+      {['Choose export', 'Review', 'Connect CraftSky', 'Import'].map(
         (label, index) => (
           <li
             key={label}
@@ -283,7 +281,7 @@ function PostProgressList({
   return (
     <section
       className="post-progress"
-      aria-label="Per-post publication progress"
+      aria-label="Per-post import progress"
     >
       <div className="post-progress__heading">
         <h2>Post progress</h2>
@@ -585,7 +583,7 @@ export function App({
     if (!services.rollback) return
     if (
       !window.confirm(
-        'Remove tracked posts that still match this import? A separately recreated identical record at the same address cannot be distinguished.',
+        'Remove posts added by this import? Posts you have changed since importing will be kept.',
       )
     ) {
       return
@@ -645,7 +643,7 @@ export function App({
             <strong>Safe preview</strong>
             <span>
               You can explore the local review flow, but this build cannot
-              connect to a real account or publish.
+              connect to a real CraftSky account or add posts.
             </span>
           </aside>
         )}
@@ -663,14 +661,32 @@ export function App({
               <p className="eyebrow">Bring your making history with you</p>
               <h1>Import your Instagram posts into CraftSky</h1>
               <p className="hero-copy__lede">
-                Review historical posts on this device, then publish only
-                what you choose directly to your own PDS.
+                Review your old posts on this device, then add only what you
+                choose to your CraftSky profile.
               </p>
-              <ul className="privacy-points">
-                <li>Your ZIP is processed in this browser.</li>
-                <li>No archive, caption, or image is sent to CraftSky.</li>
-                <li>Messages, followers, likes, and profile data are ignored.</li>
-              </ul>
+              <h2 className="how-it-works__title">How it works</h2>
+              <ol className="how-it-works">
+                <li>
+                  <span>
+                    <strong>Choose your Instagram export</strong>
+                    <small>
+                      It is processed privately on this device.
+                    </small>
+                  </span>
+                </li>
+                <li>
+                  <span>
+                    <strong>Review your posts</strong>
+                    <small>Choose the posts and images you want to keep.</small>
+                  </span>
+                </li>
+                <li>
+                  <span>
+                    <strong>Connect your CraftSky account</strong>
+                    <small>Add your selected posts to your profile.</small>
+                  </span>
+                </li>
+              </ol>
             </div>
 
             <div className="paper-card upload-card">
@@ -681,7 +697,7 @@ export function App({
               <p>
                 For the quickest import, request <strong>Posts only</strong> in
                 JSON format. A full export also works, but takes longer to
-                inspect.
+                process.
               </p>
 
               <label className="confirmation-check">
@@ -695,7 +711,8 @@ export function App({
                 <span>
                   I understand selected posts and images will become public
                   <small>
-                    You will review everything before connecting an account.
+                    You will review everything before connecting your
+                    CraftSky account.
                   </small>
                 </span>
               </label>
@@ -784,9 +801,9 @@ export function App({
             >
               <Stat value={counts.selectedPosts} label="posts selected" />
               <Stat value={counts.selectedImages} label="images selected" />
-              <Stat value={counts.transformedPosts} label="transformed" />
-              <Stat value={counts.warningPosts} label="with warnings" />
-              <Stat value={counts.skippedPosts} label="skipped" />
+              <Stat value={counts.transformedPosts} label="adjusted" />
+              <Stat value={counts.warningPosts} label="need attention" />
+              <Stat value={counts.skippedPosts} label="not importable" />
             </div>
 
             <ReviewList
@@ -804,8 +821,8 @@ export function App({
                 </strong>
                 <span>
                   {needsConfirmation
-                    ? 'Confirm every selected text-only post before continuing.'
-                    : 'Nothing is published until the final confirmation.'}
+                    ? 'Confirm every selected post without images before continuing.'
+                    : 'Nothing is added until the final confirmation.'}
                 </span>
               </div>
               <button
@@ -816,7 +833,7 @@ export function App({
                 }
                 onClick={enterAuthorization}
               >
-                Connect your PDS
+                Connect your CraftSky account
               </button>
             </div>
           </section>
@@ -824,12 +841,12 @@ export function App({
 
         {stage === 'authorize' && (
           <section className="narrow-panel">
-            <p className="eyebrow">Connect your account</p>
+            <p className="eyebrow">Connect your CraftSky account</p>
             <h1>Where should these posts live?</h1>
             <p className="lede">
-              Sign in with the handle or DID for your CraftSky account. You’ll
-              authorize only post creation, post deletion, and supported image
-              uploads.
+              Enter the handle for your CraftSky account. The secure sign-in
+              will ask only for permission to add these posts and images, or
+              remove them if you undo the import.
             </p>
             <form
               className="paper-card auth-card"
@@ -839,7 +856,7 @@ export function App({
               }}
             >
               <label className="field-label">
-                <span>Handle or DID</span>
+                <span>CraftSky handle</span>
                 <input
                   type="text"
                   autoComplete="username"
@@ -852,14 +869,13 @@ export function App({
                 />
               </label>
               <p className="helper-copy">
-                Handles are resolved through{' '}
-                <span className="nowrap">bsky.social</span>. This importer
-                never asks for your password or app password.
+                This importer never asks for your password or app password.
+                You will sign in securely with your account provider.
               </p>
               {!authorizationPrepared &&
                 services.runtime.writesEnabled && (
                   <p className="helper-copy" role="status">
-                    Preparing the secure PDS connection…
+                    Preparing secure sign-in…
                   </p>
                 )}
               <div className="button-row">
@@ -879,7 +895,7 @@ export function App({
                     !services.runtime.writesEnabled
                   }
                 >
-                  Authorize with your PDS
+                  Continue to secure sign-in
                 </button>
               </div>
             </form>
@@ -889,22 +905,46 @@ export function App({
         {stage === 'confirm' && destination && (
           <section className="narrow-panel">
             <p className="eyebrow">Final check</p>
-            <h1>Ready to publish to your PDS</h1>
+            <h1>Ready to import to CraftSky</h1>
             <p className="lede">
-              Check the destination and exact public content before the first
-              image or post is written.
+              Check the CraftSky account and public content before the first
+              image or post is added.
             </p>
 
             <div className="paper-card destination-card">
               <div className="destination-card__account">
-                <span className="account-avatar" aria-hidden="true">
-                  ✓
-                </span>
+                {destination.avatarUrl ? (
+                  <img
+                    className="account-avatar"
+                    src={destination.avatarUrl}
+                    alt={`${
+                      destination.displayName ??
+                      destination.accountLabel ??
+                      'CraftSky account'
+                    } profile picture`}
+                  />
+                ) : (
+                  <span className="account-avatar" aria-hidden="true">
+                    {(
+                      destination.displayName ??
+                      destination.accountLabel ??
+                      'C'
+                    ).charAt(0).toUpperCase()}
+                  </span>
+                )}
                 <span>
-                  <small>Authenticated account</small>
-                  <strong title={destination.did}>
-                    {shortDid(destination.did)}
+                  <small>Connected CraftSky account</small>
+                  <strong>
+                    {destination.displayName ??
+                      destination.accountLabel ??
+                      'CraftSky account'}
                   </strong>
+                  {destination.displayName &&
+                    destination.accountLabel && (
+                      <span className="destination-card__handle">
+                        @{destination.accountLabel.replace(/^@/u, '')}
+                      </span>
+                    )}
                 </span>
               </div>
               <div className="destination-card__counts">
@@ -925,9 +965,9 @@ export function App({
                   }
                 />
                 <span>
-                  Publish these selected posts to this account
+                  Add these selected posts to this CraftSky account
                   <small>
-                    Publication starts only when you press the button below.
+                    The import starts only when you press the button below.
                   </small>
                 </span>
               </label>
@@ -986,7 +1026,7 @@ export function App({
               <span />
             </div>
             <p className="eyebrow">
-              {stage === 'paused' ? 'Import paused' : 'Publishing'}
+              {stage === 'paused' ? 'Import paused' : 'Importing'}
             </p>
             <h1>
               {processed.toLocaleString('en-GB')} of{' '}
@@ -999,12 +1039,12 @@ export function App({
             <progress
               max={Math.max(publishTotal, 1)}
               value={processed}
-              aria-label="Publication progress"
+              aria-label="Import progress"
             />
             <div className="mini-results">
-              <span>{results.created} created</span>
+              <span>{results.created} added</span>
               <span>{results.alreadyExisting} already there</span>
-              <span>{results.collision} conflicts</span>
+              <span>{results.collision} existing kept</span>
               <span>{results.failed} failed</span>
             </div>
             <PostProgressList
@@ -1051,7 +1091,7 @@ export function App({
                       className="danger-button"
                       onClick={() => void rollbackImport()}
                     >
-                      Roll back this partial import
+                      Remove imported posts
                     </button>
                   )}
               </div>
@@ -1071,9 +1111,9 @@ export function App({
               original dates.
             </p>
             <div className="stats-grid stats-grid--results">
-              <Stat value={results.created} label="created" />
+              <Stat value={results.created} label="added" />
               <Stat value={results.alreadyExisting} label="already there" />
-              <Stat value={results.collision} label="left unchanged" />
+              <Stat value={results.collision} label="existing kept" />
               <Stat value={results.failed} label="failed" />
             </div>
             <PostProgressList
@@ -1087,7 +1127,7 @@ export function App({
                   {counted(failedKeys.size, 'post')} need another try
                 </strong>
                 <span>
-                  Successfully created posts will not be published twice.
+                  Successfully added posts will not be added twice.
                 </span>
                 <button
                   type="button"
@@ -1128,7 +1168,7 @@ export function App({
                   className="danger-button"
                   onClick={() => void rollbackImport()}
                 >
-                  Roll back this import
+                  Remove imported posts
                 </button>
               )}
               {services.clearHistory && (
@@ -1139,7 +1179,7 @@ export function App({
                     if (!services.clearHistory) return
                     if (
                       !window.confirm(
-                        'Clear local progress? You will lose resume and bulk rollback for this import.',
+                        'Clear import history? You will no longer be able to resume or remove all posts from this import at once.',
                       )
                     ) {
                       return
@@ -1149,7 +1189,7 @@ export function App({
                       .then(() => {
                         setHasRollbackOwnership(false)
                         setRollbackMessage(
-                          'Local progress and rollback history cleared.',
+                          'Import history cleared from this device.',
                         )
                       })
                       .catch((caught) =>
@@ -1157,7 +1197,7 @@ export function App({
                       )
                   }}
                 >
-                  Clear local history
+                  Clear import history
                 </button>
               )}
               {services.signOut && destination && (
@@ -1172,7 +1212,7 @@ export function App({
                         setDestination(undefined)
                         setHasRollbackOwnership(false)
                         setRollbackMessage(
-                          'Signed out. Local progress and rollback history remain on this device.',
+                          'CraftSky account disconnected. Import history remains on this device.',
                         )
                       })
                       .catch((caught) =>
@@ -1180,14 +1220,14 @@ export function App({
                       )
                   }}
                 >
-                  Sign out of PDS
+                  Disconnect CraftSky account
                 </button>
               )}
             </div>
             <p className="history-note">
-              Local progress is retained so interrupted imports can be resumed
-              and unchanged created posts can be rolled back. Clearing it also
-              removes those recovery options.
+              Import history stays on this device so you can resume an
+              interrupted import or remove unchanged imported posts. Clearing
+              it also removes those options.
             </p>
           </section>
         )}

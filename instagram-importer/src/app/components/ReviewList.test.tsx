@@ -120,8 +120,7 @@ afterEach(() => {
 })
 
 describe('virtualized review lists (AT-004, AC-006)', () => {
-  it('does not present automatic caption repairs as warnings', async () => {
-    const ui = userEvent.setup()
+  it('does not present automatic caption repairs as warnings', () => {
     render(<ReviewHarness initialPosts={[post(1), {
       ...post(2),
       warnings: ['captionRepaired'],
@@ -134,11 +133,9 @@ describe('virtualized review lists (AT-004, AC-006)', () => {
       screen.queryByRole('list', { name: 'Post warnings' }),
     ).not.toBeInTheDocument()
 
-    await ui.click(
-      screen.getByRole('button', { name: 'With warnings' }),
-    )
-
-    expect(screen.getByText('No posts match this filter.')).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Shortened captions' }),
+    ).not.toBeInTheDocument()
   })
 
   it('keeps a post caption collapsed until the member opens it', async () => {
@@ -250,7 +247,7 @@ describe('virtualized review lists (AT-004, AC-006)', () => {
       ).toBeLessThan(12)
 
       await ui.click(
-        screen.getByRole('button', { name: 'With warnings' }),
+        screen.getByRole('button', { name: 'Shortened captions' }),
       )
       await waitFor(() => expect(reviewList.scrollTop).toBe(0))
       expect(screen.getByText('Showing 200 posts')).toBeVisible()
@@ -278,6 +275,49 @@ describe('virtualized review lists (AT-004, AC-006)', () => {
     },
     30_000,
   )
+
+  it('offers a separate filter and plain-language explanation for each warning type', async () => {
+    const ui = userEvent.setup()
+    const warningPosts: ReviewPost[] = [
+      {
+        ...post(1),
+        warnings: ['captionTruncated'],
+      },
+      {
+        ...post(2),
+        warnings: ['imagesOmitted'],
+      },
+      {
+        ...post(3),
+        media: [],
+        warnings: ['textOnlyConfirmationRequired'],
+        needsTextOnlyConfirmation: true,
+      },
+    ]
+    render(<ReviewHarness initialPosts={warningPosts} />)
+
+    expect(
+      screen.getByRole('button', { name: 'Shortened captions' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Images left out' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'No usable image' }),
+    ).toBeVisible()
+
+    await ui.click(
+      screen.getByRole('button', { name: 'Images left out' }),
+    )
+    expect(screen.getByText('Showing 1 post')).toBeVisible()
+    expect(screen.getByText('Some images were left out')).toBeVisible()
+    expect(
+      screen.getByRole('button', {
+        name: 'Why?',
+        description: /up to four images/u,
+      }),
+    ).toBeVisible()
+  })
 
   it('virtualizes and filters skipped posts without rendering every item', async () => {
     const ui = userEvent.setup()

@@ -85,7 +85,13 @@ const services: ImporterUiServices = {
   cancelInspection: () => undefined,
   authorize: () => {
     calls.authorize += 1
-    return Promise.resolve({ did: 'did:plc:browser-harness' })
+    return Promise.resolve({
+      did: 'did:plc:browser-harness',
+      displayName: 'Browser Maker',
+      accountLabel: 'browser.example',
+      avatarUrl:
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    })
   },
   beginImport: () => {
     calls.beginImport += 1

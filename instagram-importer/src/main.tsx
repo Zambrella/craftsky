@@ -161,6 +161,9 @@ class BrowserImporterServices implements ImporterUiServices {
     this.authenticated = authenticated
     return {
       did: this.authenticated.did,
+      displayName: this.authenticated.displayName,
+      accountLabel: this.authenticated.accountLabel,
+      avatarUrl: this.authenticated.avatarUrl,
     }
   }
 

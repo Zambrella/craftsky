@@ -126,7 +126,13 @@ function services(
     runtime,
     inspect: vi.fn().mockResolvedValue(reviewManifest),
     cancelInspection: vi.fn(),
-    authorize: vi.fn().mockResolvedValue({ did: 'did:plc:synthetic' }),
+    authorize: vi.fn().mockResolvedValue({
+      did: 'did:plc:synthetic',
+      displayName: 'Synthetic Maker',
+      accountLabel: 'maker.example',
+      avatarUrl:
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    }),
     beginImport: vi.fn().mockResolvedValue(undefined),
     publish: vi
       .fn<
@@ -173,16 +179,22 @@ async function reachConfirmation(
   appServices: ImporterUiServices,
 ): Promise<void> {
   await loadReview(ui, appServices)
-  await ui.click(screen.getByRole('button', { name: 'Connect your PDS' }))
+  await ui.click(
+    screen.getByRole('button', {
+      name: 'Connect your CraftSky account',
+    }),
+  )
   await ui.type(
-    screen.getByRole('textbox', { name: 'Handle or DID' }),
+    screen.getByRole('textbox', { name: 'CraftSky handle' }),
     'maker.example',
   )
   await ui.click(
-    screen.getByRole('button', { name: 'Authorize with your PDS' }),
+    screen.getByRole('button', {
+      name: 'Continue to secure sign-in',
+    }),
   )
   await screen.findByRole('heading', {
-    name: 'Ready to publish to your PDS',
+    name: 'Ready to import to CraftSky',
   })
 }
 
@@ -193,7 +205,7 @@ async function startConfirmedImport(
   await reachConfirmation(ui, appServices)
   await ui.click(
     screen.getByRole('checkbox', {
-      name: /publish these selected posts to this account/i,
+      name: /add these selected posts to this CraftSky account/i,
     }),
   )
   await ui.click(
@@ -225,6 +237,13 @@ describe('Instagram importer app', () => {
     expect(
       screen.getByRole('link', { name: 'CraftSky on GitHub' }),
     ).toHaveAttribute('href', 'https://github.com/Zambrella/craftsky')
+    expect(screen.getByText('How it works')).toBeVisible()
+    expect(screen.getByText('Review your posts')).toBeVisible()
+    expect(
+      screen.getByText('Connect your CraftSky account'),
+    ).toBeVisible()
+    expect(screen.getByText(/takes longer to process/u)).toBeVisible()
+    expect(screen.queryByText(/\bPDS\b/u)).not.toBeInTheDocument()
   })
 
   it('returns to file selection without an error after inspection is cancelled', async () => {
@@ -295,25 +314,38 @@ describe('Instagram importer app', () => {
       screen.queryByText('Caption text was repaired'),
     ).not.toBeInTheDocument()
     expect(
-      screen.getByRole('group', { name: '0 with warnings' }),
+      screen.getByRole('group', { name: '0 need attention' }),
     ).toBeInTheDocument()
 
-    await ui.click(screen.getByRole('button', { name: 'Connect your PDS' }))
+    await ui.click(
+      screen.getByRole('button', {
+        name: 'Connect your CraftSky account',
+      }),
+    )
     expect(appServices.authorize).not.toHaveBeenCalled()
     await ui.type(
-      screen.getByRole('textbox', { name: 'Handle or DID' }),
+      screen.getByRole('textbox', { name: 'CraftSky handle' }),
       'maker.example',
     )
     await ui.click(
-      screen.getByRole('button', { name: 'Authorize with your PDS' }),
+      screen.getByRole('button', {
+        name: 'Continue to secure sign-in',
+      }),
     )
 
     await screen.findByRole('heading', {
-      name: 'Ready to publish to your PDS',
+      name: 'Ready to import to CraftSky',
     })
     expect(appServices.authorize).toHaveBeenCalledWith('maker.example')
     expect(appServices.publish).not.toHaveBeenCalled()
-    expect(screen.getByText('did:plc:synthetic')).toBeInTheDocument()
+    expect(screen.queryByText('did:plc:synthetic')).not.toBeInTheDocument()
+    expect(screen.getByText('Synthetic Maker')).toBeVisible()
+    expect(screen.getByText('@maker.example')).toBeVisible()
+    expect(
+      screen.getByRole('img', {
+        name: 'Synthetic Maker profile picture',
+      }),
+    ).toHaveAttribute('src', expect.stringContaining('data:image/png'))
     expect(screen.getByText('public posts')).toBeInTheDocument()
     expect(screen.getByText('public images')).toBeInTheDocument()
   })
@@ -333,20 +365,22 @@ describe('Instagram importer app', () => {
     }
     await loadReview(ui, appServices)
     await ui.click(
-      screen.getByRole('button', { name: 'Connect your PDS' }),
+      screen.getByRole('button', {
+        name: 'Connect your CraftSky account',
+      }),
     )
     await ui.type(
-      screen.getByRole('textbox', { name: 'Handle or DID' }),
+      screen.getByRole('textbox', { name: 'CraftSky handle' }),
       'maker.example',
     )
 
     const authorizeButton = screen.getByRole('button', {
-      name: 'Authorize with your PDS',
+      name: 'Continue to secure sign-in',
     })
     expect(prepareAuthorization).toHaveBeenCalledTimes(1)
     expect(authorizeButton).toBeDisabled()
     expect(
-      screen.getByText('Preparing the secure PDS connection…'),
+      screen.getByText('Preparing secure sign-in…'),
     ).toBeVisible()
 
     finishPreparation?.()
@@ -366,7 +400,7 @@ describe('Instagram importer app', () => {
     expect(importButton).toBeDisabled()
     await ui.click(
       screen.getByRole('checkbox', {
-        name: /publish these selected posts to this account/i,
+        name: /add these selected posts to this CraftSky account/i,
       }),
     )
     await ui.click(importButton)
@@ -377,7 +411,7 @@ describe('Instagram importer app', () => {
     expect(appServices.beginImport).toHaveBeenCalledTimes(1)
     expect(appServices.publish).toHaveBeenCalledTimes(1)
     expect(appServices.finishImport).toHaveBeenCalledTimes(1)
-    expect(screen.getByText('created')).toBeInTheDocument()
+    expect(screen.getByText('added')).toBeInTheDocument()
   })
 
   it('updates reviewed media counts and requires text-only confirmation', async () => {
@@ -393,11 +427,11 @@ describe('Instagram importer app', () => {
     expect(screen.getByText('2 posts · 1 image')).toBeInTheDocument()
 
     const continueButton = screen.getByRole('button', {
-      name: 'Connect your PDS',
+      name: 'Connect your CraftSky account',
     })
     expect(continueButton).toBeDisabled()
     const textOnly = screen.getByRole('checkbox', {
-      name: /import this as a text-only post/i,
+      name: /import this post without an image/i,
     })
     await ui.click(textOnly)
     expect(continueButton).toBeEnabled()
@@ -485,13 +519,19 @@ describe('Instagram importer app', () => {
     await loadReview(ui, appServices)
     expect(screen.getByText('Safe preview')).toBeInTheDocument()
 
-    await ui.click(screen.getByRole('button', { name: 'Connect your PDS' }))
+    await ui.click(
+      screen.getByRole('button', {
+        name: 'Connect your CraftSky account',
+      }),
+    )
     await ui.type(
-      screen.getByRole('textbox', { name: 'Handle or DID' }),
+      screen.getByRole('textbox', { name: 'CraftSky handle' }),
       'maker.example',
     )
     expect(
-      screen.getByRole('button', { name: 'Authorize with your PDS' }),
+      screen.getByRole('button', {
+        name: 'Continue to secure sign-in',
+      }),
     ).toBeDisabled()
     expect(appServices.authorize).not.toHaveBeenCalled()
   })
@@ -558,7 +598,7 @@ describe('Instagram importer app', () => {
     })
     expect(
       within(
-        screen.getByLabelText('Per-post publication progress'),
+        screen.getByLabelText('Per-post import progress'),
       ).getByText('Failed'),
     ).toBeVisible()
 
@@ -572,12 +612,12 @@ describe('Instagram importer app', () => {
     })
     expect(
       within(
-        screen.getByLabelText('Per-post publication progress'),
-      ).getByText('Created'),
+        screen.getByLabelText('Per-post import progress'),
+      ).getByText('Added'),
     ).toBeVisible()
 
     await ui.click(
-      screen.getByRole('button', { name: 'Roll back this import' }),
+      screen.getByRole('button', { name: 'Remove imported posts' }),
     )
     await screen.findByText(
       '1 removed · 0 already absent · 0 changed and kept · 0 failed',
@@ -585,17 +625,17 @@ describe('Instagram importer app', () => {
     expect(rollback).toHaveBeenCalledTimes(1)
 
     await ui.click(
-      screen.getByRole('button', { name: 'Clear local history' }),
+      screen.getByRole('button', { name: 'Clear import history' }),
     )
     await screen.findByText(
-      'Local progress and rollback history cleared.',
+      'Import history cleared from this device.',
     )
     expect(clearHistory).toHaveBeenCalledTimes(1)
     expect(confirm).toHaveBeenCalledTimes(2)
     expect(confirm).toHaveBeenNthCalledWith(
       1,
       expect.stringContaining(
-        'separately recreated identical record',
+        'Posts you have changed since importing will be kept',
       ),
     )
   })
@@ -617,17 +657,17 @@ describe('Instagram importer app', () => {
     })
 
     await ui.click(
-      screen.getByRole('button', { name: 'Clear local history' }),
+      screen.getByRole('button', { name: 'Clear import history' }),
     )
 
     expect(
       await screen.findByText(
-        'Local history could not be cleared. Resume and rollback information remains on this device.',
+        'Your import history could not be cleared. Resume and removal information remains on this device.',
       ),
     ).toBeVisible()
     expect(
       screen.getByRole('button', {
-        name: 'Roll back this import',
+        name: 'Remove imported posts',
       }),
     ).toBeVisible()
     expect(clearHistory).toHaveBeenCalledTimes(1)
@@ -678,19 +718,19 @@ describe('Instagram importer app', () => {
     await screen.findByText('Import paused')
 
     const perPost = screen.getByLabelText(
-      'Per-post publication progress',
+      'Per-post import progress',
     )
     expect(within(perPost).getByText('Post 1')).toBeVisible()
     expect(within(perPost).getByText('Post 2')).toBeVisible()
     expect(
       screen.getByRole('button', {
-        name: 'Roll back this partial import',
+        name: 'Remove imported posts',
       }),
     ).toBeVisible()
 
     await ui.click(
       screen.getByRole('button', {
-        name: 'Roll back this partial import',
+        name: 'Remove imported posts',
       }),
     )
     await screen.findByText(
@@ -699,7 +739,7 @@ describe('Instagram importer app', () => {
     expect(rollback).toHaveBeenCalledTimes(1)
     expect(
       within(
-        screen.getByLabelText('Per-post publication progress'),
+        screen.getByLabelText('Per-post import progress'),
       ).getByText('Already absent'),
     ).toBeVisible()
   })
@@ -719,11 +759,13 @@ describe('Instagram importer app', () => {
     })
 
     await ui.click(
-      screen.getByRole('button', { name: 'Sign out of PDS' }),
+      screen.getByRole('button', {
+        name: 'Disconnect CraftSky account',
+      }),
     )
 
     await screen.findByText(
-      'Signed out. Local progress and rollback history remain on this device.',
+      'CraftSky account disconnected. Import history remains on this device.',
     )
     expect(signOut).toHaveBeenCalledTimes(1)
     expect(clearHistory).not.toHaveBeenCalled()
@@ -744,12 +786,12 @@ describe('Instagram importer app', () => {
 
     expect(
       await screen.findByText(
-        'Your PDS session could not be cleared and may still be active. Local import progress remains on this device.',
+        'Your CraftSky account could not be disconnected and may still be connected. Import progress remains on this device.',
       ),
     ).toBeVisible()
     expect(
       screen.getByRole('heading', {
-        name: 'Ready to publish to your PDS',
+        name: 'Ready to import to CraftSky',
       }),
     ).toBeVisible()
     expect(signOut).toHaveBeenCalledTimes(1)
