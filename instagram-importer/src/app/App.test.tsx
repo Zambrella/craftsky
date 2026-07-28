@@ -446,7 +446,7 @@ describe('Instagram importer app', () => {
     expect(captions[0]).toHaveValue('Edited locally')
   })
 
-  it('shows only sanitized visible-item previews and revokes them on deselection', async () => {
+  it('shows the first sanitized image for visible posts until review closes', async () => {
     const ui = userEvent.setup()
     const createObjectURL = vi.fn().mockReturnValue('blob:safe-preview')
     const revokeObjectURL = vi.fn()
@@ -463,10 +463,6 @@ describe('Instagram importer app', () => {
     const appServices = { ...services(manifest(2)), previewMedia }
     await loadReview(ui, appServices)
 
-    expect(previewMedia).not.toHaveBeenCalled()
-    for (const imageSummary of screen.getAllByText('Images (1)')) {
-      await ui.click(imageSummary)
-    }
     await waitFor(() =>
       expect(previewMedia).toHaveBeenCalledWith(
         'media-0',
@@ -497,11 +493,15 @@ describe('Instagram importer app', () => {
     await ui.click(
       screen.getAllByRole('checkbox', { name: 'Include image 1' })[1],
     )
+    expect(revokeObjectURL).not.toHaveBeenCalled()
+    expect(secondPreviewSignal?.aborted).toBe(false)
+
+    cleanup()
     await waitFor(() =>
       expect(revokeObjectURL).toHaveBeenCalledWith('blob:safe-preview'),
     )
     expect(secondPreviewSignal?.aborted).toBe(true)
-    expect(firstPreviewSignal?.aborted).toBe(false)
+    expect(firstPreviewSignal?.aborted).toBe(true)
   })
 
   it('hard-disables real authorization in preview builds (AT-010, IT-016)', async () => {

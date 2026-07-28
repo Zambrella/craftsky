@@ -23,6 +23,8 @@ functionality.
 | UIP-008 | User follow-up: hide caption repair warning | Kept confidently reversible caption repair as an internal transformation marker, but removed it from row badges, warning totals, and the warnings filter because it requires no user action. | `instagram-importer/src/domain/types.ts`, `instagram-importer/src/review/reviewState.ts`, `instagram-importer/src/app/components/ReviewList.tsx`, tests and workflow docs | Done |
 | UIP-009 | User follow-up: expanded image review | Made expanded image sections progressively load every selected sanitized thumbnail through the existing serial worker queue, increased thumbnails from 44 px to 144 px, and added an accessible native-dialog full-screen lightbox with close-button, Escape, and backdrop dismissal. | `instagram-importer/src/app/components/ReviewList.tsx`, `instagram-importer/src/styles/app.css`, component/application/browser tests and workflow docs | Done |
 | UIP-010 | User follow-up: importer chrome and footer | Removed the review-only disconnected-account badge, reused the supplied CraftSky app icon for the header, footer, browser icon, and OAuth metadata, and added accessible Privacy, Terms, and GitHub footer links. | `instagram-importer/src/app/App.tsx`, `instagram-importer/src/styles/app.css`, `instagram-importer/index.html`, `instagram-importer/public/app_icon.png`, OAuth metadata and tests | Done |
+| UIP-011 | User follow-up: show the first image without thumbnail generation | Automatically loads the first available sanitized image for each mounted virtual post row using the existing preview path. Images two through four remain disclosure-gated, image one is not processed twice when the disclosure opens, and the existing lightbox remains available. | `instagram-importer/src/app/components/ReviewList.tsx`, `instagram-importer/src/styles/app.css`, component/application/browser tests and workflow docs | Done |
+| UIP-012 | User follow-up: distinguish “Why?” from warning copy | Restyled the tooltip trigger as smaller, heavier cobalt link text with a dotted underline, leaving the warning message in its existing olive badge style. | `instagram-importer/src/styles/app.css` | Done |
 
 ## Verification
 
@@ -37,9 +39,8 @@ functionality.
     connect, and final-confirmation states
   - Agent Browser axe audit with `wcag2a,wcag2aa`
 - Passing evidence:
-  - 32 Vitest files and 157 tests passed.
-  - The focused caption-warning regression suite passed 24 tests across the
-    review list, review counts, and application flow.
+  - 32 Vitest files and 159 tests passed.
+  - The focused review-list and application suite passed 24 tests.
   - Type checking, linting, and the production build passed. The built output
     contains the supplied PNG icon and canonical OAuth metadata URLs.
   - All six local-review and mocked publication/recovery scenarios passed in
@@ -51,9 +52,19 @@ functionality.
     review controls. Additional checks covered collapsed rows, independent
     caption/image expansion, image counts, a multiline auto-sized caption, and
     centered disclosure chevrons in both open and closed states. The later
-    image-review pass covered 144 px automatic thumbnails, full-screen desktop
+    image-review pass covered 144 px image previews, full-screen desktop
     and mobile containment, close-button/Escape/backdrop dismissal, and focus
     restoration to the invoking thumbnail.
+  - The first-image follow-up confirmed that mounted virtual rows load image
+    one without opening the Images disclosure, images two through four still
+    wait for expansion, and closing a disclosure or review aborts and revokes
+    only its scoped previews.
+  - The warning-tooltip follow-up uses the existing cobalt tokens to separate
+    the interactive “Why?” text from the warning message without changing
+    tooltip behaviour or copy.
+  - The latest focused review-list suite passed all 10 tests; lint, typecheck,
+    generation checks, and the production build also passed after the styling
+    change.
   - Header/footer checks confirmed the supplied app icon, exact Privacy and
     Terms URLs, repository link, and responsive single-column mobile footer;
     the removed disconnected-account badge no longer appears on review.
@@ -61,6 +72,9 @@ functionality.
   - The first Playwright attempt using bundled Chromium could not start because
     that optional browser binary is not installed. The same checked scenario
     passed against installed Chrome.
+  - The first focused Playwright attempt in the restricted sandbox could not
+    bind the local test port. The same six scenarios passed with approved local
+    server access against installed Chrome.
   - No live OAuth/PDS, private export, deployment, or cross-browser release
     gate was exercised; the external gates from the implementation review
     remain unchanged.
@@ -79,6 +93,11 @@ functionality.
   - Expanded image sections now load sanitized thumbnails progressively
     through the existing serial worker queue; the lightbox does not persist
     source media or broaden network access.
+  - Mounted virtual rows now load their first sanitized image automatically
+    through that same queue without generating or retaining a separate
+    thumbnail asset. Virtualization still bounds mounted post rows.
+  - The “Why?” follow-up changes styling only; warning semantics, tooltip
+    content, and interaction behaviour are unchanged.
   - The pre-existing uncommitted IPv4 loopback Vite fix and its regression test
     were preserved and were not part of this polish pass.
   - No commit, push, pull request, or deployment was performed.

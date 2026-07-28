@@ -36,12 +36,12 @@ test('completes the mocked importer UI flow (IT-008; browser UI slices for AT-00
     mimeType: 'application/zip',
     buffer: Buffer.from('synthetic'),
   })
-  await page.getByText('Images (1)').click()
   const thumbnail = page.getByRole('button', {
     name: 'View Image 1 full screen',
   })
   await expect(thumbnail).toHaveCSS('width', '144px')
   await expect(thumbnail).toHaveCSS('height', '144px')
+  await page.getByText('Images (1)').click()
   await thumbnail.click()
   await expect(
     page.getByRole('dialog', {

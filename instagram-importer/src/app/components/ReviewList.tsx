@@ -365,6 +365,7 @@ export function ReviewList({
               const visibleWarnings = post.warnings.filter(
                 isUserFacingWarningCode,
               )
+              const firstMedia = post.media[0]
               const imageSectionOpen = expandedImagePosts.has(
                 post.itemKey,
               )
@@ -451,6 +452,24 @@ export function ReviewList({
                           )
                         })}
                       </ul>
+                    )}
+
+                    {firstMedia && (
+                      <div className="review-post__lead-media">
+                        <MediaPreview
+                          token={firstMedia.token}
+                          enabled
+                          label="Image 1"
+                          loadPreview={loadPreview}
+                          onOpen={({ trigger, ...preview }) => {
+                            lightboxTriggerRef.current = trigger
+                            setLightboxImage({
+                              itemKey: post.itemKey,
+                              ...preview,
+                            })
+                          }}
+                        />
+                      </div>
                     )}
 
                     <details
@@ -543,19 +562,29 @@ export function ReviewList({
                                       )
                                     }}
                                   />
-                                  <MediaPreview
-                                    token={media.token}
-                                    enabled={previewEnabled}
-                                    label={`Image ${index + 1}`}
-                                    loadPreview={loadPreview}
-                                    onOpen={({ trigger, ...preview }) => {
-                                      lightboxTriggerRef.current = trigger
-                                      setLightboxImage({
-                                        itemKey: post.itemKey,
-                                        ...preview,
-                                      })
-                                    }}
-                                  />
+                                  {index === 0 ? (
+                                    <small className="media-option__lead-note">
+                                      Preview shown above
+                                    </small>
+                                  ) : (
+                                    <MediaPreview
+                                      token={media.token}
+                                      enabled={previewEnabled}
+                                      label={`Image ${index + 1}`}
+                                      loadPreview={loadPreview}
+                                      onOpen={({
+                                        trigger,
+                                        ...preview
+                                      }) => {
+                                        lightboxTriggerRef.current =
+                                          trigger
+                                        setLightboxImage({
+                                          itemKey: post.itemKey,
+                                          ...preview,
+                                        })
+                                      }}
+                                    />
+                                  )}
                                   <label htmlFor={inputId}>
                                     Image {index + 1}
                                     <small>

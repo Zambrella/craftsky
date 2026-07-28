@@ -190,10 +190,13 @@ Feature: Bulk review
     And its caption and image sections start collapsed and expand independently
     And the image heading states the number of images
     And the expanded caption editor grows to show its full content
-    And expanding the image section progressively loads every selected
-      thumbnail through the one-at-a-time worker queue
-    And every thumbnail is at least 132 CSS pixels square
-    When the member selects a thumbnail
+    And each mounted row automatically loads its first available sanitized
+      image through the one-at-a-time worker queue
+    And no separate thumbnail asset is generated
+    And expanding the image section progressively loads its remaining selected
+      images through the same queue
+    And every image preview is at least 132 CSS pixels square
+    When the member selects an image preview
     Then it opens in an accessible full-screen lightbox
     And the lightbox closes by its close button, Escape, or backdrop
     When the member deselects one post, deselects one image, and uses bulk
@@ -384,7 +387,7 @@ Feature: Origin-isolated static deployment
 | UT-017 | FR-025 | AC-014, AC-017 | Derive versioned manifest fingerprints without persisting content. | Equivalent and changed synthetic manifests | Equivalent input matches; material change differs; persistence excludes source values | `instagram-importer/src/progress/fingerprint.test.ts` |
 | UT-018 | FR-006, NFR-003 | AC-005, AC-016 | Validate typed worker request/result/cancel protocol and stale-operation fencing. | Operation IDs and cancel races | Stale/cancelled results cannot mutate active review | `instagram-importer/src/worker/protocol.test.ts` |
 | UT-019 | FR-010, FR-017, RULE-010 | AC-006, AC-010, AC-023 | Decide review eligibility after media omissions and require explicit text-only confirmation. | Mixed valid/missing/unsupported media and captions | Remaining images stay selected; text-only confirmation; empty skip; no alt UI | `instagram-importer/src/review/mediaSelection.test.ts` |
-| UT-020 | FR-010 | AC-006 | Load expanded selected thumbnails, release them when collapsed or deselected, and open/close the selected image lightbox. | Selected/deselected multi-image posts and mocked sanitized blobs | No eager load while collapsed; expanded thumbnails appear; abort/revoke on close; accessible modal opens and closes | `instagram-importer/src/app/components/ReviewList.test.tsx` |
+| UT-020 | FR-010 | AC-006 | Load each mounted row's first sanitized image automatically, load remaining selected images only while expanded, release scoped previews when rows or disclosures close, and open/close the selected image lightbox. | Selected/deselected multi-image posts and mocked sanitized blobs | First image loads without expansion; later images wait for expansion; abort/revoke follows row/disclosure lifetime; accessible modal opens and closes | `instagram-importer/src/app/components/ReviewList.test.tsx` |
 
 ## 5. Integration Test Cases
 

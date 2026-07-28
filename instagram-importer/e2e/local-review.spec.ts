@@ -127,11 +127,11 @@ test('reviews a synthetic ZIP locally before any external request or persistence
     page.getByRole('heading', { name: /ready to review/i }),
   ).toBeVisible()
   await expect(page.getByText('1 post · 1 image')).toBeVisible()
-  await page.getByText('Images (1)').click()
   const thumbnail = page.getByRole('button', {
     name: 'View Image 1 full screen',
   })
   await expect(thumbnail).toHaveCSS('width', '144px')
+  await page.getByText('Images (1)').click()
   await thumbnail.click()
   await expect(
     page.getByRole('dialog', {

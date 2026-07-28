@@ -834,12 +834,19 @@ progress::-moz-progress-bar {
   padding: 0;
   border: 0;
   background: transparent;
-  color: inherit;
+  color: var(--cobalt-deep);
   cursor: help;
-  font: inherit;
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
   text-decoration: underline;
   text-decoration-style: dotted;
   text-underline-offset: 2px;
+}
+
+.warning-tooltip__trigger:hover {
+  color: var(--cobalt);
 }
 
 .warning-tooltip__bubble {
@@ -863,6 +870,10 @@ progress::-moz-progress-bar {
 .warning-tooltip:hover .warning-tooltip__bubble,
 .warning-tooltip:focus-within .warning-tooltip__bubble {
   display: block;
+}
+
+.review-post__lead-media {
+  margin: 0 0 12px;
 }
 
 .post-section {
@@ -1004,6 +1015,12 @@ progress::-moz-progress-bar {
   display: grid;
   gap: 4px;
   cursor: pointer;
+}
+
+.media-option__lead-note {
+  grid-column: 1 / -1;
+  color: var(--ink-3);
+  font-size: 0.75rem;
 }
 
 .media-thumbnail-button {
