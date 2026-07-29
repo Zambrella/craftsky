@@ -10,10 +10,12 @@ import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
+import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_card.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/saved_posts/data/saved_post_repository.dart';
@@ -123,6 +125,33 @@ Future<void> _pump(
 
 void main() {
   group('PostCard', () {
+    testWidgets('TDD-005A author identity opens the profile card', (
+      tester,
+    ) async {
+      final profileRepository = FakeProfileRepository(
+        onFetch: (_) async => Profile(
+          did: 'did:plc:alice',
+          handle: 'alice.craftsky.social',
+          displayName: 'Alice',
+          crafts: const ['knitting'],
+        ),
+      );
+
+      await _pump(
+        tester,
+        PostCard(post: _post(displayName: 'Alice')),
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          profileRepositoryProvider.overrideWithValue(profileRepository),
+        ],
+      );
+
+      await tester.tap(find.text('Alice'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProfileCard), findsOneWidget);
+    });
+
     testWidgets('AT-001 renders bookmark immediately before overflow', (
       tester,
     ) async {

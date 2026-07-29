@@ -11,6 +11,7 @@ import 'package:craftsky_app/notifications/widgets/notification_row.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_card.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -111,6 +112,37 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(destination?.uri.path, '/profile/maker.synthetic.invalid');
+  });
+
+  testWidgets('TDD-005B actor avatar opens the profile card', (tester) async {
+    final repository = FakeProfileRepository(
+      onFetch: (_) async => Profile(
+        did: 'did:plc:synthetic-match',
+        handle: 'maker.synthetic.invalid',
+        displayName: 'Synthetic Maker',
+        crafts: const ['sewing'],
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          profileRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(body: NotificationRow(notification: match())),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(ProfileAvatar));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ProfileCard), findsOneWidget);
   });
 
   testWidgets(

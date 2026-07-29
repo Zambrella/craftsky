@@ -1,12 +1,14 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/widgets/profile_card.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
+import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 
 import '../profile/fakes/fake_profile_repository.dart';
 
@@ -62,10 +64,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [profileRepositoryProvider.overrideWithValue(repo)],
-        child: const MaterialApp(
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: FollowListPage(kind: FollowListKind.following),
+          home: const FollowListPage(kind: FollowListKind.following),
         ),
       ),
     );
@@ -143,28 +146,9 @@ void main() {
     expect(find.text('Load more'), findsNothing);
   });
 
-  testWidgets('tapping an account opens that user profile route', (
+  testWidgets('TDD-005C tapping an account opens its profile card', (
     tester,
   ) async {
-    String? routedHandle;
-    final router = GoRouter(
-      initialLocation: '/',
-      routes: [
-        GoRoute(
-          path: '/',
-          builder: (context, state) => const FollowListPage(
-            kind: FollowListKind.following,
-          ),
-        ),
-        GoRoute(
-          path: '/profile/:handle',
-          builder: (context, state) {
-            routedHandle = state.pathParameters['handle'];
-            return Text('Profile: $routedHandle');
-          },
-        ),
-      ],
-    );
     final repo = FakeProfileRepository(
       onListFollowingMe: ({cursor, limit}) async => ProfileAccountPage(
         totalCount: 1,
@@ -177,15 +161,22 @@ void main() {
           ),
         ],
       ),
+      onFetch: (_) async => Profile(
+        did: 'did:plc:dana',
+        handle: 'dana.craftsky.social',
+        displayName: 'Dana',
+        crafts: const ['quilting'],
+      ),
     );
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [profileRepositoryProvider.overrideWithValue(repo)],
-        child: MaterialApp.router(
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          routerConfig: router,
+          home: const FollowListPage(kind: FollowListKind.following),
         ),
       ),
     );
@@ -194,7 +185,13 @@ void main() {
     await tester.tap(find.text('Dana'));
     await tester.pumpAndSettle();
 
-    expect(routedHandle, 'dana.craftsky.social');
-    expect(find.text('Profile: dana.craftsky.social'), findsOneWidget);
+    expect(find.byType(ProfileCard), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(ProfileCard),
+        matching: find.text('@dana.craftsky.social'),
+      ),
+      findsOneWidget,
+    );
   });
 }
