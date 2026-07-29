@@ -16,6 +16,13 @@ import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/profile/widgets/profile_actions.dart';
+import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
+import 'package:craftsky_app/profile/widgets/profile_framed_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_identity.dart';
+import 'package:craftsky_app/profile/widgets/profile_meta_section.dart';
+import 'package:craftsky_app/profile/widgets/profile_sliver_app_bar.dart';
+import 'package:craftsky_app/profile/widgets/profile_stats.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -132,6 +139,284 @@ void main() {
       expect(find.text('12 mutual followers'), findsOneWidget);
       expect(find.text('Non CraftSky profile'), findsNothing);
     });
+
+    testWidgets('applies a supplied primary colour to the entire profile', (
+      tester,
+    ) async {
+      const customPrimary = Color(0xFF9A4DFF);
+      final profile = Profile(
+        did: 'did:plc:other',
+        handle: 'alice.bsky.social',
+        displayName: 'Alice',
+        crafts: const [],
+        postsLast7Days: 2,
+      );
+      final repo = FakeProfileRepository(onFetch: (_) async => profile);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProfilePage(
+              handle: 'alice.bsky.social',
+              primaryColor: customPrimary,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final statsContext = tester.element(find.byType(ProfileStats));
+      final header = tester.widget<ColoredBox>(
+        find.byKey(const Key('profile-header-background')),
+      );
+      final avatarRim = tester.widget<DecoratedBox>(
+        find
+            .descendant(
+              of: find.byType(ProfileFramedAvatar),
+              matching: find.byType(DecoratedBox),
+            )
+            .first,
+      );
+      final avatarRimDecoration = avatarRim.decoration as BoxDecoration;
+      expect(Theme.of(statsContext).colorScheme.primary, customPrimary);
+      expect(header.color, customPrimary);
+      expect(
+        avatarRimDecoration.color,
+        Theme.of(statsContext).scaffoldBackgroundColor,
+      );
+      expect(
+        find.byKey(const Key('profile-header-background-illustration')),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('profile-avatar-frame')), findsNothing);
+    });
+
+    testWidgets('expanded header grows with the system text scale', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: CustomScrollView(
+              slivers: [
+                ProfileSliverAppBar(
+                  handle: 'alice.bsky.social',
+                  displayName: 'Alice',
+                  actions: SelfProfileActionSet(
+                    onEdit: () {},
+                    onSettings: () {},
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final sliverAppBar = tester.widget<SliverAppBar>(
+        find.byType(SliverAppBar),
+      );
+      expect(
+        sliverAppBar.expandedHeight,
+        greaterThan(ProfileSliverAppBar.expandedHeight),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('profile divider fades in as the header collapses', (
+      tester,
+    ) async {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: CustomScrollView(
+              controller: controller,
+              slivers: [
+                ProfileSliverAppBar(
+                  handle: 'alice.bsky.social',
+                  displayName: 'Alice',
+                  crafts: const ['quilting'],
+                  actions: SelfProfileActionSet(
+                    onEdit: () {},
+                    onSettings: () {},
+                  ),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 1200)),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
+      final divider = find.byKey(const Key('profile-sliver-divider'));
+      expect(appBar.shape, const Border());
+      expect(tester.widget<Opacity>(divider).opacity, 0);
+
+      final collapseRange = appBar.expandedHeight! - kToolbarHeight;
+      controller.jumpTo(collapseRange / 2);
+      await tester.pump();
+      expect(
+        tester.widget<Opacity>(divider).opacity,
+        inInclusiveRange(0.45, 0.55),
+      );
+
+      controller.jumpTo(collapseRange);
+      await tester.pump();
+      expect(tester.widget<Opacity>(divider).opacity, 1);
+    });
+
+    testWidgets(
+      'replaces the banner image with configured illustration and frame',
+      (tester) async {
+        final profile = Profile(
+          did: 'did:plc:other',
+          handle: 'alice.bsky.social',
+          displayName: 'Alice',
+          banner: 'https://example.test/old-banner.jpg',
+          crafts: const [],
+        );
+        final repo = FakeProfileRepository(onFetch: (_) async => profile);
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authSessionProvider.overrideWith(SignedInAuthSession.new),
+              profileRepositoryProvider.overrideWithValue(repo),
+              postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+            ],
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const ProfilePage(
+                handle: 'alice.bsky.social',
+                backgroundIllustration: ProfileBackgroundIllustration.botanical,
+                avatarFrame: ProfileAvatarFrame.stitched,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('profile-header-background')),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .getSize(
+                find.byKey(const Key('profile-header-background')),
+              )
+              .height,
+          128,
+        );
+        expect(
+          find.byKey(const Key('profile-header-background-illustration')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('profile-avatar-frame')), findsOneWidget);
+        expect(
+          find.byKey(const Key('profile-banner-viewer-target')),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets(
+      'places crafts below the handle and bio after the profile actions',
+      (tester) async {
+        final profile = Profile(
+          did: 'did:plc:other',
+          handle: 'alice.bsky.social',
+          displayName: 'Alice',
+          description: 'A patient patchworker.',
+          crafts: const ['quilting'],
+          postsLast7Days: 2,
+        );
+        final repo = FakeProfileRepository(onFetch: (_) async => profile);
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authSessionProvider.overrideWith(SignedInAuthSession.new),
+              profileRepositoryProvider.overrideWithValue(repo),
+              postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+            ],
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const ProfilePage(handle: 'alice.bsky.social'),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final identity = tester.widget<ProfileIdentity>(
+          find.byType(ProfileIdentity),
+        );
+        final handleY = tester
+            .getTopLeft(
+              find.descendant(
+                of: find.byType(ProfileIdentity),
+                matching: find.text('@alice.bsky.social'),
+              ),
+            )
+            .dy;
+        final bioY = tester.getTopLeft(find.text('A patient patchworker.')).dy;
+        final craftY = tester.getTopLeft(find.text('Quilting')).dy;
+        final statsY = tester.getTopLeft(find.text('2 posts')).dy;
+        final actionsY = tester.getTopLeft(find.text('Follow')).dy;
+        final tabBarY = tester.getTopLeft(find.byType(TabBar)).dy;
+
+        expect(identity.centered, isTrue);
+        expect(
+          find.descendant(
+            of: find.byType(ProfileSliverAppBar),
+            matching: find.text('Quilting'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byType(ProfileMetaSection),
+            matching: find.text('Quilting'),
+          ),
+          findsNothing,
+        );
+        expect(handleY, lessThan(craftY));
+        expect(craftY, lessThan(statsY));
+        expect(statsY, lessThan(actionsY));
+        expect(actionsY, lessThan(bioY));
+        expect(bioY, lessThan(tabBarY));
+      },
+    );
 
     testWidgets(
       'blocked profile renders only identity, annotation, and actions',
@@ -283,7 +568,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Mute account').first);
+      await tester.tap(find.byTooltip('Mute account').last);
       await tester.pumpAndSettle();
 
       expect(muteCalls, 1);
@@ -1074,7 +1359,7 @@ void main() {
       expect(find.byType(CloseButton), findsOneWidget);
     });
 
-    testWidgets('tapping profile banner opens the fullscreen image gallery', (
+    testWidgets('stored profile banner is not rendered or interactive', (
       tester,
     ) async {
       final profile = Profile(
@@ -1105,13 +1390,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('profile-banner-viewer-target')));
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 1));
-
-      expect(find.byType(PostImageGallery), findsOneWidget);
-      expect(find.text('Test User profile banner'), findsOneWidget);
-      expect(find.byType(CloseButton), findsOneWidget);
+      expect(
+        find.byKey(const Key('profile-banner-viewer-target')),
+        findsNothing,
+      );
+      expect(find.byType(PostImageGallery), findsNothing);
     });
   });
 }

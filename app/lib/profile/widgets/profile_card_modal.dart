@@ -6,6 +6,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_card.dart';
+import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -27,18 +28,16 @@ Future<void> showUserProfileCard(
   BuildContext context, {
   required String handleOrDid,
   Color? primaryColor,
-  ProfileCardIllustration? backgroundIllustration,
+  ProfileBackgroundIllustration? backgroundIllustration,
   ProfileAvatarFrame? avatarFrame,
 }) async {
   final result = await showCraftskyModal<_ProfileCardResult>(
     context,
     builder: (dialogContext) => _ProfileCardModalHost(
       handleOrDid: handleOrDid,
-      primaryColor: Colors.teal,
-      backgroundIllustration: ProfileCardIllustration.patchwork,
-      avatarFrame: ProfileAvatarFrame.stitched,
-      // backgroundIllustration: backgroundIllustration,
-      // avatarFrame: avatarFrame,
+      primaryColor: primaryColor,
+      backgroundIllustration: backgroundIllustration,
+      avatarFrame: avatarFrame,
     ),
   );
   if (!context.mounted || result == null) return;
@@ -59,7 +58,7 @@ class _ProfileCardModalHost extends ConsumerWidget {
 
   final String handleOrDid;
   final Color? primaryColor;
-  final ProfileCardIllustration? backgroundIllustration;
+  final ProfileBackgroundIllustration? backgroundIllustration;
   final ProfileAvatarFrame? avatarFrame;
 
   @override

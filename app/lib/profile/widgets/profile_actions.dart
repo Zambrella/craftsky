@@ -64,6 +64,26 @@ class ProfileActions extends StatelessWidget {
   }
 }
 
+/// Centres the richer full-page action row while keeping visitor actions
+/// bounded and responsive.
+class ProfileActionSection extends StatelessWidget {
+  const ProfileActionSection({required this.actions, super.key});
+
+  final ProfileActionSet actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Align(
+          child: ProfileActions(actions: actions),
+        ),
+      ),
+    );
+  }
+}
+
 class _SelfActions extends StatelessWidget {
   const _SelfActions({required this.actions});
 

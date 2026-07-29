@@ -5,6 +5,12 @@ import 'package:craftsky_app/profile/providers/profile_repository_provider.dart'
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_card.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
+import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
+import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
+import 'package:craftsky_app/profile/widgets/profile_framed_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_header_background.dart';
+import 'package:craftsky_app/profile/widgets/profile_identity.dart';
+import 'package:craftsky_app/profile/widgets/profile_stats.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -62,7 +68,21 @@ void main() {
         final header = tester.widget<ColoredBox>(
           find.byKey(const Key('profile-card-header')),
         );
+        final framedAvatar = find.byType(ProfileFramedAvatar);
+        final avatarRim = tester.widget<DecoratedBox>(
+          find
+              .descendant(
+                of: framedAvatar,
+                matching: find.byType(DecoratedBox),
+              )
+              .first,
+        );
+        final avatarRimDecoration = avatarRim.decoration as BoxDecoration;
         expect(header.color, customPrimary);
+        expect(
+          avatarRimDecoration.color,
+          Theme.of(tester.element(framedAvatar)).colorScheme.surface,
+        );
         expect(
           find.byKey(const Key('profile-card-background-illustration')),
           findsNothing,
@@ -77,14 +97,14 @@ void main() {
     testWidgets(
       'TDD-002 renders independently selected curated decorations',
       (tester) async {
-        expect(ProfileCardIllustration.values, hasLength(3));
+        expect(ProfileBackgroundIllustration.values, hasLength(3));
         expect(ProfileAvatarFrame.values, hasLength(3));
 
         await tester.pumpWidget(
           _wrap(
             ProfileCard(
               profile: _profile(),
-              backgroundIllustration: ProfileCardIllustration.botanical,
+              backgroundIllustration: ProfileBackgroundIllustration.botanical,
               avatarFrame: ProfileAvatarFrame.stitched,
               isOwnProfile: false,
               onClose: () {},
@@ -134,6 +154,28 @@ void main() {
           );
 
       expect(avatarDecoration.boxShadow, isEmpty);
+    });
+
+    testWidgets('TDD-003 uses the public shared profile presentation widgets', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          ProfileCard(
+            profile: _profile(),
+            isOwnProfile: false,
+            onClose: () {},
+            onVisitProfile: () {},
+            onPrimaryAction: () {},
+          ),
+        ),
+      );
+
+      expect(find.byType(ProfileHeaderBackground), findsOneWidget);
+      expect(find.byType(ProfileFramedAvatar), findsOneWidget);
+      expect(find.byType(ProfileIdentity), findsOneWidget);
+      expect(find.byType(ProfileCraftChips), findsOneWidget);
+      expect(find.byType(ProfileStats), findsOneWidget);
     });
 
     testWidgets(
