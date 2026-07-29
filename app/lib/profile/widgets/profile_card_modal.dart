@@ -35,9 +35,11 @@ Future<void> showUserProfileCard(
     context,
     builder: (dialogContext) => _ProfileCardModalHost(
       handleOrDid: handleOrDid,
-      primaryColor: primaryColor,
-      backgroundIllustration: backgroundIllustration,
-      avatarFrame: avatarFrame,
+      primaryColor: Colors.teal,
+      backgroundIllustration: ProfileCardIllustration.patchwork,
+      avatarFrame: ProfileAvatarFrame.stitched,
+      // backgroundIllustration: backgroundIllustration,
+      // avatarFrame: avatarFrame,
     ),
   );
   if (!context.mounted || result == null) return;
@@ -99,9 +101,7 @@ class _ProfileCardModalHost extends ConsumerWidget {
             return;
           }
           unawaited(
-            ref
-                .read(toggleFollowProfileProvider.notifier)
-                .toggle(cacheKey: handleOrDid, profile: value),
+            ref.read(toggleFollowProfileProvider.notifier).toggle(cacheKey: handleOrDid, profile: value),
           );
         },
       ),

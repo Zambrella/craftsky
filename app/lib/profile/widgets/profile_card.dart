@@ -267,6 +267,7 @@ class _ProfileCardAvatar extends StatelessWidget {
             seed: profile.displayName ?? profile.handle.toString(),
             avatarUrl: profile.avatar,
             size: ProfileAvatarSize.large,
+            showShadow: false,
           ),
           if (frame != null)
             CustomPaint(
@@ -478,8 +479,11 @@ class _ProfileCardActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colors = Theme.of(context).colorScheme;
-    final spacing = Theme.of(context).extension<SpacingTheme>()!;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    final spacing = theme.extension<SpacingTheme>()!;
+    final isQuietUnfollow = !isOwnProfile && isFollowing;
     final primaryLabel = isOwnProfile
         ? l10n.profileEditAction
         : isFollowing
@@ -502,6 +506,8 @@ class _ProfileCardActions extends StatelessWidget {
         Expanded(
           child: ChunkyButton(
             onPressed: isBusy ? null : onPrimaryAction,
+            backgroundColor: isQuietUnfollow ? swatches.paper3 : null,
+            foregroundColor: isQuietUnfollow ? colors.onSurface : null,
             child: Text(primaryLabel),
           ),
         ),

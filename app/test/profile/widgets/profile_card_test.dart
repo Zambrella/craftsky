@@ -3,9 +3,12 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_card.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -103,6 +106,37 @@ void main() {
       },
     );
 
+    testWidgets('TDD-002B renders the card avatar without a shadow', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          ProfileCard(
+            profile: _profile(),
+            isOwnProfile: false,
+            onClose: () {},
+            onVisitProfile: () {},
+            onPrimaryAction: () {},
+          ),
+        ),
+      );
+
+      final avatarContainers = tester.widgetList<Container>(
+        find.descendant(
+          of: find.byType(ProfileAvatar),
+          matching: find.byType(Container),
+        ),
+      );
+      final avatarDecoration = avatarContainers
+          .map((container) => container.decoration)
+          .whereType<BoxDecoration>()
+          .firstWhere(
+            (decoration) => decoration.shape == BoxShape.circle,
+          );
+
+      expect(avatarDecoration.boxShadow, isEmpty);
+    });
+
     testWidgets(
       'TDD-003A renders current profile summary and visitor actions',
       (tester) async {
@@ -140,6 +174,37 @@ void main() {
       },
     );
 
+    testWidgets(
+      'TDD-003B gives unfollow the quiet main-profile treatment',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            ProfileCard(
+              profile: _profile().copyWith(viewerIsFollowing: true),
+              isOwnProfile: false,
+              onClose: () {},
+              onVisitProfile: () {},
+              onPrimaryAction: () {},
+            ),
+          ),
+        );
+
+        final unfollowButton = tester.widget<ChunkyButton>(
+          find.ancestor(
+            of: find.text('Unfollow'),
+            matching: find.byType(ChunkyButton),
+          ),
+        );
+        final theme = AppTheme.lightThemeData;
+
+        expect(
+          unfollowButton.backgroundColor,
+          theme.extension<BrandSwatchTheme>()!.paper3,
+        );
+        expect(unfollowButton.foregroundColor, theme.colorScheme.onSurface);
+      },
+    );
+
     testWidgets('TDD-006 remains scrollable on a short viewport', (
       tester,
     ) async {
@@ -172,7 +237,6 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.byType(SingleChildScrollView), findsOneWidget);
     });
-
   });
 
   group('showUserProfileCard', () {
