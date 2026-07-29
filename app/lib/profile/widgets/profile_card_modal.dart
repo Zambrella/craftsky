@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
-import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_card.dart';
@@ -15,7 +14,7 @@ import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-enum _ProfileCardAction { visitProfile, editProfile }
+enum _ProfileCardAction { visitProfile }
 
 typedef _ProfileCardResult = ({_ProfileCardAction action, String handle});
 
@@ -47,8 +46,6 @@ Future<void> showUserProfileCard(
   switch (result.action) {
     case _ProfileCardAction.visitProfile:
       await UserProfileRoute(handle: result.handle).push<void>(context);
-    case _ProfileCardAction.editProfile:
-      await showEditProfileDialog(context);
   }
 }
 
@@ -93,15 +90,10 @@ class _ProfileCardModalHost extends ConsumerWidget {
           handle: value.handle.toString(),
         )),
         onPrimaryAction: () {
-          if (_isOwnProfile(auth, value.did.toString())) {
-            Navigator.of(context).pop((
-              action: _ProfileCardAction.editProfile,
-              handle: value.handle.toString(),
-            ));
-            return;
-          }
           unawaited(
-            ref.read(toggleFollowProfileProvider.notifier).toggle(cacheKey: handleOrDid, profile: value),
+            ref
+                .read(toggleFollowProfileProvider.notifier)
+                .toggle(cacheKey: handleOrDid, profile: value),
           );
         },
       ),

@@ -483,10 +483,7 @@ class _ProfileCardActions extends StatelessWidget {
     final colors = theme.colorScheme;
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final spacing = theme.extension<SpacingTheme>()!;
-    final isQuietUnfollow = !isOwnProfile && isFollowing;
-    final primaryLabel = isOwnProfile
-        ? l10n.profileEditAction
-        : isFollowing
+    final primaryLabel = isFollowing
         ? l10n.profileFollowingAction
         : l10n.profileFollowAction;
     return Row(
@@ -502,15 +499,17 @@ class _ProfileCardActions extends StatelessWidget {
             child: Text(l10n.profileVisitAction),
           ),
         ),
-        SizedBox(width: spacing.sp3),
-        Expanded(
-          child: ChunkyButton(
-            onPressed: isBusy ? null : onPrimaryAction,
-            backgroundColor: isQuietUnfollow ? swatches.paper3 : null,
-            foregroundColor: isQuietUnfollow ? colors.onSurface : null,
-            child: Text(primaryLabel),
+        if (!isOwnProfile) ...[
+          SizedBox(width: spacing.sp3),
+          Expanded(
+            child: ChunkyButton(
+              onPressed: isBusy ? null : onPrimaryAction,
+              backgroundColor: isFollowing ? swatches.paper3 : null,
+              foregroundColor: isFollowing ? colors.onSurface : null,
+              child: Text(primaryLabel),
+            ),
           ),
-        ),
+        ],
       ],
     );
   }

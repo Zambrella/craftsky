@@ -1,7 +1,6 @@
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
-import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_card.dart';
@@ -314,7 +313,7 @@ void main() {
       expect(find.text('Unfollow'), findsOneWidget);
     });
 
-    testWidgets('TDD-004C own profile action opens the edit dialog', (
+    testWidgets('TDD-004C own profile card only offers profile navigation', (
       tester,
     ) async {
       final repository = FakeProfileRepository(
@@ -343,13 +342,11 @@ void main() {
 
       await tester.tap(find.text('Open card'));
       await tester.pumpAndSettle();
-      expect(find.text('Edit profile'), findsOneWidget);
 
-      await tester.tap(find.text('Edit profile'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(EditProfileDialog), findsOneWidget);
-      expect(find.byType(ProfileCard), findsNothing);
+      expect(find.byType(ProfileCard), findsOneWidget);
+      expect(find.text('Visit profile'), findsOneWidget);
+      expect(find.text('Edit profile'), findsNothing);
+      expect(find.byType(ChunkyButton), findsNothing);
     });
   });
 }
