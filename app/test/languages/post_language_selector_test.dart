@@ -1,11 +1,15 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
 import 'package:craftsky_app/languages/widgets/post_language_selector.dart';
+import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Widget _app(Widget child) => MaterialApp(
+  theme: AppTheme.lightThemeData,
   localizationsDelegates: const [
     AppLocalizations.delegate,
     GlobalMaterialLocalizations.delegate,
@@ -34,7 +38,12 @@ void main() {
 
     await tester.tap(find.text('Add language'));
     await tester.pumpAndSettle();
+    expect(find.byType(CraftskyDialog), findsOneWidget);
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byType(CraftskyTextInput), findsOneWidget);
     expect(find.text('Search languages'), findsOneWidget);
+    final resultList = tester.widget<ListView>(find.byType(ListView));
+    expect(resultList.padding, EdgeInsets.zero);
 
     await tester.enterText(find.byType(TextField), 'Welsh');
     await tester.pump();

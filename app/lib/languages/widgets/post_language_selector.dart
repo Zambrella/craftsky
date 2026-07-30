@@ -1,6 +1,9 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/data/language_catalogue.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 class PostLanguageSelector extends StatelessWidget {
@@ -40,8 +43,8 @@ class PostLanguageSelector extends StatelessWidget {
             label: Text(l10n.postLanguageAdd),
             onPressed: enabled && selection.values.length < 3
                 ? () async {
-                    final language = await showDialog<String>(
-                      context: context,
+                    final language = await showCraftskyModal<String>(
+                      context,
                       builder: (context) => _LanguageSearchDialog(
                         excluded: selection.values.toSet(),
                       ),
@@ -69,11 +72,27 @@ class _LanguageSearchDialog extends StatefulWidget {
 }
 
 class _LanguageSearchDialogState extends State<_LanguageSearchDialog> {
+  final _focusNode = FocusNode();
   String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
     final query = _query.trim().toLowerCase();
     final available =
         supportedLanguageTags.where((tag) {
@@ -84,31 +103,37 @@ class _LanguageSearchDialogState extends State<_LanguageSearchDialog> {
         }).toList()..sort(
           (left, right) => languageLabel(left).compareTo(languageLabel(right)),
         );
-    return AlertDialog(
-      title: Text(l10n.postLanguageDialogTitle),
-      content: SizedBox(
-        width: 420,
-        height: 420,
+    final viewportHeight =
+        MediaQuery.sizeOf(context).height -
+        MediaQuery.viewInsetsOf(context).bottom;
+    final contentHeight = (viewportHeight - 300).clamp(180.0, 420.0);
+
+    return CraftskyDialog(
+      title: l10n.postLanguageDialogTitle,
+      body: SizedBox(
+        height: contentHeight,
         child: Column(
           children: [
-            TextField(
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: l10n.languageSearchHint,
-                prefixIcon: const Icon(Icons.search),
-              ),
+            CraftskyTextInput(
+              label: l10n.languageSearchHint,
+              focusNode: _focusNode,
+              textInputAction: TextInputAction.search,
               onChanged: (value) => setState(() => _query = value),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: spacing.sp3),
             Expanded(
               child: ListView.builder(
+                padding: EdgeInsets.zero,
                 itemCount: available.length,
                 itemBuilder: (context, index) {
                   final language = available[index];
-                  return ListTile(
-                    title: Text(languageLabel(language)),
-                    subtitle: Text(language),
-                    onTap: () => Navigator.of(context).pop(language),
+                  return Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      title: Text(languageLabel(language)),
+                      subtitle: Text(language),
+                      onTap: () => Navigator.of(context).pop(language),
+                    ),
                   );
                 },
               ),
