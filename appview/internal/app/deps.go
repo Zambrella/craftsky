@@ -23,6 +23,7 @@ import (
 	"social.craftsky/appview/internal/index"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/integrations/instagrammeta"
+	"social.craftsky/appview/internal/languages"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/observability"
@@ -95,6 +96,8 @@ type Deps struct {
 	ReportForwarder api.ReportForwarder
 	// ModerationStore persists dev/test synthetic moderation outputs for enforcement.
 	ModerationStore *api.ModerationStore
+	// LanguagePreferences owns private per-account posting and content-language preferences.
+	LanguagePreferences *languages.Store
 	// NewPDSClient produces a PDSClient bound to an OAuth session. Shared
 	// by the OAuth callback's InitializeProfile step and the write-proxy
 	// handlers (today PUT /v1/profiles/me).
@@ -196,6 +199,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	})
 	lifecycle := notifications.NewService(observer)
 	relationshipStore := relationships.NewStore(pool)
+	languagePreferences := languages.NewStore(pool)
 	suggestionPolicy := instagram.NewPostgresInstagramSuggestionEligibilityPolicy(
 		pool,
 		instagramRelationshipSafetyProvider{store: relationshipStore},
@@ -229,6 +233,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	identityDeletion := &terminalIdentityDeletion{handlers: []tap.IdentityDeletionHandler{
 		notificationActorDeletion,
 		instagramPrivateData,
+		languagePreferences,
 	}}
 	instagramRestoration := instagram.NewReconciliationTrigger(pool, time.Now)
 
@@ -246,6 +251,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		Indexer:              dispatcher,
 		Consumer:             tap.NotImplemented{}, // temp, replaced below
 		RelationshipStore:    relationshipStore,
+		LanguagePreferences:  languagePreferences,
 		InstagramMembership:  instagramMembership,
 		InstagramRateLimiter: instagramRateLimiter,
 		InstagramPrivateData: instagramPrivateData,

@@ -2,6 +2,10 @@ import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/data/language_preferences_repository.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/pages/languages_page.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_repository_provider.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
@@ -116,8 +120,33 @@ ProviderContainer _container() => ProviderContainer.test(
         onListByAuthor: (_, {cursor, limit}) async => const PostPage(items: []),
       ),
     ),
+    languagePreferencesRepositoryProvider.overrideWith(
+      (ref, account) async => const _LanguageRepository(),
+    ),
   ],
 );
+
+final class _LanguageRepository implements LanguagePreferencesRepository {
+  const _LanguageRepository();
+
+  static const value = LanguagePreferences(
+    primaryLanguage: 'en',
+    contentLanguages: ['en'],
+  );
+
+  @override
+  Future<LanguagePreferences> initialize(
+    LanguagePreferences proposal,
+  ) async => value;
+
+  @override
+  Future<LanguagePreferences> load() async => value;
+
+  @override
+  Future<LanguagePreferences> replace(
+    LanguagePreferences preferences,
+  ) async => preferences;
+}
 
 const _emptyAccountPage = ProfileAccountPage(
   items: [],
@@ -125,6 +154,11 @@ const _emptyAccountPage = ProfileAccountPage(
 );
 
 final _routeCases = <_SettingsRouteCase>[
+  _SettingsRouteCase(
+    label: 'Languages',
+    location: '/profile/settings/languages',
+    matchesPage: (widget) => widget is LanguagesPage,
+  ),
   _SettingsRouteCase(
     label: 'Followers',
     location: '/profile/settings/followers',

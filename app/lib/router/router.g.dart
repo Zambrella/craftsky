@@ -90,6 +90,12 @@ RouteBase get $appShellRoute => StatefulShellRouteData.$route(
               factory: $SettingsRoute._fromState,
               routes: [
                 GoRouteData.$route(
+                  path: 'languages',
+                  name: 'languages',
+                  parentNavigatorKey: LanguagesRoute.$parentNavigatorKey,
+                  factory: $LanguagesRoute._fromState,
+                ),
+                GoRouteData.$route(
                   path: 'instagram',
                   name: 'instagram-migration',
                   parentNavigatorKey:
@@ -327,6 +333,27 @@ mixin $SettingsRoute on GoRouteData {
 
   @override
   String get location => GoRouteData.$location('/profile/settings');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $LanguagesRoute on GoRouteData {
+  static LanguagesRoute _fromState(GoRouterState state) =>
+      const LanguagesRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/settings/languages');
 
   @override
   void go(BuildContext context) => context.go(location);

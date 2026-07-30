@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/search/models/search_queries.dart';
 import 'package:craftsky_app/search/models/search_result_state.dart';
 import 'package:craftsky_app/search/providers/hashtag_search_provider.dart';
@@ -12,6 +13,7 @@ part 'project_search_provider.g.dart';
 class ProjectSearch extends _$ProjectSearch {
   @override
   Future<SearchPostResultsState> build(ProjectSearchQuery query) async {
+    await ref.watch(activeContentLanguagePolicyProvider.future);
     final page = await ref
         .watch(searchRepositoryProvider)
         .searchProjects(

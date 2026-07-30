@@ -2,6 +2,7 @@ import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/initialization_error_screen.dart';
 import 'package:craftsky_app/initialization_loading_screen.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/providers/app_language_provider.dart';
 import 'package:craftsky_app/notifications/widgets/notification_effect_host.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -48,6 +49,7 @@ class _ReadyApp extends ConsumerWidget {
     // `themeModeNotifierProvider`.
     final themeMode = ref.watch(themeModeProvider);
     final router = ref.watch(goRouterProvider);
+    final appLanguage = ref.watch(appLanguageProvider);
 
     return MessengerScope(
       messenger: defaultAppMessenger,
@@ -60,6 +62,7 @@ class _ReadyApp extends ConsumerWidget {
         debugShowCheckedModeBanner: false,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        locale: appLanguage,
         routerConfig: router,
         builder: (context, child) {
           return TextScaleFactorClamper(

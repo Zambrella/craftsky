@@ -38,17 +38,42 @@ type TimelineRepostReasonRow struct {
 // viewer or by accounts actively followed by the viewer, are ordered by AppView
 // activity chronology, and use ItemKey as the stable feed-item identity.
 func (s *PostStore) ListTimeline(ctx context.Context, viewerDID string, limit int, cursor string) ([]*TimelineFeedItemRow, string, error) {
+	return s.ListTimelineWithLanguages(ctx, viewerDID, []string{}, limit, cursor)
+}
+
+func (s *PostStore) ListTimelineWithLanguages(
+	ctx context.Context,
+	viewerDID string,
+	contentLanguages []string,
+	limit int,
+	cursor string,
+) ([]*TimelineFeedItemRow, string, error) {
+	if contentLanguages == nil {
+		contentLanguages = []string{}
+	}
 	var rows []*TimelineFeedItemRow
 	var nextCursor string
 	err := s.observeDB(ctx, "feed.timeline", "/v1/feed/timeline", func(ctx context.Context) error {
 		var err error
-		rows, nextCursor, err = s.listTimelineObserved(ctx, viewerDID, limit, cursor)
+		rows, nextCursor, err = s.listTimelineObserved(
+			ctx,
+			viewerDID,
+			contentLanguages,
+			limit,
+			cursor,
+		)
 		return err
 	})
 	return rows, nextCursor, err
 }
 
-func (s *PostStore) listTimelineObserved(ctx context.Context, viewerDID string, limit int, cursor string) ([]*TimelineFeedItemRow, string, error) {
+func (s *PostStore) listTimelineObserved(
+	ctx context.Context,
+	viewerDID string,
+	contentLanguages []string,
+	limit int,
+	cursor string,
+) ([]*TimelineFeedItemRow, string, error) {
 	curActivityAt, curItemKey, err := decodeTimelineCursor(cursor)
 	if err != nil {
 		return nil, "", err
@@ -88,6 +113,7 @@ func (s *PostStore) listTimelineObserved(ctx context.Context, viewerDID string, 
 			  AND p.reply_parent_uri IS NULL
 			  AND p.external_import_source IS DISTINCT FROM 'instagram'
 			` + postVisibleModerationPredicate + `
+			` + languageVisibilityPredicate("p", "$1", "$2") + `
 
 			UNION ALL
 
@@ -118,6 +144,7 @@ func (s *PostStore) listTimelineObserved(ctx context.Context, viewerDID string, 
 				   OR (b.blocker_did = p.did AND b.subject_did = $1)
 			  )
 			` + postVisibleModerationPredicate + `
+			` + languageVisibilityPredicate("p", "$1", "$2") + `
 		)
 		SELECT
 			feed.item_kind, feed.item_key, feed.activity_at,
@@ -130,13 +157,21 @@ func (s *PostStore) listTimelineObserved(ctx context.Context, viewerDID string, 
 		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		LEFT JOIN bluesky_profiles rbp ON rbp.did = feed.repost_did
-		WHERE ($2::timestamptz IS NULL
-		       OR (feed.activity_at, feed.item_key) < ($2::timestamptz, $3::text))
+		WHERE ($3::timestamptz IS NULL
+		       OR (feed.activity_at, feed.item_key) < ($3::timestamptz, $4::text))
 		ORDER BY feed.activity_at DESC, feed.item_key DESC
-		LIMIT $4
+		LIMIT $5
 	`
 	queryLimit := limit + 1
-	rows, err := s.pool.Query(ctx, q, viewerDID, curActivityAt, curItemKey, queryLimit)
+	rows, err := s.pool.Query(
+		ctx,
+		q,
+		viewerDID,
+		contentLanguages,
+		curActivityAt,
+		curItemKey,
+		queryLimit,
+	)
 	if err != nil {
 		return nil, "", fmt.Errorf("timeline list %s: %w", viewerDID, err)
 	}
@@ -207,7 +242,7 @@ func scanTimelineFeedItemRow(scanner interface{ Scan(...any) error }) (*Timeline
 		&repostAuthorDisplayName, &repostAuthorAvatarCID, &repostAuthorAvatarMime,
 		&out.Post.URI, &out.Post.DID, &out.Post.Rkey, &out.Post.CID, &out.Post.Text, &out.Post.Facets, &out.Post.Images,
 		&out.Post.ReplyRootURI, &out.Post.ReplyRootCID, &out.Post.ReplyParentURI, &out.Post.ReplyParentCID,
-		&out.Post.QuoteURI, &out.Post.QuoteCID, &out.Post.Tags, &out.Post.CreatedAt, &out.Post.IndexedAt,
+		&out.Post.QuoteURI, &out.Post.QuoteCID, &out.Post.Tags, &out.Post.Langs, &out.Post.CreatedAt, &out.Post.IndexedAt,
 		&out.Post.ExternalImportSource, &out.Post.ProfileSortAt,
 		&out.Post.IsProject, &out.Post.ProjectCraftType, &rawProject,
 		&out.Post.AuthorDisplayName, &out.Post.AuthorAvatarCID, &out.Post.AuthorAvatarMime,

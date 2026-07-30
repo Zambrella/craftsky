@@ -4,6 +4,7 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,7 +64,12 @@ void main() {
           },
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            postRepositoryProvider.overrideWithValue(fake),
+            activeContentLanguagePolicyProvider.overrideWith(
+              (ref) async => const [],
+            ),
+          ],
         );
         final provider = userProjectsProvider('alice.craftsky.social');
         final subscription = container.listen(provider, (_, _) {});
@@ -100,7 +106,12 @@ void main() {
           },
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            postRepositoryProvider.overrideWithValue(fake),
+            activeContentLanguagePolicyProvider.overrideWith(
+              (ref) async => const [],
+            ),
+          ],
         );
         final sub = container.listen(userProjectsProvider('alice'), (_, _) {});
         addTearDown(sub.close);
@@ -134,7 +145,12 @@ void main() {
               PostPage(items: [_post(rkey: 'a')]),
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            postRepositoryProvider.overrideWithValue(fake),
+            activeContentLanguagePolicyProvider.overrideWith(
+              (ref) async => const [],
+            ),
+          ],
         );
 
         await container.read(

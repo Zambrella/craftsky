@@ -22,6 +22,48 @@ func TestDecodePostCreate_HappyPathTextOnly(t *testing.T) {
 	}
 }
 
+func TestValidatePostCreate_LanguageTags(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		langs   []string
+		wantErr bool
+	}{
+		{name: "omitted", langs: nil},
+		{name: "empty", langs: []string{}},
+		{name: "one", langs: []string{"en"}},
+		{name: "three", langs: []string{"en", "fr", "cy"}},
+		{name: "region tag preserved", langs: []string{"fr-CA"}},
+		{name: "duplicate", langs: []string{"en", "en"}, wantErr: true},
+		{name: "invalid", langs: []string{"not_a_tag"}, wantErr: true},
+		{name: "four", langs: []string{"en", "fr", "cy", "es"}, wantErr: true},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := api.ValidatePostCreate(api.PostCreateRequest{
+				Text:  "hello",
+				Langs: test.langs,
+			})
+			if !test.wantErr {
+				if err != nil {
+					t.Fatalf("ValidatePostCreate: %v", err)
+				}
+				return
+			}
+			var fieldError *api.FieldError
+			if !errors.As(err, &fieldError) {
+				t.Fatalf("error = %v, want FieldError", err)
+			}
+			if _, exists := fieldError.Fields["langs"]; !exists {
+				t.Fatalf("fields = %v, want langs", fieldError.Fields)
+			}
+		})
+	}
+}
+
 func TestDecodePostCreate_AcceptsImagesField(t *testing.T) {
 	t.Parallel()
 	body := strings.NewReader(`{"text":"hi","images":[{"image":{"$type":"blob","ref":{"$link":"bafk1"},"mimeType":"image/jpeg","size":1},"alt":"alt"}]}`)

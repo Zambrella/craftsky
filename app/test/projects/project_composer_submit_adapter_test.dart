@@ -4,6 +4,8 @@ import 'package:craftsky_app/projects/models/project.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  const langs = ['fr', 'en'];
+
   test(
     'UT-015 builds create arguments with facets, images, project and no reply',
     () async {
@@ -32,6 +34,7 @@ void main() {
 
       final args = await buildProjectComposerSubmitArguments(
         text: 'Hi #craft',
+        langs: langs,
         project: project,
         imagesState: images,
         generateFacets:
@@ -46,6 +49,7 @@ void main() {
       );
 
       expect(args.text, 'Hi #craft');
+      expect(args.langs, langs);
       expect(args.reply, isNull);
       expect(args.project, same(project));
       expect(args.images, hasLength(1));
@@ -70,6 +74,7 @@ void main() {
 
     final args = await buildProjectComposerSubmitArguments(
       text: 'Caption',
+      langs: langs,
       project: project,
       imagesState: const ComposerImagesState(images: []),
       generateFacets:

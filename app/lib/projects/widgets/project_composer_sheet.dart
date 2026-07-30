@@ -9,6 +9,9 @@ import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/models/post_language_selection.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/languages/widgets/post_language_selector.dart';
 import 'package:craftsky_app/projects/composer/project_composer_draft_state.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
 import 'package:craftsky_app/projects/composer/project_composer_payload.dart';
@@ -124,6 +127,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   AccountSessionLease? _unsavedOwner;
   UnsavedWorkRegistration? _unsavedRegistration;
   late final UnsavedWorkGuard _unsavedGuard;
+  PostLanguageSelection? _languages;
 
   @override
   void initState() {
@@ -156,12 +160,21 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final createState = ref.watch(createPostProvider);
+    final preferences = ref.watch(activeLanguagePreferencesProvider);
+    if (_languages == null && preferences.hasValue) {
+      _languages = PostLanguageSelection.fromPrimary(
+        preferences.requireValue.primaryLanguage,
+      );
+    }
     final imagesProvider = composerImagesProvider(_composerId);
     final imagesState = ref.watch(imagesProvider);
     final controlsEnabled = !createState.isLoading;
     final trimmedBody = _bodyText.trim();
     final tooLong = _bodyText.length > ProjectComposerSheet.maxCharacters;
-    final canSubmit = !createState.isLoading && imagesState.canSubmitImages();
+    final canSubmit =
+        !createState.isLoading &&
+        _languages != null &&
+        imagesState.canSubmitImages();
     final bodyErrorText = switch ((_attemptedSubmit, trimmedBody.isEmpty)) {
       (true, true) => l10n.projectComposerBodyRequiredError,
       _ when tooLong => l10n.postComposeTooLong,
@@ -366,6 +379,25 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                         ],
                       ),
                     ),
+                    if (_currentPage == 2) ...[
+                      SizedBox(height: spacing.sp4),
+                      if (_languages case final selection?)
+                        PostLanguageSelector(
+                          selection: selection,
+                          enabled: controlsEnabled,
+                          onChanged: (value) =>
+                              setState(() => _languages = value),
+                        )
+                      else if (preferences case AsyncError())
+                        TextButton(
+                          onPressed: () => ref.invalidate(
+                            activeLanguagePreferencesProvider,
+                          ),
+                          child: Text(l10n.postLanguageRetryLoading),
+                        )
+                      else
+                        const LinearProgressIndicator(),
+                    ],
                     SizedBox(
                       key: const Key('project-composer-bottom-safe-space'),
                       height:
@@ -1186,6 +1218,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
 
     final args = await buildProjectComposerSubmitArguments(
       text: trimmedBody,
+      langs: _languages!.values,
       project: project,
       imagesState: imagesState,
       generateFacets: ref.read(facetGeneratorProvider).generate,
@@ -1195,6 +1228,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         .read(createPostProvider.notifier)
         .create(
           text: args.text,
+          langs: args.langs,
           reply: args.reply,
           project: args.project,
           images: args.images,

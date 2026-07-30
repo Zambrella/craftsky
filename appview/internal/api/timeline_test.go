@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/languages"
 )
 
 type fakeTimelineStore struct {
@@ -28,11 +30,42 @@ type fakeTimelineStore struct {
 	quoteViews            map[string]*api.QuoteViewRow
 	quoteViewsErr         error
 	lastViewerDID         string
+	lastContentLanguages  []string
 	lastLimit             int
 	lastCursor            string
 	lastEngagementViewer  string
 	lastEngagementPostURI []string
 	lastQuoteViewRefs     []api.ResponseStrongRef
+}
+
+func TestTimelineHandler_LoadsAuthoritativeContentLanguages(t *testing.T) {
+	store := &fakeTimelineStore{}
+	preferences := fakeLanguagePreferenceReader{
+		preferences: languages.Preferences{
+			PrimaryLanguage:  "fr",
+			ContentLanguages: []string{"en", "de"},
+		},
+	}
+	handler := api.ListTimelineHandler(
+		store,
+		fakeResolver{handleFor: "viewer.example"},
+		nilLogger(),
+		&preferences,
+	)
+
+	req := authedReq(http.MethodGet, "/v1/feed/timeline", "", "did:plc:viewer")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	if preferences.lastDID != "did:plc:viewer" {
+		t.Fatalf("preference DID = %q, want authenticated DID", preferences.lastDID)
+	}
+	if got, want := store.lastContentLanguages, []string{"en", "de"}; !slices.Equal(got, want) {
+		t.Fatalf("content languages = %v, want %v", got, want)
+	}
 }
 
 func TestTimelineHandler_HandleResolutionFailureFailsRequest(t *testing.T) {
@@ -160,6 +193,25 @@ func (f *fakeTimelineStore) ListTimeline(_ context.Context, viewerDID string, li
 	f.lastLimit = limit
 	f.lastCursor = cursor
 	return f.rows, f.cursor, f.err
+}
+
+func (f *fakeTimelineStore) ListTimelineWithLanguages(_ context.Context, viewerDID string, contentLanguages []string, limit int, cursor string) ([]*api.TimelineFeedItemRow, string, error) {
+	f.lastViewerDID = viewerDID
+	f.lastContentLanguages = append([]string(nil), contentLanguages...)
+	f.lastLimit = limit
+	f.lastCursor = cursor
+	return f.rows, f.cursor, f.err
+}
+
+type fakeLanguagePreferenceReader struct {
+	preferences languages.Preferences
+	err         error
+	lastDID     string
+}
+
+func (f *fakeLanguagePreferenceReader) Get(_ context.Context, did syntax.DID) (languages.Preferences, error) {
+	f.lastDID = did.String()
+	return f.preferences, f.err
 }
 
 func (f *fakeTimelineStore) EngagementSummaries(_ context.Context, viewerDID string, postURIs []string) (map[string]api.EngagementSummary, error) {

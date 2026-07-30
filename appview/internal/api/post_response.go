@@ -63,6 +63,7 @@ type PostResponse struct {
 	Images              []PostImageView         `json:"images,omitempty"`
 	Facets              json.RawMessage         `json:"facets"`
 	Tags                []string                `json:"tags"`
+	Langs               []string                `json:"langs"`
 	LikeCount           int                     `json:"likeCount"`
 	RepostCount         int                     `json:"repostCount"`
 	QuoteCount          int                     `json:"quoteCount"`
@@ -261,6 +262,10 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle) *PostResponse {
 	if tags == nil {
 		tags = []string{}
 	}
+	langs := row.Langs
+	if langs == nil {
+		langs = []string{}
+	}
 	resp := &PostResponse{
 		URI:            row.URI,
 		CID:            row.CID,
@@ -269,6 +274,7 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle) *PostResponse {
 		Images:         buildPostImageViews(row),
 		Facets:         row.Facets,
 		Tags:           tags,
+		Langs:          langs,
 		CreatedAt:      row.CreatedAt.UTC(),
 		IndexedAt:      row.IndexedAt.UTC(),
 		ExternalImport: buildExternalImportResponse(row.ExternalImportSource),

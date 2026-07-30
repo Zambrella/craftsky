@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/models/project_browse_filters.dart';
 import 'package:craftsky_app/projects/models/user_projects_state.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
@@ -15,6 +16,7 @@ class ProjectFeed extends _$ProjectFeed {
 
   @override
   Future<UserProjectsState> build(ProjectBrowseQuery query) async {
+    await ref.watch(activeContentLanguagePolicyProvider.future);
     final page = await ref
         .watch(projectRepositoryProvider)
         .listProjects(

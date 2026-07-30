@@ -22,18 +22,23 @@ void main() {
   final bobDid = Did.parse('did:plc:bob');
   final postRkey = RecordKey.parse('3lf2abc');
   final missingRkey = RecordKey.parse('missing');
+  const createLangs = ['en'];
 
   Dio buildDio() {
     return Dio(BaseOptions(baseUrl: 'https://appview.example.com'))
       ..interceptors.add(const ErrorMappingInterceptor());
   }
 
-  Map<String, dynamic> samplePost({String text = 'hello'}) {
+  Map<String, dynamic> samplePost({
+    String text = 'hello',
+    List<String> langs = createLangs,
+  }) {
     return {
       'uri': 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
       'cid': 'bafy123',
       'rkey': '3lf2abc',
       'text': text,
+      'langs': langs,
       'tags': <String>[],
       'likeCount': 2,
       'repostCount': 1,
@@ -98,10 +103,12 @@ void main() {
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(201, samplePost(text: 'hi')),
-        data: {'text': 'hi'},
+        data: {'text': 'hi', 'langs': createLangs},
       );
 
-      final post = await PostApiClient(dio).createPost(text: 'hi');
+      final post = await PostApiClient(
+        dio,
+      ).createPost(text: 'hi', langs: createLangs);
       expect(post.text, 'hi');
       expect(post.rkey, '3lf2abc');
       expect(post.viewerHasReplied, isTrue);
@@ -112,10 +119,12 @@ void main() {
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(201, samplePost(text: 'top-level')),
-        data: {'text': 'top-level'},
+        data: {'text': 'top-level', 'langs': createLangs},
       );
 
-      final post = await PostApiClient(dio).createPost(text: 'top-level');
+      final post = await PostApiClient(
+        dio,
+      ).createPost(text: 'top-level', langs: createLangs);
       expect(post.text, 'top-level');
     });
 
@@ -132,12 +141,12 @@ void main() {
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(201, samplePost(text: '#Mending')),
-        data: {'text': '#Mending', 'facets': facets},
+        data: {'text': '#Mending', 'langs': createLangs, 'facets': facets},
       );
 
       final post = await PostApiClient(
         dio,
-      ).createPost(text: '#Mending', facets: facets);
+      ).createPost(text: '#Mending', langs: createLangs, facets: facets);
 
       expect(post.text, '#Mending');
     });
@@ -153,6 +162,7 @@ void main() {
         (server) => server.reply(201, samplePost(text: 'quote commentary')),
         data: {
           'text': 'quote commentary',
+          'langs': createLangs,
           'embed': {
             'quote': {
               'uri': 'at://did:plc:bob/social.craftsky.feed.post/target',
@@ -162,9 +172,14 @@ void main() {
         },
       );
 
-      final post = await PostApiClient(
-        dio,
-      ).createPost(text: 'quote commentary', quote: quote);
+      final post =
+          await PostApiClient(
+            dio,
+          ).createPost(
+            text: 'quote commentary',
+            langs: createLangs,
+            quote: quote,
+          );
 
       expect(post.text, 'quote commentary');
     });
@@ -186,6 +201,7 @@ void main() {
         (server) => server.reply(201, samplePost(text: 'reply')),
         data: {
           'text': 'reply',
+          'langs': createLangs,
           'reply': {
             'root': {
               'uri': 'at://did:plc:alice/social.craftsky.feed.post/root',
@@ -201,7 +217,7 @@ void main() {
 
       final post = await PostApiClient(
         dio,
-      ).createPost(text: 'reply', reply: reply);
+      ).createPost(text: 'reply', langs: createLangs, reply: reply);
       expect(post.text, 'reply');
     });
 
@@ -214,6 +230,7 @@ void main() {
           (server) => server.reply(201, samplePost(text: 'with images')),
           data: {
             'text': 'with images',
+            'langs': createLangs,
             'images': [
               {
                 'image': {
@@ -240,6 +257,7 @@ void main() {
 
         final post = await PostApiClient(dio).createPost(
           text: 'with images',
+          langs: createLangs,
           images: [
             const CreatePostImage(
               blob: CreatePostBlob(
@@ -275,6 +293,7 @@ void main() {
         (server) => server.reply(201, samplePost(text: 'with image')),
         data: {
           'text': 'with image',
+          'langs': createLangs,
           'images': [
             {
               'image': {
@@ -290,6 +309,7 @@ void main() {
 
       final post = await PostApiClient(dio).createPost(
         text: 'with image',
+        langs: createLangs,
         images: [
           const CreatePostImage(
             blob: CreatePostBlob(
@@ -309,11 +329,11 @@ void main() {
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(422, {'error': 'validation_failed'}),
-        data: {'text': ''},
+        data: {'text': '', 'langs': createLangs},
       );
 
       await expectLater(
-        () => PostApiClient(dio).createPost(text: ''),
+        () => PostApiClient(dio).createPost(text: '', langs: createLangs),
         throwsA(
           isA<ApiBadRequest>().having(
             (e) => e.code,
@@ -331,6 +351,7 @@ void main() {
         (server) => server.reply(201, samplePost(text: 'ordered images')),
         data: {
           'text': 'ordered images',
+          'langs': createLangs,
           'images': [
             {
               'image': {
@@ -357,6 +378,7 @@ void main() {
 
       final post = await PostApiClient(dio).createPost(
         text: 'ordered images',
+        langs: createLangs,
         images: [
           const CreatePostImage(
             blob: CreatePostBlob(
@@ -389,12 +411,16 @@ void main() {
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(201, response),
-        data: {'text': 'project', 'project': project.toCreateMap()},
+        data: {
+          'text': 'project',
+          'langs': createLangs,
+          'project': project.toCreateMap(),
+        },
       );
 
       final post = await PostApiClient(
         dio,
-      ).createPost(text: 'project', project: project);
+      ).createPost(text: 'project', langs: createLangs, project: project);
 
       expect(post.text, 'project');
       expect(
@@ -408,10 +434,12 @@ void main() {
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(201, samplePost(text: 'plain')),
-        data: {'text': 'plain'},
+        data: {'text': 'plain', 'langs': createLangs},
       );
 
-      final post = await PostApiClient(dio).createPost(text: 'plain');
+      final post = await PostApiClient(
+        dio,
+      ).createPost(text: 'plain', langs: createLangs);
 
       expect(post.project, isNull);
     });
@@ -435,11 +463,31 @@ void main() {
               dio,
             ).createPost(
               text: 'invalid',
+              langs: createLangs,
               project: commonOnlyProject(),
               reply: reply,
             ),
         throwsA(isA<ArgumentError>()),
       );
+    });
+
+    test('UT-015 sends ordered language tags in the create envelope', () async {
+      final dio = buildDio();
+      const langs = ['fr', 'en-GB', 'cy'];
+      DioAdapter(dio: dio).onPost(
+        '/v1/posts',
+        (server) => server.reply(
+          201,
+          samplePost(text: 'bonjour', langs: langs),
+        ),
+        data: {'text': 'bonjour', 'langs': langs},
+      );
+
+      final post = await PostApiClient(
+        dio,
+      ).createPost(text: 'bonjour', langs: langs);
+
+      expect(post.langs, langs);
     });
   });
 

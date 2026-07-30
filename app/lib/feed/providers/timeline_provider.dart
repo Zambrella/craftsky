@@ -3,6 +3,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/models/timeline_state.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -15,6 +16,7 @@ const timelinePageLimit = 20;
 class Timeline extends _$Timeline {
   @override
   Future<TimelineState> build() async {
+    await ref.watch(activeContentLanguagePolicyProvider.future);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listTimeline(limit: timelinePageLimit);
     return TimelineState(items: _dedupe(page.items), cursor: page.cursor);

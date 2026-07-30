@@ -1572,5 +1572,65 @@
   "@savedPostKeepSaves": { "description": "Deletes a folder while moving its saves to Unfiled." },
 
   "savedPostDeleteSaves": "Delete saved posts",
-  "@savedPostDeleteSaves": { "description": "Deletes a folder and all private saves assigned to it." }
+  "@savedPostDeleteSaves": { "description": "Deletes a folder and all private saves assigned to it." },
+
+  "settingsLanguages": "Languages",
+  "@settingsLanguages": { "description": "Settings destination for App, Primary, and Content language preferences." },
+
+  "languagesTitle": "Languages",
+  "@languagesTitle": { "description": "Title of the Languages settings page." },
+
+  "appLanguageTitle": "App language",
+  "@appLanguageTitle": { "description": "Heading for the language used by the CraftSky interface." },
+
+  "appLanguageDescription": "Select which language to use for the app's user interface.",
+  "@appLanguageDescription": { "description": "Explanation of the App language setting." },
+
+  "appLanguageEnglish": "English",
+  "@appLanguageEnglish": { "description": "English option in the App language setting." },
+
+  "appLanguageMoreComing": "More app languages are coming.",
+  "@appLanguageMoreComing": { "description": "Explains that English is currently the only App language." },
+
+  "primaryLanguageTitle": "Primary language",
+  "@primaryLanguageTitle": { "description": "Heading for the default language used by new posts." },
+
+  "primaryLanguageDescription": "Select the default language used when you create a post.",
+  "@primaryLanguageDescription": { "description": "Explanation of the Primary language setting." },
+
+  "contentLanguagesTitle": "Content languages",
+  "@contentLanguagesTitle": { "description": "Heading for languages included in browsing and discovery." },
+
+  "contentLanguagesDescription": "Select which languages you want posts in your feeds and discovery results to include. If none are selected, all languages will be shown.",
+  "@contentLanguagesDescription": { "description": "Explanation of Content languages, including empty selection behavior." },
+
+  "languageSearchHint": "Search languages",
+  "@languageSearchHint": { "description": "Hint for finding a language in the full catalogue." },
+
+  "languageAddMore": "Add more languages…",
+  "@languageAddMore": { "description": "Action opening the Content language selector." },
+
+  "languageCancel": "Cancel",
+  "@languageCancel": { "description": "Action dismissing a language selector without saving." },
+
+  "languageDone": "Done",
+  "@languageDone": { "description": "Action confirming selected Content languages." },
+
+  "languageSaveError": "That change could not be saved. Try again.",
+  "@languageSaveError": { "description": "Safe feedback after a private language preference replacement fails." },
+
+  "postLanguagesSemantics": "Post languages",
+  "@postLanguagesSemantics": { "description": "Accessibility label for the post language selector." },
+
+  "postLanguageAdd": "Add language",
+  "@postLanguageAdd": { "description": "Action adding another language to a post." },
+
+  "postLanguageLimit": "Up to three languages",
+  "@postLanguageLimit": { "description": "Visible and accessible explanation when a post has the maximum three languages." },
+
+  "postLanguageDialogTitle": "Add post language",
+  "@postLanguageDialogTitle": { "description": "Title of the searchable post-language dialog." },
+
+  "postLanguageRetryLoading": "Retry loading languages",
+  "@postLanguageRetryLoading": { "description": "Action retrying a composer's Primary-language preference load." }
 }

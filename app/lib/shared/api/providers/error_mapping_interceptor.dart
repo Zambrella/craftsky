@@ -82,6 +82,9 @@ class ErrorMappingInterceptor extends Interceptor {
       ['projects'] => 'appview.projects',
       ['feed'] => 'appview.feed',
       ['feed', 'timeline'] => 'appview.feed.timeline',
+      ['languages', 'preferences'] => 'appview.languages.preferences',
+      ['languages', 'preferences', 'initialize'] =>
+        'appview.languages.preferences.initialize',
       ['posts'] => 'appview.posts',
       ['posts', _, _] => 'appview.posts.detail',
       ['posts', _, _, 'saves'] => 'appview.posts.saves',

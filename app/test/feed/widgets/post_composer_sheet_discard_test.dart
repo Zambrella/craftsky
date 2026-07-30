@@ -12,6 +12,8 @@ import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -187,7 +189,15 @@ Future<void> _openComposer(
   String? composerId,
   SessionRegistry? registry,
 }) async {
-  final providerOverrides = List<dynamic>.from(overrides);
+  final providerOverrides = <dynamic>[
+    activeLanguagePreferencesProvider.overrideWith(
+      (ref) => const LanguagePreferences(
+        primaryLanguage: 'en',
+        contentLanguages: ['en'],
+      ),
+    ),
+    ...overrides,
+  ];
   if (registry != null) {
     providerOverrides.add(
       secureSessionRegistryStorageProvider.overrideWithValue(

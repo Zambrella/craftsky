@@ -10,6 +10,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+
+	"social.craftsky/appview/internal/languages"
 )
 
 const (
@@ -55,6 +57,7 @@ type PostCreateRequest struct {
 	Embed   *EmbedRequest   `json:"embed,omitempty"`
 	Images  []PostImage     `json:"images,omitempty"`
 	Project *Project        `json:"project,omitempty"`
+	Langs   []string        `json:"langs,omitempty"`
 }
 
 type PostImage struct {
@@ -128,6 +131,9 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 		fields["text"] = "must not be empty"
 	} else if utf8.RuneCountInString(req.Text) > 2000 {
 		fields["text"] = "exceeds 2000 graphemes"
+	}
+	if err := languages.ValidatePostTags(req.Langs); err != nil {
+		fields["langs"] = "must contain no more than three distinct valid language tags"
 	}
 	if req.Reply != nil {
 		validateStrongRef(fields, "reply.root", req.Reply.Root)

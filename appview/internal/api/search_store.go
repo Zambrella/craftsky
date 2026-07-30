@@ -255,48 +255,121 @@ func BuildProfileSearchSummary(row ProfileSearchRow) ProfileSearchSummary {
 }
 
 func (s *SearchStore) SearchHashtagPosts(ctx context.Context, tag string, sort SearchSort, limit int, cursor string, now time.Time) ([]SearchPostRow, string, error) {
+	viewerDID, _ := middleware.GetDID(ctx)
+	return s.SearchHashtagPostsWithLanguages(ctx, viewerDID.String(), []string{}, tag, sort, limit, cursor, now)
+}
+
+func (s *SearchStore) SearchHashtagPostsWithLanguages(
+	ctx context.Context,
+	viewerDID string,
+	contentLanguages []string,
+	tag string,
+	sort SearchSort,
+	limit int,
+	cursor string,
+	now time.Time,
+) ([]SearchPostRow, string, error) {
+	if contentLanguages == nil {
+		contentLanguages = []string{}
+	}
 	var rows []SearchPostRow
 	var nextCursor string
 	err := s.observeDB(ctx, "search.hashtag_posts", "/v1/search/hashtags/{tag}/posts", func(ctx context.Context) error {
 		var err error
-		rows, nextCursor, err = s.searchPosts(ctx, searchPostQuery{Tag: tag, Sort: sort, Limit: limit, Cursor: cursor, Now: now})
+		rows, nextCursor, err = s.searchPosts(ctx, searchPostQuery{
+			Tag:              tag,
+			Sort:             sort,
+			Limit:            limit,
+			Cursor:           cursor,
+			Now:              now,
+			ViewerDID:        viewerDID,
+			ContentLanguages: contentLanguages,
+		})
 		return err
 	})
 	return rows, nextCursor, err
 }
 
 func (s *SearchStore) SearchPosts(ctx context.Context, req PostSearchRequest, now time.Time) ([]SearchPostRow, string, error) {
+	viewerDID, _ := middleware.GetDID(ctx)
+	return s.SearchPostsWithLanguages(ctx, viewerDID.String(), []string{}, req, now)
+}
+
+func (s *SearchStore) SearchPostsWithLanguages(
+	ctx context.Context,
+	viewerDID string,
+	contentLanguages []string,
+	req PostSearchRequest,
+	now time.Time,
+) ([]SearchPostRow, string, error) {
+	if contentLanguages == nil {
+		contentLanguages = []string{}
+	}
 	var rows []SearchPostRow
 	var cursor string
 	err := s.observeDB(ctx, "search.posts", "/v1/search/posts", func(ctx context.Context) error {
 		var err error
-		rows, cursor, err = s.searchPostsObserved(ctx, req, now)
+		rows, cursor, err = s.searchPostsObserved(ctx, viewerDID, contentLanguages, req, now)
 		return err
 	})
 	return rows, cursor, err
 }
 
-func (s *SearchStore) searchPostsObserved(ctx context.Context, req PostSearchRequest, now time.Time) ([]SearchPostRow, string, error) {
+func (s *SearchStore) searchPostsObserved(
+	ctx context.Context,
+	viewerDID string,
+	contentLanguages []string,
+	req PostSearchRequest,
+	now time.Time,
+) ([]SearchPostRow, string, error) {
 	if strings.TrimSpace(req.Query) != "" {
-		return s.searchPostsByRelevance(ctx, req)
+		return s.searchPostsByRelevance(ctx, viewerDID, contentLanguages, req)
 	}
-	return s.searchPosts(ctx, searchPostQuery{Query: req.Query, Sort: req.Sort, Limit: req.Limit, Cursor: req.Cursor, Now: now})
+	return s.searchPosts(ctx, searchPostQuery{
+		Query:            req.Query,
+		Sort:             req.Sort,
+		Limit:            req.Limit,
+		Cursor:           req.Cursor,
+		Now:              now,
+		ViewerDID:        viewerDID,
+		ContentLanguages: contentLanguages,
+	})
 }
 
 func (s *SearchStore) SearchProjects(ctx context.Context, req ProjectSearchRequest, now time.Time) ([]SearchPostRow, string, error) {
+	viewerDID, _ := middleware.GetDID(ctx)
+	return s.SearchProjectsWithLanguages(ctx, viewerDID.String(), []string{}, req, now)
+}
+
+func (s *SearchStore) SearchProjectsWithLanguages(
+	ctx context.Context,
+	viewerDID string,
+	contentLanguages []string,
+	req ProjectSearchRequest,
+	now time.Time,
+) ([]SearchPostRow, string, error) {
+	if contentLanguages == nil {
+		contentLanguages = []string{}
+	}
 	var rows []SearchPostRow
 	var cursor string
 	err := s.observeDB(ctx, "search.projects", "/v1/search/projects", func(ctx context.Context) error {
 		var err error
-		rows, cursor, err = s.searchProjectsObserved(ctx, req, now)
+		rows, cursor, err = s.searchProjectsObserved(ctx, viewerDID, contentLanguages, req, now)
 		return err
 	})
 	return rows, cursor, err
 }
 
-func (s *SearchStore) searchProjectsObserved(ctx context.Context, req ProjectSearchRequest, now time.Time) ([]SearchPostRow, string, error) {
+func (s *SearchStore) searchProjectsObserved(
+	ctx context.Context,
+	viewerDID string,
+	contentLanguages []string,
+	req ProjectSearchRequest,
+	now time.Time,
+) ([]SearchPostRow, string, error) {
 	if strings.TrimSpace(req.Query) != "" {
-		return s.searchProjectsByRelevance(ctx, req)
+		return s.searchProjectsByRelevance(ctx, viewerDID, contentLanguages, req)
 	}
 	if s == nil || s.pool == nil {
 		return nil, "", fmt.Errorf("search store unavailable")
@@ -310,8 +383,8 @@ func (s *SearchStore) searchProjectsObserved(ctx context.Context, req ProjectSea
 	var cursorWhere string
 	var cursorArgs []any
 	var rankedAt time.Time
-	viewerDID, _ := middleware.GetDID(ctx)
 	relationshipParam := "$13"
+	languagesParam := "$14"
 	if req.Sort == SearchSortPopular {
 		cur, err := DecodePopularityCursor(req.Cursor)
 		if err != nil {
@@ -324,6 +397,7 @@ func (s *SearchStore) searchProjectsObserved(ctx context.Context, req ProjectSea
 		cursorWhere = `AND ($11::double precision IS NULL OR (popularity_score, p.created_at, p.uri) < ($11::double precision, $12::timestamptz, $13::text))`
 		cursorArgs = []any{cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr()}
 		relationshipParam = "$14"
+		languagesParam = "$15"
 	} else {
 		curCreatedAt, curURI, err := DecodeChronologicalSearchCursor(req.Cursor)
 		if err != nil {
@@ -377,6 +451,7 @@ func (s *SearchStore) searchProjectsObserved(ctx context.Context, req ProjectSea
 		  ))
 		` + relationshipTopLevelPredicate(relationshipParam) + `
 		` + postVisibleModerationPredicate + `
+		` + languageVisibilityPredicate("p", relationshipParam, languagesParam) + `
 		)
 		SELECT ` + postSelectColumns + `, popularity_score
 		FROM candidate p
@@ -389,7 +464,7 @@ func (s *SearchStore) searchProjectsObserved(ctx context.Context, req ProjectSea
 		projectFilterValues(req, "craftType"), projectFilterValues(req, "patternDifficulty"), projectFilterValues(req, "projectType"), projectFilterValues(req, "color"), projectFilterValues(req, "material"), projectFilterValues(req, "designTag"), projectFilterValues(req, "projectTag"), fts, rankedAt,
 	}
 	args = append(args, cursorArgs...)
-	args = append(args, viewerDID.String())
+	args = append(args, viewerDID, contentLanguages)
 	rows, err := s.pool.Query(ctx, q, args...)
 	if err != nil {
 		return nil, "", fmt.Errorf("project search: %w", err)
@@ -419,7 +494,12 @@ func (s *SearchStore) searchProjectsObserved(ctx context.Context, req ProjectSea
 	return out, next, err
 }
 
-func (s *SearchStore) searchPostsByRelevance(ctx context.Context, req PostSearchRequest) ([]SearchPostRow, string, error) {
+func (s *SearchStore) searchPostsByRelevance(
+	ctx context.Context,
+	viewerDID string,
+	contentLanguages []string,
+	req PostSearchRequest,
+) ([]SearchPostRow, string, error) {
 	if s == nil || s.pool == nil {
 		return nil, "", fmt.Errorf("search store unavailable")
 	}
@@ -429,7 +509,6 @@ func (s *SearchStore) searchPostsByRelevance(ctx context.Context, req PostSearch
 	if err != nil {
 		return nil, "", err
 	}
-	viewerDID, _ := middleware.GetDID(ctx)
 	rows, err := s.pool.Query(ctx, `
 		WITH ranked AS (
 		SELECT p.*,
@@ -440,6 +519,7 @@ func (s *SearchStore) searchPostsByRelevance(ctx context.Context, req PostSearch
 		  AND to_tsvector('simple', coalesce(p.text, '')) @@ plainto_tsquery('simple', $1)
 		`+relationshipTopLevelPredicate("$6")+`
 		`+postVisibleModerationPredicate+`
+		`+languageVisibilityPredicate("p", "$6", "$7")+`
 		)
 		SELECT `+postSelectColumns+`, relevance_score
 		FROM ranked p
@@ -448,7 +528,7 @@ func (s *SearchStore) searchPostsByRelevance(ctx context.Context, req PostSearch
 		WHERE ($3::double precision IS NULL OR (relevance_score, p.created_at, p.uri) < ($3::double precision, $4::timestamptz, $5::text))
 		ORDER BY relevance_score DESC, p.created_at DESC, p.uri DESC
 		LIMIT $2
-	`, fts, queryLimit, cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr(), viewerDID.String())
+	`, fts, queryLimit, cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr(), viewerDID, contentLanguages)
 	if err != nil {
 		return nil, "", fmt.Errorf("post relevance search: %w", err)
 	}
@@ -473,7 +553,12 @@ func (s *SearchStore) searchPostsByRelevance(ctx context.Context, req PostSearch
 	return out, next, err
 }
 
-func (s *SearchStore) searchProjectsByRelevance(ctx context.Context, req ProjectSearchRequest) ([]SearchPostRow, string, error) {
+func (s *SearchStore) searchProjectsByRelevance(
+	ctx context.Context,
+	viewerDID string,
+	contentLanguages []string,
+	req ProjectSearchRequest,
+) ([]SearchPostRow, string, error) {
 	if s == nil || s.pool == nil {
 		return nil, "", fmt.Errorf("search store unavailable")
 	}
@@ -483,7 +568,6 @@ func (s *SearchStore) searchProjectsByRelevance(ctx context.Context, req Project
 	if err != nil {
 		return nil, "", err
 	}
-	viewerDID, _ := middleware.GetDID(ctx)
 	projectVector := `
 		setweight(to_tsvector('simple', coalesce(pp.common_title, '')), 'A') ||
 		setweight(to_tsvector('simple', coalesce(pp.pattern_name, '')), 'B') ||
@@ -509,6 +593,7 @@ func (s *SearchStore) searchProjectsByRelevance(ctx context.Context, req Project
 		  AND (`+projectVector+`) @@ plainto_tsquery('simple', $9)
 		`+relationshipTopLevelPredicate("$13")+`
 		`+postVisibleModerationPredicate+`
+		`+languageVisibilityPredicate("p", "$13", "$14")+`
 		)
 		SELECT `+postSelectColumns+`, relevance_score
 		FROM ranked p
@@ -519,7 +604,7 @@ func (s *SearchStore) searchProjectsByRelevance(ctx context.Context, req Project
 		LIMIT $1
 	`, queryLimit,
 		projectFilterValues(req, "craftType"), projectFilterValues(req, "patternDifficulty"), projectFilterValues(req, "projectType"), projectFilterValues(req, "color"), projectFilterValues(req, "material"), projectFilterValues(req, "designTag"), projectFilterValues(req, "projectTag"), fts,
-		cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr(), viewerDID.String())
+		cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr(), viewerDID, contentLanguages)
 	if err != nil {
 		return nil, "", fmt.Errorf("project relevance search: %w", err)
 	}
@@ -620,12 +705,14 @@ func (s *SearchStore) topHashtagsObserved(ctx context.Context, req TopHashtagsRe
 }
 
 type searchPostQuery struct {
-	Tag    string
-	Query  string
-	Sort   SearchSort
-	Limit  int
-	Cursor string
-	Now    time.Time
+	Tag              string
+	Query            string
+	Sort             SearchSort
+	Limit            int
+	Cursor           string
+	Now              time.Time
+	ViewerDID        string
+	ContentLanguages []string
 }
 
 func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]SearchPostRow, string, error) {
@@ -639,7 +726,6 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 
 	var rows pgx.Rows
 	var err error
-	viewerDID, _ := middleware.GetDID(ctx)
 	if req.Sort == SearchSortPopular {
 		cur, err := DecodePopularityCursor(req.Cursor)
 		if err != nil {
@@ -684,6 +770,7 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 			  )
 			` + relationshipTopLevelPredicate("$8") + `
 			` + postVisibleModerationPredicate + `
+			` + languageVisibilityPredicate("p", "$8", "$9") + `
 		)
 		SELECT ` + postSelectColumns + `, popularity_score
 		FROM candidate p
@@ -692,7 +779,7 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 		WHERE ($4::double precision IS NULL OR (popularity_score, p.created_at, p.uri) < ($4::double precision, $5::timestamptz, $6::text))
 		ORDER BY popularity_score DESC, p.created_at DESC, p.uri DESC
 		LIMIT $2`
-		rows, err = s.pool.Query(ctx, q, req.Tag, queryLimit, req.Now, cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr(), strings.ToLower(req.Query), viewerDID.String())
+		rows, err = s.pool.Query(ctx, q, req.Tag, queryLimit, req.Now, cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr(), strings.ToLower(req.Query), req.ViewerDID, req.ContentLanguages)
 	} else {
 		curCreatedAt, curURI, err := DecodeChronologicalSearchCursor(req.Cursor)
 		if err != nil {
@@ -712,11 +799,12 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 			))
 		  )
 		` + relationshipTopLevelPredicate("$6") + `
+		` + languageVisibilityPredicate("p", "$6", "$7") + `
 		  AND ($3::timestamptz IS NULL OR (p.created_at, p.uri) < ($3::timestamptz, $4::text))
 		` + postVisibleModerationPredicate + `
 		ORDER BY p.created_at DESC, p.uri DESC
 		LIMIT $2`
-		rows, err = s.pool.Query(ctx, q, req.Tag, queryLimit, curCreatedAt, curURI, strings.ToLower(req.Query), viewerDID.String())
+		rows, err = s.pool.Query(ctx, q, req.Tag, queryLimit, curCreatedAt, curURI, strings.ToLower(req.Query), req.ViewerDID, req.ContentLanguages)
 	}
 	if err != nil {
 		return nil, "", fmt.Errorf("search hashtag posts: %w", err)
@@ -773,7 +861,7 @@ func scanPostRowWithExtraScore(scanner pgx.Row) (SearchPostRow, error) {
 	err := scanner.Scan(
 		&post.URI, &post.DID, &post.Rkey, &post.CID, &post.Text, &post.Facets, &post.Images,
 		&post.ReplyRootURI, &post.ReplyRootCID, &post.ReplyParentURI, &post.ReplyParentCID,
-		&post.QuoteURI, &post.QuoteCID, &post.Tags, &post.CreatedAt, &post.IndexedAt,
+		&post.QuoteURI, &post.QuoteCID, &post.Tags, &post.Langs, &post.CreatedAt, &post.IndexedAt,
 		&post.ExternalImportSource, &post.ProfileSortAt,
 		&post.IsProject, &post.ProjectCraftType, &rawProject,
 		&post.AuthorDisplayName, &post.AuthorAvatarCID, &post.AuthorAvatarMime,

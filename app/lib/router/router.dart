@@ -11,6 +11,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.dart';
+import 'package:craftsky_app/languages/pages/languages_page.dart';
 import 'package:craftsky_app/notifications/pages/notification_settings_page.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
@@ -191,6 +192,10 @@ GoRouter goRouter(Ref ref) {
               path: RouteLocations.settingsChild,
               name: 'settings',
               routes: [
+                TypedGoRoute<LanguagesRoute>(
+                  path: RouteLocations.languagesChild,
+                  name: 'languages',
+                ),
                 TypedGoRoute<InstagramMigrationRoute>(
                   path: RouteLocations.instagramMigrationChild,
                   name: 'instagram-migration',
@@ -349,6 +354,17 @@ class SettingsRoute extends GoRouteData with $SettingsRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const SettingsPage();
+}
+
+class LanguagesRoute extends GoRouteData with $LanguagesRoute {
+  const LanguagesRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const LanguagesPage();
 }
 
 class InstagramMigrationRoute extends GoRouteData

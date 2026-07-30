@@ -53,7 +53,7 @@ final class UserPostsProvider
   }
 }
 
-String _$userPostsHash() => r'0a6bca7da79dd0ff605d73908d43710c50d19a29';
+String _$userPostsHash() => r'866b6a3eb336bbb6f665c30cb000ff974cbf7f37';
 
 /// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
 

@@ -70,7 +70,7 @@ class _CraftskySingleSelectInputState<T>
     if (!_searchable) return widget.options;
     if (query.isEmpty) return widget.options;
     return widget.options
-        .where((option) => option.label.toLowerCase().contains(query))
+        .where((option) => _optionMatchesQuery(option, query))
         .toList(growable: false);
   }
 

@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/search/models/search_queries.dart';
 import 'package:craftsky_app/search/models/search_result_state.dart';
 import 'package:craftsky_app/search/providers/search_pagination.dart';
@@ -13,6 +14,7 @@ const searchResultsPageLimit = 25;
 class HashtagSearch extends _$HashtagSearch {
   @override
   Future<SearchPostResultsState> build(HashtagSearchQuery query) async {
+    await ref.watch(activeContentLanguagePolicyProvider.future);
     final page = await ref
         .watch(searchRepositoryProvider)
         .searchHashtagPosts(

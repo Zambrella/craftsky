@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,6 +22,7 @@ import (
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/languages"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/relationships"
 )
@@ -1301,6 +1303,71 @@ func TestCreatePost_HappyPath(t *testing.T) {
 	}
 }
 
+func TestCreatePost_LanguagesReachPDSAndSyntheticResponse(t *testing.T) {
+	t.Parallel()
+	pds := &fakePDS{}
+	handler := api.CreatePostHandler(
+		&fakePostStore{},
+		newPDSFactory(pds),
+		fakeResolver{handleFor: "alice.example"},
+		api.DefaultMediaLimits(),
+		nilLogger(),
+	)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(
+		response,
+		authedReq(
+			http.MethodPost,
+			"/v1/posts",
+			`{"text":"hello","langs":["en","fr"]}`,
+			"did:plc:alice",
+		),
+	)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	record, ok := pds.lastCreateRec.(map[string]any)
+	if !ok {
+		t.Fatalf("PDS record type = %T", pds.lastCreateRec)
+	}
+	langs, ok := record["langs"].([]string)
+	if !ok || len(langs) != 2 || langs[0] != "en" || langs[1] != "fr" {
+		t.Fatalf("PDS langs = %#v", record["langs"])
+	}
+	var post api.PostResponse
+	if err := json.NewDecoder(response.Body).Decode(&post); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(post.Langs) != 2 || post.Langs[0] != "en" || post.Langs[1] != "fr" {
+		t.Fatalf("response langs = %v", post.Langs)
+	}
+
+	invalidPDS := &fakePDS{}
+	invalidHandler := api.CreatePostHandler(
+		&fakePostStore{},
+		newPDSFactory(invalidPDS),
+		fakeResolver{handleFor: "alice.example"},
+		api.DefaultMediaLimits(),
+		nilLogger(),
+	)
+	invalidResponse := httptest.NewRecorder()
+	invalidHandler.ServeHTTP(
+		invalidResponse,
+		authedReq(
+			http.MethodPost,
+			"/v1/posts",
+			`{"text":"hello","langs":["en","en"]}`,
+			"did:plc:alice",
+		),
+	)
+	if invalidResponse.Code != http.StatusBadRequest {
+		t.Fatalf("invalid status = %d, body = %s", invalidResponse.Code, invalidResponse.Body.String())
+	}
+	if invalidPDS.createCalls != 0 {
+		t.Fatalf("invalid request reached PDS %d times", invalidPDS.createCalls)
+	}
+}
+
 func TestCreatePost_MalformedBody_400(t *testing.T) {
 	t.Parallel()
 	h := api.CreatePostHandler(&fakePostStore{}, newPDSFactory(&fakePDS{}), fakeResolver{}, api.DefaultMediaLimits(), nilLogger())
@@ -1766,6 +1833,7 @@ func TestGetPost_HappyPath(t *testing.T) {
 	row := &api.PostRow{
 		URI: "at://did:plc:alice/social.craftsky.feed.post/rk1",
 		DID: "did:plc:alice", Rkey: "rk1", CID: "bafy", Text: "hi",
+		Langs: []string{"fr-CA"},
 	}
 	store := &fakePostStore{
 		one: row,
@@ -1774,7 +1842,7 @@ func TestGetPost_HappyPath(t *testing.T) {
 		},
 	}
 	h := api.GetPostHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
-	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/rk1", "", "did:plc:alice")
+	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/rk1", "", "did:plc:viewer")
 	req.SetPathValue("did", "did:plc:alice")
 	req.SetPathValue("rkey", "rk1")
 	rr := httptest.NewRecorder()
@@ -1787,10 +1855,13 @@ func TestGetPost_HappyPath(t *testing.T) {
 	if resp.Text != "hi" || resp.Author.Handle != "alice.example" {
 		t.Errorf("resp = %+v", resp)
 	}
+	if !slices.Equal(resp.Langs, []string{"fr-CA"}) {
+		t.Fatalf("IT-020 direct post langs = %v, want [fr-CA]", resp.Langs)
+	}
 	if resp.LikeCount != 3 || resp.RepostCount != 1 || resp.ReplyCount != 2 || !resp.ViewerHasLiked || resp.ViewerHasReposted || !resp.ViewerHasReplied || !resp.ViewerHasSaved || resp.ViewerSavedFolderID == nil || *resp.ViewerSavedFolderID != savedFolderID {
 		t.Errorf("engagement = %+v", resp)
 	}
-	if store.engagementCalls != 1 || len(store.lastEngagementURIs) != 1 || store.lastEngagementURIs[0] != row.URI || store.lastEngagementViewer != "did:plc:alice" {
+	if store.engagementCalls != 1 || len(store.lastEngagementURIs) != 1 || store.lastEngagementURIs[0] != row.URI || store.lastEngagementViewer != "did:plc:viewer" {
 		t.Errorf("engagement lookup = calls:%d viewer:%q uris:%v", store.engagementCalls, store.lastEngagementViewer, store.lastEngagementURIs)
 	}
 }
@@ -2100,6 +2171,8 @@ func TestGetPostComments_ReturnsRootAndCommentsOnly(t *testing.T) {
 	root := testPostRow("did:plc:alice", "root", "root", base)
 	comment := testReplyRow("did:plc:bob", "comment1", "comment", root.URI, root.URI, base.Add(time.Minute))
 	reply := testReplyRow("did:plc:carol", "reply1", "reply", root.URI, comment.URI, base.Add(2*time.Minute))
+	root.Langs = []string{"fr-CA"}
+	comment.Langs = []string{"cy"}
 	store := &fakePostStore{
 		one:         root,
 		commentRows: []*api.PostRow{comment},
@@ -2127,6 +2200,9 @@ func TestGetPostComments_ReturnsRootAndCommentsOnly(t *testing.T) {
 	if resp.Post.Rkey != "root" || resp.Post.Author.Handle != "alice.example" {
 		t.Fatalf("root post = %+v", resp.Post)
 	}
+	if !slices.Equal(resp.Post.Langs, []string{"fr-CA"}) {
+		t.Fatalf("IT-020 thread root langs = %v", resp.Post.Langs)
+	}
 	if resp.Sort != "oldest" {
 		t.Fatalf("sort = %q, want oldest", resp.Sort)
 	}
@@ -2135,6 +2211,9 @@ func TestGetPostComments_ReturnsRootAndCommentsOnly(t *testing.T) {
 	}
 	if resp.Comments.Items[0].Post.Rkey != "comment1" {
 		t.Fatalf("comment item = %+v", resp.Comments.Items[0])
+	}
+	if !slices.Equal(resp.Comments.Items[0].Post.Langs, []string{"cy"}) {
+		t.Fatalf("IT-020 thread comment langs = %v", resp.Comments.Items[0].Post.Langs)
 	}
 	if resp.Comments.Items[0].Post.Rkey == reply.Rkey {
 		t.Fatalf("nested reply was returned as top-level comment: %+v", resp.Comments.Items[0])
@@ -3216,7 +3295,12 @@ func TestListPosts_FinalPage_OmitsCursorField(t *testing.T) {
 
 type fakePostStoreCapturing struct {
 	fakePostStore
-	captured *struct{ limit int }
+	captured *struct {
+		limit            int
+		viewerDID        string
+		authorDID        string
+		contentLanguages []string
+	}
 }
 
 func (f *fakePostStoreCapturing) ListByAuthor(_ context.Context, _ string, limit int, _ string) ([]*api.PostRow, string, error) {
@@ -3224,10 +3308,67 @@ func (f *fakePostStoreCapturing) ListByAuthor(_ context.Context, _ string, limit
 	return f.listRows, f.listCursor, f.listErr
 }
 
+func (f *fakePostStoreCapturing) ListByAuthorWithLanguages(
+	_ context.Context,
+	viewerDID string,
+	authorDID string,
+	contentLanguages []string,
+	limit int,
+	_ string,
+) ([]*api.PostRow, string, error) {
+	f.captured.limit = limit
+	f.captured.viewerDID = viewerDID
+	f.captured.authorDID = authorDID
+	f.captured.contentLanguages = append([]string(nil), contentLanguages...)
+	return f.listRows, f.listCursor, f.listErr
+}
+
+func TestListPosts_LoadsAuthoritativeContentLanguages(t *testing.T) {
+	captured := struct {
+		limit            int
+		viewerDID        string
+		authorDID        string
+		contentLanguages []string
+	}{}
+	store := &fakePostStoreCapturing{
+		fakePostStore: fakePostStore{listRows: []*api.PostRow{}},
+		captured:      &captured,
+	}
+	preferences := &fakeLanguagePreferenceReader{
+		preferences: languages.Preferences{
+			PrimaryLanguage:  "fr",
+			ContentLanguages: []string{"en", "de"},
+		},
+	}
+	h := api.ListPostsByAuthorHandler(
+		store,
+		fakeResolver{handleFor: "alice.example"},
+		nilLogger(),
+		preferences,
+	)
+	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts", "", "did:plc:viewer")
+	req.SetPathValue("handleOrDid", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if captured.viewerDID != "did:plc:viewer" || captured.authorDID != "did:plc:alice" {
+		t.Fatalf("viewer/author = %q/%q", captured.viewerDID, captured.authorDID)
+	}
+	if got, want := captured.contentLanguages, []string{"en", "de"}; !slices.Equal(got, want) {
+		t.Fatalf("content languages = %v, want %v", got, want)
+	}
+}
+
 func TestListPosts_LimitDefaultAndCap(t *testing.T) {
 	t.Parallel()
 	captured := struct {
-		limit int
+		limit            int
+		viewerDID        string
+		authorDID        string
+		contentLanguages []string
 	}{}
 	store := &fakePostStoreCapturing{
 		fakePostStore: fakePostStore{listRows: []*api.PostRow{}},

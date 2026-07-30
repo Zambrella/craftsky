@@ -1857,4 +1857,67 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get savedPostDeleteSaves => 'Delete saved posts';
+
+  @override
+  String get settingsLanguages => 'Languages';
+
+  @override
+  String get languagesTitle => 'Languages';
+
+  @override
+  String get appLanguageTitle => 'App language';
+
+  @override
+  String get appLanguageDescription =>
+      'Select which language to use for the app\'s user interface.';
+
+  @override
+  String get appLanguageEnglish => 'English';
+
+  @override
+  String get appLanguageMoreComing => 'More app languages are coming.';
+
+  @override
+  String get primaryLanguageTitle => 'Primary language';
+
+  @override
+  String get primaryLanguageDescription =>
+      'Select the default language used when you create a post.';
+
+  @override
+  String get contentLanguagesTitle => 'Content languages';
+
+  @override
+  String get contentLanguagesDescription =>
+      'Select which languages you want posts in your feeds and discovery results to include. If none are selected, all languages will be shown.';
+
+  @override
+  String get languageSearchHint => 'Search languages';
+
+  @override
+  String get languageAddMore => 'Add more languages…';
+
+  @override
+  String get languageCancel => 'Cancel';
+
+  @override
+  String get languageDone => 'Done';
+
+  @override
+  String get languageSaveError => 'That change could not be saved. Try again.';
+
+  @override
+  String get postLanguagesSemantics => 'Post languages';
+
+  @override
+  String get postLanguageAdd => 'Add language';
+
+  @override
+  String get postLanguageLimit => 'Up to three languages';
+
+  @override
+  String get postLanguageDialogTitle => 'Add post language';
+
+  @override
+  String get postLanguageRetryLoading => 'Retry loading languages';
 }
