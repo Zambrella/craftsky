@@ -6,14 +6,31 @@ import 'package:craftsky_app/languages/data/language_catalogue.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+final List<CraftskySelectOption<String>> _languageOptions = List.unmodifiable(
+  <CraftskySelectOption<String>>[
+    for (final tag in supportedLanguageTags)
+      CraftskySelectOption(
+        value: tag,
+        label: languageLabel(tag),
+        description: tag,
+      ),
+  ]..sort((left, right) => left.label.compareTo(right.label)),
+);
 
 class LanguagesPage extends ConsumerWidget {
   const LanguagesPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
     final session = ref.watch(authSessionProvider);
     final activeDID = switch (session.value) {
@@ -22,22 +39,34 @@ class LanguagesPage extends ConsumerWidget {
     };
     return Scaffold(
       appBar: AppBar(title: Text(l10n.languagesTitle)),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        children: [
-          _Section(
-            title: l10n.appLanguageTitle,
-            description: l10n.appLanguageDescription,
-            child: const _AppLanguageField(),
-          ),
-          const Divider(height: 32),
-          if (activeDID == null)
-            const Center(child: CircularProgressIndicator())
-          else
-            _AccountLanguageSections(
-              account: AccountKey(activeDID.value),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          spacing.sp4,
+          spacing.sp4,
+          spacing.sp4,
+          spacing.sp7,
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _AppLanguageField(),
+                SizedBox(height: spacing.sp4),
+                if (activeDID == null)
+                  Padding(
+                    padding: EdgeInsets.all(spacing.sp5),
+                    child: const Center(child: StitchProgressIndicator()),
+                  )
+                else
+                  _AccountLanguageSections(
+                    account: AccountKey(activeDID.value),
+                  ),
+              ],
             ),
-        ],
+          ),
+        ),
       ),
     );
   }
@@ -73,66 +102,82 @@ class _AccountLanguageSectionsState
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
     final provider = accountLanguagePreferencesProvider(widget.account);
     return switch (ref.watch(provider)) {
       AsyncData(:final value) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _Section(
-            title: l10n.primaryLanguageTitle,
-            description: l10n.primaryLanguageDescription,
-            child: SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: _saving
-                    ? null
-                    : () async {
-                        final language = await showDialog<String>(
-                          context: context,
-                          builder: (context) => _PrimaryLanguageDialog(
-                            selected: value.primaryLanguage,
-                          ),
-                        );
-                        if (language == null ||
-                            language == value.primaryLanguage) {
-                          return;
-                        }
-                        await _replace(
-                          value.copyWith(primaryLanguage: language),
-                        );
-                      },
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(languageLabel(value.primaryLanguage)),
-                    ),
-                    const Icon(Icons.unfold_more),
-                  ],
-                ),
-              ),
+          CraftskyCard(
+            key: const Key('primary-language-card'),
+            clipBehavior: Clip.none,
+            padding: EdgeInsets.all(spacing.sp4),
+            child: CraftskySingleSelectInput<String>(
+              key: const Key('primary-language-input'),
+              keyPrefix: 'primary-language',
+              label: l10n.primaryLanguageTitle,
+              helperText: l10n.primaryLanguageDescription,
+              value: value.primaryLanguage,
+              options: _languageOptions,
+              enabled: !_saving,
+              searchHintText: l10n.languageSearchHint,
+              onChanged: (language) async {
+                if (language == null || language == value.primaryLanguage) {
+                  return;
+                }
+                await _replace(
+                  value.copyWith(primaryLanguage: language),
+                );
+              },
             ),
           ),
-          const Divider(height: 32),
-          _Section(
-            title: l10n.contentLanguagesTitle,
-            description: l10n.contentLanguagesDescription,
-            child: _ContentLanguagesField(
-              preferences: value,
+          SizedBox(height: spacing.sp4),
+          CraftskyCard(
+            key: const Key('content-languages-card'),
+            clipBehavior: Clip.none,
+            padding: EdgeInsets.all(spacing.sp4),
+            child: CraftskySearchableMultiSelectInput<String>(
+              key: const Key('content-languages-input'),
+              keyPrefix: 'content-languages',
+              label: l10n.contentLanguagesTitle,
+              helperText: l10n.contentLanguagesDescription,
+              values: value.contentLanguages,
+              options: _languageOptions,
               enabled: !_saving,
-              onChanged: (languages) => _replace(
-                value.copyWith(contentLanguages: languages),
-              ),
+              searchHintText: l10n.languageAddMore,
+              onChanged: (languages) async {
+                await _replace(
+                  value.copyWith(contentLanguages: languages),
+                );
+              },
             ),
           ),
         ],
       ),
-      AsyncError() => Center(
-        child: FilledButton(
-          onPressed: () => ref.invalidate(provider),
-          child: Text(l10n.retryButton),
+      AsyncError() => CraftskyCard(
+        key: const Key('language-preferences-error-card'),
+        clipBehavior: Clip.none,
+        padding: EdgeInsets.all(spacing.sp4),
+        child: Column(
+          children: [
+            Icon(
+              Icons.cloud_off_outlined,
+              color: theme.colorScheme.primary,
+            ),
+            SizedBox(height: spacing.sp3),
+            FilledButton(
+              onPressed: () => ref.invalidate(provider),
+              child: Text(l10n.retryButton),
+            ),
+          ],
         ),
       ),
-      _ => const Center(child: CircularProgressIndicator()),
+      _ => Padding(
+        padding: EdgeInsets.all(spacing.sp5),
+        child: const Center(child: StitchProgressIndicator()),
+      ),
     };
   }
 }
@@ -142,253 +187,51 @@ class _AppLanguageField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        DropdownButtonFormField<String>(
-          initialValue: 'en',
-          items: [
-            DropdownMenuItem(
-              value: 'en',
-              child: Text(l10n.appLanguageEnglish),
-            ),
-          ],
-          onChanged: (_) {},
-        ),
-        const SizedBox(height: 8),
-        Text(l10n.appLanguageMoreComing),
-      ],
-    );
-  }
-}
-
-class _ContentLanguagesField extends StatelessWidget {
-  const _ContentLanguagesField({
-    required this.preferences,
-    required this.onChanged,
-    required this.enabled,
-  });
-
-  final LanguagePreferences preferences;
-  final Future<void> Function(List<String>) onChanged;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            for (final language in preferences.contentLanguages)
-              InputChip(
-                label: Text(languageLabel(language)),
-                onDeleted: enabled
-                    ? () async => onChanged([
-                        for (final value in preferences.contentLanguages)
-                          if (value != language) value,
-                      ])
-                    : null,
-              ),
-          ],
-        ),
-        TextButton.icon(
-          onPressed: enabled
-              ? () async {
-                  final selected = await showDialog<List<String>>(
-                    context: context,
-                    builder: (context) => _ContentLanguageDialog(
-                      initial: preferences.contentLanguages,
-                    ),
-                  );
-                  if (selected != null) await onChanged(selected);
-                }
-              : null,
-          icon: const Icon(Icons.add),
-          label: Text(AppLocalizations.of(context).languageAddMore),
-        ),
-      ],
-    );
-  }
-}
-
-class _ContentLanguageDialog extends StatefulWidget {
-  const _ContentLanguageDialog({required this.initial});
-
-  final List<String> initial;
-
-  @override
-  State<_ContentLanguageDialog> createState() => _ContentLanguageDialogState();
-}
-
-class _ContentLanguageDialogState extends State<_ContentLanguageDialog> {
-  late final Set<String> _selected = widget.initial.toSet();
-  var _query = '';
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final values =
-        supportedLanguageTags
-            .where(
-              (tag) =>
-                  tag.contains(_query.toLowerCase()) ||
-                  languageLabel(
-                    tag,
-                  ).toLowerCase().contains(_query.toLowerCase()),
-            )
-            .toList()
-          ..sort(
-            (left, right) =>
-                languageLabel(left).compareTo(languageLabel(right)),
-          );
-    return AlertDialog(
-      title: Text(l10n.contentLanguagesTitle),
-      content: SizedBox(
-        width: 420,
-        height: 480,
-        child: Column(
-          children: [
-            TextField(
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: l10n.languageSearchHint,
-                prefixIcon: const Icon(Icons.search),
-              ),
-              onChanged: (value) => setState(() => _query = value),
-            ),
-            Expanded(
-              child: ListView(
-                children: [
-                  for (final tag in values)
-                    CheckboxListTile(
-                      value: _selected.contains(tag),
-                      title: Text(languageLabel(tag)),
-                      subtitle: Text(tag),
-                      onChanged: (checked) => setState(() {
-                        if (checked ?? false) {
-                          _selected.add(tag);
-                        } else {
-                          _selected.remove(tag);
-                        }
-                      }),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l10n.languageCancel),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, _selected.toList()),
-          child: Text(l10n.languageDone),
-        ),
-      ],
-    );
-  }
-}
-
-class _Section extends StatelessWidget {
-  const _Section({
-    required this.title,
-    required this.description,
-    required this.child,
-  });
-
-  final String title;
-  final String description;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+    return CraftskyCard(
+      key: const Key('app-language-card'),
+      clipBehavior: Clip.none,
+      padding: EdgeInsets.all(spacing.sp4),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(title, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(description),
-          const SizedBox(height: 12),
-          child,
+          CraftskySingleSelectInput<String>(
+            key: const Key('app-language-input'),
+            keyPrefix: 'app-language',
+            label: l10n.appLanguageTitle,
+            helperText: l10n.appLanguageDescription,
+            value: 'en',
+            options: [
+              CraftskySelectOption(
+                value: 'en',
+                label: l10n.appLanguageEnglish,
+              ),
+            ],
+            onChanged: (_) {},
+          ),
+          SizedBox(height: spacing.sp3),
+          Row(
+            children: [
+              Icon(
+                Icons.translate,
+                size: 18,
+                color: theme.colorScheme.primary,
+              ),
+              SizedBox(width: spacing.sp2),
+              Expanded(
+                child: Text(
+                  l10n.appLanguageMoreComing,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
-    );
-  }
-}
-
-class _PrimaryLanguageDialog extends StatefulWidget {
-  const _PrimaryLanguageDialog({required this.selected});
-
-  final String selected;
-
-  @override
-  State<_PrimaryLanguageDialog> createState() => _PrimaryLanguageDialogState();
-}
-
-class _PrimaryLanguageDialogState extends State<_PrimaryLanguageDialog> {
-  var _query = '';
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final query = _query.trim().toLowerCase();
-    final values =
-        supportedLanguageTags.where((tag) {
-          if (query.isEmpty) return true;
-          return tag.contains(query) ||
-              languageLabel(tag).toLowerCase().contains(query);
-        }).toList()..sort(
-          (left, right) => languageLabel(left).compareTo(languageLabel(right)),
-        );
-    return AlertDialog(
-      title: Text(l10n.primaryLanguageTitle),
-      content: SizedBox(
-        width: 420,
-        height: 480,
-        child: Column(
-          children: [
-            TextField(
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: l10n.languageSearchHint,
-                prefixIcon: const Icon(Icons.search),
-              ),
-              onChanged: (value) => setState(() => _query = value),
-            ),
-            Expanded(
-              child: ListView(
-                children: [
-                  for (final tag in values)
-                    ListTile(
-                      selected: tag == widget.selected,
-                      title: Text(languageLabel(tag)),
-                      subtitle: Text(tag),
-                      trailing: tag == widget.selected
-                          ? const Icon(Icons.check)
-                          : null,
-                      onTap: () => Navigator.pop(context, tag),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l10n.languageCancel),
-        ),
-      ],
     );
   }
 }

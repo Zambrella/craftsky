@@ -189,7 +189,7 @@ class _CraftskySearchableMultiSelectInputState<T>
     final query = _query.trim().toLowerCase();
     if (query.isEmpty) return widget.options;
     return widget.options
-        .where((option) => option.label.toLowerCase().contains(query))
+        .where((option) => _optionMatchesQuery(option, query))
         .toList(growable: false);
   }
 
@@ -364,6 +364,9 @@ class _CraftskySearchableMultiSelectInputState<T>
                 tileColor: index == 0 ? selectedTileColor : null,
                 shape: selectedTileShape,
                 title: Text(option.label),
+                subtitle: option.description == null
+                    ? null
+                    : Text(option.description!),
                 controlAffinity: ListTileControlAffinity.leading,
                 onChanged: widget.enabled ? (_) => _toggle(option.value) : null,
               ),

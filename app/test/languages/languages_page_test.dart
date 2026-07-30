@@ -6,6 +6,9 @@ import 'package:craftsky_app/languages/pages/languages_page.dart';
 import 'package:craftsky_app/languages/providers/content_language_invalidation.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_repository_provider.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,10 +58,11 @@ void main() {
         ],
         child: MessengerScope(
           messenger: RecordingMessenger(),
-          child: const MaterialApp(
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: LanguagesPage(),
+            home: const LanguagesPage(),
           ),
         ),
       ),
@@ -69,49 +73,86 @@ void main() {
     expect(find.text('Primary language'), findsOneWidget);
     expect(find.text('Content languages'), findsOneWidget);
     expect(find.text('More app languages are coming.'), findsOneWidget);
-    final appLanguage = tester.widget<DropdownButtonFormField<String>>(
-      find.byType(DropdownButtonFormField<String>).first,
+    expect(find.byType(CraftskyCard), findsNWidgets(3));
+    for (final card in tester.widgetList<CraftskyCard>(
+      find.byType(CraftskyCard),
+    )) {
+      expect(card.clipBehavior, Clip.none);
+    }
+    expect(
+      find.byType(CraftskySingleSelectInput<String>),
+      findsNWidgets(2),
     );
-    expect(appLanguage.initialValue, 'en');
-    final appLanguageButton = tester.widget<DropdownButton<String>>(
-      find
-          .descendant(
-            of: find.byType(DropdownButtonFormField<String>).first,
-            matching: find.byType(DropdownButton<String>),
-          )
-          .first,
+    expect(
+      find.byType(CraftskySearchableMultiSelectInput<String>),
+      findsOneWidget,
     );
-    expect(appLanguageButton.items, hasLength(1));
+    expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+    final appLanguage = tester.widget<CraftskySingleSelectInput<String>>(
+      find.byKey(const Key('app-language-input')),
+    );
+    expect(appLanguage.value, 'en');
+    expect(appLanguage.options, hasLength(1));
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'English'));
+    await tester.tap(
+      find.byKey(const Key('primary-language-search-input')),
+    );
     await tester.pumpAndSettle();
-    expect(find.text('Search languages'), findsOneWidget);
-    await tester.enterText(find.byType(TextField), 'Spanish');
-    await tester.pump();
-    await tester.tap(find.text('Spanish').last);
+    expect(
+      find.byKey(const Key('primary-language-options-panel')),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byKey(const Key('primary-language-search-input')),
+      'cy',
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('primary-language-option-cy')),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byKey(const Key('primary-language-search-input')),
+      'Spanish',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('primary-language-option-es')));
     await tester.pumpAndSettle();
     expect(repository.value.primaryLanguage, 'es');
     expect(repository.value.contentLanguages, ['en']);
 
-    await tester.ensureVisible(find.text('Add more languages…'));
+    await tester.ensureVisible(
+      find.byKey(const Key('content-languages-search-input')),
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Add more languages…'));
+    await tester.tap(
+      find.byKey(const Key('content-languages-search-input')),
+    );
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'French');
-    await tester.pump();
-    await tester.tap(find.widgetWithText(CheckboxListTile, 'French'));
-    await tester.tap(find.text('Done'));
+    await tester.enterText(
+      find.byKey(const Key('content-languages-search-input')),
+      'fr',
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('content-languages-option-fr')),
+        matching: find.text('fr'),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('content-languages-option-fr')));
     await tester.pumpAndSettle();
     expect(repository.value.primaryLanguage, 'es');
     expect(repository.value.contentLanguages, ['en', 'fr']);
 
-    tester
-        .widget<InputChip>(find.widgetWithText(InputChip, 'English'))
-        .onDeleted!();
+    await tester.tap(
+      find.byKey(const Key('content-languages-remove-en')),
+    );
     await tester.pumpAndSettle();
-    tester
-        .widget<InputChip>(find.widgetWithText(InputChip, 'French'))
-        .onDeleted!();
+    await tester.tap(
+      find.byKey(const Key('content-languages-remove-fr')),
+    );
     await tester.pumpAndSettle();
     expect(repository.value.contentLanguages, isEmpty);
     expect(find.textContaining('If none are selected'), findsOneWidget);
@@ -133,21 +174,27 @@ void main() {
         ],
         child: MessengerScope(
           messenger: messenger,
-          child: const MaterialApp(
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: LanguagesPage(),
+            home: const LanguagesPage(),
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'English'));
+    await tester.tap(
+      find.byKey(const Key('primary-language-search-input')),
+    );
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'Spanish');
-    await tester.pump();
-    await tester.tap(find.text('Spanish').last);
+    await tester.enterText(
+      find.byKey(const Key('primary-language-search-input')),
+      'Spanish',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('primary-language-option-es')));
     await tester.pumpAndSettle();
 
     expect(repository.value.primaryLanguage, 'en');
@@ -157,11 +204,11 @@ void main() {
     ]);
     expect(
       tester
-          .widget<OutlinedButton>(
-            find.widgetWithText(OutlinedButton, 'English'),
+          .widget<CraftskySingleSelectInput<String>>(
+            find.byKey(const Key('primary-language-input')),
           )
-          .onPressed,
-      isNotNull,
+          .enabled,
+      isTrue,
     );
   });
 }

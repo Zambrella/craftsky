@@ -173,3 +173,11 @@ bool _listEquals<T>(List<T> a, List<T> b) {
   }
   return true;
 }
+
+bool _optionMatchesQuery<T>(
+  CraftskySelectOption<T> option,
+  String query,
+) {
+  return option.label.toLowerCase().contains(query) ||
+      (option.description?.toLowerCase().contains(query) ?? false);
+}
