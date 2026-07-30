@@ -1,14 +1,14 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
-import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
-import 'package:craftsky_app/profile/widgets/profile_card.dart';
+import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import '../profile/fakes/fake_profile_repository.dart';
 
@@ -146,7 +146,7 @@ void main() {
     expect(find.text('Load more'), findsNothing);
   });
 
-  testWidgets('TDD-005C tapping an account opens its profile card', (
+  testWidgets('TDD-005C tapping an account opens the compact profile route', (
     tester,
   ) async {
     final repo = FakeProfileRepository(
@@ -161,22 +161,34 @@ void main() {
           ),
         ],
       ),
-      onFetch: (_) async => Profile(
-        did: 'did:plc:dana',
-        handle: 'dana.craftsky.social',
-        displayName: 'Dana',
-        crafts: const ['quilting'],
-      ),
     );
+    GoRouterState? destination;
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) =>
+              const FollowListPage(kind: FollowListKind.following),
+        ),
+        GoRoute(
+          path: '/profile/:handle',
+          builder: (_, state) {
+            destination = state;
+            return const Scaffold(body: Text('Profile'));
+          },
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [profileRepositoryProvider.overrideWithValue(repo)],
-        child: MaterialApp(
+        child: MaterialApp.router(
           theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const FollowListPage(kind: FollowListKind.following),
+          routerConfig: router,
         ),
       ),
     );
@@ -185,13 +197,10 @@ void main() {
     await tester.tap(find.text('Dana'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(ProfileCard), findsOneWidget);
+    expect(destination?.uri.path, '/profile/dana.craftsky.social');
     expect(
-      find.descendant(
-        of: find.byType(ProfileCard),
-        matching: find.text('@dana.craftsky.social'),
-      ),
-      findsOneWidget,
+      (destination?.extra as ProfilePresentationRequest?)?.startsCompact,
+      isTrue,
     );
   });
 }

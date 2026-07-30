@@ -41,7 +41,7 @@ class ProfileSliverAppBar extends StatelessWidget {
   static const double avatarTop = 66;
   static const double identityTop = 200;
   static const double expandedHeight = 268;
-  static const double _minimumIdentityHeight = 60;
+  static const double minimumIdentityHeight = 60;
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +100,7 @@ class ProfileSliverAppBar extends StatelessWidget {
     final measuredIdentityHeight =
         nameHeight + (handleHeight == 0 ? 0 : 2 + handleHeight);
     final identityHeight = math.max(
-      _minimumIdentityHeight,
+      minimumIdentityHeight,
       measuredIdentityHeight,
     );
     final craftsTop = identityTop + identityHeight + spacing.sp2;

@@ -44,7 +44,23 @@ class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
     BuildContext context,
     double shrinkOffset,
     bool overlapsContent,
-  ) {
+  ) => ProfileTabBar(projectsCountLabel: projectsCountLabel);
+
+  @override
+  bool shouldRebuild(covariant ProfileTabBarDelegate oldDelegate) {
+    return projectsCountLabel != oldDelegate.projectsCountLabel;
+  }
+}
+
+/// The reusable visual tab bar used by the full profile and its expanding
+/// presentation.
+class ProfileTabBar extends StatelessWidget {
+  const ProfileTabBar({this.projectsCountLabel, super.key});
+
+  final String? projectsCountLabel;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final spacing = theme.extension<SpacingTheme>()!;
@@ -77,10 +93,5 @@ class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
         '$base · $projectsCountLabel',
       _ => base,
     };
-  }
-
-  @override
-  bool shouldRebuild(covariant ProfileTabBarDelegate oldDelegate) {
-    return projectsCountLabel != oldDelegate.projectsCountLabel;
   }
 }

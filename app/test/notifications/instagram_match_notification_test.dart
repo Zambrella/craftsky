@@ -11,7 +11,7 @@ import 'package:craftsky_app/notifications/widgets/notification_row.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:craftsky_app/profile/widgets/profile_card.dart';
+import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -114,26 +114,35 @@ void main() {
     expect(destination?.uri.path, '/profile/maker.synthetic.invalid');
   });
 
-  testWidgets('TDD-005B actor avatar opens the profile card', (tester) async {
-    final repository = FakeProfileRepository(
-      onFetch: (_) async => Profile(
-        did: 'did:plc:synthetic-match',
-        handle: 'maker.synthetic.invalid',
-        displayName: 'Synthetic Maker',
-        crafts: const ['sewing'],
-      ),
+  testWidgets('TDD-005B actor avatar opens the compact profile route', (
+    tester,
+  ) async {
+    GoRouterState? destination;
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) =>
+              Scaffold(body: NotificationRow(notification: match())),
+        ),
+        GoRoute(
+          path: '/profile/:handle',
+          builder: (_, state) {
+            destination = state;
+            return const Scaffold(body: Text('Profile'));
+          },
+        ),
+      ],
     );
+    addTearDown(router.dispose);
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          profileRepositoryProvider.overrideWithValue(repository),
-        ],
-        child: MaterialApp(
+        child: MaterialApp.router(
           theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(body: NotificationRow(notification: match())),
+          routerConfig: router,
         ),
       ),
     );
@@ -142,7 +151,11 @@ void main() {
     await tester.tap(find.byType(ProfileAvatar));
     await tester.pumpAndSettle();
 
-    expect(find.byType(ProfileCard), findsOneWidget);
+    expect(destination?.uri.path, '/profile/maker.synthetic.invalid');
+    expect(
+      (destination?.extra as ProfilePresentationRequest?)?.startsCompact,
+      isTrue,
+    );
   });
 
   testWidgets(
