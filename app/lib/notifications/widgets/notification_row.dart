@@ -13,6 +13,7 @@ import 'package:craftsky_app/profile/providers/profile_relationship_provider.dar
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
@@ -20,6 +21,7 @@ import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -138,6 +140,14 @@ class NotificationRow extends ConsumerWidget {
     final onTap = actorNotification is GenericNotification
         ? null
         : () => _open(context, ref);
+    final onActorTap = actorNotification.actor.available
+        ? () => unawaited(
+            showUserProfileCard(
+              context,
+              handleOrDid: actorNotification.actor.handle.toString(),
+            ),
+          )
+        : null;
     return Material(
       type: MaterialType.transparency,
       child: InkWell(
@@ -162,10 +172,14 @@ class NotificationRow extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ProfileAvatar(
-                      seed: actor,
-                      avatarUrl: actorNotification.actor.displayAvatarUrl,
-                      size: ProfileAvatarSize.small,
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: onActorTap,
+                      child: ProfileAvatar(
+                        seed: actor,
+                        avatarUrl: actorNotification.actor.displayAvatarUrl,
+                        size: ProfileAvatarSize.small,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Wrap(
@@ -173,8 +187,10 @@ class NotificationRow extends ConsumerWidget {
                       runSpacing: 2,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Text.rich(
-                          _titleSpan(title: title, actor: actor),
+                        _NotificationTitleText(
+                          title: title,
+                          actor: actor,
+                          onActorTap: onActorTap,
                           style: theme.textTheme.bodyLarge,
                         ),
                         Text(
@@ -420,7 +436,62 @@ Color _actionColor(
   UnavailableNotification() => colors.error,
 };
 
-TextSpan _titleSpan({required String title, required String actor}) {
+class _NotificationTitleText extends StatefulWidget {
+  const _NotificationTitleText({
+    required this.title,
+    required this.actor,
+    required this.onActorTap,
+    required this.style,
+  });
+
+  final String title;
+  final String actor;
+  final VoidCallback? onActorTap;
+  final TextStyle? style;
+
+  @override
+  State<_NotificationTitleText> createState() => _NotificationTitleTextState();
+}
+
+class _NotificationTitleTextState extends State<_NotificationTitleText> {
+  late final TapGestureRecognizer _actorTapRecognizer;
+
+  @override
+  void initState() {
+    super.initState();
+    _actorTapRecognizer = TapGestureRecognizer()..onTap = widget.onActorTap;
+  }
+
+  @override
+  void didUpdateWidget(covariant _NotificationTitleText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _actorTapRecognizer.onTap = widget.onActorTap;
+  }
+
+  @override
+  void dispose() {
+    _actorTapRecognizer.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text.rich(
+      _titleSpan(
+        title: widget.title,
+        actor: widget.actor,
+        actorRecognizer: _actorTapRecognizer,
+      ),
+      style: widget.style,
+    );
+  }
+}
+
+TextSpan _titleSpan({
+  required String title,
+  required String actor,
+  GestureRecognizer? actorRecognizer,
+}) {
   final actorIndex = title.indexOf(actor);
   if (actorIndex < 0) {
     return TextSpan(
@@ -428,6 +499,7 @@ TextSpan _titleSpan({required String title, required String actor}) {
         TextSpan(
           text: actor,
           style: const TextStyle(fontWeight: FontWeight.bold),
+          recognizer: actorRecognizer,
         ),
         TextSpan(text: ' · $title'),
       ],
@@ -439,6 +511,7 @@ TextSpan _titleSpan({required String title, required String actor}) {
       TextSpan(
         text: actor,
         style: const TextStyle(fontWeight: FontWeight.bold),
+        recognizer: actorRecognizer,
       ),
       if (actorIndex + actor.length < title.length)
         TextSpan(text: title.substring(actorIndex + actor.length)),

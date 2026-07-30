@@ -9,12 +9,14 @@ class ProfileIdentity extends StatelessWidget {
     required this.handle,
     this.displayName,
     this.pronouns,
+    this.centered = false,
     super.key,
   });
 
   final String handle;
   final String? displayName;
   final String? pronouns;
+  final bool centered;
 
   @override
   Widget build(BuildContext context) {
@@ -27,10 +29,16 @@ class ProfileIdentity extends StatelessWidget {
     final mutedInk = theme.colorScheme.outline;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: centered
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: centered
+              ? MainAxisAlignment.center
+              : MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
           children: [
@@ -39,6 +47,7 @@ class ProfileIdentity extends StatelessWidget {
                 name,
                 style: theme.textTheme.headlineMedium,
                 overflow: TextOverflow.ellipsis,
+                textAlign: centered ? TextAlign.center : TextAlign.start,
               ),
             ),
             if (pronouns != null) ...[
@@ -61,6 +70,7 @@ class ProfileIdentity extends StatelessWidget {
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
+            textAlign: centered ? TextAlign.center : TextAlign.start,
           ),
         ],
       ],

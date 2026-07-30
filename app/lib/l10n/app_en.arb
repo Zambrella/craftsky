@@ -303,6 +303,9 @@
   "profileEditAction": "Edit profile",
   "@profileEditAction": { "description": "Label on the primary action button shown on a self-profile, opens the edit-profile flow." },
 
+  "profileVisitAction": "Visit profile",
+  "@profileVisitAction": { "description": "Label on the secondary action in a profile card, opens the full profile page." },
+
   "profileSettingsAction": "Settings",
   "@profileSettingsAction": { "description": "Tooltip on the settings icon button shown next to Edit profile on a self-profile, and on the collapsed-bar trailing action." },
 

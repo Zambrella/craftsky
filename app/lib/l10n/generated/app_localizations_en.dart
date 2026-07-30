@@ -367,6 +367,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileEditAction => 'Edit profile';
 
   @override
+  String get profileVisitAction => 'Visit profile';
+
+  @override
   String get profileSettingsAction => 'Settings';
 
   @override

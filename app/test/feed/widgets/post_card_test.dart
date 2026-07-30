@@ -14,6 +14,7 @@ import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/saved_posts/data/saved_post_repository.dart';
@@ -31,6 +32,7 @@ import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../fakes/auth_session_fakes.dart';
 import '../../fakes/image_cache_fakes.dart';
@@ -123,6 +125,54 @@ Future<void> _pump(
 
 void main() {
   group('PostCard', () {
+    testWidgets('TDD-005A author identity opens the compact profile route', (
+      tester,
+    ) async {
+      GoRouterState? destination;
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, _) => Scaffold(
+              body: PostCard(post: _post(displayName: 'Alice')),
+            ),
+          ),
+          GoRoute(
+            path: '/profile/:handle',
+            builder: (_, state) {
+              destination = state;
+              return const Scaffold(body: Text('Profile'));
+            },
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+          ],
+          child: MaterialApp.router(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Alice'));
+      await tester.pumpAndSettle();
+
+      expect(destination?.uri.path, '/profile/alice.craftsky.social');
+      expect(
+        (destination?.extra as ProfilePresentationRequest?)?.startsCompact,
+        isTrue,
+      );
+    });
+
     testWidgets('AT-001 renders bookmark immediately before overflow', (
       tester,
     ) async {

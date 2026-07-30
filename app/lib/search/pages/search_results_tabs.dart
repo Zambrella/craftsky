@@ -248,9 +248,12 @@ class _ProfileResultsSliver extends ConsumerWidget {
           final profile = value.items[index];
           return _ProfileResultTile(
             profile: profile,
-            onTap: () => UserProfileRoute(
-              handle: profile.handle.toString(),
-            ).push<void>(context),
+            onTap: () => unawaited(
+              showUserProfileCard(
+                context,
+                handleOrDid: profile.handle.toString(),
+              ),
+            ),
           );
         },
       ),

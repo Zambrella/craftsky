@@ -13,6 +13,7 @@ import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_bookmark_button.dart';
@@ -182,9 +183,12 @@ class PostCard extends ConsumerWidget {
     final borderRadius = isFlat
         ? BorderRadius.zero
         : BorderRadius.circular(radii.r3);
-    void openAuthorProfile() => UserProfileRoute(
-      handle: post.author.handle.toString(),
-    ).push<void>(context);
+    void openAuthorProfile() => unawaited(
+      showUserProfileCard(
+        context,
+        handleOrDid: post.author.handle.toString(),
+      ),
+    );
     final quotedPost = post.quoteView?.post;
     final quotedPostParts = quotedPost == null
         ? null
@@ -201,16 +205,22 @@ class PostCard extends ConsumerWidget {
         onQuotedAuthorTap ??
         (quotedPost == null
             ? null
-            : () => UserProfileRoute(
-                handle: quotedPost.author.handle.toString(),
-              ).push<void>(context));
+            : () => unawaited(
+                showUserProfileCard(
+                  context,
+                  handleOrDid: quotedPost.author.handle.toString(),
+                ),
+              ));
     final openReposter =
         onReposterTap ??
         (repostReason == null
             ? null
-            : () => UserProfileRoute(
-                handle: repostReason!.by.handle.toString(),
-              ).push<void>(context));
+            : () => unawaited(
+                showUserProfileCard(
+                  context,
+                  handleOrDid: repostReason!.by.handle.toString(),
+                ),
+              ));
 
     final content = AnimatedContainer(
       duration: const Duration(milliseconds: 350),

@@ -27,16 +27,19 @@ class ProfileStats extends StatelessWidget {
     final stats = <_ProfileStatData>[
       if (profile.isCraftskyProfile && profile.createdAt != null)
         _ProfileStatData(
+          icon: Icons.calendar_today_outlined,
           value: formatJoinedAge(profile.createdAt!),
           label: 'here',
         ),
       if (profile.postsLast7Days != null)
         _ProfileStatData(
+          icon: Icons.edit_outlined,
           value: '${_formatCount(profile.postsLast7Days!)} posts',
           label: '7 days',
         ),
       if (profile.projectCount != null)
         _ProfileStatData(
+          icon: Icons.inventory_2_outlined,
           value: _formatCount(profile.projectCount!),
           label: 'projects',
         ),
@@ -47,11 +50,11 @@ class ProfileStats extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        border: Border.all(color: theme.colorScheme.onSurface, width: 1.5),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(radius.r3),
       ),
       child: Padding(
-        padding: EdgeInsets.symmetric(vertical: spacing.sp2),
+        padding: EdgeInsets.symmetric(vertical: spacing.sp3),
         child: IntrinsicHeight(
           child: Row(
             children: [
@@ -73,8 +76,13 @@ class ProfileStats extends StatelessWidget {
 }
 
 class _ProfileStatData {
-  const _ProfileStatData({required this.value, required this.label});
+  const _ProfileStatData({
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
 
+  final IconData icon;
   final String value;
   final String label;
 }
@@ -89,29 +97,28 @@ class _ProfileStat extends StatelessWidget {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: spacing.sp2),
+      padding: EdgeInsets.symmetric(horizontal: spacing.sp1),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Icon(stat.icon, color: theme.colorScheme.primary, size: 20),
+          SizedBox(height: spacing.sp1),
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
               stat.value,
               maxLines: 1,
               style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onSurface,
                 fontWeight: FontWeight.w800,
               ),
             ),
           ),
-          SizedBox(height: spacing.sp1),
           Text(
             stat.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelSmall?.copyWith(
+            style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
-              letterSpacing: 0.8,
             ),
           ),
         ],

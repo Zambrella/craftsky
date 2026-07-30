@@ -16,6 +16,8 @@ import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
+import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
+import 'package:craftsky_app/profile/widgets/profile_route_presentation.dart';
 import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/router/error_screen.dart';
@@ -597,8 +599,23 @@ class UserProfileRoute extends GoRouteData with $UserProfileRoute {
   }
 
   @override
-  Widget build(BuildContext context, GoRouterState state) =>
-      ProfilePage(handle: handle);
+  Page<void> buildPage(BuildContext context, GoRouterState state) {
+    final request = switch (state.extra) {
+      final ProfilePresentationRequest value => value,
+      _ => null,
+    };
+    return ProfilePresentationPage(
+      key: state.pageKey,
+      startsCompact: request?.startsCompact ?? false,
+      child: ProfileRoutePresentation(
+        handle: handle,
+        startsCompact: request?.startsCompact ?? false,
+        primaryColor: request?.primaryColor,
+        backgroundIllustration: request?.backgroundIllustration,
+        avatarFrame: request?.avatarFrame,
+      ),
+    );
+  }
 }
 
 extension GoRouterExtension on GoRouter {

@@ -4,6 +4,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -167,8 +168,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           ),
         );
     if (!mounted) return;
-    await UserProfileRoute(handle: profile.handle.toString()).push<void>(
+    await showUserProfileCard(
       context,
+      handleOrDid: profile.handle.toString(),
     );
   }
 
@@ -257,9 +259,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         ref: ref,
         onOpenQuery: (query) => SearchRoute(q: query).go(context),
         onOpenHashtag: (tag) => TagSearchRoute(tag: tag).push<void>(context),
-        onOpenProfile: (handle) => UserProfileRoute(
-          handle: handle,
-        ).push<void>(context),
+        onOpenProfile: (handle) => unawaited(
+          showUserProfileCard(context, handleOrDid: handle),
+        ),
       ),
     };
 

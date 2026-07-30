@@ -14,6 +14,7 @@ import 'package:craftsky_app/profile/providers/profile_relationship_provider.dar
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
+import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/profile/widgets/profile_meta_section.dart';
 import 'package:craftsky_app/profile/widgets/profile_sliver_app_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
@@ -27,7 +28,6 @@ import 'package:craftsky_app/shared/errors/notification_destination_error.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -36,11 +36,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// `/profile/:handle` deep links. Self-vs-visitor differs only in the
 /// action row — the rest of the chrome is shared.
 class ProfilePage extends ConsumerWidget {
-  const ProfilePage({this.handle, super.key});
+  const ProfilePage({
+    this.handle,
+    this.primaryColor,
+    this.backgroundIllustration,
+    this.avatarFrame,
+    super.key,
+  });
 
   /// Handle of the profile to render. `null` resolves to the signed-in
   /// user from `authSessionProvider`.
   final String? handle;
+  final Color? primaryColor;
+  final ProfileBackgroundIllustration? backgroundIllustration;
+  final ProfileAvatarFrame? avatarFrame;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -59,13 +68,23 @@ class ProfilePage extends ConsumerWidget {
       // Either auth is still loading or a visitor route somehow
       // landed here without a handle. Both are transient — show a
       // neutral progress state and let the router redirect resolve.
-      return const Scaffold(body: Center(child: StitchProgressIndicator()));
+      return ProfileCustomisationTheme(
+        primaryColor: primaryColor,
+        child: const Scaffold(
+          body: Center(child: StitchProgressIndicator()),
+        ),
+      );
     }
 
-    return _ProfileScaffold(
-      handle: targetHandle,
-      isOwnProfile: targetHandle == myHandle,
-      viewerAccount: viewerAccount,
+    return ProfileCustomisationTheme(
+      primaryColor: primaryColor,
+      child: _ProfileScaffold(
+        handle: targetHandle,
+        isOwnProfile: targetHandle == myHandle,
+        viewerAccount: viewerAccount,
+        backgroundIllustration: backgroundIllustration,
+        avatarFrame: avatarFrame,
+      ),
     );
   }
 }
@@ -75,11 +94,15 @@ class _ProfileScaffold extends ConsumerWidget {
     required this.handle,
     required this.isOwnProfile,
     required this.viewerAccount,
+    required this.backgroundIllustration,
+    required this.avatarFrame,
   });
 
   final String handle;
   final bool isOwnProfile;
   final AccountKey? viewerAccount;
+  final ProfileBackgroundIllustration? backgroundIllustration;
+  final ProfileAvatarFrame? avatarFrame;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -104,11 +127,6 @@ class _ProfileScaffold extends ConsumerWidget {
         );
       });
     }
-    final swatches = Theme.of(context).extension<BrandSwatchTheme>()!;
-    // Per-user banner colour will eventually come from the profile
-    // record. For now, every banner is clay so the layout is stable
-    // across users.
-    final bannerColor = swatches.clay;
     final destinationError = profileAsync.error;
     if (destinationError != null &&
         classifyNotificationDestinationError(destinationError) ==
@@ -129,8 +147,9 @@ class _ProfileScaffold extends ConsumerWidget {
                 child: _ProfileBody(
                   profile: value,
                   isOwnProfile: isOwnProfile,
-                  bannerColor: bannerColor,
                   viewerAccount: viewerAccount,
+                  backgroundIllustration: backgroundIllustration,
+                  avatarFrame: avatarFrame,
                 ),
               ),
             ],
@@ -138,8 +157,9 @@ class _ProfileScaffold extends ConsumerWidget {
           null => _ProfileBody(
             profile: value,
             isOwnProfile: isOwnProfile,
-            bannerColor: bannerColor,
             viewerAccount: viewerAccount,
+            backgroundIllustration: backgroundIllustration,
+            avatarFrame: avatarFrame,
           ),
         },
       ),
@@ -174,14 +194,16 @@ class _ProfileBody extends ConsumerWidget {
   const _ProfileBody({
     required this.profile,
     required this.isOwnProfile,
-    required this.bannerColor,
     required this.viewerAccount,
+    required this.backgroundIllustration,
+    required this.avatarFrame,
   });
 
   final Profile profile;
   final bool isOwnProfile;
-  final Color bannerColor;
   final AccountKey? viewerAccount;
+  final ProfileBackgroundIllustration? backgroundIllustration;
+  final ProfileAvatarFrame? avatarFrame;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -221,19 +243,21 @@ class _ProfileBody extends ConsumerWidget {
     if (relationship.hasBlock) {
       return _BlockedProfileView(
         profile: profile,
-        bannerColor: bannerColor,
         actions: actions,
         relationship: relationship,
+        backgroundIllustration: backgroundIllustration,
+        avatarFrame: avatarFrame,
       );
     }
     return DefaultTabController(
       length: ProfileTab.values.length,
       child: _ProfileScrollView(
         profile: profile,
-        bannerColor: bannerColor,
         actions: actions,
         isOwnProfile: isOwnProfile,
         relationship: relationship,
+        backgroundIllustration: backgroundIllustration,
+        avatarFrame: avatarFrame,
       ),
     );
   }
@@ -358,7 +382,7 @@ class _ProfileBody extends ConsumerWidget {
 }
 
 /// The profile screen's scroll structure. A [NestedScrollView]
-/// coordinates the outer collapsing header (banner / avatar / meta /
+/// coordinates the outer collapsing header (illustration / avatar / meta /
 /// pinned tab bar) with each tab's own inner [CustomScrollView]. Each
 /// tab gets its own [PageStorageKey] so its scroll position is
 /// preserved across tab switches — switching tabs no longer jumps to
@@ -367,17 +391,19 @@ class _ProfileBody extends ConsumerWidget {
 class _ProfileScrollView extends StatelessWidget {
   const _ProfileScrollView({
     required this.profile,
-    required this.bannerColor,
     required this.actions,
     required this.isOwnProfile,
     required this.relationship,
+    required this.backgroundIllustration,
+    required this.avatarFrame,
   });
 
   final Profile profile;
-  final Color bannerColor;
   final ProfileActionSet actions;
   final bool isOwnProfile;
   final ProfileRelationship relationship;
+  final ProfileBackgroundIllustration? backgroundIllustration;
+  final ProfileAvatarFrame? avatarFrame;
 
   @override
   Widget build(BuildContext context) {
@@ -385,11 +411,11 @@ class _ProfileScrollView extends StatelessWidget {
       headerSliverBuilder: (context, innerBoxIsScrolled) => [
         ProfileSliverAppBar(
           handle: profile.handle,
+          crafts: profile.crafts,
           displayName: profile.displayName,
-          bannerColor: bannerColor,
           avatarUrl: profile.avatar,
-          bannerUrl: profile.banner,
-          bannerChipLabel: 'Jacket weather',
+          backgroundIllustration: backgroundIllustration,
+          avatarFrame: avatarFrame,
           actions: actions,
           onAvatarTap: profile.avatar == null
               ? null
@@ -398,24 +424,18 @@ class _ProfileScrollView extends StatelessWidget {
                   url: profile.avatar!,
                   alt: _profileImageAlt(profile, 'profile picture'),
                 ),
-          onBannerTap: profile.banner == null
-              ? null
-              : () => _openProfileImage(
-                  context,
-                  url: profile.banner!,
-                  alt: _profileImageAlt(profile, 'profile banner'),
-                ),
+        ),
+        SliverToBoxAdapter(
+          child: ProfileMetaSection(
+            profile: profile,
+            isOwnProfile: isOwnProfile,
+            actions: actions,
+          ),
         ),
         if (relationship.kind != ProfileRelationshipKind.none)
           SliverToBoxAdapter(
             child: _RelationshipAnnotation(relationship: relationship),
           ),
-        SliverToBoxAdapter(
-          child: ProfileMetaSection(
-            profile: profile,
-            isOwnProfile: isOwnProfile,
-          ),
-        ),
         const SliverPersistentHeader(
           pinned: true,
           delegate: ProfileTabBarDelegate(),
@@ -458,15 +478,17 @@ class _ProfileScrollView extends StatelessWidget {
 class _BlockedProfileView extends StatelessWidget {
   const _BlockedProfileView({
     required this.profile,
-    required this.bannerColor,
     required this.actions,
     required this.relationship,
+    required this.backgroundIllustration,
+    required this.avatarFrame,
   });
 
   final Profile profile;
-  final Color bannerColor;
   final ProfileActionSet actions;
   final ProfileRelationship relationship;
+  final ProfileBackgroundIllustration? backgroundIllustration;
+  final ProfileAvatarFrame? avatarFrame;
 
   @override
   Widget build(BuildContext context) => CustomScrollView(
@@ -474,9 +496,16 @@ class _BlockedProfileView extends StatelessWidget {
       ProfileSliverAppBar(
         handle: profile.handle,
         displayName: profile.displayName,
-        bannerColor: bannerColor,
         avatarUrl: profile.avatar,
+        backgroundIllustration: backgroundIllustration,
+        avatarFrame: avatarFrame,
         actions: actions,
+      ),
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: ProfileActionSection(actions: actions),
+        ),
       ),
       SliverToBoxAdapter(
         child: _RelationshipAnnotation(relationship: relationship),

@@ -694,6 +694,12 @@ abstract class AppLocalizations {
   /// **'Edit profile'**
   String get profileEditAction;
 
+  /// Label on the secondary action in a profile card, opens the full profile page.
+  ///
+  /// In en, this message translates to:
+  /// **'Visit profile'**
+  String get profileVisitAction;
+
   /// Tooltip on the settings icon button shown next to Edit profile on a self-profile, and on the collapsed-bar trailing action.
   ///
   /// In en, this message translates to:

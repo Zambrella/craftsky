@@ -1,3 +1,4 @@
+import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/rich_text/facet_syntax.dart';
@@ -32,7 +33,7 @@ class FacetActionHandler {
         case MentionFacetFeature():
           final handle = _visibleMentionHandle(visibleText);
           if (handle == null) return;
-          await UserProfileRoute(handle: handle).push<void>(context);
+          await showUserProfileCard(context, handleOrDid: handle);
         case LinkFacetFeature(uri: final uriText):
           final uri = normalizeExternalLinkUri(uriText);
           if (uri == null) return;

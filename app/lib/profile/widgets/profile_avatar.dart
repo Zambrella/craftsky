@@ -19,12 +19,14 @@ class ProfileAvatar extends ConsumerWidget {
     required this.seed,
     this.avatarUrl,
     this.size = ProfileAvatarSize.medium,
+    this.showShadow = true,
     super.key,
   });
 
   final String seed;
   final String? avatarUrl;
   final ProfileAvatarSize size;
+  final bool showShadow;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -52,7 +54,7 @@ class ProfileAvatar extends ConsumerWidget {
           color: theme.colorScheme.onSurface,
           width: borderWidth,
         ),
-        boxShadow: size.shadowsFrom(shadows),
+        boxShadow: showShadow ? size.shadowsFrom(shadows) : const [],
       ),
       child: ClipOval(
         child: avatarUrl == null

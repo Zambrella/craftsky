@@ -1,131 +1,209 @@
-import 'dart:ui' as ui;
+import 'dart:math' as math;
 
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
-import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:craftsky_app/profile/widgets/profile_banner.dart';
-import 'package:craftsky_app/profile/widgets/profile_banner_chip.dart';
+import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
+import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
+import 'package:craftsky_app/profile/widgets/profile_framed_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_header_background.dart';
 import 'package:craftsky_app/profile/widgets/profile_identity.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
-/// Collapsing profile header. Owns the banner, avatar, action row,
-/// banner chip, and the large display-name + `@handle` identity block
-/// — all of them live inside the [SliverAppBar]'s flexibleSpace so
-/// they fade out together as the bar collapses, leaving the back
-/// button + a faded-in compact title.
+/// Collapsing profile header styled like the compact profile card.
 ///
-/// Putting the avatar here (rather than overlapping from the next
-/// sliver) is what lets it overhang the banner cleanly: the SliverAppBar
-/// reserves an extra `avatarOverhang` of paper-coloured space below the
-/// banner, and the avatar straddles the boundary at left:16. When the
-/// bar collapses, that paper strip, the avatar, the action row, and
-/// the identity block collapse with it.
+/// The expanded state shows the themed illustration band, overlapping avatar,
+/// and centred identity. It collapses to the same compact identity and trailing
+/// action used by the rest of the app.
 class ProfileSliverAppBar extends StatelessWidget {
   const ProfileSliverAppBar({
     required this.handle,
-    required this.bannerColor,
     required this.actions,
+    this.crafts = const [],
     this.displayName,
     this.avatarUrl,
-    this.bannerUrl,
-    this.bannerChipLabel,
+    this.backgroundIllustration,
+    this.avatarFrame,
     this.onAvatarTap,
-    this.onBannerTap,
     super.key,
   });
 
   final String handle;
-  final Color bannerColor;
   final ProfileActionSet actions;
+  final List<String> crafts;
   final String? displayName;
   final String? avatarUrl;
-  final String? bannerUrl;
-  final String? bannerChipLabel;
+  final ProfileBackgroundIllustration? backgroundIllustration;
+  final ProfileAvatarFrame? avatarFrame;
   final VoidCallback? onAvatarTap;
-  final VoidCallback? onBannerTap;
 
-  static const double bannerHeight = 200;
-
-  /// How far the avatar pokes up into the banner from the boundary.
-  /// Tuned so the bottom of the avatar's circle lands flush with the
-  /// bottom of the 44px action buttons inside the paper strip — the
-  /// avatar's lower edge and the button row read as one horizontal
-  /// line. Math: avatar bottom = `(96 - overlap)` below the banner;
-  /// button bottom = `(stripHeight + 44) / 2` below the banner; they
-  /// align when `overlap = 96 - (stripHeight + 44) / 2`.
-  static const double avatarBannerOverlap = 42;
-
-  /// Height of the paper-coloured strip below the banner inside the
-  /// SliverAppBar. Hosts the avatar's bottom portion and the action
-  /// row, with a small gap between the row and the banner edge.
-  static const double paperStripHeight = 64;
-
-  /// Vertical space reserved below the avatar/action strip for the
-  /// large display-name + `@handle` identity block.
-  static const double identityHeight = 84;
-
-  static const double expandedHeight =
-      bannerHeight + paperStripHeight + identityHeight;
+  static const double backgroundHeight = 128;
+  static const double avatarTop = 66;
+  static const double identityTop = 200;
+  static const double expandedHeight = 268;
+  static const double minimumIdentityHeight = 60;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final swatches = theme.extension<BrandSwatchTheme>()!;
+    final layout = _resolveLayout(context);
     return SliverAppBar(
       pinned: true,
-      expandedHeight: expandedHeight,
-      // Paper, not banner colour, so the collapsed strip reads as
-      // continuous chrome with the rest of the page once the banner
-      // has faded out. `shape` is intentionally not overridden so the
-      // global AppBarTheme bottom rule (1.5px ink) applies and the
-      // bar separates from the meta content underneath.
+      expandedHeight: layout.expandedHeight,
       backgroundColor: swatches.paper,
       foregroundColor: theme.colorScheme.onSurface,
       surfaceTintColor: Colors.transparent,
+      shape: const Border(),
       flexibleSpace: _ProfileFlexibleSpace(
-        bannerColor: bannerColor,
-        bannerUrl: bannerUrl,
-        bannerChipLabel: bannerChipLabel,
         handle: handle,
+        crafts: crafts,
         displayName: displayName,
         avatarUrl: avatarUrl,
+        backgroundIllustration: backgroundIllustration,
+        avatarFrame: avatarFrame,
         actions: actions,
         onAvatarTap: onAvatarTap,
-        onBannerTap: onBannerTap,
+        expandedHeight: layout.expandedHeight,
+        identityHeight: layout.identityHeight,
+        craftsTop: layout.craftsTop,
       ),
     );
   }
+
+  _ProfileHeaderLayout _resolveLayout(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final availableWidth = math.max<double>(
+      1,
+      MediaQuery.sizeOf(context).width - (spacing.sp4 * 2),
+    );
+    final textScaler = MediaQuery.textScalerOf(context);
+    final direction = Directionality.of(context);
+    final name = (displayName?.isNotEmpty ?? false) ? displayName! : '@$handle';
+    final nameHeight = _measureTextHeight(
+      text: name,
+      style: theme.textTheme.headlineMedium,
+      textScaler: textScaler,
+      direction: direction,
+      maxWidth: availableWidth,
+    );
+    final handleHeight = (displayName?.isNotEmpty ?? false)
+        ? _measureTextHeight(
+            text: '@$handle',
+            style: theme.textTheme.bodyMedium,
+            textScaler: textScaler,
+            direction: direction,
+            maxWidth: availableWidth,
+          )
+        : 0.0;
+    final measuredIdentityHeight =
+        nameHeight + (handleHeight == 0 ? 0 : 2 + handleHeight);
+    final identityHeight = math.max(
+      minimumIdentityHeight,
+      measuredIdentityHeight,
+    );
+    final craftsTop = identityTop + identityHeight + spacing.sp2;
+
+    if (crafts.isEmpty) {
+      return _ProfileHeaderLayout(
+        identityHeight: identityHeight,
+        craftsTop: craftsTop,
+        expandedHeight: craftsTop,
+      );
+    }
+
+    var rowCount = 1;
+    var rowWidth = 0.0;
+    var chipHeight = 0.0;
+
+    for (final craft in crafts) {
+      final label = craft.isEmpty
+          ? craft
+          : craft[0].toUpperCase() + craft.substring(1);
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: theme.textTheme.labelMedium),
+        textDirection: direction,
+        textScaler: textScaler,
+        maxLines: 1,
+      )..layout();
+      final measuredWidth = painter.width + (spacing.sp3 * 2);
+      final width = math.min(measuredWidth, availableWidth);
+      chipHeight = math.max(chipHeight, painter.height + 12);
+
+      if (rowWidth > 0 && rowWidth + spacing.sp2 + width > availableWidth) {
+        rowCount++;
+        rowWidth = width;
+      } else {
+        rowWidth += (rowWidth == 0 ? 0 : spacing.sp2) + width;
+      }
+    }
+
+    return _ProfileHeaderLayout(
+      identityHeight: identityHeight,
+      craftsTop: craftsTop,
+      expandedHeight:
+          craftsTop +
+          (rowCount * chipHeight) +
+          ((rowCount - 1) * spacing.sp2) +
+          spacing.sp3,
+    );
+  }
+
+  double _measureTextHeight({
+    required String text,
+    required TextStyle? style,
+    required TextScaler textScaler,
+    required TextDirection direction,
+    required double maxWidth,
+  }) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: direction,
+      textScaler: textScaler,
+    )..layout(maxWidth: maxWidth);
+    return painter.height;
+  }
+}
+
+class _ProfileHeaderLayout {
+  const _ProfileHeaderLayout({
+    required this.identityHeight,
+    required this.craftsTop,
+    required this.expandedHeight,
+  });
+
+  final double identityHeight;
+  final double craftsTop;
+  final double expandedHeight;
 }
 
 class _ProfileFlexibleSpace extends StatelessWidget {
   const _ProfileFlexibleSpace({
-    required this.bannerColor,
-    required this.bannerUrl,
-    required this.bannerChipLabel,
     required this.handle,
+    required this.crafts,
     required this.displayName,
     required this.avatarUrl,
+    required this.backgroundIllustration,
+    required this.avatarFrame,
     required this.actions,
     required this.onAvatarTap,
-    required this.onBannerTap,
+    required this.expandedHeight,
+    required this.identityHeight,
+    required this.craftsTop,
   });
 
-  final Color bannerColor;
-  final String? bannerUrl;
-  final String? bannerChipLabel;
   final String handle;
+  final List<String> crafts;
   final String? displayName;
   final String? avatarUrl;
+  final ProfileBackgroundIllustration? backgroundIllustration;
+  final ProfileAvatarFrame? avatarFrame;
   final ProfileActionSet actions;
   final VoidCallback? onAvatarTap;
-  final VoidCallback? onBannerTap;
-
-  /// Reserved horizontal space for the avatar plus a 12px gap, so the
-  /// action row sits cleanly to its right. Kept as a literal because
-  /// enum-field access isn't const-evaluable; equals
-  /// `ProfileAvatarSize.large.dimension + 12`.
-  static const double _avatarLaneWidth = 96 + 12;
+  final double expandedHeight;
+  final double identityHeight;
+  final double craftsTop;
 
   @override
   Widget build(BuildContext context) {
@@ -135,142 +213,80 @@ class _ProfileFlexibleSpace extends StatelessWidget {
     final settings = context
         .dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
     final topPadding = MediaQuery.paddingOf(context).top;
-    final maxExtent = settings?.maxExtent ?? ProfileSliverAppBar.expandedHeight;
+    final maxExtent = settings?.maxExtent ?? expandedHeight;
     final minExtent = settings?.minExtent ?? (kToolbarHeight + topPadding);
     final currentExtent = settings?.currentExtent ?? maxExtent;
-
     final range = (maxExtent - minExtent).abs();
     final collapsed = range == 0
         ? 0.0
         : ((maxExtent - currentExtent) / range).clamp(0.0, 1.0);
-
-    final bannerVisualBottom = topPadding + ProfileSliverAppBar.bannerHeight;
     final seed = (displayName?.isNotEmpty ?? false) ? displayName! : handle;
-    final banner = _tappableIfAvailable(
-      key: const Key('profile-banner-viewer-target'),
-      imageUrl: bannerUrl,
-      onTap: onBannerTap,
-      child: ProfileBanner(
-        color: bannerColor,
-        bannerUrl: bannerUrl,
-        height: bannerVisualBottom,
-      ),
-    );
-    final avatar = _tappableIfAvailable(
-      key: const Key('profile-avatar-viewer-target'),
-      imageUrl: avatarUrl,
-      onTap: onAvatarTap,
-      child: ProfileAvatar(
-        seed: seed,
-        avatarUrl: avatarUrl,
-        size: ProfileAvatarSize.large,
-      ),
+    final avatar = ProfileFramedAvatar(
+      seed: seed,
+      avatarUrl: avatarUrl,
+      frame: avatarFrame,
+      rimColor: theme.scaffoldBackgroundColor,
     );
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Paper strip below the banner. Painted as a full-bleed layer
-        // so anything that scrolls into the strip during collapse meets
-        // a paper background, not banner colour.
         ColoredBox(color: swatches.paper),
-        // Banner — extends behind status bar so the colour reaches the
-        // very top of the screen. Blurs and fades on collapse so the
-        // bar's resting state is clean paper, not a stale strip of
-        // banner. `TileMode.clamp` keeps the blur from sampling
-        // outside the banner's bounds, which would otherwise pull the
-        // paper background in around the edges.
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          height: bannerVisualBottom,
+        IgnorePointer(
+          ignoring: collapsed > 0.5,
           child: Opacity(
             opacity: 1 - collapsed,
-            // The blur kernel extends outside the banner's box, which
-            // visually grows the image as collapse progresses and lets
-            // it overlap the action row below. ClipRect bounds the
-            // filtered output back to the banner area.
-            child: IgnorePointer(
-              ignoring: collapsed > 0.5,
-              child: ClipRect(
-                child: ImageFiltered(
-                  imageFilter: ui.ImageFilter.blur(
-                    sigmaX: collapsed * 12,
-                    sigmaY: collapsed * 12,
-                    tileMode: ui.TileMode.clamp,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: topPadding + ProfileSliverAppBar.backgroundHeight,
+                  child: ProfileHeaderBackground(
+                    illustration: backgroundIllustration,
                   ),
-                  child: banner,
                 ),
-              ),
+                Positioned(
+                  top: topPadding + ProfileSliverAppBar.avatarTop,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: _tappableAvatar(
+                      avatarUrl: avatarUrl,
+                      onTap: onAvatarTap,
+                      child: avatar,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: topPadding + ProfileSliverAppBar.identityTop,
+                  left: spacing.sp4,
+                  right: spacing.sp4,
+                  height: identityHeight,
+                  child: Center(
+                    child: ProfileIdentity(
+                      handle: handle,
+                      displayName: displayName,
+                      centered: true,
+                    ),
+                  ),
+                ),
+                if (crafts.isNotEmpty)
+                  Positioned(
+                    top: topPadding + craftsTop,
+                    left: spacing.sp4,
+                    right: spacing.sp4,
+                    child: ProfileCraftChips(
+                      crafts: crafts,
+                      alignment: WrapAlignment.center,
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
-        if (bannerChipLabel != null)
-          Positioned(
-            top: topPadding + spacing.sp2,
-            right: spacing.sp4,
-            child: Opacity(
-              opacity: 1 - collapsed,
-              child: ProfileBannerChip(label: bannerChipLabel!),
-            ),
-          ),
-        // Avatar — straddles banner / paper strip at left:16. Most of
-        // it sits in the paper strip; only `avatarBannerOverlap`
-        // pokes up into the banner.
-        Positioned(
-          left: spacing.sp4,
-          top: bannerVisualBottom - ProfileSliverAppBar.avatarBannerOverlap,
-          child: IgnorePointer(
-            ignoring: collapsed > 0.5,
-            child: Opacity(
-              opacity: 1 - collapsed,
-              child: avatar,
-            ),
-          ),
-        ),
-        // Action row — fills the paper strip to the right of the
-        // avatar. Right-aligned via [Align] so a content-sized group
-        // (e.g. self profile's Edit + cog) sits flush with the right
-        // edge while a stretching group (visitor's Follow + share)
-        // still spans the full lane.
-        Positioned(
-          left: spacing.sp4 + _avatarLaneWidth,
-          right: spacing.sp4,
-          top: bannerVisualBottom,
-          height: ProfileSliverAppBar.paperStripHeight,
-          child: IgnorePointer(
-            ignoring: collapsed > 0.5,
-            child: Opacity(
-              opacity: 1 - collapsed,
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: ProfileActions(actions: actions),
-              ),
-            ),
-          ),
-        ),
-        // Display-name + `@handle` identity block. Sits below the
-        // avatar/action strip and fades with the bar so the collapsed
-        // toolbar carries only the compact title variant.
-        Positioned(
-          left: spacing.sp4,
-          right: spacing.sp4,
-          top: bannerVisualBottom + ProfileSliverAppBar.paperStripHeight,
-          height: ProfileSliverAppBar.identityHeight,
-          child: Opacity(
-            opacity: 1 - collapsed,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: ProfileIdentity(
-                handle: handle,
-                displayName: displayName,
-              ),
-            ),
-          ),
-        ),
-        // Collapsed-state title. Fades in over the toolbar strip as the
-        // bar reaches its minimum extent.
         Positioned(
           left: 56,
           right: 56,
@@ -281,10 +297,6 @@ class _ProfileFlexibleSpace extends StatelessWidget {
             child: _CollapsedTitle(handle: handle, displayName: displayName),
           ),
         ),
-        // Collapsed-state trailing action (settings cog for self,
-        // share for visitor). Fades in alongside the compact title
-        // and is ignored for hit-testing while the bar is expanded so
-        // taps land on the full Edit/Follow row instead.
         Positioned(
           right: 4,
           top: topPadding,
@@ -298,19 +310,31 @@ class _ProfileFlexibleSpace extends StatelessWidget {
             ),
           ),
         ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Opacity(
+            key: const Key('profile-sliver-divider'),
+            opacity: collapsed,
+            child: ColoredBox(
+              color: theme.colorScheme.onSurface,
+              child: const SizedBox(height: 1.5),
+            ),
+          ),
+        ),
       ],
     );
   }
 
-  Widget _tappableIfAvailable({
-    required Key key,
-    required String? imageUrl,
+  Widget _tappableAvatar({
+    required String? avatarUrl,
     required VoidCallback? onTap,
     required Widget child,
   }) {
-    if (imageUrl == null || onTap == null) return child;
+    if (avatarUrl == null || onTap == null) return child;
     return GestureDetector(
-      key: key,
+      key: const Key('profile-avatar-viewer-target'),
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: child,
@@ -318,10 +342,6 @@ class _ProfileFlexibleSpace extends StatelessWidget {
   }
 }
 
-/// Single icon button that surfaces the most useful action for the
-/// collapsed bar — settings on a self profile, mute on a visitor
-/// profile. Pulls the callback out of the [ProfileActionSet] so the
-/// page only has to wire one action set, not two.
 class _CollapsedTrailingAction extends StatelessWidget {
   const _CollapsedTrailingAction({required this.actions});
 
@@ -386,8 +406,6 @@ class _CollapsedTitle extends StatelessWidget {
           if (showSubtitle)
             Text(
               '@$handle',
-              // `onSurfaceVariant` carries the brand's ink2 (secondary
-              // text) per the ColorScheme override in app_theme.dart.
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

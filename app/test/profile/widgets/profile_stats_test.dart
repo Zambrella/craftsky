@@ -52,6 +52,9 @@ void main() {
       expect(find.text('following'), findsNothing);
       expect(find.text('9'), findsNothing);
       expect(find.text('7'), findsNothing);
+      expect(find.byIcon(Icons.calendar_today_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
     });
 
     testWidgets('hides account age for non-CraftSky profiles', (tester) async {
