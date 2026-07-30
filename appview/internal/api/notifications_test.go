@@ -200,6 +200,7 @@ func TestNotificationsHandler_IgnoresUnknownParamsUsesLimitsAndSessionViewer(t *
 func TestNotificationsHandler_ReturnsCamelCaseNotificationPage(t *testing.T) {
 	savedFolderID := "00000000-0000-4000-8000-000000000001"
 	subject := testPostRow("did:plc:viewer", "root", "viewer post", time.Date(2026, 5, 28, 17, 0, 0, 0, time.UTC))
+	subject.Langs = []string{"fr-CA"}
 	store := &fakeNotificationStore{handles: map[string]syntax.Handle{
 		"did:plc:alice": "alice.example", "did:plc:viewer": "viewer.example",
 	}, engagement: map[string]api.EngagementSummary{
@@ -246,6 +247,9 @@ func TestNotificationsHandler_ReturnsCamelCaseNotificationPage(t *testing.T) {
 	}
 	if !item.SubjectPost.ViewerHasSaved || item.SubjectPost.ViewerSavedFolderID == nil || *item.SubjectPost.ViewerSavedFolderID != savedFolderID {
 		t.Fatalf("notification subject saved state = %+v", item.SubjectPost)
+	}
+	if len(item.SubjectPost.Langs) != 1 || item.SubjectPost.Langs[0] != "fr-CA" {
+		t.Fatalf("IT-021 notification subject langs = %v", item.SubjectPost.Langs)
 	}
 	var body struct {
 		Items []map[string]json.RawMessage `json:"items"`

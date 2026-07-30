@@ -43,6 +43,7 @@ type PostRow struct {
 	QuoteURI             *string
 	QuoteCID             *string
 	Tags                 []string
+	Langs                []string
 	CreatedAt            time.Time
 	IndexedAt            time.Time
 	ExternalImportSource *string
@@ -555,7 +556,7 @@ func (s *PostStore) BlockedPairs(ctx context.Context, pairs []RelationshipPair) 
 const postSelectColumns = `
 	p.uri, p.did, p.rkey, p.cid, p.text, p.facets, p.images,
 	p.reply_root_uri, p.reply_root_cid, p.reply_parent_uri, p.reply_parent_cid,
-	p.quote_uri, p.quote_cid, p.tags, p.created_at, p.indexed_at,
+	p.quote_uri, p.quote_cid, p.tags, p.langs, p.created_at, p.indexed_at,
 	p.external_import_source, p.profile_sort_at,
 	p.is_project, p.project_craft_type, pp.raw_project,
 	bp.display_name, bp.avatar_cid, bp.avatar_mime,
@@ -686,7 +687,7 @@ func scanPostRow(scanner pgx.Row) (*PostRow, error) {
 	err := scanner.Scan(
 		&out.URI, &out.DID, &out.Rkey, &out.CID, &out.Text, &out.Facets, &out.Images,
 		&out.ReplyRootURI, &out.ReplyRootCID, &out.ReplyParentURI, &out.ReplyParentCID,
-		&out.QuoteURI, &out.QuoteCID, &out.Tags, &out.CreatedAt, &out.IndexedAt,
+		&out.QuoteURI, &out.QuoteCID, &out.Tags, &out.Langs, &out.CreatedAt, &out.IndexedAt,
 		&out.ExternalImportSource, &out.ProfileSortAt,
 		&out.IsProject, &out.ProjectCraftType, &rawProject,
 		&out.AuthorDisplayName, &out.AuthorAvatarCID, &out.AuthorAvatarMime,
@@ -758,6 +759,20 @@ func (s *PostStore) ReadOne(ctx context.Context, did, rkey string) (*PostRow, er
 // Returns the encoded next-page cursor when the result is full; empty
 // string when this is the final page.
 func (s *PostStore) ListByAuthor(ctx context.Context, did string, limit int, cursor string) ([]*PostRow, string, error) {
+	return s.ListByAuthorWithLanguages(ctx, "", did, []string{}, limit, cursor)
+}
+
+func (s *PostStore) ListByAuthorWithLanguages(
+	ctx context.Context,
+	viewerDID string,
+	authorDID string,
+	contentLanguages []string,
+	limit int,
+	cursor string,
+) ([]*PostRow, string, error) {
+	if contentLanguages == nil {
+		contentLanguages = []string{}
+	}
 	curProfileSortAt, curURI, err := decodeSeekCursor(cursor, "indexedAt")
 	if err != nil {
 		return nil, "", err
@@ -773,14 +788,15 @@ func (s *PostStore) ListByAuthor(ctx context.Context, did string, limit int, cur
 		  AND p.reply_root_uri IS NULL
 		  AND p.reply_parent_uri IS NULL
 		` + postVisibleModerationPredicate + `
+		` + languageVisibilityPredicate("p", "$5", "$6") + `
 		  AND ($2::timestamptz IS NULL
 		       OR (p.profile_sort_at, p.uri) < ($2::timestamptz, $3::text))
 		ORDER BY p.profile_sort_at DESC, p.uri DESC
 		LIMIT $4
 	`
-	rows, err := s.pool.Query(ctx, q, did, curProfileSortAt, curURI, limit)
+	rows, err := s.pool.Query(ctx, q, authorDID, curProfileSortAt, curURI, limit, viewerDID, contentLanguages)
 	if err != nil {
-		return nil, "", fmt.Errorf("post list %s: %w", did, err)
+		return nil, "", fmt.Errorf("post list %s: %w", authorDID, err)
 	}
 	defer rows.Close()
 
@@ -813,6 +829,20 @@ func (s *PostStore) ListByAuthor(ctx context.Context, did string, limit int, cur
 // ListProjectsByAuthor returns root project posts authored by did, ordered by
 // (profile_sort_at DESC, uri DESC), starting after the cursor if non-empty.
 func (s *PostStore) ListProjectsByAuthor(ctx context.Context, did string, limit int, cursor string) ([]*PostRow, string, error) {
+	return s.ListProjectsByAuthorWithLanguages(ctx, "", did, []string{}, limit, cursor)
+}
+
+func (s *PostStore) ListProjectsByAuthorWithLanguages(
+	ctx context.Context,
+	viewerDID string,
+	authorDID string,
+	contentLanguages []string,
+	limit int,
+	cursor string,
+) ([]*PostRow, string, error) {
+	if contentLanguages == nil {
+		contentLanguages = []string{}
+	}
 	curProfileSortAt, curURI, err := decodeSeekCursor(cursor, "indexedAt")
 	if err != nil {
 		return nil, "", err
@@ -829,14 +859,15 @@ func (s *PostStore) ListProjectsByAuthor(ctx context.Context, did string, limit 
 		  AND p.reply_parent_uri IS NULL
 		  AND p.quote_uri IS NULL
 		` + postVisibleModerationPredicate + `
+		` + languageVisibilityPredicate("p", "$5", "$6") + `
 		  AND ($2::timestamptz IS NULL
 		       OR (p.profile_sort_at, p.uri) < ($2::timestamptz, $3::text))
 		ORDER BY p.profile_sort_at DESC, p.uri DESC
 		LIMIT $4
 	`
-	rows, err := s.pool.Query(ctx, q, did, curProfileSortAt, curURI, limit)
+	rows, err := s.pool.Query(ctx, q, authorDID, curProfileSortAt, curURI, limit, viewerDID, contentLanguages)
 	if err != nil {
-		return nil, "", fmt.Errorf("project list %s: %w", did, err)
+		return nil, "", fmt.Errorf("project list %s: %w", authorDID, err)
 	}
 	defer rows.Close()
 
@@ -868,6 +899,20 @@ func (s *PostStore) ListProjectsByAuthor(ctx context.Context, did string, limit 
 // ListCommentsByAuthor returns authored comments and nested replies, ordered by
 // (profile_sort_at DESC, uri DESC), starting after the cursor if non-empty.
 func (s *PostStore) ListCommentsByAuthor(ctx context.Context, did string, limit int, cursor string) ([]*PostRow, string, error) {
+	return s.ListCommentsByAuthorWithLanguages(ctx, "", did, []string{}, limit, cursor)
+}
+
+func (s *PostStore) ListCommentsByAuthorWithLanguages(
+	ctx context.Context,
+	viewerDID string,
+	authorDID string,
+	contentLanguages []string,
+	limit int,
+	cursor string,
+) ([]*PostRow, string, error) {
+	if contentLanguages == nil {
+		contentLanguages = []string{}
+	}
 	curProfileSortAt, curURI, err := decodeSeekCursor(cursor, "indexedAt")
 	if err != nil {
 		return nil, "", err
@@ -882,14 +927,15 @@ func (s *PostStore) ListCommentsByAuthor(ctx context.Context, did string, limit 
 		  AND p.reply_root_uri IS NOT NULL
 		  AND p.reply_parent_uri IS NOT NULL
 		` + postVisibleModerationPredicate + `
+		` + languageVisibilityPredicate("p", "$5", "$6") + `
 		  AND ($2::timestamptz IS NULL
 		       OR (p.profile_sort_at, p.uri) < ($2::timestamptz, $3::text))
 		ORDER BY p.profile_sort_at DESC, p.uri DESC
 		LIMIT $4
 	`
-	rows, err := s.pool.Query(ctx, q, did, curProfileSortAt, curURI, limit)
+	rows, err := s.pool.Query(ctx, q, authorDID, curProfileSortAt, curURI, limit, viewerDID, contentLanguages)
 	if err != nil {
-		return nil, "", fmt.Errorf("comment list author %s: %w", did, err)
+		return nil, "", fmt.Errorf("comment list author %s: %w", authorDID, err)
 	}
 	defer rows.Close()
 

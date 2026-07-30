@@ -17,6 +17,7 @@ abstract interface class PostRepository {
   /// the PDS write response.
   Future<Post> create({
     required String text,
+    required List<String> langs,
     PostReply? reply,
     PostRef? quote,
     Project? project,

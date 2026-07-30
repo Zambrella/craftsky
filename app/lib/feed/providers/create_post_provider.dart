@@ -35,6 +35,7 @@ class CreatePost extends _$CreatePost {
 
   Future<void> create({
     required String text,
+    required List<String> langs,
     PostReply? reply,
     PostRef? quote,
     Project? project,
@@ -59,6 +60,7 @@ class CreatePost extends _$CreatePost {
       );
       final created = await repo.create(
         text: text,
+        langs: langs,
         reply: reply,
         quote: quote,
         project: project,
@@ -74,6 +76,9 @@ class CreatePost extends _$CreatePost {
       }
       if (project != null && post.project == null) {
         post = post.copyWith(project: project);
+      }
+      if (post.langs.isEmpty) {
+        post = post.copyWith(langs: langs);
       }
       if (!isActiveAccountOperationCurrent(ref, ownership)) return null;
 

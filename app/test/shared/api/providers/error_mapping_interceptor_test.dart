@@ -83,6 +83,29 @@ void main() {
       expect(error?.message, isNot(contains('did:plc:alice')));
     });
 
+    test('UT-014 redacts complete language preference values', () {
+      const ErrorMappingInterceptor().onError(
+        _ex(
+          status: 500,
+          data: <String, dynamic>{
+            'error': 'internal_error',
+            'message': 'failed primaryLanguage=fr contentLanguages=[fr,en,cy]',
+            'requestId': 'req_languages',
+          },
+          path: '/v1/languages/preferences',
+        ),
+        handler,
+      );
+
+      final error = handler.error as ApiServerError?;
+      expect(
+        error?.details.endpointCategory,
+        'appview.languages.preferences',
+      );
+      expect(error.toString(), isNot(contains('primaryLanguage')));
+      expect(error.toString(), isNot(contains('[fr,en,cy]')));
+    });
+
     test('normalizes dynamic endpoint paths to allowlisted categories', () {
       final cases = <({String path, String category})>[
         (
@@ -124,6 +147,10 @@ void main() {
         (
           path: '/v1/saved-post-folders/folder-secret',
           category: 'appview.saved_post_folders.detail',
+        ),
+        (
+          path: '/v1/languages/preferences/initialize',
+          category: 'appview.languages.preferences.initialize',
         ),
       ];
 

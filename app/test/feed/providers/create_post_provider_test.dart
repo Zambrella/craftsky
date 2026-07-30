@@ -65,6 +65,7 @@ TimelinePage _timelinePage(List<Post> posts, {String? cursor}) => TimelinePage(
 const _project = Project(
   common: ProjectCommon(craftType: 'social.craftsky.feed.defs#embroidery'),
 );
+const _langs = ['en'];
 
 void main() {
   setUpAll(initializeMappers);
@@ -93,10 +94,29 @@ void main() {
       final transitions = <AsyncValue<Post?>>[];
       container.listen(createPostProvider, (_, next) => transitions.add(next));
 
-      await container.read(createPostProvider.notifier).create(text: 'hi');
+      await container
+          .read(createPostProvider.notifier)
+          .create(text: 'hi', langs: _langs);
 
       expect(transitions.first, isA<AsyncLoading<Post?>>());
       expect(transitions.last.value?.rkey, 'new');
+    });
+
+    test('UT-016 forwards the selected languages unchanged', () async {
+      final fake = FakePostRepository(
+        onCreate: ({required text, reply, images}) async => _post(rkey: 'new'),
+      );
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+      const selected = ['fr', 'en-GB', 'cy'];
+
+      await container
+          .read(createPostProvider.notifier)
+          .create(text: 'bonjour', langs: selected);
+
+      expect(fake.lastCreateLangs, selected);
+      expect(container.read(createPostProvider).value?.langs, selected);
     });
 
     test('IT-003 passes facets to the post repository', () async {
@@ -124,6 +144,7 @@ void main() {
           .read(createPostProvider.notifier)
           .create(
             text: '#Mending',
+            langs: _langs,
             facets: facets,
           );
 
@@ -147,6 +168,7 @@ void main() {
           .read(createPostProvider.notifier)
           .create(
             text: 'hi',
+            langs: _langs,
             reply: PostReply(
               root: PostRef(uri: target.uri, cid: target.cid),
               parent: PostRef(uri: target.uri, cid: target.cid),
@@ -189,6 +211,7 @@ void main() {
           .read(createPostProvider.notifier)
           .create(
             text: 'hi',
+            langs: _langs,
             reply: PostReply(
               root: target.reply!.root,
               parent: PostRef(uri: target.uri, cid: target.cid),
@@ -217,7 +240,9 @@ void main() {
       await container.read(userPostsProvider('did:plc:alice').future);
       await container.read(userPostsProvider('alice.craftsky.social').future);
 
-      await container.read(createPostProvider.notifier).create(text: 'hi');
+      await container
+          .read(createPostProvider.notifier)
+          .create(text: 'hi', langs: _langs);
 
       final didEntry = container
           .read(userPostsProvider('did:plc:alice'))
@@ -242,7 +267,9 @@ void main() {
         overrides: [postRepositoryProvider.overrideWithValue(fake)],
       );
 
-      await container.read(createPostProvider.notifier).create(text: 'hi');
+      await container
+          .read(createPostProvider.notifier)
+          .create(text: 'hi', langs: _langs);
 
       expect(
         calls,
@@ -265,7 +292,9 @@ void main() {
 
       await container.read(timelineProvider.future);
 
-      await container.read(createPostProvider.notifier).create(text: 'hi');
+      await container
+          .read(createPostProvider.notifier)
+          .create(text: 'hi', langs: _langs);
 
       final timeline = container.read(timelineProvider).value!;
       expect(timeline.items.map((item) => item.post.rkey), ['new', 'old']);
@@ -292,7 +321,7 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'quote commentary', quote: quote);
+          .create(text: 'quote commentary', langs: _langs, quote: quote);
 
       expect(fake.lastCreateQuote?.uri, quote.uri);
       expect(fake.lastCreateQuote?.cid, quote.cid);
@@ -342,7 +371,7 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'reply', reply: replyRef);
+          .create(text: 'reply', langs: _langs, reply: replyRef);
 
       final timeline = container.read(timelineProvider).value!;
       expect(timeline.items.map((item) => item.post.rkey), ['target']);
@@ -356,7 +385,9 @@ void main() {
         overrides: [postRepositoryProvider.overrideWithValue(fake)],
       );
 
-      await container.read(createPostProvider.notifier).create(text: 'hi');
+      await container
+          .read(createPostProvider.notifier)
+          .create(text: 'hi', langs: _langs);
       expect(container.read(createPostProvider).value?.rkey, 'new');
 
       container.read(createPostProvider.notifier).reset();
@@ -376,7 +407,9 @@ void main() {
 
       await container.read(userPostsProvider('did:plc:alice').future);
 
-      await container.read(createPostProvider.notifier).create(text: 'hi');
+      await container
+          .read(createPostProvider.notifier)
+          .create(text: 'hi', langs: _langs);
 
       expect(container.read(createPostProvider).hasError, isTrue);
       final list = container.read(userPostsProvider('did:plc:alice')).value!;
@@ -405,7 +438,12 @@ void main() {
 
         await container
             .read(createPostProvider.notifier)
-            .create(text: 'invalid', project: _project, reply: reply);
+            .create(
+              text: 'invalid',
+              langs: _langs,
+              project: _project,
+              reply: reply,
+            );
 
         expect(container.read(createPostProvider).hasError, isTrue);
         expect(calls, 0);
@@ -440,7 +478,7 @@ void main() {
 
         await container
             .read(createPostProvider.notifier)
-            .create(text: 'project', project: _project);
+            .create(text: 'project', langs: _langs, project: _project);
 
         expect(
           container
@@ -517,7 +555,7 @@ void main() {
 
         await container
             .read(createPostProvider.notifier)
-            .create(text: 'project', project: _project);
+            .create(text: 'project', langs: _langs, project: _project);
 
         expect(container.read(createPostProvider).value?.project, _project);
         expect(

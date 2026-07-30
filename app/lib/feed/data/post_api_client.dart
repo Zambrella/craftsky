@@ -44,6 +44,7 @@ class PostApiClient {
   /// up yet by the time this returns.
   Future<Post> createPost({
     required String text,
+    required List<String> langs,
     PostReply? reply,
     PostRef? quote,
     Project? project,
@@ -63,6 +64,7 @@ class PostApiClient {
       '/v1/posts',
       data: {
         'text': text,
+        'langs': langs,
         'project': ?project?.toCreateMap(),
         'reply': ?reply?.toMap(),
         'embed': ?quote == null ? null : {'quote': quote.toMap()},

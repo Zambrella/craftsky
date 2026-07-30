@@ -112,10 +112,12 @@ class FakePostRepository implements PostRepository {
   onListCommentsByAuthor;
 
   PostRef? lastCreateQuote;
+  List<String>? lastCreateLangs;
 
   @override
   Future<Post> create({
     required String text,
+    required List<String> langs,
     PostReply? reply,
     PostRef? quote,
     Project? project,
@@ -123,6 +125,7 @@ class FakePostRepository implements PostRepository {
     List<Map<String, dynamic>>? facets,
   }) {
     lastCreateQuote = quote;
+    lastCreateLangs = List.unmodifiable(langs);
     return onCreateWithFacets?.call(
           text: text,
           reply: reply,

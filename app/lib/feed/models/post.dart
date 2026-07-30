@@ -44,6 +44,7 @@ class Post with PostMappable {
     required this.viewerHasLiked,
     required this.viewerHasReposted,
     required this.viewerHasSaved,
+    this.langs = const [],
     this.quoteCount = 0,
     this.viewerHasReplied = false,
     this.viewerSavedFolderId,
@@ -67,6 +68,7 @@ class Post with PostMappable {
   final String text;
   final List<Map<String, dynamic>>? facets;
   final List<String> tags;
+  final List<String> langs;
   final PostReply? reply;
   final PostRef? quote;
   final QuoteView? quoteView;
@@ -111,16 +113,21 @@ class PostWireHook extends MappingHook {
   @override
   Object? beforeDecode(Object? value) {
     if (value is! Map<String, dynamic>) return value;
-    if (value.containsKey('viewerHasSaved') &&
-        value['viewerHasSaved'] is! bool) {
+    final normalized = value['langs'] == null
+        ? <String, dynamic>{...value, 'langs': <String>[]}
+        : value;
+    if (normalized.containsKey('viewerHasSaved') &&
+        normalized['viewerHasSaved'] is! bool) {
       throw const FormatException('viewerHasSaved must be a boolean');
     }
-    if (value['viewerSavedFolderId'] != null &&
-        value['viewerSavedFolderId'] is! String) {
+    if (normalized['viewerSavedFolderId'] != null &&
+        normalized['viewerSavedFolderId'] is! String) {
       throw const FormatException('viewerSavedFolderId must be a string');
     }
-    final availability = value['availability'];
-    if (availability != 'muted' && availability != 'blocked') return value;
+    final availability = normalized['availability'];
+    if (availability != 'muted' && availability != 'blocked') {
+      return normalized;
+    }
     return <String, dynamic>{
       'uri':
           value['uri'] ??
@@ -129,6 +136,7 @@ class PostWireHook extends MappingHook {
       'rkey': 'unavailable',
       'text': '',
       'tags': <String>[],
+      'langs': <String>[],
       'createdAt': '1970-01-01T00:00:00.000Z',
       'indexedAt': '1970-01-01T00:00:00.000Z',
       'author': const {
@@ -144,7 +152,7 @@ class PostWireHook extends MappingHook {
       'viewerHasReplied': false,
       'viewerHasSaved': false,
       'viewerSavedFolderId': null,
-      ...value,
+      ...normalized,
     };
   }
 }

@@ -2,6 +2,7 @@ import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/user_posts_state.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_comments_provider.g.dart';
@@ -15,6 +16,7 @@ class UserComments extends _$UserComments {
 
   @override
   Future<UserPostsState> build(String handleOrDid) async {
+    await ref.watch(activeContentLanguagePolicyProvider.future);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listCommentsByAuthor(
       handleOrDid,

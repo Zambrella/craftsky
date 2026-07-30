@@ -89,7 +89,11 @@ func CreatePostHandler(
 		if err := ValidatePostCreateWithLimits(req, limits); err != nil {
 			fe, isFE := err.(*FieldError)
 			if isFE {
-				envelope.WriteError(w, http.StatusUnprocessableEntity,
+				status := http.StatusUnprocessableEntity
+				if _, hasLanguageError := fe.Fields["langs"]; hasLanguageError {
+					status = http.StatusBadRequest
+				}
+				envelope.WriteError(w, status,
 					fe.Code, "validation failed", runID, fe.Fields)
 				return
 			}
@@ -320,6 +324,9 @@ func lexiconRecordBody(req PostCreateRequest) map[string]any {
 	if len(req.Facets) > 0 {
 		body["facets"] = req.Facets
 	}
+	if len(req.Langs) > 0 {
+		body["langs"] = req.Langs
+	}
 	if req.Reply != nil {
 		body["reply"] = map[string]any{
 			"root":   map[string]any{"uri": req.Reply.Root.URI, "cid": req.Reply.Root.CID},
@@ -386,6 +393,7 @@ func syntheticPostRow(
 		CID:       string(cid),
 		Text:      req.Text,
 		Tags:      postutil.MergeTags(extractRequestTags(req.Text, req.Facets), requestProjectTags(req.Project)),
+		Langs:     append([]string(nil), req.Langs...),
 		CreatedAt: now,
 		IndexedAt: now,
 		Project:   req.Project,
@@ -1625,8 +1633,15 @@ func ListPostsByAuthorHandler(
 	store PostReader,
 	resolver HandleResolver,
 	logger *slog.Logger,
+	preferenceReaders ...LanguagePreferenceReader,
 ) http.Handler {
-	return listAuthorPostsHandler(store, resolver, logger, "post list", store.ListByAuthor)
+	var filtered authorLanguageList
+	if languageStore, ok := store.(interface {
+		ListByAuthorWithLanguages(context.Context, string, string, []string, int, string) ([]*PostRow, string, error)
+	}); ok {
+		filtered = languageStore.ListByAuthorWithLanguages
+	}
+	return listAuthorPostsHandler(store, resolver, logger, "post list", store.ListByAuthor, filtered, preferenceReaders)
 }
 
 // ListProjectsByAuthorHandler serves GET /v1/profiles/{handleOrDid}/projects.
@@ -1634,8 +1649,15 @@ func ListProjectsByAuthorHandler(
 	store PostReader,
 	resolver HandleResolver,
 	logger *slog.Logger,
+	preferenceReaders ...LanguagePreferenceReader,
 ) http.Handler {
-	return listAuthorPostsHandler(store, resolver, logger, "project list", store.ListProjectsByAuthor)
+	var filtered authorLanguageList
+	if languageStore, ok := store.(interface {
+		ListProjectsByAuthorWithLanguages(context.Context, string, string, []string, int, string) ([]*PostRow, string, error)
+	}); ok {
+		filtered = languageStore.ListProjectsByAuthorWithLanguages
+	}
+	return listAuthorPostsHandler(store, resolver, logger, "project list", store.ListProjectsByAuthor, filtered, preferenceReaders)
 }
 
 // ListCommentsByAuthorHandler serves GET /v1/profiles/{handleOrDid}/comments.
@@ -1643,9 +1665,18 @@ func ListCommentsByAuthorHandler(
 	store PostReader,
 	resolver HandleResolver,
 	logger *slog.Logger,
+	preferenceReaders ...LanguagePreferenceReader,
 ) http.Handler {
-	return listAuthorPostsHandler(store, resolver, logger, "comment list", store.ListCommentsByAuthor)
+	var filtered authorLanguageList
+	if languageStore, ok := store.(interface {
+		ListCommentsByAuthorWithLanguages(context.Context, string, string, []string, int, string) ([]*PostRow, string, error)
+	}); ok {
+		filtered = languageStore.ListCommentsByAuthorWithLanguages
+	}
+	return listAuthorPostsHandler(store, resolver, logger, "comment list", store.ListCommentsByAuthor, filtered, preferenceReaders)
 }
+
+type authorLanguageList func(context.Context, string, string, []string, int, string) ([]*PostRow, string, error)
 
 func listAuthorPostsHandler(
 	store PostReader,
@@ -1653,6 +1684,8 @@ func listAuthorPostsHandler(
 	logger *slog.Logger,
 	logLabel string,
 	list func(context.Context, string, int, string) ([]*PostRow, string, error),
+	filteredList authorLanguageList,
+	preferenceReaders []LanguagePreferenceReader,
 ) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
@@ -1699,7 +1732,35 @@ func listAuthorPostsHandler(
 				slog.Int("limit", limit),
 				slog.Bool("has_cursor", cursor != ""))...)
 
-		rows, nextCursor, err := list(r.Context(), did.String(), limit, cursor)
+		var rows []*PostRow
+		var nextCursor string
+		if len(preferenceReaders) == 0 {
+			rows, nextCursor, err = list(r.Context(), did.String(), limit, cursor)
+		} else {
+			contentLanguages, preferenceErr := authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
+			if preferenceErr != nil {
+				logger.Error(logLabel+": language preferences failed",
+					apiLogErrorAttrs(runID, operation, "language_preferences")...)
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "language preferences lookup failed", runID, nil)
+				return
+			}
+			if filteredList == nil {
+				logger.Error(logLabel+": language filtering unavailable",
+					apiLogErrorAttrs(runID, operation, "language_filter")...)
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "post language filtering unavailable", runID, nil)
+				return
+			}
+			rows, nextCursor, err = filteredList(
+				r.Context(),
+				viewerDID.String(),
+				did.String(),
+				contentLanguages,
+				limit,
+				cursor,
+			)
+		}
 		if err != nil {
 			if errors.Is(err, envelope.ErrInvalidCursor) {
 				envelope.WriteError(w, http.StatusBadRequest,

@@ -18,6 +18,8 @@ import 'package:craftsky_app/instagram_migration/providers/instagram_account_pro
 import 'package:craftsky_app/instagram_migration/providers/instagram_imports_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_verification_provider.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_repository_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_preferences_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
@@ -134,6 +136,10 @@ final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
       ..invalidate(notificationPreferencesProvider)
       ..invalidate(notificationSeenProvider)
       ..invalidate(notificationNewCountProvider)
+      ..invalidate(languagePreferencesRepositoryProvider)
+      ..invalidate(accountLanguagePreferencesProvider)
+      ..invalidate(activeLanguagePreferencesProvider)
+      ..invalidate(activeContentLanguagePolicyProvider)
       ..invalidate(accountSavedPostRepositoryProvider)
       ..invalidate(accountSavedPostStateProvider)
       ..invalidate(savedPostPresentationProvider)

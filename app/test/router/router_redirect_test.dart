@@ -18,6 +18,7 @@ import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
@@ -268,6 +269,9 @@ void main() {
                 onListTimeline: ({cursor, limit}) async =>
                     const TimelinePage(items: []),
               ),
+            ),
+            activeContentLanguagePolicyProvider.overrideWith(
+              (ref) => const ['en'],
             ),
             profileRepositoryProvider.overrideWithValue(
               FakeProfileRepository(

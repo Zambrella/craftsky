@@ -14,6 +14,7 @@ import '../fakes/fake_post_repository.dart';
 
 void main() {
   setUpAll(initializeMappers);
+  const langs = ['en'];
 
   Map<String, dynamic> samplePost({String text = 'hello'}) {
     return {
@@ -21,6 +22,7 @@ void main() {
       'cid': 'bafy123',
       'rkey': '3lf2abc',
       'text': text,
+      'langs': langs,
       'tags': <String>[],
       'likeCount': 0,
       'repostCount': 0,
@@ -48,12 +50,12 @@ void main() {
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(201, samplePost(text: '#Mending')),
-        data: {'text': '#Mending', 'facets': facets},
+        data: {'text': '#Mending', 'langs': langs, 'facets': facets},
       );
 
       final post = await ApiPostRepository(
         PostApiClient(dio),
-      ).create(text: '#Mending', facets: facets);
+      ).create(text: '#Mending', langs: langs, facets: facets);
 
       expect(post.text, '#Mending');
     });
@@ -76,9 +78,14 @@ void main() {
       );
 
       final asInterface = repo as PostRepository;
-      final post = await asInterface.create(text: 'project', project: project);
+      final post = await asInterface.create(
+        text: 'project',
+        langs: langs,
+        project: project,
+      );
 
       expect(capturedProject, project);
+      expect(repo.lastCreateLangs, langs);
       expect(post.project, project);
     });
 
@@ -101,9 +108,15 @@ void main() {
       );
 
       await expectLater(
-        () => ApiPostRepository(
-          PostApiClient(dio),
-        ).create(text: 'invalid', project: project, reply: reply),
+        () =>
+            ApiPostRepository(
+              PostApiClient(dio),
+            ).create(
+              text: 'invalid',
+              langs: langs,
+              project: project,
+              reply: reply,
+            ),
         throwsA(isA<AssertionError>()),
       );
     });
@@ -121,9 +134,15 @@ void main() {
       );
 
       await expectLater(
-        () => ApiPostRepository(
-          PostApiClient(dio),
-        ).create(text: 'invalid', project: project, quote: quote),
+        () =>
+            ApiPostRepository(
+              PostApiClient(dio),
+            ).create(
+              text: 'invalid',
+              langs: langs,
+              project: project,
+              quote: quote,
+            ),
         throwsA(isA<AssertionError>()),
       );
     });

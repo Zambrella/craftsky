@@ -20,6 +20,7 @@ class ApiPostRepository implements PostRepository {
   @override
   Future<Post> create({
     required String text,
+    required List<String> langs,
     PostReply? reply,
     PostRef? quote,
     Project? project,
@@ -40,6 +41,7 @@ class ApiPostRepository implements PostRepository {
     );
     return _api.createPost(
       text: text,
+      langs: langs,
       reply: reply,
       quote: quote,
       project: project,

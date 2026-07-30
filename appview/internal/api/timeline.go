@@ -13,6 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/languages"
 	"social.craftsky/appview/internal/middleware"
 )
 
@@ -21,6 +22,16 @@ type TimelineReader interface {
 	ListTimeline(ctx context.Context, viewerDID string, limit int, cursor string) ([]*TimelineFeedItemRow, string, error)
 	EngagementSummaries(ctx context.Context, viewerDID string, postURIs []string) (map[string]EngagementSummary, error)
 	QuoteViewRows(ctx context.Context, refs []ResponseStrongRef) (map[string]*QuoteViewRow, error)
+}
+
+type languageFilteredTimelineReader interface {
+	ListTimelineWithLanguages(ctx context.Context, viewerDID string, contentLanguages []string, limit int, cursor string) ([]*TimelineFeedItemRow, string, error)
+}
+
+// LanguagePreferenceReader loads the authenticated account's private,
+// authoritative content-language preferences.
+type LanguagePreferenceReader interface {
+	Get(ctx context.Context, did syntax.DID) (languages.Preferences, error)
 }
 
 // TimelinePage is the JSON list shape for GET /v1/feed/timeline.
@@ -48,7 +59,12 @@ type TimelineReasonRepost struct {
 }
 
 // ListTimelineHandler serves GET /v1/feed/timeline.
-func ListTimelineHandler(store TimelineReader, resolver HandleResolver, logger *slog.Logger) http.Handler {
+func ListTimelineHandler(
+	store TimelineReader,
+	resolver HandleResolver,
+	logger *slog.Logger,
+	preferenceReaders ...LanguagePreferenceReader,
+) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
 		viewerDID, ok := middleware.GetDID(r.Context())
@@ -60,7 +76,38 @@ func ListTimelineHandler(store TimelineReader, resolver HandleResolver, logger *
 
 		limit := parseTimelineLimit(r.URL.Query().Get("limit"))
 		cursor := r.URL.Query().Get("cursor")
-		rows, nextCursor, err := store.ListTimeline(r.Context(), viewerDID.String(), limit, cursor)
+		var (
+			rows       []*TimelineFeedItemRow
+			nextCursor string
+			err        error
+		)
+		if len(preferenceReaders) == 0 {
+			rows, nextCursor, err = store.ListTimeline(r.Context(), viewerDID.String(), limit, cursor)
+		} else {
+			contentLanguages, preferenceErr := authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
+			if preferenceErr != nil {
+				logger.Error("timeline: language preferences failed",
+					apiLogErrorAttrs(runID, "timeline.list", "language_preferences")...)
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "language preferences lookup failed", runID, nil)
+				return
+			}
+			filteredStore, ok := store.(languageFilteredTimelineReader)
+			if !ok {
+				logger.Error("timeline: language filtering unavailable",
+					apiLogErrorAttrs(runID, "timeline.list", "language_filter")...)
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "timeline language filtering unavailable", runID, nil)
+				return
+			}
+			rows, nextCursor, err = filteredStore.ListTimelineWithLanguages(
+				r.Context(),
+				viewerDID.String(),
+				contentLanguages,
+				limit,
+				cursor,
+			)
+		}
 		if err != nil {
 			if requestCanceled(r.Context(), err) {
 				return

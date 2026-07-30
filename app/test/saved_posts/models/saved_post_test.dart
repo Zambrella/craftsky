@@ -13,6 +13,7 @@ void main() {
       'rkey': '3lsaved',
       'text': 'A post worth returning to.',
       'tags': <String>[],
+      'langs': <String>[],
       'likeCount': 0,
       'repostCount': 0,
       'quoteCount': 0,

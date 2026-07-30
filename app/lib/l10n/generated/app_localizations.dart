@@ -3363,6 +3363,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete saved posts'**
   String get savedPostDeleteSaves;
+
+  /// Settings destination for App, Primary, and Content language preferences.
+  ///
+  /// In en, this message translates to:
+  /// **'Languages'**
+  String get settingsLanguages;
+
+  /// Title of the Languages settings page.
+  ///
+  /// In en, this message translates to:
+  /// **'Languages'**
+  String get languagesTitle;
+
+  /// Heading for the language used by the CraftSky interface.
+  ///
+  /// In en, this message translates to:
+  /// **'App language'**
+  String get appLanguageTitle;
+
+  /// Explanation of the App language setting.
+  ///
+  /// In en, this message translates to:
+  /// **'Select which language to use for the app\'s user interface.'**
+  String get appLanguageDescription;
+
+  /// English option in the App language setting.
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get appLanguageEnglish;
+
+  /// Explains that English is currently the only App language.
+  ///
+  /// In en, this message translates to:
+  /// **'More app languages are coming.'**
+  String get appLanguageMoreComing;
+
+  /// Heading for the default language used by new posts.
+  ///
+  /// In en, this message translates to:
+  /// **'Primary language'**
+  String get primaryLanguageTitle;
+
+  /// Explanation of the Primary language setting.
+  ///
+  /// In en, this message translates to:
+  /// **'Select the default language used when you create a post.'**
+  String get primaryLanguageDescription;
+
+  /// Heading for languages included in browsing and discovery.
+  ///
+  /// In en, this message translates to:
+  /// **'Content languages'**
+  String get contentLanguagesTitle;
+
+  /// Explanation of Content languages, including empty selection behavior.
+  ///
+  /// In en, this message translates to:
+  /// **'Select which languages you want posts in your feeds and discovery results to include. If none are selected, all languages will be shown.'**
+  String get contentLanguagesDescription;
+
+  /// Hint for finding a language in the full catalogue.
+  ///
+  /// In en, this message translates to:
+  /// **'Search languages'**
+  String get languageSearchHint;
+
+  /// Action opening the Content language selector.
+  ///
+  /// In en, this message translates to:
+  /// **'Add more languages…'**
+  String get languageAddMore;
+
+  /// Action dismissing a language selector without saving.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get languageCancel;
+
+  /// Action confirming selected Content languages.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get languageDone;
+
+  /// Safe feedback after a private language preference replacement fails.
+  ///
+  /// In en, this message translates to:
+  /// **'That change could not be saved. Try again.'**
+  String get languageSaveError;
+
+  /// Accessibility label for the post language selector.
+  ///
+  /// In en, this message translates to:
+  /// **'Post languages'**
+  String get postLanguagesSemantics;
+
+  /// Action adding another language to a post.
+  ///
+  /// In en, this message translates to:
+  /// **'Add language'**
+  String get postLanguageAdd;
+
+  /// Visible and accessible explanation when a post has the maximum three languages.
+  ///
+  /// In en, this message translates to:
+  /// **'Up to three languages'**
+  String get postLanguageLimit;
+
+  /// Title of the searchable post-language dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Add post language'**
+  String get postLanguageDialogTitle;
+
+  /// Action retrying a composer's Primary-language preference load.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry loading languages'**
+  String get postLanguageRetryLoading;
 }
 
 class _AppLocalizationsDelegate

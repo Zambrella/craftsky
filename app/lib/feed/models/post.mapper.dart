@@ -94,6 +94,13 @@ class PostMapper extends ClassMapperBase<Post> {
     'viewerHasSaved',
     _$viewerHasSaved,
   );
+  static List<String> _$langs(Post v) => v.langs;
+  static const Field<Post, List<String>> _f$langs = Field(
+    'langs',
+    _$langs,
+    opt: true,
+    def: const [],
+  );
   static int _$quoteCount(Post v) => v.quoteCount;
   static const Field<Post, int> _f$quoteCount = Field(
     'quoteCount',
@@ -191,6 +198,7 @@ class PostMapper extends ClassMapperBase<Post> {
     #viewerHasLiked: _f$viewerHasLiked,
     #viewerHasReposted: _f$viewerHasReposted,
     #viewerHasSaved: _f$viewerHasSaved,
+    #langs: _f$langs,
     #quoteCount: _f$quoteCount,
     #viewerHasReplied: _f$viewerHasReplied,
     #viewerSavedFolderId: _f$viewerSavedFolderId,
@@ -226,6 +234,7 @@ class PostMapper extends ClassMapperBase<Post> {
       viewerHasLiked: data.dec(_f$viewerHasLiked),
       viewerHasReposted: data.dec(_f$viewerHasReposted),
       viewerHasSaved: data.dec(_f$viewerHasSaved),
+      langs: data.dec(_f$langs),
       quoteCount: data.dec(_f$quoteCount),
       viewerHasReplied: data.dec(_f$viewerHasReplied),
       viewerSavedFolderId: data.dec(_f$viewerSavedFolderId),
@@ -290,6 +299,7 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get tags;
   PostAuthorCopyWith<$R, PostAuthor, PostAuthor> get author;
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get langs;
   ListCopyWith<$R, PostImage, PostImageCopyWith<$R, PostImage, PostImage>>?
   get images;
   ListCopyWith<
@@ -323,6 +333,7 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
     bool? viewerHasLiked,
     bool? viewerHasReposted,
     bool? viewerHasSaved,
+    List<String>? langs,
     int? quoteCount,
     bool? viewerHasReplied,
     String? viewerSavedFolderId,
@@ -356,6 +367,13 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
   @override
   PostAuthorCopyWith<$R, PostAuthor, PostAuthor> get author =>
       $value.author.copyWith.$chain((v) => call(author: v));
+  @override
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get langs =>
+      ListCopyWith(
+        $value.langs,
+        (v, t) => ObjectCopyWith(v, $identity, t),
+        (v) => call(langs: v),
+      );
   @override
   ListCopyWith<$R, PostImage, PostImageCopyWith<$R, PostImage, PostImage>>?
   get images => $value.images != null
@@ -418,6 +436,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     bool? viewerHasLiked,
     bool? viewerHasReposted,
     bool? viewerHasSaved,
+    List<String>? langs,
     int? quoteCount,
     bool? viewerHasReplied,
     Object? viewerSavedFolderId = $none,
@@ -447,6 +466,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       if (viewerHasLiked != null) #viewerHasLiked: viewerHasLiked,
       if (viewerHasReposted != null) #viewerHasReposted: viewerHasReposted,
       if (viewerHasSaved != null) #viewerHasSaved: viewerHasSaved,
+      if (langs != null) #langs: langs,
       if (quoteCount != null) #quoteCount: quoteCount,
       if (viewerHasReplied != null) #viewerHasReplied: viewerHasReplied,
       if (viewerSavedFolderId != $none)
@@ -482,6 +502,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       or: $value.viewerHasReposted,
     ),
     viewerHasSaved: data.get(#viewerHasSaved, or: $value.viewerHasSaved),
+    langs: data.get(#langs, or: $value.langs),
     quoteCount: data.get(#quoteCount, or: $value.quoteCount),
     viewerHasReplied: data.get(#viewerHasReplied, or: $value.viewerHasReplied),
     viewerSavedFolderId: data.get(

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -55,6 +56,7 @@ CREATE TABLE craftsky_posts (
     quote_uri        TEXT,
     quote_cid        TEXT,
     tags             TEXT[]      NOT NULL DEFAULT '{}',
+    langs            TEXT[]      NOT NULL DEFAULT '{}',
     is_project       BOOLEAN     NOT NULL DEFAULT false,
     project_craft_type TEXT,
     record           JSONB       NOT NULL,
@@ -353,6 +355,33 @@ func TestPostStore_ReadOne_HappyPath(t *testing.T) {
 	}
 }
 
+func TestPostStore_ReadOneReturnsMaterializedLanguages(t *testing.T) {
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	uri := seedPost(t, pool, "did:plc:alice", "rk1", "bonjour", time.Now())
+	if _, err := pool.Exec(
+		context.Background(),
+		`UPDATE craftsky_posts SET langs = ARRAY['en', 'fr-CA']::text[] WHERE uri = $1`,
+		uri,
+	); err != nil {
+		t.Fatalf("seed post languages: %v", err)
+	}
+
+	row, err := api.NewPostStore(pool).ReadOne(context.Background(), "did:plc:alice", "rk1")
+	if err != nil {
+		t.Fatalf("ReadOne: %v", err)
+	}
+	if len(row.Langs) != 2 || row.Langs[0] != "en" || row.Langs[1] != "fr-CA" {
+		t.Fatalf("row languages = %v", row.Langs)
+	}
+	response := api.BuildPostResponse(row, syntax.Handle("alice.example"))
+	if len(response.Langs) != 2 ||
+		response.Langs[0] != "en" ||
+		response.Langs[1] != "fr-CA" {
+		t.Fatalf("response languages = %v", response.Langs)
+	}
+}
+
 func TestPostStore_ReadOne_HydratesProjectFromMaterialization(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)
@@ -589,6 +618,140 @@ func TestPostStore_ListByAuthor_OrdersByIndexedAtDesc(t *testing.T) {
 	}
 }
 
+func TestPostStore_ListByAuthorAppliesLanguageVisibilityBeforePagination(t *testing.T) {
+	pool := testdb.WithSchema(t, postStoreDDL)
+	ctx := context.Background()
+	base := time.Date(2026, 7, 29, 17, 0, 0, 0, time.UTC)
+	english := seedPost(t, pool, "did:plc:alice", "profile-english", "English", base.Add(4*time.Minute))
+	french := seedPost(t, pool, "did:plc:alice", "profile-french", "French", base.Add(3*time.Minute))
+	multilingual := seedPost(t, pool, "did:plc:alice", "profile-multi", "Multi", base.Add(2*time.Minute))
+	untagged := seedPost(t, pool, "did:plc:alice", "profile-untagged", "Legacy", base.Add(time.Minute))
+	if _, err := pool.Exec(ctx, `
+		UPDATE craftsky_posts
+		SET langs = CASE uri
+			WHEN $1 THEN ARRAY['en']::text[]
+			WHEN $2 THEN ARRAY['fr']::text[]
+			WHEN $3 THEN ARRAY['en', 'fr']::text[]
+			ELSE langs
+		END
+		WHERE uri IN ($1, $2, $3)
+	`, english, french, multilingual); err != nil {
+		t.Fatalf("seed languages: %v", err)
+	}
+
+	store := api.NewPostStore(pool)
+	rows, cursor, err := store.ListByAuthorWithLanguages(
+		ctx,
+		"did:plc:viewer",
+		"did:plc:alice",
+		[]string{"en"},
+		2,
+		"",
+	)
+	if err != nil {
+		t.Fatalf("ListByAuthorWithLanguages: %v", err)
+	}
+	if got, want := postRowURIs(rows), []string{english, multilingual}; !slices.Equal(got, want) || cursor == "" {
+		t.Fatalf("rows = %v cursor=%q, want %v and cursor", got, cursor, want)
+	}
+	if slices.Contains(postRowURIs(rows), french) || slices.Contains(postRowURIs(rows), untagged) {
+		t.Fatal("profile posts leaked mismatched or untagged content")
+	}
+
+	ownRows, _, err := store.ListByAuthorWithLanguages(
+		ctx,
+		"did:plc:alice",
+		"did:plc:alice",
+		[]string{"cy"},
+		10,
+		"",
+	)
+	if err != nil {
+		t.Fatalf("own ListByAuthorWithLanguages: %v", err)
+	}
+	if got, want := postRowURIs(ownRows), []string{english, french, multilingual, untagged}; !slices.Equal(got, want) {
+		t.Fatalf("own rows = %v, want %v", got, want)
+	}
+}
+
+func TestPostStore_ListProjectsByAuthorAppliesLanguageVisibility(t *testing.T) {
+	pool := testdb.WithSchema(t, postStoreDDL)
+	ctx := context.Background()
+	base := time.Date(2026, 7, 29, 18, 0, 0, 0, time.UTC)
+	english := seedPost(t, pool, "did:plc:alice", "project-profile-en", "English", base.Add(3*time.Minute))
+	french := seedPost(t, pool, "did:plc:alice", "project-profile-fr", "French", base.Add(2*time.Minute))
+	ownFrench := seedPost(t, pool, "did:plc:viewer", "project-profile-own", "Mine", base.Add(time.Minute))
+	for _, uri := range []string{english, french, ownFrench} {
+		seedProjectMaterialization(t, pool, uri, "social.craftsky.feed.defs#knitting", "Project")
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE craftsky_posts
+		SET langs = CASE uri
+			WHEN $1 THEN ARRAY['en']::text[]
+			WHEN $2 THEN ARRAY['fr']::text[]
+			WHEN $3 THEN ARRAY['fr']::text[]
+			ELSE langs
+		END
+		WHERE uri IN ($1, $2, $3)
+	`, english, french, ownFrench); err != nil {
+		t.Fatalf("seed languages: %v", err)
+	}
+
+	store := api.NewPostStore(pool)
+	rows, _, err := store.ListProjectsByAuthorWithLanguages(ctx, "did:plc:viewer", "did:plc:alice", []string{"en"}, 10, "")
+	if err != nil {
+		t.Fatalf("ListProjectsByAuthorWithLanguages: %v", err)
+	}
+	if got, want := postRowURIs(rows), []string{english}; !slices.Equal(got, want) {
+		t.Fatalf("rows = %v, want %v", got, want)
+	}
+	ownRows, _, err := store.ListProjectsByAuthorWithLanguages(ctx, "did:plc:viewer", "did:plc:viewer", []string{"en"}, 10, "")
+	if err != nil {
+		t.Fatalf("own ListProjectsByAuthorWithLanguages: %v", err)
+	}
+	if got, want := postRowURIs(ownRows), []string{ownFrench}; !slices.Equal(got, want) {
+		t.Fatalf("own rows = %v, want %v", got, want)
+	}
+}
+
+func TestPostStore_ListCommentsByAuthorAppliesLanguageVisibility(t *testing.T) {
+	pool := testdb.WithSchema(t, postStoreDDL)
+	ctx := context.Background()
+	base := time.Date(2026, 7, 29, 19, 0, 0, 0, time.UTC)
+	root := seedPost(t, pool, "did:plc:bob", "comment-root", "Root", base)
+	english := seedReplyPost(t, pool, "did:plc:alice", "comment-profile-en", "English", root, root, base.Add(3*time.Minute))
+	french := seedReplyPost(t, pool, "did:plc:alice", "comment-profile-fr", "French", root, root, base.Add(2*time.Minute))
+	ownFrench := seedReplyPost(t, pool, "did:plc:viewer", "comment-profile-own", "Mine", root, root, base.Add(time.Minute))
+	if _, err := pool.Exec(ctx, `
+		UPDATE craftsky_posts
+		SET langs = CASE uri
+			WHEN $1 THEN ARRAY['en']::text[]
+			WHEN $2 THEN ARRAY['fr']::text[]
+			WHEN $3 THEN ARRAY['fr']::text[]
+			ELSE langs
+		END
+		WHERE uri IN ($1, $2, $3)
+	`, english, french, ownFrench); err != nil {
+		t.Fatalf("seed languages: %v", err)
+	}
+
+	store := api.NewPostStore(pool)
+	rows, _, err := store.ListCommentsByAuthorWithLanguages(ctx, "did:plc:viewer", "did:plc:alice", []string{"en"}, 10, "")
+	if err != nil {
+		t.Fatalf("ListCommentsByAuthorWithLanguages: %v", err)
+	}
+	if got, want := postRowURIs(rows), []string{english}; !slices.Equal(got, want) {
+		t.Fatalf("rows = %v, want %v", got, want)
+	}
+	ownRows, _, err := store.ListCommentsByAuthorWithLanguages(ctx, "did:plc:viewer", "did:plc:viewer", []string{"en"}, 10, "")
+	if err != nil {
+		t.Fatalf("own ListCommentsByAuthorWithLanguages: %v", err)
+	}
+	if got, want := postRowURIs(ownRows), []string{ownFrench}; !slices.Equal(got, want) {
+		t.Fatalf("own rows = %v, want %v", got, want)
+	}
+}
+
 func TestPostStore_ListByAuthor_FiltersModeratedRowsBeforeLimit(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)
@@ -608,6 +771,38 @@ func TestPostStore_ListByAuthor_FiltersModeratedRowsBeforeLimit(t *testing.T) {
 	if cursor == "" {
 		t.Fatal("cursor is empty, want deterministic full page after filtering")
 	}
+}
+
+func TestPostStore_IT017LanguageEligibilityDoesNotOverrideModeration(t *testing.T) {
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:viewer")
+	seedMember(t, pool, "did:plc:alice")
+	store := api.NewPostStore(pool)
+	now := time.Date(2026, 7, 29, 20, 0, 0, 0, time.UTC)
+	hiddenURI := seedPost(t, pool, "did:plc:alice", "hidden", "hidden", now.Add(3*time.Minute))
+	visibleURI := seedPost(t, pool, "did:plc:alice", "visible", "visible", now.Add(2*time.Minute))
+	if _, err := pool.Exec(
+		context.Background(),
+		`UPDATE craftsky_posts SET langs = ARRAY['en']::text[] WHERE uri IN ($1, $2)`,
+		hiddenURI,
+		visibleURI,
+	); err != nil {
+		t.Fatalf("seed matching languages: %v", err)
+	}
+	seedModerationOutput(t, pool, "post", "did:plc:alice", hiddenURI, "hide", now.Add(4*time.Minute))
+
+	rows, _, err := store.ListByAuthorWithLanguages(
+		context.Background(),
+		"did:plc:viewer",
+		"did:plc:alice",
+		[]string{"en"},
+		10,
+		"",
+	)
+	if err != nil {
+		t.Fatalf("ListByAuthorWithLanguages: %v", err)
+	}
+	assertPostRowURIs(t, rows, []string{visibleURI})
 }
 
 func TestPostStore_ListCommentsByAuthor_FiltersModeratedRowsBeforeLimit(t *testing.T) {

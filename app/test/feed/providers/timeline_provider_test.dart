@@ -5,6 +5,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -58,6 +59,38 @@ void main() {
   setUpAll(initializeMappers);
 
   group('timelineProvider build', () {
+    test(
+      'IT-019 waits for authoritative Content policy before fetching',
+      () async {
+        final policy = Completer<List<String>>();
+        var calls = 0;
+        final fake = FakePostRepository(
+          onListTimeline: ({cursor, limit}) async {
+            calls++;
+            return const TimelinePage(items: []);
+          },
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            postRepositoryProvider.overrideWithValue(fake),
+            activeContentLanguagePolicyProvider.overrideWith(
+              (ref) => policy.future,
+            ),
+          ],
+        );
+        final subscription = container.listen(timelineProvider, (_, _) {});
+        addTearDown(subscription.close);
+
+        final result = container.read(timelineProvider.future);
+        await Future<void>.delayed(Duration.zero);
+        expect(calls, 0);
+
+        policy.complete(const ['fr']);
+        await result;
+        expect(calls, 1);
+      },
+    );
+
     test('first build fetches page 1 and surfaces items + cursor', () async {
       int? seenLimit;
       final fake = FakePostRepository(

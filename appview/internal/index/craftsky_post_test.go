@@ -46,6 +46,7 @@ CREATE TABLE craftsky_posts (
     quote_cid        TEXT,
 
     tags             TEXT[]      NOT NULL DEFAULT '{}',
+    langs            TEXT[]      NOT NULL DEFAULT '{}',
 
     is_project       BOOLEAN     NOT NULL DEFAULT false,
     project_craft_type TEXT,
@@ -303,6 +304,90 @@ func TestCraftskyPost_Create_PlainText(t *testing.T) {
 	}
 	if !createdAt.Equal(testTime(t)) {
 		t.Errorf("created_at = %v, want %v", createdAt, testTime(t))
+	}
+}
+
+func TestCraftskyPost_MaterializesLanguagesAcrossCreateAndUpdate(t *testing.T) {
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:m")
+	idx := index.NewCraftskyPost(pool, testLogger())
+	event := tap.Event{
+		URI:        "at://did:plc:m/social.craftsky.feed.post/languages",
+		CID:        "bafy-languages-1",
+		DID:        "did:plc:m",
+		Rkey:       "languages",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record: json.RawMessage(`{
+			"$type":"social.craftsky.feed.post",
+			"text":"bonjour",
+			"langs":["en","fr-CA"],
+			"createdAt":"` + fixedCreatedAt + `"
+		}`),
+	}
+	if err := idx.Handle(context.Background(), event); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	assertStoredPostLanguages(t, pool, event.URI, []string{"en", "fr-CA"})
+
+	event.Action = "update"
+	event.CID = "bafy-languages-2"
+	event.Record = json.RawMessage(`{
+		"$type":"social.craftsky.feed.post",
+		"text":"shwmae",
+		"langs":["cy"],
+		"createdAt":"` + fixedCreatedAt + `"
+	}`)
+	if err := idx.Handle(context.Background(), event); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	assertStoredPostLanguages(t, pool, event.URI, []string{"cy"})
+
+	event.CID = "bafy-languages-invalid"
+	event.Record = json.RawMessage(`{
+		"$type":"social.craftsky.feed.post",
+		"text":"invalid",
+		"langs":["en","en"],
+		"createdAt":"` + fixedCreatedAt + `"
+	}`)
+	if err := idx.Handle(context.Background(), event); err == nil {
+		t.Fatal("malformed language update succeeded")
+	}
+	assertStoredPostLanguages(t, pool, event.URI, []string{"cy"})
+
+	untagged := event
+	untagged.URI = "at://did:plc:m/social.craftsky.feed.post/untagged"
+	untagged.Rkey = "untagged"
+	untagged.CID = "bafy-untagged"
+	untagged.Action = "create"
+	untagged.Record = json.RawMessage(`{
+		"$type":"social.craftsky.feed.post",
+		"text":"legacy",
+		"createdAt":"` + fixedCreatedAt + `"
+	}`)
+	if err := idx.Handle(context.Background(), untagged); err != nil {
+		t.Fatalf("create untagged: %v", err)
+	}
+	assertStoredPostLanguages(t, pool, untagged.URI, []string{})
+}
+
+func assertStoredPostLanguages(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	uri syntax.ATURI,
+	want []string,
+) {
+	t.Helper()
+	var got []string
+	if err := pool.QueryRow(
+		context.Background(),
+		`SELECT langs FROM craftsky_posts WHERE uri = $1`,
+		uri,
+	).Scan(&got); err != nil {
+		t.Fatalf("read stored languages: %v", err)
+	}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("stored languages = %v, want %v", got, want)
 	}
 }
 

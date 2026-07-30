@@ -14,6 +14,7 @@ import 'package:craftsky_app/auth/widgets/account_switcher_content.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
@@ -99,6 +100,7 @@ Future<ProviderContainer> _pumpShell(
               const TimelinePage(items: []),
         ),
       ),
+      activeContentLanguagePolicyProvider.overrideWith((ref) => const ['en']),
       profileRepositoryProvider.overrideWithValue(
         profileRepository ??
             FakeProfileRepository(

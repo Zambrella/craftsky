@@ -3,6 +3,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/user_posts_state.dart';
 import 'package:craftsky_app/feed/providers/author_post_cache.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_posts_provider.g.dart';
@@ -16,6 +17,7 @@ class UserPosts extends _$UserPosts {
 
   @override
   Future<UserPostsState> build(String handleOrDid) async {
+    await ref.watch(activeContentLanguagePolicyProvider.future);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listByAuthor(
       handleOrDid,

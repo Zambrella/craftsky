@@ -37,7 +37,12 @@ func (s *SearchStore) BlockedPairs(ctx context.Context, pairs []RelationshipPair
 	return s.postStore.BlockedPairs(ctx, pairs)
 }
 
-func SearchHashtagPostsHandler(store *SearchStore, resolver HandleResolver, logger *slog.Logger) http.Handler {
+func SearchHashtagPostsHandler(
+	store *SearchStore,
+	resolver HandleResolver,
+	logger *slog.Logger,
+	preferenceReaders ...LanguagePreferenceReader,
+) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req, err := ParseExactHashtagPostsRequest(r)
 		if err != nil {
@@ -55,7 +60,23 @@ func SearchHashtagPostsHandler(store *SearchStore, resolver HandleResolver, logg
 			envelope.WriteError(w, http.StatusInternalServerError, "missing_authenticated_did", "authenticated DID missing", middleware.GetRunID(r.Context()), nil)
 			return
 		}
-		rows, nextCursor, err := store.SearchHashtagPosts(r.Context(), req.Tag, req.Sort, req.Limit, req.Cursor, time.Now().UTC())
+		contentLanguages, err := authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
+		if err != nil {
+			logger.Error("hashtag search language preferences failed",
+				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "search.hashtag_posts", "language_preferences")...)
+			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "language preferences lookup failed", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		rows, nextCursor, err := store.SearchHashtagPostsWithLanguages(
+			r.Context(),
+			viewerDID.String(),
+			contentLanguages,
+			req.Tag,
+			req.Sort,
+			req.Limit,
+			req.Cursor,
+			time.Now().UTC(),
+		)
 		if errors.Is(err, envelope.ErrInvalidCursor) {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_cursor", "invalid cursor", middleware.GetRunID(r.Context()), nil)
 			return
@@ -188,7 +209,12 @@ func SearchSuggestionsHandler(store *SearchStore, logger *slog.Logger) http.Hand
 	})
 }
 
-func SearchPostsHandler(store *SearchStore, resolver HandleResolver, logger *slog.Logger) http.Handler {
+func SearchPostsHandler(
+	store *SearchStore,
+	resolver HandleResolver,
+	logger *slog.Logger,
+	preferenceReaders ...LanguagePreferenceReader,
+) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req, err := ParsePostSearchRequest(r)
 		if err != nil {
@@ -206,7 +232,14 @@ func SearchPostsHandler(store *SearchStore, resolver HandleResolver, logger *slo
 			envelope.WriteError(w, http.StatusInternalServerError, "missing_authenticated_did", "authenticated DID missing", middleware.GetRunID(r.Context()), nil)
 			return
 		}
-		rows, nextCursor, err := store.SearchPosts(r.Context(), req, time.Now().UTC())
+		contentLanguages, err := authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
+		if err != nil {
+			logger.Error("post search language preferences failed",
+				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "search.posts", "language_preferences")...)
+			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "language preferences lookup failed", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		rows, nextCursor, err := store.SearchPostsWithLanguages(r.Context(), viewerDID.String(), contentLanguages, req, time.Now().UTC())
 		if errors.Is(err, envelope.ErrInvalidCursor) {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_cursor", "invalid cursor", middleware.GetRunID(r.Context()), nil)
 			return
@@ -228,7 +261,12 @@ func SearchPostsHandler(store *SearchStore, resolver HandleResolver, logger *slo
 	})
 }
 
-func SearchProjectsHandler(store *SearchStore, resolver HandleResolver, logger *slog.Logger) http.Handler {
+func SearchProjectsHandler(
+	store *SearchStore,
+	resolver HandleResolver,
+	logger *slog.Logger,
+	preferenceReaders ...LanguagePreferenceReader,
+) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req, err := ParseProjectSearchRequest(r)
 		if err != nil {
@@ -246,7 +284,14 @@ func SearchProjectsHandler(store *SearchStore, resolver HandleResolver, logger *
 			envelope.WriteError(w, http.StatusInternalServerError, "missing_authenticated_did", "authenticated DID missing", middleware.GetRunID(r.Context()), nil)
 			return
 		}
-		rows, nextCursor, err := store.SearchProjects(r.Context(), req, time.Now().UTC())
+		contentLanguages, err := authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
+		if err != nil {
+			logger.Error("project search language preferences failed",
+				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "search.projects", "language_preferences")...)
+			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "language preferences lookup failed", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		rows, nextCursor, err := store.SearchProjectsWithLanguages(r.Context(), viewerDID.String(), contentLanguages, req, time.Now().UTC())
 		if errors.Is(err, envelope.ErrInvalidCursor) {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_cursor", "invalid cursor", middleware.GetRunID(r.Context()), nil)
 			return
@@ -268,7 +313,12 @@ func SearchProjectsHandler(store *SearchStore, resolver HandleResolver, logger *
 	})
 }
 
-func ListProjectsHandler(store *SearchStore, resolver HandleResolver, logger *slog.Logger) http.Handler {
+func ListProjectsHandler(
+	store *SearchStore,
+	resolver HandleResolver,
+	logger *slog.Logger,
+	preferenceReaders ...LanguagePreferenceReader,
+) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req, err := ParseProjectListRequest(r)
 		if err != nil {
@@ -286,7 +336,20 @@ func ListProjectsHandler(store *SearchStore, resolver HandleResolver, logger *sl
 			envelope.WriteError(w, http.StatusInternalServerError, "missing_authenticated_did", "authenticated DID missing", middleware.GetRunID(r.Context()), nil)
 			return
 		}
-		rows, nextCursor, err := store.SearchProjects(r.Context(), ProjectSearchRequest{Sort: req.Sort, Limit: req.Limit, Cursor: req.Cursor, Filters: req.Filters}, time.Now().UTC())
+		contentLanguages, err := authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
+		if err != nil {
+			logger.Error("project list language preferences failed",
+				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "projects.list", "language_preferences")...)
+			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "language preferences lookup failed", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		rows, nextCursor, err := store.SearchProjectsWithLanguages(
+			r.Context(),
+			viewerDID.String(),
+			contentLanguages,
+			ProjectSearchRequest{Sort: req.Sort, Limit: req.Limit, Cursor: req.Cursor, Filters: req.Filters},
+			time.Now().UTC(),
+		)
 		if errors.Is(err, envelope.ErrInvalidCursor) {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_cursor", "invalid cursor", middleware.GetRunID(r.Context()), nil)
 			return

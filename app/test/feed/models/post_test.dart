@@ -7,6 +7,45 @@ void main() {
   setUpAll(initializeMappers);
 
   group('Post', () {
+    test(
+      'maps exact post languages and normalises legacy omission or null',
+      () {
+        final base = <String, dynamic>{
+          'uri': 'at://did:plc:alice/social.craftsky.feed.post/languages',
+          'cid': 'bafylanguages',
+          'rkey': 'languages',
+          'text': 'Bonjour',
+          'tags': <String>[],
+          'likeCount': 0,
+          'repostCount': 0,
+          'quoteCount': 0,
+          'replyCount': 0,
+          'viewerHasLiked': false,
+          'viewerHasReposted': false,
+          'viewerHasReplied': false,
+          'viewerHasSaved': false,
+          'createdAt': '2026-07-29T10:00:00.000Z',
+          'indexedAt': '2026-07-29T10:00:01.000Z',
+          'author': {
+            'did': 'did:plc:alice',
+            'handle': 'alice.craftsky.social',
+          },
+        };
+
+        expect(
+          PostMapper.fromMap({
+            ...base,
+            'langs': ['fr-CA'],
+          }).langs,
+          [
+            'fr-CA',
+          ],
+        );
+        expect(PostMapper.fromMap(base).langs, isEmpty);
+        expect(PostMapper.fromMap({...base, 'langs': null}).langs, isEmpty);
+      },
+    );
+
     test('UT-001 saved viewer state', () {
       final base = <String, dynamic>{
         'uri': 'at://did:plc:alice/social.craftsky.feed.post/3lsaved',
@@ -110,6 +149,7 @@ void main() {
         'cid': 'bafy123',
         'rkey': '3lf2abc',
         'text': 'Cast on for the Hitchhiker shawl tonight.',
+        'langs': <String>[],
         'facets': [
           {
             'index': {'byteStart': 0, 'byteEnd': 7},
@@ -196,6 +236,7 @@ void main() {
         'cid': 'bafy123',
         'rkey': '3lf2abc',
         'text': 'hello',
+        'langs': <String>[],
         'tags': <String>[],
         'likeCount': 0,
         'repostCount': 0,
@@ -314,6 +355,7 @@ void main() {
         'cid': 'bafyquote',
         'rkey': 'quote',
         'text': 'This is useful context.',
+        'langs': <String>[],
         'tags': <String>[],
         'likeCount': 0,
         'repostCount': 2,
@@ -374,6 +416,7 @@ void main() {
         'cid': 'bafy123',
         'rkey': '3lf2abc',
         'text': 'hello',
+        'langs': <String>[],
         'tags': <String>[],
         'likeCount': 0,
         'repostCount': 0,
@@ -418,6 +461,7 @@ void main() {
         'cid': 'bafyproject',
         'rkey': '3lf2project',
         'text': 'Finished my shawl.',
+        'langs': <String>[],
         'tags': <String>[],
         'likeCount': 0,
         'repostCount': 0,
@@ -456,6 +500,7 @@ void main() {
         'cid': 'bafy123',
         'rkey': '3lf2abc',
         'text': 'hello',
+        'langs': <String>[],
         'tags': <String>[],
         'likeCount': 0,
         'repostCount': 0,

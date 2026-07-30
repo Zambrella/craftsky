@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/languages"
 	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/postutil"
@@ -80,6 +81,13 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	var rec craftskylex.FeedPost
 	if err := json.Unmarshal(ev.Record, &rec); err != nil {
 		return fmt.Errorf("unmarshal %s: %w", ev.URI, err)
+	}
+	if err := languages.ValidatePostTags(rec.Langs); err != nil {
+		return fmt.Errorf("validate post languages %s: %w", ev.URI, err)
+	}
+	langs := rec.Langs
+	if langs == nil {
+		langs = []string{}
 	}
 	var rawRecord struct {
 		Facets json.RawMessage `json:"facets"`
@@ -165,10 +173,10 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		INSERT INTO craftsky_posts
 			(uri, did, rkey, cid, text, facets, images,
 			 reply_root_uri, reply_root_cid, reply_parent_uri, reply_parent_cid,
-			 quote_uri, quote_cid, tags, is_project, project_craft_type, record, created_at,
+			 quote_uri, quote_cid, tags, langs, is_project, project_craft_type, record, created_at,
 			 external_import_source, profile_sort_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-		        $19, COALESCE($20::timestamptz, now()))
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
+		        $20, COALESCE($21::timestamptz, now()))
 		ON CONFLICT (uri) DO UPDATE SET
 			cid              = EXCLUDED.cid,
 			text             = EXCLUDED.text,
@@ -181,6 +189,7 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 			quote_uri        = EXCLUDED.quote_uri,
 			quote_cid        = EXCLUDED.quote_cid,
 			tags             = EXCLUDED.tags,
+			langs            = EXCLUDED.langs,
 			is_project       = EXCLUDED.is_project,
 			project_craft_type = EXCLUDED.project_craft_type,
 			record           = EXCLUDED.record,
@@ -198,6 +207,7 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		replyParentURI, replyParentCID,
 		quoteURI, quoteCID,
 		tags,
+		langs,
 		isProject,
 		projectCraftType,
 		ev.Record,

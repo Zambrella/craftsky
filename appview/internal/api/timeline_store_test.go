@@ -105,6 +105,93 @@ func TestTimelineFiltersMuteBlockAndRepostAttributionBeforePagination(t *testing
 	}
 }
 
+func TestTimelineLanguageVisibilityFiltersBeforePaginationAndKeepsOwnPosts(t *testing.T) {
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	ctx := context.Background()
+	for _, did := range []string{"did:plc:viewer", "did:plc:alice"} {
+		seedMember(t, pool, did)
+	}
+	seedFollow(t, pool, "did:plc:viewer", "did:plc:alice", "follow-alice")
+	base := time.Date(2026, 7, 29, 10, 0, 0, 0, time.UTC)
+
+	english := seedPost(t, pool, "did:plc:alice", "english", "English", base.Add(5*time.Minute))
+	french := seedPost(t, pool, "did:plc:alice", "french", "French", base.Add(4*time.Minute))
+	multilingual := seedPost(t, pool, "did:plc:alice", "multi", "Bilingual", base.Add(3*time.Minute))
+	untagged := seedPost(t, pool, "did:plc:alice", "untagged", "Legacy", base.Add(2*time.Minute))
+	ownFrench := seedPost(t, pool, "did:plc:viewer", "own-french", "Mine", base.Add(time.Minute))
+	if _, err := pool.Exec(ctx, `
+		UPDATE craftsky_posts
+		SET langs = CASE uri
+			WHEN $1 THEN ARRAY['en']::text[]
+			WHEN $2 THEN ARRAY['fr']::text[]
+			WHEN $3 THEN ARRAY['fr', 'en']::text[]
+			WHEN $4 THEN ARRAY['fr']::text[]
+			ELSE langs
+		END
+		WHERE uri IN ($1, $2, $3, $4)
+	`, english, french, multilingual, ownFrench); err != nil {
+		t.Fatalf("seed languages: %v", err)
+	}
+
+	store := api.NewPostStore(pool)
+	first, cursor, err := store.ListTimelineWithLanguages(
+		ctx,
+		"did:plc:viewer",
+		[]string{"en"},
+		2,
+		"",
+	)
+	if err != nil {
+		t.Fatalf("first filtered page: %v", err)
+	}
+	if got, want := timelineURIs(first), []string{english, multilingual}; !slices.Equal(got, want) {
+		t.Fatalf("first filtered page = %v, want %v", got, want)
+	}
+	if cursor == "" {
+		t.Fatal("first filtered cursor is empty")
+	}
+	second, next, err := store.ListTimelineWithLanguages(
+		ctx,
+		"did:plc:viewer",
+		[]string{"en"},
+		2,
+		cursor,
+	)
+	if err != nil {
+		t.Fatalf("second filtered page: %v", err)
+	}
+	if got, want := timelineURIs(second), []string{ownFrench}; !slices.Equal(got, want) {
+		t.Fatalf("second filtered page = %v, want %v", got, want)
+	}
+	if next != "" {
+		t.Fatalf("terminal cursor = %q", next)
+	}
+	if slices.Contains(timelineURIs(first), french) ||
+		slices.Contains(timelineURIs(first), untagged) {
+		t.Fatal("filtered page leaked mismatched or untagged content")
+	}
+
+	showAll, _, err := store.ListTimelineWithLanguages(
+		ctx,
+		"did:plc:viewer",
+		[]string{},
+		10,
+		"",
+	)
+	if err != nil {
+		t.Fatalf("show-all page: %v", err)
+	}
+	if got, want := timelineURIs(showAll), []string{
+		english,
+		french,
+		multilingual,
+		untagged,
+		ownFrench,
+	}; !slices.Equal(got, want) {
+		t.Fatalf("show-all page = %v, want %v", got, want)
+	}
+}
+
 func TestTimelineStore_ListTimeline_ReturnsOwnAndFollowedEligiblePostsOnly(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, timelineStoreDDL)

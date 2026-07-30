@@ -324,6 +324,7 @@ func TestSavedPostServiceHydratesEveryExactPostType(t *testing.T) {
 	summaries := make(map[string]api.EngagementSummary, len(rows))
 	folderID := "opaque-folder"
 	for i, row := range rows {
+		row.Langs = []string{"fr-CA"}
 		uri := syntax.ATURI(row.URI)
 		refs = append(refs, api.SavedPostRef{PostURI: uri, SavedAt: base.Add(time.Duration(i) * time.Minute), FolderID: &folderID})
 		rowMap[uri] = row
@@ -348,6 +349,9 @@ func TestSavedPostServiceHydratesEveryExactPostType(t *testing.T) {
 		}
 		if !item.Post.ViewerHasSaved || item.Post.ViewerSavedFolderID == nil || *item.Post.ViewerSavedFolderID != folderID {
 			t.Fatalf("item[%d] viewer state = %+v", i, item.Post)
+		}
+		if len(item.Post.Langs) != 1 || item.Post.Langs[0] != "fr-CA" {
+			t.Fatalf("IT-022 saved post langs[%d] = %v", i, item.Post.Langs)
 		}
 	}
 	if page.Items[1].Post.Project == nil {

@@ -155,6 +155,225 @@ func searchURIs(rows []api.SearchPostRow) []string {
 	return out
 }
 
+func TestSearchStore_ProjectBrowseAppliesLanguageVisibilityBeforePagination(t *testing.T) {
+	pool := testdb.WithSchema(t, searchStoreDDL)
+	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
+	now := time.Date(2026, 7, 29, 13, 0, 0, 0, time.UTC)
+	for _, did := range []string{"did:plc:viewer", "did:plc:alice"} {
+		seedMember(t, pool, did)
+	}
+	craft := "social.craftsky.feed.defs#knitting"
+	english := seedSearchProject(t, pool, "did:plc:alice", "english-project", "English", craft, "English", now.Add(4*time.Minute))
+	french := seedSearchProject(t, pool, "did:plc:alice", "french-project", "French", craft, "French", now.Add(3*time.Minute))
+	multilingual := seedSearchProject(t, pool, "did:plc:alice", "multi-project", "Multi", craft, "Multi", now.Add(2*time.Minute))
+	untagged := seedSearchProject(t, pool, "did:plc:alice", "untagged-project", "Legacy", craft, "Legacy", now.Add(time.Minute))
+	ownFrench := seedSearchProject(t, pool, "did:plc:viewer", "own-project", "Mine", craft, "Mine", now)
+	if _, err := pool.Exec(ctx, `
+		UPDATE craftsky_posts
+		SET langs = CASE uri
+			WHEN $1 THEN ARRAY['en']::text[]
+			WHEN $2 THEN ARRAY['fr']::text[]
+			WHEN $3 THEN ARRAY['en', 'fr']::text[]
+			WHEN $4 THEN ARRAY['fr']::text[]
+			ELSE langs
+		END
+		WHERE uri IN ($1, $2, $3, $4)
+	`, english, french, multilingual, ownFrench); err != nil {
+		t.Fatalf("seed languages: %v", err)
+	}
+
+	store := api.NewSearchStore(pool, nil)
+	request := api.ProjectSearchRequest{
+		Sort:    api.SearchSortChronological,
+		Limit:   2,
+		Filters: map[string][]string{},
+	}
+	first, cursor, err := store.SearchProjectsWithLanguages(ctx, "did:plc:viewer", []string{"en"}, request, now)
+	if err != nil {
+		t.Fatalf("first page: %v", err)
+	}
+	if got, want := searchURIs(first), []string{english, multilingual}; !slices.Equal(got, want) || cursor == "" {
+		t.Fatalf("first page = %v cursor=%q, want %v and cursor", got, cursor, want)
+	}
+	request.Cursor = cursor
+	second, next, err := store.SearchProjectsWithLanguages(ctx, "did:plc:viewer", []string{"en"}, request, now)
+	if err != nil {
+		t.Fatalf("second page: %v", err)
+	}
+	if got, want := searchURIs(second), []string{ownFrench}; !slices.Equal(got, want) || next != "" {
+		t.Fatalf("second page = %v cursor=%q, want %v and terminal", got, next, want)
+	}
+	if slices.Contains(searchURIs(first), french) || slices.Contains(searchURIs(first), untagged) {
+		t.Fatal("project browse leaked mismatched or untagged content")
+	}
+}
+
+func TestSearchStore_PostSearchAppliesLanguageVisibilityBeforePagination(t *testing.T) {
+	pool := testdb.WithSchema(t, searchStoreDDL)
+	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
+	base := time.Date(2026, 7, 29, 14, 0, 0, 0, time.UTC)
+	for _, did := range []string{"did:plc:viewer", "did:plc:alice"} {
+		seedMember(t, pool, did)
+	}
+	english := seedPost(t, pool, "did:plc:alice", "english-search", "needle English", base.Add(4*time.Minute))
+	french := seedPost(t, pool, "did:plc:alice", "french-search", "needle French", base.Add(3*time.Minute))
+	multilingual := seedPost(t, pool, "did:plc:alice", "multi-search", "needle Multi", base.Add(2*time.Minute))
+	untagged := seedPost(t, pool, "did:plc:alice", "untagged-search", "needle Legacy", base.Add(time.Minute))
+	ownFrench := seedPost(t, pool, "did:plc:viewer", "own-search", "needle Mine", base)
+	if _, err := pool.Exec(ctx, `
+		UPDATE craftsky_posts
+		SET langs = CASE uri
+			WHEN $1 THEN ARRAY['en']::text[]
+			WHEN $2 THEN ARRAY['fr']::text[]
+			WHEN $3 THEN ARRAY['en', 'fr']::text[]
+			WHEN $4 THEN ARRAY['fr']::text[]
+			ELSE langs
+		END
+		WHERE uri IN ($1, $2, $3, $4)
+	`, english, french, multilingual, ownFrench); err != nil {
+		t.Fatalf("seed languages: %v", err)
+	}
+
+	store := api.NewSearchStore(pool, nil)
+	request := api.PostSearchRequest{
+		Query: "needle",
+		Sort:  api.SearchSortChronological,
+		Limit: 2,
+	}
+	first, cursor, err := store.SearchPostsWithLanguages(ctx, "did:plc:viewer", []string{"en"}, request, base)
+	if err != nil {
+		t.Fatalf("first page: %v", err)
+	}
+	if got, want := searchURIs(first), []string{english, multilingual}; !slices.Equal(got, want) || cursor == "" {
+		t.Fatalf("first page = %v cursor=%q, want %v and cursor", got, cursor, want)
+	}
+	request.Cursor = cursor
+	second, next, err := store.SearchPostsWithLanguages(ctx, "did:plc:viewer", []string{"en"}, request, base)
+	if err != nil {
+		t.Fatalf("second page: %v", err)
+	}
+	if got, want := searchURIs(second), []string{ownFrench}; !slices.Equal(got, want) || next != "" {
+		t.Fatalf("second page = %v cursor=%q, want %v and terminal", got, next, want)
+	}
+	if slices.Contains(searchURIs(first), french) || slices.Contains(searchURIs(first), untagged) {
+		t.Fatal("post search leaked mismatched or untagged content")
+	}
+}
+
+func TestSearchStore_ProjectSearchAppliesLanguageVisibilityBeforePagination(t *testing.T) {
+	pool := testdb.WithSchema(t, searchStoreDDL)
+	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
+	base := time.Date(2026, 7, 29, 15, 0, 0, 0, time.UTC)
+	for _, did := range []string{"did:plc:viewer", "did:plc:alice"} {
+		seedMember(t, pool, did)
+	}
+	craft := "social.craftsky.feed.defs#knitting"
+	english := seedSearchProject(t, pool, "did:plc:alice", "english-project-search", "needle English", craft, "Needle English", base.Add(3*time.Minute))
+	french := seedSearchProject(t, pool, "did:plc:alice", "french-project-search", "needle French", craft, "Needle French", base.Add(2*time.Minute))
+	multilingual := seedSearchProject(t, pool, "did:plc:alice", "multi-project-search", "needle Multi", craft, "Needle Multi", base.Add(time.Minute))
+	ownFrench := seedSearchProject(t, pool, "did:plc:viewer", "own-project-search", "needle Mine", craft, "Needle Mine", base)
+	if _, err := pool.Exec(ctx, `
+		UPDATE craftsky_posts
+		SET langs = CASE uri
+			WHEN $1 THEN ARRAY['en']::text[]
+			WHEN $2 THEN ARRAY['fr']::text[]
+			WHEN $3 THEN ARRAY['en', 'fr']::text[]
+			WHEN $4 THEN ARRAY['fr']::text[]
+			ELSE langs
+		END
+		WHERE uri IN ($1, $2, $3, $4)
+	`, english, french, multilingual, ownFrench); err != nil {
+		t.Fatalf("seed languages: %v", err)
+	}
+
+	store := api.NewSearchStore(pool, nil)
+	request := api.ProjectSearchRequest{
+		Query:   "needle",
+		Sort:    api.SearchSortChronological,
+		Limit:   2,
+		Filters: map[string][]string{},
+	}
+	first, cursor, err := store.SearchProjectsWithLanguages(ctx, "did:plc:viewer", []string{"en"}, request, base)
+	if err != nil {
+		t.Fatalf("first page: %v", err)
+	}
+	if got, want := searchURIs(first), []string{english, multilingual}; !slices.Equal(got, want) || cursor == "" {
+		t.Fatalf("first page = %v cursor=%q, want %v and cursor", got, cursor, want)
+	}
+	request.Cursor = cursor
+	second, next, err := store.SearchProjectsWithLanguages(ctx, "did:plc:viewer", []string{"en"}, request, base)
+	if err != nil {
+		t.Fatalf("second page: %v", err)
+	}
+	if got, want := searchURIs(second), []string{ownFrench}; !slices.Equal(got, want) || next != "" {
+		t.Fatalf("second page = %v cursor=%q, want %v and terminal", got, next, want)
+	}
+}
+
+func TestSearchStore_HashtagPostsApplyLanguageVisibilityBeforePagination(t *testing.T) {
+	pool := testdb.WithSchema(t, searchStoreDDL)
+	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
+	base := time.Date(2026, 7, 29, 16, 0, 0, 0, time.UTC)
+	for _, did := range []string{"did:plc:viewer", "did:plc:alice"} {
+		seedMember(t, pool, did)
+	}
+	english := seedPost(t, pool, "did:plc:alice", "english-hashtag", "English", base.Add(4*time.Minute))
+	french := seedPost(t, pool, "did:plc:alice", "french-hashtag", "French", base.Add(3*time.Minute))
+	multilingual := seedPost(t, pool, "did:plc:alice", "multi-hashtag", "Multi", base.Add(2*time.Minute))
+	untagged := seedPost(t, pool, "did:plc:alice", "untagged-hashtag", "Legacy", base.Add(time.Minute))
+	ownFrench := seedPost(t, pool, "did:plc:viewer", "own-hashtag", "Mine", base)
+	for _, uri := range []string{english, french, multilingual, untagged, ownFrench} {
+		seedPostTags(t, pool, uri, []string{"weaving"})
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE craftsky_posts
+		SET langs = CASE uri
+			WHEN $1 THEN ARRAY['en']::text[]
+			WHEN $2 THEN ARRAY['fr']::text[]
+			WHEN $3 THEN ARRAY['en', 'fr']::text[]
+			WHEN $4 THEN ARRAY['fr']::text[]
+			ELSE langs
+		END
+		WHERE uri IN ($1, $2, $3, $4)
+	`, english, french, multilingual, ownFrench); err != nil {
+		t.Fatalf("seed languages: %v", err)
+	}
+
+	store := api.NewSearchStore(pool, nil)
+	first, cursor, err := store.SearchHashtagPostsWithLanguages(
+		ctx,
+		"did:plc:viewer",
+		[]string{"en"},
+		"weaving",
+		api.SearchSortChronological,
+		2,
+		"",
+		base,
+	)
+	if err != nil {
+		t.Fatalf("first page: %v", err)
+	}
+	if got, want := searchURIs(first), []string{english, multilingual}; !slices.Equal(got, want) || cursor == "" {
+		t.Fatalf("first page = %v cursor=%q, want %v and cursor", got, cursor, want)
+	}
+	second, next, err := store.SearchHashtagPostsWithLanguages(
+		ctx,
+		"did:plc:viewer",
+		[]string{"en"},
+		"weaving",
+		api.SearchSortChronological,
+		2,
+		cursor,
+		base,
+	)
+	if err != nil {
+		t.Fatalf("second page: %v", err)
+	}
+	if got, want := searchURIs(second), []string{ownFrench}; !slices.Equal(got, want) || next != "" {
+		t.Fatalf("second page = %v cursor=%q, want %v and terminal", got, next, want)
+	}
+}
+
 func TestSearchStore_SearchProjectsPopularOrdersBrowseAllAndFilteredProjects(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, searchStoreDDL)

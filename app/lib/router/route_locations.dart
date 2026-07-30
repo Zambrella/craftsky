@@ -20,6 +20,7 @@ class RouteLocations {
   static const postThread = '/posts/:did/:rkey';
   static const profile = '/profile';
   static const settingsChild = 'settings';
+  static const languagesChild = 'languages';
   static const instagramMigrationChild = 'instagram';
   static const savedPostsChild = 'saved';
   static const savedPostFolderChild = 'folder';

@@ -7,6 +7,9 @@ import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/models/post_language_selection.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/languages/widgets/post_language_selector.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
@@ -63,6 +66,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
   AccountSessionLease? _unsavedOwner;
   UnsavedWorkRegistration? _unsavedRegistration;
   late final UnsavedWorkGuard _unsavedGuard;
+  PostLanguageSelection? _languages;
 
   @override
   void initState() {
@@ -96,6 +100,12 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final createState = ref.watch(createPostProvider);
+    final preferences = ref.watch(activeLanguagePreferencesProvider);
+    if (_languages == null && preferences.hasValue) {
+      _languages = PostLanguageSelection.fromPrimary(
+        preferences.requireValue.primaryLanguage,
+      );
+    }
     final imagesProvider = composerImagesProvider(_composerId);
     final imagesState = ref.watch(imagesProvider);
     final isReply = widget.replyTarget != null;
@@ -106,6 +116,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
         !createState.isLoading &&
         trimmedText.isNotEmpty &&
         !tooLong &&
+        _languages != null &&
         imagesState.canSubmitImages();
     final submitLabel = isReply
         ? l10n.postComposeReplySubmit
@@ -216,6 +227,21 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                   helperAlignment: AlignmentDirectional.centerEnd,
                   onChanged: (value) => setState(() => _text = value),
                 ),
+                SizedBox(height: spacing.sp4),
+                if (_languages case final selection?)
+                  PostLanguageSelector(
+                    selection: selection,
+                    enabled: !createState.isLoading,
+                    onChanged: (value) => setState(() => _languages = value),
+                  )
+                else if (preferences case AsyncError())
+                  TextButton(
+                    onPressed: () =>
+                        ref.invalidate(activeLanguagePreferencesProvider),
+                    child: Text(l10n.postLanguageRetryLoading),
+                  )
+                else
+                  const LinearProgressIndicator(),
                 if (!isReply) ...[
                   SizedBox(height: spacing.sp6),
                   ComposerImageAttachmentSection(
@@ -296,6 +322,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
         .read(createPostProvider.notifier)
         .create(
           text: trimmedText,
+          langs: _languages!.values,
           reply: _replyFor(widget.replyTarget),
           quote: _quoteFor(widget.quoteTarget),
           images: widget.replyTarget == null

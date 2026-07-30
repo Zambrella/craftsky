@@ -14,6 +14,7 @@ typedef ProjectFacetGenerator =
 class ProjectComposerSubmitArguments {
   const ProjectComposerSubmitArguments({
     required this.text,
+    required this.langs,
     required this.project,
     required this.reply,
     required this.images,
@@ -21,6 +22,7 @@ class ProjectComposerSubmitArguments {
   });
 
   final String text;
+  final List<String> langs;
   final Project project;
   final PostReply? reply;
   final List<CreatePostImage>? images;
@@ -29,6 +31,7 @@ class ProjectComposerSubmitArguments {
 
 Future<ProjectComposerSubmitArguments> buildProjectComposerSubmitArguments({
   required String text,
+  required List<String> langs,
   required Project project,
   required ComposerImagesState imagesState,
   required ProjectFacetGenerator generateFacets,
@@ -41,6 +44,7 @@ Future<ProjectComposerSubmitArguments> buildProjectComposerSubmitArguments({
   );
   return ProjectComposerSubmitArguments(
     text: trimmedText,
+    langs: List.unmodifiable(langs),
     project: projectWithPatternFacets,
     reply: null,
     images: imagesState.toCreatePostImages(),
