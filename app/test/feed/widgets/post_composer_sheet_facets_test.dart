@@ -4,6 +4,8 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
 import 'package:craftsky_app/shared/rich_text/data/mock_facet_suggestion_repository.dart';
@@ -33,6 +35,12 @@ void main() {
       await _openComposer(
         tester,
         overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
           postRepositoryProvider.overrideWithValue(repo),
           accountSuggestionRepositoryProvider.overrideWithValue(
             const MockAccountSuggestionRepository(
@@ -97,7 +105,15 @@ void main() {
       await _openComposer(
         tester,
         quoteTarget: quoteTarget,
-        overrides: [postRepositoryProvider.overrideWithValue(repo)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(repo),
+        ],
       );
 
       expect(find.text('timeline post target'), findsOneWidget);
@@ -118,9 +134,19 @@ Future<void> _openComposer(
   Post? quoteTarget,
   List<dynamic> overrides = const [],
 }) async {
+  final effectiveOverrides = overrides.isEmpty
+      ? [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+        ]
+      : overrides;
   await tester.pumpWidget(
     ProviderScope(
-      overrides: List.from(overrides),
+      overrides: List.from(effectiveOverrides),
       child: MessengerScope(
         messenger: RecordingMessenger(),
         child: MaterialApp(

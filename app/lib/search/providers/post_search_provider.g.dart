@@ -50,7 +50,7 @@ final class PostSearchProvider
   }
 }
 
-String _$postSearchHash() => r'8b5d7c3f402bc68348929781b8b98986d06d0c5c';
+String _$postSearchHash() => r'19483be6404f76048a895d0bc4350cb7e37d26e9';
 
 final class PostSearchFamily extends $Family
     with

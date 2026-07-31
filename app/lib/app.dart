@@ -1,4 +1,8 @@
 import 'package:craftsky_app/app_dependencies.dart';
+import 'package:craftsky_app/auth/models/active_account_initialization.dart';
+import 'package:craftsky_app/auth/providers/active_account_initialization_logging.dart';
+import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
+import 'package:craftsky_app/auth/widgets/active_account_initialization_gate.dart';
 import 'package:craftsky_app/initialization_error_screen.dart';
 import 'package:craftsky_app/initialization_loading_screen.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -17,11 +21,48 @@ import 'package:logging/logging.dart';
 
 final _log = Logger('App');
 
-class App extends ConsumerWidget {
+class App extends ConsumerStatefulWidget {
   const App({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<App> createState() => _AppState();
+}
+
+class _AppState extends ConsumerState<App> {
+  ProviderSubscription<AsyncValue<ActiveAccountInitialization?>>?
+  _coldStartAccountInitialization;
+  bool _coldStartComplete = false;
+  bool _hasBuilt = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final subscription = ref.listenManual(
+      activeAccountInitializationProvider,
+      _onAccountInitializationChanged,
+    );
+    _coldStartAccountInitialization = subscription;
+    _onAccountInitializationChanged(null, subscription.read());
+  }
+
+  void _onAccountInitializationChanged(
+    AsyncValue<ActiveAccountInitialization?>? previous,
+    AsyncValue<ActiveAccountInitialization?> next,
+  ) {
+    if (_coldStartComplete || next is AsyncLoading) return;
+
+    if (next case AsyncError()) {
+      logActiveAccountInitializationFailure();
+    }
+    _coldStartComplete = true;
+    _coldStartAccountInitialization?.close();
+    _coldStartAccountInitialization = null;
+    if (_hasBuilt && mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _hasBuilt = true;
     // Log init failures once per transition into error, not on every rebuild.
     ref.listen(appDependenciesProvider, (prev, next) {
       if (next case AsyncError(:final error, :final stackTrace)) {
@@ -32,7 +73,8 @@ class App extends ConsumerWidget {
     final depsAsync = ref.watch(appDependenciesProvider);
 
     return switch (depsAsync) {
-      AsyncData() => const _ReadyApp(),
+      AsyncData() when _coldStartComplete => const _ReadyApp(),
+      AsyncData() => const _LoadingApp(),
       AsyncError(:final error) => _ErrorApp(error: error),
       _ => const _LoadingApp(),
     };
@@ -68,7 +110,9 @@ class _ReadyApp extends ConsumerWidget {
           return TextScaleFactorClamper(
             child: FormFactorWidget(
               child: NotificationEffectHost(
-                child: child ?? const SizedBox.shrink(),
+                child: ActiveAccountInitializationGate(
+                  child: child ?? const SizedBox.shrink(),
+                ),
               ),
             ),
           );

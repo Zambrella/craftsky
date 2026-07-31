@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -25,36 +23,23 @@ final class _Primary extends Notifier<String> {
 }
 
 void main() {
-  testWidgets('IT-019 gates posting while preferences are loading', (
+  testWidgets('IT-019 reads initialized preferences synchronously', (
     tester,
   ) async {
-    final preferences = Completer<LanguagePreferences>();
     final container = ProviderContainer.test(
       overrides: [
         activeLanguagePreferencesProvider.overrideWith(
-          (ref) => preferences.future,
+          (ref) => const LanguagePreferences(
+            primaryLanguage: 'fr',
+            contentLanguages: ['fr'],
+          ),
         ),
       ],
     );
     addTearDown(container.dispose);
 
     await tester.pumpWidget(
-      _testApp(container, key: const ValueKey('loading')),
-    );
-    await tester.pump();
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
-    expect(
-      tester
-          .widget<TextButton>(find.widgetWithText(TextButton, 'Post'))
-          .onPressed,
-      isNull,
-    );
-
-    preferences.complete(
-      const LanguagePreferences(
-        primaryLanguage: 'fr',
-        contentLanguages: ['fr'],
-      ),
+      _testApp(container, key: const ValueKey('ready')),
     );
     await tester.pumpAndSettle();
     expect(find.text('French'), findsOneWidget);
@@ -66,7 +51,7 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [
           activeLanguagePreferencesProvider.overrideWith(
-            (ref) async {
+            (ref) {
               final primary = ref.watch(_primaryProvider);
               return LanguagePreferences(
                 primaryLanguage: primary,
@@ -83,7 +68,6 @@ void main() {
       expect(find.text('English'), findsOneWidget);
 
       container.read(_primaryProvider.notifier).value = 'fr';
-      await container.read(activeLanguagePreferencesProvider.future);
       await tester.pumpAndSettle();
       expect(find.text('English'), findsOneWidget);
       expect(find.text('French'), findsNothing);
@@ -101,7 +85,7 @@ void main() {
     final container = ProviderContainer.test(
       overrides: [
         activeLanguagePreferencesProvider.overrideWith(
-          (ref) async => const LanguagePreferences(
+          (ref) => const LanguagePreferences(
             primaryLanguage: 'en',
             contentLanguages: ['en'],
           ),

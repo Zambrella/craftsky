@@ -1,6 +1,5 @@
-import 'package:craftsky_app/auth/models/account_key.dart';
-import 'package:craftsky_app/auth/models/auth_state.dart';
-import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/data/language_catalogue.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
@@ -32,11 +31,13 @@ class LanguagesPage extends ConsumerWidget {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
-    final session = ref.watch(authSessionProvider);
-    final activeDID = switch (session.value) {
-      SignedIn(:final did) => did,
-      _ => null,
-    };
+    final activeLease = ref
+        .watch(activeAccountInitializationProvider)
+        .requireValue
+        ?.lease;
+    if (activeLease == null) {
+      throw StateError('Language settings require an initialized account');
+    }
     return Scaffold(
       appBar: AppBar(title: Text(l10n.languagesTitle)),
       body: SingleChildScrollView(
@@ -54,15 +55,7 @@ class LanguagesPage extends ConsumerWidget {
               children: [
                 const _AppLanguageField(),
                 SizedBox(height: spacing.sp4),
-                if (activeDID == null)
-                  Padding(
-                    padding: EdgeInsets.all(spacing.sp5),
-                    child: const Center(child: StitchProgressIndicator()),
-                  )
-                else
-                  _AccountLanguageSections(
-                    account: AccountKey(activeDID.value),
-                  ),
+                _AccountLanguageSections(lease: activeLease),
               ],
             ),
           ),
@@ -73,9 +66,9 @@ class LanguagesPage extends ConsumerWidget {
 }
 
 class _AccountLanguageSections extends ConsumerStatefulWidget {
-  const _AccountLanguageSections({required this.account});
+  const _AccountLanguageSections({required this.lease});
 
-  final AccountKey account;
+  final ActiveAccountLease lease;
 
   @override
   ConsumerState<_AccountLanguageSections> createState() =>
@@ -90,7 +83,7 @@ class _AccountLanguageSectionsState
     setState(() => _saving = true);
     final success = await ref
         .read(
-          accountLanguagePreferencesProvider(widget.account).notifier,
+          accountLanguagePreferencesProvider(widget.lease).notifier,
         )
         .replace(candidate);
     if (!mounted) return;
@@ -105,7 +98,7 @@ class _AccountLanguageSectionsState
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
-    final provider = accountLanguagePreferencesProvider(widget.account);
+    final provider = accountLanguagePreferencesProvider(widget.lease);
     return switch (ref.watch(provider)) {
       AsyncData(:final value) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

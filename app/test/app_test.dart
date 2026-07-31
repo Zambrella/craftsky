@@ -2,9 +2,14 @@ import 'dart:async';
 
 import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
+import 'package:craftsky_app/auth/models/active_account_initialization.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
+import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/initialization_error_screen.dart';
+import 'package:craftsky_app/initialization_loading_screen.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -17,6 +22,28 @@ import 'package:pub_semver/pub_semver.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fakes/auth_session_fakes.dart';
+
+final class _RegistryStorage implements SessionRegistryStorage {
+  SessionRegistry value = SessionRegistry.empty();
+
+  @override
+  Future<SessionRegistry> read() async => value;
+
+  @override
+  Future<void> write(SessionRegistry registry) async => value = registry;
+}
+
+final _accountInitializationGenerationProvider =
+    NotifierProvider<_AccountInitializationGeneration, int>(
+      _AccountInitializationGeneration.new,
+    );
+
+final class _AccountInitializationGeneration extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void advance() => state++;
+}
 
 void main() {
   group('App initialisation', () {
@@ -89,6 +116,175 @@ void main() {
       expect(find.byType(InitializationErrorScreen), findsNothing);
     });
 
+    testWidgets(
+      'cold start preserves one loading presentation through account init',
+      (tester) async {
+        final dependencies = Completer<AppDependencies>();
+        final accountInitialization = Completer<ActiveAccountInitialization?>();
+        var accountInitializationStarts = 0;
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              appDependenciesProvider.overrideWith(
+                (ref) => dependencies.future,
+              ),
+              activeAccountInitializationProvider.overrideWith((ref) {
+                accountInitializationStarts++;
+                return accountInitialization.future;
+              }),
+              authSessionProvider.overrideWith(SignedOutAuthSession.new),
+              secureSessionRegistryStorageProvider.overrideWithValue(
+                _RegistryStorage(),
+              ),
+            ],
+            child: const App(),
+          ),
+        );
+        await tester.pump();
+
+        final initialLoadingElement = tester.element(
+          find.byType(InitializationLoadingScreen),
+        );
+        expect(accountInitializationStarts, 1);
+
+        dependencies.complete(stubDeps());
+        await tester.pump();
+        await tester.pump();
+
+        expect(accountInitializationStarts, 1);
+        expect(find.byType(InitializationLoadingScreen), findsOneWidget);
+        expect(
+          tester.element(find.byType(InitializationLoadingScreen)),
+          same(initialLoadingElement),
+        );
+        expect(find.byType(WelcomePage), findsNothing);
+
+        accountInitialization.complete(null);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(InitializationLoadingScreen), findsNothing);
+        expect(find.byType(WelcomePage), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'cold-start account failure logs safely and opens account recovery',
+      (tester) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            retry: (_, _) => null,
+            overrides: [
+              appDependenciesProvider.overrideWith(
+                (ref) async => stubDeps(),
+              ),
+              activeAccountInitializationProvider.overrideWith(
+                (ref) async => throw StateError(
+                  'did:plc:secret token-secret preferences unavailable',
+                ),
+              ),
+              authSessionProvider.overrideWith(SignedOutAuthSession.new),
+              secureSessionRegistryStorageProvider.overrideWithValue(
+                _RegistryStorage(),
+              ),
+            ],
+            child: const App(),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('We couldn’t load this account'), findsOneWidget);
+        final initializationLogs = records.where(
+          (record) =>
+              record.loggerName == 'ActiveAccountInitialization' &&
+              record.level == Level.SEVERE,
+        );
+        expect(initializationLogs, hasLength(1));
+        expect(
+          initializationLogs.single.message,
+          'Active account failed to initialize',
+        );
+        expect(initializationLogs.single.error, isNull);
+        expect(initializationLogs.single.stackTrace, isNull);
+      },
+    );
+
+    testWidgets(
+      'later account initialization stays inside the ready router app',
+      (tester) async {
+        final firstInitialization = Completer<ActiveAccountInitialization?>();
+        final laterInitialization = Completer<ActiveAccountInitialization?>();
+        var accountInitializationStarts = 0;
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              appDependenciesProvider.overrideWith(
+                (ref) async => stubDeps(),
+              ),
+              activeAccountInitializationProvider.overrideWith((ref) {
+                final generation = ref.watch(
+                  _accountInitializationGenerationProvider,
+                );
+                accountInitializationStarts++;
+                return generation == 0
+                    ? firstInitialization.future
+                    : laterInitialization.future;
+              }),
+              authSessionProvider.overrideWith(SignedOutAuthSession.new),
+              secureSessionRegistryStorageProvider.overrideWithValue(
+                _RegistryStorage(),
+              ),
+            ],
+            child: const App(),
+          ),
+        );
+        await tester.pump();
+
+        firstInitialization.complete(null);
+        await tester.pumpAndSettle();
+
+        final readyMaterialApp = tester.element(find.byType(MaterialApp));
+        expect(
+          tester.widget<MaterialApp>(find.byType(MaterialApp)).routerConfig,
+          isNotNull,
+        );
+        expect(find.byType(WelcomePage), findsOneWidget);
+
+        tester
+            .container()
+            .read(_accountInitializationGenerationProvider.notifier)
+            .advance();
+        for (
+          var pumpCount = 0;
+          pumpCount < 10 && accountInitializationStarts < 2;
+          pumpCount++
+        ) {
+          await tester.pump();
+        }
+
+        expect(accountInitializationStarts, 2);
+        expect(find.byType(InitializationLoadingScreen), findsOneWidget);
+        expect(
+          tester.element(find.byType(MaterialApp)),
+          same(readyMaterialApp),
+        );
+        expect(
+          tester.widget<MaterialApp>(find.byType(MaterialApp)).routerConfig,
+          isNotNull,
+        );
+
+        laterInitialization.complete(null);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(WelcomePage), findsOneWidget);
+        expect(
+          tester.element(find.byType(MaterialApp)),
+          same(readyMaterialApp),
+        );
+      },
+    );
+
     testWidgets('error state renders InitializationErrorScreen', (
       tester,
     ) async {
@@ -136,6 +332,9 @@ void main() {
               return stubDeps();
             }),
             authSessionProvider.overrideWith(SignedOutAuthSession.new),
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(),
+            ),
           ],
           child: const App(),
         ),
@@ -242,6 +441,9 @@ void main() {
                 (ref) async => stubDeps(),
               ),
               authSessionProvider.overrideWith(SignedOutAuthSession.new),
+              secureSessionRegistryStorageProvider.overrideWithValue(
+                _RegistryStorage(),
+              ),
             ],
             child: const App(),
           ),

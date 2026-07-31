@@ -279,6 +279,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get retryButton => 'Retry';
 
   @override
+  String get activeAccountInitializationFailedTitle =>
+      'We couldn’t load this account';
+
+  @override
+  String get activeAccountInitializationFailedBody =>
+      'Try again, switch accounts, or sign out.';
+
+  @override
+  String get activeAccountSwitchAction => 'Switch account';
+
+  @override
+  String get activeAccountSignOutAction => 'Sign out';
+
+  @override
+  String get activeAccountRecoveryFailed =>
+      'That didn’t work. Please try again.';
+
+  @override
   String get backButton => 'Back';
 
   @override

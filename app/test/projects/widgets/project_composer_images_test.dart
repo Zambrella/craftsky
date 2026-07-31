@@ -1,6 +1,8 @@
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -18,6 +20,12 @@ void main() {
       final imagesNotifier = _FakeComposerImages();
       final container = ProviderContainer.test(
         overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
           composerImagesProvider(
             composerId,
           ).overrideWith(() => imagesNotifier),
@@ -205,6 +213,12 @@ Future<void> _pumpComposerWithNotice(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        activeLanguagePreferencesProvider.overrideWith(
+          (ref) => const LanguagePreferences(
+            primaryLanguage: 'en',
+            contentLanguages: ['en'],
+          ),
+        ),
         composerImagesProvider('notice-composer').overrideWithValue(
           ComposerImagesState(images: const [], notice: notice),
         ),

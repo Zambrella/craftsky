@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/search/models/search_post_page.dart';
 import 'package:craftsky_app/search/models/search_queries.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
@@ -48,7 +50,15 @@ void main() {
       },
     );
     final container = ProviderContainer.test(
-      overrides: [searchRepositoryProvider.overrideWithValue(fake)],
+      overrides: [
+        activeLanguagePreferencesProvider.overrideWith(
+          (ref) => const LanguagePreferences(
+            primaryLanguage: 'en',
+            contentLanguages: ['en'],
+          ),
+        ),
+        searchRepositoryProvider.overrideWithValue(fake),
+      ],
     );
     final provider = hashtagSearchProvider(
       const HashtagSearchQuery(tag: 'SockKAL', sort: SearchSort.popular),
@@ -84,7 +94,15 @@ void main() {
         },
       );
       final container = ProviderContainer.test(
-        overrides: [searchRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          searchRepositoryProvider.overrideWithValue(fake),
+        ],
       );
       final provider = hashtagSearchProvider(
         const HashtagSearchQuery(tag: 'SockKAL'),
@@ -115,7 +133,15 @@ void main() {
       },
     );
     final container = ProviderContainer.test(
-      overrides: [searchRepositoryProvider.overrideWithValue(fake)],
+      overrides: [
+        activeLanguagePreferencesProvider.overrideWith(
+          (ref) => const LanguagePreferences(
+            primaryLanguage: 'en',
+            contentLanguages: ['en'],
+          ),
+        ),
+        searchRepositoryProvider.overrideWithValue(fake),
+      ],
     );
     final provider = hashtagSearchProvider(
       const HashtagSearchQuery(tag: 'SockKAL'),

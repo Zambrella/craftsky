@@ -6,6 +6,8 @@ import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -74,6 +76,12 @@ void main() {
     test('idle build returns null', () async {
       final container = ProviderContainer.test(
         overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
           postRepositoryProvider.overrideWithValue(FakePostRepository()),
         ],
       );
@@ -88,7 +96,15 @@ void main() {
         onCreate: ({required text, reply, images}) async => _post(rkey: 'new'),
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       final transitions = <AsyncValue<Post?>>[];
@@ -107,7 +123,15 @@ void main() {
         onCreate: ({required text, reply, images}) async => _post(rkey: 'new'),
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
       const selected = ['fr', 'en-GB', 'cy'];
 
@@ -137,7 +161,15 @@ void main() {
             },
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       await container
@@ -161,7 +193,15 @@ void main() {
         },
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       await container
@@ -204,7 +244,15 @@ void main() {
         },
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       await container
@@ -233,7 +281,15 @@ void main() {
         onCreate: ({required text, reply, images}) async => _post(rkey: 'new'),
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       // Pre-instantiate both family entries so they are "live".
@@ -264,7 +320,15 @@ void main() {
         onCreate: ({required text, reply, images}) async => _post(rkey: 'new'),
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       await container
@@ -287,7 +351,15 @@ void main() {
         onCreate: ({required text, reply, images}) async => _post(rkey: 'new'),
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       await container.read(timelineProvider.future);
@@ -312,7 +384,15 @@ void main() {
             _post(rkey: 'quote-post'),
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       await container.read(timelineProvider.future);
@@ -364,7 +444,15 @@ void main() {
             _post(rkey: 'reply', reply: replyRef),
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       await container.read(timelineProvider.future);
@@ -382,7 +470,15 @@ void main() {
         onCreate: ({required text, reply, images}) async => _post(rkey: 'new'),
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       await container
@@ -402,7 +498,15 @@ void main() {
             throw Exception('boom'),
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       await container.read(userPostsProvider('did:plc:alice').future);
@@ -433,7 +537,15 @@ void main() {
               },
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
         );
 
         await container
@@ -466,7 +578,15 @@ void main() {
                   _post(rkey: 'new-project', project: project),
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
         );
         await container.read(timelineProvider.future);
         await container.read(userPostsProvider('did:plc:alice').future);
@@ -547,7 +667,15 @@ void main() {
               const PostPage(items: []),
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
         );
         await container.read(
           userProjectsProvider('alice.craftsky.social').future,

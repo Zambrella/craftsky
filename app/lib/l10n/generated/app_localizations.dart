@@ -538,6 +538,36 @@ abstract class AppLocalizations {
   /// **'Retry'**
   String get retryButton;
 
+  /// Headline shown when account-critical initialization fails.
+  ///
+  /// In en, this message translates to:
+  /// **'We couldn’t load this account'**
+  String get activeAccountInitializationFailedTitle;
+
+  /// Recovery guidance shown when account-critical initialization fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again, switch accounts, or sign out.'**
+  String get activeAccountInitializationFailedBody;
+
+  /// Recovery action for choosing another retained account.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch account'**
+  String get activeAccountSwitchAction;
+
+  /// Recovery action for signing out the account that failed to initialize.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out'**
+  String get activeAccountSignOutAction;
+
+  /// Non-sensitive feedback when an account recovery action fails.
+  ///
+  /// In en, this message translates to:
+  /// **'That didn’t work. Please try again.'**
+  String get activeAccountRecoveryFailed;
+
   /// Generic button label for returning to the previous screen.
   ///
   /// In en, this message translates to:

@@ -1,3 +1,7 @@
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/active_account_initialization.dart';
+import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
@@ -98,6 +102,18 @@ void main() {
 
 ProviderContainer _container() => ProviderContainer.test(
   overrides: [
+    activeAccountInitializationProvider.overrideWith(
+      (ref) => ActiveAccountInitialization(
+        lease: ActiveAccountLease(
+          session: AccountSessionLease(
+            account: AccountKey('did:plc:test'),
+            sessionGeneration: 1,
+          ),
+          activationGeneration: 1,
+        ),
+        languagePreferences: _LanguageRepository.value,
+      ),
+    ),
     authSessionProvider.overrideWith(SignedInAuthSession.new),
     onboardingStatusProvider.overrideWith2(
       (_) => CompletedOnboardingStatus(),

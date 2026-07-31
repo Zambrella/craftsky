@@ -17,7 +17,7 @@ class UserPosts extends _$UserPosts {
 
   @override
   Future<UserPostsState> build(String handleOrDid) async {
-    await ref.watch(activeContentLanguagePolicyProvider.future);
+    ref.watch(activeContentLanguagePolicyProvider);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listByAuthor(
       handleOrDid,

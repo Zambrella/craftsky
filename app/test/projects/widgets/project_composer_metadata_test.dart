@@ -1,6 +1,8 @@
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
@@ -25,6 +27,14 @@ void main() {
     ) async {
       await tester.pumpWidget(
         ProviderScope(
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+          ],
           child: MessengerScope(
             messenger: RecordingMessenger(),
             child: MaterialApp(
@@ -67,6 +77,12 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
           composerImagesProvider('metadata-colours-composer').overrideWithValue(
             _readyImagesState,
           ),
@@ -133,6 +149,12 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
             facetAutocompleteDebounceProvider.overrideWithValue(Duration.zero),
             hashtagSuggestionRepositoryProvider.overrideWithValue(
               const MockHashtagSuggestionRepository(

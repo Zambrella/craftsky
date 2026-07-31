@@ -16,7 +16,7 @@ const timelinePageLimit = 20;
 class Timeline extends _$Timeline {
   @override
   Future<TimelineState> build() async {
-    await ref.watch(activeContentLanguagePolicyProvider.future);
+    ref.watch(activeContentLanguagePolicyProvider);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listTimeline(limit: timelinePageLimit);
     return TimelineState(items: _dedupe(page.items), cursor: page.cursor);

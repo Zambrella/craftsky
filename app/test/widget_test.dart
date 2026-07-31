@@ -1,7 +1,9 @@
 import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -9,6 +11,16 @@ import 'package:pub_semver/pub_semver.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fakes/auth_session_fakes.dart';
+
+final class _RegistryStorage implements SessionRegistryStorage {
+  SessionRegistry value = SessionRegistry.empty();
+
+  @override
+  Future<SessionRegistry> read() async => value;
+
+  @override
+  Future<void> write(SessionRegistry registry) async => value = registry;
+}
 
 void main() {
   late SharedPreferences prefs;
@@ -45,6 +57,9 @@ void main() {
         overrides: [
           appDependenciesProvider.overrideWith((ref) async => stubDeps()),
           authSessionProvider.overrideWith(SignedOutAuthSession.new),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(),
+          ),
         ],
         child: const App(),
       ),

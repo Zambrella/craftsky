@@ -10,6 +10,7 @@ class AccountSwitcherContent extends StatelessWidget {
     required this.onSelect,
     required this.onAddAccount,
     this.activating,
+    this.showAddAccount = true,
     super.key,
   });
 
@@ -17,6 +18,7 @@ class AccountSwitcherContent extends StatelessWidget {
   final ValueChanged<AccountSessionLease> onSelect;
   final VoidCallback onAddAccount;
   final AccountSessionLease? activating;
+  final bool showAddAccount;
 
   @override
   Widget build(BuildContext context) {
@@ -52,16 +54,18 @@ class AccountSwitcherContent extends StatelessWidget {
                 onTap: busy || row.isCurrent ? null : () => onSelect(row.lease),
               ),
             ),
-          const Divider(),
-          ListTile(
-            enabled: !busy && state.canAddAccount,
-            leading: const Icon(Icons.person_add_alt_1),
-            title: Text(l10n.accountSwitcherAdd),
-            subtitle: state.canAddAccount
-                ? null
-                : Text(l10n.accountSwitcherMaximum),
-            onTap: !busy && state.canAddAccount ? onAddAccount : null,
-          ),
+          if (showAddAccount) ...[
+            const Divider(),
+            ListTile(
+              enabled: !busy && state.canAddAccount,
+              leading: const Icon(Icons.person_add_alt_1),
+              title: Text(l10n.accountSwitcherAdd),
+              subtitle: state.canAddAccount
+                  ? null
+                  : Text(l10n.accountSwitcherMaximum),
+              onTap: !busy && state.canAddAccount ? onAddAccount : null,
+            ),
+          ],
         ],
       ),
     );
