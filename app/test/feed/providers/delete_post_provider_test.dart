@@ -4,6 +4,8 @@ import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -54,6 +56,12 @@ void main() {
     test('idle build returns null', () async {
       final container = ProviderContainer.test(
         overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
           postRepositoryProvider.overrideWithValue(FakePostRepository()),
         ],
       );
@@ -76,7 +84,15 @@ void main() {
         },
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       await container.read(userPostsProvider('did:plc:alice').future);
@@ -103,7 +119,15 @@ void main() {
         onDelete: (did, rkey) async => throw Exception('boom'),
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       await container.read(userPostsProvider('did:plc:alice').future);
@@ -120,7 +144,15 @@ void main() {
     test('reset() returns to AsyncData(null)', () async {
       final fake = FakePostRepository(onDelete: (did, rkey) async {});
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       await container
@@ -144,7 +176,15 @@ void main() {
           onDelete: (did, rkey) async {},
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
         );
         await container.read(userPostsProvider('did:plc:alice').future);
         await container.read(userPostsProvider('alice.craftsky.social').future);

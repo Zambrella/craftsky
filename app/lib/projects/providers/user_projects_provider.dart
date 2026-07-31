@@ -16,7 +16,7 @@ class UserProjects extends _$UserProjects {
 
   @override
   Future<UserProjectsState> build(String handleOrDid) async {
-    await ref.watch(activeContentLanguagePolicyProvider.future);
+    ref.watch(activeContentLanguagePolicyProvider);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listProjectsByAuthor(
       handleOrDid,

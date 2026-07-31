@@ -9,6 +9,8 @@ import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -114,6 +116,12 @@ Future<void> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: List.from([
+        activeLanguagePreferencesProvider.overrideWith(
+          (ref) => const LanguagePreferences(
+            primaryLanguage: 'en',
+            contentLanguages: ['en'],
+          ),
+        ),
         postRepositoryProvider.overrideWithValue(repo),
         ...overrides,
       ]),
@@ -353,6 +361,12 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
           postRepositoryProvider.overrideWithValue(
             FakePostRepository(
               onListTimeline: ({cursor, limit}) async =>
@@ -473,6 +487,12 @@ void main() {
     final created = _post('created');
     final container = ProviderContainer.test(
       overrides: [
+        activeLanguagePreferencesProvider.overrideWith(
+          (ref) => const LanguagePreferences(
+            primaryLanguage: 'en',
+            contentLanguages: ['en'],
+          ),
+        ),
         postRepositoryProvider.overrideWithValue(
           FakePostRepository(
             onListTimeline: ({cursor, limit}) async => _timelinePage([root]),
@@ -552,6 +572,12 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
           authSessionProvider.overrideWith(
             () => SignedInAuthSession(did: 'did:plc:alice'),
           ),

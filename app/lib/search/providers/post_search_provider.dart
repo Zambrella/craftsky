@@ -13,7 +13,7 @@ part 'post_search_provider.g.dart';
 class PostSearch extends _$PostSearch {
   @override
   Future<SearchPostResultsState> build(PostSearchQuery query) async {
-    await ref.watch(activeContentLanguagePolicyProvider.future);
+    ref.watch(activeContentLanguagePolicyProvider);
     final page = await ref
         .watch(searchRepositoryProvider)
         .searchPosts(

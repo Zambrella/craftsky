@@ -16,7 +16,7 @@ class UserComments extends _$UserComments {
 
   @override
   Future<UserPostsState> build(String handleOrDid) async {
-    await ref.watch(activeContentLanguagePolicyProvider.future);
+    ref.watch(activeContentLanguagePolicyProvider);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listCommentsByAuthor(
       handleOrDid,

@@ -1,9 +1,12 @@
+import 'package:craftsky_app/auth/models/active_account_initialization.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/data/language_preferences_repository.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/pages/languages_page.dart';
-import 'package:craftsky_app/languages/providers/content_language_invalidation.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_repository_provider.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -42,6 +45,25 @@ final class _PageRepository implements LanguagePreferencesRepository {
   }
 }
 
+final class _RegistryStorage implements SessionRegistryStorage {
+  _RegistryStorage(this.value);
+
+  SessionRegistry value;
+
+  @override
+  Future<SessionRegistry> read() async => value;
+
+  @override
+  Future<void> write(SessionRegistry registry) async => value = registry;
+}
+
+final SessionRegistry _signedInRegistry = SessionRegistry.empty()
+    .upsertAndActivate(
+      token: 'token',
+      did: 'did:plc:test',
+      handle: 'test.bsky.social',
+    );
+
 void main() {
   testWidgets('IT-001 presents and independently edits all three settings', (
     tester,
@@ -50,11 +72,19 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(_signedInRegistry),
+          ),
+          activeAccountInitializationProvider.overrideWith(
+            (ref) => ActiveAccountInitialization(
+              lease: _signedInRegistry.activeLease!,
+              languagePreferences: repository.value,
+            ),
+          ),
           authSessionProvider.overrideWith(SignedInAuthSession.new),
           languagePreferencesRepositoryProvider.overrideWith(
             (ref, account) async => repository,
           ),
-          contentLanguageCacheInvalidatorProvider.overrideWithValue(() {}),
         ],
         child: MessengerScope(
           messenger: RecordingMessenger(),
@@ -166,11 +196,19 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(_signedInRegistry),
+          ),
+          activeAccountInitializationProvider.overrideWith(
+            (ref) => ActiveAccountInitialization(
+              lease: _signedInRegistry.activeLease!,
+              languagePreferences: repository.value,
+            ),
+          ),
           authSessionProvider.overrideWith(SignedInAuthSession.new),
           languagePreferencesRepositoryProvider.overrideWith(
             (ref, account) async => repository,
           ),
-          contentLanguageCacheInvalidatorProvider.overrideWithValue(() {}),
         ],
         child: MessengerScope(
           messenger: messenger,

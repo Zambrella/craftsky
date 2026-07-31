@@ -16,7 +16,7 @@ class ProjectFeed extends _$ProjectFeed {
 
   @override
   Future<UserProjectsState> build(ProjectBrowseQuery query) async {
-    await ref.watch(activeContentLanguagePolicyProvider.future);
+    ref.watch(activeContentLanguagePolicyProvider);
     final page = await ref
         .watch(projectRepositoryProvider)
         .listProjects(

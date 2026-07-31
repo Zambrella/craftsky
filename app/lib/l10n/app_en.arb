@@ -222,6 +222,21 @@
   "retryButton": "Retry",
   "@retryButton": { "description": "Retry-action button label on InitializationErrorScreen." },
 
+  "activeAccountInitializationFailedTitle": "We couldn’t load this account",
+  "@activeAccountInitializationFailedTitle": { "description": "Headline shown when account-critical initialization fails." },
+
+  "activeAccountInitializationFailedBody": "Try again, switch accounts, or sign out.",
+  "@activeAccountInitializationFailedBody": { "description": "Recovery guidance shown when account-critical initialization fails." },
+
+  "activeAccountSwitchAction": "Switch account",
+  "@activeAccountSwitchAction": { "description": "Recovery action for choosing another retained account." },
+
+  "activeAccountSignOutAction": "Sign out",
+  "@activeAccountSignOutAction": { "description": "Recovery action for signing out the account that failed to initialize." },
+
+  "activeAccountRecoveryFailed": "That didn’t work. Please try again.",
+  "@activeAccountRecoveryFailed": { "description": "Non-sensitive feedback when an account recovery action fails." },
+
   "backButton": "Back",
   "@backButton": { "description": "Generic button label for returning to the previous screen." },
 

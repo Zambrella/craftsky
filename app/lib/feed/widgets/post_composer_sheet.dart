@@ -101,11 +101,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final createState = ref.watch(createPostProvider);
     final preferences = ref.watch(activeLanguagePreferencesProvider);
-    if (_languages == null && preferences.hasValue) {
-      _languages = PostLanguageSelection.fromPrimary(
-        preferences.requireValue.primaryLanguage,
-      );
-    }
+    _languages ??= PostLanguageSelection.fromPrimary(
+      preferences.primaryLanguage,
+    );
     final imagesProvider = composerImagesProvider(_composerId);
     final imagesState = ref.watch(imagesProvider);
     final isReply = widget.replyTarget != null;
@@ -228,20 +226,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                   onChanged: (value) => setState(() => _text = value),
                 ),
                 SizedBox(height: spacing.sp4),
-                if (_languages case final selection?)
-                  PostLanguageSelector(
-                    selection: selection,
-                    enabled: !createState.isLoading,
-                    onChanged: (value) => setState(() => _languages = value),
-                  )
-                else if (preferences case AsyncError())
-                  TextButton(
-                    onPressed: () =>
-                        ref.invalidate(activeLanguagePreferencesProvider),
-                    child: Text(l10n.postLanguageRetryLoading),
-                  )
-                else
-                  const LinearProgressIndicator(),
+                PostLanguageSelector(
+                  selection: _languages!,
+                  enabled: !createState.isLoading,
+                  onChanged: (value) => setState(() => _languages = value),
+                ),
                 if (!isReply) ...[
                   SizedBox(height: spacing.sp6),
                   ComposerImageAttachmentSection(

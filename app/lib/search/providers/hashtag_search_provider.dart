@@ -14,7 +14,7 @@ const searchResultsPageLimit = 25;
 class HashtagSearch extends _$HashtagSearch {
   @override
   Future<SearchPostResultsState> build(HashtagSearchQuery query) async {
-    await ref.watch(activeContentLanguagePolicyProvider.future);
+    ref.watch(activeContentLanguagePolicyProvider);
     final page = await ref
         .watch(searchRepositoryProvider)
         .searchHashtagPosts(

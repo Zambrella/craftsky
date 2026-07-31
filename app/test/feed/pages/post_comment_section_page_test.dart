@@ -4,6 +4,8 @@ import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -76,6 +78,12 @@ Future<void> _pumpCommentSection(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        activeLanguagePreferencesProvider.overrideWith(
+          (ref) => const LanguagePreferences(
+            primaryLanguage: 'en',
+            contentLanguages: ['en'],
+          ),
+        ),
         postRepositoryProvider.overrideWithValue(repo),
         accountSuggestionRepositoryProvider.overrideWithValue(
           const MockAccountSuggestionRepository(

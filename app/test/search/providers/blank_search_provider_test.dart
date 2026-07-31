@@ -1,3 +1,5 @@
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/search/models/recent_search.dart';
 import 'package:craftsky_app/search/models/top_hashtags.dart';
@@ -47,7 +49,15 @@ void main() {
         },
       );
       final container = ProviderContainer.test(
-        overrides: [searchRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          searchRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       final data = await container.read(blankSearchProvider.future);

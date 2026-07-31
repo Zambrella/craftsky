@@ -13,7 +13,7 @@ part 'project_search_provider.g.dart';
 class ProjectSearch extends _$ProjectSearch {
   @override
   Future<SearchPostResultsState> build(ProjectSearchQuery query) async {
-    await ref.watch(activeContentLanguagePolicyProvider.future);
+    ref.watch(activeContentLanguagePolicyProvider);
     final page = await ref
         .watch(searchRepositoryProvider)
         .searchProjects(

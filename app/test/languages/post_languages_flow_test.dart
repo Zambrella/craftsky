@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
@@ -8,7 +9,6 @@ import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/languages/data/language_preferences_repository.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
-import 'package:craftsky_app/languages/providers/content_language_invalidation.dart';
 import 'package:craftsky_app/languages/providers/device_locale_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_repository_provider.dart';
@@ -71,15 +71,22 @@ void main() {
     'AT-015 composes bootstrap, preferences, publish, and browse readiness',
     () async {
       final account = AccountKey('did:plc:alice');
+      final lease = ActiveAccountLease(
+        session: AccountSessionLease(
+          account: account,
+          sessionGeneration: 1,
+        ),
+        activationGeneration: 1,
+      );
       final preferencesRepository = _FlowPreferencesRepository();
+      var timelineCalls = 0;
       final postRepository = FakePostRepository(
         onCreate: ({required text, reply, images}) async => _createdPost(),
-        onListTimeline: ({cursor, limit}) async =>
-            const TimelinePage(items: []),
+        onListTimeline: ({cursor, limit}) async {
+          timelineCalls++;
+          return const TimelinePage(items: []);
+        },
       );
-      var invalidations = 0;
-      final observedPolicies = <List<String>>[];
-
       final container = ProviderContainer.test(
         overrides: [
           deviceLocalesProvider.overrideWithValue(const [
@@ -92,24 +99,20 @@ void main() {
               return preferencesRepository;
             },
           ),
-          contentLanguageCacheInvalidatorProvider.overrideWithValue(
-            () => invalidations++,
-          ),
-          activeContentLanguagePolicyProvider.overrideWith((ref) async {
-            final value = await ref.watch(
-              accountLanguagePreferencesProvider(account).future,
-            );
-            observedPolicies.add(value.contentLanguages);
-            return value.contentLanguages;
-          }),
           postRepositoryProvider.overrideWithValue(postRepository),
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => ref
+                .watch(accountLanguagePreferencesProvider(lease))
+                .requireValue
+                .preferences,
+          ),
         ],
       );
 
       expect(
-        await container.read(
-          accountLanguagePreferencesProvider(account).future,
-        ),
+        (await container.read(
+          accountLanguagePreferencesProvider(lease).future,
+        )).preferences,
         const LanguagePreferences(
           primaryLanguage: 'fr',
           contentLanguages: ['fr', 'en'],
@@ -120,14 +123,10 @@ void main() {
         primaryLanguage: 'es',
         contentLanguages: ['es', 'fr'],
       );
-      expect(
-        await container
-            .read(accountLanguagePreferencesProvider(account).notifier)
-            .replace(changed),
-        isTrue,
-      );
+      await container
+          .read(accountLanguagePreferencesProvider(lease).notifier)
+          .replace(changed);
       expect(preferencesRepository.stored, changed);
-      expect(invalidations, 1);
 
       final selection = PostLanguageSelection.fromPrimary(
         changed.primaryLanguage,
@@ -139,7 +138,7 @@ void main() {
       expect(container.read(createPostProvider).value?.langs, ['es', 'fr']);
 
       await container.read(timelineProvider.future);
-      expect(observedPolicies.last, ['es', 'fr']);
+      expect(timelineCalls, 1);
     },
   );
 }

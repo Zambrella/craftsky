@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/languages/data/language_preferences_repository.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/device_locale_provider.dart';
@@ -38,6 +39,10 @@ final class _BootstrapRepository implements LanguagePreferencesRepository {
 
 void main() {
   final account = AccountKey('did:plc:alice');
+  final lease = ActiveAccountLease(
+    session: AccountSessionLease(account: account, sessionGeneration: 1),
+    activationGeneration: 1,
+  );
 
   test(
     'IT-019 initialises a new account from ordered device locales',
@@ -60,9 +65,10 @@ void main() {
         ],
       );
 
-      final preferences = await container.read(
-        accountLanguagePreferencesProvider(account).future,
+      final state = await container.read(
+        accountLanguagePreferencesProvider(lease).future,
       );
+      final preferences = state.preferences;
 
       expect(
         preferences,
@@ -93,9 +99,9 @@ void main() {
       );
 
       expect(
-        await container.read(
-          accountLanguagePreferencesProvider(account).future,
-        ),
+        (await container.read(
+          accountLanguagePreferencesProvider(lease).future,
+        )).preferences,
         stored,
       );
       expect(repository.initializedWith, isNull);

@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +16,14 @@ void main() {
   testWidgets('AT-001 compact chooser opens project composer', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+        ],
         child: MessengerScope(
           messenger: RecordingMessenger(),
           child: MaterialApp(
@@ -60,6 +70,14 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+        ],
         child: MessengerScope(
           messenger: RecordingMessenger(),
           child: MaterialApp(

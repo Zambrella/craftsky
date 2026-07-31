@@ -5,6 +5,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -60,9 +61,8 @@ void main() {
 
   group('timelineProvider build', () {
     test(
-      'IT-019 waits for authoritative Content policy before fetching',
+      'IT-019 reads the established Content policy before fetching',
       () async {
-        final policy = Completer<List<String>>();
         var calls = 0;
         final fake = FakePostRepository(
           onListTimeline: ({cursor, limit}) async {
@@ -72,21 +72,19 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
-            postRepositoryProvider.overrideWithValue(fake),
-            activeContentLanguagePolicyProvider.overrideWith(
-              (ref) => policy.future,
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
             ),
+            postRepositoryProvider.overrideWithValue(fake),
           ],
         );
         final subscription = container.listen(timelineProvider, (_, _) {});
         addTearDown(subscription.close);
 
-        final result = container.read(timelineProvider.future);
-        await Future<void>.delayed(Duration.zero);
-        expect(calls, 0);
-
-        policy.complete(const ['fr']);
-        await result;
+        await container.read(timelineProvider.future);
         expect(calls, 1);
       },
     );
@@ -108,7 +106,15 @@ void main() {
       );
 
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       final state = await container.read(timelineProvider.future);
@@ -145,7 +151,15 @@ void main() {
         );
 
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
         );
 
         final state = await container.read(timelineProvider.future);
@@ -183,7 +197,15 @@ void main() {
       );
 
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       await container.read(timelineProvider.future);
@@ -216,7 +238,15 @@ void main() {
       );
 
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       await container.read(timelineProvider.future);
@@ -243,7 +273,15 @@ void main() {
       );
 
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       await container.read(timelineProvider.future);
@@ -269,7 +307,15 @@ void main() {
       );
 
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
       final sub = container.listen(timelineProvider, (_, _) {});
       addTearDown(sub.close);
@@ -300,7 +346,15 @@ void main() {
               TimelinePage(items: [_timelinePost(old)]),
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
         );
 
         await container.read(timelineProvider.future);
@@ -335,7 +389,15 @@ void main() {
         },
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       await container.read(timelineProvider.future);
@@ -355,7 +417,15 @@ void main() {
               TimelinePage(items: [_timelinePost(a), _timelinePost(b)]),
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
         );
 
         await container.read(timelineProvider.future);
@@ -393,7 +463,15 @@ void main() {
           ),
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
         );
 
         await container.read(timelineProvider.future);
@@ -434,7 +512,15 @@ void main() {
           ),
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
         );
 
         await container.read(timelineProvider.future);

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/languages/data/language_preferences_repository.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
@@ -42,6 +43,14 @@ void main() {
   );
   final alice = AccountKey('did:plc:alice');
   final bob = AccountKey('did:plc:bob');
+  final aliceLease = ActiveAccountLease(
+    session: AccountSessionLease(account: alice, sessionGeneration: 1),
+    activationGeneration: 1,
+  );
+  final bobLease = ActiveAccountLease(
+    session: AccountSessionLease(account: bob, sessionGeneration: 2),
+    activationGeneration: 2,
+  );
 
   test('UT-012 late account result cannot populate another account', () async {
     final aliceLoad = Completer<LanguagePreferences>();
@@ -58,17 +67,22 @@ void main() {
     );
 
     final aliceFuture = container.read(
-      accountLanguagePreferencesProvider(alice).future,
+      accountLanguagePreferencesProvider(aliceLease).future,
     );
     expect(
-      await container.read(accountLanguagePreferencesProvider(bob).future),
+      (await container.read(
+        accountLanguagePreferencesProvider(bobLease).future,
+      )).preferences,
       bobPreferences,
     );
 
     aliceLoad.complete(alicePreferences);
-    expect(await aliceFuture, alicePreferences);
+    expect((await aliceFuture).preferences, alicePreferences);
     expect(
-      container.read(accountLanguagePreferencesProvider(bob)).requireValue,
+      container
+          .read(accountLanguagePreferencesProvider(bobLease))
+          .requireValue
+          .preferences,
       bobPreferences,
     );
   });
@@ -84,7 +98,7 @@ void main() {
         ),
       ],
     );
-    final provider = accountLanguagePreferencesProvider(alice);
+    final provider = accountLanguagePreferencesProvider(aliceLease);
     final subscription = container.listen(provider, (_, _) {});
     addTearDown(subscription.close);
     await container.read(provider.future);
@@ -96,7 +110,47 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     replacement.complete(bobPreferences);
 
-    expect(await lateReplacement, isFalse);
-    expect(await container.read(provider.future), alicePreferences);
+    await lateReplacement;
+    expect(
+      (await container.read(provider.future)).preferences,
+      alicePreferences,
+    );
+  });
+
+  test('failed replacement publishes an error with the prior value', () async {
+    final repository = _AccountRepository(Future.value(alicePreferences));
+    final replacement = Completer<LanguagePreferences>();
+    repository.replacement = replacement;
+    final container = ProviderContainer.test(
+      overrides: [
+        languagePreferencesRepositoryProvider.overrideWith(
+          (ref, account) async => repository,
+        ),
+      ],
+    );
+    final provider = accountLanguagePreferencesProvider(aliceLease);
+    final states = <AsyncValue<AccountLanguagePreferencesState>>[];
+    final subscription = container.listen(provider, (_, next) {
+      states.add(next);
+    });
+    addTearDown(subscription.close);
+    await container.read(provider.future);
+
+    final replacing = container.read(provider.notifier).replace(bobPreferences);
+    replacement.completeError(StateError('offline'));
+    await replacing;
+
+    expect(
+      states,
+      contains(
+        isA<AsyncValue<AccountLanguagePreferencesState>>().having(
+          (state) => state.value?.replacement.isLoading,
+          'replacement.isLoading',
+          isTrue,
+        ),
+      ),
+    );
+    expect(states.last.requireValue.replacement.hasError, isTrue);
+    expect(states.last.requireValue.preferences, alicePreferences);
   });
 }

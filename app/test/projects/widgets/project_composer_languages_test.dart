@@ -18,7 +18,7 @@ void main() {
       ProviderScope(
         overrides: [
           activeLanguagePreferencesProvider.overrideWith(
-            (ref) async => const LanguagePreferences(
+            (ref) => const LanguagePreferences(
               primaryLanguage: 'fr',
               contentLanguages: ['en'],
             ),

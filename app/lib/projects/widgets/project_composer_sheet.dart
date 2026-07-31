@@ -161,11 +161,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final createState = ref.watch(createPostProvider);
     final preferences = ref.watch(activeLanguagePreferencesProvider);
-    if (_languages == null && preferences.hasValue) {
-      _languages = PostLanguageSelection.fromPrimary(
-        preferences.requireValue.primaryLanguage,
-      );
-    }
+    _languages ??= PostLanguageSelection.fromPrimary(
+      preferences.primaryLanguage,
+    );
     final imagesProvider = composerImagesProvider(_composerId);
     final imagesState = ref.watch(imagesProvider);
     final controlsEnabled = !createState.isLoading;
@@ -381,22 +379,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                     ),
                     if (_currentPage == 2) ...[
                       SizedBox(height: spacing.sp4),
-                      if (_languages case final selection?)
-                        PostLanguageSelector(
-                          selection: selection,
-                          enabled: controlsEnabled,
-                          onChanged: (value) =>
-                              setState(() => _languages = value),
-                        )
-                      else if (preferences case AsyncError())
-                        TextButton(
-                          onPressed: () => ref.invalidate(
-                            activeLanguagePreferencesProvider,
-                          ),
-                          child: Text(l10n.postLanguageRetryLoading),
-                        )
-                      else
-                        const LinearProgressIndicator(),
+                      PostLanguageSelector(
+                        selection: _languages!,
+                        enabled: controlsEnabled,
+                        onChanged: (value) =>
+                            setState(() => _languages = value),
+                      ),
                     ],
                     SizedBox(
                       key: const Key('project-composer-bottom-safe-space'),

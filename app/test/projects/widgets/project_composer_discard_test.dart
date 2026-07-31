@@ -4,6 +4,8 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -36,6 +38,12 @@ void main() {
       tester,
       composerId: 'body-draft-composer',
       overrides: [
+        activeLanguagePreferencesProvider.overrideWith(
+          (ref) => const LanguagePreferences(
+            primaryLanguage: 'en',
+            contentLanguages: ['en'],
+          ),
+        ),
         composerImagesProvider(
           'body-draft-composer',
         ).overrideWithValue(_readyImagesState),
@@ -80,6 +88,12 @@ void main() {
       tester,
       composerId: 'image-draft-composer',
       overrides: [
+        activeLanguagePreferencesProvider.overrideWith(
+          (ref) => const LanguagePreferences(
+            primaryLanguage: 'en',
+            contentLanguages: ['en'],
+          ),
+        ),
         composerImagesProvider('image-draft-composer').overrideWithValue(
           const ComposerImagesState(
             images: [
@@ -161,6 +175,12 @@ void main() {
       tester,
       composerId: 'materials-draft-composer',
       overrides: [
+        activeLanguagePreferencesProvider.overrideWith(
+          (ref) => const LanguagePreferences(
+            primaryLanguage: 'en',
+            contentLanguages: ['en'],
+          ),
+        ),
         composerImagesProvider(
           'materials-draft-composer',
         ).overrideWithValue(_readyImagesState),
@@ -244,9 +264,19 @@ Future<void> _openProjectComposer(
   List<dynamic> overrides = const [],
   String? composerId,
 }) async {
+  final effectiveOverrides = overrides.isEmpty
+      ? [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+        ]
+      : overrides;
   await tester.pumpWidget(
     ProviderScope(
-      overrides: List.from(overrides),
+      overrides: List.from(effectiveOverrides),
       child: MessengerScope(
         messenger: RecordingMessenger(),
         child: MaterialApp(
