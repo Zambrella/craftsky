@@ -103,15 +103,16 @@ void main() {
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => ref
                 .watch(accountLanguagePreferencesProvider(lease))
-                .requireValue,
+                .requireValue
+                .preferences,
           ),
         ],
       );
 
       expect(
-        await container.read(
+        (await container.read(
           accountLanguagePreferencesProvider(lease).future,
-        ),
+        )).preferences,
         const LanguagePreferences(
           primaryLanguage: 'fr',
           contentLanguages: ['fr', 'en'],
@@ -122,12 +123,9 @@ void main() {
         primaryLanguage: 'es',
         contentLanguages: ['es', 'fr'],
       );
-      expect(
-        await container
-            .read(accountLanguagePreferencesProvider(lease).notifier)
-            .replace(changed),
-        isTrue,
-      );
+      await container
+          .read(accountLanguagePreferencesProvider(lease).notifier)
+          .replace(changed);
       expect(preferencesRepository.stored, changed);
 
       final selection = PostLanguageSelection.fromPrimary(

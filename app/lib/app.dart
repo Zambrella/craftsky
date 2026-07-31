@@ -1,6 +1,5 @@
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/active_account_initialization.dart';
-import 'package:craftsky_app/auth/providers/active_account_initialization_logging.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/widgets/active_account_initialization_gate.dart';
 import 'package:craftsky_app/initialization_error_screen.dart';

@@ -67,6 +67,37 @@ final class _SequencedPreferencesRepository
 }
 
 void main() {
+  test('initialization result has value equality and copyWith', () {
+    final registry = SessionRegistry.empty().upsertAndActivate(
+      token: 'token',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    const preferences = LanguagePreferences(
+      primaryLanguage: 'en',
+      contentLanguages: ['en'],
+    );
+    final initialization = ActiveAccountInitialization(
+      lease: registry.activeLease!,
+      languagePreferences: preferences,
+    );
+
+    expect(initialization.copyWith(), initialization);
+    expect(
+      initialization.toString(),
+      'ActiveAccountInitialization(<redacted>)',
+    );
+    expect(
+      initialization.copyWith(
+        languagePreferences: const LanguagePreferences(
+          primaryLanguage: 'cy',
+          contentLanguages: ['cy'],
+        ),
+      ),
+      isNot(initialization),
+    );
+  });
+
   test(
     'signed-out initialization resolves to null without loading preferences',
     () async {

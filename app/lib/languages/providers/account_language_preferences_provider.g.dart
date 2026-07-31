@@ -16,7 +16,7 @@ final class AccountLanguagePreferencesProvider
     extends
         $AsyncNotifierProvider<
           AccountLanguagePreferences,
-          LanguagePreferences
+          AccountLanguagePreferencesState
         > {
   AccountLanguagePreferencesProvider._({
     required AccountLanguagePreferencesFamily super.from,
@@ -56,15 +56,15 @@ final class AccountLanguagePreferencesProvider
 }
 
 String _$accountLanguagePreferencesHash() =>
-    r'8e99dbd10e3a36f98eadabd49c983bdae1d6187a';
+    r'539c49b131147cb7376c40b03e5eddc251a06640';
 
 final class AccountLanguagePreferencesFamily extends $Family
     with
         $ClassFamilyOverride<
           AccountLanguagePreferences,
-          AsyncValue<LanguagePreferences>,
-          LanguagePreferences,
-          FutureOr<LanguagePreferences>,
+          AsyncValue<AccountLanguagePreferencesState>,
+          AccountLanguagePreferencesState,
+          FutureOr<AccountLanguagePreferencesState>,
           ActiveAccountLease
         > {
   AccountLanguagePreferencesFamily._()
@@ -84,21 +84,28 @@ final class AccountLanguagePreferencesFamily extends $Family
 }
 
 abstract class _$AccountLanguagePreferences
-    extends $AsyncNotifier<LanguagePreferences> {
+    extends $AsyncNotifier<AccountLanguagePreferencesState> {
   late final _$args = ref.$arg as ActiveAccountLease;
   ActiveAccountLease get lease => _$args;
 
-  FutureOr<LanguagePreferences> build(ActiveAccountLease lease);
+  FutureOr<AccountLanguagePreferencesState> build(ActiveAccountLease lease);
   @$mustCallSuper
   @override
   void runBuild() {
     final ref =
-        this.ref as $Ref<AsyncValue<LanguagePreferences>, LanguagePreferences>;
+        this.ref
+            as $Ref<
+              AsyncValue<AccountLanguagePreferencesState>,
+              AccountLanguagePreferencesState
+            >;
     final element =
         ref.element
             as $ClassProviderElement<
-              AnyNotifier<AsyncValue<LanguagePreferences>, LanguagePreferences>,
-              AsyncValue<LanguagePreferences>,
+              AnyNotifier<
+                AsyncValue<AccountLanguagePreferencesState>,
+                AccountLanguagePreferencesState
+              >,
+              AsyncValue<AccountLanguagePreferencesState>,
               Object?,
               Object?
             >;

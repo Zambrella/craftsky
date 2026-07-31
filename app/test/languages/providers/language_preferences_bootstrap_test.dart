@@ -65,9 +65,10 @@ void main() {
         ],
       );
 
-      final preferences = await container.read(
+      final state = await container.read(
         accountLanguagePreferencesProvider(lease).future,
       );
+      final preferences = state.preferences;
 
       expect(
         preferences,
@@ -98,9 +99,9 @@ void main() {
       );
 
       expect(
-        await container.read(
+        (await container.read(
           accountLanguagePreferencesProvider(lease).future,
-        ),
+        )).preferences,
         stored,
       );
       expect(repository.initializedWith, isNull);

@@ -65,42 +65,39 @@ class LanguagesPage extends ConsumerWidget {
   }
 }
 
-class _AccountLanguageSections extends ConsumerStatefulWidget {
+class _AccountLanguageSections extends ConsumerWidget {
   const _AccountLanguageSections({required this.lease});
 
   final ActiveAccountLease lease;
 
-  @override
-  ConsumerState<_AccountLanguageSections> createState() =>
-      _AccountLanguageSectionsState();
-}
-
-class _AccountLanguageSectionsState
-    extends ConsumerState<_AccountLanguageSections> {
-  var _saving = false;
-
-  Future<void> _replace(LanguagePreferences candidate) async {
-    setState(() => _saving = true);
-    final success = await ref
+  Future<void> _replace(
+    WidgetRef ref,
+    LanguagePreferences candidate,
+  ) async {
+    await ref
         .read(
-          accountLanguagePreferencesProvider(widget.lease).notifier,
+          accountLanguagePreferencesProvider(lease).notifier,
         )
         .replace(candidate);
-    if (!mounted) return;
-    setState(() => _saving = false);
-    if (!success) {
-      context.showError(AppLocalizations.of(context).languageSaveError);
-    }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
-    final provider = accountLanguagePreferencesProvider(widget.lease);
-    return switch (ref.watch(provider)) {
-      AsyncData(:final value) => Column(
+    final provider = accountLanguagePreferencesProvider(lease);
+    final preferences = ref.watch(provider);
+    ref.listen(provider, (previous, next) {
+      if (previous?.value?.replacement.isLoading == true &&
+          next.value?.replacement.hasError == true) {
+        context.showError(l10n.languageSaveError);
+      }
+    });
+    if (preferences.hasValue) {
+      final accountState = preferences.requireValue;
+      final value = accountState.preferences;
+      return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           CraftskyCard(
@@ -114,13 +111,14 @@ class _AccountLanguageSectionsState
               helperText: l10n.primaryLanguageDescription,
               value: value.primaryLanguage,
               options: _languageOptions,
-              enabled: !_saving,
+              enabled: !accountState.replacement.isLoading,
               searchHintText: l10n.languageSearchHint,
               onChanged: (language) async {
                 if (language == null || language == value.primaryLanguage) {
                   return;
                 }
                 await _replace(
+                  ref,
                   value.copyWith(primaryLanguage: language),
                 );
               },
@@ -138,17 +136,20 @@ class _AccountLanguageSectionsState
               helperText: l10n.contentLanguagesDescription,
               values: value.contentLanguages,
               options: _languageOptions,
-              enabled: !_saving,
+              enabled: !accountState.replacement.isLoading,
               searchHintText: l10n.languageAddMore,
               onChanged: (languages) async {
                 await _replace(
+                  ref,
                   value.copyWith(contentLanguages: languages),
                 );
               },
             ),
           ),
         ],
-      ),
+      );
+    }
+    return switch (preferences) {
       AsyncError() => CraftskyCard(
         key: const Key('language-preferences-error-card'),
         clipBehavior: Clip.none,

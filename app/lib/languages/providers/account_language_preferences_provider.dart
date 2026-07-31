@@ -8,44 +8,62 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'account_language_preferences_provider.g.dart';
 
+typedef AccountLanguagePreferencesState = ({
+  LanguagePreferences preferences,
+  AsyncValue<void> replacement,
+});
+
 @riverpod
 class AccountLanguagePreferences extends _$AccountLanguagePreferences {
-  bool _replacing = false;
   int _generation = 0;
 
   @override
-  Future<LanguagePreferences> build(ActiveAccountLease lease) async {
+  Future<AccountLanguagePreferencesState> build(
+    ActiveAccountLease lease,
+  ) async {
     _generation++;
-    _replacing = false;
     final account = lease.session.account;
     final repository = await ref.watch(
       languagePreferencesRepositoryProvider(account).future,
     );
+    late final LanguagePreferences preferences;
     try {
-      return await repository.load();
+      preferences = await repository.load();
     } on ApiBadRequest catch (error) {
       if (error.code != 'language_preferences_not_found') rethrow;
       final proposal = deriveInitialLanguages(ref.read(deviceLocalesProvider));
-      return repository.initialize(proposal);
+      preferences = await repository.initialize(proposal);
     }
+    return (
+      preferences: preferences,
+      replacement: const AsyncData(null),
+    );
   }
 
-  Future<bool> replace(LanguagePreferences candidate) async {
-    if (_replacing || !state.hasValue) return false;
+  Future<void> replace(LanguagePreferences candidate) async {
+    final previous = state.value;
+    if (previous == null || previous.replacement.isLoading) return;
     final generation = _generation;
-    _replacing = true;
+    state = AsyncData((
+      preferences: previous.preferences,
+      replacement: const AsyncLoading(),
+    ));
     try {
       final repository = await ref.read(
         languagePreferencesRepositoryProvider(lease.session.account).future,
       );
       final authoritative = await repository.replace(candidate);
-      if (!ref.mounted || generation != _generation) return false;
-      state = AsyncData(authoritative);
-      return true;
-    } on Object {
-      return false;
-    } finally {
-      if (generation == _generation) _replacing = false;
+      if (!ref.mounted || generation != _generation) return;
+      state = AsyncData((
+        preferences: authoritative,
+        replacement: const AsyncData(null),
+      ));
+    } on Object catch (error, stackTrace) {
+      if (!ref.mounted || generation != _generation) return;
+      state = AsyncData((
+        preferences: previous.preferences,
+        replacement: AsyncError<void>(error, stackTrace),
+      ));
     }
   }
 }

@@ -70,14 +70,19 @@ void main() {
       accountLanguagePreferencesProvider(aliceLease).future,
     );
     expect(
-      await container.read(accountLanguagePreferencesProvider(bobLease).future),
+      (await container.read(
+        accountLanguagePreferencesProvider(bobLease).future,
+      )).preferences,
       bobPreferences,
     );
 
     aliceLoad.complete(alicePreferences);
-    expect(await aliceFuture, alicePreferences);
+    expect((await aliceFuture).preferences, alicePreferences);
     expect(
-      container.read(accountLanguagePreferencesProvider(bobLease)).requireValue,
+      container
+          .read(accountLanguagePreferencesProvider(bobLease))
+          .requireValue
+          .preferences,
       bobPreferences,
     );
   });
@@ -105,7 +110,47 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     replacement.complete(bobPreferences);
 
-    expect(await lateReplacement, isFalse);
-    expect(await container.read(provider.future), alicePreferences);
+    await lateReplacement;
+    expect(
+      (await container.read(provider.future)).preferences,
+      alicePreferences,
+    );
+  });
+
+  test('failed replacement publishes an error with the prior value', () async {
+    final repository = _AccountRepository(Future.value(alicePreferences));
+    final replacement = Completer<LanguagePreferences>();
+    repository.replacement = replacement;
+    final container = ProviderContainer.test(
+      overrides: [
+        languagePreferencesRepositoryProvider.overrideWith(
+          (ref, account) async => repository,
+        ),
+      ],
+    );
+    final provider = accountLanguagePreferencesProvider(aliceLease);
+    final states = <AsyncValue<AccountLanguagePreferencesState>>[];
+    final subscription = container.listen(provider, (_, next) {
+      states.add(next);
+    });
+    addTearDown(subscription.close);
+    await container.read(provider.future);
+
+    final replacing = container.read(provider.notifier).replace(bobPreferences);
+    replacement.completeError(StateError('offline'));
+    await replacing;
+
+    expect(
+      states,
+      contains(
+        isA<AsyncValue<AccountLanguagePreferencesState>>().having(
+          (state) => state.value?.replacement.isLoading,
+          'replacement.isLoading',
+          isTrue,
+        ),
+      ),
+    );
+    expect(states.last.requireValue.replacement.hasError, isTrue);
+    expect(states.last.requireValue.preferences, alicePreferences);
   });
 }

@@ -6,7 +6,6 @@ import 'package:craftsky_app/auth/models/session_registry.dart'
     as registry_model;
 import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart';
 import 'package:craftsky_app/auth/providers/account_boundary_provider.dart';
-import 'package:craftsky_app/auth/providers/active_account_initialization_logging.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
