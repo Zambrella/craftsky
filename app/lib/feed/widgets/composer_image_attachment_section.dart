@@ -725,6 +725,7 @@ String _statusLabel(BuildContext context, ComposerImageDraft image) {
     ImagePreparing() => l10n.postComposePreparingImage,
     ImageUploading() => l10n.postComposeUploadingImage,
     ImageUploaded() => l10n.postComposeUploadedImage,
+    ScheduledImageReady() => l10n.postComposeUploadedImage,
     ImageFailed() => l10n.postComposeImageFailed,
   };
 }
@@ -742,7 +743,7 @@ _PreviewLoadingOverlay? _previewLoadingOverlay(
       label: l10n.postComposePreparingImage,
     ),
     ImageUploading(:final progress) => _uploadLoadingOverlay(l10n, progress),
-    ImageUploaded() || ImageFailed() => null,
+    ImageUploaded() || ScheduledImageReady() || ImageFailed() => null,
   };
 }
 

@@ -410,6 +410,7 @@ class ComposerImagePhaseMapper extends ClassMapperBase<ComposerImagePhase> {
       ImagePreparingMapper.ensureInitialized();
       ImageUploadingMapper.ensureInitialized();
       ImageUploadedMapper.ensureInitialized();
+      ScheduledImageReadyMapper.ensureInitialized();
       ImageFailedMapper.ensureInitialized();
     }
     return _instance!;
@@ -1388,6 +1389,158 @@ class _UploadedDraftImageCopyWithImpl<$R, $Out>
   UploadedDraftImageCopyWith<$R2, UploadedDraftImage, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   ) => _UploadedDraftImageCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class ScheduledImageReadyMapper
+    extends SubClassMapperBase<ScheduledImageReady> {
+  ScheduledImageReadyMapper._();
+
+  static ScheduledImageReadyMapper? _instance;
+  static ScheduledImageReadyMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = ScheduledImageReadyMapper._());
+      ComposerImagePhaseMapper.ensureInitialized().addSubMapper(_instance!);
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'ScheduledImageReady';
+
+  static int _$width(ScheduledImageReady v) => v.width;
+  static const Field<ScheduledImageReady, int> _f$width = Field(
+    'width',
+    _$width,
+  );
+  static int _$height(ScheduledImageReady v) => v.height;
+  static const Field<ScheduledImageReady, int> _f$height = Field(
+    'height',
+    _$height,
+  );
+
+  @override
+  final MappableFields<ScheduledImageReady> fields = const {
+    #width: _f$width,
+    #height: _f$height,
+  };
+
+  @override
+  final String discriminatorKey = 'type';
+  @override
+  final dynamic discriminatorValue = 'ScheduledImageReady';
+  @override
+  late final ClassMapperBase superMapper =
+      ComposerImagePhaseMapper.ensureInitialized();
+
+  static ScheduledImageReady _instantiate(DecodingData data) {
+    return ScheduledImageReady(
+      width: data.dec(_f$width),
+      height: data.dec(_f$height),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static ScheduledImageReady fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<ScheduledImageReady>(map);
+  }
+
+  static ScheduledImageReady fromJson(String json) {
+    return ensureInitialized().decodeJson<ScheduledImageReady>(json);
+  }
+}
+
+mixin ScheduledImageReadyMappable {
+  String toJson() {
+    return ScheduledImageReadyMapper.ensureInitialized()
+        .encodeJson<ScheduledImageReady>(this as ScheduledImageReady);
+  }
+
+  Map<String, dynamic> toMap() {
+    return ScheduledImageReadyMapper.ensureInitialized()
+        .encodeMap<ScheduledImageReady>(this as ScheduledImageReady);
+  }
+
+  ScheduledImageReadyCopyWith<
+    ScheduledImageReady,
+    ScheduledImageReady,
+    ScheduledImageReady
+  >
+  get copyWith =>
+      _ScheduledImageReadyCopyWithImpl<
+        ScheduledImageReady,
+        ScheduledImageReady
+      >(this as ScheduledImageReady, $identity, $identity);
+  @override
+  String toString() {
+    return ScheduledImageReadyMapper.ensureInitialized().stringifyValue(
+      this as ScheduledImageReady,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return ScheduledImageReadyMapper.ensureInitialized().equalsValue(
+      this as ScheduledImageReady,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return ScheduledImageReadyMapper.ensureInitialized().hashValue(
+      this as ScheduledImageReady,
+    );
+  }
+}
+
+extension ScheduledImageReadyValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, ScheduledImageReady, $Out> {
+  ScheduledImageReadyCopyWith<$R, ScheduledImageReady, $Out>
+  get $asScheduledImageReady => $base.as(
+    (v, t, t2) => _ScheduledImageReadyCopyWithImpl<$R, $Out>(v, t, t2),
+  );
+}
+
+abstract class ScheduledImageReadyCopyWith<
+  $R,
+  $In extends ScheduledImageReady,
+  $Out
+>
+    implements ComposerImagePhaseCopyWith<$R, $In, $Out> {
+  @override
+  $R call({int? width, int? height});
+  ScheduledImageReadyCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _ScheduledImageReadyCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, ScheduledImageReady, $Out>
+    implements ScheduledImageReadyCopyWith<$R, ScheduledImageReady, $Out> {
+  _ScheduledImageReadyCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<ScheduledImageReady> $mapper =
+      ScheduledImageReadyMapper.ensureInitialized();
+  @override
+  $R call({int? width, int? height}) => $apply(
+    FieldCopyWithData({
+      if (width != null) #width: width,
+      if (height != null) #height: height,
+    }),
+  );
+  @override
+  ScheduledImageReady $make(CopyWithData data) => ScheduledImageReady(
+    width: data.get(#width, or: $value.width),
+    height: data.get(#height, or: $value.height),
+  );
+
+  @override
+  ScheduledImageReadyCopyWith<$R2, ScheduledImageReady, $Out2>
+  $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
+      _ScheduledImageReadyCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 
 class ImageFailedMapper extends SubClassMapperBase<ImageFailed> {

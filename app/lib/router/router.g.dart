@@ -103,6 +103,12 @@ RouteBase get $appShellRoute => StatefulShellRouteData.$route(
                   factory: $InstagramMigrationRoute._fromState,
                 ),
                 GoRouteData.$route(
+                  path: 'scheduled',
+                  name: 'scheduled-posts',
+                  parentNavigatorKey: ScheduledPostsRoute.$parentNavigatorKey,
+                  factory: $ScheduledPostsRoute._fromState,
+                ),
+                GoRouteData.$route(
                   path: 'saved',
                   name: 'saved-posts',
                   parentNavigatorKey: SavedPostsRoute.$parentNavigatorKey,
@@ -375,6 +381,27 @@ mixin $InstagramMigrationRoute on GoRouteData {
 
   @override
   String get location => GoRouteData.$location('/profile/settings/instagram');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $ScheduledPostsRoute on GoRouteData {
+  static ScheduledPostsRoute _fromState(GoRouterState state) =>
+      const ScheduledPostsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/settings/scheduled');
 
   @override
   void go(BuildContext context) => context.go(location);

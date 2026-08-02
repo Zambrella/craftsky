@@ -1938,4 +1938,143 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postLanguageRetryLoading => 'Retry loading languages';
+
+  @override
+  String get scheduledPostsTitle => 'Scheduled posts';
+
+  @override
+  String get scheduledPostsEmpty => 'No scheduled posts';
+
+  @override
+  String get scheduledPostsDeleteTitle => 'Delete scheduled post?';
+
+  @override
+  String get scheduledPostsDeleteMessage =>
+      'This removes the unpublished post and its private media.';
+
+  @override
+  String get scheduledPostsDeleteAction => 'Delete';
+
+  @override
+  String get scheduledPostDeleteError =>
+      'Could not delete the scheduled post. Try again.';
+
+  @override
+  String get scheduledPostsKindProject => 'Project';
+
+  @override
+  String get scheduledPostsKindStandard => 'Standard';
+
+  @override
+  String scheduledPostsRowDateTime(String kind, String date, String time) {
+    return '$kind · $date, $time';
+  }
+
+  @override
+  String get scheduledPostsStatusScheduled => 'Scheduled';
+
+  @override
+  String get scheduledPostsStatusPublishing => 'Publishing';
+
+  @override
+  String get scheduledPostsStatusRetrying => 'Retrying';
+
+  @override
+  String get scheduledPostsStatusNeedsAttention => 'Needs attention';
+
+  @override
+  String get scheduledPostsPublishingLocked =>
+      'Editing is unavailable while publishing';
+
+  @override
+  String get scheduledPostsPublishingLockSemantics => 'Publishing lock';
+
+  @override
+  String get scheduledPostsEditTooltip => 'Edit scheduled post';
+
+  @override
+  String get scheduledPostsDeleteTooltip => 'Delete scheduled post';
+
+  @override
+  String get scheduledPostsThumbnailSemantics => 'Scheduled post image';
+
+  @override
+  String scheduledPostsDeletedOn(String date) {
+    return 'Deleted on $date';
+  }
+
+  @override
+  String get scheduledPostsLoadError => 'Could not load scheduled posts';
+
+  @override
+  String get scheduledPostsRetryAction => 'Try again';
+
+  @override
+  String get scheduledPostWhenTitle => 'When';
+
+  @override
+  String get scheduledPostNow => 'Now';
+
+  @override
+  String get scheduledPostLater => 'Schedule for later';
+
+  @override
+  String get scheduledPostTimeRangeError =>
+      'Choose a whole-minute time from 5 minutes through 28 days from now';
+
+  @override
+  String get scheduledPostAction => 'Schedule';
+
+  @override
+  String scheduledPostStagingProgress(int current, int total) {
+    return 'Preparing image $current of $total';
+  }
+
+  @override
+  String get scheduledPostCreating => 'Saving scheduled post';
+
+  @override
+  String get scheduledPostManageAction => 'Manage scheduled posts';
+
+  @override
+  String scheduledPostCapacity(int count) {
+    return '$count of 3 scheduled';
+  }
+
+  @override
+  String scheduledPostLocalTime(
+    String date,
+    String time,
+    String zone,
+    String offset,
+  ) {
+    return '$date at $time ($zone, UTC$offset)';
+  }
+
+  @override
+  String scheduledPostMissedTime(String time) {
+    return 'Missed schedule: $time';
+  }
+
+  @override
+  String get scheduledPostSaved => 'Post scheduled';
+
+  @override
+  String get scheduledPostSaveError =>
+      'Could not schedule post. Your draft is still here.';
+
+  @override
+  String get scheduledPostNowError =>
+      'Could not post now. Your draft is still here.';
+
+  @override
+  String get scheduledProjectSaved => 'Project scheduled';
+
+  @override
+  String get scheduledProjectSaveError =>
+      'Could not schedule project. Your draft is still here.';
+
+  @override
+  String get scheduledProjectNowError =>
+      'Could not post now. Your project is still here.';
 }

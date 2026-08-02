@@ -68,7 +68,7 @@ class CraftskyFormSearchableMultiSelectField<T> extends StatelessWidget {
     required this.label,
     required this.options,
     super.key,
-    this.initialValue = const [],
+    this.initialValue,
     this.helperText,
     this.enabled = true,
     this.validator,
@@ -83,7 +83,7 @@ class CraftskyFormSearchableMultiSelectField<T> extends StatelessWidget {
   final String name;
   final String label;
   final List<CraftskySelectOption<T>> options;
-  final List<T> initialValue;
+  final List<T>? initialValue;
   final String? helperText;
   final bool enabled;
   final FormFieldValidator<List<T>>? validator;
@@ -129,7 +129,7 @@ class CraftskyFormTokenField extends StatelessWidget {
     required this.name,
     required this.label,
     super.key,
-    this.initialValue = const [],
+    this.initialValue,
     this.helperText,
     this.enabled = true,
     this.validator,
@@ -144,7 +144,7 @@ class CraftskyFormTokenField extends StatelessWidget {
 
   final String name;
   final String label;
-  final List<String> initialValue;
+  final List<String>? initialValue;
   final String? helperText;
   final bool enabled;
   final FormFieldValidator<List<String>>? validator;

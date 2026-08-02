@@ -107,4 +107,48 @@ void main() {
     ]);
     expect(pattern.publisherFacets, isNull);
   });
+
+  test('AT-007 preserves stored facets for unchanged project text', () async {
+    const bodyFacets = [
+      {'feature': 'mention', 'did': 'did:plc:alice'},
+    ];
+    const nameFacets = [
+      {'feature': 'tag', 'tag': 'cardigan'},
+    ];
+    const designerFacets = [
+      {'feature': 'mention', 'did': 'did:plc:designer'},
+    ];
+    const project = Project(
+      common: ProjectCommon(
+        craftType: 'social.craftsky.feed.defs#knitting',
+        pattern: ProjectPattern(
+          name: '#cardigan',
+          nameFacets: nameFacets,
+          designer: '@designer.example',
+          designerFacets: designerFacets,
+        ),
+      ),
+    );
+
+    final args = await buildProjectComposerSubmitArguments(
+      text: 'Hello @alice.example',
+      langs: langs,
+      project: project,
+      imagesState: const ComposerImagesState(images: []),
+      existingText: 'Hello @alice.example',
+      existingFacets: bodyFacets,
+      existingProject: project,
+      generateFacets:
+          (
+            _, {
+            includeMentions = true,
+            includeLinks = true,
+            includeTags = true,
+          }) => throw StateError('unchanged text must not regenerate facets'),
+    );
+
+    expect(args.facets, bodyFacets);
+    expect(args.project.common.pattern?.nameFacets, nameFacets);
+    expect(args.project.common.pattern?.designerFacets, designerFacets);
+  });
 }

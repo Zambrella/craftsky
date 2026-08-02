@@ -29,6 +29,7 @@ import (
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/push"
 	"social.craftsky/appview/internal/relationships"
+	"social.craftsky/appview/internal/scheduledposts"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -102,6 +103,13 @@ type Deps struct {
 	// by the OAuth callback's InitializeProfile step and the write-proxy
 	// handlers (today PUT /v1/profiles/me).
 	NewPDSClient auth.PDSClientFactory
+
+	// Scheduled posts and their private staged media are AppView-owned data.
+	ScheduledPosts           *scheduledposts.Store
+	ScheduledMedia           *scheduledposts.PrivateMediaService
+	ScheduledCleanup         *scheduledposts.CleanupProcessor
+	ScheduledPublisher       *scheduledposts.Worker
+	ScheduledManualPublisher scheduledposts.ManualPublisher
 }
 
 type instagramRelationshipSafetyProvider struct {
@@ -161,6 +169,17 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	if err != nil {
 		return nil, nil, fmt.Errorf("db connect: %w", err)
 	}
+	scheduledStore := scheduledposts.NewStore(pool)
+	scheduledObjects, err := scheduledposts.NewS3ObjectStore(ctx, cfg.ScheduledPostsS3)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("scheduled private object store: %w", err)
+	}
+	if err := scheduledObjects.Check(ctx); err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("scheduled private object store check: %w", err)
+	}
+	var scheduledCleanup *scheduledposts.CleanupProcessor
 
 	oauthCfg, err := auth.BuildClientConfig(
 		cfg.OAuthHostname,
@@ -197,6 +216,15 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	observer := observability.New(observability.Config{
 		Env: string(cfg.Env), Release: cfg.SentryRelease, LogsEnabled: cfg.SentryLogsEnabled, TracingEnabled: cfg.SentryTracingEnabled, TracesSampleRate: cfg.SentryTracesSampleRate, MetricsEnabled: cfg.SentryMetricsEnabled, TapTracingEnabled: cfg.SentryTapTracingEnabled, TapTracesSampleRate: cfg.SentryTapTracesSampleRate, SentryDSN: cfg.SentryDSN, Logger: logger,
 	})
+	scheduledStore.SetOperationalObserver(observer)
+	scheduledCleanup, err = scheduledposts.NewCleanupProcessor(scheduledposts.CleanupProcessorOptions{
+		Store: scheduledStore, Objects: scheduledObjects, Now: time.Now,
+		Observer: observer,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("scheduled cleanup processor: %w", err)
+	}
 	lifecycle := notifications.NewService(observer)
 	relationshipStore := relationships.NewStore(pool)
 	languagePreferences := languages.NewStore(pool)
@@ -216,8 +244,10 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	}
 	instagramPrivateData := instagram.NewPrivateDataService(pool, instagramRateLimiter, time.Now)
 	notificationActorDeletion := notifications.NewActorDeletionService(pool)
+	scheduledAccountDeletion := scheduledposts.NewAccountDeletion(pool, time.Now)
 	profileDeletion := &profileMembershipDeletion{
 		notifications: notificationActorDeletion,
+		scheduled:     scheduledAccountDeletion,
 		instagram:     instagramPrivateData,
 		now:           time.Now,
 	}
@@ -234,6 +264,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		notificationActorDeletion,
 		instagramPrivateData,
 		languagePreferences,
+		scheduledAccountDeletion,
 	}}
 	instagramRestoration := instagram.NewReconciliationTrigger(pool, time.Now)
 
@@ -261,6 +292,9 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 			instagramRestoration,
 		),
 		InstagramRestoration: instagramRestoration,
+		ScheduledPosts:       scheduledStore,
+		ScheduledMedia:       scheduledposts.NewPrivateMediaService(scheduledStore, scheduledObjects),
+		ScheduledCleanup:     scheduledCleanup,
 	}
 	if cfg.PushEnabled {
 		sender, err := push.NewFirebaseSender(ctx, cfg.FirebaseProjectID)
@@ -478,6 +512,47 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 			},
 		}, nil
 	})
+	scheduledPublisher, err := scheduledposts.NewPublicationProcessor(scheduledposts.PublicationProcessorOptions{
+		Store:         scheduledStore,
+		Sessions:      auth.NewBackgroundSessionSelector(pool),
+		NewPDS:        deps.NewPDSClient,
+		Objects:       scheduledObjects,
+		Now:           time.Now,
+		MaxMediaBytes: cfg.MaxImageUploadBytes,
+		Observer:      observer,
+		Validate: func(ctx context.Context, owner syntax.DID, payload scheduledposts.Payload) error {
+			return api.ValidateScheduledPublication(
+				ctx,
+				api.NewPostStore(pool, observer),
+				owner,
+				payload,
+				api.MediaLimits{
+					MaxPostImages:       api.DefaultMaxPostImages,
+					MaxImageUploadBytes: cfg.MaxImageUploadBytes,
+				},
+			)
+		},
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("scheduled publication processor: %w", err)
+	}
+	deps.ScheduledManualPublisher, err = scheduledposts.NewManualPublicationService(
+		scheduledStore,
+		scheduledPublisher,
+	)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("manual scheduled publisher: %w", err)
+	}
+	deps.ScheduledPublisher, err = scheduledposts.NewWorker(scheduledposts.WorkerOptions{
+		Store: scheduledStore, Processor: scheduledPublisher, Now: time.Now,
+		Observer: observer,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("scheduled publication worker: %w", err)
+	}
 	deps.InstagramAutomaticFollow, err = instagram.NewAutomaticFollowWorker(
 		instagram.AutomaticFollowWorkerOptions{
 			Store:                 automaticFollowStore,

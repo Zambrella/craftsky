@@ -48,6 +48,8 @@ func testConfigFile(t *testing.T, contents string) string {
 		"OAUTH_SCOPES", "OAUTH_SESSION_EXPIRY", "OAUTH_SESSION_INACTIVITY",
 		"OAUTH_AUTH_REQUEST_EXPIRY", "CRAFTSKY_SESSION_LAST_SEEN_THROTTLE",
 		"MAX_POST_IMAGES", "MAX_IMAGE_UPLOAD_BYTES", "APPVIEW_JSON_BODY_LIMIT_BYTES",
+		"SCHEDULED_POSTS_S3_ENDPOINT", "SCHEDULED_POSTS_S3_REGION", "SCHEDULED_POSTS_S3_BUCKET",
+		"SCHEDULED_POSTS_S3_ACCESS_KEY_ID", "SCHEDULED_POSTS_S3_SECRET_ACCESS_KEY",
 		"SENTRY_DSN", "SENTRY_RELEASE", "SENTRY_TRACING_ENABLED", "SENTRY_TRACES_SAMPLE_RATE",
 		"SENTRY_LOGS_ENABLED", "SENTRY_METRICS_ENABLED", "SENTRY_TAP_TRACING_ENABLED",
 		"SENTRY_TAP_TRACES_SAMPLE_RATE",
@@ -100,6 +102,31 @@ func testConfigFile(t *testing.T, contents string) string {
 		t.Fatalf("close temp: %v", err)
 	}
 	return f.Name()
+}
+
+func TestLoadConfig_ScheduledPostObjectStoreIsCompleteAndProductionUsesTLS(t *testing.T) {
+	dev := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n")
+	cfg, err := LoadConfig(EnvDev, dev)
+	if err != nil {
+		t.Fatalf("LoadConfig dev defaults: %v", err)
+	}
+	if cfg.ScheduledPostsS3.Endpoint != "http://minio:9000" || cfg.ScheduledPostsS3.Bucket != "private-scheduled-media" {
+		t.Fatalf("scheduled object store defaults = %+v", cfg.ScheduledPostsS3)
+	}
+
+	prodBase := "DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap\n"
+	_, err = LoadConfig(EnvProd, testConfigFile(t, prodBase+"SCHEDULED_POSTS_S3_ENDPOINT=http://objects.example\nSCHEDULED_POSTS_S3_REGION=eu-west-2\nSCHEDULED_POSTS_S3_BUCKET=private\nSCHEDULED_POSTS_S3_ACCESS_KEY_ID=key\nSCHEDULED_POSTS_S3_SECRET_ACCESS_KEY=secret\n"))
+	if err == nil || !strings.Contains(err.Error(), "HTTPS") {
+		t.Fatalf("insecure production object store error = %v", err)
+	}
+
+	cfg, err = LoadConfig(EnvProd, testConfigFile(t, prodBase+"SCHEDULED_POSTS_S3_ENDPOINT=https://objects.example\nSCHEDULED_POSTS_S3_REGION=eu-west-2\nSCHEDULED_POSTS_S3_BUCKET=private\nSCHEDULED_POSTS_S3_ACCESS_KEY_ID=key\nSCHEDULED_POSTS_S3_SECRET_ACCESS_KEY=secret\n"))
+	if err != nil {
+		t.Fatalf("LoadConfig production object store: %v", err)
+	}
+	if cfg.ScheduledPostsS3.SecretAccessKey != "secret" {
+		t.Fatal("production object-store credentials were not loaded")
+	}
 }
 
 func TestLoadConfig_ObservabilityDefaultsAndValidation(t *testing.T) {

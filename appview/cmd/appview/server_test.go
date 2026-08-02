@@ -90,6 +90,27 @@ func TestInstagramWebhookWorkerLoopRetriesErrorsAndDrainsBacklogWithoutPollingDe
 	}
 }
 
+func TestScheduledWorkerLoopRunsImmediatelyDrainsAndStopsOnCancellation(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	processor := &scriptedInstagramBatchProcessor{results: []instagramBatchResult{
+		{err: context.DeadlineExceeded}, {processed: 1}, {cancel: cancel},
+	}}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		runScheduledWorker(ctx, processor, slog.New(slog.NewTextHandler(io.Discard, nil)), time.Millisecond, "publication")
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("scheduled worker did not stop")
+	}
+	if processor.calls != 3 {
+		t.Fatalf("scheduled worker calls=%d, want 3", processor.calls)
+	}
+}
+
 func TestInstagramReconciliationWorkerLoopUsesBoundedBatchAndDrainsBacklog(t *testing.T) {
 	t.Parallel()
 

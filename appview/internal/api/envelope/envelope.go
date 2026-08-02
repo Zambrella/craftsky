@@ -18,6 +18,13 @@ type Error struct {
 	Fields    map[string]string `json:"fields,omitempty"`
 }
 
+// WriteJSON serialises a successful v1 response with the canonical content type.
+func WriteJSON(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(value)
+}
+
 // WriteError serialises a canonical error response to w with the given
 // HTTP status code. fields may be nil; it is omitted from the JSON when
 // empty.

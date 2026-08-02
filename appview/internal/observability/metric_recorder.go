@@ -43,6 +43,10 @@ type MetricRecorder interface {
 	NotificationDecision(ctx context.Context, category, result string)
 	PushDelivery(ctx context.Context, platform, result string)
 	PushQueue(ctx context.Context, pending int, oldestAge time.Duration)
+	ScheduledQueue(ctx context.Context, status string, count, due, overdue int, oldestDueAge time.Duration)
+	ScheduledOperation(ctx context.Context, operation, result, errorClass string, duration time.Duration)
+	ScheduledPublication(ctx context.Context, attempt int, startLatency, duration time.Duration)
+	ScheduledCleanupQueue(ctx context.Context, pending int, oldestAge time.Duration)
 }
 
 type noopMetricRecorder struct{}
@@ -67,6 +71,13 @@ func (noopMetricRecorder) RelationshipOperation(context.Context, string, string,
 func (noopMetricRecorder) NotificationDecision(context.Context, string, string) {}
 func (noopMetricRecorder) PushDelivery(context.Context, string, string)         {}
 func (noopMetricRecorder) PushQueue(context.Context, int, time.Duration)        {}
+func (noopMetricRecorder) ScheduledQueue(context.Context, string, int, int, int, time.Duration) {
+}
+func (noopMetricRecorder) ScheduledOperation(context.Context, string, string, string, time.Duration) {
+}
+func (noopMetricRecorder) ScheduledPublication(context.Context, int, time.Duration, time.Duration) {
+}
+func (noopMetricRecorder) ScheduledCleanupQueue(context.Context, int, time.Duration) {}
 
 type InMemoryMetricRecorder struct {
 	mu       sync.Mutex
@@ -196,6 +207,56 @@ func (r *InMemoryMetricRecorder) PushDelivery(_ context.Context, platform, resul
 func (r *InMemoryMetricRecorder) PushQueue(_ context.Context, pending int, age time.Duration) {
 	r.record(MetricCall{Name: "craftsky_appview_push_pending", Kind: MetricKindGauge, Value: float64(pending)})
 	r.record(MetricCall{Name: "craftsky_appview_push_oldest_pending_age_seconds", Kind: MetricKindGauge, Unit: "second", Value: age.Seconds()})
+}
+
+func (r *InMemoryMetricRecorder) ScheduledQueue(
+	_ context.Context,
+	status string,
+	count int,
+	due int,
+	overdue int,
+	oldestDueAge time.Duration,
+) {
+	status = safeScheduledStatus(status)
+	r.record(MetricCall{Name: "craftsky_appview_scheduled_posts_status", Kind: MetricKindGauge, Value: float64(count), Attributes: map[string]string{"status": status}})
+	if status != "scheduled" {
+		return
+	}
+	r.record(MetricCall{Name: "craftsky_appview_scheduled_posts_due", Kind: MetricKindGauge, Value: float64(due)})
+	r.record(MetricCall{Name: "craftsky_appview_scheduled_posts_overdue", Kind: MetricKindGauge, Value: float64(overdue)})
+	r.record(MetricCall{Name: "craftsky_appview_scheduled_posts_oldest_due_age_seconds", Kind: MetricKindGauge, Unit: "second", Value: nonNegativeDuration(oldestDueAge).Seconds()})
+}
+
+func (r *InMemoryMetricRecorder) ScheduledOperation(
+	_ context.Context,
+	operation string,
+	result string,
+	errorClass string,
+	duration time.Duration,
+) {
+	attrs := scheduledOperationAttributes(operation, result, errorClass)
+	r.record(MetricCall{Name: "craftsky_appview_scheduled_posts_operations_total", Kind: MetricKindCounter, Value: 1, Attributes: attrs})
+	r.record(MetricCall{Name: "craftsky_appview_scheduled_posts_operation_duration_seconds", Kind: MetricKindDistribution, Unit: "second", Value: nonNegativeDuration(duration).Seconds(), Attributes: attrs})
+}
+
+func (r *InMemoryMetricRecorder) ScheduledPublication(
+	_ context.Context,
+	attempt int,
+	startLatency time.Duration,
+	duration time.Duration,
+) {
+	attrs := map[string]string{"attempt": safeScheduledAttempt(attempt)}
+	r.record(MetricCall{Name: "craftsky_appview_scheduled_posts_publication_start_latency_seconds", Kind: MetricKindDistribution, Unit: "second", Value: nonNegativeDuration(startLatency).Seconds(), Attributes: attrs})
+	r.record(MetricCall{Name: "craftsky_appview_scheduled_posts_publication_duration_seconds", Kind: MetricKindDistribution, Unit: "second", Value: nonNegativeDuration(duration).Seconds(), Attributes: attrs})
+}
+
+func (r *InMemoryMetricRecorder) ScheduledCleanupQueue(
+	_ context.Context,
+	pending int,
+	oldestAge time.Duration,
+) {
+	r.record(MetricCall{Name: "craftsky_appview_scheduled_posts_cleanup_pending", Kind: MetricKindGauge, Value: float64(pending)})
+	r.record(MetricCall{Name: "craftsky_appview_scheduled_posts_cleanup_oldest_age_seconds", Kind: MetricKindGauge, Unit: "second", Value: nonNegativeDuration(oldestAge).Seconds()})
 }
 
 func (r *InMemoryMetricRecorder) TapIndexerRecord(_ context.Context, nsid, result, reason string, duration time.Duration) {
@@ -361,6 +422,30 @@ func (r *sentryMetricRecorder) PushDelivery(ctx context.Context, platform, resul
 func (r *sentryMetricRecorder) PushQueue(ctx context.Context, pending int, age time.Duration) {
 	r.gauge(ctx, "craftsky_appview_push_pending", float64(pending), "", nil)
 	r.gauge(ctx, "craftsky_appview_push_oldest_pending_age_seconds", age.Seconds(), "second", nil)
+}
+func (r *sentryMetricRecorder) ScheduledQueue(ctx context.Context, status string, count, due, overdue int, oldestDueAge time.Duration) {
+	status = safeScheduledStatus(status)
+	r.gauge(ctx, "craftsky_appview_scheduled_posts_status", float64(count), "", map[string]string{"status": status})
+	if status != "scheduled" {
+		return
+	}
+	r.gauge(ctx, "craftsky_appview_scheduled_posts_due", float64(due), "", nil)
+	r.gauge(ctx, "craftsky_appview_scheduled_posts_overdue", float64(overdue), "", nil)
+	r.gauge(ctx, "craftsky_appview_scheduled_posts_oldest_due_age_seconds", nonNegativeDuration(oldestDueAge).Seconds(), "second", nil)
+}
+func (r *sentryMetricRecorder) ScheduledOperation(ctx context.Context, operation, result, errorClass string, duration time.Duration) {
+	attrs := scheduledOperationAttributes(operation, result, errorClass)
+	r.count(ctx, "craftsky_appview_scheduled_posts_operations_total", 1, "", attrs)
+	r.distribution(ctx, "craftsky_appview_scheduled_posts_operation_duration_seconds", nonNegativeDuration(duration).Seconds(), "second", attrs)
+}
+func (r *sentryMetricRecorder) ScheduledPublication(ctx context.Context, attempt int, startLatency, duration time.Duration) {
+	attrs := map[string]string{"attempt": safeScheduledAttempt(attempt)}
+	r.distribution(ctx, "craftsky_appview_scheduled_posts_publication_start_latency_seconds", nonNegativeDuration(startLatency).Seconds(), "second", attrs)
+	r.distribution(ctx, "craftsky_appview_scheduled_posts_publication_duration_seconds", nonNegativeDuration(duration).Seconds(), "second", attrs)
+}
+func (r *sentryMetricRecorder) ScheduledCleanupQueue(ctx context.Context, pending int, oldestAge time.Duration) {
+	r.gauge(ctx, "craftsky_appview_scheduled_posts_cleanup_pending", float64(pending), "", nil)
+	r.gauge(ctx, "craftsky_appview_scheduled_posts_cleanup_oldest_age_seconds", nonNegativeDuration(oldestAge).Seconds(), "second", nil)
 }
 
 func (r *sentryMetricRecorder) count(ctx context.Context, name string, value int64, unit string, attrs map[string]string) {
@@ -540,6 +625,55 @@ func safeMetricResult(result string) string {
 	default:
 		return "unknown"
 	}
+}
+
+func safeScheduledStatus(status string) string {
+	switch strings.TrimSpace(status) {
+	case "scheduled", "publishing", "retrying", "needs_attention":
+		return strings.TrimSpace(status)
+	default:
+		return "unknown"
+	}
+}
+
+func scheduledOperationAttributes(operation, result, errorClass string) map[string]string {
+	switch strings.TrimSpace(operation) {
+	case "claim", "publish", "retry", "needs_attention", "recover", "stale_worker", "cleanup", "cleanup_sweep":
+		operation = strings.TrimSpace(operation)
+	default:
+		operation = "unknown"
+	}
+	switch strings.TrimSpace(result) {
+	case "success", "failure", "stale":
+		result = strings.TrimSpace(result)
+	default:
+		result = "unknown"
+	}
+	switch strings.TrimSpace(errorClass) {
+	case "none", "auth_unavailable", "object_unavailable", "pds_unavailable", "dependency_unavailable", "policy_invalid", "media_invalid", "record_conflict", "lease_expired", "stale_worker", "object_delete_failed":
+		errorClass = strings.TrimSpace(errorClass)
+	default:
+		errorClass = "unknown"
+	}
+	return map[string]string{
+		"operation":   operation,
+		"result":      result,
+		"error_class": errorClass,
+	}
+}
+
+func safeScheduledAttempt(attempt int) string {
+	if attempt < 1 || attempt > 6 {
+		return "unknown"
+	}
+	return strconv.Itoa(attempt)
+}
+
+func nonNegativeDuration(value time.Duration) time.Duration {
+	if value < 0 {
+		return 0
+	}
+	return value
 }
 
 func cloneMetricAttributes(attrs map[string]string) map[string]string {

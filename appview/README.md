@@ -104,6 +104,25 @@ Metric names are internal ops details and use the `craftsky_appview` prefix wher
 - `craftsky_appview_pds_write_duration_seconds` histogram for bounded PDS/OAuth write-proxy operations.
 - `craftsky_appview_tap_last_event_age_seconds` gauge for firehose freshness.
 - Tap and indexer counters/histograms for bounded firehose processing stages.
+- `craftsky_appview_scheduled_posts_status`, `_due`, `_overdue`, and
+  `_oldest_due_age_seconds` gauges for scheduled-publication queue health.
+- `craftsky_appview_scheduled_posts_operations_total` and
+  `_operation_duration_seconds` for bounded publish, retry, recovery, stale
+  worker, Needs attention, and cleanup outcomes.
+- `craftsky_appview_scheduled_posts_publication_start_latency_seconds` and
+  `_publication_duration_seconds` distributions, with only a bounded attempt
+  attribute.
+- `craftsky_appview_scheduled_posts_cleanup_pending` and
+  `_cleanup_oldest_age_seconds` gauges for private-media cleanup health.
+
+Initial production alert guidance for scheduled posts is: alert when the oldest
+overdue post exceeds 60 seconds for five sustained minutes; when claim or batch
+errors repeat; on any exhausted-retry or unavailable-auth transition to Needs
+attention; or when cleanup age exceeds 15 minutes or object deletion repeatedly
+fails. Deployment-specific alert rules and delivery remain a release check.
+Scheduled-post signals must stay content-free: never attach a DID, handle,
+schedule/media ID, object key, post text, project data, alt text, token, or raw
+provider error.
 
 Sentry export is disabled unless `SENTRY_DSN` is set. With `SENTRY_DSN` alone, AppView sends only classified errors and recovered panics. Higher-volume pillars are independently gated:
 
