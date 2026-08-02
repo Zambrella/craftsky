@@ -1723,7 +1723,7 @@
   "@scheduledPostsRetryAction": { "description": "Action retrying a scheduled-post list load." },
 
   "scheduledPostWhenTitle": "When",
-  "@scheduledPostWhenTitle": { "description": "Label and dialog title for selecting when to publish." },
+  "@scheduledPostWhenTitle": { "description": "Label for selecting when to publish." },
 
   "scheduledPostNow": "Now",
   "@scheduledPostNow": { "description": "Default option to publish immediately." },
@@ -1752,11 +1752,8 @@
   "scheduledPostManageAction": "Manage scheduled posts",
   "@scheduledPostManageAction": { "description": "Action opening scheduled-post management." },
 
-  "scheduledPostCapacity": "{count} of 3 scheduled",
-  "@scheduledPostCapacity": {
-    "description": "Number of the user's three scheduled-post slots currently in use.",
-    "placeholders": { "count": { "type": "int", "example": "2" } }
-  },
+  "scheduledPostCapacityWarning": "You can't schedule another post because you already have 3 scheduled posts.",
+  "@scheduledPostCapacityWarning": { "description": "Warning shown when all three scheduled-post slots are occupied." },
 
   "scheduledPostLocalTime": "{date} at {time} ({zone}, UTC{offset})",
   "@scheduledPostLocalTime": {

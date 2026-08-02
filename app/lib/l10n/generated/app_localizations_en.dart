@@ -2037,9 +2037,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scheduledPostManageAction => 'Manage scheduled posts';
 
   @override
-  String scheduledPostCapacity(int count) {
-    return '$count of 3 scheduled';
-  }
+  String get scheduledPostCapacityWarning =>
+      'You can\'t schedule another post because you already have 3 scheduled posts.';
 
   @override
   String scheduledPostLocalTime(

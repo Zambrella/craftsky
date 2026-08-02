@@ -3640,7 +3640,7 @@ abstract class AppLocalizations {
   /// **'Try again'**
   String get scheduledPostsRetryAction;
 
-  /// Label and dialog title for selecting when to publish.
+  /// Label for selecting when to publish.
   ///
   /// In en, this message translates to:
   /// **'When'**
@@ -3688,11 +3688,11 @@ abstract class AppLocalizations {
   /// **'Manage scheduled posts'**
   String get scheduledPostManageAction;
 
-  /// Number of the user's three scheduled-post slots currently in use.
+  /// Warning shown when all three scheduled-post slots are occupied.
   ///
   /// In en, this message translates to:
-  /// **'{count} of 3 scheduled'**
-  String scheduledPostCapacity(int count);
+  /// **'You can\'t schedule another post because you already have 3 scheduled posts.'**
+  String get scheduledPostCapacityWarning;
 
   /// Selected publication time in the device's local timezone.
   ///

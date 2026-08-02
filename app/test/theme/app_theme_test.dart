@@ -40,5 +40,24 @@ void main() {
         );
       },
     );
+
+    testWidgets(
+      '$name theme keeps time picker selector typography compact',
+      (tester) async {
+        final theme = loadTheme();
+        final selectorStyle = theme.timePickerTheme.hourMinuteTextStyle!;
+        final separatorStyle = theme
+            .timePickerTheme
+            .timeSelectorSeparatorTextStyle!
+            .resolve({})!;
+
+        expect(
+          selectorStyle,
+          theme.textTheme.headlineLarge?.copyWith(fontSize: 42, height: 1),
+        );
+        expect(separatorStyle, selectorStyle);
+        expect(selectorStyle.fontSize, 42);
+      },
+    );
   }
 }

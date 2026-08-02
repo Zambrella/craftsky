@@ -158,8 +158,9 @@ Feature: Submit an image schedule
 Feature: Scheduled-post capacity
   Scenario: All three slots are occupied
     Given the account has three retained items in countable statuses
-    Then Schedule remains visible but disabled
-    And the composer shows 3 of 3 scheduled and a management link
+    Then Schedule for later remains visible but disabled
+    And the composer warns that another post cannot be scheduled
+    And a management link is shown
     And Post now remains enabled
     When one item is published or deleted and state is refreshed
     Then Schedule becomes available again

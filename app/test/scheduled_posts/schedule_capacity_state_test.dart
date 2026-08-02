@@ -12,8 +12,8 @@ void main() {
       expect(state.scheduleVisible, isTrue);
       expect(state.scheduleEnabled, isTrue);
       expect(state.showManageLink, isFalse);
+      expect(state.showCapacityWarning, isFalse);
       expect(state.postNowEnabled, isTrue);
-      expect(state.capacityLabel, '$count of 3 scheduled');
     }
 
     for (final choice in ScheduleChoice.values) {
@@ -23,8 +23,8 @@ void main() {
       );
       expect(full.scheduleVisible, isTrue);
       expect(full.scheduleEnabled, isFalse);
-      expect(full.capacityLabel, '3 of 3 scheduled');
       expect(full.showManageLink, isTrue);
+      expect(full.showCapacityWarning, isTrue);
       expect(full.postNowEnabled, isTrue);
       expect(full.selectedChoice, choice);
     }
@@ -35,7 +35,7 @@ void main() {
       ownsExistingSlot: true,
     );
     expect(retainedSlot.scheduleEnabled, isTrue);
-    expect(retainedSlot.showManageLink, isTrue);
-    expect(retainedSlot.capacityLabel, '3 of 3 scheduled');
+    expect(retainedSlot.showManageLink, isFalse);
+    expect(retainedSlot.showCapacityWarning, isFalse);
   });
 }

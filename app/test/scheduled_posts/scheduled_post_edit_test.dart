@@ -127,7 +127,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('3 of 3 scheduled'), findsOneWidget);
+    expect(find.textContaining('of 3 scheduled'), findsNothing);
+    expect(find.textContaining("can't schedule another post"), findsNothing);
     expect(
       tester
           .widget<TextButton>(find.widgetWithText(TextButton, 'Schedule'))
@@ -550,7 +551,8 @@ void main() {
 
     await tester.tap(find.widgetWithText(TextButton, 'Next'));
     await tester.pumpAndSettle();
-    expect(find.text('3 of 3 scheduled'), findsOneWidget);
+    expect(find.textContaining('of 3 scheduled'), findsNothing);
+    expect(find.textContaining("can't schedule another post"), findsNothing);
     expect(
       tester
           .widget<TextButton>(find.widgetWithText(TextButton, 'Schedule'))

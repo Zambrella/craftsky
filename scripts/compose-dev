@@ -45,6 +45,7 @@ if [[ "$git_dir" == "$git_common_dir" ]]; then
   default_postgres_port=5433
   default_appview_port=18080
   default_minio_port=19000
+  default_minio_console_port=20001
 else
   worktree_name=$(sanitize_compose_name "$(basename "$git_dir")")
   if [[ -z "$worktree_name" ]]; then
@@ -60,6 +61,7 @@ else
   default_postgres_port=$((15432 + port_offset))
   default_appview_port=$((18080 + port_offset))
   default_minio_port=$((19000 + port_offset))
+  default_minio_console_port=$((20001 + port_offset))
 fi
 
 project_name=${CRAFTSKY_COMPOSE_PROJECT_NAME:-$(dotenv_value CRAFTSKY_COMPOSE_PROJECT_NAME)}
@@ -75,13 +77,17 @@ appview_port=${CRAFTSKY_APPVIEW_PORT:-$(dotenv_value CRAFTSKY_APPVIEW_PORT)}
 appview_port=${appview_port:-$default_appview_port}
 minio_port=${CRAFTSKY_MINIO_PORT:-$(dotenv_value CRAFTSKY_MINIO_PORT)}
 minio_port=${minio_port:-$default_minio_port}
+minio_console_port=${CRAFTSKY_MINIO_CONSOLE_PORT:-$(dotenv_value CRAFTSKY_MINIO_CONSOLE_PORT)}
+minio_console_port=${minio_console_port:-$default_minio_console_port}
 validate_port CRAFTSKY_POSTGRES_PORT "$postgres_port"
 validate_port CRAFTSKY_APPVIEW_PORT "$appview_port"
 validate_port CRAFTSKY_MINIO_PORT "$minio_port"
+validate_port CRAFTSKY_MINIO_CONSOLE_PORT "$minio_console_port"
 
 export CRAFTSKY_POSTGRES_PORT=$postgres_port
 export CRAFTSKY_APPVIEW_PORT=$appview_port
 export CRAFTSKY_MINIO_PORT=$minio_port
+export CRAFTSKY_MINIO_CONSOLE_PORT=$minio_console_port
 
 compose=(docker compose --project-name "$project_name" -f "$repo_root/docker-compose.yml")
 adc_path=""
@@ -142,7 +148,7 @@ case "$instagram_meta_enabled" in
     ;;
 esac
 
-printf 'CraftSky stack: project=%s appview=http://localhost:%s postgres=localhost:%s minio=http://localhost:%s\n' \
-  "$project_name" "$appview_port" "$postgres_port" "$minio_port" >&2
+printf 'CraftSky stack: project=%s appview=http://localhost:%s postgres=localhost:%s minio=http://localhost:%s minio-console=http://localhost:%s\n' \
+  "$project_name" "$appview_port" "$postgres_port" "$minio_port" "$minio_console_port" >&2
 
 exec "${compose[@]}" "$@"

@@ -320,7 +320,7 @@ Every mutation/completion query includes owner where applicable plus status, lea
 - Default label/value is `Now`; the primary action remains `Post`.
 - `Schedule for later` opens date then time selection, normalizes to a whole local minute, displays local timezone name/offset, converts once to UTC, and changes the primary action to `Schedule`.
 - The client picker constrains obvious invalid choices, but the server is authoritative. Inline/server errors announce the valid range.
-- At capacity, the Schedule choice/action remains visible but disabled with exact `3 of 3 scheduled` and a Manage scheduled posts link. Switching back to Now keeps Post enabled.
+- At capacity, the Schedule for later choice remains visible but disabled, the composer warns that another post cannot be scheduled while three are retained, and a Manage scheduled posts link is shown. Now keeps Post enabled.
 - During private staging, disable destructive submission controls, show per-image/aggregate progress, and announce progress/failure. A failed operation keeps the composer open.
 
 ### Settings and management

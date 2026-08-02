@@ -26,6 +26,8 @@ void main() {
     expect(find.text('When'), findsOneWidget);
     await tester.tap(find.text('When'));
     await tester.pumpAndSettle();
+    expect(find.byType(SimpleDialog), findsNothing);
+    expect(find.byType(BottomSheet), findsOneWidget);
     expect(find.text('Schedule for later'), findsOneWidget);
   });
 
@@ -62,6 +64,8 @@ void main() {
     expect(find.text('When'), findsOneWidget);
     await tester.tap(find.text('When'));
     await tester.pumpAndSettle();
+    expect(find.byType(SimpleDialog), findsNothing);
+    expect(find.byType(BottomSheet), findsOneWidget);
     expect(find.text('Schedule for later'), findsOneWidget);
   });
 

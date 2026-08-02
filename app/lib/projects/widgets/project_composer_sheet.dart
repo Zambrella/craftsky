@@ -27,7 +27,9 @@ import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_post_repository_provider.dart';
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_posts_provider.dart';
 import 'package:craftsky_app/scheduled_posts/services/scheduled_composer_media.dart';
+import 'package:craftsky_app/scheduled_posts/widgets/schedule_choice_menu.dart';
 import 'package:craftsky_app/scheduled_posts/widgets/schedule_time_picker.dart';
+import 'package:craftsky_app/scheduled_posts/widgets/scheduled_post_capacity_warning.dart';
 import 'package:craftsky_app/scheduled_posts/widgets/scheduled_staging_progress.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
@@ -508,33 +510,37 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                             setState(() => _languages = value),
                       ),
                       SizedBox(height: spacing.sp4),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.schedule_outlined),
-                        title: Text(l10n.scheduledPostWhenTitle),
-                        subtitle: Text(_whenLabel(context)),
-                        trailing: const Icon(Icons.chevron_right),
-                        enabled: controlsEnabled,
-                        onTap: _chooseWhen,
+                      Builder(
+                        builder: (menuContext) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.schedule_outlined),
+                          title: Text(l10n.scheduledPostWhenTitle),
+                          subtitle: Text(_whenLabel(context)),
+                          trailing: const Icon(Icons.chevron_right),
+                          enabled: controlsEnabled,
+                          onTap: () => _chooseWhen(
+                            menuContext,
+                            scheduleEnabled: capacity.scheduleEnabled,
+                          ),
+                        ),
                       ),
+                      if (capacity.showCapacityWarning)
+                        const ScheduledPostCapacityWarning(),
+                      if (capacity.showManageLink)
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: TextButton(
+                            onPressed: () =>
+                                const ScheduledPostsRoute().push<void>(context),
+                            child: Text(l10n.scheduledPostManageAction),
+                          ),
+                        ),
                       if (_missedScheduledAtLocal case final missed?)
                         Text(
                           l10n.scheduledPostMissedTime(
                             _projectLocalTimeLabel(context, missed),
                           ),
                         ),
-                      if (_scheduleChoice == ScheduleChoice.later) ...[
-                        Text(l10n.scheduledPostCapacity(scheduledCount)),
-                        if (capacity.showManageLink)
-                          Align(
-                            alignment: AlignmentDirectional.centerStart,
-                            child: TextButton(
-                              onPressed: () => const ScheduledPostsRoute()
-                                  .push<void>(context),
-                              child: Text(l10n.scheduledPostManageAction),
-                            ),
-                          ),
-                      ],
                       if (_isScheduling &&
                           (_stagedImageTotal > 0 || _isSavingSchedule)) ...[
                         SizedBox(height: spacing.sp3),
@@ -1456,23 +1462,15 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     );
   }
 
-  Future<void> _chooseWhen() async {
+  Future<void> _chooseWhen(
+    BuildContext menuContext, {
+    required bool scheduleEnabled,
+  }) async {
     final l10n = AppLocalizations.of(context);
-    final choice = await showDialog<ScheduleChoice>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: Text(l10n.scheduledPostWhenTitle),
-        children: [
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, ScheduleChoice.now),
-            child: Text(l10n.scheduledPostNow),
-          ),
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, ScheduleChoice.later),
-            child: Text(l10n.scheduledPostLater),
-          ),
-        ],
-      ),
+    final choice = await showScheduleChoiceMenu(
+      menuContext,
+      selectedChoice: _scheduleChoice,
+      scheduleEnabled: scheduleEnabled,
     );
     if (choice == null || !mounted) return;
     if (choice == ScheduleChoice.now) {

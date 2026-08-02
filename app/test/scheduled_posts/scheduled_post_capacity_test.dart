@@ -71,25 +71,37 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'A valid post');
-    await _selectLater(tester);
+    await tester.pumpAndSettle();
 
-    expect(find.text('3 of 3 scheduled'), findsOneWidget);
+    const capacityWarning =
+        "You can't schedule another post because you already have "
+        '3 scheduled posts.';
+    expect(
+      find.text(capacityWarning),
+      findsOneWidget,
+    );
     expect(find.text('Manage scheduled posts'), findsOneWidget);
-    expect(_button(tester, 'Schedule').onPressed, isNull);
+    expect(_button(tester, 'Post').onPressed, isNotNull);
 
     await tester.tap(find.text('When'));
     await tester.pumpAndSettle();
+    final laterTile = find.ancestor(
+      of: find.text('Schedule for later'),
+      matching: find.byType(ListTile),
+    );
+    expect(tester.widget<ListTile>(laterTile).enabled, isFalse);
     await tester.tap(find.text('Now').last);
     await tester.pumpAndSettle();
-    expect(_button(tester, 'Post').onPressed, isNotNull);
 
-    await _selectLater(tester);
     repository.items.removeLast();
     await container.read(scheduledPostsProvider(account).notifier).refresh();
     await tester.pumpAndSettle();
 
-    expect(find.text('2 of 3 scheduled'), findsOneWidget);
+    expect(find.textContaining('of 3 scheduled'), findsNothing);
+    expect(find.textContaining("can't schedule another post"), findsNothing);
     expect(find.text('Manage scheduled posts'), findsNothing);
+
+    await _selectLater(tester);
     expect(_button(tester, 'Schedule').onPressed, isNotNull);
   });
 }

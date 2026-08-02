@@ -7,7 +7,7 @@ final class ScheduleCapacityState {
     required this.scheduleEnabled,
     required this.postNowEnabled,
     required this.showManageLink,
-    required this.capacityLabel,
+    required this.showCapacityWarning,
   });
 
   factory ScheduleCapacityState.derive({
@@ -19,13 +19,14 @@ final class ScheduleCapacityState {
       throw RangeError.range(scheduledCount, 0, 3, 'scheduledCount');
     }
     final full = scheduledCount == 3;
+    final blocksNewSchedule = full && !ownsExistingSlot;
     return ScheduleCapacityState._(
       selectedChoice: choice,
       scheduleVisible: true,
       scheduleEnabled: !full || ownsExistingSlot,
       postNowEnabled: true,
-      showManageLink: full,
-      capacityLabel: '$scheduledCount of 3 scheduled',
+      showManageLink: blocksNewSchedule,
+      showCapacityWarning: blocksNewSchedule,
     );
   }
 
@@ -34,5 +35,5 @@ final class ScheduleCapacityState {
   final bool scheduleEnabled;
   final bool postNowEnabled;
   final bool showManageLink;
-  final String capacityLabel;
+  final bool showCapacityWarning;
 }

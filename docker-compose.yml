@@ -27,6 +27,7 @@ services:
       MINIO_ROOT_PASSWORD: craftsky-minio-dev-secret
     ports:
       - "${CRAFTSKY_MINIO_PORT:-19000}:9000"
+      - "${CRAFTSKY_MINIO_CONSOLE_PORT:-20001}:9001"
     volumes:
       - miniodata:/data
     healthcheck:
