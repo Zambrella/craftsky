@@ -25,6 +25,7 @@ import 'package:craftsky_app/shared/rich_text/facet_generator.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -33,6 +34,45 @@ import 'package:image/image.dart' as img;
 import '../fakes/recording_messenger.dart';
 
 void main() {
+  test(
+    'new scheduled media gets a one-minute-style independent budget',
+    () async {
+      CancelToken? capturedToken;
+      final image = ComposerImageDraft(
+        id: 'new-ready',
+        fileName: 'detail.jpg',
+        mimeType: 'image/jpeg',
+        altText: '',
+        phase: ImageReady(
+          bytes: Uint8List.fromList([1, 2, 3]),
+          mimeType: 'image/jpeg',
+          width: 2,
+          height: 3,
+          sha256: 'digest',
+        ),
+      );
+
+      await expectLater(
+        materializeScheduledComposerMedia(
+          [image],
+          transferBudget: const Duration(milliseconds: 5),
+          stageMedia:
+              ({
+                required id,
+                required bytes,
+                required mimeType,
+                cancelToken,
+              }) {
+                capturedToken = cancelToken;
+                return Completer<void>().future;
+              },
+        ),
+        throwsA(isA<TimeoutException>()),
+      );
+      expect(capturedToken?.isCancelled, isTrue);
+    },
+  );
+
   test(
     'AT-007 preserves the final edited media set and stages only new media',
     () async {
@@ -68,9 +108,15 @@ void main() {
 
       final media = await materializeScheduledComposerMedia(
         edited,
-        stageMedia: ({required id, required bytes, required mimeType}) async {
-          staged[id] = Uint8List.fromList(bytes);
-        },
+        stageMedia:
+            ({
+              required id,
+              required bytes,
+              required mimeType,
+              cancelToken,
+            }) async {
+              staged[id] = Uint8List.fromList(bytes);
+            },
       );
 
       expect(media, [
@@ -891,6 +937,7 @@ final class _ScheduledRepository implements ScheduledPostRepository {
     required String id,
     required List<int> bytes,
     required String mimeType,
+    CancelToken? cancelToken,
   }) async {
     stagedIDs.add(id);
   }

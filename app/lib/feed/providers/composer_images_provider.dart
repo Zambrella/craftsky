@@ -1,23 +1,18 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:craftsky_app/feed/data/post_api_client.dart';
+import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
-import 'package:craftsky_app/feed/models/post_image_blob.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
-import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
-import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/pipeline/item_pipeline.dart';
-import 'package:dio/dio.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
 part 'composer_images_provider.g.dart';
-
-const _uploadProgressUpdateInterval = Duration(milliseconds: 100);
 
 final imagePickerProvider = Provider<ImagePicker>((ref) => ImagePicker());
 
@@ -30,14 +25,12 @@ class ComposerImages extends _$ComposerImages {
   final _operations = <String, _ImageOperation>{};
   var _noticeId = 0;
 
-  late PostApiClient _api;
   late ComposerImageMediaService _media;
   late ImagePicker _picker;
   late Uuid _uuid;
 
   @override
   ComposerImagesState build(String composerId) {
-    _api = ref.watch(postApiClientProvider);
     _media = ref.watch(composerImageMediaServiceProvider);
     _picker = ref.watch(imagePickerProvider);
     _uuid = const Uuid();
@@ -116,7 +109,7 @@ class ComposerImages extends _$ComposerImages {
 
     final jobs = <_ComposerImagePipelineItem>[];
     for (final image in accepted) {
-      final operation = _ImageOperation(uploadCancelToken: CancelToken());
+      final operation = _ImageOperation();
       _operations[image.id] = operation;
       jobs.add(
         _ComposerImagePipelineItem(
@@ -134,6 +127,44 @@ class ComposerImages extends _$ComposerImages {
   void seedScheduledImages(List<ComposerImageDraft> images) {
     if (state.images.isNotEmpty) return;
     state = state.copyWith(images: List.unmodifiable(images));
+  }
+
+  void seedLocalDraft(LocalPostDraftSeed seed) {
+    if (state.images.isNotEmpty) return;
+    state = state.copyWith(
+      images: [
+        for (final item in seed.media)
+          ComposerImageDraft(
+            id: item.descriptor.mediaId,
+            fileName: item.descriptor.displayFileName,
+            mimeType: item.descriptor.mimeType,
+            altText: item.descriptor.altText,
+            previewBytes: item.bytes,
+            previewAspectRatio: CreatePostImageAspectRatio(
+              width: item.descriptor.width,
+              height: item.descriptor.height,
+            ),
+            phase: item.bytes == null
+                ? ImageUnavailable(
+                    width: item.descriptor.width,
+                    height: item.descriptor.height,
+                  )
+                : ImageReady(
+                    bytes: item.bytes!,
+                    mimeType: item.descriptor.mimeType,
+                    width: item.descriptor.width,
+                    height: item.descriptor.height,
+                    sha256: item.descriptor.sha256,
+                    storedOrigin: StoredDraftMediaOrigin(
+                      mediaId: item.descriptor.mediaId,
+                      storageRevision: item.descriptor.storageRevision,
+                      sha256: item.descriptor.sha256,
+                      byteLength: item.descriptor.byteLength,
+                    ),
+                  ),
+          ),
+      ],
+    );
   }
 
   void remove(String imageId) {
@@ -161,7 +192,7 @@ class ComposerImages extends _$ComposerImages {
   void retry(String imageId) {
     final image = state.images.firstWhere((image) => image.id == imageId);
     if (image.phase case ImageFailed(:final failure) when failure.canRetry) {
-      final operation = _ImageOperation(uploadCancelToken: CancelToken());
+      final operation = _ImageOperation();
       _operations[image.id] = operation;
       _updateImage(
         imageId,
@@ -210,10 +241,6 @@ class ComposerImages extends _$ComposerImages {
         name: _ImagePipelineStepNames.validatePrepared,
         run: _validatePreparedImage,
       ),
-      PipelineStep(
-        name: _ImagePipelineStepNames.upload,
-        run: _uploadImage,
-      ),
     ];
   }
 
@@ -231,8 +258,8 @@ class ComposerImages extends _$ComposerImages {
     switch (event) {
       case StepStarted(:final stepName):
         _handleStepStarted(event.item.id, stepName);
-      case StepProgress(:final stepName, :final progress):
-        _handleStepProgress(event.item.id, stepName, progress);
+      case StepProgress():
+        break;
       case StepCompleted(:final stepName, :final result):
         _handleStepCompleted(event.item.id, stepName, result);
       case StepFailed(:final stepName, :final error):
@@ -248,17 +275,8 @@ class ComposerImages extends _$ComposerImages {
         _setPhase(imageId, const ImageReading());
       case _ImagePipelineStepNames.prepare:
         _setPhase(imageId, const ImagePreparing());
-      case _ImagePipelineStepNames.upload:
-        _setPhase(imageId, const ImageUploading(TransferStarting()));
       case _ImagePipelineStepNames.validatePrepared:
         break;
-    }
-  }
-
-  void _handleStepProgress(String imageId, String stepName, Object progress) {
-    if (stepName != _ImagePipelineStepNames.upload) return;
-    if (progress case final ImageTransferProgress transferProgress) {
-      _setPhase(imageId, ImageUploading(transferProgress));
     }
   }
 
@@ -290,14 +308,12 @@ class ComposerImages extends _$ComposerImages {
             ),
           ),
         );
-      case _ImagePipelineStepNames.validatePrepared ||
-          _ImagePipelineStepNames.upload:
+      case _ImagePipelineStepNames.validatePrepared:
         break;
     }
   }
 
   void _handleStepFailed(String imageId, String stepName, Object error) {
-    if (error is ApiCanceled) return;
     if (error is _OriginalImageTooLarge || error is _PreparedImageTooLarge) {
       _fail(imageId, ImageTooLarge(_media.maxImageBytes));
       return;
@@ -312,28 +328,28 @@ class ComposerImages extends _$ComposerImages {
         _fail(imageId, const ImagePreparationFailed());
       case _ImagePipelineStepNames.validatePrepared:
         _fail(imageId, ImageTooLarge(_media.maxImageBytes));
-      case _ImagePipelineStepNames.upload:
-        _fail(imageId, const ImageUploadFailed());
     }
   }
 
   void _handleItemCompleted(_ComposerImagePipelineItem result) {
     final prepared = result.prepared;
-    final uploaded = result.uploaded;
-    if (prepared == null || uploaded == null) return;
+    if (prepared == null) return;
 
     _operations.remove(result.id);
-    _setPhase(
+    _updateImage(
       result.id,
-      ImageUploaded(
-        UploadedDraftImage(
-          cid: uploaded.cid,
-          mime: uploaded.mime,
-          size: uploaded.size,
-          aspectRatio: _media.aspectRatioFor(
-            width: prepared.width,
-            height: prepared.height,
-          ),
+      (draft) => draft.copyWith(
+        previewBytes: Uint8List.fromList(prepared.bytes),
+        previewAspectRatio: _media.aspectRatioFor(
+          width: prepared.width,
+          height: prepared.height,
+        ),
+        phase: ImageReady(
+          bytes: Uint8List.fromList(prepared.bytes),
+          mimeType: prepared.mimeType,
+          width: prepared.width,
+          height: prepared.height,
+          sha256: sha256.convert(prepared.bytes).toString(),
         ),
       ),
     );
@@ -465,32 +481,6 @@ class ComposerImages extends _$ComposerImages {
     return item;
   }
 
-  Future<_ComposerImagePipelineItem> _uploadImage(
-    _ComposerImagePipelineItem item,
-    PipelineStepContext<_ComposerImagePipelineItem> context,
-  ) async {
-    final prepared = item.prepared!;
-    final uploaded = await _api.uploadImage(
-      bytes: prepared.bytes,
-      mimeType: prepared.mimeType,
-      cancelToken: item.operation.uploadCancelToken,
-      onSendProgress: (sent, total) {
-        if (item.operation.updateSendProgress(sent: sent, total: total)) {
-          context.reportProgress(item.operation.toTransferProgress());
-        }
-      },
-      onReceiveProgress: (received, total) {
-        if (item.operation.updateReceiveProgress(
-          received: received,
-          total: total,
-        )) {
-          context.reportProgress(item.operation.toTransferProgress());
-        }
-      },
-    );
-    return item.copyWith(uploaded: uploaded);
-  }
-
   void _handleRejectedSelections({
     required List<_SelectionPair> pairs,
     required List<RejectedImageSelection> rejected,
@@ -583,7 +573,6 @@ final class _ComposerImagePipelineItem {
     this.originalBytes,
     this.previewAspectRatio,
     this.prepared,
-    this.uploaded,
   });
 
   final String id;
@@ -594,13 +583,11 @@ final class _ComposerImagePipelineItem {
   final Uint8List? originalBytes;
   final CreatePostImageAspectRatio? previewAspectRatio;
   final PreparedImagePayload? prepared;
-  final UploadedImageBlob? uploaded;
 
   _ComposerImagePipelineItem copyWith({
     Uint8List? originalBytes,
     CreatePostImageAspectRatio? previewAspectRatio,
     PreparedImagePayload? prepared,
-    UploadedImageBlob? uploaded,
   }) {
     return _ComposerImagePipelineItem(
       id: id,
@@ -611,7 +598,6 @@ final class _ComposerImagePipelineItem {
       originalBytes: originalBytes ?? this.originalBytes,
       previewAspectRatio: previewAspectRatio ?? this.previewAspectRatio,
       prepared: prepared ?? this.prepared,
-      uploaded: uploaded ?? this.uploaded,
     );
   }
 }
@@ -620,7 +606,6 @@ abstract final class _ImagePipelineStepNames {
   static const read = 'read';
   static const prepare = 'prepare';
   static const validatePrepared = 'validatePrepared';
-  static const upload = 'upload';
 }
 
 final class _PreparedImageTooLarge implements Exception {
@@ -643,75 +628,13 @@ final class _SelectionPair {
 }
 
 final class _ImageOperation {
-  _ImageOperation({required this.uploadCancelToken});
-
-  final CancelToken uploadCancelToken;
   ImageInspectionJob? inspectionJob;
   ImagePreparationJob? preparationJob;
   bool canceled = false;
-  int sent = 0;
-  int sendTotal = 0;
-  int received = 0;
-  int receiveTotal = 0;
-  DateTime? _lastProgressReportedAt;
-  bool _hasReportedProgress = false;
-  bool _sendFinishedReported = false;
-  bool _receiveStartedReported = false;
-  bool _receiveFinishedReported = false;
 
   void cancel() {
     canceled = true;
     inspectionJob?.cancel();
     preparationJob?.cancel();
-    uploadCancelToken.cancel('image removed');
-  }
-
-  ImageTransferProgress toTransferProgress() {
-    return TransferBytes(
-      sent: sent,
-      sendTotal: sendTotal,
-      received: received,
-      receiveTotal: receiveTotal,
-    );
-  }
-
-  bool updateSendProgress({required int sent, required int total}) {
-    this.sent = sent;
-    sendTotal = total;
-
-    final sendFinished = total > 0 && sent >= total;
-    final force = sendFinished && !_sendFinishedReported;
-    if (sendFinished) _sendFinishedReported = true;
-
-    return _shouldReportProgress(force: force);
-  }
-
-  bool updateReceiveProgress({required int received, required int total}) {
-    this.received = received;
-    receiveTotal = total;
-
-    final receiveStarted = received > 0;
-    final receiveFinished = total > 0 && received >= total;
-    final force =
-        (receiveStarted && !_receiveStartedReported) ||
-        (receiveFinished && !_receiveFinishedReported);
-    if (receiveStarted) _receiveStartedReported = true;
-    if (receiveFinished) _receiveFinishedReported = true;
-
-    return _shouldReportProgress(force: force);
-  }
-
-  bool _shouldReportProgress({required bool force}) {
-    final now = DateTime.now();
-    final lastReportedAt = _lastProgressReportedAt;
-    if (!_hasReportedProgress ||
-        force ||
-        lastReportedAt == null ||
-        now.difference(lastReportedAt) >= _uploadProgressUpdateInterval) {
-      _hasReportedProgress = true;
-      _lastProgressReportedAt = now;
-      return true;
-    }
-    return false;
   }
 }

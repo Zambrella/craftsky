@@ -397,8 +397,11 @@ class _DraftImagePreview extends StatelessWidget {
                   fit: BoxFit.cover,
                   width: double.infinity,
                 ),
-                null => const DecoratedBox(
-                  decoration: BoxDecoration(color: Color(0xFFEAEAEA)),
+                null => DecoratedBox(
+                  decoration: const BoxDecoration(color: Color(0xFFEAEAEA)),
+                  child: image.phase is ImageUnavailable
+                      ? const Center(child: Icon(Icons.broken_image_outlined))
+                      : null,
                 ),
               },
               if (_previewLoadingOverlay(context, image) case final overlay?)
@@ -724,8 +727,10 @@ String _statusLabel(BuildContext context, ComposerImageDraft image) {
     ImageQueued() || ImageReading() => l10n.postComposeReadingImage,
     ImagePreparing() => l10n.postComposePreparingImage,
     ImageUploading() => l10n.postComposeUploadingImage,
+    ImageReady() => l10n.postComposeUploadedImage,
     ImageUploaded() => l10n.postComposeUploadedImage,
     ScheduledImageReady() => l10n.postComposeUploadedImage,
+    ImageUnavailable() => l10n.draftsImageUnavailable,
     ImageFailed() => l10n.postComposeImageFailed,
   };
 }
@@ -743,7 +748,11 @@ _PreviewLoadingOverlay? _previewLoadingOverlay(
       label: l10n.postComposePreparingImage,
     ),
     ImageUploading(:final progress) => _uploadLoadingOverlay(l10n, progress),
-    ImageUploaded() || ScheduledImageReady() || ImageFailed() => null,
+    ImageReady() ||
+    ImageUploaded() ||
+    ScheduledImageReady() ||
+    ImageUnavailable() ||
+    ImageFailed() => null,
   };
 }
 

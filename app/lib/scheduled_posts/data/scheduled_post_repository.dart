@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
+import 'package:dio/dio.dart';
 
 abstract interface class ScheduledPostRepository {
   Future<List<ScheduledPostSummary>> list();
@@ -30,6 +31,7 @@ abstract interface class ScheduledPostRepository {
     required String id,
     required List<int> bytes,
     required String mimeType,
+    CancelToken? cancelToken,
   });
 
   Future<Uint8List> mediaBytes(String id);

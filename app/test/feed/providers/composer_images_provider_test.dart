@@ -1,6 +1,9 @@
-import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
+import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
+import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/feed/media/media_config.dart';
@@ -8,7 +11,6 @@ import 'package:craftsky_app/feed/models/post_image_blob.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
-import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,6 +18,72 @@ import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 
 void main() {
+  test('seeds locally saved ready and unavailable draft images', () async {
+    const available = DraftMediaDescriptor(
+      mediaId: '00000000-0000-4000-8000-000000000002',
+      storageRevision: '00000000-0000-4000-8000-000000000012',
+      storageFileName: 'available.png',
+      displayFileName: 'available.png',
+      mimeType: 'image/png',
+      byteLength: 3,
+      sha256:
+          '039058c6f2c0cb492c533b0a4d14ef77'
+          'cc0f78abccced5287d84a1a2011cfb81',
+      width: 1,
+      height: 1,
+      altText: 'Available alt',
+      order: 0,
+    );
+    const missing = DraftMediaDescriptor(
+      mediaId: '00000000-0000-4000-8000-000000000003',
+      storageRevision: '00000000-0000-4000-8000-000000000013',
+      storageFileName: 'missing.png',
+      displayFileName: 'missing.png',
+      mimeType: 'image/png',
+      byteLength: 3,
+      sha256:
+          '039058c6f2c0cb492c533b0a4d14ef77'
+          'cc0f78abccced5287d84a1a2011cfb81',
+      width: 1,
+      height: 1,
+      altText: 'Missing alt',
+      order: 1,
+      availability: DraftMediaAvailability.unavailable,
+    );
+    final draft = LocalPostDraft(
+      id: '00000000-0000-4000-8000-000000000001',
+      owner: AccountKey('did:plc:alice'),
+      kind: LocalPostDraftKind.standard,
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026),
+      content: const StandardDraftContent(text: '', languages: ['en']),
+      schedule: const DraftScheduleIntent.now(),
+      media: const [available, missing],
+    );
+    final seed = LocalPostDraftSeed(
+      draft: draft,
+      media: [
+        HydratedDraftMedia(
+          descriptor: available,
+          bytes: Uint8List.fromList([1, 2, 3]),
+        ),
+        const HydratedDraftMedia(descriptor: missing, bytes: null),
+      ],
+    );
+    final container = ProviderContainer.test();
+    addTearDown(container.dispose);
+
+    container
+        .read(composerImagesProvider('draft-composer').notifier)
+        .seedLocalDraft(seed);
+    final state = container.read(composerImagesProvider('draft-composer'));
+
+    expect(state.images.first.phase, isA<ImageReady>());
+    expect((state.images.first.phase as ImageReady).storedOrigin, isNotNull);
+    expect(state.images.last.phase, isA<ImageUnavailable>());
+    expect(state.canSubmitImages(), isFalse);
+    expect(state.canSaveDraftMedia(), isFalse);
+  });
   group('ComposerImages', () {
     test('surfaces picker failures without changing the draft', () async {
       final container = _containerWithPicker(
@@ -105,7 +173,7 @@ void main() {
     });
 
     test(
-      'uploads accepted images and stores preview and aspect ratio',
+      'prepares accepted images locally without uploading',
       () async {
         final originalBytes = _jpegBytes(width: 3, height: 2);
         final api = _FakePostApiClient();
@@ -129,196 +197,25 @@ void main() {
             .addImages();
         final state = await _waitForState(
           container,
-          (state) => state.images.singleOrNull?.phase is ImageUploaded,
+          (state) => state.images.singleOrNull?.phase is ImageReady,
         );
 
         final image = state.images.single;
         expect(image.fileName, 'PROJECT.JPG');
         expect(image.mimeType, 'image/jpeg');
-        expect(image.previewBytes, originalBytes);
+        expect(image.previewBytes, isNotEmpty);
         expect(image.previewAspectRatio?.width, 3);
         expect(image.previewAspectRatio?.height, 2);
-        expect(api.uploadCount, 1);
-        expect(api.lastMimeType, 'image/jpeg');
-        expect(api.lastBytes, isNotEmpty);
+        expect(api.uploadCount, 0);
 
-        final uploaded = (image.phase as ImageUploaded).uploaded;
-        expect(uploaded.cid, _testCid);
-        expect(uploaded.mime, 'image/jpeg');
-        expect(uploaded.aspectRatio?.width, 3);
-        expect(uploaded.aspectRatio?.height, 2);
+        final ready = image.phase as ImageReady;
+        expect(ready.bytes, image.previewBytes);
+        expect(ready.mimeType, 'image/jpeg');
+        expect(ready.width, 3);
+        expect(ready.height, 2);
+        expect(ready.sha256, isNotEmpty);
       },
     );
-
-    test('stores preview aspect ratio before upload completes', () async {
-      final uploadCompleter = Completer<UploadedImageBlob>();
-      final api = _FakePostApiClient(
-        uploadHandler:
-            ({
-              required bytes,
-              required mimeType,
-              onSendProgress,
-              onReceiveProgress,
-              cancelToken,
-            }) {
-              return uploadCompleter.future;
-            },
-      );
-      final container = _containerWithPicker(
-        _FakeImagePicker(
-          () async => [
-            XFile.fromData(
-              _jpegBytes(width: 4, height: 3),
-              name: 'project.jpg',
-              mimeType: 'image/jpeg',
-            ),
-          ],
-        ),
-        api: api,
-      );
-      addTearDown(container.dispose);
-      final sub = _listenComposer(container);
-      addTearDown(sub.close);
-
-      await container
-          .read(composerImagesProvider('composer').notifier)
-          .addImages();
-      final uploading = await _waitForState(
-        container,
-        (state) =>
-            state.images.singleOrNull?.phase is ImageUploading &&
-            state.images.single.previewAspectRatio != null,
-      );
-
-      expect(uploading.images.single.previewAspectRatio?.width, 4);
-      expect(uploading.images.single.previewAspectRatio?.height, 3);
-
-      uploadCompleter.complete(
-        _uploadedBlob(mimeType: api.lastMimeType!, size: api.lastBytes!.length),
-      );
-      await _waitForState(
-        container,
-        (state) => state.images.singleOrNull?.phase is ImageUploaded,
-      );
-    });
-
-    test('reports upload progress while an upload is in flight', () async {
-      final uploadCompleter = Completer<UploadedImageBlob>();
-      final api = _FakePostApiClient(
-        uploadHandler:
-            ({
-              required bytes,
-              required mimeType,
-              onSendProgress,
-              onReceiveProgress,
-              cancelToken,
-            }) {
-              onSendProgress?.call(5, 10);
-              onReceiveProgress?.call(1, 5);
-              return uploadCompleter.future;
-            },
-      );
-      final container = _containerWithPicker(
-        _FakeImagePicker(
-          () async => [
-            XFile.fromData(
-              _pngBytes(width: 1, height: 1),
-              name: 'project.png',
-              mimeType: 'image/png',
-            ),
-          ],
-        ),
-        api: api,
-      );
-      addTearDown(container.dispose);
-      final sub = _listenComposer(container);
-      addTearDown(sub.close);
-
-      await container
-          .read(composerImagesProvider('composer').notifier)
-          .addImages();
-      final uploading = await _waitForState(
-        container,
-        (state) {
-          final phase = state.images.singleOrNull?.phase;
-          final progress = phase is ImageUploading ? phase.progress : null;
-          return progress is TransferBytes && progress.received == 1;
-        },
-      );
-
-      final progress =
-          (uploading.images.single.phase as ImageUploading).progress;
-      expect(progress, isA<TransferBytes>());
-      expect((progress as TransferBytes).sent, 5);
-      expect(progress.sendTotal, 10);
-      expect(progress.received, 1);
-      expect(progress.receiveTotal, 5);
-      expect(progress.indicatorValue, closeTo(0.4, 0.0001));
-
-      uploadCompleter.complete(
-        _uploadedBlob(mimeType: api.lastMimeType!, size: api.lastBytes!.length),
-      );
-      await _waitForState(
-        container,
-        (state) => state.images.singleOrNull?.phase is ImageUploaded,
-      );
-    });
-
-    test('throttles rapid upload progress updates', () async {
-      final uploadCompleter = Completer<UploadedImageBlob>();
-      final progressUpdates = <TransferBytes>[];
-      final api = _FakePostApiClient(
-        uploadHandler:
-            ({
-              required bytes,
-              required mimeType,
-              onSendProgress,
-              onReceiveProgress,
-              cancelToken,
-            }) {
-              for (var sent = 1; sent <= 100; sent += 1) {
-                onSendProgress?.call(sent, 100);
-              }
-              return uploadCompleter.future;
-            },
-      );
-      final container = _containerWithPicker(
-        _FakeImagePicker(
-          () async => [
-            XFile.fromData(
-              _pngBytes(width: 1, height: 1),
-              name: 'project.png',
-              mimeType: 'image/png',
-            ),
-          ],
-        ),
-        api: api,
-      );
-      addTearDown(container.dispose);
-      final provider = composerImagesProvider('composer');
-      final sub = container.listen(provider, (_, state) {
-        final phase = state.images.singleOrNull?.phase;
-        final progress = phase is ImageUploading ? phase.progress : null;
-        if (progress is TransferBytes) progressUpdates.add(progress);
-      }, fireImmediately: true);
-      addTearDown(sub.close);
-
-      await container.read(provider.notifier).addImages();
-      await _waitForState(
-        container,
-        (state) => progressUpdates.length == 2,
-      );
-
-      expect(progressUpdates.map((progress) => progress.sent), [1, 100]);
-
-      uploadCompleter.complete(
-        _uploadedBlob(mimeType: api.lastMimeType!, size: api.lastBytes!.length),
-      );
-      await _waitForState(
-        container,
-        (state) => state.images.singleOrNull?.phase is ImageUploaded,
-      );
-    });
 
     test('maps unsupported original headers to image failure', () async {
       final container = _containerWithPicker(
@@ -408,130 +305,6 @@ void main() {
       expect((phase as ImageFailed).failure, isA<ImageTooLarge>());
       expect(api.uploadCount, 0);
     });
-
-    test('retries upload failures using retained preview bytes', () async {
-      var failUpload = true;
-      final api = _FakePostApiClient(
-        uploadHandler:
-            ({
-              required bytes,
-              required mimeType,
-              onSendProgress,
-              onReceiveProgress,
-              cancelToken,
-            }) async {
-              if (failUpload) throw const ApiNetworkError('offline');
-              return _uploadedBlob(mimeType: mimeType, size: bytes.length);
-            },
-      );
-      final container = _containerWithPicker(
-        _FakeImagePicker(
-          () async => [
-            XFile.fromData(
-              _jpegBytes(width: 1, height: 1),
-              name: 'project.jpg',
-              mimeType: 'image/jpeg',
-            ),
-          ],
-        ),
-        api: api,
-      );
-      addTearDown(container.dispose);
-      final sub = _listenComposer(container);
-      addTearDown(sub.close);
-
-      await container
-          .read(composerImagesProvider('composer').notifier)
-          .addImages();
-      final failed = await _waitForState(
-        container,
-        (state) => state.images.singleOrNull?.phase is ImageFailed,
-      );
-      final imageId = failed.images.single.id;
-      final failure = (failed.images.single.phase as ImageFailed).failure;
-      expect(failure, isA<ImageUploadFailed>());
-      expect(failure.canRetry, isTrue);
-      expect(failed.images.single.previewBytes, isNotNull);
-
-      failUpload = false;
-      container
-          .read(composerImagesProvider('composer').notifier)
-          .retry(imageId);
-      final uploaded = await _waitForState(
-        container,
-        (state) => state.images.singleOrNull?.phase is ImageUploaded,
-      );
-
-      expect(api.uploadCount, 2);
-      expect(uploaded.images.single.id, imageId);
-      expect(uploaded.images.single.phase, isA<ImageUploaded>());
-    });
-
-    test(
-      'removing an uploading image cancels and ignores late completion',
-      () async {
-        final uploadCompleter = Completer<UploadedImageBlob>();
-        final api = _FakePostApiClient(
-          uploadHandler:
-              ({
-                required bytes,
-                required mimeType,
-                onSendProgress,
-                onReceiveProgress,
-                cancelToken,
-              }) {
-                return uploadCompleter.future;
-              },
-        );
-        final container = _containerWithPicker(
-          _FakeImagePicker(
-            () async => [
-              XFile.fromData(
-                _pngBytes(width: 1, height: 1),
-                name: 'project.png',
-                mimeType: 'image/png',
-              ),
-            ],
-          ),
-          api: api,
-        );
-        addTearDown(container.dispose);
-        final sub = _listenComposer(container);
-        addTearDown(sub.close);
-
-        await container
-            .read(composerImagesProvider('composer').notifier)
-            .addImages();
-        final uploading = await _waitForState(
-          container,
-          (state) => state.images.singleOrNull?.phase is ImageUploading,
-        );
-        final imageId = uploading.images.single.id;
-
-        container
-            .read(composerImagesProvider('composer').notifier)
-            .remove(imageId);
-
-        expect(
-          container.read(composerImagesProvider('composer')).images,
-          isEmpty,
-        );
-        expect(api.lastCancelToken?.isCancelled, isTrue);
-
-        uploadCompleter.complete(
-          _uploadedBlob(
-            mimeType: api.lastMimeType!,
-            size: api.lastBytes!.length,
-          ),
-        );
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-
-        expect(
-          container.read(composerImagesProvider('composer')).images,
-          isEmpty,
-        );
-      },
-    );
 
     test('emits limit notice without opening picker when full', () async {
       final picker = _FakeImagePicker(
@@ -632,8 +405,8 @@ class _FakeImagePicker extends ImagePicker {
 }
 
 class _FakePostApiClient extends PostApiClient {
-  _FakePostApiClient({this._uploadHandler})
-    : super(Dio(BaseOptions(baseUrl: 'https://example.com')));
+  _FakePostApiClient()
+    : _uploadHandler = null, super(Dio(BaseOptions(baseUrl: 'https://example.com')));
 
   final Future<UploadedImageBlob> Function({
     required List<int> bytes,

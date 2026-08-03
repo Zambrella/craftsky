@@ -89,13 +89,16 @@ void main() {
       await tester.tap(find.byType(CloseButton));
       await tester.pumpAndSettle();
 
-      expect(find.text('Discard draft?'), findsOneWidget);
-      expect(find.text("Your draft won't be saved."), findsOneWidget);
+      expect(find.text('Save your draft?'), findsOneWidget);
+      expect(
+        find.text('You can save this work on this device before closing.'),
+        findsOneWidget,
+      );
 
       await tester.tap(find.text('Keep editing'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Discard draft?'), findsNothing);
+      expect(find.text('Save your draft?'), findsNothing);
       expect(find.text('New post'), findsOneWidget);
 
       await tester.tap(find.byType(CloseButton));
@@ -114,7 +117,7 @@ void main() {
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
 
-      expect(find.text('Discard draft?'), findsOneWidget);
+      expect(find.text('Save your draft?'), findsOneWidget);
 
       await tester.tap(find.text('Discard'));
       await tester.pumpAndSettle();

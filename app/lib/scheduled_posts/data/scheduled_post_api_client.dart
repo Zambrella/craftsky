@@ -76,10 +76,12 @@ final class ScheduledPostApiClient {
     required String id,
     required List<int> bytes,
     required String mimeType,
+    CancelToken? cancelToken,
   }) => unwrapApi(() async {
     await _dio.put<Map<String, dynamic>>(
       '/v1/scheduled-post-media/$id',
       data: bytes,
+      cancelToken: cancelToken,
       options: Options(contentType: mimeType),
     );
   });

@@ -50,7 +50,7 @@ final class ScheduledPostsProvider
   }
 }
 
-String _$scheduledPostsHash() => r'9c5ad6a2e60b112bd4d5d21a2a2d9be28caf001d';
+String _$scheduledPostsHash() => r'95effcf497cbd94070e8065159a2d666e47c6bff';
 
 final class ScheduledPostsFamily extends $Family
     with

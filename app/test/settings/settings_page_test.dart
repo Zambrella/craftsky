@@ -34,10 +34,24 @@ void main() {
       expect(find.text('Following'), findsOneWidget);
       expect(find.text('Find people from Instagram'), findsOneWidget);
       expect(find.text('Saved posts'), findsOneWidget);
+      expect(find.text('Drafts'), findsOneWidget);
+      final draftsTile = find.ancestor(
+        of: find.text('Drafts'),
+        matching: find.byType(ListTile),
+      );
+      expect(
+        find.descendant(of: draftsTile, matching: find.byType(Badge)),
+        findsNothing,
+      );
       expect(find.text('Languages'), findsOneWidget);
       expect(find.textContaining(RegExp(r'\d+ followers')), findsNothing);
       expect(find.textContaining(RegExp(r'\d+ following')), findsNothing);
       expect(find.byType(ClearImageCacheTile), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.byType(SignOutTile),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.byType(SignOutTile), findsOneWidget);
     },
   );
@@ -179,6 +193,39 @@ void main() {
       expect(find.text('Scheduled posts route'), findsOneWidget);
     },
   );
+
+  testWidgets('Drafts settings entry opens the typed local drafts location', (
+    tester,
+  ) async {
+    final router = GoRouter(
+      initialLocation: '/settings',
+      routes: [
+        GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
+        GoRoute(
+          path: '/profile/settings/drafts',
+          builder: (_, _) => const Scaffold(body: Text('Drafts route')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          routerConfig: router,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Drafts'));
+    await tester.pumpAndSettle();
+
+    expect(router.state.uri.path, '/profile/settings/drafts');
+    expect(find.text('Drafts route'), findsOneWidget);
+  });
 }
 
 final class _SettingsRepository implements ScheduledPostRepository {

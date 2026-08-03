@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
-import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
@@ -17,10 +16,10 @@ import 'package:craftsky_app/scheduled_posts/models/schedule_time.dart';
 import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_post_repository_provider.dart';
 import 'package:craftsky_app/scheduled_posts/services/scheduled_composer_media.dart';
-import 'package:craftsky_app/scheduled_posts/widgets/scheduled_staging_progress.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -62,20 +61,17 @@ void main() {
         .onPressed!();
     await tester.pump();
 
-    await _waitForReal(tester, () => scheduled.stageCalls == 1);
+    await _pumpUntil(tester, () => scheduled.stageCalls == 1);
     await tester.pump();
-    final progress = tester.widget<ScheduledStagingProgress>(
-      find.byType(ScheduledStagingProgress),
-    );
-    expect(progress.completed, 0);
-    expect(progress.total, 1);
+    expect(find.text('Scheduling your post…'), findsOneWidget);
+    expect(find.byKey(const Key('submission-modal-barrier')), findsOneWidget);
     expect(scheduled.createCalls, 0);
     expect(publicCreateCalls, 0);
     expect(scheduled.stagedBytes, isNotEmpty);
     expect(scheduled.stagedMimeType, 'image/png');
 
     stageGate.complete();
-    await _waitForReal(tester, () => scheduled.createCalls == 1);
+    await _pumpUntil(tester, () => scheduled.createCalls == 1);
     await tester.pump();
 
     expect(scheduled.createCalls, 1);
@@ -113,7 +109,7 @@ void main() {
         .widget<TextButton>(find.widgetWithText(TextButton, 'Schedule'))
         .onPressed!();
     await tester.pump();
-    await _waitForReal(tester, () => scheduled.createCalls == 1);
+    await _pumpUntil(tester, () => scheduled.createCalls == 1);
     await tester.pump();
 
     expect(find.text('Retry this schedule'), findsOneWidget);
@@ -134,7 +130,7 @@ void main() {
         .widget<TextButton>(find.widgetWithText(TextButton, 'Schedule'))
         .onPressed!();
     await tester.pump();
-    await _waitForReal(tester, () => scheduled.createCalls == 2);
+    await _pumpUntil(tester, () => scheduled.createCalls == 2);
     await tester.pump();
 
     expect(scheduled.createCalls, 2);
@@ -193,13 +189,12 @@ final _readyImage = ComposerImagesState(
       mimeType: 'image/png',
       altText: 'A tiny project',
       previewBytes: _pngBytes(width: 3, height: 2),
-      phase: const ImageUploaded(
-        UploadedDraftImage(
-          cid: 'pds-cid',
-          mime: 'image/png',
-          size: 100,
-          aspectRatio: CreatePostImageAspectRatio(width: 3, height: 2),
-        ),
+      phase: ImageReady(
+        bytes: _pngBytes(width: 3, height: 2),
+        mimeType: 'image/png',
+        width: 3,
+        height: 2,
+        sha256: 'ready-image-digest',
       ),
     ),
   ],
@@ -212,17 +207,17 @@ Future<List<Map<String, dynamic>>> _testMaterializer(
 }) async {
   final media = <Map<String, dynamic>>[];
   for (final image in images) {
-    final uploaded = (image.phase as ImageUploaded).uploaded;
+    final ready = image.phase as ImageReady;
     await stageMedia(
       id: image.id,
-      bytes: image.previewBytes!,
-      mimeType: image.mimeType,
+      bytes: ready.bytes,
+      mimeType: ready.mimeType,
     );
     media.add({
       'id': image.id,
       'alt': image.altText,
-      'width': uploaded.aspectRatio!.width,
-      'height': uploaded.aspectRatio!.height,
+      'width': ready.width,
+      'height': ready.height,
     });
     onStaged?.call(media.length);
   }
@@ -259,19 +254,6 @@ Future<void> _pumpUntil(
   fail('Condition did not become true');
 }
 
-Future<void> _waitForReal(
-  WidgetTester tester,
-  bool Function() condition,
-) async {
-  await tester.runAsync(() async {
-    for (var attempt = 0; attempt < 200; attempt++) {
-      if (condition()) return;
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-    }
-    fail('Real asynchronous condition did not become true');
-  });
-}
-
 Uint8List _pngBytes({required int width, required int height}) =>
     Uint8List.fromList(img.encodePng(img.Image(width: width, height: height)));
 
@@ -300,6 +282,7 @@ final class _SubmissionRepository implements ScheduledPostRepository {
     required String id,
     required List<int> bytes,
     required String mimeType,
+    CancelToken? cancelToken,
   }) async {
     stageCalls += 1;
     stagedBytes = List.unmodifiable(bytes);

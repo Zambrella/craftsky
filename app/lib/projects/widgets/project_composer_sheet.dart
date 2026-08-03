@@ -1,13 +1,27 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
+import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
+import 'package:craftsky_app/drafts/composer/draft_schedule_restoration.dart';
+import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
+import 'package:craftsky_app/drafts/models/local_post_draft.dart';
+import 'package:craftsky_app/drafts/providers/draft_save_controller.dart';
+import 'package:craftsky_app/drafts/providers/local_post_draft_repository_provider.dart';
+import 'package:craftsky_app/drafts/providers/local_post_drafts_provider.dart';
+import 'package:craftsky_app/drafts/widgets/draft_close_dialog.dart';
+import 'package:craftsky_app/feed/composer/composer_media_uploader.dart';
+import 'package:craftsky_app/feed/composer/composer_submission_coordinator.dart';
+import 'package:craftsky_app/feed/composer/submission_screen_awake.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
+import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
+import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
@@ -17,6 +31,7 @@ import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
 import 'package:craftsky_app/projects/composer/project_composer_hydrator.dart';
 import 'package:craftsky_app/projects/composer/project_composer_payload.dart';
 import 'package:craftsky_app/projects/composer/project_composer_submit_adapter.dart';
+import 'package:craftsky_app/projects/composer/project_draft_snapshot_adapter.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
@@ -41,6 +56,7 @@ import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
@@ -51,6 +67,8 @@ Future<Post?> showProjectComposerSheet(
   BuildContext context, {
   ScheduledPostDetail? scheduledPost,
   ActiveAccountLease? scheduledOwner,
+  LocalPostDraftSeed? draftSeed,
+  ActiveAccountLease? draftOwner,
 }) {
   return Navigator.of(context, rootNavigator: true).push<Post?>(
     MaterialPageRoute<Post?>(
@@ -58,6 +76,8 @@ Future<Post?> showProjectComposerSheet(
       builder: (_) => ProjectComposerSheet(
         scheduledPost: scheduledPost,
         scheduledOwner: scheduledOwner,
+        draftSeed: draftSeed,
+        draftOwner: draftOwner,
       ),
     ),
   );
@@ -76,13 +96,20 @@ class ProjectComposerSheet extends ConsumerStatefulWidget {
     this.composerId,
     this.scheduledPost,
     this.scheduledOwner,
-  });
+    this.draftSeed,
+    this.draftOwner,
+  }) : assert(
+         scheduledPost == null || draftSeed == null,
+         'Scheduled and local draft edits are mutually exclusive',
+       );
 
   static const maxCharacters = 2000;
 
   final String? composerId;
   final ScheduledPostDetail? scheduledPost;
   final ActiveAccountLease? scheduledOwner;
+  final LocalPostDraftSeed? draftSeed;
+  final ActiveAccountLease? draftOwner;
 
   @override
   ConsumerState<ProjectComposerSheet> createState() =>
@@ -169,15 +196,29 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   bool _isLoadingScheduledMedia = false;
   bool _scheduledMediaLoadFailed = false;
   ActiveAccountLease? _scheduledOwner;
+  late final ComposerMediaUploader _mediaUploader;
+  late final ComposerSubmissionCoordinator _submissionCoordinator;
+  bool _isSubmitting = false;
+  bool _isSavingDraft = false;
+  bool _submissionSucceeded = false;
+  String _initialBodyText = '';
+  List<String>? _initialLanguages;
+  ScheduleChoice _initialScheduleChoice = ScheduleChoice.now;
+  DateTime? _initialScheduledAtLocal;
 
   @override
   void initState() {
     super.initState();
     _scheduledOwner = widget.scheduledOwner;
+    final draftContent = widget.draftSeed?.draft.content;
     final project = widget.scheduledPost?.payload['project'];
-    _initialFormValues = hydrateScheduledProjectComposer(
-      project is Map<String, dynamic> ? project : null,
-    );
+    _initialFormValues = draftContent is ProjectDraftContent
+        ? const ProjectDraftSnapshotAdapter().decodeKnownFields(
+            Map<String, dynamic>.from(draftContent.knownProjectFieldValues),
+          )
+        : hydrateScheduledProjectComposer(
+            project is Map<String, dynamic> ? project : null,
+          );
     _patternNameController.text =
         switch (_initialFormValues[ProjectComposerFields.patternName]) {
           final String name when name.isNotEmpty => '#$name',
@@ -205,6 +246,45 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
             as String?;
     _unsavedGuard = ref.read(unsavedWorkGuardProvider);
     _composerId = widget.composerId ?? const Uuid().v4();
+    _mediaUploader = ComposerMediaUploader(
+      upload: ({required bytes, required mimeType, required cancelToken}) => ref
+          .read(postApiClientProvider)
+          .uploadImage(
+            bytes: bytes,
+            mimeType: mimeType,
+            cancelToken: cancelToken,
+          ),
+    );
+    _submissionCoordinator = ComposerSubmissionCoordinator(
+      screenAwake: const WakelockSubmissionScreenAwake(),
+    );
+    if (draftContent is ProjectDraftContent) {
+      _bodyText = draftContent.body;
+      _initialBodyText = draftContent.body;
+      _bodyController.text = draftContent.body;
+      if (draftContent.languages.isNotEmpty) {
+        _languages = PostLanguageSelection.fromValues(draftContent.languages);
+        _initialLanguages = List.of(draftContent.languages);
+      }
+      final restored = restoreDraftSchedule(
+        widget.draftSeed!.draft.schedule,
+        now: DateTime.now(),
+      );
+      _scheduleChoice = restored.choice;
+      _scheduledAtLocal = restored.scheduledAtLocal;
+      _missedScheduledAtLocal = restored.needsExplanation
+          ? widget.draftSeed!.draft.schedule.scheduledAtUtc?.toLocal()
+          : null;
+      _initialScheduleChoice = _scheduleChoice;
+      _initialScheduledAtLocal = _scheduledAtLocal;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref
+              .read(composerImagesProvider(_composerId).notifier)
+              .seedLocalDraft(widget.draftSeed!);
+        }
+      });
+    }
     if (widget.scheduledPost case final scheduled?) {
       _bodyText = scheduled.payload['text'] as String? ?? '';
       _bodyController.text = _bodyText;
@@ -232,6 +312,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   @override
   void dispose() {
     _unsavedGuard.unregister(_unsavedRegistration);
+    unawaited(_submissionCoordinator.dispose());
     _scrollController.dispose();
     _bodyController.dispose();
     _bodyFocusNode.dispose();
@@ -243,6 +324,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     _patternNameFocusNode.dispose();
     _patternDesignerFocusNode.dispose();
     _patternPublisherFocusNode.dispose();
+    _mediaUploader.disposeComposer(_composerId);
     super.dispose();
   }
 
@@ -257,6 +339,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     _languages ??= PostLanguageSelection.fromPrimary(
       preferences.primaryLanguage,
     );
+    _initialLanguages ??= List.of(_languages!.values);
     final imagesProvider = composerImagesProvider(_composerId);
     final imagesState = ref.watch(imagesProvider);
     final activeLease = ref.watch(sessionRegistryProvider).value?.activeLease;
@@ -283,6 +366,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     );
     final controlsEnabled =
         !createState.isLoading &&
+        !_isSubmitting &&
         !_isScheduling &&
         !_isLoadingScheduledMedia &&
         !_scheduledMediaLoadFailed;
@@ -290,6 +374,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     final tooLong = _bodyText.length > ProjectComposerSheet.maxCharacters;
     final canSubmit =
         !createState.isLoading &&
+        !_isSubmitting &&
         !_isLoadingScheduledMedia &&
         !_scheduledMediaLoadFailed &&
         _languages != null &&
@@ -309,13 +394,23 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
             imagesState.images.isEmpty
         ? l10n.projectComposerPhotoRequiredError
         : null;
-    final hasDraft = ProjectComposerDraftState.hasDraft(
-      bodyText: _bodyText,
-      initialBodyText: '',
-      imageCount: imagesState.images.length,
-      formValues: formValues,
-      initialFormValues: _initialFormValues,
-    );
+    final hasDraft =
+        ProjectComposerDraftState.hasDraft(
+          bodyText: _bodyText,
+          initialBodyText: _initialBodyText,
+          imageCount: _draftMediaChanged(imagesState) ? 1 : 0,
+          formValues: formValues,
+          initialFormValues: _initialFormValues,
+        ) ||
+        !listEquals(_languages?.values, _initialLanguages) ||
+        _scheduleChoice != _initialScheduleChoice ||
+        _scheduledAtLocal != _initialScheduledAtLocal;
+    final canSaveDraft =
+        widget.scheduledPost == null &&
+        hasDraft &&
+        imagesState.canSaveDraftMedia() &&
+        !_isSavingDraft &&
+        !_isSubmitting;
     _ensureUnsavedWorkRegistration();
     ref
       ..listen(createPostProvider, (previous, next) {
@@ -354,225 +449,250 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     }
 
     return PopScope<Post?>(
-      canPop: _currentPage == 0 && (!hasDraft || createState.isLoading),
+      canPop:
+          !_isSubmitting &&
+          _currentPage == 0 &&
+          (!hasDraft || createState.isLoading),
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
+        if (_isSubmitting) return;
         if (_currentPage > 0) {
           _setCurrentPage(_currentPage - 1);
           return;
         }
-        final discard = await _confirmDiscard();
-        if (!discard || !context.mounted) return;
+        final shouldClose = await _confirmProjectClose(imagesState);
+        if (!shouldClose || !context.mounted) return;
         Navigator.of(context).pop();
       },
-      child: Actions(
-        actions: <Type, Action<Intent>>{
-          NextFocusIntent: _ProjectComposerNextFocusAction(
-            shouldEnterPage: () => _backActionFocusNode.hasPrimaryFocus,
-            enterPage: _focusFirstPageField,
-            exitPage: _focusPrimaryActionFromLastPageField,
-          ),
-        },
-        child: Scaffold(
-          backgroundColor: swatches.paper,
-          appBar: AppBar(
-            leading: _currentPage == 0
-                ? null
-                : IconButton(
-                    key: const Key('project-composer-back-action'),
-                    focusNode: _backActionFocusNode,
-                    icon: const BackButtonIcon(),
-                    tooltip: MaterialLocalizations.of(
-                      context,
-                    ).backButtonTooltip,
-                    onPressed: createState.isLoading
-                        ? null
-                        : () => _setCurrentPage(_currentPage - 1),
-                  ),
-            title: Text(
-              l10n.projectComposerTitle,
-              style: theme.textTheme.titleLarge,
-            ),
-            actions: [
-              Padding(
-                padding: EdgeInsets.only(right: spacing.sp4),
-                child: TextButton(
-                  key: const Key('project-composer-primary-action'),
-                  focusNode: _primaryActionFocusNode,
-                  onPressed: _currentPage < 2
-                      ? (controlsEnabled ? _goToNextPage : null)
-                      : (canSubmit
-                            ? () => _submitProject(trimmedBody: trimmedBody)
-                            : null),
-                  child: Text(
-                    _currentPage < 2
-                        ? l10n.projectComposerNextAction
-                        : _scheduleChoice == ScheduleChoice.later
-                        ? l10n.scheduledPostAction
-                        : l10n.postComposeSubmit,
-                  ),
-                ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Actions(
+            actions: <Type, Action<Intent>>{
+              NextFocusIntent: _ProjectComposerNextFocusAction(
+                shouldEnterPage: () => _backActionFocusNode.hasPrimaryFocus,
+                enterPage: _focusFirstPageField,
+                exitPage: _focusPrimaryActionFromLastPageField,
               ),
-            ],
-          ),
-          body: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-            child: SafeArea(
-              top: false,
-              bottom: false,
-              child: SingleChildScrollView(
-                controller: _scrollController,
-                padding: EdgeInsets.fromLTRB(
-                  spacing.sp4,
-                  spacing.sp5,
-                  spacing.sp4,
-                  0,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (_formValidationError
-                        case final formValidationError?) ...[
-                      Text(
-                        formValidationError,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.error,
-                        ),
-                      ),
-                      SizedBox(height: spacing.sp4),
-                    ],
-                    FormBuilder(
-                      key: _formKey,
-                      initialValue: _initialFormValues,
-                      onChanged: () {
-                        if (mounted) setState(() {});
-                      },
-                      child: _MountedWizardPages(
-                        key: _wizardPagesKey,
-                        currentPage: _currentPage,
-                        onExitBackward: _currentPage == 0
+            },
+            child: Scaffold(
+              backgroundColor: swatches.paper,
+              appBar: AppBar(
+                leading: _currentPage == 0
+                    ? null
+                    : IconButton(
+                        key: const Key('project-composer-back-action'),
+                        focusNode: _backActionFocusNode,
+                        icon: const BackButtonIcon(),
+                        tooltip: MaterialLocalizations.of(
+                          context,
+                        ).backButtonTooltip,
+                        onPressed: createState.isLoading
                             ? null
-                            : () {
-                                _backActionFocusNode.requestFocus();
-                                return true;
-                              },
-                        onExitForward: () {
-                          _primaryActionFocusNode.requestFocus();
-                          return true;
-                        },
-                        children: [
-                          _pageOne(
-                            l10n: l10n,
-                            theme: theme,
-                            spacing: spacing,
-                            imagesState: imagesState,
-                            controlsEnabled: controlsEnabled,
-                            photoErrorText: photoErrorText,
-                            patternInfoTitle:
-                                l10n.projectComposerPatternInfoSectionLabel,
-                            onAddImages: () =>
-                                ref.read(imagesProvider.notifier).addImages(),
-                            onAltTextChanged: (imageId, value) => ref
-                                .read(imagesProvider.notifier)
-                                .setAltText(imageId, value),
-                            onRemoveImage: (imageId) => ref
-                                .read(imagesProvider.notifier)
-                                .remove(imageId),
-                            onReorderImages: (fromIndex, toIndex) => ref
-                                .read(imagesProvider.notifier)
-                                .reorder(
-                                  fromIndex: fromIndex,
-                                  toIndex: toIndex,
-                                ),
-                          ),
-                          _pageTwo(
-                            l10n: l10n,
-                            theme: theme,
-                            spacing: spacing,
-                            controlsEnabled: controlsEnabled,
-                          ),
-                          _pageThree(
-                            l10n: l10n,
-                            spacing: spacing,
-                            controlsEnabled: controlsEnabled,
-                            bodyErrorText: bodyErrorText,
-                          ),
-                        ],
+                            : () => _setCurrentPage(_currentPage - 1),
+                      ),
+                title: Text(
+                  l10n.projectComposerTitle,
+                  style: theme.textTheme.titleLarge,
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: canSaveDraft
+                        ? () => _saveProjectDraft(imagesState)
+                        : null,
+                    child: Text(
+                      widget.draftSeed == null
+                          ? l10n.draftSaveAction
+                          : l10n.draftSaveChangesAction,
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.only(right: spacing.sp4),
+                    child: TextButton(
+                      key: const Key('project-composer-primary-action'),
+                      focusNode: _primaryActionFocusNode,
+                      onPressed: _currentPage < 2
+                          ? (controlsEnabled ? _goToNextPage : null)
+                          : (canSubmit
+                                ? () => _submitProject(trimmedBody: trimmedBody)
+                                : null),
+                      child: Text(
+                        _currentPage < 2
+                            ? l10n.projectComposerNextAction
+                            : _scheduleChoice == ScheduleChoice.later
+                            ? l10n.scheduledPostAction
+                            : l10n.postComposeSubmit,
                       ),
                     ),
-                    if (_currentPage == 2) ...[
-                      SizedBox(height: spacing.sp4),
-                      PostLanguageSelector(
-                        selection: _languages!,
-                        enabled: controlsEnabled,
-                        onChanged: (value) =>
-                            setState(() => _languages = value),
-                      ),
-                      SizedBox(height: spacing.sp4),
-                      Builder(
-                        builder: (menuContext) => ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.schedule_outlined),
-                          title: Text(l10n.scheduledPostWhenTitle),
-                          subtitle: Text(_whenLabel(context)),
-                          trailing: const Icon(Icons.chevron_right),
-                          enabled: controlsEnabled,
-                          onTap: () => _chooseWhen(
-                            menuContext,
-                            scheduleEnabled: capacity.scheduleEnabled,
+                  ),
+                ],
+              ),
+              body: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+                child: SafeArea(
+                  top: false,
+                  bottom: false,
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    padding: EdgeInsets.fromLTRB(
+                      spacing.sp4,
+                      spacing.sp5,
+                      spacing.sp4,
+                      0,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_formValidationError
+                            case final formValidationError?) ...[
+                          Text(
+                            formValidationError,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.error,
+                            ),
+                          ),
+                          SizedBox(height: spacing.sp4),
+                        ],
+                        FormBuilder(
+                          key: _formKey,
+                          initialValue: _initialFormValues,
+                          onChanged: () {
+                            if (mounted) setState(() {});
+                          },
+                          child: _MountedWizardPages(
+                            key: _wizardPagesKey,
+                            currentPage: _currentPage,
+                            onExitBackward: _currentPage == 0
+                                ? null
+                                : () {
+                                    _backActionFocusNode.requestFocus();
+                                    return true;
+                                  },
+                            onExitForward: () {
+                              _primaryActionFocusNode.requestFocus();
+                              return true;
+                            },
+                            children: [
+                              _pageOne(
+                                l10n: l10n,
+                                theme: theme,
+                                spacing: spacing,
+                                imagesState: imagesState,
+                                controlsEnabled: controlsEnabled,
+                                photoErrorText: photoErrorText,
+                                patternInfoTitle:
+                                    l10n.projectComposerPatternInfoSectionLabel,
+                                onAddImages: () => ref
+                                    .read(imagesProvider.notifier)
+                                    .addImages(),
+                                onAltTextChanged: (imageId, value) => ref
+                                    .read(imagesProvider.notifier)
+                                    .setAltText(imageId, value),
+                                onRemoveImage: (imageId) => ref
+                                    .read(imagesProvider.notifier)
+                                    .remove(imageId),
+                                onReorderImages: (fromIndex, toIndex) => ref
+                                    .read(imagesProvider.notifier)
+                                    .reorder(
+                                      fromIndex: fromIndex,
+                                      toIndex: toIndex,
+                                    ),
+                              ),
+                              _pageTwo(
+                                l10n: l10n,
+                                theme: theme,
+                                spacing: spacing,
+                                controlsEnabled: controlsEnabled,
+                              ),
+                              _pageThree(
+                                l10n: l10n,
+                                spacing: spacing,
+                                controlsEnabled: controlsEnabled,
+                                bodyErrorText: bodyErrorText,
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                      if (capacity.showCapacityWarning)
-                        const ScheduledPostCapacityWarning(),
-                      if (capacity.showManageLink)
-                        Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: TextButton(
-                            onPressed: () =>
-                                const ScheduledPostsRoute().push<void>(context),
-                            child: Text(l10n.scheduledPostManageAction),
+                        if (_currentPage == 2) ...[
+                          SizedBox(height: spacing.sp4),
+                          PostLanguageSelector(
+                            selection: _languages!,
+                            enabled: controlsEnabled,
+                            onChanged: (value) =>
+                                setState(() => _languages = value),
                           ),
-                        ),
-                      if (_missedScheduledAtLocal case final missed?)
-                        Text(
-                          l10n.scheduledPostMissedTime(
-                            _projectLocalTimeLabel(context, missed),
+                          SizedBox(height: spacing.sp4),
+                          Builder(
+                            builder: (menuContext) => ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.schedule_outlined),
+                              title: Text(l10n.scheduledPostWhenTitle),
+                              subtitle: Text(_whenLabel(context)),
+                              trailing: const Icon(Icons.chevron_right),
+                              enabled: controlsEnabled,
+                              onTap: () => _chooseWhen(
+                                menuContext,
+                                scheduleEnabled: capacity.scheduleEnabled,
+                              ),
+                            ),
                           ),
-                        ),
-                      if (_isScheduling &&
-                          (_stagedImageTotal > 0 || _isSavingSchedule)) ...[
-                        SizedBox(height: spacing.sp3),
-                        ScheduledStagingProgress(
-                          completed: _stagedImageCount,
-                          total: _stagedImageTotal,
-                          creating: _isSavingSchedule,
+                          if (capacity.showCapacityWarning)
+                            const ScheduledPostCapacityWarning(),
+                          if (capacity.showManageLink)
+                            Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: TextButton(
+                                onPressed: () => const ScheduledPostsRoute()
+                                    .push<void>(context),
+                                child: Text(l10n.scheduledPostManageAction),
+                              ),
+                            ),
+                          if (_missedScheduledAtLocal case final missed?)
+                            Text(
+                              l10n.scheduledPostMissedTime(
+                                _projectLocalTimeLabel(context, missed),
+                              ),
+                            ),
+                          if (_isScheduling &&
+                              (_stagedImageTotal > 0 || _isSavingSchedule)) ...[
+                            SizedBox(height: spacing.sp3),
+                            ScheduledStagingProgress(
+                              completed: _stagedImageCount,
+                              total: _stagedImageTotal,
+                              creating: _isSavingSchedule,
+                            ),
+                          ],
+                        ],
+                        if (widget.scheduledPost != null)
+                          Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: TextButton.icon(
+                              onPressed: _isScheduling
+                                  ? null
+                                  : _deleteExistingSchedule,
+                              icon: const Icon(Icons.delete_outline),
+                              label: Text(l10n.scheduledPostsDeleteTooltip),
+                            ),
+                          ),
+                        SizedBox(
+                          key: const Key('project-composer-bottom-safe-space'),
+                          height:
+                              spacing.sp7 +
+                              MediaQuery.paddingOf(context).bottom,
                         ),
                       ],
-                    ],
-                    if (widget.scheduledPost != null)
-                      Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: TextButton.icon(
-                          onPressed: _isScheduling
-                              ? null
-                              : _deleteExistingSchedule,
-                          icon: const Icon(Icons.delete_outline),
-                          label: Text(l10n.scheduledPostsDeleteTooltip),
-                        ),
-                      ),
-                    SizedBox(
-                      key: const Key('project-composer-bottom-safe-space'),
-                      height:
-                          spacing.sp7 + MediaQuery.paddingOf(context).bottom,
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
+          if (_isSubmitting)
+            SubmissionBlockingOverlay(
+              scheduling: _scheduleChoice == ScheduleChoice.later,
+            ),
+        ],
       ),
     );
   }
@@ -588,6 +708,99 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     );
   }
 
+  Future<bool> _confirmProjectClose(ComposerImagesState imagesState) async {
+    if (widget.scheduledPost != null) return _confirmDiscard();
+    final choice = await showDraftCloseDialog(
+      context,
+      existingDraft: widget.draftSeed != null,
+      canSave: imagesState.canSaveDraftMedia() && _hasUnsavedProject(),
+    );
+    switch (choice) {
+      case DraftCloseChoice.save:
+        await _saveProjectDraft(imagesState);
+        return false;
+      case DraftCloseChoice.discard:
+        return true;
+      case DraftCloseChoice.keepEditing:
+        return false;
+    }
+  }
+
+  bool _draftMediaChanged(ComposerImagesState imagesState) {
+    final baseline = widget.draftSeed?.draft.media ?? const [];
+    if (widget.draftSeed == null) return imagesState.images.isNotEmpty;
+    if (imagesState.images.length != baseline.length) return true;
+    for (var index = 0; index < imagesState.images.length; index++) {
+      final image = imagesState.images[index];
+      final stored = baseline[index];
+      final digest = switch (image.phase) {
+        ImageReady(:final sha256) => sha256,
+        _ => 'unavailable',
+      };
+      if (image.id != stored.mediaId ||
+          image.altText != stored.altText ||
+          digest != stored.sha256) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _saveProjectDraft(ComposerImagesState imagesState) async {
+    final active = ref.read(sessionRegistryProvider).value?.activeLease;
+    if (active == null ||
+        (widget.draftOwner != null && active != widget.draftOwner)) {
+      return;
+    }
+    _formKey.currentState?.save();
+    setState(() => _isSavingDraft = true);
+    try {
+      final request = _projectDraftWriteRequest(
+        active.session.account,
+        imagesState,
+      );
+      final saved = await ref
+          .read(draftSaveControllerProvider(active.session.account).notifier)
+          .save(request);
+      if (!mounted || saved == null) return;
+      Navigator.of(context).pop();
+      context.showInfo(AppLocalizations.of(context).draftSavedMessage);
+    } on Object {
+      if (mounted) {
+        context.showError(AppLocalizations.of(context).draftSaveError);
+      }
+    } finally {
+      if (mounted) setState(() => _isSavingDraft = false);
+    }
+  }
+
+  DraftWriteRequest _projectDraftWriteRequest(
+    AccountKey owner,
+    ComposerImagesState imagesState,
+  ) {
+    final existing = widget.draftSeed?.draft;
+    final schedule = _scheduleChoice == ScheduleChoice.later
+        ? DraftScheduleIntent.later(
+            scheduledAtUtc: _scheduledAtLocal?.toUtc(),
+            savedOffsetMinutes: _scheduledAtLocal?.timeZoneOffset.inMinutes,
+          )
+        : const DraftScheduleIntent.now();
+    return const ProjectDraftSnapshotAdapter().toWriteRequest(
+      id: existing?.id ?? _composerId,
+      owner: owner,
+      body: _bodyText,
+      languages: _languages!.values,
+      schedule: schedule,
+      formValues: {
+        ..._initialFormValues,
+        ...?_formKey.currentState?.value,
+      },
+      images: imagesState.images,
+      existingRevision: existing?.revision,
+      existingCreatedAt: existing?.createdAt,
+    );
+  }
+
   void _ensureUnsavedWorkRegistration() {
     final owner = ref.read(sessionRegistryProvider).value?.activeLease?.session;
     if (owner == null || owner == _unsavedOwner) return;
@@ -598,8 +811,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       isDirty: _hasUnsavedProject,
       confirmAndClose: () async {
         if (!mounted) return true;
-        final discard = await _confirmDiscard();
-        if (!discard || !mounted) return false;
+        final imagesState = ref.read(composerImagesProvider(_composerId));
+        final shouldClose = await _confirmProjectClose(imagesState);
+        if (!shouldClose || !mounted) return false;
         Navigator.of(context).pop();
         await Future<void>.delayed(Duration.zero);
         return true;
@@ -615,12 +829,15 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       ...?_formKey.currentState?.instantValue,
     };
     return ProjectComposerDraftState.hasDraft(
-      bodyText: _bodyText,
-      initialBodyText: '',
-      imageCount: imagesState.images.length,
-      formValues: formValues,
-      initialFormValues: _initialFormValues,
-    );
+          bodyText: _bodyText,
+          initialBodyText: _initialBodyText,
+          imageCount: _draftMediaChanged(imagesState) ? 1 : 0,
+          formValues: formValues,
+          initialFormValues: _initialFormValues,
+        ) ||
+        !listEquals(_languages?.values, _initialLanguages) ||
+        _scheduleChoice != _initialScheduleChoice ||
+        _scheduledAtLocal != _initialScheduledAtLocal;
   }
 
   bool _focusFirstPageField() {
@@ -1403,28 +1620,101 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       existingText: widget.scheduledPost?.payload['text'] as String?,
       existingFacets: _scheduledProjectFacets('facets'),
       existingProject: _existingScheduledProject(),
+      materializeImagesFromState: false,
     );
 
-    if (widget.scheduledPost != null && _scheduleChoice == ScheduleChoice.now) {
-      await _publishExistingProjectNow(args);
-      return;
-    }
+    await _runSubmission(() async {
+      if (widget.scheduledPost != null &&
+          _scheduleChoice == ScheduleChoice.now) {
+        await _publishExistingProjectNow(args);
+        return;
+      }
 
-    if (_scheduleChoice == ScheduleChoice.later) {
-      await _scheduleProject(args: args, imagesState: imagesState);
-      return;
-    }
+      if (_scheduleChoice == ScheduleChoice.later) {
+        await _scheduleProject(args: args, imagesState: imagesState);
+        return;
+      }
 
-    await ref
-        .read(createPostProvider.notifier)
-        .create(
-          text: args.text,
-          langs: args.langs,
-          reply: args.reply,
-          project: args.project,
-          images: args.images,
-          facets: args.facets,
+      final images = await _mediaUploader.materializeImmediate(
+        composerId: _composerId,
+        images: imagesState.images,
+      );
+      await ref
+          .read(createPostProvider.notifier)
+          .create(
+            text: args.text,
+            langs: args.langs,
+            reply: args.reply,
+            project: args.project,
+            images: images,
+            facets: args.facets,
+          );
+      _submissionSucceeded = ref.read(createPostProvider).value != null;
+    });
+  }
+
+  Future<void> _runSubmission(Future<void> Function() operation) async {
+    if (_submissionCoordinator.isRunning) return;
+    _submissionSucceeded = false;
+    await _submissionCoordinator.run(
+      presentOverlay: () async {
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted) throw StateError('composer disposed');
+      },
+      saveOriginSnapshot: _saveOriginSnapshot,
+      operation: operation,
+      didSucceed: () => _submissionSucceeded,
+      deleteOriginAfterSuccess: _deleteOriginDraftAfterSuccess,
+      onRunningChanged: ({required running}) {
+        if (mounted) setState(() => _isSubmitting = running);
+      },
+      onFailure: (_) {
+        if (mounted) {
+          context.showError(AppLocalizations.of(context).postCreateError);
+        }
+      },
+    );
+  }
+
+  Future<void> _saveOriginSnapshot() async {
+    final origin = widget.draftSeed?.draft;
+    if (origin == null) return;
+    final active = ref.read(sessionRegistryProvider).value?.activeLease;
+    if (active == null ||
+        active != widget.draftOwner ||
+        active.session.account != origin.owner) {
+      throw StateError('local-draft account changed');
+    }
+    _formKey.currentState?.save();
+    final saved = await ref
+        .read(draftSaveControllerProvider(origin.owner).notifier)
+        .save(
+          _projectDraftWriteRequest(
+            origin.owner,
+            ref.read(composerImagesProvider(_composerId)),
+          ),
         );
+    if (saved == null) throw StateError('local-draft account changed');
+  }
+
+  Future<void> _deleteOriginDraftAfterSuccess() async {
+    final origin = widget.draftSeed?.draft;
+    if (origin == null) return;
+    try {
+      final repository = await ref.read(
+        accountLocalPostDraftRepositoryProvider(origin.owner).future,
+      );
+      await repository.delete(origin.id);
+      if (mounted) {
+        await ref
+            .read(localPostDraftsProvider(origin.owner).notifier)
+            .refresh();
+      }
+    } on Object {
+      if (mounted) {
+        context.showError(AppLocalizations.of(context).draftCleanupError);
+      }
+    }
   }
 
   List<Map<String, dynamic>>? _scheduledProjectFacets(String key) {
@@ -1570,6 +1860,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
       await ref.read(scheduledPostsProvider(account).notifier).refresh();
       if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      _submissionSucceeded = true;
       Navigator.of(context).pop();
       context.showInfo(AppLocalizations.of(context).scheduledProjectSaved);
     } on Object {
@@ -1636,6 +1927,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
       await ref.read(scheduledPostsProvider(account).notifier).refresh();
       if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      _submissionSucceeded = true;
       Navigator.of(context).pop();
     } on Object {
       if (mounted && _scheduledOperationIsCurrent(owner)) {

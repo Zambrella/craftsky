@@ -2076,4 +2076,93 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get scheduledProjectNowError =>
       'Could not post now. Your project is still here.';
+
+  @override
+  String get draftsTitle => 'Drafts';
+
+  @override
+  String get draftsEmpty => 'No drafts';
+
+  @override
+  String get draftsDeleteTitle => 'Delete draft?';
+
+  @override
+  String get draftsDeleteMessage =>
+      'This removes the draft and its saved images from this device.';
+
+  @override
+  String get draftsDeleteAction => 'Delete';
+
+  @override
+  String get draftsKindProject => 'Project';
+
+  @override
+  String get draftsKindStandard => 'Standard';
+
+  @override
+  String draftsRowDateTime(String kind, String date, String time) {
+    return '$kind · $date, $time';
+  }
+
+  @override
+  String get draftsUnavailable => 'Draft unavailable';
+
+  @override
+  String get draftsUntitled => 'Untitled draft';
+
+  @override
+  String get draftsImageUnavailable => 'Image unavailable';
+
+  @override
+  String get draftsLoadError => 'Could not load drafts';
+
+  @override
+  String get draftsRetryAction => 'Try again';
+
+  @override
+  String get draftsEditTooltip => 'Edit draft';
+
+  @override
+  String get draftsDeleteTooltip => 'Delete draft';
+
+  @override
+  String get draftsThumbnailSemantics => 'Draft image';
+
+  @override
+  String get submissionPublishingPost => 'Publishing your post…';
+
+  @override
+  String get submissionSchedulingPost => 'Scheduling your post…';
+
+  @override
+  String get draftSaveAction => 'Save draft';
+
+  @override
+  String get draftSaveChangesAction => 'Save changes';
+
+  @override
+  String get draftSavedMessage => 'Draft saved';
+
+  @override
+  String get draftSaveError => 'Could not save draft';
+
+  @override
+  String get draftCloseTitle => 'Save your draft?';
+
+  @override
+  String get draftCloseMessage =>
+      'You can save this work on this device before closing.';
+
+  @override
+  String get draftKeepEditingAction => 'Keep editing';
+
+  @override
+  String get draftDiscardAction => 'Discard';
+
+  @override
+  String get draftDiscardChangesAction => 'Discard changes';
+
+  @override
+  String get draftCleanupError =>
+      'Your post was submitted, but the local draft could not be removed. You can delete it from Drafts.';
 }

@@ -15,6 +15,7 @@ import 'package:craftsky_app/scheduled_posts/providers/scheduled_post_repository
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_posts_provider.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -166,6 +167,7 @@ final class _CapacityRepository implements ScheduledPostRepository {
     required String id,
     required List<int> bytes,
     required String mimeType,
+    CancelToken? cancelToken,
   }) => throw UnimplementedError();
 
   @override

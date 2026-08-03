@@ -109,6 +109,12 @@ RouteBase get $appShellRoute => StatefulShellRouteData.$route(
                   factory: $ScheduledPostsRoute._fromState,
                 ),
                 GoRouteData.$route(
+                  path: 'drafts',
+                  name: 'drafts',
+                  parentNavigatorKey: DraftsRoute.$parentNavigatorKey,
+                  factory: $DraftsRoute._fromState,
+                ),
+                GoRouteData.$route(
                   path: 'saved',
                   name: 'saved-posts',
                   parentNavigatorKey: SavedPostsRoute.$parentNavigatorKey,
@@ -402,6 +408,26 @@ mixin $ScheduledPostsRoute on GoRouteData {
 
   @override
   String get location => GoRouteData.$location('/profile/settings/scheduled');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $DraftsRoute on GoRouteData {
+  static DraftsRoute _fromState(GoRouterState state) => const DraftsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/settings/drafts');
 
   @override
   void go(BuildContext context) => context.go(location);

@@ -3746,6 +3746,174 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not post now. Your project is still here.'**
   String get scheduledProjectNowError;
+
+  /// Title for local draft settings and management.
+  ///
+  /// In en, this message translates to:
+  /// **'Drafts'**
+  String get draftsTitle;
+
+  /// Empty state on the local draft management page.
+  ///
+  /// In en, this message translates to:
+  /// **'No drafts'**
+  String get draftsEmpty;
+
+  /// Title for local draft deletion confirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete draft?'**
+  String get draftsDeleteTitle;
+
+  /// Explanation shown before deleting a local draft.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes the draft and its saved images from this device.'**
+  String get draftsDeleteMessage;
+
+  /// Confirmation action for deleting a local draft.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get draftsDeleteAction;
+
+  /// Project-post type label in local draft management.
+  ///
+  /// In en, this message translates to:
+  /// **'Project'**
+  String get draftsKindProject;
+
+  /// Standard-post type label in local draft management.
+  ///
+  /// In en, this message translates to:
+  /// **'Standard'**
+  String get draftsKindStandard;
+
+  /// Kind and last-saved local date/time shown for a draft.
+  ///
+  /// In en, this message translates to:
+  /// **'{kind} · {date}, {time}'**
+  String draftsRowDateTime(String kind, String date, String time);
+
+  /// Safe row label for a damaged or unsupported local draft.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft unavailable'**
+  String get draftsUnavailable;
+
+  /// Preview label when a valid draft has no text or title.
+  ///
+  /// In en, this message translates to:
+  /// **'Untitled draft'**
+  String get draftsUntitled;
+
+  /// Placeholder label for missing or damaged draft media.
+  ///
+  /// In en, this message translates to:
+  /// **'Image unavailable'**
+  String get draftsImageUnavailable;
+
+  /// Safe error shown when local drafts cannot load.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load drafts'**
+  String get draftsLoadError;
+
+  /// Action retrying a local draft list load.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get draftsRetryAction;
+
+  /// Tooltip for editing a local draft.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit draft'**
+  String get draftsEditTooltip;
+
+  /// Tooltip for deleting a local draft.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete draft'**
+  String get draftsDeleteTooltip;
+
+  /// Accessibility label for a local draft thumbnail.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft image'**
+  String get draftsThumbnailSemantics;
+
+  /// Blocking immediate-submission status.
+  ///
+  /// In en, this message translates to:
+  /// **'Publishing your post…'**
+  String get submissionPublishingPost;
+
+  /// Blocking scheduled-submission status.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduling your post…'**
+  String get submissionSchedulingPost;
+
+  /// Action saving a new local post draft.
+  ///
+  /// In en, this message translates to:
+  /// **'Save draft'**
+  String get draftSaveAction;
+
+  /// Action overwriting an existing local post draft.
+  ///
+  /// In en, this message translates to:
+  /// **'Save changes'**
+  String get draftSaveChangesAction;
+
+  /// Success feedback after saving a local draft.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft saved'**
+  String get draftSavedMessage;
+
+  /// Safe retryable local draft save error.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save draft'**
+  String get draftSaveError;
+
+  /// Title shown when closing a dirty draft-eligible composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Save your draft?'**
+  String get draftCloseTitle;
+
+  /// Explanation shown when closing a draft-eligible composer.
+  ///
+  /// In en, this message translates to:
+  /// **'You can save this work on this device before closing.'**
+  String get draftCloseMessage;
+
+  /// Action returning to the composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep editing'**
+  String get draftKeepEditingAction;
+
+  /// Action discarding a never-saved composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get draftDiscardAction;
+
+  /// Action closing without overwriting an existing draft.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard changes'**
+  String get draftDiscardChangesAction;
+
+  /// Safe warning after remote success and local draft cleanup failure.
+  ///
+  /// In en, this message translates to:
+  /// **'Your post was submitted, but the local draft could not be removed. You can delete it from Drafts.'**
+  String get draftCleanupError;
 }
 
 class _AppLocalizationsDelegate
