@@ -37,7 +37,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Instagram follow import
 - [x] Instagram post import
 - [x] How to handle different languages
-- [ ] Schedule posts
+- [x] Schedule posts
 - [ ] Drafts
 - [ ] Pinned posts
 - [ ] Video posts
@@ -75,6 +75,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [ ] Drawer
 - [ ] Onboarding
 - [ ] Support custom PDS instances for login
+- [ ] Link previews, YouTube video embeds
 
 ### Lexicons
 
