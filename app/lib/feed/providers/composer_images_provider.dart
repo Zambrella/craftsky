@@ -131,6 +131,11 @@ class ComposerImages extends _$ComposerImages {
     _startPipeline(jobs);
   }
 
+  void seedScheduledImages(List<ComposerImageDraft> images) {
+    if (state.images.isNotEmpty) return;
+    state = state.copyWith(images: List.unmodifiable(images));
+  }
+
   void remove(String imageId) {
     _operations.remove(imageId)?.cancel();
     state = state.copyWith(

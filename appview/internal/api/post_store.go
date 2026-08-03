@@ -417,6 +417,10 @@ func NewPostStore(pool *pgxpool.Pool, observer ...*observability.Observer) *Post
 	return store
 }
 
+func (s *PostStore) RequireCurrentMember(ctx context.Context, did syntax.DID) error {
+	return relationships.RequireCurrentMember(ctx, relationships.NewStore(s.pool), did)
+}
+
 func (s *PostStore) AuthorizeDirectedInteraction(
 	ctx context.Context,
 	actor syntax.DID,

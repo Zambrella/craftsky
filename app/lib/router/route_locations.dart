@@ -22,6 +22,7 @@ class RouteLocations {
   static const settingsChild = 'settings';
   static const languagesChild = 'languages';
   static const instagramMigrationChild = 'instagram';
+  static const scheduledPostsChild = 'scheduled';
   static const savedPostsChild = 'saved';
   static const savedPostFolderChild = 'folder';
   static const followersChild = 'followers';

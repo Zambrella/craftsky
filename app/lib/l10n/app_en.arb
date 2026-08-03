@@ -1647,5 +1647,146 @@
   "@postLanguageDialogTitle": { "description": "Title of the searchable post-language dialog." },
 
   "postLanguageRetryLoading": "Retry loading languages",
-  "@postLanguageRetryLoading": { "description": "Action retrying a composer's Primary-language preference load." }
+  "@postLanguageRetryLoading": { "description": "Action retrying a composer's Primary-language preference load." },
+
+  "scheduledPostsTitle": "Scheduled posts",
+  "@scheduledPostsTitle": { "description": "Title for scheduled-post settings and management." },
+
+  "scheduledPostsEmpty": "No scheduled posts",
+  "@scheduledPostsEmpty": { "description": "Empty state on the scheduled-post management page." },
+
+  "scheduledPostsDeleteTitle": "Delete scheduled post?",
+  "@scheduledPostsDeleteTitle": { "description": "Title for scheduled-post deletion confirmation." },
+
+  "scheduledPostsDeleteMessage": "This removes the unpublished post and its private media.",
+  "@scheduledPostsDeleteMessage": { "description": "Explanation shown before deleting a scheduled post." },
+
+  "scheduledPostsDeleteAction": "Delete",
+  "@scheduledPostsDeleteAction": { "description": "Confirmation action for deleting a scheduled post." },
+
+  "scheduledPostDeleteError": "Could not delete the scheduled post. Try again.",
+  "@scheduledPostDeleteError": { "description": "Safe failure feedback when an owner cannot delete a scheduled post." },
+
+  "scheduledPostsKindProject": "Project",
+  "@scheduledPostsKindProject": { "description": "Project-post type label in scheduled-post management." },
+
+  "scheduledPostsKindStandard": "Standard",
+  "@scheduledPostsKindStandard": { "description": "Standard-post type label in scheduled-post management." },
+
+  "scheduledPostsRowDateTime": "{kind} · {date}, {time}",
+  "@scheduledPostsRowDateTime": {
+    "description": "Scheduled-post type and local publication date and time.",
+    "placeholders": {
+      "kind": { "type": "String", "example": "Project" },
+      "date": { "type": "String", "example": "1 Aug 2026" },
+      "time": { "type": "String", "example": "14:30" }
+    }
+  },
+
+  "scheduledPostsStatusScheduled": "Scheduled",
+  "@scheduledPostsStatusScheduled": { "description": "Status label for a post waiting for publication." },
+
+  "scheduledPostsStatusPublishing": "Publishing",
+  "@scheduledPostsStatusPublishing": { "description": "Status label for a post currently publishing." },
+
+  "scheduledPostsStatusRetrying": "Retrying",
+  "@scheduledPostsStatusRetrying": { "description": "Status label for a scheduled post that will retry." },
+
+  "scheduledPostsStatusNeedsAttention": "Needs attention",
+  "@scheduledPostsStatusNeedsAttention": { "description": "Status label for a scheduled post requiring user action." },
+
+  "scheduledPostsPublishingLocked": "Editing is unavailable while publishing",
+  "@scheduledPostsPublishingLocked": { "description": "Explanation shown while a scheduled post is locked for publication." },
+
+  "scheduledPostsPublishingLockSemantics": "Publishing lock",
+  "@scheduledPostsPublishingLockSemantics": { "description": "Accessibility label for the publishing lock icon." },
+
+  "scheduledPostsEditTooltip": "Edit scheduled post",
+  "@scheduledPostsEditTooltip": { "description": "Tooltip for editing a scheduled post." },
+
+  "scheduledPostsDeleteTooltip": "Delete scheduled post",
+  "@scheduledPostsDeleteTooltip": { "description": "Tooltip for deleting a scheduled post." },
+
+  "scheduledPostsThumbnailSemantics": "Scheduled post image",
+  "@scheduledPostsThumbnailSemantics": { "description": "Accessibility label for an authenticated scheduled-post thumbnail." },
+
+  "scheduledPostsDeletedOn": "Deleted on {date}",
+  "@scheduledPostsDeletedOn": {
+    "description": "Deletion deadline shown for a scheduled post that needs attention.",
+    "placeholders": { "date": { "type": "String", "example": "1 Sep 2026" } }
+  },
+
+  "scheduledPostsLoadError": "Could not load scheduled posts",
+  "@scheduledPostsLoadError": { "description": "Safe error shown when the scheduled-post list cannot load." },
+
+  "scheduledPostsRetryAction": "Try again",
+  "@scheduledPostsRetryAction": { "description": "Action retrying a scheduled-post list load." },
+
+  "scheduledPostWhenTitle": "When",
+  "@scheduledPostWhenTitle": { "description": "Label for selecting when to publish." },
+
+  "scheduledPostNow": "Now",
+  "@scheduledPostNow": { "description": "Default option to publish immediately." },
+
+  "scheduledPostLater": "Schedule for later",
+  "@scheduledPostLater": { "description": "Option to choose a future publication time." },
+
+  "scheduledPostTimeRangeError": "Choose a whole-minute time from 5 minutes through 28 days from now",
+  "@scheduledPostTimeRangeError": { "description": "Error shown when a selected schedule time falls outside the supported window." },
+
+  "scheduledPostAction": "Schedule",
+  "@scheduledPostAction": { "description": "Composer action that saves a post for future publication." },
+
+  "scheduledPostStagingProgress": "Preparing image {current} of {total}",
+  "@scheduledPostStagingProgress": {
+    "description": "Visible and announced private-media staging progress.",
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+
+  "scheduledPostCreating": "Saving scheduled post",
+  "@scheduledPostCreating": { "description": "Visible and announced progress while a schedule is saved." },
+
+  "scheduledPostManageAction": "Manage scheduled posts",
+  "@scheduledPostManageAction": { "description": "Action opening scheduled-post management." },
+
+  "scheduledPostCapacityWarning": "You can't schedule another post because you already have 3 scheduled posts.",
+  "@scheduledPostCapacityWarning": { "description": "Warning shown when all three scheduled-post slots are occupied." },
+
+  "scheduledPostLocalTime": "{date} at {time} ({zone}, UTC{offset})",
+  "@scheduledPostLocalTime": {
+    "description": "Selected publication time in the device's local timezone.",
+    "placeholders": {
+      "date": { "type": "String", "example": "1 Aug 2026" },
+      "time": { "type": "String", "example": "14:30" },
+      "zone": { "type": "String", "example": "BST" },
+      "offset": { "type": "String", "example": "+01:00" }
+    }
+  },
+
+  "scheduledPostMissedTime": "Missed schedule: {time}",
+  "@scheduledPostMissedTime": {
+    "description": "Original missed publication time shown while Post now is selected for a Needs attention item.",
+    "placeholders": { "time": { "type": "String", "example": "1 Aug 2026 at 14:30 (BST, UTC+01:00)" } }
+  },
+
+  "scheduledPostSaved": "Post scheduled",
+  "@scheduledPostSaved": { "description": "Success feedback after scheduling a standard post." },
+
+  "scheduledPostSaveError": "Could not schedule post. Your draft is still here.",
+  "@scheduledPostSaveError": { "description": "Safe failure feedback when a standard post cannot be scheduled." },
+
+  "scheduledPostNowError": "Could not post now. Your draft is still here.",
+  "@scheduledPostNowError": { "description": "Safe failure feedback when publishing an edited scheduled standard post now fails." },
+
+  "scheduledProjectSaved": "Project scheduled",
+  "@scheduledProjectSaved": { "description": "Success feedback after scheduling a project post." },
+
+  "scheduledProjectSaveError": "Could not schedule project. Your draft is still here.",
+  "@scheduledProjectSaveError": { "description": "Safe failure feedback when a project post cannot be scheduled." },
+
+  "scheduledProjectNowError": "Could not post now. Your project is still here.",
+  "@scheduledProjectNowError": { "description": "Safe failure feedback when publishing an edited scheduled project now fails." }
 }

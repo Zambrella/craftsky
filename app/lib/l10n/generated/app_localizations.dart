@@ -3513,6 +3513,239 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Retry loading languages'**
   String get postLanguageRetryLoading;
+
+  /// Title for scheduled-post settings and management.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled posts'**
+  String get scheduledPostsTitle;
+
+  /// Empty state on the scheduled-post management page.
+  ///
+  /// In en, this message translates to:
+  /// **'No scheduled posts'**
+  String get scheduledPostsEmpty;
+
+  /// Title for scheduled-post deletion confirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete scheduled post?'**
+  String get scheduledPostsDeleteTitle;
+
+  /// Explanation shown before deleting a scheduled post.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes the unpublished post and its private media.'**
+  String get scheduledPostsDeleteMessage;
+
+  /// Confirmation action for deleting a scheduled post.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get scheduledPostsDeleteAction;
+
+  /// Safe failure feedback when an owner cannot delete a scheduled post.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete the scheduled post. Try again.'**
+  String get scheduledPostDeleteError;
+
+  /// Project-post type label in scheduled-post management.
+  ///
+  /// In en, this message translates to:
+  /// **'Project'**
+  String get scheduledPostsKindProject;
+
+  /// Standard-post type label in scheduled-post management.
+  ///
+  /// In en, this message translates to:
+  /// **'Standard'**
+  String get scheduledPostsKindStandard;
+
+  /// Scheduled-post type and local publication date and time.
+  ///
+  /// In en, this message translates to:
+  /// **'{kind} · {date}, {time}'**
+  String scheduledPostsRowDateTime(String kind, String date, String time);
+
+  /// Status label for a post waiting for publication.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled'**
+  String get scheduledPostsStatusScheduled;
+
+  /// Status label for a post currently publishing.
+  ///
+  /// In en, this message translates to:
+  /// **'Publishing'**
+  String get scheduledPostsStatusPublishing;
+
+  /// Status label for a scheduled post that will retry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retrying'**
+  String get scheduledPostsStatusRetrying;
+
+  /// Status label for a scheduled post requiring user action.
+  ///
+  /// In en, this message translates to:
+  /// **'Needs attention'**
+  String get scheduledPostsStatusNeedsAttention;
+
+  /// Explanation shown while a scheduled post is locked for publication.
+  ///
+  /// In en, this message translates to:
+  /// **'Editing is unavailable while publishing'**
+  String get scheduledPostsPublishingLocked;
+
+  /// Accessibility label for the publishing lock icon.
+  ///
+  /// In en, this message translates to:
+  /// **'Publishing lock'**
+  String get scheduledPostsPublishingLockSemantics;
+
+  /// Tooltip for editing a scheduled post.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit scheduled post'**
+  String get scheduledPostsEditTooltip;
+
+  /// Tooltip for deleting a scheduled post.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete scheduled post'**
+  String get scheduledPostsDeleteTooltip;
+
+  /// Accessibility label for an authenticated scheduled-post thumbnail.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled post image'**
+  String get scheduledPostsThumbnailSemantics;
+
+  /// Deletion deadline shown for a scheduled post that needs attention.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted on {date}'**
+  String scheduledPostsDeletedOn(String date);
+
+  /// Safe error shown when the scheduled-post list cannot load.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load scheduled posts'**
+  String get scheduledPostsLoadError;
+
+  /// Action retrying a scheduled-post list load.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get scheduledPostsRetryAction;
+
+  /// Label for selecting when to publish.
+  ///
+  /// In en, this message translates to:
+  /// **'When'**
+  String get scheduledPostWhenTitle;
+
+  /// Default option to publish immediately.
+  ///
+  /// In en, this message translates to:
+  /// **'Now'**
+  String get scheduledPostNow;
+
+  /// Option to choose a future publication time.
+  ///
+  /// In en, this message translates to:
+  /// **'Schedule for later'**
+  String get scheduledPostLater;
+
+  /// Error shown when a selected schedule time falls outside the supported window.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a whole-minute time from 5 minutes through 28 days from now'**
+  String get scheduledPostTimeRangeError;
+
+  /// Composer action that saves a post for future publication.
+  ///
+  /// In en, this message translates to:
+  /// **'Schedule'**
+  String get scheduledPostAction;
+
+  /// Visible and announced private-media staging progress.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing image {current} of {total}'**
+  String scheduledPostStagingProgress(int current, int total);
+
+  /// Visible and announced progress while a schedule is saved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving scheduled post'**
+  String get scheduledPostCreating;
+
+  /// Action opening scheduled-post management.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage scheduled posts'**
+  String get scheduledPostManageAction;
+
+  /// Warning shown when all three scheduled-post slots are occupied.
+  ///
+  /// In en, this message translates to:
+  /// **'You can\'t schedule another post because you already have 3 scheduled posts.'**
+  String get scheduledPostCapacityWarning;
+
+  /// Selected publication time in the device's local timezone.
+  ///
+  /// In en, this message translates to:
+  /// **'{date} at {time} ({zone}, UTC{offset})'**
+  String scheduledPostLocalTime(
+    String date,
+    String time,
+    String zone,
+    String offset,
+  );
+
+  /// Original missed publication time shown while Post now is selected for a Needs attention item.
+  ///
+  /// In en, this message translates to:
+  /// **'Missed schedule: {time}'**
+  String scheduledPostMissedTime(String time);
+
+  /// Success feedback after scheduling a standard post.
+  ///
+  /// In en, this message translates to:
+  /// **'Post scheduled'**
+  String get scheduledPostSaved;
+
+  /// Safe failure feedback when a standard post cannot be scheduled.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not schedule post. Your draft is still here.'**
+  String get scheduledPostSaveError;
+
+  /// Safe failure feedback when publishing an edited scheduled standard post now fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not post now. Your draft is still here.'**
+  String get scheduledPostNowError;
+
+  /// Success feedback after scheduling a project post.
+  ///
+  /// In en, this message translates to:
+  /// **'Project scheduled'**
+  String get scheduledProjectSaved;
+
+  /// Safe failure feedback when a project post cannot be scheduled.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not schedule project. Your draft is still here.'**
+  String get scheduledProjectSaveError;
+
+  /// Safe failure feedback when publishing an edited scheduled project now fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not post now. Your project is still here.'**
+  String get scheduledProjectNowError;
 }
 
 class _AppLocalizationsDelegate

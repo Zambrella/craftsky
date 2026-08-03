@@ -35,12 +35,18 @@ Future<ProjectComposerSubmitArguments> buildProjectComposerSubmitArguments({
   required Project project,
   required ComposerImagesState imagesState,
   required ProjectFacetGenerator generateFacets,
+  String? existingText,
+  List<Map<String, dynamic>>? existingFacets,
+  Project? existingProject,
 }) async {
   final trimmedText = text.trim();
-  final facets = await generateFacets(trimmedText);
+  final facets = existingText?.trim() == trimmedText
+      ? existingFacets ?? const <Map<String, dynamic>>[]
+      : await generateFacets(trimmedText);
   final projectWithPatternFacets = await _projectWithPatternFacets(
     project,
     generateFacets,
+    existingProject: existingProject,
   );
   return ProjectComposerSubmitArguments(
     text: trimmedText,
@@ -54,32 +60,47 @@ Future<ProjectComposerSubmitArguments> buildProjectComposerSubmitArguments({
 
 Future<Project> _projectWithPatternFacets(
   Project project,
-  ProjectFacetGenerator generateFacets,
-) async {
+  ProjectFacetGenerator generateFacets, {
+  Project? existingProject,
+}) async {
   final pattern = project.common.pattern;
-  if (pattern == null) return project;
+  final existingPattern = existingProject?.common.pattern;
+  final materials = _preserveUnchangedMaterialFacets(
+    project.common.materials,
+    existingProject?.common.materials,
+  );
+  if (pattern == null) {
+    if (identical(materials, project.common.materials)) return project;
+    return _projectWith(project, materials: materials);
+  }
 
-  final nameFacets = await _fieldFacets(
-    pattern.name,
-    generateFacets,
-    includeMentions: false,
-    includeLinks: false,
-    includeTags: true,
-  );
-  final designerFacets = await _fieldFacets(
-    pattern.designer,
-    generateFacets,
-    includeMentions: true,
-    includeLinks: false,
-    includeTags: false,
-  );
-  final publisherFacets = await _fieldFacets(
-    pattern.publisher,
-    generateFacets,
-    includeMentions: true,
-    includeLinks: false,
-    includeTags: false,
-  );
+  final nameFacets = pattern.name == existingPattern?.name
+      ? existingPattern?.nameFacets
+      : await _fieldFacets(
+          pattern.name,
+          generateFacets,
+          includeMentions: false,
+          includeLinks: false,
+          includeTags: true,
+        );
+  final designerFacets = pattern.designer == existingPattern?.designer
+      ? existingPattern?.designerFacets
+      : await _fieldFacets(
+          pattern.designer,
+          generateFacets,
+          includeMentions: true,
+          includeLinks: false,
+          includeTags: false,
+        );
+  final publisherFacets = pattern.publisher == existingPattern?.publisher
+      ? existingPattern?.publisherFacets
+      : await _fieldFacets(
+          pattern.publisher,
+          generateFacets,
+          includeMentions: true,
+          includeLinks: false,
+          includeTags: false,
+        );
 
   final nextPattern = ProjectPattern(
     url: pattern.url,
@@ -91,20 +112,44 @@ Future<Project> _projectWithPatternFacets(
     publisher: pattern.publisher,
     publisherFacets: publisherFacets,
   );
-  return Project(
-    common: ProjectCommon(
-      craftType: project.common.craftType,
-      status: project.common.status,
-      title: project.common.title,
-      duration: project.common.duration,
-      pattern: nextPattern,
-      materials: project.common.materials,
-      colors: project.common.colors,
-      designTags: project.common.designTags,
-      tags: project.common.tags,
-    ),
-    details: project.details,
-  );
+  return _projectWith(project, pattern: nextPattern, materials: materials);
+}
+
+Project _projectWith(
+  Project project, {
+  ProjectPattern? pattern,
+  List<ProjectMaterial>? materials,
+}) => Project(
+  common: ProjectCommon(
+    craftType: project.common.craftType,
+    status: project.common.status,
+    title: project.common.title,
+    duration: project.common.duration,
+    pattern: pattern,
+    materials: materials,
+    colors: project.common.colors,
+    designTags: project.common.designTags,
+    tags: project.common.tags,
+  ),
+  details: project.details,
+);
+
+List<ProjectMaterial>? _preserveUnchangedMaterialFacets(
+  List<ProjectMaterial>? materials,
+  List<ProjectMaterial>? existing,
+) {
+  if (materials == null) return null;
+  return [
+    for (var index = 0; index < materials.length; index++)
+      ProjectMaterial(
+        text: materials[index].text,
+        facets:
+            index < (existing?.length ?? 0) &&
+                existing![index].text == materials[index].text
+            ? existing[index].facets
+            : materials[index].facets,
+      ),
+  ];
 }
 
 Future<List<Map<String, dynamic>>?> _fieldFacets(

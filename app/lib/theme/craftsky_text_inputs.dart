@@ -281,7 +281,7 @@ class CraftskyFormTextField extends StatelessWidget {
   Widget build(BuildContext context) {
     return FormBuilderField<String>(
       name: name,
-      initialValue: initialValue ?? controller?.text ?? '',
+      initialValue: initialValue ?? controller?.text,
       enabled: enabled,
       focusNode: focusNode,
       validator: validator,

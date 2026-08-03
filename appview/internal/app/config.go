@@ -5,6 +5,7 @@ package app
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/scheduledposts"
 )
 
 const defaultJSONBodyLimitBytes int64 = 1024 * 1024
@@ -86,6 +88,7 @@ type Config struct {
 	MaxPostImages       int   // default 4, maximum 4
 	MaxImageUploadBytes int64 // default 15MB, maximum 15MB
 	RateLimits          middleware.RateLimitConfig
+	ScheduledPostsS3    scheduledposts.S3ObjectStoreConfig
 
 	// Observability. Sentry export/tracing stays disabled unless explicitly
 	// configured, and unsafe body logging is local-dev only.
@@ -215,6 +218,35 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		return Config{}, err
 	}
 	cfg.RateLimits = DefaultRateLimitConfig()
+	cfg.ScheduledPostsS3 = scheduledposts.S3ObjectStoreConfig{
+		Endpoint:        strings.TrimSpace(os.Getenv("SCHEDULED_POSTS_S3_ENDPOINT")),
+		Region:          strings.TrimSpace(os.Getenv("SCHEDULED_POSTS_S3_REGION")),
+		Bucket:          strings.TrimSpace(os.Getenv("SCHEDULED_POSTS_S3_BUCKET")),
+		AccessKeyID:     strings.TrimSpace(os.Getenv("SCHEDULED_POSTS_S3_ACCESS_KEY_ID")),
+		SecretAccessKey: strings.TrimSpace(os.Getenv("SCHEDULED_POSTS_S3_SECRET_ACCESS_KEY")),
+		Environment:     string(env),
+	}
+	if cfg.ScheduledPostsS3.Endpoint == "" {
+		if env == EnvDev {
+			cfg.ScheduledPostsS3.Endpoint = "http://minio:9000"
+		} else {
+			// Deliberately non-routable: production still fails its startup
+			// connectivity check until a real private store is configured.
+			cfg.ScheduledPostsS3.Endpoint = "https://scheduled-media.invalid"
+		}
+	}
+	if cfg.ScheduledPostsS3.Region == "" {
+		cfg.ScheduledPostsS3.Region = "us-east-1"
+	}
+	if cfg.ScheduledPostsS3.Bucket == "" {
+		cfg.ScheduledPostsS3.Bucket = "private-scheduled-media"
+	}
+	if cfg.ScheduledPostsS3.AccessKeyID == "" {
+		cfg.ScheduledPostsS3.AccessKeyID = "not-configured"
+	}
+	if cfg.ScheduledPostsS3.SecretAccessKey == "" {
+		cfg.ScheduledPostsS3.SecretAccessKey = "not-configured"
+	}
 	cfg.InstagramData, cfg.InstagramMeta, cfg.InstagramLimits, cfg.InstagramDeployment, err = loadInstagramConfig(env)
 	if err != nil {
 		return Config{}, err
@@ -317,6 +349,18 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	}
 	if cfg.PushEnabled && cfg.FirebaseProjectID == "" {
 		return Config{}, fmt.Errorf("FIREBASE_PROJECT_ID is required when PUSH_ENABLED=true")
+	}
+	if cfg.ScheduledPostsS3.Endpoint == "" || cfg.ScheduledPostsS3.Region == "" ||
+		cfg.ScheduledPostsS3.Bucket == "" || cfg.ScheduledPostsS3.AccessKeyID == "" ||
+		cfg.ScheduledPostsS3.SecretAccessKey == "" {
+		return Config{}, fmt.Errorf("scheduled-post private object store configuration is incomplete")
+	}
+	objectStoreURL, parseErr := url.Parse(cfg.ScheduledPostsS3.Endpoint)
+	if parseErr != nil || objectStoreURL.Host == "" {
+		return Config{}, fmt.Errorf("SCHEDULED_POSTS_S3_ENDPOINT is invalid")
+	}
+	if env == EnvProd && objectStoreURL.Scheme != "https" {
+		return Config{}, fmt.Errorf("SCHEDULED_POSTS_S3_ENDPOINT must use HTTPS in production")
 	}
 
 	return cfg, nil

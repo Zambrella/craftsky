@@ -69,8 +69,16 @@ test:
     set -euo pipefail
     POSTGRES_ADDRESS=$(./scripts/compose-dev port postgres 5432)
     POSTGRES_PORT=${POSTGRES_ADDRESS##*:}
+    MINIO_ADDRESS=$(./scripts/compose-dev port minio 9000)
+    MINIO_PORT=${MINIO_ADDRESS##*:}
     cd appview
-    TEST_DATABASE_URL="postgres://craftsky:dev@localhost:${POSTGRES_PORT}/craftsky_dev?sslmode=disable" go test -race ./...
+    TEST_DATABASE_URL="postgres://craftsky:dev@localhost:${POSTGRES_PORT}/craftsky_dev?sslmode=disable" \
+      TEST_S3_ENDPOINT="http://localhost:${MINIO_PORT}" \
+      TEST_S3_REGION="us-east-1" \
+      TEST_S3_BUCKET="private-scheduled-media" \
+      TEST_S3_ACCESS_KEY_ID="craftsky-minio" \
+      TEST_S3_SECRET_ACCESS_KEY="craftsky-minio-dev-secret" \
+      go test -race ./...
 
 # Format and vet Go code on the host.
 fmt:

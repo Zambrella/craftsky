@@ -79,6 +79,8 @@ void main() {
       find.byKey(const Key('project-composer-body-editor')),
       findsOneWidget,
     );
+    expect(find.text('When'), findsOneWidget);
+    expect(find.text('Now'), findsOneWidget);
     expect(find.text('Post'), findsOneWidget);
 
     final safeArea = tester.widget<SafeArea>(find.byType(SafeArea).first);

@@ -83,6 +83,7 @@ class AppTheme {
       navigationBarTheme: _navigationBarTheme(base),
       tabBarTheme: _tabBarTheme(base),
       segmentedButtonTheme: _segmentedButtonTheme(base.colorScheme),
+      timePickerTheme: _timePickerTheme(base),
     );
   }
 
@@ -104,6 +105,18 @@ class AppTheme {
     return base.copyWith(
       extensions: _extensions(base.colorScheme),
       segmentedButtonTheme: _segmentedButtonTheme(base.colorScheme),
+      timePickerTheme: _timePickerTheme(base),
+    );
+  }
+
+  static TimePickerThemeData _timePickerTheme(ThemeData base) {
+    final selectorStyle = base.textTheme.headlineLarge?.copyWith(
+      fontSize: 42,
+      height: 1,
+    );
+    return base.timePickerTheme.copyWith(
+      hourMinuteTextStyle: selectorStyle,
+      timeSelectorSeparatorTextStyle: WidgetStatePropertyAll(selectorStyle),
     );
   }
 

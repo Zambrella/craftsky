@@ -94,6 +94,15 @@ func TestV1RoutePoliciesCoverRegisteredRoutes(t *testing.T) {
 		{"GET /v1/search/posts", RateClassSearch, BodyNoBody},
 		{"POST /v1/posts", RateClassWrite, BodyDefaultJSON},
 		{"POST /v1/blobs/images", RateClassUpload, BodyUpload},
+		{"PUT /v1/scheduled-post-media/{mediaId}", RateClassUpload, BodyUpload},
+		{"GET /v1/scheduled-post-media/{mediaId}", RateClassRead, BodyNoBody},
+		{"DELETE /v1/scheduled-post-media/{mediaId}", RateClassWrite, BodyNoBody},
+		{"POST /v1/scheduled-posts", RateClassWrite, BodyDefaultJSON},
+		{"GET /v1/scheduled-posts", RateClassRead, BodyNoBody},
+		{"GET /v1/scheduled-posts/{id}", RateClassRead, BodyNoBody},
+		{"PUT /v1/scheduled-posts/{id}", RateClassWrite, BodyDefaultJSON},
+		{"DELETE /v1/scheduled-posts/{id}", RateClassWrite, BodyNoBody},
+		{"POST /v1/scheduled-posts/{id}/publication", RateClassWrite, BodyDefaultJSON},
 		{"GET /v1/notifications/new-count", RateClassRead, BodyNoBody},
 		{"POST /v1/notifications/seen", RateClassWrite, BodyNoBody},
 		{"GET /v1/dev/media/{name}", RateClassDevOnly, BodyNoBody},
@@ -113,6 +122,59 @@ func TestV1RoutePoliciesCoverRegisteredRoutes(t *testing.T) {
 	for _, policy := range prodPolicies {
 		if policy.DevOnly {
 			t.Fatalf("prod policy includes dev-only route: %+v", policy)
+		}
+	}
+}
+
+func TestScheduledPostRoutesRequireAuthenticationAndUseDeclaredBodyPolicies(t *testing.T) {
+	want := map[string]struct {
+		rate RateClass
+		body BodyKind
+	}{
+		"PUT /v1/scheduled-post-media/{mediaId}":    {RateClassUpload, BodyUpload},
+		"GET /v1/scheduled-post-media/{mediaId}":    {RateClassRead, BodyNoBody},
+		"DELETE /v1/scheduled-post-media/{mediaId}": {RateClassWrite, BodyNoBody},
+		"POST /v1/scheduled-posts":                  {RateClassWrite, BodyDefaultJSON},
+		"GET /v1/scheduled-posts":                   {RateClassRead, BodyNoBody},
+		"GET /v1/scheduled-posts/{id}":              {RateClassRead, BodyNoBody},
+		"PUT /v1/scheduled-posts/{id}":              {RateClassWrite, BodyDefaultJSON},
+		"DELETE /v1/scheduled-posts/{id}":           {RateClassWrite, BodyNoBody},
+		"POST /v1/scheduled-posts/{id}/publication": {RateClassWrite, BodyDefaultJSON},
+	}
+	for _, policy := range V1RoutePolicies(app.EnvDev, app.Config{Env: app.EnvDev}) {
+		key := policy.Method + " " + policy.PathPattern
+		expected, ok := want[key]
+		if !ok {
+			continue
+		}
+		if !policy.AuthRequired || !policy.CurrentMemberRequired || policy.RateClass != expected.rate || policy.BodyKind != expected.body {
+			t.Fatalf("%s policy = %+v", key, policy)
+		}
+		delete(want, key)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing scheduled-post policies: %v", want)
+	}
+
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+	for _, target := range []struct{ method, path string }{
+		{http.MethodPut, "/v1/scheduled-post-media/00000000-0000-4000-8000-000000000001"},
+		{http.MethodGet, "/v1/scheduled-post-media/00000000-0000-4000-8000-000000000001"},
+		{http.MethodDelete, "/v1/scheduled-post-media/00000000-0000-4000-8000-000000000001"},
+		{http.MethodPost, "/v1/scheduled-posts"},
+		{http.MethodGet, "/v1/scheduled-posts"},
+		{http.MethodGet, "/v1/scheduled-posts/00000000-0000-4000-8000-000000000001"},
+		{http.MethodPut, "/v1/scheduled-posts/00000000-0000-4000-8000-000000000001"},
+		{http.MethodDelete, "/v1/scheduled-posts/00000000-0000-4000-8000-000000000001"},
+		{http.MethodPost, "/v1/scheduled-posts/00000000-0000-4000-8000-000000000001/publication"},
+	} {
+		req := httptest.NewRequest(target.method, target.path, nil)
+		req.Header.Set("X-Craftsky-Device-Id", "dev-test")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("%s %s unauthenticated status = %d, want 401", target.method, target.path, rec.Code)
 		}
 	}
 }

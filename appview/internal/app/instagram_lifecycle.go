@@ -22,6 +22,7 @@ type instagramMembershipInactivator interface {
 // Rejoining therefore cannot silently reactivate a link or retained import.
 type profileMembershipDeletion struct {
 	notifications notifications.ActorDeletion
+	scheduled     notifications.ActorDeletion
 	instagram     instagramMembershipInactivator
 	now           func() time.Time
 }
@@ -29,11 +30,14 @@ type profileMembershipDeletion struct {
 var _ notifications.ActorDeletion = (*profileMembershipDeletion)(nil)
 
 func (d *profileMembershipDeletion) HardDeleteByActor(ctx context.Context, tx pgx.Tx, did syntax.DID) error {
-	if d == nil || d.notifications == nil || d.instagram == nil || d.now == nil {
+	if d == nil || d.notifications == nil || d.scheduled == nil || d.instagram == nil || d.now == nil {
 		return errors.New("profile membership deletion lifecycle is unavailable")
 	}
 	if err := d.notifications.HardDeleteByActor(ctx, tx, did); err != nil {
 		return fmt.Errorf("delete actor notifications: %w", err)
+	}
+	if err := d.scheduled.HardDeleteByActor(ctx, tx, did); err != nil {
+		return fmt.Errorf("delete scheduled account data: %w", err)
 	}
 	if err := d.instagram.InactivateMembershipTx(ctx, tx, did, d.now().UTC()); err != nil {
 		return fmt.Errorf("inactivate Instagram membership: %w", err)

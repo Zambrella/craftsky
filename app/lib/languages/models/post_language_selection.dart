@@ -14,6 +14,9 @@ final class PostLanguageSelection {
   factory PostLanguageSelection.fromPrimary(String primaryLanguage) =>
       PostLanguageSelection._([primaryLanguage]);
 
+  factory PostLanguageSelection.fromValues(List<String> values) =>
+      PostLanguageSelection._(values);
+
   final List<String> values;
 
   PostLanguageSelection add(String language) {

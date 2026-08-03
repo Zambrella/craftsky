@@ -21,7 +21,10 @@ class ComposerImagesState with ComposerImagesStateMappable {
   /// valid.
   bool canSubmitImages({MediaConfig config = mediaConfig}) {
     for (final image in images) {
-      if (image.phase is! ImageUploaded) return false;
+      if (image.phase is! ImageUploaded &&
+          image.phase is! ScheduledImageReady) {
+        return false;
+      }
 
       final alt = image.altText.trim();
       if (alt.length > config.maxAltTextCharacters) {
@@ -39,6 +42,7 @@ class ComposerImagesState with ComposerImagesStateMappable {
   /// Builds the API image payload for currently uploaded images.
   List<CreatePostImage>? toCreatePostImages() {
     if (images.isEmpty) return null;
+    if (images.any((image) => image.phase is ScheduledImageReady)) return null;
     return images.map((image) {
       final uploaded = (image.phase as ImageUploaded).uploaded;
       return CreatePostImage(
@@ -156,6 +160,16 @@ final class ImageUploaded extends ComposerImagePhase
 
   /// Uploaded blob returned by the AppView.
   final UploadedDraftImage uploaded;
+}
+
+/// An owner-private scheduled image that is already durably staged.
+@MappableClass()
+final class ScheduledImageReady extends ComposerImagePhase
+    with ScheduledImageReadyMappable {
+  const ScheduledImageReady({required this.width, required this.height});
+
+  final int width;
+  final int height;
 }
 
 /// Image processing or upload failed.

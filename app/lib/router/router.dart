@@ -27,6 +27,7 @@ import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_folder.dart';
 import 'package:craftsky_app/saved_posts/pages/saved_post_folder_page.dart';
 import 'package:craftsky_app/saved_posts/pages/saved_posts_page.dart';
+import 'package:craftsky_app/scheduled_posts/pages/scheduled_posts_page.dart';
 import 'package:craftsky_app/search/models/search_results_tab.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/search/pages/tag_search_page.dart';
@@ -200,6 +201,10 @@ GoRouter goRouter(Ref ref) {
                   path: RouteLocations.instagramMigrationChild,
                   name: 'instagram-migration',
                 ),
+                TypedGoRoute<ScheduledPostsRoute>(
+                  path: RouteLocations.scheduledPostsChild,
+                  name: 'scheduled-posts',
+                ),
                 TypedGoRoute<SavedPostsRoute>(
                   path: RouteLocations.savedPostsChild,
                   name: 'saved-posts',
@@ -365,6 +370,17 @@ class LanguagesRoute extends GoRouteData with $LanguagesRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const LanguagesPage();
+}
+
+class ScheduledPostsRoute extends GoRouteData with $ScheduledPostsRoute {
+  const ScheduledPostsRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const ScheduledPostsPage();
 }
 
 class InstagramMigrationRoute extends GoRouteData

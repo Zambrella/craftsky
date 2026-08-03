@@ -14,11 +14,23 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/languages/widgets/post_language_selector.dart';
 import 'package:craftsky_app/projects/composer/project_composer_draft_state.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
+import 'package:craftsky_app/projects/composer/project_composer_hydrator.dart';
 import 'package:craftsky_app/projects/composer/project_composer_payload.dart';
 import 'package:craftsky_app/projects/composer/project_composer_submit_adapter.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/scheduled_posts/composer/schedule_capacity_state.dart';
+import 'package:craftsky_app/scheduled_posts/composer/schedule_composer_state.dart';
+import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
+import 'package:craftsky_app/scheduled_posts/providers/scheduled_post_repository_provider.dart';
+import 'package:craftsky_app/scheduled_posts/providers/scheduled_posts_provider.dart';
+import 'package:craftsky_app/scheduled_posts/services/scheduled_composer_media.dart';
+import 'package:craftsky_app/scheduled_posts/widgets/schedule_choice_menu.dart';
+import 'package:craftsky_app/scheduled_posts/widgets/schedule_time_picker.dart';
+import 'package:craftsky_app/scheduled_posts/widgets/scheduled_post_capacity_warning.dart';
+import 'package:craftsky_app/scheduled_posts/widgets/scheduled_staging_progress.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
@@ -35,21 +47,42 @@ import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
-Future<Post?> showProjectComposerSheet(BuildContext context) {
+Future<Post?> showProjectComposerSheet(
+  BuildContext context, {
+  ScheduledPostDetail? scheduledPost,
+  ActiveAccountLease? scheduledOwner,
+}) {
   return Navigator.of(context, rootNavigator: true).push<Post?>(
     MaterialPageRoute<Post?>(
       fullscreenDialog: true,
-      builder: (_) => const ProjectComposerSheet(),
+      builder: (_) => ProjectComposerSheet(
+        scheduledPost: scheduledPost,
+        scheduledOwner: scheduledOwner,
+      ),
     ),
   );
 }
 
+String _projectOffsetLabel(Duration offset) {
+  final minutes = offset.inMinutes.abs();
+  final sign = offset.isNegative ? '-' : '+';
+  return '$sign${(minutes ~/ 60).toString().padLeft(2, '0')}:'
+      '${(minutes % 60).toString().padLeft(2, '0')}';
+}
+
 class ProjectComposerSheet extends ConsumerStatefulWidget {
-  const ProjectComposerSheet({super.key, this.composerId});
+  const ProjectComposerSheet({
+    super.key,
+    this.composerId,
+    this.scheduledPost,
+    this.scheduledOwner,
+  });
 
   static const maxCharacters = 2000;
 
   final String? composerId;
+  final ScheduledPostDetail? scheduledPost;
+  final ActiveAccountLease? scheduledOwner;
 
   @override
   ConsumerState<ProjectComposerSheet> createState() =>
@@ -57,9 +90,7 @@ class ProjectComposerSheet extends ConsumerStatefulWidget {
 }
 
 class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
-  static const _initialFormValues = <String, dynamic>{
-    ProjectComposerFields.status: ProjectOptionCatalogs.finishedStatusToken,
-  };
+  late final Map<String, dynamic> _initialFormValues;
   static const List<String> _craftDetailFieldNames = [
     ProjectComposerFields.sewingProjectType,
     ProjectComposerFields.sewingProjectSubtype,
@@ -128,12 +159,74 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   UnsavedWorkRegistration? _unsavedRegistration;
   late final UnsavedWorkGuard _unsavedGuard;
   PostLanguageSelection? _languages;
+  ScheduleChoice _scheduleChoice = ScheduleChoice.now;
+  DateTime? _scheduledAtLocal;
+  DateTime? _missedScheduledAtLocal;
+  bool _isScheduling = false;
+  int _stagedImageCount = 0;
+  int _stagedImageTotal = 0;
+  bool _isSavingSchedule = false;
+  bool _isLoadingScheduledMedia = false;
+  bool _scheduledMediaLoadFailed = false;
+  ActiveAccountLease? _scheduledOwner;
 
   @override
   void initState() {
     super.initState();
+    _scheduledOwner = widget.scheduledOwner;
+    final project = widget.scheduledPost?.payload['project'];
+    _initialFormValues = hydrateScheduledProjectComposer(
+      project is Map<String, dynamic> ? project : null,
+    );
+    _patternNameController.text =
+        switch (_initialFormValues[ProjectComposerFields.patternName]) {
+          final String name when name.isNotEmpty => '#$name',
+          _ => '#',
+        };
+    _patternDesignerController.text =
+        _initialFormValues[ProjectComposerFields.patternDesigner] as String? ??
+        '';
+    _patternPublisherController.text =
+        _initialFormValues[ProjectComposerFields.patternPublisher] as String? ??
+        '';
+    _patternNameText =
+        _initialFormValues[ProjectComposerFields.patternName] as String? ?? '';
+    _activeCraftType =
+        _initialFormValues[ProjectComposerFields.craftType] as String?;
+    _sewingProjectType =
+        _initialFormValues[ProjectComposerFields.sewingProjectType] as String?;
+    _knittingProjectType =
+        _initialFormValues[ProjectComposerFields.knittingProjectType]
+            as String?;
+    _crochetProjectType =
+        _initialFormValues[ProjectComposerFields.crochetProjectType] as String?;
+    _quiltingProjectType =
+        _initialFormValues[ProjectComposerFields.quiltingProjectType]
+            as String?;
     _unsavedGuard = ref.read(unsavedWorkGuardProvider);
     _composerId = widget.composerId ?? const Uuid().v4();
+    if (widget.scheduledPost case final scheduled?) {
+      _bodyText = scheduled.payload['text'] as String? ?? '';
+      _bodyController.text = _bodyText;
+      final langs = (scheduled.payload['langs'] as List<dynamic>? ?? const [])
+          .cast<String>();
+      if (langs.isNotEmpty) {
+        _languages = PostLanguageSelection.fromValues(langs);
+      }
+      if (scheduled.status == ScheduledPostStatus.needsAttention) {
+        _scheduleChoice = ScheduleChoice.now;
+        _missedScheduledAtLocal = scheduled.scheduledAt.utc.toLocal();
+      } else {
+        _scheduleChoice = ScheduleChoice.later;
+        _scheduledAtLocal = scheduled.scheduledAt.utc.toLocal();
+      }
+      if (_scheduledPayloadMedia.isNotEmpty) {
+        _isLoadingScheduledMedia = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_hydrateScheduledMedia());
+        });
+      }
+    }
   }
 
   @override
@@ -166,13 +259,42 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     );
     final imagesProvider = composerImagesProvider(_composerId);
     final imagesState = ref.watch(imagesProvider);
-    final controlsEnabled = !createState.isLoading;
+    final activeLease = ref.watch(sessionRegistryProvider).value?.activeLease;
+    if (widget.scheduledPost != null && _scheduledOwner == null) {
+      _scheduledOwner = activeLease;
+    }
+    if (widget.scheduledPost != null &&
+        _scheduledOwner != null &&
+        activeLease != _scheduledOwner) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      });
+    }
+    final account = activeLease?.session.account;
+    final scheduledCount = account == null
+        ? 0
+        : ref.watch(scheduledPostsProvider(account)).value?.items.length ?? 0;
+    final capacity = ScheduleCapacityState.derive(
+      scheduledCount: scheduledCount.clamp(0, 3),
+      choice: _scheduleChoice,
+      ownsExistingSlot: widget.scheduledPost != null,
+    );
+    final controlsEnabled =
+        !createState.isLoading &&
+        !_isScheduling &&
+        !_isLoadingScheduledMedia &&
+        !_scheduledMediaLoadFailed;
     final trimmedBody = _bodyText.trim();
     final tooLong = _bodyText.length > ProjectComposerSheet.maxCharacters;
     final canSubmit =
         !createState.isLoading &&
+        !_isLoadingScheduledMedia &&
+        !_scheduledMediaLoadFailed &&
         _languages != null &&
-        imagesState.canSubmitImages();
+        imagesState.canSubmitImages() &&
+        (_scheduleChoice == ScheduleChoice.now || capacity.scheduleEnabled);
     final bodyErrorText = switch ((_attemptedSubmit, trimmedBody.isEmpty)) {
       (true, true) => l10n.projectComposerBodyRequiredError,
       _ when tooLong => l10n.postComposeTooLong,
@@ -285,6 +407,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                   child: Text(
                     _currentPage < 2
                         ? l10n.projectComposerNextAction
+                        : _scheduleChoice == ScheduleChoice.later
+                        ? l10n.scheduledPostAction
                         : l10n.postComposeSubmit,
                   ),
                 ),
@@ -385,7 +509,59 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                         onChanged: (value) =>
                             setState(() => _languages = value),
                       ),
+                      SizedBox(height: spacing.sp4),
+                      Builder(
+                        builder: (menuContext) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.schedule_outlined),
+                          title: Text(l10n.scheduledPostWhenTitle),
+                          subtitle: Text(_whenLabel(context)),
+                          trailing: const Icon(Icons.chevron_right),
+                          enabled: controlsEnabled,
+                          onTap: () => _chooseWhen(
+                            menuContext,
+                            scheduleEnabled: capacity.scheduleEnabled,
+                          ),
+                        ),
+                      ),
+                      if (capacity.showCapacityWarning)
+                        const ScheduledPostCapacityWarning(),
+                      if (capacity.showManageLink)
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: TextButton(
+                            onPressed: () =>
+                                const ScheduledPostsRoute().push<void>(context),
+                            child: Text(l10n.scheduledPostManageAction),
+                          ),
+                        ),
+                      if (_missedScheduledAtLocal case final missed?)
+                        Text(
+                          l10n.scheduledPostMissedTime(
+                            _projectLocalTimeLabel(context, missed),
+                          ),
+                        ),
+                      if (_isScheduling &&
+                          (_stagedImageTotal > 0 || _isSavingSchedule)) ...[
+                        SizedBox(height: spacing.sp3),
+                        ScheduledStagingProgress(
+                          completed: _stagedImageCount,
+                          total: _stagedImageTotal,
+                          creating: _isSavingSchedule,
+                        ),
+                      ],
                     ],
+                    if (widget.scheduledPost != null)
+                      Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: TextButton.icon(
+                          onPressed: _isScheduling
+                              ? null
+                              : _deleteExistingSchedule,
+                          icon: const Icon(Icons.delete_outline),
+                          label: Text(l10n.scheduledPostsDeleteTooltip),
+                        ),
+                      ),
                     SizedBox(
                       key: const Key('project-composer-bottom-safe-space'),
                       height:
@@ -514,17 +690,31 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ComposerImageAttachmentSection(
-          imagesState: imagesState,
-          enabled: controlsEnabled,
-          validationErrorText: photoErrorText,
-          required: true,
-          requiredLabel: l10n.projectComposerRequiredLabel,
-          onAddImages: onAddImages,
-          onAltTextChanged: onAltTextChanged,
-          onRemove: onRemoveImage,
-          onReorder: onReorderImages,
-        ),
+        if (_isLoadingScheduledMedia)
+          const Center(child: CircularProgressIndicator())
+        else if (_scheduledMediaLoadFailed)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.scheduledPostsLoadError),
+              TextButton(
+                onPressed: _hydrateScheduledMedia,
+                child: Text(l10n.scheduledPostsRetryAction),
+              ),
+            ],
+          )
+        else
+          ComposerImageAttachmentSection(
+            imagesState: imagesState,
+            enabled: controlsEnabled,
+            validationErrorText: photoErrorText,
+            required: true,
+            requiredLabel: l10n.projectComposerRequiredLabel,
+            onAddImages: onAddImages,
+            onAltTextChanged: onAltTextChanged,
+            onRemove: onRemoveImage,
+            onReorder: onReorderImages,
+          ),
         SizedBox(height: spacing.sp6),
         CraftskyFormBuilderDropdownField<String>(
           name: ProjectComposerFields.craftType,
@@ -1210,7 +1400,20 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       project: project,
       imagesState: imagesState,
       generateFacets: ref.read(facetGeneratorProvider).generate,
+      existingText: widget.scheduledPost?.payload['text'] as String?,
+      existingFacets: _scheduledProjectFacets('facets'),
+      existingProject: _existingScheduledProject(),
     );
+
+    if (widget.scheduledPost != null && _scheduleChoice == ScheduleChoice.now) {
+      await _publishExistingProjectNow(args);
+      return;
+    }
+
+    if (_scheduleChoice == ScheduleChoice.later) {
+      await _scheduleProject(args: args, imagesState: imagesState);
+      return;
+    }
 
     await ref
         .read(createPostProvider.notifier)
@@ -1222,6 +1425,308 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
           images: args.images,
           facets: args.facets,
         );
+  }
+
+  List<Map<String, dynamic>>? _scheduledProjectFacets(String key) {
+    final value = widget.scheduledPost?.payload[key];
+    if (value is! List) return null;
+    return [
+      for (final item in value)
+        if (item is Map<String, dynamic>) item,
+    ];
+  }
+
+  Project? _existingScheduledProject() {
+    final value = widget.scheduledPost?.payload['project'];
+    if (value is! Map<String, dynamic>) return null;
+    return ProjectMapper.fromMap(value);
+  }
+
+  String _whenLabel(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final scheduledAt = _scheduledAtLocal;
+    if (_scheduleChoice == ScheduleChoice.now || scheduledAt == null) {
+      return l10n.scheduledPostNow;
+    }
+    return _projectLocalTimeLabel(context, scheduledAt);
+  }
+
+  String _projectLocalTimeLabel(BuildContext context, DateTime value) {
+    final l10n = AppLocalizations.of(context);
+    final localizations = MaterialLocalizations.of(context);
+    return l10n.scheduledPostLocalTime(
+      localizations.formatMediumDate(value),
+      localizations.formatTimeOfDay(TimeOfDay.fromDateTime(value)),
+      value.timeZoneName,
+      _projectOffsetLabel(value.timeZoneOffset),
+    );
+  }
+
+  Future<void> _chooseWhen(
+    BuildContext menuContext, {
+    required bool scheduleEnabled,
+  }) async {
+    final l10n = AppLocalizations.of(context);
+    final choice = await showScheduleChoiceMenu(
+      menuContext,
+      selectedChoice: _scheduleChoice,
+      scheduleEnabled: scheduleEnabled,
+    );
+    if (choice == null || !mounted) return;
+    if (choice == ScheduleChoice.now) {
+      setState(() {
+        _scheduleChoice = choice;
+        _scheduledAtLocal = null;
+      });
+      return;
+    }
+    var outOfRange = false;
+    final selected = await pickScheduledLocalTime(
+      context: context,
+      now: DateTime.now(),
+      onOutOfRange: (_) => outOfRange = true,
+    );
+    if (!mounted) return;
+    if (outOfRange) {
+      context.showError(l10n.scheduledPostTimeRangeError);
+      return;
+    }
+    if (selected == null) return;
+    setState(() {
+      _scheduleChoice = ScheduleChoice.later;
+      _scheduledAtLocal = selected;
+    });
+  }
+
+  ActiveAccountLease? _captureScheduledOperationOwner() {
+    final registry = ref.read(sessionRegistryProvider).value;
+    final active = registry?.activeLease;
+    final owner = widget.scheduledPost == null
+        ? active
+        : (_scheduledOwner ?? active);
+    if (owner == null || registry?.isCurrent(owner) != true) return null;
+    if (widget.scheduledPost != null) _scheduledOwner ??= owner;
+    return owner;
+  }
+
+  bool _scheduledOperationIsCurrent(ActiveAccountLease owner) =>
+      mounted &&
+      (ref.read(sessionRegistryProvider).value?.isCurrent(owner) ?? false);
+
+  Future<void> _scheduleProject({
+    required ProjectComposerSubmitArguments args,
+    required ComposerImagesState imagesState,
+  }) async {
+    final owner = _captureScheduledOperationOwner();
+    final scheduledAt = _scheduledAtLocal;
+    if (owner == null || scheduledAt == null) return;
+    final account = owner.session.account;
+    setState(() {
+      _isScheduling = true;
+      _stagedImageCount = 0;
+      _stagedImageTotal = imagesState.images
+          .where((image) => image.phase is ImageUploaded)
+          .length;
+      _isSavingSchedule = _stagedImageTotal == 0;
+    });
+    try {
+      final repository = await ref.read(
+        accountScheduledPostRepositoryProvider(account).future,
+      );
+      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      final media = await ref.read(scheduledComposerMediaMaterializerProvider)(
+        imagesState.images,
+        stageMedia: repository.stageMedia,
+        onStaged: (_) {
+          if (mounted && _scheduledOperationIsCurrent(owner)) {
+            setState(() => _stagedImageCount++);
+          }
+        },
+      );
+      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      final payload = <String, dynamic>{
+        'kind': 'project',
+        'text': args.text,
+        'langs': args.langs,
+        'facets': ?args.facets,
+        'project': args.project.toCreateMap(),
+        'media': media,
+      };
+      if (mounted) setState(() => _isSavingSchedule = true);
+      final existing = widget.scheduledPost;
+      if (existing == null) {
+        await repository.create(
+          operationId: _composerId,
+          scheduledAt: scheduledAt.toUtc(),
+          payload: payload,
+        );
+      } else {
+        await repository.update(
+          id: existing.id,
+          scheduledAt: scheduledAt.toUtc(),
+          payload: payload,
+        );
+      }
+      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      await ref.read(scheduledPostsProvider(account).notifier).refresh();
+      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      Navigator.of(context).pop();
+      context.showInfo(AppLocalizations.of(context).scheduledProjectSaved);
+    } on Object {
+      if (mounted && _scheduledOperationIsCurrent(owner)) {
+        context.showError(
+          AppLocalizations.of(context).scheduledProjectSaveError,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isScheduling = false;
+          _stagedImageCount = 0;
+          _stagedImageTotal = 0;
+          _isSavingSchedule = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _publishExistingProjectNow(
+    ProjectComposerSubmitArguments args,
+  ) async {
+    final existing = widget.scheduledPost;
+    final owner = _captureScheduledOperationOwner();
+    if (existing == null || owner == null) return;
+    final account = owner.session.account;
+    final imagesState = ref.read(composerImagesProvider(_composerId));
+    setState(() {
+      _isScheduling = true;
+      _stagedImageCount = 0;
+      _stagedImageTotal = imagesState.images
+          .where((image) => image.phase is ImageUploaded)
+          .length;
+      _isSavingSchedule = _stagedImageTotal == 0;
+    });
+    try {
+      final repository = await ref.read(
+        accountScheduledPostRepositoryProvider(account).future,
+      );
+      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      final media = await ref.read(scheduledComposerMediaMaterializerProvider)(
+        imagesState.images,
+        stageMedia: repository.stageMedia,
+        onStaged: (_) {
+          if (mounted && _scheduledOperationIsCurrent(owner)) {
+            setState(() => _stagedImageCount++);
+          }
+        },
+      );
+      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      if (mounted) setState(() => _isSavingSchedule = true);
+      await repository.publishNow(
+        id: existing.id,
+        payload: {
+          ...existing.payload,
+          'text': args.text,
+          'langs': args.langs,
+          'facets': ?args.facets,
+          'project': args.project.toCreateMap(),
+          'media': media,
+        },
+      );
+      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      await ref.read(scheduledPostsProvider(account).notifier).refresh();
+      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      Navigator.of(context).pop();
+    } on Object {
+      if (mounted && _scheduledOperationIsCurrent(owner)) {
+        context.showError(
+          AppLocalizations.of(context).scheduledProjectNowError,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isScheduling = false;
+          _stagedImageCount = 0;
+          _stagedImageTotal = 0;
+          _isSavingSchedule = false;
+        });
+      }
+    }
+  }
+
+  List<dynamic> get _scheduledPayloadMedia =>
+      widget.scheduledPost?.payload['media'] as List<dynamic>? ?? const [];
+
+  Future<void> _hydrateScheduledMedia() async {
+    if (_scheduledPayloadMedia.isEmpty) return;
+    setState(() {
+      _isLoadingScheduledMedia = true;
+      _scheduledMediaLoadFailed = false;
+    });
+    try {
+      var owner = _captureScheduledOperationOwner();
+      if (owner == null) {
+        await ref.read(sessionRegistryProvider.future);
+        if (!mounted) return;
+        owner = _captureScheduledOperationOwner();
+      }
+      if (owner == null) throw StateError('account unavailable');
+      final account = owner.session.account;
+      final repository = await ref.read(
+        accountScheduledPostRepositoryProvider(account).future,
+      );
+      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      final images = await hydrateScheduledComposerMedia(
+        _scheduledPayloadMedia,
+        loadBytes: repository.mediaBytes,
+      );
+      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      ref
+          .read(composerImagesProvider(_composerId).notifier)
+          .seedScheduledImages(images);
+      setState(() => _isLoadingScheduledMedia = false);
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingScheduledMedia = false;
+        _scheduledMediaLoadFailed = true;
+      });
+    }
+  }
+
+  Future<void> _deleteExistingSchedule() async {
+    final existing = widget.scheduledPost;
+    final owner = _captureScheduledOperationOwner();
+    if (existing == null || owner == null) return;
+    final account = owner.session.account;
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showCraftskyConfirmDialog(
+      context,
+      title: l10n.scheduledPostsDeleteTitle,
+      message: l10n.scheduledPostsDeleteMessage,
+      confirmLabel: l10n.scheduledPostsDeleteAction,
+      cancelLabel: l10n.languageCancel,
+    );
+    if (!confirmed || !mounted || !_scheduledOperationIsCurrent(owner)) return;
+    setState(() => _isScheduling = true);
+    try {
+      final repository = await ref.read(
+        accountScheduledPostRepositoryProvider(account).future,
+      );
+      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      await repository.delete(existing.id);
+      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      await ref.read(scheduledPostsProvider(account).notifier).refresh();
+      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      Navigator.of(context).pop();
+    } on Object {
+      if (mounted && _scheduledOperationIsCurrent(owner)) {
+        context.showError(l10n.scheduledPostDeleteError);
+      }
+    } finally {
+      if (mounted) setState(() => _isScheduling = false);
+    }
   }
 
   void _showFirstInvalidPage({
@@ -1476,7 +1981,6 @@ class _MaterialsFormBuilderField extends StatelessWidget {
   Widget build(BuildContext context) {
     return FormBuilderField<List<ProjectMaterial>>(
       name: name,
-      initialValue: const [],
       enabled: enabled,
       builder: (field) {
         return _MaterialsInput(
@@ -1799,7 +2303,6 @@ class _FacetFormBuilderTextFieldState
   Widget build(BuildContext context) {
     return FormBuilderField<String>(
       name: widget.name,
-      initialValue: '',
       enabled: widget.enabled,
       builder: (field) {
         return FacetAutocompleteEditor(

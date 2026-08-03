@@ -34,9 +34,14 @@ const (
 	instagramAutomaticFollowPollInterval = 500 * time.Millisecond
 	instagramAutomaticFollowBatchSize    = instagram.AutomaticFollowBatchDefault
 	instagramRetentionInterval           = time.Hour
+	scheduledWorkerPollInterval          = 10 * time.Second
 )
 
 type instagramWebhookBatchProcessor interface {
+	ProcessBatch(context.Context) (int, error)
+}
+
+type scheduledBatchProcessor interface {
 	ProcessBatch(context.Context) (int, error)
 }
 
@@ -196,6 +201,24 @@ func run(ctx context.Context, args []string) error {
 	} else {
 		close(instagramRetentionDone)
 	}
+	scheduledPublicationDone := make(chan struct{})
+	if deps.ScheduledPublisher != nil {
+		go func() {
+			defer close(scheduledPublicationDone)
+			runScheduledWorker(consumerCtx, deps.ScheduledPublisher, deps.Logger, scheduledWorkerPollInterval, "publication")
+		}()
+	} else {
+		close(scheduledPublicationDone)
+	}
+	scheduledCleanupDone := make(chan struct{})
+	if deps.ScheduledCleanup != nil {
+		go func() {
+			defer close(scheduledCleanupDone)
+			runScheduledWorker(consumerCtx, deps.ScheduledCleanup, deps.Logger, scheduledWorkerPollInterval, "cleanup")
+		}()
+	} else {
+		close(scheduledCleanupDone)
+	}
 
 	// listenErr receives the result of ListenAndServe. A non-nil,
 	// non-ErrServerClosed error (e.g. port already in use) must unblock
@@ -245,10 +268,43 @@ func run(ctx context.Context, args []string) error {
 	<-instagramReconciliationDone
 	<-instagramAutomaticFollowDone
 	<-instagramRetentionDone
+	<-scheduledPublicationDone
+	<-scheduledCleanupDone
 	deps.Logger.Info("shutdown: tap consumer stopped")
 	// Drain the listener goroutine's final send.
 	<-listenErr
 	return nil
+}
+
+func runScheduledWorker(ctx context.Context, worker scheduledBatchProcessor, logger *slog.Logger, pollInterval time.Duration, operation string) {
+	if worker == nil || pollInterval <= 0 {
+		return
+	}
+	for {
+		processed, err := worker.ProcessBatch(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+		if err != nil && logger != nil {
+			logger.Error("scheduled-post worker batch failed",
+				slog.String("component", "scheduled_posts"),
+				slog.String("operation", operation),
+				slog.String("result", "error"),
+				slog.String("error_category", "worker"))
+		}
+		if err == nil && processed > 0 {
+			continue
+		}
+		timer := time.NewTimer(pollInterval)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return
+		case <-timer.C:
+		}
+	}
 }
 
 func runInstagramWebhookWorker(ctx context.Context, worker instagramWebhookBatchProcessor, logger *slog.Logger, pollInterval time.Duration) {
